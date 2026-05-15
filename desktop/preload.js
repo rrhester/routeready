@@ -19,8 +19,16 @@ contextBridge.exposeInMainWorld("rr", {
      * cached session is still valid. */
     probe: (opts) => ipcRenderer.invoke("portal:probe", opts),
   },
-  routes: {
-    /** Stub: today's routes pull. Not implemented yet. */
-    pullToday: () => ipcRenderer.invoke("routes:pullToday"),
+  reports: {
+    /** Download a file from `url`. If `clickSelector` is given, we
+     * load `url` as a page and click the selector to trigger the
+     * download — otherwise `url` is treated as a direct file URL. */
+    download: (opts) => ipcRenderer.invoke("reports:download", opts),
+    /** Native folder picker; returns { ok, dir } or { canceled }. */
+    pickDownloadDir: () => ipcRenderer.invoke("reports:pickDownloadDir"),
+    /** Reveal a previously downloaded file in the OS file manager. */
+    openInFolder: (opts) => ipcRenderer.invoke("reports:openInFolder", opts),
+    /** Recent download history (up to 20 entries). */
+    listHistory: () => ipcRenderer.invoke("reports:listHistory"),
   },
 });

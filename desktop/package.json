@@ -24,7 +24,7 @@
     "appId": "com.routeready.desktop",
     "productName": "RouteReady Desktop",
     "directories": { "output": "dist" },
-    "files": ["main.js", "preload.js", "portal.js", "config.js", "renderer/**/*"],
+    "files": ["main.js", "preload.js", "renderer/**/*"],
     "mac": { "category": "public.app-category.business", "target": "dmg" },
     "win": { "target": "nsis" },
     "linux": { "target": "AppImage", "category": "Office" }

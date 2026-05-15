@@ -10,7 +10,12 @@ const els = {
   confirmLogin: $("#btn-confirm-login"),
   logout: $("#btn-logout"),
   probe: $("#btn-probe"),
-  pullRoutes: $("#btn-pull-routes"),
+  download: $("#btn-download"),
+  pickDir: $("#btn-pick-dir"),
+  dlUrl: $("#dl-url"),
+  dlSelector: $("#dl-selector"),
+  dlDir: $("#dl-dir"),
+  historyList: $("#dl-history-list"),
   log: $("#log"),
 };
 
@@ -27,14 +32,56 @@ function setStatus(text, tone = "neutral") {
 
 async function refreshSessionStatus() {
   const { hasSession } = await window.rr.portal.hasSession();
-  if (hasSession) {
-    setStatus("Session saved", "ok");
-    els.pullRoutes.disabled = false;
-  } else {
-    setStatus("No session", "warn");
-    els.pullRoutes.disabled = true;
-  }
+  setStatus(hasSession ? "Session saved" : "No session", hasSession ? "ok" : "warn");
 }
+
+function formatSize(bytes) {
+  if (!Number.isFinite(bytes)) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[c]);
+}
+
+async function refreshHistory() {
+  const { entries } = await window.rr.reports.listHistory();
+  if (!entries || entries.length === 0) {
+    els.historyList.innerHTML = '<li class="empty">No downloads yet.</li>';
+    return;
+  }
+  els.historyList.innerHTML = entries.map((e) => {
+    const ts = new Date(e.ts).toLocaleString();
+    const host = (() => { try { return new URL(e.url).host; } catch { return e.url; } })();
+    if (e.error) {
+      return `<li class="failed">
+        <div class="hi-row"><span class="hi-name">✗ ${escapeHtml(host)}</span>
+        <span class="hi-meta">${escapeHtml(ts)}</span></div>
+        <div class="hi-err">${escapeHtml(e.error)}</div>
+      </li>`;
+    }
+    return `<li>
+      <div class="hi-row">
+        <span class="hi-name">${escapeHtml(e.suggestedName || "download")}</span>
+        <span class="hi-meta">${formatSize(e.size)} · ${escapeHtml(ts)}</span>
+      </div>
+      <div class="hi-row">
+        <span class="hi-host">${escapeHtml(host)}</span>
+        <button class="link" data-path="${escapeHtml(e.filePath)}">Show in folder</button>
+      </div>
+    </li>`;
+  }).join("");
+}
+
+els.historyList.addEventListener("click", async (evt) => {
+  const btn = evt.target.closest("button.link[data-path]");
+  if (!btn) return;
+  await window.rr.reports.openInFolder({ filePath: btn.dataset.path });
+});
 
 els.login.addEventListener("click", async () => {
   els.login.disabled = true;
@@ -92,23 +139,40 @@ els.probe.addEventListener("click", async () => {
   }
 });
 
-els.pullRoutes.addEventListener("click", async () => {
-  els.pullRoutes.disabled = true;
-  log("Pulling today's routes…");
+els.pickDir.addEventListener("click", async () => {
+  const r = await window.rr.reports.pickDownloadDir();
+  if (r.ok) {
+    els.dlDir.value = r.dir;
+    log(`Save folder set: ${r.dir}`);
+  }
+});
+
+els.download.addEventListener("click", async () => {
+  const url = els.dlUrl.value.trim();
+  if (!url) {
+    log("Enter a URL first.", "error");
+    return;
+  }
+  const clickSelector = els.dlSelector.value.trim();
+  const downloadDir = els.dlDir.value.trim() || undefined;
+  els.download.disabled = true;
+  log(`Downloading from ${url}…`);
   try {
-    const r = await window.rr.routes.pullToday();
+    const r = await window.rr.reports.download({ url, clickSelector, downloadDir });
     if (r.ok) {
-      log(`Pulled ${r.count || 0} routes.`, "ok");
+      log(`Saved ${r.suggestedName} (${formatSize(r.size)}) → ${r.filePath}`, "ok");
     } else {
-      log(`${r.message || r.error || "Unknown error"}`, "error");
+      log(`${r.message || r.error || "Download failed"}`, "error");
     }
+    await refreshHistory();
   } catch (e) {
-    log(`Pull failed: ${e.message}`, "error");
+    log(`Download failed: ${e.message}`, "error");
   } finally {
-    els.pullRoutes.disabled = false;
+    els.download.disabled = false;
   }
 });
 
 // Initial state
 refreshSessionStatus();
+refreshHistory();
 log("Ready.");

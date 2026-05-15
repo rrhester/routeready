@@ -15,7 +15,7 @@
 // Nothing here ever sees the operator's password — Amazon collects
 // it in their own login UI inside the headed Chromium.
 
-const { app, BrowserWindow, ipcMain, safeStorage } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const { chromium } = require("playwright");
@@ -23,6 +23,9 @@ const { chromium } = require("playwright");
 // Where we keep the encrypted storage state + electron-store config.
 const userDataDir = () => app.getPath("userData");
 const sessionFile = () => path.join(userDataDir(), "portal-session.enc");
+const historyFile = () => path.join(userDataDir(), "download-history.json");
+const defaultDownloadDir = () => app.getPath("downloads");
+const HISTORY_LIMIT = 20;
 
 // Lazy-loaded so we can switch to a different portal URL later
 // without recompiling. Override via the renderer's settings panel.
@@ -188,14 +191,115 @@ ipcMain.handle("portal:probe", async (_evt, { portalUrl } = {}) => {
   }
 });
 
-// Stub: the future "pull today's routes" call. Once you reverse-
-// engineer the MIDWAY / RoutePlan endpoints (or DOM selectors), this
-// is where the scrape lands. Returns a placeholder for now so the
-// renderer can wire up the UI without waiting on the implementation.
-ipcMain.handle("routes:pullToday", async () => {
-  return {
-    ok: false,
-    error: "not_implemented",
-    message: "MIDWAY scraper not wired yet — this is where today's routes will come back.",
-  };
+// ─── Report download ────────────────────────────────────────────────
+// Generic file-download flow that reuses the persisted portal session.
+// Operator gives us a URL (and optionally a click-selector for a page
+// where the file sits behind a button). We navigate with whatever
+// storageState we have on disk and wait for a download event.
+//
+// This is deliberately portal-agnostic so we can shake it down against
+// any benign target (a plain-text file URL, a CSV download page, etc.)
+// before pointing it at the Amazon DSP reports console.
+
+function readHistory() {
+  try {
+    const raw = fs.readFileSync(historyFile(), "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function appendHistory(entry) {
+  const list = readHistory();
+  list.unshift(entry);
+  const trimmed = list.slice(0, HISTORY_LIMIT);
+  try {
+    fs.writeFileSync(historyFile(), JSON.stringify(trimmed, null, 2));
+  } catch (e) {
+    console.warn("history write failed:", e);
+  }
+  return trimmed;
+}
+
+ipcMain.handle("reports:listHistory", async () => {
+  return { ok: true, entries: readHistory() };
+});
+
+ipcMain.handle("reports:pickDownloadDir", async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Choose download folder",
+    defaultPath: defaultDownloadDir(),
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true };
+  return { ok: true, dir: result.filePaths[0] };
+});
+
+ipcMain.handle("reports:openInFolder", async (_evt, { filePath } = {}) => {
+  if (!filePath || !fs.existsSync(filePath)) return { ok: false, error: "missing_file" };
+  shell.showItemInFolder(filePath);
+  return { ok: true };
+});
+
+ipcMain.handle("reports:download", async (_evt, args = {}) => {
+  const { url, clickSelector, downloadDir, timeoutMs = 60000 } = args;
+  if (!url || typeof url !== "string") {
+    return { ok: false, error: "missing_url", message: "Give me a URL to fetch." };
+  }
+  const dir = downloadDir || defaultDownloadDir();
+  try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+
+  const ctx = await ensurePortal({ headed: false });
+  // acceptDownloads is on by default for contexts created with
+  // newContext(), so no extra wiring needed.
+  const page = await ctx.newPage();
+  try {
+    const downloadPromise = page.waitForEvent("download", { timeout: timeoutMs });
+
+    if (clickSelector && clickSelector.trim()) {
+      // Two-step: load the page, then click the thing that triggers
+      // the download. This is the typical Amazon-reports shape.
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
+      await page.click(clickSelector.trim(), { timeout: timeoutMs });
+    } else {
+      // Direct file URL. Chromium aborts the navigation once it
+      // recognises a download — that throw is expected, so swallow.
+      page.goto(url, { timeout: timeoutMs }).catch(() => {});
+    }
+
+    const download = await downloadPromise;
+    const suggested = download.suggestedFilename() || "download.bin";
+    // Stamp the filename so consecutive pulls don't clobber each
+    // other (Amazon reports often have identical default names).
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const base = path.parse(suggested);
+    const finalName = `${base.name}-${stamp}${base.ext || ""}`;
+    const savePath = path.join(dir, finalName);
+    await download.saveAs(savePath);
+
+    const stat = fs.statSync(savePath);
+    const entry = {
+      ts: new Date().toISOString(),
+      url,
+      clickSelector: clickSelector || null,
+      filePath: savePath,
+      suggestedName: suggested,
+      size: stat.size,
+    };
+    appendHistory(entry);
+    return { ok: true, ...entry };
+  } catch (e) {
+    const msg = String(e?.message || e);
+    appendHistory({
+      ts: new Date().toISOString(),
+      url,
+      clickSelector: clickSelector || null,
+      error: msg,
+    });
+    return { ok: false, error: "download_failed", message: msg };
+  } finally {
+    try { await page.close(); } catch {}
+  }
 });

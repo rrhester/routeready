@@ -46,13 +46,35 @@
     </section>
 
     <section class="card">
-      <h2>3 · Pull today's routes</h2>
+      <h2>3 · Download a report</h2>
       <p class="muted">
-        Coming next: read MIDWAY route plan for today, push assignments back,
-        and download pick sheets.
+        Paste a report URL. The app navigates with your saved portal session
+        and saves whatever file it gets. Test it on a plain file URL first
+        (e.g. a public CSV), then point it at the Amazon reports console.
       </p>
+      <div class="form">
+        <label class="field">
+          <span>Report URL</span>
+          <input id="dl-url" type="url" placeholder="https://… (a direct file URL, or a page that has a download button)" />
+        </label>
+        <label class="field">
+          <span>Click selector <em>(optional)</em></span>
+          <input id="dl-selector" type="text" placeholder="CSS selector for the download button — leave blank for direct file URLs" />
+        </label>
+        <label class="field">
+          <span>Save to</span>
+          <div class="row inline">
+            <input id="dl-dir" type="text" placeholder="(OS Downloads folder)" readonly />
+            <button id="btn-pick-dir" class="btn" type="button">Pick folder</button>
+          </div>
+        </label>
+      </div>
       <div class="row">
-        <button id="btn-pull-routes" class="btn" disabled>Pull routes</button>
+        <button id="btn-download" class="btn btn-primary">Download</button>
+      </div>
+      <div class="history" id="dl-history">
+        <h3>Recent downloads</h3>
+        <ul id="dl-history-list"><li class="empty">No downloads yet.</li></ul>
       </div>
     </section>
 
