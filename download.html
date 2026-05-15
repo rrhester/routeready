@@ -152,7 +152,7 @@ footer{background:#0B1220;color:rgba(255,255,255,.6);padding:50px 0 30px;font-si
     <div class="hero-glow-3"></div>
   </div>
 
-  <span class="eyebrow fu d1"><span class="dot"></span>Desktop sync · v0.1.2</span>
+  <span class="eyebrow fu d1"><span class="dot"></span>Desktop sync · v0.1.3</span>
   <h1 class="hero-h fu d2">Pull DSP-portal data <span class="grad">straight into RouteReady</span>.</h1>
   <p class="hero-sub fu d3">Install once. Sign into your DSP portal once. RouteReady stays in sync — route plans, pick sheets, and reports — without manual exports.</p>
 </header>
@@ -253,13 +253,27 @@ document.getElementById('yr').textContent = new Date().getFullYear();
   // Highlight the user's OS card.
   const platform = (navigator.userAgentData?.platform || navigator.platform || '').toLowerCase();
   const ua = navigator.userAgent.toLowerCase();
+  const isChromeOS = ua.includes('cros');
   let detected = null;
   if (platform.includes('win') || ua.includes('windows')) detected = 'windows';
   else if (platform.includes('mac') || ua.includes('mac os')) detected = 'mac';
-  else if (platform.includes('linux') || ua.includes('linux') || ua.includes('cros')) detected = 'linux';
+  else if (isChromeOS || platform.includes('linux') || ua.includes('linux')) detected = 'linux';
   if (detected) {
     const card = document.querySelector(`.dl-card[data-os="${detected}"]`);
     if (card) card.classList.add('recommended');
+  }
+
+  // On ChromeOS the .AppImage can't run from the Files app — but the
+  // .deb installs with a double-click via Crostini's GUI. Rewrite the
+  // Linux card to advertise the .deb to those visitors.
+  if (isChromeOS) {
+    const card = document.querySelector('.dl-card[data-os="linux"]');
+    if (card) {
+      const meta = card.querySelector('.dl-os-meta');
+      if (meta) meta.textContent = '.deb · double-click to install';
+      const name = card.querySelector('.dl-os-name');
+      if (name) name.textContent = 'ChromeOS';
+    }
   }
 
   // Each Download button points at a static "latest release / known
@@ -272,7 +286,9 @@ document.getElementById('yr').textContent = new Date().getFullYear();
   const URLS = {
     windows: `${BASE}/RouteReady-Desktop.exe`,
     mac:     `${BASE}/RouteReady-Desktop.dmg`,
-    linux:   `${BASE}/RouteReady-Desktop.AppImage`,
+    // ChromeOS users get the .deb (installs via Crostini GUI on double-
+    // click); other Linux distros get the .AppImage (more portable).
+    linux:   isChromeOS ? `${BASE}/RouteReady-Desktop.deb` : `${BASE}/RouteReady-Desktop.AppImage`,
   };
   document.querySelectorAll('[data-dl-href]').forEach(a => {
     const os = a.getAttribute('data-dl-href');

@@ -1,6 +1,6 @@
 {
   "name": "routeready-desktop",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "RouteReady desktop sync · drives the Amazon DSP portal under the operator's corporate login, pulls route data + pick sheets, and ships them to RouteReady.",
   "main": "main.js",
   "private": true,
@@ -35,7 +35,7 @@
       "artifactName": "RouteReady-Desktop.${ext}"
     },
     "linux": {
-      "target": "AppImage",
+      "target": ["AppImage", "deb"],
       "category": "Office",
       "artifactName": "RouteReady-Desktop.${ext}"
     }

@@ -164,6 +164,7 @@ footer{background:#0B1220;color:rgba(255,255,255,.6);padding:50px 0 30px;font-si
         <div class="os-switch" role="tablist">
           <button data-os="windows" class="active">Windows</button>
           <button data-os="mac">macOS</button>
+          <button data-os="chromeos">ChromeOS</button>
           <button data-os="linux">Linux</button>
         </div>
 
@@ -184,6 +185,14 @@ footer{background:#0B1220;color:rgba(255,255,255,.6);padding:50px 0 30px;font-si
             <li>Click <strong>Open Anyway</strong>, then confirm with your password / Touch ID.</li>
           </ul>
           <p>Note: this build is for Apple Silicon (M1/M2/M3/M4) only. If you're on an Intel Mac, let us know — we'll cut an x64 build.</p>
+        </div>
+
+        <div class="os-block" data-os="chromeos">
+          <p>Open the <strong>ChromeOS Files</strong> app, double-click <code>RouteReady-Desktop.deb</code> in your Downloads folder. The Linux installer GUI opens — click <strong>Install</strong>, wait ~30 seconds, and "RouteReady Desktop" shows up in your launcher.</p>
+          <ul>
+            <li>First time only: you'll need <strong>Crostini</strong> (the ChromeOS Linux environment) turned on. <strong>Settings → About ChromeOS → Developers → Linux development environment → Set up</strong> if you haven't.</li>
+            <li>If double-click doesn't work, right-click the .deb and choose <strong>Install with Linux</strong>.</li>
+          </ul>
         </div>
 
         <div class="os-block" data-os="linux">
@@ -292,7 +301,8 @@ document.getElementById('yr').textContent = new Date().getFullYear();
   const ua = navigator.userAgent.toLowerCase();
   let os = 'windows';
   if (platform.includes('mac') || ua.includes('mac os')) os = 'mac';
-  else if (platform.includes('linux') || ua.includes('linux') || ua.includes('cros')) os = 'linux';
+  else if (ua.includes('cros')) os = 'chromeos';
+  else if (platform.includes('linux') || ua.includes('linux')) os = 'linux';
   setOs(os);
 
   function setOs(target) {
