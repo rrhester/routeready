@@ -172,6 +172,91 @@ main {
   color: var(--red);
 }
 
+/* First-run welcome card — quick-pick a portal and auto-launch sign-in. */
+.welcome {
+  background: linear-gradient(180deg, rgba(15, 108, 189, .04) 0%, rgba(15, 108, 189, .08) 100%);
+  border-color: rgba(15, 108, 189, .25);
+}
+
+.welcome h2 {
+  font-size: 16px;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+
+.welcome .muted {
+  margin-bottom: 16px;
+}
+
+.welcome-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 640px) {
+  .welcome-grid { grid-template-columns: 1fr; }
+}
+
+.welcome-btn {
+  appearance: none;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+}
+
+.welcome-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  transform: translateY(-1px);
+}
+
+.welcome-btn:disabled {
+  opacity: .5;
+  cursor: wait;
+}
+
+.welcome-btn-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.welcome-btn-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.welcome-other {
+  margin: 4px 0 0 0;
+  font-size: 12px;
+}
+
+.link-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link-btn:hover {
+  color: var(--accent-hover);
+}
+
 .form {
   display: flex;
   flex-direction: column;

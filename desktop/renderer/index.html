@@ -20,7 +20,29 @@
   </header>
 
   <main>
-    <section class="card">
+    <section class="card welcome" id="welcome" hidden>
+      <h2>Welcome — let's sign you in</h2>
+      <p class="muted">
+        Pick the portal you're syncing. We'll save the URL, open a secure
+        browser window, and you sign in like normal. RouteReady never sees
+        your password.
+      </p>
+      <div class="welcome-grid">
+        <button class="welcome-btn" data-quick-portal="https://employers.indeed.com/" data-quick-name="Indeed" type="button">
+          <div class="welcome-btn-title">Sign in to Indeed</div>
+          <div class="welcome-btn-sub">employers.indeed.com — applicants &amp; hiring</div>
+        </button>
+        <button class="welcome-btn" data-quick-portal="https://logistics.amazon.com/" data-quick-name="Amazon DSP" type="button">
+          <div class="welcome-btn-title">Sign in to Amazon DSP</div>
+          <div class="welcome-btn-sub">logistics.amazon.com — routes &amp; reports</div>
+        </button>
+      </div>
+      <p class="muted welcome-other">
+        Using a different portal? <button class="link-btn" id="welcome-other" type="button">Use a custom URL →</button>
+      </p>
+    </section>
+
+    <section class="card" id="card-signin">
       <h2>1 · Sign in to your portal</h2>
       <p class="muted">
         Open the portal in a managed browser window, sign in with your
