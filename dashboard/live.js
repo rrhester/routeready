@@ -3386,7 +3386,7 @@ async function openOnboardingSendDocsModal(driverId) {
         <div><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Send documents to ${escapeHtml(displayDriverName(drv))}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Each pick lands as a task in the driver's app. Secure documents run the signing &amp; compliance flow on their own; informational ones the driver just opens and acknowledges.</div></div>
         <button type="button" class="btn btn-sm" data-rr-osd-close>Close</button>
       </div>
-      <div style="padding:var(--s-3-5) 22px 0"><input type="search" id="rr-osd-q" placeholder="Search documents…" autocomplete="off" style="width:100%;font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 12px;color:var(--text)"></div>
+      <div style="padding:var(--s-3-5) 22px 0"><input type="search" id="rr-osd-q" placeholder="Search documents…" autocomplete="off" style="width:100%;font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);color:var(--text)"></div>
       <div style="padding:var(--s-3-5) 22px;overflow:auto;flex:1" id="rr-osd-body"><div class="rr-loading">Loading documents</div></div>
       <div style="padding:var(--s-3-5) 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:var(--s-2)">
         <div id="rr-osd-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></div>
@@ -3416,7 +3416,7 @@ async function openOnboardingSendDocsModal(driverId) {
   const tplTitleById = new Map(list.map(t => [t.id, t.title || "Untitled"]));
   body.innerHTML = `<div style="display:flex;flex-direction:column;gap:var(--s-2)" id="rr-osd-list">${list.map(t => {
     const secure = t.kind !== "informational";
-    return `<label data-search="${escapeHtml(((t.title || "") + " " + (t.description || "")).toLowerCase())}" style="display:flex;align-items:flex-start;gap:11px;padding:11px 12px;border:1px solid var(--border);border-radius:var(--r-lg);cursor:pointer;transition:border-color var(--t-fast),background .12s">
+    return `<label data-search="${escapeHtml(((t.title || "") + " " + (t.description || "")).toLowerCase())}" style="display:flex;align-items:flex-start;gap:11px;padding:var(--s-3) var(--s-3);border:1px solid var(--border);border-radius:var(--r-lg);cursor:pointer;transition:border-color var(--t-fast),background .12s">
       <input type="checkbox" data-rr-osd-tpl="${escapeHtml(t.id)}" style="margin-top:3px;flex:0 0 auto">
       <span style="flex:1;min-width:0">
         <span style="display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap"><span style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(t.title || "Untitled")}</span><span class="ob-bld-tier ${secure ? "secure" : "info"}">${secure ? "Secure" : "Informational"}</span></span>
@@ -3684,7 +3684,7 @@ function _obRenderBuilder() {
 // security indicators) or jump straight to building one.
 const _OB_DOC_ICON = (kind) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="${kind === "informational" ? "var(--text-muted)" : "#15803d"}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
 function _obDocRowHTML(t) {
-  return `<button type="button" class="rr-tplrow" data-tpl="${escapeHtml(t.id)}" data-search="${escapeHtml((t.title || "").toLowerCase())}" style="text-align:left;border:1px solid var(--border);border-radius:var(--r-lg);padding:11px 13px;cursor:pointer;background:var(--surface);display:flex;align-items:center;gap:var(--s-2-5);transition:border-color var(--t-fast),background .12s">
+  return `<button type="button" class="rr-tplrow" data-tpl="${escapeHtml(t.id)}" data-search="${escapeHtml((t.title || "").toLowerCase())}" style="text-align:left;border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3) var(--s-3);cursor:pointer;background:var(--surface);display:flex;align-items:center;gap:var(--s-2-5);transition:border-color var(--t-fast),background .12s">
       ${_OB_DOC_ICON(t.kind)}
       <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:var(--fs-md);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.title || "Untitled")}</span><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${t.kind === "informational" ? "Open & acknowledge — no signature" : "Secure — routes through the signing & compliance flow"}</span></span>
       <span class="ob-bld-tier ${t.kind === "informational" ? "info" : "secure"}">${t.kind === "informational" ? "Informational" : "Secure"}</span>
@@ -3702,7 +3702,7 @@ function _obAttachDocPicker(stepIndex) {
   m.innerHTML = `
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:540px;width:100%;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;max-height:calc(100vh - 96px)">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Attach a document</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Delivered to the driver when they reach “${escapeHtml((_obBuilderSteps[stepIndex].title || "this step").trim() || "this step")}”. Secure documents run the signing &amp; compliance flow automatically.</div></div>
-      ${hasDocs ? `<div style="padding:var(--s-3-5) 22px 0"><input type="search" id="rr-tplpick-q" placeholder="Search your documents…" autocomplete="off" style="width:100%;font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:9px 12px;color:var(--text)"></div>` : ""}
+      ${hasDocs ? `<div style="padding:var(--s-3-5) 22px 0"><input type="search" id="rr-tplpick-q" placeholder="Search your documents…" autocomplete="off" style="width:100%;font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);color:var(--text)"></div>` : ""}
       <div id="rr-tplpick-list" style="padding:var(--s-3-5) 22px 6px;display:flex;flex-direction:column;gap:var(--s-2);overflow:auto;flex:1">${rows}</div>
       <div id="rr-tplpick-empty" style="display:none;padding:6px 22px 14px;font-size:var(--fs-sm);color:var(--text-subtle)">No documents match that search.</div>
       <div style="padding:var(--s-3-5) 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:var(--s-2)">
@@ -3754,7 +3754,7 @@ function _obAddStepPicker() {
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:520px;width:100%;box-shadow:var(--shadow-lg)">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Add a step</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Pick a type — you can rename and configure it after.</div></div>
       <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-2-5)">
-        ${_OB_ADD_TYPES.map(t => `<button type="button" class="rr-addtype" data-type="${t.type}" style="text-align:left;border:1.5px solid var(--border);border-radius:11px;padding:13px 15px;cursor:pointer;background:var(--surface)"><div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(t.label)}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.45">${escapeHtml(t.blurb)}</div></button>`).join("")}
+        ${_OB_ADD_TYPES.map(t => `<button type="button" class="rr-addtype" data-type="${t.type}" style="text-align:left;border:1.5px solid var(--border);border-radius:var(--r-xl);padding:var(--s-3-5) var(--s-4);cursor:pointer;background:var(--surface)"><div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(t.label)}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.45">${escapeHtml(t.blurb)}</div></button>`).join("")}
       </div>
       <div style="padding:var(--s-3-5) 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end"><button type="button" class="btn btn-sm" data-rr-add-close>Cancel</button></div>
     </div>`;
@@ -4134,7 +4134,7 @@ function _onbNotesStylesOnce() {
     ".onb-notes-x svg{width:17px;height:17px}" +
     ".onb-notes-body{flex:1;overflow:auto;padding:var(--s-3-5) 18px;display:flex;flex-direction:column;gap:var(--s-2-5)}" +
     ".onb-notes-empty{font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5;padding:var(--s-2) 2px}" +
-    ".onb-note{border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);padding:11px 12px 9px;transition:border-color var(--t-smooth),background var(--t-smooth),box-shadow var(--t-smooth);position:relative}" +
+    ".onb-note{border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);padding:var(--s-3) var(--s-3) 9px;transition:border-color var(--t-smooth),background var(--t-smooth),box-shadow var(--t-smooth);position:relative}" +
     ".onb-note:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}" +
     ".onb-note.confirming{border-color:rgba(225,29,72,.45);background:var(--red-soft)}" +
     ".onb-note textarea{width:100%;border:0;background:transparent;font:inherit;font-size:var(--fs-sm);color:var(--text);line-height:1.5;resize:none;outline:none;display:block;min-height:44px;overflow:hidden}" +
@@ -4443,7 +4443,7 @@ function _onbChatStylesOnce() {
     ".onb-chat-quick button{flex:0 0 auto;appearance:none;background:var(--surface);border:1px solid var(--border);border-radius:999px;font:inherit;font-size:var(--fs-xs);color:var(--text-muted);padding:5px 11px;cursor:pointer;white-space:nowrap;transition:border-color var(--t-fast),color var(--t-fast),background .12s}" +
     ".onb-chat-quick button:hover{border-color:var(--accent-border);color:var(--accent-text);background:var(--canvas)}" +
     ".onb-chat-composer{display:flex;align-items:flex-end;gap:var(--s-2);padding:var(--s-2-5) var(--s-3-5) 14px;border-top:1px solid var(--border)}" +
-    ".onb-chat-composer textarea{flex:1;border:1px solid var(--border);background:var(--canvas);border-radius:var(--r-lg);font:inherit;font-size:var(--fs-sm);color:var(--text);line-height:1.45;padding:9px 12px;resize:none;outline:none;max-height:120px;overflow-y:auto;transition:border-color var(--t-fast),box-shadow var(--t-fast),background .12s}" +
+    ".onb-chat-composer textarea{flex:1;border:1px solid var(--border);background:var(--canvas);border-radius:var(--r-lg);font:inherit;font-size:var(--fs-sm);color:var(--text);line-height:1.45;padding:var(--s-2-5) var(--s-3);resize:none;outline:none;max-height:120px;overflow-y:auto;transition:border-color var(--t-fast),box-shadow var(--t-fast),background .12s}" +
     ".onb-chat-composer textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface)}" +
     "@media (prefers-reduced-motion:reduce){.onb-chat-drawer,.onb-chat-backdrop{transition:none}}";
   document.head.appendChild(s);
@@ -9073,7 +9073,7 @@ async function _tpOpenVanPicker(anchorEl) {
       #rr-tp-vp-pop .vp-h .t{font-weight:600;font-size:var(--fs-sm);color:var(--text);min-width:0;text-overflow:ellipsis;white-space:nowrap;overflow:hidden}
       #rr-tp-vp-pop .vp-h .s{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
       #rr-tp-vp-pop .vp-h button{background:none;border:0;color:var(--text-subtle);font-size:18px;cursor:pointer;line-height:1;padding:0 4px}
-      #rr-tp-vp-pop .vp-search{padding:9px 12px;border-bottom:1px solid var(--border)}
+      #rr-tp-vp-pop .vp-search{padding:var(--s-2-5) var(--s-3);border-bottom:1px solid var(--border)}
       #rr-tp-vp-pop .vp-search input{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-md);font:inherit;font-size:var(--fs-sm);background:var(--canvas);color:var(--text)}
       #rr-tp-vp-pop .vp-list{overflow-y:auto;flex:1}
       #rr-tp-vp-pop .vp-row{padding:var(--s-2-5) var(--s-3-5);border-top:1px solid var(--border);display:flex;align-items:center;gap:var(--s-2-5);cursor:pointer}
@@ -14407,7 +14407,7 @@ function _erEmpStylesOnce() {
     #rr-emp-report-modal .er-kv dt{ color:var(--text-subtle);font-weight:600; }
     #rr-emp-report-modal .er-kv dd{ margin:0;color:var(--text);font-weight:600; }
     #rr-emp-report-modal .er-stats{ display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2-5);margin:8px 0 16px; }
-    #rr-emp-report-modal .er-stat{ background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);padding:11px 13px; }
+    #rr-emp-report-modal .er-stat{ background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3) var(--s-3); }
     #rr-emp-report-modal .er-stat .v{ font-size:19px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1; }
     #rr-emp-report-modal .er-stat .l{ font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin-top:3px; }
     #rr-emp-report-modal .er-tl{ margin:0;padding:0;list-style:none; }
@@ -26454,7 +26454,7 @@ function _docsAskKind(file) {
   m.id = "rr-docs-kind-modal";
   m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
   const opt = (kind, iconBg, iconColor, iconSvg, title, body) => `
-    <button type="button" class="rr-kind-opt" data-kind="${kind}" style="text-align:left;border:1.5px solid var(--border);border-radius:11px;padding:var(--s-3-5) var(--s-4);cursor:pointer;background:var(--surface);display:flex;gap:var(--s-3);align-items:flex-start;transition:border-color var(--t-fast),box-shadow var(--t-fast)">
+    <button type="button" class="rr-kind-opt" data-kind="${kind}" style="text-align:left;border:1.5px solid var(--border);border-radius:var(--r-xl);padding:var(--s-3-5) var(--s-4);cursor:pointer;background:var(--surface);display:flex;gap:var(--s-3);align-items:flex-start;transition:border-color var(--t-fast),box-shadow var(--t-fast)">
       <span style="flex:0 0 auto;width:34px;height:34px;border-radius:var(--r-lg);background:${iconBg};color:${iconColor};display:flex;align-items:center;justify-content:center">${iconSvg}</span>
       <span style="min-width:0"><span style="font-size:var(--fs-md);font-weight:700;color:var(--text);display:block">${escapeHtml(title)}</span><span style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.45;display:block;margin-top:3px">${escapeHtml(body)}</span></span>
     </button>`;
