@@ -30105,8 +30105,117 @@ function _rrAnExportCsv(id) {
   setTimeout(() => URL.revokeObjectURL(url), 5_000);
 }
 
+// ── Header Ask modal ─────────────────────────────────────────────────
+// The Analytics page was retired; the same analytics-ai Edge Function
+// now backs the always-visible Ask bar in the topbar.  Submit opens a
+// centered modal showing the rendered result (kpi / kpi_grid / table /
+// text_summary / clarification_needed) — same renderers, no pinning.
+let _rrHdrInflight = false;
+function _rrHdrAskOpenModal(initialState) {
+  let wrap = document.getElementById("rr-hdr-ask-modal");
+  if (wrap) wrap.remove();
+  wrap = document.createElement("div");
+  wrap.id = "rr-hdr-ask-modal";
+  wrap.innerHTML = `
+    <style>
+      #rr-hdr-ask-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10080;display:flex;align-items:center;justify-content:center;padding:24px}
+      #rr-hdr-ask-modal .modal{width:900px;max-width:100%;max-height:88vh;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--shadow-xl);display:flex;flex-direction:column;overflow:hidden}
+      #rr-hdr-ask-modal .head{display:flex;align-items:flex-start;gap:14px;padding:16px 22px 14px;border-bottom:1px solid var(--border-subtle)}
+      #rr-hdr-ask-modal .head .eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#6366F1}
+      #rr-hdr-ask-modal .head .eyebrow svg{width:12px;height:12px;stroke-width:2}
+      #rr-hdr-ask-modal .head h3{margin:3px 0 0;font-family:'Inter Tight','Inter',sans-serif;font-size:15.5px;font-weight:600;color:var(--text);line-height:1.35}
+      #rr-hdr-ask-modal .head .x{appearance:none;background:transparent;border:0;font-size:24px;color:var(--text-muted);cursor:pointer;padding:0 4px;line-height:1;align-self:flex-start;margin-left:auto}
+      #rr-hdr-ask-modal .head .x:hover{color:var(--text)}
+      #rr-hdr-ask-modal .body{padding:18px 22px;overflow-y:auto}
+      #rr-hdr-ask-modal .loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 16px;color:var(--text-subtle);gap:12px;font-size:13px}
+      #rr-hdr-ask-modal .loading .dots{display:inline-flex;gap:5px}
+      #rr-hdr-ask-modal .loading .dots span{width:7px;height:7px;border-radius:50%;background:#6366F1;opacity:.4;animation:rrHdrDot 1.2s infinite ease-in-out}
+      #rr-hdr-ask-modal .loading .dots span:nth-child(2){animation-delay:.15s}
+      #rr-hdr-ask-modal .loading .dots span:nth-child(3){animation-delay:.3s}
+      @keyframes rrHdrDot{0%,80%,100%{opacity:.4;transform:scale(1)}40%{opacity:1;transform:scale(1.25)}}
+      #rr-hdr-ask-modal .err{padding:12px 14px;border:1px solid var(--red);border-radius:8px;background:rgba(239,68,68,.08);color:#9F1239;font-size:12.5px;line-height:1.5}
+      #rr-hdr-ask-modal .foot{padding:12px 22px;border-top:1px solid var(--border-subtle);background:var(--canvas);display:flex;justify-content:flex-end}
+      #rr-hdr-ask-modal .foot button{appearance:none;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer}
+      #rr-hdr-ask-modal .foot button:hover{background:var(--canvas)}
+    </style>
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Ask RouteReady">
+      <div class="head">
+        <div style="min-width:0;flex:1">
+          <span class="eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg> RouteReady AI</span>
+          <h3 id="rr-hdr-ask-prompt"></h3>
+        </div>
+        <button class="x" type="button" data-rr-hdr-close aria-label="Close">×</button>
+      </div>
+      <div class="body" id="rr-hdr-ask-body"></div>
+      <div class="foot"><button type="button" data-rr-hdr-close>Close</button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-rr-hdr-close]")) wrap.remove();
+  });
+  const onKey = (e) => { if (e.key === "Escape") { wrap.remove(); document.removeEventListener("keydown", onKey); } };
+  document.addEventListener("keydown", onKey);
+  if (initialState) _rrHdrAskSetState(initialState);
+  return wrap;
+}
+function _rrHdrAskSetPrompt(text) {
+  const el = document.getElementById("rr-hdr-ask-prompt");
+  if (el) el.textContent = text || "";
+}
+function _rrHdrAskSetState(state) {
+  const body = document.getElementById("rr-hdr-ask-body");
+  if (!body) return;
+  if (state.loading) {
+    body.innerHTML = `<div class="loading"><div class="dots"><span></span><span></span><span></span></div>RouteReady is looking that up…</div>`;
+    return;
+  }
+  if (state.error) {
+    body.innerHTML = `<div class="err">${_rrAnEsc(state.error)}</div>`;
+    return;
+  }
+  if (state.result && typeof _rrAnRenderResultBody === "function") {
+    body.innerHTML = `<div class="rr-an-result">${_rrAnRenderResultBody(state.result)}</div>`;
+    return;
+  }
+}
+async function _rrHdrAsk(prompt) {
+  prompt = String(prompt || "").trim();
+  if (!prompt) return;
+  if (_rrHdrInflight) return;
+  if (typeof sb === "undefined" || !sb?.functions?.invoke) {
+    _rrHdrAskOpenModal({ error: "Supabase client isn't ready yet — try again in a moment." });
+    return;
+  }
+  _rrHdrInflight = true;
+  const submitBtn = document.getElementById("rr-hdr-ask-submit");
+  if (submitBtn) submitBtn.disabled = true;
+  _rrHdrAskOpenModal({ loading: true });
+  _rrHdrAskSetPrompt(prompt);
+  try {
+    const { data, error } = await sb.functions.invoke("analytics-ai", { body: { prompt, conversation: [] } });
+    if (error || !data || data.error || !data.result) {
+      const msg = error?.message || data?.detail || data?.error || "Unknown error";
+      _rrHdrAskSetState({ error: `Couldn't generate that result: ${msg}` });
+      return;
+    }
+    _rrHdrAskSetState({ result: data.result });
+  } catch (e) {
+    _rrHdrAskSetState({ error: `Couldn't generate that result: ${e?.message || e}` });
+  } finally {
+    _rrHdrInflight = false;
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
 // ── Event wiring (delegated) ─────────────────────────────────────────
 document.addEventListener("submit", (e) => {
+  if (e.target?.id === "rr-hdr-ask-form") {
+    e.preventDefault();
+    const inp = document.getElementById("rr-hdr-ask-input");
+    const val = inp?.value || "";
+    if (val.trim()) _rrHdrAsk(val);
+    return;
+  }
   if (e.target?.id !== "rr-an-form") return;
   e.preventDefault();
   const inp = document.getElementById("rr-an-input");
