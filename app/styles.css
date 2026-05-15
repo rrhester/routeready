@@ -220,7 +220,11 @@ a{color:var(--accent);text-decoration:none}
    scroll-chaining to the document. */
 main{
   position:absolute;
-  top:calc(60px + env(safe-area-inset-top, 0px));
+  /* Header row is 44px (.head-back / .head-gear) + 14+14 padding + 1px
+     border = 73px (plus the device safe-area). Main has to start below
+     that or content slides under the header. 76 leaves a 3px hairline
+     so the sticky search bar in /team doesn't kiss the bottom border. */
+  top:calc(76px + env(safe-area-inset-top, 0px));
   /* Subtract the on-screen keyboard height so an input that has focus
      stays visible above it on iOS PWAs (visualViewport doesn't push
      position:absolute children up the way it does for fixed:bottom). */
