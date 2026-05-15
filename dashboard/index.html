@@ -11270,28 +11270,31 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <style>
           /* ── Compliance · table-first scoped design system ─────── */
+          /* Severity tokens map straight to the system semantic
+             palette so a 'critical' chip here reads the same as a
+             'critical' chip anywhere else. */
           #view-compliance{
-            --co-crit:#9F1239;
-            --co-crit-soft:rgba(159,18,57,.08);
-            --co-high:#D97706;
-            --co-high-soft:rgba(217,119,6,.10);
-            --co-high-fg:#B45309;
-            --co-med:#0F6CBD;
-            --co-low:#64748B;
-            --co-good:#059669;
-            --co-good-soft:rgba(5,150,105,.10);
+            --co-crit:var(--red-dark);
+            --co-crit-soft:rgba(225,29,72,.08);
+            --co-high:var(--amber);
+            --co-high-soft:var(--amber-soft);
+            --co-high-fg:var(--amber-dark);
+            --co-med:var(--accent);
+            --co-low:var(--text-subtle);
+            --co-good:var(--green);
+            --co-good-soft:var(--green-soft);
           }
           #view-compliance .page-sub{max-width:none}
           #view-compliance.view.active{display:flex;flex-direction:column;min-height:100vh}
           #view-compliance .page.co-page{flex:1;display:flex;flex-direction:column;min-width:0}
 
           /* Subnav tabs · Exceptions / Rules */
-          #co-subnav{margin-bottom:18px}
+          #co-subnav{margin-bottom:var(--s-4)}
           #co-subnav .subnav-count{
             display:inline-flex;align-items:center;justify-content:center;
-            margin-left:6px;padding:1px 7px;border-radius:8px;
+            margin-left:6px;padding:1px 7px;border-radius:var(--r-md);
             background:var(--canvas);color:var(--text-muted);
-            font-size:10px;font-weight:700;letter-spacing:.04em;
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;
             min-width:18px;line-height:1.3;
           }
           #co-subnav .subnav-item.active .subnav-count{
@@ -11309,17 +11312,17 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .co-table{width:100%;border-collapse:collapse}
           .co-table thead th{
-            text-align:left;padding:11px 14px;background:var(--canvas);
-            font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
-            color:var(--text-subtle);border-bottom:1px solid var(--border);white-space:nowrap;
+            text-align:left;padding:var(--s-2-5) var(--s-3-5);background:var(--canvas);
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+            color:var(--text-subtle);border-bottom:1px solid var(--border-subtle);white-space:nowrap;
           }
           .co-table tbody tr{
-            border-top:1px solid var(--border);
-            transition:background .12s ease, box-shadow .12s ease;
+            border-top:1px solid var(--border-subtle);
+            transition:background var(--t-fast);
             cursor:pointer;position:relative;
           }
           .co-table tbody tr:first-child{border-top:none}
-          .co-table tbody tr:hover{background:var(--canvas)}
+          .co-table tbody tr:hover{background:var(--surface-hover)}
           .co-table tbody tr::before{
             content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
             background:var(--co-low);
@@ -11327,21 +11330,21 @@ body.rr-cmdk-open{ overflow:hidden }
           .co-table tbody tr.sev-crit::before{background:var(--co-crit)}
           .co-table tbody tr.sev-high::before{background:var(--co-high)}
           .co-table tbody tr.sev-med::before{background:var(--co-med)}
-          .co-table tbody tr.sev-crit{background:rgba(159,18,57,.025)}
-          .co-table tbody tr.sev-crit:hover{background:rgba(159,18,57,.05)}
+          .co-table tbody tr.sev-crit{background:rgba(225,29,72,.025)}
+          .co-table tbody tr.sev-crit:hover{background:rgba(225,29,72,.05)}
           .co-table td{
-            padding:14px 14px;font-size:13px;color:var(--text);vertical-align:middle;
+            padding:var(--s-3-5) var(--s-3-5);font-size:var(--fs-md);color:var(--text);vertical-align:middle;
             line-height:1.4;
           }
-          .co-table td:first-child{padding-left:18px}
-          .co-table td .dim{color:var(--text-subtle);font-size:11px;font-weight:500;display:block;margin-top:2px}
-          .co-table td .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px}
+          .co-table td:first-child{padding-left:var(--s-4)}
+          .co-table td .dim{color:var(--text-subtle);font-size:var(--fs-xs);font-weight:500;display:block;margin-top:2px}
+          .co-table td .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-sm)}
 
           /* Severity pill (reused for both sev + status cells) */
           .co-pill{
             display:inline-flex;align-items:center;gap:5px;
-            padding:3px 9px;border-radius:999px;
-            font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+            padding:3px var(--s-2-5);border-radius:999px;
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;
             background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);white-space:nowrap;
           }
           .co-pill .dot{width:5px;height:5px;border-radius:50%;background:var(--text-subtle)}
@@ -11353,27 +11356,27 @@ body.rr-cmdk-open{ overflow:hidden }
           .co-pill.med .dot{background:var(--accent)}
           .co-pill.cure{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
           .co-pill.cure .dot{background:var(--accent)}
-          .co-pill.esc{background:#1B1F2C;color:#FCA5A5;border-color:transparent;letter-spacing:.07em}
-          .co-pill.esc .dot{background:#F87171}
+          .co-pill.esc{background:var(--red-dark);color:#fff;border-color:transparent;letter-spacing:.07em}
+          .co-pill.esc .dot{background:#fff}
           .co-pill.good{background:var(--co-good-soft);color:var(--co-good);border-color:transparent}
           .co-pill.good .dot{background:var(--co-good)}
 
           /* Tiny module / source chip used inside cells */
           .co-chip-inline{
             display:inline-flex;align-items:center;gap:4px;
-            font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
-            padding:2px 6px;border-radius:5px;
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            padding:2px var(--s-2);border-radius:var(--r-sm);
             background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);
           }
-          .co-chip-inline.amazon{background:rgba(15,23,42,.07);color:#0B1220;border-color:transparent}
-          .co-chip-inline.fmcsa{background:rgba(15,108,189,.10);color:var(--accent-text);border-color:transparent}
+          .co-chip-inline.amazon{background:rgba(15,23,42,.07);color:var(--text);border-color:transparent}
+          .co-chip-inline.fmcsa{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
 
-          .co-owner{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-muted);font-weight:600;white-space:nowrap}
+          .co-owner{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--text-muted);font-weight:600;white-space:nowrap}
           .co-owner .av{
             width:20px;height:20px;border-radius:50%;flex:0 0 auto;
             display:inline-flex;align-items:center;justify-content:center;
             font-size:9px;font-weight:700;color:var(--accent-text);
-            background:var(--accent-soft);border:1px solid rgba(15,108,189,.18);
+            background:var(--accent-soft);border:1px solid var(--accent-border);
           }
           .co-owner.unassigned .av{background:var(--canvas);border-style:dashed;color:var(--text-subtle)}
 
@@ -11384,14 +11387,15 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Right-side row actions */
           .co-row-action{
             display:inline-flex;align-items:center;gap:5px;
-            padding:5px 10px;border-radius:6px;
+            padding:5px var(--s-2-5);border-radius:var(--r-md);
             background:var(--surface);border:1px solid var(--border);
-            font-size:11.5px;font-weight:600;color:var(--text);cursor:pointer;
-            transition:border-color .12s, background .12s;
+            font-size:var(--fs-sm);font-weight:600;color:var(--text);cursor:pointer;
+            transition:border-color var(--t-fast), background var(--t-fast);
           }
           .co-row-action:hover{border-color:var(--border-strong);background:var(--canvas)}
+          .co-row-action:focus-visible{outline:none;box-shadow:var(--ring-focus)}
           .co-row-action.danger{background:var(--co-crit);border-color:transparent;color:#fff}
-          .co-row-action.danger:hover{background:#7F1D3F;color:#fff}
+          .co-row-action.danger:hover{background:var(--red-dark);color:#fff}
           /* Dismiss · neutral ghost button.  Explicitly NOT colored
              with severity to make clear it isn't an escalation. */
           .co-row-action.co-dismiss-btn{
@@ -11402,67 +11406,68 @@ body.rr-cmdk-open{ overflow:hidden }
 
           /* ── Empty state · table-native ──────────────────────────── */
           #view-compliance .co-empty{
-            background:linear-gradient(180deg, var(--surface) 0%, #FCFCFD 100%);
+            background:var(--surface);
             border:1px solid var(--border);border-radius:var(--r-xl);
-            padding:80px 32px;text-align:center;
+            padding:var(--s-10) var(--s-8);text-align:center;
             min-height:480px;flex:1;
             display:flex;flex-direction:column;align-items:center;justify-content:center;
-            color:var(--text-muted);font-size:13px;line-height:1.55;
+            color:var(--text-muted);font-size:var(--fs-md);line-height:1.55;
           }
           #view-compliance .co-empty .ic{
-            width:56px;height:56px;border-radius:16px;margin:0 0 16px;
+            width:56px;height:56px;border-radius:var(--r-xl);margin:0 0 var(--s-4);
             display:flex;align-items:center;justify-content:center;color:var(--co-good);
-            background:var(--co-good-soft);border:1px solid rgba(5,150,105,.18);
+            background:var(--co-good-soft);border:1px solid rgba(16,185,129,.18);
           }
           #view-compliance .co-empty .ic svg{width:26px;height:26px}
           #view-compliance .co-empty h3{
             margin:0 0 6px;font-family:'Inter Tight','Inter',sans-serif;
             font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;
           }
-          #view-compliance .co-empty p{margin:0 auto;max-width:520px;font-size:13px;color:var(--text-muted)}
+          #view-compliance .co-empty p{margin:0 auto;max-width:520px;font-size:var(--fs-md);color:var(--text-muted)}
 
           /* ── FMCSA setup card + monitor table (Rules tab) ────────── */
           #view-compliance .co-fmcsa{
             background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);
-            padding:18px 20px;margin-bottom:16px;
+            padding:var(--s-4) var(--s-5);margin-bottom:var(--s-4);
           }
           #view-compliance .co-fmcsa-h{
-            display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;
-            margin-bottom:14px;
+            display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-4);flex-wrap:wrap;
+            margin-bottom:var(--s-3-5);
           }
           #view-compliance .co-fmcsa-eyebrow{
             font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-text);
           }
           #view-compliance .co-fmcsa-t{
-            margin:3px 0 0;font-family:'Inter Tight','Inter',sans-serif;font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.005em;
+            margin:3px 0 0;font-family:'Inter Tight','Inter',sans-serif;font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.005em;
           }
           #view-compliance .co-fmcsa-sub{
-            margin:6px 0 0;font-size:12.5px;color:var(--text-muted);max-width:680px;line-height:1.5;
+            margin:6px 0 0;font-size:var(--fs-sm);color:var(--text-muted);max-width:680px;line-height:1.5;
           }
-          #view-compliance .co-fmcsa-meta{display:flex;gap:18px;font-size:11px;color:var(--text-subtle)}
+          #view-compliance .co-fmcsa-meta{display:flex;gap:var(--s-4);font-size:var(--fs-xs);color:var(--text-subtle)}
           #view-compliance .co-fmcsa-meta div{display:flex;flex-direction:column;line-height:1.3}
           #view-compliance .co-fmcsa-meta b{color:var(--text);font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
           #view-compliance .co-fmcsa-form{
-            display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px 14px;align-items:end;
+            display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:var(--s-3) var(--s-3-5);align-items:end;
           }
           #view-compliance .co-fmcsa-form label{display:flex;flex-direction:column;gap:5px}
           #view-compliance .co-fmcsa-form label span{
-            font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);
           }
           #view-compliance .co-fmcsa-form label span em{font-style:normal;color:var(--text-subtle);opacity:.7;text-transform:none;letter-spacing:0}
           #view-compliance .co-fmcsa-form input{
-            height:34px;padding:0 11px;border:1px solid var(--border);border-radius:8px;background:var(--surface);
-            font-size:13px;color:var(--text);
+            height:34px;padding:0 var(--s-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);
+            font-size:var(--fs-md);color:var(--text);
+            transition:border-color var(--t-fast), box-shadow var(--t-fast);
           }
-          #view-compliance .co-fmcsa-form input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-          #view-compliance .co-fmcsa-form-foot{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
-          #view-compliance .co-fmcsa-mons{margin-bottom:18px}
+          #view-compliance .co-fmcsa-form input:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
+          #view-compliance .co-fmcsa-form-foot{grid-column:1/-1;display:flex;gap:var(--s-2);justify-content:flex-end;margin-top:4px}
+          #view-compliance .co-fmcsa-mons{margin-bottom:var(--s-4)}
           #view-compliance .co-fmcsa-mons-h{
-            margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);
+            margin:0 0 var(--s-2-5);font-size:var(--fs-xs);font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);
           }
           #view-compliance .co-disclaimer{
-            margin:24px 0 4px;font-size:11px;color:var(--text-subtle);line-height:1.55;
-            padding:10px 14px;background:var(--canvas);border:1px solid var(--border-subtle);border-radius:8px;
+            margin:var(--s-6) 0 4px;font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.55;
+            padding:var(--s-2-5) var(--s-3-5);background:var(--canvas);border:1px solid var(--border-subtle);border-radius:var(--r-md);
           }
 
           /* ── Rules tab · monitor cards ───────────────────────────── */
@@ -20422,7 +20427,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515ae-page-icon-sidebar-aligned"></script>
+<script type="module" src="./live.js?v=20260515af-compliance-governance"></script>
 
 </body>
 </html>
