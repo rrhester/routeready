@@ -556,12 +556,12 @@ a{color:inherit;text-decoration:none}
              transform var(--t-fast);
 }
 .icon-btn:hover{
-  background:rgba(15,23,42,.04);color:var(--text);
+  background:var(--surface-hover);color:var(--text);
 }
-.icon-btn:active{transform:translateY(.5px);background:rgba(15,23,42,.06)}
+.icon-btn:active{transform:translateY(.5px);background:var(--surface-pressed)}
 .icon-btn:focus-visible{
   outline:none;border-color:var(--accent);
-  box-shadow:var(--accent-glow);color:var(--text);
+  box-shadow:var(--ring-focus);color:var(--text);
 }
 .icon-btn svg{width:16px;height:16px;stroke-width:2}
 .icon-btn .dot{
@@ -3021,7 +3021,7 @@ select.form-input{
 .dr-app-btn{appearance:none;background:transparent;border:1px solid transparent;border-radius:var(--r-md);color:var(--text-subtle);cursor:pointer;padding:5px;display:inline-flex;align-items:center;justify-content:center;transition:background var(--t-fast),color var(--t-fast),border-color .12s}
 .dr-app-btn:hover{background:var(--surface-hover);color:var(--accent-text);border-color:var(--border)}
 .dr-app-btn svg{width:15px;height:15px;stroke-width:2}
-.dapp-modal{position:fixed;inset:0;z-index:10024;background:rgba(15,23,42,.34);display:flex;align-items:center;justify-content:center;padding:var(--s-6)}
+.dapp-modal{position:fixed;inset:0;z-index:10024;background:var(--overlay-soft);display:flex;align-items:center;justify-content:center;padding:var(--s-6)}
 .dapp-phone{position:relative;width:344px;max-width:92vw;height:min(728px,90vh);background:#fff;border-radius:42px;display:flex;flex-direction:column;overflow:hidden;font-family:'Inter',sans-serif;color:var(--text);box-shadow:0 30px 64px rgba(0,0,0,.32),0 0 0 10px #1C2230,0 0 0 11px #2A3140}
 .dapp-island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:104px;height:30px;background:#0C0F17;border-radius:var(--r-2xl);z-index:5}
 .dapp-statusbar{display:flex;align-items:center;justify-content:space-between;padding:15px 26px 0;font-size:12.5px;font-weight:600;color:var(--text);flex:0 0 auto;letter-spacing:.02em}
@@ -3158,8 +3158,8 @@ select.form-input{
   color:var(--text-subtle);display:flex;align-items:center;justify-content:center;cursor:pointer;
   transition:background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
 }
-.modal-close:hover{background:rgba(15,23,42,.04);color:var(--text)}
-.modal-close:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--accent-glow)}
+.modal-close:hover{background:var(--surface-hover);color:var(--text)}
+.modal-close:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
 .modal-body{padding:var(--s-5);display:flex;flex-direction:column;gap:var(--s-4)}
 .modal-foot{padding:var(--s-4) var(--s-5);
   border-top:1px solid var(--border-subtle);
@@ -4074,9 +4074,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 /* Edit overlay — full-screen backdrop with a centered card. */
 .rr-mc-edit-overlay{
   position:fixed;inset:0;z-index:9999;
-  background:rgba(15,23,42,.45);
-  backdrop-filter:blur(4px);
-  -webkit-backdrop-filter:blur(4px);
+  background:var(--overlay);
   display:flex;align-items:center;justify-content:center;
   padding:var(--s-6);
   animation:rr-cmdk-fade 140ms ease-out both;
@@ -4084,12 +4082,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-mc-edit-card{
   width:min(440px, calc(100vw - 32px));
   background:var(--surface);
-  border:1px solid var(--border);border-radius:12px;
-  box-shadow:0 20px 60px -12px rgba(15,23,42,.30),
-             0 8px 24px -8px rgba(15,23,42,.18);
+  border:1px solid var(--border);border-radius:var(--r-lg);
+  box-shadow:var(--shadow-xl);
   padding:var(--s-4);
   display:flex;flex-direction:column;gap:var(--s-2-5);
-  animation:rr-cmdk-rise 200ms cubic-bezier(.2,.7,.2,1) both;
+  animation:rr-cmdk-rise var(--t-spring) both;
 }
 .rr-mc-edit-title{
   font-size:var(--fs-md);font-weight:600;color:var(--text);
@@ -19948,7 +19945,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515bd-overlay-soft"></script>
+<script type="module" src="./live.js?v=20260515be-icon-modal-overlay-sweep"></script>
 
 </body>
 </html>
