@@ -2288,27 +2288,27 @@ select.form-input{
    COVERAGE CONFIDENCE (the product thesis, made visible)
    ───────────────────────────────────────────────────────────── */
 .kpi-card.coverage{
-  background:linear-gradient(180deg,#FFFFFF 0%,#F0F9F4 100%);
-  border-color:#BBF7D0;
+  background:linear-gradient(180deg,var(--surface) 0%, var(--green-soft) 100%);
+  border-color:rgba(5,150,105,.18);
   position:relative;overflow:hidden;
 }
 .kpi-card.coverage.warn{
-  background:linear-gradient(180deg,#FFFFFF 0%,#FEF3C7 100%);
-  border-color:#FCD34D;
+  background:linear-gradient(180deg,var(--surface) 0%, var(--amber-soft) 100%);
+  border-color:rgba(217,119,6,.20);
 }
 .kpi-card.coverage.risk{
-  background:linear-gradient(180deg,#FFFFFF 0%,#FEE2E2 100%);
-  border-color:#FCA5A5;
+  background:linear-gradient(180deg,var(--surface) 0%, var(--red-soft) 100%);
+  border-color:rgba(225,29,72,.22);
 }
 .coverage-meter{
-  display:flex;align-items:center;gap:10px;margin-top:6px;
+  display:flex;align-items:center;gap:var(--s-2-5);margin-top:6px;
 }
 .coverage-ring{
   position:relative;width:32px;height:32px;flex-shrink:0;
 }
 .coverage-ring svg{transform:rotate(-90deg)}
-.coverage-ring-bg{fill:none;stroke:#E5E8EE;stroke-width:4}
-.coverage-ring-fg{fill:none;stroke:var(--green);stroke-width:4;stroke-linecap:round;transition:stroke-dashoffset .4s}
+.coverage-ring-bg{fill:none;stroke:var(--border);stroke-width:4}
+.coverage-ring-fg{fill:none;stroke:var(--green);stroke-width:4;stroke-linecap:round;transition:stroke-dashoffset var(--t-spring)}
 .kpi-card.coverage.warn .coverage-ring-fg{stroke:var(--amber)}
 .kpi-card.coverage.risk .coverage-ring-fg{stroke:var(--red)}
 .coverage-status{
@@ -2334,17 +2334,17 @@ select.form-input{
 
 /* Coverage panel inside coach drawer (Pull / Suspend) */
 .cd-coverage{
-  background:linear-gradient(180deg,#F0FDF4 0%,#DCFCE7 100%);
-  border:1px solid #86EFAC;border-radius:var(--r-md);
-  padding:12px 14px;display:flex;gap:10px;align-items:flex-start;
+  background:var(--green-soft);
+  border:1px solid rgba(5,150,105,.18);border-radius:var(--r-md);
+  padding:var(--s-3) var(--s-3-5);display:flex;gap:var(--s-2-5);align-items:flex-start;
 }
 .cd-coverage.warn{
-  background:linear-gradient(180deg,#FFFBEB 0%,#FEF3C7 100%);
-  border-color:#FCD34D;
+  background:var(--amber-soft);
+  border-color:rgba(217,119,6,.20);
 }
 .cd-coverage.risk{
-  background:linear-gradient(180deg,#FEF2F2 0%,#FEE2E2 100%);
-  border-color:#FCA5A5;
+  background:var(--red-soft);
+  border-color:rgba(225,29,72,.22);
 }
 .cd-coverage-icon{
   width:22px;height:22px;border-radius:50%;background:var(--green);color:#fff;
@@ -3253,8 +3253,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .avail-legend-swatch{width:14px;height:14px;border-radius:4px;border:1px solid var(--border)}
 .avail-legend-swatch.preferred{background:var(--accent-soft);border-color:var(--accent-border)}
 .avail-legend-swatch.available{background:var(--surface);border-color:var(--border-strong)}
-.avail-legend-swatch.unavailable{background:#F1F5F9;border-color:transparent}
-.avail-legend-swatch.timeoff{background:var(--red-soft);border-color:#FCA5A5}
+.avail-legend-swatch.unavailable{background:var(--canvas);border-color:transparent}
+.avail-legend-swatch.timeoff{background:var(--red-soft);border-color:rgba(225,29,72,.22)}
 
 .avail-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
 .avail-table thead th{
@@ -4782,14 +4782,14 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:7px 12px;border-radius:8px;
   background:var(--accent-soft);color:var(--accent-text);
   border:1px solid var(--accent-border);font-size:var(--fs-sm);font-weight:600;cursor:pointer;
-  font-family:inherit;transition:background .12s;
+  font-family:inherit;transition:background var(--t-fast);
 }
 .briefing-action:hover{background:var(--accent-soft)}
 .briefing-action svg{width:12px;height:12px;stroke-width:2.5}
-.briefing-action.urgent{background:var(--red-soft);color:var(--red);border-color:#FCA5A5}
-.briefing-action.urgent:hover{background:var(--red)22}
-.briefing-action.warn{background:var(--amber-soft);color:var(--amber);border-color:#FCD34D}
-.briefing-action.warn:hover{background:rgba(217,119,6,.13)}
+.briefing-action.urgent{background:var(--red-soft);color:var(--red);border-color:rgba(225,29,72,.22)}
+.briefing-action.urgent:hover{background:rgba(225,29,72,.16)}
+.briefing-action.warn{background:var(--amber-soft);color:var(--amber);border-color:rgba(217,119,6,.22)}
+.briefing-action.warn:hover{background:rgba(217,119,6,.16)}
 
 /* Snapshot strip — demoted from full KPI grid */
 .snapshot{
@@ -20336,7 +20336,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515t-polish-wave-2"></script>
+<script type="module" src="./live.js?v=20260515u-polish-wave-3"></script>
 
 </body>
 </html>
