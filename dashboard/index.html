@@ -172,7 +172,7 @@
   /* Single source of truth for modal backdrops + focus rings so
      every dialog and interactive surface reads the same. */
   --overlay: rgba(15,23,42,.55);
-  --ring-focus: 0 0 0 3px rgba(15,108,189,.18);
+  --ring-focus: 0 0 0 3px rgba(37,99,235,.18);
   --z-modal: 10000;
 }
 
@@ -3690,19 +3690,20 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   border:1px solid var(--border-strong);border-radius:var(--r-md);
   font-size:var(--fs-sm);color:var(--text-muted);background:var(--surface);
   display:flex;align-items:center;gap:var(--s-2);
-  transition:border-color .12s, box-shadow .12s;
+  transition:border-color var(--t-fast), box-shadow var(--t-fast);
 }
-.msg-list-search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.msg-list-search:focus-within{border-color:var(--accent);box-shadow:var(--ring-focus)}
 .msg-list-search svg{width:12px;height:12px;color:var(--text-subtle);flex-shrink:0}
 .msg-list-search input{border:none;background:transparent;outline:none;font:inherit;color:var(--text);width:100%}
 .msg-list-search input::placeholder{color:var(--text-subtle)}
 .msg-list-tabs{display:flex;padding:0 var(--s-4);gap:var(--s-1);margin-bottom:var(--s-3)}
 .msg-list-tab{
   padding:var(--s-1) var(--s-3);font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);
-  background:transparent;border:none;border-radius:5px;cursor:pointer;font-family:inherit;
-  transition:background .12s, color .12s;
+  background:transparent;border:none;border-radius:var(--r-sm);cursor:pointer;font-family:inherit;
+  transition:background var(--t-fast), color var(--t-fast);
   letter-spacing:.005em;
 }
+.msg-list-tab:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .msg-list-tab:hover{color:var(--text)}
 .msg-list-tab.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--shadow-sm)}
 .msg-list-items{flex:1;overflow-y:auto}
@@ -3710,7 +3711,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:var(--s-3);padding:var(--s-3) var(--s-4);
   border-bottom:1px solid var(--border-subtle);cursor:pointer;align-items:center;
   background:transparent;
-  transition:background .08s;
+  transition:background var(--t-fast);
 }
 .msg-item:hover{background:var(--surface-hover)}
 .msg-item.active{background:var(--accent-soft)}
@@ -3928,14 +3929,14 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .rr-mc-bubble.dispatch, .rr-cc-bubble.dispatch{
   align-self:flex-end;
-  /* Subtle gradient + indigo glow lifts the operator's voice off the
-     thread without going neon. Keeps the brand language consistent
-     with the rest of the dashboard primary actions. */
+  /* Subtle gradient + soft accent glow lifts the operator's voice off
+     the thread without going neon.  Brand language matches the rest
+     of the dashboard's primary actions. */
   background:var(--brand-grad);
   color:#fff;
   border-bottom-right-radius:5px;
-  box-shadow:0 1px 2px rgba(15,108,189,.18),
-             0 4px 10px -4px rgba(79,70,229,.20);
+  box-shadow:0 1px 2px rgba(37,99,235,.18),
+             0 4px 10px -4px rgba(99,102,241,.20);
 }
 /* Group spacing — 6px between sender groups, 2px between bubbles in
    the same group. Driven by data-group-pos which the renderer sets. */
@@ -3946,11 +3947,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
 /* Operational message types — priority + ack-required. Only on
    dispatch-sent bubbles (drivers can't send urgent / require-ack). */
-.rr-mc-bubble.urgent{ box-shadow:inset 3px 0 0 var(--red, #E11D48), 0 1px 2px rgba(15,108,189,.18), 0 4px 10px -4px rgba(225,29,72,.30) }
-.rr-mc-bubble.high  { box-shadow:inset 3px 0 0 var(--amber, #D97706), 0 1px 2px rgba(15,108,189,.18) }
+.rr-mc-bubble.urgent{ box-shadow:inset 3px 0 0 var(--red), 0 1px 2px rgba(37,99,235,.18), 0 4px 10px -4px rgba(225,29,72,.30) }
+.rr-mc-bubble.high  { box-shadow:inset 3px 0 0 var(--amber), 0 1px 2px rgba(37,99,235,.18) }
 .rr-mc-pri-tag{
-  display:inline-block;background:var(--red, #E11D48);color:#fff;
-  font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  display:inline-block;background:var(--red);color:#fff;
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;
   padding:2px 7px;border-radius:999px;margin-bottom:6px;
 }
 .rr-mc-ack{
@@ -3968,17 +3969,18 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .rr-mc-pri{ display:inline-flex;gap:4px }
 .rr-mc-pri-btn{
-  font:inherit;font-size:11px;font-weight:600;letter-spacing:.01em;
+  font:inherit;font-size:var(--fs-xs);font-weight:600;letter-spacing:.01em;
   background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);
-  padding:3px 9px;border-radius:999px;cursor:pointer;
-  transition:background .12s ease, color .12s ease, border-color .12s ease, box-shadow .12s ease;
+  padding:3px var(--s-2-5);border-radius:999px;cursor:pointer;
+  transition:background var(--t-fast), color var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
 }
 .rr-mc-pri-btn:hover{ color:var(--text);background:var(--surface) }
+.rr-mc-pri-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .rr-mc-pri-btn.on{
-  background:var(--accent-soft);color:var(--accent-text, var(--accent));border-color:transparent;
+  background:var(--accent-soft);color:var(--accent-text);border-color:transparent;
 }
 .rr-mc-pri-btn.urgent.on{
-  background:rgba(225,29,72,.10);color:var(--red, #E11D48);
+  background:var(--red-soft);color:var(--red);
 }
 .rr-mc-ack-toggle{
   display:inline-flex;align-items:center;gap:6px;
@@ -4006,8 +4008,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-mc-bubble.dispatch[data-group-pos="last"],
 .rr-cc-bubble.dispatch[data-group-pos="last"]{ border-top-right-radius:5px }
 .rr-cc-sender{
-  font-size:11px;font-weight:700;
-  color:var(--accent-text, var(--text-muted));
+  font-size:var(--fs-xs);font-weight:700;
+  color:var(--accent-text);
   margin-bottom:var(--s-1);
   letter-spacing:.01em;
   line-height:1.2;
@@ -4098,20 +4100,20 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   animation:rr-cmdk-rise 200ms cubic-bezier(.2,.7,.2,1) both;
 }
 .rr-mc-edit-title{
-  font-size:13px;font-weight:600;color:var(--text);
+  font-size:var(--fs-md);font-weight:600;color:var(--text);
 }
 .rr-mc-edit-ta{
   width:100%;min-height:80px;max-height:240px;resize:vertical;
-  padding:10px 12px;font:inherit;font-size:14px;line-height:1.5;
+  padding:var(--s-2-5) var(--s-3);font:inherit;font-size:var(--fs-base);line-height:1.5;
   color:var(--text);
   background:var(--canvas);
-  border:1px solid var(--border-strong);border-radius:8px;
+  border:1px solid var(--border-strong);border-radius:var(--r-md);
   box-shadow:inset 0 1px 2px rgba(15,23,42,.04);
   outline:none;
-  transition:border-color 120ms ease, box-shadow 120ms ease;
+  transition:border-color var(--t-fast), box-shadow var(--t-fast);
 }
 .rr-mc-edit-ta:focus{
-  border-color:var(--accent);box-shadow:inset 0 1px 2px rgba(15,23,42,.04), 0 0 0 3px var(--accent-soft);
+  border-color:var(--accent);box-shadow:inset 0 1px 2px rgba(15,23,42,.04), var(--ring-focus);
 }
 .rr-mc-edit-actions{
   display:flex;justify-content:flex-end;gap:8px;
@@ -4151,7 +4153,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .rr-msg-skeleton-row.right .rr-msg-skeleton-bubble{
   border-bottom-right-radius:5px;
-  background:linear-gradient(90deg, rgba(15,108,189,.10), rgba(79,70,229,.14), rgba(15,108,189,.10));
+  background:linear-gradient(90deg, rgba(37,99,235,.10), rgba(99,102,241,.14), rgba(37,99,235,.10));
   background-size:200% 100%;
 }
 .rr-msg-skeleton-row:not(.right) .rr-msg-skeleton-bubble{ border-bottom-left-radius:5px }
@@ -4160,14 +4162,14 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
    the operator is scrolled up. Tapping it scrolls smoothly to the
    bottom and clears itself. */
 .rr-msg-jump{
-  position:absolute;left:50%;bottom:14px;transform:translateX(-50%) translateY(8px);
+  position:absolute;left:50%;bottom:var(--s-3-5);transform:translateX(-50%) translateY(8px);
   display:inline-flex;align-items:center;gap:6px;
-  padding:6px 12px;font-size:var(--fs-sm);font-weight:600;color:#fff;
+  padding:6px var(--s-3);font-size:var(--fs-sm);font-weight:600;color:#fff;
   background:var(--brand-grad);
   border:0;border-radius:999px;cursor:pointer;
-  box-shadow:0 8px 20px -6px rgba(79,70,229,.40), 0 2px 6px rgba(15,23,42,.10);
+  box-shadow:0 8px 20px -6px rgba(99,102,241,.40), 0 2px 6px rgba(15,23,42,.10);
   opacity:0;pointer-events:none;
-  transition:opacity 160ms cubic-bezier(.2,.7,.2,1), transform 200ms cubic-bezier(.2,.7,.2,1);
+  transition:opacity var(--t-smooth), transform var(--t-spring);
   z-index:5;
 }
 .rr-msg-jump.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
@@ -4237,7 +4239,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .rr-mc-composer textarea, .rr-cc-composer textarea{
   flex:1;min-height:44px;max-height:160px;
-  padding:11px 14px;font-size:var(--fs-base);line-height:1.42;
+  padding:var(--s-2-5) var(--s-3-5);font-size:var(--fs-base);line-height:1.42;
   /* White field on a soft tray — high contrast, depth cue from the
      inset shadow so the input reads as something to type into. */
   background:var(--surface);
@@ -4246,15 +4248,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   border-radius:var(--r-md);
   box-shadow:inset 0 1px 2px rgba(15,23,42,.04);
   resize:none;font-family:inherit;
-  /* Explicit overflow-y so the textarea natively scrolls its own
-     content when the operator's draft exceeds max-height.  Without
-     this rule some browsers default to overflow:hidden on textareas
-     inside flex containers, which would clip the caret out of view
-     once the draft passes ~7 lines (the "I can't see the message I'm
-     preparing to send" complaint).  Pair with caret-follow logic in
-     the input handler so scrollTop tracks the caret. */
   overflow-y:auto;
-  transition:border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+  transition:border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
 }
 .rr-mc-composer textarea::placeholder, .rr-cc-composer textarea::placeholder{
   color:var(--text-subtle);
@@ -4266,7 +4261,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-mc-composer textarea:focus-visible, .rr-cc-composer textarea:focus-visible{
   outline:none;
   border-color:var(--accent);
-  box-shadow:inset 0 1px 2px rgba(15,23,42,.04), 0 0 0 3px var(--accent-soft);
+  box-shadow:inset 0 1px 2px rgba(15,23,42,.04), var(--ring-focus);
 }
 .rr-mc-send, .rr-cc-send{
   background:var(--brand-grad);color:#fff;border:0;border-radius:var(--r-md);
@@ -20425,7 +20420,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515ab-pipeline-governance"></script>
+<script type="module" src="./live.js?v=20260515ac-messages-governance"></script>
 
 </body>
 </html>
