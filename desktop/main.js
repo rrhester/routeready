@@ -27,6 +27,74 @@ const fs = require("node:fs");
 process.env.PLAYWRIGHT_BROWSERS_PATH = "0";
 const { chromium } = require("playwright");
 
+// ─── Diagnostic logging ─────────────────────────────────────────────
+// Writes a line to <userData>/desktop.log every time we touch Playwright
+// or hit an error.  When something breaks on a customer's machine they
+// can find this file and send it to support — way better than asking
+// them to run from a terminal.
+function logFile() { return path.join(app.getPath("userData"), "desktop.log"); }
+function logLine(...parts) {
+  const line = `[${new Date().toISOString()}] ${parts.map(p => typeof p === "string" ? p : JSON.stringify(p)).join(" ")}\n`;
+  try { fs.appendFileSync(logFile(), line); } catch {}
+  console.log(line.trim());
+}
+
+// ─── Resolve Chromium executable inside the packaged app ────────────
+// In a packaged Electron app, node_modules lives inside app.asar — but
+// native binaries can't exec from inside an asar archive.  Our
+// package.json `asarUnpack` extracts Playwright's browsers to
+// app.asar.unpacked.  Playwright's own path-resolution logic relies on
+// reading from disk relative to __dirname, which Electron's asar shim
+// is supposed to redirect — but in practice the redirection is unreliable
+// for child_process.spawn().  Safest move: resolve the path ourselves and
+// pass executablePath explicitly to chromium.launch().
+function resolveChromiumExecutable() {
+  if (!app.isPackaged) return undefined; // dev → let Playwright find it
+  const browsersRoot = path.join(
+    process.resourcesPath,
+    "app.asar.unpacked",
+    "node_modules",
+    "playwright-core",
+    ".local-browsers",
+  );
+  if (!fs.existsSync(browsersRoot)) {
+    logLine("chromium: browsers root not found at", browsersRoot);
+    return undefined;
+  }
+  const entries = fs.readdirSync(browsersRoot);
+  const chromiumDir = entries.find((n) => n.startsWith("chromium-") && !n.endsWith("headless_shell"));
+  if (!chromiumDir) {
+    logLine("chromium: no chromium-* dir inside", browsersRoot, "entries:", entries);
+    return undefined;
+  }
+  const platformSubpath = process.platform === "win32"
+    ? path.join("chrome-win", "chrome.exe")
+    : process.platform === "darwin"
+      ? path.join("chrome-mac", "Chromium.app", "Contents", "MacOS", "Chromium")
+      : path.join("chrome-linux", "chrome");
+  const exe = path.join(browsersRoot, chromiumDir, platformSubpath);
+  if (!fs.existsSync(exe)) {
+    logLine("chromium: executable missing at", exe);
+    return undefined;
+  }
+  logLine("chromium: resolved", exe);
+  return exe;
+}
+
+let CHROMIUM_EXEC_PATH = null;
+
+async function launchChromium(opts = {}) {
+  if (CHROMIUM_EXEC_PATH === null) CHROMIUM_EXEC_PATH = resolveChromiumExecutable() || undefined;
+  const launchOpts = { ...opts };
+  if (CHROMIUM_EXEC_PATH) launchOpts.executablePath = CHROMIUM_EXEC_PATH;
+  try {
+    return await chromium.launch(launchOpts);
+  } catch (err) {
+    logLine("chromium.launch threw:", String(err && err.stack || err));
+    throw err;
+  }
+}
+
 // Where we keep the encrypted storage state + electron-store config.
 const userDataDir = () => app.getPath("userData");
 const sessionFile = () => path.join(userDataDir(), "portal-session.enc");
@@ -92,7 +160,14 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  logLine("app ready, version=", app.getVersion(), "packaged=", app.isPackaged, "platform=", process.platform);
+  // Resolve Chromium up-front so its discovery is recorded in the log
+  // before the operator clicks anything.  Failures here aren't fatal —
+  // the launch path will surface a dialog if it actually breaks.
+  resolveChromiumExecutable();
+  createWindow();
+});
 
 app.on("window-all-closed", async () => {
   await tearDownPortal();
@@ -146,7 +221,7 @@ function clearSession() {
 
 async function ensurePortal({ headed = false } = {}) {
   if (portalContext) return portalContext;
-  portalBrowser = await chromium.launch({ headless: !headed });
+  portalBrowser = await launchChromium({ headless: !headed });
   const stateJson = readSession();
   portalContext = await portalBrowser.newContext({
     storageState: stateJson ? JSON.parse(stateJson) : undefined,
@@ -168,21 +243,33 @@ async function tearDownPortal() {
 ipcMain.handle("portal:login", async (_evt, { portalUrl } = {}) => {
   // Tear down any previous (headless) context so we can launch a
   // visible browser the operator can interact with.
-  await tearDownPortal();
-  portalBrowser = await chromium.launch({ headless: false });
-  portalContext = await portalBrowser.newContext({
-    viewport: { width: 1280, height: 800 },
-  });
-  const page = await portalContext.newPage();
-  const url = portalUrl || effectivePortalUrl();
-  await page.goto(url);
-
-  // Wait for the operator to finish logging in. Heuristic:
-  // navigation lands on a URL that's clearly post-login (anything
-  // not under /ap/signin, the Amazon SSO host). Operator can click
-  // "Done" in the renderer to confirm explicitly too — that path
-  // bypasses heuristics.
-  return { ok: true, message: "Login window open. Sign in, then click 'I'm signed in' here." };
+  try {
+    await tearDownPortal();
+    logLine("portal:login starting, url=", portalUrl || effectivePortalUrl());
+    portalBrowser = await launchChromium({ headless: false });
+    portalContext = await portalBrowser.newContext({
+      viewport: { width: 1280, height: 800 },
+    });
+    const page = await portalContext.newPage();
+    const url = portalUrl || effectivePortalUrl();
+    await page.goto(url);
+    logLine("portal:login opened", url);
+    return { ok: true, message: "Login window open. Sign in, then click 'I'm signed in' here." };
+  } catch (err) {
+    const msg = String(err && err.message || err);
+    logLine("portal:login FAILED:", msg);
+    // Surface the failure prominently. The renderer also logs the error
+    // in its in-app log strip, but customers don't always look there.
+    const detail = [
+      "RouteReady couldn't open the sign-in browser.",
+      "",
+      "Error: " + msg,
+      "",
+      "Diagnostics log: " + logFile(),
+    ].join("\n");
+    dialog.showErrorBox("Sign-in failed", detail);
+    return { ok: false, error: msg };
+  }
 });
 
 ipcMain.handle("portal:saveSession", async () => {
