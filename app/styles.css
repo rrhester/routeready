@@ -190,7 +190,7 @@ a{color:var(--accent);text-decoration:none}
   background:var(--surface);
   border-bottom:1px solid var(--border);
   padding:calc(14px + env(safe-area-inset-top, 0px)) 18px 14px;
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
   position:absolute;top:0;left:0;right:0;z-index:10;
   box-shadow:0 1px 0 rgba(15,23,42,.04);
   transform:translateZ(0);
@@ -199,7 +199,7 @@ a{color:var(--accent);text-decoration:none}
 .app-head .title{font-size:18px;font-weight:700;letter-spacing:-.015em;color:var(--text);line-height:1.2}
 .app-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:var(--s-1);font-weight:500;line-height:1.3;letter-spacing:.005em}
 .app-head .driver-chip{
-  display:flex;align-items:center;gap:8px;
+  display:flex;align-items:center;gap:var(--s-2);
   background:var(--canvas);border-radius:999px;padding:4px 10px 4px 4px;
   font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);
   border:1px solid var(--border);
@@ -231,7 +231,7 @@ main{
   /* Allow vertical pan inside the scroller, block everything else so
      the body's touch-action:none doesn't suppress real scrolling. */
   touch-action:pan-y;
-  padding:14px 16px 16px;
+  padding:var(--s-3-5) var(--s-4) 16px;
   transition:bottom .15s ease;
 }
 main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
@@ -247,7 +247,7 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
    pending badge here reads identically to one over there.
    Use the semantic variant for state, not the color. */
 .status-pill{
-  display:inline-flex;align-items:center;gap:4px;
+  display:inline-flex;align-items:center;gap:var(--s-1);
   padding:2px 8px;border-radius:var(--r-lg);
   font-size:var(--fs-xs);font-weight:700;line-height:1.5;
   letter-spacing:.04em;text-transform:uppercase;
@@ -281,7 +281,7 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
    shows a coaching / message / action that came from the system
    vs from a person. */
 .origin-badge{
-  display:inline-flex;align-items:center;gap:4px;
+  display:inline-flex;align-items:center;gap:var(--s-1);
   font-size:var(--fs-xs);font-weight:600;line-height:1.5;
   padding:1px 7px;border-radius:8px;
   background:var(--canvas);color:var(--text-subtle);
@@ -302,7 +302,7 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
   background:var(--surface);
   background-image:var(--surface-grad);
   border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:14px 16px;margin-bottom:12px;
+  padding:var(--s-3-5) var(--s-4);margin-bottom:12px;
   box-shadow:var(--shadow-sm), var(--highlight-top);
 }
 .card-strong{box-shadow:var(--shadow-lg), var(--highlight-top-strong)}
@@ -364,7 +364,7 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
 
 .btn-ghost{
   background:transparent;border-color:transparent;color:var(--text-muted);
-  box-shadow:none;min-height:auto;padding:8px 12px;font-size:var(--fs-md);
+  box-shadow:none;min-height:auto;padding:var(--s-2) var(--s-3);font-size:var(--fs-md);
 }
 .btn-ghost:active{background:rgba(15,23,42,.06);color:var(--text);box-shadow:none}
 
@@ -378,7 +378,7 @@ main > *{ width:100%; max-width:560px; margin-left:auto; margin-right:auto; }
   display:block;width:100%;
   background:var(--surface);
   border:1.5px solid var(--border);border-radius:var(--r-md);
-  padding:14px 16px;font-size:var(--fs-lg);color:var(--text);font-weight:500;
+  padding:var(--s-3-5) var(--s-4);font-size:var(--fs-lg);color:var(--text);font-weight:500;
   font-family:inherit;line-height:1.4;
   -webkit-appearance:none;-moz-appearance:none;appearance:none;
   box-shadow:var(--shadow-xs), inset 0 1px 2px rgba(15,23,42,.03);
@@ -420,7 +420,7 @@ select.field{
 }
 .login-screen .brand{
   display:flex;flex-direction:column;align-items:center;
-  margin:48px 0 40px;gap:8px;
+  margin:48px 0 40px;gap:var(--s-2);
 }
 .login-screen .brand-icon{
   width:64px;height:64px;border-radius:16px;
@@ -439,14 +439,14 @@ select.field{
 }
 .login-screen .err{
   background:rgba(225,29,72,.08);color:var(--red);
-  font-size:var(--fs-md);padding:10px 14px;border-radius:8px;
+  font-size:var(--fs-md);padding:var(--s-2-5) var(--s-3-5);border-radius:8px;
   text-align:center;margin-bottom:12px;
 }
 
 /* ── Schedule list ──────────────────────────────────────────── */
 .shift-card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:16px;margin-bottom:12px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;
+  padding:16px;margin-bottom:12px;display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-3-5);
   align-items:center;
   box-shadow:var(--shadow-sm);
 }
@@ -458,7 +458,7 @@ select.field{
 .shift-card .date-day{font-size:var(--fs-xxl);font-weight:700;line-height:1;letter-spacing:-.02em;margin-top:2px}
 .shift-card .date-month{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
 .shift-card .meta-time-row{
-  display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  display:flex;align-items:baseline;justify-content:space-between;gap:var(--s-3);flex-wrap:wrap;
 }
 .shift-card .meta-time{font-size:var(--fs-lg);font-weight:600;font-variant-numeric:tabular-nums}
 .shift-card .meta-wave-tag{
@@ -467,7 +467,7 @@ select.field{
   white-space:nowrap;font-variant-numeric:tabular-nums;letter-spacing:.01em;
 }
 .shift-card .meta-station{font-size:var(--fs-sm);color:var(--text-muted);margin-top:2px}
-.shift-card .meta-tags{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.shift-card .meta-tags{display:flex;gap:var(--s-1);margin-top:6px;flex-wrap:wrap}
 .shift-card .tag{
   font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
   padding:2px 6px;border-radius:3px;background:var(--canvas);color:var(--text-muted);
@@ -477,9 +477,9 @@ select.field{
 
 /* ── Task / hub cards (Tasks + Profile screens) ─────────────── */
 .task-card{
-  display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;align-items:center;
+  display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:14px 16px;margin-bottom:12px;
+  padding:var(--s-3-5) var(--s-4);margin-bottom:12px;
   cursor:pointer;transition:transform .08s ease, box-shadow var(--t-fast), border-color var(--t-fast);
   box-shadow:var(--shadow-xs);
 }
@@ -1015,7 +1015,7 @@ select.field{
 .chat-ack-btn:active{ transform:scale(.97); }
 .chat-ack-btn:disabled{ opacity:.6;cursor:not-allowed;box-shadow:none; }
 .chat-ack.acked{
-  display:inline-flex;align-items:center;gap:4px;margin-top:6px;
+  display:inline-flex;align-items:center;gap:var(--s-1);margin-top:6px;
   font-size:var(--fs-xs);font-weight:700;color:var(--green, #059669);
 }
 .chat-ack.acked svg{ width:12px;height:12px; }
@@ -1040,7 +1040,7 @@ select.field{
    Subtle bounce on the dots. */
 .chat-typing{
   position:absolute;left:14px;bottom:102px;
-  display:flex;align-items:center;gap:8px;
+  display:flex;align-items:center;gap:var(--s-2);
   padding:6px 12px;
   font-size:var(--fs-xs);color:var(--text-subtle);
   background:var(--surface);
@@ -1124,11 +1124,11 @@ select.field{
 .chat-msgs .empty-state{margin:auto}
 
 /* ── Availability ─────────────────────────────────────────────── */
-.avail-page{display:flex;flex-direction:column;gap:14px}
+.avail-page{display:flex;flex-direction:column;gap:var(--s-3-5)}
 
 /* Status banner (pending / approved / denied / neutral) */
 .avail-banner{
-  border-radius:12px;padding:14px 16px;border:1px solid var(--border);
+  border-radius:12px;padding:var(--s-3-5) var(--s-4);border:1px solid var(--border);
   background:var(--surface);
   box-shadow:var(--shadow-sm);
 }
@@ -1152,7 +1152,7 @@ select.field{
 }
 .avail-day{
   display:flex;align-items:center;justify-content:space-between;
-  padding:14px 16px;border-bottom:1px solid var(--border);
+  padding:var(--s-3-5) var(--s-4);border-bottom:1px solid var(--border);
   cursor:pointer;-webkit-tap-highlight-color:transparent;
 }
 .avail-day:last-child{border-bottom:none}
@@ -1182,7 +1182,7 @@ select.field{
 .avail-policy{
   font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;
   background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:12px 14px;
+  padding:var(--s-3) var(--s-3-5);
 }
 .avail-policy b{color:var(--text);font-weight:700}
 
@@ -1191,12 +1191,12 @@ select.field{
 .checkin-loading,
 .checkin-empty{
   background:var(--surface);border:1px solid var(--border);border-radius:12px;
-  padding:14px 16px;font-size:var(--fs-md);color:var(--text-muted);text-align:center;
+  padding:var(--s-3-5) var(--s-4);font-size:var(--fs-md);color:var(--text-muted);text-align:center;
   box-shadow:var(--shadow-sm);
 }
 .checkin-row{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:var(--s-3);
   box-shadow:var(--shadow-sm);
 }
 .checkin-row.checked-in{background:var(--green-soft);border-color:rgba(16,185,129,.25)}
@@ -1209,7 +1209,7 @@ select.field{
   background:var(--accent-grad);color:#fff;
   border:1px solid var(--accent-strong);border-radius:var(--r-lg);
   font-family:inherit;cursor:pointer;text-shadow:0 1px 0 rgba(0,0,0,.06);
-  display:flex;flex-direction:column;align-items:center;gap:4px;
+  display:flex;flex-direction:column;align-items:center;gap:var(--s-1);
   box-shadow:0 1px 2px rgba(37,99,235,.20),
              0 8px 18px -6px rgba(37,99,235,.30),
              inset 0 1px 0 rgba(255,255,255,.16);
@@ -1257,14 +1257,14 @@ select.field{
 .app-head .head-gear:active{transform:scale(.95);background:var(--accent-soft)}
 
 /* ── Settings page ──────────────────────────────────────────── */
-.settings-page{display:flex;flex-direction:column;gap:14px}
+.settings-page{display:flex;flex-direction:column;gap:var(--s-3-5)}
 .settings-section{
   background:var(--surface);border:1px solid var(--border);border-radius:12px;
   overflow:hidden;
 }
 .settings-row{
   display:flex;align-items:center;justify-content:space-between;
-  padding:14px 16px;
+  padding:var(--s-3-5) var(--s-4);
 }
 .settings-row + .settings-row{border-top:1px solid var(--border)}
 .settings-row-link{width:100%;background:transparent;border:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
@@ -1272,7 +1272,7 @@ select.field{
 .settings-label{font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);
   letter-spacing:.06em;text-transform:uppercase}
 .settings-value{font-size:var(--fs-lg);font-weight:600;color:var(--text);margin-top:3px}
-.settings-section-head{padding:14px 16px 6px}
+.settings-section-head{padding:var(--s-3-5) var(--s-4) 6px}
 .settings-section-title{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em}
 .settings-section-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px;line-height:1.4}
 .settings-form{padding:6px 16px 16px;display:flex;flex-direction:column;gap:6px}
@@ -1282,20 +1282,20 @@ select.field{
 .settings-dl-preview img{display:block;width:100%;max-height:280px;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:var(--canvas)}
 .settings-dl-empty{margin-top:10px;border:1px dashed var(--border);border-radius:8px;padding:18px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)}
 .settings-dl-actions{margin-top:12px}
-.settings-callout{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin-top:12px;border-radius:8px;font-size:var(--fs-sm);line-height:1.45}
+.settings-callout{display:flex;gap:var(--s-2-5);align-items:flex-start;padding:var(--s-3) var(--s-3-5);margin-top:12px;border-radius:8px;font-size:var(--fs-sm);line-height:1.45}
 .settings-callout.warn{background:var(--amber-soft,#fef3c7);color:var(--text)}
 .settings-callout svg{flex-shrink:0;margin-top:1px;color:var(--amber,#d97706)}
 
-.rr-debug-banner{background:var(--amber-soft,#fef3c7);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:var(--fs-sm);line-height:1.4}
+.rr-debug-banner{background:var(--amber-soft,#fef3c7);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:var(--s-3) var(--s-3-5);font-size:var(--fs-sm);line-height:1.4}
 
 /* ── Coaching feed (driver-side) ────────────────────────────── */
-.coaching-feed{display:flex;flex-direction:column;gap:10px}
-.coaching-row{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:8px}
+.coaching-feed{display:flex;flex-direction:column;gap:var(--s-2-5)}
+.coaching-row{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s-3-5) var(--s-4);cursor:pointer;display:flex;flex-direction:column;gap:var(--s-2)}
 .coaching-row:active{transform:scale(.99)}
 .coaching-row-pending{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-soft,#1A3956)}
 .coaching-row-head{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .coaching-row-summary{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.4}
-.coaching-row-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:var(--fs-xs);color:var(--text-subtle)}
+.coaching-row-foot{display:flex;justify-content:space-between;align-items:center;gap:var(--s-2);font-size:var(--fs-xs);color:var(--text-subtle)}
 .coaching-row-by{font-weight:500}
 .coaching-row-date{margin-left:auto;font-size:var(--fs-xs);color:var(--text-subtle)}
 .coaching-status{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-lg);background:var(--canvas);color:var(--text-subtle);border:1px solid var(--border)}
@@ -1315,7 +1315,7 @@ select.field{
 .coaching-badge.sev-termination{background:rgba(127,29,29,.16);color:#7f1d1d;border-color:transparent}
 
 /* Detail screen */
-.coaching-detail{display:flex;flex-direction:column;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 18px 22px}
+.coaching-detail{display:flex;flex-direction:column;gap:var(--s-3-5);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 18px 22px}
 .coaching-detail-head{display:flex;gap:6px;flex-wrap:wrap}
 .coaching-detail-meta{font-size:var(--fs-sm);color:var(--text-subtle)}
 .coaching-detail-summary{font-size:var(--fs-lg);font-weight:700;color:var(--text);line-height:1.35;letter-spacing:-.005em}
@@ -1327,28 +1327,28 @@ select.field{
 .coaching-sigpad{display:block;width:100%;height:180px;border:1px dashed var(--border-strong);border-radius:8px;background:#FFFFFF;touch-action:none}
 
 /* ── Form fill-out (driver-side) ────────────────────────────── */
-.form-fill-page{display:flex;flex-direction:column;gap:14px}
-.form-fill-desc{font-size:var(--fs-md);color:var(--text-muted);line-height:1.5;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
-.form-fill-row{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.form-fill-page{display:flex;flex-direction:column;gap:var(--s-3-5)}
+.form-fill-desc{font-size:var(--fs-md);color:var(--text-muted);line-height:1.5;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s-3-5) var(--s-4)}
+.form-fill-row{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s-3-5) var(--s-4);display:flex;flex-direction:column;gap:var(--s-2)}
 .form-fill-label{font-size:var(--fs-md);font-weight:600;color:var(--text)}
 .form-fill-help{font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.4}
 .form-fill-section{font-size:var(--fs-md);font-weight:700;color:var(--text);margin-top:8px;letter-spacing:-.005em}
 .form-fill-divider{border:0;border-top:1px solid var(--border);margin:4px 0}
-.form-fill-instructions{background:var(--accent-soft,#1A3956);border:1px solid var(--border);border-radius:12px;padding:14px 16px;color:var(--text);line-height:1.5;font-size:var(--fs-sm);white-space:pre-wrap}
+.form-fill-instructions{background:var(--accent-soft,#1A3956);border:1px solid var(--border);border-radius:12px;padding:var(--s-3-5) var(--s-4);color:var(--text);line-height:1.5;font-size:var(--fs-sm);white-space:pre-wrap}
 .form-fill-instructions-title{font-weight:700;color:var(--text);margin-bottom:6px;font-size:var(--fs-md)}
-.form-fill-choice-col,.form-fill-choice-row{display:flex;gap:8px;flex-wrap:wrap}
+.form-fill-choice-col,.form-fill-choice-row{display:flex;gap:var(--s-2);flex-wrap:wrap}
 .form-fill-choice-col{flex-direction:column}
-.form-fill-choice{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);cursor:pointer;font-size:var(--fs-md);color:var(--text);min-height:44px}
+.form-fill-choice{display:flex;align-items:center;gap:var(--s-2);padding:var(--s-2-5) var(--s-3);border:1px solid var(--border);border-radius:8px;background:var(--canvas);cursor:pointer;font-size:var(--fs-md);color:var(--text);min-height:44px}
 .form-fill-choice input{accent-color:var(--accent)}
 .form-fill-choice:hover{border-color:var(--border-strong)}
 .form-fill-rating{display:flex;gap:6px}
 .form-fill-rating-star{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border:1px solid var(--border);border-radius:8px;background:var(--canvas);cursor:pointer;font-size:var(--fs-md);color:var(--text);min-height:44px}
 .form-fill-rating-star input{accent-color:var(--accent)}
-.form-fill-gps{padding:14px 16px;background:var(--canvas);border:1px dashed var(--border);border-radius:8px;font-size:var(--fs-sm);color:var(--text-subtle);text-align:center}
+.form-fill-gps{padding:var(--s-3-5) var(--s-4);background:var(--canvas);border:1px dashed var(--border);border-radius:8px;font-size:var(--fs-sm);color:var(--text-subtle);text-align:center}
 
 /* ── Onboarding hub (driver app · /tasks/onboarding) ───────────── */
 .ob{display:flex;flex-direction:column;gap:var(--s-4)}
-.ob-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:18px;display:flex;align-items:center;gap:16px}
+.ob-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:18px;display:flex;align-items:center;gap:var(--s-4)}
 .ob-hero.done{background:linear-gradient(180deg, var(--green-soft) 0%, var(--surface) 72%);border-color:rgba(16,185,129,.22)}
 .ob-ring{flex:0 0 auto;width:58px;height:58px;position:relative}
 .ob-ring-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:var(--fs-md);font-weight:800;color:var(--text);letter-spacing:-.02em}
@@ -1366,7 +1366,7 @@ select.field{
 .ob-group{display:flex;flex-direction:column;gap:6px}
 .ob-sec{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--text-subtle);padding:2px 4px 0}
 .ob-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden}
-.ob-item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:13px 16px;transition:background .12s ease}
+.ob-item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:var(--s-3);padding:13px 16px;transition:background .12s ease}
 .ob-item + .ob-item{border-top:1px solid var(--border)}
 .ob-item.active{background:var(--accent-soft)}
 .ob-item.action{background:var(--amber-soft)}
@@ -1381,12 +1381,12 @@ select.field{
 .ob-go{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:var(--r-lg);border:1px solid var(--border);background:var(--canvas);color:var(--text-muted)}
 .ob-go:active{background:var(--surface)}
 .ob-foot{font-size:var(--fs-xs);color:var(--text-subtle);text-align:center;line-height:1.5;padding:0 8px}
-.ob-skel-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:16px;display:flex;flex-direction:column;gap:10px}
+.ob-skel-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:16px;display:flex;flex-direction:column;gap:var(--s-2-5)}
 
 /* ── Operational assignments — driver "My Tasks" cards ──────────── */
-.wt-sec{display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);margin:18px 0 10px}
+.wt-sec{display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);margin:18px 0 10px}
 .wt-sec-n{background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:700;padding:1px 7px;border-radius:8px}
-.wt-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;transition:opacity .3s ease}
+.wt-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--s-3-5) var(--s-4);margin-bottom:10px;display:flex;align-items:center;gap:var(--s-3);flex-wrap:wrap;transition:opacity .3s ease}
 .wt-card.wt-done{opacity:.6}
 .wt-card-main{flex:1;min-width:0}
 .wt-card-title{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.3}
@@ -1396,9 +1396,9 @@ select.field{
 .wt-status{display:inline-flex;align-items:center;font-size:10px;font-weight:600;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border);border-radius:999px;padding:1px 7px}
 .wt-cta{flex:0 0 auto}
 .wt-check{width:28px;height:28px;border-radius:50%;background:var(--green-soft);color:var(--green);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
-.wt-form{flex-basis:100%;display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.wt-form{flex-basis:100%;display:flex;flex-direction:column;gap:var(--s-2-5);margin-top:4px}
 .wt-photo{position:relative;display:inline-flex;align-items:center;gap:9px;cursor:pointer;align-self:flex-start;flex-wrap:wrap}
 .wt-photo-btn{display:inline-flex;align-items:center;gap:7px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text);background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:var(--r-md);padding:7px 12px}
 .wt-photo-state{font-size:var(--fs-xs);color:var(--text-subtle)}
 .wt-note{font-size:var(--fs-sm);min-height:54px;resize:vertical}
-.wt-form-actions{display:flex;justify-content:flex-end;gap:8px}
+.wt-form-actions{display:flex;justify-content:flex-end;gap:var(--s-2)}
