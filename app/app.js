@@ -219,6 +219,305 @@ async function teardownPushSubscription(session) {
 // long-lived Supabase session) lands in PR 2; this just lets the user
 // install the app and feel the layout.
 const SESSION_KEY = "rr.driver.session";
+// ═══════════════════════════════════════════════════════════════════
+// Interaction primitives — bottom sheets, pull-to-refresh, haptics,
+// scroll-aware header, and directional page transitions. These are
+// the behavioral spine that makes the app feel native rather than
+// "a web view in a frame". Each primitive is tiny and stateless;
+// renderers wire them in via the helper APIs below.
+// ═══════════════════════════════════════════════════════════════════
+
+// ── Haptics ─────────────────────────────────────────────────────
+// Web Vibration API is supported on Android Chrome / Firefox, no-op
+// on iOS Safari. We still call it everywhere — the no-op cost is
+// zero and the value lands the moment a driver is on Android. Kinds
+// roughly map to "what just happened":
+//   tap     — light feedback for a confirmed tap
+//   select  — same as tap, used on toggles / chips
+//   success — slightly longer pulse for a completed action
+//   warn    — double-tap pulse for a denied / failed action
+//   strong  — full confirmation (check-in done, message sent)
+function _haptic(kind) {
+  try {
+    if (!navigator.vibrate) return;
+    const pat = (
+      kind === "tap"     ? 8 :
+      kind === "select"  ? 6 :
+      kind === "success" ? 14 :
+      kind === "warn"    ? [12, 60, 12] :
+      kind === "strong"  ? [16, 30, 22] :
+      10
+    );
+    navigator.vibrate(pat);
+  } catch (_) { /* feature missing — silent */ }
+}
+
+// ── Bottom sheet primitive ──────────────────────────────────────
+// One DOM root is created lazily on first open() and reused. The
+// sheet body accepts arbitrary HTML; the .rr-sheet-actions area
+// is for action buttons whose handlers resolve the open() promise.
+// Drag-to-dismiss: touch on the handle or above scrollTop=0 of the
+// body pans the sheet down; releasing past 25% of its height OR
+// with downward velocity fires close().
+let _sheetRoot = null;
+let _sheetResolve = null;
+let _sheetEscBound = false;
+function _ensureSheetRoot() {
+  if (_sheetRoot) return _sheetRoot;
+  _sheetRoot = document.createElement("div");
+  _sheetRoot.className = "rr-sheet-root";
+  _sheetRoot.innerHTML = `
+    <div class="rr-sheet-backdrop" data-rr-sheet-close></div>
+    <section class="rr-sheet" role="dialog" aria-modal="true">
+      <div class="rr-sheet-handle" aria-hidden="true"></div>
+      <div class="rr-sheet-body" id="rr-sheet-body"></div>
+      <div class="rr-sheet-actions" id="rr-sheet-actions"></div>
+    </section>`;
+  document.body.appendChild(_sheetRoot);
+  _sheetRoot.addEventListener("click", (e) => {
+    if (e.target.matches("[data-rr-sheet-close]")) _closeSheet(null);
+  });
+  // Drag-to-dismiss wiring.
+  const sheet = _sheetRoot.querySelector(".rr-sheet");
+  let startY = 0, currentY = 0, lastY = 0, lastT = 0, vel = 0, dragging = false;
+  const onDown = (e) => {
+    // Only drag if the touch started on the handle, the title area,
+    // or while the body is scrolled to its top. Otherwise let the
+    // body scroll normally.
+    const body = _sheetRoot.querySelector(".rr-sheet-body");
+    const onHandle = e.target.closest(".rr-sheet-handle") != null;
+    const bodyAtTop = body && body.scrollTop <= 0;
+    const onActions = e.target.closest(".rr-sheet-actions") != null;
+    if (!onHandle && !bodyAtTop) return;
+    if (onActions) return; // never start a drag from inside the actions row
+    const t = e.touches ? e.touches[0] : e;
+    startY = t.clientY; currentY = startY; lastY = startY; lastT = performance.now();
+    dragging = true;
+    _sheetRoot.classList.add("dragging");
+  };
+  const onMove = (e) => {
+    if (!dragging) return;
+    const t = e.touches ? e.touches[0] : e;
+    currentY = t.clientY;
+    const dy = Math.max(0, currentY - startY);
+    sheet.style.transform = `translateY(${dy}px)`;
+    const now = performance.now();
+    const dt = Math.max(1, now - lastT);
+    vel = (currentY - lastY) / dt; // px/ms
+    lastY = currentY; lastT = now;
+    // Fade backdrop with travel.
+    const h = sheet.offsetHeight || 1;
+    const op = Math.max(.15, 1 - (dy / h));
+    _sheetRoot.querySelector(".rr-sheet-backdrop").style.opacity = String(op);
+    if (e.cancelable) e.preventDefault();
+  };
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    _sheetRoot.classList.remove("dragging");
+    const dy = Math.max(0, currentY - startY);
+    const h = sheet.offsetHeight || 1;
+    const fast = vel > 0.6;          // px/ms downward
+    const far  = dy > h * 0.28;      // 28% of height
+    sheet.style.transform = "";
+    _sheetRoot.querySelector(".rr-sheet-backdrop").style.opacity = "";
+    if (fast || far) _closeSheet(null);
+  };
+  sheet.addEventListener("touchstart", onDown, { passive: true });
+  sheet.addEventListener("touchmove",  onMove, { passive: false });
+  sheet.addEventListener("touchend",   onUp);
+  sheet.addEventListener("touchcancel", onUp);
+  return _sheetRoot;
+}
+function _closeSheet(value) {
+  if (!_sheetRoot) { if (_sheetResolve) { _sheetResolve(value); _sheetResolve = null; } return; }
+  _sheetRoot.classList.remove("open");
+  const resolver = _sheetResolve;
+  _sheetResolve = null;
+  setTimeout(() => {
+    if (_sheetRoot && !_sheetRoot.classList.contains("open")) {
+      _sheetRoot.querySelector(".rr-sheet-body").innerHTML = "";
+      _sheetRoot.querySelector(".rr-sheet-actions").innerHTML = "";
+    }
+    if (resolver) resolver(value);
+  }, 320);
+}
+function openSheet({ title = "", body = "", actions = [] } = {}) {
+  // actions: [{ label, kind: "primary"|"danger"|"ghost", value, autofocus }]
+  // Returns a Promise that resolves with the chosen action's `value`,
+  // or null if the user dismissed without choosing.
+  const root = _ensureSheetRoot();
+  const bodyEl = root.querySelector("#rr-sheet-body");
+  const actEl  = root.querySelector("#rr-sheet-actions");
+  bodyEl.innerHTML = `
+    ${title ? `<div class="rr-sheet-title">${escapeHtml(title)}</div>` : ""}
+    ${typeof body === "string" ? body : ""}`;
+  actEl.innerHTML = actions.map((a, i) => {
+    const cls = a.kind === "primary" ? "btn btn-primary" :
+                a.kind === "danger"  ? "btn btn-danger" :
+                a.kind === "ghost"   ? "btn btn-ghost"  : "btn";
+    return `<button type="button" class="${cls}" data-rr-sheet-idx="${i}"${a.autofocus ? " data-autofocus" : ""}>${escapeHtml(a.label)}</button>`;
+  }).join("");
+  if (typeof body !== "string" && body instanceof Node) bodyEl.appendChild(body);
+  return new Promise((resolve) => {
+    _sheetResolve = resolve;
+    actEl.querySelectorAll("[data-rr-sheet-idx]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const a = actions[+btn.dataset.rrSheetIdx];
+        _haptic(a?.kind === "danger" ? "warn" : "tap");
+        _closeSheet(a?.value ?? null);
+      });
+    });
+    // Open on next frame so the entry transition plays from the
+    // off-screen starting state.
+    requestAnimationFrame(() => {
+      root.classList.add("open");
+      const fb = actEl.querySelector("[data-autofocus]");
+      if (fb) fb.focus({ preventScroll: true });
+    });
+    if (!_sheetEscBound) {
+      _sheetEscBound = true;
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && _sheetRoot?.classList.contains("open")) _closeSheet(null);
+      });
+    }
+  });
+}
+// Native-feeling confirm. Drop-in replacement for window.confirm().
+//   const ok = await confirmSheet({ title, message, confirmText, danger });
+function confirmSheet({ title = "Confirm", message = "", confirmText = "Confirm", cancelText = "Cancel", danger = false } = {}) {
+  return openSheet({
+    title,
+    body: message ? `<p class="rr-sheet-msg">${escapeHtml(message)}</p>` : "",
+    actions: [
+      { label: confirmText, kind: danger ? "danger" : "primary", value: true, autofocus: true },
+      { label: cancelText,  kind: "ghost",                       value: false },
+    ],
+  }).then(v => v === true);
+}
+
+// ── Pull-to-refresh ─────────────────────────────────────────────
+// One handler attached to #main; a per-route refresh callback is
+// registered via setRefresh(fn). The handler converts a downward
+// pan at scrollTop=0 into a translate3d on #main and a spinner
+// pill. Past the threshold, fires the callback and snaps back.
+let _ptrCb = null;
+let _ptrEl = null;
+let _ptrWired = false;
+const PTR_THRESHOLD = 64;     // px the user must pull
+const PTR_RESIST    = 0.55;   // resistance factor (drag feels heavy)
+function setRefresh(fn) { _ptrCb = fn || null; }
+function _ptrEnsureIndicator() {
+  if (_ptrEl) return _ptrEl;
+  _ptrEl = document.createElement("div");
+  _ptrEl.className = "rr-ptr";
+  _ptrEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+  // The indicator lives in #app (a sibling of #main + header) so it
+  // stays put while #main translates underneath.
+  document.getElementById("app")?.appendChild(_ptrEl);
+  return _ptrEl;
+}
+function _wirePullToRefresh() {
+  const main = document.getElementById("main");
+  if (!main || _ptrWired) return;
+  _ptrWired = true;
+  let startY = 0, dy = 0, dragging = false, armed = false, refreshing = false;
+  const onStart = (e) => {
+    if (refreshing || !_ptrCb) return;
+    if (main.scrollTop > 0) return;
+    const t = e.touches ? e.touches[0] : e;
+    startY = t.clientY; dy = 0; dragging = true; armed = false;
+    _ptrEnsureIndicator();
+  };
+  const onMove = (e) => {
+    if (!dragging) return;
+    const t = e.touches ? e.touches[0] : e;
+    dy = (t.clientY - startY) * PTR_RESIST;
+    if (dy < 0) { dragging = false; main.removeAttribute("data-ptr-active"); _ptrEl?.classList.remove("visible","armed"); return; }
+    // Past threshold the indicator settles at the top; further
+    // pulling adds diminishing return.
+    const clamped = Math.min(dy, PTR_THRESHOLD + (dy - PTR_THRESHOLD) * 0.25);
+    main.style.setProperty("--rr-ptr-y", clamped + "px");
+    main.setAttribute("data-ptr-active", "dragging");
+    const ind = _ptrEnsureIndicator();
+    ind.classList.add("visible");
+    const ratio = Math.min(1, dy / PTR_THRESHOLD);
+    ind.style.transform = `translate(-50%, ${-32 + Math.min(60, clamped) * 0.9}px) scale(${0.85 + 0.15 * ratio})`;
+    if (dy >= PTR_THRESHOLD && !armed) { armed = true; ind.classList.add("armed"); _haptic("select"); }
+    if (dy <  PTR_THRESHOLD &&  armed) { armed = false; ind.classList.remove("armed"); }
+    if (e.cancelable && dy > 4) e.preventDefault();
+  };
+  const onEnd = async () => {
+    if (!dragging) return;
+    dragging = false;
+    const ind = _ptrEl;
+    if (armed && _ptrCb && !refreshing) {
+      refreshing = true;
+      ind?.classList.add("refreshing");
+      ind?.classList.remove("armed");
+      ind && (ind.style.transform = `translate(-50%, 24px) scale(1)`);
+      main.style.setProperty("--rr-ptr-y", "56px");
+      main.setAttribute("data-ptr-active", "settled");
+      _haptic("tap");
+      try { await _ptrCb(); }
+      catch (e) { console.warn("ptr refresh failed:", e); _haptic("warn"); }
+      refreshing = false;
+      ind?.classList.remove("refreshing");
+    }
+    // Release.
+    main.style.setProperty("--rr-ptr-y", "0px");
+    main.setAttribute("data-ptr-active", "settled");
+    if (ind) {
+      ind.style.transform = `translate(-50%, -32px) scale(.85)`;
+      setTimeout(() => { ind.classList.remove("visible","armed"); }, 260);
+    }
+    setTimeout(() => { main.removeAttribute("data-ptr-active"); }, 320);
+  };
+  main.addEventListener("touchstart", onStart, { passive: true });
+  main.addEventListener("touchmove",  onMove,  { passive: false });
+  main.addEventListener("touchend",   onEnd);
+  main.addEventListener("touchcancel", onEnd);
+}
+
+// ── Scroll-aware header ─────────────────────────────────────────
+let _scrollHeadWired = false;
+function _wireScrollAwareHeader() {
+  const main = document.getElementById("main");
+  if (!main || _scrollHeadWired) return;
+  _scrollHeadWired = true;
+  let lastScrolled = false;
+  main.addEventListener("scroll", () => {
+    const head = document.querySelector(".app-head");
+    if (!head) return;
+    const scrolled = main.scrollTop > 4;
+    if (scrolled !== lastScrolled) {
+      head.classList.toggle("scrolled", scrolled);
+      lastScrolled = scrolled;
+    }
+  }, { passive: true });
+}
+
+// ── Directional page transitions ────────────────────────────────
+// Track which way the next render is going. Sub-routes that have a
+// `back` target are "forward" entries; navigating to that back
+// target is "back". Top-level tab switches stay neutral (default
+// page-enter fade+lift).
+let _navDir = null;   // "forward" | "back" | null
+let _navStack = [];   // simple history for direction inference
+function _trackNav(path) {
+  if (_navStack[_navStack.length - 1] === path) return;
+  const i = _navStack.lastIndexOf(path);
+  if (i >= 0) {
+    // Going back to a prior path
+    _navStack = _navStack.slice(0, i + 1);
+    _navDir = "back";
+  } else {
+    _navStack.push(path);
+    if (_navStack.length > 1) _navDir = "forward";
+    else _navDir = null;
+  }
+}
+
 function readSession() {
   if (PREVIEW) return _previewSession;
   try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }
@@ -366,17 +665,30 @@ function render() {
   if (back) back.style.display = backTarget ? "inline-flex" : "none";
   if (back && backTarget) back.onclick = () => navigate(backTarget);
   if (r.title) setHeader(r.title, "");
+  // Reset per-route side-channels so a stale refresh callback from a
+  // previous screen can't fire under the new one's pull-to-refresh.
+  setRefresh(null);
+  // Track nav direction for directional page transitions.
+  _trackNav(path);
   r.render();
   // Premium page-enter — toggle [data-page-enter] on #main so each top-
   // level child fades + lifts in. Reset on every render so the animation
   // re-fires when a route is re-entered. Cheap (CSS-only) and skipped
-  // automatically under prefers-reduced-motion.
+  // automatically under prefers-reduced-motion. Direction comes from
+  // _navDir so drilling deeper slides right→left and back slides
+  // left→right; tab-level navigation gets the default fade.
   const _main = document.getElementById("main");
   if (_main) {
     _main.removeAttribute("data-page-enter");
+    _main.removeAttribute("data-nav-dir");
     // Force reflow so the re-added attribute restarts the animation.
     void _main.offsetWidth;
     _main.setAttribute("data-page-enter", "1");
+    if (_navDir) _main.setAttribute("data-nav-dir", _navDir);
+    // Header starts un-scrolled; the scroll listener flips it.
+    document.querySelector(".app-head")?.classList.remove("scrolled");
+    _wireScrollAwareHeader();
+    _wirePullToRefresh();
   }
   document.querySelectorAll(".tab").forEach((t) => {
     // In onboarding the Onboarding tab points directly at
@@ -614,9 +926,9 @@ function renderShell(session) {
     ${isOnboarding ? onboardingTabs : activeTabs}`;
 
   document.querySelectorAll(".tab").forEach((t) => {
-    t.addEventListener("click", () => navigate(t.dataset.route));
+    t.addEventListener("click", () => { _haptic("select"); navigate(t.dataset.route); });
   });
-  document.getElementById("head-gear").addEventListener("click", () => navigate("/settings"));
+  document.getElementById("head-gear").addEventListener("click", () => { _haptic("tap"); navigate("/settings"); });
 
   // Wire the offline pill — flips on `offline`, briefly shows a green
   // "back online" confirmation on `online`. Idempotent; safe to call
@@ -656,10 +968,21 @@ function _wireOfflineBanner(){
 // ── Schedule ────────────────────────────────────────────────────────
 async function renderSchedule() {
   setHeader("Schedule", "");
+  // Pull-to-refresh: pulling the schedule list re-fetches shifts and
+  // any cover offers. Returning the promise lets the indicator spin
+  // until the data lands.
+  setRefresh(() => renderSchedule());
   const main = document.getElementById("main");
-  // Skeleton instead of a bare spinner — communicates "shifts loading"
-  // and reserves the layout so the real cards swap in without a jump.
-  main.innerHTML = shiftSkeletonHtml(3);
+  // Skeleton with a 140ms delay — fast loads never flash a shimmer,
+  // slow loads still get a meaningful placeholder. Skip entirely if
+  // the page already has rendered content (pull-to-refresh case);
+  // the PTR indicator + existing cards are a better story than
+  // wiping the screen for a beat.
+  const _hadContent = !!main.querySelector(".shift-card, .empty-state");
+  const _skelTimer = _hadContent ? null : setTimeout(() => {
+    if (currentRoute() === "/schedule") main.innerHTML = shiftSkeletonHtml(3);
+  }, 140);
+  const _clearSkel = () => { if (_skelTimer) clearTimeout(_skelTimer); };
 
   // Reset any leftover Cover-offer poller from a previous schedule view.
   _coverOfferTeardown();
@@ -678,6 +1001,7 @@ async function renderSchedule() {
         render();
         return;
       }
+      _clearSkel();
       main.innerHTML = `<div class="empty-state" style="color:var(--red)">Couldn't load schedule.<br><small>${escapeHtml(error.message || String(error))}</small></div>`;
       return;
     }
@@ -722,6 +1046,7 @@ async function renderSchedule() {
       // what would land here and what to do if the driver expects
       // shifts that aren't showing up. The Cover-offer card still
       // mounts above so a pending offer is visible even on an empty week.
+      _clearSkel();
       main.innerHTML = `
         <div id="rr-cover-offer-slot"></div>
         <div class="empty-state" style="padding:48px 20px;text-align:center">
@@ -736,6 +1061,7 @@ async function renderSchedule() {
       return;
     }
 
+    _clearSkel();
     main.innerHTML = `
       <div id="rr-cover-offer-slot"></div>
       <div id="rr-swap-incoming-slot"></div>
@@ -760,6 +1086,7 @@ async function renderSchedule() {
     // A thrown error inside renderSchedule used to kill the whole
     // render and leave main empty.  Surface it instead.
     console.error("renderSchedule failed:", err);
+    _clearSkel();
     main.innerHTML = `<div class="empty-state" style="color:var(--red)">Schedule failed to render.<br><small>${escapeHtml(err?.message || String(err))}</small></div>`;
   }
 }
@@ -891,7 +1218,13 @@ function _pickupListPaint(slot, shifts, token) {
   });
 }
 async function _pickupConfirm(shiftId, token, btn) {
-  if (!confirm("Pick up this shift?")) return;
+  const ok = await confirmSheet({
+    title: "Pick up this shift?",
+    message: "Dispatch will be notified and the shift becomes yours.",
+    confirmText: "Yes, pick it up",
+  });
+  if (!ok) return;
+  _haptic("tap");
   if (btn) { btn.disabled = true; btn.textContent = "Claiming…"; }
   const { data, error } = await sb.rpc("driver_open_shift_pickup", {
     p_token: token, p_shift_id: shiftId,
@@ -1049,7 +1382,13 @@ async function openSwapModal(myShiftId, token) {
   });
 }
 async function _swapSubmit(myShiftId, targetShiftId, token, modal) {
-  if (!confirm("Send this swap request?")) return;
+  const ok = await confirmSheet({
+    title: "Send swap request?",
+    message: "The other driver gets notified. They can accept or pass.",
+    confirmText: "Send request",
+  });
+  if (!ok) return;
+  _haptic("tap");
   const { data, error } = await sb.rpc("driver_swap_request", {
     p_token: token, p_my_shift_id: myShiftId, p_target_shift_id: targetShiftId, p_message: null,
   });
@@ -1145,6 +1484,7 @@ function fmtTime(iso) {
 // Done) make the day's open work obvious at a glance.
 function renderTasksHub() {
   setHeader("Tasks", "");
+  setRefresh(() => renderTasksHub());
   const main = document.getElementById("main");
 
   // Render the always-on cards FIRST so the page never stays on the
@@ -1658,11 +1998,13 @@ async function renderChat() {
     });
     if (sendBtn) sendBtn.disabled = false;
     if (error) {
+      _haptic("warn");
       markStubFailed("send failed · tap to retry");
       ta.value = savedBody;
       toast("Couldn't send: " + error.message, "warn");
       return;
     }
+    _haptic("tap");
     // The smart-scroll logic in refreshChat will keep us pinned at
     // bottom (the optimistic stub already scrolled us there).
     await refreshChat(false);
@@ -2533,30 +2875,38 @@ function channelBubbleHtml(m, pos) {
 // affordance is replaced with a "—" so the row reads as informational.
 async function renderTeam() {
   setHeader("Team", "");
+  setRefresh(() => renderTeam());
   const main = document.getElementById("main");
-  // Skeleton roster — hints at the row layout (avatar circle + two lines
-  // of text + action chip) so the real list swaps in without a jump.
-  let _skel = `<div class="team-search" style="opacity:.5;pointer-events:none">
-    <svg class="team-search-ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <span style="color:var(--text-subtle);font-size:var(--fs-md)">Search teammates</span>
-  </div><div class="team-list">`;
-  for (let i = 0; i < 6; i++){
-    _skel += `<div class="team-row">
-      <span class="skel skel-circle" style="width:44px;height:44px"></span>
-      <div class="team-row-body">
-        <span class="skel skel-line" style="width:${55 - i*4}%"></span>
-        <span class="skel skel-line-sm" style="width:${35 - i*3}%"></span>
-      </div>
-    </div>`;
-  }
-  _skel += `</div>`;
-  main.innerHTML = _skel;
+  // Skeleton roster — hints at the row layout (avatar circle + two
+  // lines of text + action chip) so the real list swaps in without
+  // a jump. Delayed 140ms so a fast roster never flashes a shimmer.
+  const _hadContent = !!main.querySelector(".team-list, .team-empty");
+  const _skelTimer = _hadContent ? null : setTimeout(() => {
+    if (currentRoute() !== "/team") return;
+    let _skel = `<div class="team-search" style="opacity:.5;pointer-events:none">
+      <svg class="team-search-ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <span style="color:var(--text-subtle);font-size:var(--fs-md)">Search teammates</span>
+    </div><div class="team-list">`;
+    for (let i = 0; i < 6; i++){
+      _skel += `<div class="team-row">
+        <span class="skel skel-circle" style="width:44px;height:44px"></span>
+        <div class="team-row-body">
+          <span class="skel skel-line" style="width:${55 - i*4}%"></span>
+          <span class="skel skel-line-sm" style="width:${35 - i*3}%"></span>
+        </div>
+      </div>`;
+    }
+    _skel += `</div>`;
+    main.innerHTML = _skel;
+  }, 140);
+  const _clearSkel = () => { if (_skelTimer) clearTimeout(_skelTimer); };
 
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
 
   const { data, error } = await sb.rpc("driver_team_roster", { p_token: session.token });
   if (currentRoute() !== "/team") return;
+  _clearSkel();
 
   if (error) {
     main.innerHTML = `<div class="team-empty"><div class="team-empty-title">Couldn't load the team</div><div class="team-empty-sub">${escapeHtml(error.message || "Try again in a moment.")}</div></div>`;
@@ -2750,7 +3100,14 @@ function renderSettings() {
     el.addEventListener("click", () => navigate(el.getAttribute("data-rr-settings-go"))));
 
   document.getElementById("rr-signout").addEventListener("click", async () => {
-    if (!confirm("Sign out of RouteReady?")) return;
+    const ok = await confirmSheet({
+      title: "Sign out?",
+      message: "You'll need your invite code or a new link from dispatch to sign back in.",
+      confirmText: "Sign out",
+      cancelText: "Stay signed in",
+      danger: true,
+    });
+    if (!ok) return;
     const s = readSession();
     await teardownPushSubscription(s);
     if (s?.token) { try { await sb.rpc("driver_signout", { p_token: s.token }); } catch {} }
@@ -2950,7 +3307,13 @@ async function renderSettingsLicense() {
   const rmBtn = document.getElementById("rr-prof-dl-remove");
   if (rmBtn) {
     rmBtn.addEventListener("click", async () => {
-      if (!confirm("Remove your license image?")) return;
+      const okRm = await confirmSheet({
+        title: "Remove license image?",
+        message: "Your dispatcher will see the slot as empty until you upload a new one.",
+        confirmText: "Remove image",
+        danger: true,
+      });
+      if (!okRm) return;
       rmBtn.disabled = true;
       const { error: rmErr } = await sb.rpc("driver_clear_dl_image", { p_token: session.token });
       rmBtn.disabled = false;
@@ -3816,10 +4179,19 @@ async function renderCheckinCard(session) {
 }
 
 async function doCheckin(session) {
-  if (!confirm("Check in now?")) return;
-  const btn = document.getElementById("rr-checkin-btn");
+  const ok = await confirmSheet({
+    title: "Check in now?",
+    message: "We'll confirm you're at the station and log your start time.",
+    confirmText: "Check in",
+  });
+  if (!ok) return;
+  _haptic("tap");
+  // Tap target is on the hero CTA in /profile or on the check-in card
+  // on /profile — both share the same id wired in their respective
+  // renderers.
+  const btn = document.getElementById("rr-checkin-btn") || document.getElementById("rr-hero-cta");
   if (!btn) return;
-  if (!("geolocation" in navigator)) { toast("This device can't share location", "warn"); return; }
+  if (!("geolocation" in navigator)) { toast("This device can't share location", "warn"); _haptic("warn"); return; }
   btn.disabled = true;
   const orig = btn.innerHTML;
   btn.innerHTML = "Locating…";
@@ -3836,6 +4208,7 @@ async function doCheckin(session) {
     btn.disabled = false;
     btn.innerHTML = orig;
     if (error) {
+      _haptic("warn");
       const msg = error.message || "";
       if      (msg.includes("out_of_geofence"))         toast(msg.replace(/^.*out_of_geofence:\s*/, "Too far from station: "), "warn");
       else if (msg.includes("too_early_to_checkin"))    toast(msg.replace(/^.*too_early_to_checkin:\s*/, ""), "warn");
@@ -3844,18 +4217,26 @@ async function doCheckin(session) {
       else                                              toast("Check-in failed: " + msg, "warn");
       return;
     }
+    _haptic("strong");
     toast(data?.already_checked_in ? "Already checked in" : "Checked in ✓", "ok");
     renderCheckinCard(session);
   }, (err) => {
     btn.disabled = false;
     btn.innerHTML = orig;
+    _haptic("warn");
     if (err.code === err.PERMISSION_DENIED) toast("Allow location to check in", "warn");
     else toast("Couldn't get location: " + err.message, "warn");
   }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
 }
 
 async function doCheckout(session) {
-  if (!confirm("Check out?")) return;
+  const ok = await confirmSheet({
+    title: "Check out?",
+    message: "This ends your shift in RouteReady. You can undo within a few minutes.",
+    confirmText: "Check out",
+  });
+  if (!ok) return;
+  _haptic("tap");
   const btn = document.getElementById("rr-checkout-btn");
   if (btn) btn.disabled = true;
   // Geolocation is best-effort on check-out; we don't gate.
@@ -3864,7 +4245,8 @@ async function doCheckout(session) {
       p_token: session.token, p_lat: lat ?? null, p_lng: lng ?? null,
     });
     if (btn) btn.disabled = false;
-    if (error) { toast("Check-out failed: " + error.message, "warn"); return; }
+    if (error) { _haptic("warn"); toast("Check-out failed: " + error.message, "warn"); return; }
+    _haptic("strong");
     toast("Checked out ✓", "ok");
     renderCheckinCard(session);
   };
@@ -3877,7 +4259,12 @@ async function doCheckout(session) {
 }
 
 async function doUndoCheckout(session) {
-  if (!confirm("Undo your check-out?")) return;
+  const ok = await confirmSheet({
+    title: "Undo check-out?",
+    message: "Your check-out time will be cleared and your shift goes back to active.",
+    confirmText: "Undo",
+  });
+  if (!ok) return;
   const { error } = await sb.rpc("driver_undo_checkout", { p_token: session.token });
   if (error) {
     if ((error.message || "").includes("day_finalized")) {
@@ -4167,6 +4554,7 @@ async function renderAvailability() {
     const dk = cb.dataset.rrDay;
     if (cb.checked) picked.add(dk); else picked.delete(dk);
     cb.closest(".avail-toggle").classList.toggle("on", cb.checked);
+    _haptic("select");
   });
 
   // Preferred days: persist on each toggle. Tapping a day outside the
@@ -4189,6 +4577,7 @@ async function renderAvailability() {
       if (!liveDays.has(dk)) { cb.checked = false; return; }
       if (cb.checked) prefSet.add(dk); else prefSet.delete(dk);
       cb.closest(".avail-toggle").classList.toggle("on", cb.checked);
+      _haptic("select");
       _inFlight++;
       const { error: perr } = await sb.rpc("driver_set_preferred_days", { p_token: session.token, p_days: [...prefSet] });
       _inFlight--;
@@ -4212,7 +4601,15 @@ async function renderAvailability() {
       else if (blackout) toast("Submissions are paused right now", "warn");
       return;
     }
-    if (!confirm("Submit this availability change for approval?")) return;
+    {
+      const ok = await confirmSheet({
+        title: "Submit availability change?",
+        message: "Your dispatcher will review this and either approve or pass.",
+        confirmText: "Submit for approval",
+      });
+      if (!ok) return;
+      _haptic("tap");
+    }
 
     _inFlight++;
     submitEl.disabled = true;
@@ -4398,7 +4795,15 @@ async function _toListClick(e) {
   const btn = e.target.closest("[data-rr-to-cancel]");
   if (!btn) return;
   const id = btn.getAttribute("data-rr-to-cancel");
-  if (!confirm("Cancel this time-off request?")) return;
+  const ok = await confirmSheet({
+    title: "Cancel this request?",
+    message: "Your dispatcher won't see it anymore. You can submit a new one.",
+    confirmText: "Yes, cancel it",
+    cancelText: "Keep it",
+    danger: true,
+  });
+  if (!ok) return;
+  _haptic("tap");
   btn.disabled = true; btn.textContent = "Cancelling…";
   const session = readSession();
   const { error } = await sb.rpc("driver_time_off_cancel", { p_token: session.token, p_id: id });
