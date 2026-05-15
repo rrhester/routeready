@@ -2186,7 +2186,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   display:inline-flex;align-items:center;gap:6px;
 }
 .alert-tab:hover{background:var(--surface-hover);color:var(--text)}
-.alert-tab.active{background:#0F172A;color:#fff;border-color:#0F172A}
+.alert-tab.active{background:#0F172A;color:#fff;border-color:var(--text)}
 .alert-tab-count{
   font-size:var(--fs-xs);font-weight:700;padding:1px 6px;border-radius:8px;
   background:var(--canvas);color:var(--text-subtle);
@@ -2468,7 +2468,7 @@ select.form-input{
 .checkin-banner-title{font-size:var(--fs-lg);font-weight:600;line-height:1.3;color:#fff}
 .checkin-banner-sub{font-size:var(--fs-sm);color:rgba(255,255,255,.7);margin-top:2px;line-height:1.5}
 .checkin-banner-cta{
-  background:#fff;color:#0F172A;padding:9px 16px;border-radius:var(--r-md);
+  background:#fff;color:var(--text);padding:9px 16px;border-radius:var(--r-md);
   font-size:var(--fs-md);font-weight:600;border:none;cursor:pointer;flex-shrink:0;position:relative;z-index:1;
   display:inline-flex;align-items:center;gap:6px;
 }
@@ -2547,7 +2547,7 @@ select.form-input{
 .status-btn.active.s-present{background:var(--green);border-color:var(--green);color:#fff}
 .status-btn.active.s-late{background:var(--amber);border-color:var(--amber);color:#fff}
 .status-btn.active.s-callout{background:var(--red);border-color:var(--red);color:#fff}
-.status-btn.active.s-noshow{background:#0F172A;border-color:#0F172A;color:#fff}
+.status-btn.active.s-noshow{background:#0F172A;border-color:var(--text);color:#fff}
 .status-btn.active.s-vto{background:var(--sky);border-color:var(--sky);color:#fff}
 .status-btn svg{width:14px;height:14px;stroke-width:2.5}
 
@@ -5982,7 +5982,7 @@ body.rr-cmdk-open{ overflow:hidden }
   font-size:var(--fs-sm);font-weight:600;color:#FCD34D;letter-spacing:.01em;
 }
 .build-hero-cta{
-  background:#fff;color:#0F172A;padding:11px 20px;border-radius:var(--r-lg);
+  background:#fff;color:var(--text);padding:11px 20px;border-radius:var(--r-lg);
   font-size:var(--fs-md);font-weight:700;border:none;cursor:pointer;
   display:inline-flex;align-items:center;gap:8px;font-family:inherit;
   position:relative;z-index:1;
@@ -6164,7 +6164,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .bb-blueprint-body .key{color:#93C5FD}
 .bb-blueprint-body .str{color:#86EFAC}
 .bb-blueprint-body .num{color:#FCD34D}
-.bb-blueprint-body .punct{color:#94A3B8}
+.bb-blueprint-body .punct{color:var(--text-disabled)}
 
 /* Saved tools library */
 .bb-saved-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3)}
@@ -9572,7 +9572,7 @@ body.rr-cmdk-open{ overflow:hidden }
                   <div class="billing-name">RouteReady Pro</div>
                   <div class="billing-price">$249/mo · billed monthly · next charge May 30</div>
                 </div>
-                <button class="btn" style="background:#fff;color:#0F172A;border-color:transparent">Manage subscription</button>
+                <button class="btn" style="background:#fff;color:var(--text);border-color:transparent">Manage subscription</button>
               </div>
 
               <h4 style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-4) 0 8px 0">Recent invoices</h4>
@@ -12424,7 +12424,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <div style="font-size:42px;font-weight:700;letter-spacing:-.03em;line-height:1">$14,420.00</div>
               <div style="font-size:var(--fs-md);opacity:.85;margin-top:6px">across 18 won disputes · 73% win rate · estimated $35K annualized</div>
             </div>
-            <button class="btn" style="background:#fff;color:#0F172A;border-color:transparent;font-weight:600">Download report</button>
+            <button class="btn" style="background:#fff;color:var(--text);border-color:transparent;font-weight:600">Download report</button>
           </div>
 
           <div class="fin-stat-grid">
@@ -20425,7 +20425,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515ao-old-palette-rgba-sweep"></script>
+<script type="module" src="./live.js?v=20260515ap-text-color-token-sweep"></script>
 
 </body>
 </html>
