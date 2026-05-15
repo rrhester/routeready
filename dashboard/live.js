@@ -3180,11 +3180,11 @@ function _obReadiness(d, i9recOverride, progOverride, stateOverride) {
   return { key, label, tone, doneN, totalN, pct, steps, gates, next, weight };
 }
 function _obPill(label, tone) {
-  const T = tone === "green" ? "background:#dcfce7;color:#166534"
-    : tone === "red"   ? "background:#fee2e2;color:#991b1b"
-    : tone === "amber" ? "background:#fef3c7;color:#92400e"
+  const T = tone === "green" ? "background:var(--green-soft);color:var(--green-dark)"
+    : tone === "red"   ? "background:var(--red-soft);color:var(--red-dark)"
+    : tone === "amber" ? "background:var(--amber-soft);color:var(--amber-dark)"
     : tone === "blue"  ? "background:#e0f2fe;color:#075985"
-    : "background:#f1f5f9;color:var(--text-muted)";
+    : "background:var(--canvas);color:var(--text-muted)";
   return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;padding:2px 9px;border-radius:999px;white-space:nowrap;${T}">${escapeHtml(label)}</span>`;
 }
 // The "N onboarding · X ready · Y blocked · biggest bottleneck …" strip
@@ -13355,7 +13355,7 @@ function _i9PanelHtml(i9, drv) {
   let sealHtml;
   if (rec && rec.pdf_path) {
     sealHtml = `<div style="font-size:var(--fs-sm);color:var(--text);line-height:1.6">
-      <span class="dd-badge" style="background:#dcfce7;color:#166534;font-size:var(--fs-xs)">Sealed PDF</span>${rec.pdf_sealed_at ? `<span style="color:var(--text-subtle);margin-left:6px">${escapeHtml(new Date(rec.pdf_sealed_at).toLocaleString())}</span>` : ""}
+      <span class="dd-badge" style="background:var(--green-soft);color:var(--green-dark);font-size:var(--fs-xs)">Sealed PDF</span>${rec.pdf_sealed_at ? `<span style="color:var(--text-subtle);margin-left:6px">${escapeHtml(new Date(rec.pdf_sealed_at).toLocaleString())}</span>` : ""}
       <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
         <button type="button" class="btn btn-sm" data-rr-i9-pdf="form">Open Form I-9 (PDF)</button>
         <button type="button" class="btn btn-sm" data-rr-i9-pdf="cert">Certificate of Completion</button>
@@ -13639,7 +13639,7 @@ async function openI9Section2Modal(driverId) {
 
   const body = `
     <div style="display:flex;flex-direction:column;gap:var(--s-3-5)">
-      ${due ? `<div style="border:1px solid;border-radius:8px;padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);${due.overdue ? "background:#fee2e2;border-color:#fecaca;color:#991b1b" : due.days<=1 ? "background:#fef3c7;border-color:#fde68a;color:#92400e" : "background:#eff6ff;border-color:#bfdbfe;color:#1e40af"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay in step 2.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
+      ${due ? `<div style="border:1px solid;border-radius:8px;padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);${due.overdue ? "background:var(--red-soft);border-color:#fecaca;color:var(--red-dark)" : due.days<=1 ? "background:var(--amber-soft);border-color:#fde68a;color:var(--amber-dark)" : "background:#eff6ff;border-color:#bfdbfe;color:#1e40af"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay in step 2.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
 
       ${step(1, "Examine the documents", "How did you review the employee's original documents?", `
         <label style="display:flex;align-items:flex-start;gap:var(--s-2);font-size:var(--fs-sm);padding:2px 0;cursor:pointer"><input type="radio" name="i9-exam" value="in_person" ${exam==="in_person"?"checked":""} style="margin-top:3px"> <span>Physical, in-person examination of the original documents.</span></label>
@@ -13665,7 +13665,7 @@ async function openI9Section2Modal(driverId) {
       ${step(4, "Sign", "Your electronic signature is recorded with your name and a timestamp.", `
         <div style="position:relative;background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
           <canvas id="i9-s2-canvas" style="display:block;width:100%;height:160px;background:#fff;touch-action:none;cursor:crosshair"></canvas>
-          <button type="button" id="i9-s2-clear" style="position:absolute;top:6px;right:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:999px;padding:3px 9px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer">Clear</button>
+          <button type="button" id="i9-s2-clear" style="position:absolute;top:6px;right:6px;background:var(--canvas);border:1px solid #cbd5e1;border-radius:999px;padding:3px 9px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer">Clear</button>
           <div id="i9-s2-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--text-disabled);font-size:var(--fs-xs);pointer-events:none">Draw your signature</div>
         </div>
         <input type="text" id="i9-s2-typed" placeholder="…or type your full name" autocomplete="name" style="margin-top:var(--s-2);padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:7px;font:inherit;background:var(--canvas);width:100%">`)}
@@ -13872,7 +13872,7 @@ function _i9FormPrintStylesOnce() {
     #rr-i9form-modal .i9f-scroll{flex:1;overflow:auto;padding:var(--s-6);display:flex;justify-content:center;background:#e5e7eb}
     #rr-i9form-modal .i9f-doc{background:#fff;color:var(--text);width:8.5in;min-height:11in;padding:0.6in 0.7in;box-shadow:0 4px 24px rgba(0,0,0,.18);font-family:"Helvetica Neue",Arial,sans-serif;font-size:10.5px;line-height:1.4}
     .i9f-doc h1{font-size:var(--fs-base);margin:0 0 2px;letter-spacing:.01em}
-    .i9f-doc .i9f-sub{font-size:10px;color:#374151;margin-bottom:2px}
+    .i9f-doc .i9f-sub{font-size:10px;color:var(--text-muted);margin-bottom:2px}
     .i9f-doc .i9f-note{font-size:9px;color:#6b7280;margin-bottom:14px;border-bottom:2px solid #111827;padding-bottom:8px}
     .i9f-doc h2{font-size:11.5px;background:#1f2937;color:#fff;padding:var(--s-1) 8px;margin:18px 0 8px;letter-spacing:.02em}
     .i9f-doc h3{font-size:10.5px;margin:12px 0 4px;color:#1f2937;text-transform:uppercase;letter-spacing:.04em}
@@ -13927,7 +13927,7 @@ async function openI9FormPrint(driverId) {
   const empName = [s1.first_name, s1.middle_initial, s1.last_name].filter(Boolean).join(" ") || displayDriverName(drv) || "—";
   const citMap = { citizen: 1, national: 2, lpr: 3, authorized: 4 };
   const citNum = citMap[s1.citizen_status] || 0;
-  const citRow = (n, label, extra) => `<div class="opt"><span class="box">${citNum === n ? "X" : ""}</span><span><strong>${n}.</strong> ${escapeHtml(label)}${extra ? ` <span style="color:#374151">${extra}</span>` : ""}</span></div>`;
+  const citRow = (n, label, extra) => `<div class="opt"><span class="box">${citNum === n ? "X" : ""}</span><span><strong>${n}.</strong> ${escapeHtml(label)}${extra ? ` <span style="color:var(--text-muted)">${extra}</span>` : ""}</span></div>`;
   let authExtra = "";
   if (s1.citizen_status === "authorized") {
     const kindLbl = { uscis: "USCIS/A-Number", i94: "Form I-94 #", passport: "Foreign passport #" }[s1.auth_doc_kind] || "Document #";
@@ -14109,13 +14109,13 @@ function _i9DaysFromToday(iso) {
 // priority order: s2_overdue · s2_due · needs_correction ·
 // awaiting_employee · s2_needed · reverification · verified.
 const _I9_BUCKETS = [
-  { key: "s2_overdue",        label: "Section 2 overdue",      tone: "background:#fee2e2;color:#991b1b" },
-  { key: "s2_due",            label: "Section 2 due soon",     tone: "background:#fef3c7;color:#92400e" },
-  { key: "needs_correction",  label: "Needs correction",       tone: "background:#fee2e2;color:#991b1b" },
-  { key: "awaiting_employee", label: "Awaiting employee",      tone: "background:#f1f5f9;color:var(--text-muted)" },
+  { key: "s2_overdue",        label: "Section 2 overdue",      tone: "background:var(--red-soft);color:var(--red-dark)" },
+  { key: "s2_due",            label: "Section 2 due soon",     tone: "background:var(--amber-soft);color:var(--amber-dark)" },
+  { key: "needs_correction",  label: "Needs correction",       tone: "background:var(--red-soft);color:var(--red-dark)" },
+  { key: "awaiting_employee", label: "Awaiting employee",      tone: "background:var(--canvas);color:var(--text-muted)" },
   { key: "s2_needed",         label: "Section 2 needed",       tone: "background:#e0f2fe;color:#0369a1" },
   { key: "reverification",    label: "Reverification due",     tone: "background:#fffbeb;color:#b45309" },
-  { key: "verified",          label: "Verified",               tone: "background:#dcfce7;color:#166534" },
+  { key: "verified",          label: "Verified",               tone: "background:var(--green-soft);color:var(--green-dark)" },
 ];
 // Map the derived status into one of the prioritized queue buckets +
 // carry the deadline metadata along (so the row can render the sub-line).
@@ -14272,7 +14272,7 @@ function _i9SetRosterBanner(t) {
   if (!el) return;
   if (!t || !t.attention) { el.style.display = "none"; el.innerHTML = ""; return; }
   const urgent = t.s2_overdue || t.needs_correction;
-  const tone = urgent ? "background:#fef2f2;border-color:#fecaca;color:#991b1b" : "background:#fffbeb;border-color:#fde68a;color:#92400e";
+  const tone = urgent ? "background:#fef2f2;border-color:#fecaca;color:var(--red-dark)" : "background:#fffbeb;border-color:#fde68a;color:var(--amber-dark)";
   const parts = [];
   if (t.s2_overdue) parts.push(`${t.s2_overdue} overdue`);
   if (t.needs_correction) parts.push(`${t.needs_correction} need correction`);
@@ -22050,7 +22050,7 @@ function _schedShiftChip(sh) {
   const r = sh.route_code ? escapeHtml(sh.route_code) : (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift");
   const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
   const ex = sh.is_cushion
-    ? `<span style="display:inline-block;background:#FEF3C7;color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
+    ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
     : "";
   // Service-type badge — shown for any non-SP shift so an XL/HUB/ASU
   // shift is visually distinguishable. SP shifts (the default) get no
@@ -22601,7 +22601,7 @@ async function renderScheduleWeek() {
         const endLbl   = slot.ends_at   ? fmtTimeShort(slot.ends_at)   : "";
         const label = startLbl && endLbl ? `${startLbl} – ${endLbl}` : (startLbl || slot.route_code || "open");
         const ex = slot.is_cushion
-          ? `<span style="display:inline-block;background:#FEF3C7;color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
+          ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:4px;letter-spacing:.04em">EX</span>`
           : "";
         const style = slot.is_cushion ? ' style="border-color:rgba(245,158,11,.22)"' : "";
         return `<div class="${cls}" ${data}><div class="shift-chip open" draggable="true" data-rr-shift-id="${slot.shift_id}"${style}>+ ${escapeHtml(label)}${ex}</div></div>`;
@@ -22731,7 +22731,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
     const showDayLabel = !opts || opts.includeDay !== false;
     const time = fmtVirtualTime(sh);
     const ex = !sh.virtual && sh.is_cushion
-      ? `<span style="display:inline-block;background:#FEF3C7;color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em">EX</span>`
+      ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;margin-left:6px;letter-spacing:.04em">EX</span>`
       : "";
     const stCode = sh.service_type_code;
     const stColor = sh.service_type_color || "#0F6CBD";
