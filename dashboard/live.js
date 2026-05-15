@@ -32060,71 +32060,75 @@ document.addEventListener("click", async (e) => {
   // shown when the dispatcher clicks the row.  Authoritative source
   // is Amazon's DSP fleet-operations guidance; this dictionary is the
   // operator-facing summary.
+  // ── Rule + cure dictionary ────────────────────────────────────────
+  // Each exception kind carries the standard it violates, the literal
+  // rule quote, RouteReady context, why it matters, and recommended
+  // actions.  Used by the centered modal that opens on row click.
+  // The grounded-vehicle / repair entries use the exact wording from
+  // Amazon Fleet Standards & Requirements — Section J.
+  const _GROUNDED_REPAIR_RULE = {
+    standard: "Amazon Fleet Standards & Requirements — Section J",
+    quote: "Defects or damage scheduled for repairs within 2 business days from the grounding date and repairs completed within 14 business days.",
+    context: "This vehicle has exceeded one or more Amazon operational repair compliance thresholds. RouteReady detected elevated compliance risk due to delayed repair progression, extended grounding duration, missing or inactive Repair Order (RO) visibility, and/or overdue operational readiness restoration.",
+    why: "Amazon may escalate grounded vehicles that do not show active repair progression, proper RO tracking, or timely return-to-service activity. Extended repair delays may contribute to CAPs, operational escalation, grounding risk, or breach actions.",
+    actions: [
+      "Verify active Repair Order (RO) exists",
+      "Confirm vendor repair progression",
+      "Escalate stalled repairs with vendor",
+      "Update repair documentation and operational status",
+      "Return vehicle to operational readiness immediately upon completion"
+    ]
+  };
   const _CO_RULES = {
-    grounded_no_ro: {
-      cite: "Amazon DSP · Fleet Operations",
-      rule: "Open a repair order with an approved vendor within 2 business days of any grounding. The RO must be documented and attached to the VIN.",
-      cure: [
-        "Open the Fleet workspace → Issues tab.",
-        "Find the grounded VIN, click + Open RO.",
-        "Pick a vendor (or add a new one inline).",
-        "The system auto-tags source=auto and starts the 14-BD repair clock."
-      ],
-      escalation_note: "Past 2 BD without an RO = red. Open the RO immediately; the audit trail records the late opening."
-    },
-    repair_14bd_overdue: {
-      cite: "Amazon DSP · Fleet Operations",
-      rule: "Complete every repair and return the vehicle to service within 14 business days of grounding. A grounded vehicle past 14 BD is an operational-readiness breach.",
-      cure: [
-        "Open Compliance → Vendor Delays · confirm the vendor accountability score; reassign if stalled.",
-        "From Fleet → Issues, click the RO chip to update status / ETA, or mark complete with invoice + completion evidence.",
-        "Re-inspect the VIN and un-ground it from the Fleet roster pill once work is done.",
-        "If the repair is genuinely going to slip, document the reason in the audit trail and notify Amazon proactively."
-      ],
-      escalation_note: "Always red. Each extra day grounded compounds the operational-readiness exposure."
-    },
+    grounded_no_ro:      _GROUNDED_REPAIR_RULE,
+    repair_14bd_overdue: _GROUNDED_REPAIR_RULE,
+    grounded_vehicle:    _GROUNDED_REPAIR_RULE,
     cure_deadline: {
-      cite: "Amazon DSP · CAP / Internal",
-      rule: "Open Corrective Action Plans (CAPs) must be cleared before the cure deadline. Each cure has a required-evidence checklist.",
-      cure: [
-        "Open Compliance → Cure Actions and find the cure.",
-        "Walk the evidence checklist; upload anything still required.",
-        "Mark the cure submitted once the evidence packet is complete."
-      ],
-      escalation_note: "Inside 3 days = red; 14 days = yellow."
+      standard: "Amazon DSP · CAP / Internal corrective-action policy",
+      quote: "Open Corrective Action Plans must be cleared before the cure deadline.  Each cure has a required-evidence checklist tied to the original Amazon citation.",
+      context: "RouteReady detected an open cure approaching its deadline.  The cure's evidence checklist has unsubmitted items.",
+      why: "Cures that lapse past their deadline can convert into formal CAPs, contract breach notices, or station-level escalation.",
+      actions: [
+        "Open Compliance → Cure Actions",
+        "Walk the evidence checklist · upload anything still required",
+        "Mark the cure submitted once the evidence packet is complete"
+      ]
     },
     vendor_stall: {
-      cite: "Internal vendor-accountability policy",
-      rule: "Vendors who fall below the per-DSP reassignment threshold should be paused from new assignments; vendors below the critical floor (default 60/100) should be re-assigned to alternates.",
-      cure: [
-        "Open Compliance → Vendor Delays.",
-        "Pause new assignments to the offending vendor.",
-        "Reassign their open ROs to an alternate vendor.",
-        "Record the reason in the vendor record so accountability is auditable."
-      ],
-      escalation_note: "Score < threshold = yellow; score < 60 = red."
+      standard: "Internal vendor-accountability policy",
+      quote: "Vendors below the per-DSP reassignment threshold must be paused from new assignments; vendors below the critical floor (default 60 / 100) should be reassigned to alternates.",
+      context: "RouteReady detected a vendor whose accountability score has fallen below your DSP's reassignment threshold.",
+      why: "Stalled vendors are the leading cause of repair-completion-window misses (Section J), which then cascade into Amazon escalation.",
+      actions: [
+        "Open Compliance → Vendor Delays",
+        "Pause new assignments to the offending vendor",
+        "Reassign their open ROs to an alternate vendor",
+        "Record the reason in the vendor record so accountability is auditable"
+      ]
     },
     fmcsa_mcs150: {
-      cite: "FMCSA · MCS-150 (49 CFR 390.19)",
-      rule: "MCS-150 must be filed biennially and reflect the carrier's actual CMV operation. CMV count mismatches and DSP-profile misclassifications must be cured by the deadline Amazon specifies.",
-      cure: [
-        "Open Compliance → FMCSA / DOT.",
-        "Reconcile CMV count against the fleet roster.",
-        "Re-file MCS-150 with the corrected classifications.",
-        "Upload the FMCSA submission receipt as proof."
-      ],
-      escalation_note: "Past the cure deadline = critical. SAFER re-syncs daily."
+      standard: "FMCSA · MCS-150 (49 CFR 390.19)",
+      quote: "MCS-150 must be filed biennially and must reflect the carrier's actual CMV operation.  CMV count mismatches and DSP-profile misclassifications must be cured by the deadline Amazon specifies.",
+      context: "RouteReady detected a discrepancy between your MCS-150 declaration and your live fleet roster, or a cure flag from FMCSA / Amazon.",
+      why: "Inaccurate MCS-150 records expose the DSP to FMCSA enforcement and Amazon contractual penalties tied to operating authority.",
+      actions: [
+        "Open Compliance → FMCSA / DOT",
+        "Reconcile CMV count against the fleet roster",
+        "Re-file MCS-150 with the corrected classifications",
+        "Upload the FMCSA submission receipt as proof"
+      ]
     },
     driver_no_van: {
-      cite: "Internal operational-readiness policy",
-      rule: "Every scheduled driver must have a resolved van before the dispatch cutoff. Auto-assign fills from the pool when the chain doesn't resolve.",
-      cure: [
-        "Confirm the driver's primary/backup chain on Workspaces → Van assignments.",
-        "If the chain is empty and you want the system to auto-fill, leave Fleet settings → Auto-assign on.",
-        "If you want a specific van, open Today's Plan, click the van cell on that driver's row, and pick.",
-        "Severity is red ≤ 48h before the shift, yellow when there's still time."
-      ],
-      escalation_note: "≤ 48h before shift = red."
+      standard: "Internal operational-readiness policy",
+      quote: "Every scheduled driver must have a resolved van before the dispatch cutoff.  Auto-assign fills from the pool when the standing chain does not resolve.",
+      context: "RouteReady detected a scheduled driver with no resolved van and no auto-fillable van in the pool for that day.",
+      why: "Drivers without vans cannot run their assigned routes, exposing the DSP to scan-compliance, on-time-departure, and DCR misses.",
+      actions: [
+        "Confirm the driver's primary/backup chain on Workspaces → Van assignments",
+        "If the chain is empty and you want the system to auto-fill, keep Fleet settings → Auto-assign on",
+        "If you want a specific van, open Today's Plan and click the van cell on that driver's row",
+        "Severity is red ≤ 48h before the shift, yellow when there's still time"
+      ]
     }
   };
   function _subjectCell(risk){
@@ -32276,87 +32280,98 @@ document.addEventListener("click", async (e) => {
     }).join("")}</div>`;
   }
 
-  // ── Row drawer · Amazon rule + cure steps ─────────────────────────
-  // Clicking an exception row opens a side drawer with the rule the
-  // exception is in violation of and a short, ordered list of steps
-  // to clear it.  Backdrop click + Esc close it.
+  // ── Row modal · Amazon rule + cure steps ──────────────────────────
+  // Centered modal (NOT a side drawer) that opens on row click.  Shows
+  // the standard, the literal rule quote, RouteReady context, why it
+  // matters, and recommended actions.  Backdrop / X / Esc close it.
   function _coOpenRiskDrawer(risk){
-    const existing = document.getElementById("rr-co-risk-drawer");
+    const existing = document.getElementById("rr-co-rule-modal");
     if (existing) existing.remove();
     const rules = _CO_RULES[risk.kind] || {
-      cite: "Internal",
-      rule: "No rule text registered for this exception kind.",
-      cure: [],
-      escalation_note: null
+      standard: "Internal",
+      quote: "No rule text registered for this exception kind.",
+      context: null, why: null, actions: []
     };
-    const subjects = Array.isArray(risk.subjects) ? risk.subjects : [];
-    const meta = risk.meta || {};
     const sevWord = (risk.severity || "low").replace(/^./, c => c.toUpperCase());
+    const sevColor = risk.severity === "critical" ? "#9F1239"
+                   : risk.severity === "high"     ? "var(--amber-dark)"
+                   :                                "var(--accent-text)";
 
     const wrap = document.createElement("div");
-    wrap.id = "rr-co-risk-drawer";
+    wrap.id = "rr-co-rule-modal";
     wrap.innerHTML = `
       <style>
-        #rr-co-risk-drawer{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;justify-content:flex-end}
-        #rr-co-risk-drawer .panel{width:560px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);box-shadow:var(--shadow-xl);display:flex;flex-direction:column}
-        #rr-co-risk-drawer .head{position:sticky;top:0;background:var(--surface);padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:14px;z-index:1}
-        #rr-co-risk-drawer .head .x{appearance:none;background:transparent;border:0;font-size:22px;color:var(--text-muted);cursor:pointer;padding:0 4px;line-height:1}
-        #rr-co-risk-drawer .head h3{margin:0;font-family:'Inter Tight','Inter',sans-serif;font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3}
-        #rr-co-risk-drawer .head .sub{margin-top:4px;font-size:12px;color:var(--text-subtle);font-weight:500}
-        #rr-co-risk-drawer .body{padding:18px 22px;display:flex;flex-direction:column;gap:20px}
-        #rr-co-risk-drawer .sec h4{margin:0 0 7px;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
-        #rr-co-risk-drawer .rule{font-size:13.5px;color:var(--text);line-height:1.55;padding:13px 14px;background:var(--canvas);border:1px solid var(--border);border-radius:8px}
-        #rr-co-risk-drawer .rule .cite{display:block;margin-top:8px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}
-        #rr-co-risk-drawer ol.cure{margin:0;padding-left:18px;color:var(--text);font-size:13px;line-height:1.55;display:flex;flex-direction:column;gap:6px}
-        #rr-co-risk-drawer .escalation{padding:11px 13px;border-radius:8px;background:rgba(159,18,57,.06);border:1px solid rgba(159,18,57,.18);font-size:12.5px;color:#7F1D3F;line-height:1.5}
-        #rr-co-risk-drawer .meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:12.5px;color:var(--text)}
-        #rr-co-risk-drawer .meta-grid .lbl{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:1px}
-        #rr-co-risk-drawer .meta-grid .val{font-weight:550}
+        #rr-co-rule-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px}
+        #rr-co-rule-modal .modal{
+          width:640px;max-width:100%;max-height:88vh;
+          background:var(--surface);border:1px solid var(--border);
+          border-radius:var(--r-xl);box-shadow:var(--shadow-xl);
+          display:flex;flex-direction:column;overflow:hidden;
+        }
+        #rr-co-rule-modal .head{
+          display:flex;align-items:flex-start;gap:14px;
+          padding:18px 22px 16px;border-bottom:1px solid var(--border-subtle);
+        }
+        #rr-co-rule-modal .head .standard{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-text)}
+        #rr-co-rule-modal .head h3{margin:4px 0 0;font-family:'Inter Tight','Inter',sans-serif;font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3}
+        #rr-co-rule-modal .head .sub{margin-top:5px;font-size:11.5px;color:var(--text-subtle);font-weight:500;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+        #rr-co-rule-modal .head .sev-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:rgba(159,18,57,.10)}
+        #rr-co-rule-modal .head .x{appearance:none;background:transparent;border:0;font-size:24px;color:var(--text-muted);cursor:pointer;padding:0 4px;line-height:1;align-self:flex-start;margin-left:auto}
+        #rr-co-rule-modal .head .x:hover{color:var(--text)}
+        #rr-co-rule-modal .body{padding:18px 22px;display:flex;flex-direction:column;gap:18px;overflow-y:auto}
+        #rr-co-rule-modal blockquote{
+          margin:0;padding:14px 16px 14px 18px;
+          background:var(--canvas);border-left:3px solid var(--accent);
+          border-radius:6px;
+          font-size:14px;color:var(--text);line-height:1.55;font-style:italic;
+        }
+        #rr-co-rule-modal .sec h4{margin:0 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
+        #rr-co-rule-modal .sec p{margin:0;font-size:13px;color:var(--text);line-height:1.55}
+        #rr-co-rule-modal ul.actions{margin:0;padding-left:18px;color:var(--text);font-size:13px;line-height:1.55;display:flex;flex-direction:column;gap:5px}
+        #rr-co-rule-modal .foot{padding:12px 22px;border-top:1px solid var(--border-subtle);background:var(--canvas);display:flex;justify-content:flex-end}
+        #rr-co-rule-modal .foot .btn-close{appearance:none;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer}
+        #rr-co-rule-modal .foot .btn-close:hover{background:var(--canvas)}
       </style>
-      <div class="panel" role="dialog" aria-label="Exception detail">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Compliance rule detail">
         <div class="head">
-          <div style="flex:1;min-width:0">
+          <div style="min-width:0;flex:1">
+            <div class="standard">${_esc(rules.standard)}</div>
             <h3>${_esc(risk.title || _typeLabel(risk.kind))}</h3>
-            <div class="sub">${_esc(_typeLabel(risk.kind))} · ${_esc(sevWord)} · ${_citeChip(risk.cite || "internal").replace(/<[^>]+>/g,"").trim()}</div>
+            <div class="sub">
+              <span class="sev-pill" style="color:${sevColor};background:${risk.severity === 'critical' ? 'rgba(159,18,57,.10)' : risk.severity === 'high' ? 'var(--amber-soft)' : 'var(--accent-soft)'}">${_esc(sevWord)}</span>
+              <span>${_esc(_typeLabel(risk.kind))}</span>
+            </div>
           </div>
-          <button class="x" data-co-drawer-close type="button" aria-label="Close">×</button>
+          <button class="x" data-co-modal-close type="button" aria-label="Close">×</button>
         </div>
         <div class="body">
           <div class="sec">
-            <h4>Rule</h4>
-            <div class="rule">${_esc(rules.rule)}<span class="cite">Source · ${_esc(rules.cite)}</span></div>
+            <h4>The rule</h4>
+            <blockquote>“${_esc(rules.quote)}”</blockquote>
           </div>
-          ${rules.cure.length ? `
+          ${rules.context ? `
             <div class="sec">
-              <h4>How to stay compliant</h4>
-              <ol class="cure">${rules.cure.map(s => `<li>${_esc(s)}</li>`).join("")}</ol>
+              <h4>RouteReady context</h4>
+              <p>${_esc(rules.context)}</p>
             </div>` : ""}
-          ${rules.escalation_note ? `
+          ${rules.why ? `
             <div class="sec">
-              <h4>Escalation</h4>
-              <div class="escalation">${_esc(rules.escalation_note)}</div>
+              <h4>Why this matters</h4>
+              <p>${_esc(rules.why)}</p>
             </div>` : ""}
-          ${subjects.length ? `
+          ${rules.actions && rules.actions.length ? `
             <div class="sec">
-              <h4>Subject</h4>
-              <div class="meta-grid">
-                ${subjects.map(s => `<div><div class="lbl">${_esc(s.lbl || "")}</div><div class="val">${_esc(s.val || "")}</div></div>`).join("")}
-              </div>
+              <h4>Recommended actions</h4>
+              <ul class="actions">${rules.actions.map(a => `<li>${_esc(a)}</li>`).join("")}</ul>
             </div>` : ""}
-          ${Object.keys(meta).length ? `
-            <div class="sec">
-              <h4>State</h4>
-              <div class="meta-grid">
-                ${Object.entries(meta).filter(([k,v]) => v != null && v !== "").map(([k,v]) =>
-                  `<div><div class="lbl">${_esc(k.replace(/_/g," "))}</div><div class="val">${_esc(String(v))}</div></div>`
-                ).join("")}
-              </div>
-            </div>` : ""}
+        </div>
+        <div class="foot">
+          <button class="btn-close" type="button" data-co-modal-close>Close</button>
         </div>
       </div>`;
     document.body.appendChild(wrap);
     wrap.addEventListener("click", (e) => {
-      if (e.target === wrap || e.target.closest("[data-co-drawer-close]")) wrap.remove();
+      if (e.target === wrap || e.target.closest("[data-co-modal-close]")) wrap.remove();
     });
     const onKey = (e) => { if (e.key === "Escape") { wrap.remove(); document.removeEventListener("keydown", onKey); } };
     document.addEventListener("keydown", onKey);
