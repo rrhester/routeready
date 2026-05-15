@@ -3929,14 +3929,13 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .rr-mc-bubble.dispatch, .rr-cc-bubble.dispatch{
   align-self:flex-end;
-  /* Subtle gradient + soft accent glow lifts the operator's voice off
-     the thread without going neon.  Brand language matches the rest
-     of the dashboard's primary actions. */
-  background:var(--brand-grad);
+  /* Solid Azure — same calm tone as primary buttons elsewhere.
+     Linear/Slack/Teams pattern: dispatch bubble is one flat
+     enterprise blue, not a saturated gradient. */
+  background:var(--accent);
   color:#fff;
   border-bottom-right-radius:5px;
-  box-shadow:0 1px 2px rgba(37,99,235,.18),
-             0 4px 10px -4px rgba(99,102,241,.20);
+  box-shadow:0 1px 2px rgba(37,99,235,.14);
 }
 /* Group spacing — 6px between sender groups, 2px between bubbles in
    the same group. Driven by data-group-pos which the renderer sets. */
@@ -4264,16 +4263,17 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   box-shadow:inset 0 1px 2px rgba(15,23,42,.04), var(--ring-focus);
 }
 .rr-mc-send, .rr-cc-send{
-  background:var(--brand-grad);color:#fff;border:0;border-radius:var(--r-md);
+  background:var(--accent);color:#fff;border:0;border-radius:var(--r-md);
   padding:0 var(--s-4);font-weight:600;font-size:var(--fs-md);cursor:pointer;
   min-height:44px;letter-spacing:.005em;
-  box-shadow:0 1px 2px rgba(15,108,189,.20), 0 4px 10px -4px rgba(79,70,229,.30);
-  transition:transform 100ms ease, box-shadow 120ms ease, opacity 120ms ease;
+  box-shadow:0 1px 2px rgba(37,99,235,.14);
+  transition:background var(--t-fast), box-shadow var(--t-fast), opacity var(--t-fast);
 }
 .rr-mc-send:hover:not(:disabled), .rr-cc-send:hover:not(:disabled){
-  transform:translateY(-1px);
-  box-shadow:0 1px 2px rgba(15,108,189,.24), 0 8px 16px -4px rgba(79,70,229,.40);
+  background:var(--accent-hover);
+  box-shadow:0 1px 2px rgba(37,99,235,.18), 0 4px 10px -4px rgba(37,99,235,.20);
 }
+.rr-mc-send:focus-visible, .rr-cc-send:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .rr-mc-send:active:not(:disabled), .rr-cc-send:active:not(:disabled){
   transform:translateY(0);
 }
@@ -20420,7 +20420,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260515ac-messages-governance"></script>
+<script type="module" src="./live.js?v=20260515ad-messages-bubbles-flat"></script>
 
 </body>
 </html>
