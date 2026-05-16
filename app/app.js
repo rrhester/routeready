@@ -1170,64 +1170,34 @@ function renderLogin(errorMsg) {
       return;
     }
 
+    // First-time activation is now one tap. The activation code IS the
+    // credential: it's reusable for 14 days, so the driver doesn't need
+    // to set a PIN up front to come back on a new device — they just
+    // tap a fresh link from dispatch. Phone stays whatever the
+    // dispatcher already has on file (it's edited from Settings if
+    // they need to change it). Previously this screen asked for
+    // phone + PIN + confirm PIN before signing in, which the operator
+    // flagged as "log in/out a bunch of times, the 4-digit code didn't
+    // work, hot mess".
     root.innerHTML = `
       <div class="login-screen">
         <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
         <div style="text-align:center;margin-bottom:22px">
-          <div style="font-size:22px;font-weight:700;letter-spacing:-.02em">Activate your driver profile</div>
-          <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px;line-height:1.55">${escapeHtml(greet)}. We found your info from your ${lk.dsp_name ? escapeHtml(lk.dsp_name) + " " : ""}onboarding invite. Your phone number will become your RouteReady login.</div>
+          <div style="font-size:22px;font-weight:700;letter-spacing:-.02em">${escapeHtml(greet)}!</div>
+          <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px;line-height:1.55">We found your info from your ${lk.dsp_name ? escapeHtml(lk.dsp_name) + " " : ""}onboarding invite.${phoneHint ? ` Phone on file: ${escapeHtml(phoneHint)}.` : ""} Tap the button to get started.</div>
         </div>
-        <form class="form" id="rr-activate-form" style="margin-top:8px">
+        <div class="form" style="margin-top:8px">
           ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
-          <label class="field-label">Mobile number</label>
-          <input class="field" id="rr-activate-phone" type="tel" inputmode="tel" autocomplete="tel" autocapitalize="off" maxlength="20" placeholder="${escapeHtml(phoneHint || "(555) 123-4567")}" style="letter-spacing:0;text-align:left;text-transform:none" value="${escapeHtml(_loginState.phoneInput || "")}" />
-          ${phoneHint ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">We have ${escapeHtml(phoneHint)} on file. Tap to edit if it's changed.</div>` : ""}
-
-          <label class="field-label" style="margin-top:20px">Create a 4-digit PIN</label>
-          <input class="field" id="rr-activate-pin" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="6" placeholder="••••" style="letter-spacing:.5em;text-align:center" value="${escapeHtml(_loginState.pinInput || "")}" />
-
-          <label class="field-label" style="margin-top:14px">Confirm PIN</label>
-          <input class="field" id="rr-activate-pin2" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="6" placeholder="••••" style="letter-spacing:.5em;text-align:center" value="${escapeHtml(_loginState.pinConfirm || "")}" />
-
-          <div style="margin-top:20px">
-            <button class="btn btn-primary btn-block" type="submit" ${_loginState.busy ? "disabled" : ""}>${_loginState.busy ? "Activating…" : "Activate"}</button>
-          </div>
-          <div class="help" style="margin-top:14px;line-height:1.5">Your PIN signs you in next time. Keep it private.</div>
-        </form>
+          <button class="btn btn-primary btn-block" type="button" id="rr-activate-go" ${_loginState.busy ? "disabled" : ""}>${_loginState.busy ? "Signing you in…" : `Continue as ${escapeHtml(lk.name || "me")}`}</button>
+          <div class="help" style="margin-top:14px;line-height:1.5">Phone or other details wrong? You can edit them in Settings once you're signed in, or text your dispatcher.</div>
+        </div>
       </div>`;
-    // Auto-format phone as user types.
-    const phEl = document.getElementById("rr-activate-phone");
-    phEl.addEventListener("input", () => {
-      const raw = phEl.value.replace(/\D/g, "").slice(0, 11);
-      phEl.value = _formatPhone(raw);
-    });
-    document.getElementById("rr-activate-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const phone = document.getElementById("rr-activate-phone").value.trim();
-      const pin   = document.getElementById("rr-activate-pin").value.trim();
-      const pin2  = document.getElementById("rr-activate-pin2").value.trim();
-      const phoneDigits = phone.replace(/\D/g, "");
-      _loginState.phoneInput = phone; _loginState.pinInput = pin; _loginState.pinConfirm = pin2;
-      if (phoneDigits.length === 0 && !lk.has_phone) {
-        _loginState.errorMsg = "Enter a valid 10-digit mobile number."; renderLogin(); return;
-      }
-      if (phoneDigits.length > 0 && phoneDigits.length < 10) {
-        _loginState.errorMsg = "Enter a valid 10-digit mobile number."; renderLogin(); return;
-      }
-      if (pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
-        _loginState.errorMsg = "PIN must be 4 to 6 digits."; renderLogin(); return;
-      }
-      if (pin !== pin2) {
-        _loginState.errorMsg = "PINs don't match. Try again."; renderLogin(); return;
-      }
+    document.getElementById("rr-activate-go").addEventListener("click", async () => {
       _loginState.busy = true; _loginState.errorMsg = null; renderLogin();
-      // Empty phone tells the server "keep what we have on file" —
-      // this is the common case where the driver taps Activate without
-      // editing the prefilled hint.
       const { data, error } = await sb.rpc("driver_activate", {
         p_code: _loginState.code,
-        p_phone: phoneDigits || "",
-        p_pin: pin,
+        p_phone: "",
+        p_pin: "",
         p_user_agent: navigator.userAgent || null,
       });
       if (error || !data?.token) {
@@ -1236,14 +1206,12 @@ function renderLogin(errorMsg) {
         _loginState.errorMsg =
           m.includes("invalid_or_expired_code") ? "Activation link expired. Ask dispatch for a new one." :
           m.includes("driver_inactive")          ? "This profile isn't active. Contact dispatch." :
-          m.includes("phone_already_in_use")     ? "That number is already linked to another driver here. Use a different number or contact dispatch." :
-          m.includes("phone_required")           ? "Enter a valid mobile number." :
-          m.includes("pin_must_be")              ? "PIN must be 4 to 6 digits." :
-          "Couldn't activate. Please try again.";
+          m.includes("phone_required")           ? "Your dispatcher needs to add your phone number first. Text them to add it." :
+          "Couldn't sign you in. Try again.";
         renderLogin();
         return;
       }
-      _writeLastPhone(phoneDigits || data.driver?.phone_normalized || "");
+      _writeLastPhone(data.driver?.phone_normalized || "");
       const sess = _commitSession(data);
       // Clear the ?code= from the URL so refreshes don't try to re-activate.
       try { history.replaceState({}, "", location.pathname); } catch {}
