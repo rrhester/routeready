@@ -413,11 +413,16 @@ a{color:inherit;text-decoration:none}
 }
 .nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--text-inverse);box-shadow:inset 0 0 0 1px rgba(96,165,250,.35)}
 .nav-item.active{
-  background:var(--sidebar-active);
-  color:var(--text-inverse);font-weight:600;
-  box-shadow:inset 2px 0 0 var(--blue-bright), inset 0 1px 0 rgba(255,255,255,.03);
+  background:var(--blue-bright);
+  color:#fff;font-weight:600;
+  box-shadow:inset 2px 0 0 rgba(255,255,255,.65), 0 1px 2px rgba(15,23,42,.18);
 }
+.nav-item.active .nav-badge{color:var(--blue-bright);background:#fff}
 .nav-item.active svg{stroke-width:2}
+.nav-item.active .nav-icon{
+  background:rgba(255,255,255,.18);
+  color:#fff;
+}
 /* Icon strokes — calm operational weight; no glow / drop-shadow */
 .nav-item svg{
   width:15px;height:15px;flex-shrink:0;stroke-width:2;
@@ -436,7 +441,8 @@ a{color:inherit;text-decoration:none}
   transition:background var(--t-smooth), color var(--t-smooth);
 }
 .nav-item.active .nav-icon{
-  background:var(--ni-bg-strong, rgba(255,255,255,.08));
+  background:rgba(255,255,255,.20);
+  color:#fff;
 }
 
 /* Calibrated category palette · 10-15% less saturated than the
@@ -10086,31 +10092,38 @@ body.rr-cmdk-open{ overflow:hidden }
 
           /* ── Coverage KPI: pulled forward as the "north-star" card.
              Same card height as the others — only the % value reads a
-             touch larger, and a real progress bar sits along the bottom
-             edge. JS tags the actual node with .is-primary so we don't
-             depend on :nth-child(N) lining up. */
+             touch larger, and a real progress bar (track + fill) sits
+             inset from the card edges. JS tags the actual node with
+             .is-primary so we don't depend on :nth-child(N) lining up. */
           #view-schedule #rr-sched-kpis .stat-mini.is-primary{
             border-color:color-mix(in srgb, var(--green) 35%, var(--border));
             background:linear-gradient(180deg, color-mix(in srgb, var(--green) 6%, var(--surface)) 0%, var(--surface) 70%);
             box-shadow:0 0 0 1px color-mix(in srgb, var(--green) 18%, transparent);
-            position:relative;overflow:hidden;
+            position:relative;
+            padding-bottom:calc(var(--s-4) + 10px);
           }
           /* Value text — just enough larger to register as the headline
-             figure without screaming. 18px → 26px. */
+             figure without screaming. 18px → 28px, always green even
+             when the kpiCard helper applies an inline amber tone for
+             "warn" coverage (the primary card carries its own tone). */
           #view-schedule #rr-sched-kpis .stat-mini.is-primary .stat-mini-value{
-            color:var(--green);font-size:26px;line-height:1.05;
+            color:var(--green) !important;
+            font-size:28px;line-height:1.05;letter-spacing:-.02em;
           }
-          /* Bar: gray track behind a green fill driven by
-             --rr-coverage-fill (a 0..1 number set by JS). 4px so it's
-             actually visible against the card edge. */
+          /* Progress bar: gray track behind a green fill driven by
+             --rr-coverage-fill (0..1, set by JS). Inset 10px from the
+             card edges and rounded so it reads as a deliberate element,
+             not a border treatment. */
           #view-schedule #rr-sched-kpis .stat-mini.is-primary::before{
-            content:"";position:absolute;left:0;right:0;bottom:0;height:4px;
-            background:color-mix(in srgb, var(--green) 18%, var(--canvas));
+            content:"";position:absolute;left:var(--s-5);right:var(--s-5);bottom:var(--s-3);
+            height:6px;border-radius:999px;
+            background:color-mix(in srgb, var(--green) 14%, var(--canvas));
           }
           #view-schedule #rr-sched-kpis .stat-mini.is-primary::after{
-            content:"";position:absolute;left:0;bottom:0;height:4px;
-            width:calc(var(--rr-coverage-fill, 1) * 100%);
-            background:var(--green);
+            content:"";position:absolute;left:var(--s-5);bottom:var(--s-3);
+            height:6px;border-radius:999px;
+            width:calc(var(--rr-coverage-fill, 1) * (100% - var(--s-5) * 2));
+            background:linear-gradient(90deg, var(--green) 0%, color-mix(in srgb, var(--green) 80%, #fff) 100%);
             transition:width var(--t-spring);
           }
 
