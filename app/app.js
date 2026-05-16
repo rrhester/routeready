@@ -1380,9 +1380,15 @@ function renderLogin(errorMsg) {
       if (error || !data?.token) {
         _loginState.busy = false;
         const m = error?.message || "";
+        // Surface the underlying error when none of our known cases
+        // match. The generic "Sign-in failed" used to swallow real
+        // problems like a missing rate-limit table — now the operator
+        // (and the driver) can see what actually broke so it can be
+        // diagnosed without log-spelunking.
         _loginState.errorMsg =
           m.includes("too_many_attempts")     ? "Too many tries. Wait 15 minutes or contact dispatch." :
           m.includes("invalid_phone_or_pin")  ? "Number or PIN didn't match. Try again." :
+          m ? `Sign-in failed: ${m}` :
           "Sign-in failed. Try again.";
         renderLogin();
         return;
