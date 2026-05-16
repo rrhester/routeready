@@ -2966,7 +2966,15 @@ function chatBubbleHtml(m, pos) {
       // scroll-anchor algorithm to "preserve" (which is what was
       // yanking the driver UP to a fixed image position).  Same fix
       // as dashboard PR #597.
-      attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:10px;margin-bottom:6px;cursor:zoom-in" onclick="window.open(this.src,'_blank')"/>`;
+      //
+      // Vector images (e.g. the install-instructions diagram on the
+      // welcome message) override object-fit:cover with `contain` so
+      // the whole illustration is visible — cropping the middle out
+      // of a how-to diagram defeats the point. Photos still cover
+      // and crop.
+      const isVector = (m.attachment_mime || "").includes("svg");
+      const extraStyle = isVector ? "object-fit:contain;background:#fff;" : "";
+      attachment = `<img data-rr-attach="${escapeHtml(m.attachment_path)}" alt="${escapeHtml(name)}" width="240" height="240" loading="eager" decoding="async" style="max-width:240px;border-radius:10px;margin-bottom:6px;cursor:zoom-in;${extraStyle}" onclick="window.open(this.src,'_blank')"/>`;
     } else {
       attachment = `
         <a data-rr-attach="${escapeHtml(m.attachment_path)}" target="_blank" rel="noopener" style="display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;text-decoration:none;color:inherit;max-width:240px">
@@ -3015,6 +3023,22 @@ async function _rrSignChatAttachments() {
   for (const el of els) {
     const path = el.getAttribute("data-rr-attach");
     el.setAttribute("data-rr-attach-resolved", "1");
+    // Paths that look like absolute URLs or root-relative app assets
+    // (e.g. "/app/icons/install-instructions.svg" shipped with the
+    // welcome message from migration 0266) are used directly — no
+    // bucket signed-URL round-trip. Bucket paths look like
+    // "<uuid>/<file>" and never start with "/" or "http".
+    const isDirect = /^https?:\/\//i.test(path) || path.startsWith("/");
+    if (isDirect) {
+      if (el.tagName === "IMG") {
+        el.addEventListener("load",  () => el.setAttribute("data-rr-loaded", "1"), { once: true });
+        el.addEventListener("error", () => el.setAttribute("data-rr-loaded", "1"), { once: true });
+        el.src = path;
+      } else {
+        el.href = path;
+      }
+      continue;
+    }
     try {
       const { data, error } = await sb.storage
         .from("driver-chat-attachments")
