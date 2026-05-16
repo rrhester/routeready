@@ -126,15 +126,67 @@ function setAppBadge(n, source) {
   }
 }
 
+// In-app unread badge on the Chat tab in the bottom nav. The OS-level
+// app icon badge above only shows when the app isn't focused; the
+// tab badge is what the driver sees while they're inside the app and
+// haven't tapped the Chat tab yet. We compute the count from the
+// per-message is_unread flag driver_chat_list already returns.
+function _setChatTabBadge(n) {
+  document.querySelectorAll('.tab[data-c="chat"]').forEach((tab) => {
+    let ic = tab.querySelector(".tab-ic");
+    if (!ic) return;
+    let badge = ic.querySelector(".rr-tab-badge");
+    if (n > 0) {
+      // Position the icon's parent so the badge can absolutely-position
+      // over the top-right corner of the glyph.
+      if (getComputedStyle(ic).position === "static") ic.style.position = "relative";
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "rr-tab-badge";
+        badge.style.cssText = "position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--bg, #fff);box-sizing:border-box";
+        ic.appendChild(badge);
+      }
+      badge.textContent = n > 99 ? "99+" : String(n);
+    } else if (badge) {
+      badge.remove();
+    }
+  });
+}
+
+async function refreshChatBadge() {
+  if (PREVIEW) return;
+  const session = readSession();
+  if (!session?.token) { _setChatTabBadge(0); return; }
+  try {
+    const { data, error } = await sb.rpc("driver_chat_list", { p_token: session.token, p_limit: 50 });
+    if (error) return;
+    const messages = data?.messages || [];
+    const unread = messages.reduce((n, m) => n + (m.is_unread ? 1 : 0), 0);
+    _setChatTabBadge(unread);
+    setAppBadge(unread, "chat-badge");
+  } catch {}
+}
+
 // Any time the driver app becomes visible (open from home screen, tab
 // focus, etc.) drop the badge to zero on the server side too — the
 // driver is clearly looking at the app, so unread should reset.
 async function clearBadgeOnFocus() {
   if (PREVIEW) return;
-  setAppBadge(0);
-  const session = readSession();
-  if (session?.token) {
-    try { await sb.rpc("driver_chat_mark_read", { p_token: session.token }); } catch {}
+  // Only clear the chat-related badges if the driver is actively
+  // looking at the Chat tab. If they're sitting on Tasks or Schedule,
+  // refresh the badge so any new dispatch messages still show a count
+  // — clearing here was the old behavior, but it hid the welcome
+  // message badge from a fresh-activation driver who never opened
+  // Chat. Mark-read still fires when the chat screen itself renders.
+  if (currentRoute() === "/chat") {
+    setAppBadge(0);
+    _setChatTabBadge(0);
+    const session = readSession();
+    if (session?.token) {
+      try { await sb.rpc("driver_chat_mark_read", { p_token: session.token }); } catch {}
+    }
+  } else {
+    refreshChatBadge();
   }
 }
 if (typeof window !== "undefined") {
@@ -800,6 +852,11 @@ function render() {
     }
   }
   renderShell(session);
+  // Re-stamp the Chat tab badge with the latest unread count every
+  // time the shell mounts so a newly-arrived dispatch message (e.g.
+  // the welcome message from migration 0266) shows up on the icon
+  // without the driver having to open Chat first.
+  refreshChatBadge();
   const path = currentRoute();
   const r = routes[path];
   // Header back button on sub-routes; clear it on top-level tabs.
@@ -2861,6 +2918,7 @@ async function refreshChat(scrollToBottom) {
 
   // Drop the badge to 0 — they're looking at the chat.
   setAppBadge(0);
+  _setChatTabBadge(0);
 
   // Mark-read whenever there's at least one dispatch message
   if (messages.some((m) => m.sender_kind === "dispatch")) {
