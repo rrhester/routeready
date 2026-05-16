@@ -9871,7 +9871,7 @@ body.rr-cmdk-open{ overflow:hidden }
       <div class="page">
         <div class="page-header">
           <div class="page-header-l">
-            <div class="page-icon" data-c="schedule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+            <div class="page-icon" data-c="schedule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><line x1="3.5" y1="10" x2="20.5" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/><rect x="7" y="13" width="3" height="3" rx=".6" fill="currentColor" stroke="none"/></svg></div>
             <div>
               <h1 class="page-title">Schedule</h1>
               <p class="page-sub" id="rr-sched-page-sub"></p>
@@ -10121,14 +10121,12 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-right-rail .driver-pool{position:static;max-height:none}
 
-          #view-schedule .sched-insights,
-          #view-schedule .sched-open-shifts{
+          #view-schedule .sched-insights{
             background:var(--surface);border:1px solid var(--border);
             border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);
             display:flex;flex-direction:column;gap:var(--s-2-5);
           }
-          #view-schedule .sched-insights-head,
-          #view-schedule .sched-open-shifts-head{
+          #view-schedule .sched-insights-head{
             display:flex;align-items:center;gap:8px;
             font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
             text-transform:uppercase;color:var(--text-muted);
@@ -10137,10 +10135,6 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-insights-count{
             margin-left:auto;background:var(--accent-soft);color:var(--accent-text);
             font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;
-            letter-spacing:0;text-transform:none;
-          }
-          #view-schedule .sched-open-shifts-count{
-            margin-left:auto;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
             letter-spacing:0;text-transform:none;
           }
 
@@ -10179,35 +10173,47 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-insights-foot:hover{text-decoration:underline}
 
-          /* Open Shifts panel — list rows when there are open shifts,
-             empty state mirroring the mockup when there aren't. */
-          #view-schedule .sched-open-shifts-body{display:flex;flex-direction:column;gap:6px}
-          #view-schedule .sched-open-shifts-empty{
+          /* Driver-pool footer · Open Shifts. Mirrors the empty-state
+             visual from the mockup (green check medallion + "All shifts
+             are covered / Great job!") and gracefully degrades to a
+             count + manage button when there are unfilled shifts. */
+          #view-schedule .pool-openshifts-foot{
+            padding-top:var(--s-3);border-top:1px solid var(--border);
+            margin-top:var(--s-2);display:flex;flex-direction:column;gap:var(--s-2);
+          }
+          #view-schedule .pool-openshifts-head{
+            display:flex;align-items:center;gap:8px;
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
+            text-transform:uppercase;color:var(--text-muted);
+          }
+          #view-schedule .pool-openshifts-count{
+            margin-left:auto;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+            letter-spacing:0;text-transform:none;
+          }
+          #view-schedule .pool-openshifts-body{display:flex;flex-direction:column;gap:6px}
+          #view-schedule .pool-openshifts-empty{
             display:flex;flex-direction:column;align-items:center;justify-content:center;
-            gap:6px;padding:var(--s-3) var(--s-2);text-align:center;
+            gap:4px;padding:var(--s-2) var(--s-2) 6px;text-align:center;
           }
-          #view-schedule .sched-open-shifts-empty svg{
-            color:#fff;background:var(--green);border-radius:50%;padding:6px;
-            box-sizing:content-box;
+          #view-schedule .pool-openshifts-check{
+            display:inline-flex;align-items:center;justify-content:center;
+            width:32px;height:32px;border-radius:50%;
+            background:var(--green);color:#fff;margin-bottom:4px;
           }
-          #view-schedule .sched-open-shifts-empty-title{
-            font-size:var(--fs-sm);font-weight:600;color:var(--text);margin-top:4px;
+          #view-schedule .pool-openshifts-empty-title{
+            font-size:var(--fs-sm);font-weight:600;color:var(--text);
           }
-          #view-schedule .sched-open-shifts-empty-sub{
+          #view-schedule .pool-openshifts-empty-sub{
             font-size:var(--fs-xs);color:var(--text-subtle);
           }
-          #view-schedule .sched-open-shifts-empty .btn{margin-top:8px}
-          #view-schedule .sched-open-shift-row{
-            display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
-            padding:8px 10px;border-radius:var(--r-md);background:var(--canvas);
+          #view-schedule .pool-openshifts-empty .btn{margin-top:6px}
+          #view-schedule .pool-openshifts-needs{
+            font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500;
+            display:flex;align-items:center;gap:6px;
           }
-          #view-schedule .sched-open-shift-day{
-            font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);
-            background:var(--surface);padding:2px 7px;border-radius:999px;letter-spacing:.04em;text-transform:uppercase;
+          #view-schedule .pool-openshifts-needs-dot{
+            width:6px;height:6px;border-radius:50%;background:var(--amber);
           }
-          #view-schedule .sched-open-shift-route{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
-          #view-schedule .sched-open-shift-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
-          #view-schedule .sched-open-shift-row .btn{flex-shrink:0}
         </style>
 
           <!-- Hidden offset-tabs strip — week selection moved to the
@@ -10383,21 +10389,6 @@ body.rr-cmdk-open{ overflow:hidden }
               <a href="#" class="sched-insights-foot" id="rr-sched-insights-all" onclick="event.preventDefault()">View all insights →</a>
             </aside>
 
-            <aside class="sched-open-shifts" id="rr-sched-open-shifts" aria-label="Open shifts">
-              <div class="sched-open-shifts-head">
-                <span>Open shifts</span>
-                <span class="sched-open-shifts-count" id="rr-sched-open-shifts-count">0 open</span>
-              </div>
-              <div class="sched-open-shifts-body" id="rr-sched-open-shifts-body">
-                <div class="sched-open-shifts-empty">
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-                  <div class="sched-open-shifts-empty-title">All shifts are covered</div>
-                  <div class="sched-open-shifts-empty-sub">Great job!</div>
-                  <button class="btn btn-sm" type="button" onclick="schedSub('open')">View all shifts</button>
-                </div>
-              </div>
-            </aside>
-
           <!-- DRIVER POOL — drag-to-assign or click to insert -->
           <aside class="driver-pool">
             <div class="pool-head">
@@ -10454,9 +10445,23 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
 
-            <div style="padding-top:var(--s-2);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:var(--s-1);margin-top:4px">
-              <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500">3 open shifts need a driver</div>
-              <button class="btn btn-sm" onclick="schedSub('open')">Manage open shifts →</button>
+            <!-- Open-shifts footer · status-aware. renderScheduleWeek
+                 rewrites the inner markup based on totalAllOpen so it
+                 shows either the "All shifts are covered" empty state
+                 from the mockup or a count + manage button. -->
+            <div class="pool-openshifts-foot" id="rr-pool-openshifts-foot">
+              <div class="pool-openshifts-head">
+                <span>Open shifts</span>
+                <span class="pool-openshifts-count" id="rr-pool-openshifts-count">0 open</span>
+              </div>
+              <div class="pool-openshifts-body" id="rr-pool-openshifts-body">
+                <div class="pool-openshifts-empty">
+                  <span class="pool-openshifts-check"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="pool-openshifts-empty-title">All shifts are covered</div>
+                  <div class="pool-openshifts-empty-sub">Great job!</div>
+                  <button class="btn btn-sm" type="button" onclick="schedSub('open')">View all shifts</button>
+                </div>
+              </div>
             </div>
           </aside>
           </div><!-- /sched-right-rail -->

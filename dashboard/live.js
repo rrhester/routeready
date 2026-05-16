@@ -23265,16 +23265,19 @@ async function renderScheduleWeek() {
   // friction. Seven cards now: Hours, Overtime, Coverage, Open
   // shifts, Rule violations, Preferences, Training.
   let kpis = sub.querySelector("#rr-sched-kpis");
+  // Coverage is the north-star card → give it ~1.35× the width of the
+  // other six so it visually leads the strip, matching the mockup.
+  const _kpiGridCols = "minmax(0,1.35fr) repeat(6,minmax(0,1fr))";
   if (!kpis) {
     kpis = document.createElement("div");
     kpis.id = "rr-sched-kpis";
     kpis.className = "driver-stat-row";
-    kpis.style.cssText = "grid-template-columns:repeat(7,minmax(0,1fr))";
+    kpis.style.cssText = `grid-template-columns:${_kpiGridCols}`;
     const toolbar = sub.querySelector(".sched-toolbar-rail, .sched-toolbar");
     if (toolbar) toolbar.insertAdjacentElement("afterend", kpis);
   } else {
     kpis.className = "driver-stat-row";
-    kpis.style.cssText = "grid-template-columns:repeat(7,minmax(0,1fr))";
+    kpis.style.cssText = `grid-template-columns:${_kpiGridCols}`;
   }
   const kpiCard = (label, value, sublabel, tone) => {
     const c = tone === "bad" ? "var(--red)" : tone === "warn" ? "var(--amber)" : tone === "ok" ? "var(--green)" : "";
@@ -23338,6 +23341,10 @@ async function renderScheduleWeek() {
   const trainingTone   = trainingTotal === 0 ? "default" : "default";
 
   kpis.innerHTML =
+    kpiCard("Coverage", `${pct}%`, `${totalFilled} / ${totalNeeded} shifts`, coverageTone) +
+    kpiCard("Open shifts", String(totalAllOpen), totalAllOpen === 0 ? "fully covered" : "drivers needed", totalAllOpen === 0 ? "ok" : "warn") +
+    kpiCard("Rule violations", String(violations.length), violations.length === 0 ? "all clear" : "click to review", violationsTone) +
+    kpiCard("Overtime", otValue, otSub, otTone) +
     kpiCard(
       "Hours scheduled",
       `${Math.round(totalHoursWeek)}h`,
@@ -23346,10 +23353,6 @@ async function renderScheduleWeek() {
         : `${shiftCountPerDriver.size} driver${shiftCountPerDriver.size === 1 ? "" : "s"}${driversWithHoursMissingRate > 0 ? ` · set pay rate to estimate` : ""}`,
       "default"
     ) +
-    kpiCard("Overtime", otValue, otSub, otTone) +
-    kpiCard("Coverage", `${pct}%`, `${totalFilled} / ${totalNeeded} shifts`, coverageTone) +
-    kpiCard("Open shifts", String(totalAllOpen), totalAllOpen === 0 ? "fully covered" : "drivers needed", totalAllOpen === 0 ? "ok" : "warn") +
-    kpiCard("Rule violations", String(violations.length), violations.length === 0 ? "all clear" : "click to review", violationsTone) +
     kpiCard("Preferences",
       prefDenom === 0 ? "—" : `${prefHonored} / ${prefDenom}`,
       prefDenom === 0 ? "no preferences set" : (prefHonored === prefDenom ? "all on a preferred day" : "★ on the grid = preferred day"),
@@ -23368,7 +23371,9 @@ async function renderScheduleWeek() {
   });
   // Visual cue that the violations card opens a modal — match the
   // .stat-mini-clickable pattern other KPI strips use.
-  const violationsCard = kpis.querySelector("div:nth-child(5)");
+  // Card order: 1=Coverage, 2=Open shifts, 3=Rule violations, 4=Overtime,
+  // 5=Hours scheduled, 6=Preferences, 7=Training.
+  const violationsCard = kpis.querySelector("div:nth-child(3)");
   if (violationsCard) {
     violationsCard.style.cursor = "pointer";
     violationsCard.style.transition = "border-color .12s, box-shadow .12s";
@@ -23431,12 +23436,13 @@ async function renderScheduleWeek() {
   }
 
   // ── Mark the Coverage card as the primary KPI (heavier accent, fill
-  // bar) and feed it the live coverage ratio so the gradient fills
-  // proportional to filled/needed.
+  // bar, slightly larger) and feed it the live coverage ratio so the
+  // gradient fills proportional to filled/needed. Coverage is the first
+  // card in the strip.
   try {
     const kpiCards = sub.querySelectorAll("#rr-sched-kpis .stat-mini");
     kpiCards.forEach(c => c.classList.remove("is-primary"));
-    const coverageCard = kpiCards[2]; // Hours, Overtime, Coverage, …
+    const coverageCard = kpiCards[0]; // Coverage is the first card
     if (coverageCard) {
       coverageCard.classList.add("is-primary");
       const ratio = totalNeeded > 0 ? Math.max(0, Math.min(1, totalFilled / totalNeeded)) : 1;
@@ -23502,7 +23508,7 @@ async function renderScheduleWeek() {
           icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
           title: `${prefMissList.length} preferred-day mismatch${prefMissList.length === 1 ? "" : "es"}`,
           sub:   "Review suggestions",
-          clickKpiCard: 6,
+          clickKpiCard: 6, // Preferences is still card #6 in the new order
         });
       }
 
@@ -23541,7 +23547,7 @@ async function renderScheduleWeek() {
           icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
           title: `${violations.length} rule violation${violations.length === 1 ? "" : "s"}`,
           sub:   "Review in KPI card",
-          clickKpiCard: 5,
+          clickKpiCard: 3, // Rule violations is now card #3
         });
       }
 
@@ -23576,59 +23582,31 @@ async function renderScheduleWeek() {
     }
   } catch (e) { console.warn("insights render:", e); }
 
-  // ── Open Shifts side-panel — list each open scheduled date with a
-  // quick "Smart Fill" CTA. Empty state mirrors the mockup.
+  // ── Driver-pool open-shifts footer — empty-state visual from the
+  // mockup when totalAllOpen is 0, count + manage when there are gaps.
   try {
-    const obody = document.getElementById("rr-sched-open-shifts-body");
-    const ocount = document.getElementById("rr-sched-open-shifts-count");
+    const obody = document.getElementById("rr-pool-openshifts-body");
+    const ocount = document.getElementById("rr-pool-openshifts-count");
     if (obody) {
-      const items = [];
-      for (const iso of days) {
-        const list = openShiftsByDate.get(iso) || [];
-        const dt = new Date(iso + "T12:00:00");
-        const dayLabel = RR_DAY_SHORT[dt.getDay()].toUpperCase();
-        const dateLabel = `${dt.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-        // Group: one row per open shift. Cap to a sensible number.
-        for (const sh of list) {
-          items.push({
-            day: `${dayLabel} ${dt.getDate()}`,
-            route: sh.route_label || sh.route_id || sh.service_type || "Open shift",
-            meta: dateLabel + (sh.start_time ? ` · ${sh.start_time}` : ""),
-          });
-        }
-      }
-      if (ocount) {
-        const n = items.length;
-        ocount.textContent = n === 0 ? "0 open" : `${n} open`;
-      }
-      if (items.length === 0) {
+      if (ocount) ocount.textContent = totalAllOpen === 0 ? "0 open" : `${totalAllOpen} open`;
+      if (totalAllOpen === 0) {
         obody.innerHTML = `
-          <div class="sched-open-shifts-empty">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-            <div class="sched-open-shifts-empty-title">All shifts are covered</div>
-            <div class="sched-open-shifts-empty-sub">Great job!</div>
+          <div class="pool-openshifts-empty">
+            <span class="pool-openshifts-check"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <div class="pool-openshifts-empty-title">All shifts are covered</div>
+            <div class="pool-openshifts-empty-sub">Great job!</div>
             <button class="btn btn-sm" type="button" onclick="schedSub('open')">View all shifts</button>
           </div>`;
       } else {
-        const shown = items.slice(0, 5);
-        const more = items.length - shown.length;
-        obody.innerHTML = shown.map(it => `
-          <div class="sched-open-shift-row">
-            <div>
-              <span class="sched-open-shift-day">${it.day}</span>
-            </div>
-            <div>
-              <div class="sched-open-shift-route">${escapeHtml(String(it.route))}</div>
-              <div class="sched-open-shift-meta">${escapeHtml(String(it.meta))}</div>
-            </div>
-            <button class="btn btn-sm" type="button" onclick="openAiSchedule()">Fill</button>
+        obody.innerHTML = `
+          <div class="pool-openshifts-needs">
+            <span class="pool-openshifts-needs-dot"></span>
+            ${totalAllOpen} open shift${totalAllOpen === 1 ? "" : "s"} need${totalAllOpen === 1 ? "s" : ""} a driver
           </div>
-        `).join("") + (more > 0
-          ? `<button class="btn btn-sm" type="button" onclick="schedSub('open')" style="margin-top:6px">View ${more} more →</button>`
-          : "");
+          <button class="btn btn-sm" type="button" onclick="schedSub('open')">Manage open shifts →</button>`;
       }
     }
-  } catch (e) { console.warn("open shifts panel:", e); }
+  } catch (e) { console.warn("open shifts footer:", e); }
 
   // ── Driver rows + Unassigned + Coverage strip
   const wrap = sub.querySelector(".cal-wrap");
@@ -24067,7 +24045,7 @@ function bindSchedWeekNav() {
   sub.addEventListener("click", (e) => {
     const kpiHost = document.getElementById("rr-sched-kpis");
     if (!kpiHost) return;
-    if (!e.target.closest("#rr-sched-kpis > div:nth-child(5)")) return;
+    if (!e.target.closest("#rr-sched-kpis > div:nth-child(3)")) return;
     let v = [];
     try { v = JSON.parse(kpiHost.dataset.rrViolations || "[]"); } catch {}
     let m = document.getElementById("rr-violations-modal");
