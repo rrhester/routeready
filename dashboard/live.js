@@ -5748,14 +5748,21 @@ async function loadDashboardWeather() {
   const lat = Number(meta.lat);
   const lon = Number(meta.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-    body.innerHTML = `<div class="task-eyebrow" style="margin-bottom:2px">Weather · station forecast</div>
-      <div style="font-size:var(--fs-md);color:var(--text);font-weight:600;margin-bottom:2px">Set your station location</div>
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4">Paste lat/lon from Google Maps in Settings → Workspace to enable the local weather forecast and severe-weather alerts.</div>`;
+    body.innerHTML = `
+      <div class="rr-tp-section-head">Weather</div>
+      <div class="wx-empty">
+        <div class="wx-empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+        <div class="wx-empty-text">
+          <div class="wx-empty-title">Set your station location</div>
+          <div class="wx-empty-sub">Paste your DSP's lat/lon (from Google Maps) in <a href="#" onclick="goto('settings');return false;">Settings → Workspace</a> to enable the local forecast and severe-weather alerts.</div>
+        </div>
+      </div>`;
     return;
   }
 
-  body.innerHTML = `<div class="task-eyebrow" style="margin-bottom:2px">Weather · station forecast</div>
-    <div style="font-size:var(--fs-md);color:var(--text-subtle)">Loading…</div>`;
+  body.innerHTML = `
+    <div class="rr-tp-section-head">Weather</div>
+    <div class="wx-body" style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading local forecast…</div>`;
 
   try {
     const headers = { "User-Agent": "RouteReady/1.0 (dashboard)", "Accept": "application/geo+json" };
@@ -5843,25 +5850,28 @@ async function loadDashboardWeather() {
     const fmtHour = (iso) => {
       try { const d = new Date(iso); const h = d.getHours(); return (h%12||12) + (h<12?"a":"p"); } catch { return ""; }
     };
-    const tempColor = (t) => {
-      if (t >= 95) return "var(--red)";
-      if (t >= 85) return "var(--amber)";
-      if (t <= 32) return "#5b8def";
-      return "var(--text)";
+    // Severity → CSS modifier class.  Mirrors the dashboard's
+    // good/warn/bad ramp on KPI deltas + status pills.
+    const tempClass = (t) => {
+      if (t >= 95) return "hot";
+      if (t >= 85) return "warm";
+      if (t <= 32) return "cold";
+      return "";
     };
-    const precipColor = (pct) => {
-      if (pct >= 60) return "var(--red)";
-      if (pct >= 30) return "var(--amber)";
-      return "var(--text-subtle)";
+    const precipClass = (pct) => {
+      if (pct >= 60) return "bad";
+      if (pct >= 30) return "warn";
+      return "";
     };
     const hourlyHtml = hourlyPeriods.map(h => {
       const pct = h.probabilityOfPrecipitation?.value || 0;
       const wind = parseInt(String(h.windSpeed || "").match(/(\d+)/)?.[1] || "0", 10);
-      return `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;padding:var(--s-1) 5px;border-radius:var(--r-sm);min-width:42px;background:var(--canvas)">
-        <div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600">${fmtHour(h.startTime)}</div>
-        <div style="font-size:var(--fs-md);font-weight:700;color:${tempColor(h.temperature)};font-variant-numeric:tabular-nums;line-height:1">${h.temperature}°</div>
-        <div style="font-size:9px;font-weight:600;color:${precipColor(pct)};line-height:1">${pct}%</div>
-        ${wind >= 15 ? `<div style="font-size:9px;color:var(--amber);font-weight:600;line-height:1">${wind}</div>` : ""}
+      const isDay = h.isDaytime;
+      return `<div class="wx-cell${isDay ? " is-day" : ""}">
+        <div class="wx-cell-hour">${fmtHour(h.startTime)}</div>
+        <div class="wx-cell-temp ${tempClass(h.temperature)}">${h.temperature}°</div>
+        <div class="wx-cell-precip ${precipClass(pct)}">${pct}%</div>
+        ${wind >= 15 ? `<div class="wx-cell-wind">${wind} mph</div>` : ""}
       </div>`;
     }).join("");
 
@@ -5903,19 +5913,19 @@ async function loadDashboardWeather() {
 
     const alertHtml = activeAlerts.length === 0
       ? ""
-      : `<div style="display:flex;flex-direction:column;gap:5px;margin-top:var(--s-2);padding:6px 8px;background:rgba(229,62,62,.06);border-left:2px solid var(--red);border-radius:var(--r-sm)">
-          <div class="task-eyebrow" style="margin-bottom:1px">${activeAlerts.length} active alert${activeAlerts.length > 1 ? "s" : ""}</div>
+      : `<div class="wx-alerts">
+          <div class="wx-alerts-head">Severe weather · ${activeAlerts.length} active alert${activeAlerts.length > 1 ? "s" : ""}</div>
           ${activeAlerts.map(a => {
-            const sev = a.severity === "Extreme" ? "var(--red)" : a.severity === "Severe" ? "var(--red)" : a.severity === "Moderate" ? "var(--amber)" : "var(--text-muted)";
-            const exp = a.expires ? ` <span style="color:var(--text-subtle);font-weight:400">· ${escapeHtml(fmtExpires(a.expires))}</span>` : "";
-            return `<div style="font-size:var(--fs-xs);color:${sev};line-height:1.35"><strong>${escapeHtml(a.event || "Alert")}</strong>${a.headline ? ` — ${escapeHtml(a.headline.slice(0, 130))}` : ""}${exp}</div>`;
+            const exp = a.expires ? ` <span class="meta">· ${escapeHtml(fmtExpires(a.expires))}</span>` : "";
+            return `<div class="wx-alert-row"><strong>${escapeHtml(a.event || "Alert")}</strong>${a.headline ? ` — ${escapeHtml(a.headline.slice(0, 130))}` : ""}${exp}</div>`;
           }).join("")}
         </div>`;
 
     const advisoryHtml = advisories.length === 0
       ? ""
-      : `<div style="margin-top:var(--s-2)"><div class="task-eyebrow" style="margin-bottom:3px">Driver advisory</div>
-          ${advisories.map(a => `<div style="font-size:var(--fs-xs);color:var(--text);line-height:1.4;margin:1px 0">• ${a}</div>`).join("")}
+      : `<div class="wx-advisory">
+          <div class="wx-advisory-head">Driver advisory</div>
+          ${advisories.map(a => `<div class="wx-advisory-row"><span>${a}</span></div>`).join("")}
         </div>`;
 
     const nowWind = parseInt(String(now.windSpeed || "").match(/(\d+)/)?.[1] || "0", 10);
@@ -5976,83 +5986,104 @@ async function loadDashboardWeather() {
         return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase().replace(" ", "");
       } catch { return ""; }
     };
+    // Sunrise / sunset + headlight-cutoff footer.  Civil twilight
+    // end is when most US states require headlights, so we surface
+    // it inline; a "minutes-to-sunset" countdown shows up in amber
+    // when the operator is within 3h of dusk.
     const sunLine = sun
       ? (() => {
           const sr = fmtTime(sun.sunrise);
           const ss = fmtTime(sun.sunset);
-          // Headlight cutoff context — civil twilight end
           const ct = fmtTime(sun.civil_twilight_end);
-          const now = new Date();
+          const nowD = new Date();
           const sunsetD = new Date(sun.sunset);
-          const minsToSunset = Math.round((sunsetD - now) / 60000);
+          const minsToSunset = Math.round((sunsetD - nowD) / 60000);
           let cutoffNote = "";
           if (minsToSunset > 0 && minsToSunset < 180) {
-            cutoffNote = ` · <strong style="color:var(--amber)">${minsToSunset >= 60 ? Math.floor(minsToSunset/60)+"h " : ""}${minsToSunset%60}m to sunset</strong>`;
+            cutoffNote = `<span class="sep">·</span> <span class="cutoff">${minsToSunset >= 60 ? Math.floor(minsToSunset/60)+"h " : ""}${minsToSunset%60}m to sunset</span>`;
           }
-          return `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">☀ Sunrise <strong style="color:var(--text)">${sr}</strong> · Sunset <strong style="color:var(--text)">${ss}</strong>${ct ? ` · Headlights ${ct}` : ""}${cutoffNote}</div>`;
+          return `<div class="wx-foot">
+            <span>Sunrise <strong>${sr}</strong></span>
+            <span class="sep">·</span>
+            <span>Sunset <strong>${ss}</strong></span>
+            ${ct ? `<span class="sep">·</span><span>Headlights by <strong>${ct}</strong></span>` : ""}
+            ${cutoffNote}
+          </div>`;
         })()
       : "";
 
-    // "Right now" detail line — humidity, gust, pressure, visibility
-    const obsBits = [];
-    if (rhNow != null && rhNow >= 0) obsBits.push(`Humidity <strong style="color:var(--text)">${rhNow}%</strong>`);
-    if (obsGustMph && obsGustMph > nowWind) obsBits.push(`Gust <strong style="color:${obsGustMph >= 25 ? "var(--red)" : obsGustMph >= 18 ? "var(--amber)" : "var(--text)"}">${obsGustMph} mph</strong>`);
-    if (obsPressureInHg) obsBits.push(`Pressure <strong style="color:var(--text)">${obsPressureInHg} inHg</strong>`);
-    if (obsVisibilityMi && parseFloat(obsVisibilityMi) < 5) obsBits.push(`Vis <strong style="color:var(--amber)">${obsVisibilityMi} mi</strong>`);
-    const obsLine = obsBits.length
-      ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${obsBits.join(" · ")}</div>`
-      : "";
-
-    const today    = dayPairs[0];
-    const tomorrow = dayPairs[1];
-    const dayLine = (d) => d
-      ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4">
-           <strong style="color:var(--text)">${escapeHtml(d.label)}</strong>
-           Hi <strong style="color:var(--text);font-variant-numeric:tabular-nums">${d.hi}°</strong>${d.lo!=null ? ` / Lo <strong style="color:var(--text);font-variant-numeric:tabular-nums">${d.lo}°</strong>` : ""}
-           · ${escapeHtml(d.short || "")}${d.precip ? ` · <strong style="color:${precipColor(d.precip)}">${d.precip}%</strong>` : ""}
-         </div>`
-      : "";
-
-    // 7-day at-a-glance
+    // 7-day at-a-glance — one card per day with hi / lo + short forecast.
     const weeklyHtml = dayPairs.slice(0, 7).map((d, idx) => {
       const wd = idx === 0 ? "Today" : (() => {
         try { return new Date(d.startTime).toLocaleDateString([], { weekday: "short" }); }
         catch { return d.label.slice(0, 3); }
       })();
-      const summary = (d.short || "").slice(0, 18);
-      return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 6px;border-radius:var(--r-md);min-width:62px;background:var(--canvas)">
-        <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">${escapeHtml(wd)}</div>
-        <div style="display:flex;align-items:baseline;gap:3px">
-          <span style="font-size:var(--fs-md);font-weight:700;color:${tempColor(d.hi)};font-variant-numeric:tabular-nums;line-height:1">${d.hi}°</span>
-          ${d.lo!=null ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums">${d.lo}°</span>` : ""}
+      const summary = (d.short || "").slice(0, 22);
+      return `<div class="wx-cell wx-cell-day">
+        <div class="wx-cell-hour">${escapeHtml(wd)}</div>
+        <div class="wx-cell-day-temps">
+          <span class="wx-cell-temp ${tempClass(d.hi)}">${d.hi}°</span>
+          ${d.lo!=null ? `<span class="lo">${d.lo}°</span>` : ""}
         </div>
-        <div style="font-size:9px;color:var(--text-subtle);text-align:center;line-height:1.15;max-width:72px">${escapeHtml(summary)}</div>
-        ${d.precip ? `<div style="font-size:9px;font-weight:600;color:${precipColor(d.precip)};line-height:1">${d.precip}%</div>` : `<div style="height:9px"></div>`}
+        <div class="wx-cell-day-cond" title="${escapeHtml(d.short || "")}">${escapeHtml(summary)}</div>
+        ${d.precip ? `<div class="wx-cell-precip ${precipClass(d.precip)}">${d.precip}%</div>` : ""}
       </div>`;
     }).join("");
 
+    // Sub-line under the big temp — wind / gust / humidity / pressure / vis
+    const subStats = [];
+    if (nowWind) {
+      const sev = nowWind >= 25 ? " bad" : nowWind >= 18 ? " warn" : "";
+      subStats.push(`<div class="wx-stat-row${sev}">Wind <strong>${nowWind} mph${nowDir ? ` ${escapeHtml(nowDir)}` : ""}</strong></div>`);
+    }
+    if (peakRain) {
+      const sev = peakRain >= 60 ? " bad" : peakRain >= 30 ? " warn" : "";
+      subStats.push(`<div class="wx-stat-row${sev}"><strong>${peakRain}%</strong> peak precip · 14h</div>`);
+    }
+    if (obsGustMph && obsGustMph > nowWind + 3) {
+      const sev = obsGustMph >= 25 ? " bad" : obsGustMph >= 18 ? " warn" : "";
+      subStats.push(`<div class="wx-stat-row${sev}">Gust <strong>${obsGustMph} mph</strong></div>`);
+    }
+    if (rhNow != null && rhNow >= 0) {
+      subStats.push(`<div class="wx-stat-row">Humidity <strong>${rhNow}%</strong></div>`);
+    }
+    if (obsVisibilityMi && parseFloat(obsVisibilityMi) < 5) {
+      subStats.push(`<div class="wx-stat-row warn">Vis <strong>${obsVisibilityMi} mi</strong></div>`);
+    }
+    if (obsPressureInHg) {
+      subStats.push(`<div class="wx-stat-row">Pressure <strong>${obsPressureInHg} inHg</strong></div>`);
+    }
+
+    const feelsClass = feelsLike == null ? "" : (feelsLike >= 100 ? "hot" : feelsLike <= 20 ? "cold" : "");
+
     body.innerHTML = `
-      <div class="task-eyebrow" style="margin-bottom:2px">Weather${locName ? ` · ${escapeHtml(locName)}` : ""}${obsTimestamp ? ` · obs ${fmtTime(obsTimestamp)}` : ""}</div>
-      <div style="display:flex;align-items:baseline;gap:var(--s-2-5);margin-top:2px;flex-wrap:wrap">
-        <div style="font-size:26px;font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums">${tNow}°F</div>
-        <div style="font-size:var(--fs-sm);color:var(--text);line-height:1.3;font-weight:600">${escapeHtml(now.shortForecast || "")}</div>
-        ${feelsLike != null ? `<div style="font-size:var(--fs-xs);color:${feelsLike >= 100 ? "var(--red)" : feelsLike >= 90 ? "var(--amber)" : feelsLike <= 20 ? "#5b8def" : "var(--text-subtle)"};font-weight:600">${feelsKind} <span style="font-variant-numeric:tabular-nums">${feelsLike}°F</span></div>` : ""}
+      <div class="rr-tp-section-head">
+        Weather${locName ? ` · ${escapeHtml(locName)}` : ""}
+        ${obsTimestamp ? `<span class="wx-section-head-meta">obs ${fmtTime(obsTimestamp)}</span>` : ""}
       </div>
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">
-        ${nowWind ? `Wind ${nowWind} mph${nowDir ? ` ${escapeHtml(nowDir)}` : ""}` : ""}${peakRain ? `${nowWind ? " · " : ""}${peakRain}% peak precip next 14h` : ""}
-      </div>
-      ${obsLine}
-      ${sunLine}
-      <div class="task-eyebrow" style="margin-top:10px;margin-bottom:4px">Next 14 hours</div>
-      <div style="display:flex;gap:3px;overflow-x:auto;padding-bottom:2px">${hourlyHtml}</div>
-      <div class="task-eyebrow" style="margin-top:10px;margin-bottom:4px">7-day outlook</div>
-      <div style="display:flex;gap:var(--s-1);overflow-x:auto;padding-bottom:2px">${weeklyHtml}</div>
-      <div style="margin-top:var(--s-2);display:flex;flex-direction:column;gap:3px">
-        ${dayLine(today)}
-        ${dayLine(tomorrow)}
-      </div>
-      ${advisoryHtml}
-      ${alertHtml}`;
+      <div class="wx-body">
+        <div class="wx-current">
+          <div class="wx-temp ${tempClass(tNow)}">${tNow}<span class="unit">°F</span></div>
+          <div class="wx-current-text">
+            <div class="wx-cond">${escapeHtml(now.shortForecast || "")}</div>
+            ${feelsLike != null ? `<div class="wx-feels ${feelsClass}">${feelsKind} <strong>${feelsLike}°F</strong></div>` : ""}
+          </div>
+          <div class="wx-current-stats">
+            ${subStats.slice(0, 4).join("")}
+          </div>
+        </div>
+
+        ${alertHtml}
+        ${advisoryHtml}
+
+        <div class="wx-eyebrow">Next 14 hours</div>
+        <div class="wx-strip">${hourlyHtml}</div>
+
+        <div class="wx-eyebrow">7-day outlook</div>
+        <div class="wx-strip">${weeklyHtml}</div>
+
+        ${sunLine}
+      </div>`;
 
     // Snapshot today's weather to weather_snapshots so we can correlate
     // attendance / scorecard slips with weather later. Idempotent: same
@@ -6094,9 +6125,18 @@ async function loadDashboardWeather() {
     const isOutsideUS = String(err.message || "").includes("404");
     const detail = isOutsideUS
       ? `Saved coords <strong>${lat}, ${lon}</strong> aren't covered by NWS (US only). Common cause: longitude sign flipped — west of the prime meridian should be negative (e.g. <strong>-76.910</strong>).`
-      : `Could not load forecast (${escapeHtml(err.message || String(err))}). Saved: <strong>${lat}, ${lon}</strong>.`;
-    body.innerHTML = `<div class="task-eyebrow" style="margin-bottom:2px">Weather · station forecast</div>
-      <div style="font-size:var(--fs-md);color:var(--text-subtle);line-height:1.5">${detail}</div>`;
+      : `Could not load the forecast (${escapeHtml(err.message || String(err))}). Saved: <strong>${lat}, ${lon}</strong>.`;
+    body.innerHTML = `
+      <div class="rr-tp-section-head">Weather</div>
+      <div class="wx-empty">
+        <div class="wx-empty-icon" aria-hidden="true" style="background:var(--amber-soft);color:var(--amber-dark)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="wx-empty-text">
+          <div class="wx-empty-title">Forecast unavailable</div>
+          <div class="wx-empty-sub">${detail}</div>
+        </div>
+      </div>`;
   }
 }
 
@@ -8160,17 +8200,29 @@ async function loadTodayPlan() {
   // all absorbed into the roster body — one table grouped by wave with
   // status pills, inline approve/VTO/deny actions, and assigned vans.
   const skeletonOk = !!document.getElementById("rr-tp-roster")
-                  && !!document.getElementById("rr-tp-meta");
+                  && !!document.getElementById("rr-tp-meta")
+                  && !!document.getElementById("rr-weather-card");
   if (!skeletonOk) {
     shell.dataset.rrPlanShell = "1";
     shell.innerHTML = `
       <div id="rr-tp-meta" class="card card-compact" style="padding:var(--s-2) var(--s-4);margin-bottom:var(--s-4);font-size:var(--fs-sm);color:var(--text-subtle)">Loading</div>
+      <div id="rr-weather-card" class="card card-flush" style="margin-bottom:var(--s-4);display:none">
+        <div id="rr-weather-body">
+          <div class="rr-tp-section-head">Weather</div>
+          <div class="wx-body" style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading local forecast…</div>
+        </div>
+      </div>
       <div id="rr-tp-ridealong-alerts" style="margin-bottom:var(--s-4)"></div>
       <div id="rr-tp-roster" class="card card-flush">
         <div class="rr-tp-section-head">Today's roster</div>
         <div class="rr-loading" style="padding:18px 20px">Loading</div>
       </div>`;
   }
+
+  // Kick the weather render now that the DOM mount exists.  Safe to
+  // call repeatedly — the function bails fast when the body element
+  // is missing and updates content in-place when it's not.
+  if (typeof loadDashboardWeather === "function") loadDashboardWeather();
 
   // Stale-while-revalidate: render last-known cached data instantly so
   // the page is filled in the same frame the operator clicks Today.
