@@ -769,6 +769,8 @@ window.loadScreeningConfig = async function (token) {
     firstName: data.applicant.first_name || "",
     lastName: data.applicant.last_name || "",
     fullName: data.applicant.full_name || "",
+    email: data.applicant.email || "",
+    phone: data.applicant.phone || "",
     videoEnabled: data.video?.enabled !== false,
     formQuestions: (data.questions || []).map((q) => ({
       id: q.id,
@@ -884,6 +886,21 @@ function applyConfig(cfg) {
   if (cfg.firstName) {
     document.getElementById("input-firstName").value = cfg.firstName;
     document.getElementById("welcome-title").textContent = "Hi " + cfg.firstName + "!";
+    applicant.firstName = cfg.firstName;
+  }
+  if (cfg.lastName) {
+    document.getElementById("input-lastName").value = cfg.lastName;
+    applicant.lastName = cfg.lastName;
+  } else if (cfg.fullName && !cfg.firstName) {
+    document.getElementById("input-lastName").value = cfg.fullName;
+  }
+  if (cfg.email) {
+    document.getElementById("input-email").value = cfg.email;
+    applicant.email = cfg.email;
+  }
+  if (cfg.phone) {
+    document.getElementById("input-phone").value = cfg.phone;
+    applicant.phone = cfg.phone;
   }
 
   renderFormQuestions(cfg.formQuestions || []);

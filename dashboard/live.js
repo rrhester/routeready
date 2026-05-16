@@ -848,6 +848,16 @@ async function handleAction(btn) {
       const { error } = await sb.rpc("decline_applicant", { p_id: id, p_reason: "Manual decline" });
       if (error) throw error;
       toast("Applicant declined", "warn");
+    } else if (action === "remove_event") {
+      const eventId = btn.getAttribute("data-event-id");
+      if (!eventId) { btn.disabled = false; return; }
+      if (!confirm("Remove this booking? No message will be sent to the applicant and they will not get a re-booking link.")) {
+        btn.disabled = false;
+        return;
+      }
+      const { error } = await sb.rpc("cancel_cal_event_silent", { p_event_id: eventId });
+      if (error) throw error;
+      toast("Booking removed · no message sent", "success");
     } else if (action === "reschedule" || action === "cancel_interview") {
       const isReschedule = action === "reschedule";
       const promptText = isReschedule
@@ -11063,13 +11073,18 @@ function renderInterviewCard(r) {
   // Reschedule / Cancel surfaced on the day-of card too — operators
   // sometimes need to bump or kill a slot from this view, not just the
   // funnel. Hidden when the day already has an outcome on this row.
+  // Remove = silent cancel (no SMS/email), used when an applicant keeps
+  // re-booking after a Cancel and needs to be taken out of the pipeline.
   if (!outcome) {
     tags.push(`<span class="iv-card-tag" data-rr-action="reschedule" style="cursor:pointer">↻ Reschedule</span>`);
     tags.push(`<span class="iv-card-tag" data-rr-action="cancel_interview" style="cursor:pointer;color:var(--red)">× Cancel interview</span>`);
+    if (r.event_id) {
+      tags.push(`<span class="iv-card-tag" data-rr-action="remove_event" data-event-id="${r.event_id}" style="cursor:pointer;color:var(--red)">⊘ Remove</span>`);
+    }
   }
 
   return `
-    <div class="iv-card" data-applicant-id="${r.applicant_id}" ${outcome ? `data-outcome="${outcome}"` : ""}>
+    <div class="iv-card" data-applicant-id="${r.applicant_id}" ${r.event_id ? `data-event-id="${r.event_id}"` : ""} ${outcome ? `data-outcome="${outcome}"` : ""}>
       <div class="iv-card-time">${time}</div>
       <div class="iv-card-body">
         <div class="iv-card-header">
@@ -11726,6 +11741,29 @@ document.addEventListener("click", async (e) => {
   finally { btn.disabled = false; }
 }, true);
 
+// Capture-phase delegate for the Remove button on the Calendar bookings
+// list. Silent cancel — does NOT send the applicant an SMS/email or
+// generate a re-booking link, so they can't loop back into the calendar.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-rr-cal-remove]");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const eventId = btn.getAttribute("data-rr-cal-remove");
+  if (!eventId) return;
+  if (!confirm("Remove this booking? No message will be sent to the applicant and they will not get a re-booking link.")) return;
+  btn.disabled = true;
+  const { error } = await sb.rpc("cancel_cal_event_silent", { p_event_id: eventId });
+  if (error) {
+    toast("Remove failed: " + error.message, "warn");
+    btn.disabled = false;
+    return;
+  }
+  toast("Booking removed · no message sent", "success");
+  await loadCalBookingsList();
+  if (typeof loadPipelineKpis === "function") await loadPipelineKpis();
+}, true);
+
 async function loadCalBookingsList() {
   const list = document.getElementById("cal-bookings-list");
   if (!list) return;
@@ -11779,7 +11817,10 @@ async function loadCalBookingsList() {
             <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${[a.phone ? phoneCell(a.phone) : "", a.email ? escapeHtml(a.email) : ""].filter(Boolean).join(" · ") || "no contact on file"}</div>
             <div style="margin-top:6px">${kindBadge}${statusBadge}</div>
           </div>
-          <div>${r.meeting_url ? `<a class="btn btn-sm" href="${r.meeting_url}" target="_blank" rel="noreferrer">Join</a>` : ""}</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${r.meeting_url ? `<a class="btn btn-sm" href="${r.meeting_url}" target="_blank" rel="noreferrer">Join</a>` : ""}
+            <button class="btn btn-sm" data-rr-cal-remove="${r.id}" title="Remove booking · no message sent to applicant" style="color:var(--red)">Remove</button>
+          </div>
         </div>`);
     }
   }
