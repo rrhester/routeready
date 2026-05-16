@@ -2626,6 +2626,17 @@ select.form-input{
   background:var(--brand-grad);border-radius:2px;
   box-shadow:0 1px 4px -1px rgba(99,102,241,.20);
 }
+/* Inline pill-badge inside a subnav-item — used for unread counters
+   (e.g. Coaching feed, Availability requests).  Compact amber pill
+   so an unread count reads as a calm alert without competing with
+   the active-tab brand-grad underline. */
+.subnav-pill-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--amber);color:var(--text-inverse);
+  font-size:var(--fs-xs);font-weight:700;
+  padding:1px var(--s-1) 1px var(--s-1);border-radius:var(--r-md);
+  min-width:18px;margin-left:var(--s-1);line-height:1.2;
+}
 
 .dr-subview{display:none}
 .dr-subview.active{display:block}
@@ -8222,8 +8233,8 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="subnav-item active" data-sub="roster" onclick="drSub('roster')">Roster</button>
           <button class="subnav-item" data-sub="licenses" onclick="drSub('licenses')">Licenses</button>
           <button class="subnav-item" data-sub="attendance" onclick="drSub('attendance')">Attendance</button>
-          <button class="subnav-item" data-sub="coaching" onclick="drSub('coaching')">Coaching <span id="rr-coach-feed-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
-          <button class="subnav-item" data-sub="availability" onclick="drSub('availability')">Availability <span id="rr-avail-req-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
+          <button class="subnav-item" data-sub="coaching" onclick="drSub('coaching')">Coaching <span id="rr-coach-feed-badge" class="subnav-pill-badge" style="display:none">0</span></button>
+          <button class="subnav-item" data-sub="availability" onclick="drSub('availability')">Availability <span id="rr-avail-req-badge" class="subnav-pill-badge" style="display:none">0</span></button>
         </div>
 
         <!-- ROSTER SUB-VIEW -->
@@ -8291,18 +8302,18 @@ body.rr-cmdk-open{ overflow:hidden }
             transition:border-color var(--t-fast), box-shadow var(--t-fast);
           }
           #view-drivers .dr-roster-bar select.dr-filter:focus{ outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft); }
-          #view-drivers .dr-roster-bar select.dr-filter.is-set{ color:var(--accent-text);border-color:rgba(37,99,235,.30);background-color:var(--accent-soft); }
+          #view-drivers .dr-roster-bar select.dr-filter.is-set{ color:var(--accent-text);border-color:var(--accent-border);background-color:var(--accent-soft); }
 
           /* App-presence chip (consistent with the platform's chip rhythm) */
           #view-drivers .dr-app-chip{
-            display:inline-flex;align-items:center;gap:6px;
-            font-size:var(--fs-xs);font-weight:650;border-radius:999px;padding:3px 9px 3px 7px;line-height:1.4;
+            display:inline-flex;align-items:center;gap:var(--s-1);
+            font-size:var(--fs-xs);font-weight:600;border-radius:999px;padding:3px var(--s-2-5) 3px var(--s-2);line-height:1.4;
             border:1px solid transparent;white-space:nowrap;
           }
           #view-drivers .dr-app-chip .dot{ width:6px;height:6px;border-radius:50%;flex:0 0 auto; }
           #view-drivers .dr-app-chip.on{ background:var(--green-soft);color:var(--green);border-color:var(--green-border); }
           #view-drivers .dr-app-chip.on .dot{ background:var(--green); }
-          #view-drivers .dr-app-chip.invited{ background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(245,158,11,.18); }
+          #view-drivers .dr-app-chip.invited{ background:var(--amber-soft);color:var(--amber-dark);border-color:var(--amber-border); }
           #view-drivers .dr-app-chip.invited .dot{ background:var(--amber); }
           #view-drivers .dr-app-chip.none{ background:var(--canvas);color:var(--text-subtle);border-color:var(--border); }
           #view-drivers .dr-app-chip.none .dot{ background:var(--text-subtle); }
