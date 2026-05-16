@@ -13331,14 +13331,35 @@ async function _tpOpenPickerPane() {
     <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:8px">Available drivers on ${escapeHtml(new Date(rideDate + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }))}</div>
     <div id="rr-tp-results"><div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:8px 0">Loading…</div></div>
     <div style="margin-top:12px">
-      <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">No trainer fits? Search other drivers</label>
+      <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">No trainer fits? Search any active driver</label>
       <input id="rr-tp-search" class="form-input" placeholder="Type a name…" style="width:100%"/>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4">Drivers without a scheduled shift on this day will show up tagged "Not scheduled this day" — you'll need to set the ride-along date to a day they're working before you can pick them.</div>
     </div>`;
+  // Eligible candidates (with their shift info on the ride-along date).
   if (s.candidatesDate !== rideDate) {
     const { data, error } = await sb.rpc("eligible_ride_along_drivers", { p_trainee_id: s.driverId, p_date: rideDate });
     if (error) { document.getElementById("rr-tp-results").innerHTML = `<div style="color:#991b1b;font-size:var(--fs-sm);padding:8px 0">${escapeHtml(error.message || "Failed to load")}</div>`; return; }
     s.candidates = data || [];
     s.candidatesDate = rideDate;
+  }
+  // Full active-driver roster — date-independent, fetched once per
+  // modal session. Powers the "search any active driver" fallback so
+  // the operator can find someone like Charlie even when he isn't
+  // scheduled the ride-along day.
+  if (!s.allDrivers) {
+    const dspId = window.RR?.dsp?.id;
+    if (dspId) {
+      const { data: allRows } = await sb.from("drivers")
+        .select("id, full_name, is_trainer")
+        .eq("dsp_id", dspId)
+        .eq("status", "active")
+        .eq("role", "driver")
+        .neq("id", s.driverId)
+        .order("full_name");
+      s.allDrivers = allRows || [];
+    } else {
+      s.allDrivers = [];
+    }
   }
   _tpRenderResults();
 }
@@ -13349,16 +13370,37 @@ function _tpRenderResults() {
   if (!root) return;
   const q = (document.getElementById("rr-tp-search")?.value || "").toLowerCase().trim();
   const fmtT = (iso) => iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+
   const trainers = s.candidates.filter(r => r.is_trainer);
-  const others   = s.candidates.filter(r => !r.is_trainer && (!q ? false : r.full_name.toLowerCase().includes(q)));
   const trainerSection = trainers.length
-    ? trainers.map(r => _tpRowHtml(r, true)).join("")
+    ? trainers.map(r => _tpRowHtml(r, true, true)).join("")
     : `<div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:6px 0">No trainers available this day — fall back to another driver below.</div>`;
-  const othersSection = q
-    ? (others.length
-        ? others.map(r => _tpRowHtml(r, false)).join("")
-        : `<div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:6px 0">No matches.</div>`)
-    : `<div style="color:var(--text-subtle);font-size:var(--fs-xs);padding:6px 0;font-style:italic">Type a name above to search non-trainer drivers.</div>`;
+
+  // Search box: matches against the FULL active roster, not the
+  // eligibility list. Anyone not in s.candidates gets rendered with a
+  // "Not scheduled this day" tag and disabled clicks — the operator
+  // sees they exist and knows to pick a different ride-along date.
+  const eligibleById = new Map(s.candidates.map(r => [r.driver_id, r]));
+  let othersSection;
+  if (!q) {
+    othersSection = `<div style="color:var(--text-subtle);font-size:var(--fs-xs);padding:6px 0;font-style:italic">Type a name above to search any active driver in the DSP.</div>`;
+  } else {
+    const matches = (s.allDrivers || []).filter(d => d.full_name && d.full_name.toLowerCase().includes(q));
+    if (!matches.length) {
+      othersSection = `<div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:6px 0">No matches.</div>`;
+    } else {
+      othersSection = matches.map(d => {
+        const elig = eligibleById.get(d.id);
+        if (elig) return _tpRowHtml(elig, !!elig.is_trainer, true);
+        return _tpRowHtml({
+          driver_id: d.id,
+          full_name: d.full_name,
+          is_trainer: d.is_trainer,
+        }, !!d.is_trainer, false);
+      }).join("");
+    }
+  }
+
   root.innerHTML = `
     <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin:4px 0 6px">Trainers (${trainers.length} available)</div>
     ${trainerSection}
@@ -13372,11 +13414,26 @@ function _tpRenderResults() {
   });
 }
 
-function _tpRowHtml(r, isTrainer) {
+function _tpRowHtml(r, isTrainer, isEligible) {
   const star = isTrainer ? "★ " : "";
   const warns = (Array.isArray(r.warnings) && r.warnings.length)
     ? ` <span title="${escapeHtml(r.warnings.map(w => w.text).join("; "))}" style="color:var(--amber)">⚠</span>`
     : "";
+  if (!isEligible) {
+    // Driver exists in the DSP but doesn't have a regular shift on the
+    // chosen ride-along date. Surfaced (so the operator can find them
+    // by name) but not pickable — the activation RPC would reject.
+    return `
+      <div title="Not scheduled on the chosen ride-along date — pick a date they're working" style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-radius:var(--r-md);opacity:.55;cursor:not-allowed">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:var(--fs-sm)">${star}${escapeHtml(r.full_name)}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);display:flex;align-items:center;gap:6px">
+            <span style="background:var(--canvas);color:var(--text-muted);font-weight:700;font-size:9px;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:var(--r-sm)">Not scheduled this day</span>
+            <span>Change the ride-along date above to a day they're working</span>
+          </div>
+        </div>
+      </div>`;
+  }
   return `
     <div data-rr-tp-row data-driver-id="${escapeHtml(r.driver_id)}" data-is-trainer="${isTrainer ? "1" : "0"}" data-starts="${escapeHtml(r.starts_at || "")}" data-ends="${escapeHtml(r.ends_at || "")}" style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-radius:var(--r-md);cursor:pointer" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'">
       <div style="flex:1;min-width:0">
