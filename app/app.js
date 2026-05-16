@@ -2113,20 +2113,47 @@ function renderTasksHub() {
     <div id="rr-tasks-assignments-slot"></div>
     ${baseCards.map(taskCardHtml).join("")}
     <div id="rr-tasks-forms-slot"></div>
-    <div class="rr-empty-inline" id="rr-tasks-empty" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md)">Nothing to do right now — you're all set.</div>`;
-  // Clear the shimmer once the RPCs have had time to settle (most
-  // return in well under 600ms). Premium-feeling: never a blank flash
-  // before content, never a stuck shimmer after.
-  setTimeout(() => {
+    <div class="rr-empty-inline" id="rr-tasks-empty" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md);display:none">Nothing to do right now — you're all set.</div>`;
+  // Skeleton-removal strategy:
+  //   • The instant the first real card lands, drop the skeleton.
+  //     That avoids the previous "two phantom cards visible above the
+  //     real task" flicker, where a fixed 800ms setTimeout pulled the
+  //     skeleton at one fixed moment regardless of whether content
+  //     had arrived or not.
+  //   • If every RPC settles with nothing to show, drop the skeleton
+  //     and reveal the "Nothing to do" empty state instead.
+  //   • 3 s safety net for genuinely-stuck networks.
+  const TASKS_RPC_COUNT = 6;
+  let _tasksPending = TASKS_RPC_COUNT;
+  let _tasksRevealed = false;
+  const slotHasContent = () => {
+    const slots = ["rr-tasks-onboarding-slot", "rr-tasks-assignments-slot", "rr-tasks-forms-slot"];
+    return slots.some(id => {
+      const el = document.getElementById(id);
+      return el && el.children.length > 0;
+    });
+  };
+  const revealTasks = () => {
+    if (_tasksRevealed) return;
+    _tasksRevealed = true;
     if (currentRoute() !== "/tasks") return;
     document.getElementById("rr-tasks-skel")?.remove();
-  }, 800);
+    const empty = document.getElementById("rr-tasks-empty");
+    if (empty && !slotHasContent()) empty.style.display = "";
+  };
+  // Call after a slot is populated to drop the skeleton immediately.
+  const onContent = () => { if (!_tasksRevealed && slotHasContent()) revealTasks(); };
+  const rpcSettled = () => {
+    _tasksPending--;
+    if (_tasksPending <= 0) revealTasks();
+  };
+  setTimeout(revealTasks, 3000);
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
 
   const session = readSession();
-  if (!session?.token) return;
+  if (!session?.token) { revealTasks(); return; }
 
   // Onboarding card — only when status === 'onboarding'.
   sb.rpc("driver_get_profile", { p_token: session.token }).then(({ data, error }) => {
@@ -2138,8 +2165,8 @@ function renderTasksHub() {
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
     });
     slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
-    document.getElementById("rr-tasks-empty")?.remove();
-  }).catch(() => {});
+    onContent();
+  }).catch(() => {}).finally(rpcSettled);
 
   // Operational assignments — rows assigned to this driver on the DSP's
   // Workspaces boards.  Incomplete ones surface as cards with a
@@ -2151,10 +2178,10 @@ function renderTasksHub() {
     const open = (Array.isArray(data) ? data : []).filter(a => a && !a.completed_at);
     const slot = document.getElementById("rr-tasks-assignments-slot");
     if (!slot || !open.length) return;
-    document.getElementById("rr-tasks-empty")?.remove();
     slot.innerHTML = `<div class="wt-sec">Assignments<span class="wt-sec-n">${open.length}</span></div>` + open.map(_wtCardHtml).join("");
     _wtBindSlot(slot);
-  }).catch(() => {});
+    onContent();
+  }).catch(() => {}).finally(rpcSettled);
 
   // Coaching feed — single card that opens the unified /tasks/coaching
   // list.  Any coaching with delivery_required = ack/sign that's
@@ -2180,8 +2207,8 @@ function renderTasksHub() {
       el.dataset.rrBound = "1";
       el.addEventListener("click", () => navigate(el.dataset.taskRoute));
     });
-    document.getElementById("rr-tasks-empty")?.remove();
-  }).catch(() => {});
+    onContent();
+  }).catch(() => {}).finally(rpcSettled);
 
   // Published forms — append one card per form when the RPC returns.
   // Failures surface as an inline diagnostic instead of being
@@ -2199,7 +2226,6 @@ function renderTasksHub() {
     }
     const forms = Array.isArray(data) ? data : [];
     if (forms.length === 0) return;
-    document.getElementById("rr-tasks-empty")?.remove();
     slot.innerHTML = forms.map(f => {
       const oncePer = !!f.settings?.once_per_driver;
       const done = oncePer && f.submission_count > 0;
@@ -2213,11 +2239,12 @@ function renderTasksHub() {
       });
     }).join("");
     slot.querySelectorAll("[data-task-route]").forEach(el => el.addEventListener("click", () => navigate(el.dataset.taskRoute)));
+    onContent();
   }).catch((err) => {
     // Network / runtime failure — log and stay silent in the UI.
     // The Tasks hub still shows what loaded; pull-to-refresh re-tries.
     console.warn("driver_list_forms rejected:", err);
-  });
+  }).finally(rpcSettled);
 
   // Documents to sign — single card surfacing the count of pending
   // envelopes the dispatcher has sent for this driver.
@@ -2227,7 +2254,6 @@ function renderTasksHub() {
     if (pending.length === 0) return;
     const slot = document.getElementById("rr-tasks-forms-slot");
     if (!slot) return;
-    document.getElementById("rr-tasks-empty")?.remove();
     slot.insertAdjacentHTML("afterend", taskCardHtml({
       route: "/tasks/documents",
       title: "Documents to sign",
@@ -2239,7 +2265,8 @@ function renderTasksHub() {
       el.dataset.rrBound = "1";
       el.addEventListener("click", () => navigate(el.dataset.taskRoute));
     });
-  }).catch(() => {});
+    onContent();
+  }).catch(() => {}).finally(rpcSettled);
 
   // Form I-9 (Section 1) — only surfaced when the operator explicitly
   // re-opens the form for a correction. The "not_started" case lives
@@ -2255,7 +2282,6 @@ function renderTasksHub() {
     if (data.record.status !== "needs_correction") return;
     const slot = document.getElementById("rr-tasks-forms-slot");
     if (!slot) return;
-    document.getElementById("rr-tasks-empty")?.remove();
     slot.insertAdjacentHTML("afterend", taskCardHtml({
       route: "/tasks/i9",
       title: "Form I-9 — Section 1",
@@ -2267,7 +2293,8 @@ function renderTasksHub() {
       el.dataset.rrBound = "1";
       el.addEventListener("click", () => navigate(el.dataset.taskRoute));
     });
-  }).catch(() => {});
+    onContent();
+  }).catch(() => {}).finally(rpcSettled);
 }
 function taskCardHtml(c) {
   return `

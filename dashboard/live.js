@@ -8853,6 +8853,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
       van_via_source:  ro.van_via_source,
       covering_for:    ro.covering_for,
       gap_kind:        ro.gap_kind,
+      shift_kind:      ro.shift_kind || "regular",
       computed_outcome:att.computed_outcome,
       decision:        att.decision,
       missed_reason:   att.missed_reason,
@@ -8860,9 +8861,16 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
     };
   });
 
-  // Group by wave_index
+  // Onboarding shifts (Day 1+2 class training, Day 3 road training) get
+  // pulled out of the main wave grid and rendered in their own section
+  // so the dispatcher can scan the actual route coverage cleanly.
+  const classTrainingRows = rows.filter(r => r.shift_kind === "training");
+  const roadTrainingRows  = rows.filter(r => r.shift_kind === "ride_along");
+  const regularRows       = rows.filter(r => r.shift_kind !== "training" && r.shift_kind !== "ride_along");
+
+  // Group regular rows by wave_index
   const byWave = new Map();
-  for (const r of rows) {
+  for (const r of regularRows) {
     const w = r.wave_index ?? 0;
     if (!byWave.has(w)) byWave.set(w, []);
     byWave.get(w).push(r);
@@ -8893,7 +8901,11 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
 
   const exTag = (r) => r.is_cushion ? `<span class="tp-ex-chip">EX</span>` : "";
 
-  const noVan = rows.filter(r => r.gap_kind === "no_van").length;
+  // Only "real" no-van gaps count toward the warning; class-training
+  // legitimately has no van (the trainee is in the station) and a
+  // resolved ride-along inherits the trainer's van, so neither hits
+  // this counter.
+  const noVan = regularRows.filter(r => r.gap_kind === "no_van").length;
   const headRight = (() => {
     if (noVan === 0) return "";
     return `<span style="font-size:var(--fs-xs);font-weight:700;color:var(--red);margin-right:8px">${noVan} no van</span>`;
@@ -9003,13 +9015,89 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
       </table>`;
   }).join("");
 
+  // ── Training-today section ──────────────────────────────────────
+  // Renders class training (Day 1+2 at the station — no van needed)
+  // and road training (Day 3 ride-along — sharing the trainer's van)
+  // under their own headers so the operator can scan route coverage
+  // separately from onboarding scaffolding.
+  const trainingTotal = classTrainingRows.length + roadTrainingRows.length;
+  const renderTrainingRow = (r, isClass) => {
+    const av = r.driver_photo_path
+      ? `<img class="tp-driver-avatar" src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(r.driver_photo_path)}" alt="">`
+      : `<div class="tp-driver-avatar">${escapeHtml(initials(r.driver_name))}</div>`;
+    const timeStr = (r.starts_at || r.ends_at)
+      ? `<span style="font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.starts_at))}${r.ends_at ? " – " + escapeHtml(fmtTime(r.ends_at)) : ""}</span>`
+      : `<span style="color:var(--text-subtle)">—</span>`;
+
+    let vanCell, statusCell;
+    if (isClass) {
+      // Class training: explicitly NO van. Status spells out the day.
+      vanCell = `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">No van — in the station</span>`;
+      statusCell = `<span style="background:rgba(13,148,136,.12);color:#0F766E;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:var(--s-1) 10px;border-radius:var(--r-lg)">Classroom training</span>`;
+    } else {
+      // Road training: van inherited from trainer, plus "with <Trainer>"
+      const trainerName = r.covering_for || "trainer";
+      if (r.van_name) {
+        const plate = r.van_plate ? `<span class="tp-van-plate"> · ${escapeHtml(r.van_plate)}</span>` : "";
+        vanCell = `<div class="tp-van-cell"><span class="tp-van-name">${escapeHtml(r.van_name)}</span>${plate}<div class="tp-van-cover">Sharing with ${escapeHtml(trainerName)}</div></div>`;
+      } else {
+        vanCell = `<span style="color:var(--red);font-size:var(--fs-xs);font-weight:700">${escapeHtml(trainerName)} has no van</span>`;
+      }
+      statusCell = `<span style="background:rgba(245,158,11,.14);color:#B45309;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:var(--s-1) 10px;border-radius:var(--r-lg)">Road training</span>`;
+    }
+    const trainerLabel = !isClass && r.covering_for
+      ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Trainer · ${escapeHtml(r.covering_for)}</div>`
+      : "";
+    return `<tr class="rr-tp-tool-row" data-driver-id="${escapeHtml(r.driver_id)}">
+      <td>
+        <div style="display:flex;align-items:center;gap:var(--s-2-5);min-width:0">
+          ${av}
+          <div style="min-width:0;flex:1">
+            <div style="font-weight:600;display:flex;align-items:center;flex-wrap:wrap" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}${tierChip(r.tier)}</div>
+            ${trainerLabel}
+          </div>
+        </div>
+      </td>
+      <td style="white-space:nowrap">${timeStr}</td>
+      <td>${vanCell}</td>
+      <td>${statusCell}</td>
+      <td style="text-align:right"></td>
+    </tr>`;
+  };
+  const trainingColgroup = `<colgroup>
+    <col style="width:32%"><col style="width:18%"><col style="width:18%"><col style="width:14%"><col style="width:18%">
+  </colgroup>`;
+  const classSection = classTrainingRows.length === 0 ? "" : `
+    <div class="tp-wave-head" style="background:rgba(13,148,136,.06)">
+      <span class="tp-wave-head-label" style="color:#0F766E">Classroom training</span>
+      <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${classTrainingRows.length} driver${classTrainingRows.length === 1 ? "" : "s"} · Day 1 + 2 at the station</span>
+    </div>
+    <table class="tp-roster-table" style="table-layout:fixed">${trainingColgroup}
+      <tbody>${classTrainingRows.map(r => renderTrainingRow(r, true)).join("")}</tbody>
+    </table>`;
+  const roadSection = roadTrainingRows.length === 0 ? "" : `
+    <div class="tp-wave-head" style="background:rgba(245,158,11,.06)">
+      <span class="tp-wave-head-label" style="color:#B45309">Road training</span>
+      <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${roadTrainingRows.length} driver${roadTrainingRows.length === 1 ? "" : "s"} · riding along with a trainer</span>
+    </div>
+    <table class="tp-roster-table" style="table-layout:fixed">${trainingColgroup}
+      <tbody>${roadTrainingRows.map(r => renderTrainingRow(r, false)).join("")}</tbody>
+    </table>`;
+  const trainingBlock = trainingTotal === 0 ? "" : `
+    <div class="rr-tp-section-head" style="display:flex;align-items:center;gap:var(--s-2-5);margin-top:var(--s-5)">
+      <span>In training today</span>
+      <span style="font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle)">${trainingTotal} driver${trainingTotal === 1 ? "" : "s"}</span>
+    </div>
+    <div style="overflow-x:auto">${classSection}${roadSection}</div>`;
+
   wrap.innerHTML = `
     <div class="rr-tp-section-head" style="display:flex;align-items:center;gap:var(--s-2-5)">
       <span>Today's roster</span>
-      <span style="font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle)">${rows.length} scheduled${showWaveHeaders ? ` · ${waveKeys.length} waves` : ""}</span>
+      <span style="font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle)">${regularRows.length} scheduled${showWaveHeaders ? ` · ${waveKeys.length} waves` : ""}${trainingTotal > 0 ? ` · ${trainingTotal} in training` : ""}</span>
       <div style="margin-left:auto;display:flex;align-items:center;gap:var(--s-3)">${headRight}${autoBtn}</div>
     </div>
-    <div style="overflow-x:auto">${sections}</div>`;
+    <div style="overflow-x:auto">${sections}</div>
+    ${trainingBlock}`;
 }
 
 
