@@ -2665,7 +2665,7 @@ select.form-input{
 .day-toggle:hover{background:var(--canvas);border-color:var(--border-strong);color:var(--text)}
 .day-toggle:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .day-toggle.on{
-  background:var(--accent);border-color:var(--accent);color:#fff;
+  background:var(--accent);border-color:var(--accent);color:var(--text-inverse);
 }
 .day-toggle svg{width:13px;height:13px;stroke-width:2.5}
 
@@ -2708,7 +2708,7 @@ select.form-input{
 }
 .sched-draw-day:hover{background:var(--canvas);border-color:var(--border-strong);color:var(--text)}
 .sched-draw-day:focus-visible{outline:none;box-shadow:var(--ring-focus)}
-.sched-draw-day.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.sched-draw-day.on{background:var(--accent);border-color:var(--accent);color:var(--text-inverse);font-weight:600}
 .sched-draw-day-letter{display:block;font-size:var(--fs-base);font-weight:600}
 
 /* ─────────────────────────────────────────────────────────────
@@ -3943,9 +3943,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
      bubble's large fill area; --accent-hover (Azure-700) holds the
      same brand tone but lands calmer on big surfaces. */
   background:var(--accent-hover);
-  color:#fff;
+  color:var(--text-inverse);
   border-bottom-right-radius:5px;
-  box-shadow:0 1px 2px rgba(29,78,216,.14);
+  box-shadow:var(--shadow-xs);
 }
 /* Group spacing — 6px between sender groups, 2px between bubbles in
    the same group. Driven by data-group-pos which the renderer sets. */
@@ -3959,15 +3959,15 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-mc-bubble.urgent{ box-shadow:inset 3px 0 0 var(--red), 0 1px 2px rgba(37,99,235,.18), 0 4px 10px -4px rgba(225,29,72,.30) }
 .rr-mc-bubble.high  { box-shadow:inset 3px 0 0 var(--amber), 0 1px 2px rgba(37,99,235,.18) }
 .rr-mc-pri-tag{
-  display:inline-block;background:var(--red);color:#fff;
+  display:inline-block;background:var(--red);color:var(--text-inverse);
   font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-  padding:2px 7px;border-radius:999px;margin-bottom:6px;
+  padding:2px 7px;border-radius:999px;margin-bottom:var(--s-1);
 }
 .rr-mc-ack{
   margin-top:6px;font-size:var(--fs-xs);font-weight:600;
   padding:3px 8px;border-radius:var(--r-md);display:inline-block;
 }
-.rr-mc-ack.acked  { background:rgba(255,255,255,.18);color:#fff; }
+.rr-mc-ack.acked  { background:rgba(255,255,255,.18);color:var(--text-inverse); }
 .rr-mc-ack.pending{ background:rgba(255,255,255,.10);color:rgba(255,255,255,.85); }
 
 /* Compose options — priority radio + ack toggle. Lives inside
@@ -4745,7 +4745,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .field-props-head{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-3)}
 .field-prop-row{margin-bottom:var(--s-3)}
 .field-prop-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:5px}
-.field-prop-input{width:100%;padding:6px 10px;border:1px solid var(--border-strong);border-radius:var(--r-md);font-size:var(--fs-sm);background:var(--surface);color:var(--text);font-family:inherit}
+.field-prop-input{width:100%;padding:var(--s-1) var(--s-2-5);border:1px solid var(--border-strong);border-radius:var(--r-md);font-size:var(--fs-sm);background:var(--surface);color:var(--text);font-family:inherit}
 
 /* Submissions table & form analytics */
 .subm-row{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:var(--s-3);align-items:center;padding:var(--s-3) var(--s-5);border-bottom:1px solid var(--border)}
@@ -4753,7 +4753,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .subm-row:hover{background:var(--canvas);cursor:pointer}
 .subm-form-name{font-size:var(--fs-md);font-weight:600;color:var(--text)}
 .subm-form-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
-.subm-status{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:8px}
+.subm-status{font-size:var(--fs-xs);font-weight:600;padding:2px var(--s-2);border-radius:var(--r-md)}
 .subm-status.complete{background:var(--green-soft);color:var(--green)}
 .subm-status.flagged{background:var(--red-soft);color:var(--red)}
 
@@ -4761,8 +4761,8 @@ body.rr-cmdk-open{ overflow:hidden }
    FLEET + ASSET TRACKING
    ───────────────────────────────────────────────────────────── */
 .veh-status{
-  display:inline-flex;align-items:center;gap:5px;
-  font-size:var(--fs-xs);font-weight:600;padding:3px 10px;border-radius:var(--r-lg);
+  display:inline-flex;align-items:center;gap:var(--s-1);
+  font-size:var(--fs-xs);font-weight:600;padding:3px var(--s-2-5);border-radius:var(--r-lg);
 }
 .veh-status.active{background:var(--green-soft);color:var(--green)}
 .veh-status.maint{background:var(--amber-soft);color:var(--amber)}
