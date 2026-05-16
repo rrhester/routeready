@@ -1582,6 +1582,19 @@ async function renderSchedule() {
     }
 
     const rawShifts = Array.isArray(data?.shifts) ? data.shifts : [];
+    // Training Day 1 + Day 2 land in the schedule on consecutive dates
+    // — when both are present, the second one carries a "Day 2" suffix
+    // so the trainee can tell them apart at a glance.
+    const trainingByIso = new Map();
+    for (const s of rawShifts) {
+      if (s.shift_kind === "training") trainingByIso.set(s.date, (trainingByIso.get(s.date) || 0) + 1);
+    }
+    const trainingDates = rawShifts
+      .filter(s => s.shift_kind === "training")
+      .map(s => s.date)
+      .sort();
+    const trainingDayIndex = new Map();
+    trainingDates.forEach((d, i) => { if (!trainingDayIndex.has(d)) trainingDayIndex.set(d, i + 1); });
     const shifts = rawShifts.map((s) => ({
       id:        s.id,
       date:      new Date(s.date + "T12:00:00"),
@@ -1599,6 +1612,9 @@ async function renderSchedule() {
       type:      s.service_type_code || "",
       typeColor: s.service_type_color || "",
       isCushion: !!s.is_cushion,
+      shiftKind: s.shift_kind || "regular",
+      trainerName: s.trainer_name || "",
+      trainingDay: s.shift_kind === "training" ? (trainingDayIndex.get(s.date) || 1) : 0,
     })).filter((s) => ["scheduled", "completed"].includes(s.status));
 
     const todayIso = fmtIsoDate(new Date());
@@ -2017,6 +2033,18 @@ function shiftCardHtml(s, isToday, vanName, opts) {
   if (s.status === "completed") tags.push(`<span class="tag" style="background:var(--canvas)">Completed</span>`);
   if (s.type && s.type !== "SP") tags.push(`<span class="tag" style="background:${escapeHtml(s.typeColor)}20;color:${escapeHtml(s.typeColor)}">${escapeHtml(s.type)}</span>`);
   if (s.isCushion) tags.push(`<span class="tag" style="background:rgba(245,158,11,.12);color:var(--amber)">EX</span>`);
+  // Onboarding shift labels — Day 1+2 station training and Day 3
+  // ride-along get a distinct top label so the trainee sees "Training ·
+  // Day 1" / "Ride-along with Sarah" instead of a blank station line.
+  const isTraining = s.shiftKind === "training";
+  const isRideAlong = s.shiftKind === "ride_along";
+  const onboardingLabel = isTraining
+    ? `Training · Day ${s.trainingDay || 1}`
+    : isRideAlong
+      ? (s.trainerName ? `Ride-along with ${s.trainerName.split(/\s+/)[0]}` : "Ride-along")
+      : "";
+  const stationLine = onboardingLabel || s.station;
+  const isOnboardingShift = isTraining || isRideAlong;
   return `
     <div class="shift-card ${isToday ? "is-today" : ""}">
       <div class="date-block">
@@ -2029,10 +2057,10 @@ function shiftCardHtml(s, isToday, vanName, opts) {
           <div class="meta-time">${escapeHtml(blockRange)}</div>
           ${waveTag}
         </div>
-        <div class="meta-station">${escapeHtml(s.station)}</div>
+        <div class="meta-station">${escapeHtml(stationLine)}${isOnboardingShift && s.station ? ` · ${escapeHtml(s.station)}` : ""}</div>
         ${vanName ? `<div style="margin-top:4px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)">Vehicle ${escapeHtml(vanName)}</div>` : ""}
         ${tags.length ? `<div class="meta-tags">${tags.join("")}</div>` : ""}
-        ${opts?.swappable && s.status === "scheduled" ? `
+        ${opts?.swappable && s.status === "scheduled" && !isOnboardingShift ? `
           <div style="margin-top:8px"><a href="#" class="rr-text-link" data-rr-swap-from="${escapeHtml(s.id)}" style="font-size:var(--fs-xs);color:var(--text-subtle);text-decoration:none;cursor:pointer">Offer swap</a></div>
         ` : ""}
       </div>
