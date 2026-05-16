@@ -26186,6 +26186,53 @@ async function loadDocumentsView(sub) {
 
 // One I-9 card for the Documents views. `r` is an i9_records row joined
 // to drivers(full_name, preferred_name).
+// Sealed Form I-9 rendered as a row in the Signature records table.
+// Mirrors the envelope tr structure so the two doc types read as one
+// audit-ready list, with a small "Form I-9" badge in the Document
+// column so the distinction is still visible.  Row carries
+// data-rr-docs-i9 on the action cell so the existing
+// [data-rr-docs-i9] click handler resolves driver_id.
+function _i9DocsRowHtml(r) {
+  const driverName = (r.drivers && (r.drivers.preferred_name || r.drivers.full_name)) || "—";
+  const driverEmail = r.drivers?.email || "";
+  const issuedAt = r.pdf_sealed_at || r.section2_completed_at || null;
+  return `
+    <tr data-rr-docs-i9-row="${escapeHtml(r.driver_id)}">
+      <td class="docs-cb"></td>
+      <td>
+        <div class="docs-recipient">
+          <span class="docs-avatar">${escapeHtml(_docsInitials(driverName))}</span>
+          <span><span class="nm">${escapeHtml(driverName)}</span><br><span class="em">${escapeHtml(driverEmail)}</span></span>
+        </div>
+      </td>
+      <td>
+        <div class="docs-doc-cell">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
+          <span>Form I-9</span>
+          <span class="docs-mono-chip" style="background:var(--accent-soft);color:var(--accent-text);margin-left:8px"><span class="lbl">Type</span>I-9</span>
+        </div>
+        <div class="docs-trust-row">
+          <span class="docs-mono-chip" style="background:var(--green-soft);color:var(--green)"><span class="lbl">✓</span>SEALED</span>
+          ${r.pdf_certificate_path ? `<span class="docs-mono-chip" style="background:var(--green-soft);color:var(--green)"><span class="lbl">✓</span>CERTIFICATE</span>` : ""}
+          <span class="docs-mono-chip" style="background:var(--green-soft);color:var(--green)"><span class="lbl">✓</span>VERIFIED</span>
+        </div>
+      </td>
+      <td>${_docsStatusChip("signed")}${_docsRail("signed")}</td>
+      <td>${_docsTimeCell(issuedAt)}</td>
+      <td>
+        <div class="docs-row-actions"
+             data-rr-docs-i9="${escapeHtml(r.driver_id)}"
+             data-i9-pdf="${escapeHtml(r.pdf_path || "")}"
+             data-i9-cert="${escapeHtml(r.pdf_certificate_path || "")}">
+          ${r.pdf_path ? `<button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="form">Open form</button>` : ""}
+          ${r.pdf_certificate_path ? `<button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="cert">Certificate</button>` : ""}
+          <button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="chain">Chain of custody</button>
+          <button class="btn btn-sm btn-ghost" data-rr-docs-i9-act="record">Open record</button>
+        </div>
+      </td>
+    </tr>`;
+}
+
 function _i9DocsCardHtml(r) {
   const dName = escapeHtml((r.drivers && (r.drivers.preferred_name || r.drivers.full_name)) || "—");
   const fmtD = (x) => x ? new Date(/T/.test(x) ? x : x + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
@@ -26339,7 +26386,7 @@ async function _renderDocsEnvelopes() {
       .order("sent_at", { ascending: false })
       .limit(200),
     sb.from("i9_records")
-      .select("id, driver_id, status, first_day_of_employment, section1_completed_at, section2_completed_at, section2_completed_by_name, pdf_path, pdf_certificate_path, pdf_seal_path, pdf_sealed_at, drivers(full_name, preferred_name)")
+      .select("id, driver_id, status, first_day_of_employment, section1_completed_at, section2_completed_at, section2_completed_by_name, pdf_path, pdf_certificate_path, pdf_seal_path, pdf_sealed_at, drivers(full_name, preferred_name, email)")
       .eq("status", "verified").not("pdf_path", "is", null)
       .order("section2_completed_at", { ascending: false }).limit(100)
       .then((r) => r, () => ({ data: [] })),
@@ -26350,18 +26397,29 @@ async function _renderDocsEnvelopes() {
     return;
   }
   const i9Sealed = Array.isArray(i9Res?.data) ? i9Res.data : [];
-  // "Form I-9 — sealed forms" section, shown above the e-signature
-  // records (the dedicated Form I-9 tab has the full list incl. in-progress).
-  const i9SectionHtml = i9Sealed.length ? `
-    <div class="docs-section-bar">
-      <h2>Form I-9 — sealed forms</h2>
-      <div class="docs-counts"><span><b>${i9Sealed.length}</b> sealed</span><span>ECDSA P-256 · RFC 3161 timestamped · Certificate of Completion</span></div>
-    </div>
-    <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin:-4px 0 12px;line-height:1.5">Each verified Form I-9 is rendered into a real PDF — the official USCIS form when reachable, otherwise RouteReady's reproduction — and run through the same seal + timestamp pipeline as the signature records below. The full list (including in-progress I-9s) is on the "Form I-9" tab.</div>
-    ${i9Sealed.map(_i9DocsCardHtml).join("")}
-    <div style="height:14px"></div>` : "";
-  if ((!data || data.length === 0)) {
-    list.innerHTML = i9SectionHtml + _docsEmptyState({
+  const envelopes = Array.isArray(data) ? data : [];
+
+  // Sealed I-9s render as rows in the unified Signature records table
+  // with a "Form I-9" badge in the Document column.  Operators see one
+  // audit-ready list instead of two parallel sections.  The dedicated
+  // Form I-9 tab still has the full list (including in-progress).
+  // Rows are ordered together by their issued timestamp.
+  const envelopeRowItems = envelopes.map(e => ({
+    kind: "envelope",
+    issuedAt: e.sent_at ? new Date(e.sent_at).getTime() : 0,
+    data: e,
+  }));
+  const i9RowItems = i9Sealed.map(r => ({
+    kind: "i9",
+    issuedAt: (r.pdf_sealed_at || r.section2_completed_at)
+      ? new Date(r.pdf_sealed_at || r.section2_completed_at).getTime() : 0,
+    data: r,
+  }));
+  const allItems = [...envelopeRowItems, ...i9RowItems]
+    .sort((a, b) => b.issuedAt - a.issuedAt);
+
+  if (allItems.length === 0) {
+    list.innerHTML = _docsEmptyState({
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
       title: "No signature records yet",
       body: "Send a template from the Templates tab. Every envelope you send opens a tamper-evident, hash-chained record of who signed what, when, and from where — retained and independently verifiable.",
@@ -26369,15 +26427,19 @@ async function _renderDocsEnvelopes() {
     return;
   }
 
-  // Operational summary across the loaded window.
-  const n = data.length;
-  const nAwaiting = data.filter((e) => e.status === "sent" || e.status === "viewed").length;
-  const nSigned   = data.filter((e) => e.status === "signed").length;
-  const nClosed   = data.filter((e) => e.status === "declined" || e.status === "voided" || e.status === "expired").length;
+  // Operational summary across the loaded window — sealed I-9s count
+  // toward the totals so the strip matches what's in the table below.
+  const n = envelopes.length + i9Sealed.length;
+  const nAwaiting = envelopes.filter((e) => e.status === "sent" || e.status === "viewed").length;
+  const nSigned   = envelopes.filter((e) => e.status === "signed").length + i9Sealed.length;
+  const nClosed   = envelopes.filter((e) => e.status === "declined" || e.status === "voided" || e.status === "expired").length;
   const month = new Date(); month.setDate(1); month.setHours(0,0,0,0);
-  const nThisMonth = data.filter((e) => new Date(e.sent_at) >= month).length;
+  const monthMs = month.getTime();
+  const nThisMonth = allItems.filter((it) => it.issuedAt >= monthMs).length;
 
-  const rows = data.map((e) => {
+  const rows = allItems.map((it) => {
+    if (it.kind === "i9") return _i9DocsRowHtml(it.data);
+    const e = it.data;
     const canVoid = e.status === "sent" || e.status === "viewed";
     return `
       <tr data-rr-docs-row="${escapeHtml(e.id)}">
@@ -26409,7 +26471,7 @@ async function _renderDocsEnvelopes() {
       </tr>`;
   }).join("");
 
-  list.innerHTML = i9SectionHtml + `
+  list.innerHTML = `
     <div class="docs-section-bar">
       <h2>Signature records</h2>
       <div class="docs-counts">
@@ -26441,7 +26503,7 @@ async function _renderDocsEnvelopes() {
       </table>
     </div>`;
 
-  _docsWireBulk(list, data);
+  _docsWireBulk(list, envelopes);
 }
 
 // Bulk-select wiring for the records table — Export CSV + Void selected.
