@@ -2150,10 +2150,19 @@ function renderTasksHub() {
   // Form I-9 (Section 1) — surfaced only when the employee still needs
   // to act: never started, or the employer reopened it for a correction.
   // Once submitted it drops off (the employer completes Section 2).
-  sb.rpc("driver_i9_get", { p_token: session.token }).then(({ data, error }) => {
-    if (error || !data?.record) return;
-    const st = data.record.status;
+  //
+  // While the driver is still in onboarding, the Onboarding card already
+  // surfaces the I-9 step in its proper sequence — a standalone task
+  // card would just duplicate it and confuse the driver about which to
+  // tap. Gate on driver status so it only stands alone post-onboarding.
+  Promise.all([
+    sb.rpc("driver_get_profile", { p_token: session.token }),
+    sb.rpc("driver_i9_get",      { p_token: session.token }),
+  ]).then(([profRes, i9Res]) => {
+    if (i9Res.error || !i9Res.data?.record) return;
+    const st = i9Res.data.record.status;
     if (st !== "not_started" && st !== "needs_correction") return;
+    if (profRes.data?.status === "onboarding") return;
     const slot = document.getElementById("rr-tasks-forms-slot");
     if (!slot) return;
     document.getElementById("rr-tasks-empty")?.remove();
@@ -3749,38 +3758,47 @@ async function renderSettingsLicense() {
   const dlImgUrl = prof?.dl_image_path
     ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-documents/${prof.dl_image_path}`
     : null;
-  const dlNeedsVerify = !!prof?.dl_image_path && !prof?.dl_expires_on;
+  const dlBackUrl = prof?.dl_back_image_path
+    ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-documents/${prof.dl_back_image_path}`
+    : null;
+  const dlNeedsVerify = (!!prof?.dl_image_path || !!prof?.dl_back_image_path) && !prof?.dl_expires_on;
+
+  const slot = (side, label, url) => `
+    <div style="margin-top:14px">
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);margin-bottom:6px">${escapeHtml(label)}</div>
+      ${url
+        ? `<div class="settings-dl-preview">
+             <a href="${url}" target="_blank" rel="noreferrer">
+               <img src="${url}" alt="${escapeHtml(label)} of driver's license"/>
+             </a>
+           </div>`
+        : `<div class="settings-dl-empty">No ${escapeHtml(label.toLowerCase())} image yet.</div>`}
+      <input id="rr-prof-dl-file-${side}" type="file" accept="image/*" capture="environment" data-rr-dl-side="${side}" style="display:none" />
+      <div class="settings-dl-actions">
+        <button class="btn btn-block" data-rr-dl-pick data-rr-dl-side="${side}" type="button">${url ? `Replace ${label.toLowerCase()}` : `Take or upload ${label.toLowerCase()}`}</button>
+        ${url ? `<button class="btn btn-ghost btn-block" data-rr-dl-remove data-rr-dl-side="${side}" type="button" style="color:var(--red);margin-top:8px">Remove ${escapeHtml(label.toLowerCase())}</button>` : ""}
+      </div>
+    </div>`;
 
   main.innerHTML = `
     <div class="settings-page">
       <section class="settings-section">
         <div class="settings-section-head">
-          <div class="settings-section-sub">Your dispatcher confirms the expiration date.</div>
+          <div class="settings-section-sub">Upload both sides. Your dispatcher confirms the expiration date.</div>
         </div>
         <div class="settings-form">
           <label class="field-label" for="rr-prof-dl">License number</label>
           <input class="field" id="rr-prof-dl" type="text" value="${v(prof.dl_number)}" autocapitalize="characters" />
 
-          ${dlImgUrl
-            ? `<div class="settings-dl-preview">
-                 <a href="${dlImgUrl}" target="_blank" rel="noreferrer">
-                   <img src="${dlImgUrl}" alt="Driver's license"/>
-                 </a>
-               </div>`
-            : `<div class="settings-dl-empty">No license image on file yet.</div>`}
+          ${slot("front", "Front", dlImgUrl)}
+          ${slot("back",  "Back",  dlBackUrl)}
 
           ${dlNeedsVerify
-            ? `<div class="settings-callout warn">
+            ? `<div class="settings-callout warn" style="margin-top:14px">
                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
                  <span>Image uploaded — your dispatcher will confirm the expiration date.</span>
                </div>`
             : ""}
-
-          <input id="rr-prof-dl-file" type="file" accept="image/*" capture="environment" style="display:none" />
-          <div class="settings-dl-actions">
-            <button class="btn btn-block" id="rr-prof-dl-pick" type="button">${dlImgUrl ? "Replace license image" : "Upload license image"}</button>
-            ${dlImgUrl ? `<button class="btn btn-ghost btn-block" id="rr-prof-dl-remove" type="button" style="color:var(--red);margin-top:8px">Remove image</button>` : ""}
-          </div>
         </div>
       </section>
 
@@ -3800,60 +3818,68 @@ async function renderSettingsLicense() {
     navigate("/settings");
   });
 
-  // Image picker / upload — same flow as before, just on its own page.
-  document.getElementById("rr-prof-dl-pick").addEventListener("click", () => {
-    document.getElementById("rr-prof-dl-file").click();
-  });
-  document.getElementById("rr-prof-dl-file").addEventListener("change", async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { toast("Image too large (max 10 MB)", "warn"); return; }
-    const dspId = session.dsp_id || prof?.dsp_id;
-    const drvId = session.driver_id || prof?.id;
-    if (!dspId || !drvId) { toast("Profile incomplete — sign out and back in", "warn"); return; }
-
-    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().slice(0, 8);
-    const path = `${dspId}/${drvId}/license-${Date.now()}.${ext}`;
-    const pickBtn = document.getElementById("rr-prof-dl-pick");
-    pickBtn.disabled = true; pickBtn.textContent = "Uploading…";
-    const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, {
-      contentType: file.type, upsert: false,
+  // Picker buttons fan out to the side-specific hidden inputs. One
+  // event handler per side keeps the upload + remove flow uniform.
+  document.querySelectorAll("[data-rr-dl-pick]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const side = btn.getAttribute("data-rr-dl-side") || "front";
+      document.getElementById(`rr-prof-dl-file-${side}`).click();
     });
-    if (upErr) {
-      pickBtn.disabled = false; pickBtn.textContent = "Upload license image";
-      toast(_friendlyError(upErr, "Couldn't upload. Try again."), "warn");
-      return;
-    }
-    const { error: setErr } = await sb.rpc("driver_set_dl_image", {
-      p_token: session.token, p_path: path,
-    });
-    if (setErr) {
-      pickBtn.disabled = false; pickBtn.textContent = "Upload license image";
-      toast(_friendlyError(setErr, "Couldn't save the image. Try again."), "warn");
-      return;
-    }
-    toast("License image saved", "ok");
-    renderSettingsLicense();
   });
 
-  const rmBtn = document.getElementById("rr-prof-dl-remove");
-  if (rmBtn) {
-    rmBtn.addEventListener("click", async () => {
+  document.querySelectorAll("input[data-rr-dl-side][type=file]").forEach(input => {
+    input.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (file.size > 10 * 1024 * 1024) { toast("Image too large (max 10 MB)", "warn"); return; }
+      const side = input.getAttribute("data-rr-dl-side") || "front";
+      const dspId = session.dsp_id || prof?.dsp_id;
+      const drvId = session.driver_id || prof?.id;
+      if (!dspId || !drvId) { toast("Profile incomplete — sign out and back in", "warn"); return; }
+
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase().slice(0, 8);
+      const path = `${dspId}/${drvId}/license-${side}-${Date.now()}.${ext}`;
+      const pickBtn = document.querySelector(`[data-rr-dl-pick][data-rr-dl-side="${side}"]`);
+      if (pickBtn) { pickBtn.disabled = true; pickBtn.textContent = "Uploading…"; }
+      const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, {
+        contentType: file.type, upsert: false,
+      });
+      if (upErr) {
+        toast(_friendlyError(upErr, "Couldn't upload. Try again."), "warn");
+        renderSettingsLicense();
+        return;
+      }
+      const { error: setErr } = await sb.rpc("driver_set_dl_image", {
+        p_token: session.token, p_path: path, p_side: side,
+      });
+      if (setErr) {
+        toast(_friendlyError(setErr, "Couldn't save the image. Try again."), "warn");
+        renderSettingsLicense();
+        return;
+      }
+      toast(`License ${side} saved`, "ok");
+      renderSettingsLicense();
+    });
+  });
+
+  document.querySelectorAll("[data-rr-dl-remove]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const side = btn.getAttribute("data-rr-dl-side") || "front";
       const okRm = await confirmSheet({
-        title: "Remove license image?",
+        title: `Remove ${side} image?`,
         message: "Your dispatcher will see the slot as empty until you upload a new one.",
         confirmText: "Remove image",
         danger: true,
       });
       if (!okRm) return;
-      rmBtn.disabled = true;
-      const { error: rmErr } = await sb.rpc("driver_clear_dl_image", { p_token: session.token });
-      rmBtn.disabled = false;
+      btn.disabled = true;
+      const { error: rmErr } = await sb.rpc("driver_clear_dl_image", { p_token: session.token, p_side: side });
+      btn.disabled = false;
       if (rmErr) { toast(_friendlyError(rmErr, "Couldn't remove the image. Try again."), "warn"); return; }
       toast("Image removed", "ok");
       renderSettingsLicense();
     });
-  }
+  });
 }
 
 // ── Onboarding task ─────────────────────────────────────────────────
@@ -3986,9 +4012,9 @@ async function renderOnboarding(opts) {
     { key: "profile", title: "Update your profile", owner: "driver", done: !!(prof.phone && prof.email && prof.emergency_contact_name && prof.emergency_contact_phone),
       action: "/settings", cta: "Update profile",
       subDone: "Phone, email, address & emergency contact on file", subTodo: "Add your phone, email, address, and emergency contact" },
-    { key: "license", title: "Upload your driver's license", owner: "driver", done: !!(prof.dl_image_path && prof.dl_number),
-      action: "/settings", cta: (prof.dl_image_path && prof.dl_number) ? "Replace image" : "Upload license",
-      subDone: "License number & photo on file", subTodo: "Enter your license number and take a photo of the card" },
+    { key: "license", title: "Upload your driver's license", owner: "driver", done: !!(prof.dl_image_path && prof.dl_back_image_path && prof.dl_number),
+      action: "/settings", cta: (prof.dl_image_path && prof.dl_back_image_path && prof.dl_number) ? "Replace images" : "Upload license",
+      subDone: "License number & both sides on file", subTodo: "Enter your license number and take photos of the front and back" },
     { key: "availability", title: "Set your availability", owner: "driver", done: availDone,
       action: "/settings/availability", cta: "Set availability",
       subDone: (av && av.pending) ? "Submitted — your team will review it" : "On file", subTodo: "Tell us which days you can work and your earliest start time" },
