@@ -53,6 +53,7 @@ import {
   PDFDocument,
   StandardFonts,
   rgb,
+  degrees,
   PDFTextField,
   PDFCheckBox,
   PDFDropdown,
@@ -293,8 +294,9 @@ async function sealEnvelope(envelopeId: string, env: Env, force = false) {
   const pdf = await PDFDocument.load(sourceBytes);
   const helv = await pdf.embedFont(StandardFonts.Helvetica);
   const helvBold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const helvMono = await pdf.embedFont(StandardFonts.Courier);
   await stampSignature(pdf, env_, sigMethod, sigData, typedName, helvBold);
-  await appendCertificate(pdf, env_, tpl, events, helv, helvBold, sealStub, null);
+  await appendCertificate(pdf, env_, tpl, events, helv, helvBold, helvMono, sealStub, null);
   const sealedBytes = await pdf.save();
 
   // 5. Cryptographic seal: ECDSA P-256 signature over the sealed PDF's
@@ -317,7 +319,8 @@ async function sealEnvelope(envelopeId: string, env: Env, force = false) {
   const certPdf = await PDFDocument.create();
   const certHelv = await certPdf.embedFont(StandardFonts.Helvetica);
   const certHelvBold = await certPdf.embedFont(StandardFonts.HelveticaBold);
-  await appendCertificate(certPdf, env_, tpl, events, certHelv, certHelvBold, sealStub, sealInfo);
+  const certMono = await certPdf.embedFont(StandardFonts.Courier);
+  await appendCertificate(certPdf, env_, tpl, events, certHelv, certHelvBold, certMono, sealStub, sealInfo);
   const certBytes = await certPdf.save();
 
   // 7. Upload to <dsp>/signed/<envelope>.pdf, <dsp>/certificates/<envelope>.pdf,
@@ -472,8 +475,9 @@ async function sealI9(i9RecordId: string, env: Env, force = false) {
   const pdf = await PDFDocument.create();
   const helv = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const mono = await pdf.embedFont(StandardFonts.Courier);
   const formInfo = await buildI9Pdf(pdf, rec, drv, dsp, helv, bold, env);
-  await appendI9Certificate(pdf, rec, dsp, events, helv, bold, sealStub, null, formInfo.source);
+  await appendI9Certificate(pdf, rec, dsp, events, helv, bold, mono, sealStub, null, formInfo.source);
   const sealedBytes = await pdf.save();
 
   let sealInfo = keyMeta ? await signBytes(keyMeta, rec.id, sealedBytes) : null;
@@ -490,7 +494,8 @@ async function sealI9(i9RecordId: string, env: Env, force = false) {
   const certPdf = await PDFDocument.create();
   const certHelv = await certPdf.embedFont(StandardFonts.Helvetica);
   const certBold = await certPdf.embedFont(StandardFonts.HelveticaBold);
-  await appendI9Certificate(certPdf, rec, dsp, events, certHelv, certBold, sealStub, sealInfo, formInfo.source);
+  const certMono = await certPdf.embedFont(StandardFonts.Courier);
+  await appendI9Certificate(certPdf, rec, dsp, events, certHelv, certBold, certMono, sealStub, sealInfo, formInfo.source);
   const certBytes = await certPdf.save();
 
   const pdfPath  = `${rec.dsp_id}/i9/${rec.id}.pdf`;
@@ -890,66 +895,102 @@ async function buildI9Reproduction(
 }
 
 async function appendI9Certificate(
-  pdf: PDFDocument, rec: I9Record, dsp: DspRow, events: I9Event[], helv: PDFFont, bold: PDFFont,
+  pdf: PDFDocument, rec: I9Record, dsp: DspRow, events: I9Event[], helv: PDFFont, bold: PDFFont, mono: PDFFont,
   sealStub: SealStub | null, sealFull: SealInfo | null, formSource: "official_form" | "reproduction" = "reproduction",
 ) {
-  let page = pdf.addPage([612, 792]);
-  let y = 740; const M = 48; const innerW = 612 - M * 2;
-  const w = (t: string, o?: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb> }) => {
-    if (y < 60) { page = pdf.addPage([612, 792]); y = 740; }
-    page.drawText(t, { x: M, y, size: o?.size ?? 10, font: o?.font ?? helv, color: o?.color ?? rgb(0.10, 0.13, 0.20), maxWidth: innerW });
-    y -= (o?.size ?? 10) + 4;
-  };
-  w("Certificate of Completion — Form I-9", { font: bold, size: 20, color: rgb(0.05, 0.08, 0.15) });
-  y -= 4;
-  w("Documents the Employment Eligibility Verification (Form I-9) for the named employee, as recorded in RouteReady.", { color: rgb(0.34, 0.40, 0.50) });
-  w(formSource === "official_form"
-    ? "The attached pages are the official USCIS Form I-9 (08/01/23 edition) filled from the captured data, followed by an Electronic Signature Record."
-    : "The attached pages are RouteReady's faithful reproduction of Form I-9 (08/01/23 edition) — the official PDF could not be retrieved at sealing time.", { size: 9, color: rgb(0.34, 0.40, 0.50) });
-  y -= 8;
-  w("EMPLOYER", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
-  w(dsp.name, { font: bold, size: 12 });
+  const certId = formatCertId(rec.id);
+  const issuedAt = new Date().toISOString();
   const s1 = (rec.section1 || {}) as Record<string, string>;
-  w("EMPLOYEE", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
-  w(`${[s1.first_name, s1.middle_initial, s1.last_name].filter(Boolean).join(" ") || "—"}  ·  ${I9_CIT_LABELS[s1.citizen_status] || s1.citizen_status || "—"}`, { font: bold, size: 11 });
-  w("Status:  " + rec.status, { size: 9, color: rgb(0.34, 0.40, 0.50) });
-  if (rec.first_day_of_employment) w("First day of employment:  " + rec.first_day_of_employment, { size: 9, color: rgb(0.34, 0.40, 0.50) });
-  if (rec.section1_completed_at) w("Section 1 completed:  " + new Date(rec.section1_completed_at).toISOString() + (rec.section1_completed_via === "driver_app" ? "  (signed by the employee in the app)" : "  (recorded by the employer)"), { size: 9, color: rgb(0.34, 0.40, 0.50) });
-  if (rec.section2_completed_at) w("Section 2 completed:  " + new Date(rec.section2_completed_at).toISOString() + (rec.section2_completed_by_name ? "  by " + rec.section2_completed_by_name : ""), { size: 9, color: rgb(0.34, 0.40, 0.50) });
-  y -= 6;
-  w("AUDIT TRAIL  (append-only)", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
-  for (const e of events) {
-    const who = e.actor_kind + (e.actor_name ? " · " + e.actor_name : "");
-    const meta = e.ip ? "ip " + e.ip : "";
-    w(humanKind(e.kind) + "  ·  " + new Date(e.created_at).toISOString(), { font: bold, size: 10 });
-    w("  " + who + (meta ? "  ·  " + meta : ""), { size: 9, color: rgb(0.34, 0.40, 0.50) });
-    if (e.kind === "reopened" && e.event_data && e.event_data.reason) w("  reason: " + String(e.event_data.reason), { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  const employeeName = [s1.first_name, s1.middle_initial, s1.last_name].filter(Boolean).join(" ") || "—";
+  const citizenship = I9_CIT_LABELS[s1.citizen_status] || s1.citizen_status || "—";
+
+  const ctx = beginCertificate(pdf, helv, bold, mono, {
+    title: "CERTIFICATE OF COMPLETION",
+    subtitle: "Employment Eligibility Verification (Form I-9) · Audit Record",
+    certId,
+    envelopeId: rec.id,
+    issuedAt,
+  });
+
+  // ── 01 · FORM SOURCE ────────────────────────────────────────────────
+  certSection(ctx, "01", "Form source");
+  certBody(ctx, formSource === "official_form"
+    ? "The attached pages are the unmodified USCIS Form I-9 (edition 08/01/23) filled from the captured data, followed by an Electronic Signature Record."
+    : "The attached pages are a faithful reproduction of USCIS Form I-9 (edition 08/01/23) — the official PDF was not reachable at sealing time. The captured data is otherwise unchanged.");
+  certBody(ctx, "The official Form I-9 (USCIS edition 08/01/23) and its instructions govern. This certificate is an electronic audit record, not legal advice.", { tone: "muted" });
+
+  // ── 02 · PARTIES ────────────────────────────────────────────────────
+  certSection(ctx, "02", "Parties");
+  certKv(ctx, [
+    { label: "Employer", value: dsp.name,      width: ctx.innerW / 2 - 6 },
+    { label: "Employee", value: employeeName,  width: ctx.innerW / 2 - 6, dx: ctx.innerW / 2 + 6 },
+  ]);
+  certKv(ctx, [
+    { label: "Citizenship status", value: citizenship,            width: ctx.innerW / 2 - 6 },
+    { label: "Form record status",  value: rec.status,            width: ctx.innerW / 2 - 6, dx: ctx.innerW / 2 + 6 },
+  ]);
+
+  // ── 03 · COMPLETION ─────────────────────────────────────────────────
+  certSection(ctx, "03", "Completion");
+  if (rec.first_day_of_employment) {
+    certKv(ctx, [{ label: "First day of employment", value: rec.first_day_of_employment, width: ctx.innerW }]);
   }
+  if (rec.section1_completed_at) {
+    certKv(ctx, [
+      { label: "Section 1 completed (UTC)", value: new Date(rec.section1_completed_at).toISOString(), width: ctx.innerW / 2 - 6 },
+      { label: "Section 1 method",          value: rec.section1_completed_via === "driver_app" ? "Signed by the employee in the app" : "Recorded by the employer", width: ctx.innerW / 2 - 6, dx: ctx.innerW / 2 + 6 },
+    ]);
+  }
+  if (rec.section2_completed_at) {
+    certKv(ctx, [
+      { label: "Section 2 completed (UTC)", value: new Date(rec.section2_completed_at).toISOString(), width: ctx.innerW / 2 - 6 },
+      { label: "Section 2 completed by",    value: rec.section2_completed_by_name || "—", width: ctx.innerW / 2 - 6, dx: ctx.innerW / 2 + 6 },
+    ]);
+  }
+
+  // ── 04 · CHAIN OF CUSTODY ───────────────────────────────────────────
+  certSection(ctx, "04", "Chain of custody");
+  certBody(ctx, "Append-only record of every action taken against this Form I-9 record. Each entry includes the actor, timestamp, and metadata captured at the moment of the action.");
+  certEventsI9(ctx, events);
+
+  // ── 05 · CRYPTOGRAPHIC SEAL ─────────────────────────────────────────
   if (sealStub) {
-    y -= 6;
-    w("CRYPTOGRAPHIC SEAL  (ECDSA P-256)", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
-    w("Key id:      " + sealStub.key_id + "  (fingerprint " + sealStub.key_fingerprint + ")", { size: 9, color: rgb(0.34, 0.40, 0.50) });
+    certSection(ctx, "05", "Cryptographic seal");
+    certKv(ctx, [
+      { label: "Algorithm",          value: sealFull?.signature_alg || "ECDSA-P256-SHA256", width: ctx.innerW / 2 - 6 },
+      { label: "Sealed at (UTC)",    value: sealFull?.signed_at || "Embedded — see sidecar", width: ctx.innerW / 2 - 6, dx: ctx.innerW / 2 + 6 },
+    ]);
+    certKvMono(ctx, [
+      { label: "Key id",          value: sealStub.key_id },
+      { label: "Key fingerprint", value: sealStub.key_fingerprint },
+      ...(sealFull ? [{ label: "PDF SHA-256", value: sealFull.pdf_sha256 }] : []),
+    ]);
     if (sealFull) {
-      w("Algorithm:   " + sealFull.signature_alg, { size: 9, color: rgb(0.34, 0.40, 0.50) });
-      w("PDF SHA-256: " + sealFull.pdf_sha256, { size: 9, color: rgb(0.34, 0.40, 0.50) });
-      w("Sealed at:   " + sealFull.signed_at, { size: 9, color: rgb(0.34, 0.40, 0.50) });
-      w("Signature (base64, raw r||s):", { size: 8, color: rgb(0.34, 0.40, 0.50) });
-      for (const chunk of wrapText(sealFull.signature_b64, 86)) w("  " + chunk, { size: 7, color: rgb(0.50, 0.55, 0.65) });
+      certMonoBlock(ctx, "Signature (base64, raw r∥s)", sealFull.signature_b64);
       if (sealFull.tst_b64) {
-        y -= 4;
-        w("RFC 3161 TRUSTED TIMESTAMP", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
-        w("Authority:   " + (sealFull.tsa_url || "(unspecified)"), { size: 9, color: rgb(0.34, 0.40, 0.50) });
-        if (sealFull.tsa_gen_time) w("Attested time: " + sealFull.tsa_gen_time + "  (by the TSA, not by RouteReady)", { size: 9, color: rgb(0.04, 0.40, 0.34) });
-        w("The TimeStampToken (base64) is in " + sealStub.seal_path + " as tst_b64; verify with: openssl ts -reply -in tst.tsr -text", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+        certSubheader(ctx, "RFC 3161 trusted timestamp");
+        certKv(ctx, [
+          { label: "Authority",          value: sealFull.tsa_url || "(unspecified)", width: ctx.innerW / 2 - 6 },
+          { label: "Attested time (UTC)", value: sealFull.tsa_gen_time || "—",       width: ctx.innerW / 2 - 6, dx: ctx.innerW / 2 + 6 },
+        ]);
+        certBody(ctx, "Time attestation by the TSA, independent of RouteReady. TimeStampToken stored at " + sealStub.seal_path + " (key tst_b64); verify with: openssl ts -reply -in tst.tsr -text");
       }
     } else {
-      w("The PDF SHA-256, signature, public key, and (if any) RFC 3161 timestamp live next to this PDF at " + sealStub.seal_path + ".", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+      certBody(ctx, "The PDF SHA-256, signature, public key, and (when present) RFC 3161 timestamp are stored in the JSON sidecar at " + sealStub.seal_path + ".");
     }
-    w("Public key is also served at GET /public-key on the sealing service.", { size: 8, color: rgb(0.34, 0.40, 0.50) });
   }
-  y -= 8;
-  w("Issued by RouteReady  ·  rr-document-sealing", { size: 8, color: rgb(0.50, 0.55, 0.65) });
-  w("Not legal advice. The official Form I-9 (USCIS edition 08/01/23) and its instructions govern.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+
+  // ── 06 · VERIFICATION & INTEGRITY ───────────────────────────────────
+  certSection(ctx, "06", "Verification & integrity");
+  certKvMono(ctx, [
+    { label: "Certificate ID", value: certId },
+    { label: "Record ID",      value: rec.id },
+    { label: "Audit entries",  value: String(events.length) },
+  ]);
+  certBody(ctx, "This record is tamper-evident. The chain of custody above is append-only; the cryptographic seal binds this PDF's SHA-256 to a digital signature; the trusted timestamp (when present) independently attests when the signature was made. Tampering with any byte invalidates the seal.");
+  certBody(ctx, "Public verification key: GET https://rr-document-sealing.gorouteready.com/public-key", { mono: true });
+
+  certFooter(ctx, certId, "rr-document-sealing · v0.13 · Form I-9");
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1428,6 +1469,425 @@ function drawCheckboxBox(
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Certificate layout primitives
+//
+// Shared by appendCertificate (envelope sealing) and appendI9Certificate
+// (Form I-9 sealing). Renders an institutional, monochrome, audit-grade
+// page — corner registration marks, sectioned blocks, label/value
+// pairs, chain-of-custody table, cryptographic-seal block, verification
+// footer. No agency seals, no flags, no fake government insignia: the
+// intent is "high-trust digital compliance record" (DocuSign / Adobe
+// Sign / chain-of-custody report) rather than government replica.
+// ─────────────────────────────────────────────────────────────────────────
+
+interface CertCtx {
+  pdf:    PDFDocument;
+  page:   PDFPage;
+  helv:   PDFFont;
+  bold:   PDFFont;
+  mono:   PDFFont;
+  M:      number;   // outer margin
+  PW:     number;   // page width
+  PH:     number;   // page height
+  innerW: number;
+  innerL: number;   // left edge of content
+  innerR: number;   // right edge of content
+  y:      number;   // current cursor (descends)
+  topY:   number;   // y where header sits
+  bottomY:number;   // safe bottom before footer
+  pageNo: number;
+  // header context, repeated on continuation pages
+  hdr: {
+    title:      string;
+    subtitle:   string;
+    certId:     string;
+    envelopeId: string;
+    issuedAt:   string;
+  };
+  // color tokens
+  c: {
+    ink:        ReturnType<typeof rgb>;
+    inkSoft:    ReturnType<typeof rgb>;
+    muted:      ReturnType<typeof rgb>;
+    subtle:     ReturnType<typeof rgb>;
+    hairline:   ReturnType<typeof rgb>;
+    ruleStrong: ReturnType<typeof rgb>;
+    ok:         ReturnType<typeof rgb>;
+    warn:       ReturnType<typeof rgb>;
+    pending:    ReturnType<typeof rgb>;
+    wm:         ReturnType<typeof rgb>;
+    paper:      ReturnType<typeof rgb>;
+  };
+}
+
+function beginCertificate(
+  pdf: PDFDocument, helv: PDFFont, bold: PDFFont, mono: PDFFont,
+  hdr: { title: string; subtitle: string; certId: string; envelopeId: string; issuedAt: string },
+): CertCtx {
+  const PW = 612, PH = 792, M = 56;
+  const ctx: CertCtx = {
+    pdf, helv, bold, mono,
+    M, PW, PH,
+    innerL: M,
+    innerR: PW - M,
+    innerW: PW - M * 2,
+    y: 0,
+    topY: PH - M,
+    bottomY: M + 38, // reserve for footer band
+    pageNo: 0,
+    page: pdf.addPage([PW, PH]), // placeholder; overwritten by certNewPage
+    hdr,
+    c: {
+      ink:        rgb(0.07, 0.09, 0.13),
+      inkSoft:    rgb(0.18, 0.22, 0.28),
+      muted:      rgb(0.42, 0.48, 0.56),
+      subtle:     rgb(0.60, 0.65, 0.72),
+      hairline:   rgb(0.82, 0.85, 0.89),
+      ruleStrong: rgb(0.50, 0.55, 0.62),
+      ok:         rgb(0.07, 0.45, 0.32),
+      warn:       rgb(0.72, 0.10, 0.18),
+      pending:    rgb(0.65, 0.48, 0.10),
+      wm:         rgb(0.94, 0.95, 0.97),
+      paper:      rgb(1.00, 1.00, 1.00),
+    },
+  };
+  // Drop the placeholder and mint page 1 with the full header.
+  pdf.removePage(pdf.getPageCount() - 1);
+  certNewPage(ctx);
+  return ctx;
+}
+
+function certNewPage(ctx: CertCtx) {
+  ctx.pageNo += 1;
+  const page = ctx.pdf.addPage([ctx.PW, ctx.PH]);
+  ctx.page = page;
+
+  // Watermark — ultra-light vertical hairlines spanning the safe page
+  // area. Reads as "security paper" without the carnival of guilloche
+  // curls or rotated wordmarks. Spacing is non-uniform on purpose so
+  // it doesn't read as a moiré grid.
+  for (const x of [80, 116, 152, 188, 224, 260, 296, 332, 368, 404, 440, 476, 512]) {
+    page.drawLine({
+      start: { x, y: ctx.M + 20 },
+      end:   { x, y: ctx.PH - ctx.M - 20 },
+      thickness: 0.3,
+      color: ctx.c.wm,
+    });
+  }
+
+  // Corner registration marks — small L-shapes at each content corner.
+  const tick = 9;
+  const lw = 0.6;
+  const corners: Array<[number, number, 1 | -1, 1 | -1]> = [
+    [ctx.innerL, ctx.PH - ctx.M, 1,  1],   // top-left
+    [ctx.innerR, ctx.PH - ctx.M, -1, 1],   // top-right
+    [ctx.innerL, ctx.M, 1,  -1],           // bottom-left
+    [ctx.innerR, ctx.M, -1, -1],           // bottom-right
+  ];
+  for (const [cx, cy, sx, sy] of corners) {
+    page.drawLine({ start: { x: cx, y: cy }, end: { x: cx + sx * tick, y: cy }, thickness: lw, color: ctx.c.ruleStrong });
+    page.drawLine({ start: { x: cx, y: cy }, end: { x: cx, y: cy - sy * tick }, thickness: lw, color: ctx.c.ruleStrong });
+  }
+
+  // Header band on every page (so continuation pages still identify
+  // the record). Title left-aligned, metadata right-aligned.
+  let y = ctx.PH - ctx.M - 4;
+  // Title
+  ctx.page.drawText(ctx.hdr.title, {
+    x: ctx.innerL, y: y - 12, size: 13, font: ctx.bold, color: ctx.c.ink,
+    // Letter-spacing isn't directly supported; the all-caps title is
+    // enough to read as institutional.
+  });
+  // Subtitle (smaller, muted)
+  ctx.page.drawText(ctx.hdr.subtitle, {
+    x: ctx.innerL, y: y - 28, size: 8.5, font: ctx.helv, color: ctx.c.muted,
+  });
+  if (ctx.pageNo > 1) {
+    ctx.page.drawText("— continuation —", {
+      x: ctx.innerL, y: y - 40, size: 7.5, font: ctx.helv, color: ctx.c.subtle,
+    });
+  }
+  // Top-right metadata block: Certificate ID, Envelope/Record ID,
+  // Issued. Three label/value pairs, right-aligned.
+  const metaPairs = [
+    { label: "CERTIFICATE ID", value: ctx.hdr.certId,     mono: true },
+    { label: "ENVELOPE ID",    value: ctx.hdr.envelopeId, mono: true },
+    { label: "ISSUED (UTC)",   value: ctx.hdr.issuedAt,   mono: true },
+  ];
+  let metaY = y;
+  for (const m of metaPairs) {
+    const labelW = ctx.helv.widthOfTextAtSize(m.label, 6.5);
+    const valFont = m.mono ? ctx.mono : ctx.helv;
+    const valW    = valFont.widthOfTextAtSize(m.value, 8);
+    ctx.page.drawText(m.label, {
+      x: ctx.innerR - labelW, y: metaY, size: 6.5, font: ctx.helv, color: ctx.c.subtle,
+    });
+    ctx.page.drawText(m.value, {
+      x: ctx.innerR - valW, y: metaY - 11, size: 8, font: valFont, color: ctx.c.inkSoft,
+    });
+    metaY -= 24;
+  }
+  // Double rule under the header.
+  const ruleY = ctx.PH - ctx.M - 50;
+  ctx.page.drawLine({
+    start: { x: ctx.innerL, y: ruleY },
+    end:   { x: ctx.innerR, y: ruleY },
+    thickness: 1.0, color: ctx.c.ink,
+  });
+  ctx.page.drawLine({
+    start: { x: ctx.innerL, y: ruleY - 3 },
+    end:   { x: ctx.innerR, y: ruleY - 3 },
+    thickness: 0.4, color: ctx.c.ruleStrong,
+  });
+  // Cursor starts below the header band.
+  ctx.y = ruleY - 18;
+}
+
+function certEnsureSpace(ctx: CertCtx, need: number) {
+  if (ctx.y - need < ctx.bottomY) certNewPage(ctx);
+}
+
+function certSection(ctx: CertCtx, num: string, label: string) {
+  certEnsureSpace(ctx, 36);
+  // Number + label, with a hairline that runs full-width under the row.
+  ctx.page.drawText(num, {
+    x: ctx.innerL, y: ctx.y - 9, size: 9, font: ctx.bold, color: ctx.c.muted,
+  });
+  ctx.page.drawText(label.toUpperCase(), {
+    x: ctx.innerL + 28, y: ctx.y - 9, size: 9.5, font: ctx.bold, color: ctx.c.ink,
+  });
+  ctx.y -= 14;
+  ctx.page.drawLine({
+    start: { x: ctx.innerL, y: ctx.y },
+    end:   { x: ctx.innerR, y: ctx.y },
+    thickness: 0.6, color: ctx.c.ruleStrong,
+  });
+  ctx.y -= 14;
+}
+
+function certSubheader(ctx: CertCtx, label: string) {
+  certEnsureSpace(ctx, 20);
+  ctx.page.drawText(label.toUpperCase(), {
+    x: ctx.innerL, y: ctx.y, size: 7.5, font: ctx.bold, color: ctx.c.muted,
+  });
+  ctx.y -= 12;
+  ctx.page.drawLine({
+    start: { x: ctx.innerL, y: ctx.y + 4 },
+    end:   { x: ctx.innerR, y: ctx.y + 4 },
+    thickness: 0.3, color: ctx.c.hairline,
+  });
+  ctx.y -= 6;
+}
+
+interface KvCell { label: string; value: string; width: number; dx?: number; }
+
+function certKv(ctx: CertCtx, cells: KvCell[]) {
+  certEnsureSpace(ctx, 30);
+  for (const c of cells) {
+    const x = ctx.innerL + (c.dx ?? 0);
+    ctx.page.drawText(c.label.toUpperCase(), {
+      x, y: ctx.y, size: 6.5, font: ctx.helv, color: ctx.c.subtle,
+    });
+    ctx.page.drawText(c.value, {
+      x, y: ctx.y - 12, size: 10, font: ctx.helv, color: ctx.c.ink, maxWidth: c.width,
+    });
+  }
+  ctx.y -= 28;
+}
+
+function certKvMono(ctx: CertCtx, cells: Array<{ label: string; value: string }>) {
+  for (const c of cells) {
+    certEnsureSpace(ctx, 18);
+    ctx.page.drawText(c.label.toUpperCase(), {
+      x: ctx.innerL, y: ctx.y, size: 6.5, font: ctx.helv, color: ctx.c.subtle,
+    });
+    ctx.page.drawText(c.value, {
+      x: ctx.innerL + 130, y: ctx.y, size: 8.5, font: ctx.mono, color: ctx.c.inkSoft, maxWidth: ctx.innerW - 130,
+    });
+    ctx.y -= 14;
+  }
+  ctx.y -= 4;
+}
+
+function certStatus(ctx: CertCtx, s: { label: string; state: "ok" | "warn" | "pending" }) {
+  certEnsureSpace(ctx, 22);
+  const color = s.state === "ok" ? ctx.c.ok : s.state === "warn" ? ctx.c.warn : ctx.c.pending;
+  const glyph = s.state === "ok" ? "■" : s.state === "warn" ? "▲" : "○"; // ■ ▲ ○
+  ctx.page.drawText(glyph, { x: ctx.innerL, y: ctx.y, size: 9, font: ctx.bold, color });
+  ctx.page.drawText(s.label, { x: ctx.innerL + 14, y: ctx.y, size: 9, font: ctx.bold, color });
+  ctx.y -= 18;
+}
+
+function certBody(ctx: CertCtx, text: string, opts?: { tone?: "muted" | "default"; mono?: boolean }) {
+  const font = opts?.mono ? ctx.mono : ctx.helv;
+  const color = opts?.tone === "muted" ? ctx.c.subtle : ctx.c.inkSoft;
+  const size = opts?.mono ? 8 : 9;
+  // Word-wrap manually so the prose flows on multiple lines without
+  // pdf-lib silently clipping at maxWidth.
+  const lines = wrapToWidth(text, font, size, ctx.innerW);
+  for (const line of lines) {
+    certEnsureSpace(ctx, size + 4);
+    ctx.page.drawText(line, { x: ctx.innerL, y: ctx.y, size, font, color });
+    ctx.y -= size + 3;
+  }
+  ctx.y -= 4;
+}
+
+function certMonoBlock(ctx: CertCtx, label: string, value: string) {
+  certEnsureSpace(ctx, 30);
+  ctx.page.drawText(label.toUpperCase(), {
+    x: ctx.innerL, y: ctx.y, size: 6.5, font: ctx.helv, color: ctx.c.subtle,
+  });
+  ctx.y -= 10;
+  for (const chunk of wrapText(value, 88)) {
+    certEnsureSpace(ctx, 10);
+    ctx.page.drawText(chunk, { x: ctx.innerL, y: ctx.y, size: 7.5, font: ctx.mono, color: ctx.c.inkSoft });
+    ctx.y -= 10;
+  }
+  ctx.y -= 4;
+}
+
+function certEvents(ctx: CertCtx, events: AuditEvent[]) {
+  // Column layout: # · time · kind · actor / meta · hash (mono).
+  const num = events.length;
+  certEnsureSpace(ctx, 16);
+  // Column header
+  ctx.page.drawText("#",       { x: ctx.innerL,        y: ctx.y, size: 6.5, font: ctx.helv, color: ctx.c.subtle });
+  ctx.page.drawText("TIME (UTC)", { x: ctx.innerL + 22, y: ctx.y, size: 6.5, font: ctx.helv, color: ctx.c.subtle });
+  ctx.page.drawText("EVENT",   { x: ctx.innerL + 142, y: ctx.y, size: 6.5, font: ctx.helv, color: ctx.c.subtle });
+  ctx.page.drawText("ACTOR / META", { x: ctx.innerL + 240, y: ctx.y, size: 6.5, font: ctx.helv, color: ctx.c.subtle });
+  ctx.y -= 8;
+  ctx.page.drawLine({ start: { x: ctx.innerL, y: ctx.y }, end: { x: ctx.innerR, y: ctx.y }, thickness: 0.3, color: ctx.c.hairline });
+  ctx.y -= 10;
+
+  events.forEach((e, i) => {
+    certEnsureSpace(ctx, 28);
+    const ord = String(i + 1).padStart(2, "0") + " / " + String(num).padStart(2, "0");
+    const t   = new Date(e.created_at).toISOString();
+    const kind = humanKind(e.kind);
+    const actor = e.actor_kind + (e.actor_name ? " · " + e.actor_name : "");
+    const meta = [e.ip ? "ip " + e.ip : null, e.user_agent ? truncate(e.user_agent, 56) : null].filter(Boolean).join("  ·  ");
+
+    ctx.page.drawText(ord,   { x: ctx.innerL,        y: ctx.y, size: 7.5, font: ctx.mono, color: ctx.c.subtle });
+    ctx.page.drawText(t,     { x: ctx.innerL + 22,  y: ctx.y, size: 7.5, font: ctx.mono, color: ctx.c.inkSoft });
+    ctx.page.drawText(kind,  { x: ctx.innerL + 142, y: ctx.y, size: 9,   font: ctx.bold, color: ctx.c.ink });
+    ctx.page.drawText(actor, { x: ctx.innerL + 240, y: ctx.y, size: 8.5, font: ctx.helv, color: ctx.c.inkSoft, maxWidth: ctx.innerW - 240 });
+    ctx.y -= 11;
+    if (meta) {
+      ctx.page.drawText(meta, { x: ctx.innerL + 240, y: ctx.y, size: 7.5, font: ctx.helv, color: ctx.c.muted, maxWidth: ctx.innerW - 240 });
+      ctx.y -= 10;
+    }
+    // Event hash line
+    ctx.page.drawText("HASH", { x: ctx.innerL + 142, y: ctx.y, size: 6.5, font: ctx.helv, color: ctx.c.subtle });
+    ctx.page.drawText(e.event_hash, { x: ctx.innerL + 168, y: ctx.y, size: 7.5, font: ctx.mono, color: ctx.c.muted, maxWidth: ctx.innerW - 168 });
+    ctx.y -= 12;
+    // Hairline between entries except after the last.
+    if (i < events.length - 1) {
+      ctx.page.drawLine({ start: { x: ctx.innerL, y: ctx.y + 2 }, end: { x: ctx.innerR, y: ctx.y + 2 }, thickness: 0.25, color: ctx.c.hairline });
+      ctx.y -= 4;
+    }
+  });
+  ctx.y -= 6;
+}
+
+function certEventsI9(ctx: CertCtx, events: I9Event[]) {
+  const num = events.length;
+  certEnsureSpace(ctx, 16);
+  ctx.page.drawText("#",         { x: ctx.innerL,        y: ctx.y, size: 6.5, font: ctx.helv, color: ctx.c.subtle });
+  ctx.page.drawText("TIME (UTC)", { x: ctx.innerL + 22,  y: ctx.y, size: 6.5, font: ctx.helv, color: ctx.c.subtle });
+  ctx.page.drawText("EVENT",     { x: ctx.innerL + 142, y: ctx.y, size: 6.5, font: ctx.helv, color: ctx.c.subtle });
+  ctx.page.drawText("ACTOR / META", { x: ctx.innerL + 240, y: ctx.y, size: 6.5, font: ctx.helv, color: ctx.c.subtle });
+  ctx.y -= 8;
+  ctx.page.drawLine({ start: { x: ctx.innerL, y: ctx.y }, end: { x: ctx.innerR, y: ctx.y }, thickness: 0.3, color: ctx.c.hairline });
+  ctx.y -= 10;
+
+  events.forEach((e, i) => {
+    certEnsureSpace(ctx, 24);
+    const ord = String(i + 1).padStart(2, "0") + " / " + String(num).padStart(2, "0");
+    const t   = new Date(e.created_at).toISOString();
+    const kind = humanKind(e.kind);
+    const actor = e.actor_kind + (e.actor_name ? " · " + e.actor_name : "");
+    const meta = e.ip ? "ip " + e.ip : "";
+    const reason = e.kind === "reopened" && e.event_data && (e.event_data as Record<string, unknown>).reason
+      ? String((e.event_data as Record<string, unknown>).reason)
+      : null;
+
+    ctx.page.drawText(ord,   { x: ctx.innerL,        y: ctx.y, size: 7.5, font: ctx.mono, color: ctx.c.subtle });
+    ctx.page.drawText(t,     { x: ctx.innerL + 22,  y: ctx.y, size: 7.5, font: ctx.mono, color: ctx.c.inkSoft });
+    ctx.page.drawText(kind,  { x: ctx.innerL + 142, y: ctx.y, size: 9,   font: ctx.bold, color: ctx.c.ink });
+    ctx.page.drawText(actor, { x: ctx.innerL + 240, y: ctx.y, size: 8.5, font: ctx.helv, color: ctx.c.inkSoft, maxWidth: ctx.innerW - 240 });
+    ctx.y -= 11;
+    if (meta) {
+      ctx.page.drawText(meta, { x: ctx.innerL + 240, y: ctx.y, size: 7.5, font: ctx.helv, color: ctx.c.muted, maxWidth: ctx.innerW - 240 });
+      ctx.y -= 10;
+    }
+    if (reason) {
+      ctx.page.drawText("reason · " + reason, { x: ctx.innerL + 240, y: ctx.y, size: 7.5, font: ctx.helv, color: ctx.c.muted, maxWidth: ctx.innerW - 240 });
+      ctx.y -= 10;
+    }
+    if (i < events.length - 1) {
+      ctx.page.drawLine({ start: { x: ctx.innerL, y: ctx.y + 2 }, end: { x: ctx.innerR, y: ctx.y + 2 }, thickness: 0.25, color: ctx.c.hairline });
+      ctx.y -= 4;
+    }
+  });
+  ctx.y -= 6;
+}
+
+function certFooter(ctx: CertCtx, certId: string, signature: string) {
+  // Footer band is on each page. Top hairline, then three columns:
+  // left = certificate id, center = page x of y, right = signature.
+  // Because pdf-lib has no Page.afterDraw hook we paint the footer on
+  // every page that's been created so far before save() is called by
+  // the caller — easiest path: paint right now on every page already
+  // in the doc.
+  const total = ctx.pageNo;
+  const pages = ctx.pdf.getPages();
+  for (let i = 0; i < total; i++) {
+    const p = pages[pages.length - total + i];
+    const fy = ctx.M + 22;
+    p.drawLine({ start: { x: ctx.innerL, y: fy + 18 }, end: { x: ctx.innerR, y: fy + 18 }, thickness: 0.4, color: ctx.c.ruleStrong });
+    p.drawText("CERTIFICATE ID", { x: ctx.innerL, y: fy + 8, size: 5.5, font: ctx.helv, color: ctx.c.subtle });
+    p.drawText(certId,            { x: ctx.innerL, y: fy - 2, size: 7.5, font: ctx.mono, color: ctx.c.inkSoft });
+    const pageStr = "PAGE " + (i + 1) + " OF " + total;
+    const pageW = ctx.helv.widthOfTextAtSize(pageStr, 7);
+    p.drawText(pageStr, { x: ctx.PW / 2 - pageW / 2, y: fy + 2, size: 7, font: ctx.helv, color: ctx.c.muted });
+    const sigW = ctx.helv.widthOfTextAtSize(signature, 7);
+    p.drawText("ISSUED BY", { x: ctx.innerR - sigW, y: fy + 8, size: 5.5, font: ctx.helv, color: ctx.c.subtle });
+    p.drawText(signature,    { x: ctx.innerR - sigW, y: fy - 2, size: 7,   font: ctx.helv, color: ctx.c.inkSoft });
+    // Tamper-evident microcopy along the very bottom.
+    p.drawText("Tamper-evident · Append-only audit chain · ECDSA-P256 sealed · RFC 3161 timestamp (when present)",
+      { x: ctx.innerL, y: ctx.M, size: 5.5, font: ctx.helv, color: ctx.c.subtle });
+  }
+  // Mute the unused `degrees` import warning in case we ever switch to
+  // a rotated wordmark watermark later.
+  void degrees;
+}
+
+function formatCertId(uuid: string): string {
+  const hex = uuid.replace(/-/g, "").slice(0, 16).toUpperCase();
+  return "RR-" + hex.slice(0, 4) + "-" + hex.slice(4, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16);
+}
+
+function wrapToWidth(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
+  const words = text.split(/\s+/);
+  const out: string[] = [];
+  let line = "";
+  for (const w of words) {
+    const trial = line ? line + " " + w : w;
+    const width = font.widthOfTextAtSize(trial, size);
+    if (width > maxWidth && line) {
+      out.push(line);
+      line = w;
+    } else {
+      line = trial;
+    }
+  }
+  if (line) out.push(line);
+  return out;
+}
+
+
 async function appendCertificate(
   pdf: PDFDocument,
   envelope: Envelope,
@@ -1435,105 +1895,109 @@ async function appendCertificate(
   events: AuditEvent[],
   helv: PDFFont,
   bold: PDFFont,
+  mono: PDFFont,
   // stub is safe to print inside the embedded COC (no circular digest);
   // full carries pdf_sha256 + signature and is only passed when we're
   // building the standalone COC (a separate file).
   sealStub: SealStub | null,
   sealFull: SealInfo | null,
 ) {
-  let page = pdf.addPage([612, 792]); // US Letter
-  const { width: pw } = page.getSize();
-  let cursorY = 740;
-  const margin = 48;
-  const innerW = pw - margin * 2;
+  // Stable certificate id derived from the envelope id so a re-seal of
+  // the same envelope produces the same printed id. Format: 4-4-4-4
+  // upper-hex prefix of the envelope id, matching the visual cadence of
+  // institutional audit references.
+  const certId = formatCertId(envelope.id);
+  const issuedAt = new Date().toISOString();
+  const docHashSign = envelope.doc_hash_at_sign || null;
+  const hashesMatch = docHashSign != null && docHashSign === envelope.doc_hash_at_send;
+  const integrity = docHashSign == null
+    ? { label: "Pending second-hash verification", state: "pending" as const }
+    : hashesMatch
+      ? { label: "Integrity verified · hashes match", state: "ok" as const }
+      : { label: "Integrity warning · hashes diverge", state: "warn" as const };
 
-  const writeLine = (text: string, opts?: { font?: PDFFont; size?: number; color?: ReturnType<typeof rgb> }) => {
-    if (cursorY < 60) {
-      page = pdf.addPage([612, 792]);
-      cursorY = 740;
-    }
-    page.drawText(text, {
-      x: margin, y: cursorY,
-      size: opts?.size ?? 10,
-      font: opts?.font ?? helv,
-      color: opts?.color ?? rgb(0.10, 0.13, 0.20),
-      maxWidth: innerW,
-    });
-    cursorY -= (opts?.size ?? 10) + 4;
-  };
+  const ctx = beginCertificate(pdf, helv, bold, mono, {
+    title: "CERTIFICATE OF COMPLETION",
+    subtitle: "Electronic Signature · Audit Record",
+    certId,
+    envelopeId: envelope.id,
+    issuedAt,
+  });
 
-  // Header.
-  writeLine("Certificate of Completion", { font: bold, size: 22, color: rgb(0.05, 0.08, 0.15) });
-  cursorY -= 6;
-  writeLine("This certificate documents the electronic-signature event on the attached document.", { color: rgb(0.34, 0.40, 0.50) });
-  cursorY -= 10;
+  // ── 01 · DOCUMENT ───────────────────────────────────────────────────
+  certSection(ctx, "01", "Document");
+  certKv(ctx, [
+    { label: "Title", value: template.title, width: ctx.innerW },
+  ]);
+  certKvMono(ctx, [
+    { label: "SHA-256 at send", value: envelope.doc_hash_at_send },
+    ...(docHashSign ? [{ label: "SHA-256 at sign", value: docHashSign }] : []),
+  ]);
+  certStatus(ctx, integrity);
 
-  // Document section.
-  writeLine("DOCUMENT", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
-  writeLine(template.title, { font: bold, size: 12 });
-  writeLine("SHA-256 (at send):  " + envelope.doc_hash_at_send, { size: 9, color: rgb(0.34, 0.40, 0.50) });
-  if (envelope.doc_hash_at_sign) {
-    writeLine("SHA-256 (at sign):  " + envelope.doc_hash_at_sign, { size: 9, color: rgb(0.34, 0.40, 0.50) });
-    if (envelope.doc_hash_at_sign === envelope.doc_hash_at_send) {
-      writeLine("Hashes match — the document was not altered between send and sign.", { color: rgb(0.04, 0.56, 0.41) });
-    } else {
-      writeLine("WARNING: hashes do not match — document may have changed between send and sign.", { font: bold, color: rgb(0.88, 0.18, 0.28) });
-    }
-  }
-  cursorY -= 6;
-
-  // Signer.
-  writeLine("SIGNER", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
-  writeLine(envelope.recipient_name + "  <" + envelope.recipient_email + ">", { font: bold, size: 11 });
-  if (envelope.signed_at) writeLine("Signed at:  " + new Date(envelope.signed_at).toISOString());
-  cursorY -= 6;
-
-  // Audit chain.
-  writeLine("AUDIT TRAIL  (hash-chained, append-only)", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
-  for (const e of events) {
-    const who = e.actor_kind + (e.actor_name ? " · " + e.actor_name : "");
-    const meta = [e.ip ? "ip " + e.ip : null, e.user_agent ? truncate(e.user_agent, 60) : null].filter(Boolean).join("  ·  ");
-    writeLine(humanKind(e.kind) + "  ·  " + new Date(e.created_at).toISOString(), { font: bold, size: 10 });
-    writeLine("  " + who + (meta ? "  ·  " + meta : ""), { size: 9, color: rgb(0.34, 0.40, 0.50) });
-    writeLine("  hash  " + e.event_hash, { size: 8, color: rgb(0.50, 0.55, 0.65) });
-    cursorY -= 2;
+  // ── 02 · SIGNER IDENTITY ────────────────────────────────────────────
+  certSection(ctx, "02", "Signer identity");
+  const signedEvent = events.slice().reverse().find((e) => e.kind === "signed");
+  const sigMethod = (signedEvent?.event_data?.signature_method as string) || "typed";
+  certKv(ctx, [
+    { label: "Name",  value: envelope.recipient_name,  width: ctx.innerW / 2 - 6 },
+    { label: "Email", value: envelope.recipient_email, width: ctx.innerW / 2 - 6, dx: ctx.innerW / 2 + 6 },
+  ]);
+  certKv(ctx, [
+    { label: "Signed at (UTC)", value: envelope.signed_at ? new Date(envelope.signed_at).toISOString() : "—", width: ctx.innerW / 2 - 6 },
+    { label: "Method",          value: sigMethod,                                                              width: ctx.innerW / 2 - 6, dx: ctx.innerW / 2 + 6 },
+  ]);
+  if (signedEvent) {
+    certKv(ctx, [
+      { label: "IP address", value: signedEvent.ip || "—", width: ctx.innerW / 2 - 6 },
+      { label: "User agent", value: truncate(signedEvent.user_agent || "—", 70), width: ctx.innerW / 2 - 6, dx: ctx.innerW / 2 + 6 },
+    ]);
   }
 
-  // Cryptographic seal section. Inside the *embedded* COC we can only
-  // safely print the key id / fingerprint + a pointer to the sidecar
-  // (printing the PDF's own SHA-256 would be circular). The standalone
-  // COC gets the full digest + signature because it's a separate file.
+  // ── 03 · CHAIN OF CUSTODY ───────────────────────────────────────────
+  certSection(ctx, "03", "Chain of custody");
+  certBody(ctx, "Append-only, hash-chained record. Each entry references the previous entry's hash; any modification to an earlier entry would break the chain at that point and at every entry that follows.");
+  certEvents(ctx, events);
+
+  // ── 04 · CRYPTOGRAPHIC SEAL ─────────────────────────────────────────
   if (sealStub) {
-    cursorY -= 6;
-    writeLine("CRYPTOGRAPHIC SEAL  (ECDSA P-256)", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
-    writeLine("Key id:      " + sealStub.key_id + "  (fingerprint " + sealStub.key_fingerprint + ")", { size: 9, color: rgb(0.34, 0.40, 0.50) });
+    certSection(ctx, "04", "Cryptographic seal");
+    certKv(ctx, [
+      { label: "Algorithm", value: sealFull?.signature_alg || "ECDSA-P256-SHA256", width: ctx.innerW / 2 - 6 },
+      { label: "Sealed at (UTC)", value: sealFull?.signed_at || "Embedded — see sidecar", width: ctx.innerW / 2 - 6, dx: ctx.innerW / 2 + 6 },
+    ]);
+    certKvMono(ctx, [
+      { label: "Key id",           value: sealStub.key_id },
+      { label: "Key fingerprint",  value: sealStub.key_fingerprint },
+      ...(sealFull ? [{ label: "PDF SHA-256", value: sealFull.pdf_sha256 }] : []),
+    ]);
     if (sealFull) {
-      writeLine("Algorithm:   " + sealFull.signature_alg, { size: 9, color: rgb(0.34, 0.40, 0.50) });
-      writeLine("PDF SHA-256: " + sealFull.pdf_sha256,    { size: 9, color: rgb(0.34, 0.40, 0.50) });
-      writeLine("Sealed at:   " + sealFull.signed_at,     { size: 9, color: rgb(0.34, 0.40, 0.50) });
-      writeLine("Signature (base64, raw r||s):", { size: 8, color: rgb(0.34, 0.40, 0.50) });
-      for (const chunk of wrapText(sealFull.signature_b64, 86)) {
-        writeLine("  " + chunk, { size: 7, color: rgb(0.50, 0.55, 0.65) });
-      }
+      certMonoBlock(ctx, "Signature (base64, raw r∥s)", sealFull.signature_b64);
       if (sealFull.tst_b64) {
-        cursorY -= 4;
-        writeLine("RFC 3161 TRUSTED TIMESTAMP", { font: bold, size: 9, color: rgb(0.34, 0.40, 0.50) });
-        writeLine("Authority:   " + (sealFull.tsa_url || "(unspecified)"), { size: 9, color: rgb(0.34, 0.40, 0.50) });
-        if (sealFull.tsa_gen_time) {
-          writeLine("Attested time: " + sealFull.tsa_gen_time + "  (by the TSA, not by RouteReady)", { size: 9, color: rgb(0.04, 0.40, 0.34) });
-        }
-        writeLine("The TimeStampToken (base64) is in " + sealStub.seal_path + " as tst_b64; verify with: openssl ts -reply -in tst.tsr -text", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+        certSubheader(ctx, "RFC 3161 trusted timestamp");
+        certKv(ctx, [
+          { label: "Authority",          value: sealFull.tsa_url || "(unspecified)", width: ctx.innerW / 2 - 6 },
+          { label: "Attested time (UTC)", value: sealFull.tsa_gen_time || "—",       width: ctx.innerW / 2 - 6, dx: ctx.innerW / 2 + 6 },
+        ]);
+        certBody(ctx, "Time attestation by the TSA, independent of RouteReady. TimeStampToken stored at " + sealStub.seal_path + " (key tst_b64); verify with: openssl ts -reply -in tst.tsr -text");
       }
     } else {
-      writeLine("The PDF SHA-256, signature, public key, and (if any) RFC 3161 timestamp live next to the sealed PDF at " + sealStub.seal_path + ".", { size: 8, color: rgb(0.34, 0.40, 0.50) });
+      certBody(ctx, "The PDF SHA-256, signature, public key, and (when present) RFC 3161 timestamp are stored in the JSON sidecar at " + sealStub.seal_path + ".");
     }
-    writeLine("Public key is also served at GET /public-key on the sealing service.", { size: 8, color: rgb(0.34, 0.40, 0.50) });
   }
 
-  // Footer.
-  cursorY -= 8;
-  writeLine("Issued by RouteReady  ·  rr-document-sealing/0.12", { size: 8, color: rgb(0.50, 0.55, 0.65) });
-  writeLine("Verify the integrity of this record at any time via the dashboard's audit trail.", { size: 8, color: rgb(0.50, 0.55, 0.65) });
+  // ── 05 · VERIFICATION & INTEGRITY ───────────────────────────────────
+  certSection(ctx, "05", "Verification & integrity");
+  certKvMono(ctx, [
+    { label: "Certificate ID", value: certId },
+    { label: "Envelope ID",    value: envelope.id },
+    { label: "Audit entries",  value: String(events.length) },
+  ]);
+  certBody(ctx, "This record is tamper-evident. The chain of custody above is append-only and hash-linked; the cryptographic seal binds the sealed PDF's SHA-256 to a digital signature; the trusted timestamp (when present) independently attests when the signature was made. Tampering with any byte invalidates the seal and breaks chain verification.");
+  certBody(ctx, "Verify online: https://gorouteready.com/verify/" + envelope.id);
+  certBody(ctx, "Public verification key: GET https://rr-document-sealing.gorouteready.com/public-key", { mono: true });
+
+  certFooter(ctx, certId, "rr-document-sealing · v0.13");
 }
 
 function wrapText(s: string, n: number): string[] {
