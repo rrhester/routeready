@@ -2629,13 +2629,18 @@ select.form-input{
 /* Inline pill-badge inside a subnav-item — used for unread counters
    (e.g. Coaching feed, Availability requests).  Compact amber pill
    so an unread count reads as a calm alert without competing with
-   the active-tab brand-grad underline. */
+   the active-tab brand-grad underline.  .neutral variant for the
+   ambient counts (My vehicles, Templates, etc.) where the count is
+   informational rather than a "needs your attention" signal. */
 .subnav-pill-badge{
   display:inline-flex;align-items:center;justify-content:center;
   background:var(--amber);color:var(--text-inverse);
   font-size:var(--fs-xs);font-weight:700;
-  padding:1px var(--s-1) 1px var(--s-1);border-radius:var(--r-md);
+  padding:1px var(--s-1);border-radius:var(--r-md);
   min-width:18px;margin-left:var(--s-1);line-height:1.2;
+}
+.subnav-pill-badge-neutral{
+  background:var(--canvas);color:var(--text-subtle);
 }
 
 .dr-subview{display:none}
@@ -10949,8 +10954,8 @@ body.rr-cmdk-open{ overflow:hidden }
              operator who knows that surface can map 1:1.  Wiring is in
              fleetSub() in live.js. -->
         <div class="subnav" data-rr-tabbar="fleet">
-          <button class="subnav-item active" data-sub="vehicles" onclick="fleetSub('vehicles')">My vehicles <span id="rr-fleet-tabcount-vehicles" style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">0</span></button>
-          <button class="subnav-item"        data-sub="issues"   onclick="fleetSub('issues')">Issues <span id="rr-fleet-tabcount-issues" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
+          <button class="subnav-item active" data-sub="vehicles" onclick="fleetSub('vehicles')">My vehicles <span id="rr-fleet-tabcount-vehicles" class="subnav-pill-badge subnav-pill-badge-neutral">0</span></button>
+          <button class="subnav-item"        data-sub="issues"   onclick="fleetSub('issues')">Issues <span id="rr-fleet-tabcount-issues" class="subnav-pill-badge" style="display:none">0</span></button>
         </div>
 
         <style>
