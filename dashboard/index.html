@@ -280,26 +280,26 @@ a{color:inherit;text-decoration:none}
 }
 .rr-modal-head-content{min-width:0;flex:1}
 .rr-modal-eyebrow{
-  display:inline-flex;align-items:center;gap:6px;
-  font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  display:inline-flex;align-items:center;gap:var(--s-1);
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.07em;text-transform:uppercase;
   color:var(--accent-text);
 }
 .rr-modal-eyebrow svg{width:12px;height:12px;stroke-width:2}
 .rr-modal-title{
-  margin:3px 0 0;
+  margin:var(--s-1) 0 0;
   font-family:'Inter Tight','Inter',sans-serif;
-  font-size:17px;font-weight:700;color:var(--text);
-  letter-spacing:-.005em;line-height:1.3;
+  font-size:var(--fs-lg);font-weight:700;color:var(--text);
+  letter-spacing:-.01em;line-height:1.3;
 }
 .rr-modal-sub{
-  margin-top:5px;
+  margin-top:var(--s-1);
   font-size:var(--fs-sm);color:var(--text-subtle);font-weight:500;
   display:flex;gap:var(--s-2-5);align-items:center;flex-wrap:wrap;
 }
 .rr-modal-close{
   appearance:none;background:transparent;border:0;
-  font-size:24px;color:var(--text-muted);cursor:pointer;
-  padding:0 4px;line-height:1;align-self:flex-start;margin-left:auto;
+  font-size:22px;color:var(--text-muted);cursor:pointer;
+  padding:0 var(--s-1);line-height:1;align-self:flex-start;margin-left:auto;
   border-radius:var(--r-sm);
   transition:color var(--t-fast), background var(--t-fast);
 }
@@ -320,18 +320,18 @@ a{color:inherit;text-decoration:none}
   appearance:none;border:1px solid var(--border-strong);
   background:var(--surface);color:var(--text);
   font:inherit;font-size:var(--fs-sm);font-weight:600;
-  padding:7px 14px;border-radius:var(--r-md);cursor:pointer;
+  padding:var(--s-2) var(--s-3-5);border-radius:var(--r-md);cursor:pointer;
   transition:background var(--t-fast), border-color var(--t-fast), transform var(--t-fast);
 }
 .rr-modal-foot .rr-modal-btn:hover{background:var(--canvas)}
 .rr-modal-foot .rr-modal-btn:active{transform:translateY(.5px)}
 .rr-modal-foot .rr-modal-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .rr-modal-foot .rr-modal-btn.primary{
-  border-color:transparent;background:var(--green);color:#fff;
+  border-color:transparent;background:var(--green);color:var(--text-inverse);
 }
 .rr-modal-foot .rr-modal-btn.primary:hover{background:var(--green-dark)}
 .rr-modal-foot .rr-modal-btn.danger{
-  border-color:transparent;background:var(--red);color:#fff;
+  border-color:transparent;background:var(--red);color:var(--text-inverse);
 }
 .rr-modal-foot .rr-modal-btn.danger:hover{background:var(--red-dark)}
 @keyframes rrModalFade{from{opacity:0}to{opacity:1}}
@@ -411,11 +411,11 @@ a{color:inherit;text-decoration:none}
   background:var(--sidebar-hover);
   color:var(--text-inverse);
 }
-.nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--text-inverse);box-shadow:inset 0 0 0 1px rgba(59,130,246,.5)}
+.nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--text-inverse);box-shadow:inset 0 0 0 1px rgba(96,165,250,.35)}
 .nav-item.active{
   background:var(--sidebar-active);
-  color:#fff;font-weight:600;
-  box-shadow:inset 2px 0 0 rgba(59,130,246,.85), inset 0 1px 0 rgba(255,255,255,.03);
+  color:var(--text-inverse);font-weight:600;
+  box-shadow:inset 2px 0 0 var(--blue-bright), inset 0 1px 0 rgba(255,255,255,.03);
 }
 .nav-item.active svg{stroke-width:2}
 /* Icon strokes — calm operational weight; no glow / drop-shadow */
@@ -442,16 +442,20 @@ a{color:inherit;text-decoration:none}
 /* Calibrated category palette · 10-15% less saturated than the
    previous neon-leaning set.  Container alphas trimmed so the
    icon tile blends with the graphite/navy sidebar atmosphere. */
+/* Each category owns a hue family — FG and BG share the same hue so
+   the icon tile reads as one material, and no two adjacent items
+   share a color (Schedule → sky · Messages → indigo, distinct from
+   Dashboard → blue). */
 .nav-item[data-c="dashboard"]  {--ni-fg:#60A5FA;--ni-bg:rgba(59,130,246,.10);--ni-bg-strong:rgba(59,130,246,.18)}
 .nav-item[data-c="pipeline"]   {--ni-fg:#A78BFA;--ni-bg:rgba(139,92,246,.10);--ni-bg-strong:rgba(139,92,246,.18)}
 .nav-item[data-c="drivers"]    {--ni-fg:#2DD4BF;--ni-bg:rgba(20,184,166,.10);--ni-bg-strong:rgba(20,184,166,.18)}
 .nav-item[data-c="staffing"]   {--ni-fg:#F472B6;--ni-bg:rgba(236,72,153,.10);--ni-bg-strong:rgba(236,72,153,.18)}
 .nav-item[data-c="fleet"]      {--ni-fg:#FBBF24;--ni-bg:rgba(245,158,11,.10);--ni-bg-strong:rgba(245,158,11,.18)}
 .nav-item[data-c="compliance"] {--ni-fg:#CBD5E1;--ni-bg:rgba(148,163,184,.10);--ni-bg-strong:rgba(148,163,184,.18)}
-.nav-item[data-c="schedule"]   {--ni-fg:#60A5FA;--ni-bg:rgba(56,189,248,.10);--ni-bg-strong:rgba(56,189,248,.18)}
-.nav-item[data-c="messages"]   {--ni-fg:#60A5FA;--ni-bg:rgba(96,165,250,.10);--ni-bg-strong:rgba(96,165,250,.18)}
+.nav-item[data-c="schedule"]   {--ni-fg:#38BDF8;--ni-bg:rgba(14,165,233,.10);--ni-bg-strong:rgba(14,165,233,.18)}
+.nav-item[data-c="messages"]   {--ni-fg:#818CF8;--ni-bg:rgba(99,102,241,.10);--ni-bg-strong:rgba(99,102,241,.18)}
 .nav-item[data-c="forms"]      {--ni-fg:#C084FC;--ni-bg:rgba(168,85,247,.10);--ni-bg-strong:rgba(168,85,247,.18)}
-.nav-item[data-c="finances"]   {--ni-fg:#34D399;--ni-bg:rgba(16,185,129,.10);--ni-bg-strong:var(--green-border)}
+.nav-item[data-c="finances"]   {--ni-fg:#34D399;--ni-bg:rgba(16,185,129,.10);--ni-bg-strong:rgba(16,185,129,.18)}
 .nav-item[data-c="settings"]   {--ni-fg:#CBD5E1;--ni-bg:rgba(148,163,184,.10);--ni-bg-strong:rgba(148,163,184,.18)}
 .nav-item[data-c="admin"]      {--ni-fg:#CBD5E1;--ni-bg:rgba(148,163,184,.10);--ni-bg-strong:rgba(148,163,184,.18)}
 
@@ -462,15 +466,15 @@ a{color:inherit;text-decoration:none}
 
 .workspace-chip{
   margin-top:var(--s-3);padding:var(--s-2-5) var(--s-3);border-radius:var(--r-md);
-  background:#1E293B;display:flex;align-items:center;gap:var(--s-2-5);
+  background:var(--sidebar-hover);display:flex;align-items:center;gap:var(--s-2-5);
 }
 .workspace-chip-avatar{
   width:24px;height:24px;border-radius:var(--r-md);
   background:var(--brand-grad);
   display:flex;align-items:center;justify-content:center;
-  font-size:var(--fs-xs);font-weight:700;color:#fff;
+  font-size:var(--fs-xs);font-weight:700;color:var(--text-inverse);
 }
-.workspace-chip-name{font-size:var(--fs-sm);font-weight:600;color:#fff;line-height:1.2}
+.workspace-chip-name{font-size:var(--fs-sm);font-weight:600;color:var(--text-inverse);line-height:1.2}
 .workspace-chip-sub{font-size:var(--fs-xs);color:var(--text-inverse-muted);line-height:1.2;margin-top:2px}
 
 /* Main column */
@@ -483,7 +487,7 @@ a{color:inherit;text-decoration:none}
   display:flex;align-items:center;padding:0 var(--s-6);gap:var(--s-4);
   background:var(--surface);
   border-bottom:1px solid var(--border);
-  box-shadow:0 1px 0 rgba(15,23,42,.02), 0 4px 12px -6px rgba(15,23,42,.06);
+  box-shadow:var(--shadow-xs);
 }
 .topbar::after{ display:none; }
 .topbar-title{font-size:var(--fs-base);font-weight:600;color:var(--text)}
@@ -494,7 +498,7 @@ a{color:inherit;text-decoration:none}
 .hdr-ask{
   flex:1;max-width:680px;margin:0 auto;
   display:flex;align-items:center;gap:var(--s-2);
-  height:38px;padding:3px 4px 3px 12px;border-radius:999px;
+  height:38px;padding:3px var(--s-1) 3px var(--s-3);border-radius:999px;
   background:var(--surface);
   border:1px solid var(--border-strong);
   box-shadow:var(--shadow-xs);
@@ -519,11 +523,11 @@ a{color:inherit;text-decoration:none}
 }
 .hdr-ask-input::placeholder{color:var(--text-subtle)}
 .hdr-ask-submit{
-  display:inline-flex;align-items:center;gap:5px;
+  display:inline-flex;align-items:center;gap:var(--s-1);
   height:30px;padding:0 var(--s-3-5);border-radius:999px;border:0;cursor:pointer;
   font:inherit;font-size:var(--fs-sm);font-weight:600;letter-spacing:.005em;
   background:var(--accent);
-  color:#fff;
+  color:var(--text-inverse);
   transition:background var(--t-fast);
 }
 .hdr-ask-submit:hover{background:var(--accent-hover)}
@@ -534,20 +538,20 @@ a{color:inherit;text-decoration:none}
   .hdr-ask{max-width:none;height:34px}
   .hdr-ask-input{font-size:var(--fs-md)}
   .hdr-ask-submit span{display:none}
-  .hdr-ask-submit{padding:0 10px}
+  .hdr-ask-submit{padding:0 var(--s-2-5)}
 }
 .search{
   display:flex;align-items:center;gap:var(--s-2);
-  padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-md);
+  padding:var(--s-1) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);
   background:var(--surface);
   min-width:240px;color:var(--text-subtle);font-size:var(--fs-md);
-  box-shadow:var(--shadow-xs), inset 0 1px 0 rgba(255,255,255,.6);
+  box-shadow:var(--shadow-xs), var(--highlight-top);
   transition:border-color var(--t-fast), box-shadow var(--t-fast);
 }
 .search:hover{border-color:var(--border-strong)}
 .search:focus-within{
   border-color:var(--accent);
-  box-shadow:var(--accent-glow), inset 0 1px 0 rgba(255,255,255,.6);
+  box-shadow:var(--accent-glow), var(--highlight-top);
 }
 .search svg{width:14px;height:14px;stroke-width:2}
 .search-kbd{
@@ -576,13 +580,13 @@ a{color:inherit;text-decoration:none}
 .icon-btn svg{width:16px;height:16px;stroke-width:2}
 .icon-btn .dot{
   position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;
-  background:var(--red);border:2px solid #fff;
+  background:var(--red);border:2px solid var(--surface);
 }
 /* Topbar Settings — a clearly-labelled pill so it can't be missed in the
    otherwise-empty top bar. */
 .topbar-settings{
-  display:inline-flex;align-items:center;gap:7px;
-  height:34px;padding:0 13px 0 11px;border-radius:999px;
+  display:inline-flex;align-items:center;gap:var(--s-2);
+  height:34px;padding:0 var(--s-3) 0 var(--s-2-5);border-radius:999px;
   border:1px solid var(--border-strong);background:var(--surface);
   color:var(--text);font-size:var(--fs-sm);font-weight:600;letter-spacing:.005em;
   cursor:pointer;white-space:nowrap;
@@ -598,7 +602,7 @@ a{color:inherit;text-decoration:none}
   width:32px;height:32px;border-radius:50%;
   background:var(--accent);
   display:flex;align-items:center;justify-content:center;
-  font-size:var(--fs-xs);font-weight:700;color:#fff;cursor:pointer;
+  font-size:var(--fs-xs);font-weight:700;color:var(--text-inverse);cursor:pointer;
   box-shadow:0 1px 2px rgba(37,99,235,.18);
   transition:background var(--t-fast), box-shadow var(--t-fast);
 }
@@ -651,17 +655,17 @@ a{color:inherit;text-decoration:none}
    header chip and the active sidebar tile read as the same icon
    system.  Foreground hues match exactly; container alphas match
    exactly so the surfaces feel like one material. */
-.page-icon[data-c="dashboard"]  {--pi-fg:#3B82F6;--pi-bg:rgba(59,130,246,.10);--pi-ring:rgba(59,130,246,.18)}
-.page-icon[data-c="pipeline"]   {--pi-fg:#8B5CF6;--pi-bg:rgba(139,92,246,.10);--pi-ring:rgba(139,92,246,.18)}
-.page-icon[data-c="drivers"]    {--pi-fg:#14B8A6;--pi-bg:rgba(20,184,166,.10);--pi-ring:rgba(20,184,166,.18)}
-.page-icon[data-c="staffing"]   {--pi-fg:#EC4899;--pi-bg:rgba(236,72,153,.10);--pi-ring:rgba(236,72,153,.18)}
-.page-icon[data-c="fleet"]      {--pi-fg:#F59E0B;--pi-bg:rgba(245,158,11,.10);--pi-ring:rgba(245,158,11,.18)}
-.page-icon[data-c="compliance"] {--pi-fg:#64748B;--pi-bg:rgba(148,163,184,.10);--pi-ring:rgba(148,163,184,.18)}
-.page-icon[data-c="schedule"]   {--pi-fg:#3B82F6;--pi-bg:rgba(56,189,248,.10);--pi-ring:rgba(56,189,248,.18)}
-.page-icon[data-c="messages"]   {--pi-fg:#3B82F6;--pi-bg:rgba(96,165,250,.10);--pi-ring:rgba(96,165,250,.18)}
-.page-icon[data-c="forms"]      {--pi-fg:#A855F7;--pi-bg:rgba(168,85,247,.10);--pi-ring:rgba(168,85,247,.18)}
-.page-icon[data-c="finances"]   {--pi-fg:#10B981;--pi-bg:rgba(16,185,129,.10);--pi-ring:var(--green-border)}
-.page-icon[data-c="admin"]      {--pi-fg:#64748B;--pi-bg:rgba(148,163,184,.10);--pi-ring:rgba(148,163,184,.18)}
+.page-icon[data-c="dashboard"]  {--pi-fg:#2563EB;--pi-bg:rgba(59,130,246,.10);--pi-ring:rgba(59,130,246,.18)}
+.page-icon[data-c="pipeline"]   {--pi-fg:#7C3AED;--pi-bg:rgba(139,92,246,.10);--pi-ring:rgba(139,92,246,.18)}
+.page-icon[data-c="drivers"]    {--pi-fg:#0D9488;--pi-bg:rgba(20,184,166,.10);--pi-ring:rgba(20,184,166,.18)}
+.page-icon[data-c="staffing"]   {--pi-fg:#DB2777;--pi-bg:rgba(236,72,153,.10);--pi-ring:rgba(236,72,153,.18)}
+.page-icon[data-c="fleet"]      {--pi-fg:#D97706;--pi-bg:rgba(245,158,11,.10);--pi-ring:rgba(245,158,11,.18)}
+.page-icon[data-c="compliance"] {--pi-fg:#475569;--pi-bg:rgba(148,163,184,.10);--pi-ring:rgba(148,163,184,.18)}
+.page-icon[data-c="schedule"]   {--pi-fg:#0284C7;--pi-bg:rgba(14,165,233,.10);--pi-ring:rgba(14,165,233,.18)}
+.page-icon[data-c="messages"]   {--pi-fg:#4F46E5;--pi-bg:rgba(99,102,241,.10);--pi-ring:rgba(99,102,241,.18)}
+.page-icon[data-c="forms"]      {--pi-fg:#9333EA;--pi-bg:rgba(168,85,247,.10);--pi-ring:rgba(168,85,247,.18)}
+.page-icon[data-c="finances"]   {--pi-fg:#059669;--pi-bg:rgba(16,185,129,.10);--pi-ring:rgba(16,185,129,.18)}
+.page-icon[data-c="admin"]      {--pi-fg:#475569;--pi-bg:rgba(148,163,184,.10);--pi-ring:rgba(148,163,184,.18)}
 
 /* ─────────────────────────────────────────────────────────────
    STATUS COLOR DISCIPLINE
@@ -1065,12 +1069,12 @@ a{color:inherit;text-decoration:none}
 .funnel-bar{height:24px;background:var(--canvas);border-radius:var(--r-md);position:relative;overflow:hidden}
 .funnel-fill{
   height:100%;border-radius:var(--r-md);background:var(--accent);
-  display:flex;align-items:center;padding:0 8px;color:#fff;
+  display:flex;align-items:center;padding:0 var(--s-2);color:var(--text-inverse);
   font-size:var(--fs-xs);font-weight:600;transition:width var(--t-spring);
 }
 .funnel-row.s2 .funnel-fill{background:var(--indigo);opacity:.85}
 .funnel-row.s3 .funnel-fill{background:var(--blue-bright);opacity:.75}
-.funnel-row.s4 .funnel-fill{background:#60A5FA;opacity:.85}
+.funnel-row.s4 .funnel-fill{background:var(--blue-bright);opacity:.55}
 .funnel-count{font-size:var(--fs-md);font-weight:600;color:var(--text);text-align:right}
 
 /* Performance risk list */
@@ -1122,10 +1126,10 @@ a{color:inherit;text-decoration:none}
 }
 .stage-tab{
   appearance:none;background:transparent;border:0;font:inherit;
-  padding:var(--s-2) 14px;border-radius:var(--r-md);
+  padding:var(--s-2) var(--s-3-5);border-radius:var(--r-md);
   color:var(--text-muted);cursor:pointer;
   font-weight:500;font-size:var(--fs-md);
-  display:inline-flex;align-items:center;gap:6px;
+  display:inline-flex;align-items:center;gap:var(--s-1);
 }
 .stage-tab:hover{color:var(--text)}
 .stage-tab.active{
@@ -1186,7 +1190,7 @@ a{color:inherit;text-decoration:none}
 }
 .table tbody tr{transition:background var(--t-fast)}
 .table tbody tr:last-child td{border-bottom:none}
-.table tbody tr:hover{background:rgba(244,246,251,.6)}
+.table tbody tr:hover{background:var(--surface-hover)}
 
 /* ─────────────────────────────────────────────────────────────
    FIRST-RUN DASHBOARD · welcome banner + Get-started tiles
@@ -1212,7 +1216,7 @@ a{color:inherit;text-decoration:none}
 }
 .rr-firstrun-banner-icon{
   width:36px;height:36px;border-radius:var(--r-md);
-  background:var(--brand-grad);color:#fff;
+  background:var(--brand-grad);color:var(--text-inverse);
   display:grid;place-items:center;flex-shrink:0;
   box-shadow:var(--shadow-sm), var(--highlight-top);
 }
@@ -1256,7 +1260,7 @@ a{color:inherit;text-decoration:none}
 .rr-firstrun-tile:hover{
   background:var(--surface);border-color:var(--accent-border);
   transform:translateY(-1px);
-  box-shadow:0 2px 8px -2px rgba(37,99,235,.12);
+  box-shadow:var(--shadow-sm);
 }
 .rr-firstrun-tile:active{transform:translateY(0)}
 .rr-firstrun-tile-num{
@@ -1299,7 +1303,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .rr-onb-brand{display:flex;align-items:center;gap:var(--s-3);min-width:0}
 .rr-onb-brand-mark{
   width:36px;height:36px;border-radius:var(--r-md);
-  background:var(--brand-grad);color:#fff;
+  background:var(--brand-grad);color:var(--text-inverse);
   display:grid;place-items:center;font-weight:700;font-size:var(--fs-md);letter-spacing:.02em;
   box-shadow:var(--shadow-sm), var(--highlight-top);
   flex-shrink:0;
@@ -1308,7 +1312,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .rr-onb-head-actions{display:flex;align-items:center;gap:var(--s-3)}
 .rr-onb-signout{
   background:transparent;border:1px solid transparent;color:var(--text-muted);
-  font:inherit;font-size:var(--fs-sm);padding:6px 10px;border-radius:var(--r-md);cursor:pointer;
+  font:inherit;font-size:var(--fs-sm);padding:var(--s-1) var(--s-2-5);border-radius:var(--r-md);cursor:pointer;
   transition:background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
 }
 .rr-onb-signout:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border)}
@@ -1329,7 +1333,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .rr-onb-progress-rail{flex:1;height:2px;background:var(--border-strong);border-radius:1px;
   align-self:flex-start;margin-top:11px;
   transition:background var(--t-smooth)}
-.rr-onb-progress-step.done .rr-onb-progress-dot{background:var(--accent);border-color:var(--accent);color:#fff}
+.rr-onb-progress-step.done .rr-onb-progress-dot{background:var(--accent);border-color:var(--accent);color:var(--text-inverse)}
 .rr-onb-progress-step.done .rr-onb-progress-num{display:none}
 .rr-onb-progress-step.done .rr-onb-progress-check{display:block}
 .rr-onb-progress-step.done + .rr-onb-progress-rail{background:var(--accent)}
@@ -1504,7 +1508,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   text-transform:capitalize;
 }
 .rr-admin-cell-plan--growth{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-soft)}
-.rr-admin-cell-plan--enterprise{background:rgba(91,33,182,.10);color:#5B21B6;border-color:rgba(91,33,182,.20)}
+.rr-admin-cell-plan--enterprise{background:rgba(124,58,237,.10);color:var(--violet);border-color:rgba(124,58,237,.20)}
 
 /* Row actions · "..." menu */
 .rr-admin-row-actions{position:relative;text-align:right}
@@ -1688,13 +1692,13 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .rr-admin-empty{
   padding:var(--s-10) var(--s-5);text-align:center;
   display:flex;flex-direction:column;align-items:center;gap:var(--s-3);
-  background:linear-gradient(180deg, var(--canvas) 0%, rgba(244,246,251,.4) 100%);
+  background:var(--canvas);
   border-top:1px solid var(--border-subtle);
 }
 .rr-admin-empty[hidden]{display:none}
 .rr-admin-empty__icon{
   width:56px;height:56px;border-radius:50%;
-  background:rgba(91,33,182,.08);color:#5B21B6;
+  background:rgba(124,58,237,.08);color:var(--violet);
   display:grid;place-items:center;
 }
 .rr-admin-empty__icon svg{width:24px;height:24px}
@@ -1707,7 +1711,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 
 /* Zebra striping — subtle */
 .table-zebra tbody tr:nth-child(even){background:rgba(15,23,42,.015)}
-.table-zebra tbody tr:nth-child(even):hover{background:rgba(244,246,251,.8)}
+.table-zebra tbody tr:nth-child(even):hover{background:var(--surface-pressed)}
 
 /* Clickable rows */
 .table-clickable tbody tr{cursor:pointer;transition:background var(--t-fast), box-shadow var(--t-fast)}
@@ -1720,16 +1724,16 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 
 /* DVIC chip · camera indicator on Fleet rows + Van Record */
 .dvic-chip{
-  display:inline-flex;align-items:center;gap:5px;
-  font-size:10.5px;font-weight:700;letter-spacing:.04em;
-  padding:3px 9px;border-radius:999px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:var(--s-1);
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;
+  padding:3px var(--s-2-5);border-radius:999px;cursor:pointer;
   border:1px solid transparent;background:transparent;color:var(--text);
-  margin-top:4px;line-height:1.2;
+  margin-top:var(--s-1);line-height:1.2;
 }
 .dvic-chip:hover{filter:brightness(.96)}
 .dvic-chip.pend{background:var(--accent-soft);color:var(--accent-text)}
-.dvic-chip.flag{background:rgba(159,18,57,.10);color:#9F1239}
-.dvic-chip.ok  {background:rgba(16,185,129,.10);color:#15803D}
+.dvic-chip.flag{background:var(--red-soft);color:var(--red-dark)}
+.dvic-chip.ok  {background:var(--green-soft);color:var(--green-dark)}
 .dvic-chip.rev {background:var(--canvas);color:var(--text-muted);border-color:var(--border)}
 .cell-contact{color:var(--text-muted);font-size:var(--fs-sm);line-height:1.4}
 .cell-score{
@@ -1740,8 +1744,8 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .cell-score.tier-standard{background:var(--accent-soft);color:var(--accent-text)}
 .cell-score.tier-low{background:var(--canvas);color:var(--text-subtle)}
 .stage-pill{
-  display:inline-flex;align-items:center;gap:5px;
-  padding:3px 10px;border-radius:12px;font-size:var(--fs-xs);font-weight:600;
+  display:inline-flex;align-items:center;gap:var(--s-1);
+  padding:3px var(--s-2-5);border-radius:var(--r-lg);font-size:var(--fs-xs);font-weight:600;
 }
 .stage-pill .dot{width:6px;height:6px;border-radius:50%}
 .stage-pill.new{background:var(--canvas);color:var(--text-muted)}
@@ -1750,8 +1754,8 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .stage-pill.screening .dot{background:var(--accent)}
 .stage-pill.passed{background:var(--green-soft);color:var(--green)}
 .stage-pill.passed .dot{background:var(--green)}
-.stage-pill.booked{background:var(--info-soft);color:#6D28D9}
-.stage-pill.booked .dot{background:#7C3AED}
+.stage-pill.booked{background:var(--info-soft);color:var(--info-dark)}
+.stage-pill.booked .dot{background:var(--violet)}
 .stage-pill.hired{background:var(--green-soft);color:var(--green)}
 .stage-pill.hired .dot{background:var(--green)}
 .cell-source{font-size:var(--fs-sm);color:var(--text-muted)}
@@ -1769,11 +1773,11 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 
 /* Mockup banner */
 .mockup-banner{
-  background:#0F172A;color:#F8FAFC;font-size:var(--fs-sm);
+  background:var(--text);color:var(--text-inverse);font-size:var(--fs-sm);
   padding:var(--s-2) var(--s-6);display:flex;align-items:center;gap:var(--s-2-5);justify-content:center;
 }
-.mockup-banner strong{color:#FCD34D;font-weight:700}
-.mockup-banner a{color:#93C5FD;text-decoration:underline;text-underline-offset:2px}
+.mockup-banner strong{color:var(--amber-bright);font-weight:700}
+.mockup-banner a{color:var(--blue-bright);text-decoration:underline;text-underline-offset:2px}
 
 /* ─────────────────────────────────────────────────────────────
    COACH DRAWER (right-side slide-out)
@@ -1788,8 +1792,8 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .coach-trigger:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border-strong)}
 .coach-trigger svg{width:13px;height:13px;stroke-width:2;color:var(--accent-text)}
 .coach-trigger-kbd{
-  font-size:var(--fs-xs);font-weight:600;background:#fff;border:1px solid var(--border);
-  padding:1px 5px;border-radius:var(--r-sm);color:var(--text-subtle);margin-left:4px;
+  font-size:var(--fs-xs);font-weight:600;background:var(--surface);border:1px solid var(--border);
+  padding:1px 5px;border-radius:var(--r-sm);color:var(--text-subtle);margin-left:var(--s-1);
 }
 
 .coach-row-btn{
@@ -1869,7 +1873,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   display:flex;flex-direction:column;
   visibility:hidden;pointer-events:none;
 }
-.rr-drawer.open{visibility:visible;pointer-events:auto;transform:translateX(0);box-shadow:-12px 0 32px rgba(15,23,42,.08)}
+.rr-drawer.open{visibility:visible;pointer-events:auto;transform:translateX(0);box-shadow:var(--shadow-xl)}
 .rr-drawer-head{
   padding:var(--s-4) var(--s-5);
   border-bottom:1px solid var(--border);
@@ -1989,7 +1993,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   visibility:hidden;pointer-events:none;
 }
 .coach-drawer.open{visibility:visible;pointer-events:auto}
-.coach-drawer.open{transform:translateX(0);box-shadow:-12px 0 32px rgba(15,23,42,.08)}
+.coach-drawer.open{transform:translateX(0);box-shadow:var(--shadow-xl)}
 
 .cd-head{
   padding:var(--s-4) var(--s-5);
@@ -2069,10 +2073,10 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 }
 
 .cd-ai-btn{
-  display:inline-flex;align-items:center;gap:5px;
-  padding:5px 10px;border-radius:var(--r-xl);
+  display:inline-flex;align-items:center;gap:var(--s-1);
+  padding:var(--s-1) var(--s-2-5);border-radius:var(--r-xl);
   background:var(--brand-grad);
-  color:#fff;border:none;font-size:var(--fs-xs);font-weight:600;cursor:pointer;
+  color:var(--text-inverse);border:none;font-size:var(--fs-xs);font-weight:600;cursor:pointer;
 }
 .cd-ai-btn:hover{filter:brightness(1.05)}
 .cd-ai-btn svg{width:12px;height:12px}
@@ -2193,12 +2197,12 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   display:inline-flex;align-items:center;gap:6px;
 }
 .alert-tab:hover{background:var(--surface-hover);color:var(--text)}
-.alert-tab.active{background:#0F172A;color:#fff;border-color:var(--text)}
+.alert-tab.active{background:var(--text);color:var(--text-inverse);border-color:var(--text)}
 .alert-tab-count{
-  font-size:var(--fs-xs);font-weight:700;padding:1px 6px;border-radius:8px;
+  font-size:var(--fs-xs);font-weight:700;padding:1px 6px;border-radius:var(--r-md);
   background:var(--canvas);color:var(--text-subtle);
 }
-.alert-tab.active .alert-tab-count{background:#FFFFFF22;color:#fff}
+.alert-tab.active .alert-tab-count{background:rgba(255,255,255,.16);color:var(--text-inverse)}
 
 .alert-card{
   background:var(--surface);border:1px solid var(--border);border-left-width:3px;border-radius:var(--r-md);
@@ -2297,7 +2301,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   border:1px solid var(--border-strong);border-radius:var(--r-md);
   font-size:var(--fs-md);font-family:inherit;line-height:1.4;
   background:var(--surface);color:var(--text);
-  box-shadow:inset 0 1px 2px rgba(15,23,42,.03);
+  box-shadow:var(--inset-input);
   transition:border-color var(--t-fast), box-shadow var(--t-fast),
              background var(--t-fast);
   -webkit-appearance:none;
@@ -2323,7 +2327,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 }
 .form-input.form-input-error:focus,
 .form-input.form-input-error:focus-visible{
-  border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft);
+  border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft-strong);
 }
 /* textarea convenience */
 textarea.form-input{resize:vertical;min-height:80px;line-height:1.5}
@@ -2455,7 +2459,7 @@ select.form-input{
    ───────────────────────────────────────────────────────────── */
 .checkin-banner{
   background:var(--brand-grad-dark);
-  color:#fff;border-radius:var(--r-lg);padding:var(--s-5) var(--s-6);
+  color:var(--text-inverse);border-radius:var(--r-lg);padding:var(--s-5) var(--s-6);
   display:flex;align-items:center;gap:var(--s-4);margin-bottom:var(--s-6);
   position:relative;overflow:hidden;
 }
@@ -2473,12 +2477,12 @@ select.form-input{
   font-size:var(--fs-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
   color:rgba(255,255,255,.65);margin-bottom:3px;
 }
-.checkin-banner-title{font-size:var(--fs-lg);font-weight:600;line-height:1.3;color:#fff}
+.checkin-banner-title{font-size:var(--fs-lg);font-weight:600;line-height:1.3;color:var(--text-inverse)}
 .checkin-banner-sub{font-size:var(--fs-sm);color:rgba(255,255,255,.7);margin-top:2px;line-height:1.5}
 .checkin-banner-cta{
-  background:#fff;color:var(--text);padding:9px 16px;border-radius:var(--r-md);
+  background:var(--surface);color:var(--text);padding:var(--s-2) var(--s-4);border-radius:var(--r-md);
   font-size:var(--fs-md);font-weight:600;border:none;cursor:pointer;flex-shrink:0;position:relative;z-index:1;
-  display:inline-flex;align-items:center;gap:6px;
+  display:inline-flex;align-items:center;gap:var(--s-1);
 }
 .checkin-banner-cta:hover{background:var(--canvas)}
 .checkin-banner-cta svg{width:14px;height:14px;stroke-width:2}
@@ -2490,7 +2494,7 @@ select.form-input{
   display:flex;align-items:center;gap:var(--s-4);margin-bottom:var(--s-6);
 }
 .checkin-summary-check{
-  width:28px;height:28px;border-radius:50%;background:var(--green);color:#fff;
+  width:28px;height:28px;border-radius:50%;background:var(--green);color:var(--text-inverse);
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 .checkin-summary-check svg{width:14px;height:14px;stroke-width:3}
@@ -2533,7 +2537,7 @@ select.form-input{
 .checkin-row.marked-callout{background:var(--red-soft)}
 .checkin-row.marked-late{background:var(--amber-soft)}
 .checkin-row.marked-noshow{background:var(--red-soft)}
-.checkin-row.marked-present{background:#F0FDF4}
+.checkin-row.marked-present{background:var(--green-soft)}
 .checkin-row.marked-vto{background:var(--accent-soft)}
 
 .checkin-driver{display:flex;align-items:center;gap:var(--s-2-5)}
@@ -2547,16 +2551,16 @@ select.form-input{
 
 .status-row{display:flex;gap:var(--s-1)}
 .status-btn{
-  width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface);
+  width:32px;height:32px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--surface);
   display:flex;align-items:center;justify-content:center;cursor:pointer;
   font-size:var(--fs-base);color:var(--text-muted);transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
 }
 .status-btn:hover{background:var(--canvas);border-color:var(--border-strong)}
-.status-btn.active.s-present{background:var(--green);border-color:var(--green);color:#fff}
-.status-btn.active.s-late{background:var(--amber);border-color:var(--amber);color:#fff}
-.status-btn.active.s-callout{background:var(--red);border-color:var(--red);color:#fff}
-.status-btn.active.s-noshow{background:#0F172A;border-color:var(--text);color:#fff}
-.status-btn.active.s-vto{background:var(--sky);border-color:var(--sky);color:#fff}
+.status-btn.active.s-present{background:var(--green);border-color:var(--green);color:var(--text-inverse)}
+.status-btn.active.s-late{background:var(--amber);border-color:var(--amber);color:var(--text-inverse)}
+.status-btn.active.s-callout{background:var(--red);border-color:var(--red);color:var(--text-inverse)}
+.status-btn.active.s-noshow{background:var(--text);border-color:var(--text);color:var(--text-inverse)}
+.status-btn.active.s-vto{background:var(--sky);border-color:var(--sky);color:var(--text-inverse)}
 .status-btn svg{width:14px;height:14px;stroke-width:2.5}
 
 .checkin-foot{
@@ -2620,7 +2624,23 @@ select.form-input{
 .subnav-item.active::after{
   content:"";position:absolute;left:var(--s-3);right:var(--s-3);bottom:3px;height:2px;
   background:var(--brand-grad);border-radius:2px;
-  box-shadow:0 1px 4px -1px rgba(99,102,241,.30);
+  box-shadow:0 1px 4px -1px rgba(99,102,241,.20);
+}
+/* Inline pill-badge inside a subnav-item — used for unread counters
+   (e.g. Coaching feed, Availability requests).  Compact amber pill
+   so an unread count reads as a calm alert without competing with
+   the active-tab brand-grad underline.  .neutral variant for the
+   ambient counts (My vehicles, Templates, etc.) where the count is
+   informational rather than a "needs your attention" signal. */
+.subnav-pill-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--amber);color:var(--text-inverse);
+  font-size:var(--fs-xs);font-weight:700;
+  padding:1px var(--s-1);border-radius:var(--r-md);
+  min-width:18px;margin-left:var(--s-1);line-height:1.2;
+}
+.subnav-pill-badge-neutral{
+  background:var(--canvas);color:var(--text-subtle);
 }
 
 .dr-subview{display:none}
@@ -2661,7 +2681,7 @@ select.form-input{
 .day-toggle:hover{background:var(--canvas);border-color:var(--border-strong);color:var(--text)}
 .day-toggle:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .day-toggle.on{
-  background:var(--accent);border-color:var(--accent);color:#fff;
+  background:var(--accent);border-color:var(--accent);color:var(--text-inverse);
 }
 .day-toggle svg{width:13px;height:13px;stroke-width:2.5}
 
@@ -2704,7 +2724,7 @@ select.form-input{
 }
 .sched-draw-day:hover{background:var(--canvas);border-color:var(--border-strong);color:var(--text)}
 .sched-draw-day:focus-visible{outline:none;box-shadow:var(--ring-focus)}
-.sched-draw-day.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.sched-draw-day.on{background:var(--accent);border-color:var(--accent);color:var(--text-inverse);font-weight:600}
 .sched-draw-day-letter{display:block;font-size:var(--fs-base);font-weight:600}
 
 /* ─────────────────────────────────────────────────────────────
@@ -2747,7 +2767,7 @@ select.form-input{
 
 .sched-week-tab{
   appearance:none;background:transparent;border:0;font:inherit;
-  padding:7px 14px;border-radius:var(--r-md);
+  padding:var(--s-2) var(--s-3-5);border-radius:var(--r-md);
   color:var(--text-muted);cursor:pointer;
   font-weight:500;font-size:var(--fs-md);
   display:inline-flex;align-items:center;gap:6px;line-height:1.2;
@@ -2925,7 +2945,7 @@ select.form-input{
   display:flex;align-items:center;justify-content:center;color:var(--accent-text);
 }
 .approval-icon svg{width:18px;height:18px;stroke-width:2}
-.approval-icon.swap{background:var(--info-soft);color:#6D28D9}
+.approval-icon.swap{background:var(--info-soft);color:var(--info-dark)}
 .approval-icon.timeoff{background:var(--amber-soft);color:var(--amber)}
 .approval-title{font-size:var(--fs-md);font-weight:600;color:var(--text)}
 .approval-msg{font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;margin-top:3px}
@@ -2953,13 +2973,13 @@ select.form-input{
   padding:var(--s-4);cursor:pointer;
 }
 .template-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
-.template-card-name{font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:6px}
+.template-card-name{font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:var(--s-1)}
 .template-card-days{font-size:var(--fs-xs);color:var(--text-muted);font-family:'SF Mono',Menlo,monospace;letter-spacing:.04em}
-.template-card-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-2);padding-top:8px;border-top:1px solid var(--border)}
+.template-card-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-2);padding-top:var(--s-2);border-top:1px solid var(--border)}
 
 /* Driver app preview (mobile-style frame) */
 .driver-app-frame{
-  background:linear-gradient(180deg,#0F172A 0%,#1E293B 100%);
+  background:var(--brand-grad-dark);
   border-radius:var(--r-lg);padding:var(--s-6);
   display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-4);row-gap:var(--s-8);
 }
@@ -3117,14 +3137,11 @@ select.form-input{
 }
 /* Toast — dark slate with brand-tinted accent border (left stripe). */
 .toast{
-  background:linear-gradient(180deg, #0F172A 0%, #0B1220 100%);
+  background:linear-gradient(180deg, var(--text) 0%, #0B1220 100%);
   color:var(--text-inverse);
   padding:var(--s-3) var(--s-4);border-radius:var(--r-md);
   font-size:var(--fs-md);font-weight:500;display:flex;align-items:center;gap:var(--s-2-5);
-  box-shadow:0 1px 2px rgba(15,23,42,.10),
-             0 8px 24px rgba(15,23,42,.18),
-             0 16px 48px rgba(15,23,42,.10),
-             inset 0 1px 0 rgba(255,255,255,.06);
+  box-shadow:var(--shadow-xl), inset 0 1px 0 rgba(255,255,255,.06);
   animation:toastSlide .25s cubic-bezier(.34,1.56,.64,1);pointer-events:auto;max-width:380px;
   border-left:3px solid var(--accent);
 }
@@ -3160,7 +3177,7 @@ select.form-input{
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes modalUp{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
 .modal-head{padding:var(--s-5);border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:flex-start}
-.modal-title{font-size:var(--fs-lg);font-weight:600;margin:0 0 2px 0;letter-spacing:-.005em}
+.modal-title{font-size:var(--fs-lg);font-weight:600;margin:0 0 var(--s-1) 0;letter-spacing:-.005em}
 .modal-sub{font-size:var(--fs-sm);color:var(--text-muted);margin:0}
 .modal-close{
   width:28px;height:28px;border-radius:var(--r-sm);background:transparent;
@@ -3173,10 +3190,10 @@ select.form-input{
 .modal-body{padding:var(--s-5);display:flex;flex-direction:column;gap:var(--s-4)}
 .modal-foot{padding:var(--s-4) var(--s-5);
   border-top:1px solid var(--border-subtle);
-  background:linear-gradient(180deg, transparent 0%, rgba(244,246,251,.4) 100%);
+  background:var(--canvas);
   display:flex;justify-content:flex-end;gap:var(--s-2);
 }
-.modal-field-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:6px}
+.modal-field-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:var(--s-1)}
 .modal-row-2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
 
 /* ─────────────────────────────────────────────────────────────
@@ -3185,27 +3202,27 @@ select.form-input{
 
 /* Live "right now" panel above the schedule */
 .live-panel{
-  background:linear-gradient(120deg,#0F172A 0%,#1E293B 100%);
-  color:#fff;border-radius:var(--r-lg);padding:var(--s-4) var(--s-5);
+  background:var(--brand-grad-dark);
+  color:var(--text-inverse);border-radius:var(--r-lg);padding:var(--s-4) var(--s-5);
   margin-bottom:var(--s-4);display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-5);align-items:center;
 }
 .live-pulse{
   width:10px;height:10px;border-radius:50%;background:var(--green-bright);flex-shrink:0;
-  box-shadow:0 0 0 4px var(--green-border);
+  box-shadow:0 0 0 4px rgba(16,185,129,.22);
   animation:livePulse 1.6s ease-in-out infinite;
 }
-@keyframes livePulse{0%,100%{box-shadow:0 0 0 4px var(--green-border)}50%{box-shadow:0 0 0 8px rgba(16,185,129,.05)}}
+@keyframes livePulse{0%,100%{box-shadow:0 0 0 4px rgba(16,185,129,.22)}50%{box-shadow:0 0 0 8px rgba(16,185,129,.05)}}
 .live-stats{display:flex;gap:var(--s-6);flex-wrap:wrap}
-.live-stat-label{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:2px}
-.live-stat-value{font-size:var(--fs-lg);font-weight:700;color:#fff;line-height:1.1}
+.live-stat-label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:2px}
+.live-stat-value{font-size:var(--fs-lg);font-weight:700;color:var(--text-inverse);line-height:1.1}
 .live-stat-value .frac{color:rgba(255,255,255,.55);font-weight:500;font-size:var(--fs-sm)}
-.live-stat-value.warn{color:#FCD34D}
-.live-stat-value.bad{color:#FCA5A5}
+.live-stat-value.warn{color:var(--amber-bright)}
+.live-stat-value.bad{color:var(--red-bright)}
 
 /* AI banner / button */
 .ai-banner{
   background:var(--brand-grad);
-  color:#fff;border-radius:var(--r-lg);padding:var(--s-4) var(--s-5);
+  color:var(--text-inverse);border-radius:var(--r-lg);padding:var(--s-4) var(--s-5);
   margin-bottom:var(--s-4);display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-4);align-items:center;
   box-shadow:0 4px 16px rgba(59,130,246,.22);
 }
@@ -3214,12 +3231,12 @@ select.form-input{
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 .ai-banner-icon svg{width:20px;height:20px}
-.ai-banner-title{font-size:var(--fs-base);font-weight:600;color:#fff;margin-bottom:2px}
+.ai-banner-title{font-size:var(--fs-base);font-weight:600;color:var(--text-inverse);margin-bottom:2px}
 .ai-banner-msg{font-size:var(--fs-sm);color:rgba(255,255,255,.78);line-height:1.4}
 .ai-banner-cta{
-  background:#fff;color:var(--blue-dark);padding:var(--s-2) 14px;border-radius:8px;
+  background:var(--surface);color:var(--blue-dark);padding:var(--s-2) var(--s-3-5);border-radius:var(--r-md);
   font-size:var(--fs-sm);font-weight:700;border:none;cursor:pointer;
-  display:inline-flex;align-items:center;gap:6px;
+  display:inline-flex;align-items:center;gap:var(--s-1);
 }
 .ai-banner-cta:hover{background:var(--canvas)}
 .ai-banner-cta svg{width:14px;height:14px;stroke-width:2.5}
@@ -3227,9 +3244,9 @@ select.form-input{
 /* Conflict marker on calendar cells */
 .cal-cell{position:relative}
 .conflict-marker{
-  position:absolute;top:5px;right:5px;width:15px;height:15px;border-radius:50%;
-  background:var(--amber);color:#fff;display:flex;align-items:center;justify-content:center;
-  font-size:10px;font-weight:700;cursor:help;z-index:2;
+  position:absolute;top:var(--s-1);right:var(--s-1);width:15px;height:15px;border-radius:50%;
+  background:var(--amber);color:var(--text-inverse);display:flex;align-items:center;justify-content:center;
+  font-size:var(--fs-xs);font-weight:700;cursor:help;z-index:2;
   box-shadow:0 0 0 2px var(--surface);
   letter-spacing:0;
 }
@@ -3284,7 +3301,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rules-sub > summary::after{content:"";display:inline-block;margin-left:auto;width:6px;height:6px;border-right:1.5px solid var(--text-subtle);border-bottom:1.5px solid var(--text-subtle);transform:rotate(45deg);transition:transform var(--t-smooth);flex-shrink:0;margin-right:2px}
 .rules-sub[open] > summary::after{transform:rotate(225deg);margin-bottom:-2px}
 .rules-sub-body{margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
-.rules-sub-badge{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--amber);background:rgba(245,158,11,.12);padding:1px 6px;border-radius:var(--r-sm);margin-left:6px}
+.rules-sub-badge{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--amber);background:var(--amber-soft);padding:1px 6px;border-radius:var(--r-sm);margin-left:6px}
+.rules-sub-badge.ok{color:var(--green);background:var(--green-soft)}
 .priority-pill-list{display:flex;gap:6px;flex-wrap:wrap;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
 .priority-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-sm);font-weight:500;color:var(--text);user-select:none}
 .priority-pill .priority-rank{font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);background:var(--surface);width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
@@ -3439,7 +3457,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
      drawer still can't paint or eat clicks until .open is added. */
   visibility:hidden;pointer-events:none;
 }
-.detail-drawer.open{transform:translateX(0);visibility:visible;pointer-events:auto;box-shadow:-12px 0 32px rgba(15,23,42,.08)}
+.detail-drawer.open{transform:translateX(0);visibility:visible;pointer-events:auto;box-shadow:var(--shadow-xl)}
 .detail-head{
   padding:var(--s-5);border-bottom:1px solid var(--border);
   display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-4);
@@ -3609,7 +3627,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background:var(--canvas);color:var(--text-muted);
 }
 .role-pill.owner{background:var(--accent-soft);color:var(--accent-text)}
-.role-pill.coach{background:var(--info-soft);color:#6D28D9}
+.role-pill.coach{background:var(--info-soft);color:var(--info-dark)}
+.role-pill-paid,
+.role-pill-active{background:var(--green-soft);color:var(--green-dark)}
 
 .question-row{
   display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
@@ -3936,9 +3956,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
      bubble's large fill area; --accent-hover (Azure-700) holds the
      same brand tone but lands calmer on big surfaces. */
   background:var(--accent-hover);
-  color:#fff;
+  color:var(--text-inverse);
   border-bottom-right-radius:5px;
-  box-shadow:0 1px 2px rgba(29,78,216,.14);
+  box-shadow:var(--shadow-xs);
 }
 /* Group spacing — 6px between sender groups, 2px between bubbles in
    the same group. Driven by data-group-pos which the renderer sets. */
@@ -3952,15 +3972,15 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-mc-bubble.urgent{ box-shadow:inset 3px 0 0 var(--red), 0 1px 2px rgba(37,99,235,.18), 0 4px 10px -4px rgba(225,29,72,.30) }
 .rr-mc-bubble.high  { box-shadow:inset 3px 0 0 var(--amber), 0 1px 2px rgba(37,99,235,.18) }
 .rr-mc-pri-tag{
-  display:inline-block;background:var(--red);color:#fff;
+  display:inline-block;background:var(--red);color:var(--text-inverse);
   font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-  padding:2px 7px;border-radius:999px;margin-bottom:6px;
+  padding:2px 7px;border-radius:999px;margin-bottom:var(--s-1);
 }
 .rr-mc-ack{
   margin-top:6px;font-size:var(--fs-xs);font-weight:600;
   padding:3px 8px;border-radius:var(--r-md);display:inline-block;
 }
-.rr-mc-ack.acked  { background:rgba(255,255,255,.18);color:#fff; }
+.rr-mc-ack.acked  { background:rgba(255,255,255,.18);color:var(--text-inverse); }
 .rr-mc-ack.pending{ background:rgba(255,255,255,.10);color:rgba(255,255,255,.85); }
 
 /* Compose options — priority radio + ack toggle. Lives inside
@@ -4162,11 +4182,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
    bottom and clears itself. */
 .rr-msg-jump{
   position:absolute;left:50%;bottom:var(--s-3-5);transform:translateX(-50%) translateY(8px);
-  display:inline-flex;align-items:center;gap:6px;
-  padding:6px var(--s-3);font-size:var(--fs-sm);font-weight:600;color:#fff;
+  display:inline-flex;align-items:center;gap:var(--s-1);
+  padding:var(--s-1) var(--s-3);font-size:var(--fs-sm);font-weight:600;color:var(--text-inverse);
   background:var(--brand-grad);
   border:0;border-radius:999px;cursor:pointer;
-  box-shadow:0 8px 20px -6px rgba(99,102,241,.40), 0 2px 6px rgba(15,23,42,.10);
+  box-shadow:var(--shadow-md);
   opacity:0;pointer-events:none;
   transition:opacity var(--t-smooth), transform var(--t-spring);
   z-index:5;
@@ -4552,12 +4572,12 @@ body.rr-cmdk-open{ overflow:hidden }
 .msg-pinned strong{color:var(--amber-dark);font-weight:700}
 
 .msg-composer{
-  border-top:1px solid var(--border);padding:var(--s-3) 18px;background:var(--surface);
+  border-top:1px solid var(--border);padding:var(--s-3) var(--s-5);background:var(--surface);
 }
-.msg-quick-replies{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.msg-quick-replies{display:flex;gap:var(--s-1);margin-bottom:var(--s-2-5);flex-wrap:wrap}
 .msg-quick-reply{
   background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-xl);
-  padding:5px 12px;font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);cursor:pointer;font-family:inherit;
+  padding:var(--s-1) var(--s-3);font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);cursor:pointer;font-family:inherit;
 }
 .msg-quick-reply:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border-strong)}
 .msg-input-row{
@@ -4577,8 +4597,8 @@ body.rr-cmdk-open{ overflow:hidden }
 .msg-input-tool:hover{background:var(--surface);color:var(--text)}
 .msg-input-tool svg{width:14px;height:14px}
 .msg-send{
-  background:var(--accent);color:#fff;border-radius:8px;padding:6px 14px;border:none;
-  font-size:var(--fs-sm);font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px;
+  background:var(--accent);color:var(--text-inverse);border-radius:var(--r-md);padding:var(--s-1) var(--s-3-5);border:none;
+  font-size:var(--fs-sm);font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:var(--s-1);
 }
 .msg-send:hover{background:var(--accent-hover)}
 .msg-send svg{width:13px;height:13px}
@@ -4594,9 +4614,9 @@ body.rr-cmdk-open{ overflow:hidden }
   transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast);
 }
 .aud-pill:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border-strong)}
-.aud-pill.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border);font-weight:600;box-shadow:0 1px 2px rgba(37,99,235,.10)}
+.aud-pill.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border);font-weight:600;box-shadow:var(--shadow-xs)}
 .aud-count{
-  background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:8px;
+  background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:var(--r-md);
   padding:var(--s-2-5) var(--s-3);font-size:var(--fs-sm);color:var(--accent-text);
   display:flex;align-items:center;gap:var(--s-2);
 }
@@ -4614,7 +4634,7 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:var(--s-2);display:flex;flex-direction:column;gap:1px;
   position:sticky;top:80px;
 }
-.forms-side-section{padding:var(--s-3) var(--s-3) 4px;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-subtle)}
+.forms-side-section{padding:var(--s-3) var(--s-3) var(--s-1);font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle)}
 .forms-side-item{
   padding:var(--s-2) var(--s-3);border-radius:var(--r-md);font-size:var(--fs-md);color:var(--text-muted);font-weight:500;
   cursor:pointer;border:none;background:transparent;text-align:left;
@@ -4622,7 +4642,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .forms-side-item:hover{background:var(--canvas);color:var(--text)}
 .forms-side-item.active{background:var(--accent-soft);color:var(--accent-text);font-weight:600}
-.forms-side-item .count{margin-left:auto;font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;background:var(--canvas);padding:1px 7px;border-radius:8px}
+.forms-side-item .count{margin-left:auto;font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;background:var(--canvas);padding:1px 7px;border-radius:var(--r-md)}
 .forms-side-item.active .count{background:var(--accent-border);color:var(--accent-text)}
 
 .forms-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-3)}
@@ -4738,7 +4758,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .field-props-head{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-3)}
 .field-prop-row{margin-bottom:var(--s-3)}
 .field-prop-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:5px}
-.field-prop-input{width:100%;padding:6px 10px;border:1px solid var(--border-strong);border-radius:var(--r-md);font-size:var(--fs-sm);background:var(--surface);color:var(--text);font-family:inherit}
+.field-prop-input{width:100%;padding:var(--s-1) var(--s-2-5);border:1px solid var(--border-strong);border-radius:var(--r-md);font-size:var(--fs-sm);background:var(--surface);color:var(--text);font-family:inherit}
 
 /* Submissions table & form analytics */
 .subm-row{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:var(--s-3);align-items:center;padding:var(--s-3) var(--s-5);border-bottom:1px solid var(--border)}
@@ -4746,7 +4766,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .subm-row:hover{background:var(--canvas);cursor:pointer}
 .subm-form-name{font-size:var(--fs-md);font-weight:600;color:var(--text)}
 .subm-form-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
-.subm-status{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:8px}
+.subm-status{font-size:var(--fs-xs);font-weight:600;padding:2px var(--s-2);border-radius:var(--r-md)}
 .subm-status.complete{background:var(--green-soft);color:var(--green)}
 .subm-status.flagged{background:var(--red-soft);color:var(--red)}
 
@@ -4754,8 +4774,8 @@ body.rr-cmdk-open{ overflow:hidden }
    FLEET + ASSET TRACKING
    ───────────────────────────────────────────────────────────── */
 .veh-status{
-  display:inline-flex;align-items:center;gap:5px;
-  font-size:var(--fs-xs);font-weight:600;padding:3px 10px;border-radius:var(--r-lg);
+  display:inline-flex;align-items:center;gap:var(--s-1);
+  font-size:var(--fs-xs);font-weight:600;padding:3px var(--s-2-5);border-radius:var(--r-lg);
 }
 .veh-status.active{background:var(--green-soft);color:var(--green)}
 .veh-status.maint{background:var(--amber-soft);color:var(--amber)}
@@ -4765,7 +4785,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .veh-icon{
   width:36px;height:36px;border-radius:var(--r-md);
-  background:linear-gradient(135deg,#0F172A,#1E293B);color:#fff;
+  background:var(--brand-grad-dark);color:var(--text-inverse);
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 .veh-icon svg{width:18px;height:18px;stroke-width:2}
@@ -4782,7 +4802,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .asset-cat:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
 .asset-cat-icon{
   width:40px;height:40px;border-radius:var(--r-md);
-  display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:var(--s-3);
+  display:flex;align-items:center;justify-content:center;color:var(--text-inverse);margin-bottom:var(--s-3);
 }
 .asset-cat-icon svg{width:20px;height:20px;stroke-width:2}
 .asset-cat-name{font-size:var(--fs-base);font-weight:600;color:var(--text);margin-bottom:4px}
@@ -4837,7 +4857,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .briefing-icon{
   width:44px;height:44px;border-radius:var(--r-md);
-  background:var(--brand-grad-dark);color:#fff;
+  background:var(--brand-grad-dark);color:var(--text-inverse);
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 .briefing-icon svg{width:22px;height:22px;stroke-width:1.75}
@@ -4992,12 +5012,12 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .plan-summary-hero{
   background:var(--brand-grad-dark);
-  color:#fff;border-radius:var(--r-lg);padding:var(--s-5);
+  color:var(--text-inverse);border-radius:var(--r-lg);padding:var(--s-5);
 }
-.plan-summary-eyebrow{font-size:var(--fs-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:6px}
-.plan-summary-headline{font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.02em;line-height:1.15;margin-bottom:6px}
+.plan-summary-eyebrow{font-size:var(--fs-xs);font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:var(--s-1)}
+.plan-summary-headline{font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.02em;line-height:1.15;margin-bottom:var(--s-1)}
 .plan-summary-body{font-size:var(--fs-md);line-height:1.55;color:rgba(255,255,255,.8)}
-.plan-summary-body strong{color:#fff;font-weight:700}
+.plan-summary-body strong{color:var(--text-inverse);font-weight:700}
 
 .plan-pipe-card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
@@ -5036,12 +5056,12 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* Insights bar */
 .okami-insights{
-  background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%);
-  color:#fff;border-radius:var(--r-lg);padding:var(--s-4) var(--s-5);margin-bottom:var(--s-4);
+  background:var(--brand-grad-dark);
+  color:var(--text-inverse);border-radius:var(--r-lg);padding:var(--s-4) var(--s-5);margin-bottom:var(--s-4);
 }
 .okami-insights-head{
   display:flex;justify-content:space-between;align-items:center;
-  font-size:var(--fs-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:var(--s-3);
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:var(--s-3);
 }
 .okami-insights-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3)}
 .okami-insight{
@@ -5050,16 +5070,16 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .okami-insight-icon{
   width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.12);
-  display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:var(--s-2);
+  display:flex;align-items:center;justify-content:center;color:var(--text-inverse);margin-bottom:var(--s-2);
 }
 .okami-insight-icon svg{width:13px;height:13px;stroke-width:2}
-.okami-insight-icon.green{background:var(--green-border);color:var(--green-bright)}
-.okami-insight-icon.amber{background:var(--amber-border);color:#FCD34D}
-.okami-insight-icon.red{background:var(--red)33;color:#FCA5A5}
-.okami-insight-icon.blue{background:var(--accent-border);color:#93C5FD}
-.okami-insight-title{font-size:var(--fs-sm);font-weight:600;color:#fff;margin-bottom:3px}
+.okami-insight-icon.green{background:rgba(16,185,129,.22);color:var(--green-bright)}
+.okami-insight-icon.amber{background:rgba(245,158,11,.22);color:var(--amber-bright)}
+.okami-insight-icon.red{background:rgba(225,29,72,.22);color:var(--red-bright)}
+.okami-insight-icon.blue{background:rgba(37,99,235,.22);color:var(--blue-bright)}
+.okami-insight-title{font-size:var(--fs-sm);font-weight:600;color:var(--text-inverse);margin-bottom:3px}
 .okami-insight-msg{font-size:var(--fs-xs);color:rgba(255,255,255,.7);line-height:1.5}
-.okami-insight-msg strong{color:#fff;font-weight:600}
+.okami-insight-msg strong{color:var(--text-inverse);font-weight:600}
 
 /* 13-week table */
 .okami-table{width:100%;border-collapse:collapse}
@@ -5073,25 +5093,25 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:var(--s-3);border-bottom:1px solid var(--border);font-size:var(--fs-md);color:var(--text);vertical-align:middle;
 }
 .okami-table tbody tr:last-child td{border-bottom:none}
-.okami-table tbody tr.cycle-end{border-bottom:2px solid var(--accent);background:#FAFBFC}
+.okami-table tbody tr.cycle-end{border-bottom:2px solid var(--accent);background:var(--canvas)}
 .okami-table tbody tr.hve{background:var(--amber-soft)}
 .okami-table tbody tr.peak{background:var(--amber-soft)}
 .okami-week-tag{
-  display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;
+  display:inline-block;font-size:var(--fs-xs);font-weight:700;padding:1px 6px;border-radius:var(--r-md);
   margin-top:3px;letter-spacing:.04em;text-transform:uppercase;
 }
-.okami-week-tag.hve{background:var(--amber);color:#fff}
-.okami-week-tag.peak{background:#7C3AED;color:#fff}
-.okami-week-tag.cycle{background:var(--accent);color:#fff}
+.okami-week-tag.hve{background:var(--amber);color:var(--text-inverse)}
+.okami-week-tag.peak{background:var(--violet);color:var(--text-inverse)}
+.okami-week-tag.cycle{background:var(--accent);color:var(--text-inverse)}
 
 .strategy-pills{display:flex;gap:3px;flex-wrap:wrap}
 .strategy-pill{
-  font-size:var(--fs-xs);font-weight:600;padding:3px 8px;border-radius:8px;
+  font-size:var(--fs-xs);font-weight:600;padding:3px var(--s-2);border-radius:var(--r-md);
   background:var(--canvas);color:var(--text-muted);cursor:pointer;border:1px solid var(--border);
 }
 .strategy-pill.active.hire{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
 .strategy-pill.active.adw{background:var(--amber-soft);color:var(--amber-dark);border-color:var(--amber-border)}
-.strategy-pill.active.ot{background:var(--info-soft);color:#6D28D9;border-color:rgba(99,102,241,.22)}
+.strategy-pill.active.ot{background:var(--info-soft);color:var(--info-dark);border-color:rgba(99,102,241,.22)}
 .strategy-pill.active.seasonal{background:var(--green-soft);color:var(--green);border-color:var(--green-border)}
 
 /* Summary cards */
@@ -5688,8 +5708,8 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .ti-title-icon svg{width:13px;height:13px;stroke-width:2.5}
 .ti-summary{
-  background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:1px solid var(--amber-border);
-  border-radius:var(--r-md);padding:var(--s-3-5) var(--s-4);font-size:var(--fs-md);color:#78350F;line-height:1.55;
+  background:var(--amber-soft);border:1px solid var(--amber-border);
+  border-radius:var(--r-md);padding:var(--s-3-5) var(--s-4);font-size:var(--fs-md);color:var(--amber-dark);line-height:1.55;
   margin-bottom:var(--s-3);
 }
 .ti-summary strong{font-weight:700}
@@ -5879,12 +5899,12 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .recon-evidence{
   background:var(--amber-soft);border:1px solid var(--amber-border);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);
-  margin-top:6px;font-size:var(--fs-xs);color:#78350F;line-height:1.5;
+  margin-top:var(--s-2);font-size:var(--fs-xs);color:var(--amber-dark);line-height:1.5;
 }
-.recon-evidence strong{color:#78350F;font-weight:700}
+.recon-evidence strong{color:var(--amber-dark);font-weight:700}
 
 .dispute-letter{
-  background:var(--canvas);border:1px solid var(--border);border-radius:8px;
+  background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
   padding:var(--s-3-5) var(--s-4);font-family:'SF Mono',Menlo,monospace;font-size:var(--fs-xs);
   line-height:1.6;color:var(--text);max-height:240px;overflow-y:auto;white-space:pre-wrap;
 }
@@ -5963,7 +5983,7 @@ body.rr-cmdk-open{ overflow:hidden }
    ───────────────────────────────────────────────────────────── */
 .build-hero{
   background:var(--brand-grad-dark);
-  color:#fff;border-radius:var(--r-lg);padding:36px 40px;
+  color:var(--text-inverse);border-radius:var(--r-lg);padding:var(--s-8) var(--s-10);
   display:grid;grid-template-columns:1fr auto;gap:var(--s-5);align-items:center;
   margin-bottom:var(--s-5);position:relative;overflow:hidden;
 }
@@ -5972,19 +5992,19 @@ body.rr-cmdk-open{ overflow:hidden }
   background:radial-gradient(circle,rgba(255,255,255,.08) 0%,transparent 70%);pointer-events:none;
 }
 .build-hero-eyebrow{
-  font-size:var(--fs-xs);font-weight:700;letter-spacing:.16em;text-transform:uppercase;
-  color:rgba(255,255,255,.6);margin-bottom:10px;
-  display:inline-flex;align-items:center;gap:6px;
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(255,255,255,.6);margin-bottom:var(--s-2-5);
+  display:inline-flex;align-items:center;gap:var(--s-1);
 }
 .build-hero-eyebrow svg{width:11px;height:11px}
-.build-hero-headline{font-size:30px;font-weight:700;letter-spacing:-.025em;line-height:1.1;margin:0 0 10px 0;color:#fff}
-.build-hero-sub{font-size:var(--fs-base);line-height:1.6;color:rgba(255,255,255,.78);max-width:560px;margin:0 0 14px 0}
+.build-hero-headline{font-size:30px;font-weight:700;letter-spacing:-.025em;line-height:1.1;margin:0 0 var(--s-2-5) 0;color:var(--text-inverse)}
+.build-hero-sub{font-size:var(--fs-base);line-height:1.6;color:rgba(255,255,255,.78);max-width:560px;margin:0 0 var(--s-3-5) 0}
 .build-hero-tagline{
   display:inline-flex;align-items:center;gap:var(--s-2);
-  font-size:var(--fs-sm);font-weight:600;color:#FCD34D;letter-spacing:.01em;
+  font-size:var(--fs-sm);font-weight:600;color:var(--amber-bright);letter-spacing:.01em;
 }
 .build-hero-cta{
-  background:#fff;color:var(--text);padding:11px 20px;border-radius:var(--r-lg);
+  background:var(--surface);color:var(--text);padding:var(--s-2-5) var(--s-5);border-radius:var(--r-lg);
   font-size:var(--fs-md);font-weight:700;border:none;cursor:pointer;
   display:inline-flex;align-items:center;gap:var(--s-2);font-family:inherit;
   position:relative;z-index:1;
@@ -6158,14 +6178,14 @@ body.rr-cmdk-open{ overflow:hidden }
 .bb-blueprint-toggle svg{transition:transform var(--t-smooth)}
 .bb-blueprint.open .bb-blueprint-toggle svg{transform:rotate(180deg)}
 .bb-blueprint-body{
-  display:none;background:#0F172A;border-radius:var(--r-md);padding:var(--s-4);margin-top:var(--s-2);
-  font-family:'SF Mono',Menlo,Consolas,monospace;font-size:var(--fs-xs);line-height:1.65;color:#E2E8F0;
+  display:none;background:var(--text);border-radius:var(--r-md);padding:var(--s-4);margin-top:var(--s-2);
+  font-family:'SF Mono',Menlo,Consolas,monospace;font-size:var(--fs-xs);line-height:1.65;color:var(--text-inverse);
   max-height:360px;overflow-y:auto;
 }
 .bb-blueprint.open .bb-blueprint-body{display:block}
-.bb-blueprint-body .key{color:#93C5FD}
-.bb-blueprint-body .str{color:#86EFAC}
-.bb-blueprint-body .num{color:#FCD34D}
+.bb-blueprint-body .key{color:var(--blue-bright)}
+.bb-blueprint-body .str{color:var(--green-bright)}
+.bb-blueprint-body .num{color:var(--amber-bright)}
 .bb-blueprint-body .punct{color:var(--text-disabled)}
 
 /* Saved tools library */
@@ -6392,30 +6412,30 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .iv-candidates{display:flex;flex-direction:column;gap:var(--s-2-5);margin-bottom:var(--s-5)}
 .iv-card{
-  display:grid;grid-template-columns:80px 1fr auto;gap:18px;align-items:center;
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;
-  padding:var(--s-3-5) 18px;
+  display:grid;grid-template-columns:80px 1fr auto;gap:var(--s-5);align-items:center;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-3-5) var(--s-5);
   transition:opacity var(--t-spring), transform var(--t-spring), border-color var(--t-fast);
 }
 .iv-card.processed{opacity:.55;border-style:dashed}
-.iv-card-time{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.iv-card-time{font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em}
 .iv-card-body{min-width:0}
 .iv-card-header{display:flex;align-items:center;gap:var(--s-2-5);margin-bottom:var(--s-2)}
-.iv-card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:var(--fs-md);font-weight:700;color:#fff;flex-shrink:0}
+.iv-card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:var(--fs-md);font-weight:700;color:var(--text-inverse);flex-shrink:0}
 .iv-card-avatar.tier-a{background:var(--green)}
 .iv-card-avatar.tier-b{background:var(--blue-bright)}
 .iv-card-avatar.tier-c{background:var(--amber-bright)}
 .iv-card-avatar.tier-d{background:var(--red-bright)}
 .iv-card-name{font-size:var(--fs-lg);font-weight:600;color:var(--text);letter-spacing:-.01em}
 .iv-card-meta{font-size:var(--fs-xs);color:var(--text-subtle)}
-.iv-card-source{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:8px;margin-left:auto;letter-spacing:.02em}
-.iv-card-tags{display:flex;gap:6px;flex-wrap:wrap}
-.iv-card-tag{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:500;padding:3px 8px;border-radius:8px;background:rgba(16,185,129,.1);color:var(--green)}
+.iv-card-source{font-size:var(--fs-xs);font-weight:600;padding:2px var(--s-2);border-radius:var(--r-md);margin-left:auto;letter-spacing:.02em}
+.iv-card-tags{display:flex;gap:var(--s-1);flex-wrap:wrap}
+.iv-card-tag{display:inline-flex;align-items:center;gap:var(--s-1);font-size:var(--fs-xs);font-weight:500;padding:3px var(--s-2);border-radius:var(--r-md);background:var(--green-soft);color:var(--green)}
 .iv-card-tag.warn{background:var(--amber-soft);color:var(--amber)}
 .iv-card-tag svg{width:11px;height:11px;stroke-width:2.5}
 .iv-card-actions{display:flex;gap:var(--s-2);flex-shrink:0}
 .iv-action-btn{
-  display:inline-flex;align-items:center;gap:6px;
+  display:inline-flex;align-items:center;gap:var(--s-1);
   padding:var(--s-2-5) var(--s-3-5);border-radius:var(--r-lg);border:1px solid var(--border);
   background:var(--surface);color:var(--text);
   font:inherit;font-size:var(--fs-md);font-weight:600;cursor:pointer;
@@ -6423,27 +6443,27 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .iv-action-btn svg{width:14px;height:14px;stroke-width:2.4}
 .iv-action-btn:hover{transform:translateY(-1px);box-shadow:var(--shadow-sm)}
-.iv-action-btn.hired{background:var(--green);color:#fff;border-color:var(--green)}
-.iv-action-btn.hired:hover{background:var(--green)}
+.iv-action-btn.hired{background:var(--green);color:var(--text-inverse);border-color:var(--green)}
+.iv-action-btn.hired:hover{background:var(--green-dark)}
 .iv-action-btn.nohire{color:var(--text-muted)}
 .iv-action-btn.nohire:hover{background:var(--canvas);color:var(--text)}
-.iv-action-btn.noshow{color:var(--amber);border-color:rgba(245,158,11,.4)}
+.iv-action-btn.noshow{color:var(--amber);border-color:var(--amber-border)}
 .iv-action-btn.noshow:hover{background:var(--amber-soft)}
 
 .iv-done{
-  background:linear-gradient(135deg,#F0FDF4,#FFFFFF);
+  background:var(--green-soft);
   border:1px solid var(--green-border);border-radius:var(--r-xl);
-  padding:36px 32px;text-align:center;
+  padding:var(--s-8) var(--s-8);text-align:center;
 }
 .iv-done-icon{
   width:52px;height:52px;border-radius:50%;
-  background:var(--green);color:#fff;
+  background:var(--green);color:var(--text-inverse);
   display:inline-flex;align-items:center;justify-content:center;
-  margin-bottom:14px;
+  margin-bottom:var(--s-3-5);
 }
 .iv-done-icon svg{width:26px;height:26px}
-.iv-done-title{font-size:18px;font-weight:700;color:#14532D;margin:0 0 4px;letter-spacing:-.01em}
-.iv-done-sub{font-size:var(--fs-md);color:var(--green-dark);margin:0 0 16px}
+.iv-done-title{font-size:var(--fs-lg);font-weight:700;color:var(--green-dark);margin:0 0 var(--s-1);letter-spacing:-.01em}
+.iv-done-sub{font-size:var(--fs-md);color:var(--green-dark);margin:0 0 var(--s-4)}
 
 /* Pipeline throughput KPIs */
 .pipeline-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-4)}
@@ -6514,8 +6534,8 @@ body.rr-cmdk-open{ overflow:hidden }
 .action-icon.red{background:var(--red-soft);color:var(--red)}
 .action-icon.amber{background:var(--amber-soft);color:var(--amber)}
 .action-icon.blue{background:var(--accent-soft);color:var(--accent-text)}
-.action-icon.green{background:rgba(16,185,129,.1);color:var(--green)}
-.action-icon.purple{background:rgba(124,58,237,.12);color:#7C3AED}
+.action-icon.green{background:var(--green-soft);color:var(--green)}
+.action-icon.purple{background:rgba(124,58,237,.12);color:var(--violet)}
 .action-count{
   font-size:var(--fs-xs);font-weight:700;
   padding:2px 7px;border-radius:var(--r-lg);
@@ -6606,8 +6626,8 @@ body.rr-cmdk-open{ overflow:hidden }
 .cl-instance .cl-i-meta .due-overdue{color:var(--red);font-weight:600}
 .cl-instance .cl-i-meta .due-today{color:var(--amber-dark);font-weight:600}
 
-.cl-empty{padding:var(--s-6) var(--s-5);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
-.cl-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 4px}
+.cl-empty{padding:var(--s-8) var(--s-6);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
+.cl-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 var(--s-1);letter-spacing:-.005em}
 .cl-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin:0 auto;line-height:1.55;max-width:480px}
 
 .cl-bucket{margin-bottom:var(--s-5)}
@@ -6706,9 +6726,9 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-cb-root .cb-new-card{display:flex;align-items:center;justify-content:center;gap:var(--s-2);min-height:122px;background:transparent;border:1.5px dashed var(--border-strong);border-radius:var(--r-xl);color:var(--text-subtle);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:border-color var(--t-fast),color var(--t-fast),background .12s}
 #rr-cb-root .cb-new-card:hover{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft)}
 #rr-cb-root .cb-new-card svg{width:16px;height:16px}
-#rr-cb-root .cb-empty{padding:var(--s-6) var(--s-5);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
-#rr-cb-root .cb-empty-icon{width:42px;height:42px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent-text);margin-bottom:var(--s-3)}
-#rr-cb-root .cb-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 4px}
+#rr-cb-root .cb-empty{padding:var(--s-8) var(--s-6);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
+#rr-cb-root .cb-empty-icon{width:42px;height:42px;border-radius:var(--r-lg);display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent-text);margin-bottom:var(--s-3)}
+#rr-cb-root .cb-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 var(--s-1);letter-spacing:-.005em}
 #rr-cb-root .cb-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin:0;line-height:1.55;max-width:460px;margin:0 auto var(--s-4)}
 
 /* Editor view */
@@ -6830,9 +6850,9 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-an-kpi-value{font-size:42px;font-weight:600;letter-spacing:-.025em;color:var(--text);line-height:1;font-variant-numeric:tabular-nums}
 .rr-an-kpi-unit{font-size:18px;font-weight:500;color:var(--text-subtle);letter-spacing:-.005em}
 .rr-an-kpi-label{font-size:var(--fs-md);font-weight:500;color:var(--text-subtle);margin-top:6px}
-.rr-an-kpi-delta{display:inline-flex;align-items:center;gap:var(--s-1);font-size:var(--fs-sm);font-weight:600;padding:3px 8px;border-radius:var(--r-md)}
-.rr-an-kpi-delta.up   {background:rgba(16,185,129,.10);color:#047857}
-.rr-an-kpi-delta.down {background:rgba(239,68,68,.10);color:#B91C1C}
+.rr-an-kpi-delta{display:inline-flex;align-items:center;gap:var(--s-1);font-size:var(--fs-sm);font-weight:600;padding:3px var(--s-2);border-radius:var(--r-md)}
+.rr-an-kpi-delta.up   {background:var(--green-soft);color:var(--green-dark)}
+.rr-an-kpi-delta.down {background:var(--red-soft);color:var(--red-dark)}
 .rr-an-kpi-delta.flat {background:var(--canvas);color:var(--text-subtle)}
 .rr-an-kpi-delta svg{width:11px;height:11px;stroke-width:2.4}
 
@@ -6853,9 +6873,9 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-an-table tbody tr:hover{background:var(--canvas)}
 .rr-an-table td.num{text-align:right;font-variant-numeric:tabular-nums}
 .rr-an-table-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;background:var(--canvas);color:var(--text)}
-.rr-an-table-badge.green{background:rgba(16,185,129,.12);color:#047857}
-.rr-an-table-badge.amber{background:rgba(245,158,11,.14);color:var(--amber-dark)}
-.rr-an-table-badge.red  {background:rgba(239,68,68,.12);color:#B91C1C}
+.rr-an-table-badge.green{background:var(--green-soft-strong);color:var(--green-dark)}
+.rr-an-table-badge.amber{background:var(--amber-soft-strong);color:var(--amber-dark)}
+.rr-an-table-badge.red  {background:var(--red-soft-strong);color:var(--red-dark)}
 .rr-an-table-badge.blue {background:var(--accent-soft);color:var(--accent-text)}
 
 /* Text summary rendering */
@@ -6883,18 +6903,18 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-an-loading-dots span:nth-child(2){animation-delay:.15s}
 .rr-an-loading-dots span:nth-child(3){animation-delay:.30s}
 @keyframes rr-an-bounce{0%,80%,100%{transform:scale(.6);opacity:.6}40%{transform:scale(1);opacity:1}}
-.rr-an-error{margin:var(--s-3) 0;padding:var(--s-3) var(--s-4);background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.20);border-radius:var(--r-lg);color:var(--red-dark);font-size:var(--fs-md);line-height:1.5}
+.rr-an-error{margin:var(--s-3) 0;padding:var(--s-3) var(--s-4);background:var(--red-soft);border:1px solid var(--red-border);border-radius:var(--r-lg);color:var(--red-dark);font-size:var(--fs-md);line-height:1.5}
 
 /* Pinned grid */
 .rr-an-pinned-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:var(--s-4)}
 .rr-an-pinned-grid .rr-an-result{cursor:default}
 
 /* Empty state */
-.rr-an-empty{padding:var(--s-6) var(--s-5);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
-.rr-an-empty-icon{width:42px;height:42px;border-radius:var(--r-md);display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent-text);margin-bottom:var(--s-3)}
+.rr-an-empty{padding:var(--s-8) var(--s-6);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
+.rr-an-empty-icon{width:42px;height:42px;border-radius:var(--r-lg);display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent-text);margin-bottom:var(--s-3)}
 .rr-an-empty-icon svg{width:20px;height:20px;stroke-width:2}
-.rr-an-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 4px}
-.rr-an-empty-sub{font-size:var(--fs-md);color:var(--text-subtle);margin:0;line-height:1.55;max-width:480px;margin:0 auto}
+.rr-an-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 var(--s-1);letter-spacing:-.005em}
+.rr-an-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin:0;line-height:1.55;max-width:480px;margin:0 auto}
 
 /* Date-range editor inline popover */
 .rr-an-range{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-subtle);cursor:pointer}
@@ -7575,12 +7595,12 @@ body.rr-cmdk-open{ overflow:hidden }
         <style>
           .pipe-applicants{display:flex;flex-direction:column;gap:var(--s-2-5)}
           .pa-card{
-            background:var(--surface);border:1px solid var(--border);border-radius:12px;
-            transition:border-color var(--t-smooth),box-shadow .15s;
+            background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+            transition:border-color var(--t-smooth), box-shadow var(--t-smooth);
             overflow:hidden;
           }
-          .pa-card:hover{border-color:var(--text-subtle);box-shadow:0 2px 8px rgba(0,0,0,.04)}
-          .pa-card.expanded{border-color:var(--accent);box-shadow:0 0 0 1px rgba(59,130,246,.2)}
+          .pa-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+          .pa-card.expanded{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-border)}
           .pa-row{display:grid;grid-template-columns:160px 1fr auto;gap:var(--s-3);align-items:center;padding:var(--s-3-5) var(--s-4)}
           /* Match the rest of the dashboard's name treatment so the
              Pipeline applicant names don't read as a different weight
@@ -7604,7 +7624,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .pa-card-time{font-size:var(--fs-xs);color:var(--text-subtle)}
           .pa-card-body{display:flex;flex-direction:column;gap:6px;min-width:0}
           .pa-card-header{display:flex;align-items:center;gap:var(--s-2-5)}
-          .pa-card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--fs-sm);color:#fff;flex-shrink:0;background:var(--text-subtle)}
+          .pa-card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--fs-sm);color:var(--text-inverse);flex-shrink:0;background:var(--text-subtle)}
           .pa-card-avatar.tier-a{background:linear-gradient(135deg,var(--green),var(--green-dark))}
           .pa-card-avatar.tier-b{background:var(--brand-grad)}
           .pa-card-avatar.tier-c{background:linear-gradient(135deg, var(--amber), var(--amber-dark))}
@@ -7624,7 +7644,7 @@ body.rr-cmdk-open{ overflow:hidden }
             font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;
             transition:background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
           }
-          .pa-view-btn:hover{background:var(--text);color:#fff;border-color:var(--text)}
+          .pa-view-btn:hover{background:var(--text);color:var(--text-inverse);border-color:var(--text)}
           .pa-view-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
           .pa-view-btn svg{width:11px;height:11px;transition:transform var(--t-smooth)}
           .pa-card.expanded .pa-view-btn svg{transform:rotate(180deg)}
@@ -7645,8 +7665,8 @@ body.rr-cmdk-open{ overflow:hidden }
           .pa-timeline-step:last-child::before{display:none}
           .pa-timeline-dot{width:24px;height:24px;border-radius:50%;background:var(--surface);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-subtle);position:relative;z-index:1}
           .pa-timeline-dot svg{width:11px;height:11px;stroke-width:2.5}
-          .pa-timeline-step.done .pa-timeline-dot{background:var(--green);border-color:var(--green);color:#fff}
-          .pa-timeline-step.current .pa-timeline-dot{background:var(--accent);border-color:var(--accent);color:#fff}
+          .pa-timeline-step.done .pa-timeline-dot{background:var(--green);border-color:var(--green);color:var(--text-inverse)}
+          .pa-timeline-step.current .pa-timeline-dot{background:var(--accent);border-color:var(--accent);color:var(--text-inverse)}
           .pa-timeline-label{font-size:var(--fs-md);color:var(--text);font-weight:500}
           .pa-timeline-step.pending .pa-timeline-label{color:var(--text-subtle)}
           .pa-timeline-time{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -8054,9 +8074,9 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </div>
 
-          <div id="pipeline-empty-row" style="display:none;padding:48px;text-align:center;color:var(--text-subtle);font-size:var(--fs-md);background:var(--surface);border:1px solid var(--border);border-radius:12px">
-            <div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">No applicants in this stage</div>
-            <div>Try a different stage tab.</div>
+          <div class="rr-empty" id="pipeline-empty-row" style="display:none">
+            <div class="rr-empty-title">No applicants in this stage</div>
+            <div class="rr-empty-sub">Try a different stage tab.</div>
           </div>
         </div>
 
@@ -8215,8 +8235,8 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="subnav-item active" data-sub="roster" onclick="drSub('roster')">Roster</button>
           <button class="subnav-item" data-sub="licenses" onclick="drSub('licenses')">Licenses</button>
           <button class="subnav-item" data-sub="attendance" onclick="drSub('attendance')">Attendance</button>
-          <button class="subnav-item" data-sub="coaching" onclick="drSub('coaching')">Coaching <span id="rr-coach-feed-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
-          <button class="subnav-item" data-sub="availability" onclick="drSub('availability')">Availability <span id="rr-avail-req-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
+          <button class="subnav-item" data-sub="coaching" onclick="drSub('coaching')">Coaching <span id="rr-coach-feed-badge" class="subnav-pill-badge" style="display:none">0</span></button>
+          <button class="subnav-item" data-sub="availability" onclick="drSub('availability')">Availability <span id="rr-avail-req-badge" class="subnav-pill-badge" style="display:none">0</span></button>
         </div>
 
         <!-- ROSTER SUB-VIEW -->
@@ -8284,18 +8304,18 @@ body.rr-cmdk-open{ overflow:hidden }
             transition:border-color var(--t-fast), box-shadow var(--t-fast);
           }
           #view-drivers .dr-roster-bar select.dr-filter:focus{ outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft); }
-          #view-drivers .dr-roster-bar select.dr-filter.is-set{ color:var(--accent-text);border-color:rgba(37,99,235,.30);background-color:var(--accent-soft); }
+          #view-drivers .dr-roster-bar select.dr-filter.is-set{ color:var(--accent-text);border-color:var(--accent-border);background-color:var(--accent-soft); }
 
           /* App-presence chip (consistent with the platform's chip rhythm) */
           #view-drivers .dr-app-chip{
-            display:inline-flex;align-items:center;gap:6px;
-            font-size:var(--fs-xs);font-weight:650;border-radius:999px;padding:3px 9px 3px 7px;line-height:1.4;
+            display:inline-flex;align-items:center;gap:var(--s-1);
+            font-size:var(--fs-xs);font-weight:600;border-radius:999px;padding:3px var(--s-2-5) 3px var(--s-2);line-height:1.4;
             border:1px solid transparent;white-space:nowrap;
           }
           #view-drivers .dr-app-chip .dot{ width:6px;height:6px;border-radius:50%;flex:0 0 auto; }
           #view-drivers .dr-app-chip.on{ background:var(--green-soft);color:var(--green);border-color:var(--green-border); }
           #view-drivers .dr-app-chip.on .dot{ background:var(--green); }
-          #view-drivers .dr-app-chip.invited{ background:var(--amber-soft);color:var(--amber-dark);border-color:rgba(245,158,11,.18); }
+          #view-drivers .dr-app-chip.invited{ background:var(--amber-soft);color:var(--amber-dark);border-color:var(--amber-border); }
           #view-drivers .dr-app-chip.invited .dot{ background:var(--amber); }
           #view-drivers .dr-app-chip.none{ background:var(--canvas);color:var(--text-subtle);border-color:var(--border); }
           #view-drivers .dr-app-chip.none .dot{ background:var(--text-subtle); }
@@ -8316,15 +8336,17 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           @keyframes drShimmer{ to{ transform:translateX(100%); } }
 
-          /* Empty state */
-          .dr-empty{ padding:52px 28px;text-align:center; }
+          /* Empty state · same visual shape as .rr-empty + .cb-empty +
+             .rr-an-empty so an empty Drivers tab reads as the same
+             "no results" treatment as anywhere else in the app. */
+          .dr-empty{ padding:var(--s-8) var(--s-6);text-align:center; }
           .dr-empty .ic{
-            width:46px;height:46px;border-radius:12px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;
-            color:var(--accent);background:var(--accent-soft);border:1px solid rgba(37,99,235,.16);
+            width:42px;height:42px;border-radius:var(--r-lg);margin:0 auto var(--s-3);display:flex;align-items:center;justify-content:center;
+            color:var(--accent-text);background:var(--accent-soft);border:1px solid var(--accent-border);
           }
-          .dr-empty .ic svg{ width:22px;height:22px; }
-          .dr-empty h3{ margin:0 0 4px;font-size:var(--fs-base);font-weight:700;color:var(--text); }
-          .dr-empty p{ margin:0 auto;max-width:380px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55; }
+          .dr-empty .ic svg{ width:20px;height:20px;stroke-width:2; }
+          .dr-empty h3{ margin:0 0 var(--s-1);font-size:var(--fs-base);font-weight:600;color:var(--text);letter-spacing:-.005em; }
+          .dr-empty p{ margin:0 auto;max-width:380px;font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.55; }
 
           /* A touch more breathing room + crisper hover across every
              table in the Drivers page (roster + licenses + attendance
@@ -8516,18 +8538,18 @@ body.rr-cmdk-open{ overflow:hidden }
           .att-pane{display:none}
           .att-pane.active{display:block}
 
-          .att-status-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+          .att-status-pill{display:inline-flex;align-items:center;gap:var(--s-1);padding:3px var(--s-2-5);border-radius:999px;font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
           .att-status-pill.good{background:var(--green-soft);color:var(--green)}
-          .att-status-pill.verbal{background:var(--amber-bright)22;color:#A16207}
-          .att-status-pill.written{background:var(--amber-soft);color:var(--amber)}
-          .att-status-pill.final{background:#F97316;color:#fff}
-          .att-status-pill.term{background:var(--red);color:#fff}
+          .att-status-pill.verbal{background:var(--amber-soft);color:var(--amber-dark)}
+          .att-status-pill.written{background:var(--amber-soft-strong);color:var(--amber-dark)}
+          .att-status-pill.final{background:var(--red-soft-strong);color:var(--red-dark)}
+          .att-status-pill.term{background:var(--red);color:var(--text-inverse)}
 
-          .att-event-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+          .att-event-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:var(--s-1);vertical-align:middle}
           .att-event-dot.callout{background:var(--amber)}
           .att-event-dot.noshow{background:var(--red)}
           .att-event-dot.late{background:var(--amber-bright)}
-          .att-event-dot.earlyout{background:#A78BFA}
+          .att-event-dot.earlyout{background:var(--violet-bright)}
           .att-event-dot.present{background:var(--green)}
           .att-event-dot.vto{background:var(--sky)}
 
@@ -9035,7 +9057,7 @@ body.rr-cmdk-open{ overflow:hidden }
                   <summary class="rules-section-title">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><polyline points="9 12 11 14 15 10"/></svg>
                     Always enforced · system floor
-                    <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Locked</span>
+                    <span class="rules-sub-badge ok">Locked</span>
                   </summary>
                   <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
                     These guardrails apply to every DSP and aren't configurable. They protect against data corruption, payroll mistakes, and compliance violations. Open this section any time you want to see exactly what the schedule engine is doing behind the scenes.
@@ -9046,70 +9068,70 @@ body.rr-cmdk-open{ overflow:hidden }
                         <div class="rule-label">No double-booking</div>
                         <div class="rule-help">A driver can't hold two shifts on the same date in <code>scheduled</code>, <code>completed</code>, or <code>late</code> status.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">No past-date assignments</div>
                         <div class="rule-help">Cover and driver pickup only operate on shifts dated after today.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Expired driver's license blocks scheduling</div>
                         <div class="rule-help">Drivers whose DL expires on or before the shift date are skipped by Cover and pickup.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Service-type certifications</div>
                         <div class="rule-help">DOT-required service types need <code>dot_certified</code> drivers; XL-required service types need <code>xl_certified</code> drivers.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Approved time-off blocks scheduling</div>
                         <div class="rule-help">Cover, pickup, and swaps all skip drivers with an <code>approved</code> PTO request that overlaps the shift date.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Inactive drivers excluded</div>
                         <div class="rule-help">Only drivers with <code>status = active</code> appear in Cover or pickup eligibility.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Every shift edit audited</div>
                         <div class="rule-help">Driver, date, time, route, and status changes write an immutable row to <code>shift_changes</code> (visible in the Activity feed).</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Cross-DSP isolation</div>
                         <div class="rule-help">Row-level security scopes every schedule table to your DSP — no other tenant can read or write your data.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Dispatcher-only writes</div>
                         <div class="rule-help">Creating, editing, and deleting shifts requires the dispatcher role. Drivers can only act on their own shifts via Cover/pickup/swap flows.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">One pending offer per shift</div>
                         <div class="rule-help">Cover offers and swap requests can't pile up on the same shift — a unique constraint enforces single-pending.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                   </div>
                 </details>
@@ -9378,7 +9400,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 .msg-row-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
                 .msg-channel-pill{font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:var(--r-md);letter-spacing:.04em;text-transform:uppercase;text-align:center}
                 .msg-channel-pill.sms{background:var(--accent-soft);color:var(--accent-text)}
-                .msg-channel-pill.email{background:rgba(124,58,237,.14);color:#7C3AED}
+                .msg-channel-pill.email{background:rgba(124,58,237,.14);color:var(--violet)}
                 .msg-body-preview{font-size:var(--fs-sm);color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
               </style>
               <div class="msg-card" id="rr-messages-list">
@@ -9641,9 +9663,9 @@ body.rr-cmdk-open{ overflow:hidden }
 
               <h4 style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-4) 0 8px 0">Recent invoices</h4>
               <div>
-                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Apr 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill" style="background:var(--green-soft);color:var(--green)">Paid</span><button class="btn btn-sm">Download</button></div>
-                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Mar 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill" style="background:var(--green-soft);color:var(--green)">Paid</span><button class="btn btn-sm">Download</button></div>
-                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Feb 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill" style="background:var(--green-soft);color:var(--green)">Paid</span><button class="btn btn-sm">Download</button></div>
+                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Apr 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill role-pill-paid">Paid</span><button class="btn btn-sm">Download</button></div>
+                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Mar 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill role-pill-paid">Paid</span><button class="btn btn-sm">Download</button></div>
+                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Feb 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill role-pill-paid">Paid</span><button class="btn btn-sm">Download</button></div>
               </div>
 
               <h4 style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-5) 0 8px 0">Payment method</h4>
@@ -10120,13 +10142,13 @@ body.rr-cmdk-open{ overflow:hidden }
             <div style="margin-bottom:var(--s-4)">
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-2)">Hard gates · skip a driver who fails any of these</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:var(--s-2)">
-                <div class="rule-row"><div><div class="rule-label">Driver status = active or onboarding</div><div class="rule-help">Inactive / on leave / terminated drivers never auto-fill.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Driver's license valid through the shift date</div><div class="rule-help">Drivers whose DL expires before the shift are skipped. Always enforced — see <a href="#" onclick="gotoSettingsScheduling();return false;">Settings → Scheduling</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">DOT certification — required for Step Van routes</div><div class="rule-help">A driver without <code>dot_certified</code> on their record cannot be auto-filled into a shift whose service type carries <code>requires_dot</code>. Step Vans is the seeded example. Set the flag in the driver record's DOT tab.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">XL certification — required for Extra-Large routes</div><div class="rule-help">A driver without <code>xl_certified</code> on their record cannot be auto-filled into a shift whose service type carries <code>requires_xl</code>. XL is the seeded example. Set the flag in the driver record's DOT tab (XL toggle).</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Driver hasn't already worked the max days this week</div><div class="rule-help">Cap from <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Max days per week</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Driver's saved availability includes this day-of-week</div><div class="rule-help">Bypass via the <em>Allow availability override</em> toggle in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings</a> for tight weeks.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Driver isn't on approved time-off for this date</div><div class="rule-help">Approved PTO blocks the auto-fill from picking the driver. Live data from time-off requests.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Driver status = active or onboarding</div><div class="rule-help">Inactive / on leave / terminated drivers never auto-fill.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Driver's license valid through the shift date</div><div class="rule-help">Drivers whose DL expires before the shift are skipped. Always enforced — see <a href="#" onclick="gotoSettingsScheduling();return false;">Settings → Scheduling</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">DOT certification — required for Step Van routes</div><div class="rule-help">A driver without <code>dot_certified</code> on their record cannot be auto-filled into a shift whose service type carries <code>requires_dot</code>. Step Vans is the seeded example. Set the flag in the driver record's DOT tab.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">XL certification — required for Extra-Large routes</div><div class="rule-help">A driver without <code>xl_certified</code> on their record cannot be auto-filled into a shift whose service type carries <code>requires_xl</code>. XL is the seeded example. Set the flag in the driver record's DOT tab (XL toggle).</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Driver hasn't already worked the max days this week</div><div class="rule-help">Cap from <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Max days per week</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Driver's saved availability includes this day-of-week</div><div class="rule-help">Bypass via the <em>Allow availability override</em> toggle in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings</a> for tight weeks.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Driver isn't on approved time-off for this date</div><div class="rule-help">Approved PTO blocks the auto-fill from picking the driver. Live data from time-off requests.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
               </div>
             </div>
 
@@ -10135,10 +10157,10 @@ body.rr-cmdk-open{ overflow:hidden }
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-2)">Tie-breakers · when multiple drivers qualify</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:var(--s-2)">
                 <div class="rule-row"><div><div class="rule-label">Driver priority list</div><div class="rule-help">Tier · tenure · attendance · fewest hours. Reordering UI lands in an upcoming release.</div></div><span class="rules-sub-badge">Preview</span></div>
-                <div class="rule-row"><div><div class="rule-label">Cushion %</div><div class="rule-help">Smart Fill staffs the OKAMI demand × (1 + cushion %). Edit in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Cushion</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Default block length (hours)</div><div class="rule-help">Per-shift duration. Edit in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Default block length</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Wave start times</div><div class="rule-help">Each shift's start time follows the active wave list in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Wave start times</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Active service types</div><div class="rule-help">Only the route categories you've activated in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Service types</a> are auto-filled.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Cushion %</div><div class="rule-help">Smart Fill staffs the OKAMI demand × (1 + cushion %). Edit in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Cushion</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Default block length (hours)</div><div class="rule-help">Per-shift duration. Edit in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Default block length</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Wave start times</div><div class="rule-help">Each shift's start time follows the active wave list in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Wave start times</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Active service types</div><div class="rule-help">Only the route categories you've activated in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Service types</a> are auto-filled.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
               </div>
             </div>
 
@@ -10146,7 +10168,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div style="margin-bottom:var(--s-4)">
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-2)">Working-hour limits · safety + compliance</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:var(--s-2)">
-                <div class="rule-row"><div><div class="rule-label">Max hours per driver per week</div><div class="rule-help">Hard cap. Default <strong>55h</strong>. Edit in <a href="#" onclick="gotoSettingsScheduling();return false;">Settings → Scheduling → Working hour limits</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Max hours per driver per week</div><div class="rule-help">Hard cap. Default <strong>55h</strong>. Edit in <a href="#" onclick="gotoSettingsScheduling();return false;">Settings → Scheduling → Working hour limits</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
                 <div class="rule-row"><div><div class="rule-label">Max consecutive working days · rolling</div><div class="rule-help">Default <strong>6 days</strong>. Walks back into the prior week.</div></div><span class="rules-sub-badge">Preview</span></div>
                 <div class="rule-row"><div><div class="rule-label">Minimum rest between shifts</div><div class="rule-help">Default <strong>10 hours</strong>.</div></div><span class="rules-sub-badge">Preview</span></div>
               </div>
@@ -10156,8 +10178,8 @@ body.rr-cmdk-open{ overflow:hidden }
             <div>
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-2)">Attendance &amp; check-in</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:var(--s-2)">
-                <div class="rule-row"><div><div class="rule-label">Attendance windows</div><div class="rule-help">Tardy / no-show grace times for check-in. <a href="#" onclick="gotoSettingsScheduling();return false;">Edit in Settings → Scheduling</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Station geofence radius</div><div class="rule-help">Drivers can only check in inside the geofence. <a href="#" onclick="gotoSettingsScheduling();return false;">Edit in Settings → Scheduling</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Attendance windows</div><div class="rule-help">Tardy / no-show grace times for check-in. <a href="#" onclick="gotoSettingsScheduling();return false;">Edit in Settings → Scheduling</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Station geofence radius</div><div class="rule-help">Drivers can only check in inside the geofence. <a href="#" onclick="gotoSettingsScheduling();return false;">Edit in Settings → Scheduling</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
               </div>
             </div>
           </div>
@@ -10929,8 +10951,8 @@ body.rr-cmdk-open{ overflow:hidden }
              operator who knows that surface can map 1:1.  Wiring is in
              fleetSub() in live.js. -->
         <div class="subnav" data-rr-tabbar="fleet">
-          <button class="subnav-item active" data-sub="vehicles" onclick="fleetSub('vehicles')">My vehicles <span id="rr-fleet-tabcount-vehicles" style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">0</span></button>
-          <button class="subnav-item"        data-sub="issues"   onclick="fleetSub('issues')">Issues <span id="rr-fleet-tabcount-issues" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
+          <button class="subnav-item active" data-sub="vehicles" onclick="fleetSub('vehicles')">My vehicles <span id="rr-fleet-tabcount-vehicles" class="subnav-pill-badge subnav-pill-badge-neutral">0</span></button>
+          <button class="subnav-item"        data-sub="issues"   onclick="fleetSub('issues')">Issues <span id="rr-fleet-tabcount-issues" class="subnav-pill-badge" style="display:none">0</span></button>
         </div>
 
         <style>
@@ -11413,7 +11435,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .co-cap.auto{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
           .co-cap.review{background:var(--co-high-soft);color:var(--co-high-fg);border-color:transparent}
-          .co-cap.escalate{background:#1B1F2C;color:#FCA5A5;border-color:transparent}
+          .co-cap.escalate{background:var(--text);color:var(--red-bright);border-color:transparent}
         </style>
 
         <div class="page-header">
@@ -11629,7 +11651,7 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="subnav-item active" data-sub="workflows" onclick="goto('workspaces')">Workflows</button>
           <button class="subnav-item" data-sub="checklists" onclick="goto('checklists')">Checklists</button>
         </div>
-        <div id="rr-ws-root"><div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading workspaces</div></div>
+        <div id="rr-ws-root"><div class="rr-loading">Loading workspaces</div></div>
       </div>
     </div>
 
@@ -11726,20 +11748,20 @@ body.rr-cmdk-open{ overflow:hidden }
              loadChecklistInstances() in live.js. -->
         <div class="checklist-tab" id="checklist-tab-my">
           <div id="rr-cl-my-root">
-            <div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading checklists</div>
+            <div class="rr-loading">Loading checklists</div>
           </div>
         </div>
 
         <!-- TODAY'S STATUS — live operational rollup -->
         <div class="checklist-tab" id="checklist-tab-status" style="display:none">
           <div id="rr-cl-status-root">
-            <div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading status</div>
+            <div class="rr-loading">Loading status</div>
           </div>
         </div>
 
         <div class="checklist-tab" id="checklist-tab-templates" style="display:none">
           <div id="rr-cb-root">
-            <div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading templates</div>
+            <div class="rr-loading">Loading templates</div>
           </div>
         </div>
 
@@ -11959,12 +11981,12 @@ body.rr-cmdk-open{ overflow:hidden }
           /* ── Chain-of-custody / audit modal ─────────────────────────── */
           .docs-coc-backdrop{
             display:flex;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:var(--s-6);
-            background:rgba(11,18,32,.46);backdrop-filter:blur(2px);
+            background:var(--overlay);backdrop-filter:blur(2px);
           }
           .docs-coc{
             background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-2xl);
             width:100%;max-width:760px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;
-            box-shadow:0 24px 60px rgba(11,18,32,.28), 0 2px 8px rgba(11,18,32,.12);
+            box-shadow:var(--shadow-xl);
           }
           .docs-coc-head{
             padding:18px 22px 16px;border-bottom:1px solid var(--border);
@@ -13207,9 +13229,9 @@ Evidence attached:
           <tr><th style="padding:var(--s-2) 6px;border-bottom:1px solid var(--border)">Driver</th><th style="padding:var(--s-2) 6px;border-bottom:1px solid var(--border)">Serial / ID</th><th style="padding:var(--s-2) 6px;border-bottom:1px solid var(--border)">Assigned</th><th style="padding:var(--s-2) 6px;border-bottom:1px solid var(--border)">Status</th></tr>
         </thead>
         <tbody id="asset-cat-rows">
-          <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Marcus Davidson</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04821</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Mar 12, 2025</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--green-soft);color:var(--green)">In use</span></td></tr>
-          <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Tasha Reyes</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04822</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Aug 4, 2025</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--green-soft);color:var(--green)">In use</span></td></tr>
-          <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Kerwin Whitfield</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04823</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">May 2, 2024</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--green-soft);color:var(--green)">In use</span></td></tr>
+          <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Marcus Davidson</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04821</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Mar 12, 2025</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill role-pill-active">In use</span></td></tr>
+          <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Tasha Reyes</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04822</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Aug 4, 2025</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill role-pill-active">In use</span></td></tr>
+          <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Kerwin Whitfield</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04823</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">May 2, 2024</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill role-pill-active">In use</span></td></tr>
           <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Jordan Beckett</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04824</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Nov 1, 2025</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--amber-soft);color:var(--amber)">Damaged</span></td></tr>
           <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-subtle);font-style:italic">Unassigned</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04825</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">—</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--canvas);color:var(--text-subtle)">In stock</span></td></tr>
         </tbody>
@@ -14419,7 +14441,7 @@ Evidence attached:
         <h2 class="detail-name" id="dr-name">Driver</h2>
         <div class="detail-meta" id="dr-meta">—</div>
         <div style="display:flex;gap:6px;margin-top:var(--s-2)">
-          <span class="role-pill" style="background:var(--green-soft);color:var(--green)">Active</span>
+          <span class="role-pill role-pill-active">Active</span>
           <span class="tag">KMO1</span>
           <span class="tag">18 mo tenure</span>
           <span class="tag">Top tier · 88</span>
@@ -14567,7 +14589,7 @@ Evidence attached:
             <div><div class="dr-pay-period">$18.00 / hr</div><div class="dr-pay-meta">Effective Apr 1, 2025 · cycle 14 review · +$0.50</div></div>
             <div></div>
             <div></div>
-            <div><span class="role-pill" style="background:var(--green-soft);color:var(--green)">Current</span></div>
+            <div><span class="role-pill role-pill-active">Current</span></div>
           </div>
           <div class="dr-pay-row">
             <div><div class="dr-pay-period">$17.50 / hr</div><div class="dr-pay-meta">Effective Sep 1, 2024 · 90-day raise</div></div>
@@ -15181,7 +15203,7 @@ John,Smith,555-0101,john@example.com</code>
 
       <div class="ai-modal-section" style="background:var(--amber-soft);border:1px solid var(--amber-border)">
         <div class="ai-modal-section-icon" style="background:var(--amber-soft);color:var(--amber-dark)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
-        <div class="ai-modal-section-body" style="color:#78350F">
+        <div class="ai-modal-section-body" style="color:var(--amber-dark)">
           <strong>2 items need your input</strong> — Saturday May 14 needs a driver for KMO3-19D (no qualified backup available). Friday May 13 has Davidson on a route that historically has issues for him (consider reassign).
         </div>
       </div>
