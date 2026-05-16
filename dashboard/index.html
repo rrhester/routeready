@@ -1692,7 +1692,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .rr-admin-empty{
   padding:var(--s-10) var(--s-5);text-align:center;
   display:flex;flex-direction:column;align-items:center;gap:var(--s-3);
-  background:linear-gradient(180deg, var(--canvas) 0%, rgba(244,246,251,.4) 100%);
+  background:var(--canvas);
   border-top:1px solid var(--border-subtle);
 }
 .rr-admin-empty[hidden]{display:none}
@@ -2624,7 +2624,7 @@ select.form-input{
 .subnav-item.active::after{
   content:"";position:absolute;left:var(--s-3);right:var(--s-3);bottom:3px;height:2px;
   background:var(--brand-grad);border-radius:2px;
-  box-shadow:0 1px 4px -1px rgba(99,102,241,.30);
+  box-shadow:0 1px 4px -1px rgba(99,102,241,.20);
 }
 
 .dr-subview{display:none}
@@ -6610,8 +6610,8 @@ body.rr-cmdk-open{ overflow:hidden }
 .cl-instance .cl-i-meta .due-overdue{color:var(--red);font-weight:600}
 .cl-instance .cl-i-meta .due-today{color:var(--amber-dark);font-weight:600}
 
-.cl-empty{padding:var(--s-6) var(--s-5);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
-.cl-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 4px}
+.cl-empty{padding:var(--s-8) var(--s-6);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
+.cl-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 var(--s-1);letter-spacing:-.005em}
 .cl-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin:0 auto;line-height:1.55;max-width:480px}
 
 .cl-bucket{margin-bottom:var(--s-5)}
@@ -6710,9 +6710,9 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-cb-root .cb-new-card{display:flex;align-items:center;justify-content:center;gap:var(--s-2);min-height:122px;background:transparent;border:1.5px dashed var(--border-strong);border-radius:var(--r-xl);color:var(--text-subtle);font-size:var(--fs-sm);font-weight:500;cursor:pointer;transition:border-color var(--t-fast),color var(--t-fast),background .12s}
 #rr-cb-root .cb-new-card:hover{border-color:var(--accent);color:var(--accent-text);background:var(--accent-soft)}
 #rr-cb-root .cb-new-card svg{width:16px;height:16px}
-#rr-cb-root .cb-empty{padding:var(--s-6) var(--s-5);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
-#rr-cb-root .cb-empty-icon{width:42px;height:42px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent-text);margin-bottom:var(--s-3)}
-#rr-cb-root .cb-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 4px}
+#rr-cb-root .cb-empty{padding:var(--s-8) var(--s-6);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
+#rr-cb-root .cb-empty-icon{width:42px;height:42px;border-radius:var(--r-lg);display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent-text);margin-bottom:var(--s-3)}
+#rr-cb-root .cb-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 var(--s-1);letter-spacing:-.005em}
 #rr-cb-root .cb-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin:0;line-height:1.55;max-width:460px;margin:0 auto var(--s-4)}
 
 /* Editor view */
@@ -6894,11 +6894,11 @@ body.rr-cmdk-open{ overflow:hidden }
 .rr-an-pinned-grid .rr-an-result{cursor:default}
 
 /* Empty state */
-.rr-an-empty{padding:var(--s-6) var(--s-5);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
-.rr-an-empty-icon{width:42px;height:42px;border-radius:var(--r-md);display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent-text);margin-bottom:var(--s-3)}
+.rr-an-empty{padding:var(--s-8) var(--s-6);text-align:center;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r-xl);color:var(--text-subtle)}
+.rr-an-empty-icon{width:42px;height:42px;border-radius:var(--r-lg);display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent-text);margin-bottom:var(--s-3)}
 .rr-an-empty-icon svg{width:20px;height:20px;stroke-width:2}
-.rr-an-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 4px}
-.rr-an-empty-sub{font-size:var(--fs-md);color:var(--text-subtle);margin:0;line-height:1.55;max-width:480px;margin:0 auto}
+.rr-an-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 var(--s-1);letter-spacing:-.005em}
+.rr-an-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin:0;line-height:1.55;max-width:480px;margin:0 auto}
 
 /* Date-range editor inline popover */
 .rr-an-range{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-subtle);cursor:pointer}
@@ -8320,15 +8320,17 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           @keyframes drShimmer{ to{ transform:translateX(100%); } }
 
-          /* Empty state */
-          .dr-empty{ padding:52px 28px;text-align:center; }
+          /* Empty state · same visual shape as .rr-empty + .cb-empty +
+             .rr-an-empty so an empty Drivers tab reads as the same
+             "no results" treatment as anywhere else in the app. */
+          .dr-empty{ padding:var(--s-8) var(--s-6);text-align:center; }
           .dr-empty .ic{
-            width:46px;height:46px;border-radius:12px;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;
-            color:var(--accent);background:var(--accent-soft);border:1px solid rgba(37,99,235,.16);
+            width:42px;height:42px;border-radius:var(--r-lg);margin:0 auto var(--s-3);display:flex;align-items:center;justify-content:center;
+            color:var(--accent-text);background:var(--accent-soft);border:1px solid var(--accent-border);
           }
-          .dr-empty .ic svg{ width:22px;height:22px; }
-          .dr-empty h3{ margin:0 0 4px;font-size:var(--fs-base);font-weight:700;color:var(--text); }
-          .dr-empty p{ margin:0 auto;max-width:380px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55; }
+          .dr-empty .ic svg{ width:20px;height:20px;stroke-width:2; }
+          .dr-empty h3{ margin:0 0 var(--s-1);font-size:var(--fs-base);font-weight:600;color:var(--text);letter-spacing:-.005em; }
+          .dr-empty p{ margin:0 auto;max-width:380px;font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.55; }
 
           /* A touch more breathing room + crisper hover across every
              table in the Drivers page (roster + licenses + attendance
