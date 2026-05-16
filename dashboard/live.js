@@ -57,8 +57,16 @@ function _isAuthError(err) {
   return /jwt|unauthor|expired|forbidden/.test(m);
 }
 window._rrForceRelogin = _forceRelogin;
-sb.auth.onAuthStateChange((event) => {
+// Forward the access token to the Realtime websocket so RLS-protected
+// tables (applicants, cal_events, …) actually deliver postgres_changes
+// to this client. supabase-js sets it on connect, but doesn't re-push
+// it when autoRefreshToken rotates the JWT — so an hour into a session
+// the channel goes silent and the operator has to F5 to see new state
+// like a freshly-completed screening video.
+sb.realtime.setAuth(session.access_token);
+sb.auth.onAuthStateChange((event, newSession) => {
   if (event === "SIGNED_OUT") _forceRelogin("session_expired");
+  if (newSession?.access_token) sb.realtime.setAuth(newSession.access_token);
 });
 
 const { data: profile, error: profileErr } = await sb.from("app_users")
@@ -11607,7 +11615,11 @@ async function saveCalAvailability() {
   const locDetail = card.querySelector("#cal-loc-detail").value.trim();
   const locations = [];
   if (locType === "link" && locDetail) {
-    locations.push({ type: "link", link: locDetail });
+    // Cal v2 rejects a link location without `public` — the validator
+    // surfaces as: "Validation failed for link location: link must be a
+    // URL address, public must be a boolean value". Default to true so
+    // applicants who book this event-type can see the join URL.
+    locations.push({ type: "link", link: locDetail, public: true });
   } else if (locType === "address" && locDetail) {
     locations.push({ type: "address", address: locDetail, public: true });
   }
