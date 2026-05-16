@@ -3288,7 +3288,8 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rules-sub > summary::after{content:"";display:inline-block;margin-left:auto;width:6px;height:6px;border-right:1.5px solid var(--text-subtle);border-bottom:1.5px solid var(--text-subtle);transform:rotate(45deg);transition:transform var(--t-smooth);flex-shrink:0;margin-right:2px}
 .rules-sub[open] > summary::after{transform:rotate(225deg);margin-bottom:-2px}
 .rules-sub-body{margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
-.rules-sub-badge{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--amber);background:rgba(245,158,11,.12);padding:1px 6px;border-radius:var(--r-sm);margin-left:6px}
+.rules-sub-badge{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--amber);background:var(--amber-soft);padding:1px 6px;border-radius:var(--r-sm);margin-left:6px}
+.rules-sub-badge.ok{color:var(--green);background:var(--green-soft)}
 .priority-pill-list{display:flex;gap:6px;flex-wrap:wrap;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
 .priority-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-sm);font-weight:500;color:var(--text);user-select:none}
 .priority-pill .priority-rank{font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);background:var(--surface);width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
@@ -3613,7 +3614,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background:var(--canvas);color:var(--text-muted);
 }
 .role-pill.owner{background:var(--accent-soft);color:var(--accent-text)}
-.role-pill.coach{background:var(--info-soft);color:#6D28D9}
+.role-pill.coach{background:var(--info-soft);color:var(--info-dark)}
+.role-pill-paid,
+.role-pill-active{background:var(--green-soft);color:var(--green-dark)}
 
 .question-row{
   display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
@@ -9041,7 +9044,7 @@ body.rr-cmdk-open{ overflow:hidden }
                   <summary class="rules-section-title">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><polyline points="9 12 11 14 15 10"/></svg>
                     Always enforced · system floor
-                    <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Locked</span>
+                    <span class="rules-sub-badge ok">Locked</span>
                   </summary>
                   <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
                     These guardrails apply to every DSP and aren't configurable. They protect against data corruption, payroll mistakes, and compliance violations. Open this section any time you want to see exactly what the schedule engine is doing behind the scenes.
@@ -9052,70 +9055,70 @@ body.rr-cmdk-open{ overflow:hidden }
                         <div class="rule-label">No double-booking</div>
                         <div class="rule-help">A driver can't hold two shifts on the same date in <code>scheduled</code>, <code>completed</code>, or <code>late</code> status.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">No past-date assignments</div>
                         <div class="rule-help">Cover and driver pickup only operate on shifts dated after today.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Expired driver's license blocks scheduling</div>
                         <div class="rule-help">Drivers whose DL expires on or before the shift date are skipped by Cover and pickup.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Service-type certifications</div>
                         <div class="rule-help">DOT-required service types need <code>dot_certified</code> drivers; XL-required service types need <code>xl_certified</code> drivers.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Approved time-off blocks scheduling</div>
                         <div class="rule-help">Cover, pickup, and swaps all skip drivers with an <code>approved</code> PTO request that overlaps the shift date.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Inactive drivers excluded</div>
                         <div class="rule-help">Only drivers with <code>status = active</code> appear in Cover or pickup eligibility.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Every shift edit audited</div>
                         <div class="rule-help">Driver, date, time, route, and status changes write an immutable row to <code>shift_changes</code> (visible in the Activity feed).</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Cross-DSP isolation</div>
                         <div class="rule-help">Row-level security scopes every schedule table to your DSP — no other tenant can read or write your data.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">Dispatcher-only writes</div>
                         <div class="rule-help">Creating, editing, and deleting shifts requires the dispatcher role. Drivers can only act on their own shifts via Cover/pickup/swap flows.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                     <div class="rule-row" style="padding:var(--s-2) 0;border:0">
                       <div>
                         <div class="rule-label">One pending offer per shift</div>
                         <div class="rule-help">Cover offers and swap requests can't pile up on the same shift — a unique constraint enforces single-pending.</div>
                       </div>
-                      <span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Always on</span>
+                      <span class="rules-sub-badge ok">Always on</span>
                     </div>
                   </div>
                 </details>
@@ -9647,9 +9650,9 @@ body.rr-cmdk-open{ overflow:hidden }
 
               <h4 style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-4) 0 8px 0">Recent invoices</h4>
               <div>
-                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Apr 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill" style="background:var(--green-soft);color:var(--green)">Paid</span><button class="btn btn-sm">Download</button></div>
-                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Mar 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill" style="background:var(--green-soft);color:var(--green)">Paid</span><button class="btn btn-sm">Download</button></div>
-                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Feb 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill" style="background:var(--green-soft);color:var(--green)">Paid</span><button class="btn btn-sm">Download</button></div>
+                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Apr 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill role-pill-paid">Paid</span><button class="btn btn-sm">Download</button></div>
+                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Mar 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill role-pill-paid">Paid</span><button class="btn btn-sm">Download</button></div>
+                <div class="invoice-row"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-weight:500">Feb 2026</span><span style="color:var(--text-muted)">$249.00</span><span class="role-pill role-pill-paid">Paid</span><button class="btn btn-sm">Download</button></div>
               </div>
 
               <h4 style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:var(--s-5) 0 8px 0">Payment method</h4>
@@ -10126,13 +10129,13 @@ body.rr-cmdk-open{ overflow:hidden }
             <div style="margin-bottom:var(--s-4)">
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-2)">Hard gates · skip a driver who fails any of these</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:var(--s-2)">
-                <div class="rule-row"><div><div class="rule-label">Driver status = active or onboarding</div><div class="rule-help">Inactive / on leave / terminated drivers never auto-fill.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Driver's license valid through the shift date</div><div class="rule-help">Drivers whose DL expires before the shift are skipped. Always enforced — see <a href="#" onclick="gotoSettingsScheduling();return false;">Settings → Scheduling</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">DOT certification — required for Step Van routes</div><div class="rule-help">A driver without <code>dot_certified</code> on their record cannot be auto-filled into a shift whose service type carries <code>requires_dot</code>. Step Vans is the seeded example. Set the flag in the driver record's DOT tab.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">XL certification — required for Extra-Large routes</div><div class="rule-help">A driver without <code>xl_certified</code> on their record cannot be auto-filled into a shift whose service type carries <code>requires_xl</code>. XL is the seeded example. Set the flag in the driver record's DOT tab (XL toggle).</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Driver hasn't already worked the max days this week</div><div class="rule-help">Cap from <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Max days per week</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Driver's saved availability includes this day-of-week</div><div class="rule-help">Bypass via the <em>Allow availability override</em> toggle in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings</a> for tight weeks.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Driver isn't on approved time-off for this date</div><div class="rule-help">Approved PTO blocks the auto-fill from picking the driver. Live data from time-off requests.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Driver status = active or onboarding</div><div class="rule-help">Inactive / on leave / terminated drivers never auto-fill.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Driver's license valid through the shift date</div><div class="rule-help">Drivers whose DL expires before the shift are skipped. Always enforced — see <a href="#" onclick="gotoSettingsScheduling();return false;">Settings → Scheduling</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">DOT certification — required for Step Van routes</div><div class="rule-help">A driver without <code>dot_certified</code> on their record cannot be auto-filled into a shift whose service type carries <code>requires_dot</code>. Step Vans is the seeded example. Set the flag in the driver record's DOT tab.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">XL certification — required for Extra-Large routes</div><div class="rule-help">A driver without <code>xl_certified</code> on their record cannot be auto-filled into a shift whose service type carries <code>requires_xl</code>. XL is the seeded example. Set the flag in the driver record's DOT tab (XL toggle).</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Driver hasn't already worked the max days this week</div><div class="rule-help">Cap from <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Max days per week</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Driver's saved availability includes this day-of-week</div><div class="rule-help">Bypass via the <em>Allow availability override</em> toggle in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings</a> for tight weeks.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Driver isn't on approved time-off for this date</div><div class="rule-help">Approved PTO blocks the auto-fill from picking the driver. Live data from time-off requests.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
               </div>
             </div>
 
@@ -10141,10 +10144,10 @@ body.rr-cmdk-open{ overflow:hidden }
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-2)">Tie-breakers · when multiple drivers qualify</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:var(--s-2)">
                 <div class="rule-row"><div><div class="rule-label">Driver priority list</div><div class="rule-help">Tier · tenure · attendance · fewest hours. Reordering UI lands in an upcoming release.</div></div><span class="rules-sub-badge">Preview</span></div>
-                <div class="rule-row"><div><div class="rule-label">Cushion %</div><div class="rule-help">Smart Fill staffs the OKAMI demand × (1 + cushion %). Edit in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Cushion</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Default block length (hours)</div><div class="rule-help">Per-shift duration. Edit in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Default block length</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Wave start times</div><div class="rule-help">Each shift's start time follows the active wave list in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Wave start times</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Active service types</div><div class="rule-help">Only the route categories you've activated in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Service types</a> are auto-filled.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Cushion %</div><div class="rule-help">Smart Fill staffs the OKAMI demand × (1 + cushion %). Edit in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Cushion</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Default block length (hours)</div><div class="rule-help">Per-shift duration. Edit in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Default block length</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Wave start times</div><div class="rule-help">Each shift's start time follows the active wave list in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Wave start times</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Active service types</div><div class="rule-help">Only the route categories you've activated in <a href="#" onclick="openSchedSettingsDrawer();return false;">Settings → Service types</a> are auto-filled.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
               </div>
             </div>
 
@@ -10152,7 +10155,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div style="margin-bottom:var(--s-4)">
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-2)">Working-hour limits · safety + compliance</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:var(--s-2)">
-                <div class="rule-row"><div><div class="rule-label">Max hours per driver per week</div><div class="rule-help">Hard cap. Default <strong>55h</strong>. Edit in <a href="#" onclick="gotoSettingsScheduling();return false;">Settings → Scheduling → Working hour limits</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Max hours per driver per week</div><div class="rule-help">Hard cap. Default <strong>55h</strong>. Edit in <a href="#" onclick="gotoSettingsScheduling();return false;">Settings → Scheduling → Working hour limits</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
                 <div class="rule-row"><div><div class="rule-label">Max consecutive working days · rolling</div><div class="rule-help">Default <strong>6 days</strong>. Walks back into the prior week.</div></div><span class="rules-sub-badge">Preview</span></div>
                 <div class="rule-row"><div><div class="rule-label">Minimum rest between shifts</div><div class="rule-help">Default <strong>10 hours</strong>.</div></div><span class="rules-sub-badge">Preview</span></div>
               </div>
@@ -10162,8 +10165,8 @@ body.rr-cmdk-open{ overflow:hidden }
             <div>
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-2)">Attendance &amp; check-in</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:var(--s-2)">
-                <div class="rule-row"><div><div class="rule-label">Attendance windows</div><div class="rule-help">Tardy / no-show grace times for check-in. <a href="#" onclick="gotoSettingsScheduling();return false;">Edit in Settings → Scheduling</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
-                <div class="rule-row"><div><div class="rule-label">Station geofence radius</div><div class="rule-help">Drivers can only check in inside the geofence. <a href="#" onclick="gotoSettingsScheduling();return false;">Edit in Settings → Scheduling</a>.</div></div><span class="rules-sub-badge" style="background:var(--green-soft);color:var(--green)">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Attendance windows</div><div class="rule-help">Tardy / no-show grace times for check-in. <a href="#" onclick="gotoSettingsScheduling();return false;">Edit in Settings → Scheduling</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
+                <div class="rule-row"><div><div class="rule-label">Station geofence radius</div><div class="rule-help">Drivers can only check in inside the geofence. <a href="#" onclick="gotoSettingsScheduling();return false;">Edit in Settings → Scheduling</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
               </div>
             </div>
           </div>
@@ -11635,7 +11638,7 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="subnav-item active" data-sub="workflows" onclick="goto('workspaces')">Workflows</button>
           <button class="subnav-item" data-sub="checklists" onclick="goto('checklists')">Checklists</button>
         </div>
-        <div id="rr-ws-root"><div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading workspaces</div></div>
+        <div id="rr-ws-root"><div class="rr-loading">Loading workspaces</div></div>
       </div>
     </div>
 
@@ -11732,20 +11735,20 @@ body.rr-cmdk-open{ overflow:hidden }
              loadChecklistInstances() in live.js. -->
         <div class="checklist-tab" id="checklist-tab-my">
           <div id="rr-cl-my-root">
-            <div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading checklists</div>
+            <div class="rr-loading">Loading checklists</div>
           </div>
         </div>
 
         <!-- TODAY'S STATUS — live operational rollup -->
         <div class="checklist-tab" id="checklist-tab-status" style="display:none">
           <div id="rr-cl-status-root">
-            <div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading status</div>
+            <div class="rr-loading">Loading status</div>
           </div>
         </div>
 
         <div class="checklist-tab" id="checklist-tab-templates" style="display:none">
           <div id="rr-cb-root">
-            <div class="rr-loading" style="padding:48px 20px;text-align:center;color:var(--text-subtle)">Loading templates</div>
+            <div class="rr-loading">Loading templates</div>
           </div>
         </div>
 
@@ -13213,9 +13216,9 @@ Evidence attached:
           <tr><th style="padding:var(--s-2) 6px;border-bottom:1px solid var(--border)">Driver</th><th style="padding:var(--s-2) 6px;border-bottom:1px solid var(--border)">Serial / ID</th><th style="padding:var(--s-2) 6px;border-bottom:1px solid var(--border)">Assigned</th><th style="padding:var(--s-2) 6px;border-bottom:1px solid var(--border)">Status</th></tr>
         </thead>
         <tbody id="asset-cat-rows">
-          <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Marcus Davidson</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04821</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Mar 12, 2025</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--green-soft);color:var(--green)">In use</span></td></tr>
-          <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Tasha Reyes</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04822</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Aug 4, 2025</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--green-soft);color:var(--green)">In use</span></td></tr>
-          <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Kerwin Whitfield</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04823</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">May 2, 2024</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--green-soft);color:var(--green)">In use</span></td></tr>
+          <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Marcus Davidson</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04821</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Mar 12, 2025</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill role-pill-active">In use</span></td></tr>
+          <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Tasha Reyes</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04822</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Aug 4, 2025</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill role-pill-active">In use</span></td></tr>
+          <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Kerwin Whitfield</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04823</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">May 2, 2024</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill role-pill-active">In use</span></td></tr>
           <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);font-weight:600">Jordan Beckett</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04824</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">Nov 1, 2025</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--amber-soft);color:var(--amber)">Damaged</span></td></tr>
           <tr><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-subtle);font-style:italic">Unassigned</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">A1-04825</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border);color:var(--text-muted)">—</td><td style="padding:var(--s-2-5) 6px;border-bottom:1px solid var(--border)"><span class="role-pill" style="background:var(--canvas);color:var(--text-subtle)">In stock</span></td></tr>
         </tbody>
@@ -14425,7 +14428,7 @@ Evidence attached:
         <h2 class="detail-name" id="dr-name">Driver</h2>
         <div class="detail-meta" id="dr-meta">—</div>
         <div style="display:flex;gap:6px;margin-top:var(--s-2)">
-          <span class="role-pill" style="background:var(--green-soft);color:var(--green)">Active</span>
+          <span class="role-pill role-pill-active">Active</span>
           <span class="tag">KMO1</span>
           <span class="tag">18 mo tenure</span>
           <span class="tag">Top tier · 88</span>
@@ -14573,7 +14576,7 @@ Evidence attached:
             <div><div class="dr-pay-period">$18.00 / hr</div><div class="dr-pay-meta">Effective Apr 1, 2025 · cycle 14 review · +$0.50</div></div>
             <div></div>
             <div></div>
-            <div><span class="role-pill" style="background:var(--green-soft);color:var(--green)">Current</span></div>
+            <div><span class="role-pill role-pill-active">Current</span></div>
           </div>
           <div class="dr-pay-row">
             <div><div class="dr-pay-period">$17.50 / hr</div><div class="dr-pay-meta">Effective Sep 1, 2024 · 90-day raise</div></div>
