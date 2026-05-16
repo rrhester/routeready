@@ -1123,6 +1123,53 @@ function renderLogin(errorMsg) {
     const lk = _loginState.lookup || {};
     const phoneHint = lk.phone_hint || "";
     const greet = `Welcome${lk.name ? `, ${lk.name}` : ""}`;
+
+    // Already-activated driver re-tapping the link from a new device
+    // (e.g., home-screen PWA after activating in Safari).  One tap to
+    // sign in — no PIN re-entry needed because the code itself is the
+    // credential for the rest of the 14-day window.
+    if (lk.already_activated) {
+      root.innerHTML = `
+        <div class="login-screen">
+          <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
+          <div style="text-align:center;margin-bottom:22px;margin-top:24px">
+            <div style="font-size:22px;font-weight:700;letter-spacing:-.02em">Welcome back${lk.name ? `, ${escapeHtml(lk.name)}` : ""}</div>
+            <div style="font-size:var(--fs-md);color:var(--text-subtle);margin-top:8px;line-height:1.55">Your driver profile is ready. Tap below to sign in on this device.</div>
+          </div>
+          <div class="form">
+            ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
+            <button class="btn btn-primary btn-block" type="button" id="rr-activate-resume" ${_loginState.busy ? "disabled" : ""}>${_loginState.busy ? "Signing in…" : "Sign in"}</button>
+            <div class="help" style="margin-top:14px;line-height:1.5">Forgot your PIN? Contact dispatch to send a fresh link.</div>
+          </div>
+        </div>`;
+      document.getElementById("rr-activate-resume").addEventListener("click", async () => {
+        _loginState.busy = true; _loginState.errorMsg = null; renderLogin();
+        const { data, error } = await sb.rpc("driver_activate", {
+          p_code: _loginState.code,
+          p_phone: "",
+          p_pin: "",
+          p_user_agent: navigator.userAgent || null,
+        });
+        if (error || !data?.token) {
+          _loginState.busy = false;
+          const m = error?.message || "";
+          _loginState.errorMsg =
+            m.includes("invalid_or_expired_code") ? "This link has expired. Ask dispatch for a new one." :
+            m.includes("driver_inactive")         ? "This profile isn't active. Contact dispatch." :
+            "Couldn't sign you in. Try again.";
+          renderLogin();
+          return;
+        }
+        _writeLastPhone(data.driver?.phone_normalized || "");
+        const sess = _commitSession(data);
+        try { history.replaceState({}, "", location.pathname); } catch {}
+        _loginState = null;
+        toast(`Welcome, ${data.driver?.name || "driver"}`, "ok");
+        navigate(sess.status === "onboarding" ? "/tasks/onboarding" : "/profile");
+      });
+      return;
+    }
+
     root.innerHTML = `
       <div class="login-screen">
         <div class="brand"><div class="brand-icon"><img src="Icon.png" alt="RouteReady"></div></div>
