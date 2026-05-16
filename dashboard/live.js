@@ -6621,6 +6621,7 @@ document.addEventListener("click", async (e) => {
   if (!shiftId || !newStatus) return;
 
   const row = btn.closest(".checkin-row");
+  _markLocalShiftMutation();
   const { error } = await sb.from("shifts").update({ status: newStatus }).eq("id", shiftId);
   if (error) { toast("Save failed: " + error.message, "warn"); return; }
 
@@ -20145,6 +20146,7 @@ function bindOkamiHandlers() {
         // debounce window) regenerates from stale demand.
         await flushOkamiDailyPending();
         _setOkamiSaveStatus("Building shifts…");
+        _markLocalShiftMutation();
         const { error: regenErr } = await sb.rpc("regenerate_week_shifts", { p_week_start: ws });
         if (regenErr) throw regenErr;
 
@@ -20879,6 +20881,7 @@ document.addEventListener("click", async (e) => {
     if (upErr) { failed = upErr.message; }
 
     if (!failed) {
+      _markLocalShiftMutation();
       const { error: regenErr } = await sb.rpc("regenerate_week_shifts", { p_week_start: ws });
       if (regenErr) { failed = regenErr.message; }
     }
@@ -21484,7 +21487,16 @@ function _calSkeletonHtml(n = 8) {
   return `<div class="cal-skel">${Array.from({ length: n }, () => row).join("")}</div>`;
 }
 
+// One-shot guard: the function strips the static mockup HTML that
+// ships with the page and replaces it with a loading skeleton.  After
+// the first successful render the grid is owned by renderScheduleWeek
+// and re-running this on every refresh causes a visible blank-out
+// flash (the skeleton briefly replacing the real grid).  Once cleared,
+// subsequent loadScheduleView() calls let renderScheduleWeek's own
+// strip-and-repaint handle the swap atomically — no flash.
+let _mockupCleared = false;
 function _clearScheduleMockup() {
+  if (_mockupCleared) return;
   // Neutralize the mockup OKAMI day-shifts injector — it runs 50ms after
   // view switch and stamps 'ø XX shifts' onto every cell head, undoing
   // our live render.
@@ -21512,6 +21524,7 @@ function _clearScheduleMockup() {
   // Remove the dynamically-injected mockup license banner if present.
   const lic = document.getElementById("sched-license-banner");
   if (lic) lic.remove();
+  _mockupCleared = true;
 }
 
 // Override the mockup AI-schedule modal — replace with a real auto-fill that
@@ -21539,6 +21552,7 @@ async function autoFillScheduleWeek() {
   }
   if (dateStations.size === 0) { toast("No OKAMI demand for this week", "warn"); return; }
 
+  _markLocalShiftMutation();
   const calls = Array.from(dateStations.values()).map(d =>
     sb.rpc("generate_shifts_for_date", { p_date: d.date, p_station_id: d.station_id })
   );
@@ -21851,6 +21865,7 @@ async function autoAssignDriversForWeek() {
 
   let assigned = 0;
   for (const [shiftId, driverId] of plan.assignments) {
+    _markLocalShiftMutation();
     const { error } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: driverId });
     if (!error) assigned += 1;
   }
@@ -22008,6 +22023,7 @@ async function openShiftEditModal(shiftId) {
 
     if (e.target.closest("[data-rr-shift-edit-remove]")) {
       if (!confirm("Remove this shift?")) return;
+      _markLocalShiftMutation();
       const { error: delErr } = await sb.from("shifts").delete().eq("id", shiftId);
       if (delErr) { toast("Delete failed: " + delErr.message, "warn"); return; }
       toast("Shift removed", "success");
@@ -23421,6 +23437,7 @@ async function assignShiftToDriverWithRules(shiftId, shiftDate, driverId, cell) 
     const msg = "Rule violations:\n\n• " + violations.join("\n• ") + "\n\nSchedule anyway?";
     if (!confirm(msg)) return;
   }
+  _markLocalShiftMutation();
   const { error } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: driverId });
   if (error) { toast("Assign failed: " + error.message, "warn"); return; }
   toast(violations.length > 0 ? "Assigned (override)" : "Shift assigned", "success");
@@ -23463,6 +23480,7 @@ async function materializeVirtualShiftToDriver(payload, driverId, cell) {
     ends_at:   endsAt.toISOString(),
     source: "manual",
   };
+  _markLocalShiftMutation();
   const { error } = await sb.rpc("create_shift", { p_payload: insertPayload });
   if (error) { toast("Create + assign failed: " + error.message, "warn"); return; }
   toast(violations.length > 0 ? "Created (override)" : "Shift created and assigned", "success");
@@ -23503,6 +23521,7 @@ function openAddShiftModal(date, stationId, prefDriverId) {
         route_code: document.getElementById("rr-sh-route").value.trim() || null,
       };
       if (!_confirmLiveScheduleEdit()) return;
+      _markLocalShiftMutation();
       const { error } = await sb.rpc("create_shift", { p_payload: payload });
       if (error) { toast("Save failed: " + error.message, "warn"); return; }
       m.remove();
@@ -23545,6 +23564,7 @@ function openAssignShiftModal(shiftId) {
     if (e.target.closest("[data-rr-as-save]")) {
       if (!_confirmLiveScheduleEdit()) return;
       const did = document.getElementById("rr-as-driver").value;
+      _markLocalShiftMutation();
       const { error } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: did });
       if (error) { toast("Assign failed: " + error.message, "warn"); return; }
       m.remove();
@@ -24025,6 +24045,7 @@ function _coverCandidateRow(c) {
 async function _coverSendOffer(driverId, btn) {
   if (!_coverState) return;
   if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+  _markLocalShiftMutation();
   const { data, error } = await sb.rpc("cover_shift_offer", {
     p_shift_id: _coverState.shiftId, p_driver_id: driverId, p_expires_minutes: 15,
   });
@@ -24082,6 +24103,7 @@ function _coverStartTimer() {
 
 async function _coverCancelOffer() {
   if (!_coverState?.offerId) return;
+  _markLocalShiftMutation();
   const { error } = await sb.rpc("cover_shift_cancel", { p_offer_id: _coverState.offerId });
   if (error) { toast(error.message || "Couldn't cancel offer", "warn"); return; }
   _coverHandleOutcome("cancelled");
@@ -24763,6 +24785,7 @@ document.addEventListener("drop", async (e) => {
   if (toDriver !== fromDriver) patch.driver_id = toDriver;
   if (toDate   !== fromDate)   patch.date      = toDate;
 
+  _markLocalShiftMutation();
   const { error } = await sb.from("shifts").update(patch).eq("id", shiftId);
   if (error) {
     toast("Couldn't move shift: " + (error.message || "unknown"), "warn");
@@ -24778,6 +24801,23 @@ document.addEventListener("drop", async (e) => {
 
 let _schedRealtimeChannel = null;
 let _schedRealtimeTimer   = null;
+// When the dispatcher edits a shift, the optimistic update lands
+// instantly.  ~400-800ms later the same change echoes back via
+// postgres_changes and the realtime tick rebuilds the whole grid —
+// visible as a hard flicker right after every drag, assign, or
+// cover.  Bump this timestamp whenever the LOCAL dispatcher mutates
+// anything shift-shaped; the realtime tick checks it and skips
+// the heavy loadScheduleView rebuild if a local mutation happened
+// in the last 4 seconds.  loadCoverageRadar + loadOpenShifts still
+// run on every tick (they're lightweight and reconcile any
+// optimistic-update drift), and after the suppression window other
+// dispatchers' changes flow through normally.
+let _lastLocalShiftMutationAt = 0;
+function _markLocalShiftMutation() {
+  _lastLocalShiftMutationAt = Date.now();
+}
+const _LOCAL_SHIFT_ECHO_SUPPRESS_MS = 4000;
+
 function _schedRealtimeStart() {
   if (_schedRealtimeChannel || typeof sb.channel !== "function") return;
   const dspId = window.RR?.dsp?.id;
@@ -24792,7 +24832,11 @@ function _schedRealtimeStart() {
       // visible sub-tab to avoid wasted work.
       if (typeof loadOpenShifts === "function") loadOpenShifts();
       const weekSub = document.getElementById("sched-sub-week");
-      if (weekSub?.classList.contains("active") && typeof loadScheduleView === "function") {
+      const sinceLocal = Date.now() - _lastLocalShiftMutationAt;
+      const isLikelyEcho = sinceLocal < _LOCAL_SHIFT_ECHO_SUPPRESS_MS;
+      if (weekSub?.classList.contains("active")
+          && typeof loadScheduleView === "function"
+          && !isLikelyEcho) {
         loadScheduleView();
       }
     }, 500);
