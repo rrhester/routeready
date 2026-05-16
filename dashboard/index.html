@@ -5970,7 +5970,7 @@ body.rr-cmdk-open{ overflow:hidden }
    ───────────────────────────────────────────────────────────── */
 .build-hero{
   background:var(--brand-grad-dark);
-  color:#fff;border-radius:var(--r-lg);padding:36px 40px;
+  color:var(--text-inverse);border-radius:var(--r-lg);padding:var(--s-8) var(--s-10);
   display:grid;grid-template-columns:1fr auto;gap:var(--s-5);align-items:center;
   margin-bottom:var(--s-5);position:relative;overflow:hidden;
 }
@@ -5979,19 +5979,19 @@ body.rr-cmdk-open{ overflow:hidden }
   background:radial-gradient(circle,rgba(255,255,255,.08) 0%,transparent 70%);pointer-events:none;
 }
 .build-hero-eyebrow{
-  font-size:var(--fs-xs);font-weight:700;letter-spacing:.16em;text-transform:uppercase;
-  color:rgba(255,255,255,.6);margin-bottom:10px;
-  display:inline-flex;align-items:center;gap:6px;
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(255,255,255,.6);margin-bottom:var(--s-2-5);
+  display:inline-flex;align-items:center;gap:var(--s-1);
 }
 .build-hero-eyebrow svg{width:11px;height:11px}
-.build-hero-headline{font-size:30px;font-weight:700;letter-spacing:-.025em;line-height:1.1;margin:0 0 10px 0;color:#fff}
-.build-hero-sub{font-size:var(--fs-base);line-height:1.6;color:rgba(255,255,255,.78);max-width:560px;margin:0 0 14px 0}
+.build-hero-headline{font-size:30px;font-weight:700;letter-spacing:-.025em;line-height:1.1;margin:0 0 var(--s-2-5) 0;color:var(--text-inverse)}
+.build-hero-sub{font-size:var(--fs-base);line-height:1.6;color:rgba(255,255,255,.78);max-width:560px;margin:0 0 var(--s-3-5) 0}
 .build-hero-tagline{
   display:inline-flex;align-items:center;gap:var(--s-2);
-  font-size:var(--fs-sm);font-weight:600;color:#FCD34D;letter-spacing:.01em;
+  font-size:var(--fs-sm);font-weight:600;color:var(--amber-bright);letter-spacing:.01em;
 }
 .build-hero-cta{
-  background:#fff;color:var(--text);padding:11px 20px;border-radius:var(--r-lg);
+  background:var(--surface);color:var(--text);padding:var(--s-2-5) var(--s-5);border-radius:var(--r-lg);
   font-size:var(--fs-md);font-weight:700;border:none;cursor:pointer;
   display:inline-flex;align-items:center;gap:var(--s-2);font-family:inherit;
   position:relative;z-index:1;
@@ -8525,18 +8525,18 @@ body.rr-cmdk-open{ overflow:hidden }
           .att-pane{display:none}
           .att-pane.active{display:block}
 
-          .att-status-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+          .att-status-pill{display:inline-flex;align-items:center;gap:var(--s-1);padding:3px var(--s-2-5);border-radius:999px;font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
           .att-status-pill.good{background:var(--green-soft);color:var(--green)}
-          .att-status-pill.verbal{background:var(--amber-bright)22;color:#A16207}
-          .att-status-pill.written{background:var(--amber-soft);color:var(--amber)}
-          .att-status-pill.final{background:#F97316;color:#fff}
-          .att-status-pill.term{background:var(--red);color:#fff}
+          .att-status-pill.verbal{background:var(--amber-soft);color:var(--amber-dark)}
+          .att-status-pill.written{background:var(--amber-soft-strong);color:var(--amber-dark)}
+          .att-status-pill.final{background:var(--red-soft-strong);color:var(--red-dark)}
+          .att-status-pill.term{background:var(--red);color:var(--text-inverse)}
 
-          .att-event-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+          .att-event-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:var(--s-1);vertical-align:middle}
           .att-event-dot.callout{background:var(--amber)}
           .att-event-dot.noshow{background:var(--red)}
           .att-event-dot.late{background:var(--amber-bright)}
-          .att-event-dot.earlyout{background:#A78BFA}
+          .att-event-dot.earlyout{background:var(--violet-bright)}
           .att-event-dot.present{background:var(--green)}
           .att-event-dot.vto{background:var(--sky)}
 
