@@ -22213,7 +22213,7 @@ async function autoAssignDriversForWeek() {
       .lte("start_date", weekEndIso)
       .gte("end_date", _schedStart),
     sb.from("shifts")
-      .select("id, date, station_id, driver_id, status, starts_at, ends_at, is_cushion, service_type_id")
+      .select("id, date, station_id, driver_id, status, starts_at, ends_at, is_cushion, service_type_id, shift_kind")
       .eq("dsp_id", dspId)
       .gte("date", _schedStart)
       .lte("date", weekEndIso),
@@ -22242,7 +22242,15 @@ async function autoAssignDriversForWeek() {
     if (cert.requires_xl  && !driver.xl_certified)  return false;
     return true;
   };
-  let   shifts  = shiftsRes.data  || [];
+  // Smart Fill only touches *regular* route-staffing shifts. Training
+  // (Day 1+2 station) and ride-along (Day 3 with a trainer) shifts are
+  // owned by activate_driver_with_pairing — re-assigning them here
+  // would either steal a route driver onto classroom training or break
+  // the trainer/trainee pairing. We still load them above so the
+  // per-driver "already booked this date" map below counts them
+  // toward the same-day double-book check.
+  const allShiftsForDateLookup = shiftsRes.data || [];
+  let   shifts = allShiftsForDateLookup.filter(sh => (sh.shift_kind || "regular") === "regular");
 
   // Per-(driver, date) effective availability — picks the latest
   // approved availability request whose effective_from <= shift_date,
@@ -22325,10 +22333,12 @@ async function autoAssignDriversForWeek() {
 
   const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
-  // Per-driver: dates already booked (so we don't double-assign one driver
-  // to two shifts on the same day).
+  // Per-driver: dates already booked (so we don't double-assign one
+  // driver to two shifts on the same day). Counts training + ride-along
+  // too so a trainee in class on Mon doesn't get auto-stuffed onto a
+  // route the same day.
   const driverShiftDates = new Map();
-  for (const sh of shifts) {
+  for (const sh of allShiftsForDateLookup) {
     if (!sh.driver_id) continue;
     if (!driverShiftDates.has(sh.driver_id)) driverShiftDates.set(sh.driver_id, new Set());
     driverShiftDates.get(sh.driver_id).add(sh.date);
