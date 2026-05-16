@@ -22387,21 +22387,40 @@ async function renderScheduleWeek() {
   const ptoOn = (driverId, iso) => (ptoByDriver.get(driverId) || []).some(t => iso >= t.start_date && iso <= t.end_date);
 
   // Coverage rolled up by date.
-  // Denominator = shifts in the table for the day (scheduled +
-  // completed, base + cushion). Filled = shifts that are either
-  // already done (completed) or currently assigned to a visible
-  // active driver. Past days with completed shifts read 100% as the
-  // operator expects; future days work as before.
+  // Denominator = okami_demand.target_routes for the day (the route
+  // plan set in Route planning). The plan is stable; manually-adding
+  // a shift in the schedule must NOT shift the denominator (operator:
+  // "if the plan is 9 shifts and 8 are filled, you when add a shift
+  // it would be 9 planned and 9 filled. Currently its adding 1 to
+  // the plan"). Falls back to "count of shifts in the table" for any
+  // day with no plan recorded, so empty calendars still read sensibly.
+  // Filled = shifts already completed OR currently assigned to a
+  // visible active driver.
+  const plannedByDate = new Map();
+  for (const cell of (grid.coverage || [])) {
+    plannedByDate.set(cell.date, (plannedByDate.get(cell.date) || 0) + (cell.needed || 0));
+  }
   const coverageByDate = new Map();
   for (const sh of (grid.shifts || [])) {
     if (!["scheduled", "completed"].includes(sh.status)) continue;
-    const a = coverageByDate.get(sh.date) || { needed: 0, filled: 0 };
-    a.needed += 1;
+    const a = coverageByDate.get(sh.date) || { needed: 0, filled: 0, _shifts: 0 };
+    a._shifts += 1;
     const isFilled =
       sh.status === "completed" ||
       (sh.driver_id && visibleDriverIds.has(sh.driver_id));
     if (isFilled) a.filled += 1;
     coverageByDate.set(sh.date, a);
+  }
+  // Apply plan-based denominator; fall back to shift count for days
+  // that have no okami_demand row at all.
+  for (const [date, a] of coverageByDate) {
+    a.needed = plannedByDate.has(date) ? plannedByDate.get(date) : a._shifts;
+  }
+  // Days with a plan but no shifts yet need a cell too (0 / plan).
+  for (const [date, planned] of plannedByDate) {
+    if (!coverageByDate.has(date)) {
+      coverageByDate.set(date, { needed: planned, filled: 0 });
+    }
   }
   let totalNeeded = 0, totalFilled = 0;
   for (const a of coverageByDate.values()) { totalNeeded += a.needed; totalFilled += a.filled; }
@@ -23629,6 +23648,16 @@ function openAddShiftModal(date, stationId, prefDriverId) {
         <option value="rescue">Rescue</option>
         <option value="other">Other</option>
       </select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-2);margin-bottom:10px">
+        <div>
+          <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Start time</label>
+          <input type="time" id="rr-sh-start" class="form-input" style="width:100%" value="07:00"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">End time</label>
+          <input type="time" id="rr-sh-end" class="form-input" style="width:100%" value="17:00"/>
+        </div>
+      </div>
       <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Route</label>
       <input id="rr-sh-route" class="form-input" style="width:100%;margin-bottom:14px" placeholder="e.g. KMO1-14B"/>
       <div style="display:flex;gap:var(--s-2);justify-content:flex-end">
@@ -23640,12 +23669,24 @@ function openAddShiftModal(date, stationId, prefDriverId) {
   m.addEventListener("click", async (e) => {
     if (e.target.closest("[data-rr-sh-cancel]") || e.target === m) { m.remove(); return; }
     if (e.target.closest("[data-rr-sh-save]")) {
+      const date  = document.getElementById("rr-sh-date").value;
+      const start = document.getElementById("rr-sh-start").value;
+      const end   = document.getElementById("rr-sh-end").value;
+      // Date + HH:MM produces a local-time ISO; the browser converts to
+      // UTC via toISOString. Operators run a per-DSP timezone but the
+      // shifts table stores UTC, so this round-trip is correct: enter
+      // "07:00" in your local zone, see it back as your local "07:00".
+      let startsAtIso = null, endsAtIso = null;
+      if (date && start) startsAtIso = new Date(`${date}T${start}:00`).toISOString();
+      if (date && end)   endsAtIso   = new Date(`${date}T${end}:00`).toISOString();
       const payload = {
-        date: document.getElementById("rr-sh-date").value,
+        date,
         station_id: stationId,
         driver_id: document.getElementById("rr-sh-driver").value || null,
         route_code: document.getElementById("rr-sh-route").value.trim() || null,
         shift_kind: document.getElementById("rr-sh-kind").value || "regular",
+        starts_at: startsAtIso,
+        ends_at:   endsAtIso,
       };
       if (!_confirmLiveScheduleEdit()) return;
       _markLocalShiftMutation();
