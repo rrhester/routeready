@@ -13066,10 +13066,11 @@ async function renderEmploymentTab(body, d) {
       <div class="dd-row" style="grid-template-columns:1fr;gap:var(--s-2-5)">
         <div>
           <div style="display:flex;gap:var(--s-2-5);flex-wrap:wrap">
-            <button type="button" class="btn btn-primary btn-sm" data-rr-send-invite>Send activation link</button>
+            <button type="button" class="btn btn-primary btn-sm" data-rr-send-invite="sms" ${d.phone ? "" : "disabled title=\"No phone on file\""}>Text the link</button>
+            <button type="button" class="btn btn-primary btn-sm" data-rr-send-invite="email" ${d.email ? "" : "disabled title=\"No email on file\""}>Email the link</button>
             <button type="button" class="btn btn-sm" data-rr-issue-invite>Just mint a code</button>
           </div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4">Activation link uses the welcome SMS/email and pre-fills the code in the app. One active code at a time · expires in 14 days.</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4">Sends the welcome message with a tap-to-activate link and a pre-filled code. One active code at a time · expires in 14 days.</div>
           <div data-rr-invite-display style="margin-top:10px;display:none"></div>
         </div>
       </div>
@@ -17134,8 +17135,9 @@ document.addEventListener("click", async (e) => {
     const driverId = _ddDriver?.driver?.id;
     if (!driverId) { toast("Save the driver first, then send the activation link", "warn"); return; }
     const btn = e.target.closest("[data-rr-send-invite]");
+    const channel = btn.getAttribute("data-rr-send-invite") || null;
     btn.disabled = true; const prev = btn.textContent; btn.textContent = "Sending…";
-    const { data, error } = await sb.rpc("send_onboarding_invite", { p_driver_id: driverId });
+    const { data, error } = await sb.rpc("send_onboarding_invite", { p_driver_id: driverId, p_channel: channel });
     btn.disabled = false; btn.textContent = prev;
     if (error) { toast("Send failed: " + error.message, "warn"); return; }
     const channel = data?.message_channel;

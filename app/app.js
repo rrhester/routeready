@@ -1217,6 +1217,7 @@ function renderLogin(errorMsg) {
         </div>
         <form class="form" id="rr-signin-form">
           ${_loginState.errorMsg ? `<div class="err">${escapeHtml(_loginState.errorMsg)}</div>` : ""}
+          ${_loginState.infoMsg ? `<div style="background:rgba(37,99,235,.08);color:var(--accent);font-size:var(--fs-md);padding:var(--s-2-5) var(--s-3-5);border-radius:8px;text-align:center;margin-bottom:12px;line-height:1.45">${escapeHtml(_loginState.infoMsg)}</div>` : ""}
           <label class="field-label">Mobile number</label>
           <input class="field" id="rr-signin-phone" type="tel" inputmode="tel" autocomplete="tel" autocapitalize="off" maxlength="20" placeholder="(555) 123-4567" style="letter-spacing:0;text-align:left;text-transform:none" value="${escapeHtml(_formatPhone(_loginState.phoneInput || ""))}" />
 
@@ -1226,7 +1227,8 @@ function renderLogin(errorMsg) {
           <div style="margin-top:20px">
             <button class="btn btn-primary btn-block" type="submit" ${_loginState.busy ? "disabled" : ""}>${_loginState.busy ? "Signing in…" : "Sign in"}</button>
           </div>
-          <div style="text-align:center;margin-top:14px">
+          <div style="text-align:center;margin-top:14px;display:flex;flex-direction:column;gap:8px">
+            <button type="button" class="btn" id="rr-signin-send-link" style="background:transparent;border:0;color:var(--accent);font-size:var(--fs-sm);font-weight:600">First time, or forgot your PIN? Send me a link</button>
             <button type="button" class="btn" id="rr-signin-have-code" style="background:transparent;border:0;color:var(--text-subtle);font-size:var(--fs-sm)">I have an activation code</button>
           </div>
         </form>
@@ -1240,6 +1242,33 @@ function renderLogin(errorMsg) {
       _loginState = { mode: "code-entry", codeInput: "", errorMsg: null, busy: false };
       renderLogin();
     });
+    document.getElementById("rr-signin-send-link").addEventListener("click", async () => {
+      const phone = document.getElementById("rr-signin-phone").value.trim();
+      const phoneDigits = phone.replace(/\D/g, "");
+      if (phoneDigits.length < 10) {
+        _loginState.phoneInput = phone;
+        _loginState.errorMsg = "Enter your mobile number and we'll send you a fresh activation link.";
+        renderLogin();
+        return;
+      }
+      _loginState.phoneInput = phone; _loginState.busy = true; _loginState.errorMsg = null; _loginState.infoMsg = null; renderLogin();
+      const { data, error } = await sb.rpc("driver_request_activation", { p_phone: phoneDigits, p_channel: null });
+      _loginState.busy = false;
+      if (error) {
+        _loginState.errorMsg = "Couldn't send a link. Try again or contact dispatch.";
+        renderLogin();
+        return;
+      }
+      // Always positive — server obfuscates whether the phone matched
+      // so we can't enumerate.  If `channel` came back populated, the
+      // link really was queued and we can show the masked destination.
+      const sentTo = data?.sent_to;
+      const channel = data?.channel;
+      _loginState.infoMsg = channel
+        ? `We just ${channel === "email" ? "emailed" : "texted"} a link${sentTo ? ` to ${sentTo}` : ""}. Tap it to activate, then come back here.`
+        : "If your number is on file, we just sent you a link. Tap it to activate, then come back here.";
+      renderLogin();
+    });
     document.getElementById("rr-signin-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const phone = document.getElementById("rr-signin-phone").value.trim();
@@ -1248,7 +1277,7 @@ function renderLogin(errorMsg) {
       const phoneDigits = phone.replace(/\D/g, "");
       if (phoneDigits.length < 10) { _loginState.errorMsg = "Enter your mobile number."; renderLogin(); return; }
       if (pin.length < 4) { _loginState.errorMsg = "Enter your PIN."; renderLogin(); return; }
-      _loginState.busy = true; _loginState.errorMsg = null; renderLogin();
+      _loginState.busy = true; _loginState.errorMsg = null; _loginState.infoMsg = null; renderLogin();
       const { data, error } = await sb.rpc("driver_signin_with_phone", {
         p_phone: phoneDigits,
         p_pin: pin,
