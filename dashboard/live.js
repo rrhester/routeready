@@ -22612,7 +22612,19 @@ function _renderShiftChangeRow(c) {
   return `<div style="padding:6px 0;border-top:1px solid var(--border)"><div style="color:var(--text)">${summary}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:2px">${escapeHtml(when)} · ${who}</div></div>`;
 }
 
-function _schedShiftChip(sh) {
+function _schedShiftChip(sh, extras) {
+  // Training (Day 1+2 at the station) and ride-along (Day 3 shadowing a
+  // trainer) shifts get their own visual treatment so the operator can
+  // tell at a glance which days are onboarding scaffolding vs actual
+  // route coverage. They're inserted by activate_driver_with_pairing
+  // when the operator activates a new hire — see migration 0264.
+  if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") {
+    const label = sh.shift_kind === "training" ? "Training" : "Ride-along";
+    const sub = sh.shift_kind === "ride_along" && sh.trainer_name
+      ? `with ${escapeHtml(sh.trainer_name.split(/\s+/)[0])}`
+      : ((sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "");
+    return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="background:var(--accent-soft);border-color:var(--accent-soft);color:var(--accent-text);cursor:default" title="${label}${sh.shift_kind === 'ride_along' && sh.trainer_name ? ' with ' + escapeHtml(sh.trainer_name) : ''} — onboarding shift, not route coverage"><div class="shift-chip-route">${label}</div>${sub ? `<div class="shift-chip-time">${sub}</div>` : ""}</div>`;
+  }
   const r = sh.route_code ? escapeHtml(sh.route_code) : (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift");
   const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
   const ex = sh.is_cushion
@@ -22626,8 +22638,14 @@ function _schedShiftChip(sh) {
   const stBadge = (stCode && stCode !== "SP")
     ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
     : "";
+  // Trainee badge — when a ride-along shift exists on the same date with
+  // trainer_driver_id pointing at this driver, surface it so the trainer
+  // (Charlie) can see at a glance who's riding along with him.
+  const traineeBadge = extras?.traineeName
+    ? `<span title="${escapeHtml(extras.traineeName)} is riding along" style="display:inline-flex;align-items:center;gap:3px;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em">+ ${escapeHtml(extras.traineeName.split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</span>`
+    : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
-  return `<div class="shift-chip" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove"><div class="shift-chip-route">${r}${ex}${stBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
+  return `<div class="shift-chip" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove"><div class="shift-chip-route">${r}${ex}${stBadge}${traineeBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -22692,6 +22710,26 @@ async function renderScheduleWeek() {
   const openShiftsByDate = new Map();
   const hoursPerDriver = new Map(); // driver_id -> total HOURS this week
   const shiftCountPerDriver = new Map(); // driver_id -> shift count (for least-loaded sort)
+  // (trainer_driver_id|date) -> trainee_name, for the "+ initials" badge
+  // we paint onto the trainer's regular shift chip on a ride-along day.
+  const traineeByTrainerDate = new Map();
+  // driver_name lookup by id (so a ride_along shift with trainer_driver_id
+  // can resolve to "trainee name" — driver_name on the row is the trainee).
+  const driverNameById = new Map();
+  for (const sh of (grid.shifts || [])) {
+    if (sh.driver_id && sh.driver_name) driverNameById.set(sh.driver_id, sh.driver_name);
+  }
+  for (const sh of (grid.shifts || [])) {
+    if (sh.shift_kind !== "ride_along") continue;
+    if (!sh.trainer_driver_id || !sh.date) continue;
+    if (!["scheduled", "completed"].includes(sh.status)) continue;
+    const k = `${sh.trainer_driver_id}|${sh.date}`;
+    // First trainee wins — multiple trainees on one trainer + day is a
+    // pairing conflict the operator will already see via orphaned_ride_alongs.
+    if (!traineeByTrainerDate.has(k)) {
+      traineeByTrainerDate.set(k, sh.driver_name || driverNameById.get(sh.driver_id) || "Trainee");
+    }
+  }
   const _shiftHours = (sh) => {
     if (sh.starts_at && sh.ends_at) {
       const h = (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000;
@@ -23137,7 +23175,8 @@ async function renderScheduleWeek() {
       const rel = isPref ? ' style="position:relative"' : "";
       if (!busy)
         return `<div class="${cls}"${rel} ${data}>${star}<div class="shift-chip off">Off</div></div>`;
-      const chips = list.map(_schedShiftChip).join("");
+      const traineeName = traineeByTrainerDate.get(`${d.id}|${iso}`) || null;
+      const chips = list.map(sh => _schedShiftChip(sh, sh.shift_kind === "regular" && traineeName ? { traineeName } : null)).join("");
       return `<div class="${cls}"${rel} ${data}>${star}${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
