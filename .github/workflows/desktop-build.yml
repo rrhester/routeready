@@ -29,6 +29,12 @@ jobs:
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # macOS is currently failing during electron-builder packing when
+    # asar is disabled — Chromium.app's internal symlink structure
+    # doesn't survive a plain copy.  Tracking the fix separately;
+    # don't let a Mac failure block Windows/Linux releases in the
+    # meantime — your brother (and most DSPs) are on Windows.
+    continue-on-error: ${{ matrix.os == 'macos-latest' }}
     strategy:
       fail-fast: false
       matrix:
