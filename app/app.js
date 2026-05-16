@@ -5553,6 +5553,13 @@ async function renderTimeOff() {
         <label class="field-label" for="to-reason">Reason <span style="color:var(--text-subtle);font-weight:400">(optional)</span></label>
         <textarea class="field" id="to-reason" rows="3" maxlength="500" placeholder="Vacation, doctor's appointment, family event…"></textarea>
       </div>
+      <div class="to-form-row" style="display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--canvas)">
+        <input type="checkbox" id="to-use-pto" style="margin-top:3px;width:18px;height:18px;flex:0 0 auto"/>
+        <label for="to-use-pto" style="flex:1;cursor:pointer;line-height:1.4">
+          <div style="font-weight:600;font-size:var(--fs-md)">Use my PTO for these days</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Check this if you want these days paid out of your PTO balance. Leave it unchecked for unpaid time off — your dispatcher will still see the request.</div>
+        </label>
+      </div>
       <div class="to-form-err" id="to-err" hidden></div>
       <button class="btn btn-block btn-primary" id="to-submit" type="button">Submit request</button>
     </div>
@@ -5580,6 +5587,9 @@ function _toRowHtml(r) {
     ? lbl(r.start_date)
     : `${lbl(r.start_date)} – ${lbl(r.end_date)}`;
   const pill = `<span class="to-pill to-pill-${r.status}">${escapeHtml(r.status[0].toUpperCase() + r.status.slice(1))}</span>`;
+  const kindPill = r.is_pto
+    ? `<span class="to-pill" style="background:rgba(13,148,136,.12);color:#0F766E;margin-left:6px">PTO</span>`
+    : `<span class="to-pill" style="background:var(--canvas);color:var(--text-muted);margin-left:6px">Unpaid</span>`;
   const note = r.decision_notes
     ? `<div class="to-row-note"><strong>Dispatch:</strong> ${escapeHtml(r.decision_notes)}</div>`
     : "";
@@ -5593,7 +5603,7 @@ function _toRowHtml(r) {
     <div class="to-row" data-rr-to-row="${escapeHtml(r.id)}">
       <div class="to-row-top">
         <div class="to-row-range">${escapeHtml(range)}</div>
-        ${pill}
+        <div>${pill}${kindPill}</div>
       </div>
       ${reason}
       ${note}
@@ -5619,6 +5629,7 @@ async function _toSubmit() {
     err.hidden = false;
     return;
   }
+  const usePto = !!document.getElementById("to-use-pto")?.checked;
   submit.disabled = true; submit.textContent = "Submitting…";
   const session = readSession();
   const { error } = await sb.rpc("driver_time_off_request", {
@@ -5626,6 +5637,7 @@ async function _toSubmit() {
     p_start_date: start,
     p_end_date: end,
     p_reason: reason || null,
+    p_use_pto: usePto,
   });
   submit.disabled = false; submit.textContent = "Submit request";
   if (error) {

@@ -22264,7 +22264,7 @@ async function autoAssignDriversForWeek() {
       .eq("status", "active")
       .order("full_name"),
     sb.from("time_off_requests")
-      .select("driver_id, start_date, end_date")
+      .select("driver_id, start_date, end_date, is_pto")
       .eq("dsp_id", dspId)
       .eq("status", "approved")
       .lte("start_date", weekEndIso)
@@ -22840,7 +22840,7 @@ async function renderScheduleWeek() {
       .eq("role", "driver")
       .order("full_name"),
     sb.from("time_off_requests")
-      .select("id, driver_id, start_date, end_date, status")
+      .select("id, driver_id, start_date, end_date, status, is_pto")
       .eq("dsp_id", dspId)
       .eq("status", "approved")
       .lte("start_date", weekEndIso)
@@ -22969,6 +22969,9 @@ async function renderScheduleWeek() {
     ptoByDriver.get(t.driver_id).push(t);
   }
   const ptoOn = (driverId, iso) => (ptoByDriver.get(driverId) || []).some(t => iso >= t.start_date && iso <= t.end_date);
+  // Returns the matching time-off row (so we can render PTO vs unpaid
+  // labelling on the calendar chip) or null.
+  const ptoMatch = (driverId, iso) => (ptoByDriver.get(driverId) || []).find(t => iso >= t.start_date && iso <= t.end_date) || null;
 
   // Coverage rolled up by date.
   // Denominator = okami_demand.target_routes for the day (the route
@@ -23388,8 +23391,15 @@ async function renderScheduleWeek() {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
       const data = `data-rr-cell="driver-day" data-rr-cell-date="${iso}" data-rr-cell-driver="${d.id}"${d.station_id ? ` data-rr-cell-station="${d.station_id}"` : ""}`;
       const isPref = !!prefSet && prefSet.size > 0 && prefSet.has(_dowKey(iso));
-      if (ptoOn(d.id, iso))
-        return `<div class="${cls}" ${data}><div class="shift-chip timeoff"><div class="shift-chip-route">PTO</div></div></div>`;
+      {
+        const toMatch = ptoMatch(d.id, iso);
+        if (toMatch) {
+          const isPto = !!toMatch.is_pto;
+          const label = isPto ? "PTO" : "Time off";
+          const sub   = isPto ? "Approved · paid" : "Approved · unpaid";
+          return `<div class="${cls}" ${data} title="${escapeHtml(sub)}"><div class="shift-chip timeoff"><div class="shift-chip-route">${label}</div><div class="shift-chip-time" style="font-size:9px">${isPto ? "PTO" : "Unpaid"}</div></div></div>`;
+        }
+      }
       const list = shiftsByDriverDate.get(`${d.id}|${iso}`) || [];
       const busy = list.length > 0;
       // ★ = a day the driver flagged as preferred.  Green when they're
@@ -34453,6 +34463,12 @@ function _toRenderView(body) {
 
   body.innerHTML = `
     <div class="to-page">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:var(--s-3)">
+        <button type="button" class="btn btn-sm" id="rr-pto-report-btn" style="display:inline-flex;align-items:center;gap:6px">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          PTO report
+        </button>
+      </div>
       <section class="to-card">
         <header class="to-card-head">
           <div class="to-card-head-title">Pending requests</div>
@@ -34472,6 +34488,140 @@ function _toRenderView(body) {
   body.querySelectorAll("[data-rr-to-decide]").forEach((btn) => {
     btn.addEventListener("click", () => _toDecide(btn));
   });
+  body.querySelector("#rr-pto-report-btn")?.addEventListener("click", openPtoReportModal);
+}
+
+
+// PTO Payroll Report — date-ranged view of approved PTO requests for the
+// DSP with a one-click CSV download the operator can paste into ADP or
+// their payroll system. Date range defaults to the last 14 days; the
+// operator can re-pick and re-run.
+async function openPtoReportModal() {
+  const today = new Date();
+  const dflt = (n) => {
+    const d = new Date(today); d.setDate(d.getDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  document.getElementById("rr-pto-report-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-pto-report-modal";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:720px;width:100%;max-height:85vh;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) 18px;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:var(--fs-base);font-weight:600">PTO payroll report</div>
+          <div style="font-size:var(--fs-sm);color:var(--text-subtle)">Approved PTO requests that overlap the date range below. Use the CSV download to import into ADP / your payroll system.</div>
+        </div>
+        <button type="button" id="rr-pto-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+      </div>
+      <div style="display:flex;gap:var(--s-3);align-items:flex-end;padding:var(--s-3) 18px;border-bottom:1px solid var(--border);background:var(--canvas)">
+        <div>
+          <label style="display:block;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:4px">From</label>
+          <input type="date" id="rr-pto-from" class="form-input" value="${dflt(-14)}"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:4px">To</label>
+          <input type="date" id="rr-pto-to" class="form-input" value="${dflt(0)}"/>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" id="rr-pto-run">Run report</button>
+        <div style="flex:1"></div>
+        <button type="button" class="btn btn-sm" id="rr-pto-csv" disabled>Download CSV</button>
+      </div>
+      <div id="rr-pto-body" style="overflow-y:auto;padding:0 0 18px"></div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-pto-close") m.remove(); });
+  document.getElementById("rr-pto-run").addEventListener("click", _ptoReportRun);
+  document.getElementById("rr-pto-csv").addEventListener("click", _ptoReportCsv);
+  await _ptoReportRun();
+}
+
+let _ptoReportRows = [];
+
+async function _ptoReportRun() {
+  const from = document.getElementById("rr-pto-from")?.value;
+  const to   = document.getElementById("rr-pto-to")?.value;
+  const body = document.getElementById("rr-pto-body");
+  const csvBtn = document.getElementById("rr-pto-csv");
+  if (!from || !to) { toast("Pick a date range", "warn"); return; }
+  if (csvBtn) csvBtn.disabled = true;
+  if (body) body.innerHTML = `<div class="loader" style="margin:40px auto"></div>`;
+  const { data, error } = await sb.rpc("dispatch_pto_report", { p_from: from, p_to: to });
+  if (error) {
+    if (body) body.innerHTML = `<div style="color:var(--red);padding:var(--s-4) 18px;font-size:var(--fs-sm)">${escapeHtml(error.message || "Couldn't run report")}</div>`;
+    return;
+  }
+  _ptoReportRows = Array.isArray(data) ? data : [];
+  const totalDays = _ptoReportRows.reduce((s, r) => s + (Number(r.days_count) || 0), 0);
+  if (csvBtn) csvBtn.disabled = _ptoReportRows.length === 0;
+  if (!body) return;
+  if (_ptoReportRows.length === 0) {
+    body.innerHTML = `<div class="rr-empty-inline" style="margin:var(--s-5) 18px">No approved PTO requests in this date range.</div>`;
+    return;
+  }
+  const fmtDay = (iso) => {
+    try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
+    catch { return iso; }
+  };
+  body.innerHTML = `
+    <div style="padding:var(--s-3) 18px;font-size:var(--fs-sm);color:var(--text-subtle);border-bottom:1px solid var(--border)">
+      <strong>${_ptoReportRows.length}</strong> request${_ptoReportRows.length === 1 ? "" : "s"} · <strong>${totalDays}</strong> calendar day${totalDays === 1 ? "" : "s"} total
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm)">
+      <thead>
+        <tr style="background:var(--canvas);border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:8px 18px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:10px;color:var(--text-muted)">Driver</th>
+          <th style="text-align:left;padding:8px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:10px;color:var(--text-muted)">Station</th>
+          <th style="text-align:left;padding:8px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:10px;color:var(--text-muted)">Start</th>
+          <th style="text-align:left;padding:8px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:10px;color:var(--text-muted)">End</th>
+          <th style="text-align:right;padding:8px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:10px;color:var(--text-muted)">Days</th>
+          <th style="text-align:left;padding:8px 18px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:10px;color:var(--text-muted)">Approved by</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${_ptoReportRows.map(r => `
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 18px;font-weight:600">${escapeHtml(r.driver_name)}${r.driver_email ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">${escapeHtml(r.driver_email)}</div>` : ""}</td>
+            <td style="padding:8px">${escapeHtml(r.station_code || "—")}</td>
+            <td style="padding:8px;white-space:nowrap">${escapeHtml(fmtDay(r.start_date))}</td>
+            <td style="padding:8px;white-space:nowrap">${escapeHtml(fmtDay(r.end_date))}</td>
+            <td style="padding:8px;text-align:right;font-variant-numeric:tabular-nums">${escapeHtml(String(r.days_count || 0))}</td>
+            <td style="padding:8px 18px;color:var(--text-subtle)">${escapeHtml(r.decided_by_name || "—")}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>`;
+}
+
+function _ptoReportCsv() {
+  if (!_ptoReportRows.length) return;
+  const headers = ["Driver", "Email", "Station", "Start", "End", "Days", "Approved by", "Reason", "Decision notes"];
+  const escape = (v) => {
+    const s = String(v ?? "");
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const rows = _ptoReportRows.map(r => [
+    r.driver_name, r.driver_email, r.station_code,
+    r.start_date, r.end_date, r.days_count,
+    r.decided_by_name, r.reason, r.decision_notes,
+  ].map(escape).join(","));
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  const from = document.getElementById("rr-pto-from")?.value || "";
+  const to   = document.getElementById("rr-pto-to")?.value   || "";
+  a.download = `pto-report-${from}-to-${to}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+
+function _toKindBadgeHtml(isPto) {
+  return isPto
+    ? `<span style="display:inline-flex;align-items:center;background:rgba(13,148,136,.12);color:#0F766E;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-lg);margin-left:8px">PTO · paid</span>`
+    : `<span style="display:inline-flex;align-items:center;background:var(--canvas);color:var(--text-muted);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-lg);border:1px solid var(--border);margin-left:8px">Unpaid</span>`;
 }
 
 function _toPendingRowHtml(r) {
@@ -34484,7 +34634,7 @@ function _toPendingRowHtml(r) {
       <div class="to-row-head">
         <div>
           <div class="to-row-name">${escapeHtml(r.driver_name)}${stationBit}</div>
-          <div class="to-row-range">${escapeHtml(_toFmtRange(r.start_date, r.end_date))}</div>
+          <div class="to-row-range">${escapeHtml(_toFmtRange(r.start_date, r.end_date))}${_toKindBadgeHtml(!!r.is_pto)}</div>
         </div>
         <span class="status-pill status-pill-pending">Pending</span>
       </div>
@@ -34513,7 +34663,7 @@ function _toDecidedRowHtml(r) {
       <div class="to-row-head">
         <div>
           <div class="to-row-name">${escapeHtml(r.driver_name)}${stationBit}</div>
-          <div class="to-row-range">${escapeHtml(_toFmtRange(r.start_date, r.end_date))}</div>
+          <div class="to-row-range">${escapeHtml(_toFmtRange(r.start_date, r.end_date))}${_toKindBadgeHtml(!!r.is_pto)}</div>
         </div>
         <span class="status-pill ${pillCls}">${escapeHtml(pillLbl)}</span>
       </div>
