@@ -22619,11 +22619,23 @@ function _schedShiftChip(sh, extras) {
   // route coverage. They're inserted by activate_driver_with_pairing
   // when the operator activates a new hire — see migration 0264.
   if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") {
-    const label = sh.shift_kind === "training" ? "Training" : "Ride-along";
-    const sub = sh.shift_kind === "ride_along" && sh.trainer_name
+    // Class training (Day 1+2 at the station) gets a teal accent;
+    // road training (Day 3 shadowing a trainer) gets an amber accent.
+    // The two colors are intentionally distinct so an operator scanning
+    // the week can tell at a glance which trainees are still in class
+    // vs already out on the road. Tooltip + sub-line spell out the
+    // partner's name for road training.
+    const isClass = sh.shift_kind === "training";
+    const label = isClass ? "Class training" : "Road training";
+    const sub = !isClass && sh.trainer_name
       ? `with ${escapeHtml(sh.trainer_name.split(/\s+/)[0])}`
       : ((sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "");
-    return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="background:var(--accent-soft);border-color:var(--accent-soft);color:var(--accent-text);cursor:default" title="${label}${sh.shift_kind === 'ride_along' && sh.trainer_name ? ' with ' + escapeHtml(sh.trainer_name) : ''} — onboarding shift, not route coverage"><div class="shift-chip-route">${label}</div>${sub ? `<div class="shift-chip-time">${sub}</div>` : ""}</div>`;
+    const bg   = isClass ? "rgba(13,148,136,.12)" : "rgba(245,158,11,.14)";
+    const fg   = isClass ? "#0F766E"              : "#B45309";
+    const titleText = isClass
+      ? "Class training — station-based onboarding day, not route coverage"
+      : `Road training${sh.trainer_name ? " with " + escapeHtml(sh.trainer_name) : ""} — riding along, not route coverage`;
+    return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="background:${bg};border-color:${bg};color:${fg};cursor:default" title="${titleText}"><div class="shift-chip-route">${label}</div>${sub ? `<div class="shift-chip-time">${sub}</div>` : ""}</div>`;
   }
   const r = sh.route_code ? escapeHtml(sh.route_code) : (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift");
   const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";

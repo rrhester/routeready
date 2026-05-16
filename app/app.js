@@ -2034,14 +2034,16 @@ function shiftCardHtml(s, isToday, vanName, opts) {
   if (s.type && s.type !== "SP") tags.push(`<span class="tag" style="background:${escapeHtml(s.typeColor)}20;color:${escapeHtml(s.typeColor)}">${escapeHtml(s.type)}</span>`);
   if (s.isCushion) tags.push(`<span class="tag" style="background:rgba(245,158,11,.12);color:var(--amber)">EX</span>`);
   // Onboarding shift labels — Day 1+2 station training and Day 3
-  // ride-along get a distinct top label so the trainee sees "Training ·
-  // Day 1" / "Ride-along with Sarah" instead of a blank station line.
+  // ride-along get a distinct top label so the trainee sees what kind
+  // of day it is at a glance instead of a blank station line.
+  // Class training = Day 1+2 at the station; Road training = Day 3
+  // shadowing a trainer's route.
   const isTraining = s.shiftKind === "training";
   const isRideAlong = s.shiftKind === "ride_along";
   const onboardingLabel = isTraining
-    ? `Training · Day ${s.trainingDay || 1}`
+    ? `Class training · Day ${s.trainingDay || 1}`
     : isRideAlong
-      ? (s.trainerName ? `Ride-along with ${s.trainerName.split(/\s+/)[0]}` : "Ride-along")
+      ? (s.trainerName ? `Road training with ${s.trainerName.split(/\s+/)[0]}` : "Road training")
       : "";
   const stationLine = onboardingLabel || s.station;
   const isOnboardingShift = isTraining || isRideAlong;
