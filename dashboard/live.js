@@ -23471,115 +23471,47 @@ async function renderScheduleWeek() {
     }
   } catch (e) { /* nothing to do */ }
 
-  // ── Operational Insights — computed from the same data we already
-  // collected above (overtime risk, preference mismatches, expiring
-  // certifications, OKAMI mismatches). Static cap of 4 rows so the rail
-  // stays scannable; the "View all" link could open a deeper drawer later.
+  // ── Operational Insights — AI-generated (analytics-ai edge function).
+  // The computed week summary below is shipped to the model as context so
+  // it can return up to 5 short, action-oriented insights without making
+  // its own tool calls. Results are cached per (week_start, snapshot) so
+  // re-renders of the same week don't re-spend tokens. The render is
+  // non-blocking — the strip shows a loading state immediately and gets
+  // replaced when the call returns.
   try {
-    const ibody = document.getElementById("rr-sched-insights-body");
-    const icount = document.getElementById("rr-sched-insights-count");
-    if (ibody) {
-      const rows = [];
-      // OT approaching: hoursPerDriver between 36 and 40 (within striking
-      // distance of OT this week).
-      const otApproach = [];
-      for (const [, hrs] of hoursPerDriver) {
-        if (hrs >= 36 && hrs < 40) otApproach.push(hrs);
-      }
-      if (driversInOt > 0) {
-        rows.push({
-          tone: "bad",
-          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
-          title: `${driversInOt} driver${driversInOt === 1 ? "" : "s"} in overtime`,
-          sub:   `${Math.round(totalOvertimeHrs * 10) / 10}h over · this week`,
-        });
-      } else if (otApproach.length > 0) {
-        rows.push({
-          tone: "warn",
-          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
-          title: `${otApproach.length} driver${otApproach.length === 1 ? "" : "s"} approaching OT`,
-          sub:   "This week",
-        });
-      }
-
-      if (prefMissList.length > 0) {
-        rows.push({
-          tone: "warn",
-          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
-          title: `${prefMissList.length} preferred-day mismatch${prefMissList.length === 1 ? "" : "es"}`,
-          sub:   "Review suggestions",
-          clickKpiCard: 6, // Preferences is still card #6 in the new order
-        });
-      }
-
-      // Certs expiring soon — drivers whose DL expires inside the next 14 days.
-      const todayDt = new Date();
-      const horizonIso = fmtIsoDate(addDays(todayDt, 14));
-      const todayIsoCert = fmtIsoDate(todayDt);
-      let expSoon = 0;
-      for (const d of drivers) {
-        if (d.dl_expires_on && d.dl_expires_on >= todayIsoCert && d.dl_expires_on <= horizonIso) {
-          expSoon += 1;
-        }
-      }
-      if (expSoon > 0) {
-        rows.push({
-          tone: "info",
-          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
-          title: `${expSoon} certification${expSoon === 1 ? "" : "s"} expiring`,
-          sub:   "In the next 14 days",
-        });
-      }
-
-      if (totalAllOpen > 0) {
-        rows.push({
-          tone: "warn",
-          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
-          title: `${totalAllOpen} open shift${totalAllOpen === 1 ? "" : "s"} need a driver`,
-          sub:   "Click to open Smart Fill",
-          onClick: () => { try { openAiSchedule(); } catch (e) {} },
-        });
-      }
-
-      if (violations.length > 0) {
-        rows.push({
-          tone: "bad",
-          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-          title: `${violations.length} rule violation${violations.length === 1 ? "" : "s"}`,
-          sub:   "Review in KPI card",
-          clickKpiCard: 3, // Rule violations is now card #3
-        });
-      }
-
-      const limited = rows.slice(0, 4);
-      if (icount) icount.textContent = String(limited.length);
-      if (limited.length === 0) {
-        ibody.innerHTML = `<div class="sched-insight-empty">No issues this week. Nice.</div>`;
-      } else {
-        ibody.innerHTML = limited.map((r, idx) => `
-          <button type="button" class="sched-insight-row" data-tone="${r.tone}" data-rr-insight-idx="${idx}">
-            <span class="sched-insight-icon">${r.icon}</span>
-            <span class="sched-insight-text">
-              <div class="sched-insight-title">${r.title}</div>
-              <div class="sched-insight-sub">${r.sub}</div>
-            </span>
-            <svg class="chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        `).join("");
-        // Click → either explicit onClick, or focus a KPI card by index.
-        ibody.querySelectorAll(".sched-insight-row").forEach(btn => {
-          const idx = Number(btn.dataset.rrInsightIdx);
-          const row = limited[idx];
-          btn.addEventListener("click", () => {
-            if (row.onClick) { row.onClick(); return; }
-            if (row.clickKpiCard) {
-              const card = document.querySelector(`#rr-sched-kpis .stat-mini:nth-child(${row.clickKpiCard})`);
-              if (card) card.click();
-            }
-          });
-        });
+    const otApproach = [];
+    for (const [, hrs] of hoursPerDriver) {
+      if (hrs >= 36 && hrs < 40) otApproach.push(hrs);
+    }
+    const todayDtCert = new Date();
+    const horizonIsoCert = fmtIsoDate(addDays(todayDtCert, 14));
+    const todayIsoCert = fmtIsoDate(todayDtCert);
+    let expSoon = 0;
+    for (const d of drivers) {
+      if (d.dl_expires_on && d.dl_expires_on >= todayIsoCert && d.dl_expires_on <= horizonIsoCert) {
+        expSoon += 1;
       }
     }
+    const aiSnapshot = {
+      week_start: _schedStart,
+      drivers_active: drivers.length,
+      hours_scheduled: Math.round(totalHoursWeek),
+      coverage_pct: pct,
+      filled: totalFilled,
+      needed: totalNeeded,
+      open_shifts: totalAllOpen,
+      overtime_drivers: driversInOt,
+      overtime_hours: Math.round(totalOvertimeHrs * 10) / 10,
+      ot_approaching_drivers: otApproach.length,
+      rule_violations: violations.length,
+      pref_mismatches: prefMissList.length,
+      pref_honored: prefHonored,
+      pref_denom: prefDenom,
+      certs_expiring_14d: expSoon,
+      trainees: trainingTotal,
+      payroll_estimate: Math.round(estimatedPayrollCost),
+    };
+    _rrRenderScheduleInsights(aiSnapshot);
   } catch (e) { console.warn("insights render:", e); }
 
   // ── Driver-pool open-shifts footer — empty-state visual from the
@@ -23765,6 +23697,197 @@ async function renderScheduleWeek() {
   renderSchedOpenShiftsPool(sub, grid.shifts || [], drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver, virtualByDate);
 }
 
+// ── Operational Insights · AI-driven (analytics-ai edge function) ─────────
+// The schedule rail's Insights panel asks Claude for up to 5 short,
+// action-oriented operational insights for the current week.  The week's
+// computed snapshot (driver counts, hours, OT, coverage, prefs, certs,
+// open shifts, violations, …) is passed in the prompt so Claude doesn't
+// need to make tool calls — keeps the round-trip under ~2s and the cost
+// minimal.  Results are cached per snapshot so re-rendering the same
+// week doesn't re-spend.
+const _RR_INSIGHTS_CACHE = new Map(); // key: snapshot signature → { result, ts }
+const _RR_INSIGHTS_TTL_MS = 5 * 60 * 1000; // 5 min
+
+function _rrInsightTone(text) {
+  const t = String(text || "").toLowerCase();
+  if (/overtime|violation|expir|critical|over budget|unsafe|terminat/.test(t)) return "bad";
+  if (/approach|risk|mismatch|tight|warning|gap|short|miss|low/.test(t))     return "warn";
+  if (/good|covered|on track|all set|nice|great|healthy|nothing|none|no \b/.test(t)) return "ok";
+  return "info";
+}
+function _rrInsightIcon(tone) {
+  if (tone === "bad")  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+  if (tone === "warn") return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+  if (tone === "ok")   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+}
+function _rrInsightSplit(bullet) {
+  const s = String(bullet || "").trim();
+  // Split on " — " / " - " / ": " — title vs sub.  If none, the whole
+  // bullet is the title and there's no sub line.
+  const m = s.match(/^(.{4,80}?)(?:\s[—–-]\s|\:\s)(.+)$/);
+  if (m) return { title: m[1].trim(), sub: m[2].trim() };
+  // Try splitting at a sentence boundary somewhere past the first 40 chars.
+  if (s.length > 70) {
+    const idx = s.indexOf(". ");
+    if (idx > 20 && idx < s.length - 4) return { title: s.slice(0, idx).trim(), sub: s.slice(idx + 2).trim() };
+  }
+  return { title: s, sub: "" };
+}
+
+async function _rrFetchScheduleInsights(snapshot) {
+  if (typeof sb === "undefined" || !sb?.functions?.invoke) return null;
+  const key = JSON.stringify(snapshot);
+  const cached = _RR_INSIGHTS_CACHE.get(key);
+  if (cached && (Date.now() - cached.ts) < _RR_INSIGHTS_TTL_MS) return cached.result;
+  const prompt = [
+    `Generate up to 5 short, action-oriented operational insights about my DSP's schedule for the week starting ${snapshot.week_start}.`,
+    ``,
+    `Here is the week's computed snapshot — use these numbers directly, do NOT call any data tools:`,
+    "```json",
+    JSON.stringify(snapshot, null, 2),
+    "```",
+    ``,
+    `Rules:`,
+    `1. Return between 1 and 5 bullets via the render_result tool with kind="text_summary".`,
+    `2. Each bullet MUST be one sentence, formatted as "Title — short subtitle" (use an em-dash). Title is a count/headline phrase under 8 words; subtitle is a 2-6 word follow-up.`,
+    `3. Focus on issues a dispatcher needs to act on TODAY: overtime risk, drivers approaching OT, open shifts, preferred-day mismatches, expiring certifications, rule violations, training pipeline, payroll outliers.`,
+    `4. Skip categories where the snapshot value is zero/empty — only surface real signal.`,
+    `5. If everything looks healthy, return ONE bullet celebrating the state (e.g. "Schedule is clean — nothing needs attention").`,
+    `6. Keep the body field a 1-2 sentence summary of the week's posture.`,
+  ].join("\n");
+  try {
+    const { data, error } = await sb.functions.invoke("analytics-ai", { body: { prompt, conversation: [] } });
+    if (error || !data?.result) return null;
+    _RR_INSIGHTS_CACHE.set(key, { result: data.result, ts: Date.now() });
+    return data.result;
+  } catch (e) {
+    console.warn("ai insights fetch:", e);
+    return null;
+  }
+}
+
+function _rrRenderInsightsLoading(ibody, icount) {
+  if (icount) icount.textContent = "…";
+  ibody.innerHTML = `
+    <div class="sched-insight-row" data-tone="info" style="cursor:default">
+      <span class="sched-insight-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+      <span class="sched-insight-text">
+        <div class="sched-insight-title">Analyzing this week…</div>
+        <div class="sched-insight-sub">Asking RouteReady AI for the top issues</div>
+      </span>
+    </div>`;
+}
+
+function _rrRenderInsightsRows(ibody, icount, rows) {
+  const limited = rows.slice(0, 4);
+  if (icount) icount.textContent = String(Math.min(rows.length, 5));
+  if (limited.length === 0) {
+    ibody.innerHTML = `<div class="sched-insight-empty">No issues this week. Nice.</div>`;
+    return;
+  }
+  ibody.innerHTML = limited.map((r, idx) => `
+    <button type="button" class="sched-insight-row" data-tone="${r.tone}" data-rr-insight-idx="${idx}">
+      <span class="sched-insight-icon">${r.icon}</span>
+      <span class="sched-insight-text">
+        <div class="sched-insight-title">${escapeHtml(r.title)}</div>
+        ${r.sub ? `<div class="sched-insight-sub">${escapeHtml(r.sub)}</div>` : ""}
+      </span>
+      <svg class="chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  `).join("");
+  ibody.querySelectorAll(".sched-insight-row").forEach(btn => {
+    btn.addEventListener("click", () => _rrOpenInsightsModal());
+  });
+}
+
+async function _rrRenderScheduleInsights(snapshot) {
+  const ibody = document.getElementById("rr-sched-insights-body");
+  const icount = document.getElementById("rr-sched-insights-count");
+  if (!ibody) return;
+  // Stash latest snapshot so the modal can re-use it for "Refresh".
+  window._rrInsightsSnapshot = snapshot;
+  _rrRenderInsightsLoading(ibody, icount);
+  const result = await _rrFetchScheduleInsights(snapshot);
+  // Stash the full result so the modal can show body + every bullet.
+  window._rrInsightsResult = result;
+  if (!result || result.kind !== "text_summary" || !Array.isArray(result.data?.bullets)) {
+    ibody.innerHTML = `<div class="sched-insight-empty">Couldn't reach the AI insights service. Try refresh.</div>`;
+    if (icount) icount.textContent = "0";
+    return;
+  }
+  const bullets = result.data.bullets.filter(b => String(b || "").trim());
+  const rows = bullets.map(b => {
+    const { title, sub } = _rrInsightSplit(b);
+    const tone = _rrInsightTone(b);
+    return { title, sub, tone, icon: _rrInsightIcon(tone), raw: b };
+  });
+  _rrRenderInsightsRows(ibody, icount, rows);
+}
+
+function _rrOpenInsightsModal() {
+  const result = window._rrInsightsResult;
+  const snapshot = window._rrInsightsSnapshot;
+  document.getElementById("rr-sched-insights-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-sched-insights-modal";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  const bullets = (result?.kind === "text_summary" && Array.isArray(result.data?.bullets))
+    ? result.data.bullets.slice(0, 5)
+    : [];
+  const body = result?.kind === "text_summary" ? String(result.data?.body || "") : "";
+  const wkLabel = snapshot?.week_start || "this week";
+  const bulletHtml = bullets.length === 0
+    ? `<div style="padding:var(--s-4);color:var(--text-subtle);font-size:var(--fs-sm)">No insights returned for this week.</div>`
+    : bullets.map((b, i) => {
+        const { title, sub } = _rrInsightSplit(b);
+        const tone = _rrInsightTone(b);
+        return `<div class="sched-insight-row" data-tone="${tone}" style="cursor:default;margin-bottom:6px">
+          <span class="sched-insight-icon">${_rrInsightIcon(tone)}</span>
+          <span class="sched-insight-text">
+            <div class="sched-insight-title">${escapeHtml(title)}</div>
+            ${sub ? `<div class="sched-insight-sub">${escapeHtml(sub)}</div>` : ""}
+          </span>
+          <span style="font-size:10px;font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase">#${i + 1}</span>
+        </div>`;
+      }).join("");
+  m.innerHTML = `
+    <div id="rr-sched-insights-modal-card" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:620px;width:100%;max-height:84vh;overflow-y:auto;box-shadow:var(--shadow-pop)">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--r-md);background:var(--accent-soft);color:var(--accent-text);flex-shrink:0">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </span>
+          <div style="min-width:0">
+            <div style="font-size:var(--fs-base);font-weight:700;color:var(--text);letter-spacing:-.01em">Operational insights</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Week of ${escapeHtml(wkLabel)} · generated by RouteReady AI</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button type="button" id="rr-sched-insights-refresh" class="btn btn-sm" title="Re-ask the AI for a fresh take">Refresh</button>
+          <button type="button" id="rr-sched-insights-modal-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 8px">×</button>
+        </div>
+      </div>
+      ${body ? `<div style="padding:var(--s-3-5) var(--s-5);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;border-bottom:1px solid var(--border)">${escapeHtml(body)}</div>` : ""}
+      <div style="padding:var(--s-3-5) var(--s-5);display:flex;flex-direction:column;gap:0">${bulletHtml}</div>
+      <div style="padding:var(--s-2-5) var(--s-5);font-size:var(--fs-xs);color:var(--text-subtle);border-top:1px solid var(--border);background:var(--canvas)">Tip: regenerated up to once every 5 minutes per week. Click Refresh to ask again.</div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (ev) => {
+    if (ev.target === m || ev.target.id === "rr-sched-insights-modal-close") m.remove();
+  });
+  document.getElementById("rr-sched-insights-refresh")?.addEventListener("click", async () => {
+    if (!snapshot) return;
+    // Bust the cache for this snapshot so the next fetch hits the API.
+    _RR_INSIGHTS_CACHE.delete(JSON.stringify(snapshot));
+    const refreshBtn = document.getElementById("rr-sched-insights-refresh");
+    if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = "Refreshing…"; }
+    await _rrRenderScheduleInsights(snapshot);
+    m.remove();
+    _rrOpenInsightsModal();
+  });
+}
+
 let _poolSortMode = "day"; // 'day' | 'wave'
 
 function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver, virtualByDate) {
@@ -23879,7 +24002,16 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
   // Group by day when sortMode === 'day' (more legible).
   let listHtml;
   if (sorted.length === 0) {
-    listHtml = '<div style="padding:var(--s-3-5);font-size:var(--fs-sm);color:var(--text-subtle);text-align:center">All shifts assigned</div>';
+    // Green check medallion + "All shifts assigned" mirrors the mockup's
+    // covered empty state — same visual language we use elsewhere on
+    // the schedule page so the rail reads coherent.
+    listHtml = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:var(--s-4) var(--s-2);text-align:center">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:var(--green);color:#fff;box-shadow:0 0 0 4px var(--green-soft)">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+      </span>
+      <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text);margin-top:4px">All shifts assigned</div>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Great job!</div>
+    </div>`;
   } else if (_poolSortMode === "day") {
     const byDay = new Map();
     for (const sh of sorted) {
@@ -23952,12 +24084,15 @@ function bindSchedWeekNav() {
     const off = _activeOffset();
     const prevBtn = document.getElementById("rr-sched-week-prev");
     const nextBtn = document.getElementById("rr-sched-week-next");
+    const todayBtn = document.getElementById("rr-sched-week-today");
     if (prevBtn) prevBtn.disabled = off <= 0;
     if (nextBtn) nextBtn.disabled = off >= 3;
+    if (todayBtn) todayBtn.classList.toggle("is-on-today", off === 0);
   };
   const prevBtn = document.getElementById("rr-sched-week-prev");
   const nextBtn = document.getElementById("rr-sched-week-next");
   const rangeBtn = document.getElementById("rr-sched-week-range");
+  const todayBtn = document.getElementById("rr-sched-week-today");
   if (prevBtn) prevBtn.addEventListener("click", () => {
     const off = _activeOffset();
     if (off > 0) _clickOffset(off - 1);
@@ -23965,6 +24100,9 @@ function bindSchedWeekNav() {
   if (nextBtn) nextBtn.addEventListener("click", () => {
     const off = _activeOffset();
     if (off < 3) _clickOffset(off + 1);
+  });
+  if (todayBtn) todayBtn.addEventListener("click", () => {
+    if (_activeOffset() !== 0) _clickOffset(0);
   });
   if (rangeBtn) rangeBtn.addEventListener("click", () => {
     // No date-picker yet — cycle through the four available offsets
