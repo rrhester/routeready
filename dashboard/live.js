@@ -3291,7 +3291,25 @@ document.addEventListener("click", async (e) => {
     ({ error: err } = await sb.rpc("driver_onboarding_step_set", { p_driver_id: id, p_step_key: field, p_status: state === "done" ? "not_started" : "complete" }));
   } else if (kind === "status") {
     const nextStatus = state === "done" ? "onboarding" : "active";
-    ({ error: err } = await sb.from("drivers").update({ status: nextStatus }).eq("id", id));
+    if (nextStatus === "active") {
+      // Activation is now gated on a materialized training pairing
+      // (Day 1+2 training shifts + Day 3 ride-along). The RPC inserts
+      // those shifts, texts both drivers, and only then flips status.
+      // Falls back to a direct update if no pairing exists yet — keeps
+      // legacy drivers without a pairing row from getting stuck.
+      const { data: pair } = await sb.rpc("training_pairing_for", { p_trainee_id: id });
+      if (pair && pair.id) {
+        ({ error: err } = await sb.rpc("activate_driver_with_pairing", { p_driver_id: id }));
+        if (err && /no active training pairing/i.test(err.message || "")) {
+          // Pairing was cleared in another tab — fall through to direct update.
+          ({ error: err } = await sb.from("drivers").update({ status: nextStatus }).eq("id", id));
+        }
+      } else {
+        ({ error: err } = await sb.from("drivers").update({ status: nextStatus }).eq("id", id));
+      }
+    } else {
+      ({ error: err } = await sb.from("drivers").update({ status: nextStatus }).eq("id", id));
+    }
   }
   if (err) { b.disabled = orig; toast("Couldn't update: " + (err.message || ""), "warn"); return; }
   await loadOnboardingOps();
@@ -8105,6 +8123,7 @@ async function loadTodayPlan() {
     shell.dataset.rrPlanShell = "1";
     shell.innerHTML = `
       <div id="rr-tp-meta" class="card card-compact" style="padding:var(--s-2) var(--s-4);margin-bottom:var(--s-4);font-size:var(--fs-sm);color:var(--text-subtle)">Loading</div>
+      <div id="rr-tp-ridealong-alerts" style="margin-bottom:var(--s-4)"></div>
       <div id="rr-tp-roster" class="card card-flush">
         <div class="rr-tp-section-head">Today's roster</div>
         <div class="rr-loading" style="padding:18px 20px">Loading</div>
@@ -8161,6 +8180,43 @@ async function _refreshTodayPlanData() {
   // The single unified roster card replaces the old four-card layout.
   try { _renderTpUnifiedRoster(attData, rosterData, attError || rosterError); }
   catch (e) { console.error("today plan · unified render failed:", e); _renderTpUnifiedRoster(null, null, e); }
+
+  // Orphaned ride-alongs (trainer called off / shift moved while a trainee
+  // was paired with them). Surface only on the today/future view, not on
+  // historical days.
+  try { if (isToday || viewIso > todayIso) _refreshRideAlongAlerts(viewIso); }
+  catch (e) { console.warn("ride-along alerts:", e); }
+}
+
+async function _refreshRideAlongAlerts(viewIso) {
+  const slot = document.getElementById("rr-tp-ridealong-alerts");
+  if (!slot) return;
+  // Look ahead 14 days from the viewed date — catches both today's
+  // orphan and any pre-activate pairings whose partner moved.
+  const to = (() => {
+    const d = new Date(viewIso + "T12:00:00"); d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  })();
+  const { data, error } = await sb.rpc("orphaned_ride_alongs", { p_from: viewIso, p_to: to });
+  if (error) { slot.innerHTML = ""; return; }
+  const rows = data || [];
+  if (!rows.length) { slot.innerHTML = ""; return; }
+  const fmtD = (x) => x ? new Date(x + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "—";
+  slot.innerHTML = rows.map(r => `
+    <div class="card" style="padding:12px 16px;margin-bottom:8px;border-left:3px solid var(--red);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="font-size:18px">⚠</div>
+      <div style="flex:1;min-width:240px">
+        <div style="font-weight:600;font-size:var(--fs-sm)">Ride-along orphaned · ${escapeHtml(fmtD(r.ride_date))}</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(r.trainer_name || "Trainer")} → ${escapeHtml(r.trainee_name || "Trainee")} · ${escapeHtml(r.reason || "")}</div>
+      </div>
+      <button class="btn btn-sm" data-rr-tp-orphan-open="${escapeHtml(r.trainee_id)}">Open driver</button>
+    </div>`).join("");
+  slot.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-rr-tp-orphan-open]");
+    if (!btn) return;
+    const did = btn.getAttribute("data-rr-tp-orphan-open");
+    if (did && typeof openDriverDrawer === "function") openDriverDrawer(did);
+  }, { once: true });
 }
 
 function _renderTpAttendance(data, error) {
@@ -12473,6 +12529,24 @@ async function openDriverDrawer(driverId, opts) {
       const id = _ddDriver && _ddDriver.driver && _ddDriver.driver.id;
       if (id && typeof _openEmploymentReport === "function") _openEmploymentReport(id);
     }
+    // Training-pairing card actions (Overview tab, onboarding drivers).
+    if (e.target.closest("[data-rr-tp-pick]")) {
+      e.preventDefault();
+      _openTrainerPickerModal();
+    } else if (e.target.closest("[data-rr-tp-clear]")) {
+      e.preventDefault();
+      _trainingPairingClear();
+    } else if (e.target.closest("[data-rr-tp-activate]")) {
+      e.preventDefault();
+      _trainingPairingActivate();
+    }
+  });
+  // Date-input changes on the pairing card auto-save the dates (no
+  // explicit Save button for the dates — picking dates is the save).
+  drawer.addEventListener("change", (e) => {
+    if (e.target.matches("[data-rr-tp-start], [data-rr-tp-ride]")) {
+      _trainingPairingDatesChanged();
+    }
   });
 
   _ddTab = initialTab;
@@ -12547,6 +12621,13 @@ async function loadDriverDrawer(driverId) {
     const { data: st } = await sb.from("driver_onboarding_state").select("steps").eq("driver_id", driverId).maybeSingle();
     _ddDriver.onbState = (st && st.steps) || {};
   } catch { _ddDriver.onbState = {}; }
+  // Training pairing (ride-along + Day 1+2 station training) — drives
+  // the orientation Training-schedule card. Returns null for active
+  // drivers / drivers with no pairing yet; the card render branches on it.
+  try {
+    const { data: pair } = await sb.rpc("training_pairing_for", { p_trainee_id: driverId });
+    _ddDriver.trainingPairing = pair || null;
+  } catch { _ddDriver.trainingPairing = null; }
   if (!Array.isArray(_obBlueprint) || !_obBlueprint.length) {
     try { const { data: bp } = await sb.rpc("onboarding_blueprint_get"); if (Array.isArray(bp) && bp.length) _obBlueprint = bp; } catch {}
   }
@@ -12944,10 +13025,291 @@ function renderOverviewTab(body, dd) {
       </div>
     </div>
 
+    ${onboarding ? _renderTrainingPairingCard(d, dd.trainingPairing) : ""}
+
     ${recent.length ? `<div class="dd-section">
       <div class="dd-section-head"><div><div class="dd-section-title">Recent activity</div></div><button type="button" class="btn btn-sm btn-ghost" data-rr-dd-tab="activity" style="margin-left:auto">View all →</button></div>
       <div style="display:flex;flex-direction:column">${recent.map((e, i) => `<div style="display:grid;grid-template-columns:96px 1fr;gap:var(--s-3);align-items:baseline;padding:9px 0;${i ? "border-top:1px solid var(--border)" : ""}"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(fmtTs(e.at))}</span><span style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(e.txt)}</span></div>`).join("")}</div>
     </div>` : ""}`;
+}
+
+// ── Training pairing card (ride-along + Day 1+2 station training) ─────
+// Renders inside the Overview tab for drivers in onboarding status.
+// Shows three rows (Day 1 training, Day 2 training, Day 3 ride-along)
+// plus a start-date input and a trainer picker. Activating the driver
+// materializes all three shifts via activate_driver_with_pairing.
+function _renderTrainingPairingCard(d, pair) {
+  const fmtD = (x) => x ? new Date(x + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "—";
+  const has = pair && pair.id;
+  const status = has ? pair.status : null;
+  const start = has ? pair.training_start_date : "";
+  const ride  = has ? pair.ride_along_date     : "";
+  const day1  = start || "";
+  const day2  = start ? (() => { const dt = new Date(start + "T12:00:00"); dt.setDate(dt.getDate() + 1); return dt.toISOString().slice(0, 10); })() : "";
+
+  // Three checklist rows mirror the onboarding-gate visual.
+  const dot = (done, warn) => `<span style="width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:${warn ? "#d97706" : done ? "#16a34a" : "var(--border)"}"></span>`;
+  const dayRow = (lbl, dateStr, sub, done, warn) => `
+    <div style="display:flex;align-items:center;gap:9px;padding:7px 0;font-size:var(--fs-sm);${lbl !== "Day 1" ? "border-top:1px solid var(--border)" : ""}">
+      ${dot(done, warn)}
+      <span style="font-weight:600;width:48px;flex:0 0 auto">${escapeHtml(lbl)}</span>
+      <span style="color:var(--text-muted);width:140px;flex:0 0 auto">${escapeHtml(dateStr ? fmtD(dateStr) : "—")}</span>
+      <span style="color:var(--text-subtle);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(sub)}</span>
+    </div>`;
+
+  // Trainer-row sub-copy: "Pair with Sarah Chen" once picked, otherwise "Needs trainer".
+  const trainerName = (pair && pair._trainer_name) || (has && pair.trainer_id ? "Trainer selected" : "");
+  const trainerSub = has && pair.trainer_id
+    ? `Riding with ${trainerName || "trainer"}`
+    : "Pick a trainer";
+
+  // Status pill mirrors onboarding-gate pills (green/amber/grey).
+  const pill =
+    status === "materialized" ? `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--green-soft);color:var(--green)">Materialized</span>` :
+    status === "needs_repair" ? `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--amber-soft);color:var(--amber)">Needs fix</span>` :
+    status === "proposed"     ? `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">Match saved</span>` :
+                                `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">Needs match</span>`;
+
+  const repairBanner = status === "needs_repair"
+    ? `<div class="dd-callout warn" style="margin-bottom:12px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><div><strong>Pairing broken.</strong> ${escapeHtml(pair.repair_reason || "Partner's shift changed.")} Re-pick a trainer or date.</div></div>`
+    : "";
+
+  // Disabled actions until both dates are set + trainer is picked.
+  const canActivate = has && pair.trainer_id && pair.ride_along_date && pair.training_start_date && status === "proposed";
+
+  return `
+    <div class="dd-section" data-rr-tp-card data-rr-driver-id="${escapeHtml(d.id || "")}">
+      <div class="dd-section-head">
+        <div>
+          <div class="dd-section-title">Training schedule</div>
+          <div class="dd-section-sub">Day 1 + 2 at the station, Day 3 ride-along. Activating the driver creates all three shifts and texts both drivers.</div>
+        </div>
+        ${pill}
+      </div>
+      ${repairBanner}
+      <div style="border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;margin-bottom:14px">
+        ${dayRow("Day 1", day1, "Station training", !!day1, false)}
+        ${dayRow("Day 2", day2, "Station training", !!day2, false)}
+        ${dayRow("Day 3", ride, trainerSub, !!(ride && has && pair.trainer_id), status === "needs_repair")}
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3);margin-bottom:12px">
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">First training day</label>
+          <input type="date" data-rr-tp-start class="form-input" style="width:100%" value="${escapeHtml(start || "")}"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">Ride-along day</label>
+          <input type="date" data-rr-tp-ride class="form-input" style="width:100%" value="${escapeHtml(ride || "")}"/>
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">Trainer for Day 3</label>
+        <button type="button" class="btn" data-rr-tp-pick style="width:100%;justify-content:flex-start;text-align:left">
+          ${has && pair.trainer_id
+            ? `★ ${escapeHtml(trainerName || "Selected")}${pair.source === "fallback" ? " · fallback" : ""}`
+            : "Pick a trainer…"}
+        </button>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:5px">Designated trainers (drivers.is_trainer) are shown first; fall back to any active driver if no trainer fits.</div>
+      </div>
+
+      <div style="display:flex;gap:var(--s-2);justify-content:flex-end">
+        ${has ? `<button type="button" class="btn btn-ghost" data-rr-tp-clear>Clear match</button>` : ""}
+        <button type="button" class="btn btn-primary" data-rr-tp-activate ${canActivate ? "" : "disabled"} title="${canActivate ? "Materializes shifts and flips driver to active" : "Set first training day, ride-along day, and trainer before activating"}">Activate driver</button>
+      </div>
+    </div>`;
+}
+
+// ── Training-pairing handlers (Overview tab, onboarding drivers) ──────
+async function _trainingPairingDatesChanged() {
+  const drv = _ddDriver && _ddDriver.driver;
+  if (!drv || !drv.id) return;
+  const start = document.querySelector("[data-rr-tp-start]")?.value || null;
+  const ride  = document.querySelector("[data-rr-tp-ride]")?.value  || null;
+  const pair  = _ddDriver.trainingPairing;
+  // No-op if neither date changed.
+  if (pair && pair.training_start_date === start && pair.ride_along_date === ride) return;
+  // If there's no trainer yet, we can't call propose_training_pairing
+  // (which requires a trainer_id). Stash dates locally on the in-memory
+  // pairing so the picker can use them — they get committed when the
+  // operator picks a trainer.
+  _ddDriver.trainingPairing = Object.assign({}, pair || {}, {
+    training_start_date: start,
+    ride_along_date:     ride,
+  });
+  // If a trainer is already chosen, persist immediately.
+  if (pair && pair.trainer_id) {
+    const { data, error } = await sb.rpc("propose_training_pairing", {
+      p_trainee_id:          drv.id,
+      p_trainer_id:          pair.trainer_id,
+      p_ride_along_date:     ride,
+      p_training_start_date: start,
+      p_source:              pair.source || (pair._is_trainer ? "trainer" : "fallback"),
+    });
+    if (error) { toast("Couldn't save dates: " + error.message, "warn"); return; }
+    _ddDriver.trainingPairing = data;
+  }
+  renderDriverDrawerTab();
+}
+
+async function _trainingPairingClear() {
+  const drv = _ddDriver && _ddDriver.driver;
+  if (!drv || !drv.id) return;
+  if (!confirm("Clear the training pairing? You can re-pair before activating.")) return;
+  const { error } = await sb.rpc("clear_training_pairing", { p_trainee_id: drv.id });
+  if (error) { toast("Couldn't clear: " + error.message, "warn"); return; }
+  _ddDriver.trainingPairing = null;
+  toast("Pairing cleared", "info");
+  renderDriverDrawerTab();
+}
+
+async function _trainingPairingActivate() {
+  const drv = _ddDriver && _ddDriver.driver;
+  if (!drv || !drv.id) return;
+  if (!confirm("Activate this driver? Day 1+2 training shifts and the ride-along will be created and both drivers will be texted.")) return;
+  const { error } = await sb.rpc("activate_driver_with_pairing", { p_driver_id: drv.id });
+  if (error) { toast("Activation failed: " + (error.message || ""), "warn"); return; }
+  toast("Driver activated · shifts created · messages queued", "success");
+  // Re-load the drawer to reflect the new active status + materialized pairing.
+  await loadDriverDrawer(drv.id);
+}
+
+// Trainer-picker modal — calls eligible_ride_along_drivers for the
+// currently-chosen ride-along date and groups results into Trainers /
+// Other drivers per the design. Non-trainer drivers are search-gated so
+// big rosters don't overwhelm the picker.
+async function _openTrainerPickerModal() {
+  const drv = _ddDriver && _ddDriver.driver;
+  if (!drv || !drv.id) return;
+  const pair = _ddDriver.trainingPairing || {};
+  const rideDate = (document.querySelector("[data-rr-tp-ride]")?.value) || pair.ride_along_date || "";
+  if (!rideDate) {
+    toast("Pick a ride-along date first", "warn");
+    return;
+  }
+  let m = document.getElementById("rr-tp-modal");
+  if (m) m.remove();
+  m = document.createElement("div");
+  m.id = "rr-tp-modal";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10001;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:520px;width:100%;max-height:80vh;display:flex;flex-direction:column">
+      <h3 style="margin:0 0 6px;font-size:var(--fs-lg);font-weight:600">Pick a trainer for ${escapeHtml(displayDriverName(drv) || "this driver")}</h3>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:14px">Available drivers on ${escapeHtml(new Date(rideDate + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }))}</div>
+      <div id="rr-tp-results" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-md);padding:8px 10px;min-height:120px"><div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:8px 0">Loading…</div></div>
+      <div style="margin-top:14px">
+        <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">No trainer fits? Search other drivers</label>
+        <input id="rr-tp-search" class="form-input" placeholder="Type a name…" style="width:100%"/>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px">
+        <button class="btn" data-rr-tp-cancel>Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (e) => {
+    if (e.target.closest("[data-rr-tp-cancel]") || e.target === m) { m.remove(); return; }
+    const row = e.target.closest("[data-rr-tp-row]");
+    if (row) _trainingPairingPick(row.getAttribute("data-driver-id"), row.getAttribute("data-is-trainer") === "1");
+  });
+  m.addEventListener("input", (e) => {
+    if (e.target.id === "rr-tp-search") _trainingPairingRenderResults();
+  });
+  const { data, error } = await sb.rpc("eligible_ride_along_drivers", {
+    p_trainee_id: drv.id,
+    p_date:       rideDate,
+  });
+  if (error) {
+    document.getElementById("rr-tp-results").innerHTML = `<div style="color:#991b1b;font-size:var(--fs-sm);padding:8px 0">${escapeHtml(error.message || "Failed to load")}</div>`;
+    return;
+  }
+  _trainingPairingCandidates = data || [];
+  _trainingPairingRenderResults();
+}
+
+let _trainingPairingCandidates = [];
+
+function _trainingPairingRenderResults() {
+  const root = document.getElementById("rr-tp-results");
+  if (!root) return;
+  const q = (document.getElementById("rr-tp-search")?.value || "").toLowerCase().trim();
+  const fmtT = (iso) => iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+  const trainers = _trainingPairingCandidates.filter(r => r.is_trainer);
+  const others   = _trainingPairingCandidates.filter(r => !r.is_trainer && (!q ? false : r.full_name.toLowerCase().includes(q)));
+  // Empty-state for trainers section.
+  const trainerSection = trainers.length
+    ? trainers.map(r => _trainingPairingRowHtml(r, true)).join("")
+    : `<div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:6px 0">No trainers available this day — fall back to another driver below.</div>`;
+  const othersSection = q
+    ? (others.length
+        ? others.map(r => _trainingPairingRowHtml(r, false)).join("")
+        : `<div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:6px 0">No matches.</div>`)
+    : `<div style="color:var(--text-subtle);font-size:var(--fs-xs);padding:6px 0;font-style:italic">Type a name above to search non-trainer drivers.</div>`;
+  root.innerHTML = `
+    <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin:4px 0 6px">Trainers (${trainers.length} available)</div>
+    ${trainerSection}
+    <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin:14px 0 6px;padding-top:10px;border-top:1px solid var(--border)">Other drivers</div>
+    ${othersSection}`;
+  // Re-bind fmtT helper inline in row html below — we render with raw times,
+  // letting the row html function format. Re-render time strings:
+  root.querySelectorAll("[data-rr-tp-row]").forEach((el) => {
+    const starts = el.getAttribute("data-starts");
+    const ends   = el.getAttribute("data-ends");
+    const slot   = el.querySelector("[data-rr-tp-times]");
+    if (slot && starts && ends) slot.textContent = `${fmtT(starts)}–${fmtT(ends)}`;
+  });
+}
+
+function _trainingPairingRowHtml(r, isTrainer) {
+  const star = isTrainer ? "★ " : "";
+  const warns = (Array.isArray(r.warnings) && r.warnings.length)
+    ? ` <span title="${escapeHtml(r.warnings.map(w => w.text).join("; "))}" style="color:var(--amber)">⚠</span>`
+    : "";
+  return `
+    <div data-rr-tp-row data-driver-id="${escapeHtml(r.driver_id)}" data-is-trainer="${isTrainer ? "1" : "0"}" data-starts="${escapeHtml(r.starts_at || "")}" data-ends="${escapeHtml(r.ends_at || "")}" style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-radius:var(--r-md);cursor:pointer" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:var(--fs-sm)">${star}${escapeHtml(r.full_name)}${warns}</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle)">
+          ${escapeHtml(r.route_code || "no route")} · <span data-rr-tp-times>—</span> · ${escapeHtml(r.station_code || "")} · ${Math.round(r.weekly_hours || 0)}h wk
+        </div>
+      </div>
+    </div>`;
+}
+
+async function _trainingPairingPick(trainerId, isTrainer) {
+  const drv = _ddDriver && _ddDriver.driver;
+  if (!drv || !drv.id) return;
+  const pair = _ddDriver.trainingPairing || {};
+  const rideDate = document.querySelector("[data-rr-tp-ride]")?.value || pair.ride_along_date;
+  const startDate = document.querySelector("[data-rr-tp-start]")?.value
+                 || pair.training_start_date
+                 || (() => {
+                      // Default: 2 weekdays before the ride-along date.
+                      if (!rideDate) return null;
+                      const d = new Date(rideDate + "T12:00:00");
+                      d.setDate(d.getDate() - 2);
+                      return d.toISOString().slice(0, 10);
+                    })();
+  if (!rideDate) { toast("Pick a ride-along date first", "warn"); return; }
+  // Soft confirmation for non-trainer fallback.
+  if (!isTrainer) {
+    const proceed = confirm("This driver isn't marked as a trainer. They'll be notified to mentor for the day. Proceed?");
+    if (!proceed) return;
+  }
+  const { data, error } = await sb.rpc("propose_training_pairing", {
+    p_trainee_id:          drv.id,
+    p_trainer_id:          trainerId,
+    p_ride_along_date:     rideDate,
+    p_training_start_date: startDate,
+    p_source:              isTrainer ? "trainer" : "fallback",
+  });
+  if (error) { toast("Couldn't save match: " + error.message, "warn"); return; }
+  // Stash trainer name on the pairing for the card's display.
+  const picked = _trainingPairingCandidates.find(r => r.driver_id === trainerId);
+  _ddDriver.trainingPairing = Object.assign({}, data, { _trainer_name: picked ? picked.full_name : "" });
+  document.getElementById("rr-tp-modal")?.remove();
+  toast("Match saved", "success");
+  renderDriverDrawerTab();
 }
 
 function renderProfileTab(body, d) {
@@ -22403,6 +22765,11 @@ async function renderScheduleWeek() {
   const coverageByDate = new Map();
   for (const sh of (grid.shifts || [])) {
     if (!["scheduled", "completed"].includes(sh.status)) continue;
+    // Training + ride-along shifts aren't staffing a route — they're
+    // onboarding scaffolding (Day 1+2 at the station, Day 3 shadowing a
+    // trainer). Counting them toward "filled" would double-count the
+    // route on Day 3 (the trainer's regular shift already counts).
+    if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
     const a = coverageByDate.get(sh.date) || { needed: 0, filled: 0, _shifts: 0 };
     a._shifts += 1;
     const isFilled =
