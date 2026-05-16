@@ -1126,10 +1126,10 @@ a{color:inherit;text-decoration:none}
 }
 .stage-tab{
   appearance:none;background:transparent;border:0;font:inherit;
-  padding:var(--s-2) 14px;border-radius:var(--r-md);
+  padding:var(--s-2) var(--s-3-5);border-radius:var(--r-md);
   color:var(--text-muted);cursor:pointer;
   font-weight:500;font-size:var(--fs-md);
-  display:inline-flex;align-items:center;gap:6px;
+  display:inline-flex;align-items:center;gap:var(--s-1);
 }
 .stage-tab:hover{color:var(--text)}
 .stage-tab.active{
@@ -1190,7 +1190,7 @@ a{color:inherit;text-decoration:none}
 }
 .table tbody tr{transition:background var(--t-fast)}
 .table tbody tr:last-child td{border-bottom:none}
-.table tbody tr:hover{background:rgba(244,246,251,.6)}
+.table tbody tr:hover{background:var(--surface-hover)}
 
 /* ─────────────────────────────────────────────────────────────
    FIRST-RUN DASHBOARD · welcome banner + Get-started tiles
@@ -1711,7 +1711,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 
 /* Zebra striping — subtle */
 .table-zebra tbody tr:nth-child(even){background:rgba(15,23,42,.015)}
-.table-zebra tbody tr:nth-child(even):hover{background:rgba(244,246,251,.8)}
+.table-zebra tbody tr:nth-child(even):hover{background:var(--surface-pressed)}
 
 /* Clickable rows */
 .table-clickable tbody tr{cursor:pointer;transition:background var(--t-fast), box-shadow var(--t-fast)}
@@ -2963,7 +2963,7 @@ select.form-input{
 
 /* Driver app preview (mobile-style frame) */
 .driver-app-frame{
-  background:linear-gradient(180deg,#0F172A 0%,#1E293B 100%);
+  background:var(--brand-grad-dark);
   border-radius:var(--r-lg);padding:var(--s-6);
   display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-4);row-gap:var(--s-8);
 }
@@ -6399,16 +6399,16 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .iv-candidates{display:flex;flex-direction:column;gap:var(--s-2-5);margin-bottom:var(--s-5)}
 .iv-card{
-  display:grid;grid-template-columns:80px 1fr auto;gap:18px;align-items:center;
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;
-  padding:var(--s-3-5) 18px;
+  display:grid;grid-template-columns:80px 1fr auto;gap:var(--s-5);align-items:center;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-3-5) var(--s-5);
   transition:opacity var(--t-spring), transform var(--t-spring), border-color var(--t-fast);
 }
 .iv-card.processed{opacity:.55;border-style:dashed}
-.iv-card-time{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.01em}
+.iv-card-time{font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em}
 .iv-card-body{min-width:0}
 .iv-card-header{display:flex;align-items:center;gap:var(--s-2-5);margin-bottom:var(--s-2)}
-.iv-card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:var(--fs-md);font-weight:700;color:#fff;flex-shrink:0}
+.iv-card-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:var(--fs-md);font-weight:700;color:var(--text-inverse);flex-shrink:0}
 .iv-card-avatar.tier-a{background:var(--green)}
 .iv-card-avatar.tier-b{background:var(--blue-bright)}
 .iv-card-avatar.tier-c{background:var(--amber-bright)}
