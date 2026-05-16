@@ -12874,7 +12874,7 @@ function renderOverviewTab(body, dd) {
     const days = Math.floor((new Date(d.dl_expires_on + "T12:00:00").getTime() - Date.now()) / 86400000);
     if (days < 0) attn.push({ t: "red",   txt: `Driver's license expired ${fmtD(d.dl_expires_on)}` });
     else if (days <= 30) attn.push({ t: "amber", txt: `Driver's license expires ${fmtD(d.dl_expires_on)} — ${days} day${days === 1 ? "" : "s"}` });
-  } else if (d.dl_image_path) {
+  } else if (d.dl_image_path || d.dl_back_image_path) {
     attn.push({ t: "amber", txt: "Driver's license uploaded — expiry not verified yet" });
   } else if (d.status !== "onboarding") {
     attn.push({ t: "amber", txt: "No driver's license on file" });
@@ -14768,14 +14768,102 @@ document.addEventListener("change", async (e) => {
 // + expiration verification + DOT/XL certs (DSP only).  When the
 // driver has uploaded an image but no expiration date is on file, an
 // amber callout reminds the DSP to type the date off the photo.
+// File-input change → upload. Fires when the user picks a file via the
+// label trigger inside renderDlSlot. Keeps the upload flow one-tap on
+// mobile (label → camera/picker → upload) instead of the previous
+// two-step "Choose file" + "Replace" combo with a barely-visible button.
+document.addEventListener("change", async (e) => {
+  const input = e.target.closest("[data-rr-dl-input]");
+  if (!input) return;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!_ddDriver?.driver?.id) {
+    toast("Open the driver record first", "warn");
+    input.value = "";
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    toast("Image too large (max 10 MB)", "warn");
+    input.value = "";
+    return;
+  }
+  const side = input.getAttribute("data-rr-dl-side") || "front";
+  const col  = side === "back" ? "dl_back_image_path" : "dl_image_path";
+  const dsp  = window.RR.dsp.id;
+  const drv  = _ddDriver.driver.id;
+  const path = `${dsp}/${drv}/license-${side}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, {
+    contentType: file.type, upsert: false,
+  });
+  if (upErr) {
+    toast("Upload failed: " + upErr.message, "warn");
+    input.value = "";
+    return;
+  }
+  const oldPath = _ddDriver.driver[col];
+  const { error: updErr } = await sb.from("drivers")
+    .update({ [col]: path }).eq("id", drv);
+  if (updErr) {
+    toast("Save failed: " + updErr.message, "warn");
+    input.value = "";
+    return;
+  }
+  // Clean up the previous file lazily — orphans are tolerable.
+  if (oldPath && oldPath !== path) {
+    sb.storage.from("driver-documents").remove([oldPath]).catch(() => {});
+  }
+  toast(`License ${side} saved`, "success");
+  await loadDriverDrawer(drv);
+});
+
+// Single license-image slot used inside renderLicenseTab. The native
+// <input type="file"> renders inconsistently across browsers (it
+// previously showed up as a near-invisible "Choose File" button next
+// to "Replace"), so the file picker is hidden and a styled button
+// triggers it via the label. Either side reuses the same slot.
+function renderDlSlot(side, label, signedUrl) {
+  const inputId = `rr-dl-file-${side}`;
+  if (signedUrl) {
+    return `
+      <div>
+        <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);margin-bottom:6px">${escapeHtml(label)}</div>
+        <a href="${signedUrl}" target="_blank" rel="noreferrer" style="display:block">
+          <img src="${signedUrl}" style="width:100%;max-height:200px;object-fit:cover;border:1px solid var(--border);border-radius:8px;background:var(--canvas)" alt="${escapeHtml(label)} of driver's license"/>
+        </a>
+        <input type="file" id="${inputId}" accept="image/*" capture="environment" data-rr-dl-input data-rr-dl-side="${side}" style="display:none"/>
+        <div style="margin-top:var(--s-2);display:flex;gap:var(--s-2)">
+          <label for="${inputId}" class="btn btn-sm" style="cursor:pointer">Replace</label>
+          <button class="btn btn-sm" data-rr-dl-remove data-rr-dl-side="${side}" type="button" style="color:var(--red)">Remove</button>
+        </div>
+      </div>`;
+  }
+  return `
+    <div>
+      <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);margin-bottom:6px">${escapeHtml(label)}</div>
+      <label for="${inputId}" style="display:block;border:1px dashed var(--border);border-radius:8px;padding:var(--s-5);text-align:center;color:var(--text-subtle);font-size:var(--fs-sm);cursor:pointer;line-height:1.4">
+        <div style="font-weight:600;color:var(--text-muted);margin-bottom:4px">Add ${escapeHtml(label.toLowerCase())} image</div>
+        Tap to pick a photo or take one with the camera
+      </label>
+      <input type="file" id="${inputId}" accept="image/*" capture="environment" data-rr-dl-input data-rr-dl-side="${side}" style="display:none"/>
+    </div>`;
+}
+
 async function renderLicenseTab(body, d) {
   const v = (s) => escapeHtml(s ?? "");
-  // Resolve a viewable URL for the stored DL image, if any.
+  // Resolve viewable URLs for the stored DL image(s), if any. Driver's
+  // licenses have a front and a back — both are stored independently so
+  // either side can be (re)uploaded without disturbing the other.
   let imgUrl = null;
+  let backUrl = null;
   if (d.dl_image_path) {
     const { data: signed } = await sb.storage.from("driver-documents")
       .createSignedUrl(d.dl_image_path, 60 * 60);
     imgUrl = signed?.signedUrl || null;
+  }
+  if (d.dl_back_image_path) {
+    const { data: signed } = await sb.storage.from("driver-documents")
+      .createSignedUrl(d.dl_back_image_path, 60 * 60);
+    backUrl = signed?.signedUrl || null;
   }
 
   // Expiry visual: pill colors past = red, ≤30 days = amber, else neutral.
@@ -14793,8 +14881,10 @@ async function renderLicenseTab(body, d) {
 
   // The verification callout fires when the driver has uploaded an
   // image but the expiration date is still blank — a real-world
-  // scenario once the driver app DL upload ships.
-  const needsVerify = !!d.dl_image_path && !currentExpiry;
+  // scenario once the driver app DL upload ships. Either side proves
+  // they have a license; expiration reads off the front, so any image
+  // present is enough to nudge the DSP to record the date.
+  const needsVerify = (!!d.dl_image_path || !!d.dl_back_image_path) && !currentExpiry;
   const verifyCallout = needsVerify ? `
     <div class="dd-callout warn" style="margin-top:var(--s-3)">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
@@ -14825,21 +14915,11 @@ async function renderLicenseTab(body, d) {
         </div>
       </div>
       <div style="margin-top:14px">
-        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:var(--s-2)">License image</div>
-        ${imgUrl
-          ? `<a href="${imgUrl}" target="_blank" rel="noreferrer" style="display:block">
-               <img src="${imgUrl}" style="max-width:100%;max-height:320px;border:1px solid var(--border);border-radius:8px;background:var(--canvas)" alt="Drivers license"/>
-             </a>
-             <div style="margin-top:var(--s-2);display:flex;gap:var(--s-2);align-items:center">
-               <input type="file" id="rr-dl-file" accept="image/*" />
-               <button class="btn btn-sm" data-rr-dl-upload>Replace</button>
-               <button class="btn btn-sm" data-rr-dl-remove style="color:var(--red)">Remove</button>
-             </div>`
-          : `<div style="border:1px dashed var(--border);border-radius:8px;padding:var(--s-6);text-align:center;color:var(--text-subtle);font-size:var(--fs-md);margin-bottom:10px">No image uploaded yet. Driver can upload from the app, or you can attach one here.</div>
-             <div style="display:flex;gap:var(--s-2);align-items:center">
-               <input type="file" id="rr-dl-file" accept="image/*" />
-               <button class="btn btn-primary btn-sm" data-rr-dl-upload>Upload license image</button>
-             </div>`}
+        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:var(--s-2)">License images</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)">
+          ${renderDlSlot("front", "Front", imgUrl)}
+          ${renderDlSlot("back",  "Back",  backUrl)}
+        </div>
         ${verifyCallout}
       </div>
     </div>
@@ -17363,37 +17443,22 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // License-tab upload
-  if (e.target.closest("[data-rr-dl-upload]")) {
+  // License-tab remove (front or back). Upload itself is handled on the
+  // hidden <input>'s change event (registered separately below).
+  const rmBtn = e.target.closest("[data-rr-dl-remove]");
+  if (rmBtn) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    const file = document.getElementById("rr-dl-file")?.files?.[0];
-    if (!file) { toast("Choose an image first", "warn"); return; }
-    const path = `${window.RR.dsp.id}/${_ddDriver.driver.id}/license-${Date.now()}-${file.name}`;
-    const { error: upErr } = await sb.storage.from("driver-documents").upload(path, file, {
-      contentType: file.type, upsert: false,
-    });
-    if (upErr) { toast("Upload failed: " + upErr.message, "warn"); return; }
-    // Remove any previous DL image from storage so we don't accumulate.
-    if (_ddDriver.driver.dl_image_path) {
-      sb.storage.from("driver-documents").remove([_ddDriver.driver.dl_image_path]).catch(() => {});
+    const side = rmBtn.getAttribute("data-rr-dl-side") || "front";
+    const col  = side === "back" ? "dl_back_image_path" : "dl_image_path";
+    const label = side === "back" ? "back image" : "front image";
+    if (!confirm(`Remove the license ${label}?`)) return;
+    const currentPath = _ddDriver.driver[col];
+    if (currentPath) {
+      await sb.storage.from("driver-documents").remove([currentPath]).catch(() => {});
     }
-    const { error: updErr } = await sb.from("drivers")
-      .update({ dl_image_path: path }).eq("id", _ddDriver.driver.id);
-    if (updErr) { toast("Save failed: " + updErr.message, "warn"); return; }
-    toast("License image saved", "success");
-    await loadDriverDrawer(_ddDriver.driver.id);
-    return;
-  }
-  if (e.target.closest("[data-rr-dl-remove]")) {
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    if (!confirm("Remove the license image?")) return;
-    if (_ddDriver.driver.dl_image_path) {
-      await sb.storage.from("driver-documents").remove([_ddDriver.driver.dl_image_path]).catch(() => {});
-    }
-    await sb.from("drivers").update({ dl_image_path: null }).eq("id", _ddDriver.driver.id);
-    toast("License image removed", "warn");
+    await sb.from("drivers").update({ [col]: null }).eq("id", _ddDriver.driver.id);
+    toast(`License ${label} removed`, "warn");
     await loadDriverDrawer(_ddDriver.driver.id);
     return;
   }
@@ -23556,6 +23621,14 @@ function openAddShiftModal(date, stationId, prefDriverId) {
         <option value="">— Open shift —</option>
         ${_schedDriverList.map(d => `<option value="${d.id}"${prefDriverId === d.id ? " selected" : ""}>${escapeHtml(displayDriverName(d))}</option>`).join("")}
       </select>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Shift type</label>
+      <select id="rr-sh-kind" class="form-input" style="width:100%;margin-bottom:10px">
+        <option value="regular">Regular</option>
+        <option value="training">Training</option>
+        <option value="ride_along">Ride-along</option>
+        <option value="rescue">Rescue</option>
+        <option value="other">Other</option>
+      </select>
       <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Route</label>
       <input id="rr-sh-route" class="form-input" style="width:100%;margin-bottom:14px" placeholder="e.g. KMO1-14B"/>
       <div style="display:flex;gap:var(--s-2);justify-content:flex-end">
@@ -23572,6 +23645,7 @@ function openAddShiftModal(date, stationId, prefDriverId) {
         station_id: stationId,
         driver_id: document.getElementById("rr-sh-driver").value || null,
         route_code: document.getElementById("rr-sh-route").value.trim() || null,
+        shift_kind: document.getElementById("rr-sh-kind").value || "regular",
       };
       if (!_confirmLiveScheduleEdit()) return;
       _markLocalShiftMutation();
