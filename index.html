@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>RouteReady — The operating system for Amazon DSPs</title>
-<meta name="description" content="RouteReady runs your DSP — hiring, scheduling, performance, fleet, and compliance — in one place. Built by people who've run the DSP.">
+<meta name="description" content="RouteReady runs your DSP — hiring, scheduling, performance, fleet, compliance, signed documents, AI vehicle-inspection. The operating system Amazon DSPs run on.">
 <link rel="icon" type="image/png" href="/app/Icon.png">
 <link rel="apple-touch-icon" href="/app/Icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -151,6 +151,11 @@ section{padding:80px 0}
 .feat[data-c="teal"]{--accent:var(--teal);--accent-soft:rgba(13,148,136,.1)}
 .feat[data-c="pink"]{--accent:var(--pink);--accent-soft:rgba(219,39,119,.1)}
 .feat[data-c="amber"]{--accent:#D97706;--accent-soft:rgba(217,119,6,.1)}
+.feat[data-c="emerald"]{--accent:var(--emerald);--accent-soft:rgba(5,150,105,.1)}
+
+/* AI &amp; compliance highlight section variants */
+.feat-quote{margin-top:14px;padding:10px 14px;background:linear-gradient(135deg,rgba(15,108,189,.06) 0%,rgba(124,58,237,.06) 100%);border-left:3px solid var(--accent,var(--blue));border-radius:6px;font-family:'Inter Tight',sans-serif;font-style:italic;font-size:13px;color:var(--text);line-height:1.55}
+.feat-kbd{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--surface-soft);border:1px solid var(--border);border-radius:5px;padding:1px 7px;color:var(--text);font-weight:500}
 
 /* HOW IT WORKS */
 .how{background:#fff;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
@@ -200,6 +205,8 @@ footer{background:#0B1220;color:rgba(255,255,255,.6);padding:60px 0 40px;font-si
     </a>
     <div class="nav-r">
       <a class="nav-link" href="#features">Product</a>
+      <a class="nav-link" href="#ai">AI</a>
+      <a class="nav-link" href="#compliance">Compliance</a>
       <a class="nav-link" href="#how">How it works</a>
       <a class="nav-link" href="/dashboard/login.html">Sign in</a>
       <a class="btn btn-primary" href="#cta">Book a demo</a>
@@ -294,13 +301,13 @@ footer{background:#0B1220;color:rgba(255,255,255,.6);padding:60px 0 40px;font-si
       <article class="feat" data-c="violet">
         <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
         <h3 class="feat-h">Workflows &amp; checklists</h3>
-        <p class="feat-p">Daily start-of-shift, vehicle inspection with AI photo review, accident reporting — every form your DSP needs, signed in the field, offline-tolerant on the driver's phone.</p>
+        <p class="feat-p">Custom forms with GPS, signature, and photo capture. Operational assignment boards with driver-acknowledgment loops. SOP checklists with per-item attribution. Every workflow your DSP needs, signed in the field, on the driver's home-screen app.</p>
       </article>
 
       <article class="feat" data-c="amber">
         <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V15c0 .55.45 1 1 1h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg></div>
         <h3 class="feat-h">Fleet</h3>
-        <p class="feat-p">Vehicles, registrations, inspections, maintenance, MCS-150 monitoring. Know which van is parked, which is in shop, and which needs DOT renewal next week.</p>
+        <p class="feat-p">Vehicles, registrations, repair orders, MCS-150 monitoring. Every grounded van shows two live countdowns — Open RO due (2 BD) and Repair due (14 BD) — Amazon's named DSP rules, on every row. Ground a van and tomorrow's assignment disappears automatically.</p>
       </article>
 
       <article class="feat" data-c="pink">
@@ -379,6 +386,92 @@ footer{background:#0B1220;color:rgba(255,255,255,.6);padding:60px 0 40px;font-si
   </div>
 </section>
 
+<section id="ai" class="features" style="background:#fff;border-top:1px solid var(--border)">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-eyebrow">AI inside the operation</span>
+      <h2 class="section-h">AI that sees what your operators miss.</h2>
+      <p class="section-sub">Not a chatbot. Operational AI wired into the surfaces your team uses every morning — comparing photos, answering questions, telling you how many drivers to hire and by when.</p>
+    </div>
+
+    <div class="features-grid">
+      <article class="feat" data-c="violet">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+        <h3 class="feat-h">DVIC AI damage detection</h3>
+        <p class="feat-p">Every morning, Claude vision compares today's inspection photos to yesterday's. New scratch? New dent? Flagged in seconds with area, severity, and confidence — before your driver leaves the lot. The defensible record for every damage chargeback you used to absorb.</p>
+        <div class="feat-quote">"AI sees the new damage before your driver leaves the lot."</div>
+      </article>
+
+      <article class="feat" data-c="indigo">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v3l2 1"/></svg></div>
+        <h3 class="feat-h">Ask RouteReady</h3>
+        <p class="feat-p">Type <span class="feat-kbd">what was last week's callout rate?</span> in the topbar. Get a KPI card. Type <span class="feat-kbd">licenses expiring in 30 days?</span> Get a table. Pin it to your home dashboard. A structured Claude agent reads your real data through five DSP-scoped tools — no hallucinated numbers, no SQL to write.</p>
+      </article>
+
+      <article class="feat" data-c="blue">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+        <h3 class="feat-h">Hire 4 more by May 25</h3>
+        <p class="feat-p">RouteReady knows your route forecast, your roster, your onboarding pipeline, your weekend coverage, and your real conversion rate. The Staffing Outlook page combines all of it into one English sentence — how many drivers to hire, by when, and which days to prioritize. No more under-hire panic. No more over-hire OT.</p>
+        <div class="feat-quote">"Hire 4 more drivers — your busiest forecast week needs 22, you'll have 18. Prioritize weekend-available. Bring in ~16 more applicants."</div>
+      </article>
+
+      <article class="feat" data-c="teal">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></div>
+        <h3 class="feat-h">Verify any signed document. No login.</h3>
+        <p class="feat-p">Every signed envelope is sealed with ECDSA P-256 cryptography and an RFC 3161 trusted timestamp from a third-party authority. Hand your lawyer a link to <span class="feat-kbd">/verify/&lt;token&gt;</span>. They check the chain client-side. They don't need our app. They don't need an account. We're not in the loop. That's the point.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section id="compliance" class="features" style="background:linear-gradient(180deg,#F8FAFF 0%,#fff 100%);border-top:1px solid var(--border)">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-eyebrow">Compliance &amp; defensibility</span>
+      <h2 class="section-h">Court-grade by default. Silent until it isn't.</h2>
+      <p class="section-sub">Amazon's DSP rules, FMCSA deadlines, federal I-9, and the full audit chain — enforced server-side, surfaced as one stoplight score, and quiet when there's nothing to act on. Most platforms drown operators in alerts. Ours speak only when you need to act.</p>
+    </div>
+
+    <div class="features-grid">
+      <article class="feat" data-c="amber">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <h3 class="feat-h">Amazon 2-BD &amp; 14-BD rules, enforced</h3>
+        <p class="feat-p">Every grounded van shows two live countdowns — Open RO due (2 business days), Repair due (14 business days) — mapped directly to Amazon's named DSP rules. The compliance board flags them as separate exceptions so you can clear them one at a time, with a permanent audit row on each.</p>
+      </article>
+
+      <article class="feat" data-c="indigo">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+        <h3 class="feat-h">FMCSA MCS-150 from your USDOT</h3>
+        <p class="feat-p">Tell us your USDOT. We'll tell you when your next biennial filing is due — computed from the digits, the way the federal rule actually works. Yellow at 60 days out. Red the day it lapses. Most owners don't realize it's deterministic. Now you do — and your operating authority doesn't quietly expire.</p>
+      </article>
+
+      <article class="feat" data-c="violet">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <h3 class="feat-h">Grounded vans can't be assigned</h3>
+        <p class="feat-p">Flip a van to grounded. Every same-day-and-future assignment to that van is deleted — with an audit row on each. Your dispatch board cannot lie about which van is drivable. The most expensive operational mistake at a DSP, structurally impossible.</p>
+      </article>
+
+      <article class="feat" data-c="emerald">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <h3 class="feat-h">Hash-chained audit, everywhere</h3>
+        <p class="feat-p">Documents, assignments, compliance events, coaching edits — every meaningful action is appended to a SHA-256 chain. Re-walkable. Independently verifiable. The packet you hand an adjudicator, an ICE auditor, or an unemployment hearing is the packet that was true on the day.</p>
+      </article>
+
+      <article class="feat" data-c="blue">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 5c0 1.66 4 3 9 3s9-1.34 9-3-4-3-9-3-9 1.34-9 3"/></svg></div>
+        <h3 class="feat-h">Closed-loop attendance &amp; coaching</h3>
+        <p class="feat-p">Click Approve on a no-show. The system stamps the shift status, evaluates your policy ladder, drafts the coaching record at the right severity, sends it to the driver's task feed, and waits for the signed acknowledgment. One click. Documented. Defensible. Every driver, every time, the same way.</p>
+      </article>
+
+      <article class="feat" data-c="teal">
+        <div class="feat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></div>
+        <h3 class="feat-h">Compliance noise that isn't</h3>
+        <p class="feat-p">"Driver has no van" doesn't fire if there's an auto-assignable van in the pool. Snoozed exceptions log a permanent audit row and re-fire after 14 days. The board stays quiet until it isn't — so when it lights up, you act. Alert fatigue is why most platforms fail. Ours is silent until it isn't.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
 <section id="how" class="how">
   <div class="wrap">
     <div class="section-head">
@@ -413,8 +506,8 @@ footer{background:#0B1220;color:rgba(255,255,255,.6);padding:60px 0 40px;font-si
 
 <section id="cta" class="cta-strip">
   <div class="cta-inner">
-    <h2 class="cta-h">Ready to <span class="grad">stop wrestling spreadsheets</span>?</h2>
-    <p class="cta-sub">A 30-minute demo and a 14-day trial. If RouteReady doesn't earn its place inside the first week, you walk away with no awkward sales call to dodge.</p>
+    <h2 class="cta-h">Run the operation. <span class="grad">RouteReady runs the rest.</span></h2>
+    <p class="cta-sub">A 30-minute demo and a 14-day trial. See the closed loops, the AI vision, and the compliance score that goes silent until it actually has something to say. If RouteReady doesn't earn its place inside the first week, you walk away — no awkward sales call to dodge.</p>
     <div class="hero-cta">
       <a class="btn btn-on-dark btn-lg" href="mailto:hello@gorouteready.com?subject=RouteReady demo">Book a demo
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -436,8 +529,11 @@ footer{background:#0B1220;color:rgba(255,255,255,.6);padding:60px 0 40px;font-si
     <div class="footer-col">
       <h4>Product</h4>
       <a href="#features">Features</a>
+      <a href="#ai">AI</a>
+      <a href="#compliance">Compliance</a>
       <a href="#how">How it works</a>
       <a href="/download">Desktop app</a>
+      <a href="/verify.html">Verify a document</a>
       <a href="/dashboard/login.html">Sign in</a>
     </div>
     <div class="footer-col">
