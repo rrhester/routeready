@@ -13079,10 +13079,17 @@ function _renderTrainingPairingModal() {
   if (!s) return;
   const d = s.driver;
   const pair = s.pair;
+  // `has` = there's a persisted pairing row (pair.id is set). Pre-save,
+  // s.pair is the stashed-locally form-state with the dates the operator
+  // has typed but no id yet. Read the dates straight from s.pair either
+  // way — the early reads were gated on `has`, which clobbered the start
+  // date the moment the operator filled in the ride-along date (since
+  // the row hadn't been inserted yet — that only happens after a trainer
+  // is picked).
   const has = pair && pair.id;
   const status = has ? pair.status : null;
-  const start = has ? pair.training_start_date : "";
-  const ride  = has ? pair.ride_along_date     : "";
+  const start = (pair && pair.training_start_date) || "";
+  const ride  = (pair && pair.ride_along_date)     || "";
   const fmtD = (x) => x ? new Date(x + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "—";
   const day2 = start ? (() => { const dt = new Date(start + "T12:00:00"); dt.setDate(dt.getDate() + 1); return dt.toISOString().slice(0, 10); })() : "";
 
