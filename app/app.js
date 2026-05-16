@@ -29,7 +29,7 @@ if (PREVIEW) {
   const _rawRpc = sb.rpc.bind(sb);
   const PREVIEW_BLOCKED_RPCS = new Set([
     "driver_chat_send", "driver_chat_mark_read", "driver_ack_message", "driver_channel_post",
-    "driver_signout", "driver_update_profile", "driver_set_dl_image", "driver_clear_dl_image",
+    "driver_signout", "driver_update_profile", "driver_set_dl_image", "driver_clear_dl_image", "driver_set_pin",
     "driver_onboarding_step_ack", "driver_submit_form", "driver_ack_coaching",
     "driver_checkin", "driver_checkout", "driver_undo_checkout", "driver_report_missed_day",
     "driver_set_preferred_days", "driver_submit_availability",
@@ -746,6 +746,7 @@ const routes = {
   "/tasks/i9":          { render: renderI9Section1,      tab: "/tasks", back: "/tasks", title: "Form I-9" },
   "/settings/profile":      { render: renderSettingsProfile, tab: "/profile", back: "/settings", title: "Profile" },
   "/settings/license":      { render: renderSettingsLicense, tab: "/profile", back: "/settings", title: "Driver's license" },
+  "/settings/pin":          { render: renderSettingsPin,     tab: "/profile", back: "/settings", title: "Sign-in PIN" },
   "/settings/availability": { render: renderAvailability,    tab: "/profile", back: "/settings", title: "Availability" },
   "/settings/attendance":   { render: renderAttendance,      tab: "/profile", back: "/settings", title: "Attendance" },
   "/settings/time-off":     { render: renderTimeOff,         tab: "/profile", back: "/settings", title: "Time off" },
@@ -3597,6 +3598,7 @@ function renderSettings() {
       <section class="settings-section">
         ${row("profile",      "/settings/profile",      "Profile",      "Name, pronouns, contact, emergency contact")}
         ${row("license",      "/settings/license",      "Driver's license", "License number and image")}
+        ${row("pin",          "/settings/pin",          "Sign-in PIN",  "Set or change your 4–6 digit PIN")}
         ${row("availability", "/settings/availability", "Availability", "Days you can work and your earliest start")}
         ${row("time-off",     "/settings/time-off",     "Time off",     "Request a day off and see past decisions")}
         ${row("attendance",   "/settings/attendance",   "Attendance",   "Today's status and your DSP's points policy")}
@@ -3706,12 +3708,15 @@ async function renderSettingsProfile() {
     if (upErr) { toast(_friendlyError(upErr, "Couldn't save. Your changes are still on screen."), "warn"); return; }
     toast("Saved", "ok");
     refreshDriverProfile(session, { force: true });
-    navigate("/settings");
+    // Onboarding drivers came from the Onboarding card; bounce them
+    // straight back so they can pick the next step.
+    navigate(prof?.status === "onboarding" ? "/tasks/onboarding" : "/settings");
   });
 }
 
 // ── Settings → Driver's license ─────────────────────────────────────
-async function renderSettingsLicense() {
+async function renderSettingsLicense(opts) {
+  opts = opts || {};
   const main = document.getElementById("main");
   main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
   const session = readSession();
@@ -3723,13 +3728,30 @@ async function renderSettingsLicense() {
     return;
   }
   const v = (s) => escapeHtml(s ?? "");
-  const dlImgUrl = prof?.dl_image_path
-    ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-documents/${prof.dl_image_path}`
-    : null;
-  const dlBackUrl = prof?.dl_back_image_path
-    ? `${cfg.SUPABASE_URL}/storage/v1/object/public/driver-documents/${prof.dl_back_image_path}`
-    : null;
+  // Signed URLs only — the public-URL path returns 401 because the
+  // driver-documents bucket is private (RLS lets anon SELECT named
+  // objects, but the /object/public/ route requires a public bucket).
+  // Without this, "image uploaded ok" but the preview comes back blank.
+  let dlImgUrl = null;
+  let dlBackUrl = null;
+  if (prof?.dl_image_path) {
+    const { data: signed } = await sb.storage.from("driver-documents")
+      .createSignedUrl(prof.dl_image_path, 60 * 60);
+    dlImgUrl = signed?.signedUrl || null;
+  }
+  if (prof?.dl_back_image_path) {
+    const { data: signed } = await sb.storage.from("driver-documents")
+      .createSignedUrl(prof.dl_back_image_path, 60 * 60);
+    dlBackUrl = signed?.signedUrl || null;
+  }
   const dlNeedsVerify = (!!prof?.dl_image_path || !!prof?.dl_back_image_path) && !prof?.dl_expires_on;
+
+  // The DL number persists across an in-page re-render (e.g. right
+  // after an image upload) because we honor any pending value the
+  // caller passes. Without this, typing the number then uploading an
+  // image wiped the input — the user had to re-type before they could
+  // hit Save.
+  const dlNumberVal = (typeof opts.dlNumber === "string") ? opts.dlNumber : (prof.dl_number || "");
 
   const slot = (side, label, url) => `
     <div style="margin-top:14px">
@@ -3743,7 +3765,7 @@ async function renderSettingsLicense() {
         : `<div class="settings-dl-empty">No ${escapeHtml(label.toLowerCase())} image yet.</div>`}
       <input id="rr-prof-dl-file-${side}" type="file" accept="image/*" capture="environment" data-rr-dl-side="${side}" style="display:none" />
       <div class="settings-dl-actions">
-        <button class="btn btn-block" data-rr-dl-pick data-rr-dl-side="${side}" type="button">${url ? `Replace ${label.toLowerCase()}` : `Take or upload ${label.toLowerCase()}`}</button>
+        <button class="btn btn-primary btn-block" data-rr-dl-pick data-rr-dl-side="${side}" type="button">${url ? `Replace ${label.toLowerCase()}` : `Take photo of ${label.toLowerCase()}`}</button>
         ${url ? `<button class="btn btn-ghost btn-block" data-rr-dl-remove data-rr-dl-side="${side}" type="button" style="color:var(--red);margin-top:8px">Remove ${escapeHtml(label.toLowerCase())}</button>` : ""}
       </div>
     </div>`;
@@ -3756,7 +3778,7 @@ async function renderSettingsLicense() {
         </div>
         <div class="settings-form">
           <label class="field-label" for="rr-prof-dl">License number</label>
-          <input class="field" id="rr-prof-dl" type="text" value="${v(prof.dl_number)}" autocapitalize="characters" />
+          <input class="field" id="rr-prof-dl" type="text" value="${v(dlNumberVal)}" autocapitalize="characters" />
 
           ${slot("front", "Front", dlImgUrl)}
           ${slot("back",  "Back",  dlBackUrl)}
@@ -3783,7 +3805,10 @@ async function renderSettingsLicense() {
     btn.disabled = false; btn.textContent = "Save";
     if (upErr) { toast(_friendlyError(upErr, "Couldn't save. Try again."), "warn"); return; }
     toast("Saved", "ok");
-    navigate("/settings");
+    // Onboarding drivers came from the Onboarding card; bounce them
+    // straight back so they can pick the next step instead of hunting
+    // through the Settings list again.
+    navigate(prof?.status === "onboarding" ? "/tasks/onboarding" : "/settings");
   });
 
   // Picker buttons fan out to the side-specific hidden inputs. One
@@ -3801,6 +3826,8 @@ async function renderSettingsLicense() {
       if (!file) return;
       if (file.size > 10 * 1024 * 1024) { toast("Image too large (max 10 MB)", "warn"); return; }
       const side = input.getAttribute("data-rr-dl-side") || "front";
+      // Snapshot the typed DL number so it survives the re-render below.
+      const dlTyped = document.getElementById("rr-prof-dl")?.value || "";
       const dspId = session.dsp_id || prof?.dsp_id;
       const drvId = session.driver_id || prof?.id;
       if (!dspId || !drvId) { toast("Profile incomplete — sign out and back in", "warn"); return; }
@@ -3814,7 +3841,7 @@ async function renderSettingsLicense() {
       });
       if (upErr) {
         toast(_friendlyError(upErr, "Couldn't upload. Try again."), "warn");
-        renderSettingsLicense();
+        renderSettingsLicense({ dlNumber: dlTyped });
         return;
       }
       const { error: setErr } = await sb.rpc("driver_set_dl_image", {
@@ -3822,11 +3849,11 @@ async function renderSettingsLicense() {
       });
       if (setErr) {
         toast(_friendlyError(setErr, "Couldn't save the image. Try again."), "warn");
-        renderSettingsLicense();
+        renderSettingsLicense({ dlNumber: dlTyped });
         return;
       }
       toast(`License ${side} saved`, "ok");
-      renderSettingsLicense();
+      renderSettingsLicense({ dlNumber: dlTyped });
     });
   });
 
@@ -3840,13 +3867,84 @@ async function renderSettingsLicense() {
         danger: true,
       });
       if (!okRm) return;
+      const dlTyped = document.getElementById("rr-prof-dl")?.value || "";
       btn.disabled = true;
       const { error: rmErr } = await sb.rpc("driver_clear_dl_image", { p_token: session.token, p_side: side });
       btn.disabled = false;
       if (rmErr) { toast(_friendlyError(rmErr, "Couldn't remove the image. Try again."), "warn"); return; }
       toast("Image removed", "ok");
-      renderSettingsLicense();
+      renderSettingsLicense({ dlNumber: dlTyped });
     });
+  });
+}
+
+// ── Settings → Sign-in PIN ─────────────────────────────────────────
+// Standalone PIN entry. tap-to-sign-in (0262) skipped the PIN step on
+// activation, so drivers had no way to set one and phone+PIN sign-in
+// would never succeed for them. This page lets the driver set or
+// change a PIN any time they're signed in; the server-side RPC
+// (driver_set_pin, 0264) bcrypts it, revokes their other sessions so
+// a stolen PIN can't piggyback on a long-lived one elsewhere, and
+// clears any rate-limit lockout on their phone.
+async function renderSettingsPin() {
+  const main = document.getElementById("main");
+  main.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  const session = readSession();
+  if (!session?.token) { writeSession(null); render(); return; }
+
+  const { data: prof, error } = await sb.rpc("driver_get_profile", { p_token: session.token });
+  if (error) {
+    main.innerHTML = errorStateHtml("Couldn't load this page", error);
+    return;
+  }
+  const hasPin = prof?.pin_hash === "set";
+
+  main.innerHTML = `
+    <div class="settings-page">
+      <section class="settings-section">
+        <div class="settings-section-head">
+          <div class="settings-section-sub">${hasPin
+            ? "Change your 4 to 6-digit PIN. You'll use your phone number plus this PIN to sign in on a new device."
+            : "Set a 4 to 6-digit PIN so you can sign in fast on a new device using your phone number. Without one, you'll need a fresh sign-in link from your dispatcher every time."}</div>
+        </div>
+        <form class="settings-form" id="rr-pin-form">
+          <div id="rr-pin-err" class="err" style="display:none"></div>
+
+          <label class="field-label">New PIN</label>
+          <input class="field" id="rr-pin-1" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="6" placeholder="••••" style="letter-spacing:.5em;text-align:center"/>
+
+          <label class="field-label" style="margin-top:14px">Confirm PIN</label>
+          <input class="field" id="rr-pin-2" type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="6" placeholder="••••" style="letter-spacing:.5em;text-align:center"/>
+
+          <button class="btn btn-primary btn-block" id="rr-pin-save" type="submit" style="margin-top:20px">${hasPin ? "Update PIN" : "Save PIN"}</button>
+          <div class="help" style="margin-top:14px;line-height:1.5">${hasPin
+            ? "Updating your PIN signs you out of every other device that was signed in with the old one. This device stays signed in."
+            : "Setting a PIN signs you out of every other device that's currently signed in. This device stays signed in."}</div>
+        </form>
+      </section>
+    </div>`;
+
+  document.getElementById("rr-pin-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const err = document.getElementById("rr-pin-err");
+    err.style.display = "none";
+    const pin1 = document.getElementById("rr-pin-1").value.trim();
+    const pin2 = document.getElementById("rr-pin-2").value.trim();
+    const showErr = (msg) => { err.textContent = msg; err.style.display = ""; };
+    if (!/^\d{4,6}$/.test(pin1)) { showErr("PIN must be 4 to 6 digits."); return; }
+    if (pin1 !== pin2)            { showErr("PINs don't match. Try again."); return; }
+
+    const btn = document.getElementById("rr-pin-save");
+    btn.disabled = true; btn.textContent = "Saving…";
+    const { error: setErr } = await sb.rpc("driver_set_pin", { p_token: session.token, p_pin: pin1 });
+    btn.disabled = false; btn.textContent = hasPin ? "Update PIN" : "Save PIN";
+    if (setErr) {
+      const m = setErr.message || "";
+      showErr(m.includes("pin_must_be") ? "PIN must be 4 to 6 digits." : _friendlyError(setErr, "Couldn't save the PIN. Try again."));
+      return;
+    }
+    toast("PIN saved", "ok");
+    navigate(prof?.status === "onboarding" ? "/tasks/onboarding" : "/settings");
   });
 }
 
@@ -3978,10 +4076,10 @@ async function renderOnboarding(opts) {
   // after the first incomplete one is locked.
   const items = [
     { key: "profile", title: "Update your profile", owner: "driver", done: !!(prof.phone && prof.email && prof.emergency_contact_name && prof.emergency_contact_phone),
-      action: "/settings", cta: "Update profile",
+      action: "/settings/profile", cta: "Update profile",
       subDone: "Phone, email, address & emergency contact on file", subTodo: "Add your phone, email, address, and emergency contact" },
     { key: "license", title: "Upload your driver's license", owner: "driver", done: !!(prof.dl_image_path && prof.dl_back_image_path && prof.dl_number),
-      action: "/settings", cta: (prof.dl_image_path && prof.dl_back_image_path && prof.dl_number) ? "Replace images" : "Upload license",
+      action: "/settings/license", cta: (prof.dl_image_path && prof.dl_back_image_path && prof.dl_number) ? "Replace images" : "Upload license",
       subDone: "License number & both sides on file", subTodo: "Enter your license number and take photos of the front and back" },
     { key: "availability", title: "Set your availability", owner: "driver", done: availDone,
       action: "/settings/availability", cta: "Set availability",
