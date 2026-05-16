@@ -23479,19 +23479,53 @@ async function renderScheduleWeek() {
   // non-blocking — the strip shows a loading state immediately and gets
   // replaced when the call returns.
   try {
+    // Build per-driver lists so Claude can name names + recommend
+    // specific actions, not just headline counts.
+    const driverById = new Map(drivers.map(d => [d.id, d]));
+    const otDrivers = [];
     const otApproach = [];
-    for (const [, hrs] of hoursPerDriver) {
-      if (hrs >= 36 && hrs < 40) otApproach.push(hrs);
+    for (const [id, hrs] of hoursPerDriver) {
+      const d = driverById.get(id);
+      if (!d) continue;
+      const name = displayDriverName(d);
+      if (hrs > 40) otDrivers.push({ name, hours: Math.round(hrs * 10) / 10, over: Math.round((hrs - 40) * 10) / 10 });
+      else if (hrs >= 36) otApproach.push({ name, hours: Math.round(hrs * 10) / 10 });
     }
     const todayDtCert = new Date();
     const horizonIsoCert = fmtIsoDate(addDays(todayDtCert, 14));
     const todayIsoCert = fmtIsoDate(todayDtCert);
-    let expSoon = 0;
+    const certsExpiring = [];
     for (const d of drivers) {
       if (d.dl_expires_on && d.dl_expires_on >= todayIsoCert && d.dl_expires_on <= horizonIsoCert) {
-        expSoon += 1;
+        const days = Math.round((new Date(d.dl_expires_on + "T12:00:00") - todayDtCert) / 86400000);
+        certsExpiring.push({ name: displayDriverName(d), expires_on: d.dl_expires_on, days_until: Math.max(0, days) });
       }
     }
+    // Open shifts by day → which days have gaps + the per-day count.
+    const openShiftsByDay = [];
+    for (const iso of days) {
+      const list = openShiftsByDate.get(iso) || [];
+      if (list.length > 0) {
+        const dt = new Date(iso + "T12:00:00");
+        openShiftsByDay.push({
+          date: iso,
+          weekday: RR_DAY_SHORT[dt.getDay()],
+          count: list.length,
+          routes: list.slice(0, 6).map(s => s.route_label || s.route_id || s.service_type || "open").join(", "),
+        });
+      }
+    }
+    const prefMissesNamed = prefMissList.slice(0, 10).map(m => ({
+      name: m.name,
+      scheduled: m.scheduled,
+      prefers: m.pref,
+      off_preferred_days: m.off,
+    }));
+    const violationsNamed = (violations || []).slice(0, 10).map(v => ({
+      driver: v.driver,
+      kind: v.kind,
+      note: v.note,
+    }));
     const aiSnapshot = {
       week_start: _schedStart,
       drivers_active: drivers.length,
@@ -23500,14 +23534,20 @@ async function renderScheduleWeek() {
       filled: totalFilled,
       needed: totalNeeded,
       open_shifts: totalAllOpen,
-      overtime_drivers: driversInOt,
+      open_shifts_by_day: openShiftsByDay,
+      overtime_drivers_count: driversInOt,
       overtime_hours: Math.round(totalOvertimeHrs * 10) / 10,
-      ot_approaching_drivers: otApproach.length,
-      rule_violations: violations.length,
-      pref_mismatches: prefMissList.length,
+      overtime_drivers: otDrivers.slice(0, 8),
+      ot_approaching_drivers_count: otApproach.length,
+      ot_approaching_drivers: otApproach.slice(0, 8),
+      rule_violations_count: (violations || []).length,
+      rule_violations: violationsNamed,
+      pref_mismatches_count: prefMissList.length,
+      pref_mismatches: prefMissesNamed,
       pref_honored: prefHonored,
       pref_denom: prefDenom,
-      certs_expiring_14d: expSoon,
+      certs_expiring_14d_count: certsExpiring.length,
+      certs_expiring_14d: certsExpiring,
       trainees: trainingTotal,
       payroll_estimate: Math.round(estimatedPayrollCost),
     };
@@ -23727,17 +23767,25 @@ function _rrInsightIcon(tone) {
   return `<svg ${a}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
 }
 function _rrInsightSplit(bullet) {
-  const s = String(bullet || "").trim();
-  // Split on " — " / " - " / ": " — title vs sub.  If none, the whole
-  // bullet is the title and there's no sub line.
+  const s0 = String(bullet || "").trim();
+  // Pull off the recommended action first — Claude is prompted to put
+  // it after " | Action:" so we can show it on its own line.
+  let action = "";
+  let s = s0;
+  const aMatch = s.match(/\s*[|;]\s*action\s*[:\-]\s*(.+)$/i);
+  if (aMatch) {
+    action = aMatch[1].trim().replace(/^["'“‘]+|["'”’]+$/g, "");
+    s = s.slice(0, aMatch.index).trim();
+  }
+  // Split title vs sub on " — " / " – " / " - " / ": ".
   const m = s.match(/^(.{4,80}?)(?:\s[—–-]\s|\:\s)(.+)$/);
-  if (m) return { title: m[1].trim(), sub: m[2].trim() };
-  // Try splitting at a sentence boundary somewhere past the first 40 chars.
+  if (m) return { title: m[1].trim(), sub: m[2].trim(), action };
+  // Try splitting at a sentence boundary past the first ~40 chars.
   if (s.length > 70) {
     const idx = s.indexOf(". ");
-    if (idx > 20 && idx < s.length - 4) return { title: s.slice(0, idx).trim(), sub: s.slice(idx + 2).trim() };
+    if (idx > 20 && idx < s.length - 4) return { title: s.slice(0, idx).trim(), sub: s.slice(idx + 2).trim(), action };
   }
-  return { title: s, sub: "" };
+  return { title: s, sub: "", action };
 }
 
 async function _rrFetchScheduleInsights(snapshot) {
@@ -23748,18 +23796,22 @@ async function _rrFetchScheduleInsights(snapshot) {
   const prompt = [
     `Generate up to 5 short, action-oriented operational insights about my DSP's schedule for the week starting ${snapshot.week_start}.`,
     ``,
-    `Here is the week's computed snapshot — use these numbers directly, do NOT call any data tools:`,
+    `Here is the week's computed snapshot — use these numbers AND name specific drivers from the lists below directly. Do NOT call any data tools.`,
     "```json",
     JSON.stringify(snapshot, null, 2),
     "```",
     ``,
+    `Format every bullet EXACTLY like this:`,
+    `  Title — Who/what (with specific names from the snapshot if available) | Action: One concrete next step a dispatcher can take right now.`,
+    ``,
     `Rules:`,
     `1. Return between 1 and 5 bullets via the render_result tool with kind="text_summary".`,
-    `2. Each bullet MUST be one sentence, formatted as "Title — short subtitle" (use an em-dash). Title is a count/headline phrase under 8 words; subtitle is a 2-6 word follow-up.`,
-    `3. Focus on issues a dispatcher needs to act on TODAY: overtime risk, drivers approaching OT, open shifts, preferred-day mismatches, expiring certifications, rule violations, training pipeline, payroll outliers.`,
-    `4. Skip categories where the snapshot value is zero/empty — only surface real signal.`,
-    `5. If everything looks healthy, return ONE bullet celebrating the state (e.g. "Schedule is clean — nothing needs attention").`,
-    `6. Keep the body field a 1-2 sentence summary of the week's posture.`,
+    `2. Title is a count/headline under 8 words. The middle clause names WHO (driver names) or WHAT (specific routes/days) is causing the issue — pull from the per-driver and per-day arrays in the snapshot.`,
+    `3. The "| Action:" suffix is REQUIRED on every bullet. It must recommend ONE specific corrective action (examples: "Swap Mateo off Saturday onto Hill's Friday", "Run Smart Fill for Sat 17 to staff the 3 open routes", "Schedule a DL renewal for Beckett before May 28"). Keep it under 14 words and start with a verb.`,
+    `4. Focus on issues a dispatcher needs to act on TODAY: overtime drivers, drivers approaching OT, open shifts (call out which days), preferred-day mismatches (call out which drivers), certifications expiring soon (call out which drivers and how soon), rule violations.`,
+    `5. Skip categories where the snapshot is empty — only surface real signal.`,
+    `6. If everything looks healthy, return ONE bullet like: "Schedule is clean — no issues need attention | Action: Spot-check Smart Fill recommendations for next week".`,
+    `7. The body field should be a 1-2 sentence overall summary of the week's posture.`,
   ].join("\n");
   try {
     const { data, error } = await sb.functions.invoke("analytics-ai", { body: { prompt, conversation: [] } });
@@ -23792,7 +23844,7 @@ function _rrRenderInsightsRows(ibody, icount, rows) {
     return;
   }
   ibody.innerHTML = limited.map((r, idx) => `
-    <button type="button" class="sched-insight-row" data-tone="${r.tone}" data-rr-insight-idx="${idx}">
+    <button type="button" class="sched-insight-row" data-tone="${r.tone}" data-rr-insight-idx="${idx}" title="${r.action ? `Action: ${escapeHtml(r.action)}` : ""}">
       <span class="sched-insight-icon">${r.icon}</span>
       <span class="sched-insight-text">
         <div class="sched-insight-title">${escapeHtml(r.title)}</div>
@@ -23855,15 +23907,24 @@ function _rrOpenInsightsModal() {
   const bulletHtml = bullets.length === 0
     ? `<div style="padding:var(--s-4);color:var(--text-subtle);font-size:var(--fs-sm)">No insights returned for this week.</div>`
     : bullets.map((b, i) => {
-        const { title, sub } = _rrInsightSplit(b);
+        const { title, sub, action } = _rrInsightSplit(b);
         const tone = _rrInsightTone(b);
-        return `<div style="${_rowStyle}">
-          <span style="${_iconStyle(tone)}">${_rrInsightIcon(tone)}</span>
-          <span style="min-width:0">
-            <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.3">${escapeHtml(title)}</div>
-            ${sub ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px;line-height:1.3">${escapeHtml(sub)}</div>` : ""}
-          </span>
-          <span style="font-size:10px;font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase">#${i + 1}</span>
+        const actionLine = action
+          ? `<div style="display:flex;align-items:flex-start;gap:6px;margin-top:8px;padding:7px 10px;border-radius:var(--r-md);background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);line-height:1.4">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px;flex-shrink:0"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+              <span><strong style="font-weight:700">Action:</strong> ${escapeHtml(action)}</span>
+            </div>`
+          : "";
+        return `<div style="padding:10px 12px;border-radius:var(--r-md);background:var(--canvas);margin-bottom:6px">
+          <div style="display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center">
+            <span style="${_iconStyle(tone)}">${_rrInsightIcon(tone)}</span>
+            <span style="min-width:0">
+              <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.3">${escapeHtml(title)}</div>
+              ${sub ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px;line-height:1.3">${escapeHtml(sub)}</div>` : ""}
+            </span>
+            <span style="font-size:10px;font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase">#${i + 1}</span>
+          </div>
+          ${actionLine}
         </div>`;
       }).join("");
   m.innerHTML = `
