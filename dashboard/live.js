@@ -23043,6 +23043,13 @@ async function renderScheduleWeek() {
   // day with no plan recorded, so empty calendars still read sensibly.
   // Filled = shifts already completed OR currently assigned to a
   // visible active driver.
+  // Coverage = filled / total_shift_rows, per date. The shifts table is
+  // canonical (Route planning → Save writes it, see #530), so using
+  // okami_demand as the denominator would let stale plan rows drift the
+  // coverage number out of sync with the Open Shifts pool — leaving the
+  // operator with "98%" but nothing to assign. Days that have an
+  // okami_demand row but no shift rows yet still show up (with 0/N) so
+  // they aren't invisibly under-staffed.
   const plannedByDate = new Map();
   for (const cell of (grid.coverage || [])) {
     plannedByDate.set(cell.date, (plannedByDate.get(cell.date) || 0) + (cell.needed || 0));
@@ -23055,20 +23062,17 @@ async function renderScheduleWeek() {
     // trainer). Counting them toward "filled" would double-count the
     // route on Day 3 (the trainer's regular shift already counts).
     if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
-    const a = coverageByDate.get(sh.date) || { needed: 0, filled: 0, _shifts: 0 };
-    a._shifts += 1;
+    const a = coverageByDate.get(sh.date) || { needed: 0, filled: 0 };
+    a.needed += 1;  // every shift row counts toward the day's denominator
     const isFilled =
       sh.status === "completed" ||
       (sh.driver_id && visibleDriverIds.has(sh.driver_id));
     if (isFilled) a.filled += 1;
     coverageByDate.set(sh.date, a);
   }
-  // Apply plan-based denominator; fall back to shift count for days
-  // that have no okami_demand row at all.
-  for (const [date, a] of coverageByDate) {
-    a.needed = plannedByDate.has(date) ? plannedByDate.get(date) : a._shifts;
-  }
-  // Days with a plan but no shifts yet need a cell too (0 / plan).
+  // Surface plan-but-no-shifts days so the operator sees them as 0/N
+  // (these are the ones where Route planning has demand recorded but
+  // shifts haven't been generated yet).
   for (const [date, planned] of plannedByDate) {
     if (!coverageByDate.has(date)) {
       coverageByDate.set(date, { needed: planned, filled: 0 });
