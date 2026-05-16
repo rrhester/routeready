@@ -9915,8 +9915,8 @@ body.rr-cmdk-open{ overflow:hidden }
             <button type="button" class="sched-week-nav-btn" id="rr-sched-week-prev" title="Previous week" aria-label="Previous week">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
-            <button type="button" class="sched-week-nav-range" id="rr-sched-week-range" title="Jump to a week">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <button type="button" class="sched-week-nav-today" id="rr-sched-week-today" title="Jump to this week">Today</button>
+            <button type="button" class="sched-week-nav-range" id="rr-sched-week-range" title="Cycle through the next four weeks">
               <span id="rr-sched-week-range-label">This week</span>
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
@@ -10074,6 +10074,15 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-week-nav-range:hover{background:var(--canvas)}
           #view-schedule .sched-week-nav-range:focus-visible{outline:none;box-shadow:var(--ring-focus)}
           #view-schedule .sched-week-nav-range svg{color:var(--text-subtle)}
+          #view-schedule .sched-week-nav-today{
+            appearance:none;background:transparent;border:0;cursor:pointer;font:inherit;
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+            color:var(--accent-text);padding:0 var(--s-2-5);height:26px;border-radius:var(--r-md);
+            display:inline-flex;align-items:center;transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-schedule .sched-week-nav-today:hover{background:var(--accent-soft)}
+          #view-schedule .sched-week-nav-today:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+          #view-schedule .sched-week-nav-today.is-on-today{color:var(--text-subtle);cursor:default;pointer-events:none}
 
           /* ── Coverage KPI: pulled forward as the "north-star" card.
              Heavier accent + a fill bar at the bottom matches the
@@ -10386,7 +10395,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="sched-insights-body" id="rr-sched-insights-body">
                 <div class="sched-insight-empty">No insights right now.</div>
               </div>
-              <a href="#" class="sched-insights-foot" id="rr-sched-insights-all" onclick="event.preventDefault()">View all insights →</a>
+              <a href="#" class="sched-insights-foot" id="rr-sched-insights-all" onclick="event.preventDefault();(typeof _rrOpenInsightsModal==='function')&&_rrOpenInsightsModal()">View all insights →</a>
             </aside>
 
           <!-- DRIVER POOL — drag-to-assign or click to insert -->
