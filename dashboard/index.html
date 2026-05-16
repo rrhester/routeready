@@ -7224,7 +7224,7 @@ body.rr-cmdk-open{ overflow:hidden }
         <span class="nav-badge" style="background:var(--red)">3</span>
       </button>
       <button class="nav-item" data-view="schedule" data-c="schedule" onclick="goto('schedule')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><line x1="3.5" y1="10" x2="20.5" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/><rect x="7" y="13" width="3" height="3" rx=".6" fill="currentColor" stroke="none"/></svg></span>
         Schedule
         <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
@@ -10085,21 +10085,33 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-week-nav-today.is-on-today{color:var(--text-subtle);cursor:default;pointer-events:none}
 
           /* ── Coverage KPI: pulled forward as the "north-star" card.
-             Heavier accent + a fill bar at the bottom matches the
-             mockup. JS will tag the actual node with .is-primary so we
-             don't depend on :nth-child(3) lining up. */
+             Same card height as the others — only the % value reads a
+             touch larger, and a real progress bar sits along the bottom
+             edge. JS tags the actual node with .is-primary so we don't
+             depend on :nth-child(N) lining up. */
           #view-schedule #rr-sched-kpis .stat-mini.is-primary{
             border-color:color-mix(in srgb, var(--green) 35%, var(--border));
             background:linear-gradient(180deg, color-mix(in srgb, var(--green) 6%, var(--surface)) 0%, var(--surface) 70%);
             box-shadow:0 0 0 1px color-mix(in srgb, var(--green) 18%, transparent);
             position:relative;overflow:hidden;
           }
-          #view-schedule #rr-sched-kpis .stat-mini.is-primary .stat-mini-value{color:var(--green)}
+          /* Value text — just enough larger to register as the headline
+             figure without screaming. 18px → 26px. */
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary .stat-mini-value{
+            color:var(--green);font-size:26px;line-height:1.05;
+          }
+          /* Bar: gray track behind a green fill driven by
+             --rr-coverage-fill (a 0..1 number set by JS). 4px so it's
+             actually visible against the card edge. */
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary::before{
+            content:"";position:absolute;left:0;right:0;bottom:0;height:4px;
+            background:color-mix(in srgb, var(--green) 18%, var(--canvas));
+          }
           #view-schedule #rr-sched-kpis .stat-mini.is-primary::after{
-            content:"";position:absolute;left:0;right:0;bottom:0;height:3px;
+            content:"";position:absolute;left:0;bottom:0;height:4px;
+            width:calc(var(--rr-coverage-fill, 1) * 100%);
             background:var(--green);
-            transform-origin:left center;
-            transform:scaleX(var(--rr-coverage-fill, 1));
+            transition:width var(--t-spring);
           }
 
           /* Day-header status dot under the day number. Replaces the
