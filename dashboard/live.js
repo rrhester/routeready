@@ -21716,7 +21716,7 @@ window.goto = function (view) {
 };
 
 document.addEventListener("click", (e) => {
-  if (e.target.closest("#rr-sched-settings-open")) {
+  if (e.target.closest("#rr-sched-settings-open, #rr-sched-settings-open-h")) {
     e.preventDefault();
     openSchedSettingsDrawer();
     return;
@@ -21726,7 +21726,7 @@ document.addEventListener("click", (e) => {
     closeSchedSettingsDrawer();
     return;
   }
-  if (e.target.closest("#rr-sched-okami-open")) {
+  if (e.target.closest("#rr-sched-okami-open, #rr-sched-okami-open-h")) {
     e.preventDefault();
     openOkamiOverlay();
     return;
@@ -21797,6 +21797,14 @@ function _confirmLiveScheduleEdit() {
 }
 
 document.addEventListener("click", async (e) => {
+  // Clicking the page-header Live/Draft pill proxies to the hidden
+  // Finalize button so the same confirm flow runs.
+  if (e.target.closest("#rr-sched-live-pill")) {
+    e.preventDefault();
+    const proxy = document.getElementById("schedule-cta");
+    if (proxy) proxy.click();
+    return;
+  }
   if (e.target.closest("#schedule-cta")) {
     e.preventDefault();
     const target = !window._rrWeekFinalized;
@@ -23390,6 +23398,10 @@ async function renderScheduleWeek() {
   }
 
   // ── Day headers (skip first cell which is "Driver")
+  // Headers now use a small status dot under the day number (green when
+  // fully covered, amber for partial, red for a gap) plus a compact
+  // "filled / needed" line — matches the schedule mockup's day strip
+  // and reads faster than the prior "✓ Complete" / "2 / 9" copy.
   const headRow = sub.querySelector(".cal-grid.head");
   if (headRow) {
     const heads = headRow.querySelectorAll(".cal-cell-head");
@@ -23400,18 +23412,223 @@ async function renderScheduleWeek() {
       const iso = fmtIsoDate(dt);
       const c = fillByDate.get(iso) || { needed: 0, filled: 0 };
       cellHead.classList.toggle("today", iso === todayIso);
-      let status = "";
+      let dotCls = "";
+      let coverageLine = "";
       if (c.needed > 0) {
         if (c.filled >= c.needed) {
-          status = `<div style="font-size:var(--fs-xs);font-weight:600;color:var(--green);margin-top:2px">✓ Complete</div>`;
+          dotCls = "full";
+          coverageLine = `<span class="day-coverage">${c.filled}/${c.needed}</span>`;
+        } else if (c.filled === 0) {
+          dotCls = "gap";
+          coverageLine = `<span class="day-coverage" style="color:var(--red)">0/${c.needed}</span>`;
         } else {
-          const tone = c.filled === 0 ? "var(--red)" : "var(--amber)";
-          status = `<div style="font-size:var(--fs-xs);font-weight:600;color:${tone};margin-top:2px">${c.filled} / ${c.needed}</div>`;
+          dotCls = "partial";
+          coverageLine = `<span class="day-coverage" style="color:var(--amber-dark, var(--amber))">${c.filled}/${c.needed}</span>`;
         }
       }
-      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${status}`;
+      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span><span class="day-dot ${dotCls}"></span>${coverageLine}`;
     }
   }
+
+  // ── Mark the Coverage card as the primary KPI (heavier accent, fill
+  // bar) and feed it the live coverage ratio so the gradient fills
+  // proportional to filled/needed.
+  try {
+    const kpiCards = sub.querySelectorAll("#rr-sched-kpis .stat-mini");
+    kpiCards.forEach(c => c.classList.remove("is-primary"));
+    const coverageCard = kpiCards[2]; // Hours, Overtime, Coverage, …
+    if (coverageCard) {
+      coverageCard.classList.add("is-primary");
+      const ratio = totalNeeded > 0 ? Math.max(0, Math.min(1, totalFilled / totalNeeded)) : 1;
+      coverageCard.style.setProperty("--rr-coverage-fill", String(ratio));
+    }
+  } catch (e) { /* nothing to do */ }
+
+  // ── Week-range navigator label + Live/Draft pill (page header)
+  try {
+    const lbl = document.getElementById("rr-sched-week-range-label");
+    if (lbl) {
+      const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
+      const aTxt = weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const bTxt = sameMonth
+        ? weekEnd.toLocaleDateString(undefined, { day: "numeric" })
+        : weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      lbl.textContent = `${aTxt} – ${bTxt}`;
+    }
+    const pill = document.getElementById("rr-sched-live-pill");
+    const pillLabel = document.getElementById("rr-sched-live-label");
+    if (pill) {
+      const isLive = !!window._rrWeekFinalized;
+      pill.classList.toggle("draft", !isLive);
+      if (pillLabel) pillLabel.textContent = isLive ? "Live" : "Draft";
+      pill.title = isLive ? "This week's schedule is live" : "This week is still a draft — push from Finalize when ready";
+    }
+  } catch (e) { /* nothing to do */ }
+
+  // ── Operational Insights — computed from the same data we already
+  // collected above (overtime risk, preference mismatches, expiring
+  // certifications, OKAMI mismatches). Static cap of 4 rows so the rail
+  // stays scannable; the "View all" link could open a deeper drawer later.
+  try {
+    const ibody = document.getElementById("rr-sched-insights-body");
+    const icount = document.getElementById("rr-sched-insights-count");
+    if (ibody) {
+      const rows = [];
+      // OT approaching: hoursPerDriver between 36 and 40 (within striking
+      // distance of OT this week).
+      const otApproach = [];
+      for (const [, hrs] of hoursPerDriver) {
+        if (hrs >= 36 && hrs < 40) otApproach.push(hrs);
+      }
+      if (driversInOt > 0) {
+        rows.push({
+          tone: "bad",
+          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+          title: `${driversInOt} driver${driversInOt === 1 ? "" : "s"} in overtime`,
+          sub:   `${Math.round(totalOvertimeHrs * 10) / 10}h over · this week`,
+        });
+      } else if (otApproach.length > 0) {
+        rows.push({
+          tone: "warn",
+          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+          title: `${otApproach.length} driver${otApproach.length === 1 ? "" : "s"} approaching OT`,
+          sub:   "This week",
+        });
+      }
+
+      if (prefMissList.length > 0) {
+        rows.push({
+          tone: "warn",
+          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+          title: `${prefMissList.length} preferred-day mismatch${prefMissList.length === 1 ? "" : "es"}`,
+          sub:   "Review suggestions",
+          clickKpiCard: 6,
+        });
+      }
+
+      // Certs expiring soon — drivers whose DL expires inside the next 14 days.
+      const todayDt = new Date();
+      const horizonIso = fmtIsoDate(addDays(todayDt, 14));
+      const todayIsoCert = fmtIsoDate(todayDt);
+      let expSoon = 0;
+      for (const d of drivers) {
+        if (d.dl_expires_on && d.dl_expires_on >= todayIsoCert && d.dl_expires_on <= horizonIso) {
+          expSoon += 1;
+        }
+      }
+      if (expSoon > 0) {
+        rows.push({
+          tone: "info",
+          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+          title: `${expSoon} certification${expSoon === 1 ? "" : "s"} expiring`,
+          sub:   "In the next 14 days",
+        });
+      }
+
+      if (totalAllOpen > 0) {
+        rows.push({
+          tone: "warn",
+          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+          title: `${totalAllOpen} open shift${totalAllOpen === 1 ? "" : "s"} need a driver`,
+          sub:   "Click to open Smart Fill",
+          onClick: () => { try { openAiSchedule(); } catch (e) {} },
+        });
+      }
+
+      if (violations.length > 0) {
+        rows.push({
+          tone: "bad",
+          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+          title: `${violations.length} rule violation${violations.length === 1 ? "" : "s"}`,
+          sub:   "Review in KPI card",
+          clickKpiCard: 5,
+        });
+      }
+
+      const limited = rows.slice(0, 4);
+      if (icount) icount.textContent = String(limited.length);
+      if (limited.length === 0) {
+        ibody.innerHTML = `<div class="sched-insight-empty">No issues this week. Nice.</div>`;
+      } else {
+        ibody.innerHTML = limited.map((r, idx) => `
+          <button type="button" class="sched-insight-row" data-tone="${r.tone}" data-rr-insight-idx="${idx}">
+            <span class="sched-insight-icon">${r.icon}</span>
+            <span class="sched-insight-text">
+              <div class="sched-insight-title">${r.title}</div>
+              <div class="sched-insight-sub">${r.sub}</div>
+            </span>
+            <svg class="chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        `).join("");
+        // Click → either explicit onClick, or focus a KPI card by index.
+        ibody.querySelectorAll(".sched-insight-row").forEach(btn => {
+          const idx = Number(btn.dataset.rrInsightIdx);
+          const row = limited[idx];
+          btn.addEventListener("click", () => {
+            if (row.onClick) { row.onClick(); return; }
+            if (row.clickKpiCard) {
+              const card = document.querySelector(`#rr-sched-kpis .stat-mini:nth-child(${row.clickKpiCard})`);
+              if (card) card.click();
+            }
+          });
+        });
+      }
+    }
+  } catch (e) { console.warn("insights render:", e); }
+
+  // ── Open Shifts side-panel — list each open scheduled date with a
+  // quick "Smart Fill" CTA. Empty state mirrors the mockup.
+  try {
+    const obody = document.getElementById("rr-sched-open-shifts-body");
+    const ocount = document.getElementById("rr-sched-open-shifts-count");
+    if (obody) {
+      const items = [];
+      for (const iso of days) {
+        const list = openShiftsByDate.get(iso) || [];
+        const dt = new Date(iso + "T12:00:00");
+        const dayLabel = RR_DAY_SHORT[dt.getDay()].toUpperCase();
+        const dateLabel = `${dt.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+        // Group: one row per open shift. Cap to a sensible number.
+        for (const sh of list) {
+          items.push({
+            day: `${dayLabel} ${dt.getDate()}`,
+            route: sh.route_label || sh.route_id || sh.service_type || "Open shift",
+            meta: dateLabel + (sh.start_time ? ` · ${sh.start_time}` : ""),
+          });
+        }
+      }
+      if (ocount) {
+        const n = items.length;
+        ocount.textContent = n === 0 ? "0 open" : `${n} open`;
+      }
+      if (items.length === 0) {
+        obody.innerHTML = `
+          <div class="sched-open-shifts-empty">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+            <div class="sched-open-shifts-empty-title">All shifts are covered</div>
+            <div class="sched-open-shifts-empty-sub">Great job!</div>
+            <button class="btn btn-sm" type="button" onclick="schedSub('open')">View all shifts</button>
+          </div>`;
+      } else {
+        const shown = items.slice(0, 5);
+        const more = items.length - shown.length;
+        obody.innerHTML = shown.map(it => `
+          <div class="sched-open-shift-row">
+            <div>
+              <span class="sched-open-shift-day">${it.day}</span>
+            </div>
+            <div>
+              <div class="sched-open-shift-route">${escapeHtml(String(it.route))}</div>
+              <div class="sched-open-shift-meta">${escapeHtml(String(it.meta))}</div>
+            </div>
+            <button class="btn btn-sm" type="button" onclick="openAiSchedule()">Fill</button>
+          </div>
+        `).join("") + (more > 0
+          ? `<button class="btn btn-sm" type="button" onclick="schedSub('open')" style="margin-top:6px">View ${more} more →</button>`
+          : "");
+      }
+    }
+  } catch (e) { console.warn("open shifts panel:", e); }
 
   // ── Driver rows + Unassigned + Coverage strip
   const wrap = sub.querySelector(".cal-wrap");
@@ -23741,6 +23958,50 @@ function bindSchedWeekNav() {
   const sub = document.getElementById("sched-sub-week");
   if (!sub) return;
   _schedNavBound = true;
+
+  // Page-header week-nav (prev / range / next) — delegates to the
+  // hidden 4-week offset tabs that renderScheduleWeek keeps in sync.
+  const _activeOffset = () => {
+    const all = Array.from(document.querySelectorAll("#rr-sched-week-tabs .sched-week-tab"));
+    const idx = all.findIndex(b => b.classList.contains("active"));
+    return idx >= 0 ? idx : 0;
+  };
+  const _clickOffset = (off) => {
+    const tab = document.querySelector(`#rr-sched-week-tabs .sched-week-tab[data-rr-week-offset="${off}"]`);
+    if (tab) tab.click();
+  };
+  const _syncNavButtons = () => {
+    const off = _activeOffset();
+    const prevBtn = document.getElementById("rr-sched-week-prev");
+    const nextBtn = document.getElementById("rr-sched-week-next");
+    if (prevBtn) prevBtn.disabled = off <= 0;
+    if (nextBtn) nextBtn.disabled = off >= 3;
+  };
+  const prevBtn = document.getElementById("rr-sched-week-prev");
+  const nextBtn = document.getElementById("rr-sched-week-next");
+  const rangeBtn = document.getElementById("rr-sched-week-range");
+  if (prevBtn) prevBtn.addEventListener("click", () => {
+    const off = _activeOffset();
+    if (off > 0) _clickOffset(off - 1);
+  });
+  if (nextBtn) nextBtn.addEventListener("click", () => {
+    const off = _activeOffset();
+    if (off < 3) _clickOffset(off + 1);
+  });
+  if (rangeBtn) rangeBtn.addEventListener("click", () => {
+    // No date-picker yet — cycle through the four available offsets
+    // so the operator can step forward to a specific week.
+    const off = _activeOffset();
+    _clickOffset((off + 1) % 4);
+  });
+  // Resync prev/next disabled state on any week-tab click — including the
+  // hidden ones we drive programmatically — and on initial bind.
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-sched-week-tabs .sched-week-tab")) {
+      setTimeout(_syncNavButtons, 0);
+    }
+  });
+  setTimeout(_syncNavButtons, 0);
 
   sub.addEventListener("click", (e) => {
     // 4-week tab strip — replaces the prev/next/Today buttons.

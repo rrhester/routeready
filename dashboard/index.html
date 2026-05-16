@@ -5311,7 +5311,8 @@ body.rr-cmdk-open{ overflow:hidden }
 /* ─────────────────────────────────────────────────────────────
    SCHEDULE BUILDER — click-to-assign, driver pool, auto-fill
    ───────────────────────────────────────────────────────────── */
-.builder-shell{display:grid;grid-template-columns:1fr 280px;gap:var(--s-3);align-items:start}
+.builder-shell{display:grid;grid-template-columns:1fr 320px;gap:var(--s-3);align-items:start}
+@media (max-width:1180px){.builder-shell{grid-template-columns:1fr}}
 
 /* Make calendar cells feel buildable */
 .cal-cell.empty-slot{
@@ -9876,28 +9877,55 @@ body.rr-cmdk-open{ overflow:hidden }
               <p class="page-sub" id="rr-sched-page-sub"></p>
             </div>
           </div>
+          <!-- Page-level actions — Smart Fill, Route planning, Settings,
+               and a live/draft status pill.  Pulled out of the old toolbar
+               rail below the grid so the top action zone is consistent
+               with the rest of the dashboard. -->
+          <div class="page-actions" id="rr-sched-page-actions">
+            <button class="sched-page-btn" id="rr-sched-smartfill-h" type="button" onclick="openAiSchedule()" title="Auto-staff this week from your rules + OKAMI demand">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Smart Fill
+            </button>
+            <button class="sched-page-btn" id="rr-sched-okami-open-h" type="button" title="Route planning for this week" aria-label="Route planning">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 16 11 19 16 14"/></svg>
+              Route planning
+            </button>
+            <button class="sched-page-btn" id="rr-sched-settings-open-h" type="button" title="Schedule settings for this week" aria-label="Schedule settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Settings
+            </button>
+            <span class="sched-live-pill draft" id="rr-sched-live-pill" title="Schedule status">
+              <span class="sched-live-dot"></span>
+              <span id="rr-sched-live-label">Draft</span>
+            </span>
+          </div>
         </div>
 
-        <!-- Coverage-gap radar removed per direction. The Cover flow is
-             still reachable directly from open chips in the week grid. -->
-
-        <!-- The Schedule KPI strip (Hours scheduled, Overtime,
-             Coverage, Open shifts, Rule violations, Preferences,
-             Training) is now always visible — operators relied on
-             it enough that the hide-by-default Insights toggle was
-             creating friction. Strip lives at #rr-sched-kpis, rendered
-             by renderScheduleWeek(). -->
-        <div style="display:flex;justify-content:flex-end;align-items:center;gap:var(--s-2);margin-bottom:var(--s-2)">
-          <a href="#" role="button" class="rr-text-link" id="rr-sched-kpis-toggle" aria-pressed="true" style="display:none">Insights</a>
+        <!-- Sub-nav (left) and week-range picker (right) share a row so
+             they read as a single top-of-grid control band, matching the
+             mockup. The kpis toggle is kept hidden for compatibility. -->
+        <div class="sched-subnav-row">
+          <div class="subnav" data-rr-tabbar="schedule">
+            <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
+            <button class="subnav-item" data-sub="staff" onclick="schedSub('staff')">Staff</button>
+            <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
+            <button class="subnav-item" data-sub="time-off" onclick="schedSub('time-off')">Time off <span class="nav-badge" id="rr-sched-time-off-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
+          </div>
+          <div class="sched-week-nav" id="rr-sched-week-nav" role="group" aria-label="Week navigation">
+            <button type="button" class="sched-week-nav-btn" id="rr-sched-week-prev" title="Previous week" aria-label="Previous week">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button type="button" class="sched-week-nav-range" id="rr-sched-week-range" title="Jump to a week">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span id="rr-sched-week-range-label">This week</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button type="button" class="sched-week-nav-btn" id="rr-sched-week-next" title="Next week" aria-label="Next week">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
         </div>
-
-        <!-- Sub-nav -->
-        <div class="subnav" data-rr-tabbar="schedule">
-          <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
-          <button class="subnav-item" data-sub="staff" onclick="schedSub('staff')">Staff</button>
-          <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
-          <button class="subnav-item" data-sub="time-off" onclick="schedSub('time-off')">Time off <span class="nav-badge" id="rr-sched-time-off-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
-        </div>
+        <a href="#" role="button" class="rr-text-link" id="rr-sched-kpis-toggle" aria-pressed="true" style="display:none">Insights</a>
 
         <!-- WEEK VIEW SUB-VIEW -->
         <div class="sched-subview active" id="sched-sub-week">
@@ -9972,13 +10000,223 @@ body.rr-cmdk-open{ overflow:hidden }
             content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);
             transform:translateX(-100%);animation:drShimmer 1var(--t-spring)-in-out infinite;
           }
+
+          /* ── Page-header action buttons ─────────────────────────────
+             Mirror the secondary-button pattern from elsewhere in the
+             dashboard but with a calmer surface so the row reads as a
+             tool palette, not a CTA cluster. */
+          #view-schedule .sched-page-btn{
+            appearance:none;background:var(--surface);
+            border:1px solid var(--border);
+            color:var(--text-muted);font-family:inherit;font-weight:500;
+            font-size:var(--fs-sm);
+            display:inline-flex;align-items:center;gap:6px;line-height:1;
+            padding:8px 12px;border-radius:var(--r-md);cursor:pointer;
+            transition:color var(--t-fast), background var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
+          }
+          #view-schedule .sched-page-btn svg{width:15px;height:15px;flex-shrink:0;color:var(--text-subtle)}
+          #view-schedule .sched-page-btn:hover{
+            color:var(--text);background:var(--canvas);border-color:var(--border-strong);
+          }
+          #view-schedule .sched-page-btn:hover svg{color:var(--text-muted)}
+          #view-schedule .sched-page-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+
+          /* Live/Draft pill — green when this week's schedule has been
+             pushed live, amber otherwise. Mirrors sched-status-pill. */
+          #view-schedule .sched-live-pill{
+            display:inline-flex;align-items:center;gap:6px;
+            padding:5px 12px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;
+            letter-spacing:.02em;cursor:pointer;
+            background:var(--green-soft);color:var(--green);
+            border:1px solid color-mix(in srgb, var(--green) 18%, transparent);
+            transition:transform var(--t-fast), box-shadow var(--t-fast);
+          }
+          #view-schedule .sched-live-pill:hover{transform:translateY(-1px);box-shadow:0 1px 4px rgba(15,23,42,.06)}
+          #view-schedule .sched-live-pill.draft{
+            background:var(--amber-soft);color:var(--amber-dark, var(--amber));
+            border-color:color-mix(in srgb, var(--amber) 24%, transparent);
+          }
+          #view-schedule .sched-live-dot{
+            width:6px;height:6px;border-radius:50%;background:currentColor;
+            box-shadow:0 0 0 3px color-mix(in srgb, currentColor 20%, transparent);
+          }
+
+          /* ── Subnav + week navigator row ───────────────────────────
+             Subnav stays left, week navigator sits flush right, sharing
+             one vertical band so the page reads as a single header. */
+          #view-schedule .sched-subnav-row{
+            display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
+            margin-bottom:var(--s-3);flex-wrap:wrap;
+          }
+          #view-schedule .sched-subnav-row > .subnav{margin-bottom:0}
+          #view-schedule .sched-week-nav{
+            display:inline-flex;align-items:center;gap:2px;
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--r-md);padding:3px;
+          }
+          #view-schedule .sched-week-nav-btn{
+            appearance:none;background:transparent;border:0;cursor:pointer;
+            color:var(--text-muted);width:30px;height:30px;border-radius:var(--r-md);
+            display:inline-flex;align-items:center;justify-content:center;
+            transition:background var(--t-fast), color var(--t-fast);
+          }
+          #view-schedule .sched-week-nav-btn:hover{background:var(--canvas);color:var(--text)}
+          #view-schedule .sched-week-nav-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+          #view-schedule .sched-week-nav-btn svg{width:14px;height:14px}
+          #view-schedule .sched-week-nav-range{
+            appearance:none;background:transparent;border:0;cursor:pointer;font:inherit;
+            display:inline-flex;align-items:center;gap:8px;
+            padding:0 10px;height:30px;border-radius:var(--r-md);
+            font-size:var(--fs-sm);font-weight:600;color:var(--text);
+            font-variant-numeric:tabular-nums;
+            transition:background var(--t-fast);
+          }
+          #view-schedule .sched-week-nav-range:hover{background:var(--canvas)}
+          #view-schedule .sched-week-nav-range:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+          #view-schedule .sched-week-nav-range svg{color:var(--text-subtle)}
+
+          /* ── Coverage KPI: pulled forward as the "north-star" card.
+             Heavier accent + a fill bar at the bottom matches the
+             mockup. JS will tag the actual node with .is-primary so we
+             don't depend on :nth-child(3) lining up. */
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary{
+            border-color:color-mix(in srgb, var(--green) 35%, var(--border));
+            background:linear-gradient(180deg, color-mix(in srgb, var(--green) 6%, var(--surface)) 0%, var(--surface) 70%);
+            box-shadow:0 0 0 1px color-mix(in srgb, var(--green) 18%, transparent);
+            position:relative;overflow:hidden;
+          }
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary .stat-mini-value{color:var(--green)}
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary::after{
+            content:"";position:absolute;left:0;right:0;bottom:0;height:3px;
+            background:var(--green);
+            transform-origin:left center;
+            transform:scaleX(var(--rr-coverage-fill, 1));
+          }
+
+          /* Day-header status dot under the day number. Replaces the
+             verbose "2 / 9" text with a single colored dot so the eye
+             scans the row quickly and lands on issues. */
+          #view-schedule .cal-cell-head .day-dot{
+            display:inline-block;width:6px;height:6px;border-radius:50%;
+            margin-top:6px;background:var(--text-subtle);
+          }
+          #view-schedule .cal-cell-head .day-dot.full{background:var(--green)}
+          #view-schedule .cal-cell-head .day-dot.partial{background:var(--amber)}
+          #view-schedule .cal-cell-head .day-dot.gap{background:var(--red)}
+          #view-schedule .cal-cell-head .day-coverage{
+            display:block;font-size:10px;font-weight:600;color:var(--text-subtle);
+            font-variant-numeric:tabular-nums;letter-spacing:.04em;margin-top:2px;
+            text-transform:none;
+          }
+
+          /* ── Right-rail layout ─────────────────────────────────────
+             Operational Insights and Open Shifts panels live above the
+             existing Driver pool. Same card vocabulary as the rest of
+             the dashboard. */
+          #view-schedule .sched-right-rail{
+            display:flex;flex-direction:column;gap:var(--s-3);
+            position:sticky;top:80px;
+            max-height:calc(100vh - 100px);overflow-y:auto;
+            scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;
+          }
+          #view-schedule .sched-right-rail .driver-pool{position:static;max-height:none}
+
+          #view-schedule .sched-insights,
+          #view-schedule .sched-open-shifts{
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);
+            display:flex;flex-direction:column;gap:var(--s-2-5);
+          }
+          #view-schedule .sched-insights-head,
+          #view-schedule .sched-open-shifts-head{
+            display:flex;align-items:center;gap:8px;
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
+            text-transform:uppercase;color:var(--text-muted);
+          }
+          #view-schedule .sched-insights-head svg{color:var(--accent)}
+          #view-schedule .sched-insights-count{
+            margin-left:auto;background:var(--accent-soft);color:var(--accent-text);
+            font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;
+            letter-spacing:0;text-transform:none;
+          }
+          #view-schedule .sched-open-shifts-count{
+            margin-left:auto;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+            letter-spacing:0;text-transform:none;
+          }
+
+          #view-schedule .sched-insights-body{
+            display:flex;flex-direction:column;gap:6px;
+          }
+          #view-schedule .sched-insight-row{
+            display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center;
+            padding:8px 10px;border-radius:var(--r-md);
+            background:var(--canvas);
+            cursor:pointer;transition:background var(--t-fast);
+            text-align:left;border:0;font:inherit;color:inherit;width:100%;
+          }
+          #view-schedule .sched-insight-row:hover{background:var(--surface-hover, var(--canvas));}
+          #view-schedule .sched-insight-row .sched-insight-icon{
+            width:32px;height:32px;border-radius:var(--r-md);
+            display:inline-flex;align-items:center;justify-content:center;
+            background:var(--accent-soft);color:var(--accent-text);
+          }
+          #view-schedule .sched-insight-row[data-tone="warn"] .sched-insight-icon{background:var(--amber-soft);color:var(--amber-dark, var(--amber))}
+          #view-schedule .sched-insight-row[data-tone="bad"]  .sched-insight-icon{background:rgba(225,29,72,.10);color:var(--red)}
+          #view-schedule .sched-insight-row[data-tone="ok"]   .sched-insight-icon{background:var(--green-soft);color:var(--green)}
+          #view-schedule .sched-insight-row[data-tone="info"] .sched-insight-icon{background:var(--accent-soft);color:var(--accent-text)}
+          #view-schedule .sched-insight-icon svg{width:16px;height:16px}
+          #view-schedule .sched-insight-text{min-width:0}
+          #view-schedule .sched-insight-title{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.3;letter-spacing:-.005em}
+          #view-schedule .sched-insight-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px;line-height:1.3}
+          #view-schedule .sched-insight-row .chev{color:var(--text-subtle);flex-shrink:0}
+          #view-schedule .sched-insight-empty{
+            font-size:var(--fs-sm);color:var(--text-subtle);
+            padding:var(--s-2) var(--s-1);
+          }
+          #view-schedule .sched-insights-foot{
+            font-size:var(--fs-sm);font-weight:500;color:var(--accent-text);
+            text-decoration:none;align-self:flex-start;padding-top:2px;
+          }
+          #view-schedule .sched-insights-foot:hover{text-decoration:underline}
+
+          /* Open Shifts panel — list rows when there are open shifts,
+             empty state mirroring the mockup when there aren't. */
+          #view-schedule .sched-open-shifts-body{display:flex;flex-direction:column;gap:6px}
+          #view-schedule .sched-open-shifts-empty{
+            display:flex;flex-direction:column;align-items:center;justify-content:center;
+            gap:6px;padding:var(--s-3) var(--s-2);text-align:center;
+          }
+          #view-schedule .sched-open-shifts-empty svg{
+            color:#fff;background:var(--green);border-radius:50%;padding:6px;
+            box-sizing:content-box;
+          }
+          #view-schedule .sched-open-shifts-empty-title{
+            font-size:var(--fs-sm);font-weight:600;color:var(--text);margin-top:4px;
+          }
+          #view-schedule .sched-open-shifts-empty-sub{
+            font-size:var(--fs-xs);color:var(--text-subtle);
+          }
+          #view-schedule .sched-open-shifts-empty .btn{margin-top:8px}
+          #view-schedule .sched-open-shift-row{
+            display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+            padding:8px 10px;border-radius:var(--r-md);background:var(--canvas);
+          }
+          #view-schedule .sched-open-shift-day{
+            font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);
+            background:var(--surface);padding:2px 7px;border-radius:999px;letter-spacing:.04em;text-transform:uppercase;
+          }
+          #view-schedule .sched-open-shift-route{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+          #view-schedule .sched-open-shift-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
+          #view-schedule .sched-open-shift-row .btn{flex-shrink:0}
         </style>
 
-          <!-- Schedule toolbar rail. Week tabs (left) and per-week
-               tool buttons (right) sit on a single surface so the
-               operator sees one piece of furniture, not two
-               disconnected groups. -->
-          <div class="sched-toolbar-rail">
+          <!-- Hidden offset-tabs strip — week selection moved to the
+               sched-week-nav navigator next to the subnav, but renderScheduleWeek
+               + a few helpers still read .sched-week-tab[data-rr-week-offset]
+               to know which week is active, and the page-header buttons proxy
+               their clicks down to the originals here. Keep the buttons in the
+               DOM so those code paths continue to work; visually they're hidden. -->
+          <div class="sched-toolbar-rail" hidden aria-hidden="true" style="display:none">
             <div class="sched-toolbar-cluster sched-week-tabs" id="rr-sched-week-tabs">
               <button type="button" class="sched-week-tab active" data-rr-week-offset="0">This week</button>
               <button type="button" class="sched-week-tab" data-rr-week-offset="1">Next week</button>
@@ -10129,6 +10367,37 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </div>
 
+          <!-- Right rail: Operational Insights → Open Shifts → Driver pool.
+               Insights + Open Shifts are populated by renderScheduleWeek;
+               the Driver pool keeps its existing click-to-assign markup. -->
+          <div class="sched-right-rail">
+            <aside class="sched-insights" id="rr-sched-insights" aria-label="Operational insights">
+              <div class="sched-insights-head">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <span>Operational Insights</span>
+                <span class="sched-insights-count" id="rr-sched-insights-count">0</span>
+              </div>
+              <div class="sched-insights-body" id="rr-sched-insights-body">
+                <div class="sched-insight-empty">No insights right now.</div>
+              </div>
+              <a href="#" class="sched-insights-foot" id="rr-sched-insights-all" onclick="event.preventDefault()">View all insights →</a>
+            </aside>
+
+            <aside class="sched-open-shifts" id="rr-sched-open-shifts" aria-label="Open shifts">
+              <div class="sched-open-shifts-head">
+                <span>Open shifts</span>
+                <span class="sched-open-shifts-count" id="rr-sched-open-shifts-count">0 open</span>
+              </div>
+              <div class="sched-open-shifts-body" id="rr-sched-open-shifts-body">
+                <div class="sched-open-shifts-empty">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                  <div class="sched-open-shifts-empty-title">All shifts are covered</div>
+                  <div class="sched-open-shifts-empty-sub">Great job!</div>
+                  <button class="btn btn-sm" type="button" onclick="schedSub('open')">View all shifts</button>
+                </div>
+              </div>
+            </aside>
+
           <!-- DRIVER POOL — drag-to-assign or click to insert -->
           <aside class="driver-pool">
             <div class="pool-head">
@@ -10190,6 +10459,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <button class="btn btn-sm" onclick="schedSub('open')">Manage open shifts →</button>
             </div>
           </aside>
+          </div><!-- /sched-right-rail -->
           </div><!-- /builder-shell -->
 
         </div><!-- /sched-sub-week -->
