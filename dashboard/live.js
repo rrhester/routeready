@@ -17135,9 +17135,9 @@ document.addEventListener("click", async (e) => {
     const driverId = _ddDriver?.driver?.id;
     if (!driverId) { toast("Save the driver first, then send the activation link", "warn"); return; }
     const btn = e.target.closest("[data-rr-send-invite]");
-    const channel = btn.getAttribute("data-rr-send-invite") || null;
+    const requestedChannel = btn.getAttribute("data-rr-send-invite") || null;
     btn.disabled = true; const prev = btn.textContent; btn.textContent = "Sending…";
-    const { data, error } = await sb.rpc("send_onboarding_invite", { p_driver_id: driverId, p_channel: channel });
+    const { data, error } = await sb.rpc("send_onboarding_invite", { p_driver_id: driverId, p_channel: requestedChannel });
     btn.disabled = false; btn.textContent = prev;
     if (error) { toast("Send failed: " + error.message, "warn"); return; }
     const channel = data?.message_channel;
@@ -17169,9 +17169,10 @@ document.addEventListener("click", async (e) => {
     const driverId = _ddDriver?.driver?.id;
     if (!driverId) { toast("Save the driver first, then generate a code", "warn"); return; }
     const btn = e.target.closest("[data-rr-issue-invite]");
+    const originalLabel = btn.textContent;
     btn.disabled = true; btn.textContent = "Generating…";
     const { data, error } = await sb.rpc("issue_driver_invite", { p_driver_id: driverId });
-    btn.disabled = false; btn.textContent = "Generate invite code";
+    btn.disabled = false; btn.textContent = originalLabel;
     if (error) { toast("Failed: " + error.message, "warn"); return; }
     const code = data;
     const display = document.querySelector("#rr-dd-drawer [data-rr-invite-display]");
