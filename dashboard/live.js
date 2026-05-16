@@ -21487,7 +21487,16 @@ function _calSkeletonHtml(n = 8) {
   return `<div class="cal-skel">${Array.from({ length: n }, () => row).join("")}</div>`;
 }
 
+// One-shot guard: the function strips the static mockup HTML that
+// ships with the page and replaces it with a loading skeleton.  After
+// the first successful render the grid is owned by renderScheduleWeek
+// and re-running this on every refresh causes a visible blank-out
+// flash (the skeleton briefly replacing the real grid).  Once cleared,
+// subsequent loadScheduleView() calls let renderScheduleWeek's own
+// strip-and-repaint handle the swap atomically — no flash.
+let _mockupCleared = false;
 function _clearScheduleMockup() {
+  if (_mockupCleared) return;
   // Neutralize the mockup OKAMI day-shifts injector — it runs 50ms after
   // view switch and stamps 'ø XX shifts' onto every cell head, undoing
   // our live render.
@@ -21515,6 +21524,7 @@ function _clearScheduleMockup() {
   // Remove the dynamically-injected mockup license banner if present.
   const lic = document.getElementById("sched-license-banner");
   if (lic) lic.remove();
+  _mockupCleared = true;
 }
 
 // Override the mockup AI-schedule modal — replace with a real auto-fill that
