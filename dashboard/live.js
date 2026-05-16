@@ -23197,23 +23197,21 @@ async function renderScheduleWeek() {
   // Render the Schedule KPIs using the same .stat-mini pattern that
   // Drivers Roster + the rest of the dashboard uses, so the cards
   // read at the same scale as the other KPI strips operators see.
+  // Strip is always visible — operators relied on it constantly
+  // enough that the prior "Insights" hide-by-default toggle was
+  // friction. Seven cards now: Hours, Overtime, Coverage, Open
+  // shifts, Rule violations, Preferences, Training.
   let kpis = sub.querySelector("#rr-sched-kpis");
-  // Preserve the toggle's current open/closed state so the dispatcher's
-  // click survives the next re-render (loadScheduleView fires often).
-  const kpisWasOpen = kpis ? kpis.style.display !== "none" : false;
   if (!kpis) {
     kpis = document.createElement("div");
     kpis.id = "rr-sched-kpis";
     kpis.className = "driver-stat-row";
-    kpis.style.cssText = "grid-template-columns:repeat(6,minmax(0,1fr));display:none";
-    // Anchor: insert directly after the toolbar rail. Selector covers
-    // both the new .sched-toolbar-rail (#524) and the legacy
-    // .sched-toolbar in case any DSP is on a stale bundle.
+    kpis.style.cssText = "grid-template-columns:repeat(7,minmax(0,1fr))";
     const toolbar = sub.querySelector(".sched-toolbar-rail, .sched-toolbar");
     if (toolbar) toolbar.insertAdjacentElement("afterend", kpis);
   } else {
     kpis.className = "driver-stat-row";
-    kpis.style.cssText = `grid-template-columns:repeat(6,minmax(0,1fr));display:${kpisWasOpen ? "" : "none"}`;
+    kpis.style.cssText = "grid-template-columns:repeat(7,minmax(0,1fr))";
   }
   const kpiCard = (label, value, sublabel, tone) => {
     const c = tone === "bad" ? "var(--red)" : tone === "warn" ? "var(--amber)" : tone === "ok" ? "var(--green)" : "";
@@ -23237,6 +23235,45 @@ async function renderScheduleWeek() {
   } else {
     otSub = `~$${Math.round(estimatedOvertimeCost).toLocaleString()} @ 1.5× · ${driversInOt} driver${driversInOt === 1 ? "" : "s"}`;
   }
+  // Training pipeline this week: distinct trainees in classroom training
+  // (shift_kind='training'), distinct ride-along assignments, and a
+  // per-trainee drill payload so the card click opens a usable detail.
+  const trainingByTrainee = new Map();
+  for (const sh of (grid.shifts || [])) {
+    if (sh.shift_kind !== "training" && sh.shift_kind !== "ride_along") continue;
+    if (!sh.driver_id) continue;
+    if (!["scheduled", "completed"].includes(sh.status)) continue;
+    let row = trainingByTrainee.get(sh.driver_id);
+    if (!row) {
+      row = {
+        trainee_id: sh.driver_id,
+        trainee_name: sh.driver_name || "—",
+        class_dates: [],
+        ride_along_date: null,
+        trainer_name: null,
+      };
+      trainingByTrainee.set(sh.driver_id, row);
+    }
+    if (sh.shift_kind === "training") {
+      if (!row.class_dates.includes(sh.date)) row.class_dates.push(sh.date);
+    } else {
+      row.ride_along_date = sh.date;
+      row.trainer_name = sh.trainer_name || row.trainer_name;
+    }
+  }
+  for (const row of trainingByTrainee.values()) row.class_dates.sort();
+  const trainingRows = Array.from(trainingByTrainee.values()).sort((a, b) =>
+    (a.trainee_name || "").localeCompare(b.trainee_name || "")
+  );
+  const classroomCount = trainingRows.filter(r => r.class_dates.length > 0).length;
+  const rideAlongCount = trainingRows.filter(r => r.ride_along_date).length;
+  const trainingTotal  = trainingRows.length;
+  const trainingValue  = trainingTotal === 0 ? "0" : String(trainingTotal);
+  const trainingSub    = trainingTotal === 0
+    ? "no one in training"
+    : `${classroomCount} in class · ${rideAlongCount} ride-along${rideAlongCount === 1 ? "" : "s"}`;
+  const trainingTone   = trainingTotal === 0 ? "default" : "default";
+
   kpis.innerHTML =
     kpiCard(
       "Hours scheduled",
@@ -23253,10 +23290,19 @@ async function renderScheduleWeek() {
     kpiCard("Preferences",
       prefDenom === 0 ? "—" : `${prefHonored} / ${prefDenom}`,
       prefDenom === 0 ? "no preferences set" : (prefHonored === prefDenom ? "all on a preferred day" : "★ on the grid = preferred day"),
-      prefDenom === 0 ? "default" : (prefHonored === prefDenom ? "ok" : "warn"));
+      prefDenom === 0 ? "default" : (prefHonored === prefDenom ? "ok" : "warn")) +
+    kpiCard("Training", trainingValue, trainingSub, trainingTone);
   kpis.dataset.rrViolations = JSON.stringify(violations);
   kpis.dataset.rrPrefMisses = JSON.stringify(prefMissList);
   kpis.dataset.rrPrefSummary = JSON.stringify({ honored: prefHonored, denom: prefDenom });
+  kpis.dataset.rrTraining = JSON.stringify({
+    classroom: classroomCount,
+    ride_along: rideAlongCount,
+    total: trainingTotal,
+    rows: trainingRows,
+    week_start: _schedStart,
+    week_end: weekEndIso,
+  });
   // Visual cue that the violations card opens a modal — match the
   // .stat-mini-clickable pattern other KPI strips use.
   const violationsCard = kpis.querySelector("div:nth-child(5)");
@@ -23273,6 +23319,18 @@ async function renderScheduleWeek() {
       prefCard.title = prefMissList.length === 0 ? "Everyone with a preference is on a preferred day" : `${prefMissList.length} driver${prefMissList.length === 1 ? "" : "s"} scheduled off a preferred day — click to review`;
     } else {
       prefCard.style.cursor = ""; prefCard.title = "";
+    }
+  }
+  const trainingCard = kpis.querySelector("div:nth-child(7)");
+  if (trainingCard) {
+    trainingCard.id = "rr-sched-training-card";
+    if (trainingTotal > 0) {
+      trainingCard.style.cursor = "pointer";
+      trainingCard.style.transition = "border-color .12s, box-shadow .12s";
+      trainingCard.title = `Click to see the ${trainingTotal} trainee${trainingTotal === 1 ? "" : "s"} in training this week`;
+    } else {
+      trainingCard.style.cursor = "";
+      trainingCard.title = "No new hires in training this week";
     }
   }
 
@@ -23736,6 +23794,53 @@ function bindSchedWeekNav() {
       </div>`;
     document.body.appendChild(m);
     m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-pref-close") m.remove(); });
+  });
+
+  // ── KPI: clicking the Training card opens a per-trainee drill-down.
+  sub.addEventListener("click", (e) => {
+    const kpiHost = document.getElementById("rr-sched-kpis");
+    if (!kpiHost) return;
+    if (!e.target.closest("#rr-sched-training-card")) return;
+    let payload = { classroom: 0, ride_along: 0, total: 0, rows: [], week_start: "", week_end: "" };
+    try { payload = JSON.parse(kpiHost.dataset.rrTraining || "{}"); } catch {}
+    if (!(payload.total > 0)) return;
+    document.getElementById("rr-training-kpi-modal")?.remove();
+    const m = document.createElement("div");
+    m.id = "rr-training-kpi-modal";
+    m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+    const fmtDay = (iso) => iso
+      ? new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+      : "—";
+    const rowsHtml = payload.rows.map(r => {
+      const classChips = (r.class_dates || []).map((d, i) =>
+        `<span style="display:inline-flex;align-items:center;background:rgba(13,148,136,.12);color:#0F766E;font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:var(--r-lg);margin-right:6px">Class · Day ${i + 1} · ${escapeHtml(fmtDay(d))}</span>`
+      ).join("");
+      const rideChip = r.ride_along_date
+        ? `<span style="display:inline-flex;align-items:center;background:rgba(245,158,11,.14);color:#B45309;font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:var(--r-lg)">Road · ${escapeHtml(fmtDay(r.ride_along_date))}${r.trainer_name ? " · with " + escapeHtml(r.trainer_name) : ""}</span>`
+        : `<span style="font-size:var(--fs-xs);color:var(--red);font-weight:600">No ride-along scheduled</span>`;
+      const initials = (r.trainee_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
+      return `<div style="padding:var(--s-3) var(--s-4);border-top:1px solid var(--border);display:flex;gap:var(--s-3);align-items:flex-start">
+        <div class="avatar-sm" style="background:var(--canvas);color:var(--text);font-weight:700">${escapeHtml(initials)}</div>
+        <div style="flex:1;min-width:0">
+          <div data-rr-driver-id="${escapeHtml(r.trainee_id)}" style="font-weight:600;font-size:var(--fs-md);cursor:pointer">${escapeHtml(r.trainee_name)}</div>
+          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 0;align-items:center">${classChips}${rideChip}</div>
+        </div>
+      </div>`;
+    }).join("");
+    m.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:640px;width:100%;max-height:80vh;overflow-y:auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) 18px;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:var(--fs-base);font-weight:600">In training this week</div>
+            <div style="font-size:var(--fs-sm);color:var(--text-subtle)">${payload.total} trainee${payload.total === 1 ? "" : "s"} · ${payload.classroom} in classroom · ${payload.ride_along} ride-along${payload.ride_along === 1 ? "" : "s"}</div>
+          </div>
+          <button type="button" id="rr-training-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+        </div>
+        ${rowsHtml || '<div class="rr-empty-inline">No trainees this week</div>'}
+        <div style="padding:var(--s-3) 16px;border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5">Day 1 + 2 are station training; Day 3 is the route ride-along with a designated trainer. Class shifts aren't counted toward route coverage; ride-along trainees share the trainer's van.</div>
+      </div>`;
+    document.body.appendChild(m);
+    m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-training-close") m.remove(); });
   });
 
   // ── Pool sort toggle (Day / Wave time)
@@ -24456,22 +24561,10 @@ function loadOpenShifts()    { /* retired */ }
 function loadCoverageRadar() { /* retired */ }
 
 
-// Insights toggle — flips the 6-card KPI bar (#rr-sched-kpis) on
-// and off. Matches the Insights pattern used elsewhere (Drivers,
-// Attendance, Availability): calm by default, one click reveals, one
-// click hides. Bar contents are still rendered live by the Schedule
-// week loader; we only mutate display.
-document.addEventListener("click", (e) => {
-  const tog = e.target.closest("#rr-sched-kpis-toggle");
-  if (!tog) return;
-  e.preventDefault();
-  const box = document.getElementById("rr-sched-kpis");
-  if (!box) return;
-  const show = box.style.display === "none";
-  box.style.display = show ? "" : "none";
-  tog.setAttribute("aria-pressed", show ? "true" : "false");
-  tog.classList.toggle("is-on", show);
-});
+// (The Schedule KPI strip used to live behind an "Insights" toggle —
+// removed; the strip is now always visible. The toggle anchor in
+// index.html is kept but display:none so any older bundle doesn't
+// throw if it tries to wire to it.)
 
 
 // ─── Cover this shift ─────────────────────────────────────────────────

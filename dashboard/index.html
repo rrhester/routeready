@@ -9676,12 +9676,14 @@ body.rr-cmdk-open{ overflow:hidden }
         <!-- Coverage-gap radar removed per direction. The Cover flow is
              still reachable directly from open chips in the week grid. -->
 
-        <!-- Insights toggles the 6-card KPI bar (Hours scheduled,
-             Overtime, Coverage, Open shifts, Rule violations,
-             Preferences). Hidden by default; resets on Schedule view
-             entry. -->
+        <!-- The Schedule KPI strip (Hours scheduled, Overtime,
+             Coverage, Open shifts, Rule violations, Preferences,
+             Training) is now always visible — operators relied on
+             it enough that the hide-by-default Insights toggle was
+             creating friction. Strip lives at #rr-sched-kpis, rendered
+             by renderScheduleWeek(). -->
         <div style="display:flex;justify-content:flex-end;align-items:center;gap:var(--s-2);margin-bottom:var(--s-2)">
-          <a href="#" role="button" class="rr-text-link" id="rr-sched-kpis-toggle" aria-pressed="false">Insights</a>
+          <a href="#" role="button" class="rr-text-link" id="rr-sched-kpis-toggle" aria-pressed="true" style="display:none">Insights</a>
         </div>
 
         <!-- Sub-nav -->
@@ -20036,7 +20038,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260516-tp-picker-search-all"></script>
+<script type="module" src="./live.js?v=20260516-sched-kpi-training"></script>
 
 </body>
 </html>
