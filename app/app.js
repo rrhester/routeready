@@ -843,6 +843,13 @@ function render() {
       || path === "/tasks/documents/sign"
       || path === "/tasks/i9"
       || path === "/chat"
+      // Schedule stays unlocked during onboarding so the driver can
+      // see any training shifts the dispatcher slots in before they
+      // flip to "active". Without this, manually-added training
+      // shifts assigned to an onboarding driver landed in the DB but
+      // the driver never saw them — every /schedule visit got
+      // redirected back to /tasks/onboarding.
+      || path === "/schedule"
       || path === "/settings"
       || path.startsWith("/settings/");
     const path = currentRoute();
@@ -1441,6 +1448,10 @@ function renderShell(session) {
       <button class="tab" data-route="/tasks/onboarding" data-c="tasks" role="tab" aria-label="Onboarding">
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
         Onboarding
+      </button>
+      <button class="tab" data-route="/schedule" data-c="schedule" role="tab" aria-label="Schedule">
+        <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+        Schedule
       </button>
       <button class="tab" data-route="/chat" data-c="chat" role="tab" aria-label="Chat">
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
@@ -2200,29 +2211,25 @@ function renderTasksHub() {
     });
   }).catch(() => {});
 
-  // Form I-9 (Section 1) — surfaced only when the employee still needs
-  // to act: never started, or the employer reopened it for a correction.
-  // Once submitted it drops off (the employer completes Section 2).
-  //
-  // While the driver is still in onboarding, the Onboarding card already
-  // surfaces the I-9 step in its proper sequence — a standalone task
-  // card would just duplicate it and confuse the driver about which to
-  // tap. Gate on driver status so it only stands alone post-onboarding.
-  Promise.all([
-    sb.rpc("driver_get_profile", { p_token: session.token }),
-    sb.rpc("driver_i9_get",      { p_token: session.token }),
-  ]).then(([profRes, i9Res]) => {
-    if (i9Res.error || !i9Res.data?.record) return;
-    const st = i9Res.data.record.status;
-    if (st !== "not_started" && st !== "needs_correction") return;
-    if (profRes.data?.status === "onboarding") return;
+  // Form I-9 (Section 1) — only surfaced when the operator explicitly
+  // re-opens the form for a correction. The "not_started" case lives
+  // inside the Onboarding card's step list, and once Section 1 is
+  // submitted dispatch handles Section 2. Surfacing a standalone task
+  // for "not_started" duplicated the onboarding step in the active-
+  // driver Tasks hub (operator: "Thats not needed when its completed
+  // in the on boarding process"); the only case where the driver
+  // legitimately needs a re-entry point with no onboarding card
+  // around is the "needs_correction" path.
+  sb.rpc("driver_i9_get", { p_token: session.token }).then(({ data, error }) => {
+    if (error || !data?.record) return;
+    if (data.record.status !== "needs_correction") return;
     const slot = document.getElementById("rr-tasks-forms-slot");
     if (!slot) return;
     document.getElementById("rr-tasks-empty")?.remove();
     slot.insertAdjacentHTML("afterend", taskCardHtml({
       route: "/tasks/i9",
       title: "Form I-9 — Section 1",
-      sub: st === "needs_correction" ? "Needs a correction" : "Confirm your employment eligibility",
+      sub: "Needs a correction",
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>',
     }));
     document.querySelectorAll("[data-task-route='/tasks/i9']").forEach((el) => {
