@@ -50,21 +50,28 @@ function logLine(...parts) {
 // pass executablePath explicitly to chromium.launch().
 function resolveChromiumExecutable() {
   if (!app.isPackaged) return undefined; // dev → let Playwright find it
-  const browsersRoot = path.join(
-    process.resourcesPath,
-    "app.asar.unpacked",
-    "node_modules",
-    "playwright-core",
-    ".local-browsers",
-  );
-  if (!fs.existsSync(browsersRoot)) {
-    logLine("chromium: browsers root not found at", browsersRoot);
+  // We disable asar packaging in package.json, so node_modules sits under
+  // resources/app/ as plain files.  Also check resources/app.asar.unpacked/
+  // as a fallback in case the build config ever flips back to asar.
+  const candidates = [
+    path.join(process.resourcesPath, "app", "node_modules", "playwright-core", ".local-browsers"),
+    path.join(process.resourcesPath, "app.asar.unpacked", "node_modules", "playwright-core", ".local-browsers"),
+  ];
+  let browsersRoot = null;
+  for (const c of candidates) {
+    if (fs.existsSync(c)) { browsersRoot = c; break; }
+  }
+  if (!browsersRoot) {
+    logLine("chromium: no browsers root found, tried:", candidates);
     return undefined;
   }
   const entries = fs.readdirSync(browsersRoot);
-  const chromiumDir = entries.find((n) => n.startsWith("chromium-") && !n.endsWith("headless_shell"));
+  // Prefer the full Chromium dir; fall back to headless_shell if that's all
+  // we've got (some Playwright versions only ship the lighter one by default).
+  let chromiumDir = entries.find((n) => n.startsWith("chromium-") && !n.includes("headless_shell"));
+  if (!chromiumDir) chromiumDir = entries.find((n) => n.startsWith("chromium-"));
   if (!chromiumDir) {
-    logLine("chromium: no chromium-* dir inside", browsersRoot, "entries:", entries);
+    logLine("chromium: no chromium-* dir in", browsersRoot, "entries:", entries);
     return undefined;
   }
   const platformSubpath = process.platform === "win32"
