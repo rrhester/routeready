@@ -14230,28 +14230,36 @@ function _tpRenderResults() {
     ? trainers.map(r => _tpRowHtml(r, true, true)).join("")
     : `<div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:6px 0">No trainers available this day — fall back to another driver below.</div>`;
 
-  // Search box: matches against the FULL active roster, not the
-  // eligibility list. Anyone not in s.candidates gets rendered with a
-  // "Not scheduled this day" tag and disabled clicks — the operator
-  // sees they exist and knows to pick a different ride-along date.
+  // OTHER DRIVERS section: default-populate with every non-trainer
+  // driver scheduled this day, so the operator sees their full set of
+  // candidates without having to type. Typing into the search box then
+  // narrows results AND broadens to anyone in the DSP — drivers not
+  // scheduled this day appear tagged "Not scheduled this day" and
+  // disabled, so the operator knows to pick another ride-along date.
   const eligibleById = new Map(s.candidates.map(r => [r.driver_id, r]));
+  const nonTrainerScheduled = s.candidates.filter(r => !r.is_trainer);
   let othersSection;
   if (!q) {
-    othersSection = `<div style="color:var(--text-subtle);font-size:var(--fs-xs);padding:6px 0;font-style:italic">Type a name above to search any active driver in the DSP.</div>`;
+    othersSection = nonTrainerScheduled.length
+      ? nonTrainerScheduled.map(r => _tpRowHtml(r, false, true)).join("")
+      : `<div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:6px 0">No other drivers are scheduled this day. Use the search box to find someone in the full roster.</div>`;
   } else {
     const matches = (s.allDrivers || []).filter(d => d.full_name && d.full_name.toLowerCase().includes(q));
     if (!matches.length) {
       othersSection = `<div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:6px 0">No matches.</div>`;
     } else {
-      othersSection = matches.map(d => {
+      // Sort the search hits: scheduled drivers first (they're
+      // immediately pickable), then unscheduled ones (the operator
+      // sees they exist but needs to change the ride-along date to
+      // pick them).
+      const scheduled = [];
+      const unscheduled = [];
+      for (const d of matches) {
         const elig = eligibleById.get(d.id);
-        if (elig) return _tpRowHtml(elig, !!elig.is_trainer, true);
-        return _tpRowHtml({
-          driver_id: d.id,
-          full_name: d.full_name,
-          is_trainer: d.is_trainer,
-        }, !!d.is_trainer, false);
-      }).join("");
+        if (elig) scheduled.push(_tpRowHtml(elig, !!elig.is_trainer, true));
+        else unscheduled.push(_tpRowHtml({ driver_id: d.id, full_name: d.full_name, is_trainer: d.is_trainer }, !!d.is_trainer, false));
+      }
+      othersSection = [...scheduled, ...unscheduled].join("");
     }
   }
 
