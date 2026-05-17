@@ -145,6 +145,8 @@
 
   /* ── Radii (Fluent — tight, functional) ──────────────────── */
   --r-sm:4px; --r-md:6px; --r-lg:10px; --r-xl:14px; --r-2xl:18px;
+  /* Pills / fully-rounded — capsule chips, dots, status badges */
+  --r-pill:999px;
 
   /* ── Shadows — soft daylight: low, diffuse, cards float lightly */
   --shadow-xs: 0 1px 2px rgba(15,23,42,.05);
@@ -249,6 +251,37 @@ a{color:inherit;text-decoration:none}
 .rr-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.3}
 .rr-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);max-width:38ch;line-height:1.5}
 .rr-empty-action{margin-top:var(--s-3)}
+
+/* Canonical skeleton — replaces the four bespoke shimmer keyframes
+   (rr-shimmer, rr-admin-shimmer, rr-mc-img-shimmer, otShimmer)
+   for any new loading placeholder.  Use .rr-skel as the bar,
+   .rr-skel-row to layout one row of bars, .rr-skel-list to stack
+   them with consistent rhythm.  Honors prefers-reduced-motion. */
+.rr-skel{
+  position:relative;display:block;overflow:hidden;
+  background:linear-gradient(90deg,
+    var(--surface-elevated) 0%,
+    rgba(15,23,42,.05) 50%,
+    var(--surface-elevated) 100%);
+  background-size:200% 100%;
+  border-radius:var(--r-sm);
+  animation:rr-skel-shimmer 1.4s ease-in-out infinite;
+}
+.rr-skel-sm{height:10px}
+.rr-skel-md{height:14px}
+.rr-skel-lg{height:18px}
+.rr-skel-block{height:64px;border-radius:var(--r-md)}
+.rr-skel-circle{border-radius:50%}
+.rr-skel-row{display:flex;align-items:center;gap:var(--s-3);padding:var(--s-3) 0}
+.rr-skel-list{display:flex;flex-direction:column;gap:var(--s-2)}
+.rr-skel-text{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0}
+@keyframes rr-skel-shimmer{
+  0%{background-position:100% 50%}
+  100%{background-position:-100% 50%}
+}
+@media (prefers-reduced-motion: reduce){
+  .rr-skel{animation:none;background:var(--surface-elevated)}
+}
 
 /* ─────────────────────────────────────────────────────────────
    CANONICAL MODAL — one shape, one rhythm.  All centered dialogs
@@ -386,12 +419,27 @@ a{color:inherit;text-decoration:none}
 .u-mt-1{margin-top:var(--s-1)}
 .u-mt-2{margin-top:var(--s-2)}
 .u-mt-3{margin-top:var(--s-3)}
+.u-mt-4{margin-top:var(--s-4)}
+.u-mt-5{margin-top:var(--s-5)}
+.u-mb-1{margin-bottom:var(--s-1)}
+.u-mb-2{margin-bottom:var(--s-2)}
+.u-mb-3{margin-bottom:var(--s-3)}
+.u-mb-4{margin-bottom:var(--s-4)}
 .u-grid-full{grid-column:1/-1}
 .u-flex{display:flex}
+.u-flex-col{display:flex;flex-direction:column}
 .u-flex-center{display:flex;align-items:center}
 .u-flex-between{display:flex;align-items:center;justify-content:space-between}
+.u-flex-wrap{flex-wrap:wrap}
 .u-gap-1{gap:var(--s-1)}
 .u-gap-2{gap:var(--s-2)}
+.u-gap-3{gap:var(--s-3)}
+.u-gap-4{gap:var(--s-4)}
+.u-rounded-sm{border-radius:var(--r-sm)}
+.u-rounded-md{border-radius:var(--r-md)}
+.u-rounded-lg{border-radius:var(--r-lg)}
+.u-rounded-pill{border-radius:var(--r-pill)}
+.u-rounded-full{border-radius:50%}
 
 /* ─────────────────────────────────────────────────────────────
    APP SHELL
@@ -12324,7 +12372,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-overtime .ot-insight{
             background:var(--surface);border:1px solid var(--border);
-            border-left:3px solid var(--ot-amber-bright);
+            border-left:3px solid var(--amber-bright);
             border-radius:var(--r-md);
             padding:var(--s-3) var(--s-3-5);
           }
