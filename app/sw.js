@@ -13,7 +13,7 @@
 // preview + unread count, then shows a notification + sets the home-
 // screen badge (Badging API).
 
-const SHELL_CACHE = "rr-app-shell-v96";
+const SHELL_CACHE = "rr-app-shell-v97";
 const SHELL_FILES = [
   "./",
   "index.html",
