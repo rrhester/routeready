@@ -3701,20 +3701,30 @@ function _teamRowHtml(d, callIcon, textIcon) {
     </div>`;
 }
 
-// ── Profile · home screen. Photo + name + check-in. Nothing else. ──
+// ── Profile · home screen ──────────────────────────────────────────
+// Branded hero on top, operational cards below.  Three slots load
+// independently so each can stream in without blocking the others:
+//   #rr-checkin-slot  — primary "Opens at" / check-in surface
+//   #rr-missed-slot   — "Report missed day" row (only when relevant)
+//   #rr-upnext-slot   — next upcoming shift summary
 function renderProfileHub() {
   const session = readSession();
   const name = session?.name || "Driver";
   const dsp  = session?.dsp_name || "RouteReady";
   setHeader(dsp, "");
   const main = document.getElementById("main");
+  // Brand mark (small shield) lives inside the hero brand row.
+  const brandMark = `
+    <span class="home-hero-brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z"/></svg>
+    </span>`;
+  const gearSvg = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
+
   main.innerHTML = `
     <div class="home-hero">
       <div class="home-hero-bar">
-        <div class="home-hero-brand">${escapeHtml(dsp)}</div>
-        <button class="home-hero-gear" id="rr-home-settings" type="button" aria-label="Settings">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-        </button>
+        <div class="home-hero-brand">${brandMark}<span>${escapeHtml(dsp)}</span></div>
+        <button class="home-hero-gear" id="rr-home-settings" type="button" aria-label="Settings">${gearSvg}</button>
       </div>
       <button class="profile-avatar-btn" id="rr-photo-btn" type="button" aria-label="Change photo">
         ${avatarHtml(session, "profile-avatar")}
@@ -3730,8 +3740,20 @@ function renderProfileHub() {
       </div>
     </div>
 
-    <div id="rr-checkin-slot" class="checkin-card">
-      <div class="checkin-loading">Checking your shift…</div>
+    <div class="home-content">
+      <div id="rr-checkin-slot">
+        <div class="opens-card opens-card-muted">
+          <div class="opens-card-row">
+            <div class="opens-card-icon"><div class="loader" style="margin:0;width:20px;height:20px;border-width:2px"></div></div>
+            <div class="opens-card-body">
+              <div class="opens-card-title" style="font-size:18px">Checking your shift…</div>
+              <div class="opens-card-meta">One moment</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="rr-missed-slot" hidden></div>
+      <section class="up-next" id="rr-upnext-slot" hidden></section>
     </div>`;
 
   document.getElementById("rr-home-settings").addEventListener("click", () => { _haptic("tap"); navigate("/settings"); });
@@ -3747,13 +3769,86 @@ function renderProfileHub() {
     fileInput.value = ""; // allow re-selecting the same file
   });
 
-  // Render the check-in card asynchronously — keeps the rest of the
-  // profile page snappy while we wait on driver_checkin_status.
+  // Three independent loaders so the page is responsive while data
+  // streams in.  Each fills its own slot.
   renderCheckinCard(session);
+  renderUpNext(session);
+
+  // Pull-to-refresh re-fetches both async surfaces.  Avatar / name
+  // come from the session, which is hydrated in the background by
+  // refreshDriverProfile in render().
+  setRefresh(() => {
+    const s = readSession();
+    renderCheckinCard(s);
+    renderUpNext(s);
+  });
 
   main.querySelectorAll("[data-task-route]").forEach((el) => {
     el.addEventListener("click", () => navigate(el.dataset.taskRoute));
   });
+}
+
+// ── UP NEXT · next upcoming shift after today ──────────────────────
+// Reads from driver_my_schedule (same RPC the Schedule tab uses) and
+// renders the closest future shift as a single white card.  Hides
+// itself silently on empty / error so the home page never shows a
+// broken section.
+async function renderUpNext(session) {
+  const slot = document.getElementById("rr-upnext-slot");
+  if (!slot || !session?.token) return;
+  let data, error;
+  try {
+    const res = await sb.rpc("driver_my_schedule", { p_token: session.token, p_weeks: 2 });
+    data = res.data; error = res.error;
+  } catch (e) { error = e; }
+  if (error || !data) { slot.hidden = true; return; }
+
+  const todayIso = fmtIsoDate(new Date());
+  const shifts = (Array.isArray(data.shifts) ? data.shifts : [])
+    .filter((s) => s.status === "scheduled" && s.date > todayIso)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  if (shifts.length === 0) { slot.hidden = true; return; }
+  const s = shifts[0];
+
+  // Try to look up the assigned vehicle for that day — same RPC
+  // the Schedule page uses.  Silent on failure (van just hides).
+  let vehicle = "";
+  try {
+    const vRes = await sb.rpc("driver_vehicle_days", { p_token: session.token });
+    for (const r of (Array.isArray(vRes?.data) ? vRes.data : [])) {
+      if (r && r.date === s.date && r.vehicle) { vehicle = r.vehicle; break; }
+    }
+  } catch {}
+
+  const d = new Date(s.date + "T12:00:00");
+  const dow = d.toLocaleDateString(undefined, { weekday: "short" }).toUpperCase();
+  const day = d.getDate();
+  const mon = d.toLocaleDateString(undefined, { month: "short" }).toUpperCase();
+
+  const timeRange = (s.starts_at && s.ends_at)
+    ? `${fmtTime(s.starts_at)} – ${fmtTime(s.ends_at)}`
+    : "";
+  const hasLead = (s.report_lead_minutes || 0) > 0
+    && s.wave_starts_at
+    && new Date(s.wave_starts_at).getTime() !== new Date(s.starts_at).getTime();
+  const metaParts = [s.station_code || ""].filter(Boolean);
+  if (hasLead) metaParts.push(`Wave ${fmtTime(s.wave_starts_at)}`);
+
+  slot.hidden = false;
+  slot.innerHTML = `
+    <div class="up-next-label">Up next</div>
+    <div class="up-next-card">
+      <div class="up-next-date">
+        <div class="up-next-dow">${escapeHtml(dow)}</div>
+        <div class="up-next-day">${day}</div>
+        <div class="up-next-mon">${escapeHtml(mon)}</div>
+      </div>
+      <div class="up-next-body">
+        <div class="up-next-time">${escapeHtml(timeRange)}</div>
+        ${metaParts.length ? `<div class="up-next-meta">${escapeHtml(metaParts.join(" · "))}</div>` : ""}
+        ${vehicle ? `<div class="up-next-vehicle">Vehicle ${escapeHtml(vehicle)}</div>` : ""}
+      </div>
+    </div>`;
 }
 
 // ── Settings · gear icon in the top-right of the header ─────────────
@@ -4921,8 +5016,32 @@ function _initSignaturePad(canvasId, clearBtnId) {
 // Every action goes through confirm() so a stray tap doesn't fire it.
 async function renderCheckinCard(session) {
   const slot = document.getElementById("rr-checkin-slot");
+  const missedSlot = document.getElementById("rr-missed-slot");
   if (!slot) return;
-  if (!session?.token) { slot.innerHTML = ""; return; }
+  // Helper: render the "Report missed day" row into its own slot.
+  // Hidden by default; only the states where a missed-day makes sense
+  // turn it on (pre-checkin window-not-open / no-geofence).
+  const showMissed = (visible) => {
+    if (!missedSlot) return;
+    missedSlot.hidden = !visible;
+    if (!visible) { missedSlot.innerHTML = ""; return; }
+    missedSlot.innerHTML = `
+      <button class="missed-day-card" id="rr-missed-btn" type="button">
+        <span class="missed-day-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        </span>
+        <div class="missed-day-body">
+          <div class="missed-day-title">Report missed day</div>
+          <div class="missed-day-sub">Let dispatch know if you can't make it</div>
+        </div>
+        <span class="missed-day-chev" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </span>
+      </button>`;
+    document.getElementById("rr-missed-btn").addEventListener("click", () => doMissedDay(session));
+  };
+
+  if (!session?.token) { slot.innerHTML = ""; showMissed(false); return; }
 
   let status;
   try {
@@ -4930,15 +5049,24 @@ async function renderCheckinCard(session) {
     if (error) throw error;
     status = data;
   } catch (err) {
-    slot.innerHTML = `<div class="checkin-empty">Couldn't load shift · ${escapeHtml(err.message || err)}</div>`;
+    slot.innerHTML = `
+      <div class="opens-card opens-card-warn">
+        <div class="opens-card-row">
+          <div class="opens-card-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <div class="opens-card-body">
+            <div class="opens-card-title" style="font-size:18px">Couldn't load shift</div>
+            <div class="opens-card-meta">${escapeHtml(err.message || String(err))}</div>
+          </div>
+        </div>
+      </div>`;
+    showMissed(false);
     return;
   }
 
   const shift = status?.shift;
-  // Mirror station + on-duty state into the home-hero subtitle / pill
-  // when this card is rendering on the Profile page.  The hero renders
-  // immediately with a "Driver" placeholder; once the RPC returns we
-  // fill in "Driver · DCA1" and flip the ON DUTY pill on if checked in.
+  // Mirror station + on-duty state into the home-hero subtitle / pill.
   const metaEl = document.getElementById("rr-home-meta");
   const dutyEl = document.getElementById("rr-home-status");
   if (metaEl) {
@@ -4949,8 +5077,25 @@ async function renderCheckinCard(session) {
     const onDuty = !!(status?.checkin?.checked_in_at && !status?.checkin?.checked_out_at);
     dutyEl.hidden = !onDuty;
   }
+
+  // Reusable bits for the "Opens at" surface.
+  const clockIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  const checkIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  const card = (cls, icon, title, meta, extra = "") => `
+    <div class="opens-card ${cls}">
+      <div class="opens-card-row">
+        <div class="opens-card-icon">${icon}</div>
+        <div class="opens-card-body">
+          <div class="opens-card-title">${title}</div>
+          ${meta ? `<div class="opens-card-meta">${meta}</div>` : ""}
+        </div>
+      </div>
+      ${extra}
+    </div>`;
+
   if (!shift) {
-    slot.innerHTML = `<div class="checkin-empty">No shift scheduled today.</div>`;
+    slot.innerHTML = card("opens-card-muted", clockIcon, "No shift today", "Enjoy your day off.");
+    showMissed(false);
     return;
   }
 
@@ -4962,12 +5107,6 @@ async function renderCheckinCard(session) {
     ? new Date(shift.window_open_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
     : "—";
 
-  // starts_at is the scheduled / report time the driver clocks in at.
-  // When the DSP has set a report-lead, the route departs at
-  // wave_starts_at = starts_at + report_lead. The check-in button
-  // shows both, labeled "Wave" so the driver knows which is which:
-  // "KMO1 · 10:00am · Wave 10:20am". When lead = 0, only the
-  // scheduled time appears.
   const hasReportLead = shift.report_lead_minutes > 0
     && shift.wave_starts_at
     && new Date(shift.wave_starts_at).getTime() !== new Date(shift.starts_at).getTime();
@@ -4977,84 +5116,77 @@ async function renderCheckinCard(session) {
   const startWithWave = hasReportLead
     ? `${startsAtTxt} · Wave ${waveTxt}`
     : startsAtTxt;
+  const detailMeta = `${escapeHtml(stationCode)} · ${escapeHtml(startWithWave)}`;
 
   const chk = status?.checkin;
 
   // Already missed-day reported.
   if (chk?.missed_reported_at && !chk?.checked_in_at) {
     const t = new Date(chk.missed_reported_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-    slot.innerHTML = `
-      <div class="checkin-row missed">
-        <div>
-          <div class="checkin-title">Reported missed day · ${escapeHtml(t)}</div>
-          <div class="checkin-sub">${chk.missed_reason ? escapeHtml(chk.missed_reason) : "Your dispatcher has been notified."}</div>
-        </div>
-      </div>`;
+    slot.innerHTML = card("opens-card-warn", clockIcon,
+      `Reported missed day · ${escapeHtml(t)}`,
+      chk.missed_reason ? escapeHtml(chk.missed_reason) : "Your dispatcher has been notified.");
+    showMissed(false);
     return;
   }
 
-  // Already checked in — show check-out button (or already checked out).
+  // Already checked in — show check-out CTA (or already checked out).
   if (chk?.checked_in_at) {
     const inT  = new Date(chk.checked_in_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
     if (chk.checked_out_at) {
       const outT = new Date(chk.checked_out_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-      slot.innerHTML = `
-        <div class="checkin-row checked-in">
-          <div>
-            <div class="checkin-title">Shift complete · ${escapeHtml(outT)}</div>
-            <div class="checkin-sub">In ${escapeHtml(inT)} · out ${escapeHtml(outT)}</div>
-          </div>
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#15803d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-        <button class="checkin-btn checkin-btn-tertiary" id="rr-undo-checkout" type="button">Undo check-out</button>`;
+      slot.innerHTML = card("opens-card-ok", checkIcon,
+        `Shift complete · ${escapeHtml(outT)}`,
+        `In ${escapeHtml(inT)} · out ${escapeHtml(outT)}`,
+        `<button class="opens-card-cta" id="rr-undo-checkout" type="button">Undo check-out</button>`);
       document.getElementById("rr-undo-checkout").addEventListener("click", () => doUndoCheckout(session));
+      showMissed(false);
       return;
     }
-    slot.innerHTML = `
-      <div class="checkin-row checked-in">
-        <div>
-          <div class="checkin-title">Checked in · ${escapeHtml(inT)}</div>
-          <div class="checkin-sub">${escapeHtml(stationCode)}</div>
-        </div>
-      </div>
-      <button class="checkin-btn checkin-btn-secondary" id="rr-checkout-btn" type="button">Check out</button>`;
+    slot.innerHTML = card("opens-card-ok", checkIcon,
+      `Checked in · ${escapeHtml(inT)}`,
+      escapeHtml(stationCode),
+      `<button class="opens-card-cta" id="rr-checkout-btn" type="button">Check out</button>`);
     document.getElementById("rr-checkout-btn").addEventListener("click", () => doCheckout(session));
+    showMissed(false);
     return;
   }
 
-  // Not checked in. Show check-in (gated by window) + missed-day button.
+  // Not checked in. Show check-in (gated by window) + missed-day below.
   if (!shift.has_geofence) {
-    slot.innerHTML = `
-      <div class="checkin-row">
-        <div>
-          <div class="checkin-title">Check-in unavailable</div>
-          <div class="checkin-sub">Geofence isn't set for ${escapeHtml(stationCode)}.</div>
-        </div>
-      </div>
-      <button class="checkin-btn checkin-btn-tertiary" id="rr-missed-btn" type="button">Report missed day</button>`;
-    document.getElementById("rr-missed-btn").addEventListener("click", () => doMissedDay(session));
+    slot.innerHTML = card("opens-card-muted", clockIcon,
+      "Check-in unavailable",
+      `Geofence isn't set for ${escapeHtml(stationCode)}.`);
+    showMissed(true);
     return;
   }
 
   const windowOpen = !!status.window_is_open;
-  const primary    = windowOpen
-    ? `<button class="checkin-btn" id="rr-checkin-btn" type="button">
-         Check in
-         <span class="checkin-meta">${escapeHtml(stationCode)} · ${escapeHtml(startWithWave)}</span>
-       </button>`
-    : `<button class="checkin-btn" id="rr-checkin-btn" type="button" disabled>
-         Opens at ${escapeHtml(windowOpenTxt)}
-         <span class="checkin-meta">${escapeHtml(stationCode)} · ${escapeHtml(startWithWave)}</span>
-       </button>`;
-
-  slot.innerHTML = `
-    ${primary}
-    <button class="checkin-btn checkin-btn-tertiary" id="rr-missed-btn" type="button">Report missed day</button>`;
-
   if (windowOpen) {
+    slot.innerHTML = `
+      <button class="opens-card" id="rr-checkin-btn" type="button">
+        <div class="opens-card-row">
+          <div class="opens-card-icon">${checkIcon}</div>
+          <div class="opens-card-body">
+            <div class="opens-card-title">Check in</div>
+            <div class="opens-card-meta">${detailMeta}</div>
+          </div>
+        </div>
+      </button>`;
     document.getElementById("rr-checkin-btn").addEventListener("click", () => doCheckin(session));
+  } else {
+    slot.innerHTML = `
+      <div class="opens-card" aria-disabled="true">
+        <div class="opens-card-row">
+          <div class="opens-card-icon">${clockIcon}</div>
+          <div class="opens-card-body">
+            <div class="opens-card-title">Opens at ${escapeHtml(windowOpenTxt)}</div>
+            <div class="opens-card-meta">${detailMeta}</div>
+          </div>
+        </div>
+      </div>`;
   }
-  document.getElementById("rr-missed-btn").addEventListener("click", () => doMissedDay(session));
+  showMissed(true);
 }
 
 async function doCheckin(session) {
