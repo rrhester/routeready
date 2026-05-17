@@ -7870,6 +7870,10 @@ body.rr-cmdk-open{ overflow:hidden }
         Drivers
         <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
+      <button class="nav-item" data-view="recognition" data-c="drivers" onclick="goto('recognition')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h2a2 2 0 0 1 2 2 5 5 0 0 1-5 5"/><path d="M7 5H5a2 2 0 0 0-2 2 5 5 0 0 0 5 5"/></svg></span>
+        Recognition
+      </button>
       <button class="nav-item" data-view="onboarding-ops" data-c="drivers" onclick="goto('onboarding-ops')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="15.5 11 17.5 13 21.5 9"/></svg></span>
         Onboarding
@@ -12975,6 +12979,169 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </section>
         </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         RECOGNITION — driver birthdays, work anniversaries, safety
+         milestones, and custom celebrations.  Data layer in
+         migration 0290 (driver_recognitions + recognition_* RPCs).
+         Loader functions live in live.js (loadRecognitionView /
+         loadRecognitionUpcoming / loadRecognitionHistory / …).
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-recognition">
+      <div class="page">
+        <div class="page-header">
+          <div class="page-header-l">
+            <div class="page-icon" data-c="drivers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h2a2 2 0 0 1 2 2 5 5 0 0 1-5 5"/><path d="M7 5H5a2 2 0 0 0-2 2 5 5 0 0 0 5 5"/></svg></div>
+            <div>
+              <h1 class="page-title">Recognition</h1>
+              <p class="page-sub" id="rr-recog-page-sub">Birthdays, work anniversaries, and custom celebrations</p>
+            </div>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-primary" id="rr-recog-send-cta" type="button" title="Send a custom celebration to a driver">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5 12 2"/></svg>
+              Send celebration
+            </button>
+          </div>
+        </div>
+
+        <!-- Sub-nav · Upcoming · History · Safety milestones -->
+        <div class="subnav" data-rr-tabbar="recognition">
+          <button class="subnav-item active" data-sub="upcoming" onclick="recogSub('upcoming')">Upcoming</button>
+          <button class="subnav-item" data-sub="history"  onclick="recogSub('history')">Sent &amp; scheduled</button>
+          <button class="subnav-item" data-sub="safety"   onclick="recogSub('safety')">Safety milestones</button>
+        </div>
+
+        <style>
+          /* ── Recognition · scoped styling (mirrors Fleet / Drivers) ── */
+          #view-recognition .rg-roster-bar{display:flex;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3);flex-wrap:wrap}
+          #view-recognition .rg-search{position:relative;flex:1;min-width:240px;max-width:360px}
+          #view-recognition .rg-search input{width:100%;padding:var(--s-2) var(--s-3) var(--s-2) calc(var(--s-7) + 4px);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-md);background:var(--surface)}
+          #view-recognition .rg-search svg{position:absolute;left:var(--s-3);top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-subtle);pointer-events:none}
+          #view-recognition .rg-filter{padding:var(--s-2) var(--s-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-size:var(--fs-md);color:var(--text)}
+          #view-recognition .rg-spacer{flex:1}
+
+          #view-recognition .rg-sub{display:none}
+          #view-recognition .rg-sub.active{display:block}
+
+          /* Kind chip — birthday, anniversary, safety, custom */
+          #view-recognition .rg-kind{display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px var(--s-2);border-radius:var(--r-pill);white-space:nowrap;border:1px solid transparent}
+          #view-recognition .rg-kind.birthday{background:#fff4e5;color:#9a3412;border-color:#fed7aa}
+          #view-recognition .rg-kind.work_anniversary{background:#ecfeff;color:#155e75;border-color:#a5f3fc}
+          #view-recognition .rg-kind.safety_milestone{background:#ecfccb;color:#3f6212;border-color:#bef264}
+          #view-recognition .rg-kind.custom{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
+
+          /* "When" pill — Today / Tomorrow / In N days */
+          #view-recognition .rg-when{font-size:var(--fs-sm);color:var(--text-muted)}
+          #view-recognition .rg-when.today{color:var(--green);font-weight:700}
+          #view-recognition .rg-when.tomorrow{color:var(--accent);font-weight:700}
+
+          /* Sent / Scheduled / Cancelled status chips on History */
+          #view-recognition .rg-status{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px var(--s-2);border-radius:var(--r-pill)}
+          #view-recognition .rg-status.sent{background:var(--green-soft, #dcfce7);color:var(--green-dark, #166534)}
+          #view-recognition .rg-status.scheduled{background:var(--accent-soft);color:var(--accent-text)}
+          #view-recognition .rg-status.cancelled{background:var(--canvas);color:var(--text-subtle)}
+
+          /* Driver cell with avatar + name (matches drivers/fleet patterns) */
+          #view-recognition .rg-driver{display:flex;align-items:center;gap:var(--s-2-5)}
+          #view-recognition .rg-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--fs-sm);overflow:hidden;flex:0 0 auto}
+          #view-recognition .rg-avatar img{width:100%;height:100%;object-fit:cover}
+
+          #view-recognition .rg-celebrate-btn{display:inline-flex;align-items:center;gap:6px;padding:4px var(--s-3);border:1px solid var(--accent);border-radius:var(--r-md);background:var(--accent);color:#fff;font-weight:600;font-size:var(--fs-sm);cursor:pointer;line-height:1.2}
+          #view-recognition .rg-celebrate-btn:hover{filter:brightness(1.05)}
+          #view-recognition .rg-celebrate-btn[disabled]{opacity:.55;cursor:not-allowed}
+          #view-recognition .rg-sent-pill{display:inline-flex;align-items:center;gap:4px;padding:2px var(--s-2);border-radius:var(--r-pill);background:var(--green-soft, #dcfce7);color:var(--green-dark, #166534);font-size:var(--fs-xs);font-weight:700}
+
+          /* Safety-milestones placeholder card */
+          #view-recognition .rg-stub{padding:var(--s-8) var(--s-6);text-align:center;border:1px dashed var(--border);border-radius:var(--r-lg);background:var(--surface)}
+          #view-recognition .rg-stub h3{margin:0 0 var(--s-2);font-size:var(--fs-lg)}
+          #view-recognition .rg-stub p{margin:0 auto;max-width:520px;color:var(--text-muted);font-size:var(--fs-md);line-height:1.5}
+        </style>
+
+        <!-- UPCOMING sub-view -->
+        <div class="rg-sub active" id="recog-sub-upcoming">
+          <div class="rg-roster-bar">
+            <div class="rg-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="rr-recog-up-search" type="search" placeholder="Search by driver name…" autocomplete="off">
+            </div>
+            <div class="rg-spacer"></div>
+            <select id="rr-recog-window" class="rg-filter" aria-label="Window">
+              <option value="30">Next 30 days</option>
+              <option value="60">Next 60 days</option>
+              <option value="90">Next 90 days</option>
+              <option value="14">Next 14 days</option>
+              <option value="7">Next 7 days</option>
+            </select>
+            <select id="rr-recog-kindfilter" class="rg-filter" aria-label="Filter by kind">
+              <option value="">All occasions</option>
+              <option value="birthday">Birthdays</option>
+              <option value="work_anniversary">Work anniversaries</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Driver</th>
+                  <th>Occasion</th>
+                  <th>Date</th>
+                  <th>When</th>
+                  <th style="text-align:right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="rr-recog-up-tbody">
+                <tr><td colspan="5" style="padding:var(--s-6);text-align:center;color:var(--text-subtle)">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- HISTORY sub-view -->
+        <div class="rg-sub" id="recog-sub-history">
+          <div class="rg-roster-bar">
+            <div class="rg-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="rr-recog-hist-search" type="search" placeholder="Search by driver name or title…" autocomplete="off">
+            </div>
+            <div class="rg-spacer"></div>
+            <select id="rr-recog-status" class="rg-filter" aria-label="Filter by status">
+              <option value="all">All status</option>
+              <option value="sent">Sent</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Driver</th>
+                  <th>Kind</th>
+                  <th>Title</th>
+                  <th>When</th>
+                  <th>Status</th>
+                  <th style="text-align:right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="rr-recog-hist-tbody">
+                <tr><td colspan="6" style="padding:var(--s-6);text-align:center;color:var(--text-subtle)">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SAFETY MILESTONES sub-view (stub until Performance ships) -->
+        <div class="rg-sub" id="recog-sub-safety">
+          <div class="rg-stub">
+            <svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-subtle);margin-bottom:var(--s-3)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+            <h3>Safety milestones · coming with Performance</h3>
+            <p>This tab automatically populates with milestones like “30 days incident-free” and “First 100 routes” once the Performance scoring layer is wired up. In the meantime you can still recognise individual drivers via <strong>Send celebration</strong> at the top right — pick the <em>Safety milestone</em> kind to record one manually.</p>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -18345,6 +18512,19 @@ John,Smith,555-0101,john@example.com</code>
     document.querySelectorAll('.dr-subview').forEach(function(v){ v.classList.remove('active'); });
     document.getElementById('dr-sub-' + sub).classList.add('active');
   }
+  // ─── RECOGNITION SUB-NAV ───────────────────────────────────
+  // Scoped to #view-recognition so it doesn't fight with drSub (both
+  // share the .subnav-item class).  Sub-panels use the .rg-sub class
+  // and IDs of the form recog-sub-<sub>.
+  function recogSub(sub){
+    document.querySelectorAll('#view-recognition .subnav-item').forEach(function(b){ b.classList.remove('active'); });
+    var btn = document.querySelector('#view-recognition .subnav-item[data-sub="' + sub + '"]');
+    if (btn) btn.classList.add('active');
+    document.querySelectorAll('#view-recognition .rg-sub').forEach(function(v){ v.classList.remove('active'); });
+    var pane = document.getElementById('recog-sub-' + sub);
+    if (pane) pane.classList.add('active');
+    if (typeof window.loadRecognitionSubPane === 'function') window.loadRecognitionSubPane(sub);
+  }
   function pipeSub(sub){
     document.querySelectorAll('#view-pipeline .subnav-item').forEach(function(b){ b.classList.remove('active'); });
     var btn = document.querySelector('#view-pipeline .subnav-item[data-pipesub="' + sub + '"]');
@@ -22356,7 +22536,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260517-concerns-legend"></script>
+<script type="module" src="./live.js?v=20260517-recognition"></script>
 
 </body>
 </html>
