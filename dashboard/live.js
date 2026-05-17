@@ -3115,7 +3115,7 @@ function _drSkelList(n = 6) {
   const row = `<div class="row">
     <div style="flex:1"><div class="bar" style="width:${40 + Math.round(Math.random()*30)}%"></div><div class="bar" style="width:${20 + Math.round(Math.random()*20)}%;margin-top:7px;height:10px"></div></div>
     <div class="bar" style="width:80px;height:11px"></div>
-    <div class="bar" style="width:64px;height:22px;border-radius:999px"></div>
+    <div class="bar" style="width:64px;height:22px;border-radius:var(--r-pill)"></div>
   </div>`;
   return `<div class="dr-skel-list">${Array.from({ length: n }, () => row).join("")}</div>`;
 }
@@ -3504,7 +3504,7 @@ function _obPill(label, tone) {
     : tone === "amber" ? "background:var(--amber-soft);color:var(--amber-dark)"
     : tone === "blue"  ? "background:var(--accent-soft);color:#075985"
     : "background:var(--canvas);color:var(--text-muted)";
-  return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;padding:2px 9px;border-radius:999px;white-space:nowrap;${T}">${escapeHtml(label)}</span>`;
+  return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;padding:2px 9px;border-radius:var(--r-pill);white-space:nowrap;${T}">${escapeHtml(label)}</span>`;
 }
 // The "N onboarding · X ready · Y blocked · biggest bottleneck …" strip
 // over the roster table — only on the Onboarding stage tab.
@@ -3626,8 +3626,8 @@ function _obMxStylesOnce() {
     ".ob-mx-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);padding:16px 18px 14px;border-bottom:1px solid var(--border-subtle);background:rgba(255,255,255,.72)}" +
     ".ob-mx-head-title{font-size:var(--fs-lg);font-weight:760;letter-spacing:-.02em;color:var(--text)}" +
     ".ob-mx-head-sub{margin-top:3px;font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.45}" +
-    ".ob-mx-head-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:680;white-space:nowrap}" +
-    ".ob-mx-head-chip::before{content:'';width:7px;height:7px;border-radius:999px;background:var(--accent)}" +
+    ".ob-mx-head-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-pill);background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:680;white-space:nowrap}" +
+    ".ob-mx-head-chip::before{content:'';width:7px;height:7px;border-radius:var(--r-pill);background:var(--accent)}" +
     ".ob-mx-scroll{overflow-x:auto}" +
     ".ob-matrix{width:100%;min-width:1080px;border-collapse:separate;border-spacing:0;font-size:var(--fs-sm)}" +
     ".ob-matrix th{font-size:10px;font-weight:760;letter-spacing:.055em;text-transform:uppercase;color:var(--text-subtle);padding:12px 8px;text-align:center;white-space:nowrap;background:var(--canvas);border-bottom:1px solid var(--border-subtle)}" +
@@ -3678,7 +3678,7 @@ function _obMxStylesOnce() {
     /* master enable — pill switch */
     ".ob-bld-switch{display:inline-flex;align-items:center;gap:9px;flex:0 0 auto;cursor:pointer;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);user-select:none}" +
     ".ob-bld-switch input{position:absolute;width:1px;height:1px;opacity:0;margin:-1px;clip:rect(0 0 0 0);overflow:hidden}" +
-    ".ob-bld-track{position:relative;width:34px;height:20px;border-radius:999px;background:var(--border-strong);transition:background var(--t-smooth);flex:0 0 auto}" +
+    ".ob-bld-track{position:relative;width:34px;height:20px;border-radius:var(--r-pill);background:var(--border-strong);transition:background var(--t-smooth);flex:0 0 auto}" +
     ".ob-bld-track::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:var(--shadow-sm);transition:transform var(--t-smooth) cubic-bezier(.4,0,.2,1)}" +
     ".ob-bld-switch input:checked + .ob-bld-track{background:var(--accent)}" +
     ".ob-bld-switch input:checked + .ob-bld-track::after{transform:translateX(14px)}" +
@@ -3689,7 +3689,7 @@ function _obMxStylesOnce() {
     ".ob-bld-flabel{display:block;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);margin-bottom:4px}" +
     ".ob-bld-hint{font-size:var(--fs-xs);color:var(--text-subtle)}" +
     ".ob-bld-attach{display:inline-flex;align-items:center;gap:7px;font-size:var(--fs-sm);color:var(--text);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-1) 10px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
-    ".ob-bld-tier{font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:999px}" +
+    ".ob-bld-tier{font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:var(--r-pill)}" +
     ".ob-bld-tier.secure{background:var(--green-soft);color:var(--green-dark)}" +
     ".ob-bld-tier.info{background:var(--canvas);color:var(--text-muted)}" +
     ".ob-bld-text{font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-2) 11px;color:var(--text);width:100%;resize:vertical;transition:border-color var(--t-fast),background var(--t-fast),box-shadow var(--t-fast)}" +
@@ -4824,10 +4824,10 @@ function _onbChatStylesOnce() {
     ".onb-chat-row.theirs .onb-chat-bubble{background:var(--surface);color:var(--text);border:1px solid var(--border);border-bottom-left-radius:5px}" +
     ".onb-chat-time{font-size:10px;color:var(--text-subtle);margin-top:3px;padding:0 4px}" +
     ".onb-chat-read{align-self:flex-end;font-size:10px;color:var(--text-subtle);margin-top:-3px;padding-right:4px}" +
-    ".onb-chat-day{align-self:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:2px 10px;margin:6px 0}" +
+    ".onb-chat-day{align-self:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);padding:2px 10px;margin:6px 0}" +
     ".onb-chat-quick{display:flex;gap:6px;overflow-x:auto;padding:var(--s-2-5) var(--s-3-5) 0;flex-wrap:nowrap;scrollbar-width:none}" +
     ".onb-chat-quick::-webkit-scrollbar{display:none}" +
-    ".onb-chat-quick button{flex:0 0 auto;appearance:none;background:var(--surface);border:1px solid var(--border);border-radius:999px;font:inherit;font-size:var(--fs-xs);color:var(--text-muted);padding:5px 11px;cursor:pointer;white-space:nowrap;transition:border-color var(--t-fast),color var(--t-fast),background .12s}" +
+    ".onb-chat-quick button{flex:0 0 auto;appearance:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);font:inherit;font-size:var(--fs-xs);color:var(--text-muted);padding:5px 11px;cursor:pointer;white-space:nowrap;transition:border-color var(--t-fast),color var(--t-fast),background .12s}" +
     ".onb-chat-quick button:hover{border-color:var(--accent-border);color:var(--accent-text);background:var(--canvas)}" +
     ".onb-chat-composer{display:flex;align-items:flex-end;gap:var(--s-2);padding:var(--s-2-5) var(--s-3-5) 14px;border-top:1px solid var(--border)}" +
     ".onb-chat-composer textarea{flex:1;border:1px solid var(--border);background:var(--canvas);border-radius:var(--r-lg);font:inherit;font-size:var(--fs-sm);color:var(--text);line-height:1.45;padding:var(--s-2-5) var(--s-3);resize:none;outline:none;max-height:120px;overflow-y:auto;transition:border-color var(--t-fast),box-shadow var(--t-fast),background .12s}" +
@@ -5092,7 +5092,7 @@ function _scoreCell(s) {
   const c = v < 70 ? ["var(--red)", "var(--red-soft)"]
           : v < 85 ? ["var(--amber-dark)", "var(--amber-soft)"]
           :          ["var(--green)", "var(--green-soft)"];
-  return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;padding:2px 9px;border-radius:999px;background:${c[1]};color:${c[0]}" title="Driver score">${v}</span>`;
+  return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:${c[1]};color:${c[0]}" title="Driver score">${v}</span>`;
 }
 
 // "Last coached" — pulled from the per-driver latest coaching loaded
@@ -8695,7 +8695,7 @@ function _renderTpAttendance(data, error) {
             <div style="font-size:var(--fs-xxl);font-weight:700;color:var(--text)">${b.notIn}<span style="font-size:var(--fs-md);color:var(--text-subtle);font-weight:600;margin-left:6px">${outPct}%</span></div>
           </div>
         </div>
-        <div style="height:6px;background:var(--canvas);border-radius:999px;overflow:hidden;display:flex">
+        <div style="height:6px;background:var(--canvas);border-radius:var(--r-pill);overflow:hidden;display:flex">
           <div style="width:${inPct}%;background:var(--text-muted)"></div>
           <div style="width:${outPct}%;background:var(--border-strong)"></div>
         </div>
@@ -9118,7 +9118,7 @@ function _tpStatusPill(r) {
             : "transparent";
   const dotMarkup = dot === "transparent" ? "" : `<span style="width:6px;height:6px;border-radius:50%;background:${dot};display:inline-block;margin-right:6px;vertical-align:middle"></span>`;
   const decidedTag = decided ? ` · <span style="font-weight:600;color:var(--text-muted)">${escapeHtml(r.decision)}</span>` : "";
-  return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:999px;background:${bg};color:${fg};white-space:nowrap">${dotMarkup}${escapeHtml(label)}${decidedTag}</span>`;
+  return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.03em;padding:3px 9px;border-radius:var(--r-pill);background:${bg};color:${fg};white-space:nowrap">${dotMarkup}${escapeHtml(label)}${decidedTag}</span>`;
 }
 
 // Approve / VTO / Deny buttons.  Wired to the existing data-rr-tp-*
@@ -9574,7 +9574,7 @@ function _renderTpVanRoster(data, error) {
       no_show:    ["var(--red-soft)",    "var(--red)",         "No-show"],
     };
     const [bg, fg, label] = map[s] || ["var(--canvas)", "var(--text-subtle)", s || "—"];
-    return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:${bg};color:${fg}">${escapeHtml(label)}</span>`;
+    return `<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-pill);background:${bg};color:${fg}">${escapeHtml(label)}</span>`;
   };
 
   const tierChip = (t) => {
@@ -9622,7 +9622,7 @@ function _renderTpVanRoster(data, error) {
         : "";
       vanCell = `<div ${pickAttrs} style="cursor:pointer;border-radius:var(--r-md);padding:3px 6px;margin:-3px -6px;transition:background var(--t-fast)" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'"><span style="font-weight:600">${escapeHtml(r.van_name)}</span>${plate}${cover}</div>`;
     } else {
-      vanCell = `<button type="button" ${pickAttrs} style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;padding:var(--s-1) 10px;border-radius:999px;background:var(--red-soft);color:var(--red);border:0;font-family:inherit;letter-spacing:inherit"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>Assign van</button>`;
+      vanCell = `<button type="button" ${pickAttrs} style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;padding:var(--s-1) 10px;border-radius:var(--r-pill);background:var(--red-soft);color:var(--red);border:0;font-family:inherit;letter-spacing:inherit"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>Assign van</button>`;
     }
 
     return `<tr>
@@ -13288,10 +13288,10 @@ async function openDriverDrawer(driverId, opts) {
       .dd-tab-note.show{display:flex}
       .dd-tab-note.driver{color:var(--green)}
       .dd-head-chips{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:5px}
-      .dd-hchip{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.01em;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:2px 9px;border-radius:999px;white-space:nowrap;line-height:1.5}
+      .dd-hchip{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;letter-spacing:.01em;color:var(--text-muted);background:var(--canvas);border:1px solid var(--border);padding:2px 9px;border-radius:var(--r-pill);white-space:nowrap;line-height:1.5}
       .dd-hchip-on{color:var(--green);border-color:rgba(22,163,74,.28);background:var(--green-soft)}
       .dd-hchip .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
-      .dd-actfilt{appearance:none;background:transparent;border:1px solid var(--border);font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);padding:var(--s-1) 10px;border-radius:999px;cursor:pointer;letter-spacing:.01em;transition:background var(--t-fast),color var(--t-fast),border-color .12s}
+      .dd-actfilt{appearance:none;background:transparent;border:1px solid var(--border);font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);padding:var(--s-1) 10px;border-radius:var(--r-pill);cursor:pointer;letter-spacing:.01em;transition:background var(--t-fast),color var(--t-fast),border-color .12s}
       .dd-actfilt:hover{color:var(--text);border-color:var(--text-subtle)}
       .dd-actfilt.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
       /* The per-section "Driver self-serve" / "DSP only" badges have been
@@ -13824,7 +13824,7 @@ function renderOverviewTab(body, dd) {
         ${ob ? `${_obPill(ob.label, ob.tone)}<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${ob.doneN}/${ob.totalN} gates</span>` : ""}
         <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(stationTxt)}${tenureTxt ? " · " + escapeHtml(tenureTxt) : ""}${d.tier ? " · Tier " + escapeHtml(String(d.tier)) : ""}</span>
       </div>
-      ${ob ? `<div style="display:flex;gap:var(--s-1);margin-top:var(--s-3);max-width:340px">${ob.gates.map(g => `<div title="${escapeHtml(g.label)}${g.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:999px;background:${g.done ? "#16a34a" : "var(--border)"}"></div>`).join("")}</div>` : ""}
+      ${ob ? `<div style="display:flex;gap:var(--s-1);margin-top:var(--s-3);max-width:340px">${ob.gates.map(g => `<div title="${escapeHtml(g.label)}${g.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:var(--r-pill);background:${g.done ? "#16a34a" : "var(--border)"}"></div>`).join("")}</div>` : ""}
       ${ob ? `<div style="margin-top:var(--s-3)"><button type="button" class="btn btn-sm btn-primary" data-rr-dd-tab="employment">Continue onboarding & Form I-9 →</button></div>` : ""}
     </div>
 
@@ -13915,10 +13915,10 @@ function _renderTrainingPairingModal() {
   const trainerSub = has && pair.trainer_id ? `Riding with ${trainerName || "trainer"}` : "Pick a trainer";
 
   const pill =
-    status === "materialized" ? `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--green-soft);color:var(--green)">Materialized</span>` :
-    status === "needs_repair" ? `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--amber-soft);color:var(--amber)">Needs fix</span>` :
-    status === "proposed"     ? `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">Match saved</span>` :
-                                `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">Needs match</span>`;
+    status === "materialized" ? `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-pill);background:var(--green-soft);color:var(--green)">Materialized</span>` :
+    status === "needs_repair" ? `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-pill);background:var(--amber-soft);color:var(--amber)">Needs fix</span>` :
+    status === "proposed"     ? `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-pill);background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">Match saved</span>` :
+                                `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-pill);background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)">Needs match</span>`;
 
   const repairBanner = status === "needs_repair"
     ? `<div class="dd-callout warn" style="margin-bottom:12px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><div><strong>Pairing broken.</strong> ${escapeHtml(pair.repair_reason || "Partner's shift changed.")} Re-pick a trainer or date.</div></div>`
@@ -14595,7 +14595,7 @@ function _i9PanelHtml(i9, drv) {
     <div style="margin:14px 0 0">
       <div style="display:flex;gap:var(--s-1)">${stages.map((s, i) => {
         const bg = s.done ? "#16a34a" : (i === activeIdx && attnColor) ? attnColor : (i === activeIdx) ? "#cbd5e1" : "#e2e8f0";
-        return `<div style="flex:1;height:5px;border-radius:999px;background:${bg}"></div>`;
+        return `<div style="flex:1;height:5px;border-radius:var(--r-pill);background:${bg}"></div>`;
       }).join("")}</div>
       <div style="display:flex;gap:var(--s-1);margin-top:5px">${stages.map((s, i) => {
         const c = s.done ? "var(--green)" : (i === activeIdx) ? "var(--text)" : "var(--text-subtle)";
@@ -14982,7 +14982,7 @@ async function openI9Section2Modal(driverId) {
       ${step(4, "Sign", "Your electronic signature is recorded with your name and a timestamp.", `
         <div style="position:relative;background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
           <canvas id="i9-s2-canvas" style="display:block;width:100%;height:160px;background:#fff;touch-action:none;cursor:crosshair"></canvas>
-          <button type="button" id="i9-s2-clear" style="position:absolute;top:6px;right:6px;background:var(--canvas);border:1px solid #cbd5e1;border-radius:999px;padding:3px 9px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer">Clear</button>
+          <button type="button" id="i9-s2-clear" style="position:absolute;top:6px;right:6px;background:var(--canvas);border:1px solid #cbd5e1;border-radius:var(--r-pill);padding:3px 9px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer">Clear</button>
           <div id="i9-s2-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--text-disabled);font-size:var(--fs-xs);pointer-events:none">Draw your signature</div>
         </div>
         <input type="text" id="i9-s2-typed" placeholder="…or type your full name" autocomplete="name" style="margin-top:var(--s-2);padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas);width:100%">`)}
@@ -15456,7 +15456,7 @@ function _i9StatusPill(d) {
     : d.phase === "done"                                                ? { bg: "#dcfce7", fg: "#166534", dot: "#16a34a" }
     : d.phase === "employer"                                            ? { bg: "#e0f2fe", fg: "#075985", dot: "#0284c7" }
     : /* employee / system / none */                                      { bg: "#f1f5f9", fg: "#475569", dot: "#94a3b8" };
-  return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;line-height:1.3;padding:2px 9px 2px 7px;border-radius:999px;white-space:nowrap;background:${T.bg};color:${T.fg}"><span style="width:6px;height:6px;border-radius:50%;background:${T.dot};flex:0 0 auto"></span>${escapeHtml(d.chipLabel)}</span>`;
+  return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;line-height:1.3;padding:2px 9px 2px 7px;border-radius:var(--r-pill);white-space:nowrap;background:${T.bg};color:${T.fg}"><span style="width:6px;height:6px;border-radius:50%;background:${T.dot};flex:0 0 auto"></span>${escapeHtml(d.chipLabel)}</span>`;
 }
 // Accepts a derived object, an i9 record/row, or a raw status string.
 function _i9StatusChip(arg) {
@@ -16946,7 +16946,7 @@ async function refreshDriverChatList(autoSelect) {
   const supActive = _msgInboxSelectedId === "__support__";
   const supportRow = `<div class="msg-item ${supActive ? "active" : ""}" data-rr-support-thread style="border-bottom:1px solid var(--border)">
       <div class="msg-item-avatar"><div class="avatar-sm" data-rr-no-photo="1" style="background:var(--accent);color:#fff;font-weight:700;border-radius:8px" aria-hidden="true">R</div></div>
-      <div><div class="msg-item-name">RouteReady Support<span style="margin-left:7px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);text-transform:uppercase;vertical-align:1px">Support</span></div><div class="msg-item-preview">${escapeHtml(supLastTrunc)}</div></div>
+      <div><div class="msg-item-name">RouteReady Support<span style="margin-left:7px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-text);text-transform:uppercase;vertical-align:1px">Support</span></div><div class="msg-item-preview">${escapeHtml(supLastTrunc)}</div></div>
       <div><div class="msg-item-time">${escapeHtml(supLastAt ? fmtRelative(supLastAt) : "")}</div>${supUnread > 0 ? `<div class="msg-item-unread">${supUnread}</div>` : ""}</div>
     </div>`;
 
@@ -17048,7 +17048,7 @@ function _supBubblesHTML(msgs) {
     if (day && day !== lastDay) {
       lastDay = day;
       const lbl = (day === new Date().toDateString()) ? "Today" : dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-      out += `<div style="align-self:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:2px 10px;margin:6px 0">${escapeHtml(lbl)}</div>`;
+      out += `<div style="align-self:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);padding:2px 10px;margin:6px 0">${escapeHtml(lbl)}</div>`;
     }
     const mine = m.sender_kind === "dsp";
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
@@ -17079,7 +17079,7 @@ async function refreshSupportThread(scrollToBottom) {
         <div class="rr-mc-head">
           <div class="avatar-sm" data-rr-no-photo="1" style="background:var(--accent);color:#fff;font-weight:700;border-radius:8px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;font-size:15px">R</div>
           <div>
-            <div class="rr-mc-name">RouteReady Support<span style="margin-left:8px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);text-transform:uppercase;vertical-align:1px">Verified</span></div>
+            <div class="rr-mc-name">RouteReady Support<span style="margin-left:8px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:var(--r-pill);background:var(--accent-soft);color:var(--accent-text);text-transform:uppercase;vertical-align:1px">Verified</span></div>
             <div class="rr-mc-sub">We’re here to help you run a stronger operation — typical reply within a business day.</div>
           </div>
         </div>
@@ -17271,7 +17271,7 @@ async function _supAdmRefreshThread(scrollToBottom) {
     const initials = (dspName || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || (dspCode || "—").slice(0, 2).toUpperCase();
     conv.innerHTML = `
       <div class="rr-mc-shell" style="background:var(--surface)">
-        <div class="rr-mc-head"><div class="avatar-sm">${escapeHtml(initials)}</div><div><div class="rr-mc-name">${escapeHtml(dspName)}${dspCode ? `<span style="margin-left:7px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:999px;background:var(--canvas);color:var(--text-muted);text-transform:uppercase;vertical-align:1px">${escapeHtml(dspCode)}</span>` : ""}</div><div class="rr-mc-sub">RouteReady Support conversation</div></div></div>
+        <div class="rr-mc-head"><div class="avatar-sm">${escapeHtml(initials)}</div><div><div class="rr-mc-name">${escapeHtml(dspName)}${dspCode ? `<span style="margin-left:7px;font-size:9px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:var(--r-pill);background:var(--canvas);color:var(--text-muted);text-transform:uppercase;vertical-align:1px">${escapeHtml(dspCode)}</span>` : ""}</div><div class="rr-mc-sub">RouteReady Support conversation</div></div></div>
         <div class="rr-mc-thread" id="rr-supadm-thread"></div>
         <form class="rr-mc-composer" id="rr-supadm-form">
           <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
@@ -17314,7 +17314,7 @@ function _supAdmBubblesHTML(msgs) {
     if (day && day !== lastDay) {
       lastDay = day;
       const lbl = (day === new Date().toDateString()) ? "Today" : dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-      out += `<div style="align-self:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:2px 10px;margin:6px 0">${escapeHtml(lbl)}</div>`;
+      out += `<div style="align-self:center;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);padding:2px 10px;margin:6px 0">${escapeHtml(lbl)}</div>`;
     }
     const mine = m.sender_kind === "support";
     const time = dt ? dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
@@ -18755,7 +18755,7 @@ function _envChipInline(s) {
     expired:  ["var(--text-subtle)", "var(--canvas)"],
   };
   const [fg, bg] = colors[s] || colors.sent;
-  return `<span title="${escapeHtml(lc.blurb || "")}" style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:650;padding:2px 9px;border-radius:999px;background:${bg};color:${fg}">${escapeHtml(lc.label)}</span>`;
+  return `<span title="${escapeHtml(lc.blurb || "")}" style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:650;padding:2px 9px;border-radius:var(--r-pill);background:${bg};color:${fg}">${escapeHtml(lc.label)}</span>`;
 }
 
 function renderDocumentsTab(docs, envelopes) {
@@ -32379,7 +32379,7 @@ function _clRenderRunner() {
       <div class="cl-rn-head-inner">
         <input class="cl-rn-title" id="rr-cl-rn-title" type="text" value="${_clEsc(inst.name || '')}" placeholder="Untitled checklist" />
         <div class="cl-rn-sub">
-          <span class="cl-i-status ${inst.status}${due?.kind === 'overdue' ? ' overdue' : (due?.kind === 'due-today' ? ' due-today' : '')}" style="padding:2px 8px;border-radius:999px;font-size:10px">${inst.status === 'completed' ? 'Complete' : (due?.kind === 'overdue' ? 'Overdue' : (due?.kind === 'due-today' ? 'Due today' : 'Active'))}</span>
+          <span class="cl-i-status ${inst.status}${due?.kind === 'overdue' ? ' overdue' : (due?.kind === 'due-today' ? ' due-today' : '')}" style="padding:2px 8px;border-radius:var(--r-pill);font-size:10px">${inst.status === 'completed' ? 'Complete' : (due?.kind === 'overdue' ? 'Overdue' : (due?.kind === 'due-today' ? 'Due today' : 'Active'))}</span>
           ${due ? `<span class="dot"></span><span class="${due.kind === 'overdue' ? 'due-overdue' : (due.kind === 'due-today' ? 'due-today' : '')}">${_clEsc(due.text)}</span>` : `<span class="dot"></span><span>No due date</span>`}
           ${inst.assigned_email ? `<span class="dot"></span><span>${_clEsc(inst.assigned_email)}</span>` : `<span class="dot"></span><span>Unassigned</span>`}
           <span class="dot"></span><span>Started ${_clEsc(_clFmtDate(inst.started_at))}</span>
@@ -33955,7 +33955,7 @@ function _roOpenManageModal(ro) {
       @media (max-width:520px){#rr-ro-modal .ro-grid{grid-template-columns:1fr}}
       #rr-ro-modal .ro-foot{padding:var(--s-3-5) 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:var(--s-2);align-items:center;background:var(--canvas)}
       #rr-ro-modal .ro-foot .right{display:flex;gap:var(--s-2)}
-      #rr-ro-modal .ro-status-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+      #rr-ro-modal .ro-status-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:var(--r-pill);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
     </style>
     <div class="ro-panel" role="dialog" aria-label="Manage repair order">
       <div class="ro-head">
@@ -34154,7 +34154,7 @@ async function openFleetDrawer(vehicleId, opts) {
       .fd-list-title{font-size:var(--fs-md);font-weight:600}
       .fd-list-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.5}
       .fd-list-meta{font-size:var(--fs-xs);color:var(--text-muted);text-align:right;white-space:nowrap}
-      .fd-issue-pill{display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px var(--s-2);border-radius:999px;white-space:nowrap;margin-right:6px}
+      .fd-issue-pill{display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px var(--s-2);border-radius:var(--r-pill);white-space:nowrap;margin-right:6px}
       .fd-issue-pill.low{background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
       .fd-issue-pill.medium{background:var(--accent-soft);color:var(--accent-text)}
       .fd-issue-pill.high{background:var(--amber-soft);color:var(--amber-dark)}
@@ -36467,7 +36467,7 @@ document.addEventListener("click", async (e) => {
     wrap.innerHTML = `
       <style>
         #rr-co-rule-modal .rr-modal-panel{width:640px}
-        #rr-co-rule-modal .sev-pill{display:inline-flex;align-items:center;gap:5px;padding:2px var(--s-2-5);border-radius:999px;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+        #rr-co-rule-modal .sev-pill{display:inline-flex;align-items:center;gap:5px;padding:2px var(--s-2-5);border-radius:var(--r-pill);font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
         #rr-co-rule-modal .sec h4{margin:0 0 6px;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
         #rr-co-rule-modal .sec p{margin:0;font-size:var(--fs-md);color:var(--text);line-height:1.55}
         #rr-co-rule-modal .rule-block{font-size:13.5px;color:var(--text);line-height:1.55}
