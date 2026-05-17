@@ -34410,6 +34410,43 @@ function _dvicFmtWhen(s) {
   catch { return String(s); }
 }
 
+// Driver-submitted checklist block — shown in the DVIC compare modal
+// whenever the inspection is linked to a form submission.  Surfaces
+// the defect map inline (as chips) and lets the operator open the
+// full form submission in one click.
+function _dvicChecklistBlock(cur) {
+  if (!cur) return "";
+  const submId = cur.form_submission_id;
+  const defects = cur.defects && typeof cur.defects === "object" ? cur.defects : null;
+  if (!submId && !defects) return "";
+  // `defects` is a small jsonb map of { field_id: true/value/text }.
+  // Show keys with truthy values as amber chips; anything else as a
+  // neutral chip with its text value.
+  const chips = [];
+  if (defects) {
+    for (const [k, v] of Object.entries(defects)) {
+      if (v === null || v === undefined || v === false) continue;
+      const human = String(k).replace(/_/g, " ");
+      if (v === true) {
+        chips.push(`<span class="dvic-defect-chip warn">${escapeHtml(human)}</span>`);
+      } else {
+        const val = typeof v === "object" ? JSON.stringify(v) : String(v);
+        chips.push(`<span class="dvic-defect-chip">${escapeHtml(human)} · ${escapeHtml(val)}</span>`);
+      }
+    }
+  }
+  const link = submId
+    ? `<button type="button" class="rr-text-link" data-dvic-open-subm="${escapeHtml(submId)}">View checklist</button>`
+    : "";
+  const head = chips.length
+    ? `<div class="dvic-checklist-head"><span class="dvic-checklist-title">Driver checklist · ${chips.length} item${chips.length === 1 ? "" : "s"} flagged</span>${link}</div>`
+    : `<div class="dvic-checklist-head"><span class="dvic-checklist-title">Driver checklist · no items flagged</span>${link}</div>`;
+  const body = chips.length
+    ? `<div class="dvic-checklist-chips">${chips.join("")}</div>`
+    : "";
+  return `<div class="dvic-checklist">${head}${body}</div>`;
+}
+
 function _dvicAiBlock(cur) {
   const status = cur?.ai_review_status || "pending";
   const conf   = cur?.ai_review_confidence;
@@ -34480,6 +34517,12 @@ async function _dvicOpenCompare(vehicleId, inspectionId) {
       #rr-dvic-modal .dvic-thumb.missing:hover{transform:none;border-color:var(--border)}
       #rr-dvic-modal .dvic-thumb .ix{position:absolute;left:6px;bottom:6px;background:rgba(15,23,42,.75);color:#fff;font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:var(--r-sm)}
       #rr-dvic-modal .dvic-empty{font-size:var(--fs-sm);color:var(--text-subtle);padding:var(--s-3-5) var(--s-3);border:1px dashed var(--border);border-radius:var(--r-md);background:var(--canvas)}
+      #rr-dvic-modal .dvic-checklist{border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3) var(--s-4);background:var(--surface);box-shadow:0 1px 2px rgba(15,23,42,.035)}
+      #rr-dvic-modal .dvic-checklist-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2);flex-wrap:wrap}
+      #rr-dvic-modal .dvic-checklist-title{font-size:var(--fs-sm);font-weight:700;color:var(--text);letter-spacing:-.005em}
+      #rr-dvic-modal .dvic-checklist-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--s-2-5)}
+      #rr-dvic-modal .dvic-defect-chip{display:inline-flex;align-items:center;font-size:10.5px;font-weight:650;padding:3px 9px;border-radius:999px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border-subtle);text-transform:capitalize;letter-spacing:.01em}
+      #rr-dvic-modal .dvic-defect-chip.warn{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
       #rr-dvic-modal .dvic-ai{border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);background:var(--canvas)}
       #rr-dvic-modal .dvic-ai-h{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap;font-size:11.5px}
       #rr-dvic-modal .sev-pill{display:inline-flex;align-items:center;padding:2px var(--s-2-5);border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
@@ -34569,6 +34612,7 @@ async function _dvicRenderModal(wrap, data) {
         ${_dvicPhotoStrip(cur.photos || [], urlMap, "current")}
       </div>
     </div>
+    ${_dvicChecklistBlock(cur)}
     ${_dvicAiBlock(cur)}
     ${reviewBlock}
   `;
@@ -34585,6 +34629,17 @@ async function _dvicRenderModal(wrap, data) {
 
 // Delegated actions inside the DVIC modal.
 document.addEventListener("click", async (e) => {
+  // "View checklist" link — opens the submitted form's detail using the
+  // existing submission detail flow.
+  const submBtn = e.target.closest && e.target.closest("[data-dvic-open-subm]");
+  if (submBtn) {
+    e.preventDefault();
+    const submId = submBtn.getAttribute("data-dvic-open-subm");
+    if (submId && typeof openSubmissionDetail === "function") {
+      await openSubmissionDetail(submId);
+    }
+    return;
+  }
   const runBtn = e.target.closest && e.target.closest("[data-dvic-run-ai]");
   if (runBtn) {
     e.preventDefault();
