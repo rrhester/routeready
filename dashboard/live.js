@@ -15794,14 +15794,18 @@ document.addEventListener("click", async (e) => {
   e.stopImmediatePropagation();
   const id = open.getAttribute("data-rr-i9-open");
   if (!id) return;
-  // Fetch the driver record so the Section 2 modal can read the I-9
-  // jsonb, hire_date, and any saved Section 2 draft. The visible
-  // driver drawer doesn't have to be on screen — populating _ddDriver
-  // is enough.
-  const { data, error } = await sb.rpc("driver_record", { p_id: id });
-  if (error) { toast("Couldn't load driver: " + error.message, "warn"); return; }
-  _ddDriver = data;
-  const rec = data?.i9?.record;
+  // Fetch the driver record AND the I-9 row in parallel. driver_record
+  // on its own doesn't include i9_records — the drawer loader does
+  // that as a separate i9_get call, so we mirror it here. Populating
+  // _ddDriver is enough; the visible drawer doesn't have to be open.
+  const [drvRes, i9Res] = await Promise.all([
+    sb.rpc("driver_record", { p_id: id }),
+    sb.rpc("i9_get",        { p_driver_id: id }).then(r => r, () => ({ data: null })),
+  ]);
+  if (drvRes.error) { toast("Couldn't load driver: " + drvRes.error.message, "warn"); return; }
+  _ddDriver = drvRes.data || {};
+  _ddDriver.i9 = (i9Res && i9Res.data) || { record: null, events: [] };
+  const rec = _ddDriver.i9.record;
   // Route by I-9 state so the operator always lands on the right
   // action, not a drawer they have to navigate further from.
   if (!rec || rec.status === "not_started") {
