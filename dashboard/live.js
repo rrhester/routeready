@@ -29140,10 +29140,23 @@ function _docsEmptyState({ icon, title, body, error }) {
   </div>`;
 }
 
+// Templates list skeleton — three cards mirror the .docs-template-card
+// rhythm so a refresh shows shape, not just a spinner.
+const _DOCS_SKEL_TEMPLATES = `
+  <div class="docs-skel-card"><span class="docs-skel-tile rr-skel"></span><div class="docs-skel-text"><span class="rr-skel rr-skel-md" style="width:42%"></span><span class="docs-skel-meta"><span class="rr-skel rr-skel-sm" style="width:70px"></span><span class="rr-skel rr-skel-sm" style="width:160px"></span><span class="rr-skel rr-skel-sm" style="width:110px"></span></span></div></div>
+  <div class="docs-skel-card"><span class="docs-skel-tile rr-skel"></span><div class="docs-skel-text"><span class="rr-skel rr-skel-md" style="width:55%"></span><span class="docs-skel-meta"><span class="rr-skel rr-skel-sm" style="width:70px"></span><span class="rr-skel rr-skel-sm" style="width:200px"></span><span class="rr-skel rr-skel-sm" style="width:96px"></span></span></div></div>
+  <div class="docs-skel-card"><span class="docs-skel-tile rr-skel"></span><div class="docs-skel-text"><span class="rr-skel rr-skel-md" style="width:38%"></span><span class="docs-skel-meta"><span class="rr-skel rr-skel-sm" style="width:70px"></span><span class="rr-skel rr-skel-sm" style="width:180px"></span><span class="rr-skel rr-skel-sm" style="width:90px"></span></span></div></div>`;
+const _DOCS_SKEL_TABLE = `
+  <div class="docs-skel-table">
+    <div class="docs-skel-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:28%"></span><span class="rr-skel rr-skel-md" style="width:22%"></span><span class="rr-skel rr-skel-md" style="width:14%"></span><span class="rr-skel rr-skel-md" style="width:12%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+    <div class="docs-skel-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:32%"></span><span class="rr-skel rr-skel-md" style="width:20%"></span><span class="rr-skel rr-skel-md" style="width:14%"></span><span class="rr-skel rr-skel-md" style="width:12%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+    <div class="docs-skel-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:24%"></span><span class="rr-skel rr-skel-md" style="width:26%"></span><span class="rr-skel rr-skel-md" style="width:14%"></span><span class="rr-skel rr-skel-md" style="width:12%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+  </div>`;
+
 async function _renderDocsTemplates() {
   const list = document.getElementById("docs-templates-list");
   if (!list) return;
-  list.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  list.innerHTML = _DOCS_SKEL_TEMPLATES;
   const { data, error } = await sb.from("document_templates")
     .select("id, title, description, source_path, source_hash, fields, kind, created_at")
     .is("archived_at", null)
@@ -29200,7 +29213,7 @@ async function _renderDocsTemplates() {
 async function _renderDocsEnvelopes() {
   const list = document.getElementById("docs-envelopes-list");
   if (!list) return;
-  list.innerHTML = `<div class="loader" style="margin:48px auto"></div>`;
+  list.innerHTML = _DOCS_SKEL_TABLE;
   const [envRes, i9Res] = await Promise.all([
     sb.from("document_envelopes")
       .select("id, recipient_name, recipient_email, status, sent_at, viewed_at, signed_at, voided_at, signed_pdf_path, certificate_pdf_path, seal_path, signing_token, document_templates(title)")
