@@ -534,7 +534,7 @@ function renderApplicantCard(a) {
     <div class="pa-detail-section">
       <div class="pa-detail-section-title">Screening answers</div>
       <div class="pa-qa" data-rr-screening-slot>
-        <div style="color:var(--text-subtle);font-size:var(--fs-sm);grid-column:1 / -1">Loading answers…</div>
+        <div class="u-sm-subtle u-grid-full">Loading answers…</div>
       </div>
     </div>` : "";
 
@@ -595,7 +595,7 @@ function renderApplicantCard(a) {
     <div class="pa-feature-card">
       <div class="pa-feature-head"><span>Screening answers</span></div>
       <div class="pa-qa" data-rr-screening-slot style="margin-top:8px">
-        <div style="color:var(--text-subtle);font-size:var(--fs-sm);grid-column:1 / -1">Loading answers…</div>
+        <div class="u-sm-subtle u-grid-full">Loading answers…</div>
       </div>
     </div>` : "";
 
@@ -8570,7 +8570,7 @@ function _renderTpAttendance(data, error) {
 
   const sortedWaves = [...waveBuckets.entries()].sort((a, b) => a[0] - b[0]);
   wavesEl.innerHTML = sortedWaves.length === 0
-    ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:var(--s-6);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No drivers scheduled today.</div>`
+    ? `<div class="card rr-empty-inline">No drivers scheduled today.</div>`
     : sortedWaves.map(([w, b]) => waveCard(w, b)).join("");
 
   // ── Meta strip (service-type breakdown + as-of) ────────────────────
