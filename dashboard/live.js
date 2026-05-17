@@ -27724,6 +27724,9 @@ async function loadFormsList() {
   setKpi("rr-forms-kpi-rate",      rate == null ? "—" : `${rate}%`);
   setKpi("rr-forms-kpi-drivers",   String(weekDrivers.size));
 
+  // ── Right rail: Recent submissions + Form activity ────────────
+  _renderFormsRail(subs, weekSubs, completed);
+
   if (forms.length === 0) {
     grid.innerHTML = "";
     if (empty) empty.style.display = "block";
@@ -27731,6 +27734,90 @@ async function loadFormsList() {
   }
   if (empty) empty.style.display = "none";
   grid.innerHTML = forms.map(_formCardHtml).join("");
+}
+
+// Right-rail painter — Recent submissions + Form activity with
+// week-over-week deltas.  All values are computed locally from the
+// submissions list we already fetched in loadFormsList, so this is
+// purely presentational.
+function _renderFormsRail(allSubs, weekSubs, weekCompleted) {
+  const recent = document.getElementById("rr-forms-recent-subs");
+  if (recent) {
+    const sorted = (allSubs || []).slice().sort((a, b) => {
+      const at = a.submitted_at ? Date.parse(a.submitted_at) : 0;
+      const bt = b.submitted_at ? Date.parse(b.submitted_at) : 0;
+      return bt - at;
+    }).slice(0, 5);
+    if (sorted.length === 0) {
+      recent.innerHTML = `<div class="rr-empty-inline" style="padding:18px 6px">No submissions yet.</div>`;
+    } else {
+      recent.innerHTML = sorted.map(s => {
+        const name = s.driver_name || "Driver";
+        const init = (name.split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("") || "?").toUpperCase();
+        const when = s.submitted_at
+          ? new Date(s.submitted_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+              + " · " + new Date(s.submitted_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+          : "";
+        const status = /complete|submitted/i.test(s.status || "") ? "complete" : "progress";
+        const label = status === "complete" ? "Complete" : "In progress";
+        return `
+          <div class="forms-rail-row">
+            <span class="forms-rail-row-avatar">${escapeHtml(init)}</span>
+            <div>
+              <div class="forms-rail-row-name">${escapeHtml(name)}</div>
+              <div class="forms-rail-row-sub">${escapeHtml(when)}</div>
+            </div>
+            <span class="forms-rail-row-pill ${status}">${label}</span>
+          </div>`;
+      }).join("");
+    }
+  }
+
+  // Form activity — compare this week to the previous 7 days.
+  const wrap = document.getElementById("rr-forms-activity");
+  if (wrap) {
+    const now = Date.now();
+    const weekAgo = now - 7 * 86400000;
+    const twoWeeksAgo = now - 14 * 86400000;
+    const prevSubs = (allSubs || []).filter(s => {
+      const t = s.submitted_at ? Date.parse(s.submitted_at) : NaN;
+      return Number.isFinite(t) && t >= twoWeeksAgo && t < weekAgo;
+    });
+    const curSubs = weekSubs || [];
+    const prevCompleted = prevSubs.filter(s => /complete|submitted/i.test(s.status || "")).length;
+    const curIncomplete = curSubs.length - (weekCompleted || 0);
+    const prevIncomplete = prevSubs.length - prevCompleted;
+    const curRate = curSubs.length ? Math.round(((weekCompleted || 0) / curSubs.length) * 100) : null;
+    const prevRate = prevSubs.length ? Math.round((prevCompleted / prevSubs.length) * 100) : null;
+    const fmtPctDelta = (cur, prev) => {
+      if (prev === 0 && cur === 0) return { cls: "flat", text: "0%" };
+      if (prev === 0)              return { cls: "up",   text: "+100%" };
+      const pct = Math.round(((cur - prev) / prev) * 100);
+      if (pct > 0) return { cls: "up",   text: `+${pct}%` };
+      if (pct < 0) return { cls: "down", text: `${pct}%` };
+      return { cls: "flat", text: "0%" };
+    };
+    const fmtPointDelta = (cur, prev) => {
+      if (cur == null && prev == null) return { cls: "flat", text: "—" };
+      if (prev == null) return { cls: "flat", text: "new" };
+      if (cur == null)  return { cls: "flat", text: "—" };
+      const diff = cur - prev;
+      if (diff > 0) return { cls: "up",   text: `+${diff}pt` };
+      if (diff < 0) return { cls: "down", text: `${diff}pt` };
+      return { cls: "flat", text: "0pt" };
+    };
+    const setStat = (key, value, delta) => {
+      const tile = wrap.querySelector(`[data-rr-stat="${key}"]`);
+      if (!tile) return;
+      const v = tile.querySelector("[data-rr-stat-value]");
+      const d = tile.querySelector("[data-rr-stat-delta]");
+      if (v) v.textContent = value;
+      if (d) { d.className = `forms-rail-delta ${delta.cls}`; d.textContent = delta.text; }
+    };
+    setStat("subs",       String(curSubs.length), fmtPctDelta(curSubs.length, prevSubs.length));
+    setStat("rate",       curRate == null ? "—" : `${curRate}%`, fmtPointDelta(curRate, prevRate));
+    setStat("incomplete", String(curIncomplete), fmtPctDelta(curIncomplete, prevIncomplete));
+  }
 }
 let _formAssignCounts = {};
 let _formAudienceDrivers = null;   // cached active-driver list for the audience picker
@@ -27996,6 +28083,14 @@ document.addEventListener("click", async (e) => {
   if (e.target.closest("#rr-forms-import-btn")) {
     e.preventDefault();
     toast("Form import is on the roadmap — for now build with the Build a form button.", "info");
+    return;
+  }
+  // Right-rail "View all" link flips the sidebar to the Submissions
+  // tab using the same handler the sidebar button does.
+  if (e.target.closest("#rr-forms-rail-viewall")) {
+    e.preventDefault();
+    const submBtn = document.querySelector("#view-forms .forms-side-item[onclick*=\"'subm'\"]");
+    if (submBtn) submBtn.click();
     return;
   }
   // Delete a workflow (the ✕ on a form card) — must come before the
