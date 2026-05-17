@@ -15682,60 +15682,243 @@ function _erEmpStylesOnce() {
   const s = document.createElement("style");
   s.id = "rr-emp-report-styles";
   s.textContent = `
-    #rr-emp-report-modal{ position:fixed;inset:0;z-index:10000;background:rgba(11,18,32,.5);display:flex;justify-content:center;align-items:flex-start;overflow-y:auto;padding:var(--s-6); }
-    #rr-emp-report-modal .er-shell{ background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-xl);width:100%;max-width:880px;box-shadow:0 24px 60px rgba(11,18,32,.28);overflow:hidden;margin:0 auto 24px; }
-    #rr-emp-report-modal .er-toolbar{ display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);padding:var(--s-3) 18px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,var(--surface),var(--canvas) 280%);position:sticky;top:0;z-index:2; }
-    #rr-emp-report-modal .er-toolbar .t{ font-size:var(--fs-base);font-weight:700;color:var(--text);line-height:1.2; }
-    #rr-emp-report-modal .er-toolbar .t small{ font-weight:500;color:var(--text-subtle);font-size:var(--fs-xs);display:block;margin-top:1px; }
-    #rr-emp-report-modal .er-doc{ padding:34px 44px 44px;color:var(--text);font-size:12.5px;line-height:1.6; }
-    #rr-emp-report-modal .er-brand{ display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-xs);font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-text);margin-bottom:14px; }
-    #rr-emp-report-modal .er-brand .dot{ width:7px;height:7px;border-radius:50%;background:var(--accent); }
-    #rr-emp-report-modal .er-doc h1{ font-size:21px;font-weight:800;letter-spacing:-.01em;margin:0 0 3px;color:var(--text); }
-    #rr-emp-report-modal .er-doc .er-meta{ font-size:11.5px;color:var(--text-subtle);margin-bottom:18px; }
-    #rr-emp-report-modal .er-doc .er-confid{ font-size:10.5px;color:var(--text-subtle);background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:var(--s-2-5) var(--s-3);margin-bottom:26px;line-height:1.55; }
-    #rr-emp-report-modal .er-doc h2{ font-size:var(--fs-xs);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle);margin:30px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--border);display:flex;gap:var(--s-2);align-items:baseline; }
-    #rr-emp-report-modal .er-doc h2 .num{ color:var(--accent-text);font-weight:800; }
-    #rr-emp-report-modal .er-kv{ display:grid;grid-template-columns:max-content 1fr;gap:5px 20px;margin:0; }
-    #rr-emp-report-modal .er-kv dt{ color:var(--text-subtle);font-weight:600; }
-    #rr-emp-report-modal .er-kv dd{ margin:0;color:var(--text);font-weight:600; }
-    #rr-emp-report-modal .er-stats{ display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2-5);margin:8px 0 16px; }
-    #rr-emp-report-modal .er-stat{ background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3) var(--s-3); }
-    #rr-emp-report-modal .er-stat .v{ font-size:19px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1; }
-    #rr-emp-report-modal .er-stat .l{ font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin-top:3px; }
-    #rr-emp-report-modal .er-tl{ margin:0;padding:0;list-style:none; }
-    #rr-emp-report-modal .er-tl li{ position:relative;padding:0 0 15px 22px;border-left:1.5px solid var(--border);margin-left:5px; }
-    #rr-emp-report-modal .er-tl li:last-child{ border-left-color:transparent;padding-bottom:0; }
-    #rr-emp-report-modal .er-tl li::before{ content:"";position:absolute;left:-5.5px;top:2px;width:9px;height:9px;border-radius:50%;background:var(--surface);border:2px solid var(--accent); }
-    #rr-emp-report-modal .er-tl li.sys::before{ border-color:var(--text-subtle); }
-    #rr-emp-report-modal .er-tl .d{ font-size:10.5px;color:var(--text-subtle);font-variant-numeric:tabular-nums; }
-    #rr-emp-report-modal .er-tl .h{ font-weight:650;color:var(--text); }
-    #rr-emp-report-modal .er-tl .b{ color:var(--text-muted);margin-top:2px;white-space:pre-wrap;word-break:break-word; }
-    #rr-emp-report-modal .er-tl .tag{ display:inline-block;font-size:9px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:1px 6px;border-radius:var(--r-sm);background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);margin-left:6px;vertical-align:middle; }
-    #rr-emp-report-modal .er-empty{ color:var(--text-subtle);font-style:italic;padding:2px 0; }
-    #rr-emp-report-modal table.er-table{ width:100%;border-collapse:collapse;font-size:11.5px; }
-    #rr-emp-report-modal table.er-table th{ text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle); }
-    #rr-emp-report-modal table.er-table td{ padding:5px 8px;border-bottom:1px solid var(--border);color:var(--text-muted);vertical-align:top; }
-    #rr-emp-report-modal .er-foot{ margin-top:34px;padding-top:14px;border-top:1px solid var(--border);font-size:10px;color:var(--text-subtle);line-height:1.65; }
+    /* ──────────────────────────────────────────────────────────────
+       EMPLOYMENT DOCUMENTATION REPORT
+       Enterprise / audit-grade record packet.  Calm, navy + grayscale,
+       evidence-oriented.  No dashboard chrome, no KPI cards.
+       ────────────────────────────────────────────────────────────── */
+    #rr-emp-report-modal{
+      position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.58);
+      display:flex;justify-content:center;align-items:flex-start;
+      overflow-y:auto;padding:var(--s-6);
+    }
+    #rr-emp-report-modal .er-shell{
+      background:#fff;border:1px solid #CBD5E1;border-radius:6px;
+      width:100%;max-width:880px;
+      box-shadow:0 14px 38px rgba(15,23,42,.22);
+      overflow:hidden;margin:0 auto 24px;
+    }
+    /* Toolbar — utility chrome, hidden in print. */
+    #rr-emp-report-modal .er-toolbar{
+      display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
+      padding:var(--s-3) 18px;border-bottom:1px solid #E2E8F0;
+      background:#F8FAFC;position:sticky;top:0;z-index:2;
+    }
+    #rr-emp-report-modal .er-toolbar .t{
+      font-size:var(--fs-sm);font-weight:650;color:#0F172A;line-height:1.2;
+      letter-spacing:.005em;
+    }
+    #rr-emp-report-modal .er-toolbar .t small{
+      font-weight:500;color:#64748B;font-size:11px;display:block;margin-top:1px;
+    }
+    /* Document body — bigger reading column, deeper text, dense type. */
+    #rr-emp-report-modal .er-doc{
+      padding:44px 56px 56px;color:#0F172A;
+      font-family:'Inter Tight','Inter',system-ui,-apple-system,sans-serif;
+      font-size:11.5px;line-height:1.55;
+      font-feature-settings:"ss01","cv11";
+    }
+
+    /* Masthead — formal, no marketing dot. */
+    #rr-emp-report-modal .er-doc-head{
+      display:grid;grid-template-columns:1fr auto;gap:20px;align-items:flex-start;
+      padding-bottom:18px;margin-bottom:24px;border-bottom:2px solid #0F172A;
+    }
+    #rr-emp-report-modal .er-mast-mark{
+      font-size:9.5px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#0F172A;
+    }
+    #rr-emp-report-modal .er-mast-title{
+      margin-top:5px;font-size:19px;font-weight:700;letter-spacing:-.012em;color:#0F172A;line-height:1.15;
+    }
+    #rr-emp-report-modal .er-mast-sub{
+      margin-top:3px;font-size:10.5px;color:#475569;letter-spacing:.005em;
+    }
+    #rr-emp-report-modal .er-mast-meta{
+      display:flex;flex-direction:column;gap:3px;text-align:right;
+      font-size:10px;color:#0F172A;font-variant-numeric:tabular-nums;line-height:1.4;
+    }
+    #rr-emp-report-modal .er-mast-meta span{
+      display:inline-block;font-size:8.5px;font-weight:700;letter-spacing:.08em;
+      text-transform:uppercase;color:#64748B;margin-right:8px;
+    }
+
+    /* Section blocks — quiet, framed by hairline rules. */
+    #rr-emp-report-modal .er-block{margin:24px 0}
+    #rr-emp-report-modal .er-block + .er-block{margin-top:22px}
+    #rr-emp-report-modal .er-doc h2{
+      font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+      color:#1E3A8A;margin:0 0 10px;padding-bottom:6px;
+      border-bottom:1px solid #CBD5E1;
+      display:flex;gap:var(--s-2);align-items:baseline;
+    }
+    #rr-emp-report-modal .er-doc h2 .num{
+      color:#0F172A;font-weight:800;letter-spacing:.04em;
+      font-variant-numeric:tabular-nums;
+    }
+    #rr-emp-report-modal .er-lead{
+      font-size:10.5px;color:#475569;margin:0 0 10px;line-height:1.55;
+    }
+
+    /* Definition-list rows — structured operational pairs. */
+    #rr-emp-report-modal .er-rows{
+      display:grid;grid-template-columns:170px 1fr;gap:1px 24px;margin:0;
+      border-top:1px solid #E2E8F0;
+    }
+    #rr-emp-report-modal .er-rows dt{
+      grid-column:1;padding:7px 0;border-bottom:1px solid #E2E8F0;
+      font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+      color:#64748B;align-self:start;
+    }
+    #rr-emp-report-modal .er-rows dd{
+      grid-column:2;margin:0;padding:7px 0;border-bottom:1px solid #E2E8F0;
+      font-size:11.5px;color:#0F172A;font-weight:500;line-height:1.5;
+    }
+    #rr-emp-report-modal .er-rows dd b{font-weight:650}
+    #rr-emp-report-modal .er-rows.er-rows-stacked dd{font-weight:500}
+    #rr-emp-report-modal .er-rows dd ul{margin:0;padding-left:18px}
+    #rr-emp-report-modal .er-rows dd li{padding:2px 0}
+    #rr-emp-report-modal .er-rows-counts{
+      grid-template-columns:240px 1fr;
+    }
+    #rr-emp-report-modal .er-rows-counts dd{
+      font-variant-numeric:tabular-nums;font-weight:650;
+    }
+
+    /* Workforce timeline — chronology proper. */
+    #rr-emp-report-modal .er-chrono{
+      margin:0;padding:0;list-style:none;
+    }
+    #rr-emp-report-modal .er-event{
+      display:grid;grid-template-columns:170px 1fr;gap:24px;
+      padding:14px 0;border-bottom:1px solid #E2E8F0;
+    }
+    #rr-emp-report-modal .er-event:last-child{border-bottom:0}
+    #rr-emp-report-modal .er-event-ts{
+      font-size:10px;font-weight:700;letter-spacing:.01em;color:#0F172A;
+      font-variant-numeric:tabular-nums;line-height:1.4;
+    }
+    #rr-emp-report-modal .er-event-ts small{
+      display:block;font-size:9.5px;font-weight:600;color:#64748B;letter-spacing:.06em;text-transform:uppercase;margin-top:2px;
+    }
+    #rr-emp-report-modal .er-event-cat{
+      font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+      color:#1E3A8A;margin-bottom:4px;
+    }
+    #rr-emp-report-modal .er-event-cat.warn{color:#9F1239}
+    #rr-emp-report-modal .er-event-cat.sys{color:#475569}
+    #rr-emp-report-modal .er-event-desc{
+      font-size:12px;color:#0F172A;line-height:1.55;font-weight:500;
+    }
+    #rr-emp-report-modal .er-event-attrs{
+      display:grid;grid-template-columns:160px 1fr;gap:0 18px;margin:8px 0 0;
+      border-top:1px solid #F1F5F9;
+    }
+    #rr-emp-report-modal .er-event-attrs dt{
+      grid-column:1;padding:4px 0;font-size:9px;font-weight:700;letter-spacing:.06em;
+      text-transform:uppercase;color:#64748B;
+    }
+    #rr-emp-report-modal .er-event-attrs dd{
+      grid-column:2;margin:0;padding:4px 0;font-size:11px;color:#0F172A;line-height:1.5;
+    }
+
+    /* Tables for compact tabular history (acknowledgements / evidence). */
+    #rr-emp-report-modal .er-table{
+      width:100%;border-collapse:collapse;font-size:11px;
+      border-top:1px solid #CBD5E1;
+    }
+    #rr-emp-report-modal .er-table th{
+      text-align:left;padding:7px 10px;
+      background:#F8FAFC;border-bottom:1px solid #CBD5E1;
+      font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+      color:#475569;
+    }
+    #rr-emp-report-modal .er-table td{
+      padding:6px 10px;border-bottom:1px solid #E2E8F0;
+      color:#0F172A;vertical-align:top;
+    }
+    #rr-emp-report-modal .er-table tr:last-child td{border-bottom:1px solid #CBD5E1}
+
+    /* Empty/no-data hint for sections that don't apply. */
+    #rr-emp-report-modal .er-empty{
+      color:#64748B;font-size:10.5px;font-style:italic;padding:6px 0;
+      border-top:1px solid #E2E8F0;
+    }
+
+    /* Footer — date+source acknowledgement. */
+    #rr-emp-report-modal .er-foot{
+      margin-top:40px;padding-top:14px;border-top:2px solid #0F172A;
+      font-size:9.5px;color:#475569;line-height:1.6;letter-spacing:.005em;
+    }
+    #rr-emp-report-modal .er-foot b{color:#0F172A;font-weight:700}
+
+    /* Soft page break for printing. */
+    #rr-emp-report-modal .er-pagebreak{height:0;page-break-before:always;break-before:page}
+
     @media print{
-      html.rr-printing-report body > *:not(#rr-emp-report-modal){ display:none !important; }
-      html.rr-printing-report #rr-emp-report-modal{ position:static !important;background:#fff !important;padding:0 !important;display:block !important;overflow:visible !important; }
-      html.rr-printing-report #rr-emp-report-modal .er-shell{ box-shadow:none !important;border:none !important;border-radius:0 !important;max-width:none !important;margin:0 !important; }
-      html.rr-printing-report #rr-emp-report-modal .er-toolbar{ display:none !important; }
-      html.rr-printing-report #rr-emp-report-modal .er-doc{ padding:0 !important;font-size:10.5px !important; }
-      html.rr-printing-report #rr-emp-report-modal .er-doc h2{ page-break-after:avoid; }
-      html.rr-printing-report #rr-emp-report-modal .er-tl li, html.rr-printing-report #rr-emp-report-modal table.er-table tr{ page-break-inside:avoid; }
+      html.rr-printing-report body > *:not(#rr-emp-report-modal){display:none !important}
+      html.rr-printing-report #rr-emp-report-modal{
+        position:static !important;background:#fff !important;padding:0 !important;
+        display:block !important;overflow:visible !important;
+      }
+      html.rr-printing-report #rr-emp-report-modal .er-shell{
+        box-shadow:none !important;border:none !important;border-radius:0 !important;
+        max-width:none !important;margin:0 !important;
+      }
+      html.rr-printing-report #rr-emp-report-modal .er-toolbar{display:none !important}
+      html.rr-printing-report #rr-emp-report-modal .er-doc{padding:0 !important;font-size:10.5px !important}
+      html.rr-printing-report #rr-emp-report-modal .er-doc h2{page-break-after:avoid}
+      html.rr-printing-report #rr-emp-report-modal .er-event,
+      html.rr-printing-report #rr-emp-report-modal .er-table tr{page-break-inside:avoid}
     }
   `;
   document.head.appendChild(s);
 }
 
 const _ER_SEP = {
-  active:      ["Active",      "Currently employed and active."],
-  onboarding:  ["Onboarding",  "In onboarding; not yet fully active."],
-  leave:       ["On leave",    "On an approved or recorded leave of absence."],
-  inactive:    ["Inactive / separated", "No longer active. Separation recorded in RouteReady."],
-  terminated:  ["Separated — termination", "Employment ended; recorded as a termination."],
+  active:      ["Active",                    "Currently employed and active."],
+  onboarding:  ["Onboarding",                "In onboarding; not yet fully active."],
+  leave:       ["On leave",                  "On an approved or recorded leave of absence."],
+  inactive:    ["Inactive / Separated",      "No longer active. Separation recorded in RouteReady."],
+  terminated:  ["Separated — Termination",   "Employment ended; recorded as a termination."],
 };
+
+// Deterministic record identifier — same driver always produces the same
+// RR-EMP-{year}-{6-digit} stamp so a re-generated report doesn't look
+// like a new record.
+function _erRecordId(driverId) {
+  const yr = new Date().getFullYear();
+  let h = 0;
+  for (let i = 0; i < String(driverId || "").length; i++) {
+    h = ((h << 5) - h + String(driverId).charCodeAt(i)) | 0;
+  }
+  const n = (Math.abs(h) % 1000000).toString().padStart(6, "0");
+  return `RR-EMP-${yr}-${n}`;
+}
+// Format an ISO timestamp like "May 18, 2026 · 5:42 AM CST".  Falls
+// back to the underlying locale string when Intl complains.
+function _erFmtFull(iso) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    const date = d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+    const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    const tz = (new Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
+      .formatToParts(d).find(p => p.type === "timeZoneName")?.value) || "";
+    return tz ? `${date} · ${time} ${tz}` : `${date} · ${time}`;
+  } catch {
+    return new Date(iso).toLocaleString();
+  }
+}
+// Maps coaching severity → escalation rung used in the Separation
+// summary's "Prior escalations" list.
+function _erEscalationLabel(sev) {
+  const k = String(sev || "").toLowerCase();
+  if (k === "verbal" || k === "informal") return "Verbal Coaching";
+  if (k === "written") return "Written Coaching";
+  if (k === "final" || k === "final_written") return "Final Written Warning";
+  if (k === "termination") return "Termination";
+  return sev ? `${sev.charAt(0).toUpperCase()}${sev.slice(1)} Coaching` : "Coaching";
+}
 
 function _openEmploymentReport(driverId) {
   _erEmpStylesOnce();
@@ -15887,65 +16070,273 @@ async function _buildEmploymentReport(driverId, m) {
   const toRows = timeOff.map(t => `<tr><td>${fmtD(t.start_date)} – ${fmtD(t.end_date)}</td><td>${esc(t.status)}</td><td>${esc(t.reason || "—")}</td></tr>`).join("");
 
   const generatedAt = new Date();
+  const recordId = _erRecordId(driverId);
+
+  // ── Derived separation context ──
+  // Primary reason — best-effort summary, anchored in operational
+  // facts already on file.  Avoids legal language per the
+  // enterprise-record tone.
+  const isSeparated = drv.status === "terminated" || drv.status === "inactive";
+  const attTotal = noShow + calledOff;
+  let primaryReason = "Not characterized in this record; refer to manager notes.";
+  if (drv.metadata?.separation_note) {
+    primaryReason = drv.metadata.separation_note;
+  } else if (drv.status === "terminated" && attTotal >= 3) {
+    primaryReason = "Repeated attendance violations resulting in progressive disciplinary escalation.";
+  } else if (drv.status === "terminated") {
+    primaryReason = "Termination recorded; refer to coaching history and manager notes.";
+  } else if (drv.status === "inactive") {
+    primaryReason = "Separation recorded; status set to Inactive in RouteReady.";
+  } else if (drv.status === "leave") {
+    primaryReason = "Driver placed on leave; refer to time-off requests.";
+  }
+
+  // Final triggering event — the latest no-show / called-off shift,
+  // or the latest coaching, whichever is more recent.
+  const latestAttIso = attEvents.length ? attEvents[attEvents.length - 1].date + "T00:00:00" : null;
+  const latestCoachIso = lastCoaching?.occurred_at || null;
+  const triggerCandidate = [
+    latestAttIso  ? { iso: latestAttIso, label: `${attEvents[attEvents.length - 1].kind} recorded on ${fmtD(latestAttIso)}.` } : null,
+    latestCoachIso ? { iso: latestCoachIso, label: `${_erEscalationLabel(lastCoaching.severity)} delivered ${fmtDT(latestCoachIso)}${lastCoaching.coached_by_name ? " by " + lastCoaching.coached_by_name : ""}.` } : null,
+  ].filter(Boolean).sort((a, b) => new Date(b.iso) - new Date(a.iso))[0];
+  const finalTrigger = triggerCandidate ? triggerCandidate.label : "No triggering event recorded.";
+
+  // Prior escalations — coaching list in order, transformed to the
+  // canonical Verbal / Written / Final Written rungs.
+  const escalations = coachings
+    .filter(c => c.severity)
+    .map(c => ({ when: c.occurred_at, label: _erEscalationLabel(c.severity), by: c.coached_by_name, ackd: !!(c.acknowledgment && c.acknowledgment !== "none") || !!c.acknowledged_at || !!c.signed_at }));
+
+  // Acknowledgment status across coaching history.
+  const ackdCount = escalations.filter(e => e.ackd).length;
+  const ackStatus = escalations.length === 0
+    ? "No coaching escalations on file."
+    : ackdCount === escalations.length
+      ? `Employee acknowledged all ${escalations.length} prior coaching action${escalations.length === 1 ? "" : "s"} via RouteReady mobile app.`
+      : `${ackdCount} of ${escalations.length} prior coaching action${escalations.length === 1 ? "" : "s"} acknowledged via RouteReady mobile app; ${escalations.length - ackdCount} pending acknowledgment.`;
+
+  // Separation type label from current status.
+  const sepType = drv.status === "terminated" ? "Termination"
+                : drv.status === "inactive"   ? "Separation (Inactive)"
+                : drv.status === "leave"      ? "Leave of Absence"
+                :                                "Active employment";
+
+  // Best-guess supervisor: most recent coaching's coached_by_name,
+  // since RouteReady doesn't model a supervisor column on drivers.
+  const supervisor = (lastCoaching && lastCoaching.coached_by_name) || "—";
+
+  // Separation date — when status flipped to terminated/inactive.
+  // We don't have an explicit column; use updated_at as the closest
+  // approximation when the driver is currently separated.
+  const sepDate = isSeparated ? (drv.metadata?.separation_date || drv.updated_at) : null;
+
+  // ── Build the merged chronological timeline ──
+  const events = [];
+  for (const s of shifts) {
+    if (s.status === "no_show" || s.status === "called_off" || s.status === "late") {
+      const kind = s.status === "no_show" ? "No-call / No-show"
+                 : s.status === "called_off" ? "Called Off"
+                 : "Late Arrival";
+      events.push({
+        iso: s.date + "T05:00:00",
+        category: "Attendance Incident",
+        tone: s.status === "no_show" ? "warn" : "",
+        desc: `${kind} recorded for ${s.route_code ? `Route ${s.route_code}` : "scheduled route"}${s.station?.code ? ` · ${s.station.code}` : ""}.`,
+        attrs: [
+          ["Triggered policy", "Attendance Policy (RouteReady operational standard)"],
+          ["System action", "Incident logged to attendance history; flagged for dispatcher review."],
+        ],
+      });
+    }
+  }
+  for (const c of coachings) {
+    const ackd = !!(c.acknowledgment && c.acknowledgment !== "none") || !!c.acknowledged_at || !!c.signed_at;
+    const attrs = [
+      c.topic ? ["Topic", c.topic] : null,
+      c.severity ? ["Escalation stage", _erEscalationLabel(c.severity)] : null,
+      ["Triggered policy", c.topic && /attend/i.test(c.topic) ? "Attendance Policy" : "Operational coaching policy"],
+      c.coached_by_name ? ["Manager action", `Delivered by ${c.coached_by_name}${c.occurred_at ? " at " + fmtDT(c.occurred_at) : ""}.`] : null,
+      (ackd && (c.acknowledged_at || c.signed_at))
+        ? ["Employee acknowledgment", `Viewed and acknowledged via RouteReady mobile app at ${fmtDT(c.acknowledged_at || c.signed_at)}.`]
+        : (c.driver_visible ? ["Employee acknowledgment", "Pending acknowledgment in mobile app."] : ["Visibility", "Internal record; not delivered to driver app."]),
+    ].filter(Boolean);
+    events.push({
+      iso: c.occurred_at,
+      category: `Coaching — ${_erEscalationLabel(c.severity)}`,
+      tone: /final|termination/i.test(c.severity || "") ? "warn" : "",
+      desc: [c.summary, c.notes].filter(Boolean).join(" — ") || "Coaching action recorded.",
+      attrs,
+    });
+  }
+  for (const e of envelopes) {
+    const title = e.document_templates?.title || "Document";
+    if (e.signed_at) {
+      events.push({
+        iso: e.signed_at,
+        category: "Document Acknowledgement",
+        tone: "sys",
+        desc: `${title} signed and sealed.`,
+        attrs: [
+          ["Status", "Signed & sealed"],
+          ["Storage", "Retained in RouteReady; sealed PDF + Certificate of Completion available."],
+        ],
+      });
+    } else if (e.declined_at) {
+      events.push({
+        iso: e.declined_at,
+        category: "Document Acknowledgement",
+        tone: "warn",
+        desc: `${title} declined by employee.`,
+        attrs: [["Status", "Declined"]],
+      });
+    } else if (e.sent_at) {
+      events.push({
+        iso: e.sent_at,
+        category: "Document Acknowledgement",
+        tone: "sys",
+        desc: `${title} sent for signature.`,
+        attrs: [["Status", "Sent; pending signature"]],
+      });
+    }
+  }
+  for (const t of timeOff) {
+    if (t.created_at) {
+      events.push({
+        iso: t.created_at,
+        category: "Time-off Request",
+        tone: "sys",
+        desc: `Time-off requested for ${fmtD(t.start_date)} – ${fmtD(t.end_date)}${t.reason ? " · " + t.reason : ""}.`,
+        attrs: [["Status", String(t.status || "submitted")]],
+      });
+    }
+  }
+  // Cap communication events shown inline so the timeline doesn't
+  // drown in chat; a tighter "Communication history" table sits
+  // below the chronology for the full set.
+  const trimmedMsgs = msgs.slice(-30);
+  for (const m of trimmedMsgs) {
+    const when = m.created_at || m.sent_at || m.at;
+    if (!when) continue;
+    const dir = m.sender_kind === "driver" ? "From driver"
+              : m.sender_kind === "dispatch" ? `From dispatch${m.sender_name ? " · " + m.sender_name : ""}`
+              : (m.direction === "inbound" ? "From driver" : m.direction === "outbound" ? "From dispatch" : "—");
+    const raw = String(m.body || m.text || m.message || "").slice(0, 240);
+    events.push({
+      iso: when,
+      category: "Communication",
+      tone: "sys",
+      desc: `${dir} — ${raw}`,
+      attrs: [],
+    });
+  }
+  events.sort((a, b) => new Date(b.iso) - new Date(a.iso));
+
+  const eventHtml = events.length
+    ? events.map(ev => `
+        <li class="er-event">
+          <div class="er-event-ts">${_erFmtFull(ev.iso)}</div>
+          <div>
+            <div class="er-event-cat ${ev.tone || ""}">${esc(ev.category)}</div>
+            <div class="er-event-desc">${esc(ev.desc)}</div>
+            ${ev.attrs.length ? `<dl class="er-event-attrs">${ev.attrs.map(([k, val]) => `<dt>${esc(k)}</dt><dd>${esc(val)}</dd>`).join("")}</dl>` : ""}
+          </div>
+        </li>`).join("")
+    : "";
+
+  const escalationsHtml = escalations.length
+    ? `<ul>${escalations.map(e => `<li>${esc(e.label)}${e.when ? ` <span style="color:#64748B">· ${fmtD(e.when)}</span>` : ""}${e.ackd ? " <span style=\"color:#64748B\">· acknowledged</span>" : ""}</li>`).join("")}</ul>`
+    : "None on file.";
+
   const html = `
-    <div class="er-brand"><span class="dot"></span>RouteReady · Workforce Documentation</div>
-    <h1>Employment Documentation Report</h1>
-    <div class="er-meta">${esc(name)} — prepared for ${esc(dspName)} · Generated ${generatedAt.toLocaleString()}</div>
-    <div class="er-confid">This report is an organized, factual compilation of the operational records RouteReady captured for the named individual — attendance, scheduling, coaching, communications, acknowledgements, and signed documents. Timestamps reflect when each event was recorded. It is provided for legitimate employment-administration purposes and contains confidential personnel information; handle accordingly.</div>
+    <header class="er-doc-head">
+      <div>
+        <div class="er-mast-mark">ROUTEREADY</div>
+        <div class="er-mast-title">Employment Documentation Report</div>
+        <div class="er-mast-sub">Workforce record &amp; operational chronology</div>
+      </div>
+      <div class="er-mast-meta">
+        <div><span>Generated</span> ${esc(_erFmtFull(generatedAt.toISOString()))}</div>
+        <div><span>Record ID</span> ${esc(recordId)}</div>
+        <div><span>Export</span> v1.0</div>
+        <div><span>Organization</span> ${esc(dspName)}</div>
+      </div>
+    </header>
 
-    <h2><span class="num">1.</span> Employment overview</h2>
-    <dl class="er-kv">
-      <dt>Name</dt><dd>${esc(name)}</dd>
-      <dt>Employer (DSP)</dt><dd>${esc(dspName)}</dd>
-      <dt>Role</dt><dd>Delivery Associate / Driver</dd>
-      <dt>Station</dt><dd>${esc(drv.station?.code || drv.station_id ? (drv.station?.code || "Assigned") : "—")}</dd>
-      <dt>Hire date</dt><dd>${fmtD(drv.hire_date)}</dd>
-      <dt>Tenure</dt><dd>${drv.hire_date ? esc(tenureLabel(drv.hire_date)) : "—"}</dd>
-      <dt>Tier</dt><dd>${drv.tier ? esc("Tier " + drv.tier) : "—"}</dd>
-      <dt>Last recorded activity</dt><dd>${lastActiveIso ? fmtD(lastActiveIso) : "—"}</dd>
-      <dt>Current status</dt><dd>${esc(sep[0])}</dd>
-    </dl>
+    <section class="er-block">
+      <h2><span class="num">1.</span> Employee summary</h2>
+      <dl class="er-rows">
+        <dt>Name</dt><dd>${esc(name)}</dd>
+        <dt>Position</dt><dd>Delivery Associate / Driver</dd>
+        <dt>DSP</dt><dd>${esc(dspName)}</dd>
+        <dt>Station</dt><dd>${esc(drv.station?.code || "—")}</dd>
+        <dt>Hire date</dt><dd>${fmtD(drv.hire_date)}</dd>
+        <dt>Separation date</dt><dd>${sepDate ? fmtD(sepDate) : "—"}</dd>
+        <dt>Current status</dt><dd><b>${esc(sep[0])}</b></dd>
+        <dt>Supervisor of record</dt><dd>${esc(supervisor)}</dd>
+        <dt>Tenure</dt><dd>${drv.hire_date ? esc(tenureLabel(drv.hire_date)) : "—"}</dd>
+      </dl>
+    </section>
 
-    <h2><span class="num">2.</span> Attendance summary</h2>
-    <div class="er-stats">
-      <div class="er-stat"><div class="v">${attendancePct == null ? "—" : attendancePct + "%"}</div><div class="l">Attendance rate</div></div>
-      <div class="er-stat"><div class="v">${worked}</div><div class="l">Shifts worked</div></div>
-      <div class="er-stat"><div class="v">${late}</div><div class="l">Late arrivals</div></div>
-      <div class="er-stat"><div class="v">${noShow + calledOff}</div><div class="l">Missed (NCNS + called off)</div></div>
-    </div>
-    <div class="b" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:10px">${pastShifts.length} completed scheduled shifts on record${futureSched ? ` · ${futureSched} upcoming` : ""}. Attendance rate = shifts worked ÷ (worked + no-shows + called-off). NCNS = no-call / no-show.</div>
-    ${attEvents.length ? `<table class="er-table"><thead><tr><th>Date</th><th>Event</th><th>Route</th><th>Station</th></tr></thead><tbody>${attEvents.map(a => `<tr><td>${fmtD(a.date)}</td><td>${esc(a.kind)}</td><td>${esc(a.route || "—")}</td><td>${esc(a.station || "—")}</td></tr>`).join("")}</tbody></table>` : `<div class="er-empty">No late arrivals, called-off shifts, or no-shows on record.</div>`}
+    <section class="er-block">
+      <h2><span class="num">2.</span> Separation summary</h2>
+      <dl class="er-rows er-rows-stacked">
+        <dt>Separation type</dt><dd>${esc(sepType)}</dd>
+        <dt>Primary reason</dt><dd>${esc(primaryReason)}</dd>
+        <dt>Final triggering event</dt><dd>${esc(finalTrigger)}</dd>
+        <dt>Policy referenced</dt><dd>${escalations.length || attTotal ? "Attendance Policy &amp; operational coaching policy (RouteReady standard)" : "Refer to operations handbook"}</dd>
+        <dt>Prior escalations</dt><dd>${escalationsHtml}</dd>
+        <dt>Acknowledgment status</dt><dd>${esc(ackStatus)}</dd>
+      </dl>
+    </section>
 
-    <h2><span class="num">3.</span> Coaching &amp; documentation timeline</h2>
-    ${coachTl ? `<ul class="er-tl">${coachTl}</ul>` : `<div class="er-empty">No coaching records on file.</div>`}
+    <section class="er-block">
+      <h2><span class="num">3.</span> Supporting documentation</h2>
+      <dl class="er-rows er-rows-counts">
+        <dt>Attendance incidents</dt><dd>${attEvents.length}</dd>
+        <dt>Coaching events</dt><dd>${coachings.length}</dd>
+        <dt>Signed acknowledgements</dt><dd>${signedDocs.length}</dd>
+        <dt>Communication events</dt><dd>${msgs.length}</dd>
+        <dt>Supporting evidence files</dt><dd>${envelopes.filter(e => e.signed_pdf_path || e.certificate_pdf_path).length}</dd>
+        <dt>Timeline entries included</dt><dd>${events.length}</dd>
+      </dl>
+    </section>
 
-    <h2><span class="num">4.</span> Communications timeline</h2>
-    ${msgTl ? `<div class="b" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:var(--s-2)">Most recent ${Math.min(60, msgs.length)} dispatch ⇄ driver messages, oldest first.</div><ul class="er-tl">${msgTl}</ul>` : `<div class="er-empty">No recorded dispatch ⇄ driver messages.</div>`}
+    <div class="er-pagebreak"></div>
 
-    <h2><span class="num">5.</span> Scheduling history</h2>
-    <div class="b" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:var(--s-2)">Weekly rollup — scheduled, worked, and missed shifts (most recent 26 weeks).</div>
-    ${wkRows ? `<table class="er-table"><thead><tr><th>Week of</th><th style="text-align:right">Scheduled</th><th style="text-align:right">Worked</th><th style="text-align:right">Missed</th></tr></thead><tbody>${wkRows}</tbody></table>` : `<div class="er-empty">No scheduled shifts on record.</div>`}
-    ${toRows ? `<div class="b" style="font-size:var(--fs-xs);color:var(--text-subtle);margin:12px 0 6px">Recorded time-off</div><table class="er-table"><thead><tr><th>Dates</th><th>Status</th><th>Reason</th></tr></thead><tbody>${toRows}</tbody></table>` : ""}
+    <section class="er-block">
+      <h2><span class="num">4.</span> Chronological workforce timeline</h2>
+      <p class="er-lead">Chronological reconstruction of recorded operational events for ${esc(name)}, most recent first. ${events.length} entr${events.length === 1 ? "y" : "ies"} on record.</p>
+      ${eventHtml ? `<ol class="er-chrono">${eventHtml}</ol>` : `<div class="er-empty">No operational events on file.</div>`}
+    </section>
 
-    <h2><span class="num">6.</span> Signed documents</h2>
-    ${docRows ? `<table class="er-table"><thead><tr><th>Document</th><th>Status</th><th>Date</th></tr></thead><tbody>${docRows}</tbody></table><div class="b" style="font-size:10.5px;color:var(--text-subtle);margin-top:6px">${signedDocs.length} document${signedDocs.length === 1 ? "" : "s"} signed &amp; sealed. Sealed PDFs and Certificates of Completion are retained in RouteReady and independently verifiable.</div>` : `<div class="er-empty">No e-signature documents on file.</div>`}
+    <section class="er-block">
+      <h2><span class="num">5.</span> Policy acknowledgements</h2>
+      ${docRows ? `<table class="er-table"><thead><tr><th>Document</th><th>Status</th><th>Signed / Sent</th></tr></thead><tbody>${docRows}</tbody></table>` : `<div class="er-empty">No e-signature acknowledgements on file.</div>`}
+    </section>
 
-    <h2><span class="num">7.</span> Work authorization (Form I-9)</h2>
-    ${i9Html}
+    <section class="er-block">
+      <h2><span class="num">6.</span> Communication history</h2>
+      <p class="er-lead">Most recent ${Math.min(60, msgs.length)} dispatch ⇄ driver messages, oldest first.</p>
+      ${msgTl ? `<ul class="er-chrono">${msgTl}</ul>` : `<div class="er-empty">No recorded dispatch ⇄ driver messages.</div>`}
+    </section>
 
-    <h2><span class="num">8.</span> Separation summary</h2>
-    <dl class="er-kv">
-      <dt>Current employment status</dt><dd>${esc(sep[0])}</dd>
-      <dt>Status note</dt><dd style="font-weight:500;color:var(--text-muted)">${esc(sep[1])}</dd>
-      <dt>Last scheduled shift on record</dt><dd>${lastShift ? fmtD(lastShift.date) : "—"}</dd>
-      <dt>Most recent documented event</dt><dd>${lastEventIso ? fmtD(new Date(lastEventIso).toISOString()) : "—"}</dd>
-      <dt>Final coaching on record</dt><dd>${lastCoaching ? fmtD(lastCoaching.occurred_at) + (lastCoaching.coached_by_name ? " · " + esc(lastCoaching.coached_by_name) : "") : "—"}</dd>
-      <dt>Manager notes</dt><dd style="font-weight:500;color:var(--text-muted)">${esc(drv.metadata?.separation_note || "—")}</dd>
-    </dl>
-    <div class="b" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:10px">This section states the recorded status and the last documented operational events. It does not characterize the reason for separation beyond what is recorded above; any additional context should be supplied separately by the employer.</div>
+    <section class="er-block">
+      <h2><span class="num">7.</span> Scheduling history</h2>
+      <p class="er-lead">Weekly rollup — scheduled, worked, and missed shifts (most recent 26 weeks).</p>
+      ${wkRows ? `<table class="er-table"><thead><tr><th>Week of</th><th style="text-align:right">Scheduled</th><th style="text-align:right">Worked</th><th style="text-align:right">Missed</th></tr></thead><tbody>${wkRows}</tbody></table>` : `<div class="er-empty">No scheduled shifts on record.</div>`}
+      ${toRows ? `<div style="margin-top:14px"><h2 style="border:0;margin:0 0 6px;padding:0"><span class="num">7.1</span> Recorded time-off</h2><table class="er-table"><thead><tr><th>Dates</th><th>Status</th><th>Reason</th></tr></thead><tbody>${toRows}</tbody></table></div>` : ""}
+    </section>
+
+    <section class="er-block">
+      <h2><span class="num">8.</span> Work authorization (Form I-9)</h2>
+      ${i9Html}
+    </section>
 
     <div class="er-foot">
-      Compiled by RouteReady — the operational system of record for this DSP. Sources: attendance &amp; check-in history, schedule, coaching log, dispatch messaging, e-signature envelopes, onboarding milestones, and the driver record. Each entry reflects the timestamp at which it was recorded in the system. Generated ${generatedAt.toLocaleString()} · Report covers all data on file for ${esc(name)}.
+      <b>Compiled by RouteReady</b> · Operational system of record for ${esc(dspName)}.
+      Sources: attendance &amp; check-in history, schedule, coaching log, dispatch messaging, e-signature envelopes, time-off requests, onboarding milestones, and the driver record.
+      Each timeline entry reflects the timestamp at which the event was recorded in RouteReady.
+      Generated ${esc(_erFmtFull(generatedAt.toISOString()))} · Record <b>${esc(recordId)}</b>.
     </div>`;
 
   const body = m.querySelector("#er-body");
