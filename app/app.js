@@ -58,7 +58,7 @@ if (PREVIEW) {
 window.addEventListener("DOMContentLoaded", () => {
   try {
     const tag = document.createElement("div");
-    tag.textContent = "rr v113";
+    tag.textContent = "rr v114";
     tag.style.cssText = "position:fixed;bottom:10px;right:10px;"
       + "z-index:3000;padding:4px 8px;border-radius:999px;"
       + "background:rgba(15,23,42,.85);color:#fff;font-size:10px;"
@@ -7416,10 +7416,13 @@ function _renderCelebrationOverlay(session, ev) {
       .rr-celebrate.is-reduced .rr-foot{animation:none;opacity:1;transform:none}
       .rr-celebrate.is-reduced .rr-divider{animation:none;width:80%}
 
-      .rr-celebrate .rr-cta-wrap{
-        margin:22px 0 0;opacity:0;transform:translateY(10px);
-        animation:rrCelebFadeUp .42s ease-out 1.32s forwards;
-      }
+      /* CTA wrap is paint-immediately + opaque from the start so the
+         button is a stable hit target the moment the overlay appears.
+         The earlier 1.32s opacity/transform animation meant the
+         button was either invisible or mid-transform when the user
+         tried to tap, and iOS in particular had trouble with hit
+         testing on transforming elements. */
+      .rr-celebrate .rr-cta-wrap{margin:22px 0 0}
       .rr-celebrate .rr-cta{
         display:flex;align-items:center;justify-content:center;width:100%;
         background:linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
@@ -7427,9 +7430,13 @@ function _renderCelebrationOverlay(session, ev) {
         border:0;border-radius:14px;padding:15px 18px;
         box-shadow:0 8px 22px rgba(29,78,216,.42);
         cursor:pointer;letter-spacing:.01em;
+        pointer-events:auto;
+        position:relative;z-index:5;
+        -webkit-tap-highlight-color:rgba(255,255,255,0.25);
+        touch-action:manipulation;
         transition:transform .15s ease, box-shadow .15s ease;
       }
-      .rr-celebrate .rr-cta:active{transform:scale(.985)}
+      .rr-celebrate .rr-cta:active{transform:scale(.97);box-shadow:0 4px 10px rgba(29,78,216,.42)}
 
       .rr-celebrate .rr-foot{
         margin-top:14px;font-size:13px;color:rgba(255,255,255,.85);
@@ -7439,14 +7446,16 @@ function _renderCelebrationOverlay(session, ev) {
       .rr-celebrate .rr-foot svg{stroke:rgba(255,255,255,.85);fill:none;width:14px;height:14px}
 
       .rr-celebrate .rr-close{
-        position:absolute;top:14px;right:14px;width:36px;height:36px;
+        position:absolute;top:14px;right:14px;width:40px;height:40px;
         border-radius:50%;border:0;cursor:pointer;
         background:rgba(255,255,255,.14);color:#fff;
         display:flex;align-items:center;justify-content:center;
-        opacity:0;animation:rrCelebFade .4s ease-out 1.6s forwards;
+        pointer-events:auto;z-index:10;
+        -webkit-tap-highlight-color:rgba(255,255,255,0.25);
+        touch-action:manipulation;
       }
       .rr-celebrate .rr-close:hover{background:rgba(255,255,255,.22)}
-      .rr-celebrate.is-reduced .rr-close{animation:none;opacity:1}
+      .rr-celebrate .rr-close:active{background:rgba(255,255,255,.32)}
 
       @keyframes rrCelebFade   { to { opacity:1 } }
       @keyframes rrCelebFadeUp { to { opacity:1; transform:translateY(0) } }
