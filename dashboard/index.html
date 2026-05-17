@@ -19413,8 +19413,24 @@ John,Smith,555-0101,john@example.com</code>
   }
   function closeModal(id){
     document.getElementById(id).classList.remove('open');
-    document.body.style.overflow = '';
+    // Only release the scroll lock once nothing is left open — a few
+    // surfaces stack a confirm modal over a primary one.
+    if (!document.querySelector('.modal-backdrop.open')){
+      document.body.style.overflow = '';
+    }
   }
+  // Global Escape handler — close the topmost open .modal-backdrop.
+  // Covers every modal that uses openModal/closeModal (~30 dialogs).
+  // Bespoke modals that manage their own keydown (rr-modal-backdrop,
+  // DVIC compare, etc.) keep their own handler; this one only fires
+  // when there's an .open backdrop in the DOM.
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Escape') return;
+    var open = document.querySelectorAll('.modal-backdrop.open');
+    if (!open.length) return;
+    var top = open[open.length - 1];
+    if (top && top.id) closeModal(top.id);
+  });
 
   // ─── ADD APPLICANT ─────────────────────────────────────────
   function openAddApplicantModal(){
