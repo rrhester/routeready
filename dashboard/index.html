@@ -8420,6 +8420,25 @@ body.rr-cmdk-open{ overflow:hidden }
         <!-- Applicant cards — single muted accent for stage; expandable detail -->
         <style>
           .pipe-applicants{display:flex;flex-direction:column;gap:var(--s-2-5)}
+          /* Skeleton card while pipeline_list is in flight — mirrors
+             the .pa-card grid (stage column | body | summary band)
+             so the layout doesn't reflow when real cards arrive. */
+          .pa-skel-card{
+            background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+            display:grid;grid-template-columns:160px 1fr auto;
+            gap:var(--s-3);padding:var(--s-3-5) var(--s-4);align-items:center;
+          }
+          .pa-skel-stage{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+          .pa-skel-body{display:flex;flex-direction:column;gap:var(--s-2);min-width:0}
+          .pa-skel-header{display:flex;align-items:center;gap:var(--s-3);min-width:0}
+          .pa-skel-headtext{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}
+          .pa-skel-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s-3);align-items:center}
+          .pa-skel-col{display:flex;flex-direction:column;gap:6px;min-width:0}
+          .pa-skel-card .rr-skel{display:block}
+          @media (max-width:880px){
+            .pa-skel-card{grid-template-columns:1fr}
+            .pa-skel-summary{display:none}
+          }
           .pa-card{
             background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
             transition:border-color var(--t-smooth), box-shadow var(--t-smooth);
