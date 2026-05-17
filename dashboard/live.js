@@ -374,10 +374,96 @@ function fmtDate(iso) {
 
 const STAGE_LABELS = {
   applied: "Applied",
-  screened: "Screened",
+  screened: "Screening",
   booking_pending: "Booking pending",
   booking_scheduled: "Booking scheduled",
+  hired: "Hired",
 };
+
+// Stage → recommended next action.  Shipped to the operator as the
+// "Recommended next step" card on every applicant; the headline + sub
+// line read naturally next to the action button beneath them.
+function _recommendedNextStep(a) {
+  switch (a.pipeline_stage) {
+    case "applied":
+      return { headline: "Send the screening invite", sub: "Applicant hasn't started their screening yet.", btn: "Resend screening", action: "resend_screening" };
+    case "screened":
+      return { headline: "Move to booking", sub: a.video_url ? "Video completed. Review and send the booking link." : "Screening complete. Send the booking link.", btn: "Send booking link", action: "send_link" };
+    case "booking_pending":
+      return { headline: "Nudge the applicant", sub: "Booking link sent — waiting on the candidate to pick a slot.", btn: "Resend booking link", action: "resend_link" };
+    case "booking_scheduled":
+      return { headline: "Interview is scheduled", sub: a.next_event_starts_at ? `Confirmed for ${fmtDate(a.next_event_starts_at)}.` : "Confirmed slot is on the calendar.", btn: "Reschedule", action: "reschedule" };
+    case "hired":
+      return { headline: "Start onboarding", sub: "Move them into Onboarding to begin paperwork.", btn: "Open onboarding", action: "open_onboarding" };
+    default:
+      return { headline: "Review applicant", sub: "Open to see the latest detail.", btn: "View", action: "noop" };
+  }
+}
+
+// Pick the most stage-relevant timestamp for "time in stage" / sub-row
+// math so we don't show a flat "30 days ago" on every applicant.
+function _stageAnchorIso(a) {
+  switch (a.pipeline_stage) {
+    case "applied":           return a.created_at;
+    case "screened":          return a.screening_completed_at || a.created_at;
+    case "booking_pending":   return a.last_sms_at || a.screening_completed_at || a.created_at;
+    case "booking_scheduled": return a.next_event_starts_at || a.last_sms_at || a.created_at;
+    case "hired":             return a.last_sms_at || a.created_at;
+    default:                  return a.created_at;
+  }
+}
+
+function _fmtDurationShort(ms) {
+  if (!ms || ms < 0) return "—";
+  const s = Math.floor(ms / 1000);
+  if (s < 60)      return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60)      return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24)      return `${h}h ${m % 60}m`;
+  const d = Math.floor(h / 24);
+  if (d < 30)      return `${d}d`;
+  const mo = Math.floor(d / 30);
+  return `${mo}mo`;
+}
+
+// "Today, 10:24 AM" / "Yesterday, 10:24 AM" / "May 16, 10:24 AM"
+function _fmtAbsTouch(iso) {
+  if (!iso) return "—";
+  const d   = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const yest    = new Date(now.getTime() - 86400000).toDateString() === d.toDateString();
+  const time    = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  if (sameDay) return `Today, ${time}`;
+  if (yest)    return `Yesterday, ${time}`;
+  return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
+}
+
+// "Screening invite sent" / "Video completed" / "Applicant added" — pick
+// the verb tied to the latest activity so the Last touch column reads
+// like a verb, not a timestamp.
+function _lastTouchLabel(a) {
+  if (a.last_sms_at)             return "Screening invite sent";
+  if (a.screening_completed_at)  return "Screening completed";
+  return "Applicant added";
+}
+
+// Compact activity timeline derived from the timestamps we already have
+// on the applicant row.  Returns the steps in chronological order with
+// a `current` flag on the most recent.
+function _activitySteps(a) {
+  const steps = [];
+  if (a.created_at)              steps.push({ label: "Applicant added",      at: a.created_at });
+  if (a.last_sms_at)             steps.push({ label: "Screening invite sent", at: a.last_sms_at });
+  if (a.screening_completed_at)  steps.push({ label: "Screening completed",   at: a.screening_completed_at });
+  if (a.next_event_starts_at)    steps.push({ label: "Interview scheduled",   at: a.next_event_starts_at });
+  // Sort by time so a later last_sms_at doesn't appear before a screening
+  // that already happened.
+  steps.sort((x, y) => new Date(x.at) - new Date(y.at));
+  if (steps.length > 0) steps[steps.length - 1].current = true;
+  return steps;
+}
 
 // Some upstream systems hand us applicant names in ALL CAPS; render
 // them title-cased so the Pipeline cards don't shout. Word-boundary
@@ -464,9 +550,87 @@ function renderApplicantCard(a) {
       </div>
     </div>`;
 
+  // ── New layout (matches the mockup): 4-column top row → 5-field
+  // detail strip → 3-card section (Screening video · Screening answers ·
+  // Recommended next step) → Notes → action bar → Activity timeline.
+  const sourceShort   = a.source ? rrTitleCaseName(a.source) : "Direct";
+  const sourceMetaTxt = a.source ? `via ${rrTitleCaseName(a.source)}` : "Direct applicant";
+  const headerSubLine = [sourceMetaTxt, a.email].filter(Boolean).join(" · ");
+  const phoneText     = a.phone || "—";
+  const locText       = a.station_code ? `Station ${a.station_code}` : "—";
+  const appliedText   = a.created_at
+    ? new Date(a.created_at).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })
+    : "—";
+  const positionText  = "Delivery Driver";
+  const anchorIso     = _stageAnchorIso(a);
+  const timeInStage   = anchorIso ? _fmtDurationShort(Date.now() - new Date(anchorIso).getTime()) : "—";
+  const lastTouchIso  = a.last_sms_at || a.screening_completed_at || a.created_at;
+  const lastTouchTxt  = _fmtAbsTouch(lastTouchIso);
+  const lastTouchVerb = _lastTouchLabel(a);
+  const rec           = _recommendedNextStep(a);
+
+  // Screening video card — only render when we actually have a video.
+  const videoCard = a.video_url ? `
+    <div class="pa-feature-card">
+      <div class="pa-feature-head">
+        <span>Screening video</span>
+        ${a.screening_completed_at ? `<span class="pa-feature-badge ok"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Completed</span>` : ""}
+      </div>
+      ${a.screening_completed_at ? `<div class="pa-feature-sub">Completed ${new Date(a.screening_completed_at).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}</div>` : ""}
+      <div class="pa-feature-row" style="margin-top:10px">
+        <div class="pa-video-thumb" data-rr-action="play_video" data-video-url="${encodeURI(a.video_url)}">
+          <span class="pa-video-thumb-play"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg></span>
+        </div>
+        <div class="pa-feature-stats">
+          ${a.score != null ? `<div><div class="pa-feature-stat-label">Score</div><div class="pa-feature-stat-value">${a.score}/10</div></div>` : ""}
+          <div><div class="pa-feature-stat-label">Status</div><div class="pa-feature-stat-value" style="color:var(--green)">Reviewed</div></div>
+        </div>
+      </div>
+      <button class="btn btn-sm" type="button" data-rr-action="play_video" data-video-url="${encodeURI(a.video_url)}" style="margin-top:10px;width:100%">Watch video</button>
+    </div>` : "";
+
+  // Screening answers card — lazy-loaded into the slot when the card
+  // expands (the existing _loadScreeningAnswersInto handles this).
+  const answersCard = (stage !== "applied") ? `
+    <div class="pa-feature-card">
+      <div class="pa-feature-head"><span>Screening answers</span></div>
+      <div class="pa-qa" data-rr-screening-slot style="margin-top:8px">
+        <div style="color:var(--text-subtle);font-size:var(--fs-sm);grid-column:1 / -1">Loading answers…</div>
+      </div>
+    </div>` : "";
+
+  // Recommended next step — always render so every card has a clear
+  // suggested action on screen, not buried in the action bar.
+  const nextStepCard = `
+    <div class="pa-feature-card pa-feature-rec">
+      <div class="pa-feature-head" style="color:var(--amber-dark)">
+        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Recommended next step</span>
+      </div>
+      <div class="pa-feature-rec-head">${escapeHtml(rec.headline)}</div>
+      <div class="pa-feature-rec-sub">${escapeHtml(rec.sub)}</div>
+      <button class="pa-disp-btn primary" type="button" data-rr-action="${rec.action}" style="margin-top:10px">${escapeHtml(rec.btn)}</button>
+    </div>`;
+
+  // Activity timeline rows (horizontal in the mockup; we render as a
+  // small grid that wraps cleanly).
+  const steps     = _activitySteps(a);
+  const stepsHtml = steps.length === 0
+    ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No activity recorded yet.</div>`
+    : steps.map((s, i) => {
+        const last = i === steps.length - 1;
+        return `<div class="pa-step ${s.current ? "is-current" : ""}">
+          <div class="pa-step-dot">${s.current ? "" : "<svg width=\"10\" height=\"10\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg>"}</div>
+          <div class="pa-step-text">
+            <div class="pa-step-title">${escapeHtml(s.label)}</div>
+            <div class="pa-step-time">${escapeHtml(_fmtAbsTouch(s.at))}</div>
+          </div>
+          ${!last ? `<svg class="pa-step-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>` : ""}
+        </div>`;
+      }).join("");
+
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
-      <div class="pa-row">
+      <div class="pa-row pa-row-v2">
         <div class="pa-card-stage">
           <span class="pa-stage-pill ${stage}">${escapeHtml(stageLabel)}</span>
           ${relTime ? `<span class="pa-card-time">${escapeHtml(relTime)}</span>` : ""}
@@ -474,26 +638,63 @@ function renderApplicantCard(a) {
         <div class="pa-card-body">
           <div class="pa-card-header">
             <div class="pa-card-avatar ${_tierClassFromScore(a.score)}">${escapeHtml(_initialsOf(name))}</div>
-            <div>
+            <div style="min-width:0">
               <div class="pa-card-name">${escapeHtml(name)}</div>
-              <div class="pa-card-meta">${escapeHtml(meta)}</div>
+              <div class="pa-card-meta">${escapeHtml(headerSubLine)}</div>
             </div>
           </div>
           ${scoreChip ? `<div class="pa-card-tags">${scoreChip}</div>` : ""}
+        </div>
+        <div class="pa-card-summary">
+          <div class="pa-sum-col">
+            <div class="pa-sum-label">Current stage</div>
+            <div class="pa-sum-value"><span class="pa-stage-pill ${stage}">${escapeHtml(STAGE_LABELS[stage] ?? stage)}</span></div>
+          </div>
+          <div class="pa-sum-col">
+            <div class="pa-sum-label">Time in stage</div>
+            <div class="pa-sum-value">${escapeHtml(timeInStage)}</div>
+          </div>
+          <div class="pa-sum-col">
+            <div class="pa-sum-label">Last touch</div>
+            <div class="pa-sum-value pa-sum-value-touch">${escapeHtml(lastTouchVerb)}</div>
+            <div class="pa-sum-touch-time">${escapeHtml(lastTouchTxt)}</div>
+          </div>
         </div>
         <div class="pa-card-actions">
           <button class="pa-view-btn" type="button" onclick="paToggle(this)">View<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
         </div>
       </div>
+
+      <div class="pa-strip">
+        <div class="pa-strip-field"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg><div><div class="pa-strip-label">Source</div><div class="pa-strip-value">${escapeHtml(sourceShort)}</div></div></div>
+        <div class="pa-strip-field"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg><div><div class="pa-strip-label">Phone</div><div class="pa-strip-value">${escapeHtml(phoneText)}</div></div></div>
+        <div class="pa-strip-field"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><div><div class="pa-strip-label">Location</div><div class="pa-strip-value">${escapeHtml(locText)}</div></div></div>
+        <div class="pa-strip-field"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><div><div class="pa-strip-label">Applied</div><div class="pa-strip-value">${escapeHtml(appliedText)}</div></div></div>
+        <div class="pa-strip-field"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg><div><div class="pa-strip-label">Position</div><div class="pa-strip-value">${escapeHtml(positionText)}</div></div></div>
+      </div>
+
       <div class="pa-detail">
-        ${answersBlock}
+        <div class="pa-feature-grid">
+          ${videoCard || answersCard || `<div class="pa-feature-card"><div class="pa-feature-head"><span>Screening</span></div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-top:6px">Not started yet.</div></div>`}
+          ${videoCard ? answersCard : ""}
+          ${nextStepCard}
+        </div>
+
         ${notesBlock}
-        <div class="pa-actions-bar">
-          <button class="pa-disp-btn ghost" type="button" data-rr-action="call">Call</button>
-          ${emailBtn}
-          ${videoBtn}
-          <button class="pa-disp-btn danger" type="button" data-rr-action="decline">Decline</button>
-          ${primaryBtn}
+
+        <div class="pa-actions-bar pa-actions-bar-v2">
+          <span class="pa-actions-status" data-rr-notes-updated>Last updated · Never</span>
+          <div class="pa-actions-buttons">
+            <button class="pa-disp-btn ghost" type="button" data-rr-action="call"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Call</button>
+            ${emailBtn}
+            <button class="pa-disp-btn danger" type="button" data-rr-action="decline">Decline</button>
+            ${primaryBtn}
+          </div>
+        </div>
+
+        <div class="pa-activity">
+          <div class="pa-activity-head"><span>Recent activity</span><a href="#" class="pa-activity-all" onclick="event.preventDefault()">View all activity →</a></div>
+          <div class="pa-steps">${stepsHtml}</div>
         </div>
       </div>
     </div>`;
