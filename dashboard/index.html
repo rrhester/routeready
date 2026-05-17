@@ -11939,7 +11939,7 @@ body.rr-cmdk-open{ overflow:hidden }
              dispatch_time_off_list (migration 0252) and wires the
              approve / deny / decision-note flow. -->
         <div class="sched-subview" id="sched-sub-time-off" style="display:none">
-          <div id="rr-time-off-body"><div class="loader" style="margin:80px auto"></div></div>
+          <div id="rr-time-off-body"><div class="rr-loading">Loading time off requests</div></div>
         </div><!-- /sched-sub-time-off -->
 
         <!-- STAFF SCHEDULE — support roles (dispatchers, fleet, HR, ops, other).
@@ -13825,6 +13825,28 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Generic list container */
           .docs-list{display:flex;flex-direction:column;gap:var(--s-2)}
 
+          /* Skeleton placeholders — match the card / table rhythm so
+             the layout doesn't jump when real rows arrive.  All
+             shimmer bars come from the canonical .rr-skel primitive. */
+          .docs-skel-card{
+            display:flex;align-items:center;gap:var(--s-4);
+            background:var(--surface);border:1px solid var(--border);border-radius:var(--docs-radius);
+            padding:var(--s-4) 18px;
+          }
+          .docs-skel-tile{width:40px;height:50px;flex:0 0 auto;border-radius:var(--r-md)}
+          .docs-skel-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+          .docs-skel-meta{display:flex;gap:var(--s-2);flex-wrap:wrap}
+          .docs-skel-table{
+            background:var(--surface);border:1px solid var(--border);border-radius:var(--docs-radius);
+            padding:var(--s-3) var(--s-4);
+            display:flex;flex-direction:column;gap:var(--s-3-5);
+          }
+          .docs-skel-row{
+            display:flex;align-items:center;gap:var(--s-3);min-width:0;
+            padding:var(--s-2) 0;
+          }
+          .docs-skel-row + .docs-skel-row{border-top:1px solid var(--border-subtle)}
+
           /* Template / library cards */
           .docs-template-card{
             display:flex;align-items:center;gap:var(--s-4);
@@ -14095,13 +14117,34 @@ body.rr-cmdk-open{ overflow:hidden }
         </style>
 
         <div id="docs-templates-tab">
-          <div id="docs-templates-list" class="docs-list"><div class="loader" style="margin:48px auto"></div></div>
+          <div id="docs-templates-list" class="docs-list">
+            <!-- Skeleton cards mirroring the .docs-template-card layout
+                 so the templates list doesn't reflow when data arrives. -->
+            <div class="docs-skel-card"><span class="docs-skel-tile rr-skel"></span><div class="docs-skel-text"><span class="rr-skel rr-skel-md" style="width:42%"></span><span class="docs-skel-meta"><span class="rr-skel rr-skel-sm" style="width:70px"></span><span class="rr-skel rr-skel-sm" style="width:160px"></span><span class="rr-skel rr-skel-sm" style="width:110px"></span></span></div></div>
+            <div class="docs-skel-card"><span class="docs-skel-tile rr-skel"></span><div class="docs-skel-text"><span class="rr-skel rr-skel-md" style="width:55%"></span><span class="docs-skel-meta"><span class="rr-skel rr-skel-sm" style="width:70px"></span><span class="rr-skel rr-skel-sm" style="width:200px"></span><span class="rr-skel rr-skel-sm" style="width:96px"></span></span></div></div>
+            <div class="docs-skel-card"><span class="docs-skel-tile rr-skel"></span><div class="docs-skel-text"><span class="rr-skel rr-skel-md" style="width:38%"></span><span class="docs-skel-meta"><span class="rr-skel rr-skel-sm" style="width:70px"></span><span class="rr-skel rr-skel-sm" style="width:180px"></span><span class="rr-skel rr-skel-sm" style="width:90px"></span></span></div></div>
+          </div>
         </div>
         <div id="docs-envelopes-tab" style="display:none">
-          <div id="docs-envelopes-list"><div class="loader" style="margin:48px auto"></div></div>
+          <div id="docs-envelopes-list">
+            <!-- Envelope list lands as a table — render a matching
+                 skeleton grid so the header row doesn't jump in. -->
+            <div class="docs-skel-table">
+              <div class="docs-skel-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:28%"></span><span class="rr-skel rr-skel-md" style="width:22%"></span><span class="rr-skel rr-skel-md" style="width:14%"></span><span class="rr-skel rr-skel-md" style="width:12%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+              <div class="docs-skel-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:32%"></span><span class="rr-skel rr-skel-md" style="width:20%"></span><span class="rr-skel rr-skel-md" style="width:14%"></span><span class="rr-skel rr-skel-md" style="width:12%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+              <div class="docs-skel-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:24%"></span><span class="rr-skel rr-skel-md" style="width:26%"></span><span class="rr-skel rr-skel-md" style="width:14%"></span><span class="rr-skel rr-skel-md" style="width:12%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+              <div class="docs-skel-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:28%"></span><span class="rr-skel rr-skel-md" style="width:22%"></span><span class="rr-skel rr-skel-md" style="width:14%"></span><span class="rr-skel rr-skel-md" style="width:12%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+            </div>
+          </div>
         </div>
         <div id="docs-i9-tab" style="display:none">
-          <div id="docs-i9-list"><div class="loader" style="margin:48px auto"></div></div>
+          <div id="docs-i9-list">
+            <div class="docs-skel-table">
+              <div class="docs-skel-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:30%"></span><span class="rr-skel rr-skel-md" style="width:22%"></span><span class="rr-skel rr-skel-md" style="width:14%"></span><span class="rr-skel rr-skel-md" style="width:12%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+              <div class="docs-skel-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:26%"></span><span class="rr-skel rr-skel-md" style="width:24%"></span><span class="rr-skel rr-skel-md" style="width:14%"></span><span class="rr-skel rr-skel-md" style="width:12%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+              <div class="docs-skel-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:32%"></span><span class="rr-skel rr-skel-md" style="width:22%"></span><span class="rr-skel rr-skel-md" style="width:14%"></span><span class="rr-skel rr-skel-md" style="width:12%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
