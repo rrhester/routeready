@@ -6796,7 +6796,10 @@ async function renderI9Section1() {
     btn.disabled = true; btn.textContent = "Saving…";
     const { error: err } = await sb.rpc("driver_i9_save_section1", { p_token: session.token, p_section1: collect() });
     btn.disabled = false; btn.textContent = "Save draft";
-    if (err) { toast(_friendlyError(err, "Couldn't save. Try again."), "warn"); return; }
+    if (err) {
+      console.error("driver_i9_save_section1 failed:", err);
+      toast(_friendlyError(err, "Couldn't save. Try again."), "warn"); return;
+    }
     toast("Draft saved", "ok");
   });
 
@@ -6826,6 +6829,11 @@ async function renderI9Section1() {
       p_user_agent:      navigator.userAgent || null,
     });
     if (err) {
+      // The friendly toast hides the real reason behind a generic "Couldn't
+      // submit. Try again." Log the full error to console so a tester with
+      // DevTools open can see what actually went wrong (Postgres error
+      // code, RPC message, network status).
+      console.error("driver_i9_submit_section1 failed:", err);
       btn.disabled = false; btn.textContent = "Submit & sign";
       toast(_friendlyError(err, "Couldn't submit. Try again."), "warn"); return;
     }
