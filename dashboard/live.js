@@ -2798,7 +2798,7 @@ async function _submitBulkDrivers() {
           ${errored > 0 ? `· ⚠️ ${errored} errored` : ""}
         </div>
         ${failedRows.length > 0 ? `
-          <details style="margin-top:var(--s-2)">
+          <details class="u-mt-2">
             <summary style="cursor:pointer;font-weight:600;color:var(--text-muted)">Show ${failedRows.length} skipped/errored row${failedRows.length === 1 ? "" : "s"}</summary>
             <ul style="margin:6px 0 0 18px;padding:0;color:var(--text-subtle);font-size:var(--fs-xs)">
               ${failedRows.map((r) => {
@@ -13847,7 +13847,7 @@ function renderOverviewTab(body, dd) {
         <span class="u-xs-subtle">${escapeHtml(stationTxt)}${tenureTxt ? " · " + escapeHtml(tenureTxt) : ""}${d.tier ? " · Tier " + escapeHtml(String(d.tier)) : ""}</span>
       </div>
       ${ob ? `<div style="display:flex;gap:var(--s-1);margin-top:var(--s-3);max-width:340px">${ob.gates.map(g => `<div title="${escapeHtml(g.label)}${g.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:var(--r-pill);background:${g.done ? "#16a34a" : "var(--border)"}"></div>`).join("")}</div>` : ""}
-      ${ob ? `<div style="margin-top:var(--s-3)"><button type="button" class="btn btn-sm btn-primary" data-rr-dd-tab="employment">Continue onboarding & Form I-9 →</button></div>` : ""}
+      ${ob ? `<div class="u-mt-3"><button type="button" class="btn btn-sm btn-primary" data-rr-dd-tab="employment">Continue onboarding & Form I-9 →</button></div>` : ""}
     </div>
 
     <div class="dd-section">
@@ -14741,7 +14741,7 @@ function _i9PanelHtml(i9, drv) {
       </details>
 
       ${events.length ? `
-      <details style="margin-top:var(--s-2)">
+      <details class="u-mt-2">
         <summary style="${sumStyle}">Activity · ${events.length} event${events.length === 1 ? "" : "s"}</summary>
         <div style="margin-top:10px">${_i9Timeline(events)}</div>
       </details>` : ""}
@@ -15406,7 +15406,7 @@ async function _i9OpenChainModal(driverId) {
         <div><div style="font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle);margin-bottom:10px">Activity · ${(events||[]).length} event${(events||[]).length===1?"":"s"}</div>${_i9Timeline(events)}</div>
         <details style="border-top:1px solid var(--border);padding-top:14px">
           <summary style="cursor:pointer;font-size:var(--fs-xs);font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)">Verification details</summary>
-          <div style="margin-top:var(--s-3)">${sealBlock}</div>
+          <div class="u-mt-3">${sealBlock}</div>
         </details>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.5">RouteReady's electronic record of the Form I-9. The sealed PDF's bytes are byte-identical to what's stored; the seal + timestamp prove it hasn't been altered since ${rec.pdf_sealed_at ? new Date(rec.pdf_sealed_at).toLocaleString() : "sealing"}. Not legal advice — the official Form I-9 and its instructions govern.</div>
       </div>
@@ -16544,7 +16544,7 @@ async function renderLicenseTab(body, d) {
   // present is enough to nudge the DSP to record the date.
   const needsVerify = (!!d.dl_image_path || !!d.dl_back_image_path) && !currentExpiry;
   const verifyCallout = needsVerify ? `
-    <div class="dd-callout warn" style="margin-top:var(--s-3)">
+    <div class="dd-callout warn u-mt-3">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
       <div><strong>Verification needed.</strong> Driver uploaded a license image but no expiration is on file. Read the date off the photo and enter it above.</div>
     </div>` : "";
@@ -16731,7 +16731,7 @@ async function renderAttendanceTab(body, d) {
   }).join("");
 
   const forecast = evalP && evalP.enabled && nextRung
-    ? `<div class="dd-callout warn" style="margin-top:var(--s-2)">
+    ? `<div class="dd-callout warn u-mt-2">
          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
          <div><strong>${pointsToNext} more point${pointsToNext === 1 ? "" : "s"}</strong> until ${escapeHtml(_COACHING_SEV_LABEL?.[nextRung.severity] || nextRung.severity)} (${escapeHtml(String(nextRung.threshold))} pts).</div>
        </div>`
@@ -28668,7 +28668,7 @@ function _renderBuilderProps() {
         <span class="field-prop-label">Options</span>
         <textarea class="field-prop-input" data-rr-prop="options" rows="4" placeholder="One per line">${escapeHtml((f.options || []).join("\n"))}</textarea>
       </div>` : ""}
-    <div class="field-prop-row" style="margin-top:var(--s-2)">
+    <div class="field-prop-row u-mt-2">
       <button type="button" class="btn btn-sm" data-rr-field-remove="${escapeHtml(f.id)}" style="color:var(--red)">Delete field</button>
     </div>`;
 }
