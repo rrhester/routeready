@@ -6085,6 +6085,15 @@ body.rr-cmdk-open{ overflow:hidden }
 .cl-subtab-badge.warn{background:var(--amber);color:#fff;border-color:transparent}
 
 .cl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s-3)}
+/* Skeleton card for the checklist list — same rhythm as .cl-card
+   so the layout doesn't reflow when the instances arrive. */
+.cl-skel-list{display:flex;flex-direction:column;gap:var(--s-2-5)}
+.cl-skel-card{
+  display:flex;flex-direction:column;gap:var(--s-2);
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-3-5) var(--s-4);min-height:64px;
+}
+.cl-skel-card .rr-skel{display:block}
 .cl-card{
   position:relative;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
@@ -13274,6 +13283,19 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;
           }
           #view-compliance .co-empty p{margin:0 auto;max-width:520px;font-size:var(--fs-md);color:var(--text-muted)}
+          /* Loading variant — same card shape but with a skeleton
+             list inside so the layout doesn't jump when real
+             exceptions / rules arrive. */
+          #view-compliance .co-empty.is-loading{
+            min-height:0;padding:0;align-items:stretch;justify-content:flex-start;
+            background:var(--surface);text-align:left;color:var(--text);
+          }
+          #view-compliance .co-loading-row{
+            display:flex;align-items:center;gap:var(--s-3);
+            padding:var(--s-3-5) var(--s-5);
+            border-bottom:1px solid var(--border-subtle);
+          }
+          #view-compliance .co-loading-row:last-child{border-bottom:none}
 
           /* ── FMCSA setup card + monitor table (Rules tab) ────────── */
           #view-compliance .co-fmcsa{
@@ -13380,13 +13402,26 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <div class="co-tab is-active" id="co-tab-exceptions">
           <div data-co-render="exceptions-table" style="flex:1;display:flex;flex-direction:column;min-height:0">
-            <div class="co-empty"><h3>Loading exceptions…</h3></div>
+            <!-- Skeleton table — matches the eventual .co-row shape so
+                 the layout doesn't reflow when the sweep returns. -->
+            <div class="co-empty is-loading" aria-busy="true">
+              <div class="co-loading-row"><span class="rr-skel rr-skel-md" style="width:24%"></span><span class="rr-skel rr-skel-md" style="width:18%"></span><span class="rr-skel rr-skel-md" style="width:30%"></span><span class="rr-skel rr-skel-md" style="width:12%;margin-left:auto"></span></div>
+              <div class="co-loading-row"><span class="rr-skel rr-skel-md" style="width:28%"></span><span class="rr-skel rr-skel-md" style="width:14%"></span><span class="rr-skel rr-skel-md" style="width:34%"></span><span class="rr-skel rr-skel-md" style="width:12%;margin-left:auto"></span></div>
+              <div class="co-loading-row"><span class="rr-skel rr-skel-md" style="width:22%"></span><span class="rr-skel rr-skel-md" style="width:20%"></span><span class="rr-skel rr-skel-md" style="width:28%"></span><span class="rr-skel rr-skel-md" style="width:12%;margin-left:auto"></span></div>
+              <div class="co-loading-row"><span class="rr-skel rr-skel-md" style="width:26%"></span><span class="rr-skel rr-skel-md" style="width:16%"></span><span class="rr-skel rr-skel-md" style="width:32%"></span><span class="rr-skel rr-skel-md" style="width:12%;margin-left:auto"></span></div>
+              <div class="co-loading-row"><span class="rr-skel rr-skel-md" style="width:24%"></span><span class="rr-skel rr-skel-md" style="width:18%"></span><span class="rr-skel rr-skel-md" style="width:30%"></span><span class="rr-skel rr-skel-md" style="width:12%;margin-left:auto"></span></div>
+            </div>
           </div>
         </div>
 
         <div class="co-tab" id="co-tab-rules">
           <div data-co-render="rules-list" style="flex:1;display:flex;flex-direction:column;min-height:0">
-            <div class="co-empty"><h3>Loading rules…</h3></div>
+            <div class="co-empty is-loading" aria-busy="true">
+              <div class="co-loading-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:38%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+              <div class="co-loading-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:46%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+              <div class="co-loading-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:32%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+              <div class="co-loading-row"><span class="rr-skel rr-skel-circle" style="width:24px;height:24px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:42%"></span><span class="rr-skel rr-skel-md" style="width:14%;margin-left:auto"></span></div>
+            </div>
           </div>
         </div>
 
@@ -13422,6 +13457,19 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-workspaces .ws-search svg{width:14px;height:14px;color:var(--text-subtle);flex:0 0 auto}
           #view-workspaces .ws-search input{flex:1;border:0;background:transparent;outline:none;font:inherit;font-size:var(--fs-sm);color:var(--text)}
           #view-workspaces .ws-search input::placeholder{color:var(--text-subtle)}
+          /* Loading grid — six card placeholders matching the eventual
+             workspaces card grid rhythm.  Bars use the canonical
+             .rr-skel primitive. */
+          #view-workspaces .ws-skel-grid{
+            display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+            gap:var(--s-3);
+          }
+          #view-workspaces .ws-skel-card{
+            display:flex;flex-direction:column;gap:var(--s-2-5);
+            background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);
+            padding:var(--s-4) var(--s-4) var(--s-5);min-height:128px;
+          }
+          #view-workspaces .ws-skel-card .rr-skel{display:block}
           #view-workspaces .ws-grid-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden}
           #view-workspaces .ws-grid-scroll{overflow-x:auto}
           #view-workspaces .ws-grid{width:100%;border-collapse:collapse;font-size:var(--fs-md)}
@@ -13562,7 +13610,18 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="subnav-item active" data-sub="workflows" onclick="goto('workspaces')">Workflows</button>
           <button class="subnav-item" data-sub="checklists" onclick="goto('checklists')">Checklists</button>
         </div>
-        <div id="rr-ws-root"><div class="rr-loading">Loading workspaces</div></div>
+        <div id="rr-ws-root">
+          <!-- Skeleton workspaces grid — six card placeholders so
+               the layout doesn't reflow when the boards arrive. -->
+          <div class="ws-skel-grid" aria-busy="true">
+            <div class="ws-skel-card"><span class="rr-skel rr-skel-md" style="width:60%"></span><span class="rr-skel rr-skel-sm" style="width:90%"></span><span class="rr-skel rr-skel-sm" style="width:74%"></span></div>
+            <div class="ws-skel-card"><span class="rr-skel rr-skel-md" style="width:55%"></span><span class="rr-skel rr-skel-sm" style="width:85%"></span><span class="rr-skel rr-skel-sm" style="width:68%"></span></div>
+            <div class="ws-skel-card"><span class="rr-skel rr-skel-md" style="width:68%"></span><span class="rr-skel rr-skel-sm" style="width:92%"></span><span class="rr-skel rr-skel-sm" style="width:72%"></span></div>
+            <div class="ws-skel-card"><span class="rr-skel rr-skel-md" style="width:50%"></span><span class="rr-skel rr-skel-sm" style="width:80%"></span><span class="rr-skel rr-skel-sm" style="width:65%"></span></div>
+            <div class="ws-skel-card"><span class="rr-skel rr-skel-md" style="width:64%"></span><span class="rr-skel rr-skel-sm" style="width:88%"></span><span class="rr-skel rr-skel-sm" style="width:70%"></span></div>
+            <div class="ws-skel-card"><span class="rr-skel rr-skel-md" style="width:58%"></span><span class="rr-skel rr-skel-sm" style="width:82%"></span><span class="rr-skel rr-skel-sm" style="width:66%"></span></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -13793,12 +13852,16 @@ body.rr-cmdk-open{ overflow:hidden }
         </div>
 
         <!-- MY CHECKLISTS -->
-        <!-- MY CHECKLISTS -->
         <!-- Real instances list, rendered into #rr-cl-my-root by
              loadChecklistInstances() in live.js. -->
         <div class="checklist-tab" id="checklist-tab-my">
           <div id="rr-cl-my-root">
-            <div class="rr-loading">Loading checklists</div>
+            <div class="cl-skel-list" aria-busy="true">
+              <div class="cl-skel-card"><span class="rr-skel rr-skel-md" style="width:48%"></span><span class="rr-skel rr-skel-sm" style="width:74%"></span></div>
+              <div class="cl-skel-card"><span class="rr-skel rr-skel-md" style="width:56%"></span><span class="rr-skel rr-skel-sm" style="width:62%"></span></div>
+              <div class="cl-skel-card"><span class="rr-skel rr-skel-md" style="width:42%"></span><span class="rr-skel rr-skel-sm" style="width:80%"></span></div>
+              <div class="cl-skel-card"><span class="rr-skel rr-skel-md" style="width:50%"></span><span class="rr-skel rr-skel-sm" style="width:70%"></span></div>
+            </div>
           </div>
         </div>
 
