@@ -15232,7 +15232,13 @@ async function openI9Section2Modal(driverId) {
     }
     m.remove();
     toast("Section 2 completed — Form I-9 verified ✓", "success");
-    await loadDriverDrawer(driverId);
+    // Refresh whichever surface the operator opened the modal from:
+    // the driver record drawer if it's on screen, the Work
+    // authorization queue if that's the active view, or both.
+    if (document.getElementById("rr-dd-drawer")) await loadDriverDrawer(driverId);
+    if (document.getElementById("rr-i9-queue") && typeof loadDriverWorkAuthView === "function") {
+      loadDriverWorkAuthView();
+    }
   });
 }
 
@@ -15776,13 +15782,38 @@ async function refreshI9Badge() {
   } catch {}
 }
 
-// Open the driver drawer straight onto the Employment tab from the queue.
-document.addEventListener("click", (e) => {
+// Work-authorization queue Open button — go straight to the Section 2
+// modal instead of routing through the driver record drawer. The
+// drawer trip was circular: it linked back to "Open onboarding
+// dashboard" which sent the operator right back here without ever
+// surfacing the Section 2 action.
+document.addEventListener("click", async (e) => {
   const open = e.target.closest("[data-rr-i9-open]");
   if (!open || !e.target.closest("#view-onboarding-ops")) return;
   e.preventDefault();
+  e.stopImmediatePropagation();
   const id = open.getAttribute("data-rr-i9-open");
-  if (id) openDriverDrawer(id, { tab: "employment" });
+  if (!id) return;
+  // Fetch the driver record so the Section 2 modal can read the I-9
+  // jsonb, hire_date, and any saved Section 2 draft. The visible
+  // driver drawer doesn't have to be on screen — populating _ddDriver
+  // is enough.
+  const { data, error } = await sb.rpc("driver_record", { p_id: id });
+  if (error) { toast("Couldn't load driver: " + error.message, "warn"); return; }
+  _ddDriver = data;
+  const rec = data?.i9?.record;
+  // Route by I-9 state so the operator always lands on the right
+  // action, not a drawer they have to navigate further from.
+  if (!rec || rec.status === "not_started") {
+    toast("Section 1 isn't done yet — the driver completes it in their app.", "warn");
+    return;
+  }
+  if (rec.status === "verified") {
+    toast("This Form I-9 is already verified. Open the driver record to view the sealed PDF.", "ok");
+    return;
+  }
+  // section1_complete or needs_correction → operator does Section 2.
+  openI9Section2Modal(id);
 });
 
 // ════════════════════════════════════════════════════════════════════
