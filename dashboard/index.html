@@ -1131,6 +1131,19 @@ a{color:inherit;text-decoration:none}
 .tp-day-chip[data-tone="red"] .tp-day-chip-label::before{background:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
 .tp-day-chip-value{font-size:var(--fs-xl);font-weight:750;letter-spacing:-.025em;color:var(--text);line-height:1;font-variant-numeric:tabular-nums}
 .tp-day-chip-sub{margin-top:6px;font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Today plan skeleton — bars sized to match the final KPI chip rhythm
+   so the layout doesn't reflow when the cache or RPC fills in. */
+.tp-skel-label{padding:0}
+.tp-skel-label .rr-skel{display:block}
+.tp-day-chip .tp-skel-label::before{display:none}
+.tp-skel-sub{margin-top:6px;display:flex;align-items:center;gap:6px}
+.tp-skel-list{display:flex;flex-direction:column;gap:0}
+.tp-skel-row{
+  display:flex;align-items:center;gap:var(--s-3);
+  padding:var(--s-3) var(--s-5);
+  border-bottom:1px solid var(--border-subtle);
+}
+.tp-skel-row:last-child{border-bottom:none}
 .tp-day-empty{
   background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--r-lg);
   padding:var(--s-4);color:var(--text-subtle);font-size:var(--fs-sm);
