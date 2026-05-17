@@ -873,19 +873,15 @@ function render() {
   // the welcome message from migration 0266) shows up on the icon
   // without the driver having to open Chat first.
   refreshChatBadge();
-  // Check for queued Recognition Celebration Events (migration 0292).
-  // Defer past first route mount so the overlay paints AFTER the
-  // shell + active tab settle.  On first app open the route renderer
-  // (renderSchedule etc.) was racing the overlay paint — overlay
-  // appended to body but then the route's own innerHTML thrash
-  // sometimes scrolled it out of the visible area until the user
-  // navigated, re-firing the hook on hashchange.  setTimeout(..., 250)
-  // gives the route a frame or two to settle, then paints clean.
-  setTimeout(() => {
-    checkAndShowPendingRecognition(session).catch((e) => {
-      console.warn("recognition check failed:", e);
-    });
-  }, 250);
+  // Check for queued Recognition Celebration Events.  Fires immediately
+  // so the celebration is the first thing the driver sees on app open
+  // — no perceptible shell flash before the overlay lands.  An earlier
+  // 250ms setTimeout was added to work around the now-fixed
+  // pointer-events bug on confetti; it added a full second of normal
+  // screen visibility before the overlay covered the shell.
+  checkAndShowPendingRecognition(session).catch((e) => {
+    console.warn("recognition check failed:", e);
+  });
   const path = currentRoute();
   const r = routes[path];
   // Header back button on sub-routes; clear it on top-level tabs.
@@ -7193,51 +7189,14 @@ let _celebrationOpen = false;
 
 async function checkAndShowPendingRecognition(session) {
   if (_celebrationOpen) return;                     // overlay already showing
-  if (!session || !session.token) {
-    _recogDebugBanner("Recognition: no session yet");
-    console.info("[recognition] skipping — no session/token");
-    return;
-  }
+  if (!session || !session.token) return;
   // Idempotency lives server-side on driver_recognitions.dismissed_at —
   // once a driver dismisses an event, the pending lookup returns null,
   // so we never re-paint.
-  _recogDebugBanner("Recognition: checking… (v109)");
-  console.info("[recognition] v109 · checking pending events…");
   const { data, error } = await sb.rpc("driver_recognitions_pending", { p_token: session.token });
-  if (error) {
-    _recogDebugBanner("Recognition error: " + (error.message || "unknown"));
-    console.warn("[recognition] pending fetch failed:", error.message);
-    return;
-  }
-  if (!data || !data.id) {
-    _recogDebugBanner("Recognition: no event pending for this login");
-    console.info("[recognition] no pending event for this driver");
-    return;
-  }
-  _recogDebugBanner("Recognition: showing " + (data.kind || ""));
-  console.info("[recognition] showing event:", data.kind, data.id);
+  if (error)       { console.warn("[recognition] pending fetch failed:", error.message); return; }
+  if (!data || !data.id) return;
   _renderCelebrationOverlay(session, data);
-}
-
-// Visible diagnostic banner — paints a small pill at the top of the
-// screen for a few seconds so the driver can see the recognition
-// check result without opening a browser console.  Removed once the
-// flow is verified.
-function _recogDebugBanner(text) {
-  try {
-    const old = document.getElementById("rr-recog-debug");
-    if (old) old.remove();
-    const el = document.createElement("div");
-    el.id = "rr-recog-debug";
-    el.textContent = String(text || "");
-    el.style.cssText = "position:fixed;top:12px;left:50%;transform:translateX(-50%);"
-      + "z-index:2000;padding:8px 14px;border-radius:999px;"
-      + "background:#0f172a;color:#fff;font-size:13px;font-weight:600;"
-      + "box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:90vw;text-align:center;"
-      + "pointer-events:none;opacity:.95";
-    document.body.appendChild(el);
-    setTimeout(() => { try { el.remove(); } catch {} }, 6000);
-  } catch (e) { /* never let the diagnostic break the app */ }
 }
 
 // Manual debug trigger — open the driver app, then in the browser
@@ -7521,12 +7480,32 @@ function _renderCelebrationOverlay(session, ev) {
     }, reduced ? 0 : 320);
   };
 
-  overlay.addEventListener("click", (e) => {
-    if (e.target.closest("[data-rr-celeb-cta]") || e.target.closest("[data-rr-celeb-close]")) {
-      e.preventDefault();
-      dismiss();
-    }
-  });
+  // Bind dismiss handlers directly to the CTA + close button rather
+  // than relying on a single delegated `click` on the overlay.  The
+  // delegated version was unreliable on iOS — taps on the button
+  // sometimes fired but the closest() lookup walked into a confetti
+  // element (now pointer-events:none, but defence in depth).
+  // touchstart fires before the synthesized click so the button feels
+  // instant; click is the desktop / non-touch fallback.
+  const ctaBtn   = overlay.querySelector("[data-rr-celeb-cta]");
+  const closeBtn = overlay.querySelector("[data-rr-celeb-close]");
+  const fireDismiss = (e) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    dismiss();
+  };
+  if (ctaBtn) {
+    ctaBtn.addEventListener("click",      fireDismiss);
+    ctaBtn.addEventListener("touchstart", fireDismiss, { passive: false });
+  }
+  if (closeBtn) {
+    closeBtn.addEventListener("click",      fireDismiss);
+    closeBtn.addEventListener("touchstart", fireDismiss, { passive: false });
+  }
+  // First-touch anywhere on the overlay also unlocks audio on iOS
+  // Safari for the chime that's queued below (see _playCelebrationChime).
+  overlay.addEventListener("touchstart", _unlockAudioOnGesture, { passive: true, once: true });
+  overlay.addEventListener("click",      _unlockAudioOnGesture, { once: true });
+
   const onKey = (e) => {
     if (e.key === "Escape") {
       document.removeEventListener("keydown", onKey);
@@ -7545,19 +7524,27 @@ function _renderCelebrationOverlay(session, ev) {
 // freshly-created AudioContext that gets garbage-collected when the
 // notes end.
 //
-// Browsers require a user gesture to unlock the audio context.  In the
-// celebration flow the AudioContext is created when the overlay paints
-// — by then the user has tapped the app icon to open the app, which on
-// most platforms counts as a gesture and lets us play immediately.  If
-// any platform rejects (some iOS configs), we silently catch and the
-// overlay keeps working without sound.
+// Browsers require a user gesture to unlock the audio context.  iOS
+// Safari is strict — even though the user tapped the app icon to open
+// the app, that gesture often isn't credited to a JS-created
+// AudioContext.  Strategy:
+//   1. Try to play immediately when the overlay opens.
+//   2. If the context is suspended (Safari), queue a one-shot
+//      touchstart/click listener that resumes + plays on the user's
+//      first interaction with the overlay.
+//
+// We close the context after the chime finishes to free resources.
+let _pendingChime = null;
 function _playCelebrationChime() {
-  try {
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    const ctx = new AC();
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  let ctx;
+  try { ctx = new AC(); } catch (_) { return; }
+
+  const playNow = () => {
+    if (!ctx) return;
     const master = ctx.createGain();
-    master.gain.value = 0.18;                   // soft overall level
+    master.gain.value = 0.22;                   // soft but audible
     master.connect(ctx.destination);
     const start = ctx.currentTime + 0.02;
     // E major triad climbing: E5, G#5, B5.  Each tone uses a quick
@@ -7570,13 +7557,34 @@ function _playCelebrationChime() {
       const t0 = start + i * 0.085;
       gain.gain.setValueAtTime(0.0001, t0);
       gain.gain.exponentialRampToValueAtTime(0.9, t0 + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.8);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.85);
       osc.connect(gain);
       gain.connect(master);
       osc.start(t0);
-      osc.stop(t0 + 0.85);
+      osc.stop(t0 + 0.9);
     });
-    // Close the context shortly after the last note to free resources.
-    setTimeout(() => { try { ctx.close(); } catch (_) {} }, 1500);
-  } catch (_) { /* audio unavailable — overlay still works */ }
+    setTimeout(() => { try { ctx.close(); } catch (_) {} ctx = null; }, 1600);
+    _pendingChime = null;
+  };
+
+  if (ctx.state === "running") {
+    playNow();
+    return;
+  }
+  // Suspended — try to resume.  resume() returns a promise; if it
+  // succeeds, play.  If it doesn't (no gesture credit yet), park the
+  // play function and let _unlockAudioOnGesture (bound to overlay
+  // touchstart/click below) trigger it on first interaction.
+  ctx.resume().then(() => {
+    if (ctx && ctx.state === "running") playNow();
+    else _pendingChime = playNow;
+  }).catch(() => { _pendingChime = playNow; });
+}
+
+function _unlockAudioOnGesture() {
+  if (typeof _pendingChime === "function") {
+    const f = _pendingChime;
+    _pendingChime = null;
+    try { f(); } catch (_) {}
+  }
 }
