@@ -791,6 +791,16 @@ function homeGreeting(date = new Date()) {
 function homeTodayLabel(date = new Date()) {
   return date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
 }
+function pageIntroHtml({ kicker = "RouteReady", title = "", body = "", tone = "calm", meta = "" } = {}) {
+  const safeTone = String(tone || "calm").replace(/[^a-z0-9_-]/gi, "") || "calm";
+  return `
+    <section class="page-intro page-intro-${safeTone}">
+      <div class="page-intro-kicker">${escapeHtml(kicker)}</div>
+      ${title ? `<div class="page-intro-title">${escapeHtml(title)}</div>` : ""}
+      ${body ? `<div class="page-intro-body">${escapeHtml(body)}</div>` : ""}
+      ${meta ? `<div class="page-intro-meta">${escapeHtml(meta)}</div>` : ""}
+    </section>`;
+}
 
 // ── Hash router ─────────────────────────────────────────────────────
 // Top-level tabs: /profile, /schedule, /tasks, /chat.
@@ -1569,7 +1579,12 @@ async function renderSchedule() {
   // wiping the screen for a beat.
   const _hadContent = !!main.querySelector(".shift-card, .empty-state");
   const _skelTimer = _hadContent ? null : setTimeout(() => {
-    if (currentRoute() === "/schedule") main.innerHTML = shiftSkeletonHtml(3);
+    if (currentRoute() === "/schedule") main.innerHTML = pageIntroHtml({
+      kicker: "Schedule",
+      title: "Your next two weeks",
+      body: "Published shifts, swaps, and open routes stay together here.",
+      tone: "schedule"
+    }) + shiftSkeletonHtml(3);
   }, 140);
   const _clearSkel = () => { if (_skelTimer) clearTimeout(_skelTimer); };
 
@@ -1591,7 +1606,12 @@ async function renderSchedule() {
         return;
       }
       _clearSkel();
-      main.innerHTML = `<div class="rr-empty"><div class="rr-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="rr-empty-title">Couldn't load your schedule</div><div class="rr-empty-sub">${escapeHtml(_friendlyError(error, "Pull down to retry."))}</div></div>`;
+      main.innerHTML = pageIntroHtml({
+        kicker: "Schedule",
+        title: "Your next two weeks",
+        body: "Published shifts, swaps, and open routes stay together here.",
+        tone: "schedule"
+      }) + `<div class="rr-empty"><div class="rr-empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><div class="rr-empty-title">Couldn't load your schedule</div><div class="rr-empty-sub">${escapeHtml(_friendlyError(error, "Pull down to retry."))}</div></div>`;
       return;
     }
 
@@ -1652,7 +1672,12 @@ async function renderSchedule() {
       // shifts that aren't showing up. The Cover-offer card still
       // mounts above so a pending offer is visible even on an empty week.
       _clearSkel();
-      main.innerHTML = `
+      main.innerHTML = pageIntroHtml({
+        kicker: "Schedule",
+        title: "No shifts published yet",
+        body: "When dispatch adds shifts or open routes, they’ll appear here automatically.",
+        tone: "schedule"
+      }) + `
         <div id="rr-cover-offer-slot"></div>
         <div class="empty-state" style="padding:48px 20px;text-align:center">
           <div style="font-size:var(--fs-lg);font-weight:600;color:var(--text);margin-bottom:6px">No shifts scheduled</div>
@@ -1667,7 +1692,13 @@ async function renderSchedule() {
     }
 
     _clearSkel();
-    main.innerHTML = `
+    main.innerHTML = pageIntroHtml({
+      kicker: "Schedule",
+      title: todayShifts.length ? "Today is ready" : "Upcoming shifts",
+      body: todayShifts.length ? "Start with today, then review what’s coming next." : "Review your next scheduled routes at a glance.",
+      tone: "schedule",
+      meta: `${shifts.length} shift${shifts.length === 1 ? "" : "s"} published`
+    }) + `
       <div id="rr-cover-offer-slot"></div>
       <div id="rr-swap-incoming-slot"></div>
       ${todayShifts.length ? `
@@ -1692,7 +1723,12 @@ async function renderSchedule() {
     // render and leave main empty.  Surface it instead.
     console.error("renderSchedule failed:", err);
     _clearSkel();
-    main.innerHTML = errorStateHtml("Schedule couldn't load", err);
+    main.innerHTML = pageIntroHtml({
+      kicker: "Schedule",
+      title: "Your next two weeks",
+      body: "Published shifts, swaps, and open routes stay together here.",
+      tone: "schedule"
+    }) + errorStateHtml("Schedule couldn't load", err);
   }
 }
 
@@ -2121,13 +2157,21 @@ function renderTasksHub() {
   // good connections never see it stick, slow enough that flaky
   // networks don't flash a "you're all caught up" message that's
   // about to be replaced by real content.
-  main.innerHTML = `
+  main.innerHTML = pageIntroHtml({
+    kicker: "Tasks",
+    title: "Only what needs attention",
+    body: "Onboarding, forms, documents, coaching, and assignments stay focused here.",
+    tone: "tasks"
+  }) + `
     <div id="rr-tasks-skel">${taskSkeletonHtml(2)}</div>
     <div id="rr-tasks-onboarding-slot"></div>
     <div id="rr-tasks-assignments-slot"></div>
     ${baseCards.map(taskCardHtml).join("")}
     <div id="rr-tasks-forms-slot"></div>
-    <div class="rr-empty-inline" id="rr-tasks-empty" style="padding:48px 20px;color:var(--text-subtle);font-size:var(--fs-md);display:none">Nothing to do right now — you're all set.</div>`;
+    <div class="rr-empty-inline rr-empty-calm" id="rr-tasks-empty" style="display:none">
+      <div class="rr-empty-title">All caught up</div>
+      <div class="rr-empty-sub">Nothing needs your attention right now.</div>
+    </div>`;
   // Skeleton-removal strategy:
   //   • The instant the first real card lands, drop the skeleton.
   //     That avoids the previous "two phantom cards visible above the
@@ -3594,7 +3638,12 @@ async function renderTeam() {
       </div>`;
     }
     _skel += `</div>`;
-    main.innerHTML = _skel;
+    main.innerHTML = pageIntroHtml({
+      kicker: "Team",
+      title: "Your DSP directory",
+      body: "Find teammates quickly without leaving the driver app.",
+      tone: "team"
+    }) + _skel;
   }, 140);
   const _clearSkel = () => { if (_skelTimer) clearTimeout(_skelTimer); };
 
@@ -3606,13 +3655,23 @@ async function renderTeam() {
   _clearSkel();
 
   if (error) {
-    main.innerHTML = `<div class="team-empty"><div class="team-empty-title">Couldn't load the team</div><div class="team-empty-sub">${escapeHtml(error.message || "Try again in a moment.")}</div></div>`;
+    main.innerHTML = pageIntroHtml({
+      kicker: "Team",
+      title: "Your DSP directory",
+      body: "Find teammates quickly without leaving the driver app.",
+      tone: "team"
+    }) + `<div class="team-empty"><div class="team-empty-title">Couldn't load the team</div><div class="team-empty-sub">${escapeHtml(error.message || "Try again in a moment.")}</div></div>`;
     return;
   }
 
   const list = Array.isArray(data) ? data : [];
   if (list.length === 0) {
-    main.innerHTML = `
+    main.innerHTML = pageIntroHtml({
+      kicker: "Team",
+      title: "Your DSP directory",
+      body: "Find teammates quickly without leaving the driver app.",
+      tone: "team"
+    }) + `
       <div class="team-empty">
         <div class="team-empty-title">No teammates yet</div>
         <div class="team-empty-sub">When dispatch adds other drivers to your DSP, they'll show up here so you can reach them.</div>
@@ -3641,7 +3700,12 @@ async function renderTeam() {
     return { d, words };
   });
 
-  main.innerHTML = `
+  main.innerHTML = pageIntroHtml({
+    kicker: "Team",
+    title: `${list.length} teammate${list.length === 1 ? "" : "s"}`,
+    body: "Search by name, station, or phone. Call and text actions hand off to your phone.",
+    tone: "team"
+  }) + `
     <div class="team-search">
       <svg class="team-search-ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input id="team-search-input" class="team-search-input" type="search" placeholder="Search ${list.length} teammates…" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="search" />
@@ -3788,6 +3852,15 @@ function renderProfileHub() {
           <span class="home-action-text"><strong>Dispatch</strong><small>Messages</small></span>
         </button>
       </nav>
+      <section class="home-guidance" aria-label="Today guidance">
+        <div class="home-guidance-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z"/><path d="m9 12 2 2 4-5"/></svg>
+        </div>
+        <div class="home-guidance-body">
+          <div class="home-guidance-title">Your day, simplified</div>
+          <div class="home-guidance-sub">Use the tabs below when you need the full schedule, task list, messages, or team directory.</div>
+        </div>
+      </section>
       <div id="rr-missed-slot" hidden></div>
       <section class="up-next" id="rr-upnext-slot" hidden></section>
     </div>`;
@@ -3930,7 +4003,12 @@ function renderSettings() {
       ${chev}
     </button>`;
 
-  main.innerHTML = `
+  main.innerHTML = pageIntroHtml({
+    kicker: "Settings",
+    title: "Personal details and preferences",
+    body: "Keep your profile, license, availability, and access details up to date.",
+    tone: "settings"
+  }) + `
     <div class="settings-page">
       <section class="settings-section">
         ${row("profile",      "/settings/profile",      "Profile",      "Name, pronouns, contact, emergency contact")}
@@ -3983,7 +4061,12 @@ async function renderSettingsProfile() {
   }
   const v = (s) => escapeHtml(s ?? "");
 
-  main.innerHTML = `
+  main.innerHTML = pageIntroHtml({
+    kicker: "Settings",
+    title: "Personal details and preferences",
+    body: "Keep your profile, license, availability, and access details up to date.",
+    tone: "settings"
+  }) + `
     <div class="settings-page">
       <section class="settings-section">
         <div class="settings-form">
@@ -4107,7 +4190,12 @@ async function renderSettingsLicense(opts) {
       </div>
     </div>`;
 
-  main.innerHTML = `
+  main.innerHTML = pageIntroHtml({
+    kicker: "Settings",
+    title: "Personal details and preferences",
+    body: "Keep your profile, license, availability, and access details up to date.",
+    tone: "settings"
+  }) + `
     <div class="settings-page">
       <section class="settings-section">
         <div class="settings-section-head">
@@ -4236,7 +4324,12 @@ async function renderSettingsPin() {
   }
   const hasPin = prof?.pin_hash === "set";
 
-  main.innerHTML = `
+  main.innerHTML = pageIntroHtml({
+    kicker: "Settings",
+    title: "Personal details and preferences",
+    body: "Keep your profile, license, availability, and access details up to date.",
+    tone: "settings"
+  }) + `
     <div class="settings-page">
       <section class="settings-section">
         <div class="settings-section-head">
