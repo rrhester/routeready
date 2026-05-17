@@ -9304,6 +9304,19 @@ body.rr-cmdk-open{ overflow:hidden }
          Populated by loadOnboardingOps() in live.js.
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-onboarding-ops">
+      <style>
+        /* Skeleton cohort cards painted while loadOnboardingOps()
+           assembles the readiness matrix.  Stack four placeholders
+           that mirror the .card shape so the layout doesn't reflow
+           when the real data lands. */
+        #view-onboarding-ops .onb-skel-grid{display:flex;flex-direction:column;gap:var(--s-3)}
+        #view-onboarding-ops .onb-skel-card{
+          background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+          padding:var(--s-4) var(--s-5);min-height:96px;
+          display:flex;flex-direction:column;gap:var(--s-2-5);
+        }
+        #view-onboarding-ops .onb-skel-card .rr-skel{display:block}
+      </style>
       <div class="page">
         <div class="page-header">
           <div class="page-header-l">
@@ -9321,13 +9334,26 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="subnav-item" data-obsub="builder" onclick="obSub('builder')">Builder</button>
         </div>
 
-        <div id="obsub-overview"><div class="rr-loading">Loading</div></div>
-
-        <div id="obsub-workauth" style="display:none">
-          <div id="rr-i9-queue"><div class="rr-loading">Loading</div></div>
+        <div id="obsub-overview">
+          <!-- Skeleton readiness matrix — 4 cohort cards stacked.
+               Replaced by loadOnboardingOps() once data arrives. -->
+          <div class="onb-skel-grid" aria-busy="true">
+            <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:30%"></span><span class="rr-skel rr-skel-sm" style="width:70%"></span><span class="rr-skel rr-skel-sm" style="width:60%"></span></div>
+            <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:36%"></span><span class="rr-skel rr-skel-sm" style="width:84%"></span><span class="rr-skel rr-skel-sm" style="width:68%"></span></div>
+            <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:28%"></span><span class="rr-skel rr-skel-sm" style="width:76%"></span><span class="rr-skel rr-skel-sm" style="width:54%"></span></div>
+            <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:32%"></span><span class="rr-skel rr-skel-sm" style="width:80%"></span><span class="rr-skel rr-skel-sm" style="width:64%"></span></div>
+          </div>
         </div>
 
-        <div id="obsub-builder" style="display:none"><div class="rr-loading">Loading</div></div>
+        <div id="obsub-workauth" style="display:none">
+          <div id="rr-i9-queue">
+            <div class="rr-loading">Loading work authorization queue</div>
+          </div>
+        </div>
+
+        <div id="obsub-builder" style="display:none">
+          <div class="rr-loading">Loading onboarding builder</div>
+        </div>
       </div>
     </div>
 
