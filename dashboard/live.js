@@ -4215,9 +4215,7 @@ async function loadOnboardingOps(opts) {
   _rosterI9   = new Map(i9All.map((r) => [r.driver_id, r]));
   _rosterProg = new Map((Array.isArray(progRes?.data) ? progRes.data : []).map((r) => [r.driver_id, r]));
   _rosterState = new Map((Array.isArray(stateRes?.data) ? stateRes.data : []).map((r) => [r.driver_id, (r && r.steps) || {}]));
-  if (subEl) subEl.textContent = N
-    ? `${N} driver${N === 1 ? "" : "s"} moving through documents, training, and activation.`
-    : "No one is in onboarding right now. When a new hire arrives, they’ll appear here automatically.";
+  if (subEl) subEl.textContent = N ? `${N} driver${N === 1 ? "" : "s"} in onboarding` : "No one in onboarding right now";
 
   // The matrix is the page.  Sorted urgency-first — compliance risks
   // rise to the top, then ready-to-activate, then due-soon, etc. — so
@@ -4225,15 +4223,6 @@ async function loadOnboardingOps(opts) {
   // separate KPI strip needed.
   const enriched = rows.map(d => ({ d, ob: _obReadiness(d) }));
   const readyCount = enriched.filter(x => x.ob.key === "ready").length;
-  const reviewCount = enriched.filter(x => x.ob.key === "awaiting_review").length;
-  const riskCount = enriched.filter(x => ["compliance_risk", "needs_correction", "due_soon"].includes(x.ob.key)).length;
-  const unreadCount = Array.from((_onbUnreadByDriver || new Map()).values()).reduce((sum, n) => sum + (Number(n) || 0), 0);
-  const setHeroCount = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
-  setHeroCount("rr-onboardops-total", N);
-  setHeroCount("rr-onboardops-ready", readyCount);
-  setHeroCount("rr-onboardops-review", reviewCount);
-  setHeroCount("rr-onboardops-risk", riskCount);
-  setHeroCount("rr-onboardops-unread", unreadCount);
   enriched.sort((a, b) => {
     if (a.ob.weight !== b.ob.weight) return a.ob.weight - b.ob.weight;
     const da = a.d.hire_date ? new Date(a.d.hire_date).getTime() : 0;
