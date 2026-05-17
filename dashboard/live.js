@@ -37071,7 +37071,6 @@ function _otRender(d) {
   if (thresh) thresh.textContent = String(d.threshold_hours ?? 40);
 
   _otRenderStats(d);
-  _otRenderInsights(d.insights || []);
   _otPopulateStations(d.drivers || []);
   _otRenderTable();
 }
