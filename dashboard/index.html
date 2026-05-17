@@ -508,6 +508,7 @@ a{color:inherit;text-decoration:none}
 .nav-item[data-c="fleet"]      {--ni-fg:#FBBF24;--ni-bg:rgba(245,158,11,.10);--ni-bg-strong:rgba(245,158,11,.18)}
 .nav-item[data-c="compliance"] {--ni-fg:#CBD5E1;--ni-bg:rgba(148,163,184,.10);--ni-bg-strong:rgba(148,163,184,.18)}
 .nav-item[data-c="schedule"]   {--ni-fg:#38BDF8;--ni-bg:rgba(14,165,233,.10);--ni-bg-strong:rgba(14,165,233,.18)}
+.nav-item[data-c="overtime"]   {--ni-fg:#FBBF24;--ni-bg:rgba(217,119,6,.12);--ni-bg-strong:rgba(217,119,6,.22)}
 .nav-item[data-c="messages"]   {--ni-fg:#818CF8;--ni-bg:rgba(99,102,241,.10);--ni-bg-strong:rgba(99,102,241,.18)}
 .nav-item[data-c="forms"]      {--ni-fg:#C084FC;--ni-bg:rgba(168,85,247,.10);--ni-bg-strong:rgba(168,85,247,.18)}
 .nav-item[data-c="finances"]   {--ni-fg:#34D399;--ni-bg:rgba(16,185,129,.10);--ni-bg-strong:rgba(16,185,129,.18)}
@@ -717,6 +718,7 @@ a{color:inherit;text-decoration:none}
 .page-icon[data-c="fleet"]      {--pi-fg:#D97706;--pi-bg:rgba(245,158,11,.10);--pi-ring:rgba(245,158,11,.18)}
 .page-icon[data-c="compliance"] {--pi-fg:#475569;--pi-bg:rgba(148,163,184,.10);--pi-ring:rgba(148,163,184,.18)}
 .page-icon[data-c="schedule"]   {--pi-fg:#0284C7;--pi-bg:rgba(14,165,233,.10);--pi-ring:rgba(14,165,233,.18)}
+.page-icon[data-c="overtime"]   {--pi-fg:#B45309;--pi-bg:rgba(217,119,6,.10);--pi-ring:rgba(217,119,6,.20)}
 .page-icon[data-c="messages"]   {--pi-fg:#4F46E5;--pi-bg:rgba(99,102,241,.10);--pi-ring:rgba(99,102,241,.18)}
 .page-icon[data-c="forms"]      {--pi-fg:#9333EA;--pi-bg:rgba(168,85,247,.10);--pi-ring:rgba(168,85,247,.18)}
 .page-icon[data-c="finances"]   {--pi-fg:#059669;--pi-bg:rgba(16,185,129,.10);--pi-ring:rgba(16,185,129,.18)}
@@ -7591,6 +7593,10 @@ body.rr-cmdk-open{ overflow:hidden }
         Schedule
         <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
+      <button class="nav-item" data-view="overtime" data-c="overtime" onclick="goto('overtime')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 15 15"/><path d="M9 2h6"/><path d="M5 5l1.5 1.5"/><path d="M19 5l-1.5 1.5"/></svg></span>
+        Overtime
+      </button>
       <button class="nav-item" data-view="workspaces" data-c="forms" onclick="goto('workspaces')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
         Workspaces
@@ -12113,6 +12119,489 @@ body.rr-cmdk-open{ overflow:hidden }
               </tr>
             </tbody>
           </table>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         OVERTIME INTELLIGENCE
+         · Operational labor-exposure forecasting (NOT payroll).
+         · One RPC → six summary cards, driver table, route-group
+           breakdown, predictive insights, owner mobile snapshot.
+         · Read-only — surfaces signal from existing shifts +
+           driver_checkins + dsps.metadata.scheduling.
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-overtime">
+      <div class="page">
+        <style>
+          /* ── Overtime · scoped design system ─────────────────────────── */
+          #view-overtime{
+            --ot-amber:#B45309;
+            --ot-amber-soft:rgba(217,119,6,.08);
+            --ot-amber-border:rgba(217,119,6,.18);
+            --ot-amber-bright:#F59E0B;
+            --ot-good:var(--green);
+            --ot-good-soft:var(--green-soft);
+            --ot-warn:var(--amber);
+            --ot-warn-soft:var(--amber-soft);
+            --ot-crit:var(--red);
+            --ot-crit-soft:var(--red-soft);
+          }
+          #view-overtime .page-sub{max-width:680px}
+
+          /* ── Owner mobile snapshot · "Bloomberg-lite" command card ─── */
+          #view-overtime .ot-mobile{
+            background:linear-gradient(135deg,#0F172A 0%, #1E293B 100%);
+            color:#E2E8F0;border-radius:var(--r-xl);
+            padding:var(--s-5) var(--s-6);margin-bottom:var(--s-5);
+            position:relative;overflow:hidden;
+            box-shadow:0 10px 28px rgba(15,23,42,.18);
+          }
+          #view-overtime .ot-mobile::before{
+            content:"";position:absolute;inset:0;
+            background:radial-gradient(ellipse 800px 200px at 100% -10%,
+              rgba(245,158,11,.22), transparent 60%);
+            pointer-events:none;
+          }
+          #view-overtime .ot-mobile-head{
+            display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
+            position:relative;z-index:1;margin-bottom:var(--s-4);
+          }
+          #view-overtime .ot-mobile-eyebrow{
+            font-size:10.5px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;
+            color:#FCD34D;display:inline-flex;align-items:center;gap:6px;
+          }
+          #view-overtime .ot-mobile-eyebrow .dot{
+            width:6px;height:6px;border-radius:50%;background:#FCD34D;
+            box-shadow:0 0 0 3px rgba(252,211,77,.22);
+          }
+          #view-overtime .ot-mobile-week{
+            font-size:var(--fs-xs);color:rgba(226,232,240,.65);font-weight:600;letter-spacing:.04em;
+          }
+          #view-overtime .ot-mobile-grid{
+            display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-4);
+            position:relative;z-index:1;
+          }
+          #view-overtime .ot-mobile-cell{display:flex;flex-direction:column;gap:4px;min-width:0}
+          #view-overtime .ot-mobile-label{
+            font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+            color:rgba(226,232,240,.55);line-height:1.2;
+          }
+          #view-overtime .ot-mobile-value{
+            font-family:'Inter Tight','Inter',sans-serif;
+            font-size:24px;font-weight:700;letter-spacing:-.025em;line-height:1.1;
+            color:#F8FAFC;font-variant-numeric:tabular-nums;
+          }
+          #view-overtime .ot-mobile-sub{
+            font-size:var(--fs-xs);color:rgba(226,232,240,.7);font-weight:500;line-height:1.3;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-overtime .ot-mobile-trend{
+            display:inline-flex;align-items:center;gap:3px;
+            font-size:11px;font-weight:700;letter-spacing:.02em;
+            padding:2px 7px;border-radius:999px;
+            background:rgba(248,113,113,.16);color:#FCA5A5;
+          }
+          #view-overtime .ot-mobile-trend.down{background:rgba(74,222,128,.16);color:#86EFAC}
+          #view-overtime .ot-mobile-trend.flat{background:rgba(148,163,184,.18);color:#CBD5E1}
+          #view-overtime .ot-mobile-trend svg{width:11px;height:11px;stroke-width:2.4}
+
+          /* ── KPI cards · same shape as global kpi-card but with amber accent ── */
+          #view-overtime .ot-kpi-grid{
+            display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));
+            gap:var(--s-4);margin-bottom:var(--s-6);
+          }
+          #view-overtime .ot-kpi{
+            position:relative;overflow:hidden;background:var(--surface);
+            border:1px solid var(--border);border-radius:var(--r-lg);
+            padding:var(--s-4) var(--s-5);
+            box-shadow:var(--shadow-sm), var(--highlight-top);
+            transition:border-color var(--t-fast), box-shadow var(--t-smooth), transform var(--t-smooth);
+          }
+          #view-overtime .ot-kpi::before{
+            content:"";position:absolute;top:0;left:0;right:0;height:3px;
+            background:linear-gradient(90deg,#F59E0B,#B45309 70%);
+            border-top-left-radius:var(--r-lg);border-top-right-radius:var(--r-lg);
+          }
+          #view-overtime .ot-kpi.good::before{background:linear-gradient(90deg,#10B981,#059669)}
+          #view-overtime .ot-kpi.crit::before{background:linear-gradient(90deg,#F87171,#DC2626)}
+          #view-overtime .ot-kpi:hover{border-color:var(--ot-amber-border);transform:translateY(-1px)}
+          #view-overtime .ot-kpi-label{
+            font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
+            letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-3);
+            display:flex;align-items:center;gap:var(--s-2);line-height:1.2;
+          }
+          #view-overtime .ot-kpi-value{
+            font-family:'Inter Tight','Inter',sans-serif;
+            font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.05;
+            color:var(--text);font-variant-numeric:tabular-nums;
+          }
+          #view-overtime .ot-kpi-value-suffix{
+            font-size:14px;font-weight:600;color:var(--text-muted);margin-left:4px;letter-spacing:0;
+          }
+          #view-overtime .ot-kpi-sub{
+            margin-top:var(--s-2);font-size:var(--fs-sm);color:var(--text-subtle);
+            line-height:1.4;display:flex;align-items:center;gap:var(--s-2);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-overtime .ot-kpi-delta{
+            font-size:11px;font-weight:700;letter-spacing:.02em;
+            padding:2px 7px;border-radius:999px;
+            background:var(--ot-warn-soft);color:var(--amber-dark);
+          }
+          #view-overtime .ot-kpi-delta.down{background:var(--ot-good-soft);color:var(--green-dark)}
+          #view-overtime .ot-kpi-delta.flat{background:var(--canvas);color:var(--text-subtle)}
+
+          /* ── Insights row ──────────────────────────────────────────── */
+          #view-overtime .ot-insights{
+            display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+            gap:var(--s-3);margin-bottom:var(--s-6);
+          }
+          #view-overtime .ot-insight{
+            background:var(--surface);border:1px solid var(--border);
+            border-left:3px solid var(--ot-amber-bright);
+            border-radius:var(--r-md);
+            padding:var(--s-3-5) var(--s-4);
+            display:flex;flex-direction:column;gap:6px;
+            transition:border-color var(--t-fast), box-shadow var(--t-fast);
+          }
+          #view-overtime .ot-insight.sev-high{border-left-color:var(--ot-crit)}
+          #view-overtime .ot-insight.sev-med{border-left-color:var(--ot-amber-bright)}
+          #view-overtime .ot-insight.sev-good{border-left-color:var(--ot-good)}
+          #view-overtime .ot-insight.sev-info{border-left-color:var(--accent)}
+          #view-overtime .ot-insight:hover{box-shadow:var(--shadow-sm)}
+          #view-overtime .ot-insight-title{
+            font-size:var(--fs-md);font-weight:700;color:var(--text);
+            letter-spacing:-.005em;line-height:1.3;
+          }
+          #view-overtime .ot-insight-body{
+            font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;
+          }
+          #view-overtime .ot-insight-tag{
+            display:inline-flex;align-items:center;gap:5px;
+            font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+            color:var(--text-subtle);
+          }
+          #view-overtime .ot-insight-tag .dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+
+          #view-overtime .ot-section{margin-bottom:var(--s-6)}
+          #view-overtime .ot-section-head{
+            display:flex;justify-content:space-between;align-items:baseline;
+            margin-bottom:var(--s-3);gap:var(--s-3);
+          }
+          #view-overtime .ot-section-title{
+            font-family:'Inter Tight','Inter',sans-serif;
+            font-size:var(--fs-md);font-weight:700;color:var(--text);
+            letter-spacing:-.005em;line-height:1.2;margin:0;
+          }
+          #view-overtime .ot-section-sub{
+            font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;
+            letter-spacing:.005em;font-weight:500;
+          }
+
+          /* ── Driver table ──────────────────────────────────────────── */
+          #view-overtime .ot-table-wrap{
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--r-xl);overflow:hidden;
+          }
+          #view-overtime .ot-table{width:100%;border-collapse:collapse}
+          #view-overtime .ot-table thead th{
+            text-align:left;padding:var(--s-2-5) var(--s-3-5);
+            background:var(--canvas);
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;
+            text-transform:uppercase;color:var(--text-subtle);
+            border-bottom:1px solid var(--border-subtle);white-space:nowrap;
+          }
+          #view-overtime .ot-table thead th.num{text-align:right}
+          #view-overtime .ot-table tbody tr{
+            border-top:1px solid var(--border-subtle);
+            transition:background var(--t-fast);position:relative;cursor:pointer;
+          }
+          #view-overtime .ot-table tbody tr:first-child{border-top:none}
+          #view-overtime .ot-table tbody tr:hover{background:var(--surface-hover)}
+          #view-overtime .ot-table tbody tr::before{
+            content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent;
+          }
+          #view-overtime .ot-table tbody tr.risk-active::before{background:var(--ot-crit)}
+          #view-overtime .ot-table tbody tr.risk-high::before{background:var(--ot-amber-bright)}
+          #view-overtime .ot-table tbody tr.risk-watch::before{background:var(--accent)}
+          #view-overtime .ot-table tbody tr.risk-active{background:rgba(225,29,72,.025)}
+          #view-overtime .ot-table tbody tr.risk-active:hover{background:rgba(225,29,72,.05)}
+          #view-overtime .ot-table td{
+            padding:var(--s-3) var(--s-3-5);font-size:var(--fs-md);color:var(--text);
+            vertical-align:middle;line-height:1.4;
+          }
+          #view-overtime .ot-table td:first-child{padding-left:var(--s-4)}
+          #view-overtime .ot-table td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+          #view-overtime .ot-table td .driver-name{font-weight:600;color:var(--text)}
+          #view-overtime .ot-table td .driver-meta{
+            color:var(--text-subtle);font-size:var(--fs-xs);font-weight:500;
+            display:block;margin-top:2px;letter-spacing:.005em;
+          }
+
+          /* Risk pill */
+          #view-overtime .ot-pill{
+            display:inline-flex;align-items:center;gap:5px;
+            padding:3px 9px;border-radius:999px;
+            font-size:10px;font-weight:700;letter-spacing:.06em;
+            text-transform:uppercase;white-space:nowrap;border:1px solid transparent;
+          }
+          #view-overtime .ot-pill .dot{width:5px;height:5px;border-radius:50%}
+          #view-overtime .ot-pill.safe{background:var(--canvas);color:var(--text-muted);border-color:var(--border)}
+          #view-overtime .ot-pill.safe .dot{background:var(--text-subtle)}
+          #view-overtime .ot-pill.watch{background:var(--accent-soft);color:var(--accent-text)}
+          #view-overtime .ot-pill.watch .dot{background:var(--accent)}
+          #view-overtime .ot-pill.high{background:var(--ot-warn-soft);color:var(--amber-dark)}
+          #view-overtime .ot-pill.high .dot{background:var(--ot-amber-bright)}
+          #view-overtime .ot-pill.active{background:var(--ot-crit-soft);color:var(--ot-crit)}
+          #view-overtime .ot-pill.active .dot{background:var(--ot-crit)}
+
+          /* Driver contributors mini-chips */
+          #view-overtime .ot-chips{
+            display:flex;flex-wrap:wrap;gap:4px;
+          }
+          #view-overtime .ot-chip{
+            display:inline-flex;align-items:center;gap:4px;
+            font-size:11px;font-weight:600;letter-spacing:.02em;
+            padding:2px 8px;border-radius:var(--r-sm);
+            background:var(--canvas);color:var(--text-muted);
+            border:1px solid var(--border);
+            white-space:nowrap;
+          }
+          #view-overtime .ot-chip.rescues{background:var(--ot-amber-soft);color:var(--ot-amber);border-color:var(--ot-amber-border)}
+          #view-overtime .ot-chip.late{background:var(--accent-soft);color:var(--accent-text);border-color:transparent}
+          #view-overtime .ot-chip.over{background:var(--ot-crit-soft);color:var(--ot-crit);border-color:transparent}
+
+          /* Projected hours mini-bar */
+          #view-overtime .ot-hours-bar{
+            width:96px;height:6px;border-radius:99px;background:var(--canvas);
+            position:relative;overflow:hidden;margin-top:5px;margin-left:auto;
+          }
+          #view-overtime .ot-hours-bar-fill{
+            position:absolute;left:0;top:0;bottom:0;border-radius:99px;
+            background:var(--accent);transition:width var(--t-smooth);
+          }
+          #view-overtime .ot-hours-bar-fill.warn{background:var(--ot-amber-bright)}
+          #view-overtime .ot-hours-bar-fill.crit{background:var(--ot-crit)}
+          #view-overtime .ot-hours-bar-thresh{
+            position:absolute;top:-2px;bottom:-2px;width:2px;
+            background:var(--text-subtle);opacity:.5;
+          }
+
+          /* Expandable detail drawer */
+          #view-overtime .ot-detail-row{display:none;background:var(--canvas)}
+          #view-overtime .ot-detail-row.is-open{display:table-row}
+          #view-overtime .ot-detail{
+            padding:var(--s-4) var(--s-5);
+            display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+            gap:var(--s-3-5);
+          }
+          #view-overtime .ot-detail-cell{
+            display:flex;flex-direction:column;gap:4px;
+            background:var(--surface);border:1px solid var(--border-subtle);
+            border-radius:var(--r-md);padding:var(--s-3);
+          }
+          #view-overtime .ot-detail-label{
+            font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+            color:var(--text-subtle);
+          }
+          #view-overtime .ot-detail-value{
+            font-family:'Inter Tight','Inter',sans-serif;
+            font-size:18px;font-weight:700;color:var(--text);
+            font-variant-numeric:tabular-nums;letter-spacing:-.01em;
+          }
+          #view-overtime .ot-detail-note{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.4}
+
+          /* Route group block */
+          #view-overtime .ot-routes{
+            display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));
+            gap:var(--s-3);
+          }
+          #view-overtime .ot-route{
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--r-md);padding:var(--s-3) var(--s-4);
+            display:flex;flex-direction:column;gap:6px;
+          }
+          #view-overtime .ot-route-code{
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+            font-size:15px;font-weight:700;color:var(--text);letter-spacing:.02em;
+          }
+          #view-overtime .ot-route-hrs{
+            font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+          }
+          #view-overtime .ot-route-bar{
+            height:5px;border-radius:99px;background:var(--canvas);position:relative;overflow:hidden;
+          }
+          #view-overtime .ot-route-bar-fill{
+            position:absolute;inset:0 auto 0 0;background:var(--ot-amber-bright);border-radius:99px;
+          }
+
+          /* Empty + loading */
+          #view-overtime .ot-empty{
+            background:var(--surface);border:1px dashed var(--border-strong);
+            border-radius:var(--r-xl);padding:var(--s-10) var(--s-6);text-align:center;
+            color:var(--text-muted);
+          }
+          #view-overtime .ot-empty .ic{
+            width:48px;height:48px;border-radius:var(--r-xl);margin:0 auto var(--s-3-5);
+            display:flex;align-items:center;justify-content:center;color:var(--ot-good);
+            background:var(--ot-good-soft);border:1px solid var(--green-border);
+          }
+          #view-overtime .ot-empty h3{
+            margin:0 0 6px;font-family:'Inter Tight','Inter',sans-serif;
+            font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;
+          }
+          #view-overtime .ot-empty p{margin:0 auto;max-width:520px;font-size:var(--fs-md);line-height:1.5}
+
+          #view-overtime .ot-skel{
+            height:14px;border-radius:var(--r-sm);background:var(--canvas);
+            position:relative;overflow:hidden;
+          }
+          #view-overtime .ot-skel::after{
+            content:"";position:absolute;inset:0;
+            background:linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent);
+            transform:translateX(-100%);
+            animation:otShimmer 1.4s ease-in-out infinite;
+          }
+          @keyframes otShimmer{to{transform:translateX(100%)}}
+
+          /* ── Mobile · stack everything, shrink type ─────────────────── */
+          @media (max-width: 880px) {
+            #view-overtime .ot-kpi-grid{grid-template-columns:repeat(2, minmax(0,1fr))}
+            #view-overtime .ot-mobile-grid{grid-template-columns:repeat(2, minmax(0,1fr));gap:var(--s-3) var(--s-4)}
+            #view-overtime .ot-mobile{padding:var(--s-4) var(--s-4-5)}
+            #view-overtime .ot-mobile-value{font-size:22px}
+            #view-overtime .ot-kpi-value{font-size:24px}
+            #view-overtime .ot-table thead th.col-station,
+            #view-overtime .ot-table tbody td.col-station,
+            #view-overtime .ot-table thead th.col-remaining,
+            #view-overtime .ot-table tbody td.col-remaining,
+            #view-overtime .ot-table thead th.col-contrib,
+            #view-overtime .ot-table tbody td.col-contrib{display:none}
+            #view-overtime .ot-table td, #view-overtime .ot-table thead th{padding-left:var(--s-3);padding-right:var(--s-3)}
+            #view-overtime .ot-detail{grid-template-columns:repeat(2, minmax(0,1fr))}
+          }
+          @media (max-width: 520px) {
+            #view-overtime .ot-kpi-grid{grid-template-columns:1fr}
+            #view-overtime .ot-mobile-grid{grid-template-columns:repeat(2, minmax(0,1fr))}
+            #view-overtime .ot-table thead th.col-cost,
+            #view-overtime .ot-table tbody td.col-cost{display:none}
+          }
+        </style>
+
+        <div class="page-header">
+          <div class="page-header-l">
+            <div class="page-icon" data-c="overtime"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 15 15"/><path d="M9 2h6"/><path d="M5 5l1.5 1.5"/><path d="M19 5l-1.5 1.5"/></svg></div>
+            <div>
+              <h1 class="page-title">Overtime Intelligence</h1>
+              <p class="page-sub" id="rr-ot-page-sub">Operational labor exposure for the week — projected from real check-ins, schedule, and rescue activity. Not payroll.</p>
+            </div>
+          </div>
+          <div class="page-actions">
+            <button class="btn btn-ghost btn-icon" id="rr-ot-refresh" title="Refresh" aria-label="Refresh">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Owner mobile / glanceable snapshot -->
+        <div class="ot-mobile" id="rr-ot-mobile" hidden>
+          <div class="ot-mobile-head">
+            <span class="ot-mobile-eyebrow"><span class="dot"></span> This week · OT exposure</span>
+            <span class="ot-mobile-week" id="rr-ot-mobile-week">—</span>
+          </div>
+          <div class="ot-mobile-grid">
+            <div class="ot-mobile-cell">
+              <div class="ot-mobile-label">Exposure</div>
+              <div class="ot-mobile-value" id="rr-ot-mobile-exposure">—</div>
+              <div class="ot-mobile-sub" id="rr-ot-mobile-exposure-sub">Projected OT premium</div>
+            </div>
+            <div class="ot-mobile-cell">
+              <div class="ot-mobile-label">At risk</div>
+              <div class="ot-mobile-value" id="rr-ot-mobile-risk">—</div>
+              <div class="ot-mobile-sub" id="rr-ot-mobile-risk-sub">Drivers trending into OT</div>
+            </div>
+            <div class="ot-mobile-cell">
+              <div class="ot-mobile-label">Top contributor</div>
+              <div class="ot-mobile-value" id="rr-ot-mobile-top" style="font-size:18px">—</div>
+              <div class="ot-mobile-sub" id="rr-ot-mobile-top-sub">—</div>
+            </div>
+            <div class="ot-mobile-cell">
+              <div class="ot-mobile-label">Trend</div>
+              <div class="ot-mobile-value" id="rr-ot-mobile-trend-val">—</div>
+              <div class="ot-mobile-sub" id="rr-ot-mobile-trend-sub">vs prior week</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary KPI strip -->
+        <div class="ot-kpi-grid" id="rr-ot-kpis">
+          <div class="ot-kpi">
+            <div class="ot-kpi-label">Drivers projected OT</div>
+            <div class="ot-skel" style="width:50%;height:28px"></div>
+            <div class="ot-kpi-sub"><div class="ot-skel" style="width:70%"></div></div>
+          </div>
+          <div class="ot-kpi">
+            <div class="ot-kpi-label">Estimated OT hours</div>
+            <div class="ot-skel" style="width:50%;height:28px"></div>
+            <div class="ot-kpi-sub"><div class="ot-skel" style="width:70%"></div></div>
+          </div>
+          <div class="ot-kpi">
+            <div class="ot-kpi-label">Estimated OT exposure</div>
+            <div class="ot-skel" style="width:50%;height:28px"></div>
+            <div class="ot-kpi-sub"><div class="ot-skel" style="width:70%"></div></div>
+          </div>
+          <div class="ot-kpi">
+            <div class="ot-kpi-label">Trend vs last week</div>
+            <div class="ot-skel" style="width:50%;height:28px"></div>
+            <div class="ot-kpi-sub"><div class="ot-skel" style="width:70%"></div></div>
+          </div>
+        </div>
+
+        <!-- Insights -->
+        <div class="ot-section" id="rr-ot-insights-section" hidden>
+          <div class="ot-section-head">
+            <h2 class="ot-section-title">Predictive insights</h2>
+            <span class="ot-section-sub">Auto-generated from this week's data · Refreshes each load</span>
+          </div>
+          <div class="ot-insights" id="rr-ot-insights"></div>
+        </div>
+
+        <!-- Route group breakdown -->
+        <div class="ot-section" id="rr-ot-routes-section" hidden>
+          <div class="ot-section-head">
+            <h2 class="ot-section-title">OT by route group</h2>
+            <span class="ot-section-sub">Which work is producing premium hours</span>
+          </div>
+          <div class="ot-routes" id="rr-ot-routes"></div>
+        </div>
+
+        <!-- Driver intelligence table -->
+        <div class="ot-section">
+          <div class="ot-section-head">
+            <h2 class="ot-section-title">Driver overtime forecast</h2>
+            <span class="ot-section-sub">Tap a row for the breakdown · Threshold <span id="rr-ot-threshold">40</span> h</span>
+          </div>
+          <div class="ot-table-wrap">
+            <table class="ot-table">
+              <thead>
+                <tr>
+                  <th>Driver</th>
+                  <th class="col-station">Station</th>
+                  <th class="num">Worked</th>
+                  <th class="num col-remaining">Remaining</th>
+                  <th class="num">Projected</th>
+                  <th>Risk</th>
+                  <th class="col-contrib">OT drivers</th>
+                  <th class="num col-cost">Cost impact</th>
+                </tr>
+              </thead>
+              <tbody id="rr-ot-tbody">
+                <tr><td colspan="8" style="padding:var(--s-6)"><div class="rr-loading">Loading overtime intelligence</div></td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
       </div>
@@ -17229,6 +17718,7 @@ John,Smith,555-0101,john@example.com</code>
       fleet: 'Fleet',
       compliance: 'Compliance',
       schedule: 'Schedule',
+      overtime: 'Overtime Intelligence',
       outlook: 'Staffing outlook',
       analytics: 'Analytics',
       okami: 'OKAMI',
@@ -17251,6 +17741,7 @@ John,Smith,555-0101,john@example.com</code>
       fleet: 'Van roster · drivers · service history',
       compliance: 'Live operational risk · continuous monitoring across fleet, drivers, vendors, DOT',
       schedule: 'Week of May 1–7 · 5 pending approvals',
+      overtime: 'Operational labor exposure · projected before payroll closes',
       okami: '13-week strategic capacity plan',
       messages: '7 unread · 12 active drivers',
       workspaces: 'Operational boards · assign to drivers, track to done',
