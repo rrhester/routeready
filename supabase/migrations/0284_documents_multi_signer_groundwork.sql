@@ -26,6 +26,14 @@
 
 -- 1. Enum value — Postgres lets us add but not drop in-place, and the
 -- ADD VALUE is itself idempotent via the IF NOT EXISTS clause.
+--
+-- ⚠️ Postgres won't let a new enum value be referenced in the SAME
+-- transaction it was added (see 55P04 "New enum values must be
+-- committed before they can be used"). The Supabase SQL Editor runs
+-- a whole script as one transaction, so when applying this manually
+-- run THIS statement on its own first, then run the rest of the
+-- migration as a second click. The split companion 0284a holds the
+-- everything-else half so a clean re-bootstrap also works.
 alter type public.document_envelope_status add value if not exists 'awaiting_employer' before 'signed';
 
 -- 2. Envelope columns for the employer-side signing leg.
