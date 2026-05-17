@@ -997,9 +997,31 @@ function _renderEmailRow(r) {
     </div>`;
 }
 
+// Skeleton card matching the .pa-card geometry — header (avatar +
+// name/meta) plus a summary band of three label/value columns.  Used
+// while the pipeline_list RPC is in flight so stage switches don't
+// flash the previous stage's rows.
+const _PA_SKEL_CARD = `
+  <div class="pa-skel-card">
+    <div class="pa-skel-stage"><span class="rr-skel rr-skel-sm" style="width:74px"></span><span class="rr-skel rr-skel-sm" style="width:54px"></span></div>
+    <div class="pa-skel-body">
+      <div class="pa-skel-header"><span class="rr-skel rr-skel-circle" style="width:36px;height:36px;flex:0 0 auto"></span><div class="pa-skel-headtext"><span class="rr-skel rr-skel-md" style="width:62%"></span><span class="rr-skel rr-skel-sm" style="width:78%"></span></div></div>
+    </div>
+    <div class="pa-skel-summary">
+      <div class="pa-skel-col"><span class="rr-skel rr-skel-sm" style="width:60%"></span><span class="rr-skel rr-skel-md" style="width:84%"></span></div>
+      <div class="pa-skel-col"><span class="rr-skel rr-skel-sm" style="width:54%"></span><span class="rr-skel rr-skel-md" style="width:72%"></span></div>
+      <div class="pa-skel-col"><span class="rr-skel rr-skel-sm" style="width:64%"></span><span class="rr-skel rr-skel-md" style="width:90%"></span></div>
+    </div>
+  </div>`;
+
 async function loadPipeline(stage = "all") {
   const list = $("#pipe-applicants");
   if (!list) return;
+
+  // Paint the skeleton before the RPC so a stage switch never flashes
+  // the previous stage's rows.  Stale data is also cleared when the
+  // operator changes tabs.
+  list.innerHTML = `${_PA_SKEL_CARD}${_PA_SKEL_CARD}${_PA_SKEL_CARD}${_PA_SKEL_CARD}`;
 
   const [{ data: rows, error }, { data: counts }] = await Promise.all([
     sb.rpc("pipeline_list", { p_stage: stage, p_limit: 200 }),
