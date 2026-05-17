@@ -6971,20 +6971,19 @@ async function loadCheckinView() {
   // without manually navigating.
   const horizonIso = fmtIsoDate(addDays(new Date(), 7));
 
-  const [driversRes, shiftsRes, otRes] = await Promise.all([
+  const [driversRes, shiftsRes] = await Promise.all([
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, phone, station:station_id (code), tier")
       .eq("dsp_id", dspId)
       .eq("status", "active")
       .eq("role", "driver"),
     sb.from("shifts")
-      .select("id, driver_id, status, date, block_hours, starts_at, ends_at")
+      .select("id, driver_id, status, date")
       .eq("dsp_id", dspId)
       .gte("date", todayIso)
       .lte("date", horizonIso)
       .not("driver_id", "is", null)
       .order("date", { ascending: true }),
-    sb.rpc("overtime_intelligence"),
   ]);
 
   if (driversRes.error || shiftsRes.error) {
@@ -6993,13 +6992,6 @@ async function loadCheckinView() {
   }
   const drivers = driversRes.data || [];
   const allShifts = shiftsRes.data  || [];
-
-  // OT headroom lookup. RPC failure is non-fatal — the roster still renders.
-  const otThreshold = Number(otRes?.data?.threshold_hours) || 40;
-  const otWorkedByDriver = new Map();
-  for (const r of (otRes?.data?.drivers || [])) {
-    otWorkedByDriver.set(r.driver_id, Number(r.worked_hours) || 0);
-  }
 
   // Pick target date: today if it has shifts, otherwise earliest day with any.
   const todayShifts = allShifts.filter(sh => sh.date === todayIso);
@@ -7040,31 +7032,6 @@ async function loadCheckinView() {
         const active = ciKey === key ? " active" : "";
         return `<button type="button" class="status-btn s-${key}${active}" data-rr-ci-shift="${sh.id}" data-rr-ci-status="${key}" title="${title}">${svg}</button>`;
       };
-      // OT headroom — week-to-date worked vs. threshold, with a flag if
-      // today's planned block would tip them over. Worked hours come from
-      // overtime_intelligence(), which clamps in-progress shifts to now()
-      // so future-only weeks read 0.
-      const otWorked = otWorkedByDriver.get(d.id) || 0;
-      const todayBlock = (() => {
-        if (sh.block_hours != null) return Number(sh.block_hours);
-        if (sh.starts_at && sh.ends_at) {
-          const h = (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000;
-          return h > 0 ? h : 10;
-        }
-        return 10;
-      })();
-      const headroom = otThreshold - otWorked;
-      const afterToday = headroom - todayBlock;
-      const headroomCell = (() => {
-        if (headroom <= 0) {
-          return `<div class="checkin-headroom is-ot" title="Worked ${otWorked.toFixed(1)}h of ${otThreshold}h this week">in OT now</div>`;
-        }
-        const left = `${headroom.toFixed(1)}h left`;
-        if (afterToday < 0) {
-          return `<div class="checkin-headroom is-warn" title="Worked ${otWorked.toFixed(1)}h · today's ${todayBlock.toFixed(1)}h shift pushes over ${otThreshold}h">${left} · into OT after today</div>`;
-        }
-        return `<div class="checkin-headroom">${left}</div>`;
-      })();
       return `<div class="checkin-row${markedClass}" data-name="${escapeHtml(initials)}">
         <div class="checkin-driver">
           <div class="avatar-sm ${tier}">${initials}</div>
@@ -7074,7 +7041,6 @@ async function loadCheckinView() {
           </div>
         </div>
         <div class="checkin-station">${escapeHtml(station)}</div>
-        ${headroomCell}
         <div class="status-row">
           ${btn("present", "Present", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>')}
           ${btn("late",    "Late",    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>')}
@@ -8637,15 +8603,23 @@ async function _refreshTodayPlanData() {
   // Attendance is today-only (it reads live clock-ins).  Skip the call
   // when the operator is viewing a future day; the renderer will draw
   // a planning-mode header instead.
-  const [attRes, rosterRes] = await Promise.allSettled([
+  //
+  // overtime_intelligence() drives the "until OT" sub-line on each
+  // roster row. Pulled in parallel; a failure here just hides the line.
+  const [attRes, rosterRes, otRes] = await Promise.allSettled([
     isToday ? sb.rpc("today_attendance") : Promise.resolve({ data: null, error: null }),
     sb.rpc("today_roster", { p_date: viewIso }),
+    sb.rpc("overtime_intelligence"),
   ]);
 
   const attData    = (attRes.status === "fulfilled"    ? attRes.value.data    : null);
   const attError   = (attRes.status === "fulfilled"    ? attRes.value.error   : attRes.reason);
   const rosterData = (rosterRes.status === "fulfilled" ? rosterRes.value.data : null);
   const rosterError= (rosterRes.status === "fulfilled" ? rosterRes.value.error: rosterRes.reason);
+  const otData     = (otRes.status === "fulfilled"     ? otRes.value.data     : null);
+  if (otRes.status === "fulfilled" && otRes.value.error) {
+    console.warn("today plan · overtime_intelligence:", otRes.value.error);
+  }
 
   if (attData) _tpCacheWrite(_TP_CACHE_KEYS.att, attData);
 
@@ -8655,8 +8629,8 @@ async function _refreshTodayPlanData() {
   try { _renderTpMeta(attData, rosterData); } catch (e) { console.warn("tp meta:", e); }
 
   // The single unified roster card replaces the old four-card layout.
-  try { _renderTpUnifiedRoster(attData, rosterData, attError || rosterError); }
-  catch (e) { console.error("today plan · unified render failed:", e); _renderTpUnifiedRoster(null, null, e); }
+  try { _renderTpUnifiedRoster(attData, rosterData, attError || rosterError, otData); }
+  catch (e) { console.error("today plan · unified render failed:", e); _renderTpUnifiedRoster(null, null, e, null); }
 
   // Orphaned ride-alongs (trainer called off / shift moved while a trainee
   // was paired with them). Surface only on the today/future view, not on
@@ -9260,9 +9234,38 @@ function _renderTpMeta(attData, rosterData) {
     </div>`;
 }
 
-function _renderTpUnifiedRoster(attData, rosterData, error) {
+function _renderTpUnifiedRoster(attData, rosterData, error, otData) {
   const wrap = document.getElementById("rr-tp-roster");
   if (!wrap) return;
+
+  // OT headroom lookup. otData is the overtime_intelligence() jsonb;
+  // a null payload (RPC error, viewer not a dispatcher, etc.) just
+  // suppresses the sub-line on each row.
+  const otThreshold = Number(otData?.threshold_hours) || 40;
+  const otWorkedByDriver = new Map();
+  for (const r of (otData?.drivers || [])) {
+    otWorkedByDriver.set(r.driver_id, Number(r.worked_hours) || 0);
+  }
+  const otHeadroomLine = (r) => {
+    if (!otData) return "";
+    const worked = otWorkedByDriver.get(r.driver_id) || 0;
+    const todayBlock = (() => {
+      if (r.starts_at && r.ends_at) {
+        const h = (new Date(r.ends_at) - new Date(r.starts_at)) / 3600000;
+        if (h > 0) return h;
+      }
+      return 10;
+    })();
+    const headroom = otThreshold - worked;
+    if (headroom <= 0) {
+      return `<div class="tp-ot-headroom is-ot" title="Worked ${worked.toFixed(1)}h of ${otThreshold}h this week">in OT now</div>`;
+    }
+    const left = `${headroom.toFixed(1)}h until OT`;
+    if (headroom - todayBlock < 0) {
+      return `<div class="tp-ot-headroom is-warn" title="Worked ${worked.toFixed(1)}h · today's ${todayBlock.toFixed(1)}h shift pushes over ${otThreshold}h">${left} · into OT after today</div>`;
+    }
+    return `<div class="tp-ot-headroom">${left}</div>`;
+  };
 
   // Future-day planning mode: no attendance clock-ins yet, so the
   // attendance card is meaningless.  Synthesize stub attendance rows
@@ -9427,6 +9430,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
           <div style="min-width:0;flex:1">
             <div style="font-weight:600;display:flex;align-items:center;flex-wrap:wrap" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}${tierChip(r.tier)}${exTag(r)}</div>
             ${shiftMeta ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${shiftMeta}</div>` : ""}
+            ${otHeadroomLine(r)}
           </div>
         </div>
       </td>
