@@ -7191,26 +7191,50 @@ let _celebrationOpen = false;
 async function checkAndShowPendingRecognition(session) {
   if (_celebrationOpen) return;                     // overlay already showing
   if (!session || !session.token) {
+    _recogDebugBanner("Recognition: no session yet");
     console.info("[recognition] skipping — no session/token");
     return;
   }
   // Idempotency lives server-side on driver_recognitions.dismissed_at —
   // once a driver dismisses an event, the pending lookup returns null,
-  // so we never re-paint.  An earlier version added a sessionStorage
-  // skip flag here that could trap stale "skip" state across reloads —
-  // removed; the server-side dismissed_at is the canonical guard.
-  console.info("[recognition] v108 · checking pending events…");
+  // so we never re-paint.
+  _recogDebugBanner("Recognition: checking… (v109)");
+  console.info("[recognition] v109 · checking pending events…");
   const { data, error } = await sb.rpc("driver_recognitions_pending", { p_token: session.token });
   if (error) {
+    _recogDebugBanner("Recognition error: " + (error.message || "unknown"));
     console.warn("[recognition] pending fetch failed:", error.message);
     return;
   }
   if (!data || !data.id) {
+    _recogDebugBanner("Recognition: no event pending for this login");
     console.info("[recognition] no pending event for this driver");
     return;
   }
+  _recogDebugBanner("Recognition: showing " + (data.kind || ""));
   console.info("[recognition] showing event:", data.kind, data.id);
   _renderCelebrationOverlay(session, data);
+}
+
+// Visible diagnostic banner — paints a small pill at the top of the
+// screen for a few seconds so the driver can see the recognition
+// check result without opening a browser console.  Removed once the
+// flow is verified.
+function _recogDebugBanner(text) {
+  try {
+    const old = document.getElementById("rr-recog-debug");
+    if (old) old.remove();
+    const el = document.createElement("div");
+    el.id = "rr-recog-debug";
+    el.textContent = String(text || "");
+    el.style.cssText = "position:fixed;top:12px;left:50%;transform:translateX(-50%);"
+      + "z-index:2000;padding:8px 14px;border-radius:999px;"
+      + "background:#0f172a;color:#fff;font-size:13px;font-weight:600;"
+      + "box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:90vw;text-align:center;"
+      + "pointer-events:none;opacity:.95";
+    document.body.appendChild(el);
+    setTimeout(() => { try { el.remove(); } catch {} }, 6000);
+  } catch (e) { /* never let the diagnostic break the app */ }
 }
 
 // Manual debug trigger — open the driver app, then in the browser
