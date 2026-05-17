@@ -3186,6 +3186,39 @@ function _wireRosterBulk() {
   document.getElementById("rr-roster-export-btn")?.addEventListener("click", () => {
     document.getElementById("rr-roster-bulk-export")?.click();
   });
+
+  // Add driver ▾ — toggle a popover with Add / Bulk import.  Closes
+  // on outside click, Escape, or after picking a menu item.
+  const addBtn = document.getElementById("rr-roster-add-btn");
+  const addMenu = document.getElementById("rr-roster-add-menu");
+  if (addBtn && addMenu) {
+    const closeAddMenu = () => {
+      addMenu.classList.remove("open");
+      addBtn.setAttribute("aria-expanded", "false");
+    };
+    addBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const willOpen = !addMenu.classList.contains("open");
+      addMenu.classList.toggle("open", willOpen);
+      addBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    });
+    addMenu.addEventListener("click", (e) => {
+      const item = e.target.closest("[data-rr-add-action]");
+      if (!item) return;
+      const action = item.getAttribute("data-rr-add-action");
+      closeAddMenu();
+      if (action === "single") openModal("modal-add-driver");
+      else if (action === "bulk") openModal("modal-bulk-driver-ingest");
+    });
+    document.addEventListener("click", (e) => {
+      if (!addMenu.classList.contains("open")) return;
+      if (e.target.closest("#rr-roster-add-anchor")) return;
+      closeAddMenu();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && addMenu.classList.contains("open")) closeAddMenu();
+    });
+  }
   document.getElementById("rr-roster-bulk-export")?.addEventListener("click", () => {
     const picks = new Set(_rosterBulkPicks());
     const rows = (picks.size ? _rosterRows.filter((r) => picks.has(r.id)) : visibleDriversForStage(_rosterRows, _driverStage));
