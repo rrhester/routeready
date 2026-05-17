@@ -8460,7 +8460,9 @@ async function _refreshTodayPlanData() {
   if (attData) _tpCacheWrite(_TP_CACHE_KEYS.att, attData);
 
   // Update the meta line (page-level scheduled-driver count + on-app).
-  try { _renderTpMeta(attData); } catch (e) { console.warn("tp meta:", e); }
+  // Pass rosterData so the future-day KPIs can synthesize counts the
+  // same way the roster card does.
+  try { _renderTpMeta(attData, rosterData); } catch (e) { console.warn("tp meta:", e); }
 
   // The single unified roster card replaces the old four-card layout.
   try { _renderTpUnifiedRoster(attData, rosterData, attError || rosterError); }
@@ -9002,12 +9004,31 @@ function _tpRowActions(r) {
 }
 
 // Top-of-page overview — a quiet SaaS summary strip above the roster.
-function _renderTpMeta(attData) {
+function _renderTpMeta(attData, rosterData) {
   const el = document.getElementById("rr-tp-meta");
   if (!el) return;
   const viewIso = (typeof _tpDateIso === "string" && _tpDateIso) || (typeof _tpToday === "function" ? _tpToday() : null);
   const todayIso = (typeof _tpToday === "function" ? _tpToday() : null);
   const planning = viewIso && todayIso && viewIso !== todayIso;
+  // Future-day planning view: attendance RPC isn't called, so synthesize
+  // stub rows from the roster so the KPI strip can still show Scheduled
+  // / Extras / waves count.  Mirror the same synthesis the unified
+  // roster does.
+  if (planning && (!attData || !(attData.rows || []).length) && Array.isArray(rosterData) && rosterData.length) {
+    attData = {
+      rows: rosterData.map(r => ({
+        shift_id:         r.shift_id,
+        driver_id:        r.driver_id,
+        driver_name:      r.driver_name,
+        station_code:     r.station_code,
+        starts_at:        r.starts_at,
+        wave_index:       r.wave_index ?? 0,
+        is_cushion:       !!r.is_cushion,
+        computed_outcome: "scheduled",
+        decision:         null,
+      })),
+    };
+  }
   const rows = attData?.rows || [];
   if (!rows.length) {
     el.innerHTML = `<div class="tp-day-empty">${escapeHtml(planning ? "No shifts scheduled for this day." : "No shifts scheduled today.")}</div>`;
