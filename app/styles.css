@@ -98,67 +98,14 @@
   /* On-screen keyboard height — set by the visualViewport listener
      in app.js so layouts can subtract it and keep inputs in view. */
   --rr-kbd: 0px;
-}
 
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg: #0A0F1C;
-    --bg-grad: linear-gradient(180deg, #0E1525 0%, #080D18 100%);
-    --surface: #131A2C;
-    --surface-grad: linear-gradient(180deg, #161E33 0%, #131A2C 100%);
-    --canvas: #0E1424;
-    --border: rgba(255,255,255,.08);
-    --border-strong: rgba(255,255,255,.14);
-    --border-subtle: rgba(255,255,255,.04);
-    --glass: rgba(19,26,44,.78);
-    --text: #F4F7FB;
-    --text-muted: #D2DAE8;
-    --text-subtle: #8C9BB2;
-    --accent: #3B82F6;
-    --accent-hover: #60A5FA;
-    --accent-strong: #60A5FA;
-    --accent-text: #93C5FD;
-    --accent-soft: rgba(59,130,246,.18);
-    --accent-soft-strong: rgba(59,130,246,.24);
-    --accent-border: rgba(59,130,246,.28);
-    --accent-grad: linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%);
-    --accent-grad-hover: linear-gradient(180deg, #93C5FD 0%, #60A5FA 100%);
-    --accent-grad-pressed: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
-    --accent-glow: 0 0 0 3px rgba(59,130,246,.30);
-    --ring-focus: 0 0 0 3px rgba(59,130,246,.32);
-    --overlay: rgba(0,0,0,.65);
-    --shadow-xs: 0 1px 2px rgba(0,0,0,.30);
-    --shadow-sm: 0 1px 2px rgba(0,0,0,.40);
-    --shadow-md: 0 1px 2px rgba(0,0,0,.30),
-                 0 4px 14px rgba(0,0,0,.45),
-                 0 0 0 1px rgba(255,255,255,.04);
-    --shadow-lg: 0 12px 28px rgba(0,0,0,.55);
-    --shadow-card:
-      0 8px 24px rgba(0,0,0,.35),
-      inset 0 1px 0 rgba(255,255,255,.04);
-    --shadow-card-strong:
-      0 12px 28px rgba(0,0,0,.45),
-      inset 0 1px 0 rgba(255,255,255,.06);
-    --highlight-top: inset 0 1px 0 rgba(255,255,255,.06);
-    --highlight-top-strong: inset 0 1px 0 rgba(255,255,255,.10);
-    --inset-pressed: inset 0 1px 2px rgba(0,0,0,.35);
-  }
-  /* The plain .btn ships a hardcoded white→#F6F8FB gradient that
-     only works against the light theme.  In dark mode --text flips
-     to near-white, so without this override the button renders as
-     a white box with invisible white text — most visibly on the
-     Onboarding task's action buttons and the Settings DL upload. */
-  .btn{
-    background:linear-gradient(180deg, #1F2A44 0%, #182238 100%);
-    border-color:var(--border-strong);
-    color:var(--text);
-    box-shadow:var(--shadow-xs), inset 0 1px 0 rgba(255,255,255,.04);
-  }
-  .btn-danger{
-    background:linear-gradient(180deg, #2A1A1F 0%, #20141A 100%);
-    color:#FCA5A5;
-    border-color:rgba(248,113,113,.34);
-  }
+  /* Driver app always renders light.  The premium design (home
+     hero, glass header, white cards floating on #F6F8FC) is
+     hardcoded to light surfaces, and drivers work outdoors where
+     a high-contrast bright UI is operationally correct.  This
+     color-scheme tells the browser to render form controls and
+     scrollbars in light mode regardless of the OS preference. */
+  color-scheme: light;
 }
 
 *,*::before,*::after{box-sizing:border-box}
