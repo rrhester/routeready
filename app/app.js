@@ -7537,26 +7537,72 @@ function _renderCelebrationOverlay(session, ev) {
       } catch (_) {}
     });
     _celebrationOpen = false;
+    // Tear down the document-level capture-phase delegation + window
+    // global so they don't leak across subsequent celebrations.
+    try {
+      if (overlay._delegatedDismiss) {
+        document.removeEventListener("click",      overlay._delegatedDismiss, true);
+        document.removeEventListener("touchend",   overlay._delegatedDismiss, { capture: true });
+        document.removeEventListener("touchstart", overlay._delegatedDismiss, { capture: true });
+        document.removeEventListener("pointerup",  overlay._delegatedDismiss, true);
+        overlay._delegatedDismiss = null;
+      }
+    } catch (_) {}
+    try { if (window.__rrDismissCelebration === dismiss) delete window.__rrDismissCelebration; } catch (_) {}
     // Visible proof that dismiss actually ran — driver can verify
     // without a console.  Reports the source (click/touch/key/close)
     // and whether the overlay element is still attached.
     const stillThere = !!document.getElementById("rr-celebration");
     _showDismissDebugPill(
-      "v118 dismiss " + (source || "?") + " · " + removedBy
+      "v120 dismiss " + (source || "?") + " · " + removedBy
       + " · gone=" + (!stillThere)
     );
   };
 
   const cta   = overlay.querySelector(".rrc-cta");
   const close = overlay.querySelector(".rrc-close");
-  if (cta)   { try { cta.setAttribute("onclick",   "void 0"); }   catch (_) {} }
-  if (close) { try { close.setAttribute("onclick", "void 0"); } catch (_) {} }
-  [[cta, "cta"], [close, "close"]].forEach(([btn, label]) => {
-    if (!btn) return;
-    btn.addEventListener("click",     (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":click"); });
-    btn.addEventListener("touchend",  (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":touchend"); }, { passive: false });
-    btn.addEventListener("pointerup", (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":pointerup"); });
+
+  // ── PATH 1: window-global inline onclick ───────────────────────────
+  // The most foolproof handler on iOS PWA — inline onclick attribute
+  // runs even when addEventListener handlers are intercepted by a
+  // higher-level capture, a stale event listener, or whatever's eating
+  // events on the standalone-mode WebView.  The dismiss closure is
+  // exposed on window so a static attribute string can call it.
+  try { window.__rrDismissCelebration = dismiss; } catch (_) {}
+  if (cta)   { try { cta.setAttribute("onclick",   "window.__rrDismissCelebration && window.__rrDismissCelebration('cta:inline')"); }   catch (_) {} }
+  if (close) { try { close.setAttribute("onclick", "window.__rrDismissCelebration && window.__rrDismissCelebration('close:inline')"); } catch (_) {} }
+
+  // ── PATH 2: document-level capture-phase delegation ────────────────
+  // Capture phase fires BEFORE any handler in bubble phase that might
+  // be eating the event upstream.  Listens at document so it cannot
+  // be obstructed by any ancestor's stopPropagation.
+  const delegatedDismiss = (e) => {
+    const target = e.target && e.target.closest && e.target.closest("#rr-celebration .rrc-cta, #rr-celebration .rrc-close");
+    if (!target) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dismiss((target.classList.contains("rrc-close") ? "close" : "cta") + ":" + e.type);
+  };
+  document.addEventListener("click",     delegatedDismiss, true);
+  document.addEventListener("touchend",  delegatedDismiss, { capture: true, passive: false });
+  document.addEventListener("touchstart",delegatedDismiss, { capture: true, passive: false });
+  document.addEventListener("pointerup", delegatedDismiss, true);
+  // Stash on the overlay so dismiss can unbind them.
+  overlay._delegatedDismiss = delegatedDismiss;
+
+  // ── PATH 3: overlay-level tap-anywhere-outside-card backstop ───────
+  // Last-resort escape hatch — taps on the blue gradient area outside
+  // the white card always dismiss.  Driver can ALWAYS get out, even
+  // if all per-button paths somehow fail.
+  overlay.addEventListener("touchstart", (e) => {
+    if (e.target.closest(".rrc-card")) return;
+    dismiss("overlay:touchstart");
+  }, { passive: true });
+  overlay.addEventListener("click", (e) => {
+    if (e.target.closest(".rrc-card")) return;
+    dismiss("overlay:click");
   });
+
   const onKey = (e) => {
     if (e.key === "Escape") { document.removeEventListener("keydown", onKey); dismiss("esc"); }
   };
@@ -7622,7 +7668,7 @@ function _unlockAudioOnGesture() {
 window.addEventListener("DOMContentLoaded", () => {
   try {
     const tag = document.createElement("div");
-    tag.textContent = "rr v118";
+    tag.textContent = "rr v120";
     tag.style.cssText = "position:fixed;bottom:10px;right:10px;"
       + "z-index:3000;padding:4px 8px;border-radius:999px;"
       + "background:rgba(15,23,42,.85);color:#fff;font-size:10px;"
