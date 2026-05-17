@@ -1480,9 +1480,9 @@ function renderShell(session) {
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         Schedule
       </button>
-      <button class="tab" data-route="/tasks" data-c="tasks" role="tab" aria-label="Tasks">
+      <button class="tab" data-route="/tasks" data-c="tasks" role="tab" aria-label="Forms">
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
-        Tasks
+        Forms
       </button>
       <button class="tab" data-route="/chat" data-c="chat" role="tab" aria-label="Chat">
         <span class="tab-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
@@ -2224,7 +2224,7 @@ async function _hydrateShiftWeather(shifts) {
 // completes during their shift. Status pills (Required / Pending /
 // Done) make the day's open work obvious at a glance.
 function renderTasksHub() {
-  setHeader("Tasks", "");
+  setHeader("Forms", "");
   setRefresh(() => renderTasksHub());
   const main = document.getElementById("main");
 
