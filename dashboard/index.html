@@ -4967,9 +4967,94 @@ body.rr-cmdk-open{ overflow:hidden }
 @media (max-width:560px){.forms-kpi{grid-template-columns:1fr}}
 
 .forms-shell{
-  display:grid;grid-template-columns:280px 1fr;gap:var(--s-4);
+  display:grid;grid-template-columns:240px minmax(0,1fr) 300px;gap:var(--s-4);
   align-items:start;
 }
+@media (max-width:1280px){.forms-shell{grid-template-columns:240px minmax(0,1fr);} .forms-rail{display:none}}
+@media (max-width:880px){.forms-shell{grid-template-columns:1fr}}
+
+/* ── Right rail · Recent submissions / Form activity / help card ── */
+.forms-rail{display:flex;flex-direction:column;gap:var(--s-3)}
+.forms-rail-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 1px 2px rgba(15,23,42,.035);
+}
+.forms-rail-head{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s-2);
+  padding:var(--s-3) var(--s-3-5);border-bottom:1px solid var(--border-subtle);
+}
+.forms-rail-title{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em}
+.forms-rail-meta{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)}
+.forms-rail-body{padding:var(--s-1) 0}
+.forms-rail-row{
+  display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;
+  padding:9px var(--s-3-5);
+}
+.forms-rail-row + .forms-rail-row{border-top:1px solid var(--border-subtle)}
+.forms-rail-row-avatar{
+  width:28px;height:28px;border-radius:50%;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;color:var(--accent-text);
+  background:linear-gradient(135deg,var(--accent-soft),rgba(255,255,255,.86));
+  border:1px solid rgba(37,99,235,.12);
+}
+.forms-rail-row-name{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.forms-rail-row-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.3;margin-top:1px}
+.forms-rail-row-pill{
+  font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;
+  letter-spacing:.02em;
+}
+.forms-rail-row-pill.complete{background:var(--green-soft);color:var(--green)}
+.forms-rail-row-pill.progress{background:var(--amber-soft);color:var(--amber-dark)}
+
+.forms-rail-stats{display:flex;flex-direction:column}
+.forms-rail-stat{
+  display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:10px;
+  padding:11px var(--s-3-5);
+}
+.forms-rail-stat + .forms-rail-stat{border-top:1px solid var(--border-subtle)}
+.forms-rail-stat-icon{
+  width:32px;height:32px;border-radius:10px;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+}
+.forms-rail-stat-icon svg{width:15px;height:15px}
+.forms-rail-stat[data-rr-stat="subs"] .forms-rail-stat-icon{background:var(--green-soft);color:var(--green)}
+.forms-rail-stat[data-rr-stat="rate"] .forms-rail-stat-icon{background:var(--amber-soft);color:var(--amber-dark)}
+.forms-rail-stat[data-rr-stat="incomplete"] .forms-rail-stat-icon{background:var(--accent-soft);color:var(--accent-text)}
+.forms-rail-stat-value{font-size:var(--fs-lg);font-weight:750;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
+.forms-rail-stat-label{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px}
+.forms-rail-delta{
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.02em;
+  padding:2px 8px;border-radius:999px;white-space:nowrap;font-variant-numeric:tabular-nums;
+  display:none;
+}
+.forms-rail-delta.up   {display:inline;background:var(--green-soft);color:var(--green)}
+.forms-rail-delta.down {display:inline;background:var(--red-soft);color:var(--red)}
+.forms-rail-delta.flat {display:inline;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border-subtle)}
+
+.forms-rail-help{
+  background:linear-gradient(180deg, rgba(124,58,237,.06), rgba(124,58,237,.02));
+  border:1px solid rgba(124,58,237,.16);border-radius:var(--r-lg);
+  padding:var(--s-4);display:flex;flex-direction:column;gap:6px;
+}
+.forms-rail-help-icon{
+  width:36px;height:36px;border-radius:10px;flex:0 0 auto;
+  background:rgba(124,58,237,.10);color:var(--violet);
+  display:flex;align-items:center;justify-content:center;margin-bottom:2px;
+}
+.forms-rail-help-icon svg{width:18px;height:18px}
+.forms-rail-help-title{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em}
+.forms-rail-help-sub{font-size:var(--fs-sm);color:var(--text-muted);line-height:1.45}
+.forms-rail-help-cta{
+  align-self:flex-start;margin-top:var(--s-2);
+  appearance:none;border:0;cursor:pointer;font:inherit;
+  font-size:var(--fs-sm);font-weight:650;
+  color:var(--violet);background:rgba(124,58,237,.10);
+  padding:7px 13px;border-radius:8px;
+  transition:background var(--t-fast);
+}
+.forms-rail-help-cta:hover{background:rgba(124,58,237,.18)}
 .forms-side{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
   padding:var(--s-2);display:flex;flex-direction:column;gap:1px;
@@ -12802,6 +12887,67 @@ body.rr-cmdk-open{ overflow:hidden }
               <div id="rr-subm-list"><div class="rr-empty-inline">Submissions will appear here once drivers start filling out published forms.</div></div>
             </div>
           </main>
+
+          <!-- Right rail: Recent submissions + Form activity + Need-help card -->
+          <aside class="forms-rail" aria-label="Workspace activity">
+            <section class="forms-rail-card">
+              <div class="forms-rail-head">
+                <div class="forms-rail-title">Recent submissions</div>
+                <a href="#" class="rr-text-link" id="rr-forms-rail-viewall">View all</a>
+              </div>
+              <div class="forms-rail-body" id="rr-forms-recent-subs">
+                <div class="rr-empty-inline" style="padding:18px 6px">No submissions yet.</div>
+              </div>
+            </section>
+
+            <section class="forms-rail-card">
+              <div class="forms-rail-head">
+                <div class="forms-rail-title">Form activity</div>
+                <span class="forms-rail-meta">This week</span>
+              </div>
+              <div class="forms-rail-body forms-rail-stats" id="rr-forms-activity">
+                <div class="forms-rail-stat" data-rr-stat="subs">
+                  <div class="forms-rail-stat-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </div>
+                  <div class="forms-rail-stat-body">
+                    <div class="forms-rail-stat-value" data-rr-stat-value>—</div>
+                    <div class="forms-rail-stat-label">Submissions</div>
+                  </div>
+                  <span class="forms-rail-delta" data-rr-stat-delta></span>
+                </div>
+                <div class="forms-rail-stat" data-rr-stat="rate">
+                  <div class="forms-rail-stat-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  </div>
+                  <div class="forms-rail-stat-body">
+                    <div class="forms-rail-stat-value" data-rr-stat-value>—</div>
+                    <div class="forms-rail-stat-label">Completion rate</div>
+                  </div>
+                  <span class="forms-rail-delta" data-rr-stat-delta></span>
+                </div>
+                <div class="forms-rail-stat" data-rr-stat="incomplete">
+                  <div class="forms-rail-stat-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  </div>
+                  <div class="forms-rail-stat-body">
+                    <div class="forms-rail-stat-value" data-rr-stat-value>—</div>
+                    <div class="forms-rail-stat-label">Incomplete</div>
+                  </div>
+                  <span class="forms-rail-delta" data-rr-stat-delta></span>
+                </div>
+              </div>
+            </section>
+
+            <section class="forms-rail-help">
+              <div class="forms-rail-help-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <div class="forms-rail-help-title">Need help building a form?</div>
+              <div class="forms-rail-help-sub">Start from scratch with Build a form — bring fields, audience, and assignments into one flow.</div>
+              <button class="forms-rail-help-cta" type="button" data-rr-form-new>Build a form</button>
+            </section>
+          </aside>
         </div>
       </div>
     </div>
