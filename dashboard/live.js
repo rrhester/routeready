@@ -11195,35 +11195,125 @@ function _bdImportSplit(line, delim) {
   out.push(cur);
   return out.map(s => s.trim().replace(/^"|"$/g, ""));
 }
+// Header synonyms → canonical field key.  Keys are matched after
+// lowercasing the cell, stripping surrounding whitespace, and
+// collapsing `_`/`-` to spaces — so "Phone_Number", "phone-number",
+// and "Phone Number" all hit the same entry.
 const _bdImportFieldMap = {
-  name:        "name",  "full name": "name", "full_name": "name", "driver": "name", "driver name": "name",
-  phone:       "phone", "mobile":    "phone", "cell":      "phone", "tel":      "phone", "phone number": "phone",
-  email:       "email", "e-mail":    "email",
-  station:     "station", "site":    "station", "location": "station", "station code": "station", "site code": "station",
-  "hire date": "hire_date", "hired":  "hire_date", "start date": "hire_date", "start": "hire_date", "hire_date": "hire_date",
+  // Full name
+  "name": "name", "full name": "name", "driver": "name", "driver name": "name",
+  "employee name": "name", "team member": "name", "team member name": "name",
+  "associate": "name", "associate name": "name", "person": "name",
+  // First / last (combined into `name` at normalize time)
+  "first": "first_name", "first name": "first_name", "firstname": "first_name", "fname": "first_name", "given name": "first_name", "given": "first_name",
+  "last": "last_name", "last name": "last_name", "lastname": "last_name", "lname": "last_name", "surname": "last_name", "family name": "last_name",
+  // Phone
+  "phone": "phone", "phone number": "phone", "phone num": "phone", "mobile": "phone", "mobile number": "phone",
+  "mobile phone": "phone", "cell": "phone", "cellular": "phone", "cell number": "phone", "cell phone": "phone",
+  "tel": "phone", "telephone": "phone", "contact": "phone", "contact number": "phone",
+  "primary phone": "phone", "personal phone": "phone", "home phone": "phone", "work phone": "phone",
+  "phone1": "phone", "phone 1": "phone",
+  // Email
+  "email": "email", "email address": "email", "e mail": "email", "e mail address": "email",
+  "personal email": "email", "work email": "email", "email1": "email", "email 1": "email",
+  // Station
+  "station": "station", "station code": "station", "site": "station", "site code": "station",
+  "location": "station", "loc": "station", "home station": "station", "delivery station": "station",
+  "dsp site": "station", "dsp code": "station", "da": "station", "ds": "station", "terminal": "station",
+  // Hire date
+  "hire date": "hire_date", "hired": "hire_date", "hired on": "hire_date", "hire": "hire_date",
+  "start": "hire_date", "start date": "hire_date", "employment start": "hire_date",
+  "employment date": "hire_date", "commenced": "hire_date", "date hired": "hire_date",
+  "hire start": "hire_date",
 };
+function _bdImportCanonHeader(s) {
+  return String(s || "").toLowerCase().trim().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
+// Sniff a column's role from its data when no header was provided.
+// Each column gets a per-role score; we then assign each role to the
+// highest-scoring column that isn't already claimed.
+function _bdImportSniffColumns(rows) {
+  if (!rows.length) return [];
+  const width = Math.max(...rows.map(r => r.length));
+  const sample = (i) => rows.map(r => (r[i] || "").trim()).filter(Boolean).slice(0, 12);
+  const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  const isPhone = (v) => { const d = v.replace(/\D/g, ""); return d.length >= 10 && d.length <= 15; };
+  const isDate  = (v) => {
+    // Reject pure numbers (they parse as Date but mean nothing useful here).
+    if (/^\d+$/.test(v)) return false;
+    const t = Date.parse(v);
+    if (Number.isNaN(t)) return false;
+    const y = new Date(t).getFullYear();
+    return y >= 1980 && y <= 2099;
+  };
+  const isStation = (v) => /^[A-Z0-9]{2,6}$/.test(v);
+  const isNameish = (v) => /^[A-Za-z][A-Za-z .'\-]+(?:\s+[A-Za-z][A-Za-z .'\-]+)+$/.test(v);
+  const scores = [];
+  for (let i = 0; i < width; i++) {
+    const s = sample(i);
+    if (!s.length) { scores.push({ name:0, phone:0, email:0, station:0, hire_date:0 }); continue; }
+    const frac = (fn) => s.filter(fn).length / s.length;
+    scores.push({
+      email:     frac(isEmail),
+      phone:     frac(isPhone),
+      hire_date: frac(isDate),
+      station:   frac(isStation),
+      name:      frac(isNameish),
+    });
+  }
+  // Greedy assignment — email is most distinctive, then phone, then
+  // date, then station (uppercase short codes), then name (everything
+  // else with whitespace).  A column needs to clear a small confidence
+  // bar to be assigned.
+  const headers = new Array(width).fill(null);
+  const taken = new Set();
+  const minBar = { email: .5, phone: .5, hire_date: .5, station: .5, name: .4 };
+  for (const role of ["email", "phone", "hire_date", "station", "name"]) {
+    let bestIdx = -1, bestVal = minBar[role];
+    for (let i = 0; i < width; i++) {
+      if (taken.has(i)) continue;
+      if (scores[i][role] > bestVal) { bestVal = scores[i][role]; bestIdx = i; }
+    }
+    if (bestIdx !== -1) { headers[bestIdx] = role; taken.add(bestIdx); }
+  }
+  return headers;
+}
 function _bdImportParse(text) {
   const lines = String(text || "").split(/\r?\n/).map(l => l.trim()).filter(l => l.length);
-  if (lines.length === 0) return { rows: [], headerDetected: false };
+  if (lines.length === 0) return { rows: [], headerDetected: false, headers: [] };
   // Tabs win when they appear — that's how Excel/Sheets paste comes in.
   const delim = lines[0].includes("\t") ? "\t" : ",";
-  const firstCols = _bdImportSplit(lines[0], delim).map(c => c.toLowerCase());
-  const headerDetected = firstCols.some(c => c in _bdImportFieldMap);
-  const headers = headerDetected
-    ? firstCols.map(c => _bdImportFieldMap[c] || null)
-    : ["name", "phone", "email", "station", "hire_date"];   // positional default
-  const dataLines = headerDetected ? lines.slice(1) : lines;
-  const rows = dataLines.map((line, idx) => {
-    const cells = _bdImportSplit(line, delim);
+  const allCells = lines.map(l => _bdImportSplit(l, delim));
+  const firstCanon = allCells[0].map(_bdImportCanonHeader);
+  const headerHits = firstCanon.filter(c => c in _bdImportFieldMap).length;
+  // Two-or-more known column names ⇒ definitely a header.  One hit
+  // is still strong evidence; zero hits ⇒ sniff the data.
+  let headers;
+  let headerDetected;
+  if (headerHits >= 1) {
+    headerDetected = true;
+    headers = firstCanon.map(c => _bdImportFieldMap[c] || null);
+  } else {
+    headerDetected = false;
+    headers = _bdImportSniffColumns(allCells);
+  }
+  const dataCells = headerDetected ? allCells.slice(1) : allCells;
+  const rows = dataCells.map((cells, idx) => {
     const out = { _line: (headerDetected ? idx + 2 : idx + 1) };
     cells.forEach((v, i) => {
       const key = headers[i];
       if (!key) return;
       if (v != null && v !== "") out[key] = v;
     });
+    // Stitch first_name + last_name into name when name wasn't captured.
+    if (!out.name && (out.first_name || out.last_name)) {
+      out.name = [out.first_name, out.last_name].filter(Boolean).join(" ").trim();
+    }
+    delete out.first_name;
+    delete out.last_name;
     return out;
   });
-  return { rows, headerDetected };
+  return { rows, headerDetected, headers };
 }
 function _bdImportNormalize(parsed) {
   // Build dedupe set from current roster — phone digits and email lowercase.
@@ -11271,7 +11361,7 @@ function _bdImportNormalize(parsed) {
       hire_date: hireIso,
     });
   }
-  return { ready, dupes, invalid, headerDetected: parsed.headerDetected };
+  return { ready, dupes, invalid, headerDetected: parsed.headerDetected, headers: parsed.headers };
 }
 function _bdImportPreview() {
   const ta = document.getElementById("bd-paste");
@@ -11288,10 +11378,17 @@ function _bdImportPreview() {
     return;
   }
   const parsed = _bdImportParse(text);
-  const { ready, dupes, invalid, headerDetected } = _bdImportNormalize(parsed);
+  const { ready, dupes, invalid, headerDetected, headers } = _bdImportNormalize(parsed);
   const bits = [`<strong>${ready.length}</strong> ready to import`];
   if (dupes.length)   bits.push(`${dupes.length} already in roster`);
   if (invalid.length) bits.push(`${invalid.length} invalid`);
+  // Tell the operator how we read the columns so they can spot a
+  // misread before they hit Import.
+  if (headers && headers.length) {
+    const labels = { name: "Name", phone: "Phone", email: "Email", station: "Station", hire_date: "Hire date" };
+    const detected = headers.filter(Boolean).map(h => labels[h] || h).join(" · ");
+    if (detected) bits.push(headerDetected ? `headers: ${detected}` : `auto-detected: ${detected}`);
+  }
   if (headerDetected) bits.push("header row detected");
   preview.innerHTML = bits.join(" · ");
   preview.style.display = "block";

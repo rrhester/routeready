@@ -16004,7 +16004,7 @@ John,Smith,555-0101,john@example.com</code>
     </div>
     <div class="modal-body">
       <div style="margin-bottom:10px;font-size:var(--fs-sm);color:var(--text-muted)">
-        Paste rows from any spreadsheet (comma or tab separated).  Optional header row — recognized column names: <strong>name · phone · email · station · hire date</strong>.  Without a header we'll assume that order.  Phone numbers are normalized to E.164.  Existing drivers (matched by phone) are skipped.
+        Paste rows from any spreadsheet (comma or tab separated).  Column order doesn't matter — we read the header row (or sniff the data when there's no header) and pick out <strong>name · phone · email · station · hire date</strong>.  Extra columns are ignored.  Phones get normalized to E.164.  Existing drivers (matched by phone or email) are skipped.
       </div>
       <textarea id="bd-paste" placeholder="name,phone,email,station,hire date&#10;Marcus Davidson,+1 417 555 0142,marcus@example.com,KMO1,2023-11-04&#10;Camille Foster,4175550341,camille@example.com,KMO1,2022-12-15" style="width:100%;min-height:160px;padding:var(--s-3);border:1px solid var(--border);border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:var(--fs-xs);color:var(--text);resize:vertical;outline:none;background:var(--canvas);line-height:1.5"></textarea>
       <div id="bd-preview" style="display:none;margin-top:10px;padding:var(--s-2-5) var(--s-3);background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:8px;font-size:var(--fs-sm);color:var(--green);font-weight:500"></div>
