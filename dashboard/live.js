@@ -1192,6 +1192,7 @@ window.goto = function (view) {
   if (view === "outlook")   loadStaffingOutlook();
   if (view === "fleet" && typeof loadFleetView === "function") loadFleetView();
   if (view === "compliance" && typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
+  if (view === "overtime" && typeof loadOvertimeIntelligence === "function") loadOvertimeIntelligence();
 };
 
 // ── Platform admin view ────────────────────────────────────────────────────
@@ -36995,3 +36996,380 @@ async function _toFetchPendingCount() {
     _toRefreshNavBadge();
   } catch {}
 }
+
+
+// ─── Overtime Intelligence ───────────────────────────────────────────────
+// One read-only RPC (public.overtime_intelligence) drives the entire
+// surface: summary cards, owner mobile snapshot, predictive insights,
+// route-group breakdown, and the driver forecast table. The function
+// projects this week's labor exposure from shifts + driver_checkins +
+// dsps.metadata.scheduling — no payroll integration, no new tables.
+
+let _otData = null;
+let _otOpenDriverId = null;
+
+async function loadOvertimeIntelligence() {
+  const tbody = document.getElementById("rr-ot-tbody");
+  // Skeleton stays in place until data arrives — the mobile + KPI cards
+  // already render their own placeholders inline.
+  const { data, error } = await sb.rpc("overtime_intelligence", { p_week_start: null });
+  if (error) {
+    if (_isAuthError(error)) _forceRelogin("session_expired");
+    console.error("overtime_intelligence failed:", error);
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="8"><div class="ot-empty"><h3>Couldn't load overtime intelligence</h3><p>${escapeHtml(error.message || "Try again in a moment.")}</p></div></td></tr>`;
+    }
+    return;
+  }
+  _otData = data || {};
+  _otRender(_otData);
+}
+
+function _otFmtRange(startIso, endIso) {
+  if (!startIso || !endIso) return "—";
+  const fmt = (d) => new Date(d + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return `${fmt(startIso)} – ${fmt(endIso)}`;
+}
+
+function _otFmtUsd(n, opts = {}) {
+  if (n == null || isNaN(Number(n))) return "—";
+  const v = Number(n);
+  const compact = opts.compact !== false;
+  if (compact && Math.abs(v) >= 1000) {
+    return "$" + (v / 1000).toFixed(v >= 10000 ? 0 : 1) + "k";
+  }
+  return "$" + v.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+function _otFmtHours(n) {
+  if (n == null) return "—";
+  const v = Number(n);
+  if (!isFinite(v)) return "—";
+  return v.toFixed(v >= 100 ? 0 : 1) + " h";
+}
+
+function _otRiskCfg(risk) {
+  switch (risk) {
+    case "active_ot": return { cls: "active", label: "Active OT" };
+    case "high_risk": return { cls: "high",   label: "High risk" };
+    case "watch":     return { cls: "watch",  label: "Watch" };
+    default:          return { cls: "safe",   label: "Safe" };
+  }
+}
+
+function _otRender(d) {
+  const sub = document.getElementById("rr-ot-page-sub");
+  if (sub) {
+    const range = _otFmtRange(d.week_start, d.week_end);
+    sub.textContent = `Week of ${range} · Operational labor exposure projected from real check-ins, schedule, and rescue activity. Not payroll.`;
+  }
+  const thresh = document.getElementById("rr-ot-threshold");
+  if (thresh) thresh.textContent = String(d.threshold_hours ?? 40);
+
+  _otRenderMobile(d);
+  _otRenderKpis(d);
+  _otRenderInsights(d.insights || []);
+  _otRenderRoutes(d.route_groups || []);
+  _otRenderTable(d.drivers || [], d);
+}
+
+function _otRenderMobile(d) {
+  const box = document.getElementById("rr-ot-mobile");
+  if (!box) return;
+  const s = d.summary || {};
+  const weekEl = document.getElementById("rr-ot-mobile-week");
+  if (weekEl) weekEl.textContent = _otFmtRange(d.week_start, d.week_end);
+
+  const exp = document.getElementById("rr-ot-mobile-exposure");
+  const expSub = document.getElementById("rr-ot-mobile-exposure-sub");
+  if (exp) {
+    if (!d.have_rates) {
+      exp.textContent = _otFmtHours(s.est_ot_hours);
+      if (expSub) expSub.textContent = "Hours · Add rates for $";
+    } else {
+      exp.textContent = _otFmtUsd(s.est_ot_exposure_usd);
+      if (expSub) expSub.textContent = `${_otFmtHours(s.est_ot_hours)} of premium time`;
+    }
+  }
+  const risk = document.getElementById("rr-ot-mobile-risk");
+  const riskSub = document.getElementById("rr-ot-mobile-risk-sub");
+  if (risk) risk.textContent = String(s.drivers_projected_ot ?? 0);
+  if (riskSub) {
+    const active = s.drivers_active_ot ?? 0;
+    riskSub.textContent = active > 0
+      ? `${active} already past threshold`
+      : "Drivers trending into OT";
+  }
+  const top = document.getElementById("rr-ot-mobile-top");
+  const topSub = document.getElementById("rr-ot-mobile-top-sub");
+  if (top) top.textContent = s.top_contributor ? _otShortName(s.top_contributor) : "—";
+  if (topSub) {
+    if (s.top_contributor) topSub.textContent = `${_otFmtHours(s.top_contributor_ot)} projected OT`;
+    else topSub.textContent = "No driver in OT yet";
+  }
+
+  const trendVal = document.getElementById("rr-ot-mobile-trend-val");
+  const trendSub = document.getElementById("rr-ot-mobile-trend-sub");
+  if (trendVal) {
+    if (s.trend_pct == null) {
+      trendVal.innerHTML = `<span style="font-size:18px;color:rgba(226,232,240,.7)">No baseline</span>`;
+    } else {
+      const up = s.trend_pct > 0;
+      const flat = s.trend_pct === 0;
+      const cls = flat ? "flat" : up ? "" : "down";
+      const sign = up ? "+" : "";
+      const arrow = flat
+        ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>`
+        : up
+          ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 14 12 8 18 14"/></svg>`
+          : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 10 12 16 18 10"/></svg>`;
+      trendVal.innerHTML = `<span class="ot-mobile-trend ${cls}">${arrow}${sign}${s.trend_pct}%</span>`;
+    }
+  }
+  if (trendSub) {
+    trendSub.textContent = s.prev_ot_hours != null
+      ? `Last week: ${_otFmtHours(s.prev_ot_hours)}`
+      : "vs prior week";
+  }
+
+  box.hidden = false;
+}
+
+function _otShortName(name) {
+  if (!name) return "—";
+  const parts = String(name).trim().split(/\s+/);
+  if (parts.length <= 1) return parts[0] || "—";
+  return parts[0] + " " + parts[parts.length - 1].slice(0, 1) + ".";
+}
+
+function _otRenderKpis(d) {
+  const root = document.getElementById("rr-ot-kpis");
+  if (!root) return;
+  const s = d.summary || {};
+  const active = s.drivers_active_ot ?? 0;
+  const driversCard = `
+    <div class="ot-kpi ${active > 0 ? 'crit' : ''}">
+      <div class="ot-kpi-label">Drivers projected OT</div>
+      <div class="ot-kpi-value">${s.drivers_projected_ot ?? 0}</div>
+      <div class="ot-kpi-sub">
+        ${active > 0
+          ? `<span class="ot-kpi-delta">${active} active</span> past ${d.threshold_hours ?? 40}h threshold`
+          : `All drivers under ${d.threshold_hours ?? 40}h threshold`}
+      </div>
+    </div>`;
+  const hoursCard = `
+    <div class="ot-kpi">
+      <div class="ot-kpi-label">Estimated OT hours</div>
+      <div class="ot-kpi-value">${(s.est_ot_hours ?? 0).toFixed ? s.est_ot_hours.toFixed(1) : s.est_ot_hours}<span class="ot-kpi-value-suffix">h</span></div>
+      <div class="ot-kpi-sub">${s.rescue_driven_pct != null
+        ? `${s.rescue_driven_pct}% of hours worked are rescues`
+        : 'Across all active drivers this week'}</div>
+    </div>`;
+
+  const exposureCard = d.have_rates ? `
+    <div class="ot-kpi crit">
+      <div class="ot-kpi-label">Estimated OT exposure</div>
+      <div class="ot-kpi-value">${_otFmtUsd(s.est_ot_exposure_usd)}</div>
+      <div class="ot-kpi-sub">Premium pay only · base hours not included</div>
+    </div>` : `
+    <div class="ot-kpi">
+      <div class="ot-kpi-label">Estimated OT exposure</div>
+      <div class="ot-kpi-value" style="font-size:18px;color:var(--text-muted)">Set rates</div>
+      <div class="ot-kpi-sub">Add hourly rates in Settings → Scheduling to see $ impact</div>
+    </div>`;
+
+  let trendCard;
+  if (s.trend_pct == null) {
+    trendCard = `
+      <div class="ot-kpi">
+        <div class="ot-kpi-label">Trend vs last week</div>
+        <div class="ot-kpi-value" style="font-size:18px;color:var(--text-muted)">No baseline</div>
+        <div class="ot-kpi-sub">Prior week had no recorded OT</div>
+      </div>`;
+  } else {
+    const up = s.trend_pct > 0;
+    const flat = s.trend_pct === 0;
+    const cls = flat ? 'flat' : up ? '' : 'good';
+    const cardCls = up && s.trend_pct >= 25 ? 'crit' : (!up && !flat ? 'good' : '');
+    const sign = up ? '+' : '';
+    trendCard = `
+      <div class="ot-kpi ${cardCls}">
+        <div class="ot-kpi-label">Trend vs last week</div>
+        <div class="ot-kpi-value">${sign}${s.trend_pct}<span class="ot-kpi-value-suffix">%</span></div>
+        <div class="ot-kpi-sub">Last week: ${_otFmtHours(s.prev_ot_hours)} OT</div>
+      </div>`;
+  }
+
+  root.innerHTML = driversCard + hoursCard + exposureCard + trendCard;
+}
+
+function _otRenderInsights(insights) {
+  const section = document.getElementById("rr-ot-insights-section");
+  const list = document.getElementById("rr-ot-insights");
+  if (!section || !list) return;
+  if (!insights.length) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  list.innerHTML = insights.map(ins => {
+    const sev = ins.severity || 'med';
+    const tagColor = sev === 'high' ? 'var(--red)'
+                   : sev === 'good' ? 'var(--green)'
+                   : sev === 'info' ? 'var(--accent)'
+                   : 'var(--amber-dark)';
+    const tagLabel = sev === 'high' ? 'Action'
+                   : sev === 'good' ? 'Trend'
+                   : sev === 'info' ? 'Setup'
+                   : 'Watch';
+    return `
+      <div class="ot-insight sev-${sev}">
+        <span class="ot-insight-tag" style="color:${tagColor}"><span class="dot"></span> ${tagLabel}</span>
+        <div class="ot-insight-title">${escapeHtml(ins.title || '')}</div>
+        <div class="ot-insight-body">${escapeHtml(ins.body || '')}</div>
+      </div>`;
+  }).join("");
+}
+
+function _otRenderRoutes(routes) {
+  const section = document.getElementById("rr-ot-routes-section");
+  const list = document.getElementById("rr-ot-routes");
+  if (!section || !list) return;
+  const filtered = (routes || []).filter(r => Number(r.ot_hours) > 0).slice(0, 8);
+  if (!filtered.length) { section.hidden = true; return; }
+  section.hidden = false;
+  const max = Math.max.apply(null, filtered.map(r => Number(r.ot_hours) || 0));
+  list.innerHTML = filtered.map(r => {
+    const pct = max > 0 ? Math.round((Number(r.ot_hours) / max) * 100) : 0;
+    return `
+      <div class="ot-route">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:var(--s-2)">
+          <span class="ot-route-code">${escapeHtml(r.route_group || '—')}</span>
+          <span class="ot-route-hrs">${_otFmtHours(r.ot_hours)}</span>
+        </div>
+        <div class="ot-route-bar"><div class="ot-route-bar-fill" style="width:${pct}%"></div></div>
+      </div>`;
+  }).join("");
+}
+
+function _otRenderTable(drivers, d) {
+  const tbody = document.getElementById("rr-ot-tbody");
+  if (!tbody) return;
+  if (!drivers || !drivers.length) {
+    tbody.innerHTML = `
+      <tr><td colspan="8" style="padding:0">
+        <div class="ot-empty">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <h3>No overtime exposure this week</h3>
+          <p>Every active driver is projected to land at or under the ${d.threshold_hours ?? 40}-hour threshold. Calm signal — keep an eye on rescue load mid-week.</p>
+        </div>
+      </td></tr>`;
+    return;
+  }
+  const threshold = Number(d.threshold_hours) || 40;
+  const maxProjected = Math.max.apply(null, drivers.map(r => Number(r.projected_hours) || 0).concat([threshold * 1.2]));
+  tbody.innerHTML = drivers.map(r => _otRenderRow(r, threshold, maxProjected, d)).join("");
+
+  // Restore drawer state across reloads.
+  if (_otOpenDriverId) {
+    const drawer = tbody.querySelector(`[data-rr-ot-detail="${CSS.escape(_otOpenDriverId)}"]`);
+    if (drawer) drawer.classList.add("is-open");
+  }
+
+  // Row click toggles the detail drawer below it.
+  tbody.querySelectorAll("tr[data-rr-ot-driver]").forEach(row => {
+    row.addEventListener("click", () => {
+      const id = row.getAttribute("data-rr-ot-driver");
+      const drawer = tbody.querySelector(`[data-rr-ot-detail="${CSS.escape(id)}"]`);
+      if (!drawer) return;
+      const isOpen = drawer.classList.toggle("is-open");
+      _otOpenDriverId = isOpen ? id : (_otOpenDriverId === id ? null : _otOpenDriverId);
+    });
+  });
+}
+
+function _otRenderRow(r, threshold, maxProjected, d) {
+  const risk = _otRiskCfg(r.risk);
+  const projected = Number(r.projected_hours) || 0;
+  const projectedPct = Math.min(100, Math.round((projected / maxProjected) * 100));
+  const fillCls = r.risk === "active_ot" ? "crit"
+                : r.risk === "high_risk" ? "warn"
+                : "";
+  const threshPct = Math.min(100, Math.round((threshold / maxProjected) * 100));
+  const contributors = (r.contributors || []).map(c => {
+    if (c.kind === "rescues") return `<span class="ot-chip rescues">Rescues ${Number(c.value).toFixed(1)}h</span>`;
+    if (c.kind === "late_clockouts") return `<span class="ot-chip late">Late RTS ${Number(c.value).toFixed(1)}h</span>`;
+    if (c.kind === "over_threshold") return `<span class="ot-chip over">Over +${Number(c.value).toFixed(1)}h</span>`;
+    return "";
+  }).join("");
+  const station = r.station_code ? escapeHtml(r.station_code) : `<span style="color:var(--text-subtle)">—</span>`;
+  const cost = (r.ot_premium_usd != null && d.have_rates)
+    ? _otFmtUsd(r.ot_premium_usd)
+    : (d.have_rates ? "—" : `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">—</span>`);
+
+  return `
+    <tr class="risk-${risk.cls}" data-rr-ot-driver="${escapeHtml(r.driver_id)}">
+      <td>
+        <span class="driver-name">${escapeHtml(r.driver_name || "—")}</span>
+        <span class="driver-meta">${r.completed_shifts || 0} completed · ${r.scheduled_remaining || 0} ahead${r.rescue_count > 0 ? " · " + r.rescue_count + " rescue" + (r.rescue_count === 1 ? "" : "s") : ""}</span>
+      </td>
+      <td class="col-station">${station}</td>
+      <td class="num">${_otFmtHours(r.worked_hours)}</td>
+      <td class="num col-remaining">${_otFmtHours(r.remaining_hours)}</td>
+      <td class="num">
+        <div>${_otFmtHours(r.projected_hours)}</div>
+        <div class="ot-hours-bar">
+          <div class="ot-hours-bar-fill ${fillCls}" style="width:${projectedPct}%"></div>
+          <div class="ot-hours-bar-thresh" style="left:${threshPct}%"></div>
+        </div>
+      </td>
+      <td><span class="ot-pill ${risk.cls}"><span class="dot"></span>${risk.label}</span></td>
+      <td class="col-contrib"><div class="ot-chips">${contributors || `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">—</span>`}</div></td>
+      <td class="num col-cost">${cost}</td>
+    </tr>
+    <tr class="ot-detail-row" data-rr-ot-detail="${escapeHtml(r.driver_id)}">
+      <td colspan="8" style="padding:0">
+        <div class="ot-detail">
+          <div class="ot-detail-cell">
+            <span class="ot-detail-label">Worked this week</span>
+            <span class="ot-detail-value">${_otFmtHours(r.worked_hours)}</span>
+            <span class="ot-detail-note">${r.completed_shifts || 0} completed shift${r.completed_shifts === 1 ? '' : 's'}</span>
+          </div>
+          <div class="ot-detail-cell">
+            <span class="ot-detail-label">Schedule remaining</span>
+            <span class="ot-detail-value">${_otFmtHours(r.remaining_hours)}</span>
+            <span class="ot-detail-note">${r.scheduled_remaining || 0} shift${r.scheduled_remaining === 1 ? '' : 's'} ahead</span>
+          </div>
+          <div class="ot-detail-cell">
+            <span class="ot-detail-label">Projected total</span>
+            <span class="ot-detail-value">${_otFmtHours(r.projected_hours)}</span>
+            <span class="ot-detail-note">Threshold ${threshold}h · ${(r.ot_hours || 0) > 0 ? '+' + Number(r.ot_hours).toFixed(1) + 'h over' : 'within plan'}</span>
+          </div>
+          <div class="ot-detail-cell">
+            <span class="ot-detail-label">Rescue load</span>
+            <span class="ot-detail-value">${_otFmtHours(r.rescue_hours)}</span>
+            <span class="ot-detail-note">${r.rescue_count || 0} rescue assignment${r.rescue_count === 1 ? '' : 's'}</span>
+          </div>
+          <div class="ot-detail-cell">
+            <span class="ot-detail-label">Late clock-out</span>
+            <span class="ot-detail-value">${(r.late_clockout_minutes || 0) >= 1 ? Math.round(r.late_clockout_minutes) + ' min' : '—'}</span>
+            <span class="ot-detail-note">Total minutes past scheduled end</span>
+          </div>
+          <div class="ot-detail-cell">
+            <span class="ot-detail-label">Premium cost impact</span>
+            <span class="ot-detail-value">${(r.ot_premium_usd != null && d.have_rates) ? _otFmtUsd(r.ot_premium_usd) : '—'}</span>
+            <span class="ot-detail-note">${d.have_rates && r.hourly_rate ? '$' + Number(r.hourly_rate).toFixed(2) + '/h × ' + Number(r.ot_multiplier).toFixed(2) + 'x' : 'Add a rate to see $ exposure'}</span>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+}
+
+// Refresh button — same loader, but clear cached state so the table
+// drawer re-renders cleanly.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest && e.target.closest("#rr-ot-refresh");
+  if (!btn) return;
+  e.preventDefault();
+  loadOvertimeIntelligence();
+});
