@@ -3890,8 +3890,24 @@ async function loadOnboardingBuilder() {
   _obBuilderSteps = (Array.isArray(data) && data.length ? data : _OB_DEFAULT_BLUEPRINT)
     .filter(s => s && s.enabled !== false)
     .map(s => ({ ...s, enabled: true }));
+  // Defensive seeding: the three compliance gates (Background check, Drug
+  // test, Form I-9) are federally required for every hire. They live in
+  // the default blueprint but a previous edit could remove them, and the
+  // "+ Add a step" picker doesn't offer them — so once gone, there's no
+  // UI to bring them back. If any are missing here, restore them.
+  // Saves immediately so the next blueprint load is correct.
+  const _OB_CORE_KEYS = ["bg_check", "drug_test", "i9"];
+  let _obRestored = false;
+  for (const coreKey of _OB_CORE_KEYS) {
+    const present = _obBuilderSteps.some(s => s && (s.key === coreKey || s.type === coreKey || (coreKey === "i9" && s.type === "i9")));
+    if (!present) {
+      const def = _OB_DEFAULT_BLUEPRINT.find(s => s.key === coreKey);
+      if (def) { _obBuilderSteps.push({ ...def }); _obRestored = true; }
+    }
+  }
   _obConfirmDelete = null;
   clearTimeout(_obSaveTimer);
+  if (_obRestored) _obAutosave({ immediate: true });
   _obRenderBuilder();
 }
 
