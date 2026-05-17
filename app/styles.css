@@ -472,6 +472,19 @@ select.field{
   white-space:nowrap;font-variant-numeric:tabular-nums;letter-spacing:.01em;
 }
 .shift-card .meta-station{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;font-weight:500}
+/* Weather chip · one row, slightly muted, sits just below station /
+   vehicle. Hidden until forecast data arrives (NWS only goes 7 days,
+   so further-out shifts simply skip the chip). */
+.shift-weather{
+  display:flex;align-items:center;gap:6px;
+  margin-top:6px;
+  font-size:13px;color:var(--text-subtle);font-weight:500;
+  line-height:1.2;
+}
+.shift-weather[hidden]{ display:none }
+.shift-weather-icon{ font-size:15px;line-height:1 }
+.shift-weather-temp{ font-weight:700;color:var(--text);font-variant-numeric:tabular-nums }
+.shift-weather-text{ color:var(--text-subtle) }
 .shift-card .meta-tags{display:flex;gap:var(--s-1);margin-top:8px;flex-wrap:wrap}
 .shift-card .tag{
   font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
@@ -2352,6 +2365,35 @@ body.is-home main > .home-hero{
   box-shadow:0 1px 2px rgba(15,23,42,.06);
   transition:transform 120ms var(--ease-spring), background 140ms var(--ease-out);
 }
+/* "Starts in 45m" countdown · sits on the right of the .opens-card-row.
+   Uses a soft white pill on the blue gradient cards and a green tint
+   everywhere else (muted / warn variants) so it always pops. */
+.opens-card-countdown{
+  flex-shrink:0;
+  margin-left:auto;
+  padding-left:12px;
+  text-align:right;
+  align-self:center;
+  border-left:1px solid rgba(255,255,255,.18);
+}
+.opens-card-countdown-label{
+  font-size:10px;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;
+  opacity:.82;
+  line-height:1;
+}
+.opens-card-countdown-value{
+  margin-top:5px;
+  font-size:22px;font-weight:700;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.020em;
+  line-height:1;
+  color:#86EFAC;
+}
+.opens-card.opens-card-muted .opens-card-countdown{ border-left-color:rgba(15,23,42,.08) }
+.opens-card.opens-card-muted .opens-card-countdown-value{ color:#059669 }
+.opens-card.opens-card-warn  .opens-card-countdown{ border-left-color:rgba(245,158,11,.30) }
+.opens-card.opens-card-warn  .opens-card-countdown-value{ color:#B45309 }
 .opens-card-cta:active{ transform:scale(.985) }
 .opens-card-cta.opens-card-cta-danger{
   background:#FFFFFF;color:#9F1239;border-color:rgba(225,29,72,.25);
@@ -2448,6 +2490,13 @@ body.is-home main > .home-hero{
 .up-next-vehicle{
   font-size:13.5px;font-weight:600;color:#2563FF;letter-spacing:-.005em;margin-top:2px;
 }
+.up-next-weather{
+  display:flex;align-items:center;gap:6px;
+  margin-top:4px;
+  font-size:13px;color:#64748B;font-weight:500;line-height:1.2;
+}
+.up-next-weather[hidden]{ display:none }
+.up-next-weather .shift-weather-temp{ color:#0F172A }
 .up-next-empty{
   background:#FFFFFF;
   border:1px solid rgba(15,23,42,.05);

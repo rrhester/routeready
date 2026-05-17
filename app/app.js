@@ -1628,6 +1628,8 @@ async function renderSchedule() {
       shiftKind: s.shift_kind || "regular",
       trainerName: s.trainer_name || "",
       trainingDay: s.shift_kind === "training" ? (trainingDayIndex.get(s.date) || 1) : 0,
+      stationLat: Number(s.station_latitude),
+      stationLng: Number(s.station_longitude),
     })).filter((s) => ["scheduled", "completed"].includes(s.status));
 
     const todayIso = fmtIsoDate(new Date());
@@ -1686,6 +1688,7 @@ async function renderSchedule() {
     _coverOfferStart(session.token);
     _pickupListStart(session.token);
     _swapInboxStart(session.token);
+    _hydrateShiftWeather([...todayShifts, ...upcomingShifts]);
   } catch (err) {
     // A thrown error inside renderSchedule used to kill the whole
     // render and leave main empty.  Surface it instead.
@@ -2060,6 +2063,12 @@ function shiftCardHtml(s, isToday, vanName, opts) {
       : "";
   const stationLine = onboardingLabel || s.station;
   const isOnboardingShift = isTraining || isRideAlong;
+  // Weather chip is filled in async after render — see _hydrateShiftWeather.
+  // We emit a dated placeholder slot so the chip can appear without a
+  // full re-render once NWS responds.
+  const wxSlot = s.iso && s.status === "scheduled"
+    ? `<div class="shift-weather" data-wx-iso="${escapeHtml(s.iso)}" hidden></div>`
+    : "";
   return `
     <div class="shift-card ${isToday ? "is-today" : ""}">
       <div class="date-block">
@@ -2074,6 +2083,7 @@ function shiftCardHtml(s, isToday, vanName, opts) {
         </div>
         <div class="meta-station">${escapeHtml(stationLine)}${isOnboardingShift && s.station ? ` · ${escapeHtml(s.station)}` : ""}</div>
         ${vanName ? `<div style="margin-top:4px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)">Vehicle ${escapeHtml(vanName)}</div>` : ""}
+        ${wxSlot}
         ${tags.length ? `<div class="meta-tags">${tags.join("")}</div>` : ""}
         ${opts?.swappable && s.status === "scheduled" && !isOnboardingShift ? `
           <div style="margin-top:8px"><a href="#" class="rr-text-link" data-rr-swap-from="${escapeHtml(s.id)}" style="font-size:var(--fs-xs);color:var(--text-subtle);text-decoration:none;cursor:pointer">Offer swap</a></div>
@@ -2094,6 +2104,119 @@ function fmtTime(iso) {
   const ampm = h >= 12 ? "pm" : "am";
   h = h % 12 || 12;
   return `${h}:${String(m).padStart(2, "0")}${ampm}`;
+}
+
+// ── Countdown · "STARTS IN 45m" / "STARTS IN 2h 10m" ────────────────
+// Renders the gap between now and a target time as a short, ticking
+// label. Returns null once the target is in the past so callers can
+// hide the badge.
+function _countdownText(targetMs) {
+  const ms = targetMs - Date.now();
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  const totalMin = Math.ceil(ms / 60000);
+  if (totalMin < 60) return `${totalMin}m`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h < 24) return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  const d = Math.floor(h / 24);
+  const hh = h % 24;
+  return hh === 0 ? `${d}d` : `${d}d ${hh}h`;
+}
+
+// ── Weather · NWS forecast lookup for shift cards ────────────────────
+// One fetch per (lat,lng) per app session, cached in-memory. Returns a
+// Map<isoDate, {tempF, conditions, precipPct}> for the *daytime* period
+// of each available day in the forecast (NWS gives ~7 days). On any
+// failure we return null and callers silently omit the weather chip —
+// weather is informational, never a hard dependency.
+const _wxCache = new Map();
+async function _fetchForecastByLatLng(lat, lng) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+  const cached = _wxCache.get(key);
+  if (cached && (Date.now() - cached.fetchedAt) < 30 * 60 * 1000) return cached.byIso;
+  const inflight = _wxCache.get(key)?.inflight;
+  if (inflight) return inflight;
+  const p = (async () => {
+    try {
+      const headers = { "User-Agent": "RouteReady-Driver/1.0", "Accept": "application/geo+json" };
+      const pointsRes = await fetch(`https://api.weather.gov/points/${lat.toFixed(4)},${lng.toFixed(4)}`, { headers });
+      if (!pointsRes.ok) throw new Error("nws points");
+      const points = await pointsRes.json();
+      const forecastUrl = points?.properties?.forecast;
+      if (!forecastUrl) throw new Error("no forecast url");
+      const fRes = await fetch(forecastUrl, { headers });
+      if (!fRes.ok) throw new Error("nws forecast");
+      const forecast = await fRes.json();
+      const periods = forecast?.properties?.periods || [];
+      const byIso = new Map();
+      for (const pd of periods) {
+        if (!pd.isDaytime) continue;
+        const iso = (pd.startTime || "").slice(0, 10);
+        if (!iso || byIso.has(iso)) continue;
+        byIso.set(iso, {
+          tempF: pd.temperature,
+          conditions: pd.shortForecast || "",
+          precipPct: pd.probabilityOfPrecipitation?.value || 0,
+        });
+      }
+      _wxCache.set(key, { fetchedAt: Date.now(), byIso });
+      return byIso;
+    } catch {
+      _wxCache.set(key, { fetchedAt: Date.now(), byIso: new Map() });
+      return new Map();
+    }
+  })();
+  _wxCache.set(key, { fetchedAt: Date.now(), byIso: cached?.byIso || new Map(), inflight: p });
+  return p;
+}
+
+// Compact "partly cloudy" → ⛅ glyph picker. Matches NWS shortForecast
+// vocabulary; falls back to the generic sun-cloud glyph.
+function _weatherIcon(conditions) {
+  const t = (conditions || "").toLowerCase();
+  if (t.includes("thunder"))                         return "⛈";
+  if (t.includes("snow") || t.includes("sleet"))     return "❄";
+  if (t.includes("rain") || t.includes("shower") || t.includes("drizzle")) return "🌧";
+  if (t.includes("partly")) return "⛅";
+  if (t.includes("cloud") || t.includes("overcast")) return "☁";
+  if (t.includes("fog") || t.includes("haze") || t.includes("mist")) return "🌫";
+  if (t.includes("wind"))                            return "💨";
+  if (t.includes("sun") || t.includes("clear"))      return "☀";
+  return "🌤";
+}
+
+// Walks the rendered .shift-weather slots and fills each one with the
+// matching NWS daytime forecast for that shift's station + date.
+// Cards with no station coords, no matching forecast (date beyond
+// NWS's 7-day window), or a fetch failure stay hidden — never partly
+// rendered.
+async function _hydrateShiftWeather(shifts) {
+  if (!Array.isArray(shifts) || shifts.length === 0) return;
+  const groups = new Map();
+  for (const s of shifts) {
+    if (!s?.iso || s.status !== "scheduled") continue;
+    if (!Number.isFinite(s.stationLat) || !Number.isFinite(s.stationLng)) continue;
+    const key = `${s.stationLat.toFixed(3)},${s.stationLng.toFixed(3)}`;
+    if (!groups.has(key)) groups.set(key, { lat: s.stationLat, lng: s.stationLng, isos: new Set() });
+    groups.get(key).isos.add(s.iso);
+  }
+  for (const { lat, lng } of groups.values()) {
+    const byIso = await _fetchForecastByLatLng(lat, lng);
+    if (!byIso || byIso.size === 0) continue;
+    document.querySelectorAll(".shift-weather[data-wx-iso]").forEach((el) => {
+      if (el.dataset.wxHydrated) return;
+      const iso = el.dataset.wxIso;
+      const wx = byIso.get(iso);
+      if (!wx) return;
+      el.dataset.wxHydrated = "1";
+      el.hidden = false;
+      el.innerHTML = `
+        <span class="shift-weather-icon" aria-hidden="true">${_weatherIcon(wx.conditions)}</span>
+        <span class="shift-weather-temp">${wx.tempF}°</span>
+        <span class="shift-weather-text">${escapeHtml(wx.conditions || "")}</span>`;
+    });
+  }
 }
 
 // ── Tasks hub ───────────────────────────────────────────────────────
@@ -3862,8 +3985,26 @@ async function renderUpNext(session) {
         <div class="up-next-time">${escapeHtml(timeRange)}</div>
         ${metaParts.length ? `<div class="up-next-meta">${escapeHtml(metaParts.join(" · "))}</div>` : ""}
         ${vehicle ? `<div class="up-next-vehicle">Vehicle ${escapeHtml(vehicle)}</div>` : ""}
+        <div class="up-next-weather" id="rr-upnext-wx" hidden></div>
       </div>
     </div>`;
+
+  // Forecast for the shift's station — silent on miss / failure.
+  const lat = Number(s.station_latitude);
+  const lng = Number(s.station_longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    _fetchForecastByLatLng(lat, lng).then((byIso) => {
+      const el = document.getElementById("rr-upnext-wx");
+      if (!el || !byIso) return;
+      const wx = byIso.get(s.date);
+      if (!wx) return;
+      el.hidden = false;
+      el.innerHTML = `
+        <span class="shift-weather-icon" aria-hidden="true">${_weatherIcon(wx.conditions)}</span>
+        <span class="shift-weather-temp">${wx.tempF}°</span>
+        <span class="shift-weather-text">${escapeHtml(wx.conditions || "")}</span>`;
+    });
+  }
 }
 
 // ── Settings · gear icon in the top-right of the header ─────────────
@@ -5046,10 +5187,33 @@ function _initSignaturePad(canvasId, clearBtnId) {
 //   2. In window, not checked in: same buttons, but Check in is enabled
 //   3. Checked in: "Checked in · 8:42 AM" + "Check out" button
 // Every action goes through confirm() so a stray tap doesn't fire it.
+let _checkinCountdownTimer = null;
+function _stopCheckinCountdown() {
+  if (_checkinCountdownTimer) { clearInterval(_checkinCountdownTimer); _checkinCountdownTimer = null; }
+}
+function _startCheckinCountdown(targetMs) {
+  _stopCheckinCountdown();
+  const tick = () => {
+    const el = document.getElementById("rr-checkin-countdown");
+    if (!el) { _stopCheckinCountdown(); return; }
+    const valueEl = el.querySelector(".opens-card-countdown-value");
+    const txt = _countdownText(targetMs);
+    if (!txt) {
+      el.hidden = true;
+      _stopCheckinCountdown();
+      return;
+    }
+    if (valueEl) valueEl.textContent = txt;
+  };
+  tick();
+  _checkinCountdownTimer = setInterval(tick, 30 * 1000);
+}
+
 async function renderCheckinCard(session) {
   const slot = document.getElementById("rr-checkin-slot");
   const missedSlot = document.getElementById("rr-missed-slot");
   if (!slot) return;
+  _stopCheckinCountdown();
   // Helper: render the "Report missed day" row into its own slot.
   // Hidden by default; only the states where a missed-day makes sense
   // turn it on (pre-checkin window-not-open / no-geofence).
@@ -5193,6 +5357,19 @@ async function renderCheckinCard(session) {
     return;
   }
 
+  // "STARTS IN 45m" — counts down to shift start so the driver knows
+  // how long they've got. Initial value is rendered server-side from
+  // the markup below; _startCheckinCountdown refreshes it on a 30s
+  // interval and self-clears once the start time has passed.
+  const startsAtMs = shift.starts_at ? new Date(shift.starts_at).getTime() : NaN;
+  const initialCountdown = Number.isFinite(startsAtMs) ? _countdownText(startsAtMs) : null;
+  const countdownHtml = initialCountdown
+    ? `<div class="opens-card-countdown" id="rr-checkin-countdown">
+         <div class="opens-card-countdown-label">Starts in</div>
+         <div class="opens-card-countdown-value">${escapeHtml(initialCountdown)}</div>
+       </div>`
+    : "";
+
   const windowOpen = !!status.window_is_open;
   if (windowOpen) {
     slot.innerHTML = `
@@ -5203,6 +5380,7 @@ async function renderCheckinCard(session) {
             <div class="opens-card-title">Check in</div>
             <div class="opens-card-meta">${detailMeta}</div>
           </div>
+          ${countdownHtml}
         </div>
       </button>`;
     document.getElementById("rr-checkin-btn").addEventListener("click", () => doCheckin(session));
@@ -5215,9 +5393,11 @@ async function renderCheckinCard(session) {
             <div class="opens-card-title">Opens at ${escapeHtml(windowOpenTxt)}</div>
             <div class="opens-card-meta">${detailMeta}</div>
           </div>
+          ${countdownHtml}
         </div>
       </div>`;
   }
+  if (initialCountdown) _startCheckinCountdown(startsAtMs);
   showMissed(true);
 }
 
