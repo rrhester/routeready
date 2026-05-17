@@ -874,15 +874,18 @@ function render() {
   // without the driver having to open Chat first.
   refreshChatBadge();
   // Check for queued Recognition Celebration Events (migration 0292).
-  // Fires once per app open — driver_recognitions_pending returns the
-  // oldest sent-but-not-dismissed event, or null if nothing is pending.
-  // Fire-and-forget: the overlay paints over the shell when it lands;
-  // we never block route mount on it.
-  checkAndShowPendingRecognition(session).catch((e) => {
-    // Silent failure — recognition is non-essential; never let it
-    // block the driver from getting into the app.
-    console.warn("recognition check failed:", e);
-  });
+  // Defer past first route mount so the overlay paints AFTER the
+  // shell + active tab settle.  On first app open the route renderer
+  // (renderSchedule etc.) was racing the overlay paint — overlay
+  // appended to body but then the route's own innerHTML thrash
+  // sometimes scrolled it out of the visible area until the user
+  // navigated, re-firing the hook on hashchange.  setTimeout(..., 250)
+  // gives the route a frame or two to settle, then paints clean.
+  setTimeout(() => {
+    checkAndShowPendingRecognition(session).catch((e) => {
+      console.warn("recognition check failed:", e);
+    });
+  }, 250);
   const path = currentRoute();
   const r = routes[path];
   // Header back button on sub-routes; clear it on top-level tabs.
@@ -7276,24 +7279,27 @@ function _renderCelebrationOverlay(session, ev) {
 
   // Build the confetti DOM up-front and let CSS animate it.  Skipping
   // entirely on reduced-motion keeps the overlay perfectly still.
-  const confettiCount = reduced ? 0 : 36;
+  // Generous count + a continuous-feeling cascade (delays up to 3s so
+  // pieces keep falling for ~6s total instead of arriving in a single
+  // burst).  Pointer-events:none on every piece in the CSS below so
+  // they don't intercept taps to the CTA button.
+  const confettiCount = reduced ? 0 : 140;
   const confettiPieces = [];
-  // Palette pulled from the design reference: deep blue, sky blue,
-  // golden ochre, soft white.  Each piece gets a random hue from this
-  // list, random horizontal start (-5 → 105 vw to cover the edges),
-  // random delay (0 → 1.6s), random rotation, random duration
-  // (3.4 → 5.2s).
-  const palette = ["#FBBF24","#FDE68A","#60A5FA","#93C5FD","#FFFFFF","#F8FAFC"];
+  // Palette pulled from the design reference: golden ochres, sky
+  // blues, soft whites.  Each piece gets a random hue, random
+  // horizontal start, random delay, random rotation, random duration.
+  const palette = ["#FBBF24","#F59E0B","#FDE68A","#60A5FA","#93C5FD","#3B82F6","#FFFFFF","#F8FAFC","#DBEAFE"];
   for (let i = 0; i < confettiCount; i++) {
     const left  = (Math.random() * 110 - 5).toFixed(2);
-    const delay = (Math.random() * 1.6).toFixed(2);
-    const dur   = (3.4 + Math.random() * 1.8).toFixed(2);
+    const delay = (Math.random() * 3.0).toFixed(2);
+    const dur   = (3.4 + Math.random() * 2.4).toFixed(2);
     const hue   = palette[Math.floor(Math.random() * palette.length)];
     const rot   = (Math.random() * 360).toFixed(0);
-    const drift = (Math.random() * 60 - 30).toFixed(0);
-    const shape = Math.random() > 0.5 ? "rect" : "round";
+    const drift = (Math.random() * 120 - 60).toFixed(0);
+    const size  = (8 + Math.random() * 8).toFixed(1);          // 8–16 px
+    const shape = Math.random() > 0.55 ? "rect" : "round";
     confettiPieces.push(
-      `<i class="rr-confetti rr-confetti-${shape}" style="left:${left}vw;background:${hue};--rot:${rot}deg;--drift:${drift}px;animation-delay:${delay}s;animation-duration:${dur}s"></i>`
+      `<i class="rr-confetti rr-confetti-${shape}" style="left:${left}vw;background:${hue};width:${size}px;height:${size}px;--rot:${rot}deg;--drift:${drift}px;animation-delay:${delay}s;animation-duration:${dur}s"></i>`
     );
   }
 
@@ -7331,8 +7337,14 @@ function _renderCelebrationOverlay(session, ev) {
         opacity:.92;will-change:transform, opacity;
         animation:rrCelebConfetti linear forwards;
         transform:translate3d(0,0,0) rotate(var(--rot, 0deg));
+        /* MUST be pointer-events:none — the confetti pieces float
+           across the screen on top of the card + CTA button, and a
+           default pointer-events:auto would let them intercept the
+           "Start my day" tap (which is why an earlier version felt
+           unresponsive on phone). */
+        pointer-events:none;
       }
-      .rr-celebrate .rr-confetti-round{border-radius:50%;width:9px;height:9px}
+      .rr-celebrate .rr-confetti-round{border-radius:50%}
       .rr-celebrate.is-reduced .rr-confetti{display:none}
 
       /* Card */
@@ -7472,6 +7484,13 @@ function _renderCelebrationOverlay(session, ev) {
   if (!reduced && navigator.vibrate) {
     try { navigator.vibrate([14, 40, 18]); } catch (e) { /* iOS Safari throws if PWA not granted permission */ }
   }
+  // Celebration chime — a brief synthesized bell arpeggio.  We
+  // generate it on the fly via Web Audio so there's no audio asset
+  // to ship or load.  Reduced-motion users get silence too.  Wrapped
+  // in try/catch because Safari needs a user gesture to unlock the
+  // audio context in some configurations; if it throws, the overlay
+  // still paints fine — sound is non-essential.
+  if (!reduced) _playCelebrationChime();
 
   // Mark delivered immediately.  The RPC is idempotent so a rapid
   // re-render won't double-stamp.  Fire-and-forget — the overlay paints
@@ -7515,4 +7534,49 @@ function _renderCelebrationOverlay(session, ev) {
     }
   };
   document.addEventListener("keydown", onKey);
+}
+
+
+// ── Celebration chime ─────────────────────────────────────────────────
+// Brief synthesized bell arpeggio.  Three sine-wave tones (E5 / G#5 /
+// B5 — an E major triad climbing) with a soft ADSR-ish envelope per
+// note, master gain kept low so the cue feels premium and unobtrusive
+// rather than arcade.  No audio asset; everything runs through a
+// freshly-created AudioContext that gets garbage-collected when the
+// notes end.
+//
+// Browsers require a user gesture to unlock the audio context.  In the
+// celebration flow the AudioContext is created when the overlay paints
+// — by then the user has tapped the app icon to open the app, which on
+// most platforms counts as a gesture and lets us play immediately.  If
+// any platform rejects (some iOS configs), we silently catch and the
+// overlay keeps working without sound.
+function _playCelebrationChime() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    const master = ctx.createGain();
+    master.gain.value = 0.18;                   // soft overall level
+    master.connect(ctx.destination);
+    const start = ctx.currentTime + 0.02;
+    // E major triad climbing: E5, G#5, B5.  Each tone uses a quick
+    // attack + exponential decay so the chime rings out gracefully.
+    [659.25, 830.61, 987.77].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const gain = ctx.createGain();
+      const t0 = start + i * 0.085;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.9, t0 + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.8);
+      osc.connect(gain);
+      gain.connect(master);
+      osc.start(t0);
+      osc.stop(t0 + 0.85);
+    });
+    // Close the context shortly after the last note to free resources.
+    setTimeout(() => { try { ctx.close(); } catch (_) {} }, 1500);
+  } catch (_) { /* audio unavailable — overlay still works */ }
 }
