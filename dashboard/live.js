@@ -21892,9 +21892,14 @@ async function openShiftEditModal(shiftId) {
   let m = document.getElementById("rr-shift-edit-modal");
   if (m) m.remove();
 
+  // Disambiguate the drivers embed — `shifts` now has two FKs to
+  // drivers (driver_id and trainer_driver_id from 0268), so the bare
+  // `drivers(...)` embed errors out with "more than one relationship".
+  // Always resolve via driver_id (the assigned driver, what this modal
+  // is editing).
   const { data: sh, error } = await sb
     .from("shifts")
-    .select("id, date, starts_at, ends_at, driver_id, route_code, drivers(full_name, preferred_name)")
+    .select("id, date, starts_at, ends_at, driver_id, route_code, drivers!driver_id(full_name, preferred_name)")
     .eq("id", shiftId)
     .single();
   if (error || !sh) {
