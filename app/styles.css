@@ -1448,6 +1448,14 @@ select.field{
 .ob-item + .ob-item{border-top:1px solid var(--border)}
 .ob-item.active{background:var(--accent-soft)}
 .ob-item.action{background:var(--amber-soft)}
+.ob-item.locked{opacity:.58}
+.ob-item-head{display:flex;align-items:center;gap:8px;min-width:0}
+.ob-chip{flex:0 0 auto;display:inline-flex;align-items:center;border:1px solid var(--border);background:var(--canvas);color:var(--text-subtle);border-radius:999px;padding:1px 7px;font-size:10px;font-weight:800;line-height:1.5}
+.ob-chip.done{background:var(--green-soft);border-color:rgba(16,185,129,.22);color:var(--green)}
+.ob-chip.active{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent-text)}
+.ob-chip.action{background:var(--amber-soft);border-color:var(--amber);color:var(--amber-dark)}
+.ob-chip.waiting{background:var(--canvas);border-color:var(--border);color:var(--text-muted)}
+.ob-trail{margin-left:auto;color:var(--text-subtle);flex:0 0 auto;display:inline-flex}
 .ob-dot{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center}
 .ob-dot.empty{border:2px solid var(--border-strong)}
 .ob-dot.active{border:2px solid var(--accent)}

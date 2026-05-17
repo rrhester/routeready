@@ -4292,6 +4292,10 @@ function _obDot(state) {
   return `<span class="ob-dot empty"></span>`;
 }
 
+function _obStatusChip(label, tone = "neutral") {
+  return `<span class="ob-chip ${tone}">${escapeHtml(label)}</span>`;
+}
+
 function _obSkeleton() {
   const line = (w) => `<div class="i9-skel" style="height:12px;width:${w}"></div>`;
   return `<div class="ob">
@@ -4464,16 +4468,16 @@ async function renderOnboarding(opts) {
 
   const itemHtml = (it, i) => {
     if (it.done) {
-      return `<div class="ob-item done">${_obDot("done")}<div style="min-width:0"><div class="ob-item-title">${escapeHtml(it.title)}</div><div class="ob-item-sub">${escapeHtml(it.subDone || "Done")}</div></div></div>`;
+      return `<div class="ob-item done">${_obDot("done")}<div style="min-width:0"><div class="ob-item-head"><div class="ob-item-title">${escapeHtml(it.title)}</div>${_obStatusChip("Done", "done")}</div><div class="ob-item-sub">${escapeHtml(it.subDone || "Done")}</div></div></div>`;
     }
     if (curIdx >= 0 && i > curIdx) {   // locked — comes after the current step
-      return `<div class="ob-item" style="opacity:.5"><span class="ob-dot empty"></span><div style="min-width:0"><div class="ob-item-title">${escapeHtml(it.title)}</div><div class="ob-item-sub">Unlocks once the steps above are done</div></div><span style="margin-left:auto;color:var(--text-subtle);flex:0 0 auto;display:inline-flex" aria-hidden="true">${_OB_LOCK}</span></div>`;
+      return `<div class="ob-item locked"><span class="ob-dot empty"></span><div style="min-width:0"><div class="ob-item-head"><div class="ob-item-title">${escapeHtml(it.title)}</div>${_obStatusChip("Locked")}</div><div class="ob-item-sub">Unlocks once the steps above are done</div></div><span class="ob-trail" aria-hidden="true">${_OB_LOCK}</span></div>`;
     }
     if (i === curIdx && curActionable) {
-      return `<div class="ob-item ${it.attention ? "action" : "active"}">${_obDot("active")}<div style="min-width:0"><div class="ob-item-title">${escapeHtml(it.title)}</div><div class="ob-item-sub">${escapeHtml(it.subTodo || "")}</div></div><button class="ob-go" type="button" data-onboard-go="${escapeHtml(it.action)}" aria-label="${escapeHtml(it.cta || "Open")}">${_OB_CHEVRON}</button></div>`;
+      return `<div class="ob-item ${it.attention ? "action" : "active"}">${_obDot("active")}<div style="min-width:0"><div class="ob-item-head"><div class="ob-item-title">${escapeHtml(it.title)}</div>${_obStatusChip(it.attention ? "Fix needed" : "Now", it.attention ? "action" : "active")}</div><div class="ob-item-sub">${escapeHtml(it.subTodo || "")}</div></div><button class="ob-go" type="button" data-onboard-go="${escapeHtml(it.action)}" aria-label="${escapeHtml(it.cta || "Open")}">${_OB_CHEVRON}</button></div>`;
     }
     // current step, but it's on the DSP / being prepared
-    return `<div class="ob-item active">${_obDot("active")}<div style="min-width:0"><div class="ob-item-title">${escapeHtml(it.title)}</div><div class="ob-item-sub">${escapeHtml(it.subTodo || "Your team is handling this")}</div></div><span style="margin-left:auto;color:var(--text-subtle);flex:0 0 auto;display:inline-flex" aria-hidden="true">${_OB_CLOCK}</span></div>`;
+    return `<div class="ob-item active">${_obDot("active")}<div style="min-width:0"><div class="ob-item-head"><div class="ob-item-title">${escapeHtml(it.title)}</div>${_obStatusChip("Team", "waiting")}</div><div class="ob-item-sub">${escapeHtml(it.subTodo || "Your team is handling this")}</div></div><span class="ob-trail" aria-hidden="true">${_OB_CLOCK}</span></div>`;
   };
 
   main.innerHTML = `
