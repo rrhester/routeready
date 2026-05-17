@@ -4080,7 +4080,7 @@ function _obAddStepPicker() {
     <div style="background:var(--surface);border-radius:var(--r-xl);max-width:520px;width:100%;box-shadow:var(--shadow-lg)">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Add a step</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Pick a type — you can rename and configure it after.</div></div>
       <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-2-5)">
-        ${_OB_ADD_TYPES.map(t => `<button type="button" class="rr-addtype" data-type="${t.type}" style="text-align:left;border:1.5px solid var(--border);border-radius:var(--r-xl);padding:var(--s-3-5) var(--s-4);cursor:pointer;background:var(--surface)"><div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(t.label)}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.45">${escapeHtml(t.blurb)}</div></button>`).join("")}
+        ${_OB_ADD_TYPES.map((t, idx) => `<button type="button" class="rr-addtype" data-picker-idx="${idx}" style="text-align:left;border:1.5px solid var(--border);border-radius:var(--r-xl);padding:var(--s-3-5) var(--s-4);cursor:pointer;background:var(--surface)"><div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(t.label)}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.45">${escapeHtml(t.blurb)}</div></button>`).join("")}
       </div>
       <div style="padding:var(--s-3-5) 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end"><button type="button" class="btn btn-sm" data-rr-add-close>Cancel</button></div>
     </div>`;
@@ -4089,7 +4089,11 @@ function _obAddStepPicker() {
     if (e.target === m || e.target.closest("[data-rr-add-close]")) { m.remove(); return; }
     const b = e.target.closest(".rr-addtype");
     if (!b) return;
-    const t = _OB_ADD_TYPES.find(x => x.type === b.getAttribute("data-type"));
+    // Resolve by array index, not by type — several picker options
+    // share type:"task" (custom compliance gate, trainer pairing) and
+    // type-based lookup would always return the first match.
+    const idx = +b.getAttribute("data-picker-idx");
+    const t = Number.isFinite(idx) ? _OB_ADD_TYPES[idx] : null;
     if (!t) return;
     // Refuse to add a second copy of a single-instance type — core
     // compliance gates and the trainer-pairing step are all "you only
@@ -4344,8 +4348,12 @@ async function loadOnboardingOps(opts) {
 
   // Columns = the enabled blueprint steps (canonical ones use their
   // underlying field; custom ones use driver_onboarding_state), then a
-  // fixed "Active" + a "Send documents" action column.
+  // fixed "Active" + a "Send documents" action column. The trainer-pair
+  // column is rendered only when the blueprint has the trainer_pair
+  // step — DSPs that don't run ride-alongs shouldn't see an empty
+  // column for it.
   const stepCols = _obSteps().filter(s => s && s.enabled).map(_obStepColumn);
+  const hasTrainerPair = _obSteps().some(s => s && s.key === "trainer_pair");
   const fmtCellDate = (x) => x ? new Date(x).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
   // Onboarding dot: green once the step is complete, no fill otherwise.
   // Every step in the overview is visible to the driver; hover for status.
@@ -4411,7 +4419,7 @@ async function loadOnboardingOps(opts) {
           </div>
         </td>
         ${cells}
-        ${(() => {
+        ${hasTrainerPair ? (() => {
           // Trainer-pair cell — opens the training-pairing modal. Status:
           //   • materialized   → green dot
           //   • proposed       → solid grey (match saved, awaiting activate)
@@ -4432,7 +4440,7 @@ async function loadOnboardingOps(opts) {
                       : st === "proposed"     ? "Match saved · awaiting activate"
                       :                         "Click to pair a trainer";
           return `<td><button type="button" class="ob-mxdot" data-rr-tp-open="${escapeHtml(d.id)}" style="background:${color};border-color:${border}" title="${title}" aria-label="${title}"></button></td>`;
-        })()}
+        })() : ""}
         <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "todo"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button></td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></button></td>
@@ -4448,7 +4456,7 @@ async function loadOnboardingOps(opts) {
           <tr>
             <th class="ob-mx-namecol">Driver</th>
             ${stepHeaders}
-            <th title="Day 1+2 station training and Day 3 ride-along match">Trainer pair</th>
+            ${hasTrainerPair ? `<th title="Day 1+2 station training and Day 3 ride-along match">Trainer pair</th>` : ""}
             <th>Active</th>
             <th>Send</th>
             <th>Notes</th>
