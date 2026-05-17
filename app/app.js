@@ -50,6 +50,28 @@ if (PREVIEW) {
   };
 }
 
+// ── Recognition foreground re-check ─────────────────────────────────
+// iOS PWAs and Safari bfcache keep the JS process alive across
+// app suspend/resume.  When the driver taps the home-screen icon
+// after sending themselves a fresh celebration, render() does NOT
+// re-fire — they're unfreezing the previous tab.  These listeners
+// fire on every foreground (visibilitychange) and bfcache restore
+// (pageshow) so the pending-event check runs right when the user
+// returns to the app.
+function _recheckRecognitionOnForeground() {
+  try {
+    const session = (typeof readSession === "function") ? readSession() : null;
+    if (!session || !session.token) return;
+    if (typeof checkAndShowPendingRecognition !== "function") return;
+    checkAndShowPendingRecognition(session).catch(() => {});
+  } catch (_) {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") _recheckRecognitionOnForeground();
+});
+window.addEventListener("pageshow", _recheckRecognitionOnForeground);
+window.addEventListener("focus", _recheckRecognitionOnForeground);
+
 // ── Service worker registration ─────────────────────────────────────
 if ("serviceWorker" in navigator && !PREVIEW) {
   window.addEventListener("load", () => {
@@ -875,10 +897,14 @@ function render() {
   refreshChatBadge();
   // Check for queued Recognition Celebration Events.  Fires immediately
   // so the celebration is the first thing the driver sees on app open
-  // — no perceptible shell flash before the overlay lands.  An earlier
-  // 250ms setTimeout was added to work around the now-fixed
-  // pointer-events bug on confetti; it added a full second of normal
-  // screen visibility before the overlay covered the shell.
+  // — no perceptible shell flash before the overlay lands.
+  //
+  // Note: iOS PWAs and Safari back/forward cache hold the JS state
+  // alive across app suspend/resume.  When the driver taps the home-
+  // screen icon, render() may NOT re-fire — they're just unfreezing
+  // the previous tab.  visibilitychange + pageshow listeners (set up
+  // once below) re-fire the check on every foreground so a freshly-
+  // queued celebration lands when the driver returns to the app.
   checkAndShowPendingRecognition(session).catch((e) => {
     console.warn("recognition check failed:", e);
   });
@@ -7470,37 +7496,65 @@ function _renderCelebrationOverlay(session, ev) {
       sb.rpc("driver_recognition_dismiss", { p_token: session.token, p_id: ev.id })
         .catch((e) => console.warn("recognition mark-dismissed failed:", e?.message));
     }
-    // No client-side skip flag — the server-side dismissed_at write
-    // (above) is the canonical idempotency guard.  An earlier version
-    // wrote sessionStorage here, which trapped stale skip state and
-    // blocked future genuine events.
+    // Unbind the document-level capture-phase backstop so it doesn't
+    // outlive the overlay (would otherwise leak across subsequent
+    // celebrations).
+    if (overlay._docCapture) {
+      document.removeEventListener("pointerdown", overlay._docCapture, true);
+      document.removeEventListener("click",       overlay._docCapture, true);
+      overlay._docCapture = null;
+    }
     setTimeout(() => {
       overlay.remove();
       _celebrationOpen = false;
     }, reduced ? 0 : 320);
   };
 
-  // Bind dismiss handlers directly to the CTA + close button rather
-  // than relying on a single delegated `click` on the overlay.  The
-  // delegated version was unreliable on iOS — taps on the button
-  // sometimes fired but the closest() lookup walked into a confetti
-  // element (now pointer-events:none, but defence in depth).
-  // touchstart fires before the synthesized click so the button feels
-  // instant; click is the desktop / non-touch fallback.
+  // Bind dismiss every which way on the CTA + close button.  Previous
+  // versions (single delegated click, then click+touchstart on the
+  // button) both reportedly missed the tap on real iOS PWAs.  Belt
+  // and suspenders this time:
+  //   • pointerdown — universal pointer event, fires before click
+  //   • touchend    — fires after touchstart, no preventDefault
+  //   • click       — desktop / non-touch fallback
+  //   • capture phase on document — backstop if any of the above
+  //     are intercepted by an animation overlay
+  // Also style the buttons so iOS treats them as tap targets (cursor
+  // pointer, visible tap-highlight) — iOS Safari has been known to
+  // skip touch events on elements it doesn't classify as buttons.
   const ctaBtn   = overlay.querySelector("[data-rr-celeb-cta]");
   const closeBtn = overlay.querySelector("[data-rr-celeb-close]");
   const fireDismiss = (e) => {
-    if (e) { e.preventDefault(); e.stopPropagation(); }
+    if (e) { e.stopPropagation(); }
     dismiss();
   };
-  if (ctaBtn) {
-    ctaBtn.addEventListener("click",      fireDismiss);
-    ctaBtn.addEventListener("touchstart", fireDismiss, { passive: false });
-  }
-  if (closeBtn) {
-    closeBtn.addEventListener("click",      fireDismiss);
-    closeBtn.addEventListener("touchstart", fireDismiss, { passive: false });
-  }
+  const bindDismiss = (btn) => {
+    if (!btn) return;
+    btn.style.cursor = "pointer";
+    btn.style.webkitTapHighlightColor = "rgba(255,255,255,0.18)";
+    btn.style.touchAction = "manipulation";   // disables iOS double-tap zoom
+    btn.addEventListener("pointerdown", fireDismiss);
+    btn.addEventListener("touchend",    fireDismiss);
+    btn.addEventListener("click",       fireDismiss);
+  };
+  bindDismiss(ctaBtn);
+  bindDismiss(closeBtn);
+  // Document-level capture-phase backstop — fires before any other
+  // handler in the bubble phase; if every direct listener above
+  // somehow missed, this still catches a tap landing on the CTA / X.
+  const docCapture = (e) => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest("[data-rr-celeb-cta]") || t.closest("[data-rr-celeb-close]")) {
+      fireDismiss(e);
+    }
+  };
+  document.addEventListener("pointerdown", docCapture, true);
+  document.addEventListener("click",       docCapture, true);
+  // Save references so dismiss() can unbind them — leaving stray
+  // capture listeners on document is a leak.
+  overlay._docCapture = docCapture;
+
   // First-touch anywhere on the overlay also unlocks audio on iOS
   // Safari for the chime that's queued below (see _playCelebrationChime).
   overlay.addEventListener("touchstart", _unlockAudioOnGesture, { passive: true, once: true });
