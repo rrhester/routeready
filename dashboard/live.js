@@ -29051,26 +29051,31 @@ let _docsSub = "templates";  // "templates" | "envelopes"
 // we present them as the lifecycle stages an HR or legal reviewer
 // expects to see on an e-signature record.
 const _DOCS_LIFECYCLE = {
-  sent:     { label: "Awaiting signature", cls: "is-pending",  blurb: "Delivered to the signer; not yet opened." },
-  viewed:   { label: "Opened by signer",   cls: "is-viewed",   blurb: "The signer has opened the document; signature pending." },
-  signed:   { label: "Signed & sealed",    cls: "is-signed",   blurb: "Signed with recorded intent. The record is sealed and tamper-evident." },
-  declined: { label: "Declined",           cls: "is-declined", blurb: "The signer declined. Reason (if given) is on the audit trail." },
-  voided:   { label: "Voided",             cls: "is-neutral",  blurb: "Withdrawn before completion. No further action possible." },
-  expired:  { label: "Expired",            cls: "is-neutral",  blurb: "Passed its expiry without completion." },
+  sent:              { label: "Awaiting signature",   cls: "is-pending",  blurb: "Delivered to the signer; not yet opened." },
+  viewed:            { label: "Opened by signer",     cls: "is-viewed",   blurb: "The signer has opened the document; signature pending." },
+  awaiting_employer: { label: "Awaiting your signature", cls: "is-pending", blurb: "The driver signed. Now needs your employer-side signature to seal." },
+  signed:            { label: "Signed & sealed",      cls: "is-signed",   blurb: "Signed with recorded intent. The record is sealed and tamper-evident." },
+  declined:          { label: "Declined",             cls: "is-declined", blurb: "The signer declined. Reason (if given) is on the audit trail." },
+  voided:            { label: "Voided",               cls: "is-neutral",  blurb: "Withdrawn before completion. No further action possible." },
+  expired:           { label: "Expired",              cls: "is-neutral",  blurb: "Passed its expiry without completion." },
 };
 function _docsLifecycle(s) { return _DOCS_LIFECYCLE[s] || _DOCS_LIFECYCLE.sent; }
 function _docsStatusChip(s) {
   const lc = _docsLifecycle(s);
   return `<span class="docs-chip ${lc.cls}" title="${escapeHtml(lc.blurb)}"><i class="dot"></i>${escapeHtml(lc.label)}</span>`;
 }
-// Tiny sent → opened → signed progress rail.
+// Tiny sent → opened → signed progress rail. The optional 4th segment
+// (driver-signed → awaiting employer → fully sealed) lights up only on
+// two-signer envelopes; legacy single-signer envelopes still read as a
+// clean 3-segment rail.
 function _docsRail(s) {
   let on = 1, cls = "";
   if (s === "viewed") on = 2;
-  else if (s === "signed") { on = 3; cls = "is-signed"; }
+  else if (s === "awaiting_employer") { on = 3; cls = ""; }
+  else if (s === "signed") { on = 4; cls = "is-signed"; }
   else if (s === "declined" || s === "voided" || s === "expired") { on = 1; cls = "is-dead"; }
   const seg = (i) => `<span class="${i <= on ? "on" : ""}"></span>`;
-  return `<div class="docs-rail ${cls}" title="Sent → Opened → Signed">${seg(1)}${seg(2)}${seg(3)}</div>`;
+  return `<div class="docs-rail ${cls}" title="Sent → Opened → Driver signed → Sealed">${seg(1)}${seg(2)}${seg(3)}${seg(4)}</div>`;
 }
 // Back-compat shim in case anything else references it.
 function _docsStatusPill(s) { return _docsStatusChip(s); }
@@ -29335,7 +29340,7 @@ async function _renderDocsEnvelopes() {
   list.innerHTML = _DOCS_SKEL_TABLE;
   const [envRes, i9Res] = await Promise.all([
     sb.from("document_envelopes")
-      .select("id, recipient_name, recipient_email, status, sent_at, viewed_at, signed_at, voided_at, signed_pdf_path, certificate_pdf_path, seal_path, signing_token, document_templates(title)")
+      .select("id, recipient_name, recipient_email, status, sent_at, viewed_at, signed_at, voided_at, signed_pdf_path, certificate_pdf_path, seal_path, signing_token, fields_snapshot, field_values, document_templates(title)")
       .order("sent_at", { ascending: false })
       .limit(200),
     sb.from("i9_records")
@@ -29383,7 +29388,7 @@ async function _renderDocsEnvelopes() {
   // Operational summary across the loaded window — sealed I-9s count
   // toward the totals so the strip matches what's in the table below.
   const n = envelopes.length + i9Sealed.length;
-  const nAwaiting = envelopes.filter((e) => e.status === "sent" || e.status === "viewed").length;
+  const nAwaiting = envelopes.filter((e) => e.status === "sent" || e.status === "viewed" || e.status === "awaiting_employer").length;
   const nSigned   = envelopes.filter((e) => e.status === "signed").length + i9Sealed.length;
   const nClosed   = envelopes.filter((e) => e.status === "declined" || e.status === "voided" || e.status === "expired").length;
   const month = new Date(); month.setDate(1); month.setHours(0,0,0,0);
@@ -29414,11 +29419,12 @@ async function _renderDocsEnvelopes() {
         <td>${_docsTimeCell(e.sent_at)}</td>
         <td>
           <div class="docs-row-actions">
+            ${e.status === "awaiting_employer" ? `<button class="btn btn-sm btn-primary" data-rr-docs-employer-sign="${escapeHtml(e.id)}">Sign as employer</button>` : ""}
             ${e.signed_pdf_path ? `<button class="btn btn-sm btn-ghost" data-rr-docs-download-sealed="${escapeHtml(e.id)}">Signed PDF</button>` : ""}
             ${e.certificate_pdf_path ? `<button class="btn btn-sm btn-ghost" data-rr-docs-download-cert="${escapeHtml(e.id)}">Certificate</button>` : ""}
             ${e.signing_token ? `<button class="btn btn-sm btn-ghost" data-rr-docs-verify-link="${escapeHtml(e.signing_token)}" title="Copy a public verification link — anyone can confirm this record without a login.">Verify link</button>` : ""}
             <button class="btn btn-sm btn-ghost" data-rr-docs-audit="${escapeHtml(e.id)}">Chain of custody</button>
-            ${canVoid ? `<button class="btn btn-sm btn-ghost" data-rr-docs-void="${escapeHtml(e.id)}" style="color:var(--red)">Void</button>` : ""}
+            ${canVoid || e.status === "awaiting_employer" ? `<button class="btn btn-sm btn-ghost" data-rr-docs-void="${escapeHtml(e.id)}" style="color:var(--red)">Void</button>` : ""}
           </div>
         </td>
       </tr>`;
@@ -30061,6 +30067,132 @@ function _docsEventNodeClass(k, ok) {
   return "";
 }
 
+// Operator-side modal for completing the employer leg of a two-signer
+// envelope. Mirrors the I-9 Section 2 modal in shape:
+//   1. The employer-tagged fields from the template's fields_snapshot
+//      (text + checkbox kinds) become a form, one input per field.
+//   2. Operator types a title, attests under penalty of perjury, and
+//      signs (drawn canvas OR typed name).
+//   3. employer_envelope_sign flips the envelope to 'signed' and the
+//      sealing worker takes over.
+//
+// No PDF preview yet — same pattern Section 2 uses today. We can add
+// an inline-preview view in a follow-up if operators want one.
+const _DOCS_EMP_ATTEST_TEXT =
+  "I attest, under penalty of perjury, that the information I have entered above is true and correct, and that I am authorized to sign this document on behalf of the employer.";
+const _DOCS_EMP_ATTEST_VERSION = "docs-employer-v1";
+
+async function _docsOpenEmployerSignModal(envelopeId) {
+  const { data: e, error } = await sb.from("document_envelopes")
+    .select("id, status, recipient_name, recipient_email, fields_snapshot, field_values, document_templates(title)")
+    .eq("id", envelopeId).single();
+  if (error || !e) { toast("Couldn't load envelope: " + (error?.message || "missing"), "warn"); return; }
+  if (e.status !== "awaiting_employer") {
+    toast("This envelope isn't waiting for an employer signature.", "warn");
+    return;
+  }
+
+  const fields = Array.isArray(e.fields_snapshot) ? e.fields_snapshot : [];
+  const empFillFields = fields.filter((f) => f && f.signer_role === "employer" && (f.kind === "text" || f.kind === "checkbox"));
+  const driverFieldCount = fields.filter((f) => f && (!f.signer_role || f.signer_role === "driver")).length;
+
+  const fillBlock = empFillFields.length === 0 ? `
+      <div style="border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3);background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-sm)">
+        This document has no employer-completed fields — just sign to seal it.
+      </div>
+    ` : `
+      <div style="display:flex;flex-direction:column;gap:var(--s-2-5)">
+        ${empFillFields.map((f) => f.kind === "checkbox"
+          ? `<label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:var(--fs-sm);line-height:1.5"><input type="checkbox" data-rr-emp-fld="${escapeHtml(f.id)}" style="margin-top:2px;width:18px;height:18px;accent-color:var(--accent);flex:0 0 auto"><span>${escapeHtml(f.label || "Checkbox")}</span></label>`
+          : `<label style="display:flex;flex-direction:column;gap:4px"><span class="u-xs-subtle">${escapeHtml(f.label || "Text field")}</span><input type="text" data-rr-emp-fld="${escapeHtml(f.id)}" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)"></label>`
+        ).join("")}
+      </div>`;
+
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:var(--s-3-5)">
+      <div style="border:1px solid var(--accent-border);border-radius:var(--r-lg);padding:var(--s-2-5) var(--s-3);background:var(--accent-soft);font-size:var(--fs-sm);color:var(--accent-text)">
+        ${escapeHtml(e.recipient_name || "The driver")} already signed Section 1 (${driverFieldCount} field${driverFieldCount === 1 ? "" : "s"}). Complete the employer-side fields below and sign to seal the document.
+      </div>
+
+      <div>
+        <div class="u-xs-subtle" style="font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Your fields</div>
+        ${fillBlock}
+      </div>
+
+      <label style="display:flex;flex-direction:column;gap:3px;max-width:340px">
+        <span class="u-xs-subtle">Your title</span>
+        <input type="text" id="docs-emp-title" placeholder="e.g. Owner / Operations Manager" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)">
+      </label>
+
+      <label style="display:flex;align-items:flex-start;gap:var(--s-2);cursor:pointer;font-size:var(--fs-sm);line-height:1.55">
+        <input type="checkbox" id="docs-emp-attest" style="margin-top:3px">
+        <span>${escapeHtml(_DOCS_EMP_ATTEST_TEXT)}</span>
+      </label>
+
+      <div>
+        <div class="u-xs-subtle" style="font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px">Signature</div>
+        <div style="position:relative;background:#fff;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+          <canvas id="docs-emp-canvas" style="display:block;width:100%;height:160px;background:#fff;touch-action:none;cursor:crosshair"></canvas>
+          <button type="button" id="docs-emp-clear" style="position:absolute;top:6px;right:6px;background:var(--canvas);border:1px solid #cbd5e1;border-radius:var(--r-pill);padding:3px 9px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer">Clear</button>
+          <div id="docs-emp-hint" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--text-disabled);font-size:var(--fs-xs);pointer-events:none">Draw your signature</div>
+        </div>
+        <input type="text" id="docs-emp-typed" placeholder="…or type your full name" autocomplete="name" style="margin-top:var(--s-2);padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas);width:100%">
+      </div>
+    </div>`;
+
+  const m = document.createElement("div");
+  m.className = "modal-backdrop";
+  m.style.cssText = "display:flex;position:fixed;inset:0;background:var(--overlay);z-index:9999;align-items:center;justify-content:center;padding:18px";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:560px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="padding:var(--s-3-5) 20px;border-bottom:1px solid var(--border)">
+        <div style="font-weight:600;font-size:var(--fs-lg)">Sign as employer</div>
+        <div class="u-xs-subtle">${escapeHtml(e.document_templates?.title || "Document")}</div>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:18px 20px">${body}</div>
+      <div style="padding:var(--s-3) 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-2);background:var(--surface)">
+        <button type="button" class="btn" data-emp-close>Cancel</button>
+        <button type="button" class="btn btn-primary" id="docs-emp-submit">Complete &amp; seal</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.querySelector("[data-emp-close]").addEventListener("click", () => m.remove());
+
+  const pad = _i9PadInit("docs-emp-canvas", "docs-emp-clear", "docs-emp-hint");
+
+  m.querySelector("#docs-emp-submit").addEventListener("click", async () => {
+    // Collect employer-completed values keyed by field id.
+    const fieldValues = {};
+    for (const f of empFillFields) {
+      const el = m.querySelector(`[data-rr-emp-fld="${f.id}"]`);
+      if (!el) continue;
+      fieldValues[f.id] = f.kind === "checkbox" ? !!el.checked : (el.value || "").trim();
+    }
+    if (!m.querySelector("#docs-emp-attest")?.checked) { toast("Confirm the attestation to sign.", "warn"); return; }
+    const typed = (m.querySelector("#docs-emp-typed").value || "").trim();
+    let sigMethod = null, sigData = null;
+    if (pad.hasInk()) { sigMethod = "drawn"; sigData = pad.dataUrl(); }
+    else if (typed.length >= 2) { sigMethod = "typed"; sigData = typed; }
+    else { toast("Draw or type your signature to sign.", "warn"); return; }
+
+    const btn = m.querySelector("#docs-emp-submit"); btn.disabled = true; btn.textContent = "Sealing…";
+    const { error: rpcErr } = await sb.rpc("employer_envelope_sign", {
+      p_envelope_id:      envelopeId,
+      p_signature_method: sigMethod,
+      p_signature_data:   sigData,
+      p_consent_version:  _DOCS_EMP_ATTEST_VERSION,
+      p_consent_text:     _DOCS_EMP_ATTEST_TEXT,
+      p_signer_title:     (m.querySelector("#docs-emp-title").value || "").trim() || null,
+      p_field_values:     fieldValues,
+      p_typed_name:       sigMethod === "typed" ? sigData : null,
+    });
+    if (rpcErr) { btn.disabled = false; btn.textContent = "Complete & seal"; toast("Couldn't seal: " + rpcErr.message, "warn"); return; }
+    m.remove();
+    toast("Document signed & sealed ✓", "success");
+    loadDocumentsView("envelopes");
+  });
+}
+
 async function _docsOpenAudit(envelopeId) {
   const m = document.createElement("div");
   m.className = "docs-coc-backdrop";
@@ -30269,6 +30401,8 @@ document.addEventListener("click", (e) => {
   if (archive) { _docsArchiveTemplate(archive.getAttribute("data-rr-docs-archive")); return; }
   const audit = e.target.closest("[data-rr-docs-audit]");
   if (audit) { _docsOpenAudit(audit.getAttribute("data-rr-docs-audit")); return; }
+  const empSign = e.target.closest("[data-rr-docs-employer-sign]");
+  if (empSign) { _docsOpenEmployerSignModal(empSign.getAttribute("data-rr-docs-employer-sign")); return; }
   const voidBtn = e.target.closest("[data-rr-docs-void]");
   if (voidBtn) { _docsVoidEnvelope(voidBtn.getAttribute("data-rr-docs-void")); return; }
   const dlSealed = e.target.closest("[data-rr-docs-download-sealed]");
