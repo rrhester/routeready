@@ -28887,6 +28887,29 @@ document.addEventListener("click", async (e) => {
     openFormBuilder(null);
     return;
   }
+  // Install the Vehicle Concerns form — one click, idempotent.  Calls
+  // dsp_install_vehicle_concerns_form (migration 0289) which returns
+  // the existing form if one's already installed.
+  const installConcerns = e.target.closest("[data-rr-install-concerns-form]");
+  if (installConcerns) {
+    e.preventDefault();
+    if (installConcerns.disabled) return;
+    installConcerns.disabled = true;
+    const { data, error } = await sb.rpc("dsp_install_vehicle_concerns_form");
+    installConcerns.disabled = false;
+    if (error) {
+      toast("Couldn't install Vehicle Concerns form: " + (error.message || "try again"), "danger");
+      return;
+    }
+    if (data && data.id) {
+      toast(data.status === "published"
+        ? "Vehicle Concerns form is live for drivers"
+        : "Vehicle Concerns form already installed", "success");
+      // Refresh the forms grid so the new card appears immediately.
+      if (typeof loadFormsList === "function") loadFormsList();
+    }
+    return;
+  }
   // Import form — placeholder for now (real JSON/template import is
   // a follow-up); be honest about it instead of silently no-op'ing.
   if (e.target.closest("#rr-forms-import-btn")) {
@@ -33740,10 +33763,21 @@ function _flOpStatCell(v) {
   const issue  = v.open_issue_count
     ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:2px;font-weight:600">${v.open_issue_count} open issue${v.open_issue_count === 1 ? "" : "s"}</div>`
     : "";
+  // Driver-reported flag — surfaced separately from generic open-issue
+  // count so leadership immediately knows a driver flagged the van and
+  // it needs review.  Sourced from vehicles_roster.driver_reported_open_count
+  // (migration 0289).
+  const drCount = v.driver_reported_open_count || 0;
+  const driverFlag = drCount
+    ? `<div title="Driver-reported concern${drCount === 1 ? "" : "s"} awaiting review" style="display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);color:var(--red-dark, #b91c1c);margin-top:2px;font-weight:700">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v18l-8-4-8 4z"/></svg>
+        ${drCount} driver-reported
+      </div>`
+    : "";
   return `<button type="button" class="fl-opstat-btn" data-rr-opstat-id="${escapeHtml(v.id)}" data-rr-opstat-now="${escapeHtml(v.operational_status || "operational")}" data-rr-opstat-name="${escapeHtml(v.nickname || v.name || "")}">
     <span class="fl-opstat-row">${pill}</span>
     <svg class="fl-opstat-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-  </button>${issue}`;
+  </button>${driverFlag}${issue}`;
 }
 
 // ── Inline operational-status menu ────────────────────────────────────
