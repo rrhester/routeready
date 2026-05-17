@@ -50,61 +50,6 @@ if (PREVIEW) {
   };
 }
 
-// ── Visible version tag ─────────────────────────────────────────────
-// Stamps the loaded app.js version in the bottom-right for 8 seconds
-// after page load so the driver can confirm at a glance which build
-// is running.  Remove in a follow-up once we're done diagnosing the
-// celebration delivery loop.
-window.addEventListener("DOMContentLoaded", () => {
-  try {
-    const tag = document.createElement("div");
-    tag.textContent = "rr v115";
-    tag.style.cssText = "position:fixed;bottom:10px;right:10px;"
-      + "z-index:3000;padding:4px 8px;border-radius:999px;"
-      + "background:rgba(15,23,42,.85);color:#fff;font-size:10px;"
-      + "font-weight:700;letter-spacing:.06em;pointer-events:none";
-    document.body.appendChild(tag);
-    setTimeout(() => { try { tag.remove(); } catch (_) {} }, 8000);
-  } catch (_) {}
-});
-
-// ── Early recognition RPC kickoff ───────────────────────────────────
-// Kick off the pending-event RPC the moment app.js parses (before
-// render() runs).  By the time renderShell paints + the route's
-// r.render() finishes, the RPC has often already returned — so the
-// celebration overlay paints in the same frame as the route content
-// instead of arriving ~1s later.  The promise is stashed on
-// window._recogEarly and consumed by checkAndShowPendingRecognition.
-(function _kickoffEarlyRecogCheck() {
-  try {
-    const s = (typeof readSession === "function") ? readSession() : null;
-    if (!s || !s.token) return;
-    window._recogEarly = sb.rpc("driver_recognitions_pending", { p_token: s.token });
-  } catch (_) {}
-})();
-
-// ── Recognition foreground re-check ─────────────────────────────────
-// iOS PWAs and Safari bfcache keep the JS process alive across
-// app suspend/resume.  When the driver taps the home-screen icon
-// after sending themselves a fresh celebration, render() does NOT
-// re-fire — they're unfreezing the previous tab.  These listeners
-// fire on every foreground (visibilitychange) and bfcache restore
-// (pageshow) so the pending-event check runs right when the user
-// returns to the app.
-function _recheckRecognitionOnForeground() {
-  try {
-    const session = (typeof readSession === "function") ? readSession() : null;
-    if (!session || !session.token) return;
-    if (typeof checkAndShowPendingRecognition !== "function") return;
-    checkAndShowPendingRecognition(session).catch(() => {});
-  } catch (_) {}
-}
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") _recheckRecognitionOnForeground();
-});
-window.addEventListener("pageshow", _recheckRecognitionOnForeground);
-window.addEventListener("focus", _recheckRecognitionOnForeground);
-
 // ── Service worker registration ─────────────────────────────────────
 if ("serviceWorker" in navigator && !PREVIEW) {
   window.addEventListener("load", () => {
@@ -7214,176 +7159,199 @@ function _wtRefreshSec() {
 }
 
 
+
+
 // ═══════════════════════════════════════════════════════════════════
-// RECOGNITION CELEBRATION EVENTS
-//
-// First implementation in the "Welcome to the Team" series.  When a
-// dispatcher schedules a celebration from the Recognition page (admin
-// dashboard, migration 0290 + 0292), the next time this driver opens
-// the app we fetch the oldest queued event via
-// driver_recognitions_pending(p_token) and paint a premium full-screen
-// overlay over the shell.
-//
-// Design notes (see also the design reference image):
-//   • Deep RouteReady blue gradient background with a soft radial light
-//     burst centred behind the hex badge.
-//   • Gold + light-blue confetti drifting from top.  Spawned as ~36 DOM
-//     elements with randomised position / hue / delay; CSS-keyframe
-//     animated so the GPU does the work.
-//   • White card with rounded corners houses the title + subtitle.
-//     Title sits above a thin divider, subtitle sits below.
-//   • Sequential fade-in: backdrop → burst → badge → title → divider
-//     → subtitle → CTA → footer.  Total reveal lands in ~1.4s so the
-//     driver isn't staring at scaffolding.
-//   • Reduced-motion path: skip every animation, no confetti, no
-//     burst.  Card and CTA appear instantly.  Respects the system
-//     accessibility setting via matchMedia.
-//   • Idempotency: a module-level "open" flag guards against the
-//     check firing twice (e.g. rapid orientation change re-mount).
-//     The RPC itself is also resilient — once dismissed_at is set,
-//     subsequent calls return null.
+// RECOGNITION CELEBRATION · v116
 // ═══════════════════════════════════════════════════════════════════
+// Simpler, deterministic re-implementation of the Welcome celebration
+// after multiple buggy iterations.  Three top-line guarantees:
+//
+//   1. Overlay appears the moment the app boots — no shell flash.
+//      A blue gradient backdrop paints synchronously on module load
+//      (before render() runs), and the actual overlay replaces it
+//      when the pending RPC returns.  If nothing is pending, the
+//      backdrop fades out.
+//
+//   2. Start-my-day / X tap reliably clears the overlay.  No CSS
+//      animations on interactive elements — the CTA is a stable hit
+//      target from frame 0.  Dismiss is synchronous (no setTimeout).
+//      The dismissed event id is added to a session-persistent Set
+//      BEFORE the overlay is removed, so any re-check that fires
+//      during navigation (visibilitychange, hashchange, focus)
+//      cannot re-paint the same celebration before the server-side
+//      dismissed_at write propagates.
+//
+//   3. iOS PWA suspend/resume re-fires the check.  visibilitychange
+//      + pageshow + focus listeners trigger a fresh pending-event
+//      lookup when the user foregrounds the app.
 
 let _celebrationOpen = false;
-// Client-side guard against the dismiss-RPC propagation race.  Once
-// the user dismisses a celebration, we immediately add its id to this
-// set so any re-check that runs while the dismiss RPC is still
-// in-flight (e.g. visibilitychange after navigation) skips it instead
-// of re-painting the same event.  Lives for the page session — on a
-// real reload, the dismissed_at column has long since propagated.
-const _recogDismissedIds = new Set();
 
+// Client-side dismissed set, persisted to sessionStorage so a hot
+// reload mid-session (iOS aggressively recycles PWA shells) doesn't
+// re-paint a just-dismissed celebration before the server-side
+// dismissed_at write has propagated.
+const _recogDismissedIds = new Set();
+try {
+  const raw = sessionStorage.getItem("rr.recogDismissed");
+  if (raw) JSON.parse(raw).forEach((id) => _recogDismissedIds.add(id));
+} catch (_) {}
+function _markRecogDismissed(id) {
+  if (!id) return;
+  _recogDismissedIds.add(id);
+  try { sessionStorage.setItem("rr.recogDismissed", JSON.stringify([..._recogDismissedIds])); } catch (_) {}
+}
+
+// ── Pre-paint backdrop ──────────────────────────────────────────────
+// Synchronous blue gradient mounted before render() so the user
+// never sees the home screen flash through.  Removed when the pending
+// RPC returns nothing, or when the real overlay covers it.
+const _PREPAINT_ID = "rr-celeb-prepaint";
+function _installCelebrationPrepaint() {
+  try {
+    if (typeof PREVIEW !== "undefined" && PREVIEW) return;
+    if (document.getElementById(_PREPAINT_ID)) return;
+    const s = (typeof readSession === "function") ? readSession() : null;
+    if (!s || !s.token) return;
+    const mount = () => {
+      if (document.getElementById(_PREPAINT_ID)) return;
+      const target = document.body || document.documentElement;
+      if (!target) { requestAnimationFrame(mount); return; }
+      const bg = document.createElement("div");
+      bg.id = _PREPAINT_ID;
+      bg.style.cssText = [
+        "position:fixed", "inset:0", "z-index:1000",
+        "background:radial-gradient(ellipse at 50% 38%, #2563eb 0%, #1e40af 45%, #0f1d4a 100%)",
+        "opacity:1", "transition:opacity .22s ease-out",
+        "pointer-events:auto",
+      ].join(";");
+      target.appendChild(bg);
+    };
+    if (document.body) mount();
+    else document.addEventListener("DOMContentLoaded", mount, { once: true });
+  } catch (_) {}
+}
+function _removeCelebrationPrepaint() {
+  try {
+    const bg = document.getElementById(_PREPAINT_ID);
+    if (!bg) return;
+    bg.style.opacity = "0";
+    bg.style.pointerEvents = "none";
+    setTimeout(() => { try { bg.remove(); } catch (_) {} }, 240);
+  } catch (_) {}
+}
+
+// ── Early RPC kickoff + safety net ──────────────────────────────────
+// Fires the pending-event RPC at module load (before render() runs).
+// Promise stashed on window._recogEarly for checkAndShowPendingRecognition
+// to consume.  Hard 3s safety timeout drops the backdrop if the RPC
+// hangs, so the user is never stuck on blue.
+_installCelebrationPrepaint();
+(function _kickoffEarlyRecogCheck() {
+  try {
+    const s = (typeof readSession === "function") ? readSession() : null;
+    if (!s || !s.token) { _removeCelebrationPrepaint(); return; }
+    const p = sb.rpc("driver_recognitions_pending", { p_token: s.token });
+    window._recogEarly = p;
+    p.then(({ data, error } = {}) => {
+      if (error || !data || !data.id) _removeCelebrationPrepaint();
+      else if (_recogDismissedIds.has(data.id)) _removeCelebrationPrepaint();
+    }, () => _removeCelebrationPrepaint());
+    setTimeout(() => { if (!_celebrationOpen) _removeCelebrationPrepaint(); }, 3000);
+  } catch (_) { _removeCelebrationPrepaint(); }
+})();
+
+// ── Foreground re-check ─────────────────────────────────────────────
+// iOS PWA / Safari bfcache keep the JS process alive across
+// suspend/resume.  These listeners re-run the pending-event check
+// when the app returns to the foreground.
+function _recheckRecognitionOnForeground() {
+  try {
+    const session = (typeof readSession === "function") ? readSession() : null;
+    if (!session || !session.token) return;
+    checkAndShowPendingRecognition(session).catch(() => {});
+  } catch (_) {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") _recheckRecognitionOnForeground();
+});
+window.addEventListener("pageshow", _recheckRecognitionOnForeground);
+window.addEventListener("focus",    _recheckRecognitionOnForeground);
+
+// ── checkAndShowPendingRecognition ──────────────────────────────────
 async function checkAndShowPendingRecognition(session) {
-  if (_celebrationOpen) return;                     // overlay already showing
-  if (!session || !session.token) return;
-  // Prefer the early-kickoff promise (started at module load) so the
-  // overlay paints as fast as possible on first app open.  Falls back
-  // to a fresh RPC call on subsequent invocations (visibilitychange,
-  // hashchange).
+  if (_celebrationOpen) return;
+  if (!session || !session.token) { _removeCelebrationPrepaint(); return; }
   let pendingPromise = window._recogEarly;
   window._recogEarly = null;
   if (!pendingPromise) {
     pendingPromise = sb.rpc("driver_recognitions_pending", { p_token: session.token });
   }
-  const { data, error } = await pendingPromise;
-  if (error)       { console.warn("[recognition] pending fetch failed:", error.message); return; }
-  if (!data || !data.id) return;
-  // Skip if we've already dismissed this event in this session — the
-  // server-side dismissed_at write may not have propagated yet, so the
-  // RPC can still return the same id for a moment after dismiss.
-  if (_recogDismissedIds.has(data.id)) return;
-  _renderCelebrationOverlay(session, data);
+  let r;
+  try { r = await pendingPromise; }
+  catch (e) { console.warn("[recog] rpc threw:", e?.message); _removeCelebrationPrepaint(); return; }
+  if (r.error) { console.warn("[recog] rpc error:", r.error.message); _removeCelebrationPrepaint(); return; }
+  const ev = r.data;
+  if (!ev || !ev.id) { _removeCelebrationPrepaint(); return; }
+  if (_recogDismissedIds.has(ev.id)) { _removeCelebrationPrepaint(); return; }
+  _renderCelebrationOverlay(session, ev);
 }
 
-// Manual debug trigger — open the driver app, then in the browser
-// console type:  rrCheckCelebration()
-// to force a pending-event fetch + overlay render right now.  Useful
-// when the boot-time hook didn't appear to fire so we can isolate
-// whether the bug is "code never ran" vs "RPC returned null" vs
-// "overlay rendering broke".  Removable once the flow's proven on
-// real devices.
-window.rrCheckCelebration = async function () {
-  const s = readSession();
-  console.log("[rrCheckCelebration] session:", s ? { token: !!s.token, status: s.status, driver_id: s.driver_id } : null);
-  if (!s || !s.token) { console.log("[rrCheckCelebration] no session — log in first"); return; }
-  const { data, error } = await sb.rpc("driver_recognitions_pending", { p_token: s.token });
-  console.log("[rrCheckCelebration] RPC error:", error);
-  console.log("[rrCheckCelebration] RPC data:",  data);
-  if (data && data.id) {
-    console.log("[rrCheckCelebration] painting overlay…");
-    _celebrationOpen = false; // unlock if a previous render left it set
-    _renderCelebrationOverlay(s, data);
-  } else {
-    console.log("[rrCheckCelebration] nothing to show");
-  }
-};
-
+// ── _renderCelebrationOverlay ───────────────────────────────────────
 function _renderCelebrationOverlay(session, ev) {
   if (_celebrationOpen) return;
   _celebrationOpen = true;
 
   const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  // Pull the kind-specific copy.  The RPC supplies cta_label + footer
-  // already (it knows per-kind defaults and honours metadata
-  // overrides), so we just escape and render.
   const title    = String(ev.title    || "Welcome to the Team");
   const message  = String(ev.message  || "We're excited to have you here. Let's make this a great first day.");
   const ctaLabel = String(ev.cta_label || "Start my day");
   const footer   = String(ev.footer   || "Sent by your team");
 
-  // Build the confetti DOM up-front and let CSS animate it.  Skipping
-  // entirely on reduced-motion keeps the overlay perfectly still.
-  // Generous count + a continuous-feeling cascade (delays up to 3s so
-  // pieces keep falling for ~6s total instead of arriving in a single
-  // burst).  Pointer-events:none on every piece in the CSS below so
-  // they don't intercept taps to the CTA button.
-  const confettiCount = reduced ? 0 : 140;
-  const confettiPieces = [];
-  // Palette pulled from the design reference: golden ochres, sky
-  // blues, soft whites.  Each piece gets a random hue, random
-  // horizontal start, random delay, random rotation, random duration.
-  const palette = ["#FBBF24","#F59E0B","#FDE68A","#60A5FA","#93C5FD","#3B82F6","#FFFFFF","#F8FAFC","#DBEAFE"];
-  for (let i = 0; i < confettiCount; i++) {
-    const left  = (Math.random() * 110 - 5).toFixed(2);
+  const palette = ["#FBBF24","#F59E0B","#FDE68A","#60A5FA","#93C5FD","#3B82F6","#FFFFFF","#DBEAFE"];
+  const confetti = reduced ? "" : Array.from({ length: 120 }, () => {
+    const left  = (Math.random() * 110 - 5).toFixed(1);
     const delay = (Math.random() * 3.0).toFixed(2);
     const dur   = (3.4 + Math.random() * 2.4).toFixed(2);
     const hue   = palette[Math.floor(Math.random() * palette.length)];
     const rot   = (Math.random() * 360).toFixed(0);
     const drift = (Math.random() * 120 - 60).toFixed(0);
-    const size  = (8 + Math.random() * 8).toFixed(1);          // 8–16 px
-    const shape = Math.random() > 0.55 ? "rect" : "round";
-    confettiPieces.push(
-      `<i class="rr-confetti rr-confetti-${shape}" style="left:${left}vw;background:${hue};width:${size}px;height:${size}px;--rot:${rot}deg;--drift:${drift}px;animation-delay:${delay}s;animation-duration:${dur}s"></i>`
-    );
-  }
+    const size  = (8 + Math.random() * 8).toFixed(0);
+    const round = Math.random() > 0.55 ? "border-radius:50%;" : "";
+    return `<i class="rrc-piece" style="left:${left}vw;background:${hue};width:${size}px;height:${size}px;${round}--rot:${rot}deg;--drift:${drift}px;animation-delay:${delay}s;animation-duration:${dur}s"></i>`;
+  }).join("");
 
   const overlay = document.createElement("div");
-  overlay.className = "rr-celebrate" + (reduced ? " is-reduced" : "");
+  overlay.id = "rr-celebration";
   overlay.setAttribute("role", "dialog");
   overlay.setAttribute("aria-modal", "true");
-  overlay.setAttribute("aria-labelledby", "rr-celebrate-title");
   overlay.innerHTML = `
     <style>
-      .rr-celebrate{
-        position:fixed;inset:0;z-index:1000;
+      #rr-celebration{
+        position:fixed;inset:0;z-index:1001;
         display:flex;flex-direction:column;align-items:center;justify-content:center;
-        padding:24px;
+        padding:24px;color:#fff;
         background:radial-gradient(ellipse at 50% 38%, #2563eb 0%, #1e40af 45%, #0f1d4a 100%);
-        color:#fff;
-        opacity:0;animation:rrCelebFade .42s ease-out forwards;
         overflow:hidden;
       }
-      .rr-celebrate.is-reduced{animation:none;opacity:1}
-
-      /* Soft radial light burst behind the hex badge */
-      .rr-celebrate .rr-burst{
+      #rr-celebration .rrc-burst{
         position:absolute;top:calc(50% - 200px);left:50%;width:520px;height:520px;
-        transform:translate(-50%, -50%) scale(.2);
+        transform:translate(-50%, -50%);pointer-events:none;
         background:radial-gradient(circle, rgba(255,255,255,.35) 0%, rgba(147,197,253,.18) 28%, transparent 65%);
-        opacity:0;pointer-events:none;
-        animation:rrCelebBurst 1.4s ease-out .2s forwards;
+        opacity:.6;
       }
-      .rr-celebrate.is-reduced .rr-burst{animation:none;opacity:.55;transform:translate(-50%,-50%) scale(1)}
-
-      /* Confetti drift */
-      .rr-celebrate .rr-confetti{
+      #rr-celebration .rrc-piece{
         position:absolute;top:-24px;width:10px;height:14px;border-radius:2px;
-        opacity:.92;will-change:transform, opacity;
-        animation:rrCelebConfetti linear forwards;
+        opacity:.92;pointer-events:none;will-change:transform, opacity;
+        animation:rrcDrift linear forwards;
         transform:translate3d(0,0,0) rotate(var(--rot, 0deg));
-        /* MUST be pointer-events:none — the confetti pieces float
-           across the screen on top of the card + CTA button, and a
-           default pointer-events:auto would let them intercept the
-           "Start my day" tap (which is why an earlier version felt
-           unresponsive on phone). */
-        pointer-events:none;
       }
-      .rr-celebrate .rr-confetti-round{border-radius:50%}
-      .rr-celebrate.is-reduced .rr-confetti{display:none}
-
-      /* Card */
-      .rr-celebrate .rr-card{
+      @keyframes rrcDrift{
+        0%   { transform:translate3d(0, -20px, 0) rotate(var(--rot, 0deg)); opacity:1 }
+        100% { transform:translate3d(var(--drift, 0), 110vh, 0) rotate(calc(var(--rot, 0deg) + 540deg)); opacity:.85 }
+      }
+      #rr-celebration .rrc-card{
         position:relative;z-index:2;
         width:100%;max-width:340px;
         background:#fff;color:#0f172a;
@@ -7391,289 +7359,114 @@ function _renderCelebrationOverlay(session, ev) {
         padding:38px 26px 28px;
         box-shadow:0 18px 60px rgba(2,12,40,.32), 0 2px 10px rgba(2,12,40,.18);
         text-align:center;
-        opacity:0;transform:translateY(14px) scale(.98);
-        animation:rrCelebCardIn .6s cubic-bezier(.16,.84,.24,1.02) .55s forwards;
       }
-      .rr-celebrate.is-reduced .rr-card{animation:none;opacity:1;transform:none}
-
-      /* Hex badge — sits half outside the card top */
-      .rr-celebrate .rr-badge{
-        position:absolute;top:-32px;left:50%;transform:translateX(-50%) scale(0);
+      #rr-celebration .rrc-badge{
+        position:absolute;top:-32px;left:50%;transform:translateX(-50%);
         width:68px;height:68px;
         display:flex;align-items:center;justify-content:center;
         background:linear-gradient(160deg, #3b82f6 0%, #1d4ed8 100%);
         clip-path:polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
         color:#fff;
         box-shadow:0 10px 24px rgba(29,78,216,.45), inset 0 -4px 8px rgba(0,0,0,.18);
-        animation:rrCelebBadge .58s cubic-bezier(.18,.86,.32,1.18) .3s forwards;
       }
-      .rr-celebrate.is-reduced .rr-badge{animation:none;transform:translateX(-50%) scale(1)}
-
-      .rr-celebrate .rr-title{
-        margin:14px 0 0;font-size:24px;line-height:1.18;font-weight:800;letter-spacing:-.01em;
-        opacity:0;transform:translateY(8px);animation:rrCelebFadeUp .42s ease-out .85s forwards;
-      }
-      .rr-celebrate .rr-divider{
-        margin:16px auto 14px;height:1px;width:0;background:#e5e7eb;
-        animation:rrCelebDivider .45s ease-out 1.05s forwards;
-      }
-      .rr-celebrate .rr-msg{
-        margin:0;font-size:15px;line-height:1.45;color:#475569;
-        opacity:0;transform:translateY(8px);animation:rrCelebFadeUp .4s ease-out 1.15s forwards;
-      }
-      .rr-celebrate.is-reduced .rr-title,
-      .rr-celebrate.is-reduced .rr-msg,
-      .rr-celebrate.is-reduced .rr-cta-wrap,
-      .rr-celebrate.is-reduced .rr-foot{animation:none;opacity:1;transform:none}
-      .rr-celebrate.is-reduced .rr-divider{animation:none;width:80%}
-
-      /* CTA wrap is paint-immediately + opaque from the start so the
-         button is a stable hit target the moment the overlay appears.
-         The earlier 1.32s opacity/transform animation meant the
-         button was either invisible or mid-transform when the user
-         tried to tap, and iOS in particular had trouble with hit
-         testing on transforming elements. */
-      .rr-celebrate .rr-cta-wrap{margin:22px 0 0}
-      .rr-celebrate .rr-cta{
-        display:flex;align-items:center;justify-content:center;width:100%;
+      #rr-celebration .rrc-title{margin:14px 0 0;font-size:24px;line-height:1.18;font-weight:800;letter-spacing:-.01em}
+      #rr-celebration .rrc-divider{margin:16px auto 14px;height:1px;width:80%;background:#e5e7eb}
+      #rr-celebration .rrc-msg{margin:0;font-size:15px;line-height:1.45;color:#475569}
+      #rr-celebration .rrc-cta{
+        display:block;width:100%;margin:22px 0 0;
         background:linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
         color:#fff;font-size:17px;font-weight:700;
         border:0;border-radius:14px;padding:15px 18px;
         box-shadow:0 8px 22px rgba(29,78,216,.42);
         cursor:pointer;letter-spacing:.01em;
-        pointer-events:auto;
-        position:relative;z-index:5;
         -webkit-tap-highlight-color:rgba(255,255,255,0.25);
         touch-action:manipulation;
-        transition:transform .15s ease, box-shadow .15s ease;
+        font-family:inherit;
       }
-      .rr-celebrate .rr-cta:active{transform:scale(.97);box-shadow:0 4px 10px rgba(29,78,216,.42)}
-
-      .rr-celebrate .rr-foot{
+      #rr-celebration .rrc-cta:active{transform:scale(.97);box-shadow:0 4px 10px rgba(29,78,216,.42)}
+      #rr-celebration .rrc-foot{
         margin-top:14px;font-size:13px;color:rgba(255,255,255,.85);
         display:inline-flex;align-items:center;gap:6px;
-        opacity:0;animation:rrCelebFadeUp .4s ease-out 1.5s forwards;
       }
-      .rr-celebrate .rr-foot svg{stroke:rgba(255,255,255,.85);fill:none;width:14px;height:14px}
-
-      .rr-celebrate .rr-close{
-        position:absolute;top:14px;right:14px;width:40px;height:40px;
+      #rr-celebration .rrc-foot svg{stroke:rgba(255,255,255,.85);fill:none;width:14px;height:14px}
+      #rr-celebration .rrc-close{
+        position:absolute;top:14px;right:14px;width:44px;height:44px;
         border-radius:50%;border:0;cursor:pointer;
-        background:rgba(255,255,255,.14);color:#fff;
+        background:rgba(255,255,255,.18);color:#fff;
         display:flex;align-items:center;justify-content:center;
-        pointer-events:auto;z-index:10;
         -webkit-tap-highlight-color:rgba(255,255,255,0.25);
         touch-action:manipulation;
       }
-      .rr-celebrate .rr-close:hover{background:rgba(255,255,255,.22)}
-      .rr-celebrate .rr-close:active{background:rgba(255,255,255,.32)}
-
-      @keyframes rrCelebFade   { to { opacity:1 } }
-      @keyframes rrCelebFadeUp { to { opacity:1; transform:translateY(0) } }
-      @keyframes rrCelebDivider{ to { width:80% } }
-      @keyframes rrCelebBurst  { to { opacity:.7; transform:translate(-50%,-50%) scale(1) } }
-      @keyframes rrCelebCardIn { to { opacity:1; transform:translateY(0) scale(1) } }
-      @keyframes rrCelebBadge  { to { transform:translateX(-50%) scale(1) } }
-      @keyframes rrCelebConfetti {
-        0%   { transform:translate3d(0, -20px, 0) rotate(var(--rot, 0deg)); opacity:1 }
-        100% { transform:translate3d(var(--drift, 0), 110vh, 0) rotate(calc(var(--rot, 0deg) + 540deg)); opacity:.85 }
-      }
-
-      /* Closing animation when CTA tapped */
-      .rr-celebrate.is-closing{
-        animation:rrCelebFadeOut .32s ease-in forwards;
-      }
-      @keyframes rrCelebFadeOut{ to { opacity:0 } }
-
-      /* Tighter phones */
-      @media (max-height: 640px){
-        .rr-celebrate .rr-card{padding:32px 22px 22px}
-        .rr-celebrate .rr-title{font-size:22px}
-        .rr-celebrate .rr-burst{width:420px;height:420px}
-      }
+      #rr-celebration .rrc-close:active{background:rgba(255,255,255,.35)}
     </style>
-
-    <div class="rr-burst" aria-hidden="true"></div>
-    ${confettiPieces.join("")}
-
-    <button class="rr-close" type="button" aria-label="Close celebration" data-rr-celeb-close
-            onclick="window._rrCelebDismiss && window._rrCelebDismiss()"
-            ontouchend="window._rrCelebDismiss && window._rrCelebDismiss(); event && event.preventDefault();">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    <div class="rrc-burst" aria-hidden="true"></div>
+    ${confetti}
+    <button class="rrc-close" type="button" aria-label="Close celebration">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
-
-    <div class="rr-card">
-      <div class="rr-badge" aria-hidden="true">
+    <div class="rrc-card">
+      <div class="rrc-badge" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       </div>
-      <h2 class="rr-title" id="rr-celebrate-title">${escapeHtml(title)}</h2>
-      <div class="rr-divider" aria-hidden="true"></div>
-      <p class="rr-msg">${escapeHtml(message)}</p>
-
-      <div class="rr-cta-wrap">
-        <button class="rr-cta" type="button" data-rr-celeb-cta
-                onclick="window._rrCelebDismiss && window._rrCelebDismiss()"
-                ontouchend="window._rrCelebDismiss && window._rrCelebDismiss(); event && event.preventDefault();">${escapeHtml(ctaLabel)}</button>
-      </div>
+      <h2 class="rrc-title">${escapeHtml(title)}</h2>
+      <div class="rrc-divider" aria-hidden="true"></div>
+      <p class="rrc-msg">${escapeHtml(message)}</p>
+      <button class="rrc-cta" type="button">${escapeHtml(ctaLabel)}</button>
     </div>
-
-    <div class="rr-foot" role="contentinfo">
+    <div class="rrc-foot">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
       ${escapeHtml(footer)}
     </div>
   `;
-
-  // Push to the top of <body> so it lays over everything including
-  // any open modal / tab bar.
   document.body.appendChild(overlay);
+  _removeCelebrationPrepaint();
 
-  // Soft haptic on supported devices.  Skipped under reduced motion
-  // (the system signal that the user prefers less stimulation).
   if (!reduced && navigator.vibrate) {
-    try { navigator.vibrate([14, 40, 18]); } catch (e) { /* iOS Safari throws if PWA not granted permission */ }
+    try { navigator.vibrate([14, 40, 18]); } catch (_) {}
   }
-  // Celebration chime — a brief synthesized bell arpeggio.  We
-  // generate it on the fly via Web Audio so there's no audio asset
-  // to ship or load.  Reduced-motion users get silence too.  Wrapped
-  // in try/catch because Safari needs a user gesture to unlock the
-  // audio context in some configurations; if it throws, the overlay
-  // still paints fine — sound is non-essential.
   if (!reduced) _playCelebrationChime();
 
-  // Mark delivered immediately.  The RPC is idempotent so a rapid
-  // re-render won't double-stamp.  Fire-and-forget — the overlay paints
-  // regardless of network state.
   if (ev.id) {
     sb.rpc("driver_recognition_delivered", { p_token: session.token, p_id: ev.id })
-      .catch((e) => console.warn("recognition mark-delivered failed:", e?.message));
+      .catch((e) => console.warn("[recog] mark-delivered failed:", e?.message));
   }
 
   const dismiss = () => {
     if (overlay._closing) return;
     overlay._closing = true;
-    // CRITICAL: mark dismissed CLIENT-SIDE first so any re-check that
-    // fires before the RPC propagates skips this id instead of
-    // re-painting the overlay (the cause of the "can't reach main
-    // menu" loop reported on v114).
-    if (ev.id) _recogDismissedIds.add(ev.id);
-    // Server-side mark — fire-and-forget.  Whether or not this lands
-    // before the next pending check, the client-side set above
-    // already covers us.
+    if (ev.id) _markRecogDismissed(ev.id);
     if (ev.id) {
       sb.rpc("driver_recognition_dismiss", { p_token: session.token, p_id: ev.id })
-        .catch((e) => console.warn("recognition mark-dismissed failed:", e?.message));
+        .catch((e) => console.warn("[recog] mark-dismissed failed:", e?.message));
     }
-    // Unbind the document-level capture-phase backstop so it doesn't
-    // outlive the overlay.
-    if (overlay._docCapture) {
-      document.removeEventListener("pointerdown", overlay._docCapture, true);
-      document.removeEventListener("click",       overlay._docCapture, true);
-      overlay._docCapture = null;
-    }
-    // Synchronous removal — no 320ms wait — so the user can tap any
-    // tab or button as soon as their finger leaves the CTA.  The fade
-    // animation was a nice-to-have; reliability beats polish.
     overlay.remove();
     _celebrationOpen = false;
-    window._rrCelebDismiss = null;
   };
 
-  // Expose dismiss as a window-level global so the button's inline
-  // onclick attribute can call it.  Belt-and-suspenders alternative
-  // to addEventListener — inline handlers run even if there's
-  // something weird going on with iOS event dispatch.
-  window._rrCelebDismiss = dismiss;
-
-  // Bind dismiss every which way on the CTA + close button.  Previous
-  // versions (single delegated click, then click+touchstart on the
-  // button) both reportedly missed the tap on real iOS PWAs.  Belt
-  // and suspenders this time:
-  //   • pointerdown — universal pointer event, fires before click
-  //   • touchend    — fires after touchstart, no preventDefault
-  //   • click       — desktop / non-touch fallback
-  //   • capture phase on document — backstop if any of the above
-  //     are intercepted by an animation overlay
-  // Also style the buttons so iOS treats them as tap targets (cursor
-  // pointer, visible tap-highlight) — iOS Safari has been known to
-  // skip touch events on elements it doesn't classify as buttons.
-  const ctaBtn   = overlay.querySelector("[data-rr-celeb-cta]");
-  const closeBtn = overlay.querySelector("[data-rr-celeb-close]");
-  const fireDismiss = (e) => {
-    if (e) { e.stopPropagation(); }
-    dismiss();
-  };
-  const bindDismiss = (btn) => {
+  const cta   = overlay.querySelector(".rrc-cta");
+  const close = overlay.querySelector(".rrc-close");
+  [cta, close].forEach((btn) => {
     if (!btn) return;
-    btn.style.cursor = "pointer";
-    btn.style.webkitTapHighlightColor = "rgba(255,255,255,0.18)";
-    btn.style.touchAction = "manipulation";   // disables iOS double-tap zoom
-    btn.addEventListener("pointerdown", fireDismiss);
-    btn.addEventListener("touchend",    fireDismiss);
-    btn.addEventListener("click",       fireDismiss);
-  };
-  bindDismiss(ctaBtn);
-  bindDismiss(closeBtn);
-  // Document-level capture-phase backstop — fires before any other
-  // handler in the bubble phase; if every direct listener above
-  // somehow missed, this still catches a tap landing on the CTA / X.
-  const docCapture = (e) => {
-    const t = e.target;
-    if (!t || !t.closest) return;
-    if (t.closest("[data-rr-celeb-cta]") || t.closest("[data-rr-celeb-close]")) {
-      fireDismiss(e);
-    }
-  };
-  document.addEventListener("pointerdown", docCapture, true);
-  document.addEventListener("click",       docCapture, true);
-  // Save references so dismiss() can unbind them — leaving stray
-  // capture listeners on document is a leak.
-  overlay._docCapture = docCapture;
-
-  // First-touch anywhere on the overlay also unlocks audio on iOS
-  // Safari for the chime that's queued below (see _playCelebrationChime).
-  overlay.addEventListener("touchstart", _unlockAudioOnGesture, { passive: true, once: true });
-  overlay.addEventListener("click",      _unlockAudioOnGesture, { once: true });
-
+    btn.addEventListener("click",    (e) => { e.preventDefault(); e.stopPropagation(); dismiss(); });
+    btn.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); dismiss(); }, { passive: false });
+  });
   const onKey = (e) => {
-    if (e.key === "Escape") {
-      document.removeEventListener("keydown", onKey);
-      dismiss();
-    }
+    if (e.key === "Escape") { document.removeEventListener("keydown", onKey); dismiss(); }
   };
   document.addEventListener("keydown", onKey);
 }
 
-
-// ── Celebration chime ─────────────────────────────────────────────────
-// Brief synthesized bell arpeggio.  Three sine-wave tones (E5 / G#5 /
-// B5 — an E major triad climbing) with a soft ADSR-ish envelope per
-// note, master gain kept low so the cue feels premium and unobtrusive
-// rather than arcade.  No audio asset; everything runs through a
-// freshly-created AudioContext that gets garbage-collected when the
-// notes end.
-//
-// iOS Safari refuses to start an AudioContext from page-load JS
-// without an explicit user gesture.  The previous version queued a
-// "play on first touch" fallback that the user could only trigger by
-// touching the overlay — but tapping the Start-my-day button to
-// dismiss happens AFTER the chime would have been useful.
-//
-// New strategy: play it the moment the overlay paints, accepting
-// that on iOS Safari from a cold app open there may be no sound.
-// The chime IS played on any subsequent open where the AudioContext
-// is already running.  This matches the rest of the app's audio
-// behaviour (push-notification chime, etc.).
+// ── _playCelebrationChime ───────────────────────────────────────────
+// Brief E5 / G#5 / B5 triad via Web Audio.  iOS Safari needs a prior
+// user gesture in the session to unlock the context; if suspended
+// and resume() fails to acquire one, the chime is silent (acceptable
+// on first celebration; subsequent opens after any tap play sound).
 function _playCelebrationChime() {
   try {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     const ctx = new AC();
-    // Attempt resume (no-op on running, requests permission on
-    // suspended); we don't await so the chime fires immediately
-    // when the context is already running.
-    if (ctx.state === "suspended") {
-      try { ctx.resume(); } catch (_) {}
-    }
+    if (ctx.state === "suspended") { try { ctx.resume(); } catch (_) {} }
     const master = ctx.createGain();
     master.gain.value = 0.26;
     master.connect(ctx.destination);
@@ -7693,14 +7486,11 @@ function _playCelebrationChime() {
       osc.stop(t0 + 0.95);
     });
     setTimeout(() => { try { ctx.close(); } catch (_) {} }, 1700);
-  } catch (_) { /* audio unavailable — overlay still works */ }
+  } catch (_) {}
 }
 
-// One-time AudioContext unlock helper bound to the first user gesture
-// anywhere in the app (touch / click).  Creates and immediately closes
-// a one-shot context so subsequent _playCelebrationChime() calls see
-// state === "running" right away.  iOS persists the "audio unlocked"
-// state across AudioContext instances per page.
+// Audio gesture-unlock helper — first user gesture anywhere primes
+// the audio context for subsequent _playCelebrationChime() calls.
 let _audioUnlocked = false;
 function _unlockAudioOnGesture() {
   if (_audioUnlocked) return;
@@ -7710,16 +7500,27 @@ function _unlockAudioOnGesture() {
     if (!AC) return;
     const ctx = new AC();
     if (ctx.state === "suspended") {
-      ctx.resume().then(() => { try { ctx.close(); } catch (_) {} })
-                  .catch(() => {});
+      ctx.resume().then(() => { try { ctx.close(); } catch (_) {} }).catch(() => {});
     } else {
       try { ctx.close(); } catch (_) {}
     }
   } catch (_) {}
 }
-// Bind the unlock to the FIRST gesture anywhere in the app — so by
-// the time a recognition celebration paints later in the session,
-// Safari's already credited a gesture.
 ["touchstart", "click", "pointerdown"].forEach((evt) => {
   document.addEventListener(evt, _unlockAudioOnGesture, { once: true, passive: true, capture: true });
+});
+
+// Visible version tag — small dark pill bottom-right for 8s so the
+// driver can confirm at a glance which build is running.
+window.addEventListener("DOMContentLoaded", () => {
+  try {
+    const tag = document.createElement("div");
+    tag.textContent = "rr v116";
+    tag.style.cssText = "position:fixed;bottom:10px;right:10px;"
+      + "z-index:3000;padding:4px 8px;border-radius:999px;"
+      + "background:rgba(15,23,42,.85);color:#fff;font-size:10px;"
+      + "font-weight:700;letter-spacing:.06em;pointer-events:none";
+    document.body.appendChild(tag);
+    setTimeout(() => { try { tag.remove(); } catch (_) {} }, 8000);
+  } catch (_) {}
 });
