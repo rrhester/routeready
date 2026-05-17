@@ -1193,6 +1193,9 @@ window.goto = function (view) {
   if (view === "fleet" && typeof loadFleetView === "function") loadFleetView();
   if (view === "compliance" && typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
   if (view === "overtime" && typeof loadOvertimeIntelligence === "function") loadOvertimeIntelligence();
+  // Leaving the overtime view → kill its polling timer so we don't
+  // keep hitting the RPC in the background.
+  if (view !== "overtime" && typeof _otStopPolling === "function") _otStopPolling();
 };
 
 // ── Platform admin view ────────────────────────────────────────────────────
@@ -37009,10 +37012,43 @@ async function _toFetchPendingCount() {
 
 let _otData = null;
 const _otFilters = { q: "", risk: "", station: "" };
+// Sunday-anchored ISO date of the week being viewed. null = current week
+// (the RPC default). Reset to null on every (re-)entry to the view so
+// stepping back through past weeks doesn't persist across navigations.
+let _otWeekStart = null;
+let _otPollTimer = null;
+const _OT_POLL_MS = 60 * 1000;
 
-async function loadOvertimeIntelligence() {
+// Sunday-on-or-before for a Date — matches private.week_start_for() in
+// the migration so JS and SQL agree on which week a given date belongs
+// to.
+function _otSundayIso(d) {
+  const dt = (d instanceof Date) ? new Date(d.getTime()) : new Date(d + "T00:00:00");
+  dt.setHours(0, 0, 0, 0);
+  dt.setDate(dt.getDate() - dt.getDay());
+  return dt.toISOString().slice(0, 10);
+}
+function _otCurrentWeekIso() { return _otSundayIso(new Date()); }
+function _otAddDays(iso, n) {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function _otIsCurrentWeek() {
+  return (_otWeekStart || _otCurrentWeekIso()) === _otCurrentWeekIso();
+}
+
+async function loadOvertimeIntelligence(opts = {}) {
   const tbody = document.getElementById("rr-ot-tbody");
-  const { data, error } = await sb.rpc("overtime_intelligence", { p_week_start: null });
+  // Reset to "current week" on a fresh entry (e.g. coming back to the
+  // view from the sidebar) unless the caller has explicitly set a week.
+  if (!opts.preserveWeek) _otWeekStart = null;
+  _otPaintWeekNav();
+  _otStartPolling();
+
+  const { data, error } = await sb.rpc("overtime_intelligence", {
+    p_week_start: _otWeekStart,  // null → RPC defaults to current week
+  });
   if (error) {
     if (_isAuthError(error)) _forceRelogin("session_expired");
     console.error("overtime_intelligence failed:", error);
@@ -37022,8 +37058,55 @@ async function loadOvertimeIntelligence() {
     return;
   }
   _otData = data || {};
+  // Lock _otWeekStart to whatever the server actually returned so the
+  // navigator label stays in sync even when we passed null.
+  if (_otData.week_start) _otWeekStart = _otData.week_start;
   _otRender(_otData);
+  _otPaintWeekNav();
 }
+
+function _otPaintWeekNav() {
+  const todayBtn = document.getElementById("rr-ot-week-today");
+  if (todayBtn) {
+    const onWeek = _otIsCurrentWeek();
+    todayBtn.classList.toggle("is-on-week", onWeek);
+    todayBtn.textContent = onWeek ? "This week" : "Jump to today";
+  }
+}
+
+function _otStopPolling() {
+  if (_otPollTimer) { clearInterval(_otPollTimer); _otPollTimer = null; }
+}
+function _otStartPolling() {
+  _otStopPolling();
+  _otPollTimer = setInterval(() => {
+    const active = document.getElementById("view-overtime")?.classList.contains("active");
+    if (!active || document.hidden) return;
+    // Only auto-refresh when we're sitting on the current week. Older
+    // weeks are static — the operator chose them on purpose.
+    if (!_otIsCurrentWeek()) return;
+    loadOvertimeIntelligence({ preserveWeek: true });
+  }, _OT_POLL_MS);
+}
+
+function _otStepWeek(delta) {
+  const base = _otWeekStart || _otCurrentWeekIso();
+  _otWeekStart = _otAddDays(base, 7 * delta);
+  loadOvertimeIntelligence({ preserveWeek: true });
+}
+function _otJumpToToday() {
+  _otWeekStart = null;
+  loadOvertimeIntelligence({ preserveWeek: false });
+}
+
+// Week-navigator click handlers (delegated, so we don't have to wait
+// for the view DOM to be present at module load).
+document.addEventListener("click", (e) => {
+  if (!e.target || !e.target.closest) return;
+  if (e.target.closest("#rr-ot-week-prev"))  { e.preventDefault(); _otStepWeek(-1); return; }
+  if (e.target.closest("#rr-ot-week-next"))  { e.preventDefault(); _otStepWeek( 1); return; }
+  if (e.target.closest("#rr-ot-week-today")) { e.preventDefault(); _otJumpToToday(); return; }
+});
 
 function _otFmtRange(startIso, endIso) {
   if (!startIso || !endIso) return "—";
@@ -37065,7 +37148,11 @@ function _otRender(d) {
   const sub = document.getElementById("rr-ot-page-sub");
   if (sub) {
     const range = _otFmtRange(d.week_start, d.week_end);
-    sub.textContent = `Week of ${range} · scheduled vs worked vs variance across every active driver. Not payroll.`;
+    const onWeek = _otIsCurrentWeek();
+    const liveBadge = onWeek
+      ? `<span class="ot-live"><span class="dot"></span>Live · this week</span>`
+      : "";
+    sub.innerHTML = `Week of <strong style="color:var(--text);font-weight:600">${escapeHtml(range)}</strong> · scheduled vs worked vs variance across every active driver. Not payroll.${liveBadge}`;
   }
   const thresh = document.getElementById("rr-ot-threshold");
   if (thresh) thresh.textContent = String(d.threshold_hours ?? 40);

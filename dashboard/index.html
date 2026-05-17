@@ -12144,6 +12144,48 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-overtime .page-sub{max-width:720px}
 
+          /* Week navigator · same chassis as Today's Plan #rr-tp-datenav */
+          #view-overtime .ot-weeknav{
+            display:flex;align-items:center;gap:6px;
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--r-lg);padding:3px;
+          }
+          #view-overtime .ot-weeknav-btn{
+            appearance:none;background:transparent;border:0;cursor:pointer;color:var(--text-muted);
+            width:30px;height:30px;border-radius:var(--r-md);
+            display:inline-flex;align-items:center;justify-content:center;
+            transition:background var(--t-fast), color var(--t-fast);
+          }
+          #view-overtime .ot-weeknav-btn:hover{background:var(--canvas);color:var(--text)}
+          #view-overtime .ot-weeknav-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+          #view-overtime .ot-weeknav-btn svg{width:14px;height:14px}
+          #view-overtime .ot-weeknav-today{
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+            color:var(--accent-text);padding:0 var(--s-2-5);border-radius:var(--r-md);
+            cursor:pointer;height:26px;background:transparent;border:0;
+            display:inline-flex;align-items:center;transition:background var(--t-fast);
+          }
+          #view-overtime .ot-weeknav-today:hover{background:var(--accent-soft)}
+          #view-overtime .ot-weeknav-today:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+          #view-overtime .ot-weeknav-today.is-on-week{color:var(--text-subtle);cursor:default;pointer-events:none}
+
+          /* "Live" tick · subtle green dot next to the week label when
+             we're on the current week and polling is active. */
+          #view-overtime .ot-live{
+            display:inline-flex;align-items:center;gap:5px;
+            font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            color:var(--green);margin-left:6px;
+          }
+          #view-overtime .ot-live .dot{
+            width:6px;height:6px;border-radius:50%;background:var(--green);
+            box-shadow:0 0 0 3px rgba(16,185,129,.18);
+            animation:otPulse 2.6s ease-in-out infinite;
+          }
+          @keyframes otPulse{
+            0%,100%{box-shadow:0 0 0 3px rgba(16,185,129,.18)}
+            50%{box-shadow:0 0 0 6px rgba(16,185,129,.04)}
+          }
+
           /* Insights row · subtle KPI strip, calm by default */
           #view-overtime .ot-stat-row{
             display:grid;grid-template-columns:repeat(4, minmax(0,1fr));
@@ -12344,6 +12386,17 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </div>
           <div class="page-actions">
+            <!-- Week navigator · prev / This week / next.  Mirrors the
+                 Today's Plan and Schedule date pickers. -->
+            <div class="ot-weeknav" id="rr-ot-weeknav">
+              <button type="button" class="ot-weeknav-btn" id="rr-ot-week-prev" title="Previous week" aria-label="Previous week">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <button type="button" class="ot-weeknav-today" id="rr-ot-week-today">This week</button>
+              <button type="button" class="ot-weeknav-btn" id="rr-ot-week-next" title="Next week" aria-label="Next week">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
             <button class="btn" id="rr-ot-export" type="button" title="Export CSV">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export
