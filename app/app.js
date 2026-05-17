@@ -7283,6 +7283,19 @@ window.addEventListener("focus",    _recheckRecognitionOnForeground);
 async function checkAndShowPendingRecognition(session) {
   if (_celebrationOpen) return;
   if (!session || !session.token) { _removeCelebrationPrepaint(); return; }
+  // SHOWN-THIS-SESSION GATE — fixes the "Start my day appears broken"
+  // case where the driver has multiple queued celebrations: dismissing
+  // one was immediately re-painting the next (foreground re-check
+  // listeners fire on visibilitychange/focus and pick up the next
+  // pending row).  From the driver's perspective the screen "didn't
+  // close" because a near-identical overlay replaced it instantly.
+  // Cap to ONE celebration per app session.  Cleared on real reload.
+  try {
+    if (sessionStorage.getItem("rr.recogShownThisSession") === "1") {
+      _removeCelebrationPrepaint();
+      return;
+    }
+  } catch (_) {}
   let pendingPromise = window._recogEarly;
   window._recogEarly = null;
   if (!pendingPromise) {
@@ -7435,6 +7448,10 @@ function _renderCelebrationOverlay(session, ev) {
     if (overlay._closing) return;
     overlay._closing = true;
     if (ev.id) _markRecogDismissed(ev.id);
+    // Set the session-show flag so any foreground re-check (or hashchange
+    // re-render) doesn't immediately paint the NEXT queued celebration
+    // on top of the dismiss the driver just made.  Cleared on real reload.
+    try { sessionStorage.setItem("rr.recogShownThisSession", "1"); } catch (_) {}
     if (ev.id) {
       sb.rpc("driver_recognition_dismiss", { p_token: session.token, p_id: ev.id })
         .catch((e) => console.warn("[recog] mark-dismissed failed:", e?.message));
@@ -7515,7 +7532,7 @@ function _unlockAudioOnGesture() {
 window.addEventListener("DOMContentLoaded", () => {
   try {
     const tag = document.createElement("div");
-    tag.textContent = "rr v116";
+    tag.textContent = "rr v117";
     tag.style.cssText = "position:fixed;bottom:10px;right:10px;"
       + "z-index:3000;padding:4px 8px;border-radius:999px;"
       + "background:rgba(15,23,42,.85);color:#fff;font-size:10px;"
