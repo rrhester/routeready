@@ -3890,30 +3890,13 @@ async function loadOnboardingBuilder() {
   _obBuilderSteps = (Array.isArray(data) && data.length ? data : _OB_DEFAULT_BLUEPRINT)
     .filter(s => s && s.enabled !== false)
     .map(s => ({ ...s, enabled: true }));
-  // Defensive seeding: the three compliance gates (Background check, Drug
-  // test, Form I-9) are federally required for every hire. They live in
-  // the default blueprint but a previous edit could remove them, and the
-  // "+ Add a step" picker doesn't offer them — so once gone, there's no
-  // UI to bring them back. If any are missing here, restore them.
-  //
-  // Match by step.type (the structural kind) rather than step.key — DSPs
-  // can rename / re-key core steps when customizing, but the type is
-  // what drives the actual workflow (i9 type → I-9 form, etc.), so
-  // type-presence is the right signal. The original key-based check
-  // duplicated bg_check / drug_test because the default types are
-  // "background_check" / "drug_test", not "bg_check" / "drug_test".
-  const _OB_CORE_TYPES = ["background_check", "drug_test", "i9"];
-  let _obRestored = false;
-  for (const coreType of _OB_CORE_TYPES) {
-    const present = _obBuilderSteps.some(s => s && s.type === coreType);
-    if (!present) {
-      const def = _OB_DEFAULT_BLUEPRINT.find(s => s.type === coreType);
-      if (def) { _obBuilderSteps.push({ ...def }); _obRestored = true; }
-    }
-  }
+  // Note: we used to defensively re-seed core compliance steps here, but
+  // that race-conditioned with custom-typed equivalents and re-added a
+  // step after every delete. Core steps are now offered explicitly in
+  // the "+ Add a step" picker (see _OB_ADD_TYPES below), so any DSP
+  // that lost one can put it back without us guessing.
   _obConfirmDelete = null;
   clearTimeout(_obSaveTimer);
-  if (_obRestored) _obAutosave({ immediate: true });
   _obRenderBuilder();
 }
 
@@ -4070,12 +4053,17 @@ function _obAttachDocPicker(stepIndex) {
   });
 }
 
-// "Add a step" picker — every step a DSP adds is something the driver
-// acknowledges (a plain confirmation or a watched video) or signs (a
-// secure document, which runs its own e-signature workflow). The
-// DSP-recorded compliance steps (background check, drug test, training)
-// are built into the blueprint, not something you add here.
+// "Add a step" picker. The three compliance gates (background check,
+// drug test, Form I-9) appear here too — they're in the default seed
+// for every new workspace, but a DSP can remove and re-add them. Core
+// types are flagged with a coreKey so the add handler uses the
+// canonical key (other dashboard logic reads s.key === "i9" /
+// "bg_check" / "drug_test", so picker-added core steps need to match
+// that contract, not get the auto-generated "custom_xxx" key).
 const _OB_ADD_TYPES = [
+  { type: "i9",              owner: "driver", coreKey: "i9",        title: "Form I-9",                 label: "Form I-9 (Section 1 + 2)",            blurb: "The dedicated, structured I-9 flow: driver fills Section 1 in their app (20+ fields), you complete Section 2 from Work authorization, the sealed PDF is generated automatically." },
+  { type: "background_check",owner: "dsp",    coreKey: "bg_check",  title: "Background check cleared", label: "Background check (compliance gate)",  blurb: "You record the result on the dashboard once the background check clears. Federally required for hire." },
+  { type: "drug_test",       owner: "dsp",    coreKey: "drug_test", title: "Drug test cleared",        label: "Drug test (compliance gate)",         blurb: "You record the result on the dashboard once the drug test clears. Federally required for hire." },
   { type: "document",        owner: "driver", title: "New document", label: "Document to sign or acknowledge", blurb: "Attach a PDF from your Documents workspace. Informational docs the driver opens and acknowledges; secure docs run the e-signature & compliance flow." },
   { type: "acknowledgement", owner: "driver", title: "New acknowledgement", label: "Acknowledgement", blurb: "A short statement the driver reads and confirms — e.g. a policy or an expectation. No PDF." },
   { type: "video",          owner: "driver", title: "New video", label: "Watch a video", blurb: "Link a training or orientation video; the driver watches it, then confirms they're done." },
@@ -4101,7 +4089,18 @@ function _obAddStepPicker() {
     if (!b) return;
     const t = _OB_ADD_TYPES.find(x => x.type === b.getAttribute("data-type"));
     if (!t) return;
-    _obBuilderSteps.push({ key: "custom_" + Math.random().toString(36).slice(2, 9), type: t.type, title: t.title, enabled: true, blocking: false, required: false, owner: t.owner, document_template_id: null, video_url: null, ack_text: null });
+    // Refuse to add a second copy of a core type — keys are canonical
+    // and the rest of the dashboard would key off the first occurrence
+    // anyway, so duplicates only confuse the operator.
+    if (t.coreKey && _obBuilderSteps.some(s => s && s.type === t.type)) {
+      toast(`The "${t.label}" step is already on your blueprint.`, "warn");
+      m.remove();
+      return;
+    }
+    const baseKey = t.coreKey || ("custom_" + Math.random().toString(36).slice(2, 9));
+    const blocking = !!t.coreKey;     // compliance gates block onboarding completion
+    const required = !!t.coreKey;
+    _obBuilderSteps.push({ key: baseKey, type: t.type, title: t.title, enabled: true, blocking, required, owner: t.owner, document_template_id: null, video_url: null, ack_text: null });
     m.remove(); _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder();
   });
 }
