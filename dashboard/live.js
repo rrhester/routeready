@@ -3843,10 +3843,17 @@ const _OB_STEP_FIELDS = {
 // video, a job offer), the DSP adds a step in the builder; to remove a
 // step, they delete it. There is no enabled/disabled state — a step is
 // either in the blueprint or it isn't.
+// Mirror of private.onboarding_blueprint_default() (migration 0287).
+// Used as the client-side fallback if onboarding_blueprint_get hasn't
+// returned yet. Keep in sync with the SQL — both should describe the
+// exact same step set / order / flags.
 const _OB_DEFAULT_BLUEPRINT = [
-  { key: "bg_check",  type: "background_check", title: "Background check cleared", enabled: true, blocking: true, required: true, owner: "dsp" },
-  { key: "drug_test", type: "drug_test",        title: "Drug test cleared",        enabled: true, blocking: true, required: true, owner: "dsp" },
-  { key: "i9",        type: "i9",               title: "Form I-9",                 enabled: true, blocking: true, required: true, owner: "driver" },
+  { key: "bg_check",     type: "background_check", title: "Background check cleared", enabled: true, blocking: true,  required: true,  owner: "dsp" },
+  { key: "drug_test",    type: "drug_test",        title: "Drug test cleared",        enabled: true, blocking: true,  required: true,  owner: "dsp" },
+  { key: "job_offer",    type: "document",         title: "Job offer",                enabled: true, blocking: true,  required: true,  owner: "driver", document_template_id: null },
+  { key: "handbook",     type: "document",         title: "Employment handbook",      enabled: true, blocking: true,  required: true,  owner: "driver", document_template_id: null },
+  { key: "i9",           type: "i9",               title: "Form I-9",                 enabled: true, blocking: true,  required: true,  owner: "driver" },
+  { key: "trainer_pair", type: "task",             title: "Trainer pairing",          enabled: true, blocking: false, required: false, owner: "dsp" },
 ];
 let _obBlueprint = null;   // array of step objects from onboarding_blueprint_get (or _OB_DEFAULT_BLUEPRINT)
 function _obSteps() { return Array.isArray(_obBlueprint) && _obBlueprint.length ? _obBlueprint : _OB_DEFAULT_BLUEPRINT; }
