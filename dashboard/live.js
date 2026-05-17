@@ -27733,8 +27733,83 @@ async function loadFormsList() {
     return;
   }
   if (empty) empty.style.display = "none";
-  grid.innerHTML = forms.map(_formCardHtml).join("");
+  _formsCache = forms;
+  _renderFormsGrid();
 }
+
+// Sort + search + view state for the forms grid.  Cached locally so
+// the sidebar search / toolbar dropdown / view toggle can re-render
+// without another list_forms RPC.
+let _formsCache = [];
+let _formsSort = "updated-desc";
+let _formsQuery = "";
+let _formsView = "grid";
+function _renderFormsGrid() {
+  const grid = document.getElementById("rr-forms-grid");
+  const empty = document.getElementById("rr-forms-empty");
+  if (!grid) return;
+  const q = _formsQuery.trim().toLowerCase();
+  let rows = _formsCache.slice();
+  if (q) {
+    rows = rows.filter(f => {
+      const hay = [f.title, f.description].filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  rows.sort((a, b) => {
+    switch (_formsSort) {
+      case "updated-asc":  return new Date(a.updated_at || 0) - new Date(b.updated_at || 0);
+      case "title-asc":    return String(a.title || "").localeCompare(String(b.title || ""));
+      case "title-desc":   return String(b.title || "").localeCompare(String(a.title || ""));
+      case "updated-desc":
+      default:             return new Date(b.updated_at || 0) - new Date(a.updated_at || 0);
+    }
+  });
+  grid.classList.toggle("is-list", _formsView === "list");
+  if (rows.length === 0) {
+    grid.innerHTML = "";
+    if (empty) {
+      empty.style.display = "block";
+      empty.textContent = q
+        ? `No forms match "${_formsQuery}".`
+        : "No forms yet. Click Build a form to create your first one.";
+    }
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  grid.innerHTML = rows.map(_formCardHtml).join("");
+}
+// Forms toolbar / sidebar input wiring.  Idempotent — guards against
+// re-wiring on every loadFormsList call.
+let _formsToolbarWired = false;
+function _wireFormsToolbar() {
+  if (_formsToolbarWired) return;
+  _formsToolbarWired = true;
+  const sortSel = document.getElementById("rr-forms-sort");
+  if (sortSel) sortSel.addEventListener("change", (e) => {
+    _formsSort = e.target.value || "updated-desc";
+    _renderFormsGrid();
+  });
+  const search = document.getElementById("rr-forms-side-search");
+  if (search) search.addEventListener("input", (e) => {
+    _formsQuery = e.target.value || "";
+    _renderFormsGrid();
+  });
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("#view-forms .forms-view-btn");
+    if (!btn) return;
+    const mode = btn.getAttribute("data-rr-forms-view");
+    if (!mode || mode === _formsView) return;
+    _formsView = mode;
+    document.querySelectorAll("#view-forms .forms-view-btn").forEach(b => {
+      b.classList.toggle("active", b === btn);
+    });
+    _renderFormsGrid();
+  });
+}
+// Kick off the wiring + initial paint when the forms tab first loads.
+document.addEventListener("DOMContentLoaded", () => { _wireFormsToolbar(); });
+if (document.readyState !== "loading") _wireFormsToolbar();
 
 // Right-rail painter — Recent submissions + Form activity with
 // week-over-week deltas.  All values are computed locally from the
