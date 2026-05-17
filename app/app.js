@@ -873,6 +873,16 @@ function render() {
   // the welcome message from migration 0266) shows up on the icon
   // without the driver having to open Chat first.
   refreshChatBadge();
+  // Check for queued Recognition Celebration Events (migration 0292).
+  // Fires once per app open — driver_recognitions_pending returns the
+  // oldest sent-but-not-dismissed event, or null if nothing is pending.
+  // Fire-and-forget: the overlay paints over the shell when it lands;
+  // we never block route mount on it.
+  checkAndShowPendingRecognition(session).catch((e) => {
+    // Silent failure — recognition is non-essential; never let it
+    // block the driver from getting into the app.
+    console.warn("recognition check failed:", e);
+  });
   const path = currentRoute();
   const r = routes[path];
   // Header back button on sub-routes; clear it on top-level tabs.
@@ -7143,4 +7153,312 @@ function _wtRefreshSec() {
   const n = slot.querySelectorAll(".wt-card:not(.wt-done)").length;
   if (n <= 0) { slot.innerHTML = ""; return; }
   const nEl = slot.querySelector(".wt-sec-n"); if (nEl) nEl.textContent = String(n);
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// RECOGNITION CELEBRATION EVENTS
+//
+// First implementation in the "Welcome to the Team" series.  When a
+// dispatcher schedules a celebration from the Recognition page (admin
+// dashboard, migration 0290 + 0292), the next time this driver opens
+// the app we fetch the oldest queued event via
+// driver_recognitions_pending(p_token) and paint a premium full-screen
+// overlay over the shell.
+//
+// Design notes (see also the design reference image):
+//   • Deep RouteReady blue gradient background with a soft radial light
+//     burst centred behind the hex badge.
+//   • Gold + light-blue confetti drifting from top.  Spawned as ~36 DOM
+//     elements with randomised position / hue / delay; CSS-keyframe
+//     animated so the GPU does the work.
+//   • White card with rounded corners houses the title + subtitle.
+//     Title sits above a thin divider, subtitle sits below.
+//   • Sequential fade-in: backdrop → burst → badge → title → divider
+//     → subtitle → CTA → footer.  Total reveal lands in ~1.4s so the
+//     driver isn't staring at scaffolding.
+//   • Reduced-motion path: skip every animation, no confetti, no
+//     burst.  Card and CTA appear instantly.  Respects the system
+//     accessibility setting via matchMedia.
+//   • Idempotency: a module-level "open" flag guards against the
+//     check firing twice (e.g. rapid orientation change re-mount).
+//     The RPC itself is also resilient — once dismissed_at is set,
+//     subsequent calls return null.
+// ═══════════════════════════════════════════════════════════════════
+
+let _celebrationOpen = false;
+
+async function checkAndShowPendingRecognition(session) {
+  if (_celebrationOpen) return;                     // overlay already showing
+  if (!session || !session.token) return;
+  if (sessionStorage.getItem("rr-recog-skip-once") === "1") {
+    // Set when the driver dismissed an overlay in this session so a
+    // rapid orientation flip / shell remount doesn't re-fetch + paint.
+    return;
+  }
+  const { data, error } = await sb.rpc("driver_recognitions_pending", { p_token: session.token });
+  if (error) {
+    console.warn("recognition pending fetch failed:", error.message);
+    return;
+  }
+  if (!data || !data.id) return;
+  _renderCelebrationOverlay(session, data);
+}
+
+function _renderCelebrationOverlay(session, ev) {
+  if (_celebrationOpen) return;
+  _celebrationOpen = true;
+
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Pull the kind-specific copy.  The RPC supplies cta_label + footer
+  // already (it knows per-kind defaults and honours metadata
+  // overrides), so we just escape and render.
+  const title    = String(ev.title    || "Welcome to the Team");
+  const message  = String(ev.message  || "We're excited to have you here. Let's make this a great first day.");
+  const ctaLabel = String(ev.cta_label || "Start my day");
+  const footer   = String(ev.footer   || "Sent by your team");
+
+  // Build the confetti DOM up-front and let CSS animate it.  Skipping
+  // entirely on reduced-motion keeps the overlay perfectly still.
+  const confettiCount = reduced ? 0 : 36;
+  const confettiPieces = [];
+  // Palette pulled from the design reference: deep blue, sky blue,
+  // golden ochre, soft white.  Each piece gets a random hue from this
+  // list, random horizontal start (-5 → 105 vw to cover the edges),
+  // random delay (0 → 1.6s), random rotation, random duration
+  // (3.4 → 5.2s).
+  const palette = ["#FBBF24","#FDE68A","#60A5FA","#93C5FD","#FFFFFF","#F8FAFC"];
+  for (let i = 0; i < confettiCount; i++) {
+    const left  = (Math.random() * 110 - 5).toFixed(2);
+    const delay = (Math.random() * 1.6).toFixed(2);
+    const dur   = (3.4 + Math.random() * 1.8).toFixed(2);
+    const hue   = palette[Math.floor(Math.random() * palette.length)];
+    const rot   = (Math.random() * 360).toFixed(0);
+    const drift = (Math.random() * 60 - 30).toFixed(0);
+    const shape = Math.random() > 0.5 ? "rect" : "round";
+    confettiPieces.push(
+      `<i class="rr-confetti rr-confetti-${shape}" style="left:${left}vw;background:${hue};--rot:${rot}deg;--drift:${drift}px;animation-delay:${delay}s;animation-duration:${dur}s"></i>`
+    );
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "rr-celebrate" + (reduced ? " is-reduced" : "");
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-labelledby", "rr-celebrate-title");
+  overlay.innerHTML = `
+    <style>
+      .rr-celebrate{
+        position:fixed;inset:0;z-index:1000;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        padding:24px;
+        background:radial-gradient(ellipse at 50% 38%, #2563eb 0%, #1e40af 45%, #0f1d4a 100%);
+        color:#fff;
+        opacity:0;animation:rrCelebFade .42s ease-out forwards;
+        overflow:hidden;
+      }
+      .rr-celebrate.is-reduced{animation:none;opacity:1}
+
+      /* Soft radial light burst behind the hex badge */
+      .rr-celebrate .rr-burst{
+        position:absolute;top:calc(50% - 200px);left:50%;width:520px;height:520px;
+        transform:translate(-50%, -50%) scale(.2);
+        background:radial-gradient(circle, rgba(255,255,255,.35) 0%, rgba(147,197,253,.18) 28%, transparent 65%);
+        opacity:0;pointer-events:none;
+        animation:rrCelebBurst 1.4s ease-out .2s forwards;
+      }
+      .rr-celebrate.is-reduced .rr-burst{animation:none;opacity:.55;transform:translate(-50%,-50%) scale(1)}
+
+      /* Confetti drift */
+      .rr-celebrate .rr-confetti{
+        position:absolute;top:-24px;width:10px;height:14px;border-radius:2px;
+        opacity:.92;will-change:transform, opacity;
+        animation:rrCelebConfetti linear forwards;
+        transform:translate3d(0,0,0) rotate(var(--rot, 0deg));
+      }
+      .rr-celebrate .rr-confetti-round{border-radius:50%;width:9px;height:9px}
+      .rr-celebrate.is-reduced .rr-confetti{display:none}
+
+      /* Card */
+      .rr-celebrate .rr-card{
+        position:relative;z-index:2;
+        width:100%;max-width:340px;
+        background:#fff;color:#0f172a;
+        border-radius:20px;
+        padding:38px 26px 28px;
+        box-shadow:0 18px 60px rgba(2,12,40,.32), 0 2px 10px rgba(2,12,40,.18);
+        text-align:center;
+        opacity:0;transform:translateY(14px) scale(.98);
+        animation:rrCelebCardIn .6s cubic-bezier(.16,.84,.24,1.02) .55s forwards;
+      }
+      .rr-celebrate.is-reduced .rr-card{animation:none;opacity:1;transform:none}
+
+      /* Hex badge — sits half outside the card top */
+      .rr-celebrate .rr-badge{
+        position:absolute;top:-32px;left:50%;transform:translateX(-50%) scale(0);
+        width:68px;height:68px;
+        display:flex;align-items:center;justify-content:center;
+        background:linear-gradient(160deg, #3b82f6 0%, #1d4ed8 100%);
+        clip-path:polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+        color:#fff;
+        box-shadow:0 10px 24px rgba(29,78,216,.45), inset 0 -4px 8px rgba(0,0,0,.18);
+        animation:rrCelebBadge .58s cubic-bezier(.18,.86,.32,1.18) .3s forwards;
+      }
+      .rr-celebrate.is-reduced .rr-badge{animation:none;transform:translateX(-50%) scale(1)}
+
+      .rr-celebrate .rr-title{
+        margin:14px 0 0;font-size:24px;line-height:1.18;font-weight:800;letter-spacing:-.01em;
+        opacity:0;transform:translateY(8px);animation:rrCelebFadeUp .42s ease-out .85s forwards;
+      }
+      .rr-celebrate .rr-divider{
+        margin:16px auto 14px;height:1px;width:0;background:#e5e7eb;
+        animation:rrCelebDivider .45s ease-out 1.05s forwards;
+      }
+      .rr-celebrate .rr-msg{
+        margin:0;font-size:15px;line-height:1.45;color:#475569;
+        opacity:0;transform:translateY(8px);animation:rrCelebFadeUp .4s ease-out 1.15s forwards;
+      }
+      .rr-celebrate.is-reduced .rr-title,
+      .rr-celebrate.is-reduced .rr-msg,
+      .rr-celebrate.is-reduced .rr-cta-wrap,
+      .rr-celebrate.is-reduced .rr-foot{animation:none;opacity:1;transform:none}
+      .rr-celebrate.is-reduced .rr-divider{animation:none;width:80%}
+
+      .rr-celebrate .rr-cta-wrap{
+        margin:22px 0 0;opacity:0;transform:translateY(10px);
+        animation:rrCelebFadeUp .42s ease-out 1.32s forwards;
+      }
+      .rr-celebrate .rr-cta{
+        display:flex;align-items:center;justify-content:center;width:100%;
+        background:linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+        color:#fff;font-size:17px;font-weight:700;
+        border:0;border-radius:14px;padding:15px 18px;
+        box-shadow:0 8px 22px rgba(29,78,216,.42);
+        cursor:pointer;letter-spacing:.01em;
+        transition:transform .15s ease, box-shadow .15s ease;
+      }
+      .rr-celebrate .rr-cta:active{transform:scale(.985)}
+
+      .rr-celebrate .rr-foot{
+        margin-top:14px;font-size:13px;color:rgba(255,255,255,.85);
+        display:inline-flex;align-items:center;gap:6px;
+        opacity:0;animation:rrCelebFadeUp .4s ease-out 1.5s forwards;
+      }
+      .rr-celebrate .rr-foot svg{stroke:rgba(255,255,255,.85);fill:none;width:14px;height:14px}
+
+      .rr-celebrate .rr-close{
+        position:absolute;top:14px;right:14px;width:36px;height:36px;
+        border-radius:50%;border:0;cursor:pointer;
+        background:rgba(255,255,255,.14);color:#fff;
+        display:flex;align-items:center;justify-content:center;
+        opacity:0;animation:rrCelebFade .4s ease-out 1.6s forwards;
+      }
+      .rr-celebrate .rr-close:hover{background:rgba(255,255,255,.22)}
+      .rr-celebrate.is-reduced .rr-close{animation:none;opacity:1}
+
+      @keyframes rrCelebFade   { to { opacity:1 } }
+      @keyframes rrCelebFadeUp { to { opacity:1; transform:translateY(0) } }
+      @keyframes rrCelebDivider{ to { width:80% } }
+      @keyframes rrCelebBurst  { to { opacity:.7; transform:translate(-50%,-50%) scale(1) } }
+      @keyframes rrCelebCardIn { to { opacity:1; transform:translateY(0) scale(1) } }
+      @keyframes rrCelebBadge  { to { transform:translateX(-50%) scale(1) } }
+      @keyframes rrCelebConfetti {
+        0%   { transform:translate3d(0, -20px, 0) rotate(var(--rot, 0deg)); opacity:1 }
+        100% { transform:translate3d(var(--drift, 0), 110vh, 0) rotate(calc(var(--rot, 0deg) + 540deg)); opacity:.85 }
+      }
+
+      /* Closing animation when CTA tapped */
+      .rr-celebrate.is-closing{
+        animation:rrCelebFadeOut .32s ease-in forwards;
+      }
+      @keyframes rrCelebFadeOut{ to { opacity:0 } }
+
+      /* Tighter phones */
+      @media (max-height: 640px){
+        .rr-celebrate .rr-card{padding:32px 22px 22px}
+        .rr-celebrate .rr-title{font-size:22px}
+        .rr-celebrate .rr-burst{width:420px;height:420px}
+      }
+    </style>
+
+    <div class="rr-burst" aria-hidden="true"></div>
+    ${confettiPieces.join("")}
+
+    <button class="rr-close" type="button" aria-label="Close celebration" data-rr-celeb-close>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+
+    <div class="rr-card">
+      <div class="rr-badge" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <h2 class="rr-title" id="rr-celebrate-title">${escapeHtml(title)}</h2>
+      <div class="rr-divider" aria-hidden="true"></div>
+      <p class="rr-msg">${escapeHtml(message)}</p>
+
+      <div class="rr-cta-wrap">
+        <button class="rr-cta" type="button" data-rr-celeb-cta>${escapeHtml(ctaLabel)}</button>
+      </div>
+    </div>
+
+    <div class="rr-foot" role="contentinfo">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      ${escapeHtml(footer)}
+    </div>
+  `;
+
+  // Push to the top of <body> so it lays over everything including
+  // any open modal / tab bar.
+  document.body.appendChild(overlay);
+
+  // Soft haptic on supported devices.  Skipped under reduced motion
+  // (the system signal that the user prefers less stimulation).
+  if (!reduced && navigator.vibrate) {
+    try { navigator.vibrate([14, 40, 18]); } catch (e) { /* iOS Safari throws if PWA not granted permission */ }
+  }
+
+  // Mark delivered immediately.  The RPC is idempotent so a rapid
+  // re-render won't double-stamp.  Fire-and-forget — the overlay paints
+  // regardless of network state.
+  if (ev.id) {
+    sb.rpc("driver_recognition_delivered", { p_token: session.token, p_id: ev.id })
+      .catch((e) => console.warn("recognition mark-delivered failed:", e?.message));
+  }
+
+  const dismiss = () => {
+    if (overlay._closing) return;
+    overlay._closing = true;
+    overlay.classList.add("is-closing");
+    // Mark dismissed server-side.  If the network call fails, the
+    // overlay still closes locally — next app open will return the
+    // same event (acceptable: spec says show until acknowledged).
+    if (ev.id) {
+      sb.rpc("driver_recognition_dismiss", { p_token: session.token, p_id: ev.id })
+        .catch((e) => console.warn("recognition mark-dismissed failed:", e?.message));
+    }
+    // Skip-once flag: prevents an in-session shell remount (e.g. a
+    // navigation that calls render() again) from immediately re-fetching
+    // and re-painting the same event while the dismissed_at write is
+    // still propagating through PostgREST.
+    try { sessionStorage.setItem("rr-recog-skip-once", "1"); } catch (e) {}
+    setTimeout(() => {
+      overlay.remove();
+      _celebrationOpen = false;
+    }, reduced ? 0 : 320);
+  };
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target.closest("[data-rr-celeb-cta]") || e.target.closest("[data-rr-celeb-close]")) {
+      e.preventDefault();
+      dismiss();
+    }
+  });
+  const onKey = (e) => {
+    if (e.key === "Escape") {
+      document.removeEventListener("keydown", onKey);
+      dismiss();
+    }
+  };
+  document.addEventListener("keydown", onKey);
 }

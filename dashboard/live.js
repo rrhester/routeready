@@ -37992,6 +37992,14 @@ document.addEventListener("click", async (e) => {
     openRecogSendModal({});
     return;
   }
+  if (e.target.closest("#rr-recog-welcome-btn") || e.target.closest("#rr-recog-welcome-card")) {
+    // Card-level click should only trigger when the operator clicks
+    // outside the dropdowns / sub-controls (which there aren't on this
+    // card today, so a card-level handler is fine).
+    e.preventDefault();
+    openRecogSendModal({ kind: "welcome_to_team" });
+    return;
+  }
   const celebrate = e.target.closest("[data-rr-recog-celebrate]");
   if (celebrate) {
     e.preventDefault();
@@ -38053,9 +38061,10 @@ async function openRecogSendModal(opts) {
   wrap = document.createElement("div");
   wrap.id = "rr-recog-send-modal";
   wrap.className = "rr-modal-backdrop";
-  const animChoices = ["confetti","fireworks","balloons","cake","trophy","hearts","sparkle"];
+  const animChoices = ["confetti","fireworks","balloons","cake","trophy","hearts","sparkle","welcome"];
   const todayIso = new Date().toISOString().slice(0, 10);
   const kindOpts = [
+    { v: "welcome_to_team",   l: "Welcome to the team" },
     { v: "custom",            l: "Custom" },
     { v: "birthday",          l: "Birthday" },
     { v: "work_anniversary",  l: "Work anniversary" },
@@ -38064,10 +38073,15 @@ async function openRecogSendModal(opts) {
   const initKind = opts.kind || "custom";
   const initTitle = opts.kind === "birthday" ? "Happy birthday!"
                   : opts.kind === "work_anniversary" ? (opts.years ? `${opts.years}-year anniversary 🎉` : "Happy work anniversary!")
+                  : opts.kind === "welcome_to_team" ? "Welcome to the Team"
+                  : "";
+  const initMessage = opts.kind === "welcome_to_team"
+                  ? "We're excited to have you here. Let's make this a great first day."
                   : "";
   const initAnim  = opts.kind === "birthday" ? "cake"
                   : opts.kind === "work_anniversary" ? "trophy"
                   : opts.kind === "safety_milestone" ? "sparkle"
+                  : opts.kind === "welcome_to_team" ? "welcome"
                   : "confetti";
   wrap.innerHTML = `
     <style>
@@ -38135,7 +38149,7 @@ async function openRecogSendModal(opts) {
 
         <div class="field">
           <label for="rr-recog-message">Message <span style="font-weight:400;color:var(--text-subtle)">(optional)</span></label>
-          <textarea id="rr-recog-message" maxlength="400" placeholder="A short note that appears with the celebration animation."></textarea>
+          <textarea id="rr-recog-message" maxlength="400" placeholder="A short note that appears with the celebration animation.">${escapeHtml(initMessage)}</textarea>
         </div>
 
         <div class="field">
@@ -38143,7 +38157,9 @@ async function openRecogSendModal(opts) {
           <div class="anim-grid" id="rr-recog-anim-grid">
             ${animChoices.map((a) => `<button type="button" class="anim-pick${a === initAnim ? " is-on" : ""}" data-anim="${a}">${a[0].toUpperCase() + a.slice(1)}</button>`).join("")}
           </div>
-          <p class="hint">The driver app will play the chosen animation when they open the celebration (animations are being built — for now the choice is recorded).</p>
+          <p class="hint" id="rr-recog-anim-hint">${initKind === "welcome_to_team"
+            ? "Drivers see a full-screen celebration with confetti, a hex badge, and the message above the next time they open the app."
+            : "The driver app will play the chosen animation when they open the celebration."}</p>
         </div>
       </div>
       <div class="rr-modal-foot">
@@ -38216,6 +38232,37 @@ async function openRecogSendModal(opts) {
     btn.classList.add("is-on");
   });
 
+  // Kind change → swap in per-kind defaults so picking "Welcome to the
+  // team" mid-flow fills the title / message / animation the way it
+  // would have if the operator had clicked the dedicated quick-send.
+  // Only overwrites empty fields — never clobbers what the operator typed.
+  wrap.querySelector("#rr-recog-kind").addEventListener("change", (e) => {
+    const k = e.target.value;
+    const titleEl = wrap.querySelector("#rr-recog-title");
+    const msgEl   = wrap.querySelector("#rr-recog-message");
+    const hintEl  = wrap.querySelector("#rr-recog-anim-hint");
+    const defaults = {
+      welcome_to_team: {
+        title: "Welcome to the Team",
+        message: "We're excited to have you here. Let's make this a great first day.",
+        anim: "welcome",
+        hint: "Drivers see a full-screen celebration with confetti, a hex badge, and the message above the next time they open the app.",
+      },
+      birthday:         { title: "Happy birthday!",          message: "", anim: "cake",     hint: "" },
+      work_anniversary: { title: "Happy work anniversary!",  message: "", anim: "trophy",   hint: "" },
+      safety_milestone: { title: "Safety milestone",         message: "", anim: "sparkle",  hint: "" },
+      custom:           { title: "",                         message: "", anim: "confetti", hint: "" },
+    };
+    const d = defaults[k];
+    if (!d) return;
+    if (titleEl && !titleEl.value.trim()) titleEl.value = d.title;
+    if (msgEl   && !msgEl.value.trim())   msgEl.value   = d.message;
+    if (d.anim) {
+      wrap.querySelectorAll(".anim-pick").forEach((b) => b.classList.toggle("is-on", b.getAttribute("data-anim") === d.anim));
+    }
+    if (hintEl && d.hint) hintEl.textContent = d.hint;
+  });
+
   // Submit.
   wrap.querySelector("#rr-recog-submit").addEventListener("click", async () => {
     const driverId = hidden.value;
@@ -38244,14 +38291,18 @@ async function openRecogSendModal(opts) {
       p_occasion_on:  occasionOn,
       p_scheduled_for: scheduleFor,
       p_years:        opts.years || null,
+      p_metadata:     opts.metadata || null,
     });
     submitBtn.disabled = false;
     submitBtn.textContent = "Send celebration";
     if (error) { toast("Couldn't send: " + (error.message || ""), "danger"); return; }
+    const isQueued = kind === "welcome_to_team" && data?.status !== "scheduled";
     toast(
       data?.status === "scheduled"
         ? `Celebration scheduled for ${escapeHtml(driverName)}`
-        : `Celebration sent to ${escapeHtml(driverName)} 🎉`,
+        : isQueued
+          ? `Welcome celebration queued — ${escapeHtml(driverName)} will see it next time they open the app`
+          : `Celebration sent to ${escapeHtml(driverName)} 🎉`,
       "success"
     );
     close();

@@ -13062,6 +13062,32 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <!-- UPCOMING sub-view -->
         <div class="rg-sub active" id="recog-sub-upcoming">
+
+          <!-- Featured "Welcome to the Team" quick-send card.  The
+               Send celebration CTA at the top of the page opens the
+               full modal; this card is a one-click shortcut to the
+               first packaged Recognition Celebration Event — premium
+               full-screen overlay drivers see the next time they
+               open the app.  Clicking opens the same modal pre-filled
+               with kind=welcome_to_team and default copy. -->
+          <div class="rg-feature-card" id="rr-recog-welcome-card"
+               style="display:flex;align-items:center;gap:var(--s-4);padding:var(--s-4) var(--s-5);margin-bottom:var(--s-4);background:linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);border-radius:var(--r-lg);color:#fff;box-shadow:0 6px 24px rgba(29, 78, 216, 0.18);position:relative;overflow:hidden">
+            <div style="position:absolute;top:-30px;right:-30px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 70%);pointer-events:none"></div>
+            <div style="width:52px;height:52px;flex:0 0 auto;border-radius:14px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;opacity:0.85;margin-bottom:4px">Celebration moment</div>
+              <div style="font-size:var(--fs-lg);font-weight:700;margin-bottom:2px">Welcome a new driver to the team</div>
+              <div style="font-size:var(--fs-sm);opacity:0.92;line-height:1.4">A full-screen celebration plays the next time they open the app — confetti, a hex badge, and your message.</div>
+            </div>
+            <button id="rr-recog-welcome-btn" type="button"
+                    style="padding:10px 18px;border-radius:var(--r-md);background:#fff;color:#1d4ed8;font-weight:700;font-size:var(--fs-md);border:0;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5 12 2"/></svg>
+              Send welcome
+            </button>
+          </div>
+
           <div class="rg-roster-bar">
             <div class="rg-search">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -22536,7 +22562,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260517-recognition"></script>
+<script type="module" src="./live.js?v=20260517-celebration"></script>
 
 </body>
 </html>
