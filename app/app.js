@@ -796,6 +796,7 @@ function homeTodayLabel(date = new Date()) {
 // Sub-routes branch off (e.g. /settings, /tasks/availability).
 const routes = {
   "/schedule":          { render: renderSchedule,        tab: "/schedule" },
+  "/welcome":           { render: renderCelebrationRoute, tab: "/schedule" },
   "/tasks":             { render: renderTasksHub,        tab: "/tasks" },
   "/tasks/onboarding":  { render: renderOnboarding,      tab: "/tasks", back: "/tasks", title: "Onboarding" },
   "/tasks/onboarding/step": { render: renderOnboardingStep, tab: "/tasks", back: "/tasks/onboarding", title: "Onboarding step" },
@@ -7162,31 +7163,43 @@ function _wtRefreshSec() {
 
 
 // ═══════════════════════════════════════════════════════════════════
-// RECOGNITION CELEBRATION · v116
+// RECOGNITION CELEBRATION · v121 — ROUTE-BASED ARCHITECTURE
 // ═══════════════════════════════════════════════════════════════════
-// Simpler, deterministic re-implementation of the Welcome celebration
-// after multiple buggy iterations.  Three top-line guarantees:
+// After multiple iterations of JS-event-handler-based dismiss flows
+// failed on iOS PWA standalone mode (per-button listeners, capture-
+// phase document delegation, inline onclick attributes, window-global
+// fallbacks, and overlay tap-anywhere backstops ALL failed to fire),
+// the celebration is now a dedicated route (#/welcome) instead of a
+// floating overlay.
 //
-//   1. Overlay appears the moment the app boots — no shell flash.
-//      A blue gradient backdrop paints synchronously on module load
-//      (before render() runs), and the actual overlay replaces it
-//      when the pending RPC returns.  If nothing is pending, the
-//      backdrop fades out.
+// Why this can't fail:
 //
-//   2. Start-my-day / X tap reliably clears the overlay.  No CSS
-//      animations on interactive elements — the CTA is a stable hit
-//      target from frame 0.  Dismiss is synchronous (no setTimeout).
-//      The dismissed event id is added to a session-persistent Set
-//      BEFORE the overlay is removed, so any re-check that fires
-//      during navigation (visibilitychange, hashchange, focus)
-//      cannot re-paint the same celebration before the server-side
-//      dismissed_at write propagates.
+//   - The "Start my day" CTA is a plain <a href="#/schedule"> anchor.
+//     iOS native browser navigation on an anchor tap is rock-solid —
+//     no JS event handler is involved in the dismiss path at all.
+//     The hash changes, the router re-fires, the celebration view is
+//     unmounted naturally as the next route's render replaces #main.
 //
-//   3. iOS PWA suspend/resume re-fires the check.  visibilitychange
-//      + pageshow + focus listeners trigger a fresh pending-event
-//      lookup when the user foregrounds the app.
+//   - The dismiss RPC + sessionStorage flag are fired from a
+//     hashchange listener that detects "leaving /welcome" — guaranteed
+//     to run because hashchange is what the router itself listens to.
+//
+//   - The celebration view paints multiple anchor exits (CTA, close X,
+//     and a full-screen tap-anywhere backdrop). All three are anchor
+//     tags pointing at #/schedule. Any tap outside the white card,
+//     anywhere on the gradient, dismisses.
+//
+//   - There is no pre-paint backdrop / early RPC kickoff race — the
+//     celebration only paints when the /welcome route is active, so
+//     there's no lifecycle window where a stale backdrop can sit on
+//     top of a removed overlay.
 
-let _celebrationOpen = false;
+// Module-level stash for the pending event the router will render.
+// checkAndShowPendingRecognition fetches the event and stashes it
+// here, then calls navigate("/welcome").  The /welcome route's
+// render function reads from these.
+let _currentCelebrationEv      = null;
+let _currentCelebrationSession = null;
 
 // Client-side dismissed set, persisted to sessionStorage so a hot
 // reload mid-session (iOS aggressively recycles PWA shells) doesn't
@@ -7202,107 +7215,6 @@ function _markRecogDismissed(id) {
   _recogDismissedIds.add(id);
   try { sessionStorage.setItem("rr.recogDismissed", JSON.stringify([..._recogDismissedIds])); } catch (_) {}
 }
-
-// ── Pre-paint backdrop ──────────────────────────────────────────────
-// Synchronous blue gradient mounted before render() so the user
-// never sees the home screen flash through.  Removed when the pending
-// RPC returns nothing, or when the real overlay covers it.
-const _PREPAINT_ID = "rr-celeb-prepaint";
-function _installCelebrationPrepaint() {
-  try {
-    if (typeof PREVIEW !== "undefined" && PREVIEW) return;
-    if (document.getElementById(_PREPAINT_ID)) return;
-    const s = (typeof readSession === "function") ? readSession() : null;
-    if (!s || !s.token) return;
-    const mount = () => {
-      if (document.getElementById(_PREPAINT_ID)) return;
-      const target = document.body || document.documentElement;
-      if (!target) { requestAnimationFrame(mount); return; }
-      const bg = document.createElement("div");
-      bg.id = _PREPAINT_ID;
-      bg.style.cssText = [
-        "position:fixed", "inset:0", "z-index:1000",
-        "background:radial-gradient(ellipse at 50% 38%, #2563eb 0%, #1e40af 45%, #0f1d4a 100%)",
-        "opacity:1", "transition:opacity .22s ease-out",
-        "pointer-events:auto",
-      ].join(";");
-      target.appendChild(bg);
-    };
-    if (document.body) mount();
-    else document.addEventListener("DOMContentLoaded", mount, { once: true });
-  } catch (_) {}
-}
-function _removeCelebrationPrepaint(immediate) {
-  try {
-    const bg = document.getElementById(_PREPAINT_ID);
-    if (!bg) return;
-    bg.style.opacity = "0";
-    bg.style.pointerEvents = "none";
-    if (immediate) {
-      // Synchronous teardown — no transition delay.  Used by dismiss()
-      // so a lingering pre-paint can't sit over the (now-removed)
-      // overlay and look like the celebration "didn't close".
-      try { bg.style.display = "none"; } catch (_) {}
-      try { bg.hidden = true; } catch (_) {}
-      try { bg.parentNode && bg.parentNode.removeChild(bg); } catch (_) {}
-      try { bg.remove(); } catch (_) {}
-      return;
-    }
-    setTimeout(() => { try { bg.remove(); } catch (_) {} }, 240);
-  } catch (_) {}
-}
-
-// ── _showDismissDebugPill ───────────────────────────────────────────
-// Bulletproof on-screen indicator that proves dismiss() ran on a device
-// with no console access (iOS PWA).  Appears at the top of the screen
-// for 3 seconds with a high z-index so it cannot be hidden by any
-// overlay/backdrop.  The pill text reports which removal mechanisms
-// fired and whether the overlay element is still in the DOM afterward.
-function _showDismissDebugPill(msg) {
-  try {
-    const id = "rr-dismiss-debug-pill";
-    const existing = document.getElementById(id);
-    if (existing) { try { existing.remove(); } catch (_) {} }
-    const pill = document.createElement("div");
-    pill.id = id;
-    pill.textContent = msg;
-    pill.style.cssText = [
-      "position:fixed", "top:14px", "left:50%",
-      "transform:translateX(-50%)",
-      "z-index:2147483647",
-      "padding:8px 14px", "border-radius:999px",
-      "background:#16a34a", "color:#fff",
-      "font:700 12px/1.2 -apple-system,BlinkMacSystemFont,sans-serif",
-      "letter-spacing:.04em",
-      "box-shadow:0 6px 18px rgba(0,0,0,.32)",
-      "pointer-events:none",
-      "max-width:92vw", "text-align:center",
-      "white-space:nowrap", "overflow:hidden", "text-overflow:ellipsis",
-    ].join(";");
-    (document.body || document.documentElement).appendChild(pill);
-    setTimeout(() => { try { pill.remove(); } catch (_) {} }, 3000);
-  } catch (_) {}
-}
-
-// ── Early RPC kickoff + safety net ──────────────────────────────────
-// Fires the pending-event RPC at module load (before render() runs).
-// Promise stashed on window._recogEarly for checkAndShowPendingRecognition
-// to consume.  Hard 3s safety timeout drops the backdrop if the RPC
-// hangs, so the user is never stuck on blue.
-_installCelebrationPrepaint();
-(function _kickoffEarlyRecogCheck() {
-  try {
-    const s = (typeof readSession === "function") ? readSession() : null;
-    if (!s || !s.token) { _removeCelebrationPrepaint(); return; }
-    const p = sb.rpc("driver_recognitions_pending", { p_token: s.token });
-    window._recogEarly = p;
-    p.then(({ data, error } = {}) => {
-      if (error || !data || !data.id) _removeCelebrationPrepaint();
-      else if (_recogDismissedIds.has(data.id)) _removeCelebrationPrepaint();
-    }, () => _removeCelebrationPrepaint());
-    setTimeout(() => { if (!_celebrationOpen) _removeCelebrationPrepaint(); }, 3000);
-  } catch (_) { _removeCelebrationPrepaint(); }
-})();
 
 // ── Foreground re-check ─────────────────────────────────────────────
 // iOS PWA / Safari bfcache keep the JS process alive across
@@ -7322,41 +7234,66 @@ window.addEventListener("pageshow", _recheckRecognitionOnForeground);
 window.addEventListener("focus",    _recheckRecognitionOnForeground);
 
 // ── checkAndShowPendingRecognition ──────────────────────────────────
+// Fetches the pending event; if one is queued (and not already shown /
+// dismissed), stashes it on the module-level vars and navigates to
+// /welcome.  The router renders the celebration view from the stash.
 async function checkAndShowPendingRecognition(session) {
-  if (_celebrationOpen) return;
-  if (!session || !session.token) { _removeCelebrationPrepaint(); return; }
-  // SHOWN-THIS-SESSION GATE — fixes the "Start my day appears broken"
-  // case where the driver has multiple queued celebrations: dismissing
-  // one was immediately re-painting the next (foreground re-check
-  // listeners fire on visibilitychange/focus and pick up the next
-  // pending row).  From the driver's perspective the screen "didn't
-  // close" because a near-identical overlay replaced it instantly.
-  // Cap to ONE celebration per app session.  Cleared on real reload.
+  if (!session || !session.token) return;
+  // Already on /welcome with an event in the stash — nothing to do.
+  if (currentRoute() === "/welcome" && _currentCelebrationEv) return;
+  // SHOWN-THIS-SESSION GATE — cap to ONE celebration per app session.
+  // Without this, dismissing one celebration would immediately route
+  // the user back to /welcome with the next queued event on the very
+  // next foreground re-check.  Cleared on a real page reload.
   try {
-    if (sessionStorage.getItem("rr.recogShownThisSession") === "1") {
-      _removeCelebrationPrepaint();
-      return;
-    }
+    if (sessionStorage.getItem("rr.recogShownThisSession") === "1") return;
   } catch (_) {}
-  let pendingPromise = window._recogEarly;
-  window._recogEarly = null;
-  if (!pendingPromise) {
-    pendingPromise = sb.rpc("driver_recognitions_pending", { p_token: session.token });
-  }
   let r;
-  try { r = await pendingPromise; }
-  catch (e) { console.warn("[recog] rpc threw:", e?.message); _removeCelebrationPrepaint(); return; }
-  if (r.error) { console.warn("[recog] rpc error:", r.error.message); _removeCelebrationPrepaint(); return; }
+  try {
+    r = await sb.rpc("driver_recognitions_pending", { p_token: session.token });
+  } catch (e) { console.warn("[recog] rpc threw:", e?.message); return; }
+  if (r.error) { console.warn("[recog] rpc error:", r.error.message); return; }
   const ev = r.data;
-  if (!ev || !ev.id) { _removeCelebrationPrepaint(); return; }
-  if (_recogDismissedIds.has(ev.id)) { _removeCelebrationPrepaint(); return; }
-  _renderCelebrationOverlay(session, ev);
+  if (!ev || !ev.id) return;
+  if (_recogDismissedIds.has(ev.id)) return;
+  // Stash and navigate.  The /welcome route's render reads from the
+  // module-level vars.  No JS handlers needed for the dismiss path —
+  // the user taps an anchor and the hash changes; the router does the
+  // rest.
+  _currentCelebrationEv      = ev;
+  _currentCelebrationSession = session;
+  navigate("/welcome");
 }
 
-// ── _renderCelebrationOverlay ───────────────────────────────────────
-function _renderCelebrationOverlay(session, ev) {
-  if (_celebrationOpen) return;
-  _celebrationOpen = true;
+// ── renderCelebrationRoute ──────────────────────────────────────────
+// The /welcome route's render function.  Reads the stashed event and
+// session from module-level vars, paints the celebration HTML into
+// #main (replacing whatever the schedule view would otherwise show),
+// and fires the delivered RPC fire-and-forget.
+//
+// Crucially: the CTA + close + tap-anywhere-backdrop are all <a>
+// anchor tags pointing at #/schedule.  When the user taps one, iOS
+// performs native hash navigation — no JS event handler is involved.
+// The hashchange listener picks up the URL change and re-fires
+// render(), which mounts renderSchedule() into #main.  The
+// _onCelebrationLeave hashchange listener (set up once, below) fires
+// the dismiss RPC and marks _recogDismissedIds.
+//
+// If the user navigates to /welcome manually (or via back-forward
+// cache) without a stashed event, we redirect to /schedule.
+function renderCelebrationRoute() {
+  // No event to celebrate — bounce to schedule so the route is never
+  // a dead-end.  Manual /welcome navigation, stale bookmarks, etc.
+  if (!_currentCelebrationEv) {
+    navigate("/schedule");
+    return;
+  }
+  const ev      = _currentCelebrationEv;
+  const session = _currentCelebrationSession;
+  const main    = document.getElementById("main");
+  if (!main) return;
+
+  setHeader("", "");
 
   const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const title    = String(ev.title    || "Welcome to the Team");
@@ -7377,26 +7314,26 @@ function _renderCelebrationOverlay(session, ev) {
     return `<i class="rrc-piece" style="left:${left}vw;background:${hue};width:${size}px;height:${size}px;${round}--rot:${rot}deg;--drift:${drift}px;animation-delay:${delay}s;animation-duration:${dur}s"></i>`;
   }).join("");
 
-  const overlay = document.createElement("div");
-  overlay.id = "rr-celebration";
-  overlay.setAttribute("role", "dialog");
-  overlay.setAttribute("aria-modal", "true");
-  overlay.innerHTML = `
+  // The whole celebration mounts into #main.  position:fixed on the
+  // root makes it cover the shell (header + tab bar) so the driver
+  // sees a full-screen takeover — but unlike v120 there's nothing
+  // appended to <body>; the router owns the lifecycle.
+  main.innerHTML = `
     <style>
-      #rr-celebration{
+      #rr-celebration-route{
         position:fixed;inset:0;z-index:1001;
         display:flex;flex-direction:column;align-items:center;justify-content:center;
         padding:24px;color:#fff;
         background:radial-gradient(ellipse at 50% 38%, #2563eb 0%, #1e40af 45%, #0f1d4a 100%);
         overflow:hidden;
       }
-      #rr-celebration .rrc-burst{
+      #rr-celebration-route .rrc-burst{
         position:absolute;top:calc(50% - 200px);left:50%;width:520px;height:520px;
         transform:translate(-50%, -50%);pointer-events:none;
         background:radial-gradient(circle, rgba(255,255,255,.35) 0%, rgba(147,197,253,.18) 28%, transparent 65%);
         opacity:.6;
       }
-      #rr-celebration .rrc-piece{
+      #rr-celebration-route .rrc-piece{
         position:absolute;top:-24px;width:10px;height:14px;border-radius:2px;
         opacity:.92;pointer-events:none;will-change:transform, opacity;
         animation:rrcDrift linear forwards;
@@ -7406,7 +7343,15 @@ function _renderCelebrationOverlay(session, ev) {
         0%   { transform:translate3d(0, -20px, 0) rotate(var(--rot, 0deg)); opacity:1 }
         100% { transform:translate3d(var(--drift, 0), 110vh, 0) rotate(calc(var(--rot, 0deg) + 540deg)); opacity:.85 }
       }
-      #rr-celebration .rrc-card{
+      /* Full-screen anchor that covers the gradient area but sits
+         BELOW the card (z-index 1).  Taps anywhere on the blue area
+         hit this anchor and trigger native hash navigation. */
+      #rr-celebration-route .celeb-tap-anywhere{
+        position:absolute;inset:0;z-index:1;
+        display:block;
+        -webkit-tap-highlight-color:transparent;
+      }
+      #rr-celebration-route .rrc-card{
         position:relative;z-index:2;
         width:100%;max-width:340px;
         background:#fff;color:#0f172a;
@@ -7415,7 +7360,7 @@ function _renderCelebrationOverlay(session, ev) {
         box-shadow:0 18px 60px rgba(2,12,40,.32), 0 2px 10px rgba(2,12,40,.18);
         text-align:center;
       }
-      #rr-celebration .rrc-badge{
+      #rr-celebration-route .rrc-badge{
         position:absolute;top:-32px;left:50%;transform:translateX(-50%);
         width:68px;height:68px;
         display:flex;align-items:center;justify-content:center;
@@ -7424,10 +7369,12 @@ function _renderCelebrationOverlay(session, ev) {
         color:#fff;
         box-shadow:0 10px 24px rgba(29,78,216,.45), inset 0 -4px 8px rgba(0,0,0,.18);
       }
-      #rr-celebration .rrc-title{margin:14px 0 0;font-size:24px;line-height:1.18;font-weight:800;letter-spacing:-.01em}
-      #rr-celebration .rrc-divider{margin:16px auto 14px;height:1px;width:80%;background:#e5e7eb}
-      #rr-celebration .rrc-msg{margin:0;font-size:15px;line-height:1.45;color:#475569}
-      #rr-celebration .rrc-cta{
+      #rr-celebration-route .rrc-title{margin:14px 0 0;font-size:24px;line-height:1.18;font-weight:800;letter-spacing:-.01em}
+      #rr-celebration-route .rrc-divider{margin:16px auto 14px;height:1px;width:80%;background:#e5e7eb}
+      #rr-celebration-route .rrc-msg{margin:0;font-size:15px;line-height:1.45;color:#475569}
+      /* The CTA is an <a> tag styled as a button.  iOS native anchor
+         navigation is the dismiss path — no JS handler involved. */
+      #rr-celebration-route .rrc-cta{
         display:block;width:100%;margin:22px 0 0;
         background:linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
         color:#fff;font-size:17px;font-weight:700;
@@ -7437,177 +7384,95 @@ function _renderCelebrationOverlay(session, ev) {
         -webkit-tap-highlight-color:rgba(255,255,255,0.25);
         touch-action:manipulation;
         font-family:inherit;
+        text-decoration:none;text-align:center;
+        box-sizing:border-box;
       }
-      #rr-celebration .rrc-cta:active{transform:scale(.97);box-shadow:0 4px 10px rgba(29,78,216,.42)}
-      #rr-celebration .rrc-foot{
+      #rr-celebration-route .rrc-cta:active{transform:scale(.97);box-shadow:0 4px 10px rgba(29,78,216,.42)}
+      #rr-celebration-route .rrc-foot{
         margin-top:14px;font-size:13px;color:rgba(255,255,255,.85);
         display:inline-flex;align-items:center;gap:6px;
+        position:relative;z-index:2;
       }
-      #rr-celebration .rrc-foot svg{stroke:rgba(255,255,255,.85);fill:none;width:14px;height:14px}
-      #rr-celebration .rrc-close{
-        position:absolute;top:14px;right:14px;width:44px;height:44px;
-        border-radius:50%;border:0;cursor:pointer;
+      #rr-celebration-route .rrc-foot svg{stroke:rgba(255,255,255,.85);fill:none;width:14px;height:14px}
+      #rr-celebration-route .rrc-close{
+        position:absolute;top:14px;right:14px;z-index:3;
+        width:44px;height:44px;
+        border-radius:50%;border:0;
         background:rgba(255,255,255,.18);color:#fff;
         display:flex;align-items:center;justify-content:center;
         -webkit-tap-highlight-color:rgba(255,255,255,0.25);
         touch-action:manipulation;
+        text-decoration:none;font-size:22px;font-weight:600;line-height:1;
       }
-      #rr-celebration .rrc-close:active{background:rgba(255,255,255,.35)}
+      #rr-celebration-route .rrc-close:active{background:rgba(255,255,255,.35)}
     </style>
-    <div class="rrc-burst" aria-hidden="true"></div>
-    ${confetti}
-    <button class="rrc-close" type="button" aria-label="Close celebration">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-    </button>
-    <div class="rrc-card">
-      <div class="rrc-badge" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <div id="rr-celebration-route" role="dialog" aria-modal="true">
+      <a href="#/schedule" class="celeb-tap-anywhere" aria-label="Dismiss celebration"></a>
+      <div class="rrc-burst" aria-hidden="true"></div>
+      ${confetti}
+      <a href="#/schedule" class="rrc-close" aria-label="Close celebration">&times;</a>
+      <div class="rrc-card">
+        <div class="rrc-badge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <h2 class="rrc-title">${escapeHtml(title)}</h2>
+        <div class="rrc-divider" aria-hidden="true"></div>
+        <p class="rrc-msg">${escapeHtml(message)}</p>
+        <a href="#/schedule" class="rrc-cta">${escapeHtml(ctaLabel)}</a>
       </div>
-      <h2 class="rrc-title">${escapeHtml(title)}</h2>
-      <div class="rrc-divider" aria-hidden="true"></div>
-      <p class="rrc-msg">${escapeHtml(message)}</p>
-      <button class="rrc-cta" type="button">${escapeHtml(ctaLabel)}</button>
-    </div>
-    <div class="rrc-foot">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-      ${escapeHtml(footer)}
+      <div class="rrc-foot">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        ${escapeHtml(footer)}
+      </div>
     </div>
   `;
-  document.body.appendChild(overlay);
-  _removeCelebrationPrepaint();
 
   if (!reduced && navigator.vibrate) {
     try { navigator.vibrate([14, 40, 18]); } catch (_) {}
   }
   if (!reduced) _playCelebrationChime();
 
-  if (ev.id) {
+  // Mark this event as session-shown the moment we paint, so a fast
+  // foreground re-check (visibilitychange firing during the same
+  // celebration view) can't pick up a second queued event and stack a
+  // re-navigation on top of the current one.
+  try { sessionStorage.setItem("rr.recogShownThisSession", "1"); } catch (_) {}
+
+  if (session && session.token && ev.id) {
     sb.rpc("driver_recognition_delivered", { p_token: session.token, p_id: ev.id })
       .catch((e) => console.warn("[recog] mark-delivered failed:", e?.message));
   }
-
-  const dismiss = (source) => {
-    if (overlay._closing) return;
-    overlay._closing = true;
-    if (ev.id) _markRecogDismissed(ev.id);
-    // Set the session-show flag so any foreground re-check (or hashchange
-    // re-render) doesn't immediately paint the NEXT queued celebration
-    // on top of the dismiss the driver just made.  Cleared on real reload.
-    try { sessionStorage.setItem("rr.recogShownThisSession", "1"); } catch (_) {}
-    if (ev.id) {
-      sb.rpc("driver_recognition_dismiss", { p_token: session.token, p_id: ev.id })
-        .catch((e) => console.warn("[recog] mark-dismissed failed:", e?.message));
-    }
-    // Synchronously tear down the pre-paint backdrop BEFORE removing the
-    // overlay.  If the pre-paint is still up (z-index 1000) it could
-    // appear to the driver as if the celebration "didn't close" — the
-    // card vanishes but the blue gradient remains.
-    _removeCelebrationPrepaint(true);
-    // Belt-and-suspenders removal — if any one mechanism fails on iOS
-    // PWA (frozen frame, detached parent, stuck reference), the others
-    // still make the element invisible and non-interactive.
-    const parent = overlay.parentNode;
-    try { overlay.style.display = "none"; } catch (_) {}
-    try { overlay.style.visibility = "hidden"; } catch (_) {}
-    try { overlay.style.opacity = "0"; } catch (_) {}
-    try { overlay.style.pointerEvents = "none"; } catch (_) {}
-    try { overlay.hidden = true; } catch (_) {}
-    let removedBy = "none";
-    try {
-      if (parent && parent.contains(overlay)) {
-        parent.removeChild(overlay);
-        removedBy = "parent.removeChild";
-      }
-    } catch (_) {}
-    try {
-      if (document.body && document.body.contains(overlay)) {
-        overlay.remove();
-        removedBy = removedBy === "none" ? "overlay.remove" : removedBy + "+remove";
-      }
-    } catch (_) {}
-    // Extra rAF-deferred removal as a final iOS PWA safety net — if the
-    // synchronous removal got swallowed by a frame-freeze, the next
-    // paint will retry.
-    requestAnimationFrame(() => {
-      try {
-        const stuck = document.getElementById("rr-celebration");
-        if (stuck) { try { stuck.remove(); } catch (_) {} }
-        const stuckBg = document.getElementById(_PREPAINT_ID);
-        if (stuckBg) { try { stuckBg.remove(); } catch (_) {} }
-      } catch (_) {}
-    });
-    _celebrationOpen = false;
-    // Tear down the document-level capture-phase delegation + window
-    // global so they don't leak across subsequent celebrations.
-    try {
-      if (overlay._delegatedDismiss) {
-        document.removeEventListener("click",      overlay._delegatedDismiss, true);
-        document.removeEventListener("touchend",   overlay._delegatedDismiss, { capture: true });
-        document.removeEventListener("touchstart", overlay._delegatedDismiss, { capture: true });
-        document.removeEventListener("pointerup",  overlay._delegatedDismiss, true);
-        overlay._delegatedDismiss = null;
-      }
-    } catch (_) {}
-    try { if (window.__rrDismissCelebration === dismiss) delete window.__rrDismissCelebration; } catch (_) {}
-    // Visible proof that dismiss actually ran — driver can verify
-    // without a console.  Reports the source (click/touch/key/close)
-    // and whether the overlay element is still attached.
-    const stillThere = !!document.getElementById("rr-celebration");
-    _showDismissDebugPill(
-      "v120 dismiss " + (source || "?") + " · " + removedBy
-      + " · gone=" + (!stillThere)
-    );
-  };
-
-  const cta   = overlay.querySelector(".rrc-cta");
-  const close = overlay.querySelector(".rrc-close");
-
-  // ── PATH 1: window-global inline onclick ───────────────────────────
-  // The most foolproof handler on iOS PWA — inline onclick attribute
-  // runs even when addEventListener handlers are intercepted by a
-  // higher-level capture, a stale event listener, or whatever's eating
-  // events on the standalone-mode WebView.  The dismiss closure is
-  // exposed on window so a static attribute string can call it.
-  try { window.__rrDismissCelebration = dismiss; } catch (_) {}
-  if (cta)   { try { cta.setAttribute("onclick",   "window.__rrDismissCelebration && window.__rrDismissCelebration('cta:inline')"); }   catch (_) {} }
-  if (close) { try { close.setAttribute("onclick", "window.__rrDismissCelebration && window.__rrDismissCelebration('close:inline')"); } catch (_) {} }
-
-  // ── PATH 2: document-level capture-phase delegation ────────────────
-  // Capture phase fires BEFORE any handler in bubble phase that might
-  // be eating the event upstream.  Listens at document so it cannot
-  // be obstructed by any ancestor's stopPropagation.
-  const delegatedDismiss = (e) => {
-    const target = e.target && e.target.closest && e.target.closest("#rr-celebration .rrc-cta, #rr-celebration .rrc-close");
-    if (!target) return;
-    e.preventDefault();
-    e.stopPropagation();
-    dismiss((target.classList.contains("rrc-close") ? "close" : "cta") + ":" + e.type);
-  };
-  document.addEventListener("click",     delegatedDismiss, true);
-  document.addEventListener("touchend",  delegatedDismiss, { capture: true, passive: false });
-  document.addEventListener("touchstart",delegatedDismiss, { capture: true, passive: false });
-  document.addEventListener("pointerup", delegatedDismiss, true);
-  // Stash on the overlay so dismiss can unbind them.
-  overlay._delegatedDismiss = delegatedDismiss;
-
-  // ── PATH 3: overlay-level tap-anywhere-outside-card backstop ───────
-  // Last-resort escape hatch — taps on the blue gradient area outside
-  // the white card always dismiss.  Driver can ALWAYS get out, even
-  // if all per-button paths somehow fail.
-  overlay.addEventListener("touchstart", (e) => {
-    if (e.target.closest(".rrc-card")) return;
-    dismiss("overlay:touchstart");
-  }, { passive: true });
-  overlay.addEventListener("click", (e) => {
-    if (e.target.closest(".rrc-card")) return;
-    dismiss("overlay:click");
-  });
-
-  const onKey = (e) => {
-    if (e.key === "Escape") { document.removeEventListener("keydown", onKey); dismiss("esc"); }
-  };
-  document.addEventListener("keydown", onKey);
 }
+
+// ── Dismiss-on-leave (hashchange) ───────────────────────────────────
+// The actual dismiss path.  Fires whenever the hash changes AWAY from
+// /welcome.  Because anchor taps mutate location.hash natively, this
+// listener is guaranteed to run on every dismiss — there is no JS
+// event handler involved on the anchor itself.  Fire-and-forget RPC,
+// mark the id locally, clear the stash.
+let _lastCelebrationRoute = null;
+window.addEventListener("hashchange", () => {
+  try {
+    const now = currentRoute();
+    if (_lastCelebrationRoute === "/welcome" && now !== "/welcome") {
+      const ev      = _currentCelebrationEv;
+      const session = _currentCelebrationSession;
+      _currentCelebrationEv      = null;
+      _currentCelebrationSession = null;
+      if (ev && ev.id) {
+        _markRecogDismissed(ev.id);
+        if (session && session.token) {
+          sb.rpc("driver_recognition_dismiss", { p_token: session.token, p_id: ev.id })
+            .catch((e) => console.warn("[recog] mark-dismissed failed:", e?.message));
+        }
+      }
+    }
+    _lastCelebrationRoute = now;
+  } catch (_) {}
+});
+// Prime _lastCelebrationRoute on initial load so a cold-open to
+// /welcome (then nav away) still triggers the dismiss branch.
+try { _lastCelebrationRoute = currentRoute(); } catch (_) {}
 
 // ── _playCelebrationChime ───────────────────────────────────────────
 // Brief E5 / G#5 / B5 triad via Web Audio.  iOS Safari needs a prior
@@ -7668,7 +7533,7 @@ function _unlockAudioOnGesture() {
 window.addEventListener("DOMContentLoaded", () => {
   try {
     const tag = document.createElement("div");
-    tag.textContent = "rr v120";
+    tag.textContent = "rr v121";
     tag.style.cssText = "position:fixed;bottom:10px;right:10px;"
       + "z-index:3000;padding:4px 8px;border-radius:999px;"
       + "background:rgba(15,23,42,.85);color:#fff;font-size:10px;"
