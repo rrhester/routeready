@@ -2060,12 +2060,15 @@ main[data-page-enter][data-nav-dir="back"] > *{
    the dashboard surfaces on other routes stay on their own tokens. */
 body.is-home{
   background-color:#F6F8FC;
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgba(37,99,235,.10) 0%, rgba(37,99,235,0) 52%),
+    linear-gradient(180deg, #F7FAFF 0%, #F3F6FB 100%);
 }
 body.is-home .app-head{ display:none }
 body.is-home main{
   top:0;
   padding:0 18px 16px;
-  background:#F6F8FC;
+  background:transparent;
 }
 
 /* ── Hero ─────────────────────────────────────────────────────
@@ -2085,18 +2088,20 @@ body.is-home main > .home-hero{
 .home-hero{
   position:relative;
   color:#fff;
-  padding:calc(12px + env(safe-area-inset-top, 0px)) 22px 66px;
+  padding:calc(12px + env(safe-area-inset-top, 0px)) 22px 72px;
   background:
     /* Upper-left lighting bloom — primary key light */
-    radial-gradient(80% 60% at 16% -8%, rgba(255,255,255,.26) 0%, rgba(255,255,255,0) 55%),
+    radial-gradient(90% 70% at 10% -14%, rgba(255,255,255,.34) 0%, rgba(255,255,255,0) 57%),
     /* Upper-right cool accent bloom */
-    radial-gradient(70% 60% at 92% -4%, rgba(168,200,255,.20) 0%, rgba(168,200,255,0) 60%),
+    radial-gradient(75% 65% at 100% -8%, rgba(168,200,255,.28) 0%, rgba(168,200,255,0) 62%),
+    /* Deeper lower-left plate for white status chips */
+    radial-gradient(95% 80% at -10% 90%, rgba(30,64,175,.38) 0%, rgba(30,64,175,0) 64%),
     /* Subtle bottom-edge vignette so the curve reads dimensional */
-    radial-gradient(140% 90% at 50% 130%, rgba(8,18,60,.38) 0%, rgba(8,18,60,0) 62%),
-    linear-gradient(180deg, #103EBF 0%, #2563FF 58%, #3B82F6 100%);
+    radial-gradient(140% 90% at 50% 130%, rgba(8,18,60,.42) 0%, rgba(8,18,60,0) 62%),
+    linear-gradient(180deg, #0D36A8 0%, #2357EA 52%, #4B8BFF 100%);
   border-radius:0 0 32px 32px;
-  box-shadow:0 20px 44px -24px rgba(16,62,191,.55),
-             inset 0 1px 0 rgba(255,255,255,.18);
+  box-shadow:0 24px 54px -24px rgba(16,62,191,.58),
+             inset 0 1px 0 rgba(255,255,255,.20);
   text-align:center;
   display:flex;flex-direction:column;align-items:center;
   isolation:isolate;
@@ -2160,9 +2165,9 @@ body.is-home main > .home-hero{
   transition:transform 120ms var(--ease-spring), background 140ms var(--ease-out);
 }
 .home-hero-gear:active{ transform:scale(.92); background:rgba(255,255,255,.22) }
-.home-hero .profile-avatar-btn{ margin:4px 0 10px }
+.home-hero .profile-avatar-btn{ margin:2px 0 12px }
 .home-hero .profile-avatar{
-  width:90px;height:90px;
+  width:92px;height:92px;
   border:2.5px solid rgba(255,255,255,.96);
   box-shadow:0 14px 32px -10px rgba(8,18,60,.45),
              0 0 0 5px rgba(255,255,255,.08),
@@ -2174,19 +2179,39 @@ body.is-home main > .home-hero{
   border:2px solid #fff;
   box-shadow:0 4px 10px rgba(8,18,60,.22);
 }
+.home-hero-greeting{
+  font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(255,255,255,.68);
+  margin-bottom:4px;
+}
 .home-hero-name{
-  font-size:23px;font-weight:700;letter-spacing:-.024em;
-  color:#fff;line-height:1.15;
+  font-size:24px;font-weight:750;letter-spacing:-.026em;
+  color:#fff;line-height:1.12;
 }
 .home-hero-meta{
-  margin-top:3px;
-  font-size:13px;font-weight:500;
-  color:rgba(255,255,255,.72);
+  margin-top:4px;
+  font-size:13px;font-weight:550;
+  color:rgba(255,255,255,.76);
   letter-spacing:.005em;
+}
+.home-hero-foot{
+  display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
+  margin-top:13px;
+}
+.home-hero-today{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:28px;padding:5px 11px;border-radius:999px;
+  background:rgba(255,255,255,.12);
+  -webkit-backdrop-filter:blur(12px) saturate(140%);
+  backdrop-filter:blur(12px) saturate(140%);
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 1px 0 rgba(255,255,255,.10) inset,
+             0 4px 14px -6px rgba(8,18,60,.40);
+  font-size:11.5px;font-weight:700;letter-spacing:.035em;
+  color:rgba(255,255,255,.94);
 }
 .home-hero-status{
   display:inline-flex;align-items:center;gap:7px;
-  margin-top:12px;
   padding:5px 11px 5px 9px;border-radius:999px;
   background:rgba(255,255,255,.12);
   -webkit-backdrop-filter:blur(12px) saturate(140%);
@@ -2213,7 +2238,7 @@ body.is-home main > .home-hero{
 .home-content{
   position:relative;
   padding:0 0 24px;
-  margin-top:-50px;
+  margin-top:-54px;
   z-index:2;
 }
 .home-content::before{
@@ -2225,6 +2250,42 @@ body.is-home main > .home-hero{
   z-index:-1;
 }
 .home-content > * + *{ margin-top:12px }
+
+.home-quick-actions{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:10px;
+}
+.home-action{
+  min-width:0;
+  min-height:92px;
+  display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;
+  gap:10px;
+  padding:12px;
+  border-radius:20px;
+  background:linear-gradient(180deg, #FFFFFF 0%, #FBFCFF 100%);
+  border:1px solid rgba(15,23,42,.055);
+  box-shadow:0 8px 24px rgba(15,23,42,.045),
+             inset 0 1px 0 rgba(255,255,255,.70);
+  text-align:left;
+  transition:transform 120ms var(--ease-spring), box-shadow 160ms var(--ease-out), border-color 160ms var(--ease-out);
+}
+.home-action:active{ transform:translateY(1px) scale(.985);box-shadow:0 4px 16px rgba(15,23,42,.05) }
+.home-action-icon{
+  width:34px;height:34px;border-radius:12px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:#EEF4FF;color:#2563FF;
+  border:1px solid rgba(37,99,255,.12);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.85);
+}
+.home-action-text{ display:flex;flex-direction:column;gap:2px;min-width:0 }
+.home-action-text strong{
+  font-size:13.5px;font-weight:700;letter-spacing:-.010em;color:#0F172A;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.home-action-text small{
+  font-size:11.5px;font-weight:600;color:#64748B;letter-spacing:.005em;
+}
 
 /* ── Primary "Opens at" / check-in card ──────────────────────
    Tightened by ~15% vs the previous version.  Icon container

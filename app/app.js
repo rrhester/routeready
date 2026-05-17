@@ -781,6 +781,16 @@ function escapeHtml(s) {
 function initialsOf(name) {
   return (name || "").split(/\s+/).map((p) => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
 }
+function homeGreeting(date = new Date()) {
+  const h = date.getHours();
+  if (h < 5) return "Good evening";
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+function homeTodayLabel(date = new Date()) {
+  return date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+}
 
 // ── Hash router ─────────────────────────────────────────────────────
 // Top-level tabs: /profile, /schedule, /tasks, /chat.
@@ -3711,6 +3721,8 @@ function renderProfileHub() {
   const session = readSession();
   const name = session?.name || "Driver";
   const dsp  = session?.dsp_name || "RouteReady";
+  const greeting = homeGreeting();
+  const todayLabel = homeTodayLabel();
   setHeader(dsp, "");
   const main = document.getElementById("main");
   // Brand mark (small shield) lives inside the hero brand row.
@@ -3733,10 +3745,14 @@ function renderProfileHub() {
         </span>
       </button>
       <input type="file" id="rr-photo-input" accept="image/*" capture="user" style="display:none"/>
+      <div class="home-hero-greeting">${escapeHtml(greeting)}</div>
       <div class="home-hero-name">${escapeHtml(name)}</div>
       <div class="home-hero-meta" id="rr-home-meta">Driver</div>
-      <div class="home-hero-status" id="rr-home-status" hidden>
-        <span class="home-hero-status-dot"></span>ON DUTY
+      <div class="home-hero-foot">
+        <div class="home-hero-today" aria-label="Today">${escapeHtml(todayLabel)}</div>
+        <div class="home-hero-status" id="rr-home-status" hidden>
+          <span class="home-hero-status-dot"></span>ON DUTY
+        </div>
       </div>
     </div>
 
@@ -3752,11 +3768,34 @@ function renderProfileHub() {
           </div>
         </div>
       </div>
+      <nav class="home-quick-actions" aria-label="Quick actions">
+        <button class="home-action" type="button" data-home-go="/schedule">
+          <span class="home-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          </span>
+          <span class="home-action-text"><strong>Schedule</strong><small>Full week</small></span>
+        </button>
+        <button class="home-action" type="button" data-home-go="/tasks">
+          <span class="home-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          </span>
+          <span class="home-action-text"><strong>Tasks</strong><small>To-dos</small></span>
+        </button>
+        <button class="home-action" type="button" data-home-go="/chat">
+          <span class="home-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>
+          </span>
+          <span class="home-action-text"><strong>Dispatch</strong><small>Messages</small></span>
+        </button>
+      </nav>
       <div id="rr-missed-slot" hidden></div>
       <section class="up-next" id="rr-upnext-slot" hidden></section>
     </div>`;
 
   document.getElementById("rr-home-settings").addEventListener("click", () => { _haptic("tap"); navigate("/settings"); });
+  main.querySelectorAll("[data-home-go]").forEach((el) => {
+    el.addEventListener("click", () => { _haptic("tap"); navigate(el.dataset.homeGo); });
+  });
 
   // Photo upload — clicking the avatar opens the camera or picker.
   const fileInput = document.getElementById("rr-photo-input");
