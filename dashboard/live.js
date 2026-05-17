@@ -29691,7 +29691,10 @@ async function _docsOpenFieldEditor(templateId) {
           <div style="font-weight:600;font-size:var(--fs-lg)">Place fields</div>
           <div class="u-xs-subtle">${escapeHtml(tpl.title)} — pick a field type, then click and drag on a page to drop it. Click a box to remove it.</div>
         </div>
-        <div style="display:flex;align-items:center;gap:var(--s-2)">
+        <div style="display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap">
+          <div style="display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:3px" title="Who completes the next field placed?">
+            ${[["driver","Driver","#2563eb"],["employer","Employer","#059669"]].map(([r,label,dot],i) => `<button type="button" class="docs-fe-role${i===0?" active":""}" data-role="${r}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 11px;border-radius:var(--r-md);cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"};display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${dot}"></span>${label}</button>`).join("")}
+          </div>
           <div style="display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:3px;flex-wrap:wrap">
             ${["signature","initials","name","date","text","checkbox"].map((k,i) => `<button type="button" class="docs-fe-kind${i===0?" active":""}" data-kind="${k}" style="appearance:none;border:0;background:${i===0?"var(--surface)":"transparent"};${i===0?"box-shadow:var(--shadow-sm);":""}font:inherit;font-size:var(--fs-sm);font-weight:600;padding:5px 9px;border-radius:var(--r-md);cursor:pointer;color:${i===0?"var(--text)":"var(--text-muted)"}">${({signature:"Signature",initials:"Initials",name:"Name",date:"Date",text:"Text",checkbox:"Checkbox"})[k]}</button>`).join("")}
           </div>
@@ -29714,9 +29717,12 @@ async function _docsOpenFieldEditor(templateId) {
   document.getElementById("docs-fe-close").addEventListener("click", close);
   document.getElementById("docs-fe-cancel").addEventListener("click", close);
 
-  // Which field kind the next drag will place. Default: signature.
+  // Which field kind + signer role the next drag will place. Default:
+  // signature, driver.
   let currentKind = "signature";
+  let currentRole = "driver";
   const kindLabelOf = (k) => ({ signature:"Signature", initials:"Initials", name:"Name", date:"Date", text:"Text", checkbox:"Checkbox" })[k] || "Signature";
+  const roleLabelOf = (r) => r === "employer" ? "Employer" : "Driver";
   const kindBtns = m.querySelectorAll(".docs-fe-kind");
   kindBtns.forEach((b) => b.addEventListener("click", () => {
     currentKind = b.getAttribute("data-kind");
@@ -29730,16 +29736,33 @@ async function _docsOpenFieldEditor(templateId) {
     const lbl = document.getElementById("docs-fe-kind-label");
     if (lbl) lbl.textContent = kindLabelOf(currentKind);
   }));
+  const roleBtns = m.querySelectorAll(".docs-fe-role");
+  roleBtns.forEach((b) => b.addEventListener("click", () => {
+    currentRole = b.getAttribute("data-role");
+    roleBtns.forEach((x) => {
+      const on = x === b;
+      x.classList.toggle("active", on);
+      x.style.background = on ? "var(--surface)" : "transparent";
+      x.style.color = on ? "var(--text)" : "var(--text-muted)";
+      x.style.boxShadow = on ? "var(--shadow-sm)" : "none";
+    });
+    updateCount();
+  }));
 
   // Working set, kept in fractional coords (top-left origin) so we
   // can render them at any page scale.
   const fields = Array.isArray(tpl.fields) ? tpl.fields.map((f) => ({ ...f })) : [];
   const updateCount = () => {
-    const c = { signature: 0, initials: 0, name: 0, date: 0, text: 0, checkbox: 0 };
-    for (const f of fields) { const k = f.kind || "signature"; if (c[k] != null) c[k]++; }
-    const parts = Object.entries(c).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`);
+    let driverN = 0, employerN = 0;
+    for (const f of fields) {
+      const role = f.signer_role === "employer" ? "employer" : "driver";
+      if (role === "employer") employerN++; else driverN++;
+    }
+    const roleParts = [];
+    if (driverN)   roleParts.push(`<span style="color:#2563eb;font-weight:600">${driverN} driver</span>`);
+    if (employerN) roleParts.push(`<span style="color:#059669;font-weight:600">${employerN} employer</span>`);
     const el = document.getElementById("docs-fe-count");
-    if (el) el.innerHTML = `${fields.length} field${fields.length === 1 ? "" : "s"}${parts.length ? ` (${parts.join(" · ")})` : ""} · placing: <strong id="docs-fe-kind-label">${kindLabelOf(currentKind)}</strong> — Name / Initials / Date auto-fill; Text / Checkbox are completed by the signer`;
+    if (el) el.innerHTML = `${fields.length} field${fields.length === 1 ? "" : "s"}${roleParts.length ? ` (${roleParts.join(" · ")})` : ""} · placing: <strong>${kindLabelOf(currentKind)}</strong> for <strong style="color:${currentRole==='employer'?'#059669':'#2563eb'}">${roleLabelOf(currentRole)}</strong> — Name / Initials / Date auto-fill; Text / Checkbox are completed by the signer`;
   };
   updateCount();
 
@@ -29791,14 +29814,19 @@ async function _docsOpenFieldEditor(templateId) {
     await page.render({ canvasContext: ctx, viewport }).promise;
   }
 
-  // Render existing fields on the matching page overlays.
+  // Render existing fields on the matching page overlays. The role
+  // shows as a 4px coloured left border (blue=driver, green=employer)
+  // so the operator can see at a glance who completes which boxes.
   const renderFieldDom = (f, overlay, vp) => {
     const meta = _docsFieldMeta(f.kind || "signature");
+    const role = f.signer_role === "employer" ? "employer" : "driver";
+    const roleColor = role === "employer" ? "#059669" : "#2563eb";
     const node = document.createElement("div");
     node.className = "rr-docs-field";
-    node.style.cssText = `position:absolute;left:${f.x * vp.width}px;top:${f.y * vp.height}px;width:${f.w * vp.width}px;height:${f.h * vp.height}px;background:${meta.tint};border:1.5px dashed ${meta.border};border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:600;color:${meta.text};cursor:pointer;user-select:none;text-align:center;line-height:1.2;padding:2px;overflow:hidden`;
+    node.dataset.role = role;
+    node.style.cssText = `position:absolute;left:${f.x * vp.width}px;top:${f.y * vp.height}px;width:${f.w * vp.width}px;height:${f.h * vp.height}px;background:${meta.tint};border:1.5px dashed ${meta.border};border-left:4px solid ${roleColor};border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:var(--fs-xs);font-weight:600;color:${meta.text};cursor:pointer;user-select:none;text-align:center;line-height:1.2;padding:2px;overflow:hidden`;
     node.textContent = meta.fill ? (f.kind === "checkbox" ? "☐ " : "") + (f.label || meta.label) : meta.label;
-    node.title = `${meta.hint}${f.label ? ` (“${f.label}”)` : ""} · click to remove`;
+    node.title = `${roleLabelOf(role)} — ${meta.hint}${f.label ? ` (“${f.label}”)` : ""} · click to remove`;
     node.addEventListener("click", (e) => {
       e.stopPropagation();
       const i = fields.indexOf(f);
@@ -29824,7 +29852,8 @@ async function _docsOpenFieldEditor(templateId) {
       startX = e.clientX - r.left; startY = e.clientY - r.top;
       ghost = document.createElement("div");
       const gm = _docsFieldMeta(currentKind);
-      ghost.style.cssText = `position:absolute;left:${startX}px;top:${startY}px;width:0;height:0;background:${gm.tint};border:1.5px dashed ${gm.border};border-radius:var(--r-sm);pointer-events:none`;
+      const ghostRoleColor = currentRole === "employer" ? "#059669" : "#2563eb";
+      ghost.style.cssText = `position:absolute;left:${startX}px;top:${startY}px;width:0;height:0;background:${gm.tint};border:1.5px dashed ${gm.border};border-left:4px solid ${ghostRoleColor};border-radius:var(--r-sm);pointer-events:none`;
       overlay.appendChild(ghost);
     });
     overlay.addEventListener("pointermove", (e) => {
@@ -29844,7 +29873,7 @@ async function _docsOpenFieldEditor(templateId) {
       const fx = left / viewport.width, fy = top / viewport.height;
       const fw = w / viewport.width, fh = h / viewport.height;
       if (fw < MIN_FRAC || fh < MIN_FRAC) return;
-      const f = { id: crypto.randomUUID(), kind: currentKind, page: pageIdx, x: fx, y: fy, w: fw, h: fh };
+      const f = { id: crypto.randomUUID(), kind: currentKind, signer_role: currentRole, page: pageIdx, x: fx, y: fy, w: fw, h: fh };
       if (_docsFieldMeta(currentKind).fill) {
         const lbl = prompt(currentKind === "checkbox"
           ? "Label for this checkbox (what the signer sees, e.g. \"I have received a copy\"):"
