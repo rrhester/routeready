@@ -7190,13 +7190,16 @@ let _celebrationOpen = false;
 
 async function checkAndShowPendingRecognition(session) {
   if (_celebrationOpen) return;                     // overlay already showing
-  if (!session || !session.token) return;
+  if (!session || !session.token) {
+    console.info("[recognition] skipping — no session/token");
+    return;
+  }
   // Idempotency lives server-side on driver_recognitions.dismissed_at —
   // once a driver dismisses an event, the pending lookup returns null,
   // so we never re-paint.  An earlier version added a sessionStorage
   // skip flag here that could trap stale "skip" state across reloads —
   // removed; the server-side dismissed_at is the canonical guard.
-  console.info("[recognition] checking pending events…");
+  console.info("[recognition] v108 · checking pending events…");
   const { data, error } = await sb.rpc("driver_recognitions_pending", { p_token: session.token });
   if (error) {
     console.warn("[recognition] pending fetch failed:", error.message);
@@ -7209,6 +7212,29 @@ async function checkAndShowPendingRecognition(session) {
   console.info("[recognition] showing event:", data.kind, data.id);
   _renderCelebrationOverlay(session, data);
 }
+
+// Manual debug trigger — open the driver app, then in the browser
+// console type:  rrCheckCelebration()
+// to force a pending-event fetch + overlay render right now.  Useful
+// when the boot-time hook didn't appear to fire so we can isolate
+// whether the bug is "code never ran" vs "RPC returned null" vs
+// "overlay rendering broke".  Removable once the flow's proven on
+// real devices.
+window.rrCheckCelebration = async function () {
+  const s = readSession();
+  console.log("[rrCheckCelebration] session:", s ? { token: !!s.token, status: s.status, driver_id: s.driver_id } : null);
+  if (!s || !s.token) { console.log("[rrCheckCelebration] no session — log in first"); return; }
+  const { data, error } = await sb.rpc("driver_recognitions_pending", { p_token: s.token });
+  console.log("[rrCheckCelebration] RPC error:", error);
+  console.log("[rrCheckCelebration] RPC data:",  data);
+  if (data && data.id) {
+    console.log("[rrCheckCelebration] painting overlay…");
+    _celebrationOpen = false; // unlock if a previous render left it set
+    _renderCelebrationOverlay(s, data);
+  } else {
+    console.log("[rrCheckCelebration] nothing to show");
+  }
+};
 
 function _renderCelebrationOverlay(session, ev) {
   if (_celebrationOpen) return;
