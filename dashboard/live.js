@@ -989,7 +989,7 @@ function _renderEmailRow(r) {
     : (r.body_text || "").replace(/\s+$/g, "");
   return `
     <div style="display:flex;flex-direction:column;align-items:${align};gap:var(--s-1)">
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(sender)} · ${escapeHtml(when)}${status}</div>
+      <div class="u-xs-subtle">${escapeHtml(sender)} · ${escapeHtml(when)}${status}</div>
       <div style="max-width:88%;background:${bg};border:1px solid var(--border);border-radius:12px;padding:var(--s-2-5) var(--s-3-5)">
         <div style="font-size:var(--fs-sm);font-weight:600;margin-bottom:4px">${escapeHtml(r.subject || "(no subject)")}</div>
         <div style="font-size:var(--fs-sm);white-space:pre-wrap;line-height:1.5">${escapeHtml(text)}</div>
@@ -3733,7 +3733,7 @@ async function openOnboardingSendDocsModal(driverId) {
       <div style="padding:var(--s-3-5) 22px 0"><input type="search" id="rr-osd-q" placeholder="Search documents…" autocomplete="off" style="width:100%;font:inherit;font-size:var(--fs-sm);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--s-2-5) var(--s-3);color:var(--text)"></div>
       <div style="padding:var(--s-3-5) 22px;overflow:auto;flex:1" id="rr-osd-body"><div class="rr-loading">Loading documents</div></div>
       <div style="padding:var(--s-3-5) 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:var(--s-2)">
-        <div id="rr-osd-status" style="font-size:var(--fs-xs);color:var(--text-subtle)"></div>
+        <div id="rr-osd-status" class="u-xs-subtle"></div>
         <div style="display:flex;gap:var(--s-2)">
           <button type="button" class="btn btn-sm" data-rr-osd-close>Cancel</button>
           <button type="button" class="btn btn-sm btn-primary" id="rr-osd-send" disabled>Send</button>
@@ -4030,7 +4030,7 @@ const _OB_DOC_ICON = (kind) => `<svg viewBox="0 0 24 24" width="15" height="15" 
 function _obDocRowHTML(t) {
   return `<button type="button" class="rr-tplrow" data-tpl="${escapeHtml(t.id)}" data-search="${escapeHtml((t.title || "").toLowerCase())}" style="text-align:left;border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3) var(--s-3);cursor:pointer;background:var(--surface);display:flex;align-items:center;gap:var(--s-2-5);transition:border-color var(--t-fast),background .12s">
       ${_OB_DOC_ICON(t.kind)}
-      <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:var(--fs-md);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.title || "Untitled")}</span><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${t.kind === "informational" ? "Open & acknowledge — no signature" : "Secure — routes through the signing & compliance flow"}</span></span>
+      <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:var(--fs-md);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(t.title || "Untitled")}</span><span class="u-xs-subtle">${t.kind === "informational" ? "Open & acknowledge — no signature" : "Secure — routes through the signing & compliance flow"}</span></span>
       <span class="ob-bld-tier ${t.kind === "informational" ? "info" : "secure"}">${t.kind === "informational" ? "Informational" : "Secure"}</span>
     </button>`;
 }
@@ -5004,7 +5004,7 @@ function renderOnboardingRow(d) {
     ? Math.max(0, Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000))
     : null;
   const daysCell = days != null
-    ? `<span style="font-weight:600">${days}</span> <span style="font-size:var(--fs-xs);color:var(--text-subtle)">day${days === 1 ? "" : "s"}</span>`
+    ? `<span style="font-weight:600">${days}</span> <span class="u-xs-subtle">day${days === 1 ? "" : "s"}</span>`
     : '<span class="u-subtle">—</span>';
   const ob = _obReadiness(d);
   const pips = ob.milestones.map(m => `<span title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="width:6px;height:6px;border-radius:50%;flex:0 0 auto;background:${m.done ? "#16a34a" : "var(--border)"}"></span>`).join("");
@@ -5018,7 +5018,7 @@ function renderOnboardingRow(d) {
       <td>${daysCell}</td>
       <td>
         <div style="display:flex;flex-direction:column;gap:var(--s-1);min-width:170px">
-          <div style="display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap">${_obPill(ob.label, ob.tone)}<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${ob.doneN}/${ob.totalN}</span><span style="display:inline-flex;align-items:center;gap:3px">${pips}</span></div>
+          <div style="display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap">${_obPill(ob.label, ob.tone)}<span class="u-xs-subtle">${ob.doneN}/${ob.totalN}</span><span style="display:inline-flex;align-items:center;gap:3px">${pips}</span></div>
           ${ob.next ? `<div style="font-size:var(--fs-xs);color:${nextColor};line-height:1.3">${escapeHtml(ob.next)}</div>` : ""}
         </div>
       </td>
@@ -7495,7 +7495,7 @@ function _renderPolicyEditor() {
 
     <div style="display:flex;align-items:center;gap:var(--s-2-5);margin-top:6px">
       <button class="btn btn-primary" type="button" id="rr-pol-save">Save policy</button>
-      <span id="rr-pol-status" style="font-size:var(--fs-sm);color:var(--text-subtle)"></span>
+      <span id="rr-pol-status" class="u-sm-subtle"></span>
     </div>`;
 }
 
@@ -7731,7 +7731,7 @@ async function loadAttendanceEventLog() {
       <div class="toolbar-left" style="display:flex;align-items:center;gap:var(--s-2-5)">
         <label style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Window</label>
         <select id="rr-att-log-window" class="form-input" style="height:auto;padding:6px var(--s-2-5)">${windowOpts}</select>
-        <span style="font-size:var(--fs-sm);color:var(--text-subtle)">
+        <span class="u-sm-subtle">
           <strong style="color:var(--text)">${events.length}</strong> event${events.length === 1 ? "" : "s"} ·
           <strong style="color:var(--text)">${totalsByDriver.size}</strong> driver${totalsByDriver.size === 1 ? "" : "s"}
           ${repeatCount > 0 ? ` · <strong style="color:var(--amber)">${repeatCount}</strong> with 2+ events` : ""}
@@ -8683,7 +8683,7 @@ function _renderTpAttendance(data, error) {
       <div class="card card-compact" style="display:flex;flex-direction:column;gap:var(--s-3)">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
           <div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">Wave ${escapeHtml(String(wave))}</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${b.scheduled} scheduled</div>
+          <div class="u-xs-subtle">${b.scheduled} scheduled</div>
         </div>
         <div style="display:flex;gap:var(--s-3)">
           <div style="flex:1">
@@ -8701,7 +8701,7 @@ function _renderTpAttendance(data, error) {
         </div>
         ${flagged > 0
           ? `<div style="font-size:var(--fs-xs);color:var(--text);font-weight:600">${b.tardy} tardy · ${b.ncns} NCNS</div>`
-          : `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">No issues this wave</div>`}
+          : `<div class="u-xs-subtle">No issues this wave</div>`}
       </div>`;
   };
 
@@ -8723,7 +8723,7 @@ function _renderTpAttendance(data, error) {
   metaEl.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--s-3);flex-wrap:wrap">
       <div>${svcChips || "<span style='color:var(--text-subtle)'>No service-type breakdown</span>"}</div>
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle)">As of ${escapeHtml(new Date(data.as_of).toLocaleTimeString())}</div>
+      <div class="u-xs-subtle">As of ${escapeHtml(new Date(data.as_of).toLocaleTimeString())}</div>
     </div>`;
 
   // ── Daily attendance approvals card ────────────────────────────────
@@ -8752,7 +8752,7 @@ function _renderTpAttendance(data, error) {
             <div class="avatar-sm" data-rr-driver-id="${escapeHtml(r.driver_id)}" style="width:30px;height:30px;font-size:var(--fs-xs)">${escapeHtml(initials)}</div>
             <div style="min-width:0">
               <div style="font-size:var(--fs-md);font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
-              <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0} · ${escapeHtml(t)}</div>
+              <div class="u-xs-subtle">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0} · ${escapeHtml(t)}</div>
             </div>
             <span style="background:${tone.bg};color:${tone.fg};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-lg)">${escapeHtml(label)}</span>
           </div>`;
@@ -8890,14 +8890,14 @@ async function _renderTpDailyTool(flagged) {
             <div style="font-size:var(--fs-md);font-weight:600" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}</div>
             <span data-rr-risk-driver="${escapeHtml(r.driver_id)}"></span>
           </div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0}</div>
+          <div class="u-xs-subtle">${escapeHtml(r.station_code || "—")} · Wave ${r.wave_index ?? 0}</div>
         </div>
         <div>
           <span style="background:${tone.bg};color:${tone.fg};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-lg)">${escapeHtml(label)}</span>
         </div>
         <div style="min-width:0">
           <div style="font-size:var(--fs-sm);color:var(--text)"><strong>${after} occ${after === 1 ? "" : "s"}</strong> · <span style="color:${st.tone};font-weight:600">${st.label}</span></div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Next: ${rec}${auto ? " · auto-fires on Approve" : ""}</div>
+          <div class="u-xs-subtle">Next: ${rec}${auto ? " · auto-fires on Approve" : ""}</div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
           <button class="btn btn-sm btn-primary"
@@ -9030,7 +9030,7 @@ document.addEventListener("click", async (e) => {
   }
 
   const btnCell = btn.parentElement;
-  btnCell.innerHTML = `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">Saving…</span>`;
+  btnCell.innerHTML = `<span class="u-xs-subtle">Saving…</span>`;
 
   const level    = btn.dataset.level || null;
   const autoFire = btn.dataset.autoFire === "1";
@@ -9404,7 +9404,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
     const header = showWaveHeaders
       ? `<div class="tp-wave-head"${idx === 0 ? ' style="border-top:0"' : ""}>
            <span class="tp-wave-head-label">Wave ${w}${escapeHtml(timeLabel)}</span>
-           <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${rs.length} scheduled</span>
+           <span class="u-xs-subtle">${rs.length} scheduled</span>
            ${extraSuffix}
          </div>`
       : "";
@@ -9492,7 +9492,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
   const classSection = classTrainingRows.length === 0 ? "" : `
     <div class="tp-wave-head" style="background:rgba(13,148,136,.06)">
       <span class="tp-wave-head-label" style="color:#0F766E">Classroom training</span>
-      <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${classTrainingRows.length} driver${classTrainingRows.length === 1 ? "" : "s"} · Day 1 + 2 at the station</span>
+      <span class="u-xs-subtle">${classTrainingRows.length} driver${classTrainingRows.length === 1 ? "" : "s"} · Day 1 + 2 at the station</span>
     </div>
     <table class="tp-roster-table" style="table-layout:fixed">${trainingColgroup}
       <tbody>${classTrainingRows.map(r => renderTrainingRow(r, true)).join("")}</tbody>
@@ -9500,7 +9500,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
   const roadSection = roadTrainingRows.length === 0 ? "" : `
     <div class="tp-wave-head" style="background:rgba(245,158,11,.06)">
       <span class="tp-wave-head-label" style="color:#B45309">Road training</span>
-      <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${roadTrainingRows.length} driver${roadTrainingRows.length === 1 ? "" : "s"} · riding along with a trainer</span>
+      <span class="u-xs-subtle">${roadTrainingRows.length} driver${roadTrainingRows.length === 1 ? "" : "s"} · riding along with a trainer</span>
     </div>
     <table class="tp-roster-table" style="table-layout:fixed">${trainingColgroup}
       <tbody>${roadTrainingRows.map(r => renderTrainingRow(r, false)).join("")}</tbody>
@@ -10041,7 +10041,7 @@ async function loadTodayAttendance() {
         <div class="avatar-sm" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml((r.driver_name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</div>
         <div style="min-width:0">
           <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(r.driver_name)}</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(r.station_code || "—")} · ${escapeHtml(t)}${noteBits.length ? " · " + escapeHtml(noteBits.join(" · ")) : ""}</div>
+          <div class="u-xs-subtle">${escapeHtml(r.station_code || "—")} · ${escapeHtml(t)}${noteBits.length ? " · " + escapeHtml(noteBits.join(" · ")) : ""}</div>
         </div>
         <span style="background:${tone.bg};color:${tone.fg};font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:var(--s-1) 10px;border-radius:var(--r-lg)">${escapeHtml(label)}</span>
       </div>`;
@@ -10086,7 +10086,7 @@ async function loadTodayAttendance() {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-2-5) var(--s-3-5);margin-bottom:14px;font-size:var(--fs-sm);color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;gap:var(--s-3);flex-wrap:wrap">
       <div>${svcChips || "<span style='color:var(--text-subtle)'>No service-type breakdown</span>"}</div>
       <div style="display:flex;gap:var(--s-2);align-items:center">
-        <span style="font-size:var(--fs-xs);color:var(--text-subtle)">As of ${escapeHtml(new Date(data.as_of).toLocaleTimeString())}</span>
+        <span class="u-xs-subtle">As of ${escapeHtml(new Date(data.as_of).toLocaleTimeString())}</span>
         <button class="btn btn-sm" id="rr-today-refresh">Refresh</button>
         <button class="btn btn-sm btn-primary" id="rr-today-finalize" ${cnt.finalized === cnt.total ? "disabled" : ""}>${cnt.finalized === cnt.total ? "Already finalized" : "Approve & finalize day"}</button>
       </div>
@@ -10178,7 +10178,7 @@ function renderLicenseRow(d) {
       <td>${d.station?.code ? escapeHtml(d.station.code) : '<span class="u-subtle">—</span>'}</td>
       <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-sm)">${escapeHtml(d.dl_number || "—")}</td>
       <td>${escapeHtml(_licenseStatusText(days))}</td>
-      <td>${exp.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}<div style="font-size:var(--fs-xs);color:var(--text-subtle)">${rel}</div></td>
+      <td>${exp.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}<div class="u-xs-subtle">${rel}</div></td>
     </tr>`;
 }
 
@@ -12725,7 +12725,7 @@ async function loadCalBookingsList() {
           <div style="font-variant-numeric:tabular-nums;font-size:var(--fs-md);font-weight:600">${start}<div style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:400">${end}</div></div>
           <div>
             <div style="font-size:var(--fs-md);font-weight:600;margin-bottom:2px">${escapeHtml(rrTitleCaseName(a.full_name) || "Unknown")}</div>
-            <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${[a.phone ? phoneCell(a.phone) : "", a.email ? escapeHtml(a.email) : ""].filter(Boolean).join(" · ") || "no contact on file"}</div>
+            <div class="u-xs-subtle">${[a.phone ? phoneCell(a.phone) : "", a.email ? escapeHtml(a.email) : ""].filter(Boolean).join(" · ") || "no contact on file"}</div>
             <div style="margin-top:6px">${kindBadge}${statusBadge}</div>
           </div>
           <div style="display:flex;gap:6px;align-items:center">
@@ -13640,7 +13640,7 @@ function renderAvailabilityTab(body, d, record) {
       <label>Earliest start</label>
       <div style="display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap">
         <select data-rr-avail-start style="font:inherit;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text)">${_availStartOptionsHtml(earliest)}</select>
-        <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Earliest time of day this driver can begin a shift.</span>
+        <span class="u-xs-subtle">Earliest time of day this driver can begin a shift.</span>
       </div>
     </div>
     <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
@@ -13821,8 +13821,8 @@ function renderOverviewTab(body, dd) {
     <div style="margin-bottom:18px">
       <div style="display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap">
         ${typeof renderDriverStatusBadge === "function" ? renderDriverStatusBadge(d.status) : `<span class="dd-badge dsp">${escapeHtml(d.status || "—")}</span>`}
-        ${ob ? `${_obPill(ob.label, ob.tone)}<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${ob.doneN}/${ob.totalN} gates</span>` : ""}
-        <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(stationTxt)}${tenureTxt ? " · " + escapeHtml(tenureTxt) : ""}${d.tier ? " · Tier " + escapeHtml(String(d.tier)) : ""}</span>
+        ${ob ? `${_obPill(ob.label, ob.tone)}<span class="u-xs-subtle">${ob.doneN}/${ob.totalN} gates</span>` : ""}
+        <span class="u-xs-subtle">${escapeHtml(stationTxt)}${tenureTxt ? " · " + escapeHtml(tenureTxt) : ""}${d.tier ? " · Tier " + escapeHtml(String(d.tier)) : ""}</span>
       </div>
       ${ob ? `<div style="display:flex;gap:var(--s-1);margin-top:var(--s-3);max-width:340px">${ob.gates.map(g => `<div title="${escapeHtml(g.label)}${g.done ? " — done" : ""}" style="flex:1;height:5px;border-radius:var(--r-pill);background:${g.done ? "#16a34a" : "var(--border)"}"></div>`).join("")}</div>` : ""}
       ${ob ? `<div style="margin-top:var(--s-3)"><button type="button" class="btn btn-sm btn-primary" data-rr-dd-tab="employment">Continue onboarding & Form I-9 →</button></div>` : ""}
@@ -13853,7 +13853,7 @@ function renderOverviewTab(body, dd) {
 
     ${recent.length ? `<div class="dd-section">
       <div class="dd-section-head"><div><div class="dd-section-title">Recent activity</div></div><button type="button" class="btn btn-sm btn-ghost" data-rr-dd-tab="activity" style="margin-left:auto">View all →</button></div>
-      <div style="display:flex;flex-direction:column">${recent.map((e, i) => `<div style="display:grid;grid-template-columns:96px 1fr;gap:var(--s-3);align-items:baseline;padding:9px 0;${i ? "border-top:1px solid var(--border)" : ""}"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(fmtTs(e.at))}</span><span style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(e.txt)}</span></div>`).join("")}</div>
+      <div style="display:flex;flex-direction:column">${recent.map((e, i) => `<div style="display:grid;grid-template-columns:96px 1fr;gap:var(--s-3);align-items:baseline;padding:9px 0;${i ? "border-top:1px solid var(--border)" : ""}"><span class="u-xs-subtle">${escapeHtml(fmtTs(e.at))}</span><span style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(e.txt)}</span></div>`).join("")}</div>
     </div>` : ""}`;
 }
 
@@ -14159,7 +14159,7 @@ function _tpRowHtml(r, isTrainer, isEligible) {
     <div data-rr-tp-row data-driver-id="${escapeHtml(r.driver_id)}" data-is-trainer="${isTrainer ? "1" : "0"}" data-starts="${escapeHtml(r.starts_at || "")}" data-ends="${escapeHtml(r.ends_at || "")}" style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-radius:var(--r-md);cursor:pointer" onmouseover="this.style.background='var(--canvas)'" onmouseout="this.style.background='transparent'">
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:var(--fs-sm)">${star}${escapeHtml(r.full_name)}${warns}</div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle)">
+        <div class="u-xs-subtle">
           ${escapeHtml(r.route_code || "no route")} · <span data-rr-tp-times>—</span> · ${escapeHtml(r.station_code || "")} · ${Math.round(r.weekly_hours || 0)}h wk
         </div>
       </div>
@@ -14345,8 +14345,8 @@ async function renderEmploymentTab(body, d) {
         <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);flex-wrap:wrap">
           <div style="display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap;min-width:0">
             ${_obPill(ob.label, ob.tone)}
-            <span style="font-size:var(--fs-sm);color:var(--text-subtle)">${ob.doneN} of ${ob.totalN} gates · ${ob.pct}%</span>
-            ${ob.next ? `<span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(ob.next)}</span>` : ""}
+            <span class="u-sm-subtle">${ob.doneN} of ${ob.totalN} gates · ${ob.pct}%</span>
+            ${ob.next ? `<span class="u-xs-subtle">${escapeHtml(ob.next)}</span>` : ""}
           </div>
           ${d.id ? `<button type="button" class="btn btn-sm btn-primary" onclick="goto('onboarding-ops')" style="flex:0 0 auto">Open onboarding dashboard →</button>` : ""}
         </div>
@@ -14638,7 +14638,7 @@ function _i9PanelHtml(i9, drv) {
         <div class="u-subtle">Completed ${escapeHtml(fmtTs(rec.section1_completed_at))} · ${rec.section1_completed_via === "driver_app" ? "by the employee in the app" : "recorded by the employer"}</div>
       </div>`;
   } else {
-    s1Html = `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">Not yet completed. The employee can fill this out in the RouteReady app, or you can record it here.</div>`;
+    s1Html = `<div class="u-sm-subtle">Not yet completed. The employee can fill this out in the RouteReady app, or you can record it here.</div>`;
   }
 
   // Section 2 summary.
@@ -14653,7 +14653,7 @@ function _i9PanelHtml(i9, drv) {
         ${Array.isArray(rec.section2_document_paths) && rec.section2_document_paths.length ? `<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">${rec.section2_document_paths.map((p,i)=>`<button type="button" class="btn btn-sm" data-rr-i9-doc-open="${escapeHtml(p)}">Document ${i+1}</button>`).join("")}</div>` : ""}
       </div>`;
   } else {
-    s2Html = `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">Not yet completed.</div>`;
+    s2Html = `<div class="u-sm-subtle">Not yet completed.</div>`;
   }
 
   const canDoS2 = rec && (st === "section1_complete" || (st === "needs_correction" && rec.section1_completed_at));
@@ -14682,9 +14682,9 @@ function _i9PanelHtml(i9, drv) {
       <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">Cryptographically sealed (ECDSA P-256) + RFC 3161 trusted timestamp + audit certificate. Also appears on the Documents page under "Form I-9".</div>
     </div>`;
   } else if (rec && st === "verified") {
-    sealHtml = `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">The sealed PDF generates automatically when Section 2 is completed. If it hasn't appeared yet, <button type="button" class="btn btn-sm" data-rr-i9-seal-now>Generate it now</button>.</div>`;
+    sealHtml = `<div class="u-sm-subtle">The sealed PDF generates automatically when Section 2 is completed. If it hasn't appeared yet, <button type="button" class="btn btn-sm" data-rr-i9-seal-now>Generate it now</button>.</div>`;
   } else {
-    sealHtml = `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">Generated once Section 2 is complete (status Verified).</div>`;
+    sealHtml = `<div class="u-sm-subtle">Generated once Section 2 is complete (status Verified).</div>`;
   }
 
   const ret = _i9RetentionUntil(rec, drv);
@@ -14757,7 +14757,7 @@ function _i9EventMeta(ev) {
 // and the chain-of-custody modal.
 function _i9Timeline(events) {
   const list = (events || []).slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-  if (!list.length) return `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">No events recorded yet.</div>`;
+  if (!list.length) return `<div class="u-sm-subtle">No events recorded yet.</div>`;
   const dayKey = (iso) => new Date(iso).toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
   const timeOf = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   let html = "", lastDay = null;
@@ -14832,7 +14832,7 @@ async function openI9Section1Modal(driverId) {
   const s1 = i9 && i9.section1 && typeof i9.section1 === "object" ? i9.section1 : {};
   const g = (k, fb = "") => escapeHtml(s1[k] != null && s1[k] !== "" ? String(s1[k]) : fb);
   const cs = s1.citizen_status || "";
-  const fld = (id, label, opts = {}) => `<label style="display:flex;flex-direction:column;gap:3px;${opts.flex ? `flex:${opts.flex};` : ""}min-width:0"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(label)}${opts.req ? ' *' : ''}</span><input type="${opts.type || 'text'}" id="${id}" ${opts.attrs || ''} value="${opts.value || ''}" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)"></label>`;
+  const fld = (id, label, opts = {}) => `<label style="display:flex;flex-direction:column;gap:3px;${opts.flex ? `flex:${opts.flex};` : ""}min-width:0"><span class="u-xs-subtle">${escapeHtml(label)}${opts.req ? ' *' : ''}</span><input type="${opts.type || 'text'}" id="${id}" ${opts.attrs || ''} value="${opts.value || ''}" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)"></label>`;
   const body = `
     <div style="display:flex;flex-direction:column;gap:var(--s-3-5)">
       <div style="font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5">Enter Section 1 exactly as the employee provided it. The employee should review and sign Section 1 — ideally in the RouteReady app. Recording it here is a bridge for employees who can't use the app.</div>
@@ -14865,7 +14865,7 @@ async function openI9Section1Modal(driverId) {
         <div id="i9e-lpr" style="display:${cs==="lpr"?"block":"none"};margin-top:6px">${fld("i9e-lprnum","USCIS / A-Number",{req:true,value:g("lpr_uscis_number")})}</div>
         <div id="i9e-auth" style="display:${cs==="authorized"?"flex":"none"};flex-direction:column;gap:var(--s-2);margin-top:6px">
           ${fld("i9e-authexp","Work auth. expires (or N/A)",{value:g("auth_expires")})}
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Document number type:</div>
+          <div class="u-xs-subtle">Document number type:</div>
           ${[["uscis","USCIS / A-Number"],["i94","Form I-94 Admission #"],["passport","Foreign passport #"]].map(([v,l])=>`<label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-sm);cursor:pointer"><input type="radio" name="i9e-authkind" value="${v}" ${(s1.auth_doc_kind||"uscis")===v?"checked":""}> ${escapeHtml(l)}</label>`).join("")}
           ${fld("i9e-authnum","Document number",{req:true,value:g("auth_doc_number")})}
           <div id="i9e-authcountry" style="display:${s1.auth_doc_kind==="passport"?"block":"none"}">${fld("i9e-authcountrytxt","Country of issuance",{req:true,value:g("auth_passport_country")})}</div>
@@ -14931,7 +14931,7 @@ function _i9DocRowHtml(idx, listLetter, existing) {
       <div style="display:flex;gap:var(--s-2);flex-wrap:wrap">
         <input type="text" data-i9-f="issuing_authority" placeholder="Issuing authority" value="${escapeHtml(ex.issuing_authority || "")}" style="flex:1 1 160px;padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)">
         <input type="text" data-i9-f="number" placeholder="Document number" value="${escapeHtml(ex.number || "")}" style="flex:1 1 160px;padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)">
-        <label style="display:flex;flex-direction:column;gap:2px;flex:0 1 150px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Expiration (if any)</span><input type="date" data-i9-f="expires_on" value="${escapeHtml(ex.expires_on || "")}" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)"></label>
+        <label style="display:flex;flex-direction:column;gap:2px;flex:0 1 150px"><span class="u-xs-subtle">Expiration (if any)</span><input type="date" data-i9-f="expires_on" value="${escapeHtml(ex.expires_on || "")}" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)"></label>
       </div>
     </div>`;
 }
@@ -14968,7 +14968,7 @@ async function openI9Section2Modal(driverId) {
           <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-sm);padding:3px 0;cursor:pointer"><input type="radio" name="i9-list" value="BC" ${list==="BC"?"checked":""}> One from <strong>List B</strong> (identity) and one from <strong>List C</strong> (work authorization)</label>
         </div>
         <div id="i9-doc-rows" style="display:flex;flex-direction:column;gap:var(--s-2-5)"></div>
-        <label style="display:flex;flex-direction:column;gap:3px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Additional information (reverification, extensions, delay reason, etc.)</span><textarea id="i9-s2-addl" rows="2" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas);resize:vertical">${escapeHtml(s2.additional_info || "")}</textarea></label>
+        <label style="display:flex;flex-direction:column;gap:3px"><span class="u-xs-subtle">Additional information (reverification, extensions, delay reason, etc.)</span><textarea id="i9-s2-addl" rows="2" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas);resize:vertical">${escapeHtml(s2.additional_info || "")}</textarea></label>
         <div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:4px">Document copies (optional — required for the remote alternative procedure):</div>
           <input type="file" id="i9-s2-files" multiple accept="image/*,application/pdf" style="font:inherit;font-size:var(--fs-sm)">
@@ -14976,7 +14976,7 @@ async function openI9Section2Modal(driverId) {
         </div>`)}
 
       ${step(3, "Attest", "Under penalty of perjury.", `
-        <label style="display:flex;flex-direction:column;gap:3px;max-width:320px"><span style="font-size:var(--fs-xs);color:var(--text-subtle)">Your title</span><input type="text" id="i9-s2-title" placeholder="e.g. Owner / Operations Manager" value="${escapeHtml(rec?.section2_completed_by_title || "")}" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)"></label>
+        <label style="display:flex;flex-direction:column;gap:3px;max-width:320px"><span class="u-xs-subtle">Your title</span><input type="text" id="i9-s2-title" placeholder="e.g. Owner / Operations Manager" value="${escapeHtml(rec?.section2_completed_by_title || "")}" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--canvas)"></label>
         <label style="display:flex;align-items:flex-start;gap:var(--s-2);cursor:pointer;font-size:var(--fs-sm);line-height:1.55"><input type="checkbox" id="i9-s2-attest" style="margin-top:3px"> <span id="i9-s2-attest-text">${escapeHtml(_I9_S2_ATTEST_BASE)}</span></label>`)}
 
       ${step(4, "Sign", "Your electronic signature is recorded with your name and a timestamp.", `
@@ -15367,7 +15367,7 @@ async function _i9OpenChainModal(driverId) {
       <div><span class="u-subtle">ECDSA P-256 signature (base64)</span><br>${mono(seal?.signature_b64 ? String(seal.signature_b64).slice(0,88) + (String(seal.signature_b64).length>88?"…":"") : null)}</div>
       <div><span class="u-subtle">Signing key fingerprint</span><br>${mono(seal?.key_fingerprint)}</div>
       <div><span class="u-subtle">RFC 3161 trusted timestamp</span><br>${hasTs ? `${escapeHtml(seal.tsa_url || "(authority unspecified)")}${seal.tsa_gen_time ? " — attested time " + escapeHtml(new Date(seal.tsa_gen_time).toLocaleString()) + " (by the TSA, not by RouteReady)" : ""}` : `<span style="color:var(--amber-dark)">Timestamp unavailable</span>`}</div>
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle)">The full proof (digest, signature, public key, timestamp token) lives next to the sealed PDF at <code>${escapeHtml(rec.pdf_seal_path || "—")}</code>. The public key is served at <code>/public-key</code> on the sealing service.</div>
+      <div class="u-xs-subtle">The full proof (digest, signature, public key, timestamp token) lives next to the sealed PDF at <code>${escapeHtml(rec.pdf_seal_path || "—")}</code>. The public key is served at <code>/public-key</code> on the sealing service.</div>
     </div>`;
   document.getElementById("rr-i9-chain-modal")?.remove();
   const m = document.createElement("div");
@@ -18605,7 +18605,7 @@ async function openChannelMembersModal(channelId) {
       <div style="display:flex;align-items:center;gap:var(--s-2-5);padding:var(--s-2-5) var(--s-3-5);border-bottom:1px solid var(--border)">
         <div style="flex:1">
           <div style="font-size:var(--fs-md);font-weight:600;color:var(--text)">${escapeHtml(m.full_name || "")}</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${m.station_code ? escapeHtml(m.station_code) + " · " : ""}${escapeHtml(m.status || "")}</div>
+          <div class="u-xs-subtle">${m.station_code ? escapeHtml(m.station_code) + " · " : ""}${escapeHtml(m.status || "")}</div>
         </div>
         <button class="btn btn-sm" data-rr-cc-mem-remove="${escapeHtml(m.driver_id)}">Remove</button>
       </div>`).join("");
@@ -18711,7 +18711,7 @@ function renderCoachingTab(coachings, driver) {
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
         ${_coachSeverityChip(c.severity, c.metadata?.level)}
         ${originBadge}
-        <span style="font-size:var(--fs-xs);color:var(--text-subtle)">${(c.topic || "").replace(/_/g," ")} · ${(c.type || "").replace(/_/g," ")} · ${escapeHtml(occurred)}</span>
+        <span class="u-xs-subtle">${(c.topic || "").replace(/_/g," ")} · ${(c.type || "").replace(/_/g," ")} · ${escapeHtml(occurred)}</span>
         ${followBadge} ${ackChip} ${privBadge}
       </div>
       <div class="dd-list-title">${escapeHtml(c.summary || c.topic || "(no summary)")}</div>
@@ -19939,7 +19939,7 @@ function _renderAvailKpiDetail() {
         <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">${label}</div>
         <div style="display:flex;align-items:baseline;gap:var(--s-2-5);margin-top:6px">
           <div style="font-size:36px;font-weight:700;color:${tier(avgVal)};letter-spacing:-.02em;line-height:1">${fmt(avgVal)}</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">avg composite score</div>
+          <div class="u-xs-subtle">avg composite score</div>
         </div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-2);line-height:1.5">${sub}<br/>${scored} of ${count} ${count === 1 ? "driver has" : "drivers have"} a score on file</div>
       </div>`;
@@ -20292,7 +20292,7 @@ function _renderAvailabilityRows() {
            <button class="btn btn-sm btn-danger" data-rr-avail-deny="${escapeHtml(r.id)}">Deny</button>
            <button class="btn btn-sm btn-primary" data-rr-avail-approve="${escapeHtml(r.id)}">Approve</button>
          </div>`
-      : `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">—</div>`;
+      : `<div class="u-xs-subtle">—</div>`;
 
     let impactBlock = "";
     if (isPending && !same) {
@@ -20478,7 +20478,7 @@ async function _showAvailabilityHistory(driverId, driverName) {
         return `<div style="padding:var(--s-2-5) var(--s-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)">
           <div style="display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap;margin-bottom:4px">
             ${statusPill(r.status)}
-            <span style="font-size:var(--fs-xs);color:var(--text-subtle)">submitted ${escapeHtml(_fmtRel(r.submitted_at))}${decided}${eff}</span>
+            <span class="u-xs-subtle">submitted ${escapeHtml(_fmtRel(r.submitted_at))}${decided}${eff}</span>
           </div>
           <div style="font-size:var(--fs-sm);color:var(--text)">${escapeHtml(fmtDays(r.days))}${startTxt ? ` · earliest start ${escapeHtml(startTxt)}` : ""}</div>
           ${r.decision_note ? `<div style="font-size:var(--fs-xs);color:var(--text-muted);font-style:italic;margin-top:4px">"${escapeHtml(r.decision_note)}"</div>` : ""}
@@ -20843,7 +20843,7 @@ function openMessageEditor(template) {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-2-5);padding:var(--s-2) var(--s-2-5);background:var(--canvas);border:1px solid var(--border);border-radius:8px;margin-top:6px">
         <div style="min-width:0">
           <div style="font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(a.name || "attachment")}</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${a.content_type || ""} · ${a.size ? Math.round(a.size/1024)+" KB" : ""}</div>
+          <div class="u-xs-subtle">${a.content_type || ""} · ${a.size ? Math.round(a.size/1024)+" KB" : ""}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <a class="btn btn-sm" href="${a.url}" target="_blank" rel="noreferrer">Open</a>
@@ -21887,7 +21887,7 @@ async function _renderOkamiLiveImpl() {
     const stratEl = tdCells[5]?.querySelector(".strategy-pills");
     if (stratEl) {
       const text = gap >= 0 ? "Hold" : (gap >= -10 ? "+8h OT" : "Hire");
-      stratEl.innerHTML = `<span style="font-size:var(--fs-sm);color:var(--text-muted)">${text}</span>`;
+      stratEl.innerHTML = `<span class="u-sm-muted">${text}</span>`;
     }
 
     const hireByEl = tdCells[6]?.querySelector(".plan-calc");
@@ -21899,7 +21899,7 @@ async function _renderOkamiLiveImpl() {
     if (statusPill) {
       statusPill.classList.remove("ok", "warn", "bad");
       const text = gap >= 0 ? "On track" : (gap >= -10 ? "Tight" : "Critical");
-      statusPill.outerHTML = `<span style="font-size:var(--fs-sm);color:var(--text-muted)">${text}</span>`;
+      statusPill.outerHTML = `<span class="u-sm-muted">${text}</span>`;
     }
   }
 
@@ -23182,7 +23182,7 @@ async function loadScheduleInsights(scope) {
           <div style="background:${color};height:100%;width:${widthPct}%;transition:width var(--t-spring)"></div>
         </div>
         <div style="font-size:var(--fs-md);color:var(--text);font-variant-numeric:tabular-nums"><strong>${widthPct}%</strong> <span style="color:var(--text-subtle);font-size:var(--fs-xs)">${avail}/${totalDrivers}</span></div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${note}</div>
+        <div class="u-xs-subtle">${note}</div>
       </div>`;
   }).join("");
 
@@ -25074,7 +25074,7 @@ function _rrOpenInsightsModal() {
           </span>
           <div style="min-width:0">
             <div style="font-size:var(--fs-base);font-weight:700;color:var(--text);letter-spacing:-.01em">Operational insights</div>
-            <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Week of ${escapeHtml(wkLabel)} · generated by RouteReady AI</div>
+            <div class="u-xs-subtle">Week of ${escapeHtml(wkLabel)} · generated by RouteReady AI</div>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
@@ -25193,7 +25193,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
     const headLine = showDayLabel
       ? `<div style="font-size:var(--fs-sm);font-weight:600;color:var(--text)">${dayLabel(sh.date)}${ex}${stBadge}${newTag}</div>
          <div style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums">${time}${route ? ` · ${route}` : ""}</div>`
-      : `<div style="font-size:var(--fs-sm);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${time}${ex}${stBadge}${newTag}</div>${route ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">${route}</div>` : ""}`;
+      : `<div style="font-size:var(--fs-sm);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">${time}${ex}${stBadge}${newTag}</div>${route ? `<div class="u-xs-subtle">${route}</div>` : ""}`;
     const dragId = sh.virtual ? sh.synthId : sh.id;
     const virtAttrs = sh.virtual
       ? ` data-rr-pool-virtual="1" data-rr-pool-station="${sh.station_id}" data-rr-pool-wave="${sh.wave_start}"`
@@ -25224,7 +25224,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
       </span>
       <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text);margin-top:4px">All shifts assigned</div>
-      <div style="font-size:var(--fs-xs);color:var(--text-subtle)">Great job!</div>
+      <div class="u-xs-subtle">Great job!</div>
     </div>`;
   } else if (_poolSortMode === "day") {
     const byDay = new Map();
@@ -25407,11 +25407,11 @@ function bindSchedWeekNav() {
     m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     const list = v.length === 0
       ? '<div class="rr-empty-inline">No rule violations this week ✓</div>'
-      : v.map(x => `<div style="padding:var(--s-2-5) var(--s-3-5);border-top:1px solid var(--border);display:flex;gap:var(--s-3);align-items:center"><div style="flex:1"><div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(x.driver)}</div><div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(x.note)}</div></div><span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--red)">${x.kind.replace(/_/g, " ")}</span></div>`).join("");
+      : v.map(x => `<div style="padding:var(--s-2-5) var(--s-3-5);border-top:1px solid var(--border);display:flex;gap:var(--s-3);align-items:center"><div style="flex:1"><div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(x.driver)}</div><div class="u-xs-subtle">${escapeHtml(x.note)}</div></div><span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--red)">${x.kind.replace(/_/g, " ")}</span></div>`).join("");
     m.innerHTML = `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:540px;width:100%;max-height:80vh;overflow-y:auto">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) 18px;border-bottom:1px solid var(--border)">
-          <div><div style="font-size:var(--fs-base);font-weight:600">Rule violations</div><div style="font-size:var(--fs-sm);color:var(--text-subtle)">${v.length} this week</div></div>
+          <div><div style="font-size:var(--fs-base);font-weight:600">Rule violations</div><div class="u-sm-subtle">${v.length} this week</div></div>
           <button type="button" id="rr-vio-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
         </div>
         <div>${list}</div>
@@ -25439,7 +25439,7 @@ function bindSchedWeekNav() {
     m.innerHTML = `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:560px;width:100%;max-height:80vh;overflow-y:auto">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) 18px;border-bottom:1px solid var(--border)">
-          <div><div style="font-size:var(--fs-base);font-weight:600">Preferred days · who didn't get what</div><div style="font-size:var(--fs-sm);color:var(--text-subtle)">${summary.honored} of ${summary.denom} scheduled shifts (for drivers with preferences) are on a preferred day</div></div>
+          <div><div style="font-size:var(--fs-base);font-weight:600">Preferred days · who didn't get what</div><div class="u-sm-subtle">${summary.honored} of ${summary.denom} scheduled shifts (for drivers with preferences) are on a preferred day</div></div>
           <button type="button" id="rr-pref-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
         </div>
         <div>${list}</div>
@@ -25485,7 +25485,7 @@ function bindSchedWeekNav() {
         <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) 18px;border-bottom:1px solid var(--border)">
           <div>
             <div style="font-size:var(--fs-base);font-weight:600">In training this week</div>
-            <div style="font-size:var(--fs-sm);color:var(--text-subtle)">${payload.total} trainee${payload.total === 1 ? "" : "s"} · ${payload.classroom} in classroom · ${payload.ride_along} ride-along${payload.ride_along === 1 ? "" : "s"}</div>
+            <div class="u-sm-subtle">${payload.total} trainee${payload.total === 1 ? "" : "s"} · ${payload.classroom} in classroom · ${payload.ride_along} ride-along${payload.ride_along === 1 ? "" : "s"}</div>
           </div>
           <button type="button" id="rr-training-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
         </div>
@@ -26134,7 +26134,7 @@ function timeOffRow(r) {
       <div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(r.drivers?.full_name || "—")}</div>
       <div style="font-size:var(--fs-sm)">${range}</div>
       <div><span class="status-pill status-pill-${statusVariant}">${escapeHtml(r.status)}</span></div>
-      <div style="font-size:var(--fs-sm);color:var(--text-subtle)">${escapeHtml(r.reason || "")}</div>
+      <div class="u-sm-subtle">${escapeHtml(r.reason || "")}</div>
       <div style="display:flex;gap:var(--s-2);justify-content:flex-end">${r.status === "pending" ? `
         <button class="btn btn-sm btn-danger" data-rr-time-off-decide="${r.id}" data-decision="deny">Deny</button>
         <button class="btn btn-sm btn-primary" data-rr-time-off-decide="${r.id}" data-decision="approve">Approve</button>
@@ -26758,7 +26758,7 @@ function _hiringTargetRowHtml(t) {
   return `<div style="padding:var(--s-2) var(--s-3);border-top:1px solid var(--border-subtle);display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap">
     <div style="flex:1;min-width:140px">
       <div style="font-weight:600;font-size:var(--fs-md)">${escapeHtml(title)}${days && !(t.label && t.label.trim()) ? "" : (days ? ` <span style="font-weight:400;color:var(--text-subtle);font-size:var(--fs-xs)">(${escapeHtml(days)})</span>` : "")}${cert}${es}</div>
-      <div style="font-size:var(--fs-xs);color:var(--text-muted)">${got > 0 ? `In onboarding: ${names}` : "No onboarding drivers match this yet"}</div>
+      <div class="u-xs-muted">${got > 0 ? `In onboarding: ${names}` : "No onboarding drivers match this yet"}</div>
     </div>
     ${badge}
     <button class="btn btn-sm" type="button" data-rr-target-edit="${escapeHtml(t.id)}">Edit</button>
@@ -28488,7 +28488,7 @@ async function _renderAudienceList(checkedIds) {
       _formAudienceDrivers = Array.isArray(data) ? data : [];
     } else _formAudienceDrivers = [];
   }
-  if (_formAudienceDrivers.length === 0) { host.innerHTML = `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">No active drivers.</div>`; return; }
+  if (_formAudienceDrivers.length === 0) { host.innerHTML = `<div class="u-xs-subtle">No active drivers.</div>`; return; }
   host.innerHTML = _formAudienceDrivers.map(d => {
     const name = (d.preferred_name && d.preferred_name.trim()) || d.full_name || "Driver";
     return `<label style="display:flex;align-items:center;gap:var(--s-2);padding:3px 0;font-size:var(--fs-sm);cursor:pointer"><input type="checkbox" data-rr-aud-driver="${escapeHtml(d.id)}" ${checked.has(d.id) ? "checked" : ""}/><span>${escapeHtml(name)}</span></label>`;
@@ -29583,7 +29583,7 @@ async function _docsOpenFieldEditor(templateId) {
       <div style="padding:var(--s-3-5) 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);flex-wrap:wrap">
         <div>
           <div style="font-weight:600;font-size:var(--fs-lg)">Place fields</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle)">${escapeHtml(tpl.title)} — pick a field type, then click and drag on a page to drop it. Click a box to remove it.</div>
+          <div class="u-xs-subtle">${escapeHtml(tpl.title)} — pick a field type, then click and drag on a page to drop it. Click a box to remove it.</div>
         </div>
         <div style="display:flex;align-items:center;gap:var(--s-2)">
           <div style="display:inline-flex;gap:2px;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:3px;flex-wrap:wrap">
@@ -29596,7 +29596,7 @@ async function _docsOpenFieldEditor(templateId) {
         <div class="loader" style="margin:60px auto"></div>
       </div>
       <div style="padding:var(--s-3) 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:var(--s-2);background:var(--surface)">
-        <div id="docs-fe-count" style="font-size:var(--fs-xs);color:var(--text-subtle)">0 fields · placing: <strong id="docs-fe-kind-label">Signature</strong> — date fields are auto-filled with the signing date</div>
+        <div id="docs-fe-count" class="u-xs-subtle">0 fields · placing: <strong id="docs-fe-kind-label">Signature</strong> — date fields are auto-filled with the signing date</div>
         <div style="display:flex;gap:var(--s-2)">
           <button class="btn" id="docs-fe-cancel">Cancel</button>
           <button class="btn btn-primary" id="docs-fe-save">Save fields</button>
@@ -30767,7 +30767,7 @@ function _wsOpenImport(prefill) {
       <div style="padding:var(--s-4) var(--s-5);overflow:auto;flex:1;display:flex;flex-direction:column;gap:13px">
         <textarea data-imp-text class="form-input form-input-block" rows="6" placeholder="Paste here…" style="resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-sm);line-height:1.5"></textarea>
         <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-sm);color:var(--text-muted);cursor:pointer"><input type="checkbox" data-imp-header style="margin:0"> The first line is a header row — skip it</label>
-        <div data-imp-preview style="font-size:var(--fs-sm);color:var(--text-subtle)"></div>
+        <div data-imp-preview class="u-sm-subtle"></div>
       </div>
       <div style="padding:var(--s-3-5) 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-2);align-items:center">
         <button type="button" class="btn btn-sm" data-imp-close>Cancel</button>
@@ -31445,7 +31445,7 @@ function _dappTasks(data) {
   const boards = data.boards;
   if (!rows.length) {
     const extra = data.driver.status === "onboarding"
-      ? `<br><span style="font-size:var(--fs-sm);color:var(--text-subtle)">Onboarding steps show on the Profile tab.</span>` : "";
+      ? `<br><span class="u-sm-subtle">Onboarding steps show on the Profile tab.</span>` : "";
     return `<div class="dapp-empty">No tasks assigned.${extra}</div>`;
   }
   const labelOf = (r) => {
@@ -34005,7 +34005,7 @@ function _roOpenManageModal(ro) {
         </div>
       </div>
       <div class="ro-foot">
-        <span style="font-size:var(--fs-xs);color:var(--text-subtle)">Opened ${escapeHtml(new Date(ro.opened_at).toLocaleString())}</span>
+        <span class="u-xs-subtle">Opened ${escapeHtml(new Date(ro.opened_at).toLocaleString())}</span>
         <div class="right">
           <button class="btn btn-ghost btn-sm" type="button" data-ro-action="complete">Mark complete</button>
           <button class="btn btn-primary btn-sm" type="button" data-ro-action="save">Save</button>
@@ -36764,7 +36764,7 @@ async function openPtoReportModal() {
       <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) 18px;border-bottom:1px solid var(--border)">
         <div>
           <div style="font-size:var(--fs-base);font-weight:600">PTO payroll report</div>
-          <div style="font-size:var(--fs-sm);color:var(--text-subtle)">Approved PTO requests that overlap the date range below. Use the CSV download to import into ADP / your payroll system.</div>
+          <div class="u-sm-subtle">Approved PTO requests that overlap the date range below. Use the CSV download to import into ADP / your payroll system.</div>
         </div>
         <button type="button" id="rr-pto-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
       </div>
