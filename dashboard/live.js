@@ -8450,6 +8450,10 @@ _rrInitAttTabDnD();
 // one glanceable view. Polls every 30 s while on the dashboard tab.
 
 let _todayPlanTimer = null;
+// Realtime channel for push refreshes when a driver checks in/out or a
+// shift status flips. The 30-second poll above is the safety net.
+let _todayPlanChannel = null;
+let _todayPlanRefreshDebounce = null;
 
 // sessionStorage keys — survive tab navigation, dropped on browser
 // close. Used to render last-known data INSTANTLY on tab open while
@@ -8512,6 +8516,40 @@ function _tpRenderDateLabel() {
   if (todayBtn) todayBtn.classList.toggle("is-on-today", isToday);
 }
 
+// Subscribe to the two tables that drive the OT headroom column. On
+// any change for the current DSP, debounce-trigger a refresh so a
+// burst (e.g. mass status update) doesn't fire one RPC per row.
+//
+// Returns silently if Realtime isn't available or the user has no DSP
+// context — the 30s poll still keeps the column moving.
+function _tpSubscribeRealtime() {
+  // Tear down any prior subscription so we don't accumulate channels
+  // on repeat entry to the view.
+  if (_todayPlanChannel) {
+    try { sb.removeChannel(_todayPlanChannel); }
+    catch (e) { console.warn("today plan · channel teardown:", e); }
+    _todayPlanChannel = null;
+  }
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || typeof sb.channel !== "function") return;
+
+  const kick = () => {
+    if (_todayPlanRefreshDebounce) clearTimeout(_todayPlanRefreshDebounce);
+    _todayPlanRefreshDebounce = setTimeout(() => {
+      _todayPlanRefreshDebounce = null;
+      if (_tpDateIso === _tpToday() && !document.hidden) {
+        _refreshTodayPlanData();
+      }
+    }, 400);
+  };
+
+  const filter = "dsp_id=eq." + dspId;
+  _todayPlanChannel = sb.channel("rr-tp-" + dspId)
+    .on("postgres_changes", { event: "*", schema: "public", table: "driver_checkins", filter }, kick)
+    .on("postgres_changes", { event: "*", schema: "public", table: "shifts",          filter }, kick)
+    .subscribe();
+}
+
 async function loadTodayPlan() {
   const shell = document.getElementById("rr-today-plan-shell");
   if (!shell) return;
@@ -8533,8 +8571,22 @@ async function loadTodayPlan() {
     } else if (_tpDateIso !== _tpToday()) {
       // Future-day view stays static — no 30s polling.  The user can
       // re-fire from the Today button or refresh manually.
-    } else { clearInterval(_todayPlanTimer); _todayPlanTimer = null; }
+    } else {
+      clearInterval(_todayPlanTimer); _todayPlanTimer = null;
+      if (_todayPlanChannel) {
+        try { sb.removeChannel(_todayPlanChannel); }
+        catch (e) { console.warn("today plan · channel teardown:", e); }
+        _todayPlanChannel = null;
+      }
+    }
   }, 30000);
+
+  // Realtime push: re-fetch the roster the moment a driver checks in,
+  // checks out, or a shift status flips. Drives the "Until OT" column
+  // so dispatchers see headroom move in <1s when deciding whether to
+  // pull a backup. The 30s interval above is the safety net for pure
+  // clock advancement and missed realtime events.
+  _tpSubscribeRealtime();
 
   // Render the skeleton FIRST so the page never sits on a single spinner.
   // Re-render whenever the expected IDs are missing — handles upgrading
