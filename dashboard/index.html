@@ -8759,8 +8759,14 @@ body.rr-cmdk-open{ overflow:hidden }
           .pa-actions-status{font-size:var(--fs-xs);color:var(--text-subtle)}
           .pa-actions-buttons{display:flex;gap:var(--s-2);flex-wrap:wrap}
 
-          /* Recent activity — horizontal step list with arrows */
-          .pa-activity{margin-top:var(--s-5);padding-top:var(--s-4);border-top:1px solid var(--border-subtle)}
+          /* Recent activity — horizontal step list with arrows. Sits as
+             a strip directly under the top row, replacing the old
+             source/phone/location meta. */
+          .pa-activity{
+            padding:var(--s-3) var(--s-4);
+            border-top:1px solid var(--border-subtle);
+            background:linear-gradient(180deg,var(--canvas),var(--surface));
+          }
           .pa-activity-head{
             display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;
           }

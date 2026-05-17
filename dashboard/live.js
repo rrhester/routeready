@@ -550,18 +550,11 @@ function renderApplicantCard(a) {
       </div>
     </div>`;
 
-  // ── New layout (matches the mockup): 4-column top row → 5-field
-  // detail strip → 3-card section (Screening video · Screening answers ·
-  // Recommended next step) → Notes → action bar → Activity timeline.
-  const sourceShort   = a.source ? rrTitleCaseName(a.source) : "Direct";
+  // ── Layout: 4-column top row → activity timeline strip → 3-card
+  // section (Screening video · Screening answers · Recommended next
+  // step) → Notes → action bar.
   const sourceMetaTxt = a.source ? `via ${rrTitleCaseName(a.source)}` : "Direct applicant";
   const headerSubLine = [sourceMetaTxt, a.email].filter(Boolean).join(" · ");
-  const phoneText     = a.phone || "—";
-  const locText       = a.station_code ? `Station ${a.station_code}` : "—";
-  const appliedText   = a.created_at
-    ? new Date(a.created_at).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })
-    : "—";
-  const positionText  = "Delivery Driver";
   const anchorIso     = _stageAnchorIso(a);
   const timeInStage   = anchorIso ? _fmtDurationShort(Date.now() - new Date(anchorIso).getTime()) : "—";
   const lastTouchIso  = a.last_sms_at || a.screening_completed_at || a.created_at;
@@ -665,12 +658,9 @@ function renderApplicantCard(a) {
         </div>
       </div>
 
-      <div class="pa-strip">
-        <div class="pa-strip-field"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg><div><div class="pa-strip-label">Source</div><div class="pa-strip-value">${escapeHtml(sourceShort)}</div></div></div>
-        <div class="pa-strip-field"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg><div><div class="pa-strip-label">Phone</div><div class="pa-strip-value">${escapeHtml(phoneText)}</div></div></div>
-        <div class="pa-strip-field"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><div><div class="pa-strip-label">Location</div><div class="pa-strip-value">${escapeHtml(locText)}</div></div></div>
-        <div class="pa-strip-field"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><div><div class="pa-strip-label">Applied</div><div class="pa-strip-value">${escapeHtml(appliedText)}</div></div></div>
-        <div class="pa-strip-field"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg><div><div class="pa-strip-label">Position</div><div class="pa-strip-value">${escapeHtml(positionText)}</div></div></div>
+      <div class="pa-activity">
+        <div class="pa-activity-head"><span>Recent activity</span><a href="#" class="pa-activity-all" onclick="event.preventDefault()">View all activity →</a></div>
+        <div class="pa-steps">${stepsHtml}</div>
       </div>
 
       <div class="pa-detail">
@@ -690,11 +680,6 @@ function renderApplicantCard(a) {
             <button class="pa-disp-btn danger" type="button" data-rr-action="decline">Decline</button>
             ${primaryBtn}
           </div>
-        </div>
-
-        <div class="pa-activity">
-          <div class="pa-activity-head"><span>Recent activity</span><a href="#" class="pa-activity-all" onclick="event.preventDefault()">View all activity →</a></div>
-          <div class="pa-steps">${stepsHtml}</div>
         </div>
       </div>
     </div>`;
