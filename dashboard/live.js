@@ -4451,7 +4451,7 @@ async function loadOnboardingOps(opts) {
       e.preventDefault();
       e.stopPropagation();
       const id = el.getAttribute("data-rr-onboardops-open");
-      if (id) openDriverDrawer(id, { tab: "overview" });
+      if (id) openDriverDrawer(id, { tab: "profile" });
     });
   });
   body.querySelectorAll("[data-rr-tp-open]").forEach(el => {
@@ -13243,7 +13243,12 @@ async function openDriverDrawer(driverId, opts) {
   // opts.tab — open the drawer with that tab pre-selected (e.g. the
   // Attendance Report row click drops the operator straight into the
   // driver's Attendance tab).
-  const initialTab = (opts && opts.tab) || "overview";
+  // Migrated tab names — the old "overview" and "activity" tabs were
+  // dropped in favor of routing operators straight to the actual
+  // record details.  Callers still passing those names land on the
+  // Profile tab so their existing entry points keep working.
+  const requestedTab = (opts && opts.tab) || "profile";
+  const initialTab = (requestedTab === "overview" || requestedTab === "activity") ? "profile" : requestedTab;
   let drawer = document.getElementById("rr-dd-drawer");
   if (drawer) drawer.remove();
   drawer = document.createElement("div");
@@ -13331,15 +13336,18 @@ async function openDriverDrawer(driverId, opts) {
           <button id="rr-dd-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
         </div>
       </div>
+      <!-- Tabs grouped by what they hold: identity → employment record →
+           credentials → availability → docs → attendance history.
+           Overview + Activity were dashboard-flavored and are dropped —
+           their facts already live in Profile/Employment, and the
+           merged chronology is in the Employment Documentation Report. -->
       <div class="dd-tabs">
-        <button type="button" class="dd-tab active" data-rr-dd-tab="overview">Overview</button>
-        <button type="button" class="dd-tab" data-rr-dd-tab="profile">Profile</button>
+        <button type="button" class="dd-tab active" data-rr-dd-tab="profile">Profile</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="employment">Employment</button>
-        <button type="button" class="dd-tab" data-rr-dd-tab="license">License</button>
-        <button type="button" class="dd-tab" data-rr-dd-tab="attendance">Attendance</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="license">Credentials</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="documents">Documents</button>
-        <button type="button" class="dd-tab" data-rr-dd-tab="activity">Activity</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="attendance">Attendance</button>
       </div>
       <div class="dd-tab-note" id="rr-dd-tab-note"></div>
       </div><!-- /.dd-chrome -->
