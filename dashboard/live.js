@@ -6971,19 +6971,20 @@ async function loadCheckinView() {
   // without manually navigating.
   const horizonIso = fmtIsoDate(addDays(new Date(), 7));
 
-  const [driversRes, shiftsRes] = await Promise.all([
+  const [driversRes, shiftsRes, otRes] = await Promise.all([
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, phone, station:station_id (code), tier")
       .eq("dsp_id", dspId)
       .eq("status", "active")
       .eq("role", "driver"),
     sb.from("shifts")
-      .select("id, driver_id, status, date")
+      .select("id, driver_id, status, date, block_hours, starts_at, ends_at")
       .eq("dsp_id", dspId)
       .gte("date", todayIso)
       .lte("date", horizonIso)
       .not("driver_id", "is", null)
       .order("date", { ascending: true }),
+    sb.rpc("overtime_intelligence"),
   ]);
 
   if (driversRes.error || shiftsRes.error) {
@@ -6992,6 +6993,13 @@ async function loadCheckinView() {
   }
   const drivers = driversRes.data || [];
   const allShifts = shiftsRes.data  || [];
+
+  // OT headroom lookup. RPC failure is non-fatal — the roster still renders.
+  const otThreshold = Number(otRes?.data?.threshold_hours) || 40;
+  const otWorkedByDriver = new Map();
+  for (const r of (otRes?.data?.drivers || [])) {
+    otWorkedByDriver.set(r.driver_id, Number(r.worked_hours) || 0);
+  }
 
   // Pick target date: today if it has shifts, otherwise earliest day with any.
   const todayShifts = allShifts.filter(sh => sh.date === todayIso);
@@ -7032,6 +7040,31 @@ async function loadCheckinView() {
         const active = ciKey === key ? " active" : "";
         return `<button type="button" class="status-btn s-${key}${active}" data-rr-ci-shift="${sh.id}" data-rr-ci-status="${key}" title="${title}">${svg}</button>`;
       };
+      // OT headroom — week-to-date worked vs. threshold, with a flag if
+      // today's planned block would tip them over. Worked hours come from
+      // overtime_intelligence(), which clamps in-progress shifts to now()
+      // so future-only weeks read 0.
+      const otWorked = otWorkedByDriver.get(d.id) || 0;
+      const todayBlock = (() => {
+        if (sh.block_hours != null) return Number(sh.block_hours);
+        if (sh.starts_at && sh.ends_at) {
+          const h = (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000;
+          return h > 0 ? h : 10;
+        }
+        return 10;
+      })();
+      const headroom = otThreshold - otWorked;
+      const afterToday = headroom - todayBlock;
+      const headroomCell = (() => {
+        if (headroom <= 0) {
+          return `<div class="checkin-headroom is-ot" title="Worked ${otWorked.toFixed(1)}h of ${otThreshold}h this week">in OT now</div>`;
+        }
+        const left = `${headroom.toFixed(1)}h left`;
+        if (afterToday < 0) {
+          return `<div class="checkin-headroom is-warn" title="Worked ${otWorked.toFixed(1)}h · today's ${todayBlock.toFixed(1)}h shift pushes over ${otThreshold}h">${left} · into OT after today</div>`;
+        }
+        return `<div class="checkin-headroom">${left}</div>`;
+      })();
       return `<div class="checkin-row${markedClass}" data-name="${escapeHtml(initials)}">
         <div class="checkin-driver">
           <div class="avatar-sm ${tier}">${initials}</div>
@@ -7041,6 +7074,7 @@ async function loadCheckinView() {
           </div>
         </div>
         <div class="checkin-station">${escapeHtml(station)}</div>
+        ${headroomCell}
         <div class="status-row">
           ${btn("present", "Present", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>')}
           ${btn("late",    "Late",    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>')}
