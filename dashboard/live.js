@@ -8199,30 +8199,20 @@ async function loadTodayPlan() {
   // attendance approvals tool, extras list, and the coverage tile are
   // all absorbed into the roster body — one table grouped by wave with
   // status pills, inline approve/VTO/deny actions, and assigned vans.
+  // Weather card removed from the Today plan per operator direction —
+  // the radar still has its own surface elsewhere if/when re-enabled.
   const skeletonOk = !!document.getElementById("rr-tp-roster")
-                  && !!document.getElementById("rr-tp-meta")
-                  && !!document.getElementById("rr-weather-card");
+                  && !!document.getElementById("rr-tp-meta");
   if (!skeletonOk) {
     shell.dataset.rrPlanShell = "1";
     shell.innerHTML = `
       <div id="rr-tp-meta" class="card card-compact" style="padding:var(--s-2) var(--s-4);margin-bottom:var(--s-4);font-size:var(--fs-sm);color:var(--text-subtle)">Loading</div>
-      <div id="rr-weather-card" class="card card-flush" style="margin-bottom:var(--s-4);display:none">
-        <div id="rr-weather-body">
-          <div class="rr-tp-section-head">Weather</div>
-          <div class="wx-body" style="color:var(--text-subtle);font-size:var(--fs-sm)">Loading local forecast…</div>
-        </div>
-      </div>
       <div id="rr-tp-ridealong-alerts" style="margin-bottom:var(--s-4)"></div>
       <div id="rr-tp-roster" class="card card-flush">
         <div class="rr-tp-section-head">Today's roster</div>
         <div class="rr-loading" style="padding:18px 20px">Loading</div>
       </div>`;
   }
-
-  // Kick the weather render now that the DOM mount exists.  Safe to
-  // call repeatedly — the function bails fast when the body element
-  // is missing and updates content in-place when it's not.
-  if (typeof loadDashboardWeather === "function") loadDashboardWeather();
 
   // Stale-while-revalidate: render last-known cached data instantly so
   // the page is filled in the same frame the operator clicks Today.
