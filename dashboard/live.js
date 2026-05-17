@@ -2950,13 +2950,21 @@ function _populateRosterStationFilter(rows) {
   if (!sel) return;
   const codes = [...new Set(rows.map(r => r.station?.code).filter(Boolean))].sort();
   const cur = sel.value;
-  sel.innerHTML = '<option value="">Station: All</option>'
+  sel.innerHTML = '<option value="">All locations</option>'
     + codes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
   if (codes.includes(cur)) sel.value = cur;
 }
 
 document.addEventListener("change", (e) => {
   const id = e.target?.id;
+  if (id === "rr-roster-stage-select") {
+    // Toolbar stage dropdown drives the (now-hidden) stage-tab buttons
+    // so filterDriversStage() keeps a single source of truth.
+    const stage = e.target.value || "active";
+    const btn = document.querySelector(`.stage-tabs [data-stage="${stage}"]`);
+    if (btn && typeof window.filterDriversStage === "function") window.filterDriversStage(btn);
+    return;
+  }
   if (id === "rr-roster-station" || id === "rr-roster-tenure"
    || id === "rr-roster-score") {
     _rosterFilters = {
@@ -3036,15 +3044,17 @@ function renderDriverTable(rows, error) {
     thead.innerHTML = cbHeader + `
       <th data-rr-roster-sort="name"   style="cursor:pointer;user-select:none">Driver${caret("name")}</th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
-      <th data-rr-roster-sort="score"  style="cursor:pointer;user-select:none">Score${caret("score")}</th>
+      <th>Status</th>
+      <th data-rr-roster-sort="score"  style="cursor:pointer;user-select:none">Score <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;opacity:.6" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${caret("score")}</th>
+      <th>Last active</th>
       <th>App</th>
       <th></th>`;
-    thead.dataset.rrColCount = "6";
+    thead.dataset.rrColCount = "8";
   }
 
   _obSetStrip(error ? null : rows);
 
-  const colspan = _driverStage === "onboarding" ? 7 : 6;
+  const colspan = _driverStage === "onboarding" ? 7 : 8;
   if (error) {
     tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:0">${_rosterEmpty({
       error: true, title: "Couldn't load drivers", body: escapeHtml(error.message),
@@ -3169,6 +3179,12 @@ function _wireRosterBulk() {
   document.getElementById("rr-roster-bulk-clear")?.addEventListener("click", () => {
     document.querySelectorAll('#rr-roster-table-wrap input.dr-cb-in[data-rr-roster-pick]').forEach((c) => { c.checked = false; });
     _rosterBulkRefresh();
+  });
+  // Top-right Export button shares the same handler as the bulk-bar
+  // Export — if any rows are picked it exports those, otherwise the
+  // currently-visible page.
+  document.getElementById("rr-roster-export-btn")?.addEventListener("click", () => {
+    document.getElementById("rr-roster-bulk-export")?.click();
   });
   document.getElementById("rr-roster-bulk-export")?.addEventListener("click", () => {
     const picks = new Set(_rosterBulkPicks());
@@ -4952,6 +4968,18 @@ function _i9OnboardCell(driverId) {
   return `${_i9StatusPill(d)}${sub ? `<div style="font-size:var(--fs-xs);color:${sub.c};margin-top:3px">${escapeHtml(sub.t)}</div>` : ""}`;
 }
 
+function _statusPillCell(status) {
+  const map = {
+    active:     { label: "Active",     cls: "status-pill-success"  },
+    onboarding: { label: "Onboarding", cls: "status-pill-info"     },
+    leave:      { label: "On leave",   cls: "status-pill-pending"  },
+    inactive:   { label: "Inactive",   cls: "status-pill-neutral"  },
+    terminated: { label: "Terminated", cls: "status-pill-danger"   },
+  };
+  const m = map[status] || { label: status || "—", cls: "status-pill-neutral" };
+  return `<span class="status-pill ${m.cls}">${escapeHtml(m.label)}</span>`;
+}
+
 function renderDriverRow(d) {
   const initials = displayDriverInitials(d);
   const display = displayDriverName(d);
@@ -4965,9 +4993,11 @@ function renderDriverRow(d) {
         <div><div class="cell-name">${escapeHtml(display)}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${tenure}</td>
+      <td>${_statusPillCell(d.status)}</td>
       <td>${_scoreCell(d.score)}</td>
       <td>${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer style="text-align:center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
+      <td data-rr-no-drawer style="text-align:center;width:32px"></td>
     </tr>`;
 }
 

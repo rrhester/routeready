@@ -8803,6 +8803,17 @@ body.rr-cmdk-open{ overflow:hidden }
               <p class="page-sub" id="rr-drivers-page-sub">Loading…</p>
             </div>
           </div>
+          <div class="page-actions">
+            <button class="btn" id="rr-roster-export-btn" type="button" title="Export CSV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export
+            </button>
+            <button class="btn btn-primary" id="rr-roster-add-btn" type="button" onclick="openModal('modal-add-driver')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add driver
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+          </div>
         </div>
 
         <!-- Drivers sub-nav: Roster · Insights · Attendance -->
@@ -8817,13 +8828,14 @@ body.rr-cmdk-open{ overflow:hidden }
         <!-- ROSTER SUB-VIEW -->
         <div class="dr-subview active" id="dr-sub-roster">
 
-        <!-- Stage tabs · Active and On leave are first-class; Inactive
-             is reached via the small "Inactive drivers" link above the
-             table. At-risk has its own coverage on the Attendance
-             page, so it isn't surfaced here. -->
-        <div class="stage-tabs" data-rr-tabbar="drivers-stage">
+        <!-- Stage tabs are kept in the DOM (hidden) so the
+             filterDriversStage() handler still has buttons it can flip
+             the .active class on.  The new toolbar Stage dropdown
+             drives them via a click delegate. -->
+        <div class="stage-tabs" data-rr-tabbar="drivers-stage" hidden>
           <button class="stage-tab active" data-stage="active" onclick="filterDriversStage(this)">Active</button>
           <button class="stage-tab" data-stage="onleave" onclick="filterDriversStage(this)">On leave</button>
+          <button class="stage-tab" data-stage="inactive" onclick="filterDriversStage(this)">Inactive</button>
         </div>
 
         <!-- Driver insights · KPI grid hidden by default; surfaced by
@@ -8848,38 +8860,77 @@ body.rr-cmdk-open{ overflow:hidden }
         <div id="rr-roster-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
 
         <style>
-          /* ── Drivers · roster refinements (scoped) ──────────────────── */
+          /* ── Drivers · roster toolbar rail (scoped) ──────────────────
+             Single horizontal rail: [Filters] · search · [stage ▾] ·
+             [location ▾] · [Columns].  Each control sits on the same
+             white surface so the rail reads as one unit. */
           #view-drivers .dr-roster-bar{
-            display:flex;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3);flex-wrap:wrap;
+            display:flex;align-items:center;gap:var(--s-2);margin-bottom:var(--s-3);flex-wrap:wrap;
           }
           #view-drivers .dr-roster-bar .dr-search{
-            position:relative;flex:1;min-width:220px;max-width:380px;
+            position:relative;flex:1;min-width:240px;
           }
           #view-drivers .dr-roster-bar .dr-search svg{
-            position:absolute;left:11px;top:50%;transform:translateY(-50%);
-            width:14px;height:14px;color:var(--text-subtle);pointer-events:none;
+            position:absolute;left:12px;top:50%;transform:translateY(-50%);
+            width:15px;height:15px;color:var(--text-subtle);pointer-events:none;
           }
           #view-drivers .dr-roster-bar .dr-search input{
-            width:100%;padding:var(--s-2) 11px 8px 32px;border:1px solid var(--border);border-radius:var(--r-lg);
-            font:inherit;font-size:var(--fs-md);background:var(--canvas);color:var(--text);
+            width:100%;height:38px;padding:0 12px 0 36px;
+            border:1px solid var(--border);border-radius:10px;
+            font:inherit;font-size:var(--fs-md);background:var(--surface);color:var(--text);
             transition:border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
           }
           #view-drivers .dr-roster-bar .dr-search input:focus{
             outline:none;background:var(--surface);border-color:var(--accent);
             box-shadow:0 0 0 3px var(--accent-soft);
           }
-          #view-drivers .dr-roster-bar .dr-bar-hint{ font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap; }
-          #view-drivers .dr-roster-bar .dr-bar-spacer{ flex:1; }
-          #view-drivers .dr-roster-bar select.dr-filter{
-            padding:var(--s-2) 28px 8px 11px;border:1px solid var(--border);border-radius:var(--r-lg);
-            font:inherit;font-size:var(--fs-md);font-weight:600;color:var(--text-muted);background:var(--canvas);
-            cursor:pointer;appearance:none;-webkit-appearance:none;
-            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-            background-repeat:no-repeat;background-position:right 9px center;
-            transition:border-color var(--t-fast), box-shadow var(--t-fast);
+          /* Filters + Columns ghost buttons, plus the stage/location
+             dropdowns — same height + radius so the rail aligns. */
+          #view-drivers .dr-roster-bar .dr-bar-btn,
+          #view-drivers .dr-roster-bar .dr-bar-select{
+            height:38px;border:1px solid var(--border);border-radius:10px;
+            background:var(--surface);color:var(--text);
+            font:inherit;font-size:var(--fs-md);font-weight:500;
+            display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+            transition:border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
           }
-          #view-drivers .dr-roster-bar select.dr-filter:focus{ outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft); }
-          #view-drivers .dr-roster-bar select.dr-filter.is-set{ color:var(--accent-text);border-color:var(--accent-border);background-color:var(--accent-soft); }
+          #view-drivers .dr-roster-bar .dr-bar-btn{padding:0 14px}
+          #view-drivers .dr-roster-bar .dr-bar-btn svg{
+            width:15px;height:15px;color:var(--text-muted);flex:0 0 auto;
+          }
+          #view-drivers .dr-roster-bar .dr-bar-btn:hover,
+          #view-drivers .dr-roster-bar .dr-bar-select:hover{
+            border-color:var(--border-strong);background:var(--canvas);
+          }
+          #view-drivers .dr-roster-bar .dr-bar-btn:focus-visible,
+          #view-drivers .dr-roster-bar .dr-bar-select:focus-visible{
+            outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);
+          }
+          #view-drivers .dr-roster-bar .dr-bar-select{
+            appearance:none;-webkit-appearance:none;
+            padding:0 32px 0 14px;
+            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat:no-repeat;background-position:right 12px center;
+          }
+          #view-drivers .dr-roster-bar-overflow{
+            display:flex;align-items:center;gap:var(--s-3);
+            margin:calc(-1 * var(--s-2)) 0 var(--s-3);
+          }
+          /* Page-actions: Export ghost + Add driver primary w/ chevron. */
+          #view-drivers .page-actions .btn svg:last-child{
+            width:13px;height:13px;margin-left:2px;opacity:.78;
+          }
+          /* Backwards-compat for any leftover legacy .dr-filter selects
+             rendered elsewhere — keep their styling close to the rail. */
+          #view-drivers select.dr-filter{
+            height:38px;padding:0 32px 0 12px;border:1px solid var(--border);border-radius:10px;
+            font:inherit;font-size:var(--fs-md);font-weight:500;color:var(--text);background:var(--surface);
+            cursor:pointer;appearance:none;-webkit-appearance:none;
+            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat:no-repeat;background-position:right 12px center;
+          }
+          #view-drivers select.dr-filter:focus{ outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft); }
+          #view-drivers select.dr-filter.is-set{ color:var(--accent-text);border-color:var(--accent-border);background-color:var(--accent-soft); }
 
           /* App-presence chip (consistent with the platform's chip rhythm) */
           #view-drivers .dr-app-chip{
@@ -9051,15 +9102,28 @@ body.rr-cmdk-open{ overflow:hidden }
         </style>
 
         <div class="dr-roster-bar">
-          <button class="btn btn-sm" id="rr-drivers-cta" onclick="openModal('modal-add-driver')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span id="rr-drivers-cta-label">Add driver</span>
+          <button class="dr-bar-btn" id="rr-roster-filters-btn" type="button" aria-haspopup="true" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Filters
           </button>
           <div class="dr-search">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input type="search" id="rr-roster-search" placeholder="Search name, email, or phone…" autocomplete="off" spellcheck="false">
           </div>
-          <div class="dr-bar-spacer"></div>
+          <select id="rr-roster-stage-select" class="dr-bar-select" aria-label="Filter by stage">
+            <option value="active">Active</option>
+            <option value="onleave">On leave</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <select id="rr-roster-station" class="dr-bar-select" aria-label="Filter by location">
+            <option value="">All locations</option>
+          </select>
+          <button class="dr-bar-btn" id="rr-roster-columns-btn" type="button" aria-haspopup="true" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+            Columns
+          </button>
+        </div>
+        <div class="dr-roster-bar-overflow">
           <a href="#" role="button" class="rr-text-link" id="rr-roster-insights-toggle" aria-pressed="false">Insights</a>
           <a href="#" role="button" class="rr-text-link" id="rr-roster-inactive-link">Inactive drivers</a>
         </div>
