@@ -7232,13 +7232,55 @@ function _installCelebrationPrepaint() {
     else document.addEventListener("DOMContentLoaded", mount, { once: true });
   } catch (_) {}
 }
-function _removeCelebrationPrepaint() {
+function _removeCelebrationPrepaint(immediate) {
   try {
     const bg = document.getElementById(_PREPAINT_ID);
     if (!bg) return;
     bg.style.opacity = "0";
     bg.style.pointerEvents = "none";
+    if (immediate) {
+      // Synchronous teardown — no transition delay.  Used by dismiss()
+      // so a lingering pre-paint can't sit over the (now-removed)
+      // overlay and look like the celebration "didn't close".
+      try { bg.style.display = "none"; } catch (_) {}
+      try { bg.hidden = true; } catch (_) {}
+      try { bg.parentNode && bg.parentNode.removeChild(bg); } catch (_) {}
+      try { bg.remove(); } catch (_) {}
+      return;
+    }
     setTimeout(() => { try { bg.remove(); } catch (_) {} }, 240);
+  } catch (_) {}
+}
+
+// ── _showDismissDebugPill ───────────────────────────────────────────
+// Bulletproof on-screen indicator that proves dismiss() ran on a device
+// with no console access (iOS PWA).  Appears at the top of the screen
+// for 3 seconds with a high z-index so it cannot be hidden by any
+// overlay/backdrop.  The pill text reports which removal mechanisms
+// fired and whether the overlay element is still in the DOM afterward.
+function _showDismissDebugPill(msg) {
+  try {
+    const id = "rr-dismiss-debug-pill";
+    const existing = document.getElementById(id);
+    if (existing) { try { existing.remove(); } catch (_) {} }
+    const pill = document.createElement("div");
+    pill.id = id;
+    pill.textContent = msg;
+    pill.style.cssText = [
+      "position:fixed", "top:14px", "left:50%",
+      "transform:translateX(-50%)",
+      "z-index:2147483647",
+      "padding:8px 14px", "border-radius:999px",
+      "background:#16a34a", "color:#fff",
+      "font:700 12px/1.2 -apple-system,BlinkMacSystemFont,sans-serif",
+      "letter-spacing:.04em",
+      "box-shadow:0 6px 18px rgba(0,0,0,.32)",
+      "pointer-events:none",
+      "max-width:92vw", "text-align:center",
+      "white-space:nowrap", "overflow:hidden", "text-overflow:ellipsis",
+    ].join(";");
+    (document.body || document.documentElement).appendChild(pill);
+    setTimeout(() => { try { pill.remove(); } catch (_) {} }, 3000);
   } catch (_) {}
 }
 
@@ -7444,7 +7486,7 @@ function _renderCelebrationOverlay(session, ev) {
       .catch((e) => console.warn("[recog] mark-delivered failed:", e?.message));
   }
 
-  const dismiss = () => {
+  const dismiss = (source) => {
     if (overlay._closing) return;
     overlay._closing = true;
     if (ev.id) _markRecogDismissed(ev.id);
@@ -7456,19 +7498,67 @@ function _renderCelebrationOverlay(session, ev) {
       sb.rpc("driver_recognition_dismiss", { p_token: session.token, p_id: ev.id })
         .catch((e) => console.warn("[recog] mark-dismissed failed:", e?.message));
     }
-    overlay.remove();
+    // Synchronously tear down the pre-paint backdrop BEFORE removing the
+    // overlay.  If the pre-paint is still up (z-index 1000) it could
+    // appear to the driver as if the celebration "didn't close" — the
+    // card vanishes but the blue gradient remains.
+    _removeCelebrationPrepaint(true);
+    // Belt-and-suspenders removal — if any one mechanism fails on iOS
+    // PWA (frozen frame, detached parent, stuck reference), the others
+    // still make the element invisible and non-interactive.
+    const parent = overlay.parentNode;
+    try { overlay.style.display = "none"; } catch (_) {}
+    try { overlay.style.visibility = "hidden"; } catch (_) {}
+    try { overlay.style.opacity = "0"; } catch (_) {}
+    try { overlay.style.pointerEvents = "none"; } catch (_) {}
+    try { overlay.hidden = true; } catch (_) {}
+    let removedBy = "none";
+    try {
+      if (parent && parent.contains(overlay)) {
+        parent.removeChild(overlay);
+        removedBy = "parent.removeChild";
+      }
+    } catch (_) {}
+    try {
+      if (document.body && document.body.contains(overlay)) {
+        overlay.remove();
+        removedBy = removedBy === "none" ? "overlay.remove" : removedBy + "+remove";
+      }
+    } catch (_) {}
+    // Extra rAF-deferred removal as a final iOS PWA safety net — if the
+    // synchronous removal got swallowed by a frame-freeze, the next
+    // paint will retry.
+    requestAnimationFrame(() => {
+      try {
+        const stuck = document.getElementById("rr-celebration");
+        if (stuck) { try { stuck.remove(); } catch (_) {} }
+        const stuckBg = document.getElementById(_PREPAINT_ID);
+        if (stuckBg) { try { stuckBg.remove(); } catch (_) {} }
+      } catch (_) {}
+    });
     _celebrationOpen = false;
+    // Visible proof that dismiss actually ran — driver can verify
+    // without a console.  Reports the source (click/touch/key/close)
+    // and whether the overlay element is still attached.
+    const stillThere = !!document.getElementById("rr-celebration");
+    _showDismissDebugPill(
+      "v118 dismiss " + (source || "?") + " · " + removedBy
+      + " · gone=" + (!stillThere)
+    );
   };
 
   const cta   = overlay.querySelector(".rrc-cta");
   const close = overlay.querySelector(".rrc-close");
-  [cta, close].forEach((btn) => {
+  if (cta)   { try { cta.setAttribute("onclick",   "void 0"); }   catch (_) {} }
+  if (close) { try { close.setAttribute("onclick", "void 0"); } catch (_) {} }
+  [[cta, "cta"], [close, "close"]].forEach(([btn, label]) => {
     if (!btn) return;
-    btn.addEventListener("click",    (e) => { e.preventDefault(); e.stopPropagation(); dismiss(); });
-    btn.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); dismiss(); }, { passive: false });
+    btn.addEventListener("click",     (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":click"); });
+    btn.addEventListener("touchend",  (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":touchend"); }, { passive: false });
+    btn.addEventListener("pointerup", (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":pointerup"); });
   });
   const onKey = (e) => {
-    if (e.key === "Escape") { document.removeEventListener("keydown", onKey); dismiss(); }
+    if (e.key === "Escape") { document.removeEventListener("keydown", onKey); dismiss("esc"); }
   };
   document.addEventListener("keydown", onKey);
 }
@@ -7532,7 +7622,7 @@ function _unlockAudioOnGesture() {
 window.addEventListener("DOMContentLoaded", () => {
   try {
     const tag = document.createElement("div");
-    tag.textContent = "rr v117";
+    tag.textContent = "rr v118";
     tag.style.cssText = "position:fixed;bottom:10px;right:10px;"
       + "z-index:3000;padding:4px 8px;border-radius:999px;"
       + "background:rgba(15,23,42,.85);color:#fff;font-size:10px;"
