@@ -4356,11 +4356,9 @@ async function loadOnboardingOps(opts) {
   // Columns = the enabled blueprint steps (canonical ones use their
   // underlying field; custom ones use driver_onboarding_state), then a
   // fixed "Active" + a "Send documents" action column. The trainer-pair
-  // column is rendered only when the blueprint has the trainer_pair
-  // step — DSPs that don't run ride-alongs shouldn't see an empty
-  // column for it.
+  // column comes from the blueprint loop now (driver-state-backed),
+  // so no special-case column rendering is needed.
   const stepCols = _obSteps().filter(s => s && s.enabled).map(_obStepColumn);
-  const hasTrainerPair = _obSteps().some(s => s && s.key === "trainer_pair");
   const fmtCellDate = (x) => x ? new Date(x).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
   // Onboarding dot: green once the step is complete, no fill otherwise.
   // Every step in the overview is visible to the driver; hover for status.
@@ -4426,28 +4424,6 @@ async function loadOnboardingOps(opts) {
           </div>
         </td>
         ${cells}
-        ${hasTrainerPair ? (() => {
-          // Trainer-pair cell — opens the training-pairing modal. Status:
-          //   • materialized   → green dot
-          //   • proposed       → solid grey (match saved, awaiting activate)
-          //   • needs_repair   → amber dot
-          //   • no pairing yet → empty dot
-          const pair = _rosterPairings && _rosterPairings.get(d.id);
-          const st = pair && pair.status;
-          const color = st === "materialized" ? "#16a34a"
-                      : st === "needs_repair" ? "#d97706"
-                      : st === "proposed"     ? "var(--text-muted)"
-                      :                         "transparent";
-          const border = st === "materialized" ? "#16a34a"
-                       : st === "needs_repair" ? "#d97706"
-                       : st === "proposed"     ? "var(--text-muted)"
-                       :                         "var(--border)";
-          const title = st === "materialized" ? `Materialized · ${escapeHtml(pair.ride_along_date || "")}`
-                      : st === "needs_repair" ? `Needs fix · ${escapeHtml(pair.repair_reason || "")}`
-                      : st === "proposed"     ? "Match saved · awaiting activate"
-                      :                         "Click to pair a trainer";
-          return `<td><button type="button" class="ob-mxdot" data-rr-tp-open="${escapeHtml(d.id)}" style="background:${color};border-color:${border}" title="${title}" aria-label="${title}"></button></td>`;
-        })() : ""}
         <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "todo"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button></td>
         <td><button type="button" class="ob-mx-action" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></button></td>
@@ -4463,7 +4439,6 @@ async function loadOnboardingOps(opts) {
           <tr>
             <th class="ob-mx-namecol">Driver</th>
             ${stepHeaders}
-            ${hasTrainerPair ? `<th title="Day 1+2 station training and Day 3 ride-along match">Trainer pair</th>` : ""}
             <th>Active</th>
             <th>Send</th>
             <th>Notes</th>
