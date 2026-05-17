@@ -20662,14 +20662,19 @@ document.head.appendChild(_styleEl);
 const RR_SCHED_WEEKS = 3;
 const RR_DAY_SHORT   = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
-function startOfWeekMonday(d) {
+// Amazon DSP convention: weeks run Sunday → Saturday.  This helper
+// returns the Sunday on-or-before `d` (matches the SQL
+// `private.week_start_for(date)` redefined in migration 0265). The
+// legacy `startOfWeekMonday` alias is kept as a thin shim for any
+// external code that still imports the old name.
+function startOfWeek(d) {
   const date = new Date(d);
-  const day = date.getDay();             // 0=Sun, 1=Mon, ...
-  const diff = day === 0 ? -6 : 1 - day; // shift back to Monday
-  date.setDate(date.getDate() + diff);
+  const day = date.getDay();             // 0=Sun, 1=Mon, ..., 6=Sat
+  date.setDate(date.getDate() - day);    // back up to the prior Sunday
   date.setHours(0, 0, 0, 0);
   return date;
 }
+const startOfWeekMonday = startOfWeek;   // legacy alias — Sunday-anchored now
 function fmtIsoDate(d) { return d.toISOString().slice(0, 10); }
 function fmtMD(d) { return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
