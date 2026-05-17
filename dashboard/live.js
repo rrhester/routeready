@@ -473,25 +473,17 @@ function rrTitleCaseName(s) {
   return (s || "").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// Match the prototype's compact-list pattern: the collapsed card
-// shows stage pill + identity + score, with one View toggle on the
-// right. Action buttons + screening answers live in the expanded
-// detail panel below, so the row above stays scannable.
+// Compact one-strip card: stage pill + identity + activity timeline +
+// four inline icon buttons (phone, email, notes, more). Clicking each
+// icon opens a popover scoped to that task — there's no expand/detail
+// panel anymore.
 function renderApplicantCard(a) {
   const stage = a.pipeline_stage;
   const slug  = (a.full_name || "").toLowerCase().replace(/\s+/g, "-");
   const name  = rrTitleCaseName(a.full_name);
 
-  // Identity meta line — render whatever's available, dot-separated.
-  const meta = [
-    a.station_code ? `Station ${a.station_code}` : null,
-    a.source ? `via ${a.source}` : null,
-    a.email,
-    a.phone,
-  ].filter(Boolean).join(" · ");
-
   // Stage pill copy. For booking_scheduled, append the booked time so
-  // the operator can see when it is without expanding.
+  // the operator can see when it is without opening anything.
   let stageLabel = STAGE_LABELS[stage] ?? stage;
   if (stage === "booking_scheduled" && a.next_event_starts_at) {
     stageLabel = `${STAGE_LABELS[stage]} · ${fmtDate(a.next_event_starts_at)}`;
@@ -506,104 +498,13 @@ function renderApplicantCard(a) {
     scoreChip = `<span class="pa-card-tag ${cls}">Score ${a.score}</span>`;
   }
 
-  // Disposition buttons — placed inside the expanded action bar so the
-  // collapsed view stays calm.
-  let primaryBtn = "";
-  if (stage === "applied") {
-    primaryBtn = `<button class="pa-disp-btn primary" type="button" data-rr-action="resend_screening">Resend screening</button>`;
-  } else if (stage === "screened") {
-    primaryBtn = `<button class="pa-disp-btn primary" type="button" data-rr-action="send_link">Send booking link</button>`;
-  } else if (stage === "booking_pending") {
-    primaryBtn = `<button class="pa-disp-btn primary" type="button" data-rr-action="resend_link">Resend booking link</button>`;
-  } else if (stage === "booking_scheduled") {
-    primaryBtn = `<button class="pa-disp-btn primary" type="button" data-rr-action="reschedule">Reschedule</button>
-                  <button class="pa-disp-btn danger" type="button" data-rr-action="cancel_interview">Cancel interview</button>`;
-  }
-
-  const videoBtn = a.video_url
-    ? `<button class="pa-disp-btn ghost" type="button" data-rr-action="play_video" data-video-url="${encodeURI(a.video_url)}">Intro video</button>`
-    : "";
-  const emailBtn = a.email
-    ? `<button class="pa-disp-btn ghost" type="button" data-rr-action="email_thread">Email</button>`
-    : "";
-
-  // Screening Q&A is rendered inline inside the expanded detail. The
-  // slot loads lazily on first expand (see _loadScreeningAnswersInto)
-  // so we don't N+1 the DB on every list render.
-  const answersBlock = stage !== "applied" ? `
-    <div class="pa-detail-section">
-      <div class="pa-detail-section-title">Screening answers</div>
-      <div class="pa-qa" data-rr-screening-slot>
-        <div class="u-sm-subtle u-grid-full">Loading answers…</div>
-      </div>
-    </div>` : "";
-
-  // Operator scratchpad — private notes for the DSP (call summaries,
-  // follow-ups, gut checks). Lazy-loads on expand and auto-saves on
-  // blur so there's no Save button to remember.
-  const notesBlock = `
-    <div class="pa-detail-section">
-      <div class="pa-detail-section-title">Notes</div>
-      <div class="pa-notes" data-rr-notes-slot>
-        <textarea class="pa-notes-input" data-rr-notes-input placeholder="Private notes for your team — call summaries, follow-ups, gut checks…" disabled></textarea>
-        <div class="pa-detail-section-meta" data-rr-notes-status>Loading…</div>
-      </div>
-    </div>`;
-
-  // ── Layout: one strip — stage pill | name + meta | activity timeline
-  // | View toggle. Expanded detail (screening cards, notes, actions)
-  // sits below.
   const sourceMetaTxt = a.source ? `via ${rrTitleCaseName(a.source)}` : "Direct applicant";
   const headerSubLine = [sourceMetaTxt, a.email].filter(Boolean).join(" · ");
-  const rec           = _recommendedNextStep(a);
 
-  // Screening video card — only render when we actually have a video.
-  const videoCard = a.video_url ? `
-    <div class="pa-feature-card">
-      <div class="pa-feature-head">
-        <span>Screening video</span>
-        ${a.screening_completed_at ? `<span class="pa-feature-badge ok"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Completed</span>` : ""}
-      </div>
-      ${a.screening_completed_at ? `<div class="pa-feature-sub">Completed ${new Date(a.screening_completed_at).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}</div>` : ""}
-      <div class="pa-feature-row" style="margin-top:10px">
-        <div class="pa-video-thumb" data-rr-action="play_video" data-video-url="${encodeURI(a.video_url)}">
-          <span class="pa-video-thumb-play"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg></span>
-        </div>
-        <div class="pa-feature-stats">
-          ${a.score != null ? `<div><div class="pa-feature-stat-label">Score</div><div class="pa-feature-stat-value">${a.score}/10</div></div>` : ""}
-          <div><div class="pa-feature-stat-label">Status</div><div class="pa-feature-stat-value" style="color:var(--green)">Reviewed</div></div>
-        </div>
-      </div>
-      <button class="btn btn-sm" type="button" data-rr-action="play_video" data-video-url="${encodeURI(a.video_url)}" style="margin-top:10px;width:100%">Watch video</button>
-    </div>` : "";
-
-  // Screening answers card — lazy-loaded into the slot when the card
-  // expands (the existing _loadScreeningAnswersInto handles this).
-  const answersCard = (stage !== "applied") ? `
-    <div class="pa-feature-card">
-      <div class="pa-feature-head"><span>Screening answers</span></div>
-      <div class="pa-qa" data-rr-screening-slot style="margin-top:8px">
-        <div class="u-sm-subtle u-grid-full">Loading answers…</div>
-      </div>
-    </div>` : "";
-
-  // Recommended next step — always render so every card has a clear
-  // suggested action on screen, not buried in the action bar.
-  const nextStepCard = `
-    <div class="pa-feature-card pa-feature-rec">
-      <div class="pa-feature-head" style="color:var(--amber-dark)">
-        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Recommended next step</span>
-      </div>
-      <div class="pa-feature-rec-head">${escapeHtml(rec.headline)}</div>
-      <div class="pa-feature-rec-sub">${escapeHtml(rec.sub)}</div>
-      <button class="pa-disp-btn primary" type="button" data-rr-action="${rec.action}" style="margin-top:10px">${escapeHtml(rec.btn)}</button>
-    </div>`;
-
-  // Activity timeline rows (horizontal in the mockup; we render as a
-  // small grid that wraps cleanly).
+  // Activity timeline (inline). Empty applicants get a quiet placeholder.
   const steps     = _activitySteps(a);
   const stepsHtml = steps.length === 0
-    ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No activity recorded yet.</div>`
+    ? `<div style="color:var(--text-subtle);font-size:var(--fs-xs)">No activity yet</div>`
     : steps.map((s, i) => {
         const last = i === steps.length - 1;
         return `<div class="pa-step ${s.current ? "is-current" : ""}">
@@ -615,6 +516,13 @@ function renderApplicantCard(a) {
           ${!last ? `<svg class="pa-step-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>` : ""}
         </div>`;
       }).join("");
+
+  // Icon buttons. Phone/email are disabled (with title) when no contact
+  // info is on file; notes/more are always available.
+  const phoneDisabled = !a.phone ? " is-disabled" : "";
+  const phoneTitle    = a.phone ? `Call ${escapeHtml(a.phone)}` : "No phone on file";
+  const emailDisabled = !a.email ? " is-disabled" : "";
+  const emailTitle    = a.email ? `Email ${escapeHtml(a.email)}` : "No email on file";
 
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
@@ -636,28 +544,19 @@ function renderApplicantCard(a) {
         <div class="pa-card-activity">
           <div class="pa-steps">${stepsHtml}</div>
         </div>
-        <div class="pa-card-actions">
-          <button class="pa-view-btn" type="button" onclick="paToggle(this)">View<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
-        </div>
-      </div>
-
-      <div class="pa-detail">
-        <div class="pa-feature-grid">
-          ${videoCard || answersCard || `<div class="pa-feature-card"><div class="pa-feature-head"><span>Screening</span></div><div style="color:var(--text-subtle);font-size:var(--fs-sm);margin-top:6px">Not started yet.</div></div>`}
-          ${videoCard ? answersCard : ""}
-          ${nextStepCard}
-        </div>
-
-        ${notesBlock}
-
-        <div class="pa-actions-bar pa-actions-bar-v2">
-          <span class="pa-actions-status" data-rr-notes-updated>Last updated · Never</span>
-          <div class="pa-actions-buttons">
-            <button class="pa-disp-btn ghost" type="button" data-rr-action="call"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Call</button>
-            ${emailBtn}
-            <button class="pa-disp-btn danger" type="button" data-rr-action="decline">Decline</button>
-            ${primaryBtn}
-          </div>
+        <div class="pa-card-actions pa-card-icons">
+          <button class="pa-icon-btn${phoneDisabled}" type="button" data-rr-pa-pop="phone" title="${phoneTitle}" aria-label="Phone">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </button>
+          <button class="pa-icon-btn${emailDisabled}" type="button" data-rr-pa-pop="email" title="${emailTitle}" aria-label="Email">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>
+          </button>
+          <button class="pa-icon-btn" type="button" data-rr-pa-pop="notes" title="Notes" aria-label="Notes">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+          </button>
+          <button class="pa-icon-btn" type="button" data-rr-pa-pop="more" title="More actions" aria-label="More actions">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+          </button>
         </div>
       </div>
     </div>`;
@@ -713,66 +612,142 @@ function openVideoModal(url) {
 // + outbound rows, and lets the operator queue a reply that send-email
 // will dispatch on its next tick.
 
-// Lazily fetch and render an applicant's screening answers into the
-// expanded detail panel's [data-rr-screening-slot] container. Cached
-// per-card via the loaded flag so re-expanding doesn't re-fetch.
-async function _loadScreeningAnswersInto(slot, applicantId) {
-  if (!slot || slot.dataset.loaded === "1") return;
-  slot.dataset.loaded = "1";
+// ── Icon-popover machinery for the applicant card ─────────────────────
+// Click handler routes each icon (phone / email / notes / more) to its
+// own popover. Email piggybacks on the existing thread modal; the rest
+// open small positioned popovers anchored to the icon.
 
-  const { data: rows, error } = await sb
-    .from("screening_responses")
-    .select("answer_text, answer_json, score_awarded, hard_filter_failed, created_at, screening_questions(prompt, field_type, display_order)")
-    .eq("applicant_id", applicantId)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    slot.innerHTML = `<div style="color:var(--red);font-size:var(--fs-sm);grid-column:1 / -1">Couldn't load: ${escapeHtml(error.message)}</div>`;
-    slot.dataset.loaded = "";
-    return;
+let _paOpenPop = null;
+function _paClosePop() {
+  if (_paOpenPop) {
+    try { _paOpenPop.el.remove(); } catch {}
+    if (_paOpenPop.offClick) document.removeEventListener("click", _paOpenPop.offClick, true);
+    if (_paOpenPop.offKey)   document.removeEventListener("keydown", _paOpenPop.offKey, true);
+    _paOpenPop = null;
   }
-  if (!rows || rows.length === 0) {
-    slot.innerHTML = `<div style="color:var(--text-subtle);font-size:var(--fs-sm);grid-column:1 / -1">No answers submitted yet.</div>`;
-    return;
-  }
-
-  const fmtAnswer = (r) => {
-    if (r.answer_text && String(r.answer_text).trim()) return escapeHtml(r.answer_text);
-    if (r.answer_json !== null && r.answer_json !== undefined) {
-      try { return escapeHtml(JSON.stringify(r.answer_json)); } catch { /* fall through */ }
-    }
-    return "—";
-  };
-
-  slot.innerHTML = rows.map((r) => {
-    const prompt = r.screening_questions?.prompt || "(question deleted)";
-    const failClass = r.hard_filter_failed ? " fail" : "";
-    return `
-      <div class="pa-qa-item">
-        <div class="pa-qa-q">${escapeHtml(prompt)}</div>
-        <div class="pa-qa-a${failClass}">${fmtAnswer(r)}</div>
-      </div>`;
-  }).join("");
 }
 
-// Wrap the prototype's paToggle so that expanding a card also kicks off
-// the screening-answer fetch for the slot inside .pa-detail. The
-// original toggle logic still runs first (handles class flips + scroll).
-const _origPaToggle = window.paToggle;
-window.paToggle = function (btn) {
-  if (typeof _origPaToggle === "function") _origPaToggle(btn);
-  const card = btn?.closest?.(".pa-card");
-  if (!card || !card.classList.contains("expanded")) return;
-  const id = card.getAttribute("data-applicant");
+function _paOpenPopover(anchor, html) {
+  _paClosePop();
+  const pop = document.createElement("div");
+  pop.className = "pa-pop";
+  pop.innerHTML = html;
+  document.body.appendChild(pop);
+
+  // Position: prefer below-right, flip up/left if off-viewport.
+  const rect = anchor.getBoundingClientRect();
+  const popW = pop.offsetWidth;
+  const popH = pop.offsetHeight;
+  let left = rect.right - popW;
+  if (left < 8) left = Math.max(8, rect.left);
+  if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+  let top = rect.bottom + 6;
+  if (top + popH > window.innerHeight - 8) top = Math.max(8, rect.top - popH - 6);
+  pop.style.left = left + "px";
+  pop.style.top  = top  + "px";
+
+  // Outside-click & Esc close.
+  const offClick = (e) => {
+    if (!pop.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) _paClosePop();
+  };
+  const offKey = (e) => { if (e.key === "Escape") _paClosePop(); };
+  setTimeout(() => document.addEventListener("click", offClick, true), 0);
+  document.addEventListener("keydown", offKey, true);
+
+  _paOpenPop = { el: pop, offClick, offKey, anchor };
+  return pop;
+}
+
+function _paOpenPhonePopover(anchor, a) {
+  if (!a.phone) return;
+  _paOpenPopover(anchor, `
+    <div class="pa-pop-h">Phone</div>
+    <a class="pa-pop-row pa-pop-row-strong" href="tel:${escapeHtml(a.phone)}">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      ${escapeHtml(a.phone)}
+    </a>`);
+}
+
+function _paOpenNotesPopover(anchor, a) {
+  const pop = _paOpenPopover(anchor, `
+    <div class="pa-pop-h">Notes · ${escapeHtml(rrTitleCaseName(a.full_name))}</div>
+    <div class="pa-pop-notes" data-rr-notes-slot>
+      <textarea class="pa-notes-input" data-rr-notes-input placeholder="Private notes for your team — call summaries, follow-ups, gut checks…" disabled></textarea>
+      <div class="pa-pop-status" data-rr-notes-status>Loading…</div>
+    </div>`);
+  const slot = pop.querySelector("[data-rr-notes-slot]");
+  if (slot) _initApplicantNotes(slot, a.id);
+  // Focus the textarea once loaded.
+  const ta = pop.querySelector("[data-rr-notes-input]");
+  if (ta) setTimeout(() => { if (!ta.disabled) ta.focus(); }, 300);
+}
+
+function _paOpenMorePopover(anchor, a) {
+  const stage = a.pipeline_stage;
+  const items = [];
+  if (a.video_url) {
+    items.push({ label: "Watch screening video", action: "play_video", videoUrl: a.video_url, icon: "play" });
+  }
+  if (stage === "applied") {
+    items.push({ label: "Resend screening invite", action: "resend_screening", icon: "send" });
+  } else if (stage === "screened") {
+    items.push({ label: "Send booking link", action: "send_link", icon: "send" });
+  } else if (stage === "booking_pending") {
+    items.push({ label: "Resend booking link", action: "resend_link", icon: "send" });
+  } else if (stage === "booking_scheduled") {
+    items.push({ label: "Reschedule interview", action: "reschedule", icon: "redo" });
+    items.push({ label: "Cancel interview",     action: "cancel_interview", icon: "x", danger: true });
+  }
+  items.push({ label: "Decline applicant", action: "decline", icon: "x", danger: true });
+
+  const iconSvg = (k) => {
+    if (k === "play")  return `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>`;
+    if (k === "send")  return `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`;
+    if (k === "redo")  return `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`;
+    return `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+  };
+  const rows = items.map((it) => {
+    const danger = it.danger ? " is-danger" : "";
+    const dv = it.videoUrl ? ` data-video-url="${encodeURI(it.videoUrl)}"` : "";
+    return `<button class="pa-pop-row${danger}" type="button" data-rr-action="${it.action}" data-applicant-id="${escapeHtml(a.id)}"${dv}>${iconSvg(it.icon)}${escapeHtml(it.label)}</button>`;
+  }).join("");
+  _paOpenPopover(anchor, `<div class="pa-pop-h">More actions</div>${rows}`);
+}
+
+document.addEventListener("click", (e) => {
+  const icon = e.target.closest("[data-rr-pa-pop]");
+  if (!icon) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (icon.classList.contains("is-disabled")) return;
+  const card = icon.closest(".pa-card");
+  const id = card?.getAttribute("data-applicant");
   if (!id) return;
-  const screeningSlot = card.querySelector("[data-rr-screening-slot]");
-  if (screeningSlot) _loadScreeningAnswersInto(screeningSlot, id);
-  const notesSlot = card.querySelector("[data-rr-notes-slot]");
-  if (notesSlot) _initApplicantNotes(notesSlot, id);
-};
+  // Re-clicking the same icon closes the popover.
+  if (_paOpenPop && _paOpenPop.anchor === icon) { _paClosePop(); return; }
+  const kind = icon.getAttribute("data-rr-pa-pop");
+  // Pull the applicant row from the in-memory list cached by loadPipeline.
+  const a = (window._rrPipelineById?.get?.(id)) || { id, full_name: card.querySelector(".pa-card-name")?.textContent || "" };
+  if      (kind === "phone") _paOpenPhonePopover(icon, a);
+  else if (kind === "notes") _paOpenNotesPopover(icon, a);
+  else if (kind === "more")  _paOpenMorePopover(icon, a);
+  else if (kind === "email") {
+    if (!a.email) return;
+    openEmailThreadModal(id, a.full_name || "", a.email);
+  }
+}, true);
+
+// Any data-rr-action click inside the More popover should close the
+// popover before firing (the handler at the bottom will refresh the list).
+document.addEventListener("click", (e) => {
+  if (!_paOpenPop) return;
+  if (e.target.closest("[data-rr-action]") && _paOpenPop.el.contains(e.target)) {
+    _paClosePop();
+  }
+}, true);
 
 // Lazy-load notes textarea contents and wire blur-based auto-save.
-// Idempotent — re-expanding the same card is a no-op.
+// Idempotent — re-opening the same slot is a no-op.
 async function _initApplicantNotes(slot, applicantId) {
   if (!slot || slot.dataset.loaded === "1") return;
   slot.dataset.loaded = "1";
@@ -1003,6 +978,10 @@ async function loadPipeline(stage = "all") {
     if (el) el.textContent = countMap[s] ?? 0;
   });
 
+  // Cache rows by id so the per-card icon popovers can look up the full
+  // applicant record (phone, email, video_url, …) without re-fetching.
+  window._rrPipelineById = new Map((rows ?? []).map(r => [r.id, r]));
+
   list.innerHTML = (rows ?? []).map(renderApplicantCard).join("")
     || `<div class="rr-empty-inline">No applicants yet — share your apply link or add one manually.</div>`;
 }
@@ -1017,11 +996,12 @@ async function loadPipeline(stage = "all") {
 
 async function handleAction(btn) {
   // Funnel cards use .pa-card[data-applicant]; Interview Day cards use
-  // .iv-card[data-applicant-id]. Reschedule / Cancel interview surface
-  // on both, so the handler accepts either.
+  // .iv-card[data-applicant-id]; popover rows carry data-applicant-id
+  // directly since they live outside the card in document.body.
   const card = btn.closest(".pa-card, .iv-card");
-  if (!card) return;
-  const id     = card.getAttribute("data-applicant") || card.getAttribute("data-applicant-id");
+  const id     = btn.getAttribute("data-applicant-id")
+               || card?.getAttribute("data-applicant")
+               || card?.getAttribute("data-applicant-id");
   const action = btn.getAttribute("data-rr-action");
   if (!id || !action) return;
 
@@ -1094,7 +1074,7 @@ async function handleAction(btn) {
     // If the action originated from the Interview Day card, also refresh
     // that view so the rescheduled / cancelled applicant disappears
     // immediately. Funnel-only actions still refresh just the funnel.
-    if (card.classList.contains("iv-card") && typeof loadInterviewDay === "function") {
+    if (card?.classList.contains("iv-card") && typeof loadInterviewDay === "function") {
       await loadInterviewDay();
     }
   } catch (e) {
