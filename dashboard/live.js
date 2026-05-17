@@ -9430,13 +9430,13 @@ function _renderTpUnifiedRoster(attData, rosterData, error, otData) {
           <div style="min-width:0;flex:1">
             <div style="font-weight:600;display:flex;align-items:center;flex-wrap:wrap" data-rr-driver-id="${escapeHtml(r.driver_id)}">${escapeHtml(r.driver_name)}${tierChip(r.tier)}${exTag(r)}</div>
             ${shiftMeta ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${shiftMeta}</div>` : ""}
-            ${otHeadroomLine(r)}
           </div>
         </div>
       </td>
       <td style="white-space:nowrap">${timeStr}</td>
       <td>${vanCell}</td>
       <td>${_tpStatusPill(r)}</td>
+      <td>${otHeadroomLine(r)}</td>
       <td class="u-right">${actions || ""}</td>
     </tr>`;
   };
@@ -9473,11 +9473,12 @@ function _renderTpUnifiedRoster(attData, rosterData, error, otData) {
     // columns drift apart visually.  table-layout:fixed makes the
     // browser honor the colgroup percentages exactly.
     const colgroup = `<colgroup>
-      <col style="width:32%">
-      <col style="width:18%">
-      <col style="width:18%">
+      <col style="width:28%">
+      <col style="width:15%">
+      <col style="width:15%">
+      <col style="width:12%">
       <col style="width:14%">
-      <col style="width:18%">
+      <col style="width:16%">
     </colgroup>`;
 
     return `${header}
@@ -9489,6 +9490,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error, otData) {
             <th>Shift</th>
             <th>Van</th>
             <th>Status</th>
+            <th>Until OT</th>
             <th>Action</th>
           </tr>
         </thead>` : ""}
@@ -9542,11 +9544,12 @@ function _renderTpUnifiedRoster(attData, rosterData, error, otData) {
       <td style="white-space:nowrap">${timeStr}</td>
       <td>${vanCell}</td>
       <td>${statusCell}</td>
+      <td></td>
       <td class="u-right"></td>
     </tr>`;
   };
   const trainingColgroup = `<colgroup>
-    <col style="width:32%"><col style="width:18%"><col style="width:18%"><col style="width:14%"><col style="width:18%">
+    <col style="width:28%"><col style="width:15%"><col style="width:15%"><col style="width:12%"><col style="width:14%"><col style="width:16%">
   </colgroup>`;
   const classSection = classTrainingRows.length === 0 ? "" : `
     <div class="tp-wave-head" style="background:rgba(13,148,136,.06)">
