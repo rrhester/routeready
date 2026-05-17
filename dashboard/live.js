@@ -4385,14 +4385,19 @@ async function loadOnboardingOps(opts) {
       let done = false, val = null;
       let labelDone = m.doneLabel || "Done", labelTodo = m.todoLabel || `${s.title} — not yet`;
       if (m.kind === "state") {
-        // Custom acknowledgement / video / document steps — the driver
-        // completes these in their app; the dot is read-only here.
+        // State-backed steps split by owner:
+        //   driver — completes them in their app (acknowledgement /
+        //     video / doc-to-sign); the dot is read-only here.
+        //   dsp    — operator records completion from the dashboard
+        //     (custom compliance gates, trainer pairing, etc.); the
+        //     dot is clickable to toggle complete / not-started.
+        const dspOwned = s.owner === "dsp";
         const entry = stState[m.done];
         const status = entry && entry.status;
         if (status === "complete") { done = true; val = entry.at || true; }
         else if (status && status !== "not_started") labelTodo = `${_OB_STATE_LABELS[status] || status}${entry && entry.at ? " · " + (fmtCellDate(entry.at) || "") : ""}`;
         else if (stepType === "document") labelTodo = `${s.title || "Step"} — not sent yet`;
-        return { done, html: dotCell(d.id, "state", m.done, done, val, { readonly: true, labelDone, labelTodo }) };
+        return { done, html: dotCell(d.id, "state", m.done, done, val, { readonly: !dspOwned, labelDone, labelTodo }) };
       }
       if (m.kind === "i9") {
         if (i9verified) { done = true; val = i9CompletedAt || true; }
