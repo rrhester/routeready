@@ -34492,6 +34492,52 @@ function _dvicIsDefectFlag(v) {
   return false;
 }
 
+// AI Review Summary card — tinted to the status (clean/flagged/
+// pending/error).  Replaces the inline `_dvicAiBlock` in the new
+// 3-column upper layout; `_dvicAiBlock` is kept for any callers
+// outside the modal but is no longer invoked from
+// `_dvicRenderModal`.
+function _dvicAiCardHtml(cur) {
+  const status   = cur?.ai_review_status || "pending";
+  const conf     = cur?.ai_review_confidence;
+  const summary  = cur?.ai_review_summary || "";
+  const findings = Array.isArray(cur?.ai_review_findings) ? cur.ai_review_findings : [];
+  const tone   = status === "clean" ? "clean"
+               : status === "flagged" ? "flagged"
+               : status === "error" ? "error"
+               : "pending";
+  const label  = status === "flagged" ? "Possible damage"
+               : status === "clean"   ? "No damage detected"
+               : status === "error"   ? "Review unavailable"
+               : status === "skipped" ? "Review skipped"
+               :                        "Review pending";
+  const confLabel = conf == null
+    ? ""
+    : (conf >= 75 ? "High" : conf >= 50 ? "Medium" : "Low") + ` (${conf}%)`;
+  const findingsHtml = findings.length
+    ? `<ul class="dvic-ai-findings">${
+        findings.map((f) => `<li><b>${escapeHtml(f.area || "—")}</b>${f.severity ? ` · <span style="text-transform:capitalize;color:var(--text-subtle)">${escapeHtml(f.severity)}</span>` : ""}${f.description ? " — " + escapeHtml(f.description) : ""}</li>`).join("")
+      }</ul>` : "";
+  const body = summary
+    ? `<div class="summary">${escapeHtml(summary)}</div>`
+    : (status === "pending"
+        ? `<div class="summary" style="color:var(--text-subtle)">RouteReady will review these photos against the prior inspection. Click "Run AI scan" to start.</div>`
+        : "");
+  const reviewedAt = cur?.ai_review_at
+    ? `<div class="meta">Reviewed <b>${escapeHtml(_dvicFmtWhen(cur.ai_review_at))}</b></div>`
+    : "";
+  const confLine = confLabel
+    ? `<div class="meta">Confidence: <b>${escapeHtml(confLabel)}</b></div>`
+    : "";
+  return `<div class="dvic-ai-card ${tone}">
+    <div class="eyebrow">AI Review Summary <span class="pill">${escapeHtml(label)}</span></div>
+    ${body}
+    ${confLine}
+    ${reviewedAt}
+    ${findingsHtml}
+  </div>`;
+}
+
 function _dvicAiBlock(cur) {
   const status = cur?.ai_review_status || "pending";
   const conf   = cur?.ai_review_confidence;
@@ -34547,14 +34593,59 @@ async function _dvicOpenCompare(vehicleId, inspectionId) {
   wrap = document.createElement("div");
   wrap.id = "rr-dvic-modal";
   wrap.className = "rr-modal-backdrop";
+  wrap.dataset.dvicVehicle = vehicleId;
   wrap.innerHTML = `
     <style>
       #rr-dvic-modal .rr-modal-panel{width:1200px;max-height:90vh}
-      #rr-dvic-modal .pair{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-4)}
-      #rr-dvic-modal .col h4{margin:0 0 4px;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle)}
-      #rr-dvic-modal .col .when{font-size:var(--fs-sm);color:var(--text);font-weight:600;margin-bottom:2px}
-      #rr-dvic-modal .col .who{font-size:11.5px;color:var(--text-subtle);margin-bottom:var(--s-2)}
-      #rr-dvic-modal .dvic-strip{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-2-5)}
+      /* Upper grid: Previous | Current | AI Review Summary */
+      #rr-dvic-modal .dvic-top{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:var(--s-3);margin-bottom:var(--s-4)}
+      #rr-dvic-modal .dvic-card{border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);background:var(--surface);box-shadow:0 1px 2px rgba(15,23,42,.035);display:flex;flex-direction:column;min-width:0}
+      #rr-dvic-modal .dvic-card-eyebrow{font-size:10.5px;font-weight:750;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:6px}
+      #rr-dvic-modal .dvic-card-when{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3}
+      #rr-dvic-modal .dvic-card-who{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.4}
+      #rr-dvic-modal .dvic-prev-row{display:flex;align-items:center;gap:var(--s-2-5);margin-top:var(--s-2-5)}
+      #rr-dvic-modal .dvic-prev-thumb{width:64px;height:48px;border-radius:var(--r-md);overflow:hidden;border:1px solid var(--border);flex:0 0 auto;background:var(--canvas);display:flex;align-items:center;justify-content:center}
+      #rr-dvic-modal .dvic-prev-thumb img{width:100%;height:100%;object-fit:cover}
+      #rr-dvic-modal .dvic-prev-meta{font-size:var(--fs-xs);color:var(--text);line-height:1.4;min-width:0}
+      #rr-dvic-modal .dvic-prev-link{font-size:var(--fs-xs);color:var(--accent-text);font-weight:600;margin-top:6px;display:inline-block}
+      #rr-dvic-modal .dvic-cur-tag{margin-top:var(--s-2-5);align-self:flex-start;display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);font-weight:700}
+      /* AI Review Summary card — tinted to the AI status. */
+      #rr-dvic-modal .dvic-ai-card{position:relative;padding:var(--s-3-5) var(--s-4);border-radius:var(--r-lg);border:1px solid transparent;box-shadow:0 1px 2px rgba(15,23,42,.035);display:flex;flex-direction:column;gap:8px}
+      #rr-dvic-modal .dvic-ai-card.clean   {background:rgba(16,185,129,.06);border-color:rgba(16,185,129,.20)}
+      #rr-dvic-modal .dvic-ai-card.flagged {background:rgba(225,29,72,.06);border-color:rgba(225,29,72,.22)}
+      #rr-dvic-modal .dvic-ai-card.pending {background:var(--canvas);border-color:var(--border)}
+      #rr-dvic-modal .dvic-ai-card.error   {background:var(--amber-soft);border-color:var(--amber-border)}
+      #rr-dvic-modal .dvic-ai-card .eyebrow{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:750;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase}
+      #rr-dvic-modal .dvic-ai-card .pill{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:10.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase}
+      #rr-dvic-modal .dvic-ai-card.clean   .pill{background:rgba(16,185,129,.18);color:#15803D}
+      #rr-dvic-modal .dvic-ai-card.flagged .pill{background:rgba(225,29,72,.18);color:#9F1239}
+      #rr-dvic-modal .dvic-ai-card.pending .pill{background:var(--surface);color:var(--text-muted);border:1px solid var(--border)}
+      #rr-dvic-modal .dvic-ai-card.error   .pill{background:rgba(245,158,11,.20);color:var(--amber-dark)}
+      #rr-dvic-modal .dvic-ai-card .summary{font-size:13px;color:var(--text);line-height:1.5}
+      #rr-dvic-modal .dvic-ai-card .meta{font-size:var(--fs-xs);color:var(--text-subtle)}
+      #rr-dvic-modal .dvic-ai-card .meta b{color:var(--text);font-weight:650}
+      #rr-dvic-modal .dvic-ai-card .expand{appearance:none;background:transparent;border:0;cursor:pointer;padding:0;font:inherit;font-size:var(--fs-xs);font-weight:650;color:var(--accent-text);align-self:flex-start;margin-top:2px}
+      #rr-dvic-modal .dvic-ai-card .expand:hover{text-decoration:underline}
+      #rr-dvic-modal .dvic-ai-findings{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--text);line-height:1.55;display:flex;flex-direction:column;gap:3px}
+      /* Current inspection photos section */
+      #rr-dvic-modal .dvic-photos-section{margin-bottom:var(--s-4)}
+      #rr-dvic-modal .dvic-photos-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2);margin-bottom:var(--s-2-5)}
+      #rr-dvic-modal .dvic-photos-title{font-size:var(--fs-sm);font-weight:700;color:var(--text);letter-spacing:-.005em}
+      #rr-dvic-modal .dvic-photos-count{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500}
+      #rr-dvic-modal .dvic-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s-2)}
+      @media (max-width:980px){
+        #rr-dvic-modal .dvic-top{grid-template-columns:1fr 1fr}
+        #rr-dvic-modal .dvic-ai-card{grid-column:1/-1}
+        #rr-dvic-modal .dvic-strip{grid-template-columns:repeat(3,1fr)}
+      }
+      /* Inspection details block */
+      #rr-dvic-modal .dvic-details{border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:0 1px 2px rgba(15,23,42,.035);margin-bottom:var(--s-4);overflow:hidden}
+      #rr-dvic-modal .dvic-details-head{padding:var(--s-3) var(--s-4);border-bottom:1px solid var(--border-subtle);font-size:var(--fs-sm);font-weight:700;color:var(--text)}
+      #rr-dvic-modal .dvic-details-row{display:grid;grid-template-columns:140px 1fr;align-items:center;gap:var(--s-3);padding:11px var(--s-4)}
+      #rr-dvic-modal .dvic-details-row + .dvic-details-row{border-top:1px solid var(--border-subtle)}
+      #rr-dvic-modal .dvic-details-label{font-size:var(--fs-xs);font-weight:650;color:var(--text-subtle);letter-spacing:.02em}
+      #rr-dvic-modal .dvic-details-value{font-size:var(--fs-sm);color:var(--text);font-weight:500;word-break:break-word}
+      #rr-dvic-modal .dvic-details-value .dim{color:var(--text-subtle);font-weight:400}
       #rr-dvic-modal .dvic-thumb{position:relative;display:block;width:100%;aspect-ratio:4/3;border-radius:var(--r-md);overflow:hidden;border:1px solid var(--border);background:var(--canvas);cursor:zoom-in;transition:border-color var(--t-fast), transform var(--t-fast)}
       #rr-dvic-modal .dvic-thumb:hover{border-color:var(--border-strong);transform:translateY(-1px)}
       #rr-dvic-modal .dvic-thumb img{width:100%;height:100%;object-fit:cover;display:block}
@@ -34638,25 +34729,79 @@ async function _dvicRenderModal(wrap, data) {
         <textarea id="dvic-modal-notes" placeholder="What did you observe?"></textarea>
       </div>`;
 
+  // Previous mini-card: small thumb + date + summary line.
+  const prevThumb = prev && Array.isArray(prev.photos) && prev.photos[0] && urlMap[prev.photos[0]]
+    ? `<div class="dvic-prev-thumb"><img src="${urlMap[prev.photos[0]]}" alt="Previous inspection"></div>`
+    : `<div class="dvic-prev-thumb"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-subtle)"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`;
+  const prevSummary = prev
+    ? `${escapeHtml(prev.inspector_name || "—")}${prev.result ? ` · ${escapeHtml((prev.result || "").replace(/_/g, " "))}` : ""}`
+    : "No prior inspection on file.";
+  const prevCard = prev
+    ? `<div class="dvic-card">
+         <div class="dvic-card-eyebrow">Previous inspection</div>
+         <div class="dvic-card-when">${escapeHtml(_dvicFmtWhen(prev.inspected_at))}</div>
+         <div class="dvic-prev-row">
+           ${prevThumb}
+           <div class="dvic-prev-meta">${prevSummary}</div>
+         </div>
+         ${prev.id ? `<a href="#" class="dvic-prev-link" data-dvic-open-prev="${escapeHtml(prev.id)}">View inspection →</a>` : ""}
+       </div>`
+    : `<div class="dvic-card">
+         <div class="dvic-card-eyebrow">Previous inspection</div>
+         <div class="dvic-card-when" style="color:var(--text-subtle);font-weight:600">None on file</div>
+         <div class="dvic-card-who">First DVIC for this van.</div>
+       </div>`;
+
+  // Current mini-card.
+  const curPhotosN = Array.isArray(cur.photos) ? cur.photos.length : 0;
+  const curCard = `<div class="dvic-card">
+    <div class="dvic-card-eyebrow">Current inspection</div>
+    <div class="dvic-card-when">${escapeHtml(_dvicFmtWhen(cur.inspected_at))}</div>
+    <div class="dvic-card-who">${escapeHtml(cur.inspector_name || "—")}${cur.result ? ` · ${escapeHtml((cur.result || "").replace(/_/g, " "))}` : ""}</div>
+    ${curPhotosN > 0 ? `<span class="dvic-cur-tag">${curPhotosN} new photo${curPhotosN === 1 ? "" : "s"}</span>` : ""}
+  </div>`;
+
+  // AI review summary card (tinted to status).
+  const aiCard = _dvicAiCardHtml(cur);
+
+  // Photos section.
+  const photosSection = curPhotosN > 0
+    ? `<section class="dvic-photos-section">
+         <div class="dvic-photos-head">
+           <span class="dvic-photos-title">Current inspection photos</span>
+           <span class="dvic-photos-count">${curPhotosN} photo${curPhotosN === 1 ? "" : "s"}</span>
+         </div>
+         ${_dvicPhotoStrip(cur.photos || [], urlMap, "current")}
+       </section>`
+    : "";
+
+  // Inspection details table.
+  const detailsRows = [];
+  if (cur.inspector_name)   detailsRows.push(["Inspector",  escapeHtml(cur.inspector_name)]);
+  if (cur.kind)             detailsRows.push(["Inspection type", escapeHtml((cur.kind || "").toUpperCase())]);
+  if (cur.result)           detailsRows.push(["Result", `<span style="text-transform:capitalize">${escapeHtml((cur.result || "").replace(/_/g, " "))}</span>`]);
+  if (cur.mileage != null)  detailsRows.push(["Odometer", `${Number(cur.mileage).toLocaleString()} mi`]);
+  if (cur.notes)            detailsRows.push(["Notes", escapeHtml(cur.notes)]);
+  if (v.vin)                detailsRows.push(["VIN", `<span class="dim">${escapeHtml(v.vin)}</span>`]);
+  const detailsSection = detailsRows.length ? `
+    <div class="dvic-details">
+      <div class="dvic-details-head">Inspection details</div>
+      ${detailsRows.map(([k, val]) => `
+        <div class="dvic-details-row">
+          <div class="dvic-details-label">${k}</div>
+          <div class="dvic-details-value">${val}</div>
+        </div>`).join("")}
+    </div>` : "";
+
   document.getElementById("dvic-modal-body").innerHTML = `
-    <div class="pair">
-      <div class="col">
-        <h4>Previous inspection</h4>
-        ${prev ? `
-          <div class="when">${escapeHtml(_dvicFmtWhen(prev.inspected_at))}</div>
-          <div class="who">${escapeHtml(prev.inspector_name || "—")}${prev.result ? ` · ${escapeHtml((prev.result || "").replace(/_/g, " "))}` : ""}</div>
-        ` : `<div class="who">No prior inspection on file.</div>`}
-        ${_dvicPhotoStrip(prev?.photos || [], urlMap, "previous")}
-      </div>
-      <div class="col">
-        <h4>Current inspection</h4>
-        <div class="when">${escapeHtml(_dvicFmtWhen(cur.inspected_at))}</div>
-        <div class="who">${escapeHtml(cur.inspector_name || "—")}${cur.result ? ` · ${escapeHtml((cur.result || "").replace(/_/g, " "))}` : ""}${cur.mileage != null ? ` · ${Number(cur.mileage).toLocaleString()} mi` : ""}</div>
-        ${_dvicPhotoStrip(cur.photos || [], urlMap, "current")}
-      </div>
+    <div class="dvic-top">
+      ${prevCard}
+      ${curCard}
+      ${aiCard}
     </div>
+    ${photosSection}
+    ${detailsSection}
     ${_dvicChecklistBlock(cur)}
-    ${_dvicAiBlock(cur)}
     ${reviewBlock}
   `;
 
@@ -34680,6 +34825,20 @@ document.addEventListener("click", async (e) => {
     const submId = submBtn.getAttribute("data-dvic-open-subm");
     if (submId && typeof openSubmissionDetail === "function") {
       await openSubmissionDetail(submId);
+    }
+    return;
+  }
+  // "View inspection" link on the previous-inspection card — reopens
+  // the modal anchored to that older inspection so the operator can
+  // dig back through the history.
+  const prevLink = e.target.closest && e.target.closest("[data-dvic-open-prev]");
+  if (prevLink) {
+    e.preventDefault();
+    const prevId = prevLink.getAttribute("data-dvic-open-prev");
+    const wrap = document.getElementById("rr-dvic-modal");
+    const vehicleId = wrap?.dataset.dvicVehicle;
+    if (prevId && vehicleId) {
+      _dvicOpenCompare(vehicleId, prevId);
     }
     return;
   }
