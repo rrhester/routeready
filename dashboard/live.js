@@ -9914,7 +9914,26 @@ async function _tpOpenVanPicker(anchorEl) {
   const listEl = document.getElementById("rr-tp-vp-list");
   if (!listEl) return;
   if (lerr) { listEl.innerHTML = `<div style="padding:18px;color:var(--red);font-size:var(--fs-sm)">${escapeHtml(lerr.message)}</div>`; return; }
-  const vans = Array.isArray(list) ? list : [];
+  const allVans = Array.isArray(list) ? list : [];
+  // Operator asked the picker to show only vans they can assign right
+  // now — not a roster of every vehicle. Filter out grounded, out-of-
+  // service, and vans committed to another driver. The currently-
+  // assigned van always stays in the list so the operator can see what
+  // they're replacing.
+  const isAvailable = (v) => {
+    const grounded     = v.operational_status === "grounded";
+    const takenByOther = v.committed && v.id !== currentVanId && v.committed_kind !== null;
+    const oos          = v.status === "out_of_service";
+    return !grounded && !takenByOther && !oos;
+  };
+  const vans = allVans.filter((v) => v.id === currentVanId || isAvailable(v));
+  if (!vans.length) {
+    listEl.innerHTML = `<div style="padding:24px 18px;text-align:center;color:var(--text-subtle);font-size:var(--fs-sm)">
+      No vans available right now.
+      <div style="margin-top:6px;font-size:var(--fs-xs)">Every van is grounded, out of service, or committed to another driver today.</div>
+    </div>`;
+    return;
+  }
   const renderList = (filter) => {
     const q = (filter || "").toLowerCase();
     const filtered = q
@@ -9926,24 +9945,12 @@ async function _tpOpenVanPicker(anchorEl) {
     }
     listEl.innerHTML = filtered.map((v) => {
       const isCurrent = v.id === currentVanId;
-      // A van is selectable if it's operational AND not committed to someone else.
-      // A van currently held by the same driver (override) is also selectable (no-op).
-      const grounded     = v.operational_status === "grounded";
-      const takenByOther = v.committed && !isCurrent && v.committed_kind !== null;
-      const disabled     = grounded || takenByOther;
-      const cls = "vp-row" + (disabled ? " is-disabled" : "") + (isCurrent ? " is-current" : "");
-      const opAttrs = disabled ? "" : `data-rr-tp-vp-pick="${escapeHtml(v.id)}"`;
+      const cls = "vp-row" + (isCurrent ? " is-current" : "");
+      const opAttrs = `data-rr-tp-vp-pick="${escapeHtml(v.id)}"`;
       const sub = [];
       if (v.plate) sub.push(escapeHtml(v.plate));
       if (v.status === "spare") sub.push("Spare");
-      if (v.status === "out_of_service") sub.push("Out of service");
-      if (v.committed && !isCurrent) sub.push(`Held by ${escapeHtml(v.committed_to || "another driver")} (${escapeHtml((v.committed_kind || "").replace(/_/g, " "))})`);
-      if (grounded) sub.push("Grounded · unground on Fleet roster");
-      const tag = isCurrent
-        ? `<span class="vp-tag current">Current</span>`
-        : grounded
-          ? `<span class="vp-tag taken" style="background:var(--red-soft);color:var(--red)">Grounded</span>`
-          : (takenByOther ? `<span class="vp-tag taken">Taken</span>` : "");
+      const tag = isCurrent ? `<span class="vp-tag current">Current</span>` : "";
       return `<div class="${cls}" ${opAttrs}>
         <div class="nm">
           <div class="n">${escapeHtml(v.name)}${tag ? " " + tag : ""}</div>
