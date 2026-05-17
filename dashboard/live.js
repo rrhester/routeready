@@ -1161,6 +1161,7 @@ window.goto = function (view) {
   if (view === "admin")     { loadPlatformAdmin(); loadAdminSupportInbox(); }
   if (view === "outlook")   loadStaffingOutlook();
   if (view === "fleet" && typeof loadFleetView === "function") loadFleetView();
+  if (view === "recognition" && typeof loadRecognitionView === "function") loadRecognitionView();
   if (view === "compliance" && typeof loadComplianceWorkspace === "function") loadComplianceWorkspace();
   if (view === "overtime" && typeof loadOvertimeIntelligence === "function") loadOvertimeIntelligence();
   // Leaving the overtime view → kill its polling timer so we don't
@@ -37776,4 +37777,497 @@ function _otExportCsv() {
   a.download = `overtime_${_otData.week_start || "week"}.csv`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+
+// ─── RECOGNITION VIEW ────────────────────────────────────────────────
+// Driver birthdays + work anniversaries (auto-derived from drivers.birthday
+// and drivers.hire_date), plus dispatcher-sent custom celebrations.  Data
+// layer in migration 0290 (driver_recognitions table + recognition_*
+// RPCs).  The Recognition workspace mirrors the Drivers / Fleet roster
+// pattern — same .subnav structure, same .table class, same toolbar
+// shape — so it slots into the dashboard without bespoke styling.
+//
+// The four pieces this module owns:
+//   • loadRecognitionView()        — entry from goto('recognition')
+//   • loadRecognitionSubPane(sub)  — re-fetch the active sub-tab
+//   • _recogRenderUpcoming/History — paint rows from the RPC payload
+//   • openRecogSendModal(opts)     — driver picker + send/schedule form
+//
+// The driver app does NOT yet read driver_recognitions — celebration
+// animations are a separate piece of work.  Until then, every "Send"
+// from this view persists a row that the animations layer will
+// consume when it's built.
+
+let _recogUpcomingData = [];
+let _recogHistoryData  = [];
+let _recogDriverCache  = null;          // {id, name, photo_path} list — cached for the modal picker
+let _recogWindowDays   = 30;
+let _recogKindFilter   = "";
+let _recogHistStatus   = "all";
+let _recogUpSearch     = "";
+let _recogHistSearch   = "";
+
+async function loadRecognitionView() {
+  _recogUpcomingData = [];
+  _recogHistoryData  = [];
+  // Reset filters to defaults on every page entry so the operator
+  // always lands on the broad "next 30 days, all kinds" view.
+  _recogWindowDays = 30;
+  _recogKindFilter = "";
+  _recogHistStatus = "all";
+  _recogUpSearch   = "";
+  _recogHistSearch = "";
+  const win  = document.getElementById("rr-recog-window");        if (win)  win.value  = "30";
+  const kind = document.getElementById("rr-recog-kindfilter");    if (kind) kind.value = "";
+  const stat = document.getElementById("rr-recog-status");        if (stat) stat.value = "all";
+  const ups  = document.getElementById("rr-recog-up-search");     if (ups)  ups.value  = "";
+  const hsr  = document.getElementById("rr-recog-hist-search");   if (hsr)  hsr.value  = "";
+
+  // Upcoming is the default sub-tab.  History + Safety load lazily on
+  // first switch (loadRecognitionSubPane below).
+  await _loadRecognitionUpcoming();
+}
+
+window.loadRecognitionView = loadRecognitionView;
+
+// Called by recogSub(sub) in index.html so a click on a sub-tab pulls
+// fresh data instead of showing whatever was last painted.
+window.loadRecognitionSubPane = function (sub) {
+  if (sub === "upcoming") _loadRecognitionUpcoming();
+  else if (sub === "history") _loadRecognitionHistory();
+  // 'safety' is a stub — no fetch needed.
+};
+
+async function _loadRecognitionUpcoming() {
+  const tbody = document.getElementById("rr-recog-up-tbody");
+  if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="padding:var(--s-6);text-align:center;color:var(--text-subtle)">Loading…</td></tr>`;
+  const { data, error } = await sb.rpc("recognition_upcoming", { p_days: _recogWindowDays });
+  if (error) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="padding:var(--s-6);text-align:center;color:var(--red-dark, #b91c1c)">Couldn't load upcoming celebrations: ${escapeHtml(error.message || "")}</td></tr>`;
+    return;
+  }
+  _recogUpcomingData = Array.isArray(data) ? data : [];
+  _recogRenderUpcoming();
+}
+
+function _recogRenderUpcoming() {
+  const tbody = document.getElementById("rr-recog-up-tbody");
+  if (!tbody) return;
+  const q = (_recogUpSearch || "").trim().toLowerCase();
+  const rows = _recogUpcomingData.filter((r) => {
+    if (_recogKindFilter && r.kind !== _recogKindFilter) return false;
+    if (q && !(r.name || "").toLowerCase().includes(q)) return false;
+    return true;
+  });
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="padding:var(--s-8);text-align:center;color:var(--text-subtle)">No celebrations in this window. Try widening to 60 or 90 days.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r) => {
+    const when = _recogWhenLabel(r.days_away);
+    const whenClass = r.days_away === 0 ? "today" : (r.days_away === 1 ? "tomorrow" : "");
+    const kindLabel = r.kind === "birthday" ? "Birthday"
+                    : r.kind === "work_anniversary" ? (r.years ? `${r.years}-year anniversary` : "Work anniversary")
+                    : r.kind;
+    const action = r.already_sent
+      ? `<span class="rg-sent-pill"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Sent</span>`
+      : `<button type="button" class="rg-celebrate-btn" data-rr-recog-celebrate data-driver-id="${escapeHtml(r.driver_id)}" data-driver-name="${escapeHtml(r.name)}" data-kind="${escapeHtml(r.kind)}" data-occasion-on="${escapeHtml(r.occurs_on || "")}" data-years="${escapeHtml(String(r.years || ""))}">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5 12 2"/></svg>
+          Celebrate
+        </button>`;
+    return `<tr>
+      <td>${_recogDriverCell(r)}</td>
+      <td><span class="rg-kind ${escapeHtml(r.kind)}">${escapeHtml(kindLabel)}</span></td>
+      <td>${escapeHtml(_recogFmtDate(r.occurs_on))}</td>
+      <td><span class="rg-when ${whenClass}">${escapeHtml(when)}</span></td>
+      <td style="text-align:right">${action}</td>
+    </tr>`;
+  }).join("");
+}
+
+async function _loadRecognitionHistory() {
+  const tbody = document.getElementById("rr-recog-hist-tbody");
+  if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="padding:var(--s-6);text-align:center;color:var(--text-subtle)">Loading…</td></tr>`;
+  const { data, error } = await sb.rpc("recognition_list", { p_status: _recogHistStatus, p_limit: 200 });
+  if (error) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="padding:var(--s-6);text-align:center;color:var(--red-dark, #b91c1c)">Couldn't load history: ${escapeHtml(error.message || "")}</td></tr>`;
+    return;
+  }
+  _recogHistoryData = Array.isArray(data) ? data : [];
+  _recogRenderHistory();
+}
+
+function _recogRenderHistory() {
+  const tbody = document.getElementById("rr-recog-hist-tbody");
+  if (!tbody) return;
+  const q = (_recogHistSearch || "").trim().toLowerCase();
+  const rows = _recogHistoryData.filter((r) => {
+    if (!q) return true;
+    return (r.driver_name || "").toLowerCase().includes(q)
+        || (r.title || "").toLowerCase().includes(q)
+        || (r.message || "").toLowerCase().includes(q);
+  });
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="padding:var(--s-8);text-align:center;color:var(--text-subtle)">No recognitions yet. Send your first celebration with the button up top.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r) => {
+    const kindLabel = r.kind === "birthday" ? "Birthday"
+                    : r.kind === "work_anniversary" ? (r.years ? `${r.years}-yr anniversary` : "Anniversary")
+                    : r.kind === "safety_milestone" ? "Safety"
+                    : "Custom";
+    const whenIso = r.sent_at || r.scheduled_for || r.occasion_on || r.created_at;
+    const whenLabel = whenIso ? _recogFmtDate(whenIso) : "—";
+    const statusChip = `<span class="rg-status ${escapeHtml(r.status)}">${escapeHtml(r.status)}</span>`;
+    const action = r.status === "scheduled"
+      ? `<button type="button" class="btn btn-quiet" data-rr-recog-cancel data-id="${escapeHtml(r.id)}" style="padding:2px 10px;font-size:var(--fs-sm)">Cancel</button>`
+      : "";
+    return `<tr>
+      <td>${_recogDriverCell({ name: r.driver_name, photo_path: r.photo_path })}</td>
+      <td><span class="rg-kind ${escapeHtml(r.kind)}">${escapeHtml(kindLabel)}</span></td>
+      <td><div style="font-weight:600">${escapeHtml(r.title || "")}</div>${r.message ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.message)}</div>` : ""}</td>
+      <td>${escapeHtml(whenLabel)}</td>
+      <td>${statusChip}</td>
+      <td style="text-align:right">${action}</td>
+    </tr>`;
+  }).join("");
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+function _recogDriverCell(r) {
+  const initials = (r.name || "?")
+    .split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((s) => s[0].toUpperCase()).join("") || "?";
+  // Photo URLs are constructed by the same getStorageUrl pattern the
+  // rest of the dashboard uses; if it isn't loaded, fall back to initials.
+  let avatarHtml;
+  if (r.photo_path && typeof sb?.storage?.from === "function") {
+    try {
+      const pub = sb.storage.from("driver-photos").getPublicUrl(r.photo_path);
+      const url = pub?.data?.publicUrl;
+      avatarHtml = url
+        ? `<img src="${escapeHtml(url)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${escapeHtml(initials)}'}))">`
+        : escapeHtml(initials);
+    } catch (e) { avatarHtml = escapeHtml(initials); }
+  } else {
+    avatarHtml = escapeHtml(initials);
+  }
+  return `<div class="rg-driver"><span class="rg-avatar">${avatarHtml}</span><div><div class="cell-name">${escapeHtml(r.name || "Driver")}</div></div></div>`;
+}
+
+function _recogWhenLabel(daysAway) {
+  if (daysAway === 0) return "Today";
+  if (daysAway === 1) return "Tomorrow";
+  if (daysAway < 7)   return `In ${daysAway} days`;
+  if (daysAway < 14)  return `Next week`;
+  return `In ${daysAway} days`;
+}
+
+function _recogFmtDate(iso) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
+    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  } catch (e) { return String(iso); }
+}
+
+// ── Event delegation ──────────────────────────────────────────────────
+// Search + filter inputs on both Upcoming and History sub-tabs.
+document.addEventListener("input", (e) => {
+  if (e.target && e.target.id === "rr-recog-up-search")    { _recogUpSearch   = e.target.value || ""; _recogRenderUpcoming(); }
+  if (e.target && e.target.id === "rr-recog-hist-search")  { _recogHistSearch = e.target.value || ""; _recogRenderHistory(); }
+});
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.id === "rr-recog-window")       { _recogWindowDays = parseInt(e.target.value, 10) || 30; _loadRecognitionUpcoming(); }
+  if (e.target && e.target.id === "rr-recog-kindfilter")   { _recogKindFilter = e.target.value || ""; _recogRenderUpcoming(); }
+  if (e.target && e.target.id === "rr-recog-status")       { _recogHistStatus = e.target.value || "all"; _loadRecognitionHistory(); }
+});
+
+// Top-right CTA + per-row Celebrate + History Cancel.
+document.addEventListener("click", async (e) => {
+  if (e.target.closest("#rr-recog-send-cta")) {
+    e.preventDefault();
+    openRecogSendModal({});
+    return;
+  }
+  const celebrate = e.target.closest("[data-rr-recog-celebrate]");
+  if (celebrate) {
+    e.preventDefault();
+    openRecogSendModal({
+      driver_id:   celebrate.getAttribute("data-driver-id"),
+      driver_name: celebrate.getAttribute("data-driver-name"),
+      kind:        celebrate.getAttribute("data-kind"),
+      occasion_on: celebrate.getAttribute("data-occasion-on") || null,
+      years:       parseInt(celebrate.getAttribute("data-years") || "", 10) || null,
+    });
+    return;
+  }
+  const cancelBtn = e.target.closest("[data-rr-recog-cancel]");
+  if (cancelBtn) {
+    e.preventDefault();
+    const id = cancelBtn.getAttribute("data-id");
+    if (!id) return;
+    if (!confirm("Cancel this scheduled celebration?")) return;
+    cancelBtn.disabled = true;
+    const { error } = await sb.rpc("recognition_cancel", { p_id: id });
+    cancelBtn.disabled = false;
+    if (error) { toast("Couldn't cancel: " + (error.message || ""), "danger"); return; }
+    toast("Celebration cancelled", "success");
+    _loadRecognitionHistory();
+  }
+});
+
+// ── Send / Schedule modal ─────────────────────────────────────────────
+// Driver picker + form (title, message, animation, send-now or schedule).
+// Reuses the rr-modal-backdrop / rr-modal-panel pattern that the rest
+// of the dashboard's modals (Add DSP, Invite user, Edit shift, etc.) use
+// so styling, escape handling, and focus-trap all come for free.
+async function openRecogSendModal(opts) {
+  opts = opts || {};
+  // Load (or reuse) the driver picker list once per session.  Reads
+  // straight from the drivers table — the dispatcher RLS policy on
+  // drivers already scopes us to the caller's DSP.
+  if (!_recogDriverCache) {
+    const { data, error } = await sb.from("drivers")
+      .select("id, full_name, preferred_name, photo_path, role, status")
+      .eq("dsp_id", window.RR.dsp.id)
+      .eq("role", "driver")
+      .eq("status", "active")
+      .order("full_name", { ascending: true })
+      .limit(2000);
+    if (error || !Array.isArray(data)) {
+      _recogDriverCache = [];
+    } else {
+      _recogDriverCache = data.map((d) => ({
+        id: d.id,
+        name: (d.preferred_name && d.preferred_name.trim()) || d.full_name || "Driver",
+        photo_path: d.photo_path || null,
+      }));
+    }
+  }
+
+  let wrap = document.getElementById("rr-recog-send-modal");
+  if (wrap) wrap.remove();
+  wrap = document.createElement("div");
+  wrap.id = "rr-recog-send-modal";
+  wrap.className = "rr-modal-backdrop";
+  const animChoices = ["confetti","fireworks","balloons","cake","trophy","hearts","sparkle"];
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const kindOpts = [
+    { v: "custom",            l: "Custom" },
+    { v: "birthday",          l: "Birthday" },
+    { v: "work_anniversary",  l: "Work anniversary" },
+    { v: "safety_milestone",  l: "Safety milestone" },
+  ];
+  const initKind = opts.kind || "custom";
+  const initTitle = opts.kind === "birthday" ? "Happy birthday!"
+                  : opts.kind === "work_anniversary" ? (opts.years ? `${opts.years}-year anniversary 🎉` : "Happy work anniversary!")
+                  : "";
+  const initAnim  = opts.kind === "birthday" ? "cake"
+                  : opts.kind === "work_anniversary" ? "trophy"
+                  : opts.kind === "safety_milestone" ? "sparkle"
+                  : "confetti";
+  wrap.innerHTML = `
+    <style>
+      #rr-recog-send-modal .rr-modal-panel{width:560px;max-width:96vw}
+      #rr-recog-send-modal label{display:block;font-size:var(--fs-sm);font-weight:600;color:var(--text);margin-bottom:6px}
+      #rr-recog-send-modal .field{margin-bottom:var(--s-3-5)}
+      #rr-recog-send-modal input[type="text"], #rr-recog-send-modal input[type="date"], #rr-recog-send-modal select, #rr-recog-send-modal textarea{
+        width:100%;padding:var(--s-2) var(--s-3);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-size:var(--fs-md);font-family:inherit;color:var(--text)
+      }
+      #rr-recog-send-modal textarea{min-height:84px;resize:vertical}
+      #rr-recog-send-modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
+      #rr-recog-send-modal .anim-grid{display:grid;grid-template-columns:repeat(4, 1fr);gap:var(--s-2)}
+      #rr-recog-send-modal .anim-pick{padding:var(--s-2);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);text-align:center;cursor:pointer;font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+      #rr-recog-send-modal .anim-pick.is-on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-text)}
+      #rr-recog-send-modal .driver-picker{position:relative}
+      #rr-recog-send-modal .driver-list{max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:5;display:none}
+      #rr-recog-send-modal .driver-list.is-open{display:block}
+      #rr-recog-send-modal .driver-row{padding:var(--s-2) var(--s-3);cursor:pointer;display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md)}
+      #rr-recog-send-modal .driver-row:hover{background:var(--canvas)}
+      #rr-recog-send-modal .driver-row.is-on{background:var(--accent-soft)}
+      #rr-recog-send-modal .hint{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px}
+    </style>
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Send a celebration">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content">
+          <span class="rr-modal-eyebrow" style="color:var(--accent-text)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5 12 2"/></svg> Recognition</span>
+          <p class="rr-modal-title">Send a celebration</p>
+        </div>
+        <button class="rr-modal-close" type="button" data-rr-recog-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-modal-body">
+        <div class="field driver-picker">
+          <label for="rr-recog-driver-input">Driver</label>
+          <input id="rr-recog-driver-input" type="text" autocomplete="off" placeholder="Search by name…" value="${escapeHtml(opts.driver_name || "")}">
+          <input id="rr-recog-driver-id" type="hidden" value="${escapeHtml(opts.driver_id || "")}">
+          <div class="driver-list" id="rr-recog-driver-list"></div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label for="rr-recog-kind">Kind</label>
+            <select id="rr-recog-kind">
+              ${kindOpts.map((k) => `<option value="${k.v}"${k.v === initKind ? " selected" : ""}>${k.l}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field">
+            <label for="rr-recog-schedule">Send</label>
+            <select id="rr-recog-schedule">
+              <option value="now">Now</option>
+              <option value="schedule">Schedule for date…</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field" id="rr-recog-schedule-row" style="display:none">
+          <label for="rr-recog-schedule-date">Send on</label>
+          <input id="rr-recog-schedule-date" type="date" value="${escapeHtml(opts.occasion_on || todayIso)}" min="${todayIso}">
+          <p class="hint">The driver will see the celebration when they open their app on that day.</p>
+        </div>
+
+        <div class="field">
+          <label for="rr-recog-title">Title</label>
+          <input id="rr-recog-title" type="text" maxlength="80" placeholder="e.g. Happy birthday, Marcus!" value="${escapeHtml(initTitle)}">
+        </div>
+
+        <div class="field">
+          <label for="rr-recog-message">Message <span style="font-weight:400;color:var(--text-subtle)">(optional)</span></label>
+          <textarea id="rr-recog-message" maxlength="400" placeholder="A short note that appears with the celebration animation."></textarea>
+        </div>
+
+        <div class="field">
+          <label>Animation</label>
+          <div class="anim-grid" id="rr-recog-anim-grid">
+            ${animChoices.map((a) => `<button type="button" class="anim-pick${a === initAnim ? " is-on" : ""}" data-anim="${a}">${a[0].toUpperCase() + a.slice(1)}</button>`).join("")}
+          </div>
+          <p class="hint">The driver app will play the chosen animation when they open the celebration (animations are being built — for now the choice is recorded).</p>
+        </div>
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-rr-recog-close>Cancel</button>
+        <button class="rr-modal-btn rr-modal-btn-primary" type="button" id="rr-recog-submit">Send celebration</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-rr-recog-close]")) close();
+  });
+  const onKey = (e) => { if (e.key === "Escape") { close(); document.removeEventListener("keydown", onKey); } };
+  document.addEventListener("keydown", onKey);
+
+  // Driver picker — typeahead against the cached list.
+  const input = wrap.querySelector("#rr-recog-driver-input");
+  const hidden = wrap.querySelector("#rr-recog-driver-id");
+  const list  = wrap.querySelector("#rr-recog-driver-list");
+  const refreshDrivers = () => {
+    const q = (input.value || "").trim().toLowerCase();
+    const matches = (_recogDriverCache || [])
+      .filter((d) => !q || (d.name || "").toLowerCase().includes(q))
+      .slice(0, 20);
+    if (!matches.length) {
+      list.innerHTML = `<div class="driver-row" style="color:var(--text-subtle);cursor:default">No drivers match.</div>`;
+    } else {
+      list.innerHTML = matches.map((d) => {
+        const initials = (d.name || "?").split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() || "").join("") || "?";
+        return `<div class="driver-row" data-driver-id="${escapeHtml(d.id)}" data-driver-name="${escapeHtml(d.name)}">
+          <span class="rg-avatar" style="width:24px;height:24px;font-size:11px">${escapeHtml(initials)}</span>
+          <span>${escapeHtml(d.name)}</span>
+        </div>`;
+      }).join("");
+    }
+    list.classList.add("is-open");
+  };
+  input.addEventListener("focus", refreshDrivers);
+  input.addEventListener("input", () => { hidden.value = ""; refreshDrivers(); });
+  list.addEventListener("click", (e) => {
+    const row = e.target.closest(".driver-row[data-driver-id]");
+    if (!row) return;
+    hidden.value = row.getAttribute("data-driver-id");
+    input.value  = row.getAttribute("data-driver-name");
+    list.classList.remove("is-open");
+  });
+  document.addEventListener("click", (e) => {
+    if (!wrap.contains(e.target)) return;
+    if (!e.target.closest(".driver-picker")) list.classList.remove("is-open");
+  });
+
+  // Schedule toggle.
+  const schedSel = wrap.querySelector("#rr-recog-schedule");
+  const schedRow = wrap.querySelector("#rr-recog-schedule-row");
+  schedSel.addEventListener("change", () => {
+    schedRow.style.display = schedSel.value === "schedule" ? "" : "none";
+  });
+  if (opts.occasion_on && opts.occasion_on > todayIso) {
+    // Pre-fill the schedule path when celebrating a future birthday/anniversary.
+    schedSel.value = "schedule";
+    schedRow.style.display = "";
+  }
+
+  // Animation grid.
+  wrap.querySelector("#rr-recog-anim-grid").addEventListener("click", (e) => {
+    const btn = e.target.closest(".anim-pick");
+    if (!btn) return;
+    wrap.querySelectorAll(".anim-pick").forEach((b) => b.classList.remove("is-on"));
+    btn.classList.add("is-on");
+  });
+
+  // Submit.
+  wrap.querySelector("#rr-recog-submit").addEventListener("click", async () => {
+    const driverId = hidden.value;
+    const driverName = input.value;
+    if (!driverId) { toast("Pick a driver first.", "warn"); input.focus(); return; }
+    const kind  = wrap.querySelector("#rr-recog-kind").value;
+    const title = (wrap.querySelector("#rr-recog-title").value || "").trim();
+    const message = (wrap.querySelector("#rr-recog-message").value || "").trim();
+    const animBtn = wrap.querySelector(".anim-pick.is-on");
+    const animation = animBtn ? animBtn.getAttribute("data-anim") : "confetti";
+    let scheduleFor = null;
+    let occasionOn = opts.occasion_on || null;
+    if (schedSel.value === "schedule") {
+      scheduleFor = wrap.querySelector("#rr-recog-schedule-date").value || null;
+      occasionOn = scheduleFor;
+    }
+    const submitBtn = wrap.querySelector("#rr-recog-submit");
+    submitBtn.disabled = true;
+    submitBtn.textContent = scheduleFor ? "Scheduling…" : "Sending…";
+    const { data, error } = await sb.rpc("recognition_send", {
+      p_driver_id:    driverId,
+      p_kind:         kind,
+      p_title:        title || null,
+      p_message:      message || null,
+      p_animation:    animation,
+      p_occasion_on:  occasionOn,
+      p_scheduled_for: scheduleFor,
+      p_years:        opts.years || null,
+    });
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Send celebration";
+    if (error) { toast("Couldn't send: " + (error.message || ""), "danger"); return; }
+    toast(
+      data?.status === "scheduled"
+        ? `Celebration scheduled for ${escapeHtml(driverName)}`
+        : `Celebration sent to ${escapeHtml(driverName)} 🎉`,
+      "success"
+    );
+    close();
+    // Refresh both panes — the new row should appear in Upcoming (with
+    // the "Sent ✓" pill) and in History.
+    _loadRecognitionUpcoming();
+    _loadRecognitionHistory();
+  });
+
+  // Focus the driver input by default; if the modal was pre-filled for
+  // a specific driver, skip ahead to the title field instead.
+  setTimeout(() => {
+    if (opts.driver_id) {
+      wrap.querySelector("#rr-recog-title")?.focus();
+    } else {
+      input.focus();
+    }
+  }, 0);
 }
