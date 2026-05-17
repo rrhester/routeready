@@ -4064,6 +4064,7 @@ const _OB_ADD_TYPES = [
   { type: "i9",              owner: "driver", coreKey: "i9",        title: "Form I-9",                 label: "Form I-9 (Section 1 + 2)",            blurb: "The dedicated, structured I-9 flow: driver fills Section 1 in their app (20+ fields), you complete Section 2 from Work authorization, the sealed PDF is generated automatically." },
   { type: "background_check",owner: "dsp",    coreKey: "bg_check",  title: "Background check cleared", label: "Background check (compliance gate)",  blurb: "You record the result on the dashboard once the background check clears. Federally required for hire." },
   { type: "drug_test",       owner: "dsp",    coreKey: "drug_test", title: "Drug test cleared",        label: "Drug test (compliance gate)",         blurb: "You record the result on the dashboard once the drug test clears. Federally required for hire." },
+  { type: "task",            owner: "dsp",    isGate: true,         title: "New compliance gate",      label: "Custom compliance gate",              blurb: "Any check you record from the dashboard that has to clear before a driver can finish onboarding (e.g. MVR review, DOT medical card, photo received). Blocking + required by default; rename it after adding." },
   { type: "document",        owner: "driver", title: "New document", label: "Document to sign or acknowledge", blurb: "Attach a PDF from your Documents workspace. Informational docs the driver opens and acknowledges; secure docs run the e-signature & compliance flow." },
   { type: "acknowledgement", owner: "driver", title: "New acknowledgement", label: "Acknowledgement", blurb: "A short statement the driver reads and confirms — e.g. a policy or an expectation. No PDF." },
   { type: "video",          owner: "driver", title: "New video", label: "Watch a video", blurb: "Link a training or orientation video; the driver watches it, then confirms they're done." },
@@ -4097,9 +4098,15 @@ function _obAddStepPicker() {
       m.remove();
       return;
     }
-    const baseKey = t.coreKey || ("custom_" + Math.random().toString(36).slice(2, 9));
-    const blocking = !!t.coreKey;     // compliance gates block onboarding completion
-    const required = !!t.coreKey;
+    // Custom compliance gates use the generic "task" type but get a
+    // gate_<random> key so each operator-added gate carries its own
+    // status row in driver_onboarding_state, plus blocking + required
+    // flags so onboarding can't complete without it.
+    const baseKey = t.coreKey
+      || (t.isGate ? "gate_" + Math.random().toString(36).slice(2, 9)
+                   : "custom_" + Math.random().toString(36).slice(2, 9));
+    const blocking = !!t.coreKey || !!t.isGate;
+    const required = !!t.coreKey || !!t.isGate;
     _obBuilderSteps.push({ key: baseKey, type: t.type, title: t.title, enabled: true, blocking, required, owner: t.owner, document_template_id: null, video_url: null, ack_text: null });
     m.remove(); _obConfirmDelete = null; _obAutosave({ immediate: true }); _obRenderBuilder();
   });
