@@ -4385,12 +4385,40 @@ async function loadOnboardingOps(opts) {
       let done = false, val = null;
       let labelDone = m.doneLabel || "Done", labelTodo = m.todoLabel || `${s.title} — not yet`;
       if (m.kind === "state") {
+        // Trainer pairing is special-cased: clicking the dot opens the
+        // dedicated training-pairing modal (driver ↔ trainer match +
+        // ride-along scheduling) instead of toggling a generic
+        // complete/not-started state. The dot's color reflects the
+        // training_pairings.status — materialized = green, proposed /
+        // needs_repair show their own colors, empty when no pairing
+        // exists yet.
+        if (s.key === "trainer_pair") {
+          const pair = _rosterPairings && _rosterPairings.get(d.id);
+          const st = pair && pair.status;
+          const isDone = st === "materialized";
+          const color =
+            st === "materialized" ? "#16a34a"
+          : st === "needs_repair" ? "#d97706"
+          : st === "proposed"     ? "var(--text-muted)"
+          :                         "transparent";
+          const border =
+            st === "materialized" ? "#16a34a"
+          : st === "needs_repair" ? "#d97706"
+          : st === "proposed"     ? "var(--text-muted)"
+          :                         "var(--border)";
+          const title =
+            st === "materialized" ? `Trainer pair materialized${pair && pair.ride_along_date ? ` · ${pair.ride_along_date}` : ""}`
+          : st === "needs_repair" ? `Trainer pair needs fix${pair && pair.repair_reason ? ` · ${pair.repair_reason}` : ""}`
+          : st === "proposed"     ? "Match saved · awaiting activate"
+          :                         "Click to pair this driver with a trainer";
+          return { done: isDone, html: `<td><button type="button" class="ob-mxdot${isDone ? " done" : ""}" data-rr-tp-open="${escapeHtml(d.id)}" style="background:${color};border-color:${border}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"></button></td>` };
+        }
         // State-backed steps split by owner:
         //   driver — completes them in their app (acknowledgement /
         //     video / doc-to-sign); the dot is read-only here.
         //   dsp    — operator records completion from the dashboard
-        //     (custom compliance gates, trainer pairing, etc.); the
-        //     dot is clickable to toggle complete / not-started.
+        //     (custom compliance gates, etc.); the dot is clickable to
+        //     toggle complete / not-started.
         const dspOwned = s.owner === "dsp";
         const entry = stState[m.done];
         const status = entry && entry.status;
