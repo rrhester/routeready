@@ -9207,7 +9207,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <!-- CALENDAR SUB-VIEW -->
         <div class="pipe-subview" id="pipe-sub-calendar" style="display:none">
-          <div style="margin-bottom:var(--s-3)">
+          <div class="u-mb-3">
             <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Upcoming bookings</h3>
             <p style="margin:2px 0 0;font-size:var(--fs-sm);color:var(--text-subtle)">Scheduled interviews and orientations.</p>
           </div>
@@ -10222,7 +10222,7 @@ body.rr-cmdk-open{ overflow:hidden }
                   <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:6px 0 12px;line-height:1.5">
                     Lead time on driver availability changes, the auto-response messages drivers receive on approve / deny, and blackout windows where driver-initiated availability changes are blocked.
                   </div>
-                  <div class="card" style="margin-bottom:var(--s-4)">
+                  <div class="card u-mb-4">
                     <h3 style="margin:0 0 4px;font-size:var(--fs-base);font-weight:700">Settings</h3>
                     <p style="font-size:var(--fs-sm);color:var(--text-subtle);margin:0 0 14px">Lead time and the auto-response messages drivers receive on approve / deny.</p>
                     <div data-rr-avail-settings></div>
@@ -10566,7 +10566,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 <p class="settings-section-sub">The questions an applicant answers before booking, plus an optional 60-second intro-video step.</p>
               </div>
 
-              <div style="margin-bottom:var(--s-3)">
+              <div class="u-mb-3">
                 <h3 style="margin:0;font-size:var(--fs-md);font-weight:600">Screening questions</h3>
                 <p style="margin:2px 0 0;font-size:var(--fs-sm);color:var(--text-subtle)" id="rr-screening-sub">The questions an applicant answers before booking.</p>
               </div>
@@ -11654,13 +11654,13 @@ body.rr-cmdk-open{ overflow:hidden }
              in their respective surfaces (Settings / Rules / DSP defaults). -->
         <div class="sched-subview" id="sched-sub-smartfill" style="display:none">
           <div class="card" style="padding:var(--s-5);max-width:920px">
-            <div style="margin-bottom:var(--s-4)">
+            <div class="u-mb-4">
               <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Smart Fill · rules in effect</div>
               <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Every constraint Smart Fill consults when assigning drivers to shifts. Edit values in the linked surfaces; Smart Fill picks them up on the next run.</div>
             </div>
 
             <!-- 1. Hard gates (skip a driver if they fail) -->
-            <div style="margin-bottom:var(--s-4)">
+            <div class="u-mb-4">
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-2)">Hard gates · skip a driver who fails any of these</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:var(--s-2)">
                 <div class="rule-row"><div><div class="rule-label">Driver status = active or onboarding</div><div class="rule-help">Inactive / on leave / terminated drivers never auto-fill.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
@@ -11674,7 +11674,7 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
 
             <!-- 2. Soft preferences (tie-breakers) -->
-            <div style="margin-bottom:var(--s-4)">
+            <div class="u-mb-4">
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-2)">Tie-breakers · when multiple drivers qualify</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:var(--s-2)">
                 <div class="rule-row"><div><div class="rule-label">Driver priority list</div><div class="rule-help">Tier · tenure · attendance · fewest hours. Reordering UI lands in an upcoming release.</div></div><span class="rules-sub-badge">Preview</span></div>
@@ -11686,7 +11686,7 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
 
             <!-- 3. Working-hour limits -->
-            <div style="margin-bottom:var(--s-4)">
+            <div class="u-mb-4">
               <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-2)">Working-hour limits · safety + compliance</div>
               <div class="rules-sub-body" style="display:flex;flex-direction:column;gap:var(--s-2)">
                 <div class="rule-row"><div><div class="rule-label">Max hours per driver per week</div><div class="rule-help">Hard cap. Default <strong>55h</strong>. Edit in <a href="#" onclick="gotoSettingsScheduling();return false;">Settings → Scheduling → Working hour limits</a>.</div></div><span class="rules-sub-badge ok">Enforced</span></div>
@@ -14552,7 +14552,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <!-- Step 2: Required data -->
             <div class="bb-card">
               <div class="bb-step done"><span class="bb-step-num">2</span>Data RouteReady needs</div>
-              <p class="bb-section-sub" style="margin-bottom:var(--s-3)">Based on your prompt, here's what RouteReady needs to build the <strong style="color:var(--text)">Time Theft Analyzer</strong>.</p>
+              <p class="bb-section-sub u-mb-3">Based on your prompt, here's what RouteReady needs to build the <strong style="color:var(--text)">Time Theft Analyzer</strong>.</p>
 
               <div class="bb-data-row">
                 <div class="bb-data-icon uploaded"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
@@ -15299,7 +15299,7 @@ Evidence attached:
   </div>
   <div class="detail-body">
 
-    <div class="attn-card sev-red" style="margin-bottom:var(--s-3)">
+    <div class="attn-card sev-red u-mb-3">
       <div class="attn-icon sev-red">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       </div>
@@ -15310,7 +15310,7 @@ Evidence attached:
       <button class="btn btn-sm btn-primary" onclick="closeSafetyQueue();openCoachDrawer('Travis Bell','safety','Minor accident VAN-08 on Apr 29')">Coach</button>
     </div>
 
-    <div class="attn-card sev-amber" style="margin-bottom:var(--s-3)">
+    <div class="attn-card sev-amber u-mb-3">
       <div class="attn-icon sev-amber">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
       </div>
@@ -15352,7 +15352,7 @@ Evidence attached:
   </div>
   <div class="detail-body">
 
-    <div class="detail-section-label" style="margin-bottom:var(--s-2)">DCR concessions · 5</div>
+    <div class="detail-section-label u-mb-2">DCR concessions · 5</div>
     <div style="display:flex;flex-direction:column;gap:var(--s-2);margin-bottom:18px">
       <div class="attn-card sev-amber">
         <div class="attn-body">
@@ -15370,7 +15370,7 @@ Evidence attached:
       </div>
     </div>
 
-    <div class="detail-section-label" style="margin-bottom:var(--s-2)">POD photo issues · 2</div>
+    <div class="detail-section-label u-mb-2">POD photo issues · 2</div>
     <div style="display:flex;flex-direction:column;gap:var(--s-2);margin-bottom:18px">
       <div class="attn-card sev-amber">
         <div class="attn-body">
@@ -15381,7 +15381,7 @@ Evidence attached:
       </div>
     </div>
 
-    <div class="detail-section-label" style="margin-bottom:var(--s-2)">Scan compliance · 1</div>
+    <div class="detail-section-label u-mb-2">Scan compliance · 1</div>
     <div style="display:flex;flex-direction:column;gap:var(--s-2)">
       <div class="attn-card sev-amber">
         <div class="attn-body">

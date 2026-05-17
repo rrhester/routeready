@@ -5921,7 +5921,7 @@ async function _renderAttKpiDetail() {
     }).join("");
 
     panel.innerHTML = `<div class="card" style="padding:var(--s-5)">
-      <div style="margin-bottom:var(--s-4)">
+      <div class="u-mb-4">
         <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Corrective action breakdown</div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${total} active driver${total === 1 ? "" : "s"} across the coaching ladder right now.</div>
       </div>
@@ -7749,7 +7749,7 @@ async function loadAttendanceEventLog() {
   // rendered even when there are 0 events so the operator can
   // widen the window to find some.
   const filterBar = `
-    <div class="toolbar" style="margin-bottom:var(--s-3)">
+    <div class="toolbar u-mb-3">
       <div class="toolbar-left" style="display:flex;align-items:center;gap:var(--s-2-5)">
         <label style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">Window</label>
         <select id="rr-att-log-window" class="form-input" style="height:auto;padding:6px var(--s-2-5)">${windowOpts}</select>
@@ -10083,7 +10083,7 @@ async function loadTodayAttendance() {
     const items = rows.filter(r => r.computed_outcome === k);
     if (items.length === 0) return "";
     return `
-      <div class="card card-flush" style="margin-bottom:var(--s-4)">
+      <div class="card card-flush u-mb-4">
         <div style="padding:var(--s-2-5) var(--s-3-5);background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">
           ${escapeHtml(label)} <span style="color:var(--text-subtle);font-weight:600">· ${items.length}</span>
         </div>
@@ -10719,7 +10719,7 @@ function _renderRosterKpiDetail() {
       : s.botFive.map(r => driverRow(r, Number(r.score) < 70 ? "var(--red)" : "var(--text)")).join("");
 
     panel.innerHTML = `<div class="card" style="padding:var(--s-5)">
-      <div style="margin-bottom:var(--s-4)">
+      <div class="u-mb-4">
         <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Avg score · distribution</div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Fleet average is ${s.avgScore} across ${s.scoredCount} scored driver${s.scoredCount === 1 ? "" : "s"}. Bars show how the team splits across performance tiers.</div>
       </div>
@@ -10764,7 +10764,7 @@ function _renderRosterKpiDetail() {
       </div>`;
     }).join("");
     panel.innerHTML = `<div class="card" style="padding:var(--s-5)">
-      <div style="margin-bottom:var(--s-3)">
+      <div class="u-mb-3">
         <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Tenure distribution</div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Active + onboarding drivers grouped by how long they've been on the team. Avg ${s.avgTenure == null ? "—" : s.avgTenure.toFixed(1) + " mo"} · median ${s.medianTenure.toFixed(0)} mo.</div>
       </div>
@@ -10854,7 +10854,7 @@ function _renderRosterKpiDetail() {
       }).join("");
 
     panel.innerHTML = `<div class="card" style="padding:var(--s-5)">
-      <div style="margin-bottom:var(--s-4)">
+      <div class="u-mb-4">
         <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Where the turnover is coming from</div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${terms.length} termination${terms.length === 1 ? "" : "s"} across ${winLabel}. Use the clock icon on the KPI tile to switch the window.</div>
       </div>
@@ -19885,7 +19885,7 @@ function _renderAvailabilityKpis(k, rows) {
 
 function _availKpiPanelShell(title, sub, body) {
   return `<div class="card" style="padding:var(--s-5)">
-    <div style="margin-bottom:var(--s-3)">
+    <div class="u-mb-3">
       <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">${escapeHtml(title)}</div>
       ${sub ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(sub)}</div>` : ""}
     </div>
@@ -27081,7 +27081,7 @@ async function loadStaffingOutlook() {
     <div class="card">
       <div class="card-head"><div class="card-title">Will the pipeline get you there?</div></div>
       <div style="padding:var(--s-3) var(--s-3-5)">
-        <div style="margin-bottom:var(--s-2)">${funnelChips}</div>
+        <div class="u-mb-2">${funnelChips}</div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:6px"><strong>${pipelineTotal}</strong> applicant${pipelineTotal === 1 ? "" : "s"} in the funnel${onbTotal ? ` + <strong>${onbTotal}</strong> onboarding` : ""} · your recent conversion is ~<strong>${Math.round(conversion * 100)}%</strong> (${recHires} hire${recHires === 1 ? "" : "s"} from ${recAppl} applicant${recAppl === 1 ? "" : "s"} in the last 120 days) → expect ~<strong>${expectedHires}</strong> more driver${expectedHires === 1 ? "" : "s"}.</div>
         <div id="rr-fc-pipeverdict" style="font-size:var(--fs-md);font-weight:600;color:${v0.tone}">${v0.txt}</div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-2);line-height:1.5">Conversion is a blended rate across all funnel stages — a candidate already at offer is far more likely to land than one who just applied, so treat this as a rough projection. Hiring also takes time; this compares headcounts, not dates.</div>
