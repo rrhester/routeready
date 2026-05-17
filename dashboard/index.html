@@ -240,6 +240,14 @@ a{color:inherit;text-decoration:none}
 .rr-empty{
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:var(--s-2);padding:var(--s-8) var(--s-5);text-align:center;
+  /* Gentle settle-in.  Triggers when the element first lays out
+     (i.e. when JS swaps `<div class="rr-loading">` for `<div class="rr-empty">`)
+     so the empty state feels like an answer, not a flicker. */
+  animation:rr-empty-rise 200ms cubic-bezier(.2,.7,.2,1) both;
+}
+@keyframes rr-empty-rise{
+  from{opacity:0;transform:translateY(4px)}
+  to  {opacity:1;transform:translateY(0)}
 }
 .rr-empty-icon{
   width:40px;height:40px;border-radius:var(--r-lg);
@@ -251,6 +259,9 @@ a{color:inherit;text-decoration:none}
 .rr-empty-title{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.3}
 .rr-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);max-width:38ch;line-height:1.5}
 .rr-empty-action{margin-top:var(--s-3)}
+@media (prefers-reduced-motion: reduce){
+  .rr-empty{animation:none}
+}
 
 /* Canonical skeleton — replaces the four bespoke shimmer keyframes
    (rr-shimmer, rr-admin-shimmer, rr-mc-img-shimmer, otShimmer)
