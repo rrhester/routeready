@@ -2770,7 +2770,7 @@ async function _submitBulkDrivers() {
     resEl.innerHTML = `
       <div style="background:${inserted > 0 ? "var(--green-soft)" : "var(--canvas)"};border:1px solid ${inserted > 0 ? "rgba(16,185,129,.20)" : "var(--border)"};border-radius:var(--r-md);padding:var(--s-3) var(--s-4);font-size:var(--fs-sm);line-height:1.5">
         <div style="font-weight:700;color:${inserted > 0 ? "var(--green-dark)" : "var(--text)"};margin-bottom:6px">Import complete</div>
-        <div style="color:var(--text-muted)">
+        <div class="u-muted">
           ✅ ${inserted} created
           ${skipped > 0 ? `· ⏭️ ${skipped} skipped (duplicate email)` : ""}
           ${errored > 0 ? `· ⚠️ ${errored} errored` : ""}
@@ -3321,7 +3321,7 @@ function _wireRosterBulk() {
 // Driver-app presence chip for the roster: On the app / Invited / Not invited.
 function _appStatusCell(driverId) {
   const s = _rosterAppStatus.get(driverId);
-  if (!s) return `<span style="color:var(--text-subtle)">—</span>`;
+  if (!s) return `<span class="u-subtle">—</span>`;
   if (s.signed_in_at) {
     const ref = s.last_seen_at || s.signed_in_at;
     const refDate = new Date(ref);
@@ -3343,7 +3343,7 @@ function _appStatusCell(driverId) {
     return `<span title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
   }
   if (s.invited) return `<span title="Invite sent — hasn't signed in yet">Invited</span>`;
-  return `<span style="color:var(--text-subtle)" title="No app invite sent yet">Not invited</span>`;
+  return `<span class="u-subtle" title="No app invite sent yet">Not invited</span>`;
 }
 
 // ── Onboarding steps — the full ordered checklist for one driver ─────
@@ -3528,7 +3528,7 @@ function _obSetStrip(rows) {
   if (ready)   parts.push(`<strong style="color:var(--green)">${ready}</strong> ready to activate`);
   if (blocked) parts.push(`<strong style="color:var(--red)">${blocked}</strong> blocked`);
   el.innerHTML = `<div style="display:flex;align-items:center;gap:var(--s-3-5);flex-wrap:wrap;padding:11px 14px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);font-size:var(--fs-sm)">
-    <span style="display:inline-flex;align-items:center;gap:var(--s-2);flex-wrap:wrap">${parts.join('<span style="color:var(--text-subtle)">·</span>')}</span>
+    <span style="display:inline-flex;align-items:center;gap:var(--s-2);flex-wrap:wrap">${parts.join('<span class="u-subtle">·</span>')}</span>
     ${slowTxt ? `<span style="color:var(--text-subtle);font-size:var(--fs-xs);margin-left:auto">Biggest bottleneck: ${escapeHtml(slowTxt)}</span>` : ""}
   </div>`;
   el.style.display = "block";
@@ -4050,7 +4050,7 @@ function _obAttachDocPicker(stepIndex) {
       <div id="rr-tplpick-list" style="padding:var(--s-3-5) 22px 6px;display:flex;flex-direction:column;gap:var(--s-2);overflow:auto;flex:1">${rows}</div>
       <div id="rr-tplpick-empty" style="display:none;padding:6px 22px 14px;font-size:var(--fs-sm);color:var(--text-subtle)">No documents match that search.</div>
       <div style="padding:var(--s-3-5) 22px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:var(--s-2)">
-        <button type="button" class="btn btn-sm btn-ghost" data-rr-tpl-build style="color:var(--text-subtle)">Build a new document…</button>
+        <button type="button" class="btn btn-sm btn-ghost u-subtle" data-rr-tpl-build>Build a new document…</button>
         <button type="button" class="btn btn-sm" data-rr-tpl-close>Cancel</button>
       </div>
     </div>`;
@@ -4566,7 +4566,7 @@ function _onbNoteCardHTML(n, tmpId) {
   return `<div class="onb-note" data-note-id="${escapeHtml(id)}"${tmpId ? ` data-tmp-id="${tmpId}"` : ""}>
     <textarea data-onb-note-body rows="2" placeholder="Write a note… (saves on its own)" maxlength="4000">${escapeHtml((n && n.body) || "")}</textarea>
     <div class="onb-note-meta">
-      <span data-onb-note-meta>${n ? _onbNoteMetaHTML(n) : '<span style="color:var(--text-subtle)">New note</span>'}</span>
+      <span data-onb-note-meta>${n ? _onbNoteMetaHTML(n) : '<span class="u-subtle">New note</span>'}</span>
       <button type="button" class="onb-note-del" data-onb-note-del title="Delete note" aria-label="Delete note">${_ONB_NOTE_TRASH}</button>
     </div>
   </div>`;
@@ -5005,7 +5005,7 @@ function renderOnboardingRow(d) {
     : null;
   const daysCell = days != null
     ? `<span style="font-weight:600">${days}</span> <span style="font-size:var(--fs-xs);color:var(--text-subtle)">day${days === 1 ? "" : "s"}</span>`
-    : '<span style="color:var(--text-subtle)">—</span>';
+    : '<span class="u-subtle">—</span>';
   const ob = _obReadiness(d);
   const pips = ob.milestones.map(m => `<span title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="width:6px;height:6px;border-radius:50%;flex:0 0 auto;background:${m.done ? "#16a34a" : "var(--border)"}"></span>`).join("");
   const nextColor = ob.key === "blocked" ? "var(--red)" : ob.tone === "amber" ? "var(--amber-dark)" : ob.key === "ready" ? "var(--green)" : "var(--text-subtle)";
@@ -5087,7 +5087,7 @@ function renderDriverRow(d) {
 
 // Driver score → small colored pill (red < 70, amber 70–84, green 85+).
 function _scoreCell(s) {
-  if (s == null) return '<span style="color:var(--text-subtle)">—</span>';
+  if (s == null) return '<span class="u-subtle">—</span>';
   const v = Math.round(Number(s));
   const c = v < 70 ? ["var(--red)", "var(--red-soft)"]
           : v < 85 ? ["var(--amber-dark)", "var(--amber-soft)"]
@@ -5101,7 +5101,7 @@ function _scoreCell(s) {
 let _rosterLastCoached = new Map();   // driver_id -> ISO date string
 function _lastCoachedCell(driverId) {
   const iso = _rosterLastCoached.get(driverId);
-  if (!iso) return '<span style="color:var(--text-subtle)">—</span>';
+  if (!iso) return '<span class="u-subtle">—</span>';
   const d = new Date(iso);
   const days = Math.floor((Date.now() - d.getTime()) / 86400000);
   const dim = days > 30;
@@ -5587,7 +5587,7 @@ function _renderAttReportTbody() {
     const sev = RECOMMEND[r.coachingLabel] || "verbal";
     const summary = `${r.coachingLabel} · ${r.a.callouts} callout${r.a.callouts === 1 ? "" : "s"}, ${r.a.noshows} no-show${r.a.noshows === 1 ? "" : "s"}, ${r.a.late} late`;
 
-    let lastCoachCell = `<span style="color:var(--text-subtle)">—</span>`;
+    let lastCoachCell = `<span class="u-subtle">—</span>`;
     if (r.lastCoach) {
       const lc       = r.lastCoach;
       const sevLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[lc.severity]) || lc.severity;
@@ -5893,7 +5893,7 @@ async function _renderAttKpiDetail() {
         <div style="width:6px;height:36px;background:${colors[k]};border-radius:var(--r-sm)"></div>
         <div>
           <div style="font-size:var(--fs-base);font-weight:700;color:var(--text)">${k}</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px"><strong style="color:var(--text-muted)">${n} driver${n === 1 ? "" : "s"}</strong> · ${blurbs[k]}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px"><strong class="u-muted">${n} driver${n === 1 ? "" : "s"}</strong> · ${blurbs[k]}</div>
         </div>
       </div>`;
     }).join("");
@@ -5957,7 +5957,7 @@ async function _renderAttKpiDetail() {
           <div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(r.driver_name || "")}</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(outcomeLabel(r.outcome))}${r.decided_by ? " · by " + escapeHtml(r.decided_by) : ""}</div>
         </div>
-        <div style="font-size:var(--fs-md);color:var(--text);line-height:1.5">${r.notes ? escapeHtml(r.notes) : `<span style="color:var(--text-subtle)">— no notes —</span>`}</div>
+        <div style="font-size:var(--fs-md);color:var(--text);line-height:1.5">${r.notes ? escapeHtml(r.notes) : `<span class="u-subtle">— no notes —</span>`}</div>
       </div>`).join("");
     panel.innerHTML = _attKpiPanelShell(title, sub, `
       <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:var(--s-2)">${rows.length} excused in last ${days}d</div>
@@ -7779,7 +7779,7 @@ async function loadAttendanceEventLog() {
             const chipCls  = ackState === "Awaiting ack" ? "pending" : "done";
             coachCell = `<div style="display:flex;flex-direction:column;gap:2px;align-items:flex-start"><span style="font-size:var(--fs-sm);font-weight:600">${escapeHtml(sevLabel)} <span style="color:var(--text-subtle);font-weight:500">· ${escapeHtml(_relTimeAgo(c.occurred_at))}</span></span><span class="att-coach-chip ${chipCls}">✓ ${escapeHtml(ackState)}</span></div>`;
           } else {
-            coachCell = `<span style="color:var(--text-subtle)">—</span>`;
+            coachCell = `<span class="u-subtle">—</span>`;
           }
 
           let actionCell = "";
@@ -9347,7 +9347,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
 
     const timeStr = (r.starts_at || r.ends_at)
       ? `<span style="font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.starts_at))}${r.ends_at ? " – " + escapeHtml(fmtTime(r.ends_at)) : ""}</span>`
-      : `<span style="color:var(--text-subtle)">—</span>`;
+      : `<span class="u-subtle">—</span>`;
 
     const shiftMeta = [r.route_code, r.station_code].filter(Boolean).map(escapeHtml).join(" · ");
 
@@ -9449,7 +9449,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
       : `<div class="tp-driver-avatar">${escapeHtml(initials(r.driver_name))}</div>`;
     const timeStr = (r.starts_at || r.ends_at)
       ? `<span style="font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.starts_at))}${r.ends_at ? " – " + escapeHtml(fmtTime(r.ends_at)) : ""}</span>`
-      : `<span style="color:var(--text-subtle)">—</span>`;
+      : `<span class="u-subtle">—</span>`;
 
     let vanCell, statusCell;
     if (isClass) {
@@ -9599,7 +9599,7 @@ function _renderTpVanRoster(data, error) {
 
     const timeStr = (r.starts_at || r.ends_at)
       ? `<span style="font-variant-numeric:tabular-nums">${escapeHtml(fmtTime(r.starts_at))}${r.ends_at ? " – " + escapeHtml(fmtTime(r.ends_at)) : ""}</span>`
-      : `<span style="color:var(--text-subtle)">—</span>`;
+      : `<span class="u-subtle">—</span>`;
 
     const shiftMeta = [r.route_code, r.station_code].filter(Boolean).map(escapeHtml).join(" · ");
 
@@ -10175,7 +10175,7 @@ function renderLicenseRow(d) {
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver${rowStyle}>
       <td><div class="cell-driver"><div class="avatar-sm">${initials}</div><div><div class="cell-name">${escapeHtml(displayDriverName(d))}</div></div></div></td>
-      <td>${d.station?.code ? escapeHtml(d.station.code) : '<span style="color:var(--text-subtle)">—</span>'}</td>
+      <td>${d.station?.code ? escapeHtml(d.station.code) : '<span class="u-subtle">—</span>'}</td>
       <td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-sm)">${escapeHtml(d.dl_number || "—")}</td>
       <td>${escapeHtml(_licenseStatusText(days))}</td>
       <td>${exp.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}<div style="font-size:var(--fs-xs);color:var(--text-subtle)">${rel}</div></td>
@@ -10352,7 +10352,7 @@ document.addEventListener("click", (e) => {
       <div>· <strong style="color:var(--red)">Red</strong> = ≥1.5× the overall rate (and >5%)</div>
       <div>· <strong style="color:var(--amber)">Amber</strong> = ≥1.2× the overall rate</div>
       <div>· <strong style="color:var(--green-bright)">Green</strong> = at or below the overall rate</div>
-      <div>· <span style="color:var(--text-muted)">Grey</span> = no shifts on that day in the window</div>
+      <div>· <span class="u-muted">Grey</span> = no shifts on that day in the window</div>
       <div style="margin-top:18px;display:flex;justify-content:flex-end">
         <button class="btn btn-sm" type="button" id="rr-di-dow-popover-close">Close</button>
       </div>
@@ -10685,7 +10685,7 @@ function _renderRosterKpiDetail() {
       const station = r.station?.code || "—";
       return `<div style="display:grid;grid-template-columns:1fr 80px 60px;gap:var(--s-3);align-items:center;padding:6px 0;border-top:1px solid var(--border);font-size:var(--fs-sm)">
         <div style="font-weight:600;color:var(--text)">${escapeHtml(name)}</div>
-        <div style="color:var(--text-muted)">${escapeHtml(station)}</div>
+        <div class="u-muted">${escapeHtml(station)}</div>
         <div style="text-align:right;font-weight:700;color:${color};font-variant-numeric:tabular-nums">${Number(r.score).toFixed(0)}</div>
       </div>`;
     };
@@ -10788,8 +10788,8 @@ function _renderRosterKpiDetail() {
           const display = rrTitleCaseName(displayDriverName(t) || t.full_name || "Driver");
           return `<div style="display:grid;grid-template-columns:1fr 100px 110px 80px;gap:var(--s-3-5);align-items:center;padding:var(--s-2) 0;border-top:1px solid var(--border);font-size:var(--fs-sm)">
             <div style="font-weight:600;color:var(--text)">${escapeHtml(display)}</div>
-            <div style="color:var(--text-muted)">${escapeHtml(t.station?.code || "—")}</div>
-            <div style="color:var(--text-muted)">${tenureAtTerm == null ? "—" : tenureAtTerm + "d at term"}</div>
+            <div class="u-muted">${escapeHtml(t.station?.code || "—")}</div>
+            <div class="u-muted">${tenureAtTerm == null ? "—" : tenureAtTerm + "d at term"}</div>
             <div style="color:var(--text-subtle);text-align:right">${ago}d ago</div>
           </div>`;
         }).join("");
@@ -10827,7 +10827,7 @@ function _renderRosterKpiDetail() {
         const pct = bktTotal ? Math.round((n / bktTotal) * 100) : 0;
         return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border);font-size:var(--fs-sm)">
           <span style="font-weight:600">${escapeHtml(code)}</span>
-          <span style="color:var(--text-muted)"><strong style="color:var(--text)">${n}</strong> · ${pct}%</span>
+          <span class="u-muted"><strong style="color:var(--text)">${n}</strong> · ${pct}%</span>
         </div>`;
       }).join("");
 
@@ -11720,7 +11720,7 @@ async function renderWeeksStrip() {
     const placeholderWeeks = Array.from({ length: 5 }, (_, i) => isoWeek(addDays(monday, i * 7)));
     strip.innerHTML = `<span class="hp-weeks-strip-label">Next 5 weeks</span>
       <div class="hp-weeks-row">${placeholderWeeks.map(n =>
-        `<div class="hp-week-cell"><span class="wk">W${n}</span><span class="ratio" style="color:var(--text-subtle)">— / —</span><span class="gap">&nbsp;</span></div>`
+        `<div class="hp-week-cell"><span class="wk">W${n}</span><span class="ratio u-subtle">— / —</span><span class="gap">&nbsp;</span></div>`
       ).join("")}</div>`;
   }
 
@@ -11756,7 +11756,7 @@ async function renderWeeksStrip() {
     if (routesMax === 0) {
       // OKAMI hasn't been set for this week yet. Be explicit instead of
       // showing "5 / 0 +5" which reads like canned data.
-      out.push(`<div class="hp-week-cell"><span class="wk">${wkLabel}</span><span class="ratio" style="color:var(--text-subtle)">set OKAMI</span><span class="gap">&nbsp;</span></div>`);
+      out.push(`<div class="hp-week-cell"><span class="wk">${wkLabel}</span><span class="ratio u-subtle">set OKAMI</span><span class="gap">&nbsp;</span></div>`);
       continue;
     }
     // OKAMI is exact demand now (post migration 0039); cushion is a
@@ -12361,7 +12361,7 @@ function renderCalAvailabilityEditor(payload) {
         const days = g.startDay === g.endDay
           ? DAY_LABELS[g.startDay]
           : `${DAY_LABELS[g.startDay]}–${DAY_LABELS[g.endDay]}`;
-        return `<strong style="color:var(--text)">${days}</strong> <span style="color:var(--text-subtle)">${escapeHtml(winText(g.windows))}</span>`;
+        return `<strong style="color:var(--text)">${days}</strong> <span class="u-subtle">${escapeHtml(winText(g.windows))}</span>`;
       }).join(" &nbsp;·&nbsp; ");
 
   card.innerHTML = `
@@ -12607,7 +12607,7 @@ function _refreshCalAvailabilityBanner(tz, availability) {
         const days = g.startDay === g.endDay
           ? DAY_LABELS[g.startDay]
           : `${DAY_LABELS[g.startDay]}–${DAY_LABELS[g.endDay]}`;
-        return `<strong style="color:var(--text)">${days}</strong> <span style="color:var(--text-subtle)">${escapeHtml(winText(g.windows))}</span>`;
+        return `<strong style="color:var(--text)">${days}</strong> <span class="u-subtle">${escapeHtml(winText(g.windows))}</span>`;
       }).join(" &nbsp;·&nbsp; ");
   banner.innerHTML = `
     <div class="cal-edit-label" style="margin-bottom:6px">Current availability</div>
@@ -14319,7 +14319,7 @@ async function renderEmploymentTab(body, d) {
       </div>
       <div class="dd-row"><label>Pay rate</label>
         <div style="display:flex;align-items:center;gap:6px">
-          <span style="color:var(--text-subtle)">$</span>
+          <span class="u-subtle">$</span>
           <input type="number" min="0" max="200" step="0.01" data-rr-dd-field="pay_hourly" placeholder="22.50" value="${v(payRate)}" style="max-width:140px"/>
           <span style="color:var(--text-subtle);font-size:var(--fs-sm)">/ hour</span>
         </div>
@@ -14635,7 +14635,7 @@ function _i9PanelHtml(i9, drv) {
     s1Html = `
       <div style="font-size:var(--fs-sm);color:var(--text);line-height:1.6">
         <div><strong>${escapeHtml(name)}</strong> — ${escapeHtml(_I9_CITIZEN_LABELS[s1.citizen_status] || s1.citizen_status || "—")}</div>
-        <div style="color:var(--text-subtle)">Completed ${escapeHtml(fmtTs(rec.section1_completed_at))} · ${rec.section1_completed_via === "driver_app" ? "by the employee in the app" : "recorded by the employer"}</div>
+        <div class="u-subtle">Completed ${escapeHtml(fmtTs(rec.section1_completed_at))} · ${rec.section1_completed_via === "driver_app" ? "by the employee in the app" : "recorded by the employer"}</div>
       </div>`;
   } else {
     s1Html = `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">Not yet completed. The employee can fill this out in the RouteReady app, or you can record it here.</div>`;
@@ -14648,8 +14648,8 @@ function _i9PanelHtml(i9, drv) {
     s2Html = `
       <div style="font-size:var(--fs-sm);color:var(--text);line-height:1.6">
         <div>${escapeHtml(s2.list_used === "A" ? "List A document" : "List B + List C documents")} · ${escapeHtml(s2.exam_method === "remote_alternative" ? "DHS alternative remote procedure" : "physical in-person examination")}</div>
-        ${docs.map(x => `<div style="color:var(--text-subtle)">• ${escapeHtml(x.title || "—")}${x.number ? " — #" + escapeHtml(x.number) : ""}${x.expires_on ? " — exp. " + escapeHtml(fmtD(x.expires_on)) : ""}</div>`).join("")}
-        <div style="color:var(--text-subtle)">Verified ${escapeHtml(fmtTs(rec.section2_completed_at))}${rec.section2_completed_by_name ? " by " + escapeHtml(rec.section2_completed_by_name) : ""}${rec.section2_completed_by_title ? " (" + escapeHtml(rec.section2_completed_by_title) + ")" : ""}</div>
+        ${docs.map(x => `<div class="u-subtle">• ${escapeHtml(x.title || "—")}${x.number ? " — #" + escapeHtml(x.number) : ""}${x.expires_on ? " — exp. " + escapeHtml(fmtD(x.expires_on)) : ""}</div>`).join("")}
+        <div class="u-subtle">Verified ${escapeHtml(fmtTs(rec.section2_completed_at))}${rec.section2_completed_by_name ? " by " + escapeHtml(rec.section2_completed_by_name) : ""}${rec.section2_completed_by_title ? " (" + escapeHtml(rec.section2_completed_by_title) + ")" : ""}</div>
         ${Array.isArray(rec.section2_document_paths) && rec.section2_document_paths.length ? `<div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">${rec.section2_document_paths.map((p,i)=>`<button type="button" class="btn btn-sm" data-rr-i9-doc-open="${escapeHtml(p)}">Document ${i+1}</button>`).join("")}</div>` : ""}
       </div>`;
   } else {
@@ -14709,7 +14709,7 @@ function _i9PanelHtml(i9, drv) {
       <details ${detailsOpen ? "open" : ""} style="margin-top:14px">
         <summary style="${sumStyle}">Details</summary>
         <div style="margin-top:6px">
-          <div class="dd-row" style="grid-template-columns:160px 1fr"><label>First day of employment</label><div style="font-size:var(--fs-sm);color:var(--text)">${rec && rec.first_day_of_employment ? escapeHtml(fmtD(rec.first_day_of_employment)) : '<span style="color:var(--text-subtle)">Not set</span>'}</div></div>
+          <div class="dd-row" style="grid-template-columns:160px 1fr"><label>First day of employment</label><div style="font-size:var(--fs-sm);color:var(--text)">${rec && rec.first_day_of_employment ? escapeHtml(fmtD(rec.first_day_of_employment)) : '<span class="u-subtle">Not set</span>'}</div></div>
           <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Section 1 — employee</label><div>${s1Html}</div></div>
           <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Section 2 — employer</label><div>${s2Html}</div></div>
           <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:start"><label>Sealed document</label><div>${sealHtml}</div></div>
@@ -14960,7 +14960,7 @@ async function openI9Section2Modal(driverId) {
 
       ${step(1, "Examine the documents", "How did you review the employee's original documents?", `
         <label style="display:flex;align-items:flex-start;gap:var(--s-2);font-size:var(--fs-sm);padding:2px 0;cursor:pointer"><input type="radio" name="i9-exam" value="in_person" ${exam==="in_person"?"checked":""} style="margin-top:3px"> <span>Physical, in-person examination of the original documents.</span></label>
-        <label style="display:flex;align-items:flex-start;gap:var(--s-2);font-size:var(--fs-sm);padding:2px 0;cursor:pointer"><input type="radio" name="i9-exam" value="remote_alternative" ${exam==="remote_alternative"?"checked":""} style="margin-top:3px"> <span>DHS-authorized alternative procedure (remote). <span style="color:var(--text-subtle)">Only for employers enrolled in E-Verify and in good standing — keep copies and conduct a live video interaction.</span></span></label>`)}
+        <label style="display:flex;align-items:flex-start;gap:var(--s-2);font-size:var(--fs-sm);padding:2px 0;cursor:pointer"><input type="radio" name="i9-exam" value="remote_alternative" ${exam==="remote_alternative"?"checked":""} style="margin-top:3px"> <span>DHS-authorized alternative procedure (remote). <span class="u-subtle">Only for employers enrolled in E-Verify and in good standing — keep copies and conduct a live video interaction.</span></span></label>`)}
 
       ${step(2, "Record the documents presented", "The employee chooses which acceptable document(s) to present — you may not require or reject specific ones.", `
         <div>
@@ -15244,7 +15244,7 @@ async function openI9FormPrint(driverId) {
   const empName = [s1.first_name, s1.middle_initial, s1.last_name].filter(Boolean).join(" ") || displayDriverName(drv) || "—";
   const citMap = { citizen: 1, national: 2, lpr: 3, authorized: 4 };
   const citNum = citMap[s1.citizen_status] || 0;
-  const citRow = (n, label, extra) => `<div class="opt"><span class="box">${citNum === n ? "X" : ""}</span><span><strong>${n}.</strong> ${escapeHtml(label)}${extra ? ` <span style="color:var(--text-muted)">${extra}</span>` : ""}</span></div>`;
+  const citRow = (n, label, extra) => `<div class="opt"><span class="box">${citNum === n ? "X" : ""}</span><span><strong>${n}.</strong> ${escapeHtml(label)}${extra ? ` <span class="u-muted">${extra}</span>` : ""}</span></div>`;
   let authExtra = "";
   if (s1.citizen_status === "authorized") {
     const kindLbl = { uscis: "USCIS/A-Number", i94: "Form I-94 #", passport: "Foreign passport #" }[s1.auth_doc_kind] || "Document #";
@@ -15362,11 +15362,11 @@ async function _i9OpenChainModal(driverId) {
   const hasTs = !!(seal && (seal.tsa_gen_time || seal.tst_b64 || seal.tsa_url));
   const sealBlock = !rec.pdf_path ? `<div style="color:var(--text-subtle);font-size:var(--fs-sm)">No sealed PDF yet — complete Section 2, or use "Re-seal" on the driver record.</div>` : `
     <div style="display:flex;flex-direction:column;gap:var(--s-2);font-size:var(--fs-sm)">
-      <div><span style="color:var(--text-subtle)">Sealed at</span><br>${escapeHtml(fmtTs(rec.pdf_sealed_at))}</div>
-      <div><span style="color:var(--text-subtle)">PDF SHA-256</span><br>${mono(seal?.pdf_sha256)}</div>
-      <div><span style="color:var(--text-subtle)">ECDSA P-256 signature (base64)</span><br>${mono(seal?.signature_b64 ? String(seal.signature_b64).slice(0,88) + (String(seal.signature_b64).length>88?"…":"") : null)}</div>
-      <div><span style="color:var(--text-subtle)">Signing key fingerprint</span><br>${mono(seal?.key_fingerprint)}</div>
-      <div><span style="color:var(--text-subtle)">RFC 3161 trusted timestamp</span><br>${hasTs ? `${escapeHtml(seal.tsa_url || "(authority unspecified)")}${seal.tsa_gen_time ? " — attested time " + escapeHtml(new Date(seal.tsa_gen_time).toLocaleString()) + " (by the TSA, not by RouteReady)" : ""}` : `<span style="color:var(--amber-dark)">Timestamp unavailable</span>`}</div>
+      <div><span class="u-subtle">Sealed at</span><br>${escapeHtml(fmtTs(rec.pdf_sealed_at))}</div>
+      <div><span class="u-subtle">PDF SHA-256</span><br>${mono(seal?.pdf_sha256)}</div>
+      <div><span class="u-subtle">ECDSA P-256 signature (base64)</span><br>${mono(seal?.signature_b64 ? String(seal.signature_b64).slice(0,88) + (String(seal.signature_b64).length>88?"…":"") : null)}</div>
+      <div><span class="u-subtle">Signing key fingerprint</span><br>${mono(seal?.key_fingerprint)}</div>
+      <div><span class="u-subtle">RFC 3161 trusted timestamp</span><br>${hasTs ? `${escapeHtml(seal.tsa_url || "(authority unspecified)")}${seal.tsa_gen_time ? " — attested time " + escapeHtml(new Date(seal.tsa_gen_time).toLocaleString()) + " (by the TSA, not by RouteReady)" : ""}` : `<span style="color:var(--amber-dark)">Timestamp unavailable</span>`}</div>
       <div style="font-size:var(--fs-xs);color:var(--text-subtle)">The full proof (digest, signature, public key, timestamp token) lives next to the sealed PDF at <code>${escapeHtml(rec.pdf_seal_path || "—")}</code>. The public key is served at <code>/public-key</code> on the sealing service.</div>
     </div>`;
   document.getElementById("rr-i9-chain-modal")?.remove();
@@ -16703,7 +16703,7 @@ async function renderAttendanceTab(body, d) {
     return `
       <div class="att-tl-row">
         <div class="att-tl-date">${new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
-        <div class="att-tl-event"><span style="font-weight:600">${escapeHtml(sevLabel)}</span>${c.summary ? ` <span style="color:var(--text-subtle)">· ${escapeHtml(c.summary)}</span>` : ""}</div>
+        <div class="att-tl-event"><span style="font-weight:600">${escapeHtml(sevLabel)}</span>${c.summary ? ` <span class="u-subtle">· ${escapeHtml(c.summary)}</span>` : ""}</div>
         <div class="att-tl-pts">${ack}</div>
       </div>`;
   }).join("");
@@ -17486,7 +17486,7 @@ async function refreshDriverChatThread(scrollToBottom) {
                   : `<span style="font-size:var(--fs-lg)">📎</span>`}
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
-            <div style="color:var(--text-subtle)">${sizeKb} KB</div>
+            <div class="u-subtle">${sizeKb} KB</div>
           </div>
           <button type="button" id="rr-mc-attach-clear" aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
         </div>`;
@@ -18287,7 +18287,7 @@ async function refreshChannelThread(scrollToBottom) {
                   : `<span style="font-size:var(--fs-lg)">📎</span>`}
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(f.name)}</div>
-            <div style="color:var(--text-subtle)">${sizeKb} KB</div>
+            <div class="u-subtle">${sizeKb} KB</div>
           </div>
           <button type="button" id="rr-cc-attach-clear" aria-label="Remove" style="background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:var(--fs-lg);line-height:1;padding:2px">×</button>
         </div>`;
@@ -19494,7 +19494,7 @@ document.addEventListener("click", async (e) => {
       .select("*").eq("coaching_id", id).order("edited_at", { ascending: false });
     const rows = (edits || []).map(ed =>
       `<div style="font-size:var(--fs-sm);border-bottom:1px solid var(--border);padding:var(--s-2) 0">
-         <div style="color:var(--text-muted)">${new Date(ed.edited_at).toLocaleString()} · ${escapeHtml(ed.edited_by_name || "—")}</div>
+         <div class="u-muted">${new Date(ed.edited_at).toLocaleString()} · ${escapeHtml(ed.edited_by_name || "—")}</div>
          <div><strong>${escapeHtml(ed.field_name)}</strong> · "${escapeHtml(ed.old_value || "")}" → "${escapeHtml(ed.new_value || "")}"</div>
        </div>`).join("") || `<div style="color:var(--text-subtle);font-size:var(--fs-md)">No edits.</div>`;
     const w = document.createElement("div");
@@ -20075,7 +20075,7 @@ function _renderAvailabilityBlackouts(rows) {
     <div style="display:grid;grid-template-columns:140px 140px 1fr auto;gap:var(--s-2-5);padding:var(--s-2) 0;border-bottom:1px solid var(--border);align-items:center;font-size:var(--fs-md)">
       <div>${escapeHtml(b.start_date || "")}</div>
       <div>${escapeHtml(b.end_date || "")}</div>
-      <div style="color:var(--text-muted)">${escapeHtml(b.reason || "")}</div>
+      <div class="u-muted">${escapeHtml(b.reason || "")}</div>
       <button class="btn btn-sm btn-danger" data-rr-blackout-delete="${escapeHtml(b.id)}">Delete</button>
     </div>`).join("");
   el.innerHTML = `
@@ -20688,17 +20688,17 @@ function _renderCoachFeed() {
     const occurred = new Date(c.occurred_at).toLocaleDateString();
     const followCell = c.follow_up_at
       ? (c.resolved_at
-          ? `<span style="color:var(--text-subtle)">Resolved</span>`
+          ? `<span class="u-subtle">Resolved</span>`
           : escapeHtml(new Date(c.follow_up_at).toLocaleDateString()))
-      : `<span style="color:var(--text-subtle)">—</span>`;
+      : `<span class="u-subtle">—</span>`;
     const ack = c.acknowledgment && c.acknowledgment !== "none"
       ? "Acknowledged"
       : (c.driver_visible ? "Pending ack" : "");
     const status = c.archived_at
-      ? `<span style="color:var(--text-subtle)">Archived</span>`
+      ? `<span class="u-subtle">Archived</span>`
       : (c.resolved_at
           ? "Resolved"
-          : ack || `<span style="color:var(--text-subtle)">Open</span>`);
+          : ack || `<span class="u-subtle">Open</span>`);
     const sevText = c.metadata?.level || c.severity || "—";
     const topicText = c.topic || "—";
     return `<tr data-rr-coach-feed-driver="${c.driver_id}">
@@ -20709,7 +20709,7 @@ function _renderCoachFeed() {
       <td style="text-transform:capitalize">${escapeHtml(sevText)}</td>
       <td style="text-transform:capitalize">${escapeHtml(topicText)}</td>
       <td style="max-width:320px;color:var(--text-muted)">${escapeHtml(c.summary || c.notes?.slice(0, 80) || "—")}</td>
-      <td style="color:var(--text-muted)">${escapeHtml(c.coached_by_name || "—")}</td>
+      <td class="u-muted">${escapeHtml(c.coached_by_name || "—")}</td>
       <td>${followCell}</td>
       <td>${status}</td>
     </tr>`;
@@ -20875,7 +20875,7 @@ function openMessageEditor(template) {
       <textarea data-rr-msg-body class="form-input" style="width:100%;min-height:160px;font-family:'SF Mono',Menlo,monospace;font-size:var(--fs-md);line-height:1.5">${escapeHtml(t.body || "")}</textarea>
       <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.5">
         Tokens: <code>{{first_name}}</code> · <code>{{link}}</code>. Paste any URL into the body — applicants tap it directly.
-        ${!isEmail ? `<br/><strong style="color:var(--text-muted)">Keep SMS under 160 chars when possible</strong> — longer messages split into multiple texts.` : ""}
+        ${!isEmail ? `<br/><strong class="u-muted">Keep SMS under 160 chars when possible</strong> — longer messages split into multiple texts.` : ""}
       </div>
 
       <div style="margin-top:18px">
@@ -23251,7 +23251,7 @@ document.addEventListener("click", (e) => {
       <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Inputs</div>
       <div>Active roster: <strong>${m.totalDrivers}</strong> driver${m.totalDrivers === 1 ? "" : "s"}</div>
       <div>Without availability set: <strong>${m.driversWithoutAvailability}</strong></div>
-      <div>Plan Pad: <strong>${m.padPct}%</strong> <span style="color:var(--text-subtle)">(from OKAMI)</span></div>
+      <div>Plan Pad: <strong>${m.padPct}%</strong> <span class="u-subtle">(from OKAMI)</span></div>
       <div>Horizon: next <strong>${m.horizonWeeks}</strong> weeks of OKAMI demand</div>
 
       <div style="font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase;margin-top:14px;margin-bottom:6px">Per-day math</div>
@@ -23937,7 +23937,7 @@ async function _loadShiftHistory(shiftId) {
 
 function _renderShiftChangeRow(c) {
   const when = new Date(c.at).toLocaleString();
-  const who = c.actor_name ? escapeHtml(c.actor_name) : '<span style="color:var(--text-subtle)">System</span>';
+  const who = c.actor_name ? escapeHtml(c.actor_name) : '<span class="u-subtle">System</span>';
   let summary = "";
   switch (c.event) {
     case "created":          summary = "Shift created"; break;
@@ -24842,7 +24842,7 @@ async function renderScheduleWeek() {
     return `<div class="cal-grid" style="background:var(--canvas)">
       <div class="cal-row-label" style="background:var(--canvas)">
         <div class="avatar-sm" style="background:var(--canvas);color:var(--text-subtle);border:1.5px dashed var(--border-strong);font-weight:700;font-size:var(--fs-xs)">PD</div>
-        <div><div class="cal-row-label-name" style="color:var(--text-muted)">PD ${pdNum}</div><div class="cal-row-label-meta">Potential driver slot</div></div>
+        <div><div class="cal-row-label-name u-muted">PD ${pdNum}</div><div class="cal-row-label-meta">Potential driver slot</div></div>
       </div>
       ${cells}
     </div>`;
@@ -27041,7 +27041,7 @@ async function loadStaffingOutlook() {
       <div class="card-head"><div class="card-title">Planning knobs</div></div>
       <div style="padding:var(--s-3) var(--s-3-5);display:flex;gap:var(--s-6);flex-wrap:wrap;align-items:flex-end">
         <div><div style="font-weight:600;font-size:var(--fs-sm);margin-bottom:4px">Drivers per route</div><input type="number" id="rr-fc-ratio" min="1" max="5" step="0.1" value="${ratio.toFixed(1)}" class="form-input" style="width:80px"/><div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">A route needs ~2 (rotation + backup).</div></div>
-        <div><div style="font-weight:600;font-size:var(--fs-sm);margin-bottom:4px">Cushion</div><span style="display:inline-flex;align-items:center;gap:var(--s-1)"><input type="number" id="rr-fc-cushion" min="0" max="200" step="5" value="${cushionPct}" class="form-input" style="width:70px"/><span style="color:var(--text-subtle)">%</span></span><div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">Extra headroom out of caution — many DSPs use 20%.</div></div>
+        <div><div style="font-weight:600;font-size:var(--fs-sm);margin-bottom:4px">Cushion</div><span style="display:inline-flex;align-items:center;gap:var(--s-1)"><input type="number" id="rr-fc-cushion" min="0" max="200" step="5" value="${cushionPct}" class="form-input" style="width:70px"/><span class="u-subtle">%</span></span><div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">Extra headroom out of caution — many DSPs use 20%.</div></div>
         <div style="font-size:var(--fs-sm);color:var(--text-muted);padding-bottom:18px">Headcount = <strong>routes × <span id="rr-fc-ratio-echo">${ratio.toFixed(1)}</span> × (1 + <span id="rr-fc-cushion-echo">${cushionPct}</span>%)</strong></div>
       </div>
     </div>
@@ -28041,8 +28041,8 @@ async function openSubmissionDetail(submId) {
   try { const { data: f } = await sb.rpc("get_form", { p_id: s.form_id }); if (f && Array.isArray(f.fields)) fields = f.fields; } catch (_) {}
   const labelOf = new Map(fields.filter(f => f.id).map(f => [f.id, f.label || (_FIELD_TYPE_LABELS && _FIELD_TYPE_LABELS[f.type]) || f.id]));
   const fmtVal = (v) => {
-    if (v == null || v === "") return `<span style="color:var(--text-subtle)">—</span>`;
-    if (Array.isArray(v)) return v.length ? escapeHtml(v.join(", ")) : `<span style="color:var(--text-subtle)">—</span>`;
+    if (v == null || v === "") return `<span class="u-subtle">—</span>`;
+    if (Array.isArray(v)) return v.length ? escapeHtml(v.join(", ")) : `<span class="u-subtle">—</span>`;
     if (typeof v === "boolean") return v ? "Yes" : "No";
     return escapeHtml(String(v));
   };
@@ -32826,7 +32826,7 @@ function _rrAnRenderKpi(data) {
 }
 function _rrAnRenderKpiGrid(data) {
   const items = Array.isArray(data?.items) ? data.items : [];
-  if (!items.length) return '<div class="rr-an-text-body" style="color:var(--text-subtle)">No KPIs returned.</div>';
+  if (!items.length) return '<div class="rr-an-text-body u-subtle">No KPIs returned.</div>';
   return `<div class="rr-an-kpi-grid">${items.map((it) => {
     const value = _rrAnEsc(it?.value ?? "—");
     const unit  = it?.unit ? `<span class="rr-an-kpi-unit">${_rrAnEsc(it.unit)}</span>` : "";
@@ -32851,7 +32851,7 @@ function _rrAnBadgeClass(val) {
 function _rrAnRenderTable(data) {
   const cols = Array.isArray(data?.columns) ? data.columns : [];
   const rows = Array.isArray(data?.rows) ? data.rows : [];
-  if (!cols.length || !rows.length) return '<div class="rr-an-text-body" style="color:var(--text-subtle)">No rows.</div>';
+  if (!cols.length || !rows.length) return '<div class="rr-an-text-body u-subtle">No rows.</div>';
   const head = cols.map((c) => `<th${c.type === "number" ? ' class="num"' : ""}>${_rrAnEsc(c.label || c.key)}</th>`).join("");
   const body = rows.map((r) => `<tr>${cols.map((c) => {
     const v = r?.[c.key];
@@ -32876,7 +32876,7 @@ function _rrAnRenderTextSummary(data) {
   const list = bullets.length
     ? `<ul class="rr-an-bullets">${bullets.map((b) => `<li>${_rrAnEsc(b)}</li>`).join("")}</ul>`
     : "";
-  return `${para}${list}` || '<div class="rr-an-text-body" style="color:var(--text-subtle)">No content.</div>';
+  return `${para}${list}` || '<div class="rr-an-text-body u-subtle">No content.</div>';
 }
 function _rrAnRenderClarification(data) {
   const msg = _rrAnEsc(data?.message || "I need a bit more detail to answer that.");
@@ -32893,7 +32893,7 @@ function _rrAnRenderResultBody(result) {
     case "table":                return _rrAnRenderTable(result.data || {});
     case "text_summary":         return _rrAnRenderTextSummary(result.data || {});
     case "clarification_needed": return _rrAnRenderClarification(result.data || {});
-    default: return `<div class="rr-an-text-body" style="color:var(--text-subtle)">Unknown render kind: ${_rrAnEsc(result?.kind)}</div>`;
+    default: return `<div class="rr-an-text-body u-subtle">Unknown render kind: ${_rrAnEsc(result?.kind)}</div>`;
   }
 }
 
@@ -34989,7 +34989,7 @@ function _dvicAiBlock(cur) {
     ? `<span style="margin-left:8px;color:var(--text-subtle);font-size:var(--fs-xs)">${escapeHtml(String(conf))}% confidence</span>` : "";
   const findingsHtml = findings.length
     ? `<ul style="margin:8px 0 0;padding-left:18px;font-size:12.5px;color:var(--text);line-height:1.55;display:flex;flex-direction:column;gap:var(--s-1)">${
-        findings.map((f) => `<li><b>${escapeHtml(f.area || "—")}</b>${f.severity ? ` · <span style="text-transform:capitalize;color:var(--text-subtle)">${escapeHtml(f.severity)}</span>` : ""}${f.description ? " — " + escapeHtml(f.description) : ""}${f.confidence != null ? ` <span style="color:var(--text-subtle)">(${escapeHtml(String(f.confidence))}%)</span>` : ""}</li>`).join("")
+        findings.map((f) => `<li><b>${escapeHtml(f.area || "—")}</b>${f.severity ? ` · <span style="text-transform:capitalize;color:var(--text-subtle)">${escapeHtml(f.severity)}</span>` : ""}${f.description ? " — " + escapeHtml(f.description) : ""}${f.confidence != null ? ` <span class="u-subtle">(${escapeHtml(String(f.confidence))}%)</span>` : ""}</li>`).join("")
       }</ul>` : "";
   return `<div class="dvic-ai">
     <div class="dvic-ai-h">
@@ -34997,7 +34997,7 @@ function _dvicAiBlock(cur) {
       ${confLine}
       ${cur?.ai_review_at ? `<span style="margin-left:auto;color:var(--text-subtle);font-size:var(--fs-xs)">Reviewed ${escapeHtml(_dvicFmtWhen(cur.ai_review_at))}</span>` : ""}
     </div>
-    ${summary ? `<p class="dvic-ai-sum">${escapeHtml(summary)}</p>` : status === "pending" ? `<p class="dvic-ai-sum" style="color:var(--text-subtle)">RouteReady will review these photos against the prior inspection. Click "Run AI scan" to start.</p>` : ""}
+    ${summary ? `<p class="dvic-ai-sum">${escapeHtml(summary)}</p>` : status === "pending" ? `<p class="dvic-ai-sum u-subtle">RouteReady will review these photos against the prior inspection. Click "Run AI scan" to start.</p>` : ""}
     ${findingsHtml}
   </div>`;
 }
@@ -36207,13 +36207,13 @@ document.addEventListener("click", async (e) => {
              : risk.kind === "vendor_stall"     ? null
              : null;
     if (risk.kind === "cure_deadline") {
-      return `<span class="co-age" style="color:var(--text-muted)">Deadline ${_fmtDate(m.deadline_at)}</span>`;
+      return `<span class="co-age u-muted">Deadline ${_fmtDate(m.deadline_at)}</span>`;
     }
     if (risk.kind === "grounded_vehicle") {
       const dg = Number(m.days_grounded || 0);
       return `<span class="co-age">${dg.toFixed(0)}d ago</span>`;
     }
-    return `<span class="co-age" style="color:var(--text-subtle)">—</span>`;
+    return `<span class="co-age u-subtle">—</span>`;
   }
   // Row action · single neutral "Dismiss" button that snoozes the
   // exception for 14 days.  No stoplight color, no destructive
