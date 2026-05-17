@@ -445,14 +445,24 @@ a{color:inherit;text-decoration:none}
    at a glance.  Background stays close to the sidebar so the row
    doesn't compete with the icon. */
 .nav-item.active{
-  background:linear-gradient(180deg, rgba(96,165,250,.10) 0%, rgba(96,165,250,.03) 100%);
+  /* Tint the active row in the item's category colour so the rail,
+     background, and ring all match the icon.  --ni-fg / --ni-bg-strong
+     come from the [data-c="..."] block lower in this file; if missing,
+     we fall back to the blue accent. */
+  background:linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 14%, transparent) 0%,
+    color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 4%,  transparent) 100%
+  );
   color:var(--text-inverse);font-weight:600;
   box-shadow:
-    inset 3px 0 0 var(--blue-bright),
-    inset 0 0 0 1px rgba(96,165,250,.14),
+    inset 3px 0 0 var(--ni-fg, var(--blue-bright)),
+    inset 0 0 0 1px color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 22%, transparent),
     0 1px 2px rgba(15,23,42,.18);
 }
-.nav-item.active .nav-badge{color:var(--blue-bright);background:#fff}
+.nav-item.active .nav-badge{
+  color:var(--ni-fg, var(--blue-bright));background:#fff;
+}
 .nav-item.active svg{stroke-width:2}
 .nav-item.active .nav-icon{
   background:var(--ni-bg-strong, rgba(255,255,255,.20));
