@@ -7553,9 +7553,29 @@ function _renderCelebrationOverlay(session, ev) {
   if (close) { try { close.setAttribute("onclick", "void 0"); } catch (_) {} }
   [[cta, "cta"], [close, "close"]].forEach(([btn, label]) => {
     if (!btn) return;
-    btn.addEventListener("click",     (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":click"); });
-    btn.addEventListener("touchend",  (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":touchend"); }, { passive: false });
-    btn.addEventListener("pointerup", (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":pointerup"); });
+    // touchstart fires the INSTANT the finger lands — earlier than
+    // touchend, click, or pointerup.  iOS PWAs have been observed to
+    // swallow click/touchend in some standalone-mode configurations
+    // (especially when a higher-level scroll/gesture handler is
+    // listening); touchstart bypasses all of that.  Combined with the
+    // other three handlers as belt-and-suspenders.
+    btn.addEventListener("touchstart", (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":touchstart"); }, { passive: false });
+    btn.addEventListener("click",      (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":click"); });
+    btn.addEventListener("touchend",   (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":touchend"); }, { passive: false });
+    btn.addEventListener("pointerup",  (e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":pointerup"); });
+    btn.addEventListener("pointerdown",(e) => { e.preventDefault(); e.stopPropagation(); dismiss(label + ":pointerdown"); });
+  });
+  // OVERLAY-LEVEL backstop: if nothing on the button works, tapping
+  // anywhere on the overlay outside the card dismisses too.  This
+  // guarantees the driver can ALWAYS escape, even if every per-button
+  // handler is somehow eaten by iOS.
+  overlay.addEventListener("touchstart", (e) => {
+    if (e.target.closest(".rrc-card")) return;   // taps on the card itself stay (so child button handlers fire)
+    dismiss("overlay:touchstart");
+  }, { passive: true });
+  overlay.addEventListener("click", (e) => {
+    if (e.target.closest(".rrc-card")) return;
+    dismiss("overlay:click");
   });
   const onKey = (e) => {
     if (e.key === "Escape") { document.removeEventListener("keydown", onKey); dismiss("esc"); }
@@ -7622,7 +7642,7 @@ function _unlockAudioOnGesture() {
 window.addEventListener("DOMContentLoaded", () => {
   try {
     const tag = document.createElement("div");
-    tag.textContent = "rr v118";
+    tag.textContent = "rr v119";
     tag.style.cssText = "position:fixed;bottom:10px;right:10px;"
       + "z-index:3000;padding:4px 8px;border-radius:999px;"
       + "background:rgba(15,23,42,.85);color:#fff;font-size:10px;"
