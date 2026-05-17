@@ -15915,6 +15915,9 @@ let _dispatchPriority    = "normal";
 let _dispatchRequiresAck = false;
 
 async function loadDriverChatInbox() {
+  // Kick a presence load in parallel so the chat head's App status /
+  // Last active chips have data when the operator clicks into a thread.
+  _ensureRosterAppStatusLoaded();
   await refreshDriverChatList(true);
   if (_msgInboxListTimer) clearInterval(_msgInboxListTimer);
   _msgInboxListTimer = setInterval(() => {
@@ -16510,9 +16513,12 @@ async function refreshDriverChatThread(scrollToBottom) {
             ${escapeHtml((drv.name || "?").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}
             <span class="rr-mc-head-presence"></span>
           </div>
-          <div>
+          <div style="flex:1;min-width:0">
             <div class="rr-mc-name">${escapeHtml(drv.name || "")}</div>
             <div class="rr-mc-sub">Driver chat</div>
+          </div>
+          <div class="rr-mc-head-stats" id="rr-mc-head-stats" data-rr-driver-id="${escapeHtml(driverId)}">
+            <!-- App status + Last active chips painted by _paintMsgHeadStats -->
           </div>
         </div>
         <div class="rr-mc-thread" id="rr-mc-thread" data-rr-anchor="1">
@@ -17051,6 +17057,9 @@ async function refreshDriverChatThread(scrollToBottom) {
   // Refresh head presence dot/sub-line in case the driver came online
   // between the open and the data resolve.
   _presencePaintThreadHead(driverId);
+  // Repaint the App status / Last active chips on every poll so the
+  // "Last active 3m ago" stat ticks forward as time passes.
+  _paintMsgHeadStats(driverId);
 }
 
 // ─── Edit / delete on dispatcher's own bubbles ───────────────────────────
@@ -20365,6 +20374,66 @@ function _presencePaintList() {
     if (!dot) return;
     dot.classList.toggle("online", _presence.online.has(id));
   });
+}
+
+// Format helpers for the message-thread head stat chips ("App status",
+// "Last active", and a More dropdown).  Drops Battery from the mockup —
+// the driver app doesn't report battery telemetry yet.
+function _fmtRelSinceShort(iso) {
+  if (!iso) return null;
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return "now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
+function _appStatusLabel(s, isOnline) {
+  if (!s)                      return { label: "Not invited", tone: "off" };
+  if (isOnline)                return { label: "Connected",   tone: "ok"  };
+  if (s.last_seen_at)          return { label: "Connected",   tone: "ok"  };
+  if (s.signed_in_at)          return { label: "Signed in",   tone: "ok"  };
+  if (s.invited)               return { label: "Invited",     tone: "warn"};
+  return { label: "Not on app", tone: "off" };
+}
+
+function _paintMsgHeadStats(driverId) {
+  const host = document.getElementById("rr-mc-head-stats");
+  if (!host || host.getAttribute("data-rr-driver-id") !== driverId) return;
+  const s = (_rosterAppStatus && _rosterAppStatus.get) ? _rosterAppStatus.get(driverId) : null;
+  const isOnline = !!(_presence?.online?.has?.(driverId));
+  const status = _appStatusLabel(s, isOnline);
+  const lastActive = (s && (s.last_seen_at || s.signed_in_at))
+    ? _fmtRelSinceShort(s.last_seen_at || s.signed_in_at)
+    : null;
+  const chip = (icon, label, value, tone) => `
+    <div class="rr-mc-stat rr-mc-stat-${tone || "info"}">
+      <span class="rr-mc-stat-icon">${icon}</span>
+      <div class="rr-mc-stat-text">
+        <div class="rr-mc-stat-label">${escapeHtml(label)}</div>
+        <div class="rr-mc-stat-value">${escapeHtml(value)}</div>
+      </div>
+    </div>`;
+  const appIcon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>';
+  const clockIcon = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  const moreIcon  = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>';
+  host.innerHTML =
+    chip(appIcon, "App status", status.label, status.tone) +
+    chip(clockIcon, "Last active", lastActive || "—", "info") +
+    `<button type="button" class="rr-mc-stat-more" id="rr-mc-stat-more" title="More" aria-label="More">${moreIcon}</button>`;
+}
+
+// Load driver_app_status into _rosterAppStatus if the cache is empty
+// (e.g. the operator landed on Messages without first visiting Drivers).
+// Idempotent + cheap; bail if we already have data.
+async function _ensureRosterAppStatusLoaded() {
+  if (_rosterAppStatus && _rosterAppStatus.size > 0) return;
+  try {
+    const { data } = await sb.rpc("driver_app_status");
+    if (Array.isArray(data)) _rosterAppStatus = new Map(data.map((s) => [s.driver_id, s]));
+  } catch (e) { /* non-fatal — chips will render as "—" */ }
 }
 
 function _presencePaintThreadHead(driverId) {
