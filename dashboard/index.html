@@ -7619,7 +7619,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <div class="page-header">
           <div class="page-header-l">
-            <div class="page-icon" data-c="pipeline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M9 18h6"/></svg></div>
+            <div class="page-icon" data-c="pipeline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/><circle cx="17" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="11" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="7" cy="18" r="2" fill="currentColor" stroke="none"/></svg></div>
             <div>
               <h1 class="page-title">Hiring pipeline</h1>
               <p class="page-sub" id="rr-pipeline-page-sub">Loading…</p>
@@ -7637,11 +7637,19 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        <!-- Pipeline sub-nav -->
-        <div class="subnav" data-rr-tabbar="hiring">
-          <button class="subnav-item active" data-pipesub="funnel" onclick="pipeSub('funnel')">Funnel</button>
-          <button class="subnav-item" data-pipesub="interview" onclick="pipeSub('interview')">Interview Day</button>
-          <button class="subnav-item" data-pipesub="calendar" onclick="pipeSub('calendar')">Calendar</button>
+        <!-- Pipeline sub-nav · subnav on left, window toggle on right —
+             one rail of controls so the page reads as a single header. -->
+        <div class="pipe-subnav-row">
+          <div class="subnav" data-rr-tabbar="hiring">
+            <button class="subnav-item active" data-pipesub="funnel" onclick="pipeSub('funnel')">Funnel</button>
+            <button class="subnav-item" data-pipesub="interview" onclick="pipeSub('interview')">Interview Day</button>
+            <button class="subnav-item" data-pipesub="calendar" onclick="pipeSub('calendar')">Calendar</button>
+          </div>
+          <div id="hp-window-toggle-h" class="pipe-window-toggle" role="group" aria-label="Time window">
+            <button class="hp-window-btn" data-rr-window="7"    type="button">This week</button>
+            <button class="hp-window-btn" data-rr-window="28"   type="button">4 wk</button>
+            <button class="hp-window-btn" data-rr-window="3650" type="button">All time</button>
+          </div>
         </div>
 
         <!-- FUNNEL SUB-VIEW -->
@@ -7715,13 +7723,34 @@ body.rr-cmdk-open{ overflow:hidden }
           .hp-window-btn.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
         </style>
 
-        <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;margin:-2px 0 6px 0">
-          <div id="hp-window-toggle" style="display:inline-flex;background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:2px;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)">
-            <button class="hp-window-btn" data-rr-window="7"   style="background:transparent;border:0;font:inherit;padding:var(--s-1) 10px;border-radius:var(--r-md);color:inherit;cursor:pointer">This week</button>
-            <button class="hp-window-btn" data-rr-window="28"  style="background:transparent;border:0;font:inherit;padding:var(--s-1) 10px;border-radius:var(--r-md);color:inherit;cursor:pointer">4 wk</button>
-            <button class="hp-window-btn" data-rr-window="3650" style="background:transparent;border:0;font:inherit;padding:var(--s-1) 10px;border-radius:var(--r-md);color:inherit;cursor:pointer">All time</button>
-          </div>
+        <!-- Original window toggle kept in DOM for any JS that binds to
+             #hp-window-toggle; visually hidden — the page header version
+             above is the live one operators interact with. -->
+        <div id="hp-window-toggle" hidden aria-hidden="true" style="display:none">
+          <button class="hp-window-btn" data-rr-window="7"    type="button">This week</button>
+          <button class="hp-window-btn" data-rr-window="28"   type="button">4 wk</button>
+          <button class="hp-window-btn" data-rr-window="3650" type="button">All time</button>
         </div>
+        <style>
+          /* Subnav + window toggle share a row */
+          #view-pipeline .pipe-subnav-row{
+            display:flex;align-items:center;justify-content:space-between;
+            gap:var(--s-3);margin-bottom:var(--s-3);flex-wrap:wrap;
+          }
+          #view-pipeline .pipe-subnav-row > .subnav{margin-bottom:0}
+          #view-pipeline .pipe-window-toggle{
+            display:inline-flex;background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--r-md);padding:3px;
+            font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+          }
+          #view-pipeline .pipe-window-toggle .hp-window-btn{
+            appearance:none;background:transparent;border:0;font:inherit;cursor:pointer;
+            padding:5px 12px;border-radius:var(--r-sm);color:inherit;
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-pipeline .pipe-window-toggle .hp-window-btn:hover:not(.active){color:var(--text);background:var(--canvas)}
+          #view-pipeline .pipe-window-toggle .hp-window-btn.active{background:var(--accent-soft);color:var(--accent-text)}
+        </style>
 
         <div class="hp-stats-banner">
           <div class="hp-stat">
@@ -7774,9 +7803,10 @@ body.rr-cmdk-open{ overflow:hidden }
           <div class="hp-stages" id="pipeline-stage-tabs">
             <button class="hp-stage-btn stage-tab active" data-stage="all" onclick="filterPipelineStage(this)">All <span class="hp-stage-btn-count stage-tab-count">28</span></button>
             <button class="hp-stage-btn stage-tab" data-stage="applied" onclick="filterPipelineStage(this)">Applied <span class="hp-stage-btn-count stage-tab-count">9</span></button>
-            <button class="hp-stage-btn stage-tab" data-stage="screened" onclick="filterPipelineStage(this)">Screened <span class="hp-stage-btn-count stage-tab-count">7</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="screened" onclick="filterPipelineStage(this)">Screening <span class="hp-stage-btn-count stage-tab-count">7</span></button>
             <button class="hp-stage-btn stage-tab" data-stage="booking_pending" onclick="filterPipelineStage(this)">Booking pending <span class="hp-stage-btn-count stage-tab-count">5</span></button>
             <button class="hp-stage-btn stage-tab" data-stage="booking_scheduled" onclick="filterPipelineStage(this)">Booking scheduled <span class="hp-stage-btn-count stage-tab-count">7</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="hired" onclick="filterPipelineStage(this)">Hired <span class="hp-stage-btn-count stage-tab-count">0</span></button>
           </div>
           <div class="hp-list-tools">Sort: Newest first</div>
         </div>
