@@ -6763,9 +6763,24 @@ async function renderI9Section1() {
     let firstNode = null;
     for (const [id, val, msg] of req) { if (!val) { const n = fieldError(id, msg); if (!firstNode) firstNode = n; } }
     if (firstNode) return { focus: firstNode };
+    // State must be 2-letter alpha — accept any case, normalize to upper.
+    if (!/^[A-Z]{2}$/.test(s.addr_state)) return { focus: fieldError("i9-state", "Use the 2-letter state code (e.g. NC)") };
+    // SSN is optional unless the employer uses E-Verify, but if the
+    // driver provided one, it must be a valid format. Accept digits-only
+    // or XXX-XX-XXXX with hyphens.
+    if (s.ssn && !/^\d{3}-?\d{2}-?\d{4}$/.test(s.ssn)) return { focus: fieldError("i9-ssn", "Enter your SSN as 9 digits (e.g. 123-45-6789)") };
     if (!["citizen", "national", "lpr", "authorized"].includes(s.citizen_status)) { toast("Select your citizenship or immigration status.", "warn"); return { focus: main.querySelector('[data-i9-card="status"]') }; }
     if (s.citizen_status === "lpr" && !s.lpr_uscis_number) return { focus: fieldError("i9-lpr-num", "Enter your USCIS / A-Number") };
     if (s.citizen_status === "authorized" && !s.auth_doc_number) return { focus: fieldError("i9-auth-num", "Enter a work-authorization document number") };
+    // Work-authorization expires must be a real date when provided —
+    // free-text was slipping through and breaking the reverification
+    // clock on the operator side. Allow blank (USCIS allows "N/A" for
+    // certain refugee/asylee cases, captured separately as a checkbox
+    // upstream if needed); reject obviously invalid strings.
+    if (s.citizen_status === "authorized" && s.auth_expires) {
+      const d = new Date(s.auth_expires + "T00:00:00");
+      if (isNaN(d.getTime())) return { focus: fieldError("i9-auth-exp", "Enter the expiration as MM/DD/YYYY") };
+    }
     if (s.citizen_status === "authorized" && s.auth_doc_kind === "passport" && !s.auth_passport_country) return { focus: fieldError("i9-auth-country", "Enter the passport's country of issuance") };
     return null;
   }

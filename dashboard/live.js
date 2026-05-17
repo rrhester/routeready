@@ -14499,6 +14499,10 @@ const _I9_CITIZEN_LABELS = {
   lpr:        "Lawful permanent resident",
   authorized: "Noncitizen authorized to work",
 };
+// Official USCIS Lists of Acceptable Documents (Form I-9, ed. 01/20/25).
+// The "Other (type below)" escape hatch in the doc-row UI still catches
+// rare edge cases (e.g. expired-doc auto-extensions), but every common
+// document should be a one-click pick now.
 const _I9_DOC_OPTIONS = {
   A: ["U.S. Passport or U.S. Passport Card",
       "Permanent Resident Card (Form I-551)",
@@ -14514,7 +14518,10 @@ const _I9_DOC_OPTIONS = {
       "Military dependent's ID card",
       "U.S. Coast Guard Merchant Mariner Card",
       "Native American tribal document",
-      "School record or report card (under 18)"],
+      "Canadian driver's license",
+      "School record or report card (under 18)",
+      "Clinic, doctor, or hospital record (under 18)",
+      "Day-care or nursery school record (under 18)"],
   C: ["Unrestricted Social Security card",
       "Certified copy of birth certificate (U.S.)",
       "Consular Report of Birth Abroad (FS-240 / FS-545 / DS-1350)",
@@ -14959,9 +14966,16 @@ async function openI9Section1Modal(driverId) {
     const csv = m.querySelector('input[name="i9e-cs"]:checked')?.value || "";
     const authKind = m.querySelector('input[name="i9e-authkind"]:checked')?.value || "uscis";
     if (!val("i9e-last") || !val("i9e-first") || !val("i9e-street") || !val("i9e-city") || !val("i9e-state") || !val("i9e-zip") || !val("i9e-dob")) { toast("Fill in the required name, address, and date of birth.", "warn"); return; }
+    if (!/^[A-Za-z]{2}$/.test(val("i9e-state"))) { toast("Use the 2-letter state code (e.g. NC).", "warn"); return; }
+    const ssn = val("i9e-ssn");
+    if (ssn && !/^\d{3}-?\d{2}-?\d{4}$/.test(ssn)) { toast("Enter the SSN as 9 digits (e.g. 123-45-6789).", "warn"); return; }
     if (!["citizen","national","lpr","authorized"].includes(csv)) { toast("Select the citizenship / immigration status.", "warn"); return; }
     if (csv === "lpr" && !val("i9e-lprnum")) { toast("Enter the USCIS / A-Number.", "warn"); return; }
     if (csv === "authorized" && !val("i9e-authnum")) { toast("Enter the work-authorization document number.", "warn"); return; }
+    if (csv === "authorized" && val("i9e-authexp")) {
+      const d = new Date(val("i9e-authexp") + "T00:00:00");
+      if (isNaN(d.getTime())) { toast("Enter the work-authorization expiration as MM/DD/YYYY.", "warn"); return; }
+    }
     if (!m.querySelector("#i9e-attest")?.checked) { toast("Confirm the attestation to save.", "warn"); return; }
     const section1 = {
       last_name: val("i9e-last"), first_name: val("i9e-first"), middle_initial: val("i9e-mi"), other_last_names: val("i9e-other"),
@@ -15027,6 +15041,17 @@ async function openI9Section2Modal(driverId) {
   const body = `
     <div style="display:flex;flex-direction:column;gap:var(--s-3-5)">
       ${due ? `<div style="border:1px solid;border-radius:8px;padding:var(--s-2) var(--s-3);font-size:var(--fs-sm);${due.overdue ? "background:var(--red-soft);border-color:rgba(225,29,72,.22);color:var(--red-dark)" : due.days<=1 ? "background:var(--amber-soft);border-color:rgba(245,158,11,.22);color:var(--amber-dark)" : "background:var(--accent-soft);border-color:rgba(37,99,235,.22);color:#1e40af"}">${due.overdue ? `Section 2 was due ${escapeHtml(fmtD(due.deadline))} (${Math.abs(due.days)} business day${Math.abs(due.days)===1?"":"s"} ago). Complete it as soon as possible and note the reason for the delay in step 2.` : due.dueToday ? `Section 2 is due today.` : `Section 2 is due by ${escapeHtml(fmtD(due.deadline))} — ${due.days} business day${due.days===1?"":"s"} left.`}</div>` : ""}
+
+      <div style="border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3) var(--s-3-5);background:var(--canvas);display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)">
+        <label style="display:flex;flex-direction:column;gap:3px;min-width:0">
+          <span class="u-xs-subtle">Employer's business or organization name</span>
+          <input type="text" id="i9-s2-employer-name" value="${escapeHtml(s2.employer_business_name || window.RR?.dsp?.name || "")}" placeholder="Legal entity that employs this driver" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--surface)">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:3px;min-width:0">
+          <span class="u-xs-subtle">First day of employment</span>
+          <input type="date" id="i9-s2-first-day" value="${escapeHtml(rec?.first_day_of_employment || _ddDriver?.driver?.hire_date || "")}" style="padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);font:inherit;background:var(--surface)">
+        </label>
+      </div>
 
       ${step(1, "Examine the documents", "How did you review the employee's original documents?", `
         <label style="display:flex;align-items:flex-start;gap:var(--s-2);font-size:var(--fs-sm);padding:2px 0;cursor:pointer"><input type="radio" name="i9-exam" value="in_person" ${exam==="in_person"?"checked":""} style="margin-top:3px"> <span>Physical, in-person examination of the original documents.</span></label>
@@ -15102,6 +15127,10 @@ async function openI9Section2Modal(driverId) {
     }
     if (listChoice === "A" && collected.length !== 1) { toast("List A requires exactly one document.", "warn"); return; }
     if (listChoice === "BC" && collected.length !== 2) { toast("List B + List C requires two documents.", "warn"); return; }
+    const employerName = (m.querySelector("#i9-s2-employer-name")?.value || "").trim();
+    if (!employerName) { toast("Enter the employer's business or organization name.", "warn"); return; }
+    const firstDayIso = (m.querySelector("#i9-s2-first-day")?.value || "").trim();
+    if (!firstDayIso) { toast("Enter the employee's first day of employment.", "warn"); return; }
     if (!m.querySelector("#i9-s2-attest")?.checked) { toast("Confirm the attestation to complete Section 2.", "warn"); return; }
     const typed = (m.querySelector("#i9-s2-typed").value || "").trim();
     let sigMethod = null, sigData = null;
@@ -15122,10 +15151,17 @@ async function openI9Section2Modal(driverId) {
     }
     const existingPaths = Array.isArray(rec?.section2_document_paths) ? rec.section2_document_paths : [];
     const remote = examMethod === "remote_alternative";
+    // Persist first-day-of-employment first if it changed — it anchors
+    // the Section-2 deadline clock and lives in its own column.
+    if (firstDayIso && firstDayIso !== rec?.first_day_of_employment) {
+      btn.textContent = "Saving start date…";
+      const { error: fdErr } = await sb.rpc("i9_set_first_day", { p_driver_id: driverId, p_date: firstDayIso });
+      if (fdErr) { btn.disabled = false; btn.textContent = "Complete & attest Section 2"; toast("Couldn't save start date: " + fdErr.message, "warn"); return; }
+    }
     btn.textContent = "Saving…";
     const { error } = await sb.rpc("i9_complete_section2", {
       p_driver_id: driverId,
-      p_section2: { exam_method: examMethod, list_used: listChoice === "A" ? "A" : "BC", documents: collected, additional_info: (m.querySelector("#i9-s2-addl").value || "").trim() },
+      p_section2: { exam_method: examMethod, list_used: listChoice === "A" ? "A" : "BC", documents: collected, additional_info: (m.querySelector("#i9-s2-addl").value || "").trim(), employer_business_name: employerName, first_day_of_employment: firstDayIso },
       p_document_paths: [...existingPaths, ...newPaths],
       p_signature: { method: sigMethod, data: sigData },
       p_signer_title: (m.querySelector("#i9-s2-title").value || "").trim() || null,
