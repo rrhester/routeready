@@ -3522,27 +3522,34 @@ function _obMxStylesOnce() {
   s.id = "rr-ob-mx-styles";
   s.textContent =
     /* ── Onboarding matrix — the page itself ─────────────────── */
-    ".ob-mx-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden}" +
+    ".ob-mx-wrap{background:linear-gradient(180deg,#fff 0%,var(--surface) 100%);border:1px solid var(--border);border-radius:22px;overflow:hidden;box-shadow:0 18px 44px -38px rgba(15,23,42,.42),var(--highlight-top)}" +
+    ".ob-mx-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);padding:16px 18px 14px;border-bottom:1px solid var(--border-subtle);background:rgba(255,255,255,.72)}" +
+    ".ob-mx-head-title{font-size:var(--fs-lg);font-weight:760;letter-spacing:-.02em;color:var(--text)}" +
+    ".ob-mx-head-sub{margin-top:3px;font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.45}" +
+    ".ob-mx-head-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:680;white-space:nowrap}" +
+    ".ob-mx-head-chip::before{content:'';width:7px;height:7px;border-radius:999px;background:var(--accent)}" +
     ".ob-mx-scroll{overflow-x:auto}" +
-    ".ob-matrix{width:100%;min-width:1080px;border-collapse:collapse;font-size:var(--fs-sm)}" +
-    ".ob-matrix th{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);padding:var(--s-3) 6px;text-align:center;white-space:nowrap;background:var(--surface);border-bottom:1px solid var(--border)}" +
-    ".ob-matrix th.ob-mx-namecol{text-align:left;padding-left:16px;position:sticky;left:0;background:var(--surface);z-index:2}" +
+    ".ob-matrix{width:100%;min-width:1080px;border-collapse:separate;border-spacing:0;font-size:var(--fs-sm)}" +
+    ".ob-matrix th{font-size:10px;font-weight:760;letter-spacing:.055em;text-transform:uppercase;color:var(--text-subtle);padding:12px 8px;text-align:center;white-space:nowrap;background:var(--canvas);border-bottom:1px solid var(--border-subtle)}" +
+    ".ob-matrix th.ob-mx-namecol{text-align:left;padding-left:18px;position:sticky;left:0;background:var(--canvas);z-index:2;box-shadow:8px 0 16px -18px rgba(15,23,42,.6)}" +
     ".ob-matrix th.ob-mx-statuscol{text-align:left}" +
-    ".ob-matrix td{padding:11px 6px;border-top:1px solid var(--border);text-align:center;vertical-align:middle}" +
-    ".ob-matrix td.ob-mx-namecell{padding-left:16px;text-align:left;min-width:210px;position:sticky;left:0;background:var(--surface);z-index:1}" +
+    ".ob-matrix td{padding:13px 8px;border-top:1px solid var(--border-subtle);text-align:center;vertical-align:middle;background:rgba(255,255,255,.74)}" +
+    ".ob-matrix tbody tr:first-child td{border-top:0}" +
+    ".ob-matrix td.ob-mx-namecell{padding-left:18px;text-align:left;min-width:230px;position:sticky;left:0;background:#fff;z-index:1;box-shadow:8px 0 16px -18px rgba(15,23,42,.6)}" +
     ".ob-matrix td.ob-mx-statuscell{text-align:left}" +
-    ".ob-matrix tr:hover td{background:var(--canvas)}" +
-    ".ob-matrix tr:hover td.ob-mx-namecell{background:var(--canvas)}" +
-    ".ob-mx-name{font-size:var(--fs-md);font-weight:600;color:var(--text);cursor:pointer}" +
-    ".ob-mx-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.3}" +
-    ".ob-mxdot{appearance:none;background:transparent;border:1.5px solid var(--border-strong);width:14px;height:14px;border-radius:50%;cursor:pointer;padding:0;transition:background var(--t-fast),border-color .12s,transform .1s}" +
-    ".ob-mxdot:hover{transform:scale(1.18)}" +
-    ".ob-mxdot.done{background:#16a34a;border-color:var(--green)}" +
-    ".ob-mxdot.readonly{cursor:default;opacity:.7}" +
-    ".ob-mxdot.readonly:hover{transform:none}" +
+    ".ob-matrix tr:hover td{background:#f8fafc}" +
+    ".ob-matrix tr:hover td.ob-mx-namecell{background:#f8fafc}" +
+    ".ob-mx-name{font-size:var(--fs-md);font-weight:680;color:var(--text);cursor:pointer;letter-spacing:-.01em}" +
+    ".ob-mx-name:hover{color:var(--accent-text)}" +
+    ".ob-mx-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.35}" +
+    ".ob-mxdot{appearance:none;background:#fff;border:1.5px solid var(--border-strong);width:15px;height:15px;border-radius:50%;cursor:pointer;padding:0;transition:background var(--t-fast),border-color .12s,transform .1s,box-shadow .12s;box-shadow:0 1px 0 rgba(255,255,255,.9) inset}" +
+    ".ob-mxdot:hover{transform:scale(1.16);border-color:var(--accent-border);box-shadow:0 0 0 4px var(--accent-soft)}" +
+    ".ob-mxdot.done{background:var(--green);border-color:var(--green);box-shadow:0 0 0 3px var(--green-soft)}" +
+    ".ob-mxdot.readonly{cursor:default;opacity:.75}" +
+    ".ob-mxdot.readonly:hover{transform:none;box-shadow:0 1px 0 rgba(255,255,255,.9) inset}" +
     ".ob-mxdot[disabled]{cursor:not-allowed;opacity:.5}" +
-    ".ob-mx-action{appearance:none;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;transition:color var(--t-fast),border-color .12s,background .12s;line-height:0}" +
-    ".ob-mx-action:hover{color:var(--accent-text);border-color:var(--accent-border);background:var(--surface)}" +
+    ".ob-mx-action{appearance:none;background:#fff;border:1px solid var(--border);border-radius:10px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;transition:color var(--t-fast),border-color .12s,background .12s,transform .12s,box-shadow .12s;line-height:0}" +
+    ".ob-mx-action:hover{color:var(--accent-text);border-color:var(--accent-border);background:var(--surface);transform:translateY(-1px);box-shadow:0 10px 18px -16px rgba(15,23,42,.65)}" +
     /* ── Onboarding builder ──────────────────────────────────── */
     ".ob-bld-list{display:flex;flex-direction:column;gap:var(--s-2)}" +
     ".ob-bld-card{display:flex;align-items:flex-start;gap:var(--s-3-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:var(--s-3-5) var(--s-4);transition:opacity var(--t-fast),border-color .12s}" +
@@ -4129,7 +4136,7 @@ const _HELP_CONTENT = {
     <p>Every change saves automatically and reaches new and in-progress drivers.</p>` },
 };
 function _helpBar(key) {
-  return `<div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:var(--s-2)"><button type="button" class="rr-help-btn" data-rr-help="${escapeHtml(key)}" aria-label="How this page works">Help</button></div>`;
+  return `<div class="rr-help-row" style="display:flex;justify-content:flex-end;align-items:center"><button type="button" class="rr-help-btn" data-rr-help="${escapeHtml(key)}" aria-label="How this page works">Help</button></div>`;
 }
 function _openHelpPopup(key) {
   const c = _HELP_CONTENT[key]; if (!c) return;
@@ -4208,13 +4215,25 @@ async function loadOnboardingOps(opts) {
   _rosterI9   = new Map(i9All.map((r) => [r.driver_id, r]));
   _rosterProg = new Map((Array.isArray(progRes?.data) ? progRes.data : []).map((r) => [r.driver_id, r]));
   _rosterState = new Map((Array.isArray(stateRes?.data) ? stateRes.data : []).map((r) => [r.driver_id, (r && r.steps) || {}]));
-  if (subEl) subEl.textContent = N ? `${N} driver${N === 1 ? "" : "s"} in onboarding` : "No one in onboarding right now";
+  if (subEl) subEl.textContent = N
+    ? `${N} driver${N === 1 ? "" : "s"} moving through documents, training, and activation.`
+    : "No one is in onboarding right now. When a new hire arrives, they’ll appear here automatically.";
 
   // The matrix is the page.  Sorted urgency-first — compliance risks
   // rise to the top, then ready-to-activate, then due-soon, etc. — so
   // the colour-coded status pills carry the at-a-glance read with no
   // separate KPI strip needed.
   const enriched = rows.map(d => ({ d, ob: _obReadiness(d) }));
+  const readyCount = enriched.filter(x => x.ob.key === "ready").length;
+  const reviewCount = enriched.filter(x => x.ob.key === "awaiting_review").length;
+  const riskCount = enriched.filter(x => ["compliance_risk", "needs_correction", "due_soon"].includes(x.ob.key)).length;
+  const unreadCount = Array.from((_onbUnreadByDriver || new Map()).values()).reduce((sum, n) => sum + (Number(n) || 0), 0);
+  const setHeroCount = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
+  setHeroCount("rr-onboardops-total", N);
+  setHeroCount("rr-onboardops-ready", readyCount);
+  setHeroCount("rr-onboardops-review", reviewCount);
+  setHeroCount("rr-onboardops-risk", riskCount);
+  setHeroCount("rr-onboardops-unread", unreadCount);
   enriched.sort((a, b) => {
     if (a.ob.weight !== b.ob.weight) return a.ob.weight - b.ob.weight;
     const da = a.d.hire_date ? new Date(a.d.hire_date).getTime() : 0;
@@ -4325,7 +4344,7 @@ async function loadOnboardingOps(opts) {
 
   const stepHeaders = stepCols.map(s => `<th title="${escapeHtml(s.title)}">${escapeHtml(s.map.head)}</th>`).join("");
   body.innerHTML = enriched.length
-    ? `${_helpBar("overview")}<div class="ob-mx-wrap"><div class="ob-mx-scroll"><table class="ob-matrix">
+    ? `${_helpBar("overview")}<div class="ob-mx-wrap"><div class="ob-mx-head"><div><div class="ob-mx-head-title">Readiness board</div><div class="ob-mx-head-sub">Sorted by what needs attention first. Click any dot to update a step.</div></div><div class="ob-mx-head-chip">${readyCount} ready</div></div><div class="ob-mx-scroll"><table class="ob-matrix">
         <thead>
           <tr>
             <th class="ob-mx-namecol">Driver</th>
