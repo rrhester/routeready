@@ -4065,6 +4065,7 @@ const _OB_ADD_TYPES = [
   { type: "background_check",owner: "dsp",    coreKey: "bg_check",  title: "Background check cleared", label: "Background check (compliance gate)",  blurb: "You record the result on the dashboard once the background check clears. Federally required for hire." },
   { type: "drug_test",       owner: "dsp",    coreKey: "drug_test", title: "Drug test cleared",        label: "Drug test (compliance gate)",         blurb: "You record the result on the dashboard once the drug test clears. Federally required for hire." },
   { type: "task",            owner: "dsp",    isGate: true,         title: "New compliance gate",      label: "Custom compliance gate",              blurb: "Any check you record from the dashboard that has to clear before a driver can finish onboarding (e.g. MVR review, DOT medical card, photo received). Blocking + required by default; rename it after adding." },
+  { type: "task",            owner: "dsp",    isTrainerPair: true,  title: "Trainer pairing",          label: "Trainer pairing (ride-along)",        blurb: "Pair the new driver with an experienced trainer for a ride-along. You mark it complete from the dashboard once the pairing wraps. Optional — skip if your DSP doesn't run pairings." },
   { type: "document",        owner: "driver", title: "New document", label: "Document to sign or acknowledge", blurb: "Attach a PDF from your Documents workspace. Informational docs the driver opens and acknowledges; secure docs run the e-signature & compliance flow." },
   { type: "acknowledgement", owner: "driver", title: "New acknowledgement", label: "Acknowledgement", blurb: "A short statement the driver reads and confirms — e.g. a policy or an expectation. No PDF." },
   { type: "video",          owner: "driver", title: "New video", label: "Watch a video", blurb: "Link a training or orientation video; the driver watches it, then confirms they're done." },
@@ -4090,21 +4091,32 @@ function _obAddStepPicker() {
     if (!b) return;
     const t = _OB_ADD_TYPES.find(x => x.type === b.getAttribute("data-type"));
     if (!t) return;
-    // Refuse to add a second copy of a core type — keys are canonical
-    // and the rest of the dashboard would key off the first occurrence
-    // anyway, so duplicates only confuse the operator.
-    if (t.coreKey && _obBuilderSteps.some(s => s && s.type === t.type)) {
+    // Refuse to add a second copy of a single-instance type — core
+    // compliance gates and the trainer-pairing step are all "you only
+    // need one of these"; adding two would just confuse the operator
+    // (the rest of the dashboard would key off the first occurrence).
+    // Custom compliance gates are deliberately not single-instance —
+    // a DSP can add multiple gates with different titles.
+    if ((t.coreKey || t.isTrainerPair) && _obBuilderSteps.some(s => s && s.type === t.type && (s.key === t.coreKey || s.key === "trainer_pair"))) {
       toast(`The "${t.label}" step is already on your blueprint.`, "warn");
       m.remove();
       return;
     }
-    // Custom compliance gates use the generic "task" type but get a
-    // gate_<random> key so each operator-added gate carries its own
-    // status row in driver_onboarding_state, plus blocking + required
-    // flags so onboarding can't complete without it.
+    // Key selection:
+    //  · coreKey → canonical key the rest of the dashboard already
+    //    expects (i9 / bg_check / drug_test).
+    //  · isGate → gate_<random> so each custom gate has its own state.
+    //  · isTrainerPair → fixed "trainer_pair" key so the dashboard can
+    //    hook completion to public.training_pairings.status later.
+    //  · else → custom_<random>.
     const baseKey = t.coreKey
-      || (t.isGate ? "gate_" + Math.random().toString(36).slice(2, 9)
-                   : "custom_" + Math.random().toString(36).slice(2, 9));
+      || (t.isTrainerPair ? "trainer_pair"
+          : t.isGate ? "gate_" + Math.random().toString(36).slice(2, 9)
+          : "custom_" + Math.random().toString(36).slice(2, 9));
+    // Trainer pairing is intentionally non-blocking by default — a DSP
+    // that uses ride-alongs cares about it, but it shouldn't gate
+    // activation on its own. They can flip it to blocking after if
+    // they want that.
     const blocking = !!t.coreKey || !!t.isGate;
     const required = !!t.coreKey || !!t.isGate;
     _obBuilderSteps.push({ key: baseKey, type: t.type, title: t.title, enabled: true, blocking, required, owner: t.owner, document_template_id: null, video_url: null, ack_text: null });
