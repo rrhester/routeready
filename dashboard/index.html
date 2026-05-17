@@ -283,6 +283,23 @@ a{color:inherit;text-decoration:none}
   .rr-skel{animation:none;background:var(--surface-elevated)}
 }
 
+/* Legacy spinner class — `<div class="loader" style="margin:48px auto"></div>`
+   is sprinkled across live.js (Documents, Time off, Coaching drawer, etc.)
+   but the matching CSS rule was lost in an earlier refactor, leaving
+   every one of those loading states invisible.  Restore the spinner
+   shape using the same proportions and tokens as the canonical
+   .rr-loading::before so the two read as one family.  New code should
+   prefer .rr-loading or .rr-skel; this is the safety net for the
+   existing call sites. */
+.loader{
+  display:block;width:22px;height:22px;
+  border:2px solid var(--border-subtle);border-top-color:var(--accent);
+  border-radius:50%;animation:rr-spin .65s linear infinite;
+}
+@media (prefers-reduced-motion: reduce){
+  .loader{animation:none;border-top-color:var(--border-strong)}
+}
+
 /* ─────────────────────────────────────────────────────────────
    CANONICAL MODAL — one shape, one rhythm.  All centered dialogs
    in the dashboard (DVIC compare, Ask result, compliance rule,
