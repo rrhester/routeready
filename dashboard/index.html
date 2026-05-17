@@ -13195,6 +13195,16 @@ body.rr-cmdk-open{ overflow:hidden }
           </select>
         </div>
 
+        <!-- Driver-reported legend · explains the ⚑ chip drivers trigger
+             by submitting the Vehicle Concerns form (see migration 0289).
+             Renders as a quiet info strip so leadership knows what the
+             icon means even before any concern has been submitted. -->
+        <div class="fl-dr-legend" role="note" aria-label="Driver-reported concerns legend"
+             style="display:flex;align-items:center;gap:var(--s-2);padding:var(--s-2) var(--s-3);margin-bottom:var(--s-3);background:var(--red-soft, #fef2f2);border:1px solid var(--red-soft-border, #fecaca);border-radius:var(--r-md);color:var(--red-dark, #991b1b);font-size:var(--fs-sm);line-height:1.4">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M4 22V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v18l-8-4-8 4z"/></svg>
+          <span><strong>Driver-reported concerns</strong> appear here. Any van a driver flags via the <em>Vehicle Concerns</em> form (from the Forms tab in their app) shows a red <strong>⚑ driver-reported</strong> chip in the Operational status cell — those need leadership review.</span>
+        </div>
+
         <div class="table-wrap">
           <table class="table">
             <thead>
@@ -22346,7 +22356,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260517-vehicle-concerns"></script>
+<script type="module" src="./live.js?v=20260517-concerns-legend"></script>
 
 </body>
 </html>
