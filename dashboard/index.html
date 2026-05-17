@@ -12933,10 +12933,16 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-empty p{margin:0 auto var(--s-3-5);max-width:380px;font-size:var(--fs-md);color:var(--text-subtle);line-height:1.55}
           /* Skeleton */
           #view-fleet .fl-skel-cell{height:13px;border-radius:var(--r-sm);background:var(--canvas);position:relative;overflow:hidden}
-          #view-fleet .fl-skel-cell::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);transform:translateX(-100%);animation:flShimmer 1var(--t-spring)-in-out infinite}
+          #view-fleet .fl-skel-cell::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);transform:translateX(-100%);animation:flShimmer 1.4s ease-in-out infinite}
           #view-fleet .fl-skel-thumb{width:38px;height:38px;border-radius:var(--r-md);background:var(--canvas);position:relative;overflow:hidden}
-          #view-fleet .fl-skel-thumb::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);transform:translateX(-100%);animation:flShimmer 1var(--t-spring)-in-out infinite}
+          #view-fleet .fl-skel-thumb::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);transform:translateX(-100%);animation:flShimmer 1.4s ease-in-out infinite}
           @keyframes flShimmer{to{transform:translateX(100%)}}
+          /* Initial roster skeleton — rows of .rr-skel bars matching
+             the 5-col table head rhythm so #fleet-tbody doesn't render
+             empty before loadFleetRoster() lands. */
+          #view-fleet .fl-skel-row td{padding-top:14px;padding-bottom:14px}
+          #view-fleet .fl-skel-row{cursor:default}
+          #view-fleet .fl-skel-veh{display:flex;align-items:center;gap:var(--s-3);min-width:0}
           /* Date-pill that warns when a compliance date is near/past */
           #view-fleet .fl-date{font-variant-numeric:tabular-nums;font-size:var(--fs-sm);white-space:nowrap}
           #view-fleet .fl-date.warn{color:var(--amber-dark);font-weight:600}
@@ -13081,7 +13087,16 @@ body.rr-cmdk-open{ overflow:hidden }
                 <th>Last route</th>
               </tr>
             </thead>
-            <tbody id="fleet-tbody"></tbody>
+            <tbody id="fleet-tbody">
+              <!-- Skeleton rows · painted before loadFleetRoster()
+                   replaces them.  Matches the 5-col table head rhythm
+                   so the layout doesn't reflow when real vans arrive. -->
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:160px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:74%"></span></td><td><span class="rr-skel rr-skel-md" style="width:50%"></span></td><td><span class="rr-skel rr-skel-md" style="width:68%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:140px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:55%"></span></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:46%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:170px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:64%"></span></td><td><span class="rr-skel rr-skel-md" style="width:70%"></span></td><td><span class="rr-skel rr-skel-md" style="width:52%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:130px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:58%"></span></td><td><span class="rr-skel rr-skel-md" style="width:76%"></span></td><td><span class="rr-skel rr-skel-md" style="width:48%"></span></td><td><span class="rr-skel rr-skel-md" style="width:64%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:150px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td><td><span class="rr-skel rr-skel-md" style="width:66%"></span></td></tr>
+            </tbody>
           </table>
         </div>
         </div><!-- /#fl-sub-vehicles -->
