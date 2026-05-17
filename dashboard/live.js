@@ -34924,7 +34924,7 @@ function _dvicAiCardHtml(cur) {
   const body = summary
     ? `<div class="summary">${escapeHtml(summary)}</div>`
     : (status === "pending"
-        ? `<div class="summary" style="color:var(--text-subtle)">RouteReady will review these photos against the prior inspection. Click "Run AI scan" to start.</div>`
+        ? `<div class="summary dim">RouteReady will review these photos against the prior inspection. Click "Run AI scan" to start.</div>`
         : "");
   const reviewedAt = cur?.ai_review_at
     ? `<div class="meta">Reviewed <b>${escapeHtml(_dvicFmtWhen(cur.ai_review_at))}</b></div>`
@@ -34997,104 +34997,10 @@ async function _dvicOpenCompare(vehicleId, inspectionId) {
   wrap.id = "rr-dvic-modal";
   wrap.className = "rr-modal-backdrop";
   wrap.dataset.dvicVehicle = vehicleId;
+  // Markup-only — all styles live in dashboard/index.html under
+  // "DVIC compare modal" so the rules are parsed once at page load
+  // and re-opens stay snappy.
   wrap.innerHTML = `
-    <style>
-      #rr-dvic-modal .rr-modal-panel{width:1200px;max-height:90vh}
-      /* Upper grid: Previous | Current | AI Review Summary */
-      #rr-dvic-modal .dvic-top{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:var(--s-3);margin-bottom:var(--s-4)}
-      #rr-dvic-modal .dvic-card{border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);background:var(--surface);box-shadow:0 1px 2px rgba(15,23,42,.035);display:flex;flex-direction:column;min-width:0}
-      #rr-dvic-modal .dvic-card-eyebrow{font-size:10.5px;font-weight:750;letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:6px}
-      #rr-dvic-modal .dvic-card-when{font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em;line-height:1.3}
-      #rr-dvic-modal .dvic-card-who{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px;line-height:1.4}
-      #rr-dvic-modal .dvic-prev-row{display:flex;align-items:center;gap:var(--s-2-5);margin-top:var(--s-2-5)}
-      #rr-dvic-modal .dvic-prev-thumb{width:64px;height:48px;border-radius:var(--r-md);overflow:hidden;border:1px solid var(--border);flex:0 0 auto;background:var(--canvas);display:flex;align-items:center;justify-content:center}
-      #rr-dvic-modal .dvic-prev-thumb img{width:100%;height:100%;object-fit:cover}
-      #rr-dvic-modal .dvic-prev-meta{font-size:var(--fs-xs);color:var(--text);line-height:1.4;min-width:0}
-      #rr-dvic-modal .dvic-prev-link{font-size:var(--fs-xs);color:var(--accent-text);font-weight:600;margin-top:6px;display:inline-block}
-      #rr-dvic-modal .dvic-cur-tag{margin-top:var(--s-2-5);align-self:flex-start;display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);font-weight:700}
-      /* AI Review Summary card — tinted to the AI status. */
-      #rr-dvic-modal .dvic-ai-card{position:relative;padding:var(--s-3-5) var(--s-4);border-radius:var(--r-lg);border:1px solid transparent;box-shadow:0 1px 2px rgba(15,23,42,.035);display:flex;flex-direction:column;gap:8px}
-      #rr-dvic-modal .dvic-ai-card.clean   {background:rgba(16,185,129,.06);border-color:rgba(16,185,129,.20)}
-      #rr-dvic-modal .dvic-ai-card.flagged {background:rgba(225,29,72,.06);border-color:rgba(225,29,72,.22)}
-      #rr-dvic-modal .dvic-ai-card.pending {background:var(--canvas);border-color:var(--border)}
-      #rr-dvic-modal .dvic-ai-card.error   {background:var(--amber-soft);border-color:var(--amber-border)}
-      #rr-dvic-modal .dvic-ai-card .eyebrow{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:750;color:var(--text-muted);letter-spacing:.05em;text-transform:uppercase}
-      #rr-dvic-modal .dvic-ai-card .pill{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:10.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase}
-      #rr-dvic-modal .dvic-ai-card.clean   .pill{background:rgba(16,185,129,.18);color:#15803D}
-      #rr-dvic-modal .dvic-ai-card.flagged .pill{background:rgba(225,29,72,.18);color:#9F1239}
-      #rr-dvic-modal .dvic-ai-card.pending .pill{background:var(--surface);color:var(--text-muted);border:1px solid var(--border)}
-      #rr-dvic-modal .dvic-ai-card.error   .pill{background:rgba(245,158,11,.20);color:var(--amber-dark)}
-      #rr-dvic-modal .dvic-ai-card .summary{font-size:13px;color:var(--text);line-height:1.5}
-      #rr-dvic-modal .dvic-ai-card .meta{font-size:var(--fs-xs);color:var(--text-subtle)}
-      #rr-dvic-modal .dvic-ai-card .meta b{color:var(--text);font-weight:650}
-      #rr-dvic-modal .dvic-ai-card .expand{appearance:none;background:transparent;border:0;cursor:pointer;padding:0;font:inherit;font-size:var(--fs-xs);font-weight:650;color:var(--accent-text);align-self:flex-start;margin-top:2px}
-      #rr-dvic-modal .dvic-ai-card .expand:hover{text-decoration:underline}
-      #rr-dvic-modal .dvic-ai-findings{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--text);line-height:1.55;display:flex;flex-direction:column;gap:3px}
-      /* Current inspection photos section */
-      #rr-dvic-modal .dvic-photos-section{margin-bottom:var(--s-4)}
-      #rr-dvic-modal .dvic-photos-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2);margin-bottom:var(--s-2-5)}
-      #rr-dvic-modal .dvic-photos-title{font-size:var(--fs-sm);font-weight:700;color:var(--text);letter-spacing:-.005em}
-      #rr-dvic-modal .dvic-photos-count{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500}
-      #rr-dvic-modal .dvic-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s-2)}
-      /* "View in comparison mode" toggle bar — sits under the current
-         photo strip; expands a paired prev/current grid below. */
-      #rr-dvic-modal .dvic-compare-toggle{
-        appearance:none;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
-        margin-top:var(--s-2-5);padding:10px var(--s-3-5);width:100%;cursor:pointer;
-        display:flex;align-items:center;gap:var(--s-2);font:inherit;
-        font-size:var(--fs-sm);font-weight:600;color:var(--text);
-        transition:background var(--t-fast),border-color var(--t-fast);
-      }
-      #rr-dvic-modal .dvic-compare-toggle:hover{background:var(--surface-hover);border-color:var(--border-strong)}
-      #rr-dvic-modal .dvic-compare-toggle svg{color:var(--text-muted);flex:0 0 auto}
-      #rr-dvic-modal .dvic-compare-sub{font-weight:500;color:var(--text-subtle);font-size:var(--fs-xs);margin-left:auto}
-      #rr-dvic-modal .dvic-compare-toggle[aria-expanded="true"]{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent-text)}
-      #rr-dvic-modal .dvic-compare-toggle[aria-expanded="true"] svg{color:var(--accent-text)}
-      #rr-dvic-modal .dvic-compare-toggle[aria-expanded="true"] .dvic-compare-sub{color:var(--accent-text);opacity:.78}
-      #rr-dvic-modal .dvic-compare-pairs{display:flex;flex-direction:column;gap:var(--s-2-5);margin-top:var(--s-3)}
-      #rr-dvic-modal .dvic-compare-pairs[hidden]{display:none}
-      #rr-dvic-modal .dvic-compare-row{
-        display:grid;grid-template-columns:1fr 22px 1fr;gap:var(--s-2-5);align-items:center;
-      }
-      #rr-dvic-modal .dvic-compare-row .dvic-thumb{cursor:zoom-in}
-      #rr-dvic-modal .dvic-compare-sep{display:flex;align-items:center;justify-content:center;color:var(--text-subtle)}
-      @media (max-width:680px){
-        #rr-dvic-modal .dvic-compare-row{grid-template-columns:1fr;gap:var(--s-2)}
-        #rr-dvic-modal .dvic-compare-sep{display:none}
-      }
-      @media (max-width:980px){
-        #rr-dvic-modal .dvic-top{grid-template-columns:1fr 1fr}
-        #rr-dvic-modal .dvic-ai-card{grid-column:1/-1}
-        #rr-dvic-modal .dvic-strip{grid-template-columns:repeat(3,1fr)}
-      }
-      /* Inspection details block */
-      #rr-dvic-modal .dvic-details{border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:0 1px 2px rgba(15,23,42,.035);margin-bottom:var(--s-4);overflow:hidden}
-      #rr-dvic-modal .dvic-details-head{padding:var(--s-3) var(--s-4);border-bottom:1px solid var(--border-subtle);font-size:var(--fs-sm);font-weight:700;color:var(--text)}
-      #rr-dvic-modal .dvic-details-row{display:grid;grid-template-columns:140px 1fr;align-items:center;gap:var(--s-3);padding:11px var(--s-4)}
-      #rr-dvic-modal .dvic-details-row + .dvic-details-row{border-top:1px solid var(--border-subtle)}
-      #rr-dvic-modal .dvic-details-label{font-size:var(--fs-xs);font-weight:650;color:var(--text-subtle);letter-spacing:.02em}
-      #rr-dvic-modal .dvic-details-value{font-size:var(--fs-sm);color:var(--text);font-weight:500;word-break:break-word}
-      #rr-dvic-modal .dvic-details-value .dim{color:var(--text-subtle);font-weight:400}
-      #rr-dvic-modal .dvic-thumb{position:relative;display:block;width:100%;aspect-ratio:4/3;border-radius:var(--r-md);overflow:hidden;border:1px solid var(--border);background:var(--canvas);cursor:zoom-in;transition:border-color var(--t-fast), transform var(--t-fast)}
-      #rr-dvic-modal .dvic-thumb:hover{border-color:var(--border-strong);transform:translateY(-1px)}
-      #rr-dvic-modal .dvic-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-      #rr-dvic-modal .dvic-thumb.missing{display:flex;align-items:center;justify-content:center;color:var(--text-subtle);font-size:22px;aspect-ratio:4/3;cursor:default}
-      #rr-dvic-modal .dvic-thumb.missing:hover{transform:none;border-color:var(--border)}
-      #rr-dvic-modal .dvic-thumb .ix{position:absolute;left:6px;bottom:6px;background:rgba(15,23,42,.75);color:#fff;font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:var(--r-sm)}
-      #rr-dvic-modal .dvic-empty{font-size:var(--fs-sm);color:var(--text-subtle);padding:var(--s-3-5) var(--s-3);border:1px dashed var(--border);border-radius:var(--r-md);background:var(--canvas)}
-      #rr-dvic-modal .dvic-checklist{border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3) var(--s-4);background:var(--surface);box-shadow:0 1px 2px rgba(15,23,42,.035)}
-      #rr-dvic-modal .dvic-checklist-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2);flex-wrap:wrap}
-      #rr-dvic-modal .dvic-checklist-title{font-size:var(--fs-sm);font-weight:700;color:var(--text);letter-spacing:-.005em}
-      #rr-dvic-modal .dvic-checklist-title.warn{color:var(--amber-dark)}
-      #rr-dvic-modal .dvic-ai{border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);background:var(--canvas)}
-      #rr-dvic-modal .dvic-ai-h{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap;font-size:11.5px}
-      #rr-dvic-modal .sev-pill{display:inline-flex;align-items:center;padding:2px var(--s-2-5);border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
-      #rr-dvic-modal .dvic-ai-sum{margin:var(--s-2) 0 0;font-size:var(--fs-md);color:var(--text);line-height:1.55}
-      #rr-dvic-modal .review{border-top:1px dashed var(--border);padding-top:var(--s-3-5);display:flex;flex-direction:column;gap:var(--s-2)}
-      #rr-dvic-modal .review textarea{width:100%;min-height:64px;font:inherit;font-size:var(--fs-sm);padding:var(--s-2) var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);resize:vertical;transition:border-color var(--t-fast), box-shadow var(--t-fast)}
-      #rr-dvic-modal .review textarea:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
-      #rr-dvic-modal .review-state{font-size:11.5px;color:var(--text-subtle)}
-    </style>
     <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="DVIC photo review">
       <div class="rr-modal-head">
         <div class="rr-modal-head-content">
@@ -35104,7 +35010,33 @@ async function _dvicOpenCompare(vehicleId, inspectionId) {
         <button class="rr-modal-close" data-dvic-close type="button" aria-label="Close">×</button>
       </div>
       <div class="rr-modal-body" id="dvic-modal-body">
-        <div style="padding:var(--s-8) var(--s-2);text-align:center;color:var(--text-subtle)">Loading photos…</div>
+        <div class="dvic-loading" aria-busy="true" aria-live="polite">
+          <div class="dvic-loading-top">
+            <div class="dvic-loading-card">
+              <span class="rr-skel rr-skel-sm" style="width:54%"></span>
+              <span class="rr-skel rr-skel-lg" style="width:72%"></span>
+              <span class="rr-skel rr-skel-sm" style="width:64%"></span>
+            </div>
+            <div class="dvic-loading-card">
+              <span class="rr-skel rr-skel-sm" style="width:54%"></span>
+              <span class="rr-skel rr-skel-lg" style="width:72%"></span>
+              <span class="rr-skel rr-skel-sm" style="width:64%"></span>
+            </div>
+            <div class="dvic-loading-card">
+              <span class="rr-skel rr-skel-sm" style="width:42%"></span>
+              <span class="rr-skel rr-skel-md" style="width:90%"></span>
+              <span class="rr-skel rr-skel-md" style="width:78%"></span>
+              <span class="rr-skel rr-skel-sm" style="width:50%"></span>
+            </div>
+          </div>
+          <div class="dvic-loading-photos">
+            <span class="rr-skel"></span>
+            <span class="rr-skel"></span>
+            <span class="rr-skel"></span>
+            <span class="rr-skel"></span>
+            <span class="rr-skel"></span>
+          </div>
+        </div>
       </div>
       <div class="rr-modal-foot" id="dvic-modal-foot"></div>
     </div>`;
@@ -35119,10 +35051,12 @@ async function _dvicOpenCompare(vehicleId, inspectionId) {
   const { data, error } = await sb.rpc("vehicle_dvic_compare_pair", { p_vehicle_id: vehicleId, p_inspection_id: inspectionId || null });
   if (error || !data) {
     document.getElementById("dvic-modal-body").innerHTML = `<div class="dvic-empty">Couldn't load: ${escapeHtml((error && error.message) || "no data")}</div>`;
+    document.getElementById("dvic-modal-foot").innerHTML = `<button class="rr-modal-btn" data-dvic-close type="button">Close</button>`;
     return;
   }
   if (data.error) {
     document.getElementById("dvic-modal-body").innerHTML = `<div class="dvic-empty">${escapeHtml(data.error)}</div>`;
+    document.getElementById("dvic-modal-foot").innerHTML = `<button class="rr-modal-btn" data-dvic-close type="button">Close</button>`;
     return;
   }
   await _dvicRenderModal(wrap, data);
@@ -35152,9 +35086,9 @@ async function _dvicRenderModal(wrap, data) {
   const urlMap = await _dvicSignPaths(allPaths);
 
   const reviewBlock = cur.reviewer_disposition
-    ? `<div class="review-state">Reviewed ${escapeHtml(_dvicFmtWhen(cur.reviewed_at))} · <b style="text-transform:capitalize">${escapeHtml((cur.reviewer_disposition || "").replace(/_/g, " "))}</b>${cur.reviewer_notes ? " · " + escapeHtml(cur.reviewer_notes) : ""}</div>`
+    ? `<div class="review-state">Reviewed ${escapeHtml(_dvicFmtWhen(cur.reviewed_at))} · <b>${escapeHtml((cur.reviewer_disposition || "").replace(/_/g, " "))}</b>${cur.reviewer_notes ? " · " + escapeHtml(cur.reviewer_notes) : ""}</div>`
     : `<div class="review">
-        <label style="font-size:11.5px;font-weight:600;color:var(--text-subtle)">Notes (optional)</label>
+        <label>Notes (optional)</label>
         <textarea id="dvic-modal-notes" placeholder="What did you observe?"></textarea>
       </div>`;
 
@@ -35163,7 +35097,7 @@ async function _dvicRenderModal(wrap, data) {
     ? urlMap.get(prev.photos[0]) : null;
   const prevThumb = prevFirstUrl
     ? `<div class="dvic-prev-thumb"><img src="${escapeHtml(prevFirstUrl)}" alt="Previous inspection"></div>`
-    : `<div class="dvic-prev-thumb"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-subtle)"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`;
+    : `<div class="dvic-prev-thumb"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`;
   const prevSummary = prev
     ? `${escapeHtml(prev.inspector_name || "—")}${prev.result ? ` · ${escapeHtml((prev.result || "").replace(/_/g, " "))}` : ""}`
     : "No prior inspection on file.";
@@ -35179,7 +35113,7 @@ async function _dvicRenderModal(wrap, data) {
        </div>`
     : `<div class="dvic-card">
          <div class="dvic-card-eyebrow">Previous inspection</div>
-         <div class="dvic-card-when" style="color:var(--text-subtle);font-weight:600">None on file</div>
+         <div class="dvic-card-when dim">None on file</div>
          <div class="dvic-card-who">First DVIC for this van.</div>
        </div>`;
 
