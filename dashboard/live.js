@@ -535,11 +535,19 @@ function renderApplicantCard(a) {
   else if (stage === "booking_pending") { ctaAction = "resend_link";   ctaLabel = "Resend booking link"; }
   else if (stage === "booking_scheduled") { ctaAction = "reschedule";  ctaLabel = "Reschedule"; }
   const ctaBtn = ctaAction
-    ? `<button class="pa-strip-btn pa-strip-btn-primary" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">${escapeHtml(ctaLabel)}</button>`
+    ? `<button class="pa-strip-btn pa-strip-btn-primary" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">
+         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+         ${escapeHtml(ctaLabel)}
+       </button>`
     : "";
   const declineAction = stage === "booking_scheduled" ? "cancel_interview" : "decline";
   const declineLabel  = stage === "booking_scheduled" ? "Cancel interview" : "Decline";
-  const declineBtn = `<button class="pa-strip-btn pa-strip-btn-danger" type="button" data-rr-action="${declineAction}" data-applicant-id="${escapeHtml(a.id)}">${escapeHtml(declineLabel)}</button>`;
+  // Prohibition sign (⊘) — universal "do not" symbol so the operator can
+  // identify the destructive action at a glance.
+  const declineBtn = `<button class="pa-strip-btn pa-strip-btn-danger" type="button" data-rr-action="${declineAction}" data-applicant-id="${escapeHtml(a.id)}">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+    ${escapeHtml(declineLabel)}
+  </button>`;
 
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">

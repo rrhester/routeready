@@ -8541,15 +8541,34 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:7px 12px;border-radius:var(--r-md);
             font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;
             border:1px solid var(--border);background:var(--surface);color:var(--text);
-            transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
+            transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast);
             white-space:nowrap;
           }
           .pa-strip-btn:hover{background:var(--canvas);border-color:var(--border-strong)}
           .pa-strip-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
-          .pa-strip-btn-primary{background:var(--text);color:var(--text-inverse);border-color:var(--text)}
-          .pa-strip-btn-primary:hover{background:#000;border-color:#000;color:var(--text-inverse)}
-          .pa-strip-btn-danger{color:var(--red);border-color:color-mix(in srgb, var(--red) 30%, var(--border))}
-          .pa-strip-btn-danger:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
+          /* Primary CTA — accent-filled so it reads as "do this next",
+             not as a neutral confirmation. */
+          .pa-strip-btn-primary{
+            background:var(--accent);color:var(--text-inverse);border-color:var(--accent);
+            box-shadow:0 1px 2px rgba(15,23,42,.08);
+          }
+          .pa-strip-btn-primary:hover{
+            background:color-mix(in srgb, var(--accent) 88%, black);
+            border-color:color-mix(in srgb, var(--accent) 88%, black);
+            color:var(--text-inverse);
+          }
+          .pa-strip-btn-primary svg{stroke:currentColor}
+          /* Decline — red-filled with the universal "prohibited" icon so
+             the destructive action is recognizable at a glance. */
+          .pa-strip-btn-danger{
+            background:var(--red);color:#fff;border-color:var(--red);
+          }
+          .pa-strip-btn-danger:hover{
+            background:color-mix(in srgb, var(--red) 88%, black);
+            border-color:color-mix(in srgb, var(--red) 88%, black);
+            color:#fff;
+          }
+          .pa-strip-btn-danger svg{stroke:#fff}
           .pa-icon-btn{
             display:inline-flex;align-items:center;justify-content:center;
             width:32px;height:32px;border-radius:var(--r-md);
