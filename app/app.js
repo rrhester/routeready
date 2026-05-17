@@ -58,7 +58,7 @@ if (PREVIEW) {
 window.addEventListener("DOMContentLoaded", () => {
   try {
     const tag = document.createElement("div");
-    tag.textContent = "rr v114";
+    tag.textContent = "rr v115";
     tag.style.cssText = "position:fixed;bottom:10px;right:10px;"
       + "z-index:3000;padding:4px 8px;border-radius:999px;"
       + "background:rgba(15,23,42,.85);color:#fff;font-size:10px;"
@@ -7245,6 +7245,13 @@ function _wtRefreshSec() {
 // ═══════════════════════════════════════════════════════════════════
 
 let _celebrationOpen = false;
+// Client-side guard against the dismiss-RPC propagation race.  Once
+// the user dismisses a celebration, we immediately add its id to this
+// set so any re-check that runs while the dismiss RPC is still
+// in-flight (e.g. visibilitychange after navigation) skips it instead
+// of re-painting the same event.  Lives for the page session — on a
+// real reload, the dismissed_at column has long since propagated.
+const _recogDismissedIds = new Set();
 
 async function checkAndShowPendingRecognition(session) {
   if (_celebrationOpen) return;                     // overlay already showing
@@ -7261,6 +7268,10 @@ async function checkAndShowPendingRecognition(session) {
   const { data, error } = await pendingPromise;
   if (error)       { console.warn("[recognition] pending fetch failed:", error.message); return; }
   if (!data || !data.id) return;
+  // Skip if we've already dismissed this event in this session — the
+  // server-side dismissed_at write may not have propagated yet, so the
+  // RPC can still return the same id for a moment after dismiss.
+  if (_recogDismissedIds.has(data.id)) return;
   _renderCelebrationOverlay(session, data);
 }
 
@@ -7540,27 +7551,31 @@ function _renderCelebrationOverlay(session, ev) {
   const dismiss = () => {
     if (overlay._closing) return;
     overlay._closing = true;
-    overlay.classList.add("is-closing");
-    // Mark dismissed server-side.  If the network call fails, the
-    // overlay still closes locally — next app open will return the
-    // same event (acceptable: spec says show until acknowledged).
+    // CRITICAL: mark dismissed CLIENT-SIDE first so any re-check that
+    // fires before the RPC propagates skips this id instead of
+    // re-painting the overlay (the cause of the "can't reach main
+    // menu" loop reported on v114).
+    if (ev.id) _recogDismissedIds.add(ev.id);
+    // Server-side mark — fire-and-forget.  Whether or not this lands
+    // before the next pending check, the client-side set above
+    // already covers us.
     if (ev.id) {
       sb.rpc("driver_recognition_dismiss", { p_token: session.token, p_id: ev.id })
         .catch((e) => console.warn("recognition mark-dismissed failed:", e?.message));
     }
     // Unbind the document-level capture-phase backstop so it doesn't
-    // outlive the overlay (would otherwise leak across subsequent
-    // celebrations).
+    // outlive the overlay.
     if (overlay._docCapture) {
       document.removeEventListener("pointerdown", overlay._docCapture, true);
       document.removeEventListener("click",       overlay._docCapture, true);
       overlay._docCapture = null;
     }
-    setTimeout(() => {
-      overlay.remove();
-      _celebrationOpen = false;
-      window._rrCelebDismiss = null;
-    }, reduced ? 0 : 320);
+    // Synchronous removal — no 320ms wait — so the user can tap any
+    // tab or button as soon as their finger leaves the CTA.  The fade
+    // animation was a nice-to-have; reliability beats polish.
+    overlay.remove();
+    _celebrationOpen = false;
+    window._rrCelebDismiss = null;
   };
 
   // Expose dismiss as a window-level global so the button's inline
