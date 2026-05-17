@@ -3895,13 +3895,19 @@ async function loadOnboardingBuilder() {
   // the default blueprint but a previous edit could remove them, and the
   // "+ Add a step" picker doesn't offer them — so once gone, there's no
   // UI to bring them back. If any are missing here, restore them.
-  // Saves immediately so the next blueprint load is correct.
-  const _OB_CORE_KEYS = ["bg_check", "drug_test", "i9"];
+  //
+  // Match by step.type (the structural kind) rather than step.key — DSPs
+  // can rename / re-key core steps when customizing, but the type is
+  // what drives the actual workflow (i9 type → I-9 form, etc.), so
+  // type-presence is the right signal. The original key-based check
+  // duplicated bg_check / drug_test because the default types are
+  // "background_check" / "drug_test", not "bg_check" / "drug_test".
+  const _OB_CORE_TYPES = ["background_check", "drug_test", "i9"];
   let _obRestored = false;
-  for (const coreKey of _OB_CORE_KEYS) {
-    const present = _obBuilderSteps.some(s => s && (s.key === coreKey || s.type === coreKey || (coreKey === "i9" && s.type === "i9")));
+  for (const coreType of _OB_CORE_TYPES) {
+    const present = _obBuilderSteps.some(s => s && s.type === coreType);
     if (!present) {
-      const def = _OB_DEFAULT_BLUEPRINT.find(s => s.key === coreKey);
+      const def = _OB_DEFAULT_BLUEPRINT.find(s => s.type === coreType);
       if (def) { _obBuilderSteps.push({ ...def }); _obRestored = true; }
     }
   }
