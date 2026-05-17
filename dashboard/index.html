@@ -3389,6 +3389,44 @@ select.form-input{
 .dapp-scroll .ob-chev svg{width:13px;height:13px}
 .dapp-scroll .ob-foot{font-size:10px;color:var(--text-subtle);text-align:center;line-height:1.5;padding:2px 8px 0}
 
+
+/* Dashboard onboarding operations — calm SaaS command center */
+#view-onboarding-ops .page{max-width:1180px}
+.onb-ops-hero{
+  position:relative;overflow:hidden;
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--s-5);align-items:end;
+  padding:22px 24px;margin-bottom:var(--s-4);
+  background:
+    radial-gradient(circle at 96% 0%, rgba(59,130,246,.12), transparent 30%),
+    linear-gradient(180deg, #fff 0%, var(--surface) 100%);
+  border:1px solid var(--border);border-radius:24px;
+  box-shadow:0 18px 48px -36px rgba(15,23,42,.35), var(--highlight-top);
+}
+.onb-ops-hero::after{
+  content:"";position:absolute;inset:auto -10% -42% 40%;height:120px;
+  background:linear-gradient(90deg, transparent, rgba(14,165,233,.08), transparent);
+  transform:rotate(-4deg);pointer-events:none;
+}
+.onb-ops-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:9px;font-size:var(--fs-xs);font-weight:750;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-text)}
+.onb-ops-kicker::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px var(--green-soft)}
+.onb-ops-title{margin:0;font-family:'Inter Tight','Inter',sans-serif;font-size:clamp(28px,3.4vw,42px);font-weight:760;letter-spacing:-.04em;line-height:1.02;color:var(--text)}
+.onb-ops-copy{margin:9px 0 0;max-width:62ch;color:var(--text-subtle);font-size:var(--fs-base);line-height:1.55}
+.onb-ops-summary{display:grid;grid-template-columns:repeat(5,minmax(96px,1fr));gap:10px;min-width:min(560px,100%);position:relative;z-index:1}
+.onb-ops-stat{background:rgba(255,255,255,.72);border:1px solid var(--border-subtle);border-radius:16px;padding:11px 12px;box-shadow:0 1px 0 rgba(255,255,255,.8) inset;backdrop-filter:blur(10px)}
+.onb-ops-stat b{display:block;font-size:22px;line-height:1;font-weight:780;letter-spacing:-.035em;color:var(--text);font-variant-numeric:tabular-nums}
+.onb-ops-stat span{display:block;margin-top:5px;font-size:11px;font-weight:680;letter-spacing:.045em;text-transform:uppercase;color:var(--text-subtle);white-space:nowrap}
+.onb-ops-stat.ready b{color:var(--green)}
+.onb-ops-stat.review b{color:var(--accent)}
+.onb-ops-stat.risk b{color:var(--amber-dark)}
+.onb-ops-stat.chat b{color:var(--accent-text)}
+#view-onboarding-ops .subnav{margin:0 0 var(--s-4);padding:4px;background:var(--surface);border:1px solid var(--border);border-radius:999px;width:max-content;box-shadow:0 10px 26px -24px rgba(15,23,42,.45)}
+#view-onboarding-ops .subnav-item{border-radius:999px;padding:8px 14px;color:var(--text-subtle);font-weight:680}
+#view-onboarding-ops .subnav-item.active{background:var(--text);color:var(--text-inverse);box-shadow:0 8px 20px -14px rgba(15,23,42,.6)}
+#view-onboarding-ops .rr-help-row{margin:-2px 0 var(--s-3)}
+#view-onboarding-ops .rr-help-btn{background:transparent;border:1px solid transparent}
+@media (max-width:1080px){.onb-ops-hero{grid-template-columns:1fr}.onb-ops-summary{min-width:0}}
+@media (max-width:720px){.onb-ops-hero{padding:18px;border-radius:20px}.onb-ops-summary{grid-template-columns:repeat(2,minmax(0,1fr))}#view-onboarding-ops .subnav{width:100%;overflow-x:auto;border-radius:18px}.onb-ops-stat span{white-space:normal}}
+
 /* ─────────────────────────────────────────────────────────────
    TOAST SYSTEM (interaction feedback)
    ───────────────────────────────────────────────────────────── */
@@ -8672,15 +8710,20 @@ body.rr-cmdk-open{ overflow:hidden }
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-onboarding-ops">
       <div class="page">
-        <div class="page-header">
-          <div class="page-header-l">
-            <div class="page-icon" data-c="drivers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="15.5 11 17.5 13 21.5 9"/></svg></div>
-            <div>
-              <h1 class="page-title">Onboarding</h1>
-              <p class="page-sub" id="rr-onboardops-sub">Every driver getting ready to drive — readiness at a glance.</p>
-            </div>
+        <section class="onb-ops-hero" aria-labelledby="onb-ops-title">
+          <div>
+            <div class="onb-ops-kicker">Driver onboarding</div>
+            <h1 class="onb-ops-title" id="onb-ops-title">A calm place to move new hires forward.</h1>
+            <p class="onb-ops-copy" id="rr-onboardops-sub">Track documents, work authorization, training readiness, and messages without chasing down tabs.</p>
           </div>
-        </div>
+          <div class="onb-ops-summary" aria-label="Onboarding summary">
+            <div class="onb-ops-stat"><b id="rr-onboardops-total">—</b><span>Onboarding</span></div>
+            <div class="onb-ops-stat ready"><b id="rr-onboardops-ready">—</b><span>Ready</span></div>
+            <div class="onb-ops-stat review"><b id="rr-onboardops-review">—</b><span>Need review</span></div>
+            <div class="onb-ops-stat risk"><b id="rr-onboardops-risk">—</b><span>At risk</span></div>
+            <div class="onb-ops-stat chat"><b id="rr-onboardops-unread">—</b><span>Unread</span></div>
+          </div>
+        </section>
 
         <div class="subnav">
           <button class="subnav-item active" data-obsub="overview" onclick="obSub('overview')">Overview</button>
