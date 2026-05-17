@@ -50,6 +50,39 @@ if (PREVIEW) {
   };
 }
 
+// ── Visible version tag ─────────────────────────────────────────────
+// Stamps the loaded app.js version in the bottom-right for 8 seconds
+// after page load so the driver can confirm at a glance which build
+// is running.  Remove in a follow-up once we're done diagnosing the
+// celebration delivery loop.
+window.addEventListener("DOMContentLoaded", () => {
+  try {
+    const tag = document.createElement("div");
+    tag.textContent = "rr v113";
+    tag.style.cssText = "position:fixed;bottom:10px;right:10px;"
+      + "z-index:3000;padding:4px 8px;border-radius:999px;"
+      + "background:rgba(15,23,42,.85);color:#fff;font-size:10px;"
+      + "font-weight:700;letter-spacing:.06em;pointer-events:none";
+    document.body.appendChild(tag);
+    setTimeout(() => { try { tag.remove(); } catch (_) {} }, 8000);
+  } catch (_) {}
+});
+
+// ── Early recognition RPC kickoff ───────────────────────────────────
+// Kick off the pending-event RPC the moment app.js parses (before
+// render() runs).  By the time renderShell paints + the route's
+// r.render() finishes, the RPC has often already returned — so the
+// celebration overlay paints in the same frame as the route content
+// instead of arriving ~1s later.  The promise is stashed on
+// window._recogEarly and consumed by checkAndShowPendingRecognition.
+(function _kickoffEarlyRecogCheck() {
+  try {
+    const s = (typeof readSession === "function") ? readSession() : null;
+    if (!s || !s.token) return;
+    window._recogEarly = sb.rpc("driver_recognitions_pending", { p_token: s.token });
+  } catch (_) {}
+})();
+
 // ── Recognition foreground re-check ─────────────────────────────────
 // iOS PWAs and Safari bfcache keep the JS process alive across
 // app suspend/resume.  When the driver taps the home-screen icon
@@ -7216,10 +7249,16 @@ let _celebrationOpen = false;
 async function checkAndShowPendingRecognition(session) {
   if (_celebrationOpen) return;                     // overlay already showing
   if (!session || !session.token) return;
-  // Idempotency lives server-side on driver_recognitions.dismissed_at —
-  // once a driver dismisses an event, the pending lookup returns null,
-  // so we never re-paint.
-  const { data, error } = await sb.rpc("driver_recognitions_pending", { p_token: session.token });
+  // Prefer the early-kickoff promise (started at module load) so the
+  // overlay paints as fast as possible on first app open.  Falls back
+  // to a fresh RPC call on subsequent invocations (visibilitychange,
+  // hashchange).
+  let pendingPromise = window._recogEarly;
+  window._recogEarly = null;
+  if (!pendingPromise) {
+    pendingPromise = sb.rpc("driver_recognitions_pending", { p_token: session.token });
+  }
+  const { data, error } = await pendingPromise;
   if (error)       { console.warn("[recognition] pending fetch failed:", error.message); return; }
   if (!data || !data.id) return;
   _renderCelebrationOverlay(session, data);
@@ -7437,7 +7476,9 @@ function _renderCelebrationOverlay(session, ev) {
     <div class="rr-burst" aria-hidden="true"></div>
     ${confettiPieces.join("")}
 
-    <button class="rr-close" type="button" aria-label="Close celebration" data-rr-celeb-close>
+    <button class="rr-close" type="button" aria-label="Close celebration" data-rr-celeb-close
+            onclick="window._rrCelebDismiss && window._rrCelebDismiss()"
+            ontouchend="window._rrCelebDismiss && window._rrCelebDismiss(); event && event.preventDefault();">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
 
@@ -7450,7 +7491,9 @@ function _renderCelebrationOverlay(session, ev) {
       <p class="rr-msg">${escapeHtml(message)}</p>
 
       <div class="rr-cta-wrap">
-        <button class="rr-cta" type="button" data-rr-celeb-cta>${escapeHtml(ctaLabel)}</button>
+        <button class="rr-cta" type="button" data-rr-celeb-cta
+                onclick="window._rrCelebDismiss && window._rrCelebDismiss()"
+                ontouchend="window._rrCelebDismiss && window._rrCelebDismiss(); event && event.preventDefault();">${escapeHtml(ctaLabel)}</button>
       </div>
     </div>
 
@@ -7507,8 +7550,15 @@ function _renderCelebrationOverlay(session, ev) {
     setTimeout(() => {
       overlay.remove();
       _celebrationOpen = false;
+      window._rrCelebDismiss = null;
     }, reduced ? 0 : 320);
   };
+
+  // Expose dismiss as a window-level global so the button's inline
+  // onclick attribute can call it.  Belt-and-suspenders alternative
+  // to addEventListener — inline handlers run even if there's
+  // something weird going on with iOS event dispatch.
+  window._rrCelebDismiss = dismiss;
 
   // Bind dismiss every which way on the CTA + close button.  Previous
   // versions (single delegated click, then click+touchstart on the
@@ -7578,31 +7628,32 @@ function _renderCelebrationOverlay(session, ev) {
 // freshly-created AudioContext that gets garbage-collected when the
 // notes end.
 //
-// Browsers require a user gesture to unlock the audio context.  iOS
-// Safari is strict — even though the user tapped the app icon to open
-// the app, that gesture often isn't credited to a JS-created
-// AudioContext.  Strategy:
-//   1. Try to play immediately when the overlay opens.
-//   2. If the context is suspended (Safari), queue a one-shot
-//      touchstart/click listener that resumes + plays on the user's
-//      first interaction with the overlay.
+// iOS Safari refuses to start an AudioContext from page-load JS
+// without an explicit user gesture.  The previous version queued a
+// "play on first touch" fallback that the user could only trigger by
+// touching the overlay — but tapping the Start-my-day button to
+// dismiss happens AFTER the chime would have been useful.
 //
-// We close the context after the chime finishes to free resources.
-let _pendingChime = null;
+// New strategy: play it the moment the overlay paints, accepting
+// that on iOS Safari from a cold app open there may be no sound.
+// The chime IS played on any subsequent open where the AudioContext
+// is already running.  This matches the rest of the app's audio
+// behaviour (push-notification chime, etc.).
 function _playCelebrationChime() {
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return;
-  let ctx;
-  try { ctx = new AC(); } catch (_) { return; }
-
-  const playNow = () => {
-    if (!ctx) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    // Attempt resume (no-op on running, requests permission on
+    // suspended); we don't await so the chime fires immediately
+    // when the context is already running.
+    if (ctx.state === "suspended") {
+      try { ctx.resume(); } catch (_) {}
+    }
     const master = ctx.createGain();
-    master.gain.value = 0.22;                   // soft but audible
+    master.gain.value = 0.26;
     master.connect(ctx.destination);
     const start = ctx.currentTime + 0.02;
-    // E major triad climbing: E5, G#5, B5.  Each tone uses a quick
-    // attack + exponential decay so the chime rings out gracefully.
     [659.25, 830.61, 987.77].forEach((freq, i) => {
       const osc = ctx.createOscillator();
       osc.type = "sine";
@@ -7610,35 +7661,41 @@ function _playCelebrationChime() {
       const gain = ctx.createGain();
       const t0 = start + i * 0.085;
       gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.exponentialRampToValueAtTime(0.9, t0 + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.85);
+      gain.gain.exponentialRampToValueAtTime(0.95, t0 + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9);
       osc.connect(gain);
       gain.connect(master);
       osc.start(t0);
-      osc.stop(t0 + 0.9);
+      osc.stop(t0 + 0.95);
     });
-    setTimeout(() => { try { ctx.close(); } catch (_) {} ctx = null; }, 1600);
-    _pendingChime = null;
-  };
-
-  if (ctx.state === "running") {
-    playNow();
-    return;
-  }
-  // Suspended — try to resume.  resume() returns a promise; if it
-  // succeeds, play.  If it doesn't (no gesture credit yet), park the
-  // play function and let _unlockAudioOnGesture (bound to overlay
-  // touchstart/click below) trigger it on first interaction.
-  ctx.resume().then(() => {
-    if (ctx && ctx.state === "running") playNow();
-    else _pendingChime = playNow;
-  }).catch(() => { _pendingChime = playNow; });
+    setTimeout(() => { try { ctx.close(); } catch (_) {} }, 1700);
+  } catch (_) { /* audio unavailable — overlay still works */ }
 }
 
+// One-time AudioContext unlock helper bound to the first user gesture
+// anywhere in the app (touch / click).  Creates and immediately closes
+// a one-shot context so subsequent _playCelebrationChime() calls see
+// state === "running" right away.  iOS persists the "audio unlocked"
+// state across AudioContext instances per page.
+let _audioUnlocked = false;
 function _unlockAudioOnGesture() {
-  if (typeof _pendingChime === "function") {
-    const f = _pendingChime;
-    _pendingChime = null;
-    try { f(); } catch (_) {}
-  }
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    if (ctx.state === "suspended") {
+      ctx.resume().then(() => { try { ctx.close(); } catch (_) {} })
+                  .catch(() => {});
+    } else {
+      try { ctx.close(); } catch (_) {}
+    }
+  } catch (_) {}
 }
+// Bind the unlock to the FIRST gesture anywhere in the app — so by
+// the time a recognition celebration paints later in the session,
+// Safari's already credited a gesture.
+["touchstart", "click", "pointerdown"].forEach((evt) => {
+  document.addEventListener(evt, _unlockAudioOnGesture, { once: true, passive: true, capture: true });
+});
