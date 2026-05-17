@@ -3187,6 +3187,53 @@ function _wireRosterBulk() {
     document.getElementById("rr-roster-bulk-export")?.click();
   });
 
+  // Filters popover — toggle on button, close on outside / Escape,
+  // refresh badge whenever a tenure/score filter changes.
+  const filterBtn = document.getElementById("rr-roster-filters-btn");
+  const filterPop = document.getElementById("rr-roster-filters-popover");
+  const filterBadge = document.getElementById("rr-roster-filters-badge");
+  const resetBtn = document.getElementById("rr-roster-filters-reset");
+  const refreshFilterBadge = () => {
+    if (!filterBadge) return;
+    const count = (_rosterFilters.tenure ? 1 : 0) + (_rosterFilters.score ? 1 : 0);
+    if (count > 0) { filterBadge.hidden = false; filterBadge.textContent = String(count); }
+    else { filterBadge.hidden = true; filterBadge.textContent = ""; }
+  };
+  if (filterBtn && filterPop) {
+    const closeFilterPop = () => {
+      filterPop.classList.remove("open");
+      filterBtn.setAttribute("aria-expanded", "false");
+    };
+    filterBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const willOpen = !filterPop.classList.contains("open");
+      filterPop.classList.toggle("open", willOpen);
+      filterBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    });
+    filterPop.addEventListener("click", (e) => e.stopPropagation());
+    document.addEventListener("click", () => {
+      if (filterPop.classList.contains("open")) closeFilterPop();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && filterPop.classList.contains("open")) closeFilterPop();
+    });
+    resetBtn?.addEventListener("click", () => {
+      const t = document.getElementById("rr-roster-tenure");
+      const s = document.getElementById("rr-roster-score");
+      if (t) t.value = "";
+      if (s) s.value = "";
+      _rosterFilters = { ..._rosterFilters, tenure: "", score: "" };
+      refreshFilterBadge();
+      renderDriverTable(_rosterRows, null);
+    });
+    document.addEventListener("change", (e) => {
+      if (e.target?.id === "rr-roster-tenure" || e.target?.id === "rr-roster-score") {
+        refreshFilterBadge();
+      }
+    });
+    refreshFilterBadge();
+  }
+
   // Add driver ▾ — toggle a popover with Add / Bulk import.  Closes
   // on outside click, Escape, or after picking a menu item.
   const addBtn = document.getElementById("rr-roster-add-btn");

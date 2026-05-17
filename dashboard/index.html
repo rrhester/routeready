@@ -8930,6 +8930,40 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;align-items:center;gap:var(--s-3);
             margin:calc(-1 * var(--s-2)) 0 var(--s-3);
           }
+          /* Filters popover (anchored to the [Filters] button on the
+             left of the rail — override default right:0 alignment). */
+          #view-drivers #rr-roster-filters-popover{
+            left:0;right:auto;min-width:260px;
+          }
+          #view-drivers .popover-head{
+            display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
+            padding:var(--s-2-5) var(--s-3-5);
+            text-transform:none;letter-spacing:0;font-weight:600;color:var(--text);
+            font-size:var(--fs-md);
+          }
+          #view-drivers .popover-head-title{font-size:var(--fs-md);font-weight:700;color:var(--text)}
+          #view-drivers .popover-section{padding:var(--s-3) var(--s-3-5)}
+          #view-drivers .popover-field-label{
+            display:block;font-size:var(--fs-xs);font-weight:700;color:var(--text-muted);
+            letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px;
+          }
+          #view-drivers .popover-field{
+            width:100%;height:36px;padding:0 32px 0 12px;
+            border:1px solid var(--border);border-radius:8px;
+            font:inherit;font-size:var(--fs-md);color:var(--text);background:var(--surface);
+            appearance:none;-webkit-appearance:none;cursor:pointer;
+            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat:no-repeat;background-position:right 10px center;
+            transition:border-color var(--t-fast), box-shadow var(--t-fast);
+          }
+          #view-drivers .popover-field:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+          #view-drivers .dr-filters-badge{
+            display:inline-flex;align-items:center;justify-content:center;
+            min-width:18px;height:18px;padding:0 6px;border-radius:999px;
+            background:var(--accent);color:#fff;
+            font-size:10px;font-weight:700;line-height:1;letter-spacing:0;margin-left:2px;
+          }
+          #view-drivers .dr-filters-badge[hidden]{display:none}
           /* Page-actions: Export ghost + Add driver primary w/ chevron. */
           #view-drivers .page-actions .btn svg:last-child{
             width:13px;height:13px;margin-left:2px;opacity:.78;
@@ -9116,10 +9150,39 @@ body.rr-cmdk-open{ overflow:hidden }
         </style>
 
         <div class="dr-roster-bar">
-          <button class="dr-bar-btn" id="rr-roster-filters-btn" type="button" aria-haspopup="true" aria-expanded="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-            Filters
-          </button>
+          <div class="popover-anchor">
+            <button class="dr-bar-btn" id="rr-roster-filters-btn" type="button" aria-haspopup="true" aria-expanded="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              Filters
+              <span class="dr-filters-badge" id="rr-roster-filters-badge" hidden></span>
+            </button>
+            <div class="popover popover-filters" id="rr-roster-filters-popover" role="dialog" aria-labelledby="rr-roster-filters-btn">
+              <div class="popover-head">
+                <div class="popover-head-title">Filters</div>
+                <button class="rr-text-link" id="rr-roster-filters-reset" type="button">Reset</button>
+              </div>
+              <div class="popover-section">
+                <label class="popover-field-label" for="rr-roster-tenure">Tenure</label>
+                <select id="rr-roster-tenure" class="popover-field">
+                  <option value="">Any tenure</option>
+                  <option value="0-30">0–30 days</option>
+                  <option value="31-90">31–90 days</option>
+                  <option value="91-365">91–365 days</option>
+                  <option value="365+">Over a year</option>
+                </select>
+              </div>
+              <div class="popover-section">
+                <label class="popover-field-label" for="rr-roster-score">Score</label>
+                <select id="rr-roster-score" class="popover-field">
+                  <option value="">Any score</option>
+                  <option value="0-69">Below 70</option>
+                  <option value="70-84">70–84</option>
+                  <option value="85+">85 or higher</option>
+                  <option value="none">No score yet</option>
+                </select>
+              </div>
+            </div>
+          </div>
           <div class="dr-search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input type="search" id="rr-roster-search" placeholder="Search name, email, or phone…" autocomplete="off" spellcheck="false">
