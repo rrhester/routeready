@@ -7191,17 +7191,22 @@ let _celebrationOpen = false;
 async function checkAndShowPendingRecognition(session) {
   if (_celebrationOpen) return;                     // overlay already showing
   if (!session || !session.token) return;
-  if (sessionStorage.getItem("rr-recog-skip-once") === "1") {
-    // Set when the driver dismissed an overlay in this session so a
-    // rapid orientation flip / shell remount doesn't re-fetch + paint.
-    return;
-  }
+  // Idempotency lives server-side on driver_recognitions.dismissed_at —
+  // once a driver dismisses an event, the pending lookup returns null,
+  // so we never re-paint.  An earlier version added a sessionStorage
+  // skip flag here that could trap stale "skip" state across reloads —
+  // removed; the server-side dismissed_at is the canonical guard.
+  console.info("[recognition] checking pending events…");
   const { data, error } = await sb.rpc("driver_recognitions_pending", { p_token: session.token });
   if (error) {
-    console.warn("recognition pending fetch failed:", error.message);
+    console.warn("[recognition] pending fetch failed:", error.message);
     return;
   }
-  if (!data || !data.id) return;
+  if (!data || !data.id) {
+    console.info("[recognition] no pending event for this driver");
+    return;
+  }
+  console.info("[recognition] showing event:", data.kind, data.id);
   _renderCelebrationOverlay(session, data);
 }
 
@@ -7437,11 +7442,10 @@ function _renderCelebrationOverlay(session, ev) {
       sb.rpc("driver_recognition_dismiss", { p_token: session.token, p_id: ev.id })
         .catch((e) => console.warn("recognition mark-dismissed failed:", e?.message));
     }
-    // Skip-once flag: prevents an in-session shell remount (e.g. a
-    // navigation that calls render() again) from immediately re-fetching
-    // and re-painting the same event while the dismissed_at write is
-    // still propagating through PostgREST.
-    try { sessionStorage.setItem("rr-recog-skip-once", "1"); } catch (e) {}
+    // No client-side skip flag — the server-side dismissed_at write
+    // (above) is the canonical idempotency guard.  An earlier version
+    // wrote sessionStorage here, which trapped stale skip state and
+    // blocked future genuine events.
     setTimeout(() => {
       overlay.remove();
       _celebrationOpen = false;
