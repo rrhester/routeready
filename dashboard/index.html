@@ -9772,7 +9772,7 @@ body.rr-cmdk-open{ overflow:hidden }
           .att-event-dot.present{background:var(--green)}
           .att-event-dot.vto{background:var(--sky)}
 
-          .att-num{font-weight:600;font-variant-numeric:tabular-nums}
+          .att-num{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
           .att-num.warn{color:var(--amber)}
           .att-num.bad{color:var(--red)}
           .att-num.ok{color:var(--green)}
@@ -9954,7 +9954,7 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
             <div class="card card-flush">
               <div class="att-log-row" style="background:var(--canvas);font-weight:600;font-size:var(--fs-xs);letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">
-                <span>Date</span><span>Driver</span><span>Event</span><span style="text-align:right">Points</span><span></span>
+                <span>Date</span><span>Driver</span><span>Event</span><span class="u-right">Points</span><span></span>
               </div>
               <div id="att-log-body"><!-- populated --></div>
             </div>
@@ -11914,13 +11914,13 @@ body.rr-cmdk-open{ overflow:hidden }
           <div style="margin-top:var(--s-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-5)">
             <h3 style="font-size:var(--fs-md);font-weight:600;margin:0 0 var(--s-3) 0">Availability summary by day</h3>
             <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:var(--s-2)">
-              <div style="text-align:center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Mon</div><div style="font-size:18px;font-weight:700;color:var(--text)">71</div><div class="u-xs-subtle">of 78 available</div></div>
-              <div style="text-align:center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Tue</div><div style="font-size:18px;font-weight:700;color:var(--text)">75</div><div class="u-xs-subtle">of 78 available</div></div>
-              <div style="text-align:center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Wed</div><div style="font-size:18px;font-weight:700;color:var(--amber)">68</div><div class="u-xs-subtle">of 78 available</div></div>
-              <div style="text-align:center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Thu</div><div style="font-size:18px;font-weight:700;color:var(--text)">73</div><div class="u-xs-subtle">of 78 available</div></div>
-              <div style="text-align:center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Fri</div><div style="font-size:18px;font-weight:700;color:var(--text)">76</div><div class="u-xs-subtle">of 78 available</div></div>
-              <div style="text-align:center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Sat</div><div style="font-size:18px;font-weight:700;color:var(--amber)">52</div><div class="u-xs-subtle">of 78 available</div></div>
-              <div style="text-align:center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Sun</div><div style="font-size:18px;font-weight:700;color:var(--red)">28</div><div class="u-xs-subtle">of 78 available</div></div>
+              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Mon</div><div style="font-size:18px;font-weight:700;color:var(--text)">71</div><div class="u-xs-subtle">of 78 available</div></div>
+              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Tue</div><div style="font-size:18px;font-weight:700;color:var(--text)">75</div><div class="u-xs-subtle">of 78 available</div></div>
+              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Wed</div><div style="font-size:18px;font-weight:700;color:var(--amber)">68</div><div class="u-xs-subtle">of 78 available</div></div>
+              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Thu</div><div style="font-size:18px;font-weight:700;color:var(--text)">73</div><div class="u-xs-subtle">of 78 available</div></div>
+              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Fri</div><div style="font-size:18px;font-weight:700;color:var(--text)">76</div><div class="u-xs-subtle">of 78 available</div></div>
+              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Sat</div><div style="font-size:18px;font-weight:700;color:var(--amber)">52</div><div class="u-xs-subtle">of 78 available</div></div>
+              <div class="u-center"><div style="font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">Sun</div><div style="font-size:18px;font-weight:700;color:var(--red)">28</div><div class="u-xs-subtle">of 78 available</div></div>
             </div>
             <div style="margin-top:var(--s-4);padding-top:var(--s-3);border-top:1px solid var(--border);font-size:var(--fs-sm);color:var(--text-muted)">
               <strong style="color:var(--text)">Coverage forecast</strong> — Sunday is your tightest day. Demand 38 routes, only 28 drivers available. <a style="color:var(--accent-text);font-weight:500" onclick="goto('pipeline')" href="javascript:void(0)">Hire 10 more weekend-available drivers →</a>
@@ -12765,18 +12765,18 @@ body.rr-cmdk-open{ overflow:hidden }
                 <th class="num">Variance</th>
                 <th class="num">OT hours</th>
                 <th class="num col-cost">Cost impact</th>
-                <th style="text-align:right">Status</th>
+                <th class="u-right">Status</th>
               </tr>
             </thead>
             <tbody id="rr-ot-tbody">
               <!-- Initial skeleton rows · painted before loadOvertimeIntelligence
                    replaces them.  Mirrors the column rhythm so the table doesn't
                    reflow when the real rows arrive. -->
-              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:140px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td style="text-align:right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:var(--r-pill);height:18px"></span></td></tr>
-              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:120px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td style="text-align:right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:var(--r-pill);height:18px"></span></td></tr>
-              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:160px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td style="text-align:right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:var(--r-pill);height:18px"></span></td></tr>
-              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:130px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td style="text-align:right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:var(--r-pill);height:18px"></span></td></tr>
-              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:150px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td style="text-align:right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:var(--r-pill);height:18px"></span></td></tr>
+              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:140px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="u-right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:var(--r-pill);height:18px"></span></td></tr>
+              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:120px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="u-right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:var(--r-pill);height:18px"></span></td></tr>
+              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:160px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="u-right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:var(--r-pill);height:18px"></span></td></tr>
+              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:130px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="u-right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:var(--r-pill);height:18px"></span></td></tr>
+              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:150px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="u-right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:var(--r-pill);height:18px"></span></td></tr>
             </tbody>
           </table>
         </div>
@@ -14412,8 +14412,8 @@ body.rr-cmdk-open{ overflow:hidden }
                     <th>Email</th>
                     <th>Phone</th>
                     <th>Status</th>
-                    <th style="text-align:right">Drivers</th>
-                    <th style="text-align:right">Routes</th>
+                    <th class="u-right">Drivers</th>
+                    <th class="u-right">Routes</th>
                     <th>Plan</th>
                     <th>Last active</th>
                     <th style="text-align:right;width:48px">&nbsp;</th>
@@ -14751,7 +14751,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="bb-saved-card">
               <div class="bb-saved-head">
                 <div class="bb-saved-icon analyzer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-                <div style="text-align:right">
+                <div class="u-right">
                   <div class="bb-saved-type">Analyzer</div>
                 </div>
               </div>
@@ -14780,7 +14780,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="bb-saved-card">
               <div class="bb-saved-head">
                 <div class="bb-saved-icon tracker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg></div>
-                <div style="text-align:right"><div class="bb-saved-type">Tracker</div></div>
+                <div class="u-right"><div class="bb-saved-type">Tracker</div></div>
               </div>
               <div>
                 <div class="bb-saved-name">Driver Call-Out Tracker</div>
@@ -14806,7 +14806,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="bb-saved-card">
               <div class="bb-saved-head">
                 <div class="bb-saved-icon finder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
-                <div style="text-align:right"><div class="bb-saved-type">Pattern Finder</div></div>
+                <div class="u-right"><div class="bb-saved-type">Pattern Finder</div></div>
               </div>
               <div>
                 <div class="bb-saved-name">Van Damage Pattern Finder</div>
@@ -14833,7 +14833,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="bb-saved-card">
               <div class="bb-saved-head">
                 <div class="bb-saved-icon monitor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-                <div style="text-align:right"><div class="bb-saved-type">Monitor</div></div>
+                <div class="u-right"><div class="bb-saved-type">Monitor</div></div>
               </div>
               <div>
                 <div class="bb-saved-name">Training Completion Monitor</div>
@@ -14859,7 +14859,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="bb-saved-card">
               <div class="bb-saved-head">
                 <div class="bb-saved-icon review"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-                <div style="text-align:right"><div class="bb-saved-type">Review</div></div>
+                <div class="u-right"><div class="bb-saved-type">Review</div></div>
               </div>
               <div>
                 <div class="bb-saved-name">Bottom 5 Driver Coaching Review</div>
@@ -14913,15 +14913,15 @@ body.rr-cmdk-open{ overflow:hidden }
 
           <div class="recon-line">
             <div><div class="recon-line-name">Routes delivered</div><div class="recon-line-meta">Base route compensation</div></div>
-            <div><div class="recon-line-amazon">$22,800</div><div class="recon-line-meta" style="text-align:right">Amazon</div></div>
-            <div><div class="recon-line-truth">$22,800</div><div class="recon-line-meta" style="text-align:right">RR truth</div></div>
+            <div><div class="recon-line-amazon">$22,800</div><div class="recon-line-meta" class="u-right">Amazon</div></div>
+            <div><div class="recon-line-truth">$22,800</div><div class="recon-line-meta" class="u-right">RR truth</div></div>
             <div class="recon-line-delta ok">$0</div>
           </div>
 
           <div class="recon-line flagged">
             <div><div class="recon-line-name">Scan compliance deduction</div><div class="recon-line-meta">3 packages flagged not-scanned · KMO1-14B · Apr 24</div></div>
-            <div><div class="recon-line-amazon">−$487.20</div><div class="recon-line-meta" style="text-align:right">Amazon</div></div>
-            <div><div class="recon-line-truth">−$0</div><div class="recon-line-meta" style="text-align:right">RR truth</div></div>
+            <div><div class="recon-line-amazon">−$487.20</div><div class="recon-line-meta" class="u-right">Amazon</div></div>
+            <div><div class="recon-line-truth">−$0</div><div class="recon-line-meta" class="u-right">RR truth</div></div>
             <div class="recon-line-delta bad">+$487.20</div>
           </div>
           <div class="recon-evidence">
@@ -14930,8 +14930,8 @@ body.rr-cmdk-open{ overflow:hidden }
 
           <div class="recon-line flagged">
             <div><div class="recon-line-name">Late-return penalty</div><div class="recon-line-meta">Routes flagged returned after 7:00 PM on Apr 26</div></div>
-            <div><div class="recon-line-amazon">−$240.00</div><div class="recon-line-meta" style="text-align:right">Amazon</div></div>
-            <div><div class="recon-line-truth">−$120.00</div><div class="recon-line-meta" style="text-align:right">RR truth</div></div>
+            <div><div class="recon-line-amazon">−$240.00</div><div class="recon-line-meta" class="u-right">Amazon</div></div>
+            <div><div class="recon-line-truth">−$120.00</div><div class="recon-line-meta" class="u-right">RR truth</div></div>
             <div class="recon-line-delta bad">+$120.00</div>
           </div>
           <div class="recon-evidence">
@@ -14940,8 +14940,8 @@ body.rr-cmdk-open{ overflow:hidden }
 
           <div class="recon-line flagged-amber">
             <div><div class="recon-line-name">DCR tier · billed at Fantastic</div><div class="recon-line-meta">Tier bonus paid: Fantastic</div></div>
-            <div><div class="recon-line-amazon">+$1,890</div><div class="recon-line-meta" style="text-align:right">Amazon</div></div>
-            <div><div class="recon-line-truth">+$2,130</div><div class="recon-line-meta" style="text-align:right">RR truth</div></div>
+            <div><div class="recon-line-amazon">+$1,890</div><div class="recon-line-meta" class="u-right">Amazon</div></div>
+            <div><div class="recon-line-truth">+$2,130</div><div class="recon-line-meta" class="u-right">RR truth</div></div>
             <div class="recon-line-delta bad">+$240</div>
           </div>
           <div class="recon-evidence">
@@ -14950,8 +14950,8 @@ body.rr-cmdk-open{ overflow:hidden }
 
           <div class="recon-line">
             <div><div class="recon-line-name">Fuel surcharge</div><div class="recon-line-meta">Index-linked variable</div></div>
-            <div><div class="recon-line-amazon">$316.00</div><div class="recon-line-meta" style="text-align:right">Amazon</div></div>
-            <div><div class="recon-line-truth">$316.00</div><div class="recon-line-meta" style="text-align:right">RR truth</div></div>
+            <div><div class="recon-line-amazon">$316.00</div><div class="recon-line-meta" class="u-right">Amazon</div></div>
+            <div><div class="recon-line-truth">$316.00</div><div class="recon-line-meta" class="u-right">RR truth</div></div>
             <div class="recon-line-delta ok">$0</div>
           </div>
 
@@ -20508,14 +20508,14 @@ John,Smith,555-0101,john@example.com</code>
         + '<div><div class="cell-name">' + r.d.name + '</div>'
         + '<div class="cell-name-sub">' + (r.c.lastIncident ? 'Last: ' + _fmtRel(r.c.lastIncident) : 'Clean record') + '</div></div></div></td>'
         + '<td>' + r.d.station + '</td>'
-        + '<td style="text-align:right" class="att-num">' + r.c.scheduled + '</td>'
-        + '<td style="text-align:right" class="att-num">' + r.c.present + '</td>'
-        + '<td style="text-align:right" class="att-num' + (r.c.counts.late ? ' warn' : '') + '">' + (r.c.counts.late || '–') + '</td>'
-        + '<td style="text-align:right" class="att-num' + (r.c.counts.callout ? ' warn' : '') + '">' + (r.c.counts.callout || '–') + '</td>'
-        + '<td style="text-align:right" class="att-num' + (r.c.counts.noshow ? ' bad' : '') + '">' + (r.c.counts.noshow || '–') + '</td>'
-        + '<td style="text-align:right" class="att-num" style="color:var(--sky)">' + (r.c.counts.vto || '–') + '</td>'
-        + '<td style="text-align:right" class="att-num ' + pointsCls + '">' + r.c.points.toFixed(1) + '</td>'
-        + '<td style="text-align:right" class="att-num">' + r.c.occ + '</td>'
+        + '<td class="att-num">' + r.c.scheduled + '</td>'
+        + '<td class="att-num">' + r.c.present + '</td>'
+        + '<td class="att-num' + (r.c.counts.late ? ' warn' : '') + '">' + (r.c.counts.late || '–') + '</td>'
+        + '<td class="att-num' + (r.c.counts.callout ? ' warn' : '') + '">' + (r.c.counts.callout || '–') + '</td>'
+        + '<td class="att-num' + (r.c.counts.noshow ? ' bad' : '') + '">' + (r.c.counts.noshow || '–') + '</td>'
+        + '<td class="att-num" style="color:var(--sky)">' + (r.c.counts.vto || '–') + '</td>'
+        + '<td class="att-num ' + pointsCls + '">' + r.c.points.toFixed(1) + '</td>'
+        + '<td class="att-num">' + r.c.occ + '</td>'
         + '<td>' + attStatusPillFor(r.d, r.c) + '</td>'
         + '<td class="cell-time">' + (r.c.lastIncident ? _fmtDate(r.c.lastIncident) : '—') + '</td>'
         + '<td>' + attActionFor(r.d, r.c) + '</td>';
@@ -21191,8 +21191,8 @@ John,Smith,555-0101,john@example.com</code>
     body.innerHTML = '<div class="card card-flush" style="border-radius:var(--r-md)">'
       + '<div style="display:grid;grid-template-columns:1.6fr 80px 100px 110px 1.4fr auto;gap:var(--s-3-5);padding:var(--s-2-5) 16px;background:var(--canvas);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase">'
         + '<span>Driver</span>'
-        + '<span style="text-align:right">Score</span>'
-        + '<span style="text-align:right" title="Attendance points last 30d">Att. pts</span>'
+        + '<span class="u-right">Score</span>'
+        + '<span class="u-right" title="Attendance points last 30d">Att. pts</span>'
         + '<span>Flags</span>'
         + '<span>Suggested action</span>'
         + '<span></span>'
