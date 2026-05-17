@@ -6195,7 +6195,13 @@ async function renderDocumentSign() {
   // the template — the driver completes these here; the values are
   // sent with the signature and the sealing worker stamps them onto
   // the PDF at their positions.
-  const fillFields = (env.fields_snapshot || []).filter((f) => f && (f.kind === "text" || f.kind === "checkbox"));
+  // Multi-signer awareness: a field belongs to the driver if it has
+  // no signer_role tag (legacy single-signer templates) or its tag is
+  // explicitly "driver". Employer-tagged fields are completed by an
+  // operator after this signing pass, so the driver shouldn't see
+  // them in the fill list.
+  const isDriverField = (f) => !f.signer_role || f.signer_role === "driver";
+  const fillFields = (env.fields_snapshot || []).filter((f) => f && isDriverField(f) && (f.kind === "text" || f.kind === "checkbox"));
   const fillSection = fillFields.length ? `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
         <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Complete these fields</div>
