@@ -12234,6 +12234,9 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
             color:var(--green);margin-left:6px;
           }
+          /* Strong week label inside the page sub — reads as the
+             primary value in the sentence without screaming. */
+          #view-overtime .ot-page-sub-week{color:var(--text);font-weight:600}
           #view-overtime .ot-live .dot{
             width:6px;height:6px;border-radius:50%;background:var(--green);
             box-shadow:0 0 0 3px rgba(16,185,129,.18);
@@ -12282,6 +12285,11 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-overtime .ot-stat-delta.up{background:var(--red-soft);color:var(--red)}
           #view-overtime .ot-stat-delta.down{background:var(--green-soft);color:var(--green-dark)}
           #view-overtime .ot-stat-delta svg{width:11px;height:11px;stroke-width:2.4}
+          /* Inline trend chip next to a stat value — sits to its right with
+             matched optical balance, no manual margin / vertical-align hack */
+          #view-overtime .ot-stat-delta-inline{
+            margin-left:var(--s-2);font-size:10px;vertical-align:middle;
+          }
 
           /* Toolbar — search + filters bar (matches Drivers .dr-roster-bar) */
           #view-overtime .ot-bar{
@@ -12349,6 +12357,13 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-overtime .ot-variance.neg{color:var(--green-dark)}
           #view-overtime .ot-variance.flat{color:var(--text-muted)}
           #view-overtime .ot-variance svg{width:11px;height:11px;stroke-width:2.4}
+          /* Empty cell dash + amber OT-hours cell — match the rhythm of
+             tabular numbers in the rest of the table without needing
+             per-cell inline styles. */
+          #view-overtime .ot-table .ot-dash{color:var(--text-subtle)}
+          #view-overtime .ot-table .ot-cell-hot{
+            color:var(--amber-dark);font-weight:600;
+          }
 
           /* Risk pill — soft, no severity-stripe on the row itself */
           #view-overtime .ot-pill{
@@ -12401,7 +12416,8 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-overtime .ot-empty p{margin:0 auto;max-width:420px;font-size:var(--fs-sm);line-height:1.5}
 
-          /* Skeleton */
+          /* Skeleton — KPI value bars (also used for .ot-skel-driver rows
+             pre-render via .rr-skel from the canonical primitive). */
           #view-overtime .ot-skel{
             height:14px;border-radius:var(--r-sm);background:var(--canvas);
             position:relative;overflow:hidden;
@@ -12412,6 +12428,28 @@ body.rr-cmdk-open{ overflow:hidden }
             transform:translateX(-100%);animation:otShimmer 1.4s ease-in-out infinite;
           }
           @keyframes otShimmer{to{transform:translateX(100%)}}
+          /* Loading rows in the driver table — match the rhythm of a real
+             row so the table doesn't reflow when data arrives. */
+          #view-overtime .ot-skel-row td{padding-top:14px;padding-bottom:14px}
+          #view-overtime .ot-skel-row{cursor:default}
+          #view-overtime .ot-skel-driver{
+            display:flex;align-items:center;gap:var(--s-3);min-width:0;
+          }
+          /* Empty / error state — canonical icon + heading + body + action */
+          #view-overtime .ot-empty.is-error .ic{
+            color:var(--red);background:var(--red-soft);border-color:var(--red-border);
+          }
+          #view-overtime .ot-empty .ot-empty-action{
+            margin-top:var(--s-4);display:inline-flex;align-items:center;gap:var(--s-1);
+            padding:var(--s-2) var(--s-3-5);border-radius:var(--r-md);
+            border:1px solid var(--border-strong);background:var(--surface);
+            font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text);
+            cursor:pointer;transition:background var(--t-fast), border-color var(--t-fast);
+          }
+          #view-overtime .ot-empty .ot-empty-action:hover{
+            background:var(--canvas);border-color:var(--text-disabled);
+          }
+          #view-overtime .ot-empty .ot-empty-action svg{width:13px;height:13px}
 
           /* Assumption note · subtle hint about the math */
           #view-overtime .ot-assumption{
@@ -12527,7 +12565,14 @@ body.rr-cmdk-open{ overflow:hidden }
               </tr>
             </thead>
             <tbody id="rr-ot-tbody">
-              <tr><td colspan="8" style="padding:var(--s-6)"><div class="rr-loading">Loading overtime intelligence</div></td></tr>
+              <!-- Initial skeleton rows · painted before loadOvertimeIntelligence
+                   replaces them.  Mirrors the column rhythm so the table doesn't
+                   reflow when the real rows arrive. -->
+              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:140px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td style="text-align:right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:999px;height:18px"></span></td></tr>
+              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:120px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td style="text-align:right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:999px;height:18px"></span></td></tr>
+              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:160px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td style="text-align:right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:999px;height:18px"></span></td></tr>
+              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:130px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td style="text-align:right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:999px;height:18px"></span></td></tr>
+              <tr class="ot-skel-row"><td><div class="ot-skel-driver"><span class="rr-skel rr-skel-circle" style="width:32px;height:32px"></span><span class="rr-skel rr-skel-md" style="width:150px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:36px"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:40px;margin-left:auto"></span></td><td class="num"><span class="rr-skel rr-skel-md" style="width:48px;margin-left:auto"></span></td><td style="text-align:right"><span class="rr-skel rr-skel-md" style="width:64px;margin-left:auto;border-radius:999px;height:18px"></span></td></tr>
             </tbody>
           </table>
         </div>

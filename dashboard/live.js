@@ -37053,7 +37053,18 @@ async function loadOvertimeIntelligence(opts = {}) {
     if (_isAuthError(error)) _forceRelogin("session_expired");
     console.error("overtime_intelligence failed:", error);
     if (tbody) {
-      tbody.innerHTML = `<tr><td colspan="8" style="padding:0"><div class="ot-empty"><h3>Couldn't load overtime intelligence</h3><p>${escapeHtml(error.message || "Try again in a moment.")}</p></div></td></tr>`;
+      tbody.innerHTML = `
+        <tr><td colspan="8" style="padding:0">
+          <div class="ot-empty is-error">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+            <h3>Couldn't load overtime intelligence</h3>
+            <p>${escapeHtml(error.message || "Try again in a moment.")}</p>
+            <button type="button" class="ot-empty-action" data-rr-ot-retry>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Retry
+            </button>
+          </div>
+        </td></tr>`;
     }
     return;
   }
@@ -37106,6 +37117,16 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("#rr-ot-week-prev"))  { e.preventDefault(); _otStepWeek(-1); return; }
   if (e.target.closest("#rr-ot-week-next"))  { e.preventDefault(); _otStepWeek( 1); return; }
   if (e.target.closest("#rr-ot-week-today")) { e.preventDefault(); _otJumpToToday(); return; }
+  if (e.target.closest("[data-rr-ot-retry]")) { e.preventDefault(); loadOvertimeIntelligence({ preserveWeek: true }); return; }
+  if (e.target.closest("[data-rr-ot-clear-filters]")) {
+    e.preventDefault();
+    _otFilters.q = ""; _otFilters.risk = ""; _otFilters.station = "";
+    const q = document.getElementById("rr-ot-search");      if (q) q.value = "";
+    const r = document.getElementById("rr-ot-risk");        if (r) r.value = "";
+    const s = document.getElementById("rr-ot-station");     if (s) s.value = "";
+    _otRenderTable();
+    return;
+  }
 });
 
 function _otFmtRange(startIso, endIso) {
@@ -37152,7 +37173,7 @@ function _otRender(d) {
     const liveBadge = onWeek
       ? `<span class="ot-live"><span class="dot"></span>Live · this week</span>`
       : "";
-    sub.innerHTML = `Week of <strong style="color:var(--text);font-weight:600">${escapeHtml(range)}</strong> · scheduled vs worked vs variance across every active driver. Not payroll.${liveBadge}`;
+    sub.innerHTML = `Week of <strong class="ot-page-sub-week">${escapeHtml(range)}</strong> · scheduled vs worked vs variance across every active driver. Not payroll.${liveBadge}`;
   }
   const thresh = document.getElementById("rr-ot-threshold");
   if (thresh) thresh.textContent = String(d.threshold_hours ?? 40);
@@ -37201,7 +37222,7 @@ function _otRenderStats(d) {
       <span class="ot-stat-label">Variance vs schedule</span>
       <div class="ot-stat-value">
         ${_otFmtHours(s.total_variance_hours, { sign: true })}<span class="ot-stat-value-suffix">h</span>
-        ${varianceCls ? `<span class="ot-stat-delta ${varianceCls}" style="margin-left:8px;font-size:10px;vertical-align:middle">${varianceArrow}</span>` : ""}
+        ${varianceCls ? `<span class="ot-stat-delta ot-stat-delta-inline ${varianceCls}">${varianceArrow}</span>` : ""}
       </div>
       <span class="ot-stat-sub">Worked − scheduled, week-to-date</span>
     </div>
@@ -37248,12 +37269,23 @@ function _otRenderTable() {
   });
 
   if (!filtered.length) {
+    const filtered_out = all.length > 0;
+    const icon = filtered_out
+      ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`
+      : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+    const action = filtered_out
+      ? `<button type="button" class="ot-empty-action" data-rr-ot-clear-filters>
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+           Clear filters
+         </button>`
+      : "";
     tbody.innerHTML = `
       <tr><td colspan="8" style="padding:0">
         <div class="ot-empty">
-          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-          <h3>${all.length ? 'No drivers match these filters' : 'No active drivers'}</h3>
-          <p>${all.length ? 'Adjust the search or risk filter to see more.' : 'Activate drivers on the Drivers page and they will appear here.'}</p>
+          <div class="ic">${icon}</div>
+          <h3>${filtered_out ? 'No drivers match these filters' : 'No active drivers'}</h3>
+          <p>${filtered_out ? 'Adjust the search or risk filter to see more.' : 'Activate drivers on the Drivers page and they will appear here.'}</p>
+          ${action}
         </div>
       </td></tr>`;
     return;
@@ -37274,13 +37306,13 @@ function _otRenderRow(r, d) {
       : "";
   const cost = (r.ot_premium_usd != null && d.have_rates)
     ? _otFmtUsd(r.ot_premium_usd)
-    : `<span style="color:var(--text-subtle)">—</span>`;
+    : `<span class="ot-dash">—</span>`;
   const station = r.station_code
     ? escapeHtml(r.station_code)
-    : `<span style="color:var(--text-subtle)">—</span>`;
+    : `<span class="ot-dash">—</span>`;
   const ot = (r.ot_hours || 0) > 0
-    ? `<span style="color:var(--amber-dark);font-weight:600">${_otFmtHours(r.ot_hours)}</span>`
-    : `<span style="color:var(--text-subtle)">—</span>`;
+    ? `<span class="ot-cell-hot">${_otFmtHours(r.ot_hours)}</span>`
+    : `<span class="ot-dash">—</span>`;
   const meta = [];
   if (r.completed_shifts > 0) meta.push(`${r.completed_shifts} completed`);
   if (r.scheduled_remaining > 0) meta.push(`${r.scheduled_remaining} ahead`);
