@@ -2345,29 +2345,6 @@ body.is-home main > .home-hero{
 .opens-card.opens-card-muted .opens-card-icon{
   background:#EEF4FF;color:#2563FF;border-color:rgba(37,99,255,.18);
 }
-/* Day-off variant · swaps the row+icon layout for a body + right-aligned
-   illustration. Cuts the bottom padding so the beach scene can reach
-   the rounded corner. */
-.opens-card.opens-card-dayoff{
-  display:flex;align-items:stretch;gap:12px;
-  padding:18px 0 0 20px;
-  overflow:hidden;
-}
-.opens-card.opens-card-dayoff .opens-card-body{
-  flex:1;min-width:0;
-  padding:0 4px 18px 0;
-  align-self:center;
-}
-.opens-card-dayoff-art{
-  flex-shrink:0;
-  align-self:stretch;
-  display:flex;align-items:flex-end;
-}
-.opens-card-dayoff-art > svg{
-  display:block;
-  border-top-right-radius:23px;
-  border-bottom-right-radius:23px;
-}
 .opens-card.opens-card-warn{
   color:#7C2D12;
   background:linear-gradient(180deg, #FFFBEB 0%, #FEF3C7 100%);

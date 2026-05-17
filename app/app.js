@@ -5290,59 +5290,7 @@ async function renderCheckinCard(session) {
     </div>`;
 
   if (!shift) {
-    // Day-off card · a small beach illustration replaces the clock icon
-    // so the empty-day state feels warm instead of clinical. The "Next
-    // shift" line is intentionally omitted — the Up Next card below
-    // already surfaces it, no need to repeat.
-    const firstName = (session?.name || "").trim().split(/\s+/)[0] || "";
-    slot.innerHTML = `
-      <div class="opens-card opens-card-muted opens-card-dayoff">
-        <div class="opens-card-body">
-          <div class="opens-card-title">No shift today</div>
-          <div class="opens-card-meta">Enjoy your day off${firstName ? `, ${escapeHtml(firstName)}` : ""}.</div>
-        </div>
-        <div class="opens-card-dayoff-art" aria-hidden="true">
-          <svg viewBox="0 0 120 80" width="120" height="80" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="rrSky" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"  stop-color="#DCEEFF"/>
-                <stop offset="100%" stop-color="#F4FAFF"/>
-              </linearGradient>
-              <linearGradient id="rrSand" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"  stop-color="#FDE9C3"/>
-                <stop offset="100%" stop-color="#F5D9A3"/>
-              </linearGradient>
-              <linearGradient id="rrSea" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"  stop-color="#7FC8FF"/>
-                <stop offset="100%" stop-color="#4FA8E0"/>
-              </linearGradient>
-            </defs>
-            <rect x="0" y="0" width="120" height="80" rx="12" fill="url(#rrSky)"/>
-            <circle cx="32" cy="22" r="11" fill="#FBBF24"/>
-            <circle cx="32" cy="22" r="14" fill="#FBBF24" opacity=".22"/>
-            <path d="M0 56 Q60 50 120 56 L120 64 Q60 60 0 64 Z" fill="url(#rrSea)"/>
-            <path d="M0 62 Q60 58 120 62 L120 80 L0 80 Z" fill="url(#rrSand)"/>
-            <g transform="translate(94 18)">
-              <path d="M6 46 Q5 30 6 18" stroke="#7C4A21" stroke-width="2.2" stroke-linecap="round" fill="none"/>
-              <path d="M6 18 Q-6 14 -14 18 Q-6 14 -4 6"   fill="#34A853"/>
-              <path d="M6 18 Q18 14 26 18 Q18 14 16 6"    fill="#34A853"/>
-              <path d="M6 18 Q-2 22 -8 30 Q-2 22 0 26"    fill="#2F8F47"/>
-              <path d="M6 18 Q14 22 20 30 Q14 22 12 26"   fill="#2F8F47"/>
-              <circle cx="6" cy="18" r="2" fill="#1F6B33"/>
-            </g>
-            <g transform="translate(58 38)">
-              <line x1="0" y1="2" x2="0" y2="24" stroke="#475569" stroke-width="1.6" stroke-linecap="round"/>
-              <path d="M-16 4 Q0 -8 16 4 Z" fill="#3B82F6"/>
-              <path d="M-10 4 Q0 -2 10 4" fill="#FFFFFF" opacity=".55"/>
-              <path d="M-16 4 L-8 4 M-4 4 L4 4 M8 4 L16 4" stroke="#1E40AF" stroke-width="1"/>
-            </g>
-            <g transform="translate(66 56)" stroke="#475569" stroke-width="1.4" stroke-linecap="round" fill="none">
-              <path d="M0 4 Q4 0 8 4 Q12 8 16 4"/>
-              <path d="M2 8 Q6 4 10 8"/>
-            </g>
-          </svg>
-        </div>
-      </div>`;
+    slot.innerHTML = card("opens-card-muted", clockIcon, "No shift today", "Enjoy your day off.");
     showMissed(false);
     return;
   }
