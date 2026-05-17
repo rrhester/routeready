@@ -34411,40 +34411,85 @@ function _dvicFmtWhen(s) {
 }
 
 // Driver-submitted checklist block — shown in the DVIC compare modal
-// whenever the inspection is linked to a form submission.  Surfaces
-// the defect map inline (as chips) and lets the operator open the
-// full form submission in one click.
+// whenever the inspection is linked to a form submission.
+//
+// `defects` is the full form-submission `answers` blob (per the
+// 0223 trigger that materialized the inspection).  That blob mixes
+// real defect answers with photo/file/signature upload metadata, so
+// we skip anything that isn't operationally meaningful before
+// rendering chips.
 function _dvicChecklistBlock(cur) {
   if (!cur) return "";
   const submId = cur.form_submission_id;
   const defects = cur.defects && typeof cur.defects === "object" ? cur.defects : null;
   if (!submId && !defects) return "";
-  // `defects` is a small jsonb map of { field_id: true/value/text }.
-  // Show keys with truthy values as amber chips; anything else as a
-  // neutral chip with its text value.
-  const chips = [];
+  // A field-id key isn't human-readable (it's a uuid), so we'd rather
+  // hide than try to invent a label.  Show a clean summary chip count.
+  let flagged = 0;
+  let totalAnswered = 0;
   if (defects) {
     for (const [k, v] of Object.entries(defects)) {
-      if (v === null || v === undefined || v === false) continue;
-      const human = String(k).replace(/_/g, " ");
-      if (v === true) {
-        chips.push(`<span class="dvic-defect-chip warn">${escapeHtml(human)}</span>`);
-      } else {
-        const val = typeof v === "object" ? JSON.stringify(v) : String(v);
-        chips.push(`<span class="dvic-defect-chip">${escapeHtml(human)} · ${escapeHtml(val)}</span>`);
-      }
+      if (_dvicIsUploadAnswer(v) || _dvicIsSignatureAnswer(v)) continue;
+      if (v === null || v === undefined || v === "") continue;
+      if (Array.isArray(v) && v.length === 0) continue;
+      totalAnswered += 1;
+      if (_dvicIsDefectFlag(v)) flagged += 1;
     }
   }
   const link = submId
     ? `<button type="button" class="rr-text-link" data-dvic-open-subm="${escapeHtml(submId)}">View checklist</button>`
     : "";
-  const head = chips.length
-    ? `<div class="dvic-checklist-head"><span class="dvic-checklist-title">Driver checklist · ${chips.length} item${chips.length === 1 ? "" : "s"} flagged</span>${link}</div>`
-    : `<div class="dvic-checklist-head"><span class="dvic-checklist-title">Driver checklist · no items flagged</span>${link}</div>`;
-  const body = chips.length
-    ? `<div class="dvic-checklist-chips">${chips.join("")}</div>`
-    : "";
-  return `<div class="dvic-checklist">${head}${body}</div>`;
+  // Without the form definition we can't safely render field-level
+  // chips (keys are uuids).  Instead we summarize and route the
+  // operator to the existing submission detail view via the link.
+  let summary;
+  if (!totalAnswered) {
+    summary = "Driver checklist · no answers on file";
+  } else if (flagged > 0) {
+    summary = `Driver checklist · ${flagged} item${flagged === 1 ? "" : "s"} flagged · ${totalAnswered} answered`;
+  } else {
+    summary = `Driver checklist · ${totalAnswered} answer${totalAnswered === 1 ? "" : "s"} · nothing flagged`;
+  }
+  const tone = flagged > 0 ? "warn" : "";
+  return `<div class="dvic-checklist">
+    <div class="dvic-checklist-head">
+      <span class="dvic-checklist-title ${tone}">${escapeHtml(summary)}</span>
+      ${link}
+    </div>
+  </div>`;
+}
+// Heuristics: is this answer-value a file/photo upload object, or a
+// signature blob?  These ride in `answers` but have nothing to say
+// about defects, so we drop them when summarising.
+function _dvicIsUploadAnswer(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  const keys = Object.keys(v).map(k => k.toLowerCase());
+  return keys.includes("path") || keys.includes("url") ||
+         (keys.includes("type") && keys.includes("size")) ||
+         (keys.includes("name") && keys.includes("size"));
+}
+function _dvicIsSignatureAnswer(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  const keys = Object.keys(v).map(k => k.toLowerCase());
+  return keys.includes("signature") || keys.includes("strokes") ||
+         keys.some(k => k.startsWith("data:image"));
+}
+// Heuristic for "this looks like a defect was flagged" without the
+// form definition: a literal yes / true / "fail" / "defect" / "issue"
+// or any "no" answer to a yes-no field (since DVIC yes-no questions
+// are framed as "Is X OK?" → No means defect).  Worst case we
+// under-count and route the operator to the full checklist.
+function _dvicIsDefectFlag(v) {
+  if (v === true) return true;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    return s === "yes" || s === "no" || s === "fail" || s === "defect" || s === "issue";
+  }
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    if (typeof v.value === "boolean") return v.value;
+    if (typeof v.value === "string") return _dvicIsDefectFlag(v.value);
+  }
+  return false;
 }
 
 function _dvicAiBlock(cur) {
@@ -34520,9 +34565,7 @@ async function _dvicOpenCompare(vehicleId, inspectionId) {
       #rr-dvic-modal .dvic-checklist{border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3) var(--s-4);background:var(--surface);box-shadow:0 1px 2px rgba(15,23,42,.035)}
       #rr-dvic-modal .dvic-checklist-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2);flex-wrap:wrap}
       #rr-dvic-modal .dvic-checklist-title{font-size:var(--fs-sm);font-weight:700;color:var(--text);letter-spacing:-.005em}
-      #rr-dvic-modal .dvic-checklist-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--s-2-5)}
-      #rr-dvic-modal .dvic-defect-chip{display:inline-flex;align-items:center;font-size:10.5px;font-weight:650;padding:3px 9px;border-radius:999px;background:var(--canvas);color:var(--text-muted);border:1px solid var(--border-subtle);text-transform:capitalize;letter-spacing:.01em}
-      #rr-dvic-modal .dvic-defect-chip.warn{background:var(--amber-soft);color:var(--amber-dark);border-color:transparent}
+      #rr-dvic-modal .dvic-checklist-title.warn{color:var(--amber-dark)}
       #rr-dvic-modal .dvic-ai{border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);background:var(--canvas)}
       #rr-dvic-modal .dvic-ai-h{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap;font-size:11.5px}
       #rr-dvic-modal .sev-pill{display:inline-flex;align-items:center;padding:2px var(--s-2-5);border-radius:999px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
