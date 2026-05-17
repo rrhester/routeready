@@ -11175,6 +11175,200 @@ function toE164(raw) {
   return digits ? "+" + digits : null;
 }
 
+// ── Bulk driver ingest ────────────────────────────────────────────
+// Parse a pasted spreadsheet/CSV/TSV block into driver insert rows.
+// Tolerant of: tabs OR commas, optional header row, surrounding
+// quotes, mixed whitespace, blank lines, "$22.50"-style stray fields.
+function _bdImportSplit(line, delim) {
+  // Mini CSV that honours quoted commas — keeps "Smith, Jr." in one cell.
+  const out = [];
+  let cur = "", inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (c === delim && !inQ) {
+      out.push(cur); cur = "";
+    } else { cur += c; }
+  }
+  out.push(cur);
+  return out.map(s => s.trim().replace(/^"|"$/g, ""));
+}
+const _bdImportFieldMap = {
+  name:        "name",  "full name": "name", "full_name": "name", "driver": "name", "driver name": "name",
+  phone:       "phone", "mobile":    "phone", "cell":      "phone", "tel":      "phone", "phone number": "phone",
+  email:       "email", "e-mail":    "email",
+  station:     "station", "site":    "station", "location": "station", "station code": "station", "site code": "station",
+  "hire date": "hire_date", "hired":  "hire_date", "start date": "hire_date", "start": "hire_date", "hire_date": "hire_date",
+};
+function _bdImportParse(text) {
+  const lines = String(text || "").split(/\r?\n/).map(l => l.trim()).filter(l => l.length);
+  if (lines.length === 0) return { rows: [], headerDetected: false };
+  // Tabs win when they appear — that's how Excel/Sheets paste comes in.
+  const delim = lines[0].includes("\t") ? "\t" : ",";
+  const firstCols = _bdImportSplit(lines[0], delim).map(c => c.toLowerCase());
+  const headerDetected = firstCols.some(c => c in _bdImportFieldMap);
+  const headers = headerDetected
+    ? firstCols.map(c => _bdImportFieldMap[c] || null)
+    : ["name", "phone", "email", "station", "hire_date"];   // positional default
+  const dataLines = headerDetected ? lines.slice(1) : lines;
+  const rows = dataLines.map((line, idx) => {
+    const cells = _bdImportSplit(line, delim);
+    const out = { _line: (headerDetected ? idx + 2 : idx + 1) };
+    cells.forEach((v, i) => {
+      const key = headers[i];
+      if (!key) return;
+      if (v != null && v !== "") out[key] = v;
+    });
+    return out;
+  });
+  return { rows, headerDetected };
+}
+function _bdImportNormalize(parsed) {
+  // Build dedupe set from current roster — phone digits and email lowercase.
+  const seenPhone = new Set();
+  const seenEmail = new Set();
+  const stripDigits = (p) => String(p || "").replace(/\D/g, "");
+  for (const r of (_rosterRows || [])) {
+    const d = stripDigits(r.phone);
+    if (d.length >= 10) seenPhone.add(d.slice(-10));
+    if (r.email) seenEmail.add(r.email.toLowerCase());
+  }
+  const ready = [];
+  const dupes = [];
+  const invalid = [];
+  for (const row of parsed.rows) {
+    if (!row.name || row.name.length < 2) {
+      invalid.push({ line: row._line, reason: "missing name" });
+      continue;
+    }
+    let phoneE164 = null;
+    if (row.phone) {
+      phoneE164 = toE164(row.phone);
+      if (!phoneE164 || phoneE164.length < 9) {
+        invalid.push({ line: row._line, reason: `bad phone "${row.phone}"` });
+        continue;
+      }
+    }
+    let hireIso = null;
+    if (row.hire_date) {
+      const d = new Date(row.hire_date);
+      if (!isNaN(d.getTime())) hireIso = fmtIsoDate(d);
+    }
+    const phoneKey = phoneE164 ? stripDigits(phoneE164).slice(-10) : null;
+    const emailKey = row.email ? row.email.trim().toLowerCase() : null;
+    if (phoneKey && seenPhone.has(phoneKey)) { dupes.push({ line: row._line, name: row.name }); continue; }
+    if (emailKey && seenEmail.has(emailKey)) { dupes.push({ line: row._line, name: row.name }); continue; }
+    if (phoneKey) seenPhone.add(phoneKey);
+    if (emailKey) seenEmail.add(emailKey);
+    ready.push({
+      _line: row._line,
+      name: row.name.trim(),
+      phone: phoneE164,
+      email: emailKey,
+      station_code: row.station ? row.station.trim().toUpperCase() : null,
+      hire_date: hireIso,
+    });
+  }
+  return { ready, dupes, invalid, headerDetected: parsed.headerDetected };
+}
+function _bdImportPreview() {
+  const ta = document.getElementById("bd-paste");
+  const preview = document.getElementById("bd-preview");
+  const errors = document.getElementById("bd-errors");
+  const btn = document.getElementById("bd-import-btn");
+  if (!ta || !preview || !btn) return;
+  const text = ta.value || "";
+  if (!text.trim()) {
+    preview.style.display = "none";
+    if (errors) errors.style.display = "none";
+    btn.disabled = true;
+    btn.textContent = "Paste rows above";
+    return;
+  }
+  const parsed = _bdImportParse(text);
+  const { ready, dupes, invalid, headerDetected } = _bdImportNormalize(parsed);
+  const bits = [`<strong>${ready.length}</strong> ready to import`];
+  if (dupes.length)   bits.push(`${dupes.length} already in roster`);
+  if (invalid.length) bits.push(`${invalid.length} invalid`);
+  if (headerDetected) bits.push("header row detected");
+  preview.innerHTML = bits.join(" · ");
+  preview.style.display = "block";
+  if (errors) {
+    if (invalid.length) {
+      errors.innerHTML = "Skipped rows: " + invalid.slice(0, 6).map(i => `line ${i.line} (${escapeHtml(i.reason)})`).join(", ") + (invalid.length > 6 ? `, +${invalid.length - 6} more` : "");
+      errors.style.display = "block";
+    } else {
+      errors.style.display = "none";
+    }
+  }
+  btn.disabled = ready.length === 0;
+  btn.textContent = ready.length === 0
+    ? "Nothing to import"
+    : `Import ${ready.length} driver${ready.length === 1 ? "" : "s"}`;
+}
+async function submitBulkDriverIngest() {
+  const text = document.getElementById("bd-paste")?.value || "";
+  const btn = document.getElementById("bd-import-btn");
+  const parsed = _bdImportParse(text);
+  const { ready, dupes, invalid } = _bdImportNormalize(parsed);
+  if (ready.length === 0) { toast("Nothing to import", "warn"); return; }
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { toast("DSP not loaded — refresh and try again", "warn"); return; }
+  if (btn) { btn.disabled = true; btn.textContent = "Importing…"; }
+  // Resolve station codes → ids in one round-trip.
+  const wantedCodes = [...new Set(ready.map(r => r.station_code).filter(Boolean))];
+  const codeToId = new Map();
+  if (wantedCodes.length) {
+    const { data: stations } = await sb.from("stations")
+      .select("id, code")
+      .eq("dsp_id", dspId)
+      .in("code", wantedCodes);
+    for (const s of (stations || [])) codeToId.set(String(s.code).toUpperCase(), s.id);
+  }
+  const todayIso = fmtIsoDate(new Date());
+  const insertRows = ready.map(r => {
+    const parts = r.name.split(/\s+/);
+    return {
+      dsp_id: dspId,
+      role: "driver",
+      status: "onboarding",
+      station_id: r.station_code ? (codeToId.get(r.station_code) || null) : null,
+      full_name: r.name,
+      first_name: parts[0] || null,
+      last_name:  parts.slice(1).join(" ") || null,
+      phone: r.phone,
+      email: r.email,
+      hire_date: r.hire_date || todayIso,
+    };
+  });
+  const { error } = await sb.from("drivers").insert(insertRows);
+  if (error) {
+    console.error("bulk driver insert failed:", error);
+    if (btn) { btn.disabled = false; btn.textContent = `Import ${ready.length} driver${ready.length === 1 ? "" : "s"}`; }
+    alert("Bulk import failed:\n\n" + (error.message || "Unknown error") + (error.details ? "\n\nDetails: " + error.details : "") + (error.hint ? "\n\nHint: " + error.hint : ""));
+    return;
+  }
+  // Note missing stations so the operator can fix them and re-import.
+  const missingStations = wantedCodes.filter(c => !codeToId.has(c));
+  closeModal("modal-bulk-driver-ingest");
+  document.getElementById("bd-paste").value = "";
+  document.getElementById("bd-preview").style.display = "none";
+  const errBox = document.getElementById("bd-errors"); if (errBox) errBox.style.display = "none";
+  if (btn) { btn.disabled = true; btn.textContent = "Paste rows above"; }
+  const msgParts = [`Imported ${ready.length} driver${ready.length === 1 ? "" : "s"}`];
+  if (dupes.length)   msgParts.push(`${dupes.length} already in roster`);
+  if (invalid.length) msgParts.push(`${invalid.length} skipped (invalid)`);
+  if (missingStations.length) msgParts.push(`stations not matched: ${missingStations.join(", ")}`);
+  toast(msgParts.join(" · "), missingStations.length || invalid.length ? "warn" : "success");
+  if (typeof loadDriversRoster === "function") loadDriversRoster();
+}
+window.submitBulkDriverIngest = submitBulkDriverIngest;
+document.addEventListener("input", (e) => {
+  if (e.target?.id === "bd-paste") _bdImportPreview();
+});
+
 async function doBulkIngest() {
   const text = document.getElementById("bi-paste").value;
   const { rows, skipped } = parseBulkText(text);

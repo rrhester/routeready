@@ -15998,20 +15998,17 @@ John,Smith,555-0101,john@example.com</code>
     <div class="modal-head">
       <div>
         <p class="modal-title">Bulk import drivers</p>
-        <p class="modal-sub">Paste your existing roster · welcome SMS sent to all on import</p>
+        <p class="modal-sub">Paste rows from a spreadsheet · drivers are created instantly, no SMS sent</p>
       </div>
       <button class="modal-close" onclick="closeModal('modal-bulk-driver-ingest')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
     </div>
     <div class="modal-body">
       <div style="margin-bottom:10px;font-size:var(--fs-sm);color:var(--text-muted)">
-        Paste rows from your payroll export, ADP, Gusto, or any spreadsheet. RouteReady auto-detects columns: <strong>name · phone · station · hire date · pay rate</strong>.
+        Paste rows from any spreadsheet (comma or tab separated).  Optional header row — recognized column names: <strong>name · phone · email · station · hire date</strong>.  Without a header we'll assume that order.  Phone numbers are normalized to E.164.  Existing drivers (matched by phone) are skipped.
       </div>
-      <textarea id="bd-paste" placeholder="First Last,+1 417 555 0123,KMO1,2024-08-12,$22.50&#10;Marcus Davidson,+1 417 555 0142,KMO1,2023-11-04,$22.00&#10;Camille Foster,+1 417 555 0341,KMO1,2022-12-15,$24.00" style="width:100%;min-height:160px;padding:var(--s-3);border:1px solid var(--border);border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:var(--fs-xs);color:var(--text);resize:vertical;outline:none;background:var(--canvas);line-height:1.5"></textarea>
+      <textarea id="bd-paste" placeholder="name,phone,email,station,hire date&#10;Marcus Davidson,+1 417 555 0142,marcus@example.com,KMO1,2023-11-04&#10;Camille Foster,4175550341,camille@example.com,KMO1,2022-12-15" style="width:100%;min-height:160px;padding:var(--s-3);border:1px solid var(--border);border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:var(--fs-xs);color:var(--text);resize:vertical;outline:none;background:var(--canvas);line-height:1.5"></textarea>
       <div id="bd-preview" style="display:none;margin-top:10px;padding:var(--s-2-5) var(--s-3);background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:8px;font-size:var(--fs-sm);color:var(--green);font-weight:500"></div>
-      <div style="margin-top:14px;padding:var(--s-2-5) var(--s-3);background:var(--canvas);border-radius:8px;font-size:var(--fs-xs);color:var(--text-muted);display:flex;align-items:center;gap:var(--s-2)">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>
-        Smart Drop also accepts messy formats — paste your raw payroll export and we'll extract what we need
-      </div>
+      <div id="bd-errors" style="display:none;margin-top:10px;padding:var(--s-2-5) var(--s-3);background:var(--amber-soft);border:1px solid var(--amber-border);border-radius:8px;font-size:var(--fs-xs);color:var(--amber-dark);line-height:1.5"></div>
     </div>
     <div class="modal-foot">
       <button class="btn" onclick="closeModal('modal-bulk-driver-ingest')">Cancel</button>
@@ -18449,64 +18446,9 @@ John,Smith,555-0101,john@example.com</code>
     toast(fullName + ' added to roster · welcome SMS sent to ' + (phone || email));
   }
 
-  // ─── BULK DRIVER INGEST ───────────────────────────────────
-  document.addEventListener('input', function(e){
-    if (e.target && e.target.id === 'bd-paste') {
-      var rows = e.target.value.split(/\r?\n/).filter(function(l){ return l.trim().length > 0; });
-      var count = rows.length;
-      var preview = document.getElementById('bd-preview');
-      var btn = document.getElementById('bd-import-btn');
-      if (count > 0) {
-        preview.style.display = 'block';
-        preview.innerHTML = '<strong>' + count + '</strong> drivers ready to import · 0 duplicates detected';
-        btn.disabled = false;
-        btn.textContent = 'Import ' + count + ' driver' + (count === 1 ? '' : 's') + ' & send welcome SMS';
-      } else {
-        preview.style.display = 'none';
-        btn.disabled = true;
-        btn.textContent = 'Paste rows above';
-      }
-    }
-  });
-  function submitBulkDriverIngest(){
-    var text = document.getElementById('bd-paste').value;
-    var rows = text.split(/\r?\n/).filter(function(l){ return l.trim().length > 0; });
-    var count = rows.length;
-    if (count === 0) { toast('Paste rows first', 'warn'); return; }
-    closeModal('modal-bulk-driver-ingest');
-    // Visual: add N placeholder rows to roster top
-    var tbody = document.querySelector('#dr-sub-roster tbody');
-    if (tbody) {
-      rows.slice(0, Math.min(count, 5)).forEach(function(line){
-        var parts = line.split(',');
-        var name = (parts[0] || 'New driver').trim();
-        var phone = (parts[1] || '').trim();
-        var station = (parts[2] || 'KMO1').trim();
-        var initials = name.split(/\s+/).map(function(p){return p[0];}).join('').slice(0,2).toUpperCase() || '??';
-        var tr = document.createElement('tr');
-        tr.innerHTML = '<td><div class="cell-driver"><div class="avatar-sm tier-b">' + initials + '</div><div><div class="cell-name">' + name + '</div><div class="cell-name-sub">' + (phone || '—') + '</div></div></div></td>' +
-          '<td>' + station + '</td>' +
-          '<td>—</td>' +
-          '<td><span class="score-bar"><span class="score-bar-fill" style="width:80%"></span></span><span style="font-weight:600">—</span></td>' +
-          '<td><span class="att-pill"><span class="att-pill-dot"></span><strong>0 callouts</strong> · 100%</span></td>' +
-          '<td><span class="tag" style="background:var(--accent-soft);color:var(--accent-text)">Imported</span></td>' +
-          '<td class="cell-time">Just imported</td>' +
-          '<td><button class="coach-row-btn" onclick="openCoachDrawer(\'' + name + '\',\'behavior\',\'New driver from bulk import\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Coach</button></td>';
-        tbody.insertBefore(tr, tbody.firstChild);
-        tr.style.background = 'rgba(16,185,129,.08)';
-      });
-      setTimeout(function(){
-        tbody.querySelectorAll('tr[style*="background"]').forEach(function(r){ r.style.transition = 'background .8s'; r.style.background = ''; });
-      }, 80);
-    }
-    // Reset form
-    document.getElementById('bd-paste').value = '';
-    document.getElementById('bd-preview').style.display = 'none';
-    var btn = document.getElementById('bd-import-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Paste rows above'; }
-    if (typeof recomputeStaffingRisk === 'function') recomputeStaffingRisk();
-    toast(count + ' drivers imported · welcome SMS sent to all');
-  }
+  // Bulk driver ingest is now wired in dashboard/live.js — see
+  // bulkDriverIngest_* helpers + the real submitBulkDriverIngest()
+  // exposed on window.
 
   // ─── APPROVE / DENY / SWAP / PUBLISH ───────────────────────
   // Helper: decrement a numeric badge or hide it at 0; supports nested span counts
