@@ -5024,7 +5024,7 @@ function renderOnboardingRow(d) {
       </td>
       <td>${_i9OnboardCell(d.id)}</td>
       <td>${_appStatusCell(d.id)}</td>
-      <td data-rr-no-drawer style="text-align:center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
+      <td data-rr-no-drawer class="u-center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
     </tr>`;
 }
 
@@ -5080,7 +5080,7 @@ function renderDriverRow(d) {
       <td>${_statusPillCell(d.status)}</td>
       <td>${_scoreCell(d.score)}</td>
       <td>${_appStatusCell(d.id)}</td>
-      <td data-rr-no-drawer style="text-align:center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
+      <td data-rr-no-drawer class="u-center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
       <td data-rr-no-drawer style="text-align:center;width:32px"></td>
     </tr>`;
 }
@@ -5637,7 +5637,7 @@ function _renderAttReportTbody() {
       <td style="text-align:right;font-weight:600">${r.points}</td>
       <td>${escapeHtml(lastEv)}</td>
       <td>${lastCoachCell}</td>
-      <td style="text-align:right">${actionCell}</td>
+      <td class="u-right">${actionCell}</td>
     </tr>`;
   };
 
@@ -5886,7 +5886,7 @@ async function _renderAttKpiDetail() {
       const n   = buckets[k];
       const pct = total ? Math.round((n / total) * 100) : 0;
       return `<div style="display:grid;grid-template-columns:88px 12px 1fr;gap:var(--s-3-5);align-items:center;padding:var(--s-3-5) 0;border-top:1px solid var(--border)">
-        <div style="text-align:right">
+        <div class="u-right">
           <div style="font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1">${pct}%</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">of team</div>
         </div>
@@ -7759,7 +7759,7 @@ async function loadAttendanceEventLog() {
     <div class="table-wrap"><table class="table">
       <thead><tr>
         <th>Date</th><th>Driver</th><th>Station</th><th>Event</th>
-        <th style="text-align:right" title="Driver's count of attendance events in this window">In window</th>
+        <th class="u-right" title="Driver's count of attendance events in this window">In window</th>
         <th>Coaching</th>${actionHeader}
       </tr></thead>
       <tbody>
@@ -7787,7 +7787,7 @@ async function loadAttendanceEventLog() {
             const sendBtn = c
               ? `<button class="btn btn-sm btn-ghost" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}" title="Already coached. Send another only if needed.">Send another</button>`
               : `<button class="btn btn-sm" type="button" data-rr-coach-event="${escapeHtml(ev.id || "")}" data-rr-coach-driver="${escapeHtml(d?.id || ev.driver_id || "")}" data-rr-coach-driver-name="${escapeHtml(display)}" data-rr-coach-event-label="${escapeHtml(eventLabel[ev.status] || ev.status)}" data-rr-coach-event-date="${escapeHtml(ev.date)}">Send coaching</button>`;
-            actionCell = `<td style="text-align:right">${sendBtn}</td>`;
+            actionCell = `<td class="u-right">${sendBtn}</td>`;
           }
 
           return `<tr>
@@ -9378,7 +9378,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
       <td style="white-space:nowrap">${timeStr}</td>
       <td>${vanCell}</td>
       <td>${_tpStatusPill(r)}</td>
-      <td style="text-align:right">${actions || ""}</td>
+      <td class="u-right">${actions || ""}</td>
     </tr>`;
   };
 
@@ -9483,7 +9483,7 @@ function _renderTpUnifiedRoster(attData, rosterData, error) {
       <td style="white-space:nowrap">${timeStr}</td>
       <td>${vanCell}</td>
       <td>${statusCell}</td>
-      <td style="text-align:right"></td>
+      <td class="u-right"></td>
     </tr>`;
   };
   const trainingColgroup = `<colgroup>
@@ -16064,7 +16064,7 @@ async function _buildEmploymentReport(driverId, m) {
     if (s.status === "no_show" || s.status === "called_off") w.missed++;
   }
   const wkRows = Array.from(byWeek.entries()).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 26)
-    .map(([k, w]) => `<tr><td>${fmtD(k)}</td><td style="text-align:right">${w.sched}</td><td style="text-align:right">${w.worked}</td><td style="text-align:right">${w.missed || "—"}</td></tr>`).join("");
+    .map(([k, w]) => `<tr><td>${fmtD(k)}</td><td class="u-right">${w.sched}</td><td class="u-right">${w.worked}</td><td class="u-right">${w.missed || "—"}</td></tr>`).join("");
 
   // ── Documents ──
   const docRows = envelopes.map(e => `<tr><td>${esc(e.document_templates?.title || "Document")}</td><td>${esc((_docsLifecycle ? _docsLifecycle(e.status).label : e.status))}</td><td>${e.signed_at ? fmtD(e.signed_at) : e.sent_at ? "Sent " + fmtD(e.sent_at) : "—"}</td></tr>`).join("");
@@ -16348,7 +16348,7 @@ async function _buildEmploymentReport(driverId, m) {
     <section class="er-block">
       <h2><span class="num">7.</span> Scheduling history</h2>
       <p class="er-lead">Weekly rollup — scheduled, worked, and missed shifts (most recent 26 weeks).</p>
-      ${wkRows ? `<table class="er-table"><thead><tr><th>Week of</th><th style="text-align:right">Scheduled</th><th style="text-align:right">Worked</th><th style="text-align:right">Missed</th></tr></thead><tbody>${wkRows}</tbody></table>` : `<div class="er-empty">No scheduled shifts on record.</div>`}
+      ${wkRows ? `<table class="er-table"><thead><tr><th>Week of</th><th class="u-right">Scheduled</th><th class="u-right">Worked</th><th class="u-right">Missed</th></tr></thead><tbody>${wkRows}</tbody></table>` : `<div class="er-empty">No scheduled shifts on record.</div>`}
       ${toRows ? `<div style="margin-top:14px"><h2 style="border:0;margin:0 0 6px;padding:0"><span class="num">7.1</span> Recorded time-off</h2><table class="er-table"><thead><tr><th>Dates</th><th>Status</th><th>Reason</th></tr></thead><tbody>${toRows}</tbody></table></div>` : ""}
     </section>
 
@@ -20816,7 +20816,7 @@ function renderMessageRow(t) {
       </div>
       <div><span class="msg-channel-pill ${t.channel}">${t.channel}</span></div>
       <div class="msg-body-preview" title="${escapeHtml(preview)}">${escapeHtml(preview)}</div>
-      <div style="text-align:right">
+      <div class="u-right">
         <button class="btn btn-sm" data-rr-edit-template="${t.id}">Edit</button>
       </div>
     </div>`;
@@ -37299,7 +37299,7 @@ function _otRenderRow(r, d) {
       <td class="num"><span class="ot-variance ${varCls}">${varArrow}${_otFmtHours(r.variance_hours, { sign: true })}</span></td>
       <td class="num">${ot}</td>
       <td class="num col-cost">${cost}</td>
-      <td style="text-align:right"><span class="ot-pill ${risk.cls}"><span class="dot"></span>${risk.label}</span></td>
+      <td class="u-right"><span class="ot-pill ${risk.cls}"><span class="dot"></span>${risk.label}</span></td>
     </tr>`;
 }
 
