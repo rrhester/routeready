@@ -518,11 +518,28 @@ function renderApplicantCard(a) {
       }).join("");
 
   // Icon buttons. Phone/email are disabled (with title) when no contact
-  // info is on file; notes/more are always available.
+  // info is on file; notes is always available.
   const phoneDisabled = !a.phone ? " is-disabled" : "";
   const phoneTitle    = a.phone ? `Call ${escapeHtml(a.phone)}` : "No phone on file";
   const emailDisabled = !a.email ? " is-disabled" : "";
   const emailTitle    = a.email ? `Email ${escapeHtml(a.email)}` : "No email on file";
+
+  // Stage CTA + decline. Labels vary by stage so the operator never has
+  // to think about which button to hit — the wording matches the
+  // conversation they're having with the applicant. booking_scheduled
+  // re-labels "Decline" as "Cancel interview" since that's the equivalent
+  // negative action once an interview is on the books.
+  let ctaAction = "", ctaLabel = "";
+  if (stage === "applied")           { ctaAction = "resend_screening"; ctaLabel = "Resend screening"; }
+  else if (stage === "screened")     { ctaAction = "send_link";        ctaLabel = "Send booking link"; }
+  else if (stage === "booking_pending") { ctaAction = "resend_link";   ctaLabel = "Resend booking link"; }
+  else if (stage === "booking_scheduled") { ctaAction = "reschedule";  ctaLabel = "Reschedule"; }
+  const ctaBtn = ctaAction
+    ? `<button class="pa-strip-btn pa-strip-btn-primary" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">${escapeHtml(ctaLabel)}</button>`
+    : "";
+  const declineAction = stage === "booking_scheduled" ? "cancel_interview" : "decline";
+  const declineLabel  = stage === "booking_scheduled" ? "Cancel interview" : "Decline";
+  const declineBtn = `<button class="pa-strip-btn pa-strip-btn-danger" type="button" data-rr-action="${declineAction}" data-applicant-id="${escapeHtml(a.id)}">${escapeHtml(declineLabel)}</button>`;
 
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
@@ -554,9 +571,8 @@ function renderApplicantCard(a) {
           <button class="pa-icon-btn" type="button" data-rr-pa-pop="notes" title="Notes" aria-label="Notes">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
           </button>
-          <button class="pa-icon-btn" type="button" data-rr-pa-pop="more" title="More actions" aria-label="More actions">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
-          </button>
+          ${ctaBtn}
+          ${declineBtn}
         </div>
       </div>
     </div>`;
@@ -682,38 +698,6 @@ function _paOpenNotesPopover(anchor, a) {
   if (ta) setTimeout(() => { if (!ta.disabled) ta.focus(); }, 300);
 }
 
-function _paOpenMorePopover(anchor, a) {
-  const stage = a.pipeline_stage;
-  const items = [];
-  if (a.video_url) {
-    items.push({ label: "Watch screening video", action: "play_video", videoUrl: a.video_url, icon: "play" });
-  }
-  if (stage === "applied") {
-    items.push({ label: "Resend screening invite", action: "resend_screening", icon: "send" });
-  } else if (stage === "screened") {
-    items.push({ label: "Send booking link", action: "send_link", icon: "send" });
-  } else if (stage === "booking_pending") {
-    items.push({ label: "Resend booking link", action: "resend_link", icon: "send" });
-  } else if (stage === "booking_scheduled") {
-    items.push({ label: "Reschedule interview", action: "reschedule", icon: "redo" });
-    items.push({ label: "Cancel interview",     action: "cancel_interview", icon: "x", danger: true });
-  }
-  items.push({ label: "Decline applicant", action: "decline", icon: "x", danger: true });
-
-  const iconSvg = (k) => {
-    if (k === "play")  return `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>`;
-    if (k === "send")  return `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`;
-    if (k === "redo")  return `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`;
-    return `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
-  };
-  const rows = items.map((it) => {
-    const danger = it.danger ? " is-danger" : "";
-    const dv = it.videoUrl ? ` data-video-url="${encodeURI(it.videoUrl)}"` : "";
-    return `<button class="pa-pop-row${danger}" type="button" data-rr-action="${it.action}" data-applicant-id="${escapeHtml(a.id)}"${dv}>${iconSvg(it.icon)}${escapeHtml(it.label)}</button>`;
-  }).join("");
-  _paOpenPopover(anchor, `<div class="pa-pop-h">More actions</div>${rows}`);
-}
-
 document.addEventListener("click", (e) => {
   const icon = e.target.closest("[data-rr-pa-pop]");
   if (!icon) return;
@@ -730,7 +714,6 @@ document.addEventListener("click", (e) => {
   const a = (window._rrPipelineById?.get?.(id)) || { id, full_name: card.querySelector(".pa-card-name")?.textContent || "" };
   if      (kind === "phone") _paOpenPhonePopover(icon, a);
   else if (kind === "notes") _paOpenNotesPopover(icon, a);
-  else if (kind === "more")  _paOpenMorePopover(icon, a);
   else if (kind === "email") {
     if (!a.email) return;
     openEmailThreadModal(id, a.full_name || "", a.email);

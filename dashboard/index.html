@@ -8534,8 +8534,22 @@ body.rr-cmdk-open{ overflow:hidden }
           .pa-card-tag.score{background:var(--canvas);color:var(--text);font-weight:700;font-variant-numeric:tabular-nums;border:1px solid var(--border)}
           .pa-card-tag.score-low{color:var(--red);border-color:var(--red-border)}
           .pa-card-tag.score-mid{color:var(--amber);border-color:var(--amber-border)}
-          .pa-card-actions{display:flex;gap:6px;flex-shrink:0}
+          .pa-card-actions{display:flex;gap:6px;flex-shrink:0;align-items:center;flex-wrap:wrap;justify-content:flex-end}
           .pa-card-icons{display:flex;align-items:center;gap:4px}
+          .pa-strip-btn{
+            display:inline-flex;align-items:center;gap:6px;
+            padding:7px 12px;border-radius:var(--r-md);
+            font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;
+            border:1px solid var(--border);background:var(--surface);color:var(--text);
+            transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
+            white-space:nowrap;
+          }
+          .pa-strip-btn:hover{background:var(--canvas);border-color:var(--border-strong)}
+          .pa-strip-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+          .pa-strip-btn-primary{background:var(--text);color:var(--text-inverse);border-color:var(--text)}
+          .pa-strip-btn-primary:hover{background:#000;border-color:#000;color:var(--text-inverse)}
+          .pa-strip-btn-danger{color:var(--red);border-color:color-mix(in srgb, var(--red) 30%, var(--border))}
+          .pa-strip-btn-danger:hover{background:var(--red-soft);border-color:var(--red);color:var(--red)}
           .pa-icon-btn{
             display:inline-flex;align-items:center;justify-content:center;
             width:32px;height:32px;border-radius:var(--r-md);
