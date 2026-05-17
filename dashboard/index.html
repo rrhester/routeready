@@ -439,16 +439,35 @@ a{color:inherit;text-decoration:none}
   color:var(--text-inverse);
 }
 .nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--text-inverse);box-shadow:inset 0 0 0 1px rgba(96,165,250,.35)}
+/* Active state — calm dimensional treatment with a bright accent
+   rail on the left and a trailing dot that picks up the category
+   colour, so the operator sees both "which page" and "what kind"
+   at a glance.  Background stays close to the sidebar so the row
+   doesn't compete with the icon. */
 .nav-item.active{
-  background:var(--blue-bright);
-  color:#fff;font-weight:600;
-  box-shadow:inset 2px 0 0 rgba(255,255,255,.65), 0 1px 2px rgba(15,23,42,.18);
+  background:linear-gradient(180deg, rgba(96,165,250,.10) 0%, rgba(96,165,250,.03) 100%);
+  color:var(--text-inverse);font-weight:600;
+  box-shadow:
+    inset 3px 0 0 var(--blue-bright),
+    inset 0 0 0 1px rgba(96,165,250,.14),
+    0 1px 2px rgba(15,23,42,.18);
 }
 .nav-item.active .nav-badge{color:var(--blue-bright);background:#fff}
 .nav-item.active svg{stroke-width:2}
 .nav-item.active .nav-icon{
-  background:rgba(255,255,255,.18);
-  color:#fff;
+  background:var(--ni-bg-strong, rgba(255,255,255,.20));
+  color:var(--ni-fg, #fff);
+}
+/* Trailing colour dot — same hue as the active item's icon
+   container.  `color-mix` paints a soft halo around it so the dot
+   reads as a deliberate indicator, not noise.  Hidden if the row
+   actually has a visible nav-badge so we don't double up. */
+.nav-item.active::after{
+  content:"";
+  position:absolute;right:var(--s-3);top:50%;transform:translateY(-50%);
+  width:7px;height:7px;border-radius:50%;
+  background:var(--ni-fg, var(--blue-bright));
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 22%, transparent);
 }
 /* Icon strokes — calm operational weight; no glow / drop-shadow */
 .nav-item svg{
@@ -467,9 +486,12 @@ a{color:inherit;text-decoration:none}
   color:var(--ni-fg, var(--text-inverse-muted));
   transition:background var(--t-smooth), color var(--t-smooth);
 }
+/* Active icon: lean on the category's `--ni-bg-strong` (defined per
+   data-c below) + keep the category foreground colour so the icon
+   reads as itself, not as a generic white tile. */
 .nav-item.active .nav-icon{
-  background:rgba(255,255,255,.20);
-  color:#fff;
+  background:var(--ni-bg-strong, rgba(255,255,255,.20));
+  color:var(--ni-fg, #fff);
 }
 
 /* Calibrated category palette · 10-15% less saturated than the
