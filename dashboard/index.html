@@ -4620,6 +4620,33 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 }
 .rr-msg-skeleton-row:not(.right) .rr-msg-skeleton-bubble{ border-bottom-left-radius:5px }
 @keyframes rr-shimmer{ 0%{background-position:0% 50%} 100%{background-position:-200% 50%} }
+
+/* ─── Applicant ↔ dispatcher email thread row ────────────────────
+   Used inside the Pipeline applicant drawer.  Inbound (applicant)
+   anchors left with a neutral surface; outbound (you) anchors right
+   with a soft brand tint.  Bubble shape mirrors the .rr-mc / .rr-cc
+   chat bubbles so the two surfaces feel related. */
+.rr-email-row{
+  display:flex;flex-direction:column;gap:var(--s-1);
+}
+.rr-email-row-in {align-items:flex-start}
+.rr-email-row-out{align-items:flex-end}
+.rr-email-bubble{
+  max-width:88%;
+  background:var(--surface-pressed);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:var(--s-2-5) var(--s-3-5);
+}
+.rr-email-row-out .rr-email-bubble{
+  background:var(--accent-soft);
+}
+.rr-email-subject{
+  font-size:var(--fs-sm);font-weight:600;margin-bottom:4px;color:var(--text);
+}
+.rr-email-body{
+  font-size:var(--fs-sm);white-space:pre-wrap;line-height:1.5;color:var(--text);
+}
 /* Jump-to-latest pill — surfaces when a poll lands new messages but
    the operator is scrolled up. Tapping it scrolls smoothly to the
    bottom and clears itself. */

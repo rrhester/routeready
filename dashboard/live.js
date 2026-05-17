@@ -976,11 +976,10 @@ function _stripQuotedReply(text) {
 
 function _renderEmailRow(r) {
   const inbound = r.direction === "inbound";
-  const align = inbound ? "flex-start" : "flex-end";
-  const bg    = inbound ? "var(--surface-pressed)" : "rgba(37,99,235,.10)";
-  const sender = inbound ? "Applicant" : "You";
-  const when   = r.created_at ? new Date(r.created_at).toLocaleString() : "";
-  const status = inbound ? "" : ` · ${r.status}`;
+  const side    = inbound ? "in" : "out";
+  const sender  = inbound ? "Applicant" : "You";
+  const when    = r.created_at ? new Date(r.created_at).toLocaleString() : "";
+  const status  = inbound ? "" : ` · ${r.status}`;
   // Plaintext only — body_html is intentionally not injected to avoid
   // remote-content shenanigans inside the operator dashboard. For inbound
   // replies, drop the quoted-original tail.
@@ -988,11 +987,11 @@ function _renderEmailRow(r) {
     ? _stripQuotedReply(r.body_text || "")
     : (r.body_text || "").replace(/\s+$/g, "");
   return `
-    <div style="display:flex;flex-direction:column;align-items:${align};gap:var(--s-1)">
-      <div class="u-xs-subtle">${escapeHtml(sender)} · ${escapeHtml(when)}${status}</div>
-      <div style="max-width:88%;background:${bg};border:1px solid var(--border);border-radius:12px;padding:var(--s-2-5) var(--s-3-5)">
-        <div style="font-size:var(--fs-sm);font-weight:600;margin-bottom:4px">${escapeHtml(r.subject || "(no subject)")}</div>
-        <div style="font-size:var(--fs-sm);white-space:pre-wrap;line-height:1.5">${escapeHtml(text)}</div>
+    <div class="rr-email-row rr-email-row-${side}">
+      <div class="u-xs-subtle rr-email-meta">${escapeHtml(sender)} · ${escapeHtml(when)}${status}</div>
+      <div class="rr-email-bubble">
+        <div class="rr-email-subject">${escapeHtml(r.subject || "(no subject)")}</div>
+        <div class="rr-email-body">${escapeHtml(text)}</div>
       </div>
     </div>`;
 }
