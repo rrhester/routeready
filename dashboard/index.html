@@ -1005,78 +1005,120 @@ a{color:inherit;text-decoration:none}
   position:relative;
 }
 
+/* ── Today's Plan · calm SaaS surface ─────────────────────────────
+   The dashboard landing page is intentionally quieter than the dense
+   scheduling tools: soft summary chips, one elevated roster surface,
+   more breathing room, and interaction states that feel modern without
+   adding visual noise. */
+#rr-today-plan-shell{display:flex;flex-direction:column;gap:var(--s-4)}
+#rr-today-plan-shell .card{border-color:var(--border-subtle);box-shadow:0 1px 2px rgba(15,23,42,.04),0 18px 48px rgba(15,23,42,.04)}
+#rr-tp-meta{margin-bottom:0!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
+.tp-day-meta{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s-3);
+}
+.tp-day-chip{
+  min-width:0;background:var(--surface);border:1px solid var(--border-subtle);
+  border-radius:var(--r-lg);padding:var(--s-3) var(--s-4);
+  box-shadow:0 1px 2px rgba(15,23,42,.035);
+}
+.tp-day-chip-label{
+  display:flex;align-items:center;gap:7px;margin-bottom:6px;
+  font-size:var(--fs-xs);font-weight:650;letter-spacing:.045em;text-transform:uppercase;
+  color:var(--text-subtle);
+}
+.tp-day-chip-label::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.tp-day-chip[data-tone="green"] .tp-day-chip-label::before{background:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
+.tp-day-chip[data-tone="amber"] .tp-day-chip-label::before{background:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
+.tp-day-chip[data-tone="red"] .tp-day-chip-label::before{background:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
+.tp-day-chip-value{font-size:var(--fs-xl);font-weight:750;letter-spacing:-.025em;color:var(--text);line-height:1;font-variant-numeric:tabular-nums}
+.tp-day-chip-sub{margin-top:6px;font-size:var(--fs-xs);color:var(--text-subtle);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tp-day-empty{
+  background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--r-lg);
+  padding:var(--s-4);color:var(--text-subtle);font-size:var(--fs-sm);
+  box-shadow:0 1px 2px rgba(15,23,42,.035);
+}
+#rr-tp-roster.card-flush{border-radius:calc(var(--r-lg) + 2px);overflow:hidden}
+#rr-tp-roster .rr-tp-section-head{
+  background:linear-gradient(180deg,var(--surface),var(--canvas));
+  padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border-subtle);
+}
+
 /* ── Today's Plan · roster table governance ─────────────────────
    Calm operational density.  Single source of truth for the
    roster table cells, wave headers, and inline action buttons
    so the JS renderer can compose with classes instead of inline
    style strings. */
-.tp-roster-table{width:100%;border-collapse:collapse}
+.tp-roster-table{width:100%;border-collapse:separate;border-spacing:0}
 .tp-roster-table th{
-  text-align:left;padding:var(--s-2) var(--s-3-5);
-  background:var(--canvas);font-size:var(--fs-xs);font-weight:700;
-  letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);
-  white-space:nowrap;
+  text-align:left;padding:10px var(--s-4);
+  background:rgba(248,250,252,.72);font-size:11px;font-weight:750;
+  letter-spacing:.055em;text-transform:uppercase;color:var(--text-subtle);
+  white-space:nowrap;border-bottom:1px solid var(--border-subtle);
 }
 .tp-roster-table th:last-child{text-align:right}
 .tp-roster-table td{
-  padding:var(--s-2-5) var(--s-3-5);
+  padding:13px var(--s-4);
   border-top:1px solid var(--border-subtle);
   font-size:var(--fs-sm);color:var(--text);vertical-align:middle;
 }
-.tp-roster-table tbody tr{transition:background var(--t-fast)}
-.tp-roster-table tbody tr:hover{background:var(--surface-hover)}
+.tp-roster-table thead + tbody tr:first-child td{border-top:0}
+.tp-roster-table tbody tr{transition:background var(--t-fast),box-shadow var(--t-fast)}
+.tp-roster-table tbody tr:hover{background:rgba(248,250,252,.74);box-shadow:inset 3px 0 0 var(--accent-soft)}
 .tp-wave-head{
   display:flex;align-items:center;gap:var(--s-2);
-  padding:var(--s-3-5) var(--s-4) var(--s-2);
-  background:var(--canvas);
+  padding:var(--s-4) var(--s-5) var(--s-2-5);
+  background:var(--surface);
   border-top:1px solid var(--border-subtle);
 }
 .tp-wave-head:first-child{border-top:0}
 .tp-wave-head-label{
-  font-size:var(--fs-xs);font-weight:700;color:var(--text);
-  letter-spacing:.06em;text-transform:uppercase;
+  font-size:var(--fs-xs);font-weight:750;color:var(--text);
+  letter-spacing:.055em;text-transform:uppercase;
 }
 .tp-driver-avatar{
-  width:32px;height:32px;border-radius:50%;flex:0 0 auto;
+  width:34px;height:34px;border-radius:50%;flex:0 0 auto;
   display:flex;align-items:center;justify-content:center;
-  background:var(--accent-soft);color:var(--accent-text);
-  font-size:var(--fs-xs);font-weight:700;
+  background:linear-gradient(135deg,var(--accent-soft),rgba(255,255,255,.86));color:var(--accent-text);
+  border:1px solid rgba(37,99,235,.12);
+  font-size:var(--fs-xs);font-weight:750;
   object-fit:cover;
 }
 .tp-van-cell{
   display:inline-flex;align-items:center;gap:6px;
   cursor:pointer;border-radius:var(--r-md);
-  padding:3px 6px;margin:-3px -6px;
-  transition:background var(--t-fast);
+  padding:5px 8px;margin:-5px -8px;
+  transition:background var(--t-fast),box-shadow var(--t-fast);
 }
-.tp-van-cell:hover{background:var(--canvas)}
-.tp-van-name{font-weight:600}
+.tp-van-cell:hover{background:var(--canvas);box-shadow:inset 0 0 0 1px var(--border-subtle)}
+.tp-van-name{font-weight:650}
 .tp-van-plate{color:var(--text-subtle);font-size:var(--fs-xs)}
 .tp-van-cover{
   font-size:var(--fs-xs);color:var(--amber-dark);font-weight:600;margin-top:2px;
 }
 .tp-assign-van{
-  appearance:none;border:0;cursor:pointer;font-family:inherit;
+  appearance:none;border:1px solid rgba(225,29,72,.16);cursor:pointer;font-family:inherit;
   display:inline-flex;align-items:center;gap:6px;
-  font-size:var(--fs-xs);font-weight:700;letter-spacing:inherit;
-  padding:var(--s-1) var(--s-2-5);border-radius:999px;
+  font-size:var(--fs-xs);font-weight:750;letter-spacing:.01em;
+  padding:6px 10px;border-radius:999px;
   background:var(--red-soft);color:var(--red);
-  transition:background var(--t-fast);
+  transition:background var(--t-fast),border-color var(--t-fast),transform var(--t-fast);
 }
-.tp-assign-van:hover{background:rgba(225,29,72,.16)}
+.tp-assign-van:hover{background:rgba(225,29,72,.14);border-color:rgba(225,29,72,.26);transform:translateY(-1px)}
 .tp-assign-van:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .tp-assign-van .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .tp-ex-chip{
-  display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;
-  padding:2px var(--s-2);border-radius:var(--r-sm);
+  display:inline-flex;align-items:center;font-size:10px;font-weight:750;
+  padding:2px var(--s-2);border-radius:999px;
   background:var(--amber-soft);color:var(--amber-dark);
-  letter-spacing:.04em;margin-left:6px;
+  letter-spacing:.055em;margin-left:6px;
 }
 .tp-tier-chip{
-  display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;
-  padding:2px var(--s-2);border-radius:var(--r-md);
+  display:inline-flex;align-items:center;font-size:10px;font-weight:750;
+  padding:2px var(--s-2);border-radius:999px;
   margin-left:6px;
 }
+@media (max-width:900px){.tp-day-meta{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.tp-day-meta{grid-template-columns:1fr}.tp-roster-table th,.tp-roster-table td{padding-left:var(--s-3);padding-right:var(--s-3)}}
 
 /* ─── Today's Plan · Weather card ──────────────────────────────
    Local NWS forecast + advisories, mounted between the page meta

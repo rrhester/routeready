@@ -8407,8 +8407,8 @@ async function loadTodayPlan() {
   if (!skeletonOk) {
     shell.dataset.rrPlanShell = "1";
     shell.innerHTML = `
-      <div id="rr-tp-meta" class="card card-compact" style="padding:var(--s-2) var(--s-4);margin-bottom:var(--s-4);font-size:var(--fs-sm);color:var(--text-subtle)">Loading</div>
-      <div id="rr-tp-ridealong-alerts" style="margin-bottom:var(--s-4)"></div>
+      <div id="rr-tp-meta" class="card card-compact">Loading</div>
+      <div id="rr-tp-ridealong-alerts"></div>
       <div id="rr-tp-roster" class="card card-flush">
         <div class="rr-tp-section-head">Today's roster</div>
         <div class="rr-loading" style="padding:18px 20px">Loading</div>
@@ -9001,8 +9001,7 @@ function _tpRowActions(r) {
   </div>`;
 }
 
-// Top-of-page meta line — replaces the old "X scheduled across N waves"
-// chip the rr-tp-meta card used to host.
+// Top-of-page overview — a quiet SaaS summary strip above the roster.
 function _renderTpMeta(attData) {
   const el = document.getElementById("rr-tp-meta");
   if (!el) return;
@@ -9011,19 +9010,43 @@ function _renderTpMeta(attData) {
   const planning = viewIso && todayIso && viewIso !== todayIso;
   const rows = attData?.rows || [];
   if (!rows.length) {
-    el.textContent = planning ? "No shifts scheduled for this day." : "No shifts scheduled today.";
+    el.innerHTML = `<div class="tp-day-empty">${escapeHtml(planning ? "No shifts scheduled for this day." : "No shifts scheduled today.")}</div>`;
     return;
   }
   const waves = new Set(rows.map(r => r.wave_index ?? 0));
   const extras = rows.filter(r => r.is_cushion).length;
   const flagged = rows.filter(r => ["tardy","ncns","missed_reported"].includes(r.computed_outcome) && !r.decision).length;
-  const bits = [];
-  if (planning) bits.push("Planning view");
-  bits.push(`${rows.length} scheduled`);
-  bits.push(`${waves.size} wave${waves.size === 1 ? "" : "s"}`);
-  if (extras  > 0) bits.push(`${extras} extra${extras === 1 ? "" : "s"}`);
-  if (!planning && flagged > 0) bits.push(`${flagged} need attention`);
-  el.textContent = bits.join(" · ");
+  const checkedIn = rows.filter(r => ["checked_in", "checked_out"].includes(r.computed_outcome)).length;
+  const attentionTone = flagged > 0 ? (flagged >= 3 ? "red" : "amber") : "green";
+  const attendanceSub = planning
+    ? "Planning mode"
+    : `${checkedIn} checked in${rows.length ? ` · ${Math.round((checkedIn / rows.length) * 100)}%` : ""}`;
+  const attentionSub = planning
+    ? "Live attendance starts day-of"
+    : (flagged > 0 ? "Open decisions to review" : "No open attendance decisions");
+  el.innerHTML = `
+    <div class="tp-day-meta" aria-label="Today plan overview">
+      <div class="tp-day-chip">
+        <div class="tp-day-chip-label">Scheduled</div>
+        <div class="tp-day-chip-value">${rows.length}</div>
+        <div class="tp-day-chip-sub">${escapeHtml(waves.size + " wave" + (waves.size === 1 ? "" : "s"))}</div>
+      </div>
+      <div class="tp-day-chip" data-tone="green">
+        <div class="tp-day-chip-label">Attendance</div>
+        <div class="tp-day-chip-value">${planning ? "—" : checkedIn}</div>
+        <div class="tp-day-chip-sub">${escapeHtml(attendanceSub)}</div>
+      </div>
+      <div class="tp-day-chip" data-tone="amber">
+        <div class="tp-day-chip-label">Extras</div>
+        <div class="tp-day-chip-value">${extras}</div>
+        <div class="tp-day-chip-sub">Cushion / Ex drivers</div>
+      </div>
+      <div class="tp-day-chip" data-tone="${attentionTone}">
+        <div class="tp-day-chip-label">Attention</div>
+        <div class="tp-day-chip-value">${planning ? "—" : flagged}</div>
+        <div class="tp-day-chip-sub">${escapeHtml(attentionSub)}</div>
+      </div>
+    </div>`;
 }
 
 function _renderTpUnifiedRoster(attData, rosterData, error) {
