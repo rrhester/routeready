@@ -37285,6 +37285,9 @@ function _otRenderRow(r, d) {
   if (r.completed_shifts > 0) meta.push(`${r.completed_shifts} completed`);
   if (r.scheduled_remaining > 0) meta.push(`${r.scheduled_remaining} ahead`);
   if (r.rescue_count > 0) meta.push(`${r.rescue_count} rescue${r.rescue_count === 1 ? '' : 's'}`);
+  if (r.no_show_count > 0) meta.push(`${r.no_show_count} NCNS`);
+  if (r.called_off_count > 0) meta.push(`${r.called_off_count} call-off${r.called_off_count === 1 ? '' : 's'}`);
+  if (r.vto_count > 0) meta.push(`${r.vto_count} VTO`);
   if (r.late_clockout_minutes >= 30) meta.push(`${Math.round(r.late_clockout_minutes)} min late RTS`);
 
   return `
