@@ -8534,55 +8534,37 @@ body.rr-cmdk-open{ overflow:hidden }
           .pa-card-tag.score{background:var(--canvas);color:var(--text);font-weight:700;font-variant-numeric:tabular-nums;border:1px solid var(--border)}
           .pa-card-tag.score-low{color:var(--red);border-color:var(--red-border)}
           .pa-card-tag.score-mid{color:var(--amber);border-color:var(--amber-border)}
-          .pa-card-actions{display:flex;gap:6px;flex-shrink:0;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-          .pa-card-icons{display:flex;align-items:center;gap:4px}
-          .pa-strip-btn{
-            display:inline-flex;align-items:center;gap:6px;
-            padding:7px 12px;border-radius:var(--r-md);
-            font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;
-            border:1px solid var(--border);background:var(--surface);color:var(--text);
-            transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast);
-            white-space:nowrap;
+          /* Actions cluster on the strip — icon group + action button
+             group, separated by a hairline so they read as two
+             functional zones (contact / disposition) instead of seven
+             loose controls. */
+          .pa-card-actions{
+            display:flex;align-items:center;gap:var(--s-3);
+            flex-shrink:0;justify-content:flex-end;
           }
-          .pa-strip-btn:hover{background:var(--canvas);border-color:var(--border-strong)}
-          .pa-strip-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
-          /* Primary CTA — accent-filled so it reads as "do this next",
-             not as a neutral confirmation. */
-          .pa-strip-btn-primary{
-            background:var(--accent);color:var(--text-inverse);border-color:var(--accent);
-            box-shadow:0 1px 2px rgba(15,23,42,.08);
+          .pa-card-icons{
+            display:flex;align-items:center;gap:4px;
+            padding-right:var(--s-3);border-right:1px solid var(--border);
           }
-          .pa-strip-btn-primary:hover{
-            background:color-mix(in srgb, var(--accent) 88%, black);
-            border-color:color-mix(in srgb, var(--accent) 88%, black);
-            color:var(--text-inverse);
-          }
-          .pa-strip-btn-primary svg{stroke:currentColor}
-          /* Decline — red-filled with the universal "prohibited" icon so
-             the destructive action is recognizable at a glance. */
-          .pa-strip-btn-danger{
-            background:var(--red);color:#fff;border-color:var(--red);
-          }
-          .pa-strip-btn-danger:hover{
-            background:color-mix(in srgb, var(--red) 88%, black);
-            border-color:color-mix(in srgb, var(--red) 88%, black);
-            color:#fff;
-          }
-          .pa-strip-btn-danger svg{stroke:#fff}
+          .pa-card-icons:last-child{border-right:0;padding-right:0}
+          .pa-card-ctas{display:flex;align-items:center;gap:6px}
+          /* Icon button height (30px) matches .btn-sm so the strip's
+             two clusters sit on a shared baseline. */
           .pa-icon-btn{
             display:inline-flex;align-items:center;justify-content:center;
-            width:32px;height:32px;border-radius:var(--r-md);
-            background:transparent;color:var(--text-muted);
-            border:1px solid var(--border);cursor:pointer;
-            transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
+            width:30px;height:30px;border-radius:var(--r-md);
+            background:var(--surface);color:var(--text-muted);
+            border:1px solid var(--border-strong);cursor:pointer;
+            box-shadow:var(--shadow-xs);
+            transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast);
           }
-          .pa-icon-btn:hover{background:var(--canvas);color:var(--text);border-color:var(--border-strong)}
-          .pa-icon-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
-          .pa-icon-btn.is-disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+          .pa-icon-btn:hover{background:var(--canvas);color:var(--text)}
+          .pa-icon-btn:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
+          .pa-icon-btn.is-disabled{opacity:.45;cursor:not-allowed;pointer-events:none;box-shadow:none}
           /* Video icon — accent-tinted so operators see at a glance that
              the applicant has a screening video to watch. */
           .pa-icon-btn.is-video{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
-          .pa-icon-btn.is-video:hover{background:var(--accent);color:var(--text-inverse);border-color:var(--accent)}
+          .pa-icon-btn.is-video:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 
           /* Popover surface shared by phone / notes / more icons. */
           .pa-pop{

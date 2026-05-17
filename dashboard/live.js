@@ -491,9 +491,11 @@ function renderApplicantCard(a) {
 
   const relTime = a.created_at ? _relTimeShort(a.created_at) : "";
 
-  // Score chip — colour by tier so high-fits stand out at a glance.
+  // Score chip — only meaningful once the applicant has actually
+  // completed screening. Before then a "score" reading is misleading
+  // (a 0 looks like a hard-failure when it really means "no data").
   let scoreChip = "";
-  if (a.score !== null && a.score !== undefined) {
+  if (a.score != null && a.screening_completed_at) {
     const cls = a.score >= 7 ? "score" : a.score >= 4 ? "score score-mid" : "score score-low";
     scoreChip = `<span class="pa-card-tag ${cls}">Score ${a.score}</span>`;
   }
@@ -534,18 +536,24 @@ function renderApplicantCard(a) {
   else if (stage === "screened")     { ctaAction = "send_link";        ctaLabel = "Send booking link"; }
   else if (stage === "booking_pending") { ctaAction = "resend_link";   ctaLabel = "Resend booking link"; }
   else if (stage === "booking_scheduled") { ctaAction = "reschedule";  ctaLabel = "Reschedule"; }
+  // Use the canonical btn / btn-sm / btn-primary / btn-danger classes
+  // so the action buttons sit visually with the rest of the dashboard
+  // (button height, radius, focus ring, hover treatment) instead of
+  // looking like one-off styling.
   const ctaBtn = ctaAction
-    ? `<button class="pa-strip-btn pa-strip-btn-primary" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">
-         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    ? `<button class="btn btn-sm btn-primary" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">
+         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
          ${escapeHtml(ctaLabel)}
        </button>`
     : "";
   const declineAction = stage === "booking_scheduled" ? "cancel_interview" : "decline";
   const declineLabel  = stage === "booking_scheduled" ? "Cancel interview" : "Decline";
   // Prohibition sign (⊘) — universal "do not" symbol so the operator can
-  // identify the destructive action at a glance.
-  const declineBtn = `<button class="pa-strip-btn pa-strip-btn-danger" type="button" data-rr-action="${declineAction}" data-applicant-id="${escapeHtml(a.id)}">
-    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+  // identify the destructive action at a glance, paired with the
+  // canonical btn-danger treatment used elsewhere (red outline, fills
+  // red-soft on hover).
+  const declineBtn = `<button class="btn btn-sm btn-danger" type="button" data-rr-action="${declineAction}" data-applicant-id="${escapeHtml(a.id)}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
     ${escapeHtml(declineLabel)}
   </button>`;
 
@@ -569,21 +577,25 @@ function renderApplicantCard(a) {
         <div class="pa-card-activity">
           <div class="pa-steps">${stepsHtml}</div>
         </div>
-        <div class="pa-card-actions pa-card-icons">
-          ${a.video_url ? `<button class="pa-icon-btn is-video" type="button" data-rr-action="play_video" data-applicant-id="${escapeHtml(a.id)}" data-video-url="${encodeURI(a.video_url)}" title="Watch screening video" aria-label="Watch screening video">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-          </button>` : ""}
-          <button class="pa-icon-btn${phoneDisabled}" type="button" data-rr-pa-pop="phone" title="${phoneTitle}" aria-label="Phone">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-          </button>
-          <button class="pa-icon-btn${emailDisabled}" type="button" data-rr-pa-pop="email" title="${emailTitle}" aria-label="Email">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>
-          </button>
-          <button class="pa-icon-btn" type="button" data-rr-pa-pop="notes" title="Notes" aria-label="Notes">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
-          </button>
-          ${ctaBtn}
-          ${declineBtn}
+        <div class="pa-card-actions">
+          <div class="pa-card-icons">
+            ${a.video_url ? `<button class="pa-icon-btn is-video" type="button" data-rr-action="play_video" data-applicant-id="${escapeHtml(a.id)}" data-video-url="${encodeURI(a.video_url)}" title="Watch screening video" aria-label="Watch screening video">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+            </button>` : ""}
+            <button class="pa-icon-btn${phoneDisabled}" type="button" data-rr-pa-pop="phone" title="${phoneTitle}" aria-label="Phone">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            </button>
+            <button class="pa-icon-btn${emailDisabled}" type="button" data-rr-pa-pop="email" title="${emailTitle}" aria-label="Email">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>
+            </button>
+            <button class="pa-icon-btn" type="button" data-rr-pa-pop="notes" title="Notes" aria-label="Notes">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+            </button>
+          </div>
+          <div class="pa-card-ctas">
+            ${ctaBtn}
+            ${declineBtn}
+          </div>
         </div>
       </div>
     </div>`;
