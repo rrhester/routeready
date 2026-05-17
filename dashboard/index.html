@@ -5299,6 +5299,15 @@ body.rr-cmdk-open{ overflow:hidden }
 .forms-grid.is-list .form-card-desc{display:none}
 
 .forms-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-3)}
+/* Skeleton placeholder mirroring the .form-card geometry — three
+   shimmer bars (status pill + title + desc) inside a card chrome
+   that matches the real one. */
+.form-skel-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-5);min-height:120px;
+  display:flex;flex-direction:column;gap:var(--s-3);
+}
+.form-skel-card .rr-skel{display:block}
 .form-card{
   position:relative;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
@@ -13843,7 +13852,15 @@ body.rr-cmdk-open{ overflow:hidden }
                   </button>
                 </div>
               </div>
-              <div class="forms-grid" id="rr-forms-grid"></div>
+              <div class="forms-grid" id="rr-forms-grid">
+                <!-- Skeleton cards mirroring the .form-card shape so
+                     the grid doesn't render empty before the list
+                     RPC lands. -->
+                <div class="form-skel-card"><span class="rr-skel rr-skel-sm" style="width:60px;align-self:flex-start;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:64%"></span><span class="rr-skel rr-skel-sm" style="width:88%"></span></div>
+                <div class="form-skel-card"><span class="rr-skel rr-skel-sm" style="width:60px;align-self:flex-start;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:56%"></span><span class="rr-skel rr-skel-sm" style="width:80%"></span></div>
+                <div class="form-skel-card"><span class="rr-skel rr-skel-sm" style="width:60px;align-self:flex-start;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:70%"></span><span class="rr-skel rr-skel-sm" style="width:92%"></span></div>
+                <div class="form-skel-card"><span class="rr-skel rr-skel-sm" style="width:60px;align-self:flex-start;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:50%"></span><span class="rr-skel rr-skel-sm" style="width:74%"></span></div>
+              </div>
               <div class="rr-empty-inline" id="rr-forms-empty" style="display:none">No forms yet. Click <strong>Build a form</strong> to create your first one.</div>
             </div>
 
