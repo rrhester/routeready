@@ -8528,12 +8528,25 @@ async function loadTodayPlan() {
                   && !!document.getElementById("rr-tp-meta");
   if (!skeletonOk) {
     shell.dataset.rrPlanShell = "1";
+    // Structured skeleton — mirrors the final layout (4 KPI chips +
+    // roster card with header + six row placeholders) so the page
+    // doesn't reflow when the cache or RPC fills in.  Each shimmer
+    // bar uses the canonical .rr-skel primitive.
+    const skelRow = `<div class="tp-skel-row"><span class="rr-skel rr-skel-circle" style="width:28px;height:28px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:24%"></span><span class="rr-skel rr-skel-sm" style="width:14%"></span><span class="rr-skel rr-skel-sm" style="width:18%"></span><span class="rr-skel rr-skel-sm" style="width:12%;margin-left:auto"></span></div>`;
+    const skelChip = (toneClass) => `<div class="tp-day-chip${toneClass ? ' ' + toneClass : ''}"><div class="tp-day-chip-label tp-skel-label"><span class="rr-skel rr-skel-sm" style="width:80px"></span></div><span class="rr-skel rr-skel-lg" style="width:48px;height:24px"></span><div class="tp-skel-sub"><span class="rr-skel rr-skel-sm" style="width:62%"></span></div></div>`;
     shell.innerHTML = `
-      <div id="rr-tp-meta" class="card card-compact">Loading</div>
+      <div id="rr-tp-meta" class="card card-compact">
+        <div class="tp-day-meta" aria-busy="true" aria-label="Loading today's plan overview">
+          ${skelChip('')}
+          ${skelChip('')}
+          ${skelChip('')}
+          ${skelChip('')}
+        </div>
+      </div>
       <div id="rr-tp-ridealong-alerts"></div>
       <div id="rr-tp-roster" class="card card-flush">
         <div class="rr-tp-section-head">Today's roster</div>
-        <div class="rr-loading" style="padding:18px 20px">Loading</div>
+        <div class="tp-skel-list" aria-busy="true">${skelRow}${skelRow}${skelRow}${skelRow}${skelRow}${skelRow}</div>
       </div>`;
   }
 
