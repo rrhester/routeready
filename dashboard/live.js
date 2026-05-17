@@ -34633,6 +34633,32 @@ async function _dvicOpenCompare(vehicleId, inspectionId) {
       #rr-dvic-modal .dvic-photos-title{font-size:var(--fs-sm);font-weight:700;color:var(--text);letter-spacing:-.005em}
       #rr-dvic-modal .dvic-photos-count{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500}
       #rr-dvic-modal .dvic-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s-2)}
+      /* "View in comparison mode" toggle bar — sits under the current
+         photo strip; expands a paired prev/current grid below. */
+      #rr-dvic-modal .dvic-compare-toggle{
+        appearance:none;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
+        margin-top:var(--s-2-5);padding:10px var(--s-3-5);width:100%;cursor:pointer;
+        display:flex;align-items:center;gap:var(--s-2);font:inherit;
+        font-size:var(--fs-sm);font-weight:600;color:var(--text);
+        transition:background var(--t-fast),border-color var(--t-fast);
+      }
+      #rr-dvic-modal .dvic-compare-toggle:hover{background:var(--surface-hover);border-color:var(--border-strong)}
+      #rr-dvic-modal .dvic-compare-toggle svg{color:var(--text-muted);flex:0 0 auto}
+      #rr-dvic-modal .dvic-compare-sub{font-weight:500;color:var(--text-subtle);font-size:var(--fs-xs);margin-left:auto}
+      #rr-dvic-modal .dvic-compare-toggle[aria-expanded="true"]{background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent-text)}
+      #rr-dvic-modal .dvic-compare-toggle[aria-expanded="true"] svg{color:var(--accent-text)}
+      #rr-dvic-modal .dvic-compare-toggle[aria-expanded="true"] .dvic-compare-sub{color:var(--accent-text);opacity:.78}
+      #rr-dvic-modal .dvic-compare-pairs{display:flex;flex-direction:column;gap:var(--s-2-5);margin-top:var(--s-3)}
+      #rr-dvic-modal .dvic-compare-pairs[hidden]{display:none}
+      #rr-dvic-modal .dvic-compare-row{
+        display:grid;grid-template-columns:1fr 22px 1fr;gap:var(--s-2-5);align-items:center;
+      }
+      #rr-dvic-modal .dvic-compare-row .dvic-thumb{cursor:zoom-in}
+      #rr-dvic-modal .dvic-compare-sep{display:flex;align-items:center;justify-content:center;color:var(--text-subtle)}
+      @media (max-width:680px){
+        #rr-dvic-modal .dvic-compare-row{grid-template-columns:1fr;gap:var(--s-2)}
+        #rr-dvic-modal .dvic-compare-sep{display:none}
+      }
       @media (max-width:980px){
         #rr-dvic-modal .dvic-top{grid-template-columns:1fr 1fr}
         #rr-dvic-modal .dvic-ai-card{grid-column:1/-1}
@@ -34730,8 +34756,10 @@ async function _dvicRenderModal(wrap, data) {
       </div>`;
 
   // Previous mini-card: small thumb + date + summary line.
-  const prevThumb = prev && Array.isArray(prev.photos) && prev.photos[0] && urlMap[prev.photos[0]]
-    ? `<div class="dvic-prev-thumb"><img src="${urlMap[prev.photos[0]]}" alt="Previous inspection"></div>`
+  const prevFirstUrl = prev && Array.isArray(prev.photos) && prev.photos[0]
+    ? urlMap.get(prev.photos[0]) : null;
+  const prevThumb = prevFirstUrl
+    ? `<div class="dvic-prev-thumb"><img src="${escapeHtml(prevFirstUrl)}" alt="Previous inspection"></div>`
     : `<div class="dvic-prev-thumb"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-subtle)"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>`;
   const prevSummary = prev
     ? `${escapeHtml(prev.inspector_name || "—")}${prev.result ? ` · ${escapeHtml((prev.result || "").replace(/_/g, " "))}` : ""}`
@@ -34764,7 +34792,32 @@ async function _dvicRenderModal(wrap, data) {
   // AI review summary card (tinted to status).
   const aiCard = _dvicAiCardHtml(cur);
 
-  // Photos section.
+  // Photos section.  When the prior inspection had photos too, we
+  // also render a "Compare with previous" toggle that expands a
+  // paired view (prev[i] | current[i]).  Pairing is positional —
+  // the form's `photo` fields submit in a fixed order per the form
+  // definition, so position is the most reliable match without
+  // adding per-photo metadata to the schema.
+  const prevPhotos = (prev && Array.isArray(prev.photos)) ? prev.photos : [];
+  const canCompare = curPhotosN > 0 && prevPhotos.length > 0;
+  const compareRows = canCompare
+    ? Array.from({ length: Math.max(curPhotosN, prevPhotos.length) }, (_, i) => {
+        const p = prevPhotos[i] || null;
+        const c = (cur.photos || [])[i] || null;
+        const pUrl = p ? urlMap.get(p) : null;
+        const cUrl = c ? urlMap.get(c) : null;
+        const thumb = (url, side) => url
+          ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="dvic-thumb"><img src="${escapeHtml(url)}" alt=""><span class="ix">${side === "prev" ? "Prev" : "Now"} · ${i + 1}</span></a>`
+          : `<div class="dvic-thumb missing" title="${side === "prev" ? "No prior photo at this position" : "No current photo at this position"}">—</div>`;
+        return `<div class="dvic-compare-row">
+          ${thumb(pUrl, "prev")}
+          <span class="dvic-compare-sep" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </span>
+          ${thumb(cUrl, "cur")}
+        </div>`;
+      }).join("")
+    : "";
   const photosSection = curPhotosN > 0
     ? `<section class="dvic-photos-section">
          <div class="dvic-photos-head">
@@ -34772,6 +34825,14 @@ async function _dvicRenderModal(wrap, data) {
            <span class="dvic-photos-count">${curPhotosN} photo${curPhotosN === 1 ? "" : "s"}</span>
          </div>
          ${_dvicPhotoStrip(cur.photos || [], urlMap, "current")}
+         ${canCompare ? `
+           <button class="dvic-compare-toggle" type="button" data-dvic-compare-toggle aria-expanded="false" aria-controls="dvic-compare-pairs">
+             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+             <span>View in comparison mode</span>
+             <span class="dvic-compare-sub">Compare with prior inspection side-by-side</span>
+           </button>
+           <div class="dvic-compare-pairs" id="dvic-compare-pairs" hidden>${compareRows}</div>
+         ` : ""}
        </section>`
     : "";
 
@@ -34826,6 +34887,21 @@ document.addEventListener("click", async (e) => {
     if (submId && typeof openSubmissionDetail === "function") {
       await openSubmissionDetail(submId);
     }
+    return;
+  }
+  // "View in comparison mode" toggle — expands/collapses the paired
+  // prev/current photo grid under the current photo strip.
+  const cmpBtn = e.target.closest && e.target.closest("[data-dvic-compare-toggle]");
+  if (cmpBtn) {
+    e.preventDefault();
+    const pairs = document.getElementById("dvic-compare-pairs");
+    if (!pairs) return;
+    const open = pairs.hasAttribute("hidden");
+    if (open) pairs.removeAttribute("hidden");
+    else pairs.setAttribute("hidden", "");
+    cmpBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    const label = cmpBtn.querySelector("span:not(.dvic-compare-sub)");
+    if (label) label.textContent = open ? "Hide comparison view" : "View in comparison mode";
     return;
   }
   // "View inspection" link on the previous-inspection card — reopens
