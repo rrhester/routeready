@@ -38096,7 +38096,10 @@ async function openRecogSendModal(opts) {
       #rr-recog-send-modal .anim-grid{display:grid;grid-template-columns:repeat(4, 1fr);gap:var(--s-2)}
       #rr-recog-send-modal .anim-pick{padding:var(--s-2);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);text-align:center;cursor:pointer;font-size:var(--fs-sm);font-weight:600;color:var(--text)}
       #rr-recog-send-modal .anim-pick.is-on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-text)}
-      #rr-recog-send-modal .driver-picker{position:relative}
+      /* Scoped class — must NOT use the global .driver-picker class
+         (defined in index.html ~line 5905 for the coaching popover);
+         that one has display:none by default and would hide our field. */
+      #rr-recog-send-modal .rr-driver-picker{position:relative}
       #rr-recog-send-modal .driver-list{max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:5;display:none}
       #rr-recog-send-modal .driver-list.is-open{display:block}
       #rr-recog-send-modal .driver-row{padding:var(--s-2) var(--s-3);cursor:pointer;display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md)}
@@ -38113,7 +38116,7 @@ async function openRecogSendModal(opts) {
         <button class="rr-modal-close" type="button" data-rr-recog-close aria-label="Close">×</button>
       </div>
       <div class="rr-modal-body">
-        <div class="field driver-picker">
+        <div class="field rr-driver-picker">
           <label for="rr-recog-driver-input">Driver</label>
           <input id="rr-recog-driver-input" type="text" autocomplete="off" placeholder="Search by name…" value="${escapeHtml(opts.driver_name || "")}">
           <input id="rr-recog-driver-id" type="hidden" value="${escapeHtml(opts.driver_id || "")}">
@@ -38209,7 +38212,7 @@ async function openRecogSendModal(opts) {
   });
   document.addEventListener("click", (e) => {
     if (!wrap.contains(e.target)) return;
-    if (!e.target.closest(".driver-picker")) list.classList.remove("is-open");
+    if (!e.target.closest(".rr-driver-picker")) list.classList.remove("is-open");
   });
 
   // Schedule toggle.
