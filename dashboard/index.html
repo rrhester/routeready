@@ -5142,6 +5142,33 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .form-card-status.draft{background:var(--canvas);color:var(--text-muted)}
 .form-card-status.archived{background:var(--canvas);color:var(--text-subtle)}
+.form-card.is-archived{opacity:.78}
+.form-card.is-archived .form-card-icon{background:var(--canvas);color:var(--text-subtle)}
+/* Tools row anchored top-right — sits over the card so the icon
+   buttons don't push title text down.  Buttons stay invisible until
+   the card is hovered or focused. */
+.form-card-tools{
+  position:absolute;top:6px;right:6px;display:inline-flex;gap:2px;
+  opacity:0;transition:opacity var(--t-fast);
+}
+.form-card:hover .form-card-tools,
+.form-card:focus-within .form-card-tools{opacity:1}
+.form-card-aux,
+.form-card-del{
+  appearance:none;background:transparent;border:0;cursor:pointer;
+  color:var(--text-subtle);font-size:14px;line-height:1;
+  width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:var(--r-md);
+  transition:background var(--t-fast),color var(--t-fast);
+}
+.form-card-del{font-size:18px}
+.form-card-aux:hover{background:var(--canvas);color:var(--text)}
+.form-card-del:hover{background:var(--red-soft);color:var(--red)}
+.form-card-cat{
+  margin-left:auto;font-weight:600;color:var(--accent-text);
+  background:var(--accent-soft);padding:1px 8px;border-radius:999px;
+  font-size:10px;letter-spacing:.04em;
+}
 .form-card-icon{
   width:36px;height:36px;border-radius:var(--r-md);
   background:var(--accent-soft);color:var(--accent-text);
@@ -5183,6 +5210,20 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .builder-form-name{font-size:18px;font-weight:700;border:none;background:transparent;width:100%;outline:none;color:var(--text);margin-bottom:6px}
 .builder-form-desc{font-size:var(--fs-sm);color:var(--text-muted);border:none;background:transparent;width:100%;outline:none;resize:none;font-family:inherit;line-height:1.5}
+.builder-form-cat-row{
+  display:flex;align-items:center;gap:var(--s-2-5);margin-top:var(--s-3);padding-top:var(--s-3);
+  border-top:1px solid var(--border-subtle);
+}
+.builder-form-cat-label{
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);
+  flex:0 0 auto;
+}
+.builder-form-cat{
+  flex:1;height:32px;padding:0 12px;border:1px solid var(--border);border-radius:8px;
+  font:inherit;font-size:var(--fs-sm);color:var(--text);background:var(--canvas);
+  transition:border-color var(--t-fast),box-shadow var(--t-fast),background var(--t-fast);
+}
+.builder-form-cat:focus{outline:none;background:var(--surface);border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .builder-field{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);
   padding:var(--s-3-5) var(--s-4);margin-top:var(--s-3);position:relative;cursor:move;
@@ -12927,14 +12968,24 @@ body.rr-cmdk-open{ overflow:hidden }
               <input type="search" id="rr-forms-side-search" placeholder="Search forms" autocomplete="off" spellcheck="false">
             </div>
             <div class="forms-side-section">Forms</div>
-            <button class="forms-side-item active" onclick="formsTab(this,'my')">
+            <button class="forms-side-item active" data-rr-forms-scope="active" onclick="formsTab(this,'my')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
               My forms <span class="count" id="rr-forms-count-my">0</span>
+            </button>
+            <button class="forms-side-item" data-rr-forms-scope="all" onclick="formsTab(this,'my')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+              All forms <span class="count" id="rr-forms-count-all">0</span>
+            </button>
+            <button class="forms-side-item" data-rr-forms-scope="archived" onclick="formsTab(this,'my')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+              Archived <span class="count" id="rr-forms-count-archived">0</span>
             </button>
             <button class="forms-side-item" onclick="formsTab(this,'subm')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               Submissions
             </button>
+            <div class="forms-side-section" id="rr-forms-cat-section" hidden>Categories</div>
+            <div id="rr-forms-cat-list"></div>
           </aside>
 
           <main>
@@ -15111,6 +15162,11 @@ Evidence attached:
         <div class="builder-canvas-form">
           <input class="builder-form-name" id="rr-builder-title" placeholder="Untitled form" />
           <textarea class="builder-form-desc" id="rr-builder-desc" rows="2" placeholder="What is this form for? (optional)"></textarea>
+          <div class="builder-form-cat-row">
+            <label class="builder-form-cat-label" for="rr-builder-cat">Category</label>
+            <input class="builder-form-cat" id="rr-builder-cat" list="rr-builder-cat-options" placeholder="onboarding · compliance · operations · training · …" autocomplete="off" />
+            <datalist id="rr-builder-cat-options"></datalist>
+          </div>
           <div id="rr-builder-fields"></div>
           <div id="rr-builder-empty" class="rr-empty-inline" style="margin-top:14px">No fields yet — click a field type on the left to add one.</div>
         </div>

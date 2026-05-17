@@ -27737,22 +27737,73 @@ async function loadFormsList() {
   _renderFormsGrid();
 }
 
-// Sort + search + view state for the forms grid.  Cached locally so
-// the sidebar search / toolbar dropdown / view toggle can re-render
+// Sort + search + view + scope + category state for the forms grid.
+// Cached locally so the sidebar / toolbar / view toggle can re-render
 // without another list_forms RPC.
 let _formsCache = [];
 let _formsSort = "updated-desc";
 let _formsQuery = "";
 let _formsView = "grid";
+let _formsScope = "active";        // active | all | archived
+let _formsCategory = "";            // "" means "all categories"
+function _renderFormsSidebar() {
+  const cache = _formsCache || [];
+  const activeN = cache.filter(f => f.status !== "archived").length;
+  const archivedN = cache.filter(f => f.status === "archived").length;
+  const setCount = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+  setCount("rr-forms-count-my", activeN);
+  setCount("rr-forms-count-all", cache.length);
+  setCount("rr-forms-count-archived", archivedN);
+  // Categories — built dynamically from forms.category values that
+  // aren't blank.  Archived forms still contribute to their own
+  // category count so the operator can find them.
+  const catCounts = new Map();
+  for (const f of cache) {
+    const c = (f.category || "").trim();
+    if (!c) continue;
+    catCounts.set(c, (catCounts.get(c) || 0) + 1);
+  }
+  const section = document.getElementById("rr-forms-cat-section");
+  const list = document.getElementById("rr-forms-cat-list");
+  if (section && list) {
+    if (catCounts.size === 0) {
+      section.hidden = true;
+      list.innerHTML = "";
+    } else {
+      section.hidden = false;
+      const cats = [...catCounts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+      list.innerHTML = cats.map(([c, n]) =>
+        `<button class="forms-side-item${_formsCategory === c ? " active" : ""}" type="button" data-rr-forms-cat="${escapeHtml(c)}">
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+           <span style="text-transform:capitalize">${escapeHtml(c)}</span>
+           <span class="count">${n}</span>
+         </button>`
+      ).join("");
+    }
+  }
+  // Reflect active scope on the sidebar items.
+  document.querySelectorAll("#view-forms [data-rr-forms-scope]").forEach(btn => {
+    btn.classList.toggle("active", btn.getAttribute("data-rr-forms-scope") === _formsScope && !_formsCategory);
+  });
+}
 function _renderFormsGrid() {
   const grid = document.getElementById("rr-forms-grid");
   const empty = document.getElementById("rr-forms-empty");
   if (!grid) return;
+  _renderFormsSidebar();
   const q = _formsQuery.trim().toLowerCase();
   let rows = _formsCache.slice();
+  // Scope: active hides archived; archived shows only archived; all shows everything.
+  if (_formsCategory) {
+    rows = rows.filter(f => (f.category || "") === _formsCategory);
+  } else if (_formsScope === "active") {
+    rows = rows.filter(f => f.status !== "archived");
+  } else if (_formsScope === "archived") {
+    rows = rows.filter(f => f.status === "archived");
+  }
   if (q) {
     rows = rows.filter(f => {
-      const hay = [f.title, f.description].filter(Boolean).join(" ").toLowerCase();
+      const hay = [f.title, f.description, f.category].filter(Boolean).join(" ").toLowerCase();
       return hay.includes(q);
     });
   }
@@ -27805,6 +27856,33 @@ function _wireFormsToolbar() {
       b.classList.toggle("active", b === btn);
     });
     _renderFormsGrid();
+  });
+  // Sidebar scope (Active / All / Archived) — clicking one of those
+  // items also fires formsTab(...,'my'), the existing tab switcher,
+  // so this handler only owns the scope state.
+  document.addEventListener("click", (e) => {
+    const scopeBtn = e.target.closest("#view-forms [data-rr-forms-scope]");
+    if (scopeBtn) {
+      const scope = scopeBtn.getAttribute("data-rr-forms-scope");
+      if (scope && scope !== _formsScope) {
+        _formsScope = scope;
+        _formsCategory = "";
+        _renderFormsGrid();
+      }
+      return;
+    }
+    const catBtn = e.target.closest("#view-forms [data-rr-forms-cat]");
+    if (catBtn) {
+      const cat = catBtn.getAttribute("data-rr-forms-cat") || "";
+      if (cat === _formsCategory) {
+        // Toggle off → snap back to the previous scope.
+        _formsCategory = "";
+      } else {
+        _formsCategory = cat;
+      }
+      _renderFormsGrid();
+      return;
+    }
   });
 }
 // Kick off the wiring + initial paint when the forms tab first loads.
@@ -27900,22 +27978,36 @@ let _formAudienceDrivers = null;   // cached active-driver list for the audience
 function _formCardHtml(f) {
   const fieldCount = Array.isArray(f.fields) ? f.fields.length : 0;
   const isPublished = f.status === "published";
-  const statusLabel = isPublished
-    ? `<span class="form-card-status"><span class="kpi-pip green"></span>Published</span>`
-    : `<span class="form-card-status draft">Draft</span>`;
+  const isArchived  = f.status === "archived";
+  const statusLabel = isArchived
+    ? `<span class="form-card-status archived">Archived</span>`
+    : isPublished
+      ? `<span class="form-card-status"><span class="kpi-pip green"></span>Published</span>`
+      : `<span class="form-card-status draft">Draft</span>`;
   const updated = f.updated_at ? new Date(f.updated_at).toLocaleDateString() : "";
   const assignN = _formAssignCounts[f.id] || 0;
+  const safeId = escapeHtml(f.id);
+  const safeTitle = escapeHtml(f.title || "Untitled form");
+  // Active forms get an Archive icon button.  Archived forms get a
+  // Restore icon button instead — same slot, different action.
+  const sideAction = isArchived
+    ? `<button type="button" class="form-card-aux" data-rr-form-restore="${safeId}" data-rr-form-title="${safeTitle}" title="Restore form to draft" aria-label="Restore form"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>`
+    : `<button type="button" class="form-card-aux" data-rr-form-archive="${safeId}" data-rr-form-title="${safeTitle}" title="Archive this form" aria-label="Archive form"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></button>`;
   return `
-    <div class="form-card" data-rr-form-edit="${escapeHtml(f.id)}" style="position:relative">
+    <div class="form-card${isArchived ? " is-archived" : ""}" data-rr-form-edit="${safeId}" style="position:relative">
       ${statusLabel}
-      <button type="button" class="form-card-del" data-rr-form-delete="${escapeHtml(f.id)}" data-rr-form-title="${escapeHtml(f.title || "Untitled form")}" title="Delete this form" style="position:absolute;top:6px;right:6px;background:none;border:0;color:var(--text-subtle);cursor:pointer;font-size:18px;line-height:1;padding:2px 7px;border-radius:var(--r-md)">×</button>
+      <div class="form-card-tools">
+        ${sideAction}
+        <button type="button" class="form-card-del" data-rr-form-delete="${safeId}" data-rr-form-title="${safeTitle}" title="Delete this form" aria-label="Delete form">×</button>
+      </div>
       <div class="form-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div>
-      <div class="form-card-title">${escapeHtml(f.title || "Untitled form")}</div>
+      <div class="form-card-title">${safeTitle}</div>
       <div class="form-card-desc">${escapeHtml(f.description || "")}</div>
       <div class="form-card-stats">
         <span><strong>${fieldCount}</strong> field${fieldCount === 1 ? "" : "s"}</span>
         <span>${assignN > 0 ? `Assigned · <strong>${assignN}</strong> driver${assignN === 1 ? "" : "s"}` : "All drivers"}</span>
         ${updated ? `<span>Updated <strong>${escapeHtml(updated)}</strong></span>` : ""}
+        ${f.category ? `<span class="form-card-cat" style="text-transform:capitalize">${escapeHtml(f.category)}</span>` : ""}
       </div>
     </div>`;
 }
@@ -27926,8 +28018,17 @@ function openFormBuilder(form) {
   _formsState.selectedId = null;
   const titleEl = document.getElementById("rr-builder-title");
   const descEl  = document.getElementById("rr-builder-desc");
+  const catEl   = document.getElementById("rr-builder-cat");
+  const catList = document.getElementById("rr-builder-cat-options");
   if (titleEl) titleEl.value = form?.title || "";
   if (descEl)  descEl.value  = form?.description || "";
+  if (catEl)   catEl.value   = form?.category || "";
+  // Populate the category datalist from existing forms so the
+  // operator can pick from what's already in use instead of typing.
+  if (catList) {
+    const cats = [...new Set((_formsCache || []).map(f => (f.category || "").trim()).filter(Boolean))].sort();
+    catList.innerHTML = cats.map(c => `<option value="${escapeHtml(c)}"></option>`).join("");
+  }
   // Form-level settings — once_per_driver is the inverse of the
   // "Allow multiple submissions" toggle.  Default to allow.
   const allowResubmit = document.getElementById("rr-form-allow-resubmit");
@@ -28183,6 +28284,31 @@ document.addEventListener("click", async (e) => {
     loadFormsList();
     return;
   }
+  // Archive a form (icon button on the card).  Soft-archive only —
+  // the form moves to the Archived sidebar bucket; submissions stay.
+  const arch = e.target.closest("[data-rr-form-archive]");
+  if (arch) {
+    e.preventDefault(); e.stopPropagation();
+    const id = arch.getAttribute("data-rr-form-archive");
+    arch.disabled = true;
+    const { error } = await sb.rpc("archive_form", { p_id: id });
+    if (error) { toast("Archive failed: " + error.message, "warn"); arch.disabled = false; return; }
+    toast("Form archived", "success");
+    loadFormsList();
+    return;
+  }
+  // Restore an archived form back to draft.
+  const rest = e.target.closest("[data-rr-form-restore]");
+  if (rest) {
+    e.preventDefault(); e.stopPropagation();
+    const id = rest.getAttribute("data-rr-form-restore");
+    rest.disabled = true;
+    const { error } = await sb.rpc("restore_form", { p_id: id });
+    if (error) { toast("Restore failed: " + error.message, "warn"); rest.disabled = false; return; }
+    toast("Form restored to draft", "success");
+    loadFormsList();
+    return;
+  }
   // View a form submission.
   const sv = e.target.closest("[data-rr-subm-view]");
   if (sv) {
@@ -28336,6 +28462,8 @@ async function _saveBuilder({ publish }) {
   const descEl  = document.getElementById("rr-builder-desc");
   const title   = (titleEl?.value || "").trim() || "Untitled form";
   const description = (descEl?.value || "").trim() || null;
+  const catEl   = document.getElementById("rr-builder-cat");
+  const category = (catEl?.value || "").trim().toLowerCase() || null;
   if (publish && _formsState.fields.length === 0) {
     toast("Add at least one field before publishing", "warn");
     return;
@@ -28351,6 +28479,7 @@ async function _saveBuilder({ publish }) {
   const payload = {
     title,
     description,
+    category,
     fields:   _formsState.fields,
     settings,
   };
