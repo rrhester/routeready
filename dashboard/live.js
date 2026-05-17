@@ -550,16 +550,11 @@ function renderApplicantCard(a) {
       </div>
     </div>`;
 
-  // ── Layout: 4-column top row → activity timeline strip → 3-card
-  // section (Screening video · Screening answers · Recommended next
-  // step) → Notes → action bar.
+  // ── Layout: one strip — stage pill | name + meta | activity timeline
+  // | View toggle. Expanded detail (screening cards, notes, actions)
+  // sits below.
   const sourceMetaTxt = a.source ? `via ${rrTitleCaseName(a.source)}` : "Direct applicant";
   const headerSubLine = [sourceMetaTxt, a.email].filter(Boolean).join(" · ");
-  const anchorIso     = _stageAnchorIso(a);
-  const timeInStage   = anchorIso ? _fmtDurationShort(Date.now() - new Date(anchorIso).getTime()) : "—";
-  const lastTouchIso  = a.last_sms_at || a.screening_completed_at || a.created_at;
-  const lastTouchTxt  = _fmtAbsTouch(lastTouchIso);
-  const lastTouchVerb = _lastTouchLabel(a);
   const rec           = _recommendedNextStep(a);
 
   // Screening video card — only render when we actually have a video.
@@ -638,29 +633,12 @@ function renderApplicantCard(a) {
           </div>
           ${scoreChip ? `<div class="pa-card-tags">${scoreChip}</div>` : ""}
         </div>
-        <div class="pa-card-summary">
-          <div class="pa-sum-col">
-            <div class="pa-sum-label">Current stage</div>
-            <div class="pa-sum-value"><span class="pa-stage-pill ${stage}">${escapeHtml(STAGE_LABELS[stage] ?? stage)}</span></div>
-          </div>
-          <div class="pa-sum-col">
-            <div class="pa-sum-label">Time in stage</div>
-            <div class="pa-sum-value">${escapeHtml(timeInStage)}</div>
-          </div>
-          <div class="pa-sum-col">
-            <div class="pa-sum-label">Last touch</div>
-            <div class="pa-sum-value pa-sum-value-touch">${escapeHtml(lastTouchVerb)}</div>
-            <div class="pa-sum-touch-time">${escapeHtml(lastTouchTxt)}</div>
-          </div>
+        <div class="pa-card-activity">
+          <div class="pa-steps">${stepsHtml}</div>
         </div>
         <div class="pa-card-actions">
           <button class="pa-view-btn" type="button" onclick="paToggle(this)">View<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
         </div>
-      </div>
-
-      <div class="pa-activity">
-        <div class="pa-activity-head"><span>Recent activity</span><a href="#" class="pa-activity-all" onclick="event.preventDefault()">View all activity →</a></div>
-        <div class="pa-steps">${stepsHtml}</div>
       </div>
 
       <div class="pa-detail">
