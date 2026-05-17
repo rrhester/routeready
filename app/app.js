@@ -883,6 +883,10 @@ function render() {
   if (back) back.style.display = backTarget ? "inline-flex" : "none";
   if (back && backTarget) back.onclick = () => navigate(backTarget);
   if (r.title) setHeader(r.title, "");
+  // The home (Profile) page swaps the standard header for a full-bleed
+  // blue gradient hero. Toggle a body class so CSS can hide .app-head
+  // and lift main to the top of the viewport on /profile only.
+  document.body.classList.toggle("is-home", path === "/profile");
   // Reset per-route side-channels so a stale refresh callback from a
   // previous screen can't fire under the new one's pull-to-refresh.
   setRefresh(null);
@@ -3701,10 +3705,17 @@ function _teamRowHtml(d, callIcon, textIcon) {
 function renderProfileHub() {
   const session = readSession();
   const name = session?.name || "Driver";
-  setHeader(session?.dsp_name || "Driver", "");
+  const dsp  = session?.dsp_name || "RouteReady";
+  setHeader(dsp, "");
   const main = document.getElementById("main");
   main.innerHTML = `
-    <div class="profile-head">
+    <div class="home-hero">
+      <div class="home-hero-bar">
+        <div class="home-hero-brand">${escapeHtml(dsp)}</div>
+        <button class="home-hero-gear" id="rr-home-settings" type="button" aria-label="Settings">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
+      </div>
       <button class="profile-avatar-btn" id="rr-photo-btn" type="button" aria-label="Change photo">
         ${avatarHtml(session, "profile-avatar")}
         <span class="profile-avatar-edit" aria-hidden="true">
@@ -3712,12 +3723,18 @@ function renderProfileHub() {
         </span>
       </button>
       <input type="file" id="rr-photo-input" accept="image/*" capture="user" style="display:none"/>
-      <div class="profile-name">${escapeHtml(name)}</div>
+      <div class="home-hero-name">${escapeHtml(name)}</div>
+      <div class="home-hero-meta" id="rr-home-meta">Driver</div>
+      <div class="home-hero-status" id="rr-home-status" hidden>
+        <span class="home-hero-status-dot"></span>ON DUTY
+      </div>
     </div>
 
     <div id="rr-checkin-slot" class="checkin-card">
       <div class="checkin-loading">Checking your shift…</div>
     </div>`;
+
+  document.getElementById("rr-home-settings").addEventListener("click", () => { _haptic("tap"); navigate("/settings"); });
 
   // Photo upload — clicking the avatar opens the camera or picker.
   const fileInput = document.getElementById("rr-photo-input");
@@ -4918,6 +4935,20 @@ async function renderCheckinCard(session) {
   }
 
   const shift = status?.shift;
+  // Mirror station + on-duty state into the home-hero subtitle / pill
+  // when this card is rendering on the Profile page.  The hero renders
+  // immediately with a "Driver" placeholder; once the RPC returns we
+  // fill in "Driver · DCA1" and flip the ON DUTY pill on if checked in.
+  const metaEl = document.getElementById("rr-home-meta");
+  const dutyEl = document.getElementById("rr-home-status");
+  if (metaEl) {
+    const stn = shift?.station_code;
+    metaEl.textContent = stn ? `Driver · ${stn}` : "Driver";
+  }
+  if (dutyEl) {
+    const onDuty = !!(status?.checkin?.checked_in_at && !status?.checkin?.checked_out_at);
+    dutyEl.hidden = !onDuty;
+  }
   if (!shift) {
     slot.innerHTML = `<div class="checkin-empty">No shift scheduled today.</div>`;
     return;
