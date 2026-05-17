@@ -7444,7 +7444,33 @@ function _renderCelebrationOverlay(session, ev) {
       .catch((e) => console.warn("[recog] mark-delivered failed:", e?.message));
   }
 
-  const dismiss = () => {
+  // VISIBLE diagnostic — on-screen pill that proves dismiss() ran.
+  // Driver has no browser console on iOS PWA; this is the only signal
+  // we have without remote debugging. Mounted to documentElement so it
+  // survives even if body has weird stacking; z-index above everything.
+  const _showDismissPill = (label) => {
+    try {
+      const pill = document.createElement("div");
+      pill.textContent = label;
+      pill.style.cssText = [
+        "position:fixed", "top:12px", "left:50%",
+        "transform:translateX(-50%)", "z-index:2147483647",
+        "padding:8px 14px", "border-radius:999px",
+        "background:#10b981", "color:#fff",
+        "font:700 13px/1.2 -apple-system,system-ui,sans-serif",
+        "letter-spacing:.04em", "pointer-events:none",
+        "box-shadow:0 6px 18px rgba(0,0,0,.35)",
+      ].join(";");
+      (document.documentElement || document.body).appendChild(pill);
+      setTimeout(() => { try { pill.remove(); } catch (_) {} }, 3000);
+    } catch (_) {}
+  };
+
+  const dismiss = (src) => {
+    // Diagnostic FIRST — fires before any other logic so even if
+    // something below throws, the driver sees confirmation that the
+    // tap reached the handler.
+    _showDismissPill("DISMISS FIRED" + (src ? " (" + src + ")" : ""));
     if (overlay._closing) return;
     overlay._closing = true;
     if (ev.id) _markRecogDismissed(ev.id);
@@ -7456,7 +7482,36 @@ function _renderCelebrationOverlay(session, ev) {
       sb.rpc("driver_recognition_dismiss", { p_token: session.token, p_id: ev.id })
         .catch((e) => console.warn("[recog] mark-dismissed failed:", e?.message));
     }
-    overlay.remove();
+    // Belt-and-suspenders teardown — any single mechanism failing
+    // (detached parent, retained reference, stacking-context trap)
+    // is covered by the others.
+    try { overlay.style.display = "none"; } catch (_) {}
+    try { overlay.hidden = true; } catch (_) {}
+    try { overlay.style.pointerEvents = "none"; } catch (_) {}
+    try { overlay.style.opacity = "0"; } catch (_) {}
+    try {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      else overlay.remove();
+    } catch (_) { try { overlay.remove(); } catch (_) {} }
+    // Synchronously kill the pre-paint backdrop. The 240ms opacity
+    // fade in _removeCelebrationPrepaint() can leave a blue layer
+    // behind that looks identical to the overlay still being present.
+    try {
+      const bg = document.getElementById(_PREPAINT_ID);
+      if (bg && bg.parentNode) bg.parentNode.removeChild(bg);
+    } catch (_) {}
+    // Second-pass on next frame in case iOS PWA needed a paint cycle
+    // to drop the layer.
+    try {
+      requestAnimationFrame(() => {
+        try {
+          const stale = document.getElementById("rr-celebration");
+          if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
+          const staleBg = document.getElementById(_PREPAINT_ID);
+          if (staleBg && staleBg.parentNode) staleBg.parentNode.removeChild(staleBg);
+        } catch (_) {}
+      });
+    } catch (_) {}
     _celebrationOpen = false;
   };
 
@@ -7464,11 +7519,14 @@ function _renderCelebrationOverlay(session, ev) {
   const close = overlay.querySelector(".rrc-close");
   [cta, close].forEach((btn) => {
     if (!btn) return;
-    btn.addEventListener("click",    (e) => { e.preventDefault(); e.stopPropagation(); dismiss(); });
-    btn.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); dismiss(); }, { passive: false });
+    btn.addEventListener("click",    (e) => { e.preventDefault(); e.stopPropagation(); dismiss("click"); });
+    btn.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); dismiss("touchend"); }, { passive: false });
+    // pointerup as a third path — iOS PWA sometimes drops touchend
+    // when a scroll gesture is inferred mid-tap, but pointerup still fires.
+    btn.addEventListener("pointerup", (e) => { e.preventDefault(); e.stopPropagation(); dismiss("pointerup"); });
   });
   const onKey = (e) => {
-    if (e.key === "Escape") { document.removeEventListener("keydown", onKey); dismiss(); }
+    if (e.key === "Escape") { document.removeEventListener("keydown", onKey); dismiss("escape"); }
   };
   document.addEventListener("keydown", onKey);
 }
@@ -7532,7 +7590,7 @@ function _unlockAudioOnGesture() {
 window.addEventListener("DOMContentLoaded", () => {
   try {
     const tag = document.createElement("div");
-    tag.textContent = "rr v117";
+    tag.textContent = "rr v118";
     tag.style.cssText = "position:fixed;bottom:10px;right:10px;"
       + "z-index:3000;padding:4px 8px;border-radius:999px;"
       + "background:rgba(15,23,42,.85);color:#fff;font-size:10px;"
