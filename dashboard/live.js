@@ -27684,9 +27684,13 @@ async function loadFormsList() {
   if (!grid) return;
   grid.innerHTML = `<div class="rr-loading">Loading</div>`;
 
-  const [{ data, error }, { data: ac }] = await Promise.all([
+  // Submissions are loaded alongside the forms list so the KPI strip
+  // up top can paint "this week" counts without a second round-trip.
+  // A failure here doesn't block the forms render — KPIs just dash out.
+  const [{ data, error }, { data: ac }, submRes] = await Promise.all([
     sb.rpc("list_forms"),
     sb.rpc("form_assignment_counts"),
+    sb.rpc("list_form_submissions", { p_form_id: null }).then((r) => r, () => ({ data: [] })),
   ]);
   if (error) {
     grid.innerHTML = "";
@@ -27698,7 +27702,27 @@ async function loadFormsList() {
   const forms = data || [];
   if (count) count.textContent = String(forms.length);
   const published = forms.filter(f => f.status === "published").length;
-  if (sub) sub.textContent = `${forms.length} form${forms.length === 1 ? "" : "s"}${published ? " · " + published + " published" : ""}`;
+  if (sub) sub.textContent = "Forms workspace";
+
+  // ── KPI strip ─────────────────────────────────────────────────
+  // Compute from `list_form_submissions`.  Anything more nuanced
+  // (e.g. completion rate against assignments) is deferred — for now
+  // we treat any submission with a `complete`/`submitted` status as
+  // counted and rate = completed / total over the last 7 days.
+  const subs = Array.isArray(submRes?.data) ? submRes.data : [];
+  const weekAgo = Date.now() - 7 * 86400000;
+  const weekSubs = subs.filter(s => {
+    const t = s.submitted_at ? Date.parse(s.submitted_at) : NaN;
+    return Number.isFinite(t) && t >= weekAgo;
+  });
+  const weekDrivers = new Set(weekSubs.map(s => s.driver_id).filter(Boolean));
+  const completed = weekSubs.filter(s => /complete|submitted/i.test(s.status || "")).length;
+  const rate = weekSubs.length > 0 ? Math.round((completed / weekSubs.length) * 100) : null;
+  const setKpi = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setKpi("rr-forms-kpi-published", String(published));
+  setKpi("rr-forms-kpi-subs",      String(weekSubs.length));
+  setKpi("rr-forms-kpi-rate",      rate == null ? "—" : `${rate}%`);
+  setKpi("rr-forms-kpi-drivers",   String(weekDrivers.size));
 
   if (forms.length === 0) {
     grid.innerHTML = "";
@@ -27965,6 +27989,13 @@ document.addEventListener("click", async (e) => {
   if (e.target.closest("[data-rr-form-new]")) {
     e.preventDefault();
     openFormBuilder(null);
+    return;
+  }
+  // Import form — placeholder for now (real JSON/template import is
+  // a follow-up); be honest about it instead of silently no-op'ing.
+  if (e.target.closest("#rr-forms-import-btn")) {
+    e.preventDefault();
+    toast("Form import is on the roadmap — for now build with the Build a form button.", "info");
     return;
   }
   // Delete a workflow (the ✕ on a form card) — must come before the
