@@ -1544,10 +1544,19 @@ a{color:inherit;text-decoration:none}
 .table tbody td{
   padding:var(--s-3-5) var(--s-4);font-size:var(--fs-md);color:var(--text);
   border-bottom:1px solid var(--border-subtle);vertical-align:middle;
+  /* Tabular numerics — keep digit widths uniform so columns don't
+     jitter when sorting or live-updating.  Only affects digits, so
+     prose columns are untouched. */
+  font-variant-numeric:tabular-nums;
 }
 .table tbody tr{transition:background var(--t-fast)}
 .table tbody tr:last-child td{border-bottom:none}
 .table tbody tr:hover{background:var(--surface-hover)}
+/* Numeric column shorthand — right-align + reinforced tabular nums.
+   Use on both <th> and <td> (class="num") to keep a numeric column
+   tidy without a bespoke per-table style. */
+.table .num{text-align:right;font-variant-numeric:tabular-nums}
+.table thead th.num{text-align:right}
 
 /* ─────────────────────────────────────────────────────────────
    FIRST-RUN DASHBOARD · welcome banner + Get-started tiles
