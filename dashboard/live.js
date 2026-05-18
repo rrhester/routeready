@@ -23459,7 +23459,11 @@ async function renderSchedTodayView() {
     const isPto = sh.shift_kind === "pto" || sh.status === "pto";
     const cls = `sched-today-row${isPto ? " pto" : ""}`;
     const route = sh.route_code ? escapeHtml(sh.route_code) : (isPto ? "PTO" : "shift");
-    return `<div class="${cls}">
+    const kind = isPto ? "pto" : "shift";
+    return `<div class="${cls}" draggable="true" data-rr-today-row="${escapeHtml(sh.id || "")}" data-rr-today-kind="${kind}">
+      <span class="sched-today-drag-handle" aria-hidden="true" title="Drag to reorder">
+        <svg viewBox="0 0 12 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="3" r=".8" fill="currentColor"/><circle cx="8" cy="3" r=".8" fill="currentColor"/><circle cx="4" cy="7" r=".8" fill="currentColor"/><circle cx="8" cy="7" r=".8" fill="currentColor"/><circle cx="4" cy="11" r=".8" fill="currentColor"/><circle cx="8" cy="11" r=".8" fill="currentColor"/></svg>
+      </span>
       <div class="sched-today-driver">
         <div class="avatar-sm ${tier}">${escapeHtml(initials)}</div>
         <div>
@@ -23486,7 +23490,10 @@ async function renderSchedTodayView() {
         const endMs  = waveMs != null && blockMin > 0 ? waveMs + blockMin * 60000 : (sh.ends_at ? new Date(sh.ends_at).getTime() : null);
         const wave = waveMs != null ? fmtTimeShort(new Date(waveMs).toISOString()) : "";
         const end  = endMs  != null ? fmtTimeShort(new Date(endMs).toISOString())  : "";
-        return `<div class="sched-today-row" style="border-left:3px solid var(--sch-amber)">
+        return `<div class="sched-today-row" draggable="true" data-rr-today-row="${escapeHtml(sh.id || "")}" data-rr-today-kind="open" style="border-left:3px solid var(--sch-amber)">
+          <span class="sched-today-drag-handle" aria-hidden="true" title="Drag to reorder">
+            <svg viewBox="0 0 12 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="4" cy="3" r=".8" fill="currentColor"/><circle cx="8" cy="3" r=".8" fill="currentColor"/><circle cx="4" cy="7" r=".8" fill="currentColor"/><circle cx="8" cy="7" r=".8" fill="currentColor"/><circle cx="4" cy="11" r=".8" fill="currentColor"/><circle cx="8" cy="11" r=".8" fill="currentColor"/></svg>
+          </span>
           <div class="sched-today-driver">
             <div class="avatar-sm" style="background:var(--sch-surface-3);color:var(--text-subtle);border:1.5px dashed var(--sch-line-strong);font-weight:700">+</div>
             <div>
@@ -23506,8 +23513,68 @@ async function renderSchedTodayView() {
   body.innerHTML =
     `<div class="sched-today-section-head">Scheduled · ${assigned.length}</div>${assignedHtml}` +
     (open.length ? `<div class="sched-today-section-head">Open · ${open.length}</div>${openHtml}` : "");
+
+  _wireSchedTodayDragReorder(body);
 }
 window._rrRenderSchedTodayView = renderSchedTodayView;
+
+// Drag-to-reorder support for Today view rows. We keep the order in
+// memory only — it's a per-session display preference, no DB write.
+let _schedTodayDragBound = false;
+function _wireSchedTodayDragReorder(body) {
+  if (_schedTodayDragBound) return;
+  _schedTodayDragBound = true;
+  let dragEl = null;
+
+  body.addEventListener("dragstart", (e) => {
+    const row = e.target.closest("[data-rr-today-row]");
+    if (!row) return;
+    dragEl = row;
+    row.classList.add("rr-dragging");
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", row.dataset.rrTodayRow || ""); } catch (_) {}
+    }
+  });
+
+  body.addEventListener("dragend", () => {
+    if (dragEl) dragEl.classList.remove("rr-dragging");
+    body.querySelectorAll(".rr-drop-above, .rr-drop-below").forEach(el => {
+      el.classList.remove("rr-drop-above"); el.classList.remove("rr-drop-below");
+    });
+    dragEl = null;
+  });
+
+  body.addEventListener("dragover", (e) => {
+    const row = e.target.closest("[data-rr-today-row]");
+    if (!row || row === dragEl) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    const rect = row.getBoundingClientRect();
+    const before = (e.clientY - rect.top) < rect.height / 2;
+    body.querySelectorAll(".rr-drop-above, .rr-drop-below").forEach(el => {
+      if (el !== row) { el.classList.remove("rr-drop-above"); el.classList.remove("rr-drop-below"); }
+    });
+    row.classList.toggle("rr-drop-above", before);
+    row.classList.toggle("rr-drop-below", !before);
+  });
+
+  body.addEventListener("dragleave", (e) => {
+    const row = e.target.closest("[data-rr-today-row]");
+    if (!row) return;
+    row.classList.remove("rr-drop-above"); row.classList.remove("rr-drop-below");
+  });
+
+  body.addEventListener("drop", (e) => {
+    const row = e.target.closest("[data-rr-today-row]");
+    if (!row || !dragEl || row === dragEl) return;
+    e.preventDefault();
+    const rect = row.getBoundingClientRect();
+    const before = (e.clientY - rect.top) < rect.height / 2;
+    row.parentNode.insertBefore(dragEl, before ? row : row.nextSibling);
+    row.classList.remove("rr-drop-above"); row.classList.remove("rr-drop-below");
+  });
+}
 
 // ─── Van assignments · render the WS board inline in the schedule ──
 // Pulls the same vehicle + driver data the Workspaces → Van
