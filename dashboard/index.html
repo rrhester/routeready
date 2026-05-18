@@ -3395,12 +3395,14 @@ select.form-input{
 /* View toggle */
 .view-toggle{
   display:inline-flex;gap:2px;background:var(--canvas);
-  border:1px solid var(--border);border-radius:8px;padding:3px;
+  border:1px solid var(--border);border-radius:var(--r-md);padding:3px;
 }
 .view-toggle-btn{
-  padding:5px 12px;font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);
+  padding:5px var(--s-3);font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);
   background:transparent;border:none;border-radius:var(--r-md);cursor:pointer;
+  transition:background var(--t-fast), color var(--t-fast);
 }
+.view-toggle-btn:hover{color:var(--text)}
 .view-toggle-btn.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--shadow-sm)}
 
 /* Approval queue cards */
