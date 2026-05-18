@@ -24636,8 +24636,8 @@ async function renderScheduleWeek() {
   // shifts, Rule violations, Preferences, Training.
   let kpis = sub.querySelector("#rr-sched-kpis");
   // Coverage is the north-star card → give it ~1.35× the width of the
-  // other six so it visually leads the strip, matching the mockup.
-  const _kpiGridCols = "minmax(0,1.35fr) repeat(6,minmax(0,1fr))";
+  // other five so it visually leads the strip.
+  const _kpiGridCols = "minmax(0,1.35fr) repeat(5,minmax(0,1fr))";
   if (!kpis) {
     kpis = document.createElement("div");
     kpis.id = "rr-sched-kpis";

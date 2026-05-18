@@ -11352,6 +11352,16 @@ body.rr-cmdk-open{ overflow:hidden }
              touch larger, and a real progress bar (track + fill) sits
              inset from the card edges. JS tags the actual node with
              .is-primary so we don't depend on :nth-child(N) lining up. */
+          /* KPI strip ends where the schedule grid ends — leave room
+             on the right for the 320px Driver pool / Open Shifts rail
+             + the builder-shell gap. Drops back to full width when the
+             rail stacks below the grid. */
+          #view-schedule #rr-sched-kpis{
+            margin-right:calc(320px + var(--s-3));
+          }
+          @media (max-width:1180px){
+            #view-schedule #rr-sched-kpis{margin-right:0}
+          }
           #view-schedule #rr-sched-kpis .stat-mini.is-primary{
             border-color:color-mix(in srgb, var(--green) 35%, var(--border));
             background:linear-gradient(180deg, color-mix(in srgb, var(--green) 6%, var(--surface)) 0%, var(--surface) 70%);
