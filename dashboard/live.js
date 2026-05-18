@@ -24698,7 +24698,6 @@ async function renderScheduleWeek() {
 
   kpis.innerHTML =
     kpiCard("Coverage", `${pct}%`, `${totalFilled} / ${totalNeeded} shifts`, coverageTone) +
-    kpiCard("Open shifts", String(totalAllOpen), totalAllOpen === 0 ? "fully covered" : "drivers needed", totalAllOpen === 0 ? "ok" : "warn") +
     kpiCard("Rule violations", String(violations.length), violations.length === 0 ? "all clear" : "click to review", violationsTone) +
     kpiCard("Overtime", otValue, otSub, otTone) +
     kpiCard(
@@ -24727,15 +24726,15 @@ async function renderScheduleWeek() {
   });
   // Visual cue that the violations card opens a modal — match the
   // .stat-mini-clickable pattern other KPI strips use.
-  // Card order: 1=Coverage, 2=Open shifts, 3=Rule violations, 4=Overtime,
-  // 5=Hours scheduled, 6=Preferences, 7=Training.
-  const violationsCard = kpis.querySelector("div:nth-child(3)");
+  // Card order: 1=Coverage, 2=Rule violations, 3=Overtime,
+  // 4=Hours scheduled, 5=Preferences, 6=Training.
+  const violationsCard = kpis.querySelector("div:nth-child(2)");
   if (violationsCard) {
     violationsCard.style.cursor = "pointer";
     violationsCard.style.transition = "border-color .12s, box-shadow .12s";
     violationsCard.title = violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`;
   }
-  const prefCard = kpis.querySelector("div:nth-child(6)");
+  const prefCard = kpis.querySelector("div:nth-child(5)");
   if (prefCard) {
     if (prefDenom > 0) {
       prefCard.style.cursor = "pointer";
@@ -24745,7 +24744,7 @@ async function renderScheduleWeek() {
       prefCard.style.cursor = ""; prefCard.title = "";
     }
   }
-  const trainingCard = kpis.querySelector("div:nth-child(7)");
+  const trainingCard = kpis.querySelector("div:nth-child(6)");
   if (trainingCard) {
     trainingCard.id = "rr-sched-training-card";
     if (trainingTotal > 0) {
@@ -25615,7 +25614,7 @@ function bindSchedWeekNav() {
   sub.addEventListener("click", (e) => {
     const kpiHost = document.getElementById("rr-sched-kpis");
     if (!kpiHost) return;
-    if (!e.target.closest("#rr-sched-kpis > div:nth-child(3)")) return;
+    if (!e.target.closest("#rr-sched-kpis > div:nth-child(2)")) return;
     let v = [];
     try { v = JSON.parse(kpiHost.dataset.rrViolations || "[]"); } catch {}
     let m = document.getElementById("rr-violations-modal");
@@ -25642,7 +25641,7 @@ function bindSchedWeekNav() {
   sub.addEventListener("click", (e) => {
     const kpiHost = document.getElementById("rr-sched-kpis");
     if (!kpiHost) return;
-    if (!e.target.closest("#rr-sched-kpis > div:nth-child(6)")) return;
+    if (!e.target.closest("#rr-sched-kpis > div:nth-child(5)")) return;
     let misses = [], summary = { honored: 0, denom: 0 };
     try { misses = JSON.parse(kpiHost.dataset.rrPrefMisses || "[]"); } catch {}
     try { summary = JSON.parse(kpiHost.dataset.rrPrefSummary || "{}"); } catch {}
