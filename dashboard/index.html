@@ -2155,6 +2155,28 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .fl-doc-chip.crit{background:var(--red-soft);color:var(--red-dark)}
 .fl-doc-chip.warn{background:var(--amber-soft);color:var(--amber-dark)}
 
+/* Calm "all current" treatment for the Documents column when both
+   insurance and registration are active — no chip, just quiet text
+   so a healthy fleet stays visually clean. */
+.fl-doc-cell-ok{
+  font-size:var(--fs-sm);color:var(--text-subtle);font-weight:500;
+}
+
+/* Driver-reports column — flag-shaped chip that mirrors the doc chip's
+   shape so the two columns read as siblings.  Click → opens the
+   per-van drawer to the Inspections tab where these resolve to issues
+   + photos. */
+.fl-drrep-chip{
+  display:inline-flex;align-items:center;gap:var(--s-1);
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.03em;
+  padding:3px var(--s-2-5);border-radius:var(--r-pill);cursor:pointer;
+  border:1px solid transparent;background:var(--red-soft);color:var(--red-dark);
+  line-height:1.2;font-family:inherit;white-space:nowrap;
+  transition:filter var(--t-fast);
+}
+.fl-drrep-chip:hover{filter:brightness(.96)}
+.fl-drrep-chip:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+
 /* Fleet drawer · Documents tab — insurance + registration cards. */
 #rr-fd-drawer .fd-doc-card{
   border:1px solid var(--border-subtle);
@@ -13540,12 +13562,6 @@ body.rr-cmdk-open{ overflow:hidden }
              by submitting the Vehicle Concerns form (see migration 0289).
              Renders as a quiet info strip so leadership knows what the
              icon means even before any concern has been submitted. -->
-        <div class="fl-dr-legend" role="note" aria-label="Driver-reported concerns legend"
-             style="display:flex;align-items:center;gap:var(--s-2);padding:var(--s-2) var(--s-3);margin-bottom:var(--s-3);background:var(--red-soft, #fef2f2);border:1px solid var(--red-soft-border, #fecaca);border-radius:var(--r-md);color:var(--red-dark, #991b1b);font-size:var(--fs-sm);line-height:1.4">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto"><path d="M4 22V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v18l-8-4-8 4z"/></svg>
-          <span><strong>Driver-reported concerns</strong> appear here. Any van a driver flags via the <em>Vehicle Concerns</em> form (from the Forms tab in their app) shows a red <strong>⚑ driver-reported</strong> chip in the Operational status cell — those need leadership review.</span>
-        </div>
-
         <div class="table-wrap">
           <table class="table">
             <thead>
@@ -13553,19 +13569,21 @@ body.rr-cmdk-open{ overflow:hidden }
                 <th>Vehicle</th>
                 <th>Ownership &amp; type</th>
                 <th>Operational status</th>
+                <th>Documents</th>
+                <th>Driver reports</th>
                 <th>Repair status</th>
                 <th>Last route</th>
               </tr>
             </thead>
             <tbody id="fleet-tbody">
               <!-- Skeleton rows · painted before loadFleetRoster()
-                   replaces them.  Matches the 5-col table head rhythm
+                   replaces them.  Matches the 7-col table head rhythm
                    so the layout doesn't reflow when real vans arrive. -->
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:160px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:74%"></span></td><td><span class="rr-skel rr-skel-md" style="width:50%"></span></td><td><span class="rr-skel rr-skel-md" style="width:68%"></span></td></tr>
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:140px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:55%"></span></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:46%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td></tr>
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:170px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:64%"></span></td><td><span class="rr-skel rr-skel-md" style="width:70%"></span></td><td><span class="rr-skel rr-skel-md" style="width:52%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td></tr>
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:130px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:58%"></span></td><td><span class="rr-skel rr-skel-md" style="width:76%"></span></td><td><span class="rr-skel rr-skel-md" style="width:48%"></span></td><td><span class="rr-skel rr-skel-md" style="width:64%"></span></td></tr>
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:150px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td><td><span class="rr-skel rr-skel-md" style="width:66%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:160px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:74%"></span></td><td><span class="rr-skel rr-skel-md" style="width:58%"></span></td><td><span class="rr-skel rr-skel-md" style="width:46%"></span></td><td><span class="rr-skel rr-skel-md" style="width:50%"></span></td><td><span class="rr-skel rr-skel-md" style="width:68%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:140px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:55%"></span></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td><td><span class="rr-skel rr-skel-md" style="width:42%"></span></td><td><span class="rr-skel rr-skel-md" style="width:46%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:170px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:64%"></span></td><td><span class="rr-skel rr-skel-md" style="width:70%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:48%"></span></td><td><span class="rr-skel rr-skel-md" style="width:52%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:130px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:58%"></span></td><td><span class="rr-skel rr-skel-md" style="width:76%"></span></td><td><span class="rr-skel rr-skel-md" style="width:56%"></span></td><td><span class="rr-skel rr-skel-md" style="width:40%"></span></td><td><span class="rr-skel rr-skel-md" style="width:48%"></span></td><td><span class="rr-skel rr-skel-md" style="width:64%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:150px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:44%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td><td><span class="rr-skel rr-skel-md" style="width:66%"></span></td></tr>
             </tbody>
           </table>
         </div>
