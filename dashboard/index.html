@@ -12571,7 +12571,55 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;
           }
 
-          /* ── Van Assignments view ───────────────────────────────── */
+          /* ── Van Assignments view · Workflows board mounted inline ─ */
+          /* Mirror the #view-workspaces .ws-veh-* / .ws-head / etc.
+             styles so the same renderer (_wsRenderVehicles) reads
+             correctly when its output lives inside #view-schedule. */
+          #view-schedule .ws-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+          #view-schedule .ws-crumb{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-subtle);margin-bottom:2px}
+          #view-schedule .ws-crumb a{display:inline-flex;align-items:center;gap:4px;color:var(--text-subtle);text-decoration:none;cursor:pointer;border-radius:6px;padding:3px 8px 3px 6px;margin-left:-6px;font-weight:500;transition:background var(--t-fast),color var(--t-fast)}
+          #view-schedule .ws-crumb a:hover{background:var(--sch-hover);color:var(--text)}
+          #view-schedule .ws-crumb a svg{flex:0 0 auto}
+          #view-schedule .ws-crumb .sep{display:none}
+          #view-schedule .ws-board-name{display:inline-flex;align-items:center;gap:7px;font-family:'Inter Tight','Inter',system-ui,sans-serif;font-size:22px;font-weight:600;color:var(--text);letter-spacing:-.015em;line-height:1.2;margin-top:2px}
+          #view-schedule .ws-board-name .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          #view-schedule .ws-grid-wrap{background:#fff;border:1px solid var(--sch-line);border-radius:8px;overflow:hidden}
+          #view-schedule .ws-veh-table{width:100%;border-collapse:collapse;font-size:13px}
+          #view-schedule .ws-veh-table th{text-align:left;padding:9px 12px;background:var(--sch-surface-2);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);border-bottom:1px solid var(--sch-line);white-space:nowrap}
+          #view-schedule .ws-veh-table td{padding:7px 10px;border-top:1px solid var(--sch-line-subtle);vertical-align:middle}
+          #view-schedule .ws-veh-table tbody tr:first-child td{border-top:none}
+          #view-schedule .ws-veh-table tbody tr:hover td{background:var(--sch-blue-softer)}
+          #view-schedule .ws-veh-table th.ws-veh-act,#view-schedule .ws-veh-table td.ws-veh-act{width:36px;padding-left:2px;padding-right:10px;text-align:center}
+          #view-schedule .ws-veh-input,#view-schedule .ws-veh-select{width:100%;font-size:12px;padding:5px 8px;background:var(--sch-surface);border:1px solid var(--sch-line);border-radius:6px;color:var(--text);font-family:inherit}
+          #view-schedule .ws-veh-input:focus,#view-schedule .ws-veh-select:focus{outline:none;border-color:var(--sch-blue);box-shadow:0 0 0 1px var(--sch-blue)}
+          #view-schedule .ws-veh-x{appearance:none;background:transparent;border:0;color:var(--text-subtle);cursor:pointer;padding:5px;border-radius:6px;display:inline-flex;opacity:0;transition:opacity var(--t-fast),color var(--t-fast),background var(--t-fast)}
+          #view-schedule .ws-veh-table tbody tr:hover .ws-veh-x{opacity:1}
+          #view-schedule .ws-veh-x:hover{background:var(--sch-hover);color:var(--sch-red)}
+          #view-schedule .ws-veh-status{display:inline-flex;align-items:center;gap:6px}
+          #view-schedule .ws-veh-status-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:var(--r-pill);border:1px solid transparent}
+          #view-schedule .ws-veh-status-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--text-subtle);flex:0 0 auto}
+          #view-schedule .ws-veh-status-pill.active{background:var(--sch-green-soft);color:var(--sch-green)}
+          #view-schedule .ws-veh-status-pill.active .dot{background:var(--sch-green)}
+          #view-schedule .ws-veh-status-pill.spare{background:var(--sch-blue-soft);color:var(--sch-blue-text)}
+          #view-schedule .ws-veh-status-pill.spare .dot{background:var(--sch-blue)}
+          #view-schedule .ws-veh-status-pill.out_of_service{background:rgba(180,83,9,.10);color:#92400E}
+          #view-schedule .ws-veh-status-pill.out_of_service .dot{background:#B45309}
+          #view-schedule .ws-veh-status-pill.retired{background:var(--sch-surface-3);color:var(--text-subtle)}
+          #view-schedule .ws-veh-status-pill.grounded{background:var(--sch-red-soft);color:var(--sch-red)}
+          #view-schedule .ws-veh-status-pill.grounded .dot{background:var(--sch-red)}
+          #view-schedule .ws-veh-down{display:inline-flex;align-items:center;padding:1px 6px;font-size:10px;font-weight:700;letter-spacing:.05em;border-radius:var(--r-pill);background:var(--sch-red-soft);color:var(--sch-red);border:1px solid rgba(196,43,28,.24);margin-left:4px}
+          #view-schedule .ws-veh-down.warn{background:rgba(180,83,9,.10);color:#92400E;border-color:rgba(180,83,9,.24)}
+          #view-schedule .ws-veh-down.crit{background:#9F1239;color:#fff;border-color:var(--sch-red)}
+          #view-schedule .ws-veh-row.is-grounded{background:rgba(196,43,28,.025)}
+          #view-schedule .ws-veh-row.is-grounded:hover td{background:rgba(196,43,28,.05)}
+          #view-schedule .ws-veh-name-ro{font-weight:600;color:var(--text)}
+          #view-schedule .ws-addrow{display:flex;align-items:center;gap:8px;width:100%;padding:11px 14px;border:0;border-top:1px solid var(--sch-line-subtle);background:transparent;color:var(--text-subtle);font:inherit;font-size:13px;font-weight:500;cursor:pointer;text-align:left;transition:background var(--t-fast),color var(--t-fast)}
+          #view-schedule .ws-addrow:hover{background:var(--sch-hover);color:var(--sch-blue)}
+          #view-schedule .ws-addrow svg{width:14px;height:14px;flex:0 0 auto}
+
+          /* (Legacy custom sched-vans-* styles below — kept for the
+             internal renderer that's no longer the default but stays
+             callable via window._rrRunSchedVanAssignmentsForWeek.) */
           #view-schedule .sched-vans-shell{
             max-width:920px;margin:0;
             display:flex;flex-direction:column;gap:var(--s-3);
@@ -14146,29 +14194,15 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div><!-- /sched-sub-today -->
 
-        <!-- VAN ASSIGNMENTS · run inline in the schedule view.
-             Click on the action-strip Van Assignments tile triggers
-             today_roster_auto_assign for each day in the visible
-             week (standing chain + branded-first fill).  The result
-             populates this sub-view + propagates to the driver app
-             via driver_vehicle_days. -->
+        <!-- VAN ASSIGNMENTS · the same editable board the Workspaces
+             page renders, but mounted inline inside the schedule
+             view. Clicking the action-strip Van Assignments tile
+             switches here; renderSchedVanAssignmentsBoard() loads
+             the vehicles + drivers and reuses _wsRenderVehicles to
+             produce identical markup. -->
         <div class="sched-subview" id="sched-sub-vans" style="display:none">
-          <div class="sched-vans-shell">
-            <div class="sched-vans-head">
-              <div>
-                <div class="sched-vans-title">Van Assignments</div>
-                <div class="sched-vans-meta" id="rr-sched-vans-meta">Auto-fill the week using each driver's standing chain</div>
-              </div>
-              <div>
-                <button type="button" class="btn btn-primary btn-sm" id="rr-sched-vans-run">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-                  Assign vans for this week
-                </button>
-              </div>
-            </div>
-            <div class="sched-vans-body" id="rr-sched-vans-body">
-              <div class="rr-loading">Loading van assignments…</div>
-            </div>
+          <div id="rr-sched-vans-body">
+            <div class="rr-loading">Loading van assignments…</div>
           </div>
         </div><!-- /sched-sub-vans -->
 

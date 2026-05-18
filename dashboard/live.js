@@ -23356,18 +23356,14 @@ function _activateSchedSub(sub) {
   if (view) view.style.display = "block";
 }
 document.addEventListener("click", (e) => {
-  // Van Assignments tile → switch to the inline Van Assignments
-  // sub-view + auto-run the week's vehicle_day_assignments fill.
+  // Van Assignments tile → switch to the inline sub-view and render
+  // the same editable Van assignments board the Workspaces page uses
+  // (primary + backup driver per van, status, notes). No auto-run —
+  // the operator edits the standing chain directly.
   if (e.target.closest("#rr-sched-vans-h")) {
     e.preventDefault();
     _activateSchedSub("vans");
-    runSchedVanAssignmentsForWeek();
-    return;
-  }
-  // Re-run from the inline button.
-  if (e.target.closest("#rr-sched-vans-run")) {
-    e.preventDefault();
-    runSchedVanAssignmentsForWeek();
+    renderSchedVanAssignmentsBoard();
     return;
   }
   // Day navigation inside the Today view.
@@ -23513,13 +23509,92 @@ async function renderSchedTodayView() {
 }
 window._rrRenderSchedTodayView = renderSchedTodayView;
 
-// ─── Van assignments · run for week + render results inline ──────────
-// Fans out today_roster_auto_assign(p_date) for each day of the
-// visible week. The RPC fills vehicle_day_assignments for shifts that
-// don't yet have a van, using the standing chain + branded-first
-// pool. Results render in #sched-sub-vans and propagate to the
-// driver app via the existing driver_vehicle_days resolver — no
-// extra plumbing needed.
+// ─── Van assignments · render the WS board inline in the schedule ──
+// Pulls the same vehicle + driver data the Workspaces → Van
+// assignments board uses and renders the same editable table
+// inside #sched-sub-vans. Field changes write through to the same
+// RPCs the WS board uses (vehicle_upsert / vehicle_assignment_set
+// for the chain, vehicle_field_set / vehicle_archive for status).
+let _schedVansBound = false;
+async function renderSchedVanAssignmentsBoard() {
+  const body = document.getElementById("rr-sched-vans-body");
+  if (!body) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { body.innerHTML = `<div class="sched-vans-empty">DSP not loaded.</div>`; return; }
+
+  body.innerHTML = `<div class="rr-loading">Loading van assignments…</div>`;
+
+  // Fetch the same data the workspaces "Van assignments" board uses.
+  let vRes, dRes;
+  try {
+    [vRes, dRes] = await Promise.all([
+      sb.rpc("vehicles_list"),
+      sb.from("drivers")
+        .select("id, full_name, preferred_name")
+        .eq("dsp_id", dspId).eq("status", "active")
+        .order("full_name", { ascending: true })
+        .limit(500),
+    ]);
+  } catch (e) {
+    body.innerHTML = `<div class="sched-vans-empty">Couldn't load van assignments · ${escapeHtml(e?.message || String(e))}</div>`;
+    return;
+  }
+  if (vRes?.error) { body.innerHTML = `<div class="sched-vans-empty">Couldn't load van assignments · ${escapeHtml(vRes.error.message)}</div>`; return; }
+
+  _wsVehicles = Array.isArray(vRes?.data) ? vRes.data.filter(v => !v.archived_at) : [];
+  _wsDrivers = (Array.isArray(dRes?.data) ? dRes.data : []).map(d => {
+    const nm = (d.preferred_name && d.preferred_name.trim()) || (d.full_name && d.full_name.trim()) || "—";
+    return { id: d.id, name: nm, initials: _wsInitials(nm) };
+  });
+
+  // Reuse the workspaces renderer to produce identical markup.
+  _wsRenderVehicles(body);
+
+  // Replace the "Workflows /" breadcrumb at the top with a "Back to
+  // week" link that returns to the calendar grid — the operator is
+  // in the schedule view, not the workflows view.
+  const crumb = body.querySelector(".ws-crumb");
+  if (crumb) {
+    crumb.innerHTML = `<a data-rr-sched-vans-back style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;color:var(--text-subtle);font-weight:500"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Back to week</a>`;
+  }
+
+  // Wire change/click handlers directly to this container — the
+  // workspaces _wsBindRoot only binds to a single root via a global
+  // flag, so we hook our own listener for the schedule container.
+  if (!_schedVansBound) {
+    _schedVansBound = true;
+    body.addEventListener("click", (e) => {
+      if (e.target.closest("[data-rr-sched-vans-back]")) { e.preventDefault(); _activateSchedSub("week"); return; }
+      if (e.target.closest("[data-rr-veh-add]"))         { _wsVehAdd().then(() => renderSchedVanAssignmentsBoard()); return; }
+      const vehX = e.target.closest("[data-rr-veh-archive]");
+      if (vehX) {
+        const tr = vehX.closest("[data-veh-id]");
+        if (tr) _wsVehArchive(tr.getAttribute("data-veh-id")).then(() => renderSchedVanAssignmentsBoard());
+        return;
+      }
+    });
+    body.addEventListener("change", (e) => {
+      const f = e.target.closest("[data-veh-field]");
+      if (f) {
+        const tr = f.closest("[data-veh-id]");
+        if (tr) _wsVehFieldChange(tr.getAttribute("data-veh-id"), f.getAttribute("data-veh-field"), f);
+        return;
+      }
+      const r = e.target.closest("[data-veh-role]");
+      if (r) {
+        const tr = r.closest("[data-veh-id]");
+        if (tr) _wsVehChainChange(tr.getAttribute("data-veh-id"), tr);
+        return;
+      }
+    });
+  }
+}
+window._rrRenderSchedVanAssignmentsBoard = renderSchedVanAssignmentsBoard;
+
+// ─── Van assignments · LEGACY auto-assign-for-week helper ────────────
+// Still available via window._rrRunSchedVanAssignmentsForWeek so the
+// existing call site (the dashboard's Today plan auto-assign) can fire
+// it. Not the default Van Assignments tile behavior anymore.
 async function runSchedVanAssignmentsForWeek() {
   const body = document.getElementById("rr-sched-vans-body");
   const btn  = document.getElementById("rr-sched-vans-run");
