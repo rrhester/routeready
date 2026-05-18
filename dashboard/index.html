@@ -476,6 +476,15 @@ a{color:inherit;text-decoration:none}
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
+  /* Driver-app home-hero blue gradient. Overrides the graphite tokens
+     defined at :root so every existing rule that reads var(--sidebar*)
+     picks up the new palette without further selector changes. */
+  --sidebar:#1E40AF;
+  --sidebar-grad:linear-gradient(180deg, #0D36A8 0%, #2357EA 52%, #4B8BFF 100%);
+  --sidebar-hover:rgba(255,255,255,.10);
+  --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.04) 100%);
+  --sidebar-divider:rgba(255,255,255,.10);
+
   background:var(--sidebar);
   background-image:var(--sidebar-grad);
   color:var(--text-inverse);
@@ -484,6 +493,21 @@ a{color:inherit;text-decoration:none}
   position:sticky;top:0;height:100vh;
   border-right:1px solid var(--sidebar-divider);
 }
+/* Force every nav-item's icon tile to render white on the blue
+   sidebar — override the per-category --ni-fg / --ni-bg palette so
+   no item shows its old purple/teal/pink/etc. tint. */
+.sidebar .nav-item[data-c]{
+  --ni-fg:#fff;
+  --ni-bg:rgba(255,255,255,.12);
+  --ni-bg-strong:rgba(255,255,255,.22);
+}
+.sidebar .nav-item.active{
+  background:var(--sidebar-active);
+  box-shadow:
+    inset 3px 0 0 #fff,
+    inset 0 0 0 1px rgba(255,255,255,.18);
+}
+.sidebar .nav-item.active .nav-badge{color:var(--accent);background:#fff}
 .brand{
   position:relative;
   display:flex;align-items:center;gap:var(--s-2-5);
