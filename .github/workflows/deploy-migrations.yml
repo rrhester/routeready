@@ -56,7 +56,7 @@ jobs:
         run: |
           set +e
           failed=()
-          for fn in send-sms send-email send-driver-push cal-availability invite-team-member admin-delete-dsp send-driver-reward; do
+          for fn in send-sms send-email send-driver-push cal-availability invite-team-member admin-delete-dsp send-driver-reward tremendous-oauth-start; do
             echo "▶ deploying $fn (auth required)"
             if ! supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"; then
               echo "::error::deploy failed for $fn"
@@ -72,7 +72,7 @@ jobs:
         run: |
           set +e
           failed=()
-          for fn in webhook-twilio webhook-cal webhook-apply webhook-email-inbound upload-applicant-video upload-driver-photo driver-document-fetch document-verify webhook-tremendous; do
+          for fn in webhook-twilio webhook-cal webhook-apply webhook-email-inbound upload-applicant-video upload-driver-photo driver-document-fetch document-verify webhook-tremendous tremendous-oauth-callback; do
             echo "▶ deploying $fn (no jwt)"
             if ! supabase functions deploy "$fn" --no-verify-jwt --project-ref "$SUPABASE_PROJECT_REF"; then
               echo "::error::deploy failed for $fn"

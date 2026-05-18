@@ -38909,6 +38909,32 @@ const REWARD_REASON_LABELS = {
   custom:             "Custom",
 };
 
+function _renderRewardsConnectionBanner(status) {
+  // Mount/refresh a small inline banner above the KPI strip when the
+  // DSP hasn't connected Tremendous.  Encourages connection without
+  // blocking anyone exploring the feature.
+  const host = document.getElementById("rr-rewards-kpis");
+  if (!host) return;
+  const existing = document.getElementById("rr-rewards-conn-banner");
+  if (status && status.connected) {
+    if (existing) existing.remove();
+    return;
+  }
+  const html = `
+    <div id="rr-rewards-conn-banner" style="margin-bottom:var(--s-3);padding:var(--s-3) var(--s-4);background:linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);color:#fff;border-radius:var(--r-lg);display:flex;align-items:center;gap:var(--s-3);box-shadow:0 6px 18px rgba(29,78,216,.18)">
+      <div style="width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex:0 0 auto">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:var(--fs-md)">Connect Tremendous to send real rewards</div>
+        <div style="font-size:var(--fs-sm);opacity:.92">Right now, Send reward uses a mock provider — rewards aren't actually delivered.</div>
+      </div>
+      <button type="button" id="rr-rewards-conn-banner-cta" onclick="goto('settings'); setTimeout(function(){ var b=document.querySelector('.settings-nav-item[data-set=\\'rewards\\']'); if (b) b.click(); }, 60);" style="padding:8px 14px;background:#fff;color:#1d4ed8;border-radius:var(--r-md);font-weight:700;font-size:var(--fs-sm);border:0;cursor:pointer;flex:0 0 auto">Connect</button>
+    </div>`;
+  if (existing) existing.outerHTML = html;
+  else host.insertAdjacentHTML("beforebegin", html);
+}
+
 function _rewardsFmtMoney(cents) {
   if (cents == null || isNaN(cents)) return "—";
   const dollars = (cents / 100);
@@ -38941,7 +38967,14 @@ function _rewardsAvatar(name, photoPath) {
 }
 
 async function _loadRewardsAnalytics() {
-  const { data, error } = await sb.rpc("rewards_analytics", { p_days: 30 });
+  // Fire both in parallel — the connection status drives the banner;
+  // analytics drives the KPI strip.
+  const [analyticsRes, statusRes] = await Promise.all([
+    sb.rpc("rewards_analytics", { p_days: 30 }),
+    sb.rpc("dsp_reward_integration_status"),
+  ]);
+  _renderRewardsConnectionBanner(statusRes?.data || { connected: false });
+  const { data, error } = analyticsRes;
   if (error || !data) {
     // Silently leave dashes — analytics shouldn't break the whole pane.
     return;
@@ -39102,6 +39135,16 @@ document.addEventListener("click", (e) => {
 async function openRewardSendModal(opts) {
   opts = opts || {};
 
+  // Probe connection status so we can show a calm guard banner inside
+  // the modal when the DSP hasn't connected Tremendous yet.  We still
+  // let them send (mock provider takes over server-side); the banner
+  // just sets expectations honestly.
+  let rewardConnStatus = null;
+  try {
+    const { data } = await sb.rpc("dsp_reward_integration_status");
+    rewardConnStatus = data || { connected: false };
+  } catch { rewardConnStatus = { connected: false }; }
+
   // Reuse the driver cache populated by openRecogSendModal so we don't
   // re-fetch.  Cold-open path populates it directly.
   if (!_recogDriverCache) {
@@ -39217,6 +39260,15 @@ async function openRewardSendModal(opts) {
         <button class="rr-modal-close" type="button" data-rr-reward-close aria-label="Close">×</button>
       </div>
       <div class="rw-modal-body">
+
+        ${rewardConnStatus && !rewardConnStatus.connected ? `
+        <div style="padding:var(--s-3) var(--s-3-5);background:var(--amber-soft, #fef3c7);color:var(--amber-dark, #92400e);border-radius:var(--r-md);font-size:var(--fs-sm);line-height:1.5;display:flex;gap:var(--s-2-5);align-items:flex-start">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto;margin-top:1px"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+          <div>
+            <strong>Tremendous not connected.</strong> Sending will use a mock provider — the driver sees a placeholder claim URL, not a real gift card.
+            <a href="#" onclick="event.preventDefault(); document.querySelector('[data-rr-reward-close]').click(); goto('settings'); setTimeout(function(){ var b=document.querySelector('.settings-nav-item[data-set=\\'rewards\\']'); if (b) b.click(); }, 60);" style="color:var(--amber-dark, #92400e);text-decoration:underline;font-weight:700">Connect now</a>.
+          </div>
+        </div>` : ""}
 
         <!-- Preview card -->
         <div class="rw-preview" id="rr-reward-preview">
@@ -39434,6 +39486,135 @@ async function openRewardSendModal(opts) {
     if (opts.driver_id) wrap.querySelector("#rr-reward-note")?.focus();
     else input.focus();
   }, 0);
+}
+
+
+// ═════════════════════════════════════════════════════════════════════
+//  REWARDS SETTINGS PANE  (Settings → Rewards) — Tremendous OAuth
+// ═════════════════════════════════════════════════════════════════════
+// Per-DSP OAuth integration with Tremendous.  Dispatcher clicks
+// "Connect Tremendous" → tremendous-oauth-start mints a state nonce
+// and returns the authorize URL → we redirect the browser →
+// Tremendous bounces back to tremendous-oauth-callback → callback
+// stores tokens + per-DSP webhook secret on dsp_reward_integrations.
+//
+// This pane reads dsp_reward_integration_status() (no tokens, ever).
+
+let _rewardsSettingsState = null;
+
+async function loadRewardsSettings() {
+  const card = document.getElementById("rr-rewards-settings-card");
+  if (!card) return;
+  const { data, error } = await sb.rpc("dsp_reward_integration_status");
+  if (error) {
+    card.innerHTML = `<div style="padding:var(--s-5);color:var(--red-dark, #b91c1c)">Couldn't load integration status: ${escapeHtml(error.message || "")}</div>`;
+    return;
+  }
+  _rewardsSettingsState = data || { connected: false };
+  _renderRewardsSettings();
+}
+window.loadRewardsSettings = loadRewardsSettings;
+
+function _renderRewardsSettings() {
+  const card = document.getElementById("rr-rewards-settings-card");
+  if (!card) return;
+  const s = _rewardsSettingsState || { connected: false };
+
+  // URL bar status hint from a returning OAuth roundtrip.  Surface a
+  // calm inline banner so the dispatcher knows what just happened
+  // without resorting to a noisy modal.
+  const urlParams = new URLSearchParams(location.search || "");
+  let banner = "";
+  if (urlParams.get("rewards_connected")) {
+    banner = `<div style="margin:var(--s-3) var(--s-4) 0;padding:var(--s-2-5) var(--s-3);border-radius:var(--r-md);background:var(--green-soft, #dcfce7);color:var(--green-dark, #166534);font-size:var(--fs-sm);font-weight:600">✓ Tremendous connected. Real rewards are now live.</div>`;
+    history.replaceState(null, "", location.pathname + location.hash);
+  } else if (urlParams.get("rewards_error")) {
+    const msg = urlParams.get("rewards_msg") || "Connection didn't complete";
+    banner = `<div style="margin:var(--s-3) var(--s-4) 0;padding:var(--s-2-5) var(--s-3);border-radius:var(--r-md);background:var(--red-soft, #fee2e2);color:var(--red-dark, #991b1b);font-size:var(--fs-sm);font-weight:600">${escapeHtml(msg)}</div>`;
+    history.replaceState(null, "", location.pathname + location.hash);
+  }
+
+  if (s.connected) {
+    const connectedAt = s.connected_at ? new Date(s.connected_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
+    const lastUsed = s.last_used_at
+      ? new Date(s.last_used_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+      : "Not yet";
+    const errLine = s.last_error
+      ? `<div style="margin-top:var(--s-3);padding:var(--s-2-5) var(--s-3);border-radius:var(--r-md);background:var(--amber-soft, #fef3c7);color:var(--amber-dark, #92400e);font-size:var(--fs-sm)"><strong>Provider error</strong> · ${escapeHtml(s.last_error)} — reconnect to clear.</div>`
+      : "";
+    card.innerHTML = `
+      ${banner}
+      <div style="padding:var(--s-4) var(--s-5);display:flex;align-items:flex-start;gap:var(--s-4)">
+        <div style="width:48px;height:48px;flex:0 0 auto;border-radius:14px;background:var(--green-soft, #dcfce7);color:var(--green-dark, #166534);display:flex;align-items:center;justify-content:center">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">Connected to Tremendous</div>
+          <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:2px">Rewards send from your Tremendous balance.${s.provider_account_id ? ` Account <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px">${escapeHtml(s.provider_account_id)}</span>.` : ""}</div>
+          ${errLine}
+          <div style="margin-top:var(--s-3);display:grid;grid-template-columns:auto 1fr;gap:6px var(--s-3);font-size:var(--fs-sm)">
+            <span style="color:var(--text-subtle)">Connected</span><span style="color:var(--text)">${escapeHtml(connectedAt)}</span>
+            <span style="color:var(--text-subtle)">Last used</span><span style="color:var(--text)">${escapeHtml(lastUsed)}</span>
+            <span style="color:var(--text-subtle)">Webhook</span><span style="color:var(--text)">${s.webhook_registered ? "Registered — events stream back to RouteReady" : "Not registered — events won't sync"}</span>
+            <span style="color:var(--text-subtle)">Funding source</span><span style="color:var(--text)">${s.funding_source_id ? `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px">${escapeHtml(s.funding_source_id)}</span>` : "Tremendous default"}</span>
+          </div>
+        </div>
+        <button class="btn btn-ghost" type="button" id="rr-rewards-disconnect" style="flex:0 0 auto">Disconnect</button>
+      </div>`;
+    document.getElementById("rr-rewards-disconnect").addEventListener("click", _rewardsDisconnect);
+    return;
+  }
+
+  card.innerHTML = `
+    ${banner}
+    <div style="padding:var(--s-6) var(--s-5);display:flex;flex-direction:column;align-items:center;text-align:center;gap:var(--s-3)">
+      <div style="width:56px;height:56px;border-radius:16px;background:var(--accent-soft);color:var(--accent-text);display:flex;align-items:center;justify-content:center">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 12h18"/><path d="M12 8v13"/><path d="M7.5 8a2.5 2.5 0 1 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:var(--fs-md);color:var(--text)">Connect your Tremendous account</div>
+        <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:4px;max-width:420px">You'll be redirected to Tremendous to log in or sign up and authorise RouteReady to send rewards on your behalf. Takes about 60 seconds.</div>
+      </div>
+      <button class="btn btn-primary" type="button" id="rr-rewards-connect" style="margin-top:var(--s-2)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Connect Tremendous
+      </button>
+      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-2)">Until you connect, "Send reward" uses the mock provider — rewards aren't real.</div>
+    </div>`;
+  document.getElementById("rr-rewards-connect").addEventListener("click", _rewardsConnect);
+}
+
+async function _rewardsConnect(e) {
+  const btn = e?.currentTarget || document.getElementById("rr-rewards-connect");
+  if (btn) { btn.disabled = true; btn.textContent = "Opening Tremendous…"; }
+  const returnUrl = location.origin + location.pathname + "#/settings/rewards";
+  const { data, error } = await sb.functions.invoke("tremendous-oauth-start", {
+    body: { return_url: returnUrl },
+  });
+  if (error || !data?.authorize_url) {
+    let raw = error?.message || "";
+    try { const ctxBody = await error?.context?.json?.(); if (ctxBody?.error) raw = ctxBody.error; } catch {}
+    toast("Couldn't start Tremendous connection: " + (raw || "unknown"), "danger");
+    if (btn) { btn.disabled = false; btn.textContent = "Connect Tremendous"; }
+    return;
+  }
+  // Redirect in the same window so the OAuth callback can drop us
+  // back on the dashboard cleanly with the connection state.
+  location.href = data.authorize_url;
+}
+
+async function _rewardsDisconnect() {
+  if (!confirm("Disconnect Tremendous? RouteReady will stop sending real rewards (mock provider takes over) until you reconnect.")) return;
+  const btn = document.getElementById("rr-rewards-disconnect");
+  if (btn) { btn.disabled = true; btn.textContent = "Disconnecting…"; }
+  const { error } = await sb.rpc("dsp_reward_disconnect");
+  if (error) {
+    toast("Couldn't disconnect: " + (error.message || "unknown"), "danger");
+    if (btn) { btn.disabled = false; btn.textContent = "Disconnect"; }
+    return;
+  }
+  toast("Tremendous disconnected.", "success");
+  loadRewardsSettings();
 }
 
 

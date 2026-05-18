@@ -1,82 +1,88 @@
 // webhook-tremendous · Receives reward lifecycle events from Tremendous.
 //
-// Configure in the Tremendous dashboard (Team Settings → Developers →
-// Webhooks → Add):
-//   - URL:     https://doiwrhkirgblcvuskhno.functions.supabase.co/webhook-tremendous
-//   - Secret:  copy the signing secret Tremendous generates and store
-//              it as TREMENDOUS_WEBHOOK_SECRET on the Supabase project.
-//   - Events:  REWARDS.DELIVERED, REWARDS.LINK_CLICKED, REWARDS.REDEEMED
-//              (subscribe to ORDERS.* too if you turn on order approval
-//              later; we route every event through the same handler).
+// In the per-DSP OAuth model, every DSP has their own webhook
+// registered on their own Tremendous account during the OAuth
+// handshake (tremendous-oauth-callback POSTs the webhook for them).
+// To know which DSP's signing secret to validate against, we embed
+// the DSP id in the URL path:
 //
-// Auth: this function is deployed with --no-verify-jwt (it's listed in
-// the public-webhook section of deploy-migrations.yml).  Caller
-// authentication is entirely via the HMAC-SHA256 signature header.
+//   https://<base>/webhook-tremendous/<dsp_id>
 //
-// Payload shape (Tremendous wraps every event identically):
-//   {
-//     "id":      "<event_id>",
-//     "event":   "REWARDS.REDEEMED",
-//     "created_at": "...",
-//     "payload": {
-//       "id":    "<reward_id>",       ← matches driver_rewards.provider_reward_id
-//       ...
-//     },
-//     "meta":    {...}
-//   }
+// Auth: no JWT (--no-verify-jwt at deploy time).  Caller identity is
+// proven by the HMAC-SHA256 signature on the body, validated against
+// the per-DSP webhook_secret stored in dsp_reward_integrations.
 //
-// We return 200 on every accepted-shape request (even if no row
-// matches), so Tremendous doesn't retry-loop on events whose reward
-// came from a different environment / different account.  Real
-// failures (bad signature, malformed body) return 4xx.
+// We accept POSTs at the legacy /webhook-tremendous path too — if no
+// DSP id is present, we fall back to the global TREMENDOUS_WEBHOOK_SECRET
+// env var, so an existing single-tenant deployment keeps working
+// during the OAuth migration.
+
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
 
 const PROVIDER_SLUG = "tremendous";
 
-// Tremendous signs the raw request body with HMAC-SHA256 using the
-// webhook's signing secret.  The hex-encoded digest arrives in the
-// `Tremendous-Webhook-Signature` header (lowercase per HTTP).  This
-// helper computes our own digest and compares constant-time.
-async function verifyTremendousSignature(rawBody: string, headerSig: string | null, secret: string): Promise<boolean> {
+async function verifySignature(rawBody: string, headerSig: string | null, secret: string): Promise<boolean> {
   if (!headerSig) return false;
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
-    "raw",
-    enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
+    "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
   );
   const mac = await crypto.subtle.sign("HMAC", key, enc.encode(rawBody));
   const expected = Array.from(new Uint8Array(mac))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-
-  // Tremendous historically sent the signature as a plain hex string;
-  // some webhook tooling adds a `sha256=` prefix.  Accept either.
-  const got = headerSig.startsWith("sha256=") ? headerSig.slice("sha256=".length) : headerSig;
-
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+  const got = headerSig.startsWith("sha256=") ? headerSig.slice(7) : headerSig;
   if (got.length !== expected.length) return false;
   let diff = 0;
   for (let i = 0; i < got.length; i++) diff |= got.charCodeAt(i) ^ expected.charCodeAt(i);
   return diff === 0;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
 
-  const secret = Deno.env.get("TREMENDOUS_WEBHOOK_SECRET");
-  if (!secret) {
-    console.error("TREMENDOUS_WEBHOOK_SECRET not set");
-    return badRequest("webhook_secret_missing", 500);
-  }
+  // Path can be:
+  //   /webhook-tremendous            → legacy single-tenant
+  //   /webhook-tremendous/<dsp_uuid> → per-DSP route
+  const url = new URL(req.url);
+  const segments = url.pathname.split("/").filter(Boolean);
+  // The function name is always the second-to-last segment for the
+  // multi-tenant case, or the last for the legacy case.
+  const dspId = segments
+    .slice()
+    .reverse()
+    .find((s) => UUID_RE.test(s)) || null;
 
   const raw = await req.text();
   const sig = req.headers.get("tremendous-webhook-signature")
            ?? req.headers.get("Tremendous-Webhook-Signature");
-  const ok = await verifyTremendousSignature(raw, sig, secret);
+
+  const supa = serviceClient();
+
+  let signingSecret: string | null = null;
+  if (dspId) {
+    const { data: row } = await supa
+      .from("dsp_reward_integrations")
+      .select("webhook_secret")
+      .eq("dsp_id", dspId)
+      .eq("provider", PROVIDER_SLUG)
+      .maybeSingle();
+    signingSecret = (row?.webhook_secret as string | undefined) ?? null;
+  }
+  if (!signingSecret) {
+    // Legacy / fallback secret — supports a single-tenant deploy until
+    // it migrates fully to OAuth.
+    signingSecret = Deno.env.get("TREMENDOUS_WEBHOOK_SECRET") || null;
+  }
+  if (!signingSecret) {
+    console.error(`no webhook secret for dsp=${dspId ?? "(none)"}`);
+    return badRequest("webhook_secret_missing", 500);
+  }
+
+  const ok = await verifySignature(raw, sig, signingSecret);
   if (!ok) {
-    console.warn("tremendous webhook signature rejected");
+    console.warn(`tremendous webhook signature rejected for dsp=${dspId ?? "(legacy)"}`);
     return badRequest("bad_signature", 403);
   }
 
@@ -86,9 +92,6 @@ Deno.serve(async (req) => {
 
   const eventType = String(body.event ?? body.type ?? "").trim();
   const payload   = (body.payload ?? {}) as Record<string, unknown>;
-  // The reward id sits at payload.id for REWARDS.* events.  Defensive
-  // fallbacks for adjacent shapes (some Tremendous payloads nest
-  // under payload.reward.id, especially older event types).
   const rewardId  = String(
     payload.id
     ?? (payload.reward as Record<string, unknown> | undefined)?.id
@@ -98,14 +101,10 @@ Deno.serve(async (req) => {
 
   if (!eventType) return badRequest("event_required");
   if (!rewardId) {
-    // Some Tremendous events (e.g. account-level) carry no reward id.
-    // Acknowledge so the dashboard's delivery view shows success, but
-    // don't try to mutate.
     console.log(`tremendous event ${eventType} carried no reward id; ack`);
     return jsonResponse({ ok: true, applied: false, reason: "no_reward_id" });
   }
 
-  const supa = serviceClient();
   const { data: updatedId, error } = await supa.rpc("reward_webhook_apply", {
     p_provider:           PROVIDER_SLUG,
     p_provider_reward_id: rewardId,
@@ -115,14 +114,9 @@ Deno.serve(async (req) => {
 
   if (error) {
     console.error("reward_webhook_apply failed", error);
-    // 500 so Tremendous retries — this is OUR transient error, not
-    // a payload problem.
     return badRequest("rpc_failed", 500);
   }
-
   if (!updatedId) {
-    // Reward id is real but not in our table — likely a stray event
-    // from a different environment.  Ack to stop retries.
     console.log(`tremendous event ${eventType} for unknown reward ${rewardId}; ack`);
     return jsonResponse({ ok: true, applied: false, reason: "no_match" });
   }

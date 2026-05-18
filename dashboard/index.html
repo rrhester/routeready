@@ -10237,6 +10237,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="settings-nav-item" data-set="licenses" onclick="setSettingsSection(this)">License renewals</button>
             <button class="settings-nav-item" data-set="scheduling" onclick="setSettingsSection(this)">Scheduling</button>
             <button class="settings-nav-item" data-set="recognition" onclick="setSettingsSection(this); if (typeof loadRecognitionSettings === 'function') loadRecognitionSettings();">Recognition</button>
+            <button class="settings-nav-item" data-set="rewards" onclick="setSettingsSection(this); if (typeof loadRewardsSettings === 'function') loadRewardsSettings();">Rewards</button>
             <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
           </nav>
 
@@ -11067,6 +11068,26 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
 
             <!-- LICENSE RENEWALS SECTION -->
+
+            <!-- REWARDS SECTION — per-DSP Tremendous OAuth integration. -->
+            <div class="settings-section hidden" data-set="rewards">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Rewards</h2>
+                <p class="settings-section-sub">Connect your Tremendous account so RouteReady can send digital rewards to your drivers. Rewards come out of your Tremendous balance — RouteReady is just the UI and never touches the money.</p>
+              </div>
+              <div id="rr-rewards-settings-card" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden">
+                <div style="padding:var(--s-7) var(--s-5);text-align:center;color:var(--text-subtle)">
+                  <div class="loader" style="margin:0 auto var(--s-3);width:24px;height:24px;border-width:3px"></div>
+                  Loading…
+                </div>
+              </div>
+              <p style="margin-top:var(--s-4);font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.6">
+                <strong style="color:var(--text-muted)">No Tremendous account?</strong> Sign up at
+                <a href="https://app.tremendous.com" target="_blank" rel="noopener" style="color:var(--accent)">app.tremendous.com</a> (production, real cards) or
+                <a href="https://testflight.tremendous.com" target="_blank" rel="noopener" style="color:var(--accent)">testflight.tremendous.com</a> (free sandbox).
+                Either works with this connection.
+              </p>
+            </div>
 
             <!-- RECOGNITION SECTION -->
             <div class="settings-section hidden" data-set="recognition">

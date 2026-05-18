@@ -25,7 +25,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
-import { getProvider } from "../_shared/rewards/index.ts";
+import { getProviderForDsp } from "../_shared/rewards/index.ts";
 import type { RewardType } from "../_shared/rewards/types.ts";
 
 const CORS = {
@@ -135,8 +135,11 @@ Deno.serve(async (req) => {
     return badRequest("db_insert_failed", 500);
   }
 
-  // 5. Call the provider.
-  const provider = getProvider();
+  // 5. Resolve the provider for this DSP (per-DSP OAuth-granted
+  // Tremendous account; falls back to mock if the DSP hasn't connected
+  // yet).
+  const resolved = await getProviderForDsp(caller.dsp_id);
+  const provider = resolved.provider;
   const recipientName = (driver.preferred_name as string)?.trim()
     || (driver.full_name as string)?.trim()
     || "Driver";
@@ -174,6 +177,13 @@ Deno.serve(async (req) => {
       .eq("id", pending.id);
     if (updErr) console.warn("reward update after provider success failed", updErr);
 
+    // Stamp last_used_at on the integration so the dashboard's Rewards
+    // setup card can show "last used X ago".  Service-role-only RPC.
+    if (!resolved.fellBackToMock) {
+      await admin.rpc("dsp_reward_integration_mark_used", { p_dsp_id: caller.dsp_id })
+        .then(() => {}, (e) => console.warn("mark_used failed", e));
+    }
+
     return jsonResponse({
       ok: true,
       reward: {
@@ -184,6 +194,7 @@ Deno.serve(async (req) => {
         provider_reward_id: result.providerRewardId,
         mode:       provider.mode,
       },
+      provider_status: resolved.fellBackToMock ? "mock" : "connected",
     });
   }
 
