@@ -3802,7 +3802,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 
 /* AI auto-schedule modal — bigger, richer */
 .ai-modal-section{
-  background:var(--canvas);border-radius:8px;padding:var(--s-3) var(--s-4);
+  background:var(--canvas);border-radius:var(--r-md);padding:var(--s-3) var(--s-4);
   display:flex;align-items:flex-start;gap:var(--s-2-5);margin-bottom:var(--s-3);
   font-size:var(--fs-sm);line-height:1.5;
 }
@@ -5262,12 +5262,12 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .forms-rail-stats{display:flex;flex-direction:column}
 .forms-rail-stat{
-  display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:10px;
-  padding:11px var(--s-3-5);
+  display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:var(--s-2-5);
+  padding:var(--s-3) var(--s-3-5);
 }
 .forms-rail-stat + .forms-rail-stat{border-top:1px solid var(--border-subtle)}
 .forms-rail-stat-icon{
-  width:32px;height:32px;border-radius:10px;flex:0 0 auto;
+  width:32px;height:32px;border-radius:var(--r-md);flex:0 0 auto;
   display:flex;align-items:center;justify-content:center;
 }
 .forms-rail-stat-icon svg{width:15px;height:15px}
@@ -5291,7 +5291,7 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:var(--s-4);display:flex;flex-direction:column;gap:6px;
 }
 .forms-rail-help-icon{
-  width:36px;height:36px;border-radius:10px;flex:0 0 auto;
+  width:36px;height:36px;border-radius:var(--r-md);flex:0 0 auto;
   background:rgba(124,58,237,.10);color:var(--violet);
   display:flex;align-items:center;justify-content:center;margin-bottom:2px;
 }
@@ -5530,7 +5530,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .builder-field-radio{display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);color:var(--text-muted)}
 .builder-field-radio::before{content:'';width:14px;height:14px;border:1.5px solid var(--border-strong);border-radius:50%;display:inline-block}
 .builder-field-img-placeholder{
-  background:var(--canvas);border:1.5px dashed var(--border-strong);border-radius:8px;
+  background:var(--canvas);border:1.5px dashed var(--border-strong);border-radius:var(--r-md);
   padding:var(--s-6);text-align:center;color:var(--text-subtle);font-size:var(--fs-sm);
   display:flex;flex-direction:column;align-items:center;gap:6px;
 }
