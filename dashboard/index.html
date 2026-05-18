@@ -11183,29 +11183,15 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        <!-- Schedule KPI pill row — populated by renderScheduleWeek. -->
-        <div id="rr-sched-kpis" class="sched-kpi-pills"></div>
-
-        <!-- Sub-nav (left) and week-range picker (right) share a row. -->
+        <!-- Sub-nav (left) and week-range picker (right) share a row so
+             they read as a single top-of-grid control band, matching the
+             mockup. The kpis toggle is kept hidden for compatibility. -->
         <div class="sched-subnav-row">
           <div class="subnav" data-rr-tabbar="schedule">
             <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
             <button class="subnav-item" data-sub="staff" onclick="schedSub('staff')">Staff</button>
             <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
             <button class="subnav-item" data-sub="time-off" onclick="schedSub('time-off')">Time off <span class="nav-badge" id="rr-sched-time-off-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
-          </div>
-          <div class="sched-week-nav" id="rr-sched-week-nav" role="group" aria-label="Week navigation">
-            <button type="button" class="sched-week-nav-btn" id="rr-sched-week-prev" title="Previous week" aria-label="Previous week">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <button type="button" class="sched-week-nav-today" id="rr-sched-week-today" title="Jump to this week">Today</button>
-            <button type="button" class="sched-week-nav-range" id="rr-sched-week-range" title="Cycle through the next four weeks">
-              <span id="rr-sched-week-range-label">This week</span>
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            <button type="button" class="sched-week-nav-btn" id="rr-sched-week-next" title="Next week" aria-label="Next week">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
           </div>
         </div>
         <a href="#" role="button" class="rr-text-link" id="rr-sched-kpis-toggle" aria-pressed="true" style="display:none">Insights</a>
@@ -11347,24 +11333,75 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-week-nav-today:focus-visible{outline:none;box-shadow:var(--ring-focus)}
           #view-schedule .sched-week-nav-today.is-on-today{color:var(--text-subtle);cursor:default;pointer-events:none}
 
-          /* ── KPI pill row · dot + label inline pills sitting between
-             the page sub-line and the subnav. */
-          #view-schedule #rr-sched-kpis.sched-kpi-pills{
-            display:flex;flex-wrap:wrap;align-items:center;
-            gap:var(--s-5);
-            margin:0 0 var(--s-3) 0;
-            font-size:var(--fs-sm);
+          /* ── Coverage KPI: pulled forward as the "north-star" card.
+             Same card height as the others — only the % value reads a
+             touch larger, and a real progress bar (track + fill) sits
+             inset from the card edges. JS tags the actual node with
+             .is-primary so we don't depend on :nth-child(N) lining up. */
+          /* KPI row · KPI strip (left) + week-range scroller (right rail
+             column) on a 1fr/320px grid that mirrors .builder-shell so
+             the scroller floats above the Open Shifts panel and the KPI
+             strip ends flush with the schedule grid below. Stacks at
+             ≤1180px where the rail stacks under the grid. */
+          #view-schedule .sched-kpi-row{
+            display:grid;grid-template-columns:1fr 320px;gap:var(--s-3);
+            align-items:end;
           }
-          #view-schedule .sched-kpi-pill{
-            display:inline-flex;align-items:center;gap:8px;
-            color:var(--text);font-weight:600;
-            font-variant-numeric:tabular-nums;
+          #view-schedule .sched-kpi-row > #rr-sched-kpis{margin-bottom:0}
+          #view-schedule .sched-kpi-row > .sched-week-nav{
+            justify-self:end;margin-bottom:var(--s-5);
           }
-          #view-schedule .sched-kpi-pill[data-clickable="true"]{cursor:pointer}
-          #view-schedule .sched-kpi-pill[data-clickable="true"]:hover{color:var(--accent-text)}
-          #view-schedule .sched-kpi-dot{
-            width:9px;height:9px;border-radius:50%;flex-shrink:0;
-            box-shadow:0 0 0 3px color-mix(in srgb, currentColor 14%, transparent);
+          @media (max-width:1180px){
+            #view-schedule .sched-kpi-row{grid-template-columns:1fr}
+            #view-schedule .sched-kpi-row > .sched-week-nav{justify-self:start;margin-bottom:0}
+          }
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary{
+            border-color:color-mix(in srgb, var(--green) 35%, var(--border));
+            background:linear-gradient(180deg, color-mix(in srgb, var(--green) 6%, var(--surface)) 0%, var(--surface) 70%);
+            box-shadow:0 0 0 1px color-mix(in srgb, var(--green) 18%, transparent);
+            position:relative;
+            padding-bottom:calc(var(--s-4) + 10px);
+          }
+          /* Value text — just enough larger to register as the headline
+             figure without screaming. 18px → 28px, always green even
+             when the kpiCard helper applies an inline amber tone for
+             "warn" coverage (the primary card carries its own tone). */
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary .stat-mini-value{
+            color:var(--green) !important;
+            font-size:28px;line-height:1.05;letter-spacing:-.02em;
+          }
+          /* Progress bar: gray track behind a green fill driven by
+             --rr-coverage-fill (0..1, set by JS). Inset 10px from the
+             card edges and rounded so it reads as a deliberate element,
+             not a border treatment. */
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary::before{
+            content:"";position:absolute;left:var(--s-5);right:var(--s-5);bottom:var(--s-3);
+            height:6px;border-radius:var(--r-pill);
+            background:color-mix(in srgb, var(--green) 14%, var(--canvas));
+          }
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary::after{
+            content:"";position:absolute;left:var(--s-5);bottom:var(--s-3);
+            height:6px;border-radius:var(--r-pill);
+            width:calc(var(--rr-coverage-fill, 1) * (100% - var(--s-5) * 2));
+            background:linear-gradient(90deg, var(--green) 0%, color-mix(in srgb, var(--green) 80%, #fff) 100%);
+            transition:width var(--t-spring);
+          }
+          /* Below 100% coverage → recolor the primary card red (no amber
+             middle state). Mirrors the bottom coverage strip's binary
+             scheme. */
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary.is-primary-bad{
+            border-color:color-mix(in srgb, var(--red) 35%, var(--border));
+            background:linear-gradient(180deg, color-mix(in srgb, var(--red) 6%, var(--surface)) 0%, var(--surface) 70%);
+            box-shadow:0 0 0 1px color-mix(in srgb, var(--red) 18%, transparent);
+          }
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary.is-primary-bad .stat-mini-value{
+            color:var(--red) !important;
+          }
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary.is-primary-bad::before{
+            background:color-mix(in srgb, var(--red) 14%, var(--canvas));
+          }
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary.is-primary-bad::after{
+            background:linear-gradient(90deg, var(--red) 0%, color-mix(in srgb, var(--red) 80%, #fff) 100%);
           }
 
           #view-schedule .cal-cell-head .day-coverage{
@@ -11456,6 +11493,24 @@ body.rr-cmdk-open{ overflow:hidden }
               <button class="sched-tool-btn" id="schedule-cta" type="button" title="Push this week's schedule to drivers">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 Finalize
+              </button>
+            </div>
+          </div>
+
+          <!-- KPI row · holds the JS-injected #rr-sched-kpis (left) and
+               the week-range scroller (right rail column). -->
+          <div class="sched-kpi-row">
+            <div class="sched-week-nav" id="rr-sched-week-nav" role="group" aria-label="Week navigation">
+              <button type="button" class="sched-week-nav-btn" id="rr-sched-week-prev" title="Previous week" aria-label="Previous week">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <button type="button" class="sched-week-nav-today" id="rr-sched-week-today" title="Jump to this week">Today</button>
+              <button type="button" class="sched-week-nav-range" id="rr-sched-week-range" title="Cycle through the next four weeks">
+                <span id="rr-sched-week-range-label">This week</span>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <button type="button" class="sched-week-nav-btn" id="rr-sched-week-next" title="Next week" aria-label="Next week">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </div>
           </div>
