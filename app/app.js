@@ -7281,6 +7281,303 @@ async function checkAndShowPendingRecognition(session) {
   navigate("/welcome");
 }
 
+// ── _recogTheme ─────────────────────────────────────────────────────
+// Per-kind theming for the celebration overlay.  Each entry supplies:
+//   • badge      — inline SVG painted inside the hex badge (24x24 vbox)
+//   • gradient   — CSS background for #rr-celebration-route
+//   • badgeBg    — CSS background for the .rrc-badge hex
+//   • palette    — confetti color array
+//   • defaultTitle / defaultMessage / defaultCta / defaultFooter
+// Unknown kinds fall through to a friendly "welcome" default so the
+// route never paints blank.  All copy is intentionally short — these
+// drive a one-screen takeover, not a long-form note.
+function _recogTheme(kind) {
+  // Reusable SVG snippets (24x24 viewBox, stroke-based for crispness).
+  const svg = {
+    welcome:    '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    cake:       '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8"/><path d="M4 16h16"/><path d="M2 21h20"/><path d="M12 4v3"/><path d="M8 4v3"/><path d="M16 4v3"/></svg>',
+    trophy:     '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4a2 2 0 0 1-2-2V5h4"/><path d="M18 9h2a2 2 0 0 0 2-2V5h-4"/><path d="M6 5v6a6 6 0 0 0 12 0V5z"/><path d="M9 21h6"/><path d="M12 17v4"/></svg>',
+    sparkle:    '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6"/><path d="M12 16v6"/><path d="M2 12h6"/><path d="M16 12h6"/><path d="M5 5l3 3"/><path d="M16 16l3 3"/><path d="M19 5l-3 3"/><path d="M8 16l-3 3"/></svg>',
+    babyBottle: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M8 5h8v3a4 4 0 0 1-1 2.7l-.5.6V19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-7.7l-.5-.6A4 4 0 0 1 8 8z"/><path d="M9 13h6"/><path d="M9 16h6"/></svg>',
+    onesie:     '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3l2 3h6l2-3"/><path d="M7 3 4 8l3 2v11h10V10l3-2-3-5"/><path d="M10 16h4"/></svg>',
+    rattle:     '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5"/><path d="M11.5 11.5 20 20"/><path d="m17 17 3-3"/><path d="M6 6h.01"/><path d="M10 6h.01"/><path d="M6 10h.01"/></svg>',
+    heart:      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+    fireworks:  '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12V2"/><path d="M12 12l7-7"/><path d="M12 12l-7-7"/><path d="M12 12 5 19"/><path d="m12 12 7 7"/><path d="M12 12h10"/><path d="M2 12h10"/></svg>',
+    star:       '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8.5 22 9.3 17 14.1 18.2 21 12 17.8 5.8 21 7 14.1 2 9.3 9 8.5 12 2"/></svg>',
+    flag:       '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4"/><path d="M4 4h13l-2 4 2 4H4"/></svg>',
+    shamrock:   '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12c-2-4-6-2-6 1s2 4 4 4"/><path d="M12 12c2-4 6-2 6 1s-2 4-4 4"/><path d="M12 12c-4-2-2-6 1-6s4 2 4 4"/><path d="M12 12v9"/></svg>',
+    egg:        '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c-4 0-7-3-7-7 0-5 3-13 7-13s7 8 7 13c0 4-3 7-7 7z"/><path d="M8 13h8"/><path d="M9 16h6"/></svg>',
+    flower:     '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="2"/><path d="M12 7a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3"/><path d="M14 9a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3"/><path d="M10 9a3 3 0 0 1-3 3 3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3"/><path d="M12 11v11"/><path d="M9 17l3 2 3-2"/></svg>',
+    tie:        '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1 5 3 9-5 6-5-6 3-9z"/><path d="M10 8h4"/></svg>',
+    gear:       '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+    feather:    '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><path d="M16 8 2 22"/><path d="M17.5 15H9"/></svg>',
+    pumpkin:    '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v3"/><path d="M12 5c1-2 4-2 4 0"/><path d="M8 8c-3 0-5 3-5 7s2 7 5 7c1 0 2-1 4-1s3 1 4 1c3 0 5-3 5-7s-2-7-5-7c-1 0-2 1-4 1s-3-1-4-1z"/><path d="M9 13l2 2 2-2"/><path d="M13 13l2 2 2-2"/></svg>',
+    leaf:       '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 4 13c0-6 5-10 17-10 0 8-4 17-10 17a7 7 0 0 1-7-7z"/><path d="M2 21c4-4 7-7 18-15"/></svg>',
+    tree:       '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 6 10h3l-3 5h3l-3 5h12l-3-5h3l-3-5h3z"/><path d="M11 20h2v2h-2z"/></svg>',
+    cornucopia: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18c0-7 5-12 12-12 2 0 4 2 4 4s-2 4-4 4c-3 0-6 2-6 5"/><circle cx="14" cy="14" r="2"/><circle cx="18" cy="17" r="1.5"/></svg>',
+  };
+
+  const themes = {
+    // ── Existing five ────────────────────────────────────────────────
+    welcome_to_team: {
+      badge: svg.welcome,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #2563eb 0%, #1e40af 45%, #0f1d4a 100%)',
+      badgeBg:  'linear-gradient(160deg, #3b82f6 0%, #1d4ed8 100%)',
+      palette: ['#FBBF24','#F59E0B','#FDE68A','#60A5FA','#93C5FD','#3B82F6','#FFFFFF','#DBEAFE'],
+      defaultTitle: 'Welcome to the Team',
+      defaultMessage: "We're excited to have you here. Let's make this a great first day.",
+      defaultCta: 'Start my day',
+      defaultFooter: 'Sent by your team',
+    },
+    birthday: {
+      badge: svg.cake,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #d946ef 0%, #a21caf 45%, #4a044e 100%)',
+      badgeBg:  'linear-gradient(160deg, #f472b6 0%, #be185d 100%)',
+      palette: ['#F472B6','#FBBF24','#34D399','#60A5FA','#F87171','#FFFFFF','#FDE68A','#A78BFA'],
+      defaultTitle: 'Happy birthday!',
+      defaultMessage: 'Hope your day is as awesome as you are. Enjoy it!',
+      defaultCta: 'Thanks!',
+      defaultFooter: 'Sent by your team',
+    },
+    work_anniversary: {
+      badge: svg.trophy,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #b45309 0%, #78350f 45%, #1c1917 100%)',
+      badgeBg:  'linear-gradient(160deg, #fbbf24 0%, #b45309 100%)',
+      palette: ['#FBBF24','#F59E0B','#FCD34D','#FEF3C7','#FFFFFF','#92400E','#D97706','#FDE68A'],
+      defaultTitle: 'Happy work anniversary!',
+      defaultMessage: 'Thanks for everything you bring to the team. Cheers to another great year.',
+      defaultCta: 'Thanks!',
+      defaultFooter: 'Sent by your team',
+    },
+    safety_milestone: {
+      badge: svg.sparkle,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #059669 0%, #065f46 45%, #022c22 100%)',
+      badgeBg:  'linear-gradient(160deg, #34d399 0%, #047857 100%)',
+      palette: ['#34D399','#A7F3D0','#FFFFFF','#10B981','#6EE7B7','#D1FAE5','#059669','#FBBF24'],
+      defaultTitle: 'Safety milestone',
+      defaultMessage: 'Your safe driving sets the standard. Thank you for keeping it dialed in.',
+      defaultCta: 'Keep it up',
+      defaultFooter: 'Sent by your team',
+    },
+    custom: {
+      badge: svg.heart,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #2563eb 0%, #1e40af 45%, #0f1d4a 100%)',
+      badgeBg:  'linear-gradient(160deg, #3b82f6 0%, #1d4ed8 100%)',
+      palette: ['#FBBF24','#F59E0B','#FDE68A','#60A5FA','#93C5FD','#3B82F6','#FFFFFF','#DBEAFE'],
+      defaultTitle: 'A note from your team',
+      defaultMessage: '',
+      defaultCta: 'Continue',
+      defaultFooter: 'Sent by your team',
+    },
+
+    // ── Baby (3) ─────────────────────────────────────────────────────
+    baby_boy: {
+      badge: svg.onesie,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #93c5fd 0%, #3b82f6 45%, #1e3a8a 100%)',
+      badgeBg:  'linear-gradient(160deg, #bfdbfe 0%, #3b82f6 100%)',
+      palette: ['#BFDBFE','#93C5FD','#60A5FA','#FFFFFF','#DBEAFE','#3B82F6','#E0F2FE','#FBBF24'],
+      defaultTitle: "It's a Boy!",
+      defaultMessage: 'Congratulations on the newest addition to your family. Wishing you all the best.',
+      defaultCta: 'Thank you!',
+      defaultFooter: 'Sent by your team',
+    },
+    baby_girl: {
+      badge: svg.onesie,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #fbcfe8 0%, #ec4899 45%, #831843 100%)',
+      badgeBg:  'linear-gradient(160deg, #fbcfe8 0%, #db2777 100%)',
+      palette: ['#FBCFE8','#F9A8D4','#F472B6','#FFFFFF','#FCE7F3','#EC4899','#FFE4E6','#FBBF24'],
+      defaultTitle: "It's a Girl!",
+      defaultMessage: 'Congratulations on the newest addition to your family. Wishing you all the best.',
+      defaultCta: 'Thank you!',
+      defaultFooter: 'Sent by your team',
+    },
+    baby_expecting: {
+      badge: svg.rattle,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #fde68a 0%, #f59e0b 45%, #78350f 100%)',
+      badgeBg:  'linear-gradient(160deg, #fef3c7 0%, #f59e0b 100%)',
+      palette: ['#FEF3C7','#FDE68A','#FCD34D','#FFFFFF','#FBCFE8','#BFDBFE','#FBBF24','#FEF9C3'],
+      defaultTitle: 'Congratulations!',
+      defaultMessage: 'A baby on the way is wonderful news. So happy for you and your family.',
+      defaultCta: 'Thank you!',
+      defaultFooter: 'Sent by your team',
+    },
+
+    // ── Holidays (17) ────────────────────────────────────────────────
+    holiday_new_years_day: {
+      badge: svg.fireworks,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #facc15 0%, #a16207 45%, #0a0a0a 100%)',
+      badgeBg:  'linear-gradient(160deg, #fde047 0%, #ca8a04 100%)',
+      palette: ['#FACC15','#FDE047','#FFFFFF','#1F2937','#CA8A04','#FEF08A','#F59E0B','#A16207'],
+      defaultTitle: 'Happy New Year!',
+      defaultMessage: "Here's to a great year ahead — thanks for being part of the team.",
+      defaultCta: 'Cheers!',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_mlk_day: {
+      badge: svg.star,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #1d4ed8 0%, #1e3a8a 45%, #082f49 100%)',
+      badgeBg:  'linear-gradient(160deg, #fbbf24 0%, #b45309 100%)',
+      palette: ['#1D4ED8','#FBBF24','#FFFFFF','#1E3A8A','#FCD34D','#3B82F6','#FEF3C7','#60A5FA'],
+      defaultTitle: 'Honoring Dr. King',
+      defaultMessage: 'A day to reflect on the dream of justice and equality for all.',
+      defaultCta: 'Continue',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_valentines_day: {
+      badge: svg.heart,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #fb7185 0%, #be123c 45%, #4c0519 100%)',
+      badgeBg:  'linear-gradient(160deg, #fda4af 0%, #e11d48 100%)',
+      palette: ['#FB7185','#F43F5E','#FECDD3','#FFFFFF','#FFE4E6','#BE123C','#FBCFE8','#E11D48'],
+      defaultTitle: "Happy Valentine's Day!",
+      defaultMessage: 'A little love sent your way from the whole team.',
+      defaultCta: 'Thanks!',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_presidents_day: {
+      badge: svg.flag,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #1d4ed8 0%, #b91c1c 60%, #1e3a8a 100%)',
+      badgeBg:  'linear-gradient(160deg, #dc2626 0%, #1d4ed8 100%)',
+      palette: ['#DC2626','#FFFFFF','#1D4ED8','#FEE2E2','#DBEAFE','#B91C1C','#1E3A8A','#F3F4F6'],
+      defaultTitle: "Happy Presidents' Day",
+      defaultMessage: 'A day to honor the leaders who have shaped our country.',
+      defaultCta: 'Continue',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_st_patricks_day: {
+      badge: svg.shamrock,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #16a34a 0%, #15803d 45%, #052e16 100%)',
+      badgeBg:  'linear-gradient(160deg, #4ade80 0%, #15803d 100%)',
+      palette: ['#16A34A','#4ADE80','#FBBF24','#FFFFFF','#BBF7D0','#22C55E','#FCD34D','#FEF3C7'],
+      defaultTitle: "Happy St. Patrick's Day!",
+      defaultMessage: 'Wishing you a little extra luck of the Irish out on the road today.',
+      defaultCta: 'Sláinte!',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_easter: {
+      badge: svg.egg,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #c4b5fd 0%, #a78bfa 45%, #4c1d95 100%)',
+      badgeBg:  'linear-gradient(160deg, #fbcfe8 0%, #a78bfa 100%)',
+      palette: ['#FBCFE8','#C4B5FD','#FDE68A','#A7F3D0','#FFFFFF','#FECACA','#BFDBFE','#FEF08A'],
+      defaultTitle: 'Happy Easter!',
+      defaultMessage: 'Wishing you a peaceful, joyful Easter from the whole team.',
+      defaultCta: 'Thanks!',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_mothers_day: {
+      badge: svg.flower,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #f9a8d4 0%, #db2777 45%, #500724 100%)',
+      badgeBg:  'linear-gradient(160deg, #fbcfe8 0%, #db2777 100%)',
+      palette: ['#F9A8D4','#FBCFE8','#FFFFFF','#FCE7F3','#EC4899','#FECDD3','#FBBF24','#FDE68A'],
+      defaultTitle: "Happy Mother's Day!",
+      defaultMessage: 'To all the moms on the team — thank you for everything you do.',
+      defaultCta: 'Thanks!',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_memorial_day: {
+      badge: svg.flag,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #b91c1c 0%, #1d4ed8 60%, #1e3a8a 100%)',
+      badgeBg:  'linear-gradient(160deg, #dc2626 0%, #1d4ed8 100%)',
+      palette: ['#DC2626','#FFFFFF','#1D4ED8','#FEE2E2','#DBEAFE','#B91C1C','#1E3A8A','#F3F4F6'],
+      defaultTitle: 'Memorial Day',
+      defaultMessage: 'Honoring those who gave everything in service of our country.',
+      defaultCta: 'Continue',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_juneteenth: {
+      badge: svg.star,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #b91c1c 0%, #166534 50%, #0a0a0a 100%)',
+      badgeBg:  'linear-gradient(160deg, #dc2626 0%, #166534 100%)',
+      palette: ['#DC2626','#16A34A','#FBBF24','#FFFFFF','#1F2937','#FEE2E2','#BBF7D0','#FEF3C7'],
+      defaultTitle: 'Happy Juneteenth!',
+      defaultMessage: 'A day to celebrate freedom, history, and the road ahead.',
+      defaultCta: 'Continue',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_fathers_day: {
+      badge: svg.tie,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #1d4ed8 0%, #1e40af 45%, #0f1d4a 100%)',
+      badgeBg:  'linear-gradient(160deg, #fbbf24 0%, #1d4ed8 100%)',
+      palette: ['#1D4ED8','#FBBF24','#FFFFFF','#DBEAFE','#FCD34D','#3B82F6','#FEF3C7','#1E3A8A'],
+      defaultTitle: "Happy Father's Day!",
+      defaultMessage: 'To all the dads on the team — thank you for everything you do.',
+      defaultCta: 'Thanks!',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_independence_day: {
+      badge: svg.fireworks,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #b91c1c 0%, #1d4ed8 60%, #1e3a8a 100%)',
+      badgeBg:  'linear-gradient(160deg, #dc2626 0%, #1d4ed8 100%)',
+      palette: ['#DC2626','#FFFFFF','#1D4ED8','#FEE2E2','#DBEAFE','#B91C1C','#1E3A8A','#FBBF24'],
+      defaultTitle: 'Happy 4th of July!',
+      defaultMessage: 'Wishing you a safe and festive Independence Day.',
+      defaultCta: 'Happy 4th!',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_labor_day: {
+      badge: svg.gear,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #475569 0%, #1e293b 45%, #020617 100%)',
+      badgeBg:  'linear-gradient(160deg, #cbd5e1 0%, #1d4ed8 100%)',
+      palette: ['#1D4ED8','#CBD5E1','#FFFFFF','#94A3B8','#DBEAFE','#475569','#E2E8F0','#3B82F6'],
+      defaultTitle: 'Happy Labor Day!',
+      defaultMessage: 'Thanks for the hard work — enjoy the day off.',
+      defaultCta: 'Thanks!',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_indigenous_peoples_day: {
+      badge: svg.feather,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #b45309 0%, #78350f 45%, #1c1917 100%)',
+      badgeBg:  'linear-gradient(160deg, #f59e0b 0%, #92400e 100%)',
+      palette: ['#B45309','#92400E','#FBBF24','#FFFFFF','#FED7AA','#78350F','#D97706','#FDE68A'],
+      defaultTitle: "Indigenous Peoples' Day",
+      defaultMessage: 'Honoring the history, cultures, and contributions of Indigenous peoples.',
+      defaultCta: 'Continue',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_halloween: {
+      badge: svg.pumpkin,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #f97316 0%, #7c3aed 50%, #0a0a0a 100%)',
+      badgeBg:  'linear-gradient(160deg, #fb923c 0%, #7c3aed 100%)',
+      palette: ['#F97316','#7C3AED','#1F2937','#FBBF24','#FB923C','#A78BFA','#FFFFFF','#FED7AA'],
+      defaultTitle: 'Happy Halloween!',
+      defaultMessage: 'Stay spooky out there — and watch out for the goblins.',
+      defaultCta: 'Boo!',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_veterans_day: {
+      badge: svg.flag,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #1d4ed8 0%, #b91c1c 60%, #1e3a8a 100%)',
+      badgeBg:  'linear-gradient(160deg, #dc2626 0%, #1d4ed8 100%)',
+      palette: ['#DC2626','#FFFFFF','#1D4ED8','#FEE2E2','#DBEAFE','#B91C1C','#1E3A8A','#FBBF24'],
+      defaultTitle: 'Thank You, Veterans',
+      defaultMessage: 'With gratitude for your service — today and every day.',
+      defaultCta: 'Thank you',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_thanksgiving: {
+      badge: svg.cornucopia,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #c2410c 0%, #7c2d12 45%, #1c1917 100%)',
+      badgeBg:  'linear-gradient(160deg, #fb923c 0%, #9a3412 100%)',
+      palette: ['#C2410C','#FB923C','#FBBF24','#FFFFFF','#FED7AA','#9A3412','#FDE68A','#A16207'],
+      defaultTitle: 'Happy Thanksgiving!',
+      defaultMessage: 'Grateful to have you on the team. Enjoy the day with the people you love.',
+      defaultCta: 'Thanks!',
+      defaultFooter: 'Sent by your team',
+    },
+    holiday_christmas: {
+      badge: svg.tree,
+      gradient: 'radial-gradient(ellipse at 50% 38%, #16a34a 0%, #166534 50%, #052e16 100%)',
+      badgeBg:  'linear-gradient(160deg, #dc2626 0%, #166534 100%)',
+      palette: ['#DC2626','#16A34A','#FBBF24','#FFFFFF','#FEE2E2','#BBF7D0','#FCD34D','#22C55E'],
+      defaultTitle: 'Merry Christmas!',
+      defaultMessage: 'Wishing you a warm, joyful Christmas with family and friends.',
+      defaultCta: 'Merry Christmas!',
+      defaultFooter: 'Sent by your team',
+    },
+  };
+
+  return themes[kind] || themes.welcome_to_team;
+}
+
 // ── renderCelebrationRoute ──────────────────────────────────────────
 // The /welcome route's render function.  Reads the stashed event and
 // session from module-level vars, paints the celebration HTML into
@@ -7312,12 +7609,13 @@ function renderCelebrationRoute() {
   setHeader("", "");
 
   const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const title    = String(ev.title    || "Welcome to the Team");
-  const message  = String(ev.message  || "We're excited to have you here. Let's make this a great first day.");
-  const ctaLabel = String(ev.cta_label || "Start my day");
-  const footer   = String(ev.footer   || "Sent by your team");
+  const theme   = _recogTheme(ev.kind || "welcome_to_team");
+  const title    = String(ev.title    || theme.defaultTitle);
+  const message  = String(ev.message  || theme.defaultMessage);
+  const ctaLabel = String(ev.cta_label || theme.defaultCta);
+  const footer   = String(ev.footer   || theme.defaultFooter);
 
-  const palette = ["#FBBF24","#F59E0B","#FDE68A","#60A5FA","#93C5FD","#3B82F6","#FFFFFF","#DBEAFE"];
+  const palette = theme.palette;
   const confetti = reduced ? "" : Array.from({ length: 120 }, () => {
     const left  = (Math.random() * 110 - 5).toFixed(1);
     const delay = (Math.random() * 3.0).toFixed(2);
@@ -7340,7 +7638,7 @@ function renderCelebrationRoute() {
         position:fixed;inset:0;z-index:1001;
         display:flex;flex-direction:column;align-items:center;justify-content:center;
         padding:24px;color:#fff;
-        background:radial-gradient(ellipse at 50% 38%, #2563eb 0%, #1e40af 45%, #0f1d4a 100%);
+        background:${theme.gradient};
         overflow:hidden;
       }
       #rr-celebration-route .rrc-burst{
@@ -7380,10 +7678,10 @@ function renderCelebrationRoute() {
         position:absolute;top:-32px;left:50%;transform:translateX(-50%);
         width:68px;height:68px;
         display:flex;align-items:center;justify-content:center;
-        background:linear-gradient(160deg, #3b82f6 0%, #1d4ed8 100%);
+        background:${theme.badgeBg};
         clip-path:polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
         color:#fff;
-        box-shadow:0 10px 24px rgba(29,78,216,.45), inset 0 -4px 8px rgba(0,0,0,.18);
+        box-shadow:0 10px 24px rgba(2,12,40,.45), inset 0 -4px 8px rgba(0,0,0,.18);
       }
       #rr-celebration-route .rrc-title{margin:14px 0 0;font-size:24px;line-height:1.18;font-weight:800;letter-spacing:-.01em}
       #rr-celebration-route .rrc-divider{margin:16px auto 14px;height:1px;width:80%;background:#e5e7eb}
@@ -7429,7 +7727,7 @@ function renderCelebrationRoute() {
       <a href="#/schedule" class="rrc-close" aria-label="Close celebration">&times;</a>
       <div class="rrc-card">
         <div class="rrc-badge" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          ${theme.badge}
         </div>
         <h2 class="rrc-title">${escapeHtml(title)}</h2>
         <div class="rrc-divider" aria-hidden="true"></div>

@@ -157,7 +157,7 @@ grant execute on function public.recognition_send(uuid, text, text, text, text, 
 -- of the 22 new kinds.  Unknown kinds still fall back to "Continue".
 create or replace function public.driver_recognitions_pending(p_token text)
 returns jsonb
-language plpgsql stable security definer set search_path = ''
+language plpgsql security definer set search_path = ''
 as $$
 declare
   v_drv public.drivers;
@@ -165,10 +165,11 @@ declare
   v_cta text;
   v_footer text;
 begin
+  -- Matches 0294: no STABLE marker (driver_validate_token writes to
+  -- driver_sessions), and gate on v_drv.id rather than role so token
+  -- validity is the sole condition.
   v_drv := private.driver_validate_token(p_token);
-  if v_drv.role is distinct from 'driver' then
-    return null;
-  end if;
+  if v_drv.id is null then return null; end if;
 
   select * into v_row
   from public.driver_recognitions

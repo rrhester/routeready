@@ -38000,6 +38000,21 @@ document.addEventListener("click", async (e) => {
     openRecogSendModal({ kind: "welcome_to_team" });
     return;
   }
+  if (e.target.closest("#rr-recog-baby-boy-btn") || e.target.closest("#rr-recog-baby-boy-card")) {
+    e.preventDefault();
+    openRecogSendModal({ kind: "baby_boy" });
+    return;
+  }
+  if (e.target.closest("#rr-recog-baby-girl-btn") || e.target.closest("#rr-recog-baby-girl-card")) {
+    e.preventDefault();
+    openRecogSendModal({ kind: "baby_girl" });
+    return;
+  }
+  if (e.target.closest("#rr-recog-baby-expecting-btn") || e.target.closest("#rr-recog-baby-expecting-card")) {
+    e.preventDefault();
+    openRecogSendModal({ kind: "baby_expecting" });
+    return;
+  }
   const celebrate = e.target.closest("[data-rr-recog-celebrate]");
   if (celebrate) {
     e.preventDefault();
@@ -38061,28 +38076,80 @@ async function openRecogSendModal(opts) {
   wrap = document.createElement("div");
   wrap.id = "rr-recog-send-modal";
   wrap.className = "rr-modal-backdrop";
-  const animChoices = ["confetti","fireworks","balloons","cake","trophy","hearts","sparkle","welcome"];
+  const animChoices = ["confetti","fireworks","balloons","cake","trophy","hearts","sparkle","welcome","flag","flower","gift","egg","tree","leaf","star","pumpkin"];
   const todayIso = new Date().toISOString().slice(0, 10);
-  const kindOpts = [
-    { v: "welcome_to_team",   l: "Welcome to the team" },
-    { v: "custom",            l: "Custom" },
-    { v: "birthday",          l: "Birthday" },
-    { v: "work_anniversary",  l: "Work anniversary" },
-    { v: "safety_milestone",  l: "Safety milestone" },
+  // Grouped kinds — existing core five first, then Baby, then Holidays
+  // ordered by calendar date.  <optgroup> renders these as labelled
+  // sections in the native <select>, which keeps the long list scannable.
+  const kindGroups = [
+    { label: "Core", opts: [
+      { v: "welcome_to_team",   l: "Welcome to the team" },
+      { v: "custom",            l: "Custom" },
+      { v: "birthday",          l: "Birthday" },
+      { v: "work_anniversary",  l: "Work anniversary" },
+      { v: "safety_milestone",  l: "Safety milestone" },
+    ]},
+    { label: "Baby", opts: [
+      { v: "baby_boy",          l: "It's a boy" },
+      { v: "baby_girl",         l: "It's a girl" },
+      { v: "baby_expecting",    l: "Baby on the way" },
+    ]},
+    { label: "Holidays", opts: [
+      { v: "holiday_new_years_day",         l: "New Year's Day (Jan 1)" },
+      { v: "holiday_mlk_day",               l: "MLK Day (3rd Mon Jan)" },
+      { v: "holiday_valentines_day",        l: "Valentine's Day (Feb 14)" },
+      { v: "holiday_presidents_day",        l: "Presidents' Day (3rd Mon Feb)" },
+      { v: "holiday_st_patricks_day",       l: "St. Patrick's Day (Mar 17)" },
+      { v: "holiday_easter",                l: "Easter (variable Apr)" },
+      { v: "holiday_mothers_day",           l: "Mother's Day (2nd Sun May)" },
+      { v: "holiday_memorial_day",          l: "Memorial Day (last Mon May)" },
+      { v: "holiday_juneteenth",            l: "Juneteenth (Jun 19)" },
+      { v: "holiday_fathers_day",           l: "Father's Day (3rd Sun Jun)" },
+      { v: "holiday_independence_day",      l: "Independence Day (Jul 4)" },
+      { v: "holiday_labor_day",             l: "Labor Day (1st Mon Sep)" },
+      { v: "holiday_indigenous_peoples_day",l: "Indigenous Peoples' Day (2nd Mon Oct)" },
+      { v: "holiday_halloween",             l: "Halloween (Oct 31)" },
+      { v: "holiday_veterans_day",          l: "Veterans Day (Nov 11)" },
+      { v: "holiday_thanksgiving",          l: "Thanksgiving (4th Thu Nov)" },
+      { v: "holiday_christmas",             l: "Christmas (Dec 25)" },
+    ]},
   ];
+  // Per-kind defaults — mirrors _recogTheme on the driver app so the
+  // composed message in the modal matches what the driver will see.
+  const KIND_DEFAULTS = {
+    welcome_to_team:               { title: "Welcome to the Team",        message: "We're excited to have you here. Let's make this a great first day.",     anim: "welcome" },
+    custom:                        { title: "",                            message: "",                                                                       anim: "confetti" },
+    birthday:                      { title: "Happy birthday!",             message: "Hope your day is as awesome as you are. Enjoy it!",                      anim: "cake" },
+    work_anniversary:              { title: "Happy work anniversary!",     message: "Thanks for everything you bring to the team. Cheers to another great year.", anim: "trophy" },
+    safety_milestone:              { title: "Safety milestone",            message: "Your safe driving sets the standard. Thank you for keeping it dialed in.", anim: "sparkle" },
+    baby_boy:                      { title: "It's a Boy!",                 message: "Congratulations on the newest addition to your family. Wishing you all the best.", anim: "hearts" },
+    baby_girl:                     { title: "It's a Girl!",                message: "Congratulations on the newest addition to your family. Wishing you all the best.", anim: "hearts" },
+    baby_expecting:                { title: "Congratulations!",            message: "A baby on the way is wonderful news. So happy for you and your family.", anim: "hearts" },
+    holiday_new_years_day:         { title: "Happy New Year!",             message: "Here's to a great year ahead — thanks for being part of the team.",      anim: "fireworks" },
+    holiday_mlk_day:               { title: "Honoring Dr. King",           message: "A day to reflect on the dream of justice and equality for all.",         anim: "star" },
+    holiday_valentines_day:        { title: "Happy Valentine's Day!",      message: "A little love sent your way from the whole team.",                       anim: "hearts" },
+    holiday_presidents_day:        { title: "Happy Presidents' Day",       message: "A day to honor the leaders who have shaped our country.",                anim: "flag" },
+    holiday_st_patricks_day:       { title: "Happy St. Patrick's Day!",    message: "Wishing you a little extra luck of the Irish out on the road today.",    anim: "sparkle" },
+    holiday_easter:                { title: "Happy Easter!",               message: "Wishing you a peaceful, joyful Easter from the whole team.",             anim: "egg" },
+    holiday_mothers_day:           { title: "Happy Mother's Day!",         message: "To all the moms on the team — thank you for everything you do.",         anim: "flower" },
+    holiday_memorial_day:          { title: "Memorial Day",                message: "Honoring those who gave everything in service of our country.",          anim: "flag" },
+    holiday_juneteenth:            { title: "Happy Juneteenth!",           message: "A day to celebrate freedom, history, and the road ahead.",               anim: "star" },
+    holiday_fathers_day:           { title: "Happy Father's Day!",         message: "To all the dads on the team — thank you for everything you do.",         anim: "trophy" },
+    holiday_independence_day:      { title: "Happy 4th of July!",          message: "Wishing you a safe and festive Independence Day.",                       anim: "fireworks" },
+    holiday_labor_day:             { title: "Happy Labor Day!",            message: "Thanks for the hard work — enjoy the day off.",                          anim: "sparkle" },
+    holiday_indigenous_peoples_day:{ title: "Indigenous Peoples' Day",     message: "Honoring the history, cultures, and contributions of Indigenous peoples.", anim: "leaf" },
+    holiday_halloween:             { title: "Happy Halloween!",            message: "Stay spooky out there — and watch out for the goblins.",                 anim: "pumpkin" },
+    holiday_veterans_day:          { title: "Thank You, Veterans",         message: "With gratitude for your service — today and every day.",                 anim: "flag" },
+    holiday_thanksgiving:          { title: "Happy Thanksgiving!",         message: "Grateful to have you on the team. Enjoy the day with the people you love.", anim: "leaf" },
+    holiday_christmas:             { title: "Merry Christmas!",            message: "Wishing you a warm, joyful Christmas with family and friends.",          anim: "tree" },
+  };
   const initKind = opts.kind || "custom";
-  const initTitle = opts.kind === "birthday" ? "Happy birthday!"
-                  : opts.kind === "work_anniversary" ? (opts.years ? `${opts.years}-year anniversary 🎉` : "Happy work anniversary!")
-                  : opts.kind === "welcome_to_team" ? "Welcome to the Team"
-                  : "";
-  const initMessage = opts.kind === "welcome_to_team"
-                  ? "We're excited to have you here. Let's make this a great first day."
-                  : "";
-  const initAnim  = opts.kind === "birthday" ? "cake"
-                  : opts.kind === "work_anniversary" ? "trophy"
-                  : opts.kind === "safety_milestone" ? "sparkle"
-                  : opts.kind === "welcome_to_team" ? "welcome"
-                  : "confetti";
+  const initDefaults = KIND_DEFAULTS[initKind] || KIND_DEFAULTS.custom;
+  const initTitle = initKind === "work_anniversary" && opts.years
+    ? `${opts.years}-year anniversary 🎉`
+    : initDefaults.title;
+  const initMessage = initDefaults.message;
+  const initAnim    = initDefaults.anim;
   wrap.innerHTML = `
     <style>
       #rr-recog-send-modal .rr-modal-panel{width:560px;max-width:96vw}
@@ -38127,7 +38194,7 @@ async function openRecogSendModal(opts) {
           <div class="field">
             <label for="rr-recog-kind">Kind</label>
             <select id="rr-recog-kind">
-              ${kindOpts.map((k) => `<option value="${k.v}"${k.v === initKind ? " selected" : ""}>${k.l}</option>`).join("")}
+              ${kindGroups.map((g) => `<optgroup label="${escapeHtml(g.label)}">${g.opts.map((k) => `<option value="${k.v}"${k.v === initKind ? " selected" : ""}>${escapeHtml(k.l)}</option>`).join("")}</optgroup>`).join("")}
             </select>
           </div>
           <div class="field">
@@ -38244,26 +38311,18 @@ async function openRecogSendModal(opts) {
     const titleEl = wrap.querySelector("#rr-recog-title");
     const msgEl   = wrap.querySelector("#rr-recog-message");
     const hintEl  = wrap.querySelector("#rr-recog-anim-hint");
-    const defaults = {
-      welcome_to_team: {
-        title: "Welcome to the Team",
-        message: "We're excited to have you here. Let's make this a great first day.",
-        anim: "welcome",
-        hint: "Drivers see a full-screen celebration with confetti, a hex badge, and the message above the next time they open the app.",
-      },
-      birthday:         { title: "Happy birthday!",          message: "", anim: "cake",     hint: "" },
-      work_anniversary: { title: "Happy work anniversary!",  message: "", anim: "trophy",   hint: "" },
-      safety_milestone: { title: "Safety milestone",         message: "", anim: "sparkle",  hint: "" },
-      custom:           { title: "",                         message: "", anim: "confetti", hint: "" },
-    };
-    const d = defaults[k];
+    const d = KIND_DEFAULTS[k];
     if (!d) return;
     if (titleEl && !titleEl.value.trim()) titleEl.value = d.title;
     if (msgEl   && !msgEl.value.trim())   msgEl.value   = d.message;
     if (d.anim) {
       wrap.querySelectorAll(".anim-pick").forEach((b) => b.classList.toggle("is-on", b.getAttribute("data-anim") === d.anim));
     }
-    if (hintEl && d.hint) hintEl.textContent = d.hint;
+    if (hintEl) {
+      hintEl.textContent = k === "welcome_to_team"
+        ? "Drivers see a full-screen celebration with confetti, a hex badge, and the message above the next time they open the app."
+        : "The driver app will play the chosen animation when they open the celebration.";
+    }
   });
 
   // Submit.
