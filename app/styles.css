@@ -2742,3 +2742,151 @@ body.is-home main > .home-hero{
    Keep just the active-indicator opacity bump for consistency. */
 .tab.active::before{ background:#2563FF;opacity:.65 }
 .tab.active{ color:#2563FF }
+
+/* ─────────────────────────────────────────────────────────────────
+   ROUTEREADY REWARDS — driver wallet + home strip + cards
+   ───────────────────────────────────────────────────────────────── */
+
+/* Home strip · single sleek card linking to the wallet.  Two
+   variants: rw-strip-live (unclaimed exists, mini gradient card
+   visible) and rw-strip-quiet (claimed-only, all-white card). */
+.rewards-strip{ margin:14px 16px 0;display:block }
+.rw-strip{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;
+  background:#FFFFFF;border:1px solid rgba(15,23,42,.06);border-radius:18px;
+  box-shadow:0 1px 2px rgba(15,23,42,.03);
+  text-decoration:none;color:inherit;
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.rw-strip:active{ transform:scale(.992) }
+.rw-strip-card{
+  position:relative;flex:0 0 auto;
+  width:62px;height:42px;border-radius:9px;overflow:hidden;
+  color:#fff;padding:6px 8px;
+  display:flex;flex-direction:column;justify-content:space-between;
+  box-shadow:0 6px 14px rgba(15,23,42,.18);
+}
+.rw-strip-card-eyebrow{ font-size:7.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.9 }
+.rw-strip-card-amt{ font-size:14px;font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1 }
+.rw-strip-card-shine{
+  position:absolute;top:-30%;left:-10%;width:140%;height:60%;
+  background:linear-gradient(180deg, rgba(255,255,255,.18), transparent);
+  transform:rotate(-12deg);pointer-events:none;
+}
+.rw-strip-ico{
+  width:40px;height:40px;border-radius:12px;flex:0 0 auto;
+  background:#EFF6FF;color:#1D4ED8;
+  display:inline-flex;align-items:center;justify-content:center;
+}
+.rw-strip-ico svg{ width:20px;height:20px }
+.rw-strip-body{ flex:1;min-width:0;display:flex;flex-direction:column;gap:1px }
+.rw-strip-title{ font-size:15px;font-weight:700;color:#0F172A;letter-spacing:-.005em }
+.rw-strip-sub{ font-size:12.5px;color:#64748B;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.rw-strip-more{ font-size:11px;font-weight:700;color:#2563FF;margin-top:2px }
+.rw-strip-chev{ flex:0 0 auto;color:#94A3B8 }
+.rw-strip-chev svg{ width:18px;height:18px }
+.rw-strip-quiet .rw-strip-title{ color:#475569;font-weight:600 }
+
+/* Wallet view · /rewards */
+.rw-wallet{ padding:8px 16px 64px }
+.rw-wallet-head{ padding:14px 4px 18px }
+.rw-wallet-eyebrow{
+  font-size:11px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;
+  color:#64748B;margin-bottom:8px;
+}
+.rw-wallet-stat-row{ display:flex;gap:24px }
+.rw-wallet-stat{ display:flex;flex-direction:column;gap:2px }
+.rw-wallet-stat-val{ font-family:'Inter Tight','Inter',sans-serif;font-size:28px;font-weight:800;letter-spacing:-.02em;color:#0F172A;font-variant-numeric:tabular-nums }
+.rw-wallet-stat-lbl{ font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#94A3B8;font-weight:700 }
+
+.rw-wallet-section{ margin-bottom:18px }
+.rw-wallet-section-h{
+  font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:#64748B;margin:10px 4px 10px;
+}
+
+.rw-card{
+  background:#FFFFFF;border:1px solid rgba(15,23,42,.06);border-radius:20px;
+  margin-bottom:14px;overflow:hidden;
+  box-shadow:0 1px 3px rgba(15,23,42,.04);
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.rw-card-front{
+  position:relative;
+  padding:18px 20px 22px;color:#fff;overflow:hidden;
+  min-height:148px;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+.rw-card-front::after{
+  content:"";position:absolute;top:-40px;right:-40px;width:200px;height:200px;
+  background:radial-gradient(circle, rgba(255,255,255,.18) 0%, transparent 70%);
+  pointer-events:none;
+}
+.rw-card-shine{
+  position:absolute;top:0;left:-20%;width:60%;height:100%;
+  background:linear-gradient(120deg, transparent 30%, rgba(255,255,255,.10) 50%, transparent 70%);
+  transform:skewX(-12deg);pointer-events:none;
+}
+.rw-card-row{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  position:relative;z-index:1;
+}
+.rw-card-type{
+  font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.85;
+}
+.rw-card-claimed-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:999px;
+  background:rgba(255,255,255,.18);color:#fff;
+  font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+}
+.rw-card-amount{
+  position:relative;z-index:1;
+  font-family:'Inter Tight','Inter',sans-serif;
+  font-size:42px;font-weight:800;letter-spacing:-.025em;line-height:1;
+  margin:14px 0 0;font-variant-numeric:tabular-nums;
+}
+.rw-card-meta{
+  position:relative;z-index:1;
+  display:flex;flex-direction:column;gap:1px;margin-top:auto;padding-top:12px;
+}
+.rw-card-reason{ font-size:14px;font-weight:600 }
+.rw-card-sender{ font-size:12.5px;opacity:.85 }
+
+.rw-card-note{
+  padding:12px 20px 0;
+  font-size:13.5px;line-height:1.5;color:#475569;font-style:italic;
+}
+.rw-card-foot{
+  padding:14px 20px 16px;
+}
+.rw-card-action{
+  display:block;width:100%;text-align:center;
+  border:0;border-radius:14px;
+  padding:13px 16px;font:inherit;font-size:15px;font-weight:700;
+  cursor:pointer;text-decoration:none;
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+  transition:transform .12s ease, box-shadow .12s ease, background .12s ease;
+}
+.rw-card-action-primary{
+  background:linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
+  color:#FFFFFF;box-shadow:0 8px 22px rgba(29,78,216,.30);
+}
+.rw-card-action-primary:active{ transform:scale(.985);box-shadow:0 4px 10px rgba(29,78,216,.30) }
+.rw-card-action-primary:disabled{ opacity:.7;cursor:default }
+.rw-card-action-quiet{
+  background:#F1F5F9;color:#0F172A;
+}
+.rw-card-action-quiet:active{ background:#E2E8F0 }
+
+.rw-wallet-loading{ padding:30px 16px }
+.rw-wallet-empty{ padding:60px 24px;text-align:center;color:#64748B }
+.rw-wallet-empty-ic{
+  width:64px;height:64px;border-radius:18px;margin:0 auto 14px;
+  background:#EFF6FF;color:#1D4ED8;
+  display:flex;align-items:center;justify-content:center;
+}
+.rw-wallet-empty-ic svg{ width:28px;height:28px }
+.rw-wallet-empty-title{ font-size:17px;font-weight:700;color:#0F172A;margin-bottom:6px }
+.rw-wallet-empty-sub{ font-size:14px;line-height:1.5;max-width:300px;margin:0 auto }

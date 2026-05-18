@@ -59,6 +59,11 @@ edge runtime — you do **not** set them yourself.
 | `APPLY_SHARED_SECRET` | `webhook-apply` | If unset, the function accepts any caller. Set + send `x-apply-secret: <value>` from external integrations. |
 | `PUBLIC_BASE_URL` | `webhook-twilio` (signature check) | Twilio signatures verify against the URL Twilio called; set to the function's public URL. |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | `send-driver-push` | Required to sign Web Push JWTs. Driver PWA notifications + home-screen badge stop firing if missing. Generate once with `npx web-push generate-vapid-keys`. The public key is also written to a database setting (see §5) so the driver app can fetch it via the `driver_push_vapid_key()` RPC. |
+| `REWARD_PROVIDER` | `send-driver-reward` | Which provider to use. `mock` (default) returns fake claim URLs — perfect for dev. `tremendous` hits the real Tremendous API. Add new providers by implementing the `RewardProvider` interface in `supabase/functions/_shared/rewards/`. |
+| `TREMENDOUS_API_KEY` | `send-driver-reward` | Required when `REWARD_PROVIDER=tremendous`. Get a free sandbox key at <https://testflight.tremendous.com/rewards/api> or a production key at <https://app.tremendous.com/rewards/api>. Sandbox is free and returns mock claim URLs; production charges only the reward face value (no platform fee). |
+| `TREMENDOUS_ENV` | `send-driver-reward` | `sandbox` (default) or `production`. Defaults to sandbox so a misconfigured deploy never accidentally bills the org. |
+| `TREMENDOUS_FUNDING_SOURCE` | `send-driver-reward` | Tremendous funding source id. In sandbox `BALANCE` works. In production, copy the id from <https://app.tremendous.com/rewards/funding-sources>. |
+| `TREMENDOUS_CAMPAIGN_ID` | `send-driver-reward` | Optional. If set, every order uses this campaign's catalog (logo, colors, products) instead of the per-type product map in `tremendous.ts`. Recommended for production. |
 
 ### Configure Twilio Messaging Service
 

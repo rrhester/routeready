@@ -815,6 +815,8 @@ const routes = {
   "/chat":              { render: renderChat,            tab: "/chat" },
   "/team":              { render: renderTeam,            tab: "/team" },
   "/profile":           { render: renderProfileHub,      tab: "/profile" },
+  "/rewards":           { render: renderRewardsView,     tab: "/profile", back: "/profile", title: "Rewards" },
+  "/rewards/celebrate": { render: renderRewardCelebration, tab: "/profile" },
   "/settings":          { render: renderSettings,        tab: "/profile", back: "/profile", title: "Settings" },
 };
 function currentRoute() {
@@ -4001,6 +4003,7 @@ function renderProfileHub() {
       </div>
       <div id="rr-missed-slot" hidden></div>
       <section class="up-next" id="rr-upnext-slot" hidden></section>
+      <section class="rewards-strip" id="rr-rewards-slot" hidden></section>
       <section class="van-docs" id="rr-vandocs-slot" hidden></section>
     </div>`;
 
@@ -4020,6 +4023,7 @@ function renderProfileHub() {
   // Independent loaders so the page is responsive while data streams in.
   renderCheckinCard(session);
   renderUpNext(session);
+  renderRewardsStrip(session);
   renderVanDocs(session);
 
   // Pull-to-refresh re-fetches both async surfaces.  Avatar / name
@@ -4029,6 +4033,7 @@ function renderProfileHub() {
     const s = readSession();
     renderCheckinCard(s);
     renderUpNext(s);
+    renderRewardsStrip(s);
     renderVanDocs(s);
   });
 
@@ -4350,6 +4355,7 @@ function renderSettings() {
     availability: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
     "time-off":   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
     attendance:   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+    rewards:      '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 12h18"/><path d="M12 8v13"/><path d="M7.5 8a2.5 2.5 0 1 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>',
   };
 
   const row = (id, route, title, sub) => `
@@ -4371,6 +4377,7 @@ function renderSettings() {
         ${row("availability", "/settings/availability", "Availability", "Days you can work and your earliest start")}
         ${row("time-off",     "/settings/time-off",     "Time off",     "Request a day off and see past decisions")}
         ${row("attendance",   "/settings/attendance",   "Attendance",   "Today's status and your DSP's points policy")}
+        ${row("rewards",      "/rewards",               "Rewards",      "Your digital gift card wallet")}
       </section>
 
       <button class="btn btn-block btn-danger" id="rr-signout" style="margin-top:18px">Sign out</button>
@@ -8231,6 +8238,373 @@ function _unlockAudioOnGesture() {
 ["touchstart", "click", "pointerdown"].forEach((evt) => {
   document.addEventListener(evt, _unlockAudioOnGesture, { once: true, passive: true, capture: true });
 });
+
+// ═════════════════════════════════════════════════════════════════════
+//  ROUTEREADY REWARDS — driver wallet, claim flow, celebration
+// ═════════════════════════════════════════════════════════════════════
+// Data layer: driver_rewards table + driver_rewards_list /
+// driver_reward_open / driver_reward_claim RPCs in migration 0301.
+// Sending happens dashboard-side via the send-driver-reward edge
+// function — the driver app only ever reads + claims.
+//
+// UX pillars: Apple Wallet calm, premium gradient cards, restrained
+// celebration that doesn't feel gimmicky.  Each card is one reward
+// with status state machine: ready → claimed.
+
+const REWARD_TYPE_LABELS_APP = {
+  amazon:     "Amazon",
+  visa:       "Visa",
+  walmart:    "Walmart",
+  gas_card:   "Gas Card",
+  restaurant: "Restaurant",
+  general:    "Reward",
+};
+const REWARD_REASON_LABELS_APP = {
+  perfect_attendance: "Perfect attendance",
+  great_rescue:       "Great rescue",
+  safety:             "Safety",
+  customer_feedback:  "Customer feedback",
+  teamwork:           "Teamwork",
+  peak_performance:   "Peak performance",
+  above_and_beyond:   "Above & beyond",
+  custom:             "Recognition",
+};
+// Per-type gradient + accent.  Calm enterprise palette — no neon.
+const REWARD_TYPE_THEME = {
+  amazon:     { grad: "linear-gradient(135deg, #1a1f2c 0%, #232f3e 60%, #ff9900 130%)", accent: "#ff9900" },
+  visa:       { grad: "linear-gradient(135deg, #1a1f71 0%, #2d3a8a 60%, #f7b600 130%)", accent: "#f7b600" },
+  walmart:    { grad: "linear-gradient(135deg, #002d6e 0%, #0071ce 60%, #ffc220 130%)", accent: "#ffc220" },
+  gas_card:   { grad: "linear-gradient(135deg, #0f3d2e 0%, #16604a 60%, #34d399 130%)", accent: "#34d399" },
+  restaurant: { grad: "linear-gradient(135deg, #4c0519 0%, #881337 60%, #fb7185 130%)", accent: "#fb7185" },
+  general:    { grad: "linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #2563eb 130%)", accent: "#3b82f6" },
+};
+
+function _rewardMoney(cents) {
+  if (cents == null) return "$0";
+  const d = cents / 100;
+  if (d % 1 === 0) return `$${d.toLocaleString()}`;
+  return `$${d.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// Module-level state for the celebration takeover.
+let _currentRewardCelebration = null;
+let _seenRewardIds = null;
+
+function _loadSeenRewardIds() {
+  if (_seenRewardIds) return _seenRewardIds;
+  try {
+    const raw = localStorage.getItem("rr_seen_reward_ids");
+    _seenRewardIds = new Set(raw ? JSON.parse(raw) : []);
+  } catch { _seenRewardIds = new Set(); }
+  return _seenRewardIds;
+}
+function _markRewardSeen(id) {
+  const s = _loadSeenRewardIds();
+  s.add(id);
+  try { localStorage.setItem("rr_seen_reward_ids", JSON.stringify(Array.from(s).slice(-200))); } catch {}
+}
+
+// ── renderRewardsStrip · home page card ───────────────────────────────
+// Renders a single sleek "rewards ready" surface on the Profile home
+// when the driver has 1+ unclaimed rewards.  Hides itself if there are
+// none — never shows an empty state on home.
+async function renderRewardsStrip(session) {
+  const slot = document.getElementById("rr-rewards-slot");
+  if (!slot || !session?.token) return;
+  let data, error;
+  try {
+    const res = await sb.rpc("driver_rewards_list", { p_token: session.token });
+    data = res.data; error = res.error;
+  } catch (e) { error = e; }
+  if (error || !data) { slot.hidden = true; return; }
+
+  const rewards = Array.isArray(data.rewards) ? data.rewards : [];
+  const unclaimed = rewards.filter((r) => r.status === "sent" && !r.claimed_at);
+
+  // Surface the celebration takeover for the freshest unclaimed
+  // reward the driver hasn't seen yet.  We don't auto-navigate if
+  // they've already opened the wallet — _seenRewardIds keeps the
+  // celebration from re-firing every home visit.
+  const seen = _loadSeenRewardIds();
+  const fresh = unclaimed.find((r) => r.id && !seen.has(r.id));
+  if (fresh) {
+    _currentRewardCelebration = fresh;
+    _markRewardSeen(fresh.id);
+    navigate("/rewards/celebrate");
+    return;
+  }
+
+  if (!unclaimed.length) {
+    // Show a quiet "Your rewards" entry only if the driver has any
+    // historical rewards at all (claimed wallet).  Otherwise hide
+    // completely — empty surface is noise.
+    if (!rewards.length) { slot.hidden = true; return; }
+    slot.hidden = false;
+    slot.innerHTML = `
+      <a href="#/rewards" class="rw-strip rw-strip-quiet" aria-label="View your rewards">
+        <span class="rw-strip-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 12h18"/><path d="M12 8v13"/></svg>
+        </span>
+        <span class="rw-strip-body">
+          <span class="rw-strip-title">Your rewards</span>
+          <span class="rw-strip-sub">${rewards.length} reward${rewards.length === 1 ? "" : "s"} in your wallet</span>
+        </span>
+        <span class="rw-strip-chev" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </span>
+      </a>`;
+    return;
+  }
+
+  slot.hidden = false;
+  const r = unclaimed[0];
+  const theme = REWARD_TYPE_THEME[r.reward_type] || REWARD_TYPE_THEME.general;
+  const more = unclaimed.length > 1 ? `<span class="rw-strip-more">+${unclaimed.length - 1} more</span>` : "";
+
+  slot.innerHTML = `
+    <a href="#/rewards" class="rw-strip rw-strip-live" aria-label="View your reward">
+      <span class="rw-strip-card" style="background:${theme.grad}">
+        <span class="rw-strip-card-eyebrow">${escapeHtml(REWARD_TYPE_LABELS_APP[r.reward_type] || "Reward")} reward</span>
+        <span class="rw-strip-card-amt">${_rewardMoney(r.amount_cents)}</span>
+        <span class="rw-strip-card-shine" aria-hidden="true"></span>
+      </span>
+      <span class="rw-strip-body">
+        <span class="rw-strip-title">Ready to claim</span>
+        <span class="rw-strip-sub">${escapeHtml(REWARD_REASON_LABELS_APP[r.reason] || "From your team")} · sent by ${escapeHtml(r.sender_name || "your team")}</span>
+        ${more}
+      </span>
+      <span class="rw-strip-chev" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </span>
+    </a>`;
+}
+
+// ── renderRewardsView · /rewards full wallet ──────────────────────────
+async function renderRewardsView() {
+  const session = readSession();
+  const main = document.getElementById("main");
+  if (!session?.token || !main) return;
+
+  setHeader("Rewards", "");
+
+  main.innerHTML = `
+    <div class="rw-wallet">
+      <div class="rw-wallet-head">
+        <div class="rw-wallet-eyebrow">Your wallet</div>
+        <div class="rw-wallet-stat-row" id="rw-wallet-stats">
+          <div class="rw-wallet-stat"><span class="rw-wallet-stat-val" id="rw-stat-ready">—</span><span class="rw-wallet-stat-lbl">Ready</span></div>
+          <div class="rw-wallet-stat"><span class="rw-wallet-stat-val" id="rw-stat-total">—</span><span class="rw-wallet-stat-lbl">Lifetime</span></div>
+        </div>
+      </div>
+      <div id="rw-wallet-list">
+        <div class="rw-wallet-loading">
+          <div class="loader" style="margin:24px auto;width:24px;height:24px;border-width:3px"></div>
+        </div>
+      </div>
+    </div>`;
+
+  await _hydrateRewardsWallet(session);
+
+  setRefresh(() => _hydrateRewardsWallet(session));
+}
+
+async function _hydrateRewardsWallet(session) {
+  const listEl = document.getElementById("rw-wallet-list");
+  if (!listEl) return;
+  const { data, error } = await sb.rpc("driver_rewards_list", { p_token: session.token });
+  if (error || !data) {
+    listEl.innerHTML = `<div class="rw-wallet-empty">Couldn't load your rewards. Pull down to try again.</div>`;
+    return;
+  }
+  const rewards = Array.isArray(data.rewards) ? data.rewards : [];
+  const unclaimed = rewards.filter((r) => r.status === "sent" && !r.claimed_at);
+
+  // Stats up top.
+  const readyCents = unclaimed.reduce((s, r) => s + (r.amount_cents || 0), 0);
+  const totalCents = rewards.reduce((s, r) => s + (r.amount_cents || 0), 0);
+  const setStat = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setStat("rw-stat-ready", _rewardMoney(readyCents));
+  setStat("rw-stat-total", _rewardMoney(totalCents));
+
+  // Mark every reward as "seen" once they open the wallet so the
+  // home-page celebration doesn't re-fire next render.
+  rewards.forEach((r) => r.id && _markRewardSeen(r.id));
+
+  if (!rewards.length) {
+    listEl.innerHTML = `
+      <div class="rw-wallet-empty">
+        <div class="rw-wallet-empty-ic" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 12h18"/><path d="M12 8v13"/><path d="M7.5 8a2.5 2.5 0 1 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>
+        </div>
+        <div class="rw-wallet-empty-title">No rewards yet</div>
+        <div class="rw-wallet-empty-sub">When your team recognises great work, your rewards land here. Keep up the great driving.</div>
+      </div>`;
+    return;
+  }
+
+  listEl.innerHTML = `
+    <div class="rw-wallet-section">${unclaimed.length ? '<div class="rw-wallet-section-h">Ready to claim</div>' : ""}
+      ${unclaimed.map(_rewardCardHtml).join("")}
+    </div>
+    ${rewards.length > unclaimed.length ? `
+      <div class="rw-wallet-section">
+        <div class="rw-wallet-section-h">Claimed</div>
+        ${rewards.filter((r) => r.status === "claimed" || r.claimed_at).map(_rewardCardHtml).join("")}
+      </div>
+    ` : ""}`;
+
+  // Wire claim buttons.
+  listEl.querySelectorAll("[data-rr-reward-claim]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const id = btn.getAttribute("data-rr-reward-claim");
+      _claimReward(session, id, btn);
+    });
+  });
+  // Stamp opened_at on first interaction with each card.
+  listEl.querySelectorAll(".rw-card[data-rr-reward-id]").forEach((card) => {
+    const id = card.getAttribute("data-rr-reward-id");
+    if (!id) return;
+    sb.rpc("driver_reward_open", { p_token: session.token, p_id: id }).catch(() => {});
+  });
+}
+
+function _rewardCardHtml(r) {
+  const theme = REWARD_TYPE_THEME[r.reward_type] || REWARD_TYPE_THEME.general;
+  const typeLabel = REWARD_TYPE_LABELS_APP[r.reward_type] || "Reward";
+  const reasonLabel = REWARD_REASON_LABELS_APP[r.reason] || "Recognition";
+  const isClaimed = r.status === "claimed" || r.claimed_at;
+  const senderLine = `Sent by ${escapeHtml(r.sender_name || "your team")}`;
+  const note = r.note ? `<div class="rw-card-note">${escapeHtml(r.note)}</div>` : "";
+  const claimedBadge = isClaimed
+    ? `<div class="rw-card-claimed-pill"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Claimed</div>`
+    : "";
+
+  return `
+    <article class="rw-card" data-rr-reward-id="${escapeHtml(r.id)}">
+      <div class="rw-card-front" style="background:${theme.grad}">
+        <div class="rw-card-row">
+          <div class="rw-card-type">${escapeHtml(typeLabel)} reward</div>
+          ${claimedBadge}
+        </div>
+        <div class="rw-card-amount">${_rewardMoney(r.amount_cents)}</div>
+        <div class="rw-card-meta">
+          <div class="rw-card-reason">${escapeHtml(reasonLabel)}</div>
+          <div class="rw-card-sender">${senderLine}</div>
+        </div>
+        <div class="rw-card-shine" aria-hidden="true"></div>
+      </div>
+      ${note}
+      <div class="rw-card-foot">
+        ${isClaimed
+          ? `<a href="${escapeHtml(r.claim_url || "#")}" target="_blank" rel="noopener" class="rw-card-action rw-card-action-quiet">View details</a>`
+          : `<button type="button" class="rw-card-action rw-card-action-primary" data-rr-reward-claim="${escapeHtml(r.id)}">Claim reward</button>`}
+      </div>
+    </article>`;
+}
+
+async function _claimReward(session, id, btn) {
+  if (!id || !session?.token) return;
+  if (btn) { btn.disabled = true; btn.textContent = "Claiming…"; }
+  const { data, error } = await sb.rpc("driver_reward_claim", { p_token: session.token, p_id: id });
+  if (error || !data?.ok) {
+    if (btn) { btn.disabled = false; btn.textContent = "Claim reward"; }
+    toast("Couldn't claim that reward — try again.", "warn");
+    return;
+  }
+  _haptic && _haptic("tap");
+  // Open the claim URL in a new tab so the driver can redeem.  Safari
+  // requires this to happen in the same async tick as the user gesture,
+  // which is fine here since the click handler awaited the RPC.
+  if (data.claim_url) {
+    try { window.open(data.claim_url, "_blank", "noopener"); } catch (_) {}
+  }
+  // Re-render the wallet so the card flips to its claimed state.
+  await _hydrateRewardsWallet(session);
+}
+
+// ── renderRewardCelebration · /rewards/celebrate ──────────────────────
+// Full-screen takeover.  Triggered automatically from home when a
+// brand-new reward arrives that the driver hasn't seen yet.  Mirrors
+// the welcome celebration's structure but with reward-specific theming.
+function renderRewardCelebration() {
+  const ev = _currentRewardCelebration;
+  if (!ev) { navigate("/rewards"); return; }
+  const main = document.getElementById("main");
+  if (!main) return;
+  setHeader("", "");
+
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const theme = REWARD_TYPE_THEME[ev.reward_type] || REWARD_TYPE_THEME.general;
+  const typeLabel = REWARD_TYPE_LABELS_APP[ev.reward_type] || "Reward";
+  const reasonLabel = REWARD_REASON_LABELS_APP[ev.reason] || "Recognition";
+
+  const palette = ["#ffffff", "#facc15", "#60a5fa", "#34d399", theme.accent];
+  const confetti = reduced ? "" : Array.from({ length: 90 }, () => {
+    const left  = (Math.random() * 110 - 5).toFixed(1);
+    const delay = (Math.random() * 2.5).toFixed(2);
+    const dur   = (3.4 + Math.random() * 2.4).toFixed(2);
+    const hue   = palette[Math.floor(Math.random() * palette.length)];
+    const rot   = (Math.random() * 360).toFixed(0);
+    const drift = (Math.random() * 120 - 60).toFixed(0);
+    const size  = (7 + Math.random() * 7).toFixed(0);
+    const round = Math.random() > 0.5 ? "border-radius:50%;" : "";
+    return `<i class="rwc-piece" style="left:${left}vw;background:${hue};width:${size}px;height:${size}px;${round}--rot:${rot}deg;--drift:${drift}px;animation-delay:${delay}s;animation-duration:${dur}s"></i>`;
+  }).join("");
+
+  main.innerHTML = `
+    <style>
+      #rr-reward-celeb{position:fixed;inset:0;z-index:1001;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;color:#fff;background:${theme.grad};overflow:hidden}
+      #rr-reward-celeb .rwc-burst{position:absolute;top:calc(50% - 180px);left:50%;width:480px;height:480px;transform:translate(-50%,-50%);pointer-events:none;background:radial-gradient(circle, rgba(255,255,255,.32) 0%, rgba(255,255,255,.10) 28%, transparent 65%);opacity:.7}
+      #rr-reward-celeb .rwc-piece{position:absolute;top:-24px;width:10px;height:14px;border-radius:2px;opacity:.92;pointer-events:none;will-change:transform,opacity;animation:rwcDrift linear forwards;transform:translate3d(0,0,0) rotate(var(--rot,0deg))}
+      @keyframes rwcDrift{0%{transform:translate3d(0,-20px,0) rotate(var(--rot,0deg));opacity:1}100%{transform:translate3d(var(--drift,0),110vh,0) rotate(calc(var(--rot,0deg) + 540deg));opacity:.85}}
+      #rr-reward-celeb .rwc-tap{position:absolute;inset:0;z-index:1;display:block;-webkit-tap-highlight-color:transparent}
+      #rr-reward-celeb .rwc-card{position:relative;z-index:2;width:100%;max-width:340px;background:#fff;color:#0f172a;border-radius:22px;padding:38px 24px 24px;box-shadow:0 18px 60px rgba(2,12,40,.32),0 2px 10px rgba(2,12,40,.18);text-align:center}
+      #rr-reward-celeb .rwc-badge{position:absolute;top:-32px;left:50%;transform:translateX(-50%);width:68px;height:68px;display:flex;align-items:center;justify-content:center;background:${theme.accent};clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);color:#fff;box-shadow:0 10px 24px rgba(2,12,40,.45),inset 0 -4px 8px rgba(0,0,0,.18)}
+      #rr-reward-celeb .rwc-eyebrow{margin:12px 0 0;font-size:12px;letter-spacing:.10em;text-transform:uppercase;font-weight:700;color:${theme.accent}}
+      #rr-reward-celeb .rwc-amt{margin:8px 0 4px;font-family:'Inter Tight','Inter',sans-serif;font-size:46px;font-weight:800;letter-spacing:-.025em;line-height:1;color:#0f172a;font-variant-numeric:tabular-nums}
+      #rr-reward-celeb .rwc-type{margin:0;font-size:14px;font-weight:600;color:#475569}
+      #rr-reward-celeb .rwc-divider{margin:18px auto 14px;height:1px;width:78%;background:#e5e7eb}
+      #rr-reward-celeb .rwc-reason{font-size:15px;font-weight:600;color:#0f172a;margin-bottom:4px}
+      #rr-reward-celeb .rwc-note{font-size:13px;line-height:1.5;color:#64748b;margin:6px auto 0;max-width:280px}
+      #rr-reward-celeb .rwc-cta{display:block;width:100%;margin:22px 0 0;background:linear-gradient(180deg,#2563eb 0%,#1d4ed8 100%);color:#fff;font-size:17px;font-weight:700;border:0;border-radius:14px;padding:15px 18px;box-shadow:0 8px 22px rgba(29,78,216,.42);cursor:pointer;letter-spacing:.01em;-webkit-tap-highlight-color:rgba(255,255,255,0.25);touch-action:manipulation;font-family:inherit;text-decoration:none;text-align:center;box-sizing:border-box}
+      #rr-reward-celeb .rwc-cta:active{transform:scale(.97);box-shadow:0 4px 10px rgba(29,78,216,.42)}
+      #rr-reward-celeb .rwc-foot{margin-top:14px;font-size:13px;color:rgba(255,255,255,.85);position:relative;z-index:2}
+      #rr-reward-celeb .rwc-close{position:absolute;top:14px;right:14px;z-index:3;width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:rgba(255,255,255,0.25);touch-action:manipulation;text-decoration:none;font-size:22px;font-weight:600;line-height:1}
+      #rr-reward-celeb .rwc-close:active{background:rgba(255,255,255,.35)}
+    </style>
+    <div id="rr-reward-celeb" role="dialog" aria-modal="true">
+      <a href="#/rewards" class="rwc-tap" aria-label="View your rewards"></a>
+      <div class="rwc-burst" aria-hidden="true"></div>
+      ${confetti}
+      <a href="#/rewards" class="rwc-close" aria-label="Close">&times;</a>
+      <div class="rwc-card">
+        <div class="rwc-badge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 12h18"/><path d="M12 8v13"/><path d="M7.5 8a2.5 2.5 0 1 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>
+        </div>
+        <div class="rwc-eyebrow">You earned a reward</div>
+        <div class="rwc-amt">${_rewardMoney(ev.amount_cents)}</div>
+        <div class="rwc-type">${escapeHtml(typeLabel)} reward</div>
+        <div class="rwc-divider" aria-hidden="true"></div>
+        <div class="rwc-reason">${escapeHtml(reasonLabel)}</div>
+        ${ev.note ? `<div class="rwc-note">"${escapeHtml(ev.note)}"</div>` : ""}
+        <a href="#/rewards" class="rwc-cta">View my wallet</a>
+      </div>
+      <div class="rwc-foot">Sent by ${escapeHtml(ev.sender_name || "your team")}</div>
+    </div>`;
+
+  // Soft success sound — reuses the same chime as the welcome celebration.
+  setTimeout(() => { try { _playCelebrationChime(); } catch (_) {} }, 180);
+  // Subtle haptic-style buzz so the receipt feels physical.
+  try { _haptic && _haptic("success"); } catch (_) {}
+
+  // Fire-and-forget delivery mark.  Idempotent server-side.
+  const session = readSession();
+  if (session?.token && ev.id) {
+    sb.rpc("driver_reward_open", { p_token: session.token, p_id: ev.id }).catch(() => {});
+  }
+}
+
 
 // Version tag removed — the celebration flow is verified working in
 // production.  Cache-buster on app.js?v=NNN still tells us which

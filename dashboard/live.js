@@ -38323,6 +38323,10 @@ window.loadRecognitionView = loadRecognitionView;
 window.loadRecognitionSubPane = function (sub) {
   if (sub === "upcoming") _loadRecognitionUpcoming();
   else if (sub === "history") _loadRecognitionHistory();
+  else if (sub === "rewards") {
+    _loadRewardsAnalytics();
+    _loadRewardsHistory();
+  }
   // 'safety' is a stub — no fetch needed.
 };
 
@@ -38869,6 +38873,551 @@ async function openRecogSendModal(opts) {
     } else {
       input.focus();
     }
+  }, 0);
+}
+
+
+// ═════════════════════════════════════════════════════════════════════
+//  ROUTEREADY REWARDS  (Recognition → Rewards tab)
+// ═════════════════════════════════════════════════════════════════════
+// Data layer: driver_rewards table + rewards_list / rewards_analytics
+// RPCs in migration 0301.  Send path goes through the send-driver-
+// reward edge function, which calls the configured provider (mock by
+// default, Tremendous when REWARD_PROVIDER + TREMENDOUS_API_KEY are
+// set).  See supabase/functions/_shared/rewards/ for the abstraction.
+
+let _rewardsHistoryData = [];
+let _rewardsSearch      = "";
+let _rewardsStatus      = "all";
+
+const REWARD_TYPE_LABELS = {
+  amazon:     "Amazon",
+  visa:       "Visa",
+  walmart:    "Walmart",
+  gas_card:   "Gas card",
+  restaurant: "Restaurant",
+  general:    "General",
+};
+const REWARD_REASON_LABELS = {
+  perfect_attendance: "Perfect attendance",
+  great_rescue:       "Great rescue",
+  safety:             "Safety",
+  customer_feedback:  "Customer feedback",
+  teamwork:           "Teamwork",
+  peak_performance:   "Peak performance",
+  above_and_beyond:   "Above &amp; beyond",
+  custom:             "Custom",
+};
+
+function _rewardsFmtMoney(cents) {
+  if (cents == null || isNaN(cents)) return "—";
+  const dollars = (cents / 100);
+  // Whole-dollar amounts collapse to "$25" instead of "$25.00" — cleaner.
+  if (dollars % 1 === 0) return `$${dollars.toLocaleString()}`;
+  return `$${dollars.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function _rewardsFmtRelative(iso) {
+  if (!iso) return "—";
+  const t = new Date(iso).getTime();
+  if (!isFinite(t)) return "—";
+  const diff = Date.now() - t;
+  const mins = Math.round(diff / 60000);
+  if (mins < 1)   return "just now";
+  if (mins < 60)  return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24)   return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 7)   return `${days}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function _rewardsAvatar(name, photoPath) {
+  if (photoPath) {
+    return `<img alt="" src="${escapeHtml(cfg.SUPABASE_URL)}/storage/v1/object/public/driver-photos/${encodeURI(photoPath)}" loading="lazy">`;
+  }
+  const initials = (name || "?").split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() || "").join("") || "?";
+  return escapeHtml(initials);
+}
+
+async function _loadRewardsAnalytics() {
+  const { data, error } = await sb.rpc("rewards_analytics", { p_days: 30 });
+  if (error || !data) {
+    // Silently leave dashes — analytics shouldn't break the whole pane.
+    return;
+  }
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set("rr-rewards-kpi-sent",     String(data.sent_count ?? 0));
+  set("rr-rewards-kpi-sent-sub", `${data.claimed_count ?? 0} claimed`);
+  set("rr-rewards-kpi-amount",   _rewardsFmtMoney(data.total_sent_cents || 0));
+  set("rr-rewards-kpi-amount-sub","Past 30 days");
+  const claimRate = data.claim_rate;
+  set("rr-rewards-kpi-claimed",  claimRate == null ? "—" : `${Math.round(claimRate * 100)}%`);
+  set("rr-rewards-kpi-claimed-sub", `${data.claimed_count ?? 0} of ${data.sent_count ?? 0} sent`);
+  const partRate = data.participation_rate;
+  set("rr-rewards-kpi-part",     partRate == null ? "—" : `${Math.round(partRate * 100)}%`);
+  set("rr-rewards-kpi-part-sub", `${data.recipients_count ?? 0} of ${data.active_driver_count ?? 0} drivers`);
+
+  // Top recipients.
+  const topEl = document.getElementById("rr-rewards-top");
+  if (topEl) {
+    const top = Array.isArray(data.top_recipients) ? data.top_recipients : [];
+    if (!top.length) {
+      topEl.innerHTML = `<div class="rw-empty">Send your first reward to see who's earning recognition.</div>`;
+    } else {
+      topEl.innerHTML = top.map((t) => `
+        <div class="rw-top-row">
+          <span class="rw-top-avatar">${_rewardsAvatar(t.name, t.photo_path)}</span>
+          <div class="rw-top-body">
+            <div class="rw-top-name">${escapeHtml(t.name || "Driver")}</div>
+            <div class="rw-top-sub">${t.count} reward${t.count === 1 ? "" : "s"}</div>
+          </div>
+          <div class="rw-top-amount">${_rewardsFmtMoney(t.total_cents)}</div>
+        </div>`).join("");
+    }
+  }
+
+  // Reward mix bars.
+  const mixEl = document.getElementById("rr-rewards-mix");
+  if (mixEl) {
+    const mix = Array.isArray(data.by_type) ? data.by_type : [];
+    if (!mix.length) {
+      mixEl.innerHTML = `<div class="rw-empty">No rewards in the last 30 days.</div>`;
+    } else {
+      const max = Math.max(...mix.map((m) => m.count || 0), 1);
+      mixEl.innerHTML = mix.map((m) => {
+        const pct = Math.max(8, Math.round(((m.count || 0) / max) * 100));
+        return `
+          <div class="rw-type-row">
+            <span class="rw-type-label">${escapeHtml(REWARD_TYPE_LABELS[m.reward_type] || m.reward_type)}</span>
+            <span class="rw-type-track"><span class="rw-type-fill" style="width:${pct}%"></span></span>
+            <span class="rw-type-count">${m.count}</span>
+          </div>`;
+      }).join("");
+    }
+  }
+}
+
+async function _loadRewardsHistory() {
+  const tbody = document.getElementById("rr-rewards-tbody");
+  if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="padding:var(--s-6);text-align:center;color:var(--text-subtle)">Loading…</td></tr>`;
+  const { data, error } = await sb.rpc("rewards_list", { p_status: _rewardsStatus, p_limit: 200 });
+  if (error) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="padding:var(--s-6);text-align:center;color:var(--red-dark, #b91c1c)">Couldn't load rewards: ${escapeHtml(error.message || "")}</td></tr>`;
+    return;
+  }
+  _rewardsHistoryData = Array.isArray(data) ? data : [];
+  _renderRewardsHistory();
+}
+
+function _renderRewardsHistory() {
+  const tbody = document.getElementById("rr-rewards-tbody");
+  if (!tbody) return;
+  const q = (_rewardsSearch || "").trim().toLowerCase();
+  const rows = _rewardsHistoryData.filter((r) => !q || (r.driver_name || "").toLowerCase().includes(q));
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="padding:var(--s-7) var(--s-5);text-align:center;color:var(--text-subtle)">
+      <div style="font-weight:600;color:var(--text);margin-bottom:6px">No rewards yet</div>
+      <div>Use <strong>Send reward</strong> in the top right to recognise a driver with a digital gift card.</div>
+    </td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r) => {
+    const typeLabel   = REWARD_TYPE_LABELS[r.reward_type] || r.reward_type;
+    const reasonLabel = REWARD_REASON_LABELS[r.reason]    || r.reason;
+    const status      = (r.status || "sent").toLowerCase();
+    return `
+      <tr>
+        <td>
+          <div class="rg-driver">
+            <span class="rg-avatar">${_rewardsAvatar(r.driver_name, r.photo_path)}</span>
+            <span>${escapeHtml(r.driver_name || "Driver")}</span>
+          </div>
+        </td>
+        <td><span class="rw-type">${escapeHtml(typeLabel)}</span></td>
+        <td>${reasonLabel /* contains &amp; — pre-escaped */}</td>
+        <td style="text-align:right"><span class="rw-amount">${_rewardsFmtMoney(r.amount_cents)}</span></td>
+        <td><span class="rw-status ${escapeHtml(status)}"><span class="dot"></span>${escapeHtml(status)}</span></td>
+        <td style="color:var(--text-muted);font-size:var(--fs-sm)">${escapeHtml(_rewardsFmtRelative(r.sent_at || r.created_at))}<small style="display:block;color:var(--text-subtle);font-size:11px">by ${escapeHtml(r.sender_name || "")}</small></td>
+      </tr>`;
+  }).join("");
+}
+
+// Input/filter wiring + CTA + quick-send chips.  Single delegated
+// listener so we don't have to re-bind on every render.
+document.addEventListener("input", (e) => {
+  if (e.target && e.target.id === "rr-rewards-search") {
+    _rewardsSearch = e.target.value || "";
+    _renderRewardsHistory();
+  }
+});
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.id === "rr-rewards-statusfilter") {
+    _rewardsStatus = e.target.value || "all";
+    _loadRewardsHistory();
+  }
+});
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#rr-rewards-send-cta")) {
+    e.preventDefault();
+    openRewardSendModal({});
+    return;
+  }
+  const quick = e.target.closest("[data-rr-rewards-quick]");
+  if (quick) {
+    e.preventDefault();
+    const amount = parseInt(quick.getAttribute("data-rr-rewards-quick"), 10) || 2500;
+    const rtype  = quick.getAttribute("data-rr-rewards-type") || "amazon";
+    // Map quick-chip → recommended reason.  Operators can change it.
+    const reasonByType = {
+      amazon: "above_and_beyond",
+      visa: "perfect_attendance",
+      gas_card: "great_rescue",
+      general: "peak_performance",
+      restaurant: "teamwork",
+    };
+    openRewardSendModal({ amount_cents: amount, reward_type: rtype, reason: reasonByType[rtype] || "above_and_beyond" });
+  }
+});
+
+// ── Send reward modal ────────────────────────────────────────────────
+// Slide-over panel that mirrors the recognition send modal but is
+// scoped to the Rewards lifecycle.  POSTs to the send-driver-reward
+// edge function on submit.
+async function openRewardSendModal(opts) {
+  opts = opts || {};
+
+  // Reuse the driver cache populated by openRecogSendModal so we don't
+  // re-fetch.  Cold-open path populates it directly.
+  if (!_recogDriverCache) {
+    const { data } = await sb.from("drivers")
+      .select("id, full_name, preferred_name, photo_path, role, status")
+      .eq("dsp_id", window.RR.dsp.id)
+      .eq("role", "driver")
+      .eq("status", "active")
+      .order("full_name", { ascending: true })
+      .limit(2000);
+    _recogDriverCache = (Array.isArray(data) ? data : []).map((d) => ({
+      id: d.id,
+      name: (d.preferred_name && d.preferred_name.trim()) || d.full_name || "Driver",
+      photo_path: d.photo_path || null,
+    }));
+  }
+
+  let wrap = document.getElementById("rr-reward-send-modal");
+  if (wrap) wrap.remove();
+  wrap = document.createElement("div");
+  wrap.id = "rr-reward-send-modal";
+  wrap.className = "rr-modal-backdrop";
+
+  const amountPresets = [1000, 1500, 2500, 5000, 10000];
+  const initAmount    = opts.amount_cents || 2500;
+  const initType      = opts.reward_type   || "amazon";
+  const initReason    = opts.reason        || "above_and_beyond";
+
+  wrap.innerHTML = `
+    <style>
+      /* Premium slide-over.  Anchors to the right edge so the page
+         behind stays visible — feels like a side panel rather than a
+         blocking modal.  Reuses .rr-modal-* base classes for type,
+         buttons, and animation. */
+      #rr-reward-send-modal{justify-content:flex-end;padding:0;background:rgba(15,23,42,.32);backdrop-filter:saturate(140%) blur(2px);}
+      #rr-reward-send-modal .rr-modal-panel{
+        width:520px;max-width:100vw;max-height:100vh;height:100vh;
+        border-radius:0;animation:rwSlideIn .28s cubic-bezier(.2,.85,.25,1) both;
+      }
+      @keyframes rwSlideIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+
+      #rr-reward-send-modal .rw-modal-body{padding:var(--s-5);overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:var(--s-4-5)}
+      #rr-reward-send-modal label{display:block;font-size:var(--fs-sm);font-weight:600;color:var(--text);margin-bottom:8px}
+      #rr-reward-send-modal .rw-field{display:flex;flex-direction:column;gap:0}
+      #rr-reward-send-modal .rw-hint{margin-top:6px;font-size:var(--fs-xs);color:var(--text-subtle)}
+      #rr-reward-send-modal input[type="text"],
+      #rr-reward-send-modal input[type="number"],
+      #rr-reward-send-modal textarea,
+      #rr-reward-send-modal select{
+        width:100%;padding:10px var(--s-3);border:1px solid var(--border);border-radius:var(--r-md);
+        background:var(--surface);font-size:var(--fs-md);font-family:inherit;color:var(--text);
+        transition:border-color var(--t-fast), box-shadow var(--t-fast);
+      }
+      #rr-reward-send-modal input:focus,
+      #rr-reward-send-modal textarea:focus,
+      #rr-reward-send-modal select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+      #rr-reward-send-modal textarea{min-height:78px;resize:vertical}
+
+      #rr-reward-send-modal .rw-amounts{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+      #rr-reward-send-modal .rw-amount-chip{
+        padding:10px 0;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);
+        font-weight:700;color:var(--text);font-size:var(--fs-md);cursor:pointer;text-align:center;
+        font-variant-numeric:tabular-nums;transition:all var(--t-fast);
+      }
+      #rr-reward-send-modal .rw-amount-chip:hover{border-color:var(--accent-border);background:var(--accent-soft);color:var(--accent-text)}
+      #rr-reward-send-modal .rw-amount-chip.is-on{border-color:var(--accent);background:var(--accent);color:#fff}
+      #rr-reward-send-modal .rw-amount-custom{
+        display:flex;align-items:center;gap:8px;margin-top:10px;
+      }
+      #rr-reward-send-modal .rw-amount-custom span{font-weight:700;color:var(--text-muted)}
+
+      #rr-reward-send-modal .rw-types{display:grid;grid-template-columns:repeat(3, 1fr);gap:8px}
+      #rr-reward-send-modal .rw-type-card{
+        display:flex;flex-direction:column;align-items:center;gap:6px;
+        padding:12px 8px;border:1px solid var(--border);border-radius:var(--r-md);
+        background:var(--surface);cursor:pointer;text-align:center;
+        font-size:var(--fs-sm);font-weight:600;color:var(--text);
+        transition:all var(--t-fast);
+      }
+      #rr-reward-send-modal .rw-type-card:hover{border-color:var(--accent-border);background:var(--accent-soft);color:var(--accent-text)}
+      #rr-reward-send-modal .rw-type-card.is-on{border-color:var(--accent);background:var(--accent);color:#fff}
+      #rr-reward-send-modal .rw-type-card svg{width:18px;height:18px}
+
+      /* Preview card — Apple-Wallet-ish */
+      #rr-reward-send-modal .rw-preview{
+        padding:var(--s-4) var(--s-4-5);border-radius:var(--r-lg);
+        background:linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #1d4ed8 100%);
+        color:#fff;box-shadow:0 12px 30px rgba(15,23,42,.18);position:relative;overflow:hidden;
+        min-height:128px;display:flex;flex-direction:column;justify-content:space-between;
+      }
+      #rr-reward-send-modal .rw-preview::after{
+        content:"";position:absolute;top:-40px;right:-40px;width:180px;height:180px;
+        background:radial-gradient(circle, rgba(255,255,255,.16) 0%, transparent 70%);
+      }
+      #rr-reward-send-modal .rw-prev-head{display:flex;align-items:center;justify-content:space-between;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;opacity:.85}
+      #rr-reward-send-modal .rw-prev-amt{font-family:'Inter Tight','Inter',sans-serif;font-size:34px;font-weight:700;letter-spacing:-.02em;line-height:1;margin-top:4px}
+      #rr-reward-send-modal .rw-prev-meta{font-size:var(--fs-sm);opacity:.9;line-height:1.4;margin-top:auto}
+
+      /* Driver picker (matches recog modal) */
+      #rr-reward-send-modal .rw-driver-picker{position:relative}
+      #rr-reward-send-modal .rw-driver-list{max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:5;display:none;box-shadow:0 8px 20px rgba(15,23,42,.12)}
+      #rr-reward-send-modal .rw-driver-list.is-open{display:block}
+      #rr-reward-send-modal .rw-driver-row{padding:var(--s-2) var(--s-3);cursor:pointer;display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md)}
+      #rr-reward-send-modal .rw-driver-row:hover{background:var(--canvas)}
+    </style>
+    <div class="rr-modal-panel" role="dialog" aria-modal="true" aria-label="Send a reward">
+      <div class="rr-modal-head">
+        <div class="rr-modal-head-content">
+          <span class="rr-modal-eyebrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 12h18"/><path d="M12 8v13"/><path d="M7.5 8a2.5 2.5 0 1 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg> Rewards</span>
+          <p class="rr-modal-title">Send a reward</p>
+          <p class="rr-modal-sub">A digital gift card delivered inside the driver's app — they tap Claim to redeem.</p>
+        </div>
+        <button class="rr-modal-close" type="button" data-rr-reward-close aria-label="Close">×</button>
+      </div>
+      <div class="rw-modal-body">
+
+        <!-- Preview card -->
+        <div class="rw-preview" id="rr-reward-preview">
+          <div class="rw-prev-head">
+            <span id="rr-reward-prev-type">${escapeHtml(REWARD_TYPE_LABELS[initType] || initType)} reward</span>
+            <span style="opacity:.7">RouteReady</span>
+          </div>
+          <div>
+            <div class="rw-prev-amt" id="rr-reward-prev-amt">${_rewardsFmtMoney(initAmount)}</div>
+          </div>
+          <div class="rw-prev-meta" id="rr-reward-prev-meta">Pick a driver above to preview the recipient.</div>
+        </div>
+
+        <div class="rw-field rw-driver-picker">
+          <label for="rr-reward-driver-input">Driver</label>
+          <input id="rr-reward-driver-input" type="text" autocomplete="off" placeholder="Search by name…" value="${escapeHtml(opts.driver_name || "")}">
+          <input id="rr-reward-driver-id" type="hidden" value="${escapeHtml(opts.driver_id || "")}">
+          <div class="rw-driver-list" id="rr-reward-driver-list"></div>
+        </div>
+
+        <div class="rw-field">
+          <label>Amount</label>
+          <div class="rw-amounts" id="rr-reward-amounts">
+            ${amountPresets.map((a) => `<button type="button" class="rw-amount-chip${a === initAmount ? " is-on" : ""}" data-amt="${a}">${_rewardsFmtMoney(a)}</button>`).join("")}
+          </div>
+          <div class="rw-amount-custom">
+            <span>Custom</span>
+            <input id="rr-reward-amount-custom" type="number" min="1" max="100" step="1" inputmode="numeric" placeholder="Other amount in dollars">
+          </div>
+        </div>
+
+        <div class="rw-field">
+          <label>Reward type</label>
+          <div class="rw-types" id="rr-reward-types">
+            ${Object.entries(REWARD_TYPE_LABELS).map(([v, l]) => `
+              <button type="button" class="rw-type-card${v === initType ? " is-on" : ""}" data-type="${v}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 12h18"/><path d="M12 8v13"/><path d="M7.5 8a2.5 2.5 0 1 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>
+                ${escapeHtml(l)}
+              </button>`).join("")}
+          </div>
+          <div class="rw-hint">Driver picks the specific gift card at redemption when supported by the provider.</div>
+        </div>
+
+        <div class="rw-field">
+          <label for="rr-reward-reason">Recognition reason</label>
+          <select id="rr-reward-reason">
+            ${Object.entries(REWARD_REASON_LABELS).map(([v, l]) => `<option value="${v}"${v === initReason ? " selected" : ""}>${l}</option>`).join("")}
+          </select>
+        </div>
+
+        <div class="rw-field">
+          <label for="rr-reward-note">Personal note <span style="font-weight:400;color:var(--text-subtle)">(optional)</span></label>
+          <textarea id="rr-reward-note" maxlength="280" placeholder="e.g. Thanks for staying late to cover for Alex."></textarea>
+          <div class="rw-hint">Appears alongside the reward card in the driver's wallet.</div>
+        </div>
+
+      </div>
+      <div class="rr-modal-foot">
+        <button class="rr-modal-btn" type="button" data-rr-reward-close>Cancel</button>
+        <button class="rr-modal-btn primary" type="button" id="rr-reward-submit">Send reward</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", (e) => {
+    if (e.target === wrap || e.target.closest("[data-rr-reward-close]")) close();
+  });
+  const onKey = (e) => { if (e.key === "Escape") { close(); document.removeEventListener("keydown", onKey); } };
+  document.addEventListener("keydown", onKey);
+
+  // State + helpers.
+  let currentAmount = initAmount;
+  let currentType   = initType;
+
+  const previewType = wrap.querySelector("#rr-reward-prev-type");
+  const previewAmt  = wrap.querySelector("#rr-reward-prev-amt");
+  const previewMeta = wrap.querySelector("#rr-reward-prev-meta");
+
+  const repaintPreview = () => {
+    previewType.textContent = `${REWARD_TYPE_LABELS[currentType] || currentType} reward`;
+    previewAmt.textContent  = _rewardsFmtMoney(currentAmount);
+    const driverName = wrap.querySelector("#rr-reward-driver-input").value || "";
+    const reason     = wrap.querySelector("#rr-reward-reason").value;
+    previewMeta.textContent = driverName
+      ? `For ${driverName} · ${REWARD_REASON_LABELS[reason]?.replace(/&amp;/g, "&") || ""}`
+      : "Pick a driver to preview the recipient.";
+  };
+
+  // Driver picker.
+  const input  = wrap.querySelector("#rr-reward-driver-input");
+  const hidden = wrap.querySelector("#rr-reward-driver-id");
+  const list   = wrap.querySelector("#rr-reward-driver-list");
+  const refreshDrivers = () => {
+    const q = (input.value || "").trim().toLowerCase();
+    const matches = (_recogDriverCache || [])
+      .filter((d) => !q || (d.name || "").toLowerCase().includes(q))
+      .slice(0, 20);
+    if (!matches.length) {
+      list.innerHTML = `<div class="rw-driver-row" style="color:var(--text-subtle);cursor:default">No drivers match.</div>`;
+    } else {
+      list.innerHTML = matches.map((d) => {
+        const initials = (d.name || "?").split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() || "").join("") || "?";
+        return `<div class="rw-driver-row" data-driver-id="${escapeHtml(d.id)}" data-driver-name="${escapeHtml(d.name)}">
+          <span class="rg-avatar" style="width:24px;height:24px;font-size:11px">${escapeHtml(initials)}</span>
+          <span>${escapeHtml(d.name)}</span>
+        </div>`;
+      }).join("");
+    }
+    list.classList.add("is-open");
+  };
+  input.addEventListener("focus", refreshDrivers);
+  input.addEventListener("input", () => { hidden.value = ""; refreshDrivers(); repaintPreview(); });
+  list.addEventListener("click", (e) => {
+    const row = e.target.closest(".rw-driver-row[data-driver-id]");
+    if (!row) return;
+    hidden.value = row.getAttribute("data-driver-id");
+    input.value  = row.getAttribute("data-driver-name");
+    list.classList.remove("is-open");
+    repaintPreview();
+  });
+  document.addEventListener("click", (e) => {
+    if (!wrap.contains(e.target)) return;
+    if (!e.target.closest(".rw-driver-picker")) list.classList.remove("is-open");
+  });
+
+  // Amount chips + custom input.
+  wrap.querySelector("#rr-reward-amounts").addEventListener("click", (e) => {
+    const chip = e.target.closest(".rw-amount-chip");
+    if (!chip) return;
+    currentAmount = parseInt(chip.getAttribute("data-amt"), 10) || 2500;
+    wrap.querySelectorAll(".rw-amount-chip").forEach((c) => c.classList.toggle("is-on", c === chip));
+    wrap.querySelector("#rr-reward-amount-custom").value = "";
+    repaintPreview();
+  });
+  wrap.querySelector("#rr-reward-amount-custom").addEventListener("input", (e) => {
+    const v = parseInt(e.target.value, 10);
+    if (!isFinite(v) || v <= 0) return;
+    const capped = Math.max(1, Math.min(100, v));
+    currentAmount = capped * 100;
+    wrap.querySelectorAll(".rw-amount-chip").forEach((c) => c.classList.remove("is-on"));
+    repaintPreview();
+  });
+
+  // Reward type cards.
+  wrap.querySelector("#rr-reward-types").addEventListener("click", (e) => {
+    const card = e.target.closest(".rw-type-card");
+    if (!card) return;
+    currentType = card.getAttribute("data-type");
+    wrap.querySelectorAll(".rw-type-card").forEach((c) => c.classList.toggle("is-on", c === card));
+    repaintPreview();
+  });
+
+  // Reason change → preview update.
+  wrap.querySelector("#rr-reward-reason").addEventListener("change", repaintPreview);
+
+  // Submit.
+  wrap.querySelector("#rr-reward-submit").addEventListener("click", async () => {
+    const driverId = hidden.value;
+    if (!driverId) { toast("Pick a driver first.", "warn"); input.focus(); return; }
+    if (!currentAmount || currentAmount < 100) { toast("Pick an amount of at least $1.", "warn"); return; }
+    const reason = wrap.querySelector("#rr-reward-reason").value;
+    const note   = (wrap.querySelector("#rr-reward-note").value || "").trim();
+
+    const submitBtn = wrap.querySelector("#rr-reward-submit");
+    const cancelBtn = wrap.querySelector("[data-rr-reward-close]");
+    submitBtn.disabled = true;
+    cancelBtn.disabled = true;
+    submitBtn.textContent = "Sending…";
+
+    const { data, error } = await sb.functions.invoke("send-driver-reward", {
+      body: {
+        driver_id:    driverId,
+        amount_cents: currentAmount,
+        reward_type:  currentType,
+        reason,
+        note:         note || null,
+      },
+    });
+
+    submitBtn.disabled = false;
+    cancelBtn.disabled = false;
+    submitBtn.textContent = "Send reward";
+
+    let raw = "";
+    if (error) {
+      raw = error.message || "";
+      try {
+        const ctxBody = await error.context?.json?.();
+        if (ctxBody?.error) raw = ctxBody.error;
+      } catch { /* fall through */ }
+    } else if (data && data.ok === false) {
+      raw = data.error || "Provider rejected the order.";
+    }
+    if (raw) {
+      let friendly = raw;
+      if (/cross_dsp_forbidden/.test(raw))   friendly = "You can only reward drivers in your own DSP.";
+      else if (/driver_not_found/.test(raw)) friendly = "That driver doesn't exist anymore.";
+      else if (/driver_inactive/.test(raw))  friendly = "That driver is no longer active.";
+      else if (/amount_out_of_range/.test(raw)) friendly = "Amount must be between $1 and $100.";
+      else if (/insufficient_role/.test(raw)) friendly = "Your role can't send rewards. Ask an owner to grant you dispatcher access.";
+      toast("Couldn't send reward: " + friendly, "danger");
+      return;
+    }
+
+    const driverName = input.value;
+    const providerLabel = data?.reward?.provider === "mock" ? " (mock provider · sandbox)" : "";
+    toast(`${_rewardsFmtMoney(currentAmount)} reward sent to ${driverName}${providerLabel}`, "success");
+    close();
+    _loadRewardsAnalytics();
+    _loadRewardsHistory();
+  });
+
+  setTimeout(() => {
+    if (opts.driver_id) wrap.querySelector("#rr-reward-note")?.focus();
+    else input.focus();
   }, 0);
 }
 
