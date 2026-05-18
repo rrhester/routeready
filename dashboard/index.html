@@ -11187,6 +11187,10 @@ body.rr-cmdk-open{ overflow:hidden }
 
           <div class="sched-nav-heading-actions">
           <div class="subnav" data-rr-tabbar="schedule">
+            <button class="subnav-item" data-sub="today" onclick="schedSub('today')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15" r="2.2" fill="currentColor"/></svg>
+              <span>Today view</span>
+            </button>
             <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
               <span>Week view</span>
@@ -11219,11 +11223,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 16 11 19 16 14"/></svg>
               Route planning
             </button>
-            <button class="sched-page-btn" id="rr-sched-today-view-h" type="button" title="See only the schedule for the selected day" aria-label="Today view">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15" r="2.2" fill="currentColor"/></svg>
-              Today view
-            </button>
-            <button class="sched-page-btn" id="rr-sched-vans-h" type="button" title="Van assignments for this week" aria-label="Van assignments">
+            <button class="sched-page-btn" id="rr-sched-vans-h" type="button" title="Van assignments board" aria-label="Van assignments">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h12v10H3z"/><path d="M15 11h4l2 3v3h-6z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
               Van Assignments
             </button>
@@ -12420,6 +12420,17 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-quick-settings-advanced:hover{
             background:rgba(0,120,212,.08);
             color:#0078d4;
+          }
+
+          /* Smart Fill spinner — replaces the bolt icon while the
+             RPC chain runs so the operator sees immediate feedback. */
+          #view-schedule .sched-page-btn .rr-sf-spin{
+            animation:rrSfSpin 0.9s linear infinite;
+            transform-origin:50% 50%;
+          }
+          @keyframes rrSfSpin{ to { transform:rotate(360deg); } }
+          #view-schedule .sched-page-btn[data-rr-busy="1"]{
+            cursor:wait;opacity:.85;
           }
 
           /* ── Today view · single-day roster ──────────────────────
@@ -14065,22 +14076,9 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div><!-- /sched-sub-today -->
 
-        <!-- VAN ASSIGNMENTS — driver ↔ vehicle pairings for the
-             visible week.  Populated by renderSchedVanAssignments()
-             in live.js. -->
-        <div class="sched-subview" id="sched-sub-vans" style="display:none">
-          <div class="sched-vans-shell">
-            <div class="sched-vans-head">
-              <div>
-                <div class="sched-vans-title">Van Assignments</div>
-                <div class="sched-vans-meta" id="rr-sched-vans-meta">Driver ↔ vehicle pairings for this week</div>
-              </div>
-            </div>
-            <div class="sched-vans-body" id="rr-sched-vans-body">
-              <div class="rr-loading">Loading van assignments…</div>
-            </div>
-          </div>
-        </div><!-- /sched-sub-vans -->
+        <!-- (The Van Assignments tile in the action strip now routes
+             to Workspaces → Van assignments. The inline placeholder
+             sub-view was removed.) -->
 
         <!-- STAFF SCHEDULE — support roles (dispatchers, fleet, HR, ops, other).
              Standalone roster + weekly grid, completely separate from the
