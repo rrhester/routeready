@@ -34927,7 +34927,7 @@ function _fdProfileHtml(v) {
       <div class="fd-field">
         <label>Operational status</label>
         <div style="display:flex;align-items:center;gap:var(--s-2-5);padding:6px 0">
-          ${_flOpStatPill(m.operational_status || "operational")}
+          ${_flOpStatPill(v.operational_status || "operational")}
           <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500">Change from the Fleet roster</span>
         </div>
       </div>
