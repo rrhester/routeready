@@ -11427,6 +11427,55 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-subnav-row{margin-bottom:var(--s-10)}
           #view-schedule .sched-kpi-row{margin-bottom:var(--s-10)}
 
+          /* ── Match the sidebar's deep-blue brand on the page ──────
+             Pull the schedule canvas slightly toward the sidebar's
+             blue family and tint the page's key chrome (Finalize,
+             active subnav tab, hover lifts) with the same deeper
+             navy so the page reads as one product with the sidebar. */
+
+          /* Canvas — was a neutral blue-gray (#F6F8FC); shift a touch
+             toward the sidebar's hue family so the two surfaces feel
+             continuous when the sidebar sits next to them. */
+          #view-schedule{background:#EFF2FB}
+
+          /* Active subnav tab — echo the sidebar's active row with
+             a deep navy text + an underline rail in the same indigo
+             family used in the sidebar gradient. */
+          #view-schedule .subnav-item.active{
+            color:#1E3A8A;
+          }
+          #view-schedule .subnav-item.active::after{
+            background:#1E3A8A;
+          }
+
+          /* Finalize button — when the schedule is live, the green
+             stays (it's a status), but in draft state lift it from
+             accent-soft into the deeper navy family so the primary
+             action on this page nods at the sidebar. */
+          #view-schedule .sched-page-btn#rr-sched-finalize-h:not([data-rr-stage="live"]):hover{
+            background:#1E3A8A;
+            color:#fff;
+            border-color:#1E3A8A;
+          }
+          #view-schedule .sched-page-btn#rr-sched-finalize-h:not([data-rr-stage="live"]):hover svg{color:#fff}
+
+          /* Week-nav pill picks up a hair of the sidebar's deep
+             border instead of the generic shadow. */
+          #view-schedule .sched-week-nav{
+            border-color:rgba(30,58,138,.10);
+          }
+
+          /* Pool search focus, KPI primary border, shift-chip hover
+             — pull the accent rim toward the deeper indigo so it
+             reads as the same brand color the sidebar carries. */
+          #view-schedule .pool-search:focus{
+            border-color:#1E3A8A;
+            box-shadow:0 0 0 3px rgba(30,58,138,.16);
+          }
+          #view-schedule .cal-cell:hover .shift-chip:not(.off):not(.timeoff):not(.open){
+            border-color:#1E3A8A;
+          }
+
         </style>
         <style>
           /* ── Schedule · week view (scoped) ─────────────────────────
