@@ -11433,32 +11433,20 @@ body.rr-cmdk-open{ overflow:hidden }
              active subnav tab, hover lifts) with the same deeper
              navy so the page reads as one product with the sidebar. */
 
-          /* Canvas — was a neutral blue-gray (#F6F8FC); shift a touch
-             toward the sidebar's hue family so the two surfaces feel
-             continuous when the sidebar sits next to them. Also
-             remaps the platform's red / green / amber tokens to a
-             violet / sky / indigo trio that all sit in the sidebar's
-             blue family — every signal color on this page now reads
-             as "the same brand", even when carrying different intent. */
+          /* Canvas shifts a touch toward the sidebar's hue family so
+             the two surfaces feel continuous. Green and amber are
+             remapped to sky and indigo-bright so they live in the
+             brand family. Red is left canonical — it's the one
+             "outside the family" color, reserved for true alarms, so
+             problems read clearly without competing with the brand. */
           #view-schedule{
             background:#EFF2FB;
-            /* Problem signals (was Crimson red #E11D48) → violet.
-               Still pops against the indigo brand, still reads as
-               "needs attention", but cousin-hue to the sidebar. */
-            --red:#7C3AED;
-            --red-bright:#8B5CF6;
-            --red-dark:#5B21B6;
-            --red-soft:rgba(124,58,237,.12);
-            --red-soft-strong:rgba(124,58,237,.18);
-            --red-border:rgba(124,58,237,.22);
-            /* Positive signals (was Emerald green #10B981) → sky.
-               Live pill, "fully covered" copy, ✓ states. */
+            /* Positive (was Emerald green #10B981) → sky. */
             --green:#0EA5E9;
             --green-bright:#38BDF8;
             --green-dark:#0369A1;
             --green-soft:rgba(14,165,233,.12);
-            /* Warning signals (was Amber #F59E0B) → indigo-bright.
-               Slips between the brand and the violet "problem". */
+            /* Warning (was Amber #F59E0B) → indigo-bright. */
             --amber:#6366F1;
             --amber-bright:#818CF8;
             --amber-dark:#4338CA;
