@@ -24808,9 +24808,8 @@ async function renderScheduleWeek() {
     const station = d.station?.code || "—";
     const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
     const totalHours = hoursPerDriver.get(d.id) || 0;
-    const shiftCount = shiftCountPerDriver.get(d.id) || 0;
     const hoursLabel = totalHours > 0
-      ? `${Math.round(totalHours * 10) / 10}h scheduled · ${shiftCount} shift${shiftCount === 1 ? "" : "s"}`
+      ? `${Math.round(totalHours * 10) / 10}h scheduled`
       : "0h scheduled";
     // Expired-DL flag — passive visual cue next to the driver name so
     // the operator sees at a glance that scheduling will trigger a warning.
