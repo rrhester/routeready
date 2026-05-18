@@ -1567,6 +1567,9 @@ function _updateTabLens() {
     lens = document.createElement("span");
     lens.className = "tab-lens";
     lens.setAttribute("aria-hidden", "true");
+    const inner = document.createElement("span");
+    inner.className = "tab-lens-inner";
+    lens.appendChild(inner);
     bar.prepend(lens);
   }
   const ic = bar.querySelector(".tab.active .tab-ic");
