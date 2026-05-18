@@ -33758,27 +33758,88 @@ function _flDaysGroundedBadge(v) {
 // inside `button` so the drawer doesn't also pop.
 function _flOpStatCell(v) {
   const pill   = _flOpStatPill(v.operational_status);
-  // The days-grounded chip used to sit here too; it's now superseded
-  // by the labelled "RO due / Repair due" clocks in the Repair status
-  // column, so the operational pill stands alone.
-  const issue  = v.open_issue_count
-    ? `<div style="font-size:var(--fs-xs);color:var(--amber-dark);margin-top:2px;font-weight:600">${v.open_issue_count} open issue${v.open_issue_count === 1 ? "" : "s"}</div>`
-    : "";
-  // Driver-reported flag — surfaced separately from generic open-issue
-  // count so leadership immediately knows a driver flagged the van and
-  // it needs review.  Sourced from vehicles_roster.driver_reported_open_count
-  // (migration 0289).
-  const drCount = v.driver_reported_open_count || 0;
-  const driverFlag = drCount
-    ? `<div title="Driver-reported concern${drCount === 1 ? "" : "s"} awaiting review" style="display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-xs);color:var(--red-dark, #b91c1c);margin-top:2px;font-weight:700">
-        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v18l-8-4-8 4z"/></svg>
-        ${drCount} driver-reported
-      </div>`
-    : "";
+  // The generic open-issue + driver-reported counters used to ride
+  // along here; they now live in their own "Driver reports" column so
+  // the operational pill stands alone — cleaner alignment + a calmer
+  // visual rhythm across the roster.
   return `<button type="button" class="fl-opstat-btn" data-rr-opstat-id="${escapeHtml(v.id)}" data-rr-opstat-now="${escapeHtml(v.operational_status || "operational")}" data-rr-opstat-name="${escapeHtml(v.nickname || v.name || "")}">
     <span class="fl-opstat-row">${pill}</span>
     <svg class="fl-opstat-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-  </button>${driverFlag}${issue}`;
+  </button>`;
+}
+
+// ── Documents cell ───────────────────────────────────────────────────
+// Worst-state across {insurance, registration}, surfaced as one chip
+// with operationally-clear copy:
+//   · "Active"                  → calm green text (no chip)
+//   · "Registration due in 5 days" → amber chip
+//   · "Insurance Missing"        → red chip
+//   · "Registration Expired"     → red chip
+// Clicking opens the per-van drawer straight to the Documents tab so
+// the operator can replace the offending file without extra hunting.
+function _flDocCell(v) {
+  const ins = (v && v.doc_insurance)    || { status: "missing" };
+  const reg = (v && v.doc_registration) || { status: "missing" };
+  // Worst-status precedence: expired > missing > expiring_soon > active.
+  const pick = (() => {
+    if (ins.status === "expired" || reg.status === "expired") {
+      return ins.status === "expired"
+        ? { kind: "insurance",    state: "expired" }
+        : { kind: "registration", state: "expired" };
+    }
+    if (ins.status === "missing" || reg.status === "missing") {
+      return ins.status === "missing"
+        ? { kind: "insurance",    state: "missing" }
+        : { kind: "registration", state: "missing" };
+    }
+    if (ins.status === "expiring_soon" || reg.status === "expiring_soon") {
+      const i = ins.status === "expiring_soon" ? ins.days_until : null;
+      const r = reg.status === "expiring_soon" ? reg.days_until : null;
+      // Pick whichever is closer to today.
+      if (i != null && (r == null || i <= r)) return { kind: "insurance",    state: "expiring_soon", days: i };
+      return                                       { kind: "registration", state: "expiring_soon", days: r };
+    }
+    return { kind: null, state: "active" };
+  })();
+
+  if (pick.state === "active") {
+    // Calm "all clear" treatment — no chip, just a quiet label so the
+    // column stays informative without adding visual noise.
+    return `<span class="fl-doc-cell-ok">All current</span>`;
+  }
+  const kindLabel = pick.kind === "insurance" ? "Insurance" : "Registration";
+  let label, tone;
+  if (pick.state === "expired") {
+    label = `${kindLabel} expired`;
+    tone  = "crit";
+  } else if (pick.state === "missing") {
+    label = `${kindLabel} missing`;
+    tone  = "crit";
+  } else {
+    const d = Number(pick.days);
+    const dayWord = d === 1 ? "day" : "days";
+    label = `${kindLabel} due in ${d} ${dayWord}`;
+    tone  = "warn";
+  }
+  const icon = tone === "crit"
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;flex:0 0 auto"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;flex:0 0 auto"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  return `<button type="button" class="fl-doc-chip ${tone}" data-rr-veh-doc="${escapeHtml(v.id)}" title="${escapeHtml(label)} · click to resolve">
+    ${icon}<span>${escapeHtml(label)}</span>
+  </button>`;
+}
+
+// ── Driver reports cell ──────────────────────────────────────────────
+// Surface the count of open driver-reported concerns for this van.
+// Click → open the drawer to the Inspections tab where those concerns
+// resolve to issues + photos.  Healthy state is a calm em-dash.
+function _flDriverReportsCell(v) {
+  const dr = Number(v.driver_reported_open_count || 0);
+  if (!dr) return `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">—</span>`;
+  return `<button type="button" class="fl-drrep-chip" data-rr-veh-driver-reports="${escapeHtml(v.id)}" title="Driver-reported concern${dr === 1 ? "" : "s"} awaiting review">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px;flex:0 0 auto"><path d="M4 22V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v18l-8-4-8 4z"/></svg>
+    <span>${dr} driver-reported</span>
+  </button>`;
 }
 
 // ── Inline operational-status menu ────────────────────────────────────
@@ -34070,13 +34131,13 @@ function _flRenderRoster() {
   const rows = _flApplyRosterFilters(_fleetRows);
   if (rows.length === 0) {
     tbody.innerHTML = _fleetRows.length === 0
-      ? `<tr><td colspan="5"><div class="fl-empty">
+      ? `<tr><td colspan="7"><div class="fl-empty">
           <div class="ic">${_flVanIconSvg()}</div>
           <h3>No vans yet</h3>
           <p>Add your first van to start tracking service, inspections, and driver assignments.</p>
           <button class="btn btn-primary" data-rr-fleet-add-empty><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add van</button>
         </div></td></tr>`
-      : `<tr><td colspan="5" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current filters.</td></tr>`;
+      : `<tr><td colspan="7" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current filters.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((v) => {
@@ -34087,10 +34148,12 @@ function _flRenderRoster() {
       <td><div style="display:flex;align-items:center;gap:var(--s-2-5)">${_flVehThumb(v)}<div>
         <div class="cell-name">${escapeHtml(v.name)}</div>
         ${vehSub ? `<div class="cell-name-sub">${escapeHtml(vehSub)}</div>` : ""}
-        <div class="cell-chips">${_dvicChipHtml(v)}${_flDocBadgeHtml(v)}</div>
+        <div class="cell-chips">${_dvicChipHtml(v)}</div>
       </div></div></td>
       <td>${ownershipLine}${v.kind && v.kind !== "van" ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(v.kind)}</div>` : ""}</td>
       <td>${_flOpStatCell(v)}</td>
+      <td>${_flDocCell(v)}</td>
+      <td>${_flDriverReportsCell(v)}</td>
       <td>${_flRepairStatusCell(v)}</td>
       <td><span class="fl-date${v.last_route_completed_at ? "" : " dim"}">${v.last_route_completed_at ? escapeHtml(_flRelative(v.last_route_completed_at)) : "—"}</span></td>
     </tr>`;
@@ -34241,6 +34304,14 @@ document.addEventListener("click", (e) => {
   if (docChip) {
     e.preventDefault(); e.stopPropagation();
     openFleetDrawer(docChip.getAttribute("data-rr-veh-doc"), { tab: "documents" });
+    return;
+  }
+  // Driver-reports chip on the roster — open drawer to Inspections,
+  // where driver-reported concerns land as issues + photos.
+  const drChip = e.target.closest("#fleet-tbody [data-rr-veh-driver-reports]");
+  if (drChip) {
+    e.preventDefault(); e.stopPropagation();
+    openFleetDrawer(drChip.getAttribute("data-rr-veh-driver-reports"), { tab: "inspections" });
     return;
   }
   // Row → drawer (roster + issues both open the same drawer)
@@ -36012,27 +36083,6 @@ document.addEventListener("click", async (e) => {
     return;
   }
 });
-
-// Document-exception badge used on fleet roster rows.  Clicking it
-// opens the per-van drawer straight to the Documents tab so an
-// operator can replace the offending doc without extra hunting.
-function _flDocBadgeHtml(v) {
-  if (!v) return "";
-  const state = v.doc_exception_state || "active";
-  if (state === "active") return "";
-  const label = v.doc_exception_label || ({
-    expired:        "Document Expired",
-    missing:        "Document Missing",
-    expiring_soon:  "Document Expiring Soon",
-  })[state] || "Document";
-  const tone = state === "expired" ? "crit" : state === "missing" ? "crit" : "warn";
-  const icon = state === "expired" || state === "missing"
-    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
-    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
-  return `<button type="button" class="fl-doc-chip ${tone}" data-rr-veh-doc="${escapeHtml(v.id)}" title="${escapeHtml(label)} · click to resolve">
-    ${icon}<span>${escapeHtml(label)}</span>
-  </button>`;
-}
 
 // Camera chip used on fleet roster rows + Inspections list.
 function _dvicChipHtml(v) {
