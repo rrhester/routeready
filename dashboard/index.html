@@ -11447,17 +11447,22 @@ body.rr-cmdk-open{ overflow:hidden }
              active subnav tab, hover lifts) with the same deeper
              navy so the page reads as one product with the sidebar. */
 
-          /* Canvas + brand-family color tokens now live at :root so
-             every page inherits the same palette — those overrides
-             were removed from this scope. The lines below are
-             Schedule-only treatments that don't apply to other
-             views. */
+          /* Schedule page leans almost entirely white — color is
+             reserved for the schedule itself (shift chips), buttons,
+             and the one signal that demands action (red alarms).
+             Everything else uses the navy family or no color at all. */
+          #view-schedule{background:#FFFFFF}
+
+          /* Tighter page-header → KPI strip rhythm. Default --s-8
+             (32px) below the page header reads as a big empty band
+             above the pills; bring it down to --s-3 here. */
+          #view-schedule .page-header{margin-bottom:var(--s-3)}
 
           /* Scroller-row · right-aligned, sits between the page
              header and the KPI pill row. */
           #view-schedule .sched-scroller-row{
             display:flex;justify-content:flex-end;
-            margin:0 0 var(--s-5) 0;
+            margin:0 0 var(--s-3) 0;
           }
 
           /* KPI pill row · compact inline dot+label pills sitting
@@ -11465,7 +11470,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule #rr-sched-kpis.sched-kpi-pills{
             display:flex;flex-wrap:wrap;align-items:center;
             gap:var(--s-5);
-            margin:0 0 var(--s-6) 0;
+            margin:0 0 var(--s-4) 0;
             font-size:var(--fs-sm);
           }
           #view-schedule .sched-kpi-pill{

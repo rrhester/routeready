@@ -24684,11 +24684,15 @@ async function renderScheduleWeek() {
       const subHtml = sub ? `<span class="sched-kpi-sub">${sub}</span>` : "";
       return `<span class="sched-kpi-pill" data-rr-kpi="${key}"${cl}${tt}><span class="sched-kpi-dot" style="background:${color}"></span><span class="sched-kpi-text">${label}${subHtml}</span></span>`;
     };
+    // Dots stay in the sidebar's navy family except for OT Risk and
+    // Violations when they actually flare — those keep red so the
+    // operator sees the alarm. Everything at-rest reads neutral navy.
+    const navy = "#1A1F47";
     kpis.innerHTML =
-      pill("coverage", "var(--green)", `${pct}% Coverage`, `${totalFilled} / ${totalNeeded} shifts`, false, "") +
-      pill("violations", "var(--amber)", `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
-      pill("overtime", "var(--red)", `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
-      pill("open-shifts", "var(--accent)", `${totalAllOpen} Open Shift${totalAllOpen === 1 ? "" : "s"}`, "", false, totalAllOpen === 0 ? "All shifts covered" : `${totalAllOpen} unfilled shift${totalAllOpen === 1 ? "" : "s"} this week`);
+      pill("coverage", navy, `${pct}% Coverage`, `${totalFilled} / ${totalNeeded} shifts`, false, "") +
+      pill("violations", violations.length > 0 ? "var(--red)" : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
+      pill("overtime", totalOvertimeHrs > 0 ? "var(--red)" : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
+      pill("open-shifts", navy, `${totalAllOpen} Open Shift${totalAllOpen === 1 ? "" : "s"}`, "", false, totalAllOpen === 0 ? "All shifts covered" : `${totalAllOpen} unfilled shift${totalAllOpen === 1 ? "" : "s"} this week`);
   }
   kpis.dataset.rrViolations = JSON.stringify(violations);
   kpis.dataset.rrPrefMisses = JSON.stringify(prefMissList);
