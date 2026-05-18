@@ -11280,6 +11280,35 @@ body.rr-cmdk-open{ overflow:hidden }
             border-top:1px solid rgba(15,23,42,.06);
           }
 
+          /* ── Spacing pass · align density with the driver app ───
+             Same token scale either way; just give each surface a
+             little more breathing room so the grid stops reading as
+             cramped admin and starts feeling like the app's premium
+             list rhythm. */
+
+          /* Visible breather between the subnav row and the KPI strip. */
+          #view-schedule .sched-subnav-row{margin-bottom:var(--s-6)}
+
+          /* Driver row label — bump vertical padding so the avatar +
+             name + meta line aren't crowded against the cell edge. */
+          #view-schedule .cal-row-label{padding:var(--s-3-5) var(--s-4)}
+
+          /* Day-header in the calendar — symmetric vertical rhythm so
+             "SUN / 17 / 5/6" doesn't read top-heavy. */
+          #view-schedule .cal-cell-head{padding:var(--s-3-5) var(--s-2-5)}
+
+          /* Cells in the grid get one extra pixel of room on each side
+             — still tight, just not gratuitously cramped. */
+          #view-schedule .cal-cell{padding:8px}
+
+          /* Coverage strip cells — a touch more vertical room so they
+             read as a deliberate footer instead of a thin status line. */
+          #view-schedule .coverage-cell{padding:var(--s-2-5) var(--s-2)}
+
+          /* Pool driver row — bump padding from 7px/8px to 10px/12px
+             for touch-target comfort matching the app's list rows. */
+          #view-schedule .pool-driver{padding:var(--s-2-5) var(--s-3)}
+
         </style>
         <style>
           /* ── Schedule · week view (scoped) ─────────────────────────
