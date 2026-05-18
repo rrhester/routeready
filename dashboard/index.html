@@ -770,35 +770,7 @@ a{color:inherit;text-decoration:none}
    via data-c on the chip. Light-background tuning: soft tinted bg
    (~10% alpha) + saturated brand-color icon. */
 .page-header-l{display:flex;align-items:center;gap:var(--s-4);min-width:0}
-.page-icon{
-  width:44px;height:44px;border-radius:var(--r-lg);flex-shrink:0;
-  display:inline-flex;align-items:center;justify-content:center;
-  background:var(--pi-bg, rgba(37,99,235,.10));
-  color:var(--pi-fg, var(--accent));
-  /* Calm flat treatment — same Fluent-style tile as the sidebar
-     nav-icons, just scaled up.  Single inset 1px ring; no outer
-     glow shadow (which previously read as 'decorative'). */
-  box-shadow:inset 0 0 0 1px var(--pi-ring, rgba(37,99,235,.14));
-  transition:background var(--t-smooth), color var(--t-smooth);
-}
-.page-icon svg{width:22px;height:22px;stroke-width:2}
-
-/* Per-category palette · mirrors the sidebar nav-icon scale so the
-   header chip and the active sidebar tile read as the same icon
-   system.  Foreground hues match exactly; container alphas match
-   exactly so the surfaces feel like one material. */
-.page-icon[data-c="dashboard"]  {--pi-fg:#2563EB;--pi-bg:rgba(59,130,246,.10);--pi-ring:rgba(59,130,246,.18)}
-.page-icon[data-c="pipeline"]   {--pi-fg:#7C3AED;--pi-bg:rgba(139,92,246,.10);--pi-ring:rgba(139,92,246,.18)}
-.page-icon[data-c="drivers"]    {--pi-fg:#0D9488;--pi-bg:rgba(20,184,166,.10);--pi-ring:rgba(20,184,166,.18)}
-.page-icon[data-c="staffing"]   {--pi-fg:#DB2777;--pi-bg:rgba(236,72,153,.10);--pi-ring:rgba(236,72,153,.18)}
-.page-icon[data-c="fleet"]      {--pi-fg:#D97706;--pi-bg:rgba(245,158,11,.10);--pi-ring:rgba(245,158,11,.18)}
-.page-icon[data-c="compliance"] {--pi-fg:#475569;--pi-bg:rgba(148,163,184,.10);--pi-ring:rgba(148,163,184,.18)}
-.page-icon[data-c="schedule"]   {--pi-fg:#0284C7;--pi-bg:rgba(14,165,233,.10);--pi-ring:rgba(14,165,233,.18)}
-.page-icon[data-c="overtime"]   {--pi-fg:#B45309;--pi-bg:rgba(217,119,6,.10);--pi-ring:rgba(217,119,6,.20)}
-.page-icon[data-c="messages"]   {--pi-fg:#4F46E5;--pi-bg:rgba(99,102,241,.10);--pi-ring:rgba(99,102,241,.18)}
-.page-icon[data-c="forms"]      {--pi-fg:#9333EA;--pi-bg:rgba(168,85,247,.10);--pi-ring:rgba(168,85,247,.18)}
-.page-icon[data-c="finances"]   {--pi-fg:#059669;--pi-bg:rgba(16,185,129,.10);--pi-ring:rgba(16,185,129,.18)}
-.page-icon[data-c="admin"]      {--pi-fg:#475569;--pi-bg:rgba(148,163,184,.10);--pi-ring:rgba(148,163,184,.18)}
+.page-icon{display:none}
 
 /* ─────────────────────────────────────────────────────────────
    STATUS COLOR DISCIPLINE
