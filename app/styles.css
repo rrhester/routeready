@@ -2303,12 +2303,12 @@ body.is-home main > .home-hero{
   margin-bottom:4px;
 }
 .home-hero-name{
-  font-size:24px;font-weight:750;letter-spacing:-.026em;
+  font-size:24px;font-weight:700;letter-spacing:-.026em;
   color:#fff;line-height:1.12;
 }
 .home-hero-meta{
   margin-top:4px;
-  font-size:13px;font-weight:550;
+  font-size:13px;font-weight:500;
   color:rgba(255,255,255,.76);
   letter-spacing:.005em;
 }
