@@ -12084,17 +12084,30 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:0 0 auto;
             align-self:center;
           }
-          /* Outlook-style group dividers — thin Fluent lines between
-             each cluster on the ribbon. */
+          /* Outlook-style group dividers — slightly stronger Fluent
+             line between each cluster (tabs ↔ commands ↔ week nav). */
           #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions::before,
           #view-schedule .sched-nav-heading-actions > .sched-week-nav::before{
             content:"";
             width:1px;
-            background:var(--sch-line);
-            margin:6px var(--s-2);
+            background:var(--sch-line-strong);
+            margin:8px var(--s-2);
             align-self:stretch;
             flex:0 0 auto;
             display:block;
+            height:32px;align-self:center;
+          }
+
+          /* Per-icon dividers · soft Fluent line between every tile
+             on the navigation strip (Microsoft Office ribbon does this
+             between each command in a group). Faint but visible. */
+          #view-schedule .sched-nav-heading-actions > .subnav > .subnav-item,
+          #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions > .sched-page-btn{
+            box-shadow:inset 1px 0 0 var(--sch-line);
+          }
+          #view-schedule .sched-nav-heading-actions > .subnav > .subnav-item:first-child,
+          #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions > .sched-page-btn:first-child{
+            box-shadow:none;
           }
           #view-schedule .sched-nav-heading-actions > .sched-week-nav{
             align-self:center;flex:0 0 auto;
