@@ -24760,13 +24760,8 @@ async function renderScheduleWeek() {
       cellHead.classList.toggle("today", iso === todayIso);
       let coverageLine = "";
       if (c.needed > 0) {
-        if (c.filled >= c.needed) {
-          coverageLine = `<span class="day-coverage">${c.filled}/${c.needed}</span>`;
-        } else if (c.filled === 0) {
-          coverageLine = `<span class="day-coverage" style="color:var(--red)">0/${c.needed}</span>`;
-        } else {
-          coverageLine = `<span class="day-coverage" style="color:var(--amber-dark, var(--amber))">${c.filled}/${c.needed}</span>`;
-        }
+        const color = c.filled >= c.needed ? "var(--green)" : "var(--red)";
+        coverageLine = `<span class="day-coverage" style="color:${color}">${c.filled}/${c.needed}</span>`;
       }
       cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${coverageLine}`;
     }
