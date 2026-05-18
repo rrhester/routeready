@@ -587,7 +587,8 @@ select.field{
   cursor:pointer;font-size:10px;font-weight:600;
   letter-spacing:.015em;
   position:relative;
-  transition:color 160ms var(--ease-out);
+  z-index:1;
+  transition:color 220ms var(--ease-out);
 }
 .tab:active .tab-ic{ transform:scale(.92) }
 /* Single quiet accent — drops the five-color tabbar palette in favor
@@ -597,25 +598,96 @@ select.field{
 .tab .tab-ic{
   display:inline-flex;align-items:center;justify-content:center;
   width:40px;height:30px;border-radius:var(--r-xl);
-  transition:background 180ms var(--ease-out), transform 140ms var(--ease-spring), color 160ms var(--ease-out);
+  transform:scale(1);
+  transition:transform 280ms var(--ease-spring), color 220ms var(--ease-out);
 }
-.tab svg{width:22px;height:22px;stroke-width:2;transition:transform var(--t-fast)}
+.tab svg{
+  width:22px;height:22px;stroke-width:2;
+  transition:transform var(--t-fast), filter 260ms var(--ease-out);
+}
 .tab.active{color:var(--accent);font-weight:700;letter-spacing:.01em}
 .tab.active .tab-ic{
-  background:linear-gradient(180deg, rgba(37,99,255,.14) 0%, rgba(37,99,255,.10) 100%);
-  box-shadow:0 6px 16px -8px rgba(37,99,255,.55),
-             inset 0 1px 0 rgba(255,255,255,.7),
-             inset 0 0 0 1px rgba(37,99,255,.10);
   color:#2563FF;
+  transform:scale(1.06);
 }
-/* Active indicator — a soft 2px hairline at the top of the tab.
-   Slim, restrained — reads as a status marker, not a banner. */
-.tab.active::before{
-  content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
-  width:22px;height:2px;
-  background:var(--accent);
-  border-radius:0 0 3px 3px;
-  opacity:.85;
+.tab.active svg{
+  filter:drop-shadow(0 2px 5px rgba(37,99,235,.32));
+}
+
+/* ── Liquid-glass lens that slides between active tabs ─────
+   Positioned + sized in JS (see _updateTabLens in app.js).
+   It transitions transform/width/height with a slow easing
+   curve to feel like a glass element gliding, not snapping.   */
+.tab-lens{
+  position:absolute;
+  top:0;left:0;
+  width:46px;height:34px;
+  border-radius:16px;
+  pointer-events:none;
+  z-index:0;
+  opacity:0;
+  transform:translate3d(0,0,0);
+  background:
+    linear-gradient(180deg,
+      rgba(255,255,255,.55) 0%,
+      rgba(255,255,255,.18) 55%,
+      rgba(37,99,235,.10) 100%),
+    linear-gradient(180deg,
+      rgba(37,99,235,.18) 0%,
+      rgba(37,99,235,.10) 100%);
+  -webkit-backdrop-filter:blur(10px) saturate(180%);
+  backdrop-filter:blur(10px) saturate(180%);
+  box-shadow:
+    0 6px 18px -10px rgba(37,99,235,.55),
+    0 1px 2px rgba(37,99,235,.10),
+    inset 0 1px 0 rgba(255,255,255,.72),
+    inset 0 -1px 0 rgba(37,99,235,.10),
+    inset 0 0 0 1px rgba(37,99,235,.14);
+  transition:
+    transform 460ms cubic-bezier(.22,1,.36,1),
+    width    320ms cubic-bezier(.22,1,.36,1),
+    height   320ms cubic-bezier(.22,1,.36,1),
+    opacity  220ms ease-out;
+  will-change:transform, width, height;
+  overflow:hidden;
+}
+.tab-lens.ready{ opacity:1 }
+/* Subtle inner refraction — a faint diagonal sheen that adds
+   depth without reading as a separate UI element. */
+.tab-lens::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;
+  background:linear-gradient(160deg,
+    rgba(255,255,255,.28) 0%,
+    rgba(255,255,255,0) 45%,
+    rgba(37,99,235,.06) 100%);
+  pointer-events:none;
+}
+/* Shimmer that travels across the lens during a slide. JS adds the
+   .moving class for a single frame to restart the animation, then it
+   plays once and fades. */
+.tab-lens::before{
+  content:"";position:absolute;top:0;bottom:0;left:0;width:60%;
+  background:linear-gradient(110deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,.42) 50%,
+    rgba(255,255,255,0) 100%);
+  transform:translateX(-110%);
+  opacity:0;
+  pointer-events:none;
+}
+.tab-lens.moving::before{ animation: rrLensShimmer 520ms ease-out; }
+@keyframes rrLensShimmer{
+  0%   { transform:translateX(-110%); opacity:0; }
+  35%  { opacity:.9; }
+  100% { transform:translateX(220%); opacity:0; }
+}
+@media (prefers-reduced-motion: reduce){
+  .tab-lens{
+    transition:opacity 120ms linear;
+  }
+  .tab-lens::before{ display:none; }
+  .tab.active .tab-ic{ transform:none; }
+  .tab.active svg{ filter:none; }
 }
 .tab .badge{
   position:absolute;top:6px;right:50%;transform:translateX(18px);

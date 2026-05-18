@@ -953,10 +953,13 @@ function render() {
     const route = t.dataset.route;
     const isActive = route === r.tab || route === currentRoute();
     t.classList.toggle("active", isActive);
-    // aria-selected so screen readers narrate which tab is current,
-    // independent of color cues.
+    // aria-selected + aria-current so screen readers narrate which tab
+    // is current, independent of color cues.
     t.setAttribute("aria-selected", isActive ? "true" : "false");
+    if (isActive) t.setAttribute("aria-current", "page");
+    else          t.removeAttribute("aria-current");
   });
+  _updateTabLens();
   // Refresh the cached photo URL from the server in the background.
   // Cheap way to pick up a photo set on another device without forcing
   // the user to do anything.
@@ -1536,6 +1539,63 @@ function renderShell(session) {
   // "back online" confirmation on `online`. Idempotent; safe to call
   // on every shell re-render.
   _wireOfflineBanner();
+}
+
+// Position the translucent glass lens behind the active tab's icon.
+// Measured from the DOM so the lens lands exactly on the active icon
+// regardless of viewport width, safe-area inset, or how many tabs the
+// current shell shows (onboarding has 3, the active shell has 5). The
+// lens itself is a plain absolutely-positioned element that animates
+// transform/width/height — GPU-friendly and respects reduced-motion
+// via CSS.
+function _updateTabLens() {
+  const bar = document.querySelector(".tabbar");
+  if (!bar) return;
+  let lens = bar.querySelector(".tab-lens");
+  if (!lens) {
+    lens = document.createElement("span");
+    lens.className = "tab-lens";
+    lens.setAttribute("aria-hidden", "true");
+    bar.prepend(lens);
+  }
+  const ic = bar.querySelector(".tab.active .tab-ic");
+  if (!ic) {
+    lens.classList.remove("ready", "moving");
+    return;
+  }
+  const barRect = bar.getBoundingClientRect();
+  const icRect  = ic.getBoundingClientRect();
+  // Slightly larger than the icon container so the lens reads as a
+  // "magnifier" sitting around the icon, not a flat chip behind it.
+  const padX = 3, padY = 2;
+  const w = Math.round(icRect.width  + padX * 2);
+  const h = Math.round(icRect.height + padY * 2);
+  const x = Math.round(icRect.left - barRect.left - padX);
+  const y = Math.round(icRect.top  - barRect.top  - padY);
+  const prevX = lens._x;
+  lens.style.width  = w + "px";
+  lens.style.height = h + "px";
+  lens.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  lens._x = x;
+  // Trigger the one-shot shimmer only when the lens actually slides
+  // sideways (a real tab switch), not on the first mount or a resize.
+  if (lens.classList.contains("ready") && prevX != null && Math.abs(prevX - x) > 2) {
+    lens.classList.remove("moving");
+    void lens.offsetWidth; // restart keyframe
+    lens.classList.add("moving");
+  }
+  // Reveal on the next frame so the very first paint doesn't render
+  // the lens at 0,0 before snapping to the active tab.
+  requestAnimationFrame(() => lens.classList.add("ready"));
+}
+
+// Re-align the lens after viewport changes (rotation, on-screen
+// keyboard, dev-tools resizes). Wired exactly once.
+if (!window._rrTabLensWired) {
+  window._rrTabLensWired = true;
+  const onResize = () => _updateTabLens();
+  window.addEventListener("resize", onResize, { passive: true });
+  window.addEventListener("orientationchange", onResize, { passive: true });
 }
 
 // Module-scoped so the listeners attach exactly once across re-renders.
