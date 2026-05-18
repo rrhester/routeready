@@ -23144,14 +23144,6 @@ function _confirmLiveScheduleEdit() {
 }
 
 document.addEventListener("click", async (e) => {
-  // Clicking the page-header Live/Draft pill proxies to the hidden
-  // Finalize button so the same confirm flow runs.
-  if (e.target.closest("#rr-sched-live-pill")) {
-    e.preventDefault();
-    const proxy = document.getElementById("schedule-cta");
-    if (proxy) proxy.click();
-    return;
-  }
   if (e.target.closest("#schedule-cta")) {
     e.preventDefault();
     const target = !window._rrWeekFinalized;
@@ -24489,21 +24481,11 @@ async function renderScheduleWeek() {
     });
   }
 
-  // Page-sub line in the header (Schedule view) — replace the mockup
-  // 'Week of May 1–7 · 78 drivers · ...' with live numbers.
+  // Page-sub line in the header (Schedule view) — just the week range.
   const pageSub = document.getElementById("rr-sched-page-sub");
   if (pageSub) {
     const wkRange = `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-    const finalPill = window._rrWeekFinalized
-      ? `<span style="display:inline-flex;align-items:center;gap:var(--s-1);background:var(--green);color:#fff;font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-lg);margin-left:8px;vertical-align:middle"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Live</span>`
-      : "";
-    // Staffing at-a-glance: drivers · scheduled hours · open shifts.
-    const hrsW = Math.round(Array.from(hoursPerDriver.values()).reduce((s, n) => s + (n || 0), 0));
-    let openN = 0; for (const list of openShiftsByDate.values()) openN += (list?.length || 0);
-    const openBit = openN > 0
-      ? ` · <span style="color:var(--amber-dark);font-weight:600">${openN} open ${openN === 1 ? "shift" : "shifts"}</span>`
-      : "";
-    pageSub.innerHTML = `Week of ${wkRange} · ${drivers.length} active driver${drivers.length === 1 ? "" : "s"} · ${hrsW.toLocaleString()}h scheduled${openBit}${finalPill}`;
+    pageSub.textContent = `Week of ${wkRange}`;
   }
 
   // The full-width "schedule is LIVE" banner was retired —
@@ -24640,23 +24622,11 @@ async function renderScheduleWeek() {
     return `<div class="stat-mini">
       <div class="stat-mini-label">${label}</div>
       <div class="stat-mini-value"${c ? ` style="color:${c}"` : ""}>${value}</div>
-      <div class="stat-mini-sub">${sublabel}</div>
+      ${sublabel ? `<div class="stat-mini-sub">${sublabel}</div>` : ""}
     </div>`;
   };
   const coverageTone = pct >= 100 ? "ok" : pct >= 90 ? "warn" : "bad";
-  const violationsTone = violations.length === 0 ? "ok" : violations.length <= 3 ? "warn" : "bad";
-  const otTone = totalOvertimeHrs === 0 ? "ok" : totalOvertimeHrs <= 10 ? "warn" : "bad";
   const otValue = totalOvertimeHrs === 0 ? "0h" : `${Math.round(totalOvertimeHrs * 10) / 10}h`;
-  let otSub;
-  if (totalOvertimeHrs === 0) {
-    otSub = "no OT";
-  } else if (driversInOtMissingRate > 0 && estimatedOvertimeCost === 0) {
-    otSub = `${driversInOt} driver${driversInOt === 1 ? "" : "s"} · set pay rate to estimate cost`;
-  } else if (driversInOtMissingRate > 0) {
-    otSub = `~$${Math.round(estimatedOvertimeCost).toLocaleString()} @ 1.5× · ${driversInOtMissingRate} no rate`;
-  } else {
-    otSub = `~$${Math.round(estimatedOvertimeCost).toLocaleString()} @ 1.5× · ${driversInOt} driver${driversInOt === 1 ? "" : "s"}`;
-  }
   // Training pipeline this week: distinct trainees in classroom training
   // (shift_kind='training'), distinct ride-along assignments, and a
   // per-trainee drill payload so the card click opens a usable detail.
@@ -24691,28 +24661,14 @@ async function renderScheduleWeek() {
   const rideAlongCount = trainingRows.filter(r => r.ride_along_date).length;
   const trainingTotal  = trainingRows.length;
   const trainingValue  = trainingTotal === 0 ? "0" : String(trainingTotal);
-  const trainingSub    = trainingTotal === 0
-    ? "no one in training"
-    : `${classroomCount} in class · ${rideAlongCount} ride-along${rideAlongCount === 1 ? "" : "s"}`;
-  const trainingTone   = trainingTotal === 0 ? "default" : "default";
 
   kpis.innerHTML =
     kpiCard("Coverage", `${pct}%`, `${totalFilled} / ${totalNeeded} shifts`, coverageTone) +
-    kpiCard("Rule violations", String(violations.length), violations.length === 0 ? "all clear" : "click to review", violationsTone) +
-    kpiCard("Overtime", otValue, otSub, otTone) +
-    kpiCard(
-      "Hours scheduled",
-      `${Math.round(totalHoursWeek)}h`,
-      estimatedPayrollCost > 0
-        ? `~$${Math.round(estimatedPayrollCost).toLocaleString()} payroll${driversWithHoursMissingRate > 0 ? ` · ${driversWithHoursMissingRate} no rate` : ""}`
-        : `${shiftCountPerDriver.size} driver${shiftCountPerDriver.size === 1 ? "" : "s"}${driversWithHoursMissingRate > 0 ? ` · set pay rate to estimate` : ""}`,
-      "default"
-    ) +
-    kpiCard("Preferences",
-      prefDenom === 0 ? "—" : `${prefHonored} / ${prefDenom}`,
-      prefDenom === 0 ? "no preferences set" : (prefHonored === prefDenom ? "all on a preferred day" : "★ on the grid = preferred day"),
-      prefDenom === 0 ? "default" : (prefHonored === prefDenom ? "ok" : "warn")) +
-    kpiCard("Training", trainingValue, trainingSub, trainingTone);
+    kpiCard("Rule violations", String(violations.length), "", "default") +
+    kpiCard("Overtime", otValue, "", "default") +
+    kpiCard("Hours scheduled", `${Math.round(totalHoursWeek)}h`, "", "default") +
+    kpiCard("Preferences", prefDenom === 0 ? "—" : `${prefHonored} / ${prefDenom}`, "", "default") +
+    kpiCard("Training", trainingValue, "", "default");
   kpis.dataset.rrViolations = JSON.stringify(violations);
   kpis.dataset.rrPrefMisses = JSON.stringify(prefMissList);
   kpis.dataset.rrPrefSummary = JSON.stringify({ honored: prefHonored, denom: prefDenom });
@@ -24809,14 +24765,6 @@ async function renderScheduleWeek() {
         ? weekEnd.toLocaleDateString(undefined, { day: "numeric" })
         : weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" });
       lbl.textContent = `${aTxt} – ${bTxt}`;
-    }
-    const pill = document.getElementById("rr-sched-live-pill");
-    const pillLabel = document.getElementById("rr-sched-live-label");
-    if (pill) {
-      const isLive = !!window._rrWeekFinalized;
-      pill.classList.toggle("draft", !isLive);
-      if (pillLabel) pillLabel.textContent = isLive ? "Live" : "Draft";
-      pill.title = isLive ? "This week's schedule is live" : "This week is still a draft — push from Finalize when ready";
     }
   } catch (e) { /* nothing to do */ }
 
