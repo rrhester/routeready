@@ -64,6 +64,7 @@ edge runtime — you do **not** set them yourself.
 | `TREMENDOUS_ENV` | `send-driver-reward` | `sandbox` (default) or `production`. Defaults to sandbox so a misconfigured deploy never accidentally bills the org. |
 | `TREMENDOUS_FUNDING_SOURCE` | `send-driver-reward` | Tremendous funding source id. In sandbox `BALANCE` works. In production, copy the id from <https://app.tremendous.com/rewards/funding-sources>. |
 | `TREMENDOUS_CAMPAIGN_ID` | `send-driver-reward` | Optional. If set, every order uses this campaign's catalog (logo, colors, products) instead of the per-type product map in `tremendous.ts`. Recommended for production. |
+| `TREMENDOUS_WEBHOOK_SECRET` | `webhook-tremendous` | Signing secret shown by Tremendous when you create the webhook (Team Settings → Developers → Webhooks → Add). The function verifies the HMAC-SHA256 of every request body against this; mismatches return 403. Without it, every webhook 500s with `webhook_secret_missing`. |
 
 ### Configure Twilio Messaging Service
 

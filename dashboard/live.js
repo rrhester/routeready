@@ -38953,7 +38953,15 @@ async function _loadRewardsAnalytics() {
   set("rr-rewards-kpi-amount-sub","Past 30 days");
   const claimRate = data.claim_rate;
   set("rr-rewards-kpi-claimed",  claimRate == null ? "—" : `${Math.round(claimRate * 100)}%`);
-  set("rr-rewards-kpi-claimed-sub", `${data.claimed_count ?? 0} of ${data.sent_count ?? 0} sent`);
+  // Sub-line prefers webhook-verified count when it's non-zero — that
+  // signals provider webhooks are wired up and giving us the truthful
+  // redemption rate.  Falls back to the tap-based count otherwise.
+  const trueRate = data.true_claim_rate;
+  const trueRedeemed = data.redeemed_count ?? 0;
+  set("rr-rewards-kpi-claimed-sub",
+    trueRedeemed > 0
+      ? `${trueRedeemed} verified · ${data.claimed_count ?? 0} of ${data.sent_count ?? 0} sent`
+      : `${data.claimed_count ?? 0} of ${data.sent_count ?? 0} sent`);
   const partRate = data.participation_rate;
   set("rr-rewards-kpi-part",     partRate == null ? "—" : `${Math.round(partRate * 100)}%`);
   set("rr-rewards-kpi-part-sub", `${data.recipients_count ?? 0} of ${data.active_driver_count ?? 0} drivers`);
@@ -39026,6 +39034,13 @@ function _renderRewardsHistory() {
     const typeLabel   = REWARD_TYPE_LABELS[r.reward_type] || r.reward_type;
     const reasonLabel = REWARD_REASON_LABELS[r.reason]    || r.reason;
     const status      = (r.status || "sent").toLowerCase();
+    // Verified pill — set only when the provider webhook confirmed
+    // the driver actually picked a brand + redeemed.  Tiny, doesn't
+    // compete with the main status pill; quietly proves the reward
+    // landed.
+    const verifiedPill = r.redeemed_at
+      ? ` <span class="rw-verified" title="Provider confirmed redemption ${escapeHtml(_rewardsFmtRelative(r.redeemed_at))}"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Verified</span>`
+      : "";
     return `
       <tr>
         <td>
@@ -39037,7 +39052,7 @@ function _renderRewardsHistory() {
         <td><span class="rw-type">${escapeHtml(typeLabel)}</span></td>
         <td>${reasonLabel /* contains &amp; — pre-escaped */}</td>
         <td style="text-align:right"><span class="rw-amount">${_rewardsFmtMoney(r.amount_cents)}</span></td>
-        <td><span class="rw-status ${escapeHtml(status)}"><span class="dot"></span>${escapeHtml(status)}</span></td>
+        <td><span class="rw-status ${escapeHtml(status)}"><span class="dot"></span>${escapeHtml(status)}</span>${verifiedPill}</td>
         <td style="color:var(--text-muted);font-size:var(--fs-sm)">${escapeHtml(_rewardsFmtRelative(r.sent_at || r.created_at))}<small style="display:block;color:var(--text-subtle);font-size:11px">by ${escapeHtml(r.sender_name || "")}</small></td>
       </tr>`;
   }).join("");
