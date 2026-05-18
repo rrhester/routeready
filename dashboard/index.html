@@ -11177,10 +11177,6 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               Settings
             </button>
-            <span class="sched-live-pill draft" id="rr-sched-live-pill" title="Schedule status">
-              <span class="sched-live-dot"></span>
-              <span id="rr-sched-live-label">Draft</span>
-            </span>
           </div>
         </div>
 
@@ -11303,26 +11299,6 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-page-btn:hover svg{color:var(--text-muted)}
           #view-schedule .sched-page-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
-
-          /* Live/Draft pill — green when this week's schedule has been
-             pushed live, amber otherwise. Mirrors sched-status-pill. */
-          #view-schedule .sched-live-pill{
-            display:inline-flex;align-items:center;gap:6px;
-            padding:5px 12px;border-radius:var(--r-pill);font-size:var(--fs-xs);font-weight:600;
-            letter-spacing:.02em;cursor:pointer;
-            background:var(--green-soft);color:var(--green);
-            border:1px solid color-mix(in srgb, var(--green) 18%, transparent);
-            transition:transform var(--t-fast), box-shadow var(--t-fast);
-          }
-          #view-schedule .sched-live-pill:hover{transform:translateY(-1px);box-shadow:0 1px 4px rgba(15,23,42,.06)}
-          #view-schedule .sched-live-pill.draft{
-            background:var(--amber-soft);color:var(--amber-dark, var(--amber));
-            border-color:color-mix(in srgb, var(--amber) 24%, transparent);
-          }
-          #view-schedule .sched-live-dot{
-            width:6px;height:6px;border-radius:50%;background:currentColor;
-            box-shadow:0 0 0 3px color-mix(in srgb, currentColor 20%, transparent);
-          }
 
           /* ── Subnav + week navigator row ───────────────────────────
              Subnav stays left, week navigator sits flush right, sharing
