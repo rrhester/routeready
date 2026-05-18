@@ -2326,14 +2326,24 @@ body.is-home main > .home-hero{
 .opens-card.opens-card-muted .opens-card-icon{
   background:var(--accent-soft);color:var(--accent);border-color:var(--accent-border);
 }
+/* Check-in window closed · neutral white card with a true amber
+   accent (the global --amber token is mapped to indigo here, which
+   read as purple against the blue brand header — hardcoding the
+   warmer Microsoft "Action needed" amber keeps the warning
+   readable without colliding with the header). */
 .opens-card.opens-card-warn{
-  color:var(--amber-dark);
-  background:var(--amber-soft);
-  border:1px solid rgba(99,102,241,.24);
+  color:#1f1f1f;
+  background:#FFFFFF;
+  border:1px solid rgba(180,83,9,.22);
+  border-left:3px solid #B45309;
   box-shadow:var(--shadow-md);
 }
+.opens-card.opens-card-warn .opens-card-title{color:#1f1f1f}
+.opens-card.opens-card-warn .opens-card-meta{color:#605e5c;opacity:1}
 .opens-card.opens-card-warn .opens-card-icon{
-  background:rgba(99,102,241,.14);color:var(--amber-dark);border-color:rgba(99,102,241,.28);
+  background:rgba(180,83,9,.10);
+  color:#92400E;
+  border-color:rgba(180,83,9,.24);
 }
 .opens-card-cta{
   margin-top:12px;width:100%;
@@ -2372,8 +2382,8 @@ body.is-home main > .home-hero{
 }
 .opens-card.opens-card-muted .opens-card-countdown{ border-left-color:var(--border) }
 .opens-card.opens-card-muted .opens-card-countdown-value{ color:var(--green) }
-.opens-card.opens-card-warn  .opens-card-countdown{ border-left-color:rgba(99,102,241,.30) }
-.opens-card.opens-card-warn  .opens-card-countdown-value{ color:var(--amber-dark) }
+.opens-card.opens-card-warn  .opens-card-countdown{ border-left-color:rgba(180,83,9,.30) }
+.opens-card.opens-card-warn  .opens-card-countdown-value{ color:#92400E }
 .opens-card-cta:active{ background:#EBEBEB }
 .opens-card-cta.opens-card-cta-danger{
   background:#FFFFFF;color:var(--red-dark);border-color:rgba(197,15,31,.30);
