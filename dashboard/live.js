@@ -37882,7 +37882,7 @@ function _otRender(d) {
     const liveBadge = onWeek
       ? `<span class="ot-live"><span class="dot"></span>Live · this week</span>`
       : "";
-    sub.innerHTML = `Week of <strong class="ot-page-sub-week">${escapeHtml(range)}</strong> · scheduled vs worked vs variance across every active driver. Not payroll.${liveBadge}`;
+    sub.innerHTML = `Week of <strong class="ot-page-sub-week">${escapeHtml(range)}</strong> · projected OT exposure across every active driver. Not payroll.${liveBadge}`;
   }
   const thresh = document.getElementById("rr-ot-threshold");
   if (thresh) thresh.textContent = String(d.threshold_hours ?? 40);
@@ -37924,8 +37924,10 @@ function _otRenderStats(d) {
     </div>
     <div class="ot-stat">
       <span class="ot-stat-label">Worked / projected</span>
-      <div class="ot-stat-value">${_otFmtHours(s.total_worked_hours)}<span class="ot-stat-value-suffix">h</span></div>
-      <span class="ot-stat-sub">Real driver app check-ins only</span>
+      <div class="ot-stat-value">
+        ${_otFmtHours(s.total_worked_hours)}<span class="ot-stat-value-sep"> / </span>${_otFmtHours(s.total_projected_hours)}<span class="ot-stat-value-suffix">h</span>
+      </div>
+      <span class="ot-stat-sub">Worked = real check-ins · Projected = worked + remaining schedule</span>
     </div>
     <div class="ot-stat">
       <span class="ot-stat-label">Variance vs schedule</span>
@@ -37989,7 +37991,7 @@ function _otRenderTable() {
          </button>`
       : "";
     tbody.innerHTML = `
-      <tr><td colspan="8" style="padding:0">
+      <tr><td colspan="9" style="padding:0">
         <div class="ot-empty">
           <div class="ic">${icon}</div>
           <h3>${filtered_out ? 'No drivers match these filters' : 'No active drivers'}</h3>
@@ -38045,6 +38047,7 @@ function _otRenderRow(r, d) {
       <td class="col-station">${station}</td>
       <td class="num col-scheduled">${_otFmtHours(r.scheduled_hours)}</td>
       <td class="num">${_otFmtHours(r.worked_hours)}</td>
+      <td class="num"><span class="ot-projected${(r.projected_hours || 0) >= (d.threshold_hours || 40) ? ' ot-projected-hot' : ''}">${_otFmtHours(r.projected_hours)}</span></td>
       <td class="num"><span class="ot-variance ${varCls}">${varArrow}${_otFmtHours(r.variance_hours, { sign: true })}</span></td>
       <td class="num">${ot}</td>
       <td class="num col-cost">${cost}</td>
@@ -38084,7 +38087,7 @@ function _otExportCsv() {
     return;
   }
   const rows = [
-    ["Driver","Station","Scheduled (h)","Worked (h)","Variance (h)","OT hours","OT premium ($)","Risk","Rescues","Late clock-out (min)"]
+    ["Driver","Station","Scheduled (h)","Worked (h)","Projected (h)","Variance (h)","OT hours","OT premium ($)","Risk","Rescues","Late clock-out (min)"]
   ];
   for (const r of _otData.drivers) {
     rows.push([
@@ -38092,6 +38095,7 @@ function _otExportCsv() {
       r.station_code || "",
       (r.scheduled_hours ?? 0).toFixed(2),
       (r.worked_hours ?? 0).toFixed(2),
+      (r.projected_hours ?? 0).toFixed(2),
       (r.variance_hours ?? 0).toFixed(2),
       (r.ot_hours ?? 0).toFixed(2),
       r.ot_premium_usd != null ? Number(r.ot_premium_usd).toFixed(2) : "",
