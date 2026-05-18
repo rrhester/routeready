@@ -37882,7 +37882,7 @@ function _otRender(d) {
     const liveBadge = onWeek
       ? `<span class="ot-live"><span class="dot"></span>Live · this week</span>`
       : "";
-    sub.innerHTML = `Week of <strong class="ot-page-sub-week">${escapeHtml(range)}</strong> · projected OT exposure across every active driver. Not payroll.${liveBadge}`;
+    sub.innerHTML = `Week of <strong class="ot-page-sub-week">${escapeHtml(range)}</strong> · capacity remaining + projected OT exposure across every active driver. Not payroll.${liveBadge}`;
   }
   const thresh = document.getElementById("rr-ot-threshold");
   if (thresh) thresh.textContent = String(d.threshold_hours ?? 40);
@@ -37896,13 +37896,12 @@ function _otRenderStats(d) {
   const root = document.getElementById("rr-ot-stats");
   if (!root) return;
   const s = d.summary || {};
-  const variance = Number(s.total_variance_hours || 0);
-  const varianceCls = variance > 0.5 ? "up" : variance < -0.5 ? "down" : "";
-  const varianceArrow = variance > 0
-    ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 14 12 8 18 14"/></svg>`
-    : variance < 0
-      ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 10 12 16 18 10"/></svg>`
-      : "";
+  // Fleet-wide non-OT capacity remaining = sum of each driver's
+  // hours_until_ot.  Computed client-side so we don't need a fresh
+  // migration just for an aggregate the RPC already implies.
+  const fleetHuo = (d.drivers || []).reduce(
+    (sum, r) => sum + Math.max(0, Number(r.hours_until_ot || 0)), 0
+  );
 
   const exposureCell = d.have_rates ? `
     <div class="ot-stat">
@@ -37930,12 +37929,9 @@ function _otRenderStats(d) {
       <span class="ot-stat-sub">Worked = real check-ins · Projected = worked + remaining schedule</span>
     </div>
     <div class="ot-stat">
-      <span class="ot-stat-label">Variance vs schedule</span>
-      <div class="ot-stat-value">
-        ${_otFmtHours(s.total_variance_hours, { sign: true })}<span class="ot-stat-value-suffix">h</span>
-        ${varianceCls ? `<span class="ot-stat-delta ot-stat-delta-inline ${varianceCls}">${varianceArrow}</span>` : ""}
-      </div>
-      <span class="ot-stat-sub">Worked − scheduled, week-to-date</span>
+      <span class="ot-stat-label">Fleet hours until OT</span>
+      <div class="ot-stat-value">${_otFmtHours(fleetHuo)}<span class="ot-stat-value-suffix">h</span></div>
+      <span class="ot-stat-sub">Non-OT capacity remaining across the active pool</span>
     </div>
     ${exposureCell}
   `;
@@ -38007,14 +38003,17 @@ function _otRenderTable() {
 
 function _otRenderRow(r, d) {
   const risk = _otRiskCfg(r.risk);
-  const variance = Number(r.variance_hours || 0);
+  const threshold = Number(d.threshold_hours || 40);
   const isZero = !r.scheduled_hours && !r.worked_hours;
-  const varCls = variance > 0.05 ? "pos" : variance < -0.05 ? "neg" : "flat";
-  const varArrow = variance > 0.05
-    ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 14 12 8 18 14"/></svg>`
-    : variance < -0.05
-      ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 10 12 16 18 10"/></svg>`
-      : "";
+  // Hours-until-OT cell — capacity remaining before the threshold.
+  // Tone scales from calm green (>8h headroom) → amber (1-8h, action
+  // window) → red (0h, already in OT).  This is the operator's main
+  // "should I intervene now?" signal.
+  const huo = Math.max(0, Number(r.hours_until_ot ?? (threshold - (r.worked_hours || 0))));
+  const huoCls = huo <= 0.05 ? "ot-huo-hot"
+              : huo <= 8     ? "ot-huo-warn"
+              :                "ot-huo-ok";
+  const huoText = huo <= 0.05 ? "0h · in OT" : `${_otFmtHours(huo)} h left`;
   const cost = (r.ot_premium_usd != null && d.have_rates)
     ? _otFmtUsd(r.ot_premium_usd)
     : `<span class="ot-dash">—</span>`;
@@ -38034,7 +38033,7 @@ function _otRenderRow(r, d) {
   if (r.late_clockout_minutes >= 30) meta.push(`${Math.round(r.late_clockout_minutes)} min late RTS`);
 
   return `
-    <tr class="${isZero ? 'is-zero' : ''}" data-rr-ot-driver="${escapeHtml(r.driver_id)}">
+    <tr class="${isZero ? 'is-zero' : ''}" data-rr-ot-driver="${escapeHtml(r.driver_id)}" title="Click for by-day breakdown">
       <td>
         <div class="ot-driver-cell">
           <div class="ot-avatar">${escapeHtml(_otAvatar(r.driver_name))}</div>
@@ -38047,13 +38046,163 @@ function _otRenderRow(r, d) {
       <td class="col-station">${station}</td>
       <td class="num col-scheduled">${_otFmtHours(r.scheduled_hours)}</td>
       <td class="num">${_otFmtHours(r.worked_hours)}</td>
-      <td class="num"><span class="ot-projected${(r.projected_hours || 0) >= (d.threshold_hours || 40) ? ' ot-projected-hot' : ''}">${_otFmtHours(r.projected_hours)}</span></td>
-      <td class="num"><span class="ot-variance ${varCls}">${varArrow}${_otFmtHours(r.variance_hours, { sign: true })}</span></td>
+      <td class="num"><span class="ot-projected${(r.projected_hours || 0) >= threshold ? ' ot-projected-hot' : ''}">${_otFmtHours(r.projected_hours)}</span></td>
+      <td class="num"><span class="ot-huo ${huoCls}">${huoText}</span></td>
       <td class="num">${ot}</td>
       <td class="num col-cost">${cost}</td>
       <td class="u-right"><span class="ot-pill ${risk.cls}"><span class="dot"></span>${risk.label}</span></td>
     </tr>`;
 }
+
+// ── Per-driver by-day drilldown drawer ───────────────────────────────
+// Click any row in the OT table → opens a slide-in drawer showing the
+// driver's week broken out by shift: scheduled vs worked vs projected
+// per day, plus status / route / time-window context.  The summary
+// strip at the top of the drawer carries the same actionable signals
+// the row does (hours until OT, projected OT, status) so the operator
+// has everything they need to decide whether to intervene.
+function _otOpenDriverDrawer(driverId) {
+  if (!_otData || !driverId) return;
+  const r = (_otData.drivers || []).find((d) => d.driver_id === driverId);
+  if (!r) { toast && toast("Driver not found in this week", "warn"); return; }
+  const threshold = Number(_otData.threshold_hours || 40);
+  const huo = Math.max(0, Number(r.hours_until_ot ?? (threshold - (r.worked_hours || 0))));
+  const days = Array.isArray(r.days) ? r.days.slice() : [];
+  days.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  const fmtDate = (iso) => {
+    const d = new Date(iso + "T12:00:00");
+    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  };
+  const fmtTime = (ts) => ts ? new Date(ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
+  const statusPill = (s, kind) => {
+    const map = {
+      scheduled:  { cls: "scheduled",  label: "Scheduled" },
+      completed:  { cls: "completed",  label: "Completed" },
+      late:       { cls: "late",       label: "Late" },
+      no_show:    { cls: "miss",       label: "NCNS" },
+      called_off: { cls: "miss",       label: "Call-off" },
+      vto:        { cls: "vto",        label: "VTO" },
+    };
+    const m = map[s] || { cls: "scheduled", label: s || "—" };
+    const rescueChip = kind === "rescue" ? ` <span class="ot-dd-kind">rescue</span>` : "";
+    return `<span class="ot-dd-status ${m.cls}">${escapeHtml(m.label)}</span>${rescueChip}`;
+  };
+
+  const dayRows = days.length
+    ? days.map((d) => {
+        const sched = Number(d.scheduled_hours || 0);
+        const worked = Number(d.worked_hours || 0);
+        const projected = Number(d.projected_hours || 0);
+        const checkIn  = d.checked_in_at  ? fmtTime(d.checked_in_at)  : "—";
+        const checkOut = d.checked_out_at ? fmtTime(d.checked_out_at) : "—";
+        const timeRange = (d.starts_at && d.ends_at)
+          ? `${fmtTime(d.starts_at)} – ${fmtTime(d.ends_at)}`
+          : "—";
+        return `
+          <tr>
+            <td class="ot-dd-day">
+              <div class="ot-dd-date">${escapeHtml(fmtDate(d.date))}</div>
+              <div class="ot-dd-sub">${escapeHtml(timeRange)}${d.route_code ? " · " + escapeHtml(d.route_code) : ""}</div>
+            </td>
+            <td>${statusPill(d.status, d.shift_kind)}</td>
+            <td class="num">${_otFmtHours(sched)}</td>
+            <td class="num">${_otFmtHours(worked)}</td>
+            <td class="num"><span class="ot-projected${projected >= sched && sched > 0 ? "" : ""}">${_otFmtHours(projected)}</span></td>
+            <td class="ot-dd-checkins">
+              <div>${escapeHtml(checkIn)} <span class="ot-dd-sub">in</span></div>
+              <div>${escapeHtml(checkOut)} <span class="ot-dd-sub">out</span></div>
+            </td>
+          </tr>`;
+      }).join("")
+    : `<tr><td colspan="6" style="padding:var(--s-8);text-align:center;color:var(--text-subtle)">No scheduled shifts this week.</td></tr>`;
+
+  const huoCls = huo <= 0.05 ? "ot-huo-hot" : huo <= 8 ? "ot-huo-warn" : "ot-huo-ok";
+  const otHrs = Number(r.ot_hours || 0);
+  const risk = _otRiskCfg(r.risk);
+  const rangeStr = _otFmtRange(_otData.week_start, _otData.week_end);
+
+  let drawer = document.getElementById("rr-ot-driver-drawer");
+  if (drawer) drawer.remove();
+  drawer = document.createElement("div");
+  drawer.id = "rr-ot-driver-drawer";
+  drawer.innerHTML = `
+    <div class="ot-dd-scrim" data-ot-dd-close></div>
+    <div class="ot-dd-panel" role="dialog" aria-label="Driver overtime breakdown">
+      <div class="ot-dd-head">
+        <div style="min-width:0;flex:1">
+          <h3>${escapeHtml(r.driver_name || "Driver")}</h3>
+          <div class="ot-dd-headsub">${escapeHtml(r.station_code || "—")} · Week of ${escapeHtml(rangeStr)}</div>
+        </div>
+        <button type="button" class="ot-dd-close-btn" data-ot-dd-close aria-label="Close">×</button>
+      </div>
+      <div class="ot-dd-summary">
+        <div class="ot-dd-summary-cell">
+          <div class="ot-dd-summary-label">Hours until OT</div>
+          <div class="ot-dd-summary-value"><span class="ot-huo ${huoCls}">${huo <= 0.05 ? "0h · in OT" : _otFmtHours(huo) + " h left"}</span></div>
+        </div>
+        <div class="ot-dd-summary-cell">
+          <div class="ot-dd-summary-label">Scheduled</div>
+          <div class="ot-dd-summary-value">${_otFmtHours(r.scheduled_hours)} h</div>
+        </div>
+        <div class="ot-dd-summary-cell">
+          <div class="ot-dd-summary-label">Worked</div>
+          <div class="ot-dd-summary-value">${_otFmtHours(r.worked_hours)} h</div>
+        </div>
+        <div class="ot-dd-summary-cell">
+          <div class="ot-dd-summary-label">Projected</div>
+          <div class="ot-dd-summary-value">${_otFmtHours(r.projected_hours)} h</div>
+        </div>
+        <div class="ot-dd-summary-cell">
+          <div class="ot-dd-summary-label">Projected OT</div>
+          <div class="ot-dd-summary-value">${otHrs > 0 ? `<span class="ot-cell-hot">${_otFmtHours(otHrs)} h</span>` : "—"}</div>
+        </div>
+        <div class="ot-dd-summary-cell">
+          <div class="ot-dd-summary-label">Status</div>
+          <div class="ot-dd-summary-value"><span class="ot-pill ${risk.cls}"><span class="dot"></span>${risk.label}</span></div>
+        </div>
+      </div>
+      <div class="ot-dd-body">
+        <table class="ot-dd-table">
+          <thead>
+            <tr>
+              <th>Day</th>
+              <th>Status</th>
+              <th class="num">Sched</th>
+              <th class="num">Worked</th>
+              <th class="num">Projected</th>
+              <th>Check-in / out</th>
+            </tr>
+          </thead>
+          <tbody>${dayRows}</tbody>
+        </table>
+        <div class="ot-dd-foot-note">
+          Worked = real driver app check-ins · Projected = worked + remaining schedule
+          (NCNS / VTO / call-off = 0) · Threshold = ${threshold}h.
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(drawer);
+  drawer.addEventListener("click", (e) => {
+    if (e.target.closest("[data-ot-dd-close]")) drawer.remove();
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const row = e.target.closest && e.target.closest("#rr-ot-tbody tr[data-rr-ot-driver]");
+  if (!row) return;
+  // Ignore clicks on interactive children (none right now, but keeps
+  // the row safe if future cells add buttons/links).
+  if (e.target.closest("button, a, input, select")) return;
+  e.preventDefault();
+  _otOpenDriverDrawer(row.getAttribute("data-rr-ot-driver"));
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const dd = document.getElementById("rr-ot-driver-drawer");
+    if (dd) dd.remove();
+  }
+});
 
 // Toolbar wiring — search + risk + station + refresh + export.
 document.addEventListener("input", (e) => {
@@ -38087,7 +38236,7 @@ function _otExportCsv() {
     return;
   }
   const rows = [
-    ["Driver","Station","Scheduled (h)","Worked (h)","Projected (h)","Variance (h)","OT hours","OT premium ($)","Risk","Rescues","Late clock-out (min)"]
+    ["Driver","Station","Scheduled (h)","Worked (h)","Projected (h)","Hrs until OT","OT hours","OT premium ($)","Risk","Rescues","Late clock-out (min)"]
   ];
   for (const r of _otData.drivers) {
     rows.push([
@@ -38096,7 +38245,7 @@ function _otExportCsv() {
       (r.scheduled_hours ?? 0).toFixed(2),
       (r.worked_hours ?? 0).toFixed(2),
       (r.projected_hours ?? 0).toFixed(2),
-      (r.variance_hours ?? 0).toFixed(2),
+      (r.hours_until_ot ?? 0).toFixed(2),
       (r.ot_hours ?? 0).toFixed(2),
       r.ot_premium_usd != null ? Number(r.ot_premium_usd).toFixed(2) : "",
       _otRiskCfg(r.risk).label,
