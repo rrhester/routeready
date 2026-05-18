@@ -12713,6 +12713,98 @@ body.rr-cmdk-open{ overflow:hidden }
              column reads as a forward-looking signal, not a tally. */
           #view-overtime .ot-projected{font-variant-numeric:tabular-nums;color:var(--text)}
           #view-overtime .ot-projected-hot{color:var(--amber-dark);font-weight:700}
+
+          /* Hours-until-OT cell · the operator's "should I intervene?" signal.
+             >8h headroom = calm green, 1-8h = amber action window, 0h = red. */
+          #view-overtime .ot-huo{
+            font-variant-numeric:tabular-nums;font-weight:600;
+            font-size:var(--fs-sm);white-space:nowrap;
+          }
+          #view-overtime .ot-huo-ok  {color:var(--green)}
+          #view-overtime .ot-huo-warn{color:var(--amber-dark)}
+          #view-overtime .ot-huo-hot {color:var(--red);font-weight:700}
+
+          /* Driver row hover hint — the whole row is clickable now. */
+          #view-overtime .ot-table tbody tr[data-rr-ot-driver]{cursor:pointer}
+          #view-overtime .ot-table tbody tr[data-rr-ot-driver]:hover{background:var(--surface-hover, var(--canvas))}
+
+          /* ── Per-driver by-day drilldown drawer ─────────────────────────
+             Slide-in right panel showing the driver's whole week broken
+             out by shift.  Lives on body root (positioned: fixed) so it
+             can overlay the dashboard cleanly. */
+          #rr-ot-driver-drawer{position:fixed;inset:0;z-index:10000;display:flex;justify-content:flex-end}
+          #rr-ot-driver-drawer .ot-dd-scrim{position:absolute;inset:0;background:var(--overlay, rgba(15,23,42,.45))}
+          #rr-ot-driver-drawer .ot-dd-panel{
+            position:relative;width:880px;max-width:100%;height:100%;background:var(--surface);
+            border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;
+            box-shadow:-12px 0 36px rgba(15,23,42,.18);
+          }
+          #rr-ot-driver-drawer .ot-dd-head{
+            display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
+            padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border-subtle);
+            background:var(--surface);position:sticky;top:0;z-index:2;
+          }
+          #rr-ot-driver-drawer .ot-dd-head h3{
+            margin:0;font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em;
+          }
+          #rr-ot-driver-drawer .ot-dd-headsub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px}
+          #rr-ot-driver-drawer .ot-dd-close-btn{
+            background:none;border:0;font-size:24px;color:var(--text-subtle);cursor:pointer;line-height:1;padding:4px 8px;
+          }
+          #rr-ot-driver-drawer .ot-dd-close-btn:hover{color:var(--text)}
+
+          #rr-ot-driver-drawer .ot-dd-summary{
+            display:grid;grid-template-columns:repeat(6, 1fr);gap:1px;
+            background:var(--border-subtle);border-bottom:1px solid var(--border-subtle);
+          }
+          @media (max-width: 760px){#rr-ot-driver-drawer .ot-dd-summary{grid-template-columns:repeat(2, 1fr)}}
+          #rr-ot-driver-drawer .ot-dd-summary-cell{
+            background:var(--surface);padding:var(--s-3) var(--s-3-5);min-width:0;
+          }
+          #rr-ot-driver-drawer .ot-dd-summary-label{
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            color:var(--text-subtle);margin-bottom:5px;line-height:1.2;
+          }
+          #rr-ot-driver-drawer .ot-dd-summary-value{
+            font-family:'Inter Tight','Inter',sans-serif;font-size:18px;font-weight:700;
+            color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1;
+          }
+
+          #rr-ot-driver-drawer .ot-dd-body{padding:var(--s-4) var(--s-5) var(--s-6)}
+          #rr-ot-driver-drawer .ot-dd-table{width:100%;border-collapse:collapse}
+          #rr-ot-driver-drawer .ot-dd-table th{
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            color:var(--text-subtle);text-align:left;padding:var(--s-2) var(--s-2-5);border-bottom:1px solid var(--border);
+          }
+          #rr-ot-driver-drawer .ot-dd-table th.num,
+          #rr-ot-driver-drawer .ot-dd-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+          #rr-ot-driver-drawer .ot-dd-table td{
+            padding:var(--s-2-5) var(--s-2-5);border-bottom:1px solid var(--border-subtle);
+            font-size:var(--fs-sm);color:var(--text);vertical-align:top;
+          }
+          #rr-ot-driver-drawer .ot-dd-table tbody tr:hover{background:var(--canvas)}
+          #rr-ot-driver-drawer .ot-dd-day .ot-dd-date{font-weight:600;color:var(--text);letter-spacing:-.005em}
+          #rr-ot-driver-drawer .ot-dd-sub{color:var(--text-subtle);font-size:var(--fs-xs);font-weight:500}
+          #rr-ot-driver-drawer .ot-dd-status{
+            display:inline-flex;align-items:center;
+            font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+            padding:2px 8px;border-radius:var(--r-pill);white-space:nowrap;line-height:1.4;
+          }
+          #rr-ot-driver-drawer .ot-dd-status.scheduled{background:var(--accent-soft);color:var(--accent-text)}
+          #rr-ot-driver-drawer .ot-dd-status.completed{background:var(--green-soft);color:var(--green-dark)}
+          #rr-ot-driver-drawer .ot-dd-status.late     {background:var(--amber-soft);color:var(--amber-dark)}
+          #rr-ot-driver-drawer .ot-dd-status.miss     {background:var(--red-soft);color:var(--red-dark)}
+          #rr-ot-driver-drawer .ot-dd-status.vto      {background:var(--canvas);color:var(--text-muted);border:1px solid var(--border)}
+          #rr-ot-driver-drawer .ot-dd-kind{
+            display:inline-block;margin-left:6px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+            padding:2px 6px;border-radius:var(--r-pill);background:var(--canvas);color:var(--text-muted);
+            border:1px solid var(--border);
+          }
+          #rr-ot-driver-drawer .ot-dd-checkins{font-size:var(--fs-xs);line-height:1.4}
+          #rr-ot-driver-drawer .ot-dd-foot-note{
+            margin-top:var(--s-4);font-size:var(--fs-xs);color:var(--text-subtle);
+            line-height:1.5;
+          }
           #view-overtime .ot-stat-sub{
             font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500;line-height:1.4;
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -12984,9 +13076,9 @@ body.rr-cmdk-open{ overflow:hidden }
             <option value="">All locations</option>
           </select>
           <span style="flex:1"></span>
-          <span class="ot-assumption" title="Projected hours = worked-to-date + remaining scheduled, with NCNS / call-off / VTO zeroed out. OT hours and Status fire off the projection — so a schedule that bakes in OT surfaces before any wheels turn. Worked hours come from real driver app check-ins only.">
+          <span class="ot-assumption" title="Hrs until OT = threshold − worked-to-date — the non-overtime capacity remaining right now. Projected = worked + remaining scheduled (NCNS / VTO / call-off zeroed out) and drives OT Hours + Status. Click any driver row for a by-day breakdown.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            Projected = worked + remaining schedule · OT &amp; Status driven by projection · NCNS / VTO / call-off = 0
+            Hrs until OT = capacity remaining · Projected = worked + remaining schedule · Click a driver for the by-day report
           </span>
         </div>
 
@@ -13000,7 +13092,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 <th class="num col-scheduled">Scheduled</th>
                 <th class="num">Worked</th>
                 <th class="num">Projected</th>
-                <th class="num">Variance</th>
+                <th class="num">Hrs until OT</th>
                 <th class="num">OT hours</th>
                 <th class="num col-cost">Cost impact</th>
                 <th class="u-right">Status</th>
