@@ -22873,96 +22873,165 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // Save scheduling settings.
+  // Save scheduling settings (Save button inside the drawer).
   if (e.target.id === "rr-set-sched-save") {
     e.preventDefault();
-    const dspId = window.RR?.dsp?.id;
-    if (!dspId) return;
-    if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
-
-    const block = parseInt(document.getElementById("rr-set-block-hours")?.value, 10) || 10;
-    const cushion = parseInt(document.getElementById("rr-set-cushion-pct")?.value, 10) || 0;
-    const maxDays = Math.max(1, Math.min(7, parseInt(document.getElementById("rr-set-max-days")?.value, 10) || 5));
-    const reportLead = Math.max(0, Math.min(120, parseInt(document.getElementById("rr-set-report-lead")?.value, 10) || 0));
-    const allowOverride = !!document.getElementById("rr-set-availability-override")?.checked;
-    const waves = Array.from(document.querySelectorAll("#rr-set-waves [data-rr-wave-time]"))
-      .map(inp => ({ start: inp.value || "07:00" }))
-      .filter(w => w.start);
-    if (waves.length === 0) waves.push({ start: "07:00" });
-    const tz = (Intl?.DateTimeFormat?.().resolvedOptions().timeZone) || "UTC";
-
-    const status = document.getElementById("rr-set-sched-status");
-    const ws = _schedStart;
-    if (status) { status.style.color = "var(--text-subtle)"; status.textContent = `Saving settings for week of ${ws}…`; }
-
-    // Per-week save: write a single scheduling_settings row for the
-    // visible week. Future weeks without their own row inherit from
-    // this one via private.get_week_settings (which falls back to the
-    // most-recent prior saved week).
-    const prefTiebreaker = (() => {
-      const v = document.getElementById("rr-set-pref-tiebreaker")?.value;
-      return ["least_loaded","seniority","fairness"].includes(v) ? v : "least_loaded";
-    })();
-    const payload = {
-      week_start: ws,
-      default_block_hours: block,
-      cushion_pct: cushion,
-      max_days_per_week: maxDays,
-      allow_availability_override: allowOverride,
-      report_lead_minutes: reportLead,
-      preference_tiebreaker: prefTiebreaker,
-      waves,
-      timezone: tz,
-    };
-
-    let cushionDelta = 0;
-    let failed = null;
-
-    const { error: upErr } = await sb.rpc("upsert_scheduling_settings", { p_payload: payload });
-    if (upErr) { failed = upErr.message; }
-
-    if (!failed) {
-      _markLocalShiftMutation();
-      const { error: regenErr } = await sb.rpc("regenerate_week_shifts", { p_week_start: ws });
-      if (regenErr) { failed = regenErr.message; }
-    }
-
-    if (!failed) {
-      try {
-        const { data, error: cushionErr } = await sb.rpc("apply_cushion_to_week", { p_week_start: ws });
-        if (cushionErr) console.warn(`apply_cushion_to_week (${ws}):`, cushionErr.message);
-        else cushionDelta = data || 0;
-      } catch (e) {
-        console.warn(`apply_cushion_to_week (${ws}) threw:`, e);
-      }
-    }
-
-    if (failed) {
-      if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + failed; }
-      toast("Settings save failed: " + failed, "warn");
-      return;
-    }
-
-    if (status) {
-      status.style.color = "var(--green)";
-      const cushionNote = cushionDelta !== 0 ? ` · cushion ${cushionDelta > 0 ? "+" : ""}${cushionDelta}` : "";
-      status.textContent = `Saved for week of ${ws} ✓${cushionNote}`;
-    }
-    setTimeout(() => { if (status) status.textContent = ""; }, 3000);
-    toast(`Scheduling settings saved for week of ${ws}`, "success");
-
-    // Refresh schedule view if active.
-    if (typeof renderScheduleWeek === "function") {
-      const sub = document.getElementById("sched-sub-week");
-      if (sub) renderScheduleWeek();
-    }
-    // Reload settings panel so the inheritance hint updates, then
-    // close the drawer so the operator sees the calendar reflecting
-    // the new rule.
-    loadSchedulingSettings();
-    closeSchedSettingsDrawer();
+    await _saveScheduleSettings({ source: "drawer" });
     return;
   }
+});
+
+// Persist the visible week's scheduling settings + regenerate the
+// week's shifts. Pulled out of the inline click handler so the new
+// nav-bar settings cluster can call the same flow on auto-save.
+async function _saveScheduleSettings({ source = "drawer" } = {}) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return { ok: false, error: "DSP not loaded" };
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+
+  const block = parseInt(document.getElementById("rr-set-block-hours")?.value, 10) || 10;
+  const cushion = parseInt(document.getElementById("rr-set-cushion-pct")?.value, 10) || 0;
+  const maxDays = Math.max(1, Math.min(7, parseInt(document.getElementById("rr-set-max-days")?.value, 10) || 5));
+  const reportLead = Math.max(0, Math.min(120, parseInt(document.getElementById("rr-set-report-lead")?.value, 10) || 0));
+  const allowOverride = !!document.getElementById("rr-set-availability-override")?.checked;
+  const waves = Array.from(document.querySelectorAll("#rr-set-waves [data-rr-wave-time]"))
+    .map(inp => ({ start: inp.value || "07:00" }))
+    .filter(w => w.start);
+  if (waves.length === 0) waves.push({ start: "07:00" });
+  const tz = (Intl?.DateTimeFormat?.().resolvedOptions().timeZone) || "UTC";
+
+  const status = document.getElementById("rr-set-sched-status");
+  const ws = _schedStart;
+  if (status) { status.style.color = "var(--text-subtle)"; status.textContent = `Saving settings for week of ${ws}…`; }
+
+  const prefTiebreaker = (() => {
+    const v = document.getElementById("rr-set-pref-tiebreaker")?.value;
+    return ["least_loaded","seniority","fairness"].includes(v) ? v : "least_loaded";
+  })();
+  const payload = {
+    week_start: ws,
+    default_block_hours: block,
+    cushion_pct: cushion,
+    max_days_per_week: maxDays,
+    allow_availability_override: allowOverride,
+    report_lead_minutes: reportLead,
+    preference_tiebreaker: prefTiebreaker,
+    waves,
+    timezone: tz,
+  };
+
+  let cushionDelta = 0;
+  let failed = null;
+
+  const { error: upErr } = await sb.rpc("upsert_scheduling_settings", { p_payload: payload });
+  if (upErr) { failed = upErr.message; }
+
+  if (!failed) {
+    _markLocalShiftMutation();
+    const { error: regenErr } = await sb.rpc("regenerate_week_shifts", { p_week_start: ws });
+    if (regenErr) { failed = regenErr.message; }
+  }
+
+  if (!failed) {
+    try {
+      const { data, error: cushionErr } = await sb.rpc("apply_cushion_to_week", { p_week_start: ws });
+      if (cushionErr) console.warn(`apply_cushion_to_week (${ws}):`, cushionErr.message);
+      else cushionDelta = data || 0;
+    } catch (e) {
+      console.warn(`apply_cushion_to_week (${ws}) threw:`, e);
+    }
+  }
+
+  if (failed) {
+    if (status) { status.style.color = "var(--red)"; status.textContent = "Failed: " + failed; }
+    if (source !== "nav") toast("Settings save failed: " + failed, "warn");
+    return { ok: false, error: failed };
+  }
+
+  if (status) {
+    status.style.color = "var(--green)";
+    const cushionNote = cushionDelta !== 0 ? ` · cushion ${cushionDelta > 0 ? "+" : ""}${cushionDelta}` : "";
+    status.textContent = `Saved for week of ${ws} ✓${cushionNote}`;
+  }
+  setTimeout(() => { if (status) status.textContent = ""; }, 3000);
+  if (source !== "nav") toast(`Scheduling settings saved for week of ${ws}`, "success");
+
+  // Refresh schedule view if active.
+  if (typeof renderScheduleWeek === "function") {
+    const sub = document.getElementById("sched-sub-week");
+    if (sub) renderScheduleWeek();
+  }
+  // Reload settings panel so the inheritance hint updates. Only
+  // close the drawer when the save came from the drawer button —
+  // nav-bar auto-saves should leave the drawer state alone.
+  loadSchedulingSettings();
+  if (source === "drawer") closeSchedSettingsDrawer();
+  return { ok: true, cushionDelta };
+}
+
+// ─── Schedule · navigation-heading settings auto-save ────────────────
+// Block / Cushion / Max days / Report time now live in the nav strip.
+// Changes there should trigger the same RPC chain as the drawer's
+// Save button. Debounced so a rapid spinner click doesn't hit the
+// regenerate endpoint several times in a row.
+let _navSettingsSaveTimer = null;
+const _NAV_SETTING_IDS = new Set([
+  "rr-set-block-hours",
+  "rr-set-cushion-pct",
+  "rr-set-max-days",
+  "rr-set-report-lead",
+]);
+function _flashNavStatus(msg, color) {
+  const el = document.getElementById("rr-sched-nav-settings-status");
+  if (!el) return;
+  el.style.color = color || "var(--text-subtle)";
+  el.textContent = msg;
+}
+async function _navSettingsTriggerSave(inputEl) {
+  if (inputEl) inputEl.dataset.rrSaving = "1";
+  _flashNavStatus("Saving…", "var(--text-subtle)");
+  const res = await _saveScheduleSettings({ source: "nav" });
+  if (inputEl) {
+    delete inputEl.dataset.rrSaving;
+    if (res?.ok) {
+      inputEl.dataset.rrSaved = "1";
+      setTimeout(() => { delete inputEl.dataset.rrSaved; }, 1400);
+    } else {
+      inputEl.dataset.rrError = "1";
+      setTimeout(() => { delete inputEl.dataset.rrError; }, 2200);
+    }
+  }
+  if (res?.ok) {
+    const note = res.cushionDelta && res.cushionDelta !== 0
+      ? `Saved · cushion ${res.cushionDelta > 0 ? "+" : ""}${res.cushionDelta}`
+      : "Saved ✓";
+    _flashNavStatus(note, "var(--green)");
+    setTimeout(() => { _flashNavStatus("", ""); }, 1800);
+  } else {
+    _flashNavStatus(res?.error || "Save failed", "var(--red)");
+    setTimeout(() => { _flashNavStatus("", ""); }, 3000);
+  }
+}
+document.addEventListener("input", (e) => {
+  const input = e.target;
+  if (!input || !input.id || !_NAV_SETTING_IDS.has(input.id)) return;
+  if (!input.closest("#rr-sched-nav-settings")) return;
+  if (_navSettingsSaveTimer) clearTimeout(_navSettingsSaveTimer);
+  _flashNavStatus("Editing…", "var(--text-subtle)");
+  _navSettingsSaveTimer = setTimeout(() => {
+    _navSettingsSaveTimer = null;
+    _navSettingsTriggerSave(input);
+  }, 800);
+});
+document.addEventListener("change", (e) => {
+  // Cover the case where the user uses arrow keys / spinner without
+  // triggering an `input` event in some browsers.
+  const input = e.target;
+  if (!input || !input.id || !_NAV_SETTING_IDS.has(input.id)) return;
+  if (!input.closest("#rr-sched-nav-settings")) return;
+  if (_navSettingsSaveTimer) clearTimeout(_navSettingsSaveTimer);
+  _navSettingsSaveTimer = null;
+  _navSettingsTriggerSave(input);
 });
 
 // ─── Schedule · Settings drawer ────────────────────────────────────────
