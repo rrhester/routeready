@@ -516,10 +516,11 @@ a{color:inherit;text-decoration:none}
 }
 .nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--text-inverse);box-shadow:inset 0 0 0 1px rgba(96,165,250,.35)}
 /* Active state — calm dimensional treatment with a bright accent
-   rail on the left and a trailing dot that picks up the category
-   colour, so the operator sees both "which page" and "what kind"
-   at a glance.  Background stays close to the sidebar so the row
-   doesn't compete with the icon. */
+   rail on the left.  Background stays close to the sidebar so the
+   row doesn't compete with the icon, and the rail + tinted icon
+   tile together carry the "which page" signal.  No trailing dot —
+   the rail is enough, and a dot would fight any nav-badge that
+   shares the right edge. */
 .nav-item.active{
   /* Tint the active row in the item's category colour so the rail,
      background, and ring all match the icon.  --ni-fg / --ni-bg-strong
@@ -527,14 +528,13 @@ a{color:inherit;text-decoration:none}
      we fall back to the blue accent. */
   background:linear-gradient(
     180deg,
-    color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 14%, transparent) 0%,
-    color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 4%,  transparent) 100%
+    color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 12%, transparent) 0%,
+    color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 3%,  transparent) 100%
   );
   color:var(--text-inverse);font-weight:600;
   box-shadow:
     inset 3px 0 0 var(--ni-fg, var(--blue-bright)),
-    inset 0 0 0 1px color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 22%, transparent),
-    0 1px 2px rgba(15,23,42,.18);
+    inset 0 0 0 1px color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 18%, transparent);
 }
 .nav-item.active .nav-badge{
   color:var(--ni-fg, var(--blue-bright));background:#fff;
@@ -543,17 +543,6 @@ a{color:inherit;text-decoration:none}
 .nav-item.active .nav-icon{
   background:var(--ni-bg-strong, rgba(255,255,255,.20));
   color:var(--ni-fg, #fff);
-}
-/* Trailing colour dot — same hue as the active item's icon
-   container.  `color-mix` paints a soft halo around it so the dot
-   reads as a deliberate indicator, not noise.  Hidden if the row
-   actually has a visible nav-badge so we don't double up. */
-.nav-item.active::after{
-  content:"";
-  position:absolute;right:var(--s-3);top:50%;transform:translateY(-50%);
-  width:7px;height:7px;border-radius:50%;
-  background:var(--ni-fg, var(--blue-bright));
-  box-shadow:0 0 0 3px color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 22%, transparent);
 }
 /* Icon strokes — calm operational weight; no glow / drop-shadow */
 .nav-item svg{
@@ -5201,25 +5190,32 @@ body.rr-cmdk-open{ overflow:hidden }
 .forms-kpi-card{
   display:flex;align-items:center;gap:var(--s-3);
   background:var(--surface);border:1px solid var(--border-subtle);
-  border-radius:var(--r-lg);padding:var(--s-3) var(--s-4);
-  box-shadow:0 1px 2px rgba(15,23,42,.035);
+  border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);
+  box-shadow:var(--shadow-xs);
+  transition:border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.forms-kpi-card:hover{
+  border-color:var(--border-strong);box-shadow:var(--shadow-sm);
 }
 .forms-kpi-icon{
-  width:42px;height:42px;border-radius:12px;flex:0 0 auto;
+  width:40px;height:40px;border-radius:var(--r-md);flex:0 0 auto;
   display:flex;align-items:center;justify-content:center;
 }
-.forms-kpi-icon svg{width:20px;height:20px}
+.forms-kpi-icon svg{width:18px;height:18px;stroke-width:2}
 .forms-kpi-published .forms-kpi-icon{background:rgba(124,58,237,.10);color:var(--violet)}
 .forms-kpi-subs      .forms-kpi-icon{background:var(--green-soft);color:var(--green)}
 .forms-kpi-rate      .forms-kpi-icon{background:var(--amber-soft);color:var(--amber-dark)}
 .forms-kpi-drivers   .forms-kpi-icon{background:var(--accent-soft);color:var(--accent-text)}
-.forms-kpi-body{min-width:0;flex:1;display:flex;flex-direction:column;gap:1px}
+.forms-kpi-body{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
 .forms-kpi-value{
-  font-size:var(--fs-xl);font-weight:750;letter-spacing:-.025em;
-  color:var(--text);line-height:1;font-variant-numeric:tabular-nums;
+  font-size:var(--fs-xl);font-weight:700;letter-spacing:-.02em;
+  color:var(--text);line-height:1.05;font-variant-numeric:tabular-nums;
 }
-.forms-kpi-label{font-size:var(--fs-sm);font-weight:650;color:var(--text);line-height:1.3;margin-top:2px}
-.forms-kpi-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.3}
+.forms-kpi-label{
+  font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
+  letter-spacing:.04em;text-transform:uppercase;line-height:1.2;margin-top:2px;
+}
+.forms-kpi-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.3;margin-top:2px}
 @media (max-width:980px){.forms-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.forms-kpi{grid-template-columns:1fr}}
 
@@ -7268,11 +7264,20 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Pipeline throughput KPIs */
 .pipeline-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-4)}
 @media (max-width:1080px){.pipeline-kpis{grid-template-columns:repeat(2,1fr)}}
-.pipeline-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4)}
-.pipeline-kpi-label{font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);margin-bottom:4px}
-.pipeline-kpi-value{font-size:var(--fs-xl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1}
+.pipeline-kpi{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:var(--s-3-5) var(--s-4);
+  transition:border-color var(--t-fast), box-shadow var(--t-fast);
+}
+.pipeline-kpi:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
+.pipeline-kpi-label{
+  font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
+  letter-spacing:.04em;text-transform:uppercase;
+  margin-bottom:var(--s-2);line-height:1.2;
+}
+.pipeline-kpi-value{font-size:var(--fs-xl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
 .pipeline-kpi-value .frac{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500}
-.pipeline-kpi-trend{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px}
+.pipeline-kpi-trend{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-1)}
 .pipeline-kpi-trend .up{color:var(--green);font-weight:600}
 .pipeline-kpi-trend .down{color:var(--red);font-weight:600}
 
@@ -7286,19 +7291,22 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .health-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
 .health-icon{
-  width:34px;height:34px;border-radius:8px;flex-shrink:0;
+  width:34px;height:34px;border-radius:var(--r-md);flex-shrink:0;
   display:flex;align-items:center;justify-content:center;
   background:var(--canvas);
 }
 .health-icon svg{width:16px;height:16px;stroke-width:2}
-.health-icon.green{background:rgba(16,185,129,.1);color:var(--green)}
+.health-icon.green{background:var(--green-soft);color:var(--green)}
 .health-icon.amber{background:var(--amber-soft);color:var(--amber)}
 .health-icon.red{background:var(--red-soft);color:var(--red)}
 .health-icon.blue{background:var(--accent-soft);color:var(--accent-text)}
-.health-label{font-size:var(--fs-xs);color:var(--text-muted);font-weight:500;letter-spacing:.02em;margin-bottom:2px}
-.health-value{font-size:20px;font-weight:700;color:var(--text);letter-spacing:-.01em;line-height:1}
+.health-label{
+  font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;
+  letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-1);line-height:1.2;
+}
+.health-value{font-size:var(--fs-xl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
 .health-value .frac{font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);margin-left:2px}
-.health-trend{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+.health-trend{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-1)}
 .health-trend .up{color:var(--green);font-weight:600}
 .health-trend .down{color:var(--red);font-weight:600}
 
