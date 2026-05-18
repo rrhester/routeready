@@ -23194,7 +23194,17 @@ document.addEventListener("click", (e) => {
     _toggleSchedQuickSettings(false);
   }
 
-  if (e.target.closest("#rr-sched-settings-open, #rr-sched-settings-open-h")) {
+  // Clicking the Settings tile itself (gear or label) opens the
+  // inline quick-edit popover. The full drawer is reached via the
+  // popover's "Advanced settings…" link or via #rr-sched-settings-open
+  // (the hidden helper in the old toolbar rail) so existing callers
+  // can still force the drawer when they need it.
+  if (e.target.closest("#rr-sched-settings-open-h")) {
+    e.preventDefault();
+    _toggleSchedQuickSettings();
+    return;
+  }
+  if (e.target.closest("#rr-sched-settings-open")) {
     e.preventDefault();
     openSchedSettingsDrawer();
     return;
@@ -23339,17 +23349,15 @@ function _activateSchedSub(sub) {
   if (view) view.style.display = "block";
 }
 document.addEventListener("click", (e) => {
-  if (e.target.closest("#rr-sched-today-view-h")) {
-    e.preventDefault();
-    _activateSchedSub("today");
-    if (!_schedTodayDate) _schedTodayDate = fmtIsoDate(new Date());
-    renderSchedTodayView();
-    return;
-  }
+  // Van Assignments tile → open the existing Workspaces "Van
+  // assignments" board (primary + backup driver chains, grounded
+  // status, notes — the full standing-tool board) instead of the
+  // simple per-week pairing list.
   if (e.target.closest("#rr-sched-vans-h")) {
     e.preventDefault();
-    _activateSchedSub("vans");
-    renderSchedVanAssignments();
+    try { _wsBoardId = "__vehicles__"; } catch (_) { /* set when WS module mounts */ }
+    if (typeof window.goto === "function") window.goto("workspaces");
+    else if (typeof loadWorkspacesView === "function") loadWorkspacesView();
     return;
   }
   // Day navigation inside the Today view.
@@ -23961,7 +23969,25 @@ function _clearScheduleMockup() {
 // Override the mockup AI-schedule modal — replace with a real auto-fill that
 // creates open shifts wherever OKAMI demand exceeds current shift count.
 window.openAiSchedule = async function () {
-  await autoFillScheduleWeek();
+  // Lock the Smart Fill tile + show a progress toast so the
+  // operator gets immediate feedback while the RPC chain runs.
+  const btn = document.getElementById("rr-sched-smartfill-h");
+  const orig = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.dataset.rrBusy = "1";
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>Smart Fill`;
+  }
+  try {
+    toast("Smart-filling…", "info", 1500);
+    await autoFillScheduleWeek();
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      delete btn.dataset.rrBusy;
+      btn.innerHTML = orig;
+    }
+  }
 };
 
 async function autoFillScheduleWeek() {
