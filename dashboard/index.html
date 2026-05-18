@@ -30,7 +30,7 @@
      cards.  The page itself is plain white (body uses --surface).
      Updated to the enterprise governance palette: cooler greys
      that pair with the new graphite sidebar. */
-  --canvas:#EDEFF6;
+  --canvas:#FFFFFF;
   --canvas-grad:none;
   --surface:#FFFFFF;
   --surface-secondary:#FCFCFD;
@@ -66,12 +66,12 @@
   --text-inverse-muted:#94A3B8;
 
   /* ── Brand (Primary Azure — enterprise operational governance) */
-  --accent:#2563EB;
-  --accent-hover:#1D4ED8;
-  --accent-soft:rgba(37,99,235,.10);
-  --accent-soft-strong:rgba(37,99,235,.14);
-  --accent-border:rgba(37,99,235,.18);
-  --accent-text:#1D4ED8;
+  --accent:#2C3170;
+  --accent-hover:#1A1F47;
+  --accent-soft:rgba(26,31,71,.06);
+  --accent-soft-strong:rgba(26,31,71,.10);
+  --accent-border:rgba(26,31,71,.18);
+  --accent-text:#1A1F47;
   --accent-grad:linear-gradient(180deg, #3B82F6 0%, #2563EB 100%);
   --accent-grad-hover:linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%);
   --accent-grad-pressed:linear-gradient(180deg, #1D4ED8 0%, #1E40AF 100%);
@@ -92,7 +92,7 @@
   --pink:#DB2777;
   --emerald:#059669;
   /* Headline gradient — used on hero chips, big avatars, key actions */
-  --brand-grad:linear-gradient(135deg, #2563EB 0%, #6366F1 100%);
+  --brand-grad:linear-gradient(135deg, #2C3170 0%, #1A1F47 100%);
   /* Dark-hero gradient — used on briefing cards, invoice icons, etc. */
   --brand-grad-dark:linear-gradient(135deg, #0F172A 0%, #1A1F47 100%);
   /* Violet pair — used on referrals, marketing chips, etc. */
@@ -105,12 +105,12 @@
   /* Positive signal in the sidebar's blue family — sky #0EA5E9
      instead of emerald green. Reserved for "healthy / active /
      done". */
-  --green:#0EA5E9;
-  --green-bright:#38BDF8;
-  --green-dark:#0369A1;
-  --green-soft:rgba(14,165,233,.10);
-  --green-soft-strong:rgba(14,165,233,.14);
-  --green-border:rgba(14,165,233,.22);
+  --green:#0F766E;
+  --green-bright:#14B8A6;
+  --green-dark:#115E59;
+  --green-soft:rgba(15,118,110,.12);
+  --green-soft-strong:rgba(15,118,110,.18);
+  --green-border:rgba(15,118,110,.24);
   /* Warning signal in the same brand family — indigo-bright
      #6366F1 instead of amber. Reserved for "pending / waiting /
      needs attention soon". */
@@ -781,7 +781,7 @@ a{color:inherit;text-decoration:none}
    below header gives major content zones the breathing room
    enterprise dashboards (Stripe, Linear) use between top hero
    and primary content. */
-.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s-8);gap:var(--s-4)}
+.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s-4);gap:var(--s-4)}
 .page-title{font-family:'Inter Tight','Inter',system-ui,-apple-system,sans-serif;font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.025em;line-height:1.15;margin:0 0 var(--s-1) 0}
 /* Optional: gradient-accent wordmark for hero phrases. Apply with a
    <span class="grad"> inside .page-title to match the landing. */
@@ -11190,23 +11190,19 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               Finalize
             </button>
-          </div>
-        </div>
-
-        <!-- Top-right week-range scroller — same row as the page title. -->
-        <div class="sched-scroller-row">
-          <div class="sched-week-nav" id="rr-sched-week-nav" role="group" aria-label="Week navigation">
-            <button type="button" class="sched-week-nav-btn" id="rr-sched-week-prev" title="Previous week" aria-label="Previous week">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <button type="button" class="sched-week-nav-today" id="rr-sched-week-today" title="Jump to this week">Today</button>
-            <button type="button" class="sched-week-nav-range" id="rr-sched-week-range" title="Cycle through the next four weeks">
-              <span id="rr-sched-week-range-label">This week</span>
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            <button type="button" class="sched-week-nav-btn" id="rr-sched-week-next" title="Next week" aria-label="Next week">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
+            <div class="sched-week-nav" id="rr-sched-week-nav" role="group" aria-label="Week navigation">
+              <button type="button" class="sched-week-nav-btn" id="rr-sched-week-prev" title="Previous week" aria-label="Previous week">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <button type="button" class="sched-week-nav-today" id="rr-sched-week-today" title="Jump to this week">Today</button>
+              <button type="button" class="sched-week-nav-range" id="rr-sched-week-range" title="Cycle through the next four weeks">
+                <span id="rr-sched-week-range-label">This week</span>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <button type="button" class="sched-week-nav-btn" id="rr-sched-week-next" title="Next week" aria-label="Next week">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -11447,36 +11443,12 @@ body.rr-cmdk-open{ overflow:hidden }
              active subnav tab, hover lifts) with the same deeper
              navy so the page reads as one product with the sidebar. */
 
-          /* Schedule page leans almost entirely white — color is
-             reserved for the schedule itself (shift chips), buttons,
-             and the one signal that demands action (red alarms).
-             Every accent color used on the page is pulled into the
-             sidebar's navy family so the surface feels like a single
-             material. Red is the only out-of-family color. */
-          #view-schedule{
-            background:#FFFFFF;
-            /* Accent family → sidebar navy. Drives shift chips, focus
-               rings, route text, and any --accent-* consumer. */
-            --accent:#2C3170;
-            --accent-hover:#1A1F47;
-            --accent-text:#1A1F47;
-            --accent-soft:rgba(26,31,71,.06);
-            --accent-soft-strong:rgba(26,31,71,.10);
-            --accent-border:rgba(26,31,71,.18);
-            --brand-grad:linear-gradient(180deg, #2C3170 0%, #1A1F47 100%);
-          }
+          /* Accent / green / canvas tokens now live at :root so every
+             page inherits the navy + teal + white treatment. The
+             lines below are Schedule-only specifics. */
 
-          /* Tighter page-header → KPI strip rhythm. Default --s-8
-             (32px) below the page header reads as a big empty band
-             above the pills; bring it down to --s-3 here. */
-          #view-schedule .page-header{margin-bottom:var(--s-3)}
-
-          /* Scroller-row · right-aligned, sits between the page
-             header and the KPI pill row. */
-          #view-schedule .sched-scroller-row{
-            display:flex;justify-content:flex-end;
-            margin:0 0 var(--s-3) 0;
-          }
+          /* Page-header → KPI strip rhythm is now handled by the
+             tightened global .page-header margin-bottom. */
 
           /* KPI pill row · compact inline dot+label pills sitting
              between the page sub-line and the subnav. */
