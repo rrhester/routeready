@@ -108,12 +108,17 @@
   /* Positive signal in the sidebar's blue family — sky #0EA5E9
      instead of emerald green. Reserved for "healthy / active /
      done". */
-  --green:#0F766E;
-  --green-bright:#14B8A6;
-  --green-dark:#115E59;
-  --green-soft:rgba(15,118,110,.12);
-  --green-soft-strong:rgba(15,118,110,.18);
-  --green-border:rgba(15,118,110,.24);
+  /* Microsoft Fluent communicationGreen — used by Outlook's "Live"
+     status, M365 admin success banners, and Planner's completed
+     state. Matches the Microsoft 365 accent so the schedule's
+     "Live" pill and "All shifts covered" badge sit in the same
+     brand family as the blue chrome. */
+  --green:#107C41;
+  --green-bright:#13A10E;
+  --green-dark:#0B5128;
+  --green-soft:rgba(16,124,65,.10);
+  --green-soft-strong:rgba(16,124,65,.16);
+  --green-border:rgba(16,124,65,.24);
   /* Warning signal in the same brand family — indigo-bright
      #6366F1 instead of amber. Reserved for "pending / waiting /
      needs attention soon". */
@@ -3081,10 +3086,11 @@ select.form-input{
    rhythm as the rest of the dashboard.  Active state uses a
    single-source emphasis (filled white pill + brand underline)
    instead of stacked emphasis layers. */
-/* Microsoft Teams horizontal tabs — flat strip with a single
-   hairline below the row, 2px Fluent-blue underline on the active
-   tab. No pill fill, no inset shadows: the reading hierarchy is
-   carried by typography + the underline. */
+/* Microsoft Office ribbon tabs — flat strip with a single hairline
+   below the row, 3px Fluent-blue underline on the active tab.
+   Tab cells are tall and roomy (Outlook's "File / Home / Send-
+   Receive / Folder / View" rhythm) so the reading hierarchy is
+   carried by tab presence + the underline, not by pill fills. */
 .subnav{
   display:flex;gap:0;
   background:transparent;background-image:none;
@@ -3096,8 +3102,8 @@ select.form-input{
   width:100%;
 }
 .subnav-item{
-  padding:9px 14px;
-  font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);
+  padding:12px 20px;
+  font-size:var(--fs-base);font-weight:500;color:var(--text-muted);
   background:transparent;border:0;border-radius:0;cursor:pointer;
   letter-spacing:0;line-height:1.2;position:relative;
   transition:background var(--t-fast), color var(--t-fast);
@@ -3110,8 +3116,8 @@ select.form-input{
   box-shadow:none;
 }
 .subnav-item.active::after{
-  content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;
-  background:var(--accent);border-radius:1px 1px 0 0;
+  content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:3px;
+  background:var(--accent);border-radius:2px 2px 0 0;
   box-shadow:none;
 }
 /* Inline pill-badge inside a subnav-item — used for unread counters
@@ -11217,10 +11223,23 @@ body.rr-cmdk-open{ overflow:hidden }
         <!-- Subnav tabs. -->
         <div class="sched-subnav-row">
           <div class="subnav" data-rr-tabbar="schedule">
-            <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
-            <button class="subnav-item" data-sub="staff" onclick="schedSub('staff')">Staff</button>
-            <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">Templates</button>
-            <button class="subnav-item" data-sub="time-off" onclick="schedSub('time-off')">Time off <span class="nav-badge" id="rr-sched-time-off-badge" style="background:var(--amber);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;display:none">0</span></button>
+            <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span>Week view</span>
+            </button>
+            <button class="subnav-item" data-sub="staff" onclick="schedSub('staff')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span>Staff</span>
+            </button>
+            <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              <span>Templates</span>
+            </button>
+            <button class="subnav-item" data-sub="time-off" onclick="schedSub('time-off')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18"/><path d="M5 14l7-9 7 9"/><circle cx="12" cy="5" r="1.5"/></svg>
+              <span>Time off</span>
+              <span class="nav-badge" id="rr-sched-time-off-badge" style="display:none">0</span>
+            </button>
           </div>
         </div>
         <a href="#" role="button" class="rr-text-link" id="rr-sched-kpis-toggle" aria-pressed="true" style="display:none">Insights</a>
@@ -12015,59 +12034,79 @@ body.rr-cmdk-open{ overflow:hidden }
             letter-spacing:0;text-transform:none;
           }
 
-          /* ── Subnav · Teams horizontal tabs ──────────────────────
-             Replace the gradient pill bar with a clean tab strip that
-             rests on a single hairline. Active tab gets a 2px Fluent-
-             blue underline; no fills, no badges-as-shouting. */
+          /* ── Subnav · Outlook ribbon tabs ────────────────────────
+             Each nav tab is a ribbon tile (icon stacked above label)
+             matching the .sched-page-btn tiles above it — Week view,
+             Staff, Templates, Time off read as a navigation cluster
+             of the same shape as the command cluster. Active tab
+             gets a Fluent-blue underline + blue tint. */
           #view-schedule .sched-subnav-row{
-            display:flex;align-items:center;justify-content:space-between;
+            display:flex;align-items:stretch;justify-content:space-between;
             gap:var(--s-3);margin-bottom:var(--s-5);flex-wrap:wrap;
             border-bottom:1px solid var(--sch-line);
             padding:0;
           }
           #view-schedule .sched-subnav-row > .subnav{
             margin-bottom:0;
-            display:inline-flex;gap:0;
-            background:transparent;
-            background-image:none;
+            display:inline-flex;align-items:stretch;gap:2px;
+            background:transparent;background-image:none;
             border:0;border-radius:0;padding:0;
             box-shadow:none;
           }
           #view-schedule .subnav-item{
-            padding:9px 14px;
+            display:inline-flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:5px;
+            padding:8px 16px 9px;
+            min-width:72px;
             font-size:var(--fs-sm);font-weight:500;
             color:var(--text-muted);
-            background:transparent;border:0;border-radius:0;
+            background:transparent;border:0;border-radius:var(--sch-radius) var(--sch-radius) 0 0;
             letter-spacing:0;line-height:1.2;
             position:relative;
             transition:color var(--t-fast),background var(--t-fast);
           }
           #view-schedule .subnav-item::after{display:none !important}
+          #view-schedule .subnav-item svg{
+            width:20px;height:20px;flex-shrink:0;
+            color:var(--text-muted);stroke-width:1.5;
+            transition:color var(--t-fast);
+          }
           #view-schedule .subnav-item:hover{
             color:var(--text);
             background:var(--sch-hover);
           }
+          #view-schedule .subnav-item:hover svg{color:var(--sch-blue)}
           #view-schedule .subnav-item.active{
             color:var(--sch-blue);
-            background:transparent;
+            background:var(--sch-blue-softer);
             font-weight:600;
             box-shadow:none;
           }
+          #view-schedule .subnav-item.active svg{color:var(--sch-blue)}
           #view-schedule .subnav-item.active::before{
             content:"";position:absolute;
-            left:8px;right:8px;bottom:-1px;height:2px;
+            left:8px;right:8px;bottom:-1px;height:3px;
             background:var(--sch-blue);
-            border-radius:1px 1px 0 0;
+            border-radius:2px 2px 0 0;
           }
-          /* Inline time-off counter — calm amber dot, not a loud chip */
+          /* Inline time-off counter — pinned to the tile's top-right
+             corner so it reads as a small alert badge without
+             breaking the icon-above-label rhythm. */
           #view-schedule .subnav-item .nav-badge{
-            background:var(--sch-amber-soft) !important;
-            color:var(--sch-amber) !important;
-            font-weight:600 !important;
+            position:absolute !important;
+            top:4px !important;right:6px !important;
+            background:var(--sch-amber) !important;
+            color:#fff !important;
+            font-weight:700 !important;
             font-size:10px !important;
-            padding:1px 6px !important;
+            padding:0 5px !important;
+            min-width:14px;
+            height:14px;
+            line-height:14px !important;
+            display:inline-flex !important;
+            align-items:center;justify-content:center;
             border-radius:var(--r-pill) !important;
-            margin-left:6px !important;
+            margin:0 !important;
             letter-spacing:0;
           }
 
@@ -12233,6 +12272,17 @@ body.rr-cmdk-open{ overflow:hidden }
             color:var(--text-muted);font-size:11px;margin-top:1px;
             font-variant-numeric:tabular-nums;
             font-weight:500;letter-spacing:0;
+            display:flex;flex-direction:column;line-height:1.2;
+          }
+          #view-schedule .shift-chip-time .shift-chip-rpt{
+            font-size:10px;color:var(--text-subtle);font-weight:500;
+          }
+          #view-schedule .shift-chip-time .shift-chip-wave{
+            color:var(--text-muted);font-weight:500;
+          }
+          #view-schedule .shift-chip.is-routine .shift-chip-time .shift-chip-rpt,
+          #view-schedule .shift-chip.is-routine .shift-chip-time .shift-chip-wave{
+            color:var(--text-subtle);
           }
 
           /* Routine · recede so outliers pop */
