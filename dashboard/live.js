@@ -24243,13 +24243,17 @@ function _schedShiftChip(sh, extras) {
   const reportStr = _startMs != null ? fmtTimeShort(new Date(_startMs).toISOString()) : "";
   const waveStr   = _waveStartMs != null ? fmtTimeShort(new Date(_waveStartMs).toISOString()) : reportStr;
   const endStr    = _waveEndMs != null ? fmtTimeShort(new Date(_waveEndMs).toISOString()) : "";
-  // "Rpt 6:30a · 7:00a – 5:00p" when a report lead is configured;
-  // just "7:00a – 5:00p" otherwise.
-  const timeRange = waveStr && endStr
-    ? (_reportLead > 0
-        ? `<span class="shift-chip-rpt">Rpt ${reportStr}</span><span class="shift-chip-wave">${waveStr} – ${endStr}</span>`
-        : `${waveStr} – ${endStr}`)
+  // "Rpt 6:30a / Wave 7:00a – 5:00p" when a report lead is configured;
+  // just "Wave 7:00a – 5:00p" otherwise. The explicit "Wave" prefix
+  // makes the dispatch wave time immediately visible to the
+  // dispatcher reading the grid.
+  const waveLine = waveStr
+    ? `<span class="shift-chip-wave">Wave ${waveStr}${endStr ? ` – ${endStr}` : ""}</span>`
     : "";
+  const rptLine = (_reportLead > 0 && reportStr)
+    ? `<span class="shift-chip-rpt">Rpt ${reportStr}</span>`
+    : "";
+  const timeRange = waveLine ? `${rptLine}${waveLine}` : "";
   // No route_code yet → just show the time range on the headline (and
   // skip the sub-line, since it would duplicate the start time).
   const hasRoute = !!sh.route_code;
@@ -24930,7 +24934,7 @@ async function renderScheduleWeek() {
           : (slot.ends_at ? new Date(slot.ends_at).getTime() : null);
         const startLbl = waveStartMs != null ? fmtTimeShort(new Date(waveStartMs).toISOString()) : "";
         const endLbl   = waveEndMs   != null ? fmtTimeShort(new Date(waveEndMs).toISOString())   : "";
-        const label = startLbl && endLbl ? `${startLbl} – ${endLbl}` : (startLbl || slot.route_code || "open");
+        const label = startLbl && endLbl ? `Wave ${startLbl} – ${endLbl}` : (startLbl ? `Wave ${startLbl}` : (slot.route_code || "open"));
         const ex = slot.is_cushion
           ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em">EX</span>`
           : "";
@@ -24942,7 +24946,7 @@ async function renderScheduleWeek() {
       // reportStart and re-adding block produces the wrong end.
       const vStart = fmtWaveTime(slot.wave_start);
       const vEnd   = fmtWaveTime(addHoursToWaveTime(slot.wave_start, blockH));
-      const virtLabel = vStart && vEnd ? `${vStart} – ${vEnd}` : (vStart || "open");
+      const virtLabel = vStart && vEnd ? `Wave ${vStart} – ${vEnd}` : (vStart ? `Wave ${vStart}` : "open");
       return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-virtual-station="${slot.station_id}" style="opacity:.65;border-style:dashed" title="From OKAMI demand · drag a driver to fill">+ ${escapeHtml(virtLabel)}</div></div>`;
     }).join("");
     const pdNum = r + 1;
@@ -25057,10 +25061,8 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       const reportLabel = fmtTimeShort(new Date(sMs).toISOString());
       const waveLabel   = fmtTimeShort(new Date(waveStartMs).toISOString());
       const endLabel    = fmtTimeShort(new Date(waveEndMs).toISOString());
-      if (lead > 0) {
-        return `<span class="shift-chip-rpt">Rpt ${reportLabel}</span><span class="shift-chip-wave">${waveLabel} – ${endLabel}</span>`;
-      }
-      return `${waveLabel} – ${endLabel}`;
+      const rpt = lead > 0 ? `<span class="shift-chip-rpt">Rpt ${reportLabel}</span>` : "";
+      return `${rpt}<span class="shift-chip-wave">Wave ${waveLabel} – ${endLabel}</span>`;
     }
 
     // Virtual chip — wave start comes from the configured wave time
@@ -25068,11 +25070,8 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
     const [h, m] = (sh.wave_start || "07:00").split(":").map(Number);
     const waveMins = (h || 0) * 60 + (m || 0);
     const endMins = waveMins + block * 60;
-    if (lead > 0) {
-      const reportMins = waveMins - lead;
-      return `<span class="shift-chip-rpt">Rpt ${fmt(reportMins)}</span><span class="shift-chip-wave">${fmt(waveMins)} – ${fmt(endMins)}</span>`;
-    }
-    return `${fmt(waveMins)} – ${fmt(endMins)}`;
+    const rpt = lead > 0 ? `<span class="shift-chip-rpt">Rpt ${fmt(waveMins - lead)}</span>` : "";
+    return `${rpt}<span class="shift-chip-wave">Wave ${fmt(waveMins)} – ${fmt(endMins)}</span>`;
   };
 
   const shiftItem = (sh, opts) => {
