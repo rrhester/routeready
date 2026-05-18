@@ -11172,6 +11172,50 @@ body.rr-cmdk-open{ overflow:hidden }
         <div class="sched-subview active" id="sched-sub-week">
 
         <style>
+          /* ── Schedule · "driver-app vibe" pass ─────────────────────
+             Mirror the driver app's premium-mobile aesthetic: warmer
+             canvas, softer card radii, gentle elevation in place of
+             hard borders, slightly rounder shift chips. Scoped to the
+             Schedule view only. */
+          #view-schedule{background:#F6F8FC}
+          #view-schedule .stat-mini{
+            border-radius:18px;
+            border-color:rgba(15,23,42,.06);
+            box-shadow:0 8px 24px rgba(15,23,42,.05), inset 0 1px 0 rgba(255,255,255,.55);
+            transition:transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
+          }
+          #view-schedule .stat-mini:hover{
+            border-color:rgba(15,23,42,.10);
+            box-shadow:0 10px 28px rgba(15,23,42,.07), inset 0 1px 0 rgba(255,255,255,.55);
+          }
+          #view-schedule .cal-wrap{
+            border-radius:22px;
+            border-color:rgba(15,23,42,.06);
+            box-shadow:0 8px 24px rgba(15,23,42,.05), inset 0 1px 0 rgba(255,255,255,.55);
+            overflow:hidden;
+          }
+          #view-schedule .driver-pool,
+          #view-schedule .sched-insights{
+            border-radius:22px;
+            border-color:rgba(15,23,42,.06);
+            box-shadow:0 8px 24px rgba(15,23,42,.05), inset 0 1px 0 rgba(255,255,255,.55);
+          }
+          #view-schedule .shift-chip{
+            border-radius:14px;
+          }
+          #view-schedule .sched-week-nav{
+            border-radius:999px;
+            background:var(--surface);
+            border:1px solid rgba(15,23,42,.06);
+            box-shadow:0 1px 2px rgba(15,23,42,.04);
+            padding:4px;
+          }
+          /* Pill the page-action buttons (Smart Fill / Route planning /
+             Settings / Finalize) to match the driver app's soft chrome. */
+          #view-schedule .sched-page-btn{border-radius:999px}
+
+        </style>
+        <style>
           /* ── Schedule · week view (scoped) ─────────────────────────
              View-specific tuning over the platform's grid vocabulary —
              a fully-pinned grid frame, the open-shift chip, the coverage
