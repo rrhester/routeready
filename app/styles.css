@@ -175,37 +175,53 @@ a{color:var(--accent);text-decoration:none}
      it stays the only thing under the iPhone notch. */
 }
 
-/* ── Header (Fluent Mica-style surface) ───────────────────────
-   Near-opaque white tinted toward the canvas, with a single
-   Fluent neutralStroke-2 hairline at the bottom.  No frosted
-   glass — Microsoft's mobile surfaces (Outlook, Teams, To Do)
-   sit on opaque Mica, not blur, so the body doesn't ghost
-   through the chrome. */
+/* ── Header (Fluent brand-blue band) ─────────────────────────
+   Solid Microsoft 365 communicationBlue surface across every
+   non-home screen — same Outlook Mobile / Teams Mobile pattern
+   where the top app bar is always the brand color, not white.
+   Same gradient + subtle Mica grain as the home hero so the
+   chrome reads as one continuous brand surface from Home into
+   any sub-screen.  Title + gear icon flip to white. */
 .app-head{
-  background:#FFFFFF;
-  border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg, #0F6CBD 0%, #0B5394 100%);
+  border-bottom:1px solid rgba(0,0,0,.12);
   padding:calc(12px + env(safe-area-inset-top, 0px)) 18px 12px;
   display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
   position:absolute;top:0;left:0;right:0;z-index:10;
   box-shadow:none;
   transform:translateZ(0);
   -webkit-transform:translateZ(0);
+  isolation:isolate;
+  overflow:hidden;
 }
-.app-head .title{font-size:17px;font-weight:600;letter-spacing:-.005em;color:var(--text);line-height:1.2}
-.app-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px;font-weight:400;line-height:1.3;letter-spacing:0}
+/* Subtle Mica grain on the brand band — matches the home hero
+   so the texture is consistent across the whole app surface. */
+.app-head::before{
+  content:"";
+  position:absolute;inset:0;
+  pointer-events:none;
+  opacity:.06;
+  mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size:240px 240px;
+  z-index:0;
+}
+.app-head > *{ position:relative;z-index:1 }
+.app-head .title{font-size:17px;font-weight:600;letter-spacing:-.005em;color:#fff;line-height:1.2}
+.app-head .sub{font-size:var(--fs-sm);color:rgba(255,255,255,.78);margin-top:2px;font-weight:400;line-height:1.3;letter-spacing:0}
 .app-head .driver-chip{
   display:flex;align-items:center;gap:var(--s-2);
-  background:var(--canvas);border-radius:999px;padding:4px 10px 4px 4px;
-  font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);
-  border:1px solid var(--border);
+  background:rgba(255,255,255,.14);border-radius:999px;padding:4px 10px 4px 4px;
+  font-size:var(--fs-sm);font-weight:600;color:#fff;
+  border:1px solid rgba(255,255,255,.18);
 }
 .app-head .driver-chip .avatar{
   width:30px;height:30px;border-radius:50%;
-  background:var(--accent);color:#fff;
+  background:rgba(255,255,255,.20);color:#fff;
   display:inline-flex;align-items:center;justify-content:center;
   font-size:var(--fs-sm);font-weight:700;
   background-position:center;background-size:cover;
-  box-shadow:var(--shadow-sm);
+  box-shadow:none;
 }
 
 /* ── Main content (router target) ───────────────────────────── */
@@ -568,17 +584,18 @@ select.field{
 .profile-name{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em}
 .profile-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:4px}
 
-/* Back button — 44x44 to match iOS HIG touch target. */
+/* Back button — 44x44 to match iOS HIG touch target. Sits on
+   the Fluent brand-blue header surface, so it inherits white. */
 .head-back{
-  width:44px;height:44px;border-radius:var(--r-lg);
+  width:44px;height:44px;border-radius:var(--r-md);
   display:inline-flex;align-items:center;justify-content:center;
-  color:var(--text);background:transparent;
+  color:#fff;background:transparent;
   margin-right:var(--s-1);margin-left:calc(var(--s-1) * -1);
   flex-shrink:0;
-  transition:background var(--t-fast), transform var(--t-fast);
+  transition:background var(--t-fast);
 }
-.head-back:hover{ background:var(--canvas) }
-.head-back:active{background:var(--canvas);transform:scale(.96)}
+.head-back:hover{ background:rgba(255,255,255,.14) }
+.head-back:active{ background:rgba(255,255,255,.20) }
 
 /* ── Bottom tab bar · Outlook Mobile / Teams Mobile pattern ──
    Solid Fluent surface (Mica-style), hairline top border,
@@ -1332,20 +1349,19 @@ select.field{
 .checkin-row.missed .checkin-title{color:var(--red-dark)}
 .checkin-row.missed .checkin-sub{color:var(--red-dark)}
 
-/* Header gear — 40x40 borderless icon button. Drops the always-on
-   canvas chip + border; press feedback comes from a soft hover/press
-   tint. Quieter than the v1 treatment, still 44+ tap target with the
-   surrounding padding from .app-head. */
+/* Header gear — 40x40 borderless icon button on the Fluent
+   brand surface.  White icon, hover/press uses translucent
+   white overlay (matches Outlook Mobile's settings affordance). */
 .app-head .head-gear{
-  width:40px;height:40px;border-radius:var(--r-xl);
-  background:transparent;color:var(--text-muted);
+  width:40px;height:40px;border-radius:var(--r-md);
+  background:transparent;color:#fff;
   display:inline-flex;align-items:center;justify-content:center;
   border:0;
   cursor:pointer;flex-shrink:0;
-  transition:background 140ms var(--ease-out), color 140ms var(--ease-out), transform 140ms var(--ease-spring);
+  transition:background 140ms var(--ease-out);
 }
-.app-head .head-gear:hover{ background:var(--canvas);color:var(--text) }
-.app-head .head-gear:active{ transform:scale(.92);background:var(--surface-pressed) }
+.app-head .head-gear:hover{ background:rgba(255,255,255,.14) }
+.app-head .head-gear:active{ background:rgba(255,255,255,.20) }
 
 /* ── Settings page ──────────────────────────────────────────── */
 .settings-page{display:flex;flex-direction:column;gap:14px}
@@ -1818,8 +1834,8 @@ select.field{
    reads correctly. Mirrors iOS large-title behaviour without
    the title swap. */
 .app-head.scrolled{
-  box-shadow:var(--shadow-sm);
-  border-bottom-color:var(--border-strong);
+  box-shadow:0 1.6px 3.6px rgba(0,0,0,.14);
+  border-bottom-color:rgba(0,0,0,.18);
 }
 
 /* ── Directional page transitions ─────────────────────────────
