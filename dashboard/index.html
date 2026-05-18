@@ -11180,48 +11180,15 @@ body.rr-cmdk-open{ overflow:hidden }
               <p class="page-sub" id="rr-sched-page-sub"></p>
             </div>
           </div>
-          <!-- Page-level actions — Smart Fill, Route planning, Settings,
-               and a live/draft status pill.  Pulled out of the old toolbar
-               rail below the grid so the top action zone is consistent
-               with the rest of the dashboard. -->
-          <div class="page-actions" id="rr-sched-page-actions">
-            <button class="sched-page-btn" id="rr-sched-smartfill-h" type="button" onclick="openAiSchedule()" title="Auto-staff this week from your rules + OKAMI demand">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              Smart Fill
-            </button>
-            <button class="sched-page-btn" id="rr-sched-okami-open-h" type="button" title="Route planning for this week" aria-label="Route planning">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 16 11 19 16 14"/></svg>
-              Route planning
-            </button>
-            <button class="sched-page-btn" id="rr-sched-settings-open-h" type="button" title="Schedule settings for this week" aria-label="Schedule settings">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              Settings
-            </button>
-            <button class="sched-page-btn" id="rr-sched-finalize-h" type="button" title="Push this week's schedule to drivers">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-              Finalize
-            </button>
-            <div class="sched-week-nav" id="rr-sched-week-nav" role="group" aria-label="Week navigation">
-              <button type="button" class="sched-week-nav-btn" id="rr-sched-week-prev" title="Previous week" aria-label="Previous week">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <button type="button" class="sched-week-nav-today" id="rr-sched-week-today" title="Jump to this week">Today</button>
-              <button type="button" class="sched-week-nav-range" id="rr-sched-week-range" title="Cycle through the next four weeks">
-                <span id="rr-sched-week-range-label">This week</span>
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-              </button>
-              <button type="button" class="sched-week-nav-btn" id="rr-sched-week-next" title="Next week" aria-label="Next week">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-            </div>
-          </div>
         </div>
 
         <!-- KPI pill row · populated by renderScheduleWeek. -->
         <div id="rr-sched-kpis" class="sched-kpi-pills"></div>
 
-        <!-- Subnav tabs. -->
-        <div class="sched-subnav-row">
+        <!-- Unified Microsoft-ribbon row — nav tabs + command tiles +
+             week nav share one strip with thin Outlook-style group
+             separators between clusters. -->
+        <div class="sched-subnav-row sched-ribbon">
           <div class="subnav" data-rr-tabbar="schedule">
             <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -11239,6 +11206,45 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18"/><path d="M5 14l7-9 7 9"/><circle cx="12" cy="5" r="1.5"/></svg>
               <span>Time off</span>
               <span class="nav-badge" id="rr-sched-time-off-badge" style="display:none">0</span>
+            </button>
+          </div>
+
+          <!-- Page-level actions — Smart Fill, Route planning,
+               Settings, Finalize. Now riding the same ribbon strip
+               as the nav tabs, separated by a thin Outlook-style
+               group divider. -->
+          <div class="sched-ribbon-actions" id="rr-sched-page-actions">
+            <button class="sched-page-btn" id="rr-sched-smartfill-h" type="button" onclick="openAiSchedule()" title="Auto-staff this week from your rules + OKAMI demand">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Smart Fill
+            </button>
+            <button class="sched-page-btn" id="rr-sched-okami-open-h" type="button" title="Route planning for this week" aria-label="Route planning">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 16 11 19 16 14"/></svg>
+              Route planning
+            </button>
+            <button class="sched-page-btn" id="rr-sched-settings-open-h" type="button" title="Schedule settings for this week" aria-label="Schedule settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Settings
+            </button>
+            <button class="sched-page-btn" id="rr-sched-finalize-h" type="button" title="Push this week's schedule to drivers">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              Finalize
+            </button>
+          </div>
+
+          <!-- Week navigator — Outlook segmented control, sits on
+               the far right of the ribbon. -->
+          <div class="sched-week-nav" id="rr-sched-week-nav" role="group" aria-label="Week navigation">
+            <button type="button" class="sched-week-nav-btn" id="rr-sched-week-prev" title="Previous week" aria-label="Previous week">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button type="button" class="sched-week-nav-today" id="rr-sched-week-today" title="Jump to this week">Today</button>
+            <button type="button" class="sched-week-nav-range" id="rr-sched-week-range" title="Cycle through the next four weeks">
+              <span id="rr-sched-week-range-label">This week</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button type="button" class="sched-week-nav-btn" id="rr-sched-week-next" title="Next week" aria-label="Next week">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
           </div>
         </div>
@@ -12041,8 +12047,8 @@ body.rr-cmdk-open{ overflow:hidden }
              of the same shape as the command cluster. Active tab
              gets a Fluent-blue underline + blue tint. */
           #view-schedule .sched-subnav-row{
-            display:flex;align-items:stretch;justify-content:space-between;
-            gap:var(--s-3);margin-bottom:var(--s-5);flex-wrap:wrap;
+            display:flex;align-items:stretch;justify-content:flex-start;
+            gap:0;margin-bottom:var(--s-5);flex-wrap:wrap;
             border-bottom:1px solid var(--sch-line);
             padding:0;
           }
@@ -12050,8 +12056,42 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-bottom:0;
             display:inline-flex;align-items:stretch;gap:2px;
             background:transparent;background-image:none;
-            border:0;border-radius:0;padding:0;
+            border:0;border-radius:0;padding:0 var(--s-3) 0 0;
             box-shadow:none;
+          }
+          /* Unified ribbon — nav tabs + command tiles + week nav
+             share one strip. Outlook-style thin vertical dividers
+             separate each cluster; week nav floats to the far right. */
+          #view-schedule .sched-ribbon-actions{
+            display:inline-flex;align-items:stretch;gap:0;
+            padding:0 var(--s-3);
+            position:relative;
+          }
+          #view-schedule .sched-ribbon-actions::before,
+          #view-schedule .sched-subnav-row > .sched-week-nav::before{
+            content:"";
+            width:1px;
+            background:var(--sch-line);
+            margin:8px 0;
+            margin-right:var(--s-3);
+            align-self:stretch;
+            flex:0 0 auto;
+          }
+          /* The week nav is pushed to the right end of the ribbon
+             and gets its own divider on the left. */
+          #view-schedule .sched-subnav-row > .sched-week-nav{
+            margin-left:auto;
+            align-self:center;
+            display:inline-flex;align-items:stretch;
+          }
+          @media (max-width:980px){
+            #view-schedule .sched-subnav-row > .sched-week-nav{
+              margin-left:0;
+            }
+            #view-schedule .sched-ribbon-actions::before,
+            #view-schedule .sched-subnav-row > .sched-week-nav::before{
+              display:none;
+            }
           }
           #view-schedule .subnav-item{
             display:inline-flex;flex-direction:column;
