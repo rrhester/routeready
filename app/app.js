@@ -7205,15 +7205,31 @@ let _currentCelebrationSession = null;
 // reload mid-session (iOS aggressively recycles PWA shells) doesn't
 // re-paint a just-dismissed celebration before the server-side
 // dismissed_at write has propagated.
+// Persisted to LOCALSTORAGE (not session) so dismissed celebrations
+// stay dismissed across full app launches.  iOS PWAs clear sessionStorage
+// on full close — without localStorage persistence, a celebration whose
+// dismiss-RPC was in-flight when the user closed the app would re-show
+// on next open.  Bounded to last 200 ids to keep storage small.
+const _RECOG_DISMISSED_KEY = "rr.recogDismissed";
 const _recogDismissedIds = new Set();
 try {
-  const raw = sessionStorage.getItem("rr.recogDismissed");
-  if (raw) JSON.parse(raw).forEach((id) => _recogDismissedIds.add(id));
+  const fromLocal   = localStorage.getItem(_RECOG_DISMISSED_KEY);
+  const fromSession = sessionStorage.getItem(_RECOG_DISMISSED_KEY);   // migrate any old session-only state
+  if (fromLocal)   JSON.parse(fromLocal).forEach((id) => _recogDismissedIds.add(id));
+  if (fromSession) JSON.parse(fromSession).forEach((id) => _recogDismissedIds.add(id));
+  // Persist immediately if we just migrated from session.
+  if (!fromLocal && fromSession) localStorage.setItem(_RECOG_DISMISSED_KEY, JSON.stringify([..._recogDismissedIds]));
 } catch (_) {}
 function _markRecogDismissed(id) {
   if (!id) return;
   _recogDismissedIds.add(id);
-  try { sessionStorage.setItem("rr.recogDismissed", JSON.stringify([..._recogDismissedIds])); } catch (_) {}
+  try {
+    // Cap stored size — keep most recent 200.  Iteration order on Set
+    // is insertion order, so slicing the tail keeps the freshest.
+    const all = [..._recogDismissedIds];
+    const trimmed = all.length > 200 ? all.slice(all.length - 200) : all;
+    localStorage.setItem(_RECOG_DISMISSED_KEY, JSON.stringify(trimmed));
+  } catch (_) {}
 }
 
 // ── Foreground re-check ─────────────────────────────────────────────
@@ -7528,17 +7544,6 @@ function _unlockAudioOnGesture() {
   document.addEventListener(evt, _unlockAudioOnGesture, { once: true, passive: true, capture: true });
 });
 
-// Visible version tag — small dark pill bottom-right for 8s so the
-// driver can confirm at a glance which build is running.
-window.addEventListener("DOMContentLoaded", () => {
-  try {
-    const tag = document.createElement("div");
-    tag.textContent = "rr v121";
-    tag.style.cssText = "position:fixed;bottom:10px;right:10px;"
-      + "z-index:3000;padding:4px 8px;border-radius:999px;"
-      + "background:rgba(15,23,42,.85);color:#fff;font-size:10px;"
-      + "font-weight:700;letter-spacing:.06em;pointer-events:none";
-    document.body.appendChild(tag);
-    setTimeout(() => { try { tag.remove(); } catch (_) {} }, 8000);
-  } catch (_) {}
-});
+// Version tag removed — the celebration flow is verified working in
+// production.  Cache-buster on app.js?v=NNN still tells us which
+// build is loaded via Safari's view-source if we ever need to check.
