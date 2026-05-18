@@ -2507,6 +2507,138 @@ body.is-home main > .home-hero{
   box-shadow:0 10px 28px rgba(15,23,42,.05);
 }
 
+/* ── Van documents · home-screen section ─────────────────────────────
+   Shows the insurance + registration for the driver's assigned van.
+   Calm, mobile-first; status chips use the same colour grammar as
+   .opens-card-ok / -warn so the section reads as part of one family. */
+.van-docs{ margin-top:20px }
+.van-docs[hidden]{ display:none }
+.van-docs-label{
+  font-size:11px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;
+  color:#64748B;margin:0 4px 8px;
+}
+.van-docs-card{
+  background:#FFFFFF;
+  border:1px solid rgba(15,23,42,.05);
+  border-radius:24px;
+  padding:16px;
+  box-shadow:0 10px 28px rgba(15,23,42,.05);
+  display:flex;flex-direction:column;gap:14px;
+}
+.van-docs-head{ display:flex;align-items:center;gap:12px }
+.van-docs-head-ic{
+  width:42px;height:42px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#EFF4FF,#E0EAFF);
+  color:#2563FF;flex:0 0 auto;
+}
+.van-docs-van{
+  font-size:17px;font-weight:700;color:#0F172A;letter-spacing:-.01em;line-height:1.2;
+}
+.van-docs-sub{ font-size:12.5px;color:#64748B;margin-top:2px;line-height:1.3 }
+
+.van-docs-warning{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:10px 12px;
+  background:#FFF7ED;
+  border:1px solid rgba(234,88,12,.18);
+  border-radius:12px;
+  color:#9A3412;font-size:13px;line-height:1.4;font-weight:500;
+}
+.van-docs-warning svg{ flex:0 0 auto;margin-top:1px;color:#C2410C }
+
+.van-docs-buttons{ display:flex;flex-direction:column;gap:8px }
+.van-docs-btn{
+  display:flex;align-items:center;gap:12px;
+  width:100%;padding:12px 14px;
+  background:#F8FAFC;
+  border:1px solid rgba(15,23,42,.06);
+  border-radius:14px;
+  font:inherit;color:#0F172A;text-align:left;cursor:pointer;
+  transition:background 120ms ease, transform 120ms ease;
+}
+.van-docs-btn:active{ transform:translateY(1px) scale(.995) }
+.van-docs-btn:hover{ background:#F1F5F9 }
+.van-docs-btn.is-disabled{ cursor:default;opacity:.85 }
+.van-docs-btn.is-disabled:hover{ background:#F8FAFC }
+.van-docs-btn-ic{
+  width:34px;height:34px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  background:#FFFFFF;border:1px solid rgba(15,23,42,.06);color:#2563FF;flex:0 0 auto;
+}
+.van-docs-btn-body{ flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:8px }
+.van-docs-btn-title{ font-size:14.5px;font-weight:600;letter-spacing:-.005em }
+.van-docs-btn-chip{
+  font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  padding:3px 8px;border-radius:999px;line-height:1.2;white-space:nowrap;
+}
+.van-docs-chip-ok{   background:#ECFDF5;color:#047857 }
+.van-docs-chip-soon{ background:#FEF3C7;color:#92400E }
+.van-docs-chip-warn{ background:#FEE2E2;color:#B91C1C }
+.van-docs-btn-chev{ color:#94A3B8;flex:0 0 auto }
+.van-docs-btn-meta{ font-size:11.5px;color:#94A3B8;flex:0 0 auto }
+
+.van-docs-report{
+  display:inline-flex;align-items:center;gap:6px;
+  align-self:flex-start;
+  background:transparent;border:0;padding:6px 4px;
+  font:inherit;font-size:12.5px;font-weight:600;color:#64748B;
+  cursor:pointer;border-radius:8px;
+}
+.van-docs-report:hover{ color:#0F172A }
+.van-docs-report:active{ color:#2563FF }
+
+.van-docs-empty{
+  background:#FFFFFF;
+  border:1px solid rgba(15,23,42,.05);
+  border-radius:24px;
+  padding:20px;
+  box-shadow:0 10px 28px rgba(15,23,42,.05);
+  display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;
+}
+.van-docs-empty-ic{
+  width:42px;height:42px;border-radius:12px;
+  background:#F1F5F9;color:#64748B;
+  display:flex;align-items:center;justify-content:center;
+}
+.van-docs-empty-title{ font-size:15px;font-weight:700;color:#0F172A;letter-spacing:-.005em }
+.van-docs-empty-sub{ font-size:13px;color:#64748B;line-height:1.5;max-width:280px }
+
+/* Inline van-doc report sheet — modal-style centered dialog.  Uses its
+   own classnames so it doesn't collide with the global .rr-sheet
+   drag-up sheet idiom used by confirmSheet. */
+.rr-vd-sheet-wrap{
+  position:fixed;inset:0;background:rgba(15,23,42,.45);
+  z-index:10000;display:flex;align-items:flex-end;justify-content:center;
+  padding:14px;
+}
+.rr-vd-sheet{
+  background:#FFFFFF;border-radius:22px;
+  width:100%;max-width:480px;padding:18px 18px 14px;
+  box-shadow:0 20px 60px rgba(15,23,42,.20);
+  display:flex;flex-direction:column;gap:12px;
+}
+.rr-vd-sheet-title{ font-size:17px;font-weight:700;color:#0F172A;letter-spacing:-.01em }
+.rr-vd-sheet-msg{ font-size:13.5px;color:#64748B;line-height:1.45 }
+.rr-vd-sheet-fields{ display:flex;flex-direction:column;gap:8px }
+.rr-vd-sheet-radio{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border:1px solid rgba(15,23,42,.08);border-radius:12px;
+  font-size:14px;color:#0F172A;font-weight:500;
+}
+.rr-vd-sheet-radio input{ accent-color:#2563FF }
+.rr-vd-sheet textarea{
+  width:100%;padding:10px 12px;border:1px solid rgba(15,23,42,.08);border-radius:12px;
+  font:inherit;font-size:14px;color:#0F172A;background:#F8FAFC;resize:none;
+}
+.rr-vd-sheet-actions{ display:flex;gap:8px;margin-top:4px }
+.rr-vd-sheet-btn{
+  flex:1;min-height:46px;border-radius:14px;border:1px solid rgba(15,23,42,.08);
+  background:#F1F5F9;font:inherit;font-size:14.5px;font-weight:600;color:#0F172A;cursor:pointer;
+}
+.rr-vd-sheet-btn-primary{ background:#2563FF;color:#FFFFFF;border-color:#2563FF }
+.rr-vd-sheet-btn-primary:disabled{ opacity:.6;cursor:default }
+
 /* The glass tabbar + soft-blue active pill is now the default
    across the app (see .tabbar / .tab.active near the top of this
    file); these rules used to be home-only and have been promoted.

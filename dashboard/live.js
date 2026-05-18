@@ -33690,7 +33690,7 @@ document.addEventListener("click", (e) => {
 let _fleetSub          = "vehicles";    // active sub-tab
 let _fleetRows         = [];            // last loaded vehicles_roster payload
 let _fleetIssues       = [];            // last loaded vehicles_issues_list payload
-let _fleetFilters      = { q: "", status: "", station: "" };
+let _fleetFilters      = { q: "", status: "", station: "", docs: "" };
 let _fleetIssueFilters = { q: "", state: "open", severity: "" };
 let _fleetSearchT      = null;
 let _fleetIssuesSearchT = null;
@@ -33984,6 +33984,16 @@ function _flApplyRosterFilters(rows) {
   }
   if (f.status)  out = out.filter((v) => v.operational_status === f.status);
   if (f.station) out = out.filter((v) => v.station_code === f.station);
+  if (f.docs) {
+    out = out.filter((v) => {
+      const s = v.doc_exception_state || "active";
+      if (f.docs === "any")           return s !== "active";
+      if (f.docs === "expired")       return s === "expired";
+      if (f.docs === "expiring_soon") return s === "expiring_soon";
+      if (f.docs === "missing")       return s === "missing";
+      return true;
+    });
+  }
   return out;
 }
 
@@ -34077,7 +34087,7 @@ function _flRenderRoster() {
       <td><div style="display:flex;align-items:center;gap:var(--s-2-5)">${_flVehThumb(v)}<div>
         <div class="cell-name">${escapeHtml(v.name)}</div>
         ${vehSub ? `<div class="cell-name-sub">${escapeHtml(vehSub)}</div>` : ""}
-        ${_dvicChipHtml(v)}
+        <div class="cell-chips">${_dvicChipHtml(v)}${_flDocBadgeHtml(v)}</div>
       </div></div></td>
       <td>${ownershipLine}${v.kind && v.kind !== "van" ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(v.kind)}</div>` : ""}</td>
       <td>${_flOpStatCell(v)}</td>
@@ -34204,11 +34214,12 @@ document.addEventListener("input", (e) => {
 
 document.addEventListener("change", (e) => {
   const id = e.target?.id;
-  if (id === "rr-fleet-status" || id === "rr-fleet-station") {
+  if (id === "rr-fleet-status" || id === "rr-fleet-station" || id === "rr-fleet-docs") {
     _fleetFilters = {
       ..._fleetFilters,
       status:  document.getElementById("rr-fleet-status")?.value  || "",
       station: document.getElementById("rr-fleet-station")?.value || "",
+      docs:    document.getElementById("rr-fleet-docs")?.value    || "",
     };
     e.target.classList.toggle("is-set", !!e.target.value);
     _flRenderRoster();
@@ -34225,6 +34236,13 @@ document.addEventListener("change", (e) => {
 });
 
 document.addEventListener("click", (e) => {
+  // Doc-exception chip on the roster — open drawer directly to Documents
+  const docChip = e.target.closest("#fleet-tbody [data-rr-veh-doc]");
+  if (docChip) {
+    e.preventDefault(); e.stopPropagation();
+    openFleetDrawer(docChip.getAttribute("data-rr-veh-doc"), { tab: "documents" });
+    return;
+  }
   // Row → drawer (roster + issues both open the same drawer)
   const row = e.target.closest("#fleet-tbody tr[data-rr-vehicle-id], #fleet-issues-tbody tr[data-rr-vehicle-id]");
   if (row && !e.target.closest("button, a")) {
@@ -34610,6 +34628,7 @@ async function openFleetDrawer(vehicleId, opts) {
         </div>
         <div class="fd-tabs">
           <button type="button" class="fd-tab active" data-rr-fd-tab="profile">Profile</button>
+          <button type="button" class="fd-tab" data-rr-fd-tab="documents">Documents</button>
           <button type="button" class="fd-tab" data-rr-fd-tab="inspections">Inspections</button>
           <button type="button" class="fd-tab" data-rr-fd-tab="mileage">Mileage history</button>
           <button type="button" class="fd-tab" data-rr-fd-tab="history">Vehicle history</button>
@@ -34627,7 +34646,7 @@ async function openFleetDrawer(vehicleId, opts) {
 
   // Normalize legacy tab ids (overview / drivers / service) to "profile"
   // so the tab bar highlights a tab that actually exists.
-  const validTabs = new Set(["profile", "inspections", "mileage", "history"]);
+  const validTabs = new Set(["profile", "documents", "inspections", "mileage", "history"]);
   _fdTab = validTabs.has(initialTab) ? initialTab : "profile";
   _fdHistory = null;
   _fdPending = {};
@@ -34749,9 +34768,10 @@ function _fdRenderTab() {
   const v = _fdVehicle.vehicle || {};
   const hasId = !!v.id;
 
-  // Tabs: Profile · Inspections · Mileage history · Vehicle history.
+  // Tabs: Profile · Documents · Inspections · Mileage history · Vehicle history.
   // Any legacy tab id (overview / drivers / service) falls back to Profile.
-  if (_fdTab === "inspections")     body.innerHTML = _fdInspectionsHtml();
+  if (_fdTab === "documents")       body.innerHTML = _fdDocumentsHtml();
+  else if (_fdTab === "inspections") body.innerHTML = _fdInspectionsHtml();
   else if (_fdTab === "mileage")    body.innerHTML = _fdMileageHtml();
   else if (_fdTab === "history")    body.innerHTML = _fdHistoryHtml();
   else                              body.innerHTML = _fdProfileHtml(v);
@@ -34771,6 +34791,10 @@ function _fdRenderTab() {
   // Lazy load history when its tab opens.
   if (_fdTab === "history" && _fdHistory === null && v.id) {
     _fdLoadHistory(v.id);
+  }
+  // Lazy load documents when its tab opens.
+  if (_fdTab === "documents" && v.id) {
+    _fdLoadDocuments(v.id);
   }
 }
 
@@ -34903,6 +34927,245 @@ function _fdInspectionsHtml() {
     </div>
   `;
 }
+
+// ── Documents tab (insurance + registration with file uploads) ──────
+let _fdDocuments = null;   // cached vehicle_documents_for_vehicle payload
+
+function _fdDocumentsHtml() {
+  const v = _fdVehicle?.vehicle || {};
+  if (!v.id) {
+    return `<div class="fd-section">
+      <div class="fd-section-h"><div class="fd-section-title">Documents</div></div>
+      <div class="fd-empty">Save the van first to upload insurance and registration documents.</div>
+    </div>`;
+  }
+  if (_fdDocuments === null) {
+    return `<div class="fd-section">
+      <div class="fd-section-h"><div><div class="fd-section-title">Documents</div><div class="fd-section-sub">Insurance card + registration the driver app surfaces to the assigned driver.</div></div></div>
+      <div class="fd-empty">Loading documents…</div>
+    </div>`;
+  }
+  const list = Array.isArray(_fdDocuments) ? _fdDocuments : [];
+  const activeByKind = (k) => list.find((d) => d.kind === k && d.status !== "replaced") || null;
+  const history = list.filter((d) => d.status === "replaced");
+  return `
+    <div class="fd-section">
+      <div class="fd-section-h">
+        <div>
+          <div class="fd-section-title">Vehicle documents</div>
+          <div class="fd-section-sub">Insurance + registration shown to the assigned driver. Drivers see status, expiration, and a tap-to-view document button. Fleet uploads and replacements appear in the audit log.</div>
+        </div>
+      </div>
+      ${_fdDocCardHtml("insurance",    activeByKind("insurance"))}
+      ${_fdDocCardHtml("registration", activeByKind("registration"))}
+    </div>
+    ${history.length ? `
+    <div class="fd-section">
+      <div class="fd-section-h"><div><div class="fd-section-title">Replaced versions</div><div class="fd-section-sub">Prior documents kept for audit history.</div></div></div>
+      ${history.map(_fdDocHistoryRowHtml).join("")}
+    </div>` : ""}
+  `;
+}
+
+function _fdDocStatusPill(status, daysUntil) {
+  const map = {
+    active:        { cls: "ok",   label: "Active" },
+    expired:       { cls: "crit", label: "Expired" },
+    missing:       { cls: "warn", label: "Missing" },
+    expiring_soon: { cls: "warn", label: (daysUntil != null ? `Expires in ${daysUntil}d` : "Expiring soon") },
+    replaced:      { cls: "dim",  label: "Replaced" },
+  };
+  const m = map[status] || map.missing;
+  return `<span class="fd-doc-pill fd-doc-pill-${m.cls}">${escapeHtml(m.label)}</span>`;
+}
+
+function _fdDocCardHtml(kind, doc) {
+  const label = kind === "insurance" ? "Insurance card" : "Registration";
+  const today = new Date(); today.setHours(0,0,0,0);
+  let derivedStatus = "missing";
+  let daysUntil = null;
+  if (doc) {
+    daysUntil = doc.days_until_expiration;
+    if (doc.file_path && doc.expiration_date) {
+      const e = new Date(doc.expiration_date + "T00:00:00");
+      derivedStatus = e < today ? "expired"
+        : (e <= new Date(today.getTime() + 30 * 86400000) ? "expiring_soon" : "active");
+    } else if (!doc.file_path) {
+      derivedStatus = "missing";
+    } else {
+      derivedStatus = "active";
+    }
+  }
+  const expFmt = doc?.expiration_date
+    ? new Date(doc.expiration_date + "T00:00:00").toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+    : "—";
+  const idVal = doc?.id || "";
+  const idAttr = idVal ? `data-rr-fd-doc-id="${escapeHtml(idVal)}"` : "";
+  return `
+    <div class="fd-doc-card" data-rr-fd-doc-kind="${escapeHtml(kind)}" ${idAttr}>
+      <div class="fd-doc-card-head">
+        <div class="fd-doc-card-title">${escapeHtml(label)}</div>
+        ${_fdDocStatusPill(derivedStatus, daysUntil)}
+      </div>
+      <div class="fd-doc-card-body">
+        <div class="fd-doc-meta">
+          <div class="fd-doc-meta-row"><span class="fd-doc-meta-label">Document #</span><span>${doc?.document_number ? escapeHtml(doc.document_number) : "—"}</span></div>
+          <div class="fd-doc-meta-row"><span class="fd-doc-meta-label">Expires</span><span>${escapeHtml(expFmt)}</span></div>
+          <div class="fd-doc-meta-row"><span class="fd-doc-meta-label">File</span><span>${doc?.file_path ? (doc.file_name ? escapeHtml(doc.file_name) : "Uploaded") : "Not uploaded"}</span></div>
+          ${doc?.uploaded_at ? `<div class="fd-doc-meta-row"><span class="fd-doc-meta-label">Uploaded</span><span>${escapeHtml(new Date(doc.uploaded_at).toLocaleDateString())}</span></div>` : ""}
+        </div>
+        <div class="fd-doc-actions">
+          ${doc?.file_path
+            ? `<button type="button" class="btn btn-sm" data-rr-fd-doc-view="${escapeHtml(doc.id)}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View</button>`
+            : ""}
+          <button type="button" class="btn btn-sm btn-primary" data-rr-fd-doc-upload="${escapeHtml(kind)}">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            ${doc?.file_path ? "Replace" : "Upload"}
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function _fdDocHistoryRowHtml(d) {
+  const label = d.kind === "insurance" ? "Insurance card" : "Registration";
+  const exp = d.expiration_date ? new Date(d.expiration_date + "T00:00:00").toLocaleDateString() : "—";
+  const replacedAt = d.replaced_at ? new Date(d.replaced_at).toLocaleDateString() : "—";
+  return `<div class="fd-list-row">
+    <div>
+      <div class="fd-list-title">${escapeHtml(label)}${d.document_number ? ` · ${escapeHtml(d.document_number)}` : ""}</div>
+      <div class="fd-list-sub">Expired ${escapeHtml(exp)} · Replaced ${escapeHtml(replacedAt)}</div>
+    </div>
+    <div class="fd-list-meta">${d.file_path ? `<button type="button" class="btn btn-ghost btn-sm" data-rr-fd-doc-view="${escapeHtml(d.id)}">View</button>` : "—"}</div>
+  </div>`;
+}
+
+async function _fdLoadDocuments(vehicleId) {
+  _fdDocuments = null;
+  const { data, error } = await sb.rpc("vehicle_documents_for_vehicle", { p_vehicle_id: vehicleId });
+  if (error) { toast("Couldn't load documents: " + error.message, "warn"); _fdDocuments = []; }
+  else _fdDocuments = Array.isArray(data) ? data : [];
+  if (_fdTab === "documents") _fdRenderTab();
+}
+
+// Open a signed-url tab for a document (staff side — bucket is private
+// but staff can sign their own DSP prefix via storage RLS).
+async function _fdDocView(docId) {
+  const doc = (Array.isArray(_fdDocuments) ? _fdDocuments : []).find((d) => d.id === docId);
+  if (!doc) { toast("Couldn't find that document.", "warn"); return; }
+  if (!doc.file_path) { toast("No file uploaded for that document yet.", "warn"); return; }
+  const win = window.open("", "_blank");
+  const { data, error } = await sb.storage.from("vehicle-documents").createSignedUrl(doc.file_path, 60 * 30);
+  if (error || !data?.signedUrl) {
+    if (win) win.close();
+    toast("Couldn't open document: " + (error?.message || "try again"), "warn");
+    return;
+  }
+  if (win) win.location.href = data.signedUrl;
+  else window.location.href = data.signedUrl;
+}
+
+// Upload / replace flow.  Opens a modal for filename + expiration +
+// document #, uploads to the vehicle-documents bucket under
+// "<dsp_id>/<vehicle_id>/<kind>/<ts>-<filename>", then calls
+// vehicle_document_save which marks the prior active row replaced and
+// inserts the new version with the right audit-log event.
+function _fdDocUpload(kind) {
+  const v = _fdVehicle?.vehicle;
+  if (!v?.id) { toast("Save the van first.", "warn"); return; }
+  if (!["insurance","registration"].includes(kind)) return;
+  const existing = (Array.isArray(_fdDocuments) ? _fdDocuments : []).find((d) => d.kind === kind && d.status !== "replaced");
+  const label = kind === "insurance" ? "insurance card" : "registration";
+  const modal = document.createElement("div");
+  modal.id = "rr-fd-doc-upload";
+  modal.innerHTML = `
+    <style>
+      #rr-fd-doc-upload{position:fixed;inset:0;background:var(--overlay);z-index:10001;display:flex;align-items:center;justify-content:center;padding:var(--s-5)}
+      #rr-fd-doc-upload .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:520px;max-width:100%;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow-xl);display:flex;flex-direction:column}
+      #rr-fd-doc-upload .head{display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)}
+      #rr-fd-doc-upload h3{margin:0;font-size:16px;font-weight:700;color:var(--text);letter-spacing:-.005em}
+      #rr-fd-doc-upload .body{padding:18px 20px;display:flex;flex-direction:column;gap:var(--s-3-5)}
+      #rr-fd-doc-upload label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);display:block;margin-bottom:5px}
+      #rr-fd-doc-upload input[type=text],#rr-fd-doc-upload input[type=date],#rr-fd-doc-upload input[type=file]{
+        width:100%;padding:var(--s-2) 11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;
+        font-size:var(--fs-md);color:var(--text);font-family:inherit;line-height:1.4;
+      }
+      #rr-fd-doc-upload input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+      #rr-fd-doc-upload .foot{padding:var(--s-3-5) 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-2);background:var(--canvas)}
+    </style>
+    <div class="panel" role="dialog" aria-label="Upload ${escapeHtml(label)}">
+      <div class="head"><h3>${existing?.file_path ? "Replace " : "Upload "}${escapeHtml(label)}</h3><button type="button" class="btn btn-ghost btn-sm" data-doc-close>Close</button></div>
+      <div class="body">
+        <div>
+          <label>Document number</label>
+          <input type="text" id="rr-fd-doc-num" maxlength="80" value="${escapeHtml(existing?.document_number || "")}" placeholder="${kind === "insurance" ? "Policy number" : "Registration number"}">
+        </div>
+        <div>
+          <label>Expiration date</label>
+          <input type="date" id="rr-fd-doc-exp" value="${escapeHtml(existing?.expiration_date || "")}">
+        </div>
+        <div>
+          <label>${existing?.file_path ? "Replace file (PDF / image)" : "File (PDF / image)"}</label>
+          <input type="file" id="rr-fd-doc-file" accept="application/pdf,image/*">
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">Max 25 MB.${existing?.file_path ? " Leaving empty keeps the existing file." : ""}</div>
+        </div>
+      </div>
+      <div class="foot">
+        <button type="button" class="btn btn-ghost" data-doc-close>Cancel</button>
+        <button type="button" class="btn btn-primary" id="rr-fd-doc-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  const close = () => modal.remove();
+  modal.addEventListener("click", (e) => { if (e.target === modal || e.target.closest("[data-doc-close]")) close(); });
+  document.getElementById("rr-fd-doc-save").addEventListener("click", async () => {
+    const btn  = document.getElementById("rr-fd-doc-save");
+    const num  = (document.getElementById("rr-fd-doc-num").value || "").trim();
+    const exp  = (document.getElementById("rr-fd-doc-exp").value || "").trim();
+    const file = document.getElementById("rr-fd-doc-file").files?.[0] || null;
+    if (!file && !existing?.file_path) { toast("Choose a file to upload.", "warn"); return; }
+    if (file && file.size > 25 * 1024 * 1024) { toast("File must be under 25 MB.", "warn"); return; }
+    btn.disabled = true; btn.textContent = "Saving…";
+    let filePath = null, fileName = null, fileMime = null, fileSize = null;
+    if (file) {
+      const dspId = window.RR?.dsp?.id;
+      if (!dspId) { btn.disabled = false; btn.textContent = "Save"; toast("Couldn't identify DSP.", "warn"); return; }
+      const safe = (file.name || "doc").replace(/[^\w.\-]+/g, "_");
+      filePath = `${dspId}/${v.id}/${kind}/${Date.now()}-${safe}`;
+      fileName = file.name; fileMime = file.type || null; fileSize = file.size;
+      const { error: upErr } = await sb.storage.from("vehicle-documents").upload(filePath, file, {
+        contentType: fileMime || "application/octet-stream", upsert: false,
+      });
+      if (upErr) { btn.disabled = false; btn.textContent = "Save"; toast("Upload failed: " + upErr.message, "warn"); return; }
+    }
+    // When replacing without a new file but only changing metadata on
+    // the existing row, hit the in-place edit branch (pass p_id).
+    const editInPlace = !file && existing?.id;
+    const args = editInPlace
+      ? { p_id: existing.id, p_kind: kind, p_document_number: num || null, p_expiration_date: exp || null, p_file_path: null, p_file_name: null, p_file_mime: null, p_file_size_bytes: null, p_notes: null }
+      : { p_id: null, p_vehicle_id: v.id, p_kind: kind, p_document_number: num || null, p_expiration_date: exp || null, p_file_path: filePath, p_file_name: fileName, p_file_mime: fileMime, p_file_size_bytes: fileSize, p_notes: null };
+    const { error } = await sb.rpc("vehicle_document_save", args);
+    if (error) {
+      // Roll back the upload if we created one but the RPC rejected it.
+      if (filePath) sb.storage.from("vehicle-documents").remove([filePath]).catch(() => {});
+      btn.disabled = false; btn.textContent = "Save";
+      toast("Couldn't save document: " + error.message, "warn"); return;
+    }
+    close();
+    toast(existing?.file_path ? "Document replaced ✓" : "Document uploaded ✓", "success");
+    await _fdLoadDocuments(v.id);
+    // Refresh the roster so the exception chip clears immediately.
+    if (typeof _flLoadRoster === "function") _flLoadRoster();
+  });
+}
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#rr-fd-drawer")) return;
+  const view = e.target.closest("[data-rr-fd-doc-view]");
+  if (view) { e.preventDefault(); _fdDocView(view.getAttribute("data-rr-fd-doc-view")); return; }
+  const up = e.target.closest("[data-rr-fd-doc-upload]");
+  if (up) { e.preventDefault(); _fdDocUpload(up.getAttribute("data-rr-fd-doc-upload")); return; }
+});
 
 function _fdServiceHtml(logs) {
   const v = _fdVehicle?.vehicle || {};
@@ -35749,6 +36012,27 @@ document.addEventListener("click", async (e) => {
     return;
   }
 });
+
+// Document-exception badge used on fleet roster rows.  Clicking it
+// opens the per-van drawer straight to the Documents tab so an
+// operator can replace the offending doc without extra hunting.
+function _flDocBadgeHtml(v) {
+  if (!v) return "";
+  const state = v.doc_exception_state || "active";
+  if (state === "active") return "";
+  const label = v.doc_exception_label || ({
+    expired:        "Document Expired",
+    missing:        "Document Missing",
+    expiring_soon:  "Document Expiring Soon",
+  })[state] || "Document";
+  const tone = state === "expired" ? "crit" : state === "missing" ? "crit" : "warn";
+  const icon = state === "expired" || state === "missing"
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:12px;height:12px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+  return `<button type="button" class="fl-doc-chip ${tone}" data-rr-veh-doc="${escapeHtml(v.id)}" title="${escapeHtml(label)} · click to resolve">
+    ${icon}<span>${escapeHtml(label)}</span>
+  </button>`;
+}
 
 // Camera chip used on fleet roster rows + Inspections list.
 function _dvicChipHtml(v) {

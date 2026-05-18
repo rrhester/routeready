@@ -3906,6 +3906,7 @@ function renderProfileHub() {
       </div>
       <div id="rr-missed-slot" hidden></div>
       <section class="up-next" id="rr-upnext-slot" hidden></section>
+      <section class="van-docs" id="rr-vandocs-slot" hidden></section>
     </div>`;
 
   document.getElementById("rr-home-settings").addEventListener("click", () => { _haptic("tap"); navigate("/settings"); });
@@ -3921,10 +3922,10 @@ function renderProfileHub() {
     fileInput.value = ""; // allow re-selecting the same file
   });
 
-  // Three independent loaders so the page is responsive while data
-  // streams in.  Each fills its own slot.
+  // Independent loaders so the page is responsive while data streams in.
   renderCheckinCard(session);
   renderUpNext(session);
+  renderVanDocs(session);
 
   // Pull-to-refresh re-fetches both async surfaces.  Avatar / name
   // come from the session, which is hydrated in the background by
@@ -3933,6 +3934,7 @@ function renderProfileHub() {
     const s = readSession();
     renderCheckinCard(s);
     renderUpNext(s);
+    renderVanDocs(s);
   });
 
   main.querySelectorAll("[data-task-route]").forEach((el) => {
@@ -4019,6 +4021,210 @@ async function renderUpNext(session) {
         <span class="shift-weather-text">${escapeHtml(wx.conditions || "")}</span>`;
     });
   }
+}
+
+// ── VAN DOCUMENTS · insurance + registration for today's assigned van ─
+// Surfaces under "Up next" on the home screen.  Always visible *as a
+// section* so the driver learns where these live — when no van is
+// assigned, renders a calm "no van yet" empty state instead of hiding.
+async function renderVanDocs(session) {
+  const slot = document.getElementById("rr-vandocs-slot");
+  if (!slot || !session?.token) return;
+  let data;
+  try {
+    const res = await sb.rpc("driver_assigned_van", { p_token: session.token });
+    if (res.error) throw res.error;
+    data = res.data || {};
+  } catch (e) {
+    // Stay silent on failure — the section just hides, no broken UI.
+    slot.hidden = true;
+    return;
+  }
+  slot.hidden = false;
+  const v = data.vehicle;
+  if (!v) {
+    slot.innerHTML = `
+      <div class="van-docs-label">Van documents</div>
+      <div class="van-docs-empty">
+        <div class="van-docs-empty-ic" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h2l1-4h12l1 4h2"/><path d="M5 13v4M19 13v4"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/></svg>
+        </div>
+        <div class="van-docs-empty-title">No van assigned yet</div>
+        <div class="van-docs-empty-sub">Your documents will appear once your vehicle is assigned.</div>
+      </div>`;
+    return;
+  }
+  const docs = Array.isArray(data.documents) ? data.documents : [];
+  const docByKind = (k) => docs.find((d) => d.kind === k) || { kind: k, status: "missing", has_file: false };
+  const ins = docByKind("insurance");
+  const reg = docByKind("registration");
+  const threshold = Number(data.threshold_days || 30);
+
+  const plateLine = [v.plate ? `${v.plate}${v.plate_state ? ` (${v.plate_state})` : ""}` : null,
+                     v.vin ? `VIN ${v.vin}` : null]
+                    .filter(Boolean).join(" · ");
+  const ymm = [v.year, v.make, v.model].filter(Boolean).join(" ");
+
+  // Calm but clear inline warning when any doc is missing or expired.
+  const worstWarning = _vanDocWorstWarning(ins, reg);
+
+  slot.innerHTML = `
+    <div class="van-docs-label">Van documents</div>
+    <div class="van-docs-card">
+      <div class="van-docs-head">
+        <div class="van-docs-head-ic" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h2l1-4h12l1 4h2"/><path d="M5 13v4M19 13v4"/><circle cx="8" cy="17" r="2"/><circle cx="16" cy="17" r="2"/></svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div class="van-docs-van">Van ${escapeHtml(v.name || "—")}</div>
+          ${ymm ? `<div class="van-docs-sub">${escapeHtml(ymm)}</div>` : ""}
+          ${plateLine ? `<div class="van-docs-sub">${escapeHtml(plateLine)}</div>` : ""}
+        </div>
+      </div>
+
+      ${worstWarning ? `
+        <div class="van-docs-warning">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>${escapeHtml(worstWarning)}</span>
+        </div>` : ""}
+
+      <div class="van-docs-buttons">
+        ${_vanDocButtonHtml(ins, threshold)}
+        ${_vanDocButtonHtml(reg, threshold)}
+      </div>
+
+      <button type="button" class="van-docs-report" id="rr-vandocs-report">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 22V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v18l-8-4-8 4z"/></svg>
+        <span>Report missing or wrong document</span>
+      </button>
+    </div>`;
+
+  slot.querySelectorAll("[data-rr-vandoc]").forEach((btn) => {
+    btn.addEventListener("click", () => _openVanDoc(session, btn.getAttribute("data-rr-vandoc"), btn.getAttribute("data-rr-vandoc-kind")));
+  });
+  document.getElementById("rr-vandocs-report").addEventListener("click", () => _openVanDocReportSheet(session, v));
+}
+
+function _vanDocLabel(kind) {
+  return kind === "insurance" ? "Insurance card" : kind === "registration" ? "Registration" : kind;
+}
+
+function _vanDocStatusChip(doc, threshold) {
+  const s = doc.status;
+  const d = doc.days_until_expiration;
+  if (s === "expired")       return { cls: "warn", text: "Expired" };
+  if (s === "missing")       return { cls: "warn", text: "Missing" };
+  if (s === "expiring_soon") return { cls: "soon", text: `${d}d left` };
+  return { cls: "ok", text: "Active" };
+}
+
+function _vanDocWorstWarning(ins, reg) {
+  const worst = (d) => d.status === "expired" || d.status === "missing";
+  if (worst(reg)) {
+    return reg.status === "expired"
+      ? "This van's registration document is expired. Notify fleet before departure."
+      : "This van's registration document is missing. Notify fleet before departure.";
+  }
+  if (worst(ins)) {
+    return ins.status === "expired"
+      ? "This van's insurance card is expired. Notify fleet before departure."
+      : "This van's insurance card is missing. Notify fleet before departure.";
+  }
+  return null;
+}
+
+function _vanDocButtonHtml(doc, threshold) {
+  const label = _vanDocLabel(doc.kind);
+  const chip  = _vanDocStatusChip(doc, threshold);
+  const disabled = !doc.has_file;
+  const icon = doc.kind === "insurance"
+    ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
+    : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>';
+  return `
+    <button type="button" class="van-docs-btn${disabled ? " is-disabled" : ""}"
+            ${disabled ? "" : `data-rr-vandoc="${escapeHtml(doc.id)}" data-rr-vandoc-kind="${escapeHtml(doc.kind)}"`}>
+      <span class="van-docs-btn-ic" aria-hidden="true">${icon}</span>
+      <span class="van-docs-btn-body">
+        <span class="van-docs-btn-title">${escapeHtml(label)}</span>
+        <span class="van-docs-btn-chip van-docs-chip-${chip.cls}">${escapeHtml(chip.text)}</span>
+      </span>
+      ${disabled
+        ? '<span class="van-docs-btn-meta">Not uploaded</span>'
+        : '<svg class="van-docs-btn-chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>'}
+    </button>`;
+}
+
+async function _openVanDoc(session, docId, kind) {
+  if (!docId || !session?.token) return;
+  _haptic("tap");
+  // Pre-open the tab synchronously so iOS Safari doesn't block the
+  // popup once we hit await — same trick the e-signature flow uses.
+  const win = window.open("", "_blank");
+  let resp;
+  try {
+    resp = await fetch(`${cfg.SUPABASE_URL}/functions/v1/vehicle-document-fetch`, {
+      method:  "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": "Bearer " + cfg.SUPABASE_ANON_KEY,
+        "apikey":        cfg.SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ token: session.token, vehicle_document_id: docId }),
+    });
+  } catch (e) {
+    if (win) win.close();
+    toast("Couldn't open document — check your connection", "warn");
+    return;
+  }
+  const text = await resp.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch {}
+  if (!resp.ok || !body?.signed_url) {
+    if (win) win.close();
+    toast("Couldn't open " + _vanDocLabel(kind).toLowerCase() + (body?.error ? ": " + body.error : ""), "warn");
+    return;
+  }
+  if (win) { win.location.href = body.signed_url; }
+  else { window.location.href = body.signed_url; }
+}
+
+async function _openVanDocReportSheet(session, vehicle) {
+  // Lean confirm sheet that lets the driver pick which document is
+  // missing/wrong and add an optional note.  Uses the same overlay
+  // pattern as confirmSheet so the look feels native to the app.
+  const wrap = document.createElement("div");
+  wrap.className = "rr-vd-sheet-wrap";
+  wrap.innerHTML = `
+    <div class="rr-vd-sheet" role="dialog" aria-label="Report vehicle document">
+      <div class="rr-vd-sheet-title">Report document issue</div>
+      <div class="rr-vd-sheet-msg">Let fleet know which document on van ${escapeHtml(vehicle.name || "—")} is missing or wrong. They'll get an alert and replace it.</div>
+      <div class="rr-vd-sheet-fields">
+        <label class="rr-vd-sheet-radio"><input type="radio" name="rr-vd-kind" value="registration" checked> Registration</label>
+        <label class="rr-vd-sheet-radio"><input type="radio" name="rr-vd-kind" value="insurance"> Insurance card</label>
+        <textarea id="rr-vd-reason" rows="3" maxlength="500" placeholder="What's wrong? (optional)"></textarea>
+      </div>
+      <div class="rr-vd-sheet-actions">
+        <button type="button" class="rr-vd-sheet-btn" id="rr-vd-cancel">Cancel</button>
+        <button type="button" class="rr-vd-sheet-btn rr-vd-sheet-btn-primary" id="rr-vd-submit">Send report</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", (e) => { if (e.target === wrap) close(); });
+  document.getElementById("rr-vd-cancel").addEventListener("click", close);
+  document.getElementById("rr-vd-submit").addEventListener("click", async () => {
+    const kind = wrap.querySelector('input[name="rr-vd-kind"]:checked')?.value || "registration";
+    const reason = (document.getElementById("rr-vd-reason").value || "").trim();
+    const btn = document.getElementById("rr-vd-submit");
+    btn.disabled = true; btn.textContent = "Sending…";
+    const { error } = await sb.rpc("driver_report_vehicle_document", {
+      p_token: session.token, p_kind: kind, p_reason: reason || null,
+    });
+    btn.disabled = false; btn.textContent = "Send report";
+    if (error) { toast("Couldn't send report: " + error.message, "warn"); return; }
+    close();
+    toast("Fleet has been notified", "success");
+  });
 }
 
 // ── Settings · gear icon in the top-right of the header ─────────────

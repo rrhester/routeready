@@ -2131,6 +2131,64 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .dvic-chip.flag{background:var(--red-soft);color:var(--red-dark)}
 .dvic-chip.ok  {background:var(--green-soft);color:var(--green-dark)}
 .dvic-chip.rev {background:var(--canvas);color:var(--text-muted);border-color:var(--border)}
+
+/* Cell-chips row — kept on the Vehicle cell so the DVIC chip and the
+   document-exception badge can sit side-by-side without wrapping the
+   van name.  Slim spacing so the cell still reads as one block. */
+.cell-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--s-1)}
+.cell-chips:empty{display:none}
+
+/* Fleet roster · document-exception chip · "Registration Expired",
+   "Insurance Missing", "Insurance Expires in 5 Days".  Visually calm
+   but operationally urgent — matches the existing semantic palette so
+   this chip reads as one with the rest of the fleet design system. */
+.fl-doc-chip{
+  display:inline-flex;align-items:center;gap:var(--s-1);
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.03em;
+  padding:3px var(--s-2-5);border-radius:var(--r-pill);cursor:pointer;
+  border:1px solid transparent;background:transparent;
+  line-height:1.2;font-family:inherit;
+  transition:filter var(--t-fast);
+}
+.fl-doc-chip:hover{filter:brightness(.96)}
+.fl-doc-chip:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+.fl-doc-chip.crit{background:var(--red-soft);color:var(--red-dark)}
+.fl-doc-chip.warn{background:var(--amber-soft);color:var(--amber-dark)}
+
+/* Fleet drawer · Documents tab — insurance + registration cards. */
+#rr-fd-drawer .fd-doc-card{
+  border:1px solid var(--border-subtle);
+  border-radius:var(--r-lg);
+  margin-bottom:var(--s-3);
+  background:var(--surface);
+  overflow:hidden;
+}
+#rr-fd-drawer .fd-doc-card-head{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s-2);
+  padding:var(--s-3) var(--s-3-5);
+  background:var(--canvas);
+  border-bottom:1px solid var(--border-subtle);
+}
+#rr-fd-drawer .fd-doc-card-title{
+  font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.005em;
+}
+#rr-fd-drawer .fd-doc-card-body{
+  padding:var(--s-3) var(--s-3-5);
+  display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s-3);flex-wrap:wrap;
+}
+#rr-fd-drawer .fd-doc-meta{flex:1;min-width:200px;display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm)}
+#rr-fd-drawer .fd-doc-meta-row{display:flex;align-items:center;justify-content:space-between;gap:var(--s-2)}
+#rr-fd-drawer .fd-doc-meta-label{font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;color:var(--text-subtle);font-weight:600}
+#rr-fd-drawer .fd-doc-actions{display:flex;gap:var(--s-2);flex:0 0 auto}
+#rr-fd-drawer .fd-doc-pill{
+  display:inline-flex;align-items:center;
+  font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:3px 8px;border-radius:var(--r-pill);white-space:nowrap;line-height:1.4;
+}
+#rr-fd-drawer .fd-doc-pill-ok  {background:var(--green-soft);color:var(--green-dark)}
+#rr-fd-drawer .fd-doc-pill-warn{background:var(--amber-soft);color:var(--amber-dark)}
+#rr-fd-drawer .fd-doc-pill-crit{background:var(--red-soft);color:var(--red-dark)}
+#rr-fd-drawer .fd-doc-pill-dim {background:var(--canvas);color:var(--text-subtle);border:1px solid var(--border)}
 .cell-contact{color:var(--text-muted);font-size:var(--fs-sm);line-height:1.4}
 .cell-score{
   display:inline-flex;align-items:center;justify-content:center;
@@ -13468,6 +13526,13 @@ body.rr-cmdk-open{ overflow:hidden }
           </select>
           <select id="rr-fleet-station" class="fl-filter" aria-label="Filter by station">
             <option value="">Station: All</option>
+          </select>
+          <select id="rr-fleet-docs" class="fl-filter" aria-label="Filter by document exception">
+            <option value="">Docs: All</option>
+            <option value="any">Any exception</option>
+            <option value="expired">Expired</option>
+            <option value="expiring_soon">Expiring soon</option>
+            <option value="missing">Missing</option>
           </select>
         </div>
 
