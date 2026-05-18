@@ -13548,10 +13548,239 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-sev.medium{background:var(--accent-soft);color:var(--accent-text)}
           #view-fleet .fl-sev.high{background:var(--amber-soft);color:var(--amber-dark)}
           #view-fleet .fl-sev.critical{background:var(--red-soft);color:var(--red)}
+
+          /* ── Fleet execution KPI strip ─────────────────────────────
+             Two cards (FEM + VORR) over a quiet recommendations rail.
+             Built to feel operational, not decorative: each card is a
+             single-click drill-down, the accent ribbon flips with the
+             threshold so peripheral vision picks up the state, and the
+             whole strip collapses gracefully when there are no branded
+             vans in the fleet yet. */
+          #view-fleet .fl-exec-strip{margin-bottom:var(--s-5)}
+          #view-fleet .fl-exec-grid{
+            display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+            gap:var(--s-4);
+          }
+          @media (max-width:880px){
+            #view-fleet .fl-exec-grid{grid-template-columns:1fr}
+          }
+          #view-fleet .fl-exec-card{
+            position:relative;overflow:hidden;
+            background:var(--surface);background-image:var(--surface-grad);
+            border:1px solid var(--border);border-radius:var(--r-lg);
+            padding:var(--s-5) var(--s-5) var(--s-4);
+            box-shadow:var(--shadow-sm), var(--highlight-top);
+            cursor:pointer;text-align:left;
+            transition:box-shadow var(--t-smooth), transform var(--t-smooth), border-color var(--t-smooth);
+            display:flex;flex-direction:column;gap:var(--s-3);
+          }
+          #view-fleet .fl-exec-card:hover{
+            border-color:var(--accent-border);
+            box-shadow:var(--shadow-md-hover), var(--highlight-top);
+            transform:translateY(-1px);
+          }
+          #view-fleet .fl-exec-card:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus), var(--highlight-top)}
+          #view-fleet .fl-exec-card::before{
+            content:"";position:absolute;top:0;left:0;right:0;height:3px;
+            background:var(--green);
+          }
+          #view-fleet .fl-exec-card[data-state="warning"]::before{background:var(--amber)}
+          #view-fleet .fl-exec-card[data-state="critical"]::before{background:var(--red)}
+
+          #view-fleet .fl-exec-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3)}
+          #view-fleet .fl-exec-title{
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
+            text-transform:uppercase;color:var(--text-muted);
+          }
+          #view-fleet .fl-exec-state{
+            display:inline-flex;align-items:center;gap:6px;
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;
+            text-transform:uppercase;
+            padding:2px var(--s-2);border-radius:var(--r-pill);
+            background:var(--green-soft);color:var(--green);
+          }
+          #view-fleet .fl-exec-card[data-state="warning"] .fl-exec-state{background:var(--amber-soft);color:var(--amber-dark)}
+          #view-fleet .fl-exec-card[data-state="critical"] .fl-exec-state{background:var(--red-soft);color:var(--red)}
+          #view-fleet .fl-exec-state .pip{width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto}
+
+          #view-fleet .fl-exec-num{
+            display:flex;align-items:baseline;gap:var(--s-2);
+          }
+          #view-fleet .fl-exec-num .v{
+            font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1;
+            color:var(--text);font-variant-numeric:tabular-nums;
+          }
+          #view-fleet .fl-exec-num .sub{
+            font-size:var(--fs-md);color:var(--text-subtle);
+            font-variant-numeric:tabular-nums;
+          }
+
+          #view-fleet .fl-exec-segs{
+            display:flex;gap:var(--s-3);flex-wrap:wrap;
+            padding-top:var(--s-2);
+            border-top:1px solid var(--border-subtle);
+          }
+          #view-fleet .fl-exec-seg{display:flex;flex-direction:column;gap:2px;min-width:0}
+          #view-fleet .fl-exec-seg .l{
+            font-size:var(--fs-xs);color:var(--text-subtle);
+            display:inline-flex;align-items:center;gap:6px;
+          }
+          #view-fleet .fl-exec-seg .l .dot{width:6px;height:6px;border-radius:50%;flex:0 0 auto}
+          #view-fleet .fl-exec-seg .l .dot.green{background:var(--green)}
+          #view-fleet .fl-exec-seg .l .dot.amber{background:var(--amber)}
+          #view-fleet .fl-exec-seg .l .dot.red{background:var(--red)}
+          #view-fleet .fl-exec-seg .l .dot.muted{background:var(--text-subtle)}
+          #view-fleet .fl-exec-seg .n{
+            font-size:var(--fs-base);font-weight:600;color:var(--text);
+            font-variant-numeric:tabular-nums;
+          }
+
+          /* Recommendations rail · subtle horizontal strip beneath the
+             two cards.  Stays quiet at 0 items, escalates with severity. */
+          #view-fleet .fl-exec-recs{
+            margin-top:var(--s-3);
+            display:flex;flex-direction:column;gap:6px;
+          }
+          #view-fleet .fl-exec-rec{
+            display:flex;align-items:center;gap:var(--s-2-5);
+            padding:8px var(--s-3);
+            background:var(--canvas);border:1px solid var(--border-subtle);
+            border-radius:var(--r-md);
+            font-size:var(--fs-md);color:var(--text-muted);
+          }
+          #view-fleet .fl-exec-rec.sev-warning{background:var(--amber-soft);border-color:var(--amber-border);color:var(--amber-dark)}
+          #view-fleet .fl-exec-rec.sev-critical{background:var(--red-soft);border-color:var(--red-border);color:var(--red)}
+          #view-fleet .fl-exec-rec .ic{
+            width:14px;height:14px;flex:0 0 auto;
+            display:inline-flex;align-items:center;justify-content:center;
+            color:currentColor;
+          }
+          #view-fleet .fl-exec-rec .ic svg{width:100%;height:100%}
+
+          /* Drill-down slide-over — reuses the Fleet drawer cosmetics
+             (sticky head, body scroller) but stays self-contained so we
+             don't fight existing van-drawer state. */
+          .fl-exec-drawer{
+            position:fixed;inset:0;background:var(--overlay);
+            z-index:9999;display:flex;justify-content:flex-end;
+            animation:flExecFade .14s ease-out;
+          }
+          @keyframes flExecFade{from{opacity:0}to{opacity:1}}
+          .fl-exec-panel{
+            width:760px;max-width:100%;background:var(--surface);
+            height:100%;overflow-y:auto;
+            border-left:1px solid var(--border);
+            display:flex;flex-direction:column;
+            animation:flExecSlide .22s cubic-bezier(.2,.6,.2,1);
+          }
+          @keyframes flExecSlide{from{transform:translateX(28px);opacity:.4}to{transform:translateX(0);opacity:1}}
+          .fl-exec-panel .head{
+            padding:var(--s-5) var(--s-6);
+            border-bottom:1px solid var(--border-subtle);
+            display:flex;align-items:flex-start;justify-content:space-between;
+            gap:var(--s-3);position:sticky;top:0;background:var(--surface);z-index:2;
+          }
+          .fl-exec-panel .head h2{
+            margin:0;font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;color:var(--text);
+          }
+          .fl-exec-panel .head p{
+            margin:4px 0 0;font-size:var(--fs-sm);color:var(--text-subtle);
+          }
+          .fl-exec-panel .close{
+            background:transparent;border:1px solid transparent;border-radius:var(--r-md);
+            width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
+            color:var(--text-subtle);cursor:pointer;
+            transition:background var(--t-fast), color var(--t-fast);
+          }
+          .fl-exec-panel .close:hover{background:var(--canvas);color:var(--text)}
+          .fl-exec-panel .close svg{width:16px;height:16px}
+          .fl-exec-panel .body{padding:var(--s-4) var(--s-6) var(--s-6);flex:1}
+
+          .fl-exec-row{
+            display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;
+            gap:var(--s-3);align-items:center;
+            padding:var(--s-3) 0;
+            border-bottom:1px solid var(--border-subtle);
+          }
+          .fl-exec-row:last-child{border-bottom:none}
+          .fl-exec-row .who{display:flex;flex-direction:column;gap:2px;min-width:0}
+          .fl-exec-row .who .name{font-size:var(--fs-base);font-weight:600;color:var(--text)}
+          .fl-exec-row .who .sub{font-size:var(--fs-xs);color:var(--text-subtle)}
+          .fl-exec-row .days{
+            font-size:18px;font-weight:700;color:var(--text);
+            font-variant-numeric:tabular-nums;
+          }
+          .fl-exec-row .days .u{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:500;margin-left:3px}
+          .fl-exec-row .badge{
+            display:inline-flex;align-items:center;gap:6px;
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+            padding:2px var(--s-2);border-radius:var(--r-pill);white-space:nowrap;
+          }
+          .fl-exec-row .badge.healthy{background:var(--green-soft);color:var(--green)}
+          .fl-exec-row .badge.warning{background:var(--amber-soft);color:var(--amber-dark)}
+          .fl-exec-row .badge.at_risk{background:var(--amber-soft-strong);color:var(--amber-dark)}
+          .fl-exec-row .badge.violation{background:var(--red-soft);color:var(--red)}
+          .fl-exec-row .badge.grounded{background:var(--red-soft);color:var(--red)}
+          .fl-exec-row .action{
+            font-size:var(--fs-sm);color:var(--text-muted);text-align:right;line-height:1.4;
+          }
+          .fl-exec-row .action.crit{color:var(--red);font-weight:600}
+          .fl-exec-row .action.warn{color:var(--amber-dark);font-weight:600}
+
+          .fl-exec-empty{
+            padding:var(--s-8) var(--s-4);text-align:center;color:var(--text-subtle);
+          }
+          .fl-exec-empty .ic{
+            width:48px;height:48px;border-radius:var(--r-lg);
+            margin:0 auto var(--s-3);
+            display:flex;align-items:center;justify-content:center;
+            color:var(--green);background:var(--green-soft);
+          }
+          .fl-exec-empty .ic svg{width:22px;height:22px}
+          .fl-exec-empty h3{margin:0 0 4px;font-size:var(--fs-base);font-weight:700;color:var(--text)}
+          .fl-exec-empty p{margin:0;font-size:var(--fs-md);max-width:380px;margin-inline:auto}
         </style>
 
         <!-- MY VEHICLES sub-tab — roster -->
         <div class="fl-sub active" id="fl-sub-vehicles">
+
+        <!-- Fleet Execution KPI strip · FEM (Amazon's 14-day rolling
+             deploy compliance) + VORR (branded-fleet readiness rate).
+             Painted by _flRenderExecKpis() in live.js from the
+             fleet_execution_summary RPC (migration 0301).  Cards are
+             keyboard-accessible buttons that open a slide-over
+             drill-down — at-risk vans for FEM, grounded vans for VORR. -->
+        <div class="fl-exec-strip" id="rr-fleet-exec-strip" hidden>
+          <div class="fl-exec-grid">
+            <button type="button" class="fl-exec-card" id="rr-fem-card"
+                    data-state="healthy" aria-label="Open Fleet Execution Metric drill-down">
+              <div class="fl-exec-head">
+                <span class="fl-exec-title">Fleet Execution · 14-day</span>
+                <span class="fl-exec-state" id="rr-fem-state"><span class="pip"></span>Healthy</span>
+              </div>
+              <div class="fl-exec-num">
+                <span class="v" id="rr-fem-value">—</span>
+                <span class="sub" id="rr-fem-sub">of branded fleet deployed</span>
+              </div>
+              <div class="fl-exec-segs" id="rr-fem-segs"></div>
+            </button>
+
+            <button type="button" class="fl-exec-card" id="rr-vorr-card"
+                    data-state="healthy" aria-label="Open Vehicle Operational Readiness drill-down">
+              <div class="fl-exec-head">
+                <span class="fl-exec-title">Operational Readiness · VORR</span>
+                <span class="fl-exec-state" id="rr-vorr-state"><span class="pip"></span>Healthy</span>
+              </div>
+              <div class="fl-exec-num">
+                <span class="v" id="rr-vorr-value">—</span>
+                <span class="sub" id="rr-vorr-sub">of branded fleet operational</span>
+              </div>
+              <div class="fl-exec-segs" id="rr-vorr-segs"></div>
+            </button>
+          </div>
+          <div class="fl-exec-recs" id="rr-fleet-exec-recs"></div>
+        </div>
+
         <div class="fl-roster-bar">
           <div class="fl-search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
