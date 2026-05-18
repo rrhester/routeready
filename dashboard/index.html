@@ -11335,17 +11335,17 @@ body.rr-cmdk-open{ overflow:hidden }
           }
 
           /* (2) Mute repeating shift times — when ≥2 chips in a row
-             share the same start/end, the matches keep the chip bubble
-             but the text fades to subtle so the eye glides past the
-             routine and lands on outliers. JS tags matches with
-             .is-routine. */
+             share the same start/end, the bubble keeps its soft
+             accent tint but the text fades to subtle so the eye
+             glides past the routine and lands on outliers. JS tags
+             matches with .is-routine. */
           #view-schedule .shift-chip.is-routine{
-            background:var(--surface);
-            border-color:rgba(15,23,42,.06);
+            background:var(--accent-soft);
+            border-color:var(--accent-border);
           }
           #view-schedule .shift-chip.is-routine .shift-chip-route,
           #view-schedule .shift-chip.is-routine .shift-chip-time{
-            color:var(--text-subtle);
+            color:color-mix(in srgb, var(--accent-text) 60%, transparent);
             font-weight:500;
           }
 
