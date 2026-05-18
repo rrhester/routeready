@@ -5835,29 +5835,6 @@ const AVATAR_STYLES = [
   { id: "cartoon-pop",    cat: "cartoon", label: "Vector Pop",     sub: "Posterised pop-art",       kind: "pop" },
 ];
 
-// Style example thumbnails — generic illustrated portraits, one per
-// style, so the grid communicates what a style looks like rather
-// than just showing the driver's own face filtered ten times. Each
-// example is a small inline SVG (encoded into a data URL the first
-// time it's read) so we don't need any asset hosting or fetches.
-const AVATAR_STYLE_EXAMPLES = {
-  "ai-clean":        _exampleSvgClean(),
-  "ai-realistic":    _exampleSvgRealistic(),
-  "ai-soft3d":       _exampleSvgSoft3d(),
-  "ai-illustrated":  _exampleSvgIllustrated(),
-  "cartoon-classic": _exampleSvgCartoonClassic(),
-  "cartoon-fun":     _exampleSvgFunBold(),
-  "cartoon-min":     _exampleSvgMinimal(),
-  "cartoon-anime":   _exampleSvgAnime(),
-  "cartoon-chibi":   _exampleSvgChibi(),
-  "cartoon-pop":     _exampleSvgVectorPop(),
-};
-function _avatarExampleUrl(styleId) {
-  const svg = AVATAR_STYLE_EXAMPLES[styleId];
-  if (!svg) return "";
-  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
-}
-
 // Accent swatches — calm, work-safe palette. The first option (null
 // accent) means "no ring", so the avatar reads as a plain photo.
 const AVATAR_ACCENTS = [
@@ -5941,7 +5918,7 @@ function avatarStudioShellHtml(session) {
         <button class="av-style-card ${s.id === styleId ? "is-selected" : ""}"
                 data-av-style="${s.id}" role="option" aria-selected="${s.id === styleId}">
           <span class="av-style-thumb" data-av-thumb="${s.id}"
-                style="background-image:url('${_avatarExampleUrl(s.id)}')">
+                style="background-image:url('${escapeHtml(session?.photo_url || "")}')">
             <span class="av-style-check" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </span>
@@ -6151,7 +6128,7 @@ function _avatarStudioRefreshStyleGrid(session) {
             data-av-style="${s.id}" role="option"
             aria-selected="${s.id === _avatarStudio.activeStyleId}">
       <span class="av-style-thumb" data-av-thumb="${s.id}"
-            style="background-image:url('${_avatarExampleUrl(s.id)}')">
+            style="background-image:url('${escapeHtml(session?.photo_url || "")}')">
         <span class="av-style-check" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         </span>
@@ -6159,6 +6136,7 @@ function _avatarStudioRefreshStyleGrid(session) {
       <span class="av-style-label">${escapeHtml(s.label)}</span>
     </button>`).join("");
   _avatarStudioBindStyleGrid(session);
+  _avatarStudioPaintStyleThumbs();
 }
 
 function _avatarStudioBindStyleGrid(session) {
@@ -6171,31 +6149,43 @@ function _avatarStudioBindStyleGrid(session) {
         c.classList.toggle("is-selected", sel);
         c.setAttribute("aria-selected", String(sel));
       });
-      // Tapping a style only selects it + shows the local preview
-      // instantly. Claude generation is reserved for the explicit
-      // "Generate Avatar" / Regenerate buttons so we don't fire an
-      // expensive AI call every time the driver browses the grid.
-      // If we already have a cached Claude render for this style,
-      // use that — re-tapping returns to the previously-generated
-      // AI version without another API call.
+      // Cartoon styles render instantly via the local pipeline.
+      // AI styles either pull from the per-source Claude cache or
+      // kick off a fresh Claude call so the preview is the real AI
+      // version, not just a colour-filtered photo.
       const style = AVATAR_STYLES.find(s => s.id === id);
-      const studio = _avatarStudio;
-      const sourceTag = studio.claudeSourceTag || (session.photo_path ? "p-" + session.photo_path : "p-none");
-      const cached = studio.claudeCache[`${sourceTag}::${id}`];
-      if (style && style.cat === "ai" && cached) {
-        studio.previewKind = "claude";
-        studio.previewDataUrl = cached;
-        const preview = document.getElementById("av-preview");
-        if (preview) {
-          preview.style.backgroundImage = `url('${cached}')`;
-          preview.querySelector(".av-preview-fallback")?.remove();
-        }
-        _avatarStudioUpdatePreviewRing();
+      if (style && style.cat === "ai" && _avatarStudio.source) {
+        _avatarStudioGenerateWithClaude(session, { force: false });
       } else {
         _avatarStudioApplyStyle();
       }
     });
   });
+}
+
+// Paint the small thumbnails inside each style card so the driver sees
+// what their face looks like in every style at a glance. Throttled to
+// idle frames so we don't block the main thread while the user
+// scrolls the grid.
+function _avatarStudioPaintStyleThumbs() {
+  const src = _avatarStudio?.source;
+  if (!src) return;
+  const cards = document.querySelectorAll("[data-av-thumb]");
+  // Walk the cards one frame at a time — even 10 thumbs at full
+  // resolution would lock the UI on a budget Android device.
+  let i = 0;
+  const step = () => {
+    if (i >= cards.length) return;
+    const card = cards[i++];
+    const id = card.getAttribute("data-av-thumb");
+    const style = AVATAR_STYLES.find(s => s.id === id);
+    if (style) {
+      const dataUrl = _avatarRender(src, style.kind, { size: 120, seed: id.charCodeAt(0) });
+      if (dataUrl) card.style.backgroundImage = `url('${dataUrl}')`;
+    }
+    (window.requestIdleCallback || window.requestAnimationFrame)(step);
+  };
+  (window.requestIdleCallback || window.requestAnimationFrame)(step);
 }
 
 // Render the preview at full size for the currently-selected style.
@@ -6234,6 +6224,8 @@ function _avatarStudioApplyStyle(opts) {
     if (fb) fb.remove();
     if (spinner) spinner.hidden = true;
     _avatarStudioUpdatePreviewRing();
+    // Repaint the small grid thumbs to match the new source / style.
+    _avatarStudioPaintStyleThumbs();
   });
 }
 
@@ -6302,11 +6294,6 @@ async function _avatarStudioGenerateWithClaude(session, opts) {
 
   toast("Generating with Claude…");
   let result = null;
-  // Hard timeout so a stuck request can't leave the spinner spinning.
-  // 45 s comfortably covers Claude's typical vision-+-tool response,
-  // but breaks the wait if the function is unreachable / not deployed.
-  const aborter = new AbortController();
-  const timer = setTimeout(() => aborter.abort(), 45_000);
   try {
     const res = await fetch(`${cfg.SUPABASE_URL}/functions/v1/avatar-claude`, {
       method: "POST",
@@ -6316,43 +6303,24 @@ async function _avatarStudioGenerateWithClaude(session, opts) {
         "apikey":        cfg.SUPABASE_ANON_KEY,
       },
       body: JSON.stringify(payload),
-      signal: aborter.signal,
     });
     const json = await res.json().catch(() => ({}));
     if (studio.renderToken !== myToken) return; // user moved on
     if (!res.ok || !json?.svg) {
-      // Distinguish "function not deployed" from other failures —
-      // the most common stuck state is the edge function not being
-      // pushed yet, and an opaque error there is the worst UX.
-      let msg;
-      if (res.status === 404) {
-        msg = "AI generation isn't deployed yet. Ask your admin to run `supabase functions deploy avatar-claude`.";
-      } else if (res.status === 403) {
-        msg = "Session expired — sign in again to generate avatars.";
-      } else {
-        const detail = json?.error || res.statusText || `http_${res.status || "?"}`;
-        msg = "Claude couldn't generate that style: " + detail;
-      }
-      toast(msg, "warn");
+      const detail = json?.error || res.statusText || "unknown";
+      toast("Claude couldn't generate that style: " + detail, "warn");
       return;
     }
     result = json;
   } catch (err) {
     if (studio.renderToken !== myToken) return;
-    const aborted = err && (err.name === "AbortError" || /aborted/i.test(String(err.message || "")));
-    toast(aborted
-      ? "Claude took too long. Try again, or pick a different style."
-      : _friendlyError(err, "Couldn't reach Claude. Check your connection and try again."),
-      "warn");
+    toast(_friendlyError(err, "Couldn't reach Claude. Check your connection and try again."), "warn");
     return;
   } finally {
-    clearTimeout(timer);
-    // ALWAYS clear the spinner — including when we early-returned
-    // because the user moved on. The previous version only hid it
-    // when the token still matched, which left an orphan spinner
-    // visible whenever a second click landed mid-flight.
-    studio.claudePending = false;
-    if (spinner) spinner.hidden = true;
+    if (studio.renderToken === myToken) {
+      studio.claudePending = false;
+      if (spinner) spinner.hidden = true;
+    }
   }
 
   if (!result || studio.renderToken !== myToken) return;
@@ -6825,194 +6793,6 @@ function _loadImageFromUrl(url) {
 
 function _dataUrlToBlob(dataUrl) {
   return fetch(dataUrl).then(r => r.blob());
-}
-
-// ── Style example portraits ────────────────────────────────────────
-// Tiny inline SVGs used as the AI-style and cartoon-style thumbnails.
-// Each is a generic, work-safe illustrated face so the grid reads as
-// "this is the style you'd get" rather than ten copies of the
-// driver's own photo lightly filtered. Hand-tuned per style so the
-// palette, line weight, and shading match the live preview pipeline.
-function _exampleSvgClean() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-    <defs><clipPath id="c"><rect width="120" height="120" rx="18"/></clipPath></defs>
-    <g clip-path="url(#c)">
-      <rect width="120" height="120" fill="#EAF1FF"/>
-      <circle cx="60" cy="50" r="28" fill="#F2D5BD"/>
-      <path d="M32 50 Q60 16 88 50 L86 33 Q60 18 34 33 Z" fill="#2A2118"/>
-      <circle cx="51" cy="52" r="2.6" fill="#1F2937"/>
-      <circle cx="69" cy="52" r="2.6" fill="#1F2937"/>
-      <path d="M52 64 Q60 70 68 64" fill="none" stroke="#1F2937" stroke-width="2" stroke-linecap="round"/>
-      <path d="M20 95 Q60 78 100 95 L100 120 L20 120 Z" fill="#2563EB"/>
-    </g>
-  </svg>`;
-}
-function _exampleSvgRealistic() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-    <defs>
-      <radialGradient id="rs" cx="40%" cy="35%" r="65%">
-        <stop offset="0%" stop-color="#F4D2B6"/><stop offset="100%" stop-color="#C99877"/>
-      </radialGradient>
-      <linearGradient id="rh" x1="0" x2="0" y1="0" y2="1">
-        <stop offset="0%" stop-color="#5A3520"/><stop offset="100%" stop-color="#321B0F"/>
-      </linearGradient>
-      <radialGradient id="rb" cx="50%" cy="40%" r="75%">
-        <stop offset="0%" stop-color="#FBEDD9"/><stop offset="100%" stop-color="#E6CBA8"/>
-      </radialGradient>
-      <clipPath id="cR"><rect width="120" height="120" rx="18"/></clipPath>
-    </defs>
-    <g clip-path="url(#cR)">
-      <rect width="120" height="120" fill="url(#rb)"/>
-      <circle cx="60" cy="52" r="29" fill="url(#rs)"/>
-      <path d="M30 52 Q60 14 90 52 L88 32 Q60 14 32 32 Z" fill="url(#rh)"/>
-      <ellipse cx="50" cy="55" rx="2.2" ry="2.8" fill="#2A1B0F"/>
-      <ellipse cx="70" cy="55" rx="2.2" ry="2.8" fill="#2A1B0F"/>
-      <path d="M50 66 Q60 73 70 66" fill="none" stroke="#4A2B14" stroke-width="2" stroke-linecap="round"/>
-      <path d="M16 100 Q60 84 104 100 L104 120 L16 120 Z" fill="#7A8FA0"/>
-    </g>
-  </svg>`;
-}
-function _exampleSvgSoft3d() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-    <defs>
-      <radialGradient id="ss" cx="38%" cy="32%" r="60%">
-        <stop offset="0%" stop-color="#FFE3CD"/><stop offset="60%" stop-color="#E8B690"/>
-        <stop offset="100%" stop-color="#A87455"/>
-      </radialGradient>
-      <radialGradient id="sh" cx="50%" cy="30%" r="70%">
-        <stop offset="0%" stop-color="#6B3F25"/><stop offset="100%" stop-color="#2E1809"/>
-      </radialGradient>
-      <linearGradient id="sb" x1="0" x2="0" y1="0" y2="1">
-        <stop offset="0%" stop-color="#F0F4FB"/><stop offset="100%" stop-color="#CFD8EB"/>
-      </linearGradient>
-      <clipPath id="cS"><rect width="120" height="120" rx="18"/></clipPath>
-    </defs>
-    <g clip-path="url(#cS)">
-      <rect width="120" height="120" fill="url(#sb)"/>
-      <ellipse cx="60" cy="80" rx="38" ry="6" fill="rgba(8,18,60,.18)"/>
-      <circle cx="60" cy="52" r="30" fill="url(#ss)"/>
-      <path d="M30 50 Q60 12 90 50 L86 34 Q60 16 34 34 Z" fill="url(#sh)"/>
-      <circle cx="50" cy="55" r="3" fill="#2A1610"/>
-      <circle cx="70" cy="55" r="3" fill="#2A1610"/>
-      <circle cx="49" cy="54" r="1" fill="#FFFFFF"/>
-      <circle cx="69" cy="54" r="1" fill="#FFFFFF"/>
-      <path d="M52 67 Q60 73 68 67" fill="none" stroke="#5A2E1E" stroke-width="2.4" stroke-linecap="round"/>
-      <path d="M14 102 Q60 90 106 102 L106 120 L14 120 Z" fill="#506BA8"/>
-    </g>
-  </svg>`;
-}
-function _exampleSvgIllustrated() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-    <defs><clipPath id="cI"><rect width="120" height="120" rx="18"/></clipPath></defs>
-    <g clip-path="url(#cI)">
-      <rect width="120" height="120" fill="#FBF6EC"/>
-      <circle cx="60" cy="50" r="28" fill="#F5DBC2" stroke="#2A1F14" stroke-width="1.5"/>
-      <path d="M32 48 Q60 14 88 48 L85 30 Q60 16 35 30 Z" fill="#3A2418" stroke="#2A1F14" stroke-width="1.5"/>
-      <path d="M44 56 Q47 53 52 56" fill="none" stroke="#2A1F14" stroke-width="1.6" stroke-linecap="round"/>
-      <path d="M68 56 Q71 53 76 56" fill="none" stroke="#2A1F14" stroke-width="1.6" stroke-linecap="round"/>
-      <path d="M50 66 Q60 72 70 66" fill="none" stroke="#2A1F14" stroke-width="1.8" stroke-linecap="round"/>
-      <path d="M16 96 Q60 80 104 96 L104 120 L16 120 Z" fill="#C44A3A" stroke="#2A1F14" stroke-width="1.5"/>
-    </g>
-  </svg>`;
-}
-function _exampleSvgCartoonClassic() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-    <defs><clipPath id="cC"><rect width="120" height="120" rx="18"/></clipPath></defs>
-    <g clip-path="url(#cC)">
-      <rect width="120" height="120" fill="#FCE7B3"/>
-      <circle cx="60" cy="52" r="28" fill="#F5D1AE" stroke="#1A1208" stroke-width="3"/>
-      <path d="M32 50 Q60 14 88 50 L86 30 Q60 16 34 30 Z" fill="#2A1A0E" stroke="#1A1208" stroke-width="3"/>
-      <circle cx="50" cy="56" r="3.2" fill="#1A1208"/>
-      <circle cx="70" cy="56" r="3.2" fill="#1A1208"/>
-      <path d="M50 68 Q60 76 70 68" fill="none" stroke="#1A1208" stroke-width="3" stroke-linecap="round"/>
-      <path d="M16 100 Q60 84 104 100 L104 120 L16 120 Z" fill="#E25C2A" stroke="#1A1208" stroke-width="3"/>
-    </g>
-  </svg>`;
-}
-function _exampleSvgFunBold() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-    <defs><clipPath id="cF"><rect width="120" height="120" rx="18"/></clipPath></defs>
-    <g clip-path="url(#cF)">
-      <rect width="120" height="120" fill="#FCA5A5"/>
-      <circle cx="60" cy="52" r="28" fill="#FFDDB0" stroke="#1A1208" stroke-width="3.2"/>
-      <path d="M32 48 Q60 8 88 48 L86 28 Q60 12 34 28 Z" fill="#6B2E2E" stroke="#1A1208" stroke-width="3.2"/>
-      <circle cx="50" cy="56" r="3.6" fill="#1A1208"/>
-      <circle cx="70" cy="56" r="3.6" fill="#1A1208"/>
-      <path d="M48 68 Q60 78 72 68" fill="none" stroke="#1A1208" stroke-width="3.2" stroke-linecap="round"/>
-      <path d="M16 102 Q60 86 104 102 L104 120 L16 120 Z" fill="#FACC15" stroke="#1A1208" stroke-width="3"/>
-      <circle cx="46" cy="62" r="3" fill="#F87171" opacity=".55"/>
-      <circle cx="74" cy="62" r="3" fill="#F87171" opacity=".55"/>
-    </g>
-  </svg>`;
-}
-function _exampleSvgMinimal() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-    <defs><clipPath id="cM"><rect width="120" height="120" rx="18"/></clipPath></defs>
-    <g clip-path="url(#cM)" fill="none" stroke="#0F172A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-      <rect width="120" height="120" fill="#F8FAFC" stroke="none"/>
-      <circle cx="60" cy="52" r="26"/>
-      <path d="M36 48 Q60 26 84 48"/>
-      <path d="M50 56 L52 56"/>
-      <path d="M68 56 L70 56"/>
-      <path d="M52 66 Q60 70 68 66"/>
-      <path d="M22 100 Q60 88 98 100"/>
-    </g>
-  </svg>`;
-}
-function _exampleSvgAnime() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-    <defs>
-      <linearGradient id="ab" x1="0" x2="0" y1="0" y2="1">
-        <stop offset="0%" stop-color="#E0EAFF"/><stop offset="100%" stop-color="#9FB4FF"/>
-      </linearGradient>
-      <clipPath id="cA"><rect width="120" height="120" rx="18"/></clipPath>
-    </defs>
-    <g clip-path="url(#cA)">
-      <rect width="120" height="120" fill="url(#ab)"/>
-      <ellipse cx="60" cy="56" rx="26" ry="29" fill="#FFE6D0"/>
-      <path d="M34 54 Q60 6 86 54 L80 30 Q70 20 60 20 Q50 20 40 30 Z" fill="#1B2240"/>
-      <path d="M32 54 Q34 36 42 30 L40 50 Z" fill="#1B2240"/>
-      <ellipse cx="50" cy="58" rx="4.5" ry="6" fill="#1B2240"/>
-      <ellipse cx="70" cy="58" rx="4.5" ry="6" fill="#1B2240"/>
-      <ellipse cx="51" cy="56" rx="1.6" ry="2" fill="#FFFFFF"/>
-      <ellipse cx="71" cy="56" rx="1.6" ry="2" fill="#FFFFFF"/>
-      <path d="M55 72 Q60 75 65 72" fill="none" stroke="#5A2E1E" stroke-width="1.6" stroke-linecap="round"/>
-      <path d="M34 58 Q42 76 60 78 Q78 76 86 58 L86 70 Q72 84 60 84 Q48 84 34 70 Z" fill="rgba(91,107,180,.25)"/>
-      <path d="M14 102 Q60 90 106 102 L106 120 L14 120 Z" fill="#3C4FA0"/>
-    </g>
-  </svg>`;
-}
-function _exampleSvgChibi() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-    <defs><clipPath id="cH"><rect width="120" height="120" rx="18"/></clipPath></defs>
-    <g clip-path="url(#cH)">
-      <rect width="120" height="120" fill="#FCE7F3"/>
-      <circle cx="60" cy="54" r="34" fill="#FFE3CD"/>
-      <path d="M28 52 Q60 8 92 52 L88 30 Q60 12 32 30 Z" fill="#7A4A2B"/>
-      <circle cx="48" cy="58" r="4" fill="#2B1A10"/>
-      <circle cx="72" cy="58" r="4" fill="#2B1A10"/>
-      <circle cx="47" cy="56" r="1.4" fill="#FFFFFF"/>
-      <circle cx="71" cy="56" r="1.4" fill="#FFFFFF"/>
-      <circle cx="44" cy="68" r="4.5" fill="#FBA1B7" opacity=".7"/>
-      <circle cx="76" cy="68" r="4.5" fill="#FBA1B7" opacity=".7"/>
-      <path d="M55 72 Q60 76 65 72" fill="none" stroke="#7A3247" stroke-width="2" stroke-linecap="round"/>
-    </g>
-  </svg>`;
-}
-function _exampleSvgVectorPop() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-    <defs><clipPath id="cP"><rect width="120" height="120" rx="18"/></clipPath></defs>
-    <g clip-path="url(#cP)">
-      <rect width="120" height="120" fill="#FACC15"/>
-      <circle cx="60" cy="52" r="28" fill="#FFFFFA"/>
-      <path d="M60 24 Q88 28 88 52 L60 52 Z" fill="#F0506E"/>
-      <path d="M60 24 Q32 28 32 52 L60 52 Z" fill="#1B2240"/>
-      <circle cx="48" cy="55" r="3.4" fill="#1B2240"/>
-      <circle cx="72" cy="55" r="3.4" fill="#1B2240"/>
-      <path d="M48 68 Q60 76 72 68" fill="none" stroke="#1B2240" stroke-width="3" stroke-linecap="round"/>
-      <path d="M16 100 Q60 84 104 100 L104 120 L16 120 Z" fill="#5084E8"/>
-    </g>
-  </svg>`;
 }
 
 // ── Availability ────────────────────────────────────────────────────
