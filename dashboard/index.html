@@ -12302,114 +12302,108 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--sch-blue-soft);color:var(--sch-blue);
           }
 
-          /* Quick-settings popover · anchored beneath the Settings
-             tile's split-toggle chevron. Compact Outlook-style flyout
-             with the four per-week values inline-editable, auto-save
-             on change. */
+          /* Quick-settings popover · Outlook ribbon dropdown style.
+             Flat list of menu items — label on the left, editable
+             value on the right, no card header, square-ish corners,
+             single hairline border + subtle drop shadow. Matches the
+             "Folder Pane / Reading Pane / To-Do Bar" flyouts in
+             classic Outlook. */
           #view-schedule .sched-quick-settings-popover{
             position:absolute;
-            top:100%;right:0;
-            margin-top:6px;
+            top:calc(100% + 4px);right:0;
             z-index:50;
-            background:var(--sch-surface);
-            border:1px solid var(--sch-line-strong);
-            border-radius:var(--sch-radius-lg);
-            box-shadow:0 12px 32px rgba(15,23,42,.16);
-            width:320px;max-width:calc(100vw - 40px);
-            padding:0;
+            background:#fff;
+            border:1px solid rgba(15,23,42,.18);
+            border-radius:4px;
+            box-shadow:0 6px 18px rgba(15,23,42,.18);
+            min-width:240px;max-width:calc(100vw - 40px);
+            padding:4px 0;
             font-family:inherit;
           }
           #view-schedule .sched-quick-settings-popover[hidden]{display:none}
-          #view-schedule .sched-quick-settings-head{
-            display:flex;align-items:center;justify-content:space-between;
-            padding:12px 14px 8px;
-            border-bottom:1px solid var(--sch-line-subtle);
-          }
-          #view-schedule .sched-quick-settings-title{
-            font-size:13px;font-weight:600;color:var(--text);letter-spacing:0;
-          }
-          #view-schedule .sched-quick-settings-close{
-            appearance:none;background:transparent;border:0;cursor:pointer;
-            width:24px;height:24px;border-radius:4px;
-            display:inline-flex;align-items:center;justify-content:center;
-            color:var(--text-subtle);
-            transition:background var(--t-fast),color var(--t-fast);
-          }
-          #view-schedule .sched-quick-settings-close:hover{
-            background:var(--sch-hover);color:var(--text);
-          }
+          /* Hide the legacy header — Outlook menus don't carry titles. */
+          #view-schedule .sched-quick-settings-head{display:none}
           #view-schedule .sched-quick-settings-body{
             display:flex;flex-direction:column;
-            padding:6px 4px;
+            padding:0;
           }
           #view-schedule .sched-quick-setting{
-            display:grid;grid-template-columns:1fr auto;column-gap:12px;row-gap:0;
+            display:grid;grid-template-columns:1fr auto;column-gap:14px;
             align-items:center;
-            padding:8px 12px;
-            border-radius:6px;
+            padding:6px 14px 6px 28px;
+            border:0;border-radius:0;
             cursor:text;
-            transition:background var(--t-fast);
+            min-height:30px;
+            transition:background 80ms linear;
           }
-          #view-schedule .sched-quick-setting:hover{background:var(--sch-hover)}
+          #view-schedule .sched-quick-setting:hover{background:rgba(0,120,212,.08)}
           #view-schedule .sched-quick-setting-label{
-            font-size:13px;font-weight:600;color:var(--text);grid-column:1;line-height:1.2;
+            font-size:13px;font-weight:400;color:#1f1f1f;
+            grid-column:1;line-height:1.4;letter-spacing:0;
           }
-          #view-schedule .sched-quick-setting-help{
-            font-size:11px;color:var(--text-subtle);grid-column:1;line-height:1.3;margin-top:2px;
-          }
+          /* Help text was per-row sub-copy; in the Outlook flyout
+             menus that's overkill, so hide it. The tile titles tell
+             the operator what each one is. */
+          #view-schedule .sched-quick-setting-help{display:none}
           #view-schedule .sched-quick-setting-control{
             display:inline-flex;align-items:baseline;gap:3px;
-            grid-column:2;grid-row:1 / span 2;
+            grid-column:2;
             font-variant-numeric:tabular-nums;
           }
           #view-schedule .sched-quick-setting-input{
             appearance:none;
-            border:1px solid var(--sch-line);
-            background:var(--sch-surface-2);
-            color:var(--sch-blue-text);
-            font:inherit;font-weight:600;font-size:15px;
-            width:54px;padding:5px 8px;
+            border:1px solid transparent;
+            background:transparent;
+            color:#1f1f1f;
+            font:inherit;font-weight:600;font-size:13px;
+            width:44px;padding:2px 4px;
             text-align:right;
-            border-radius:6px;
+            border-radius:2px;
             font-variant-numeric:tabular-nums;
             -moz-appearance:textfield;
-            transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast);
+            transition:background 80ms linear,border-color 80ms linear,box-shadow 80ms linear;
           }
           #view-schedule .sched-quick-setting-input::-webkit-outer-spin-button,
           #view-schedule .sched-quick-setting-input::-webkit-inner-spin-button{
             -webkit-appearance:none;margin:0;
           }
-          #view-schedule .sched-quick-setting-input:hover{background:var(--sch-surface);border-color:var(--sch-line-strong)}
+          #view-schedule .sched-quick-setting-input:hover{background:#fff;border-color:rgba(15,23,42,.18)}
           #view-schedule .sched-quick-setting-input:focus{
-            outline:none;background:var(--sch-surface);
-            border-color:var(--sch-blue);
-            box-shadow:0 0 0 2px var(--sch-blue-softer);
+            outline:none;background:#fff;
+            border-color:#0078d4;
+            box-shadow:0 0 0 1px #0078d4;
           }
-          #view-schedule .sched-quick-setting-input[data-rr-saving="1"]{background:var(--sch-blue-softer)}
-          #view-schedule .sched-quick-setting-input[data-rr-saved="1"]{background:var(--sch-green-soft);border-color:var(--sch-green)}
-          #view-schedule .sched-quick-setting-input[data-rr-error="1"]{background:var(--sch-red-soft);border-color:var(--sch-red);color:var(--sch-red)}
+          #view-schedule .sched-quick-setting-input[data-rr-saving="1"]{background:rgba(0,120,212,.08)}
+          #view-schedule .sched-quick-setting-input[data-rr-saved="1"]{background:rgba(16,124,65,.10);border-color:rgba(16,124,65,.5)}
+          #view-schedule .sched-quick-setting-input[data-rr-error="1"]{background:rgba(196,43,28,.08);border-color:rgba(196,43,28,.5);color:#C42B1C}
           #view-schedule .sched-quick-setting-unit{
-            font-size:12px;font-weight:600;color:var(--text-muted);
+            font-size:12px;font-weight:500;color:#605e5c;
+            min-width:24px;text-align:left;
           }
           #view-schedule .sched-quick-settings-foot{
             display:flex;align-items:center;justify-content:space-between;gap:8px;
-            padding:10px 14px;
-            border-top:1px solid var(--sch-line-subtle);
-            background:var(--sch-surface-2);
-            border-radius:0 0 var(--sch-radius-lg) var(--sch-radius-lg);
+            margin-top:4px;padding:0;
+            border-top:1px solid rgba(15,23,42,.10);
+            background:transparent;
           }
           #view-schedule .sched-quick-settings-status{
-            font-size:11px;color:var(--text-subtle);
+            font-size:11px;color:#605e5c;
+            padding:0 14px;
             font-variant-numeric:tabular-nums;
           }
           #view-schedule .sched-quick-settings-advanced{
             appearance:none;background:transparent;border:0;cursor:pointer;
-            font:inherit;font-size:12px;font-weight:500;
-            color:var(--sch-blue);padding:4px 6px;border-radius:4px;
-            transition:background var(--t-fast);
+            font:inherit;font-size:13px;font-weight:400;
+            color:#1f1f1f;
+            padding:6px 14px 6px 28px;
+            text-align:left;
+            border-radius:0;
+            display:flex;flex:1;
+            transition:background 80ms linear;
           }
           #view-schedule .sched-quick-settings-advanced:hover{
-            background:var(--sch-blue-softer);
+            background:rgba(0,120,212,.08);
+            color:#0078d4;
           }
 
           /* Bigger ribbon icons + equal-width Finalize/Unfinalize.
