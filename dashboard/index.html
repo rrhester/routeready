@@ -12043,21 +12043,26 @@ body.rr-cmdk-open{ overflow:hidden }
 
           /* ── Navigation heading · single horizontal ribbon ──────
              Title on the left, all icon clusters (nav tabs + commands
-             + week nav) in a single non-wrapping line on the right.
-             Outlook-style thin Fluent dividers separate each
-             cluster. */
+             + week nav) right-justified on the same line. Outlook-
+             style thin Fluent dividers separate each cluster.
+             Wraps gracefully on cramped viewports so nothing is
+             ever invisible. */
           #view-schedule .sched-nav-heading{
-            display:flex;align-items:center;gap:var(--s-4);
-            flex-wrap:nowrap;
+            display:flex;align-items:center;
+            justify-content:space-between;
+            gap:var(--s-4);
+            flex-wrap:wrap;
             padding-bottom:var(--s-3);
             margin-bottom:var(--s-4);
             border-bottom:1px solid var(--sch-line);
           }
           #view-schedule .sched-nav-heading .page-header-l{
-            flex:0 1 auto;min-width:0;
+            flex:0 0 auto;min-width:0;
           }
           #view-schedule .sched-nav-heading-actions{
-            display:flex;align-items:stretch;flex-wrap:nowrap;
+            display:flex;align-items:stretch;
+            justify-content:flex-end;
+            flex-wrap:wrap;
             gap:0;
             margin-left:auto;
             min-width:0;
@@ -12091,16 +12096,25 @@ body.rr-cmdk-open{ overflow:hidden }
             align-self:center;flex:0 0 auto;
             display:inline-flex;align-items:stretch;
           }
-          /* Compact under-cramped viewports — keep one row but shrink
-             tile padding so everything still fits on a horizontal line. */
-          @media (max-width:1400px){
+          /* Compact under-cramped viewports — shrink tile padding
+             so all icons keep fitting alongside the title. */
+          @media (max-width:1500px){
             #view-schedule .sched-nav-heading{gap:var(--s-3)}
             #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions::before,
             #view-schedule .sched-nav-heading-actions > .sched-week-nav::before{
               margin:8px var(--s-2);
             }
-            #view-schedule .sched-nav-heading-actions .sched-page-btn{padding:8px 10px 7px;min-width:auto}
-            #view-schedule .sched-nav-heading-actions .subnav-item{padding:8px 10px 9px;min-width:auto}
+            #view-schedule .sched-nav-heading-actions .sched-page-btn{padding:6px 10px 6px;min-width:auto}
+            #view-schedule .sched-nav-heading-actions .subnav-item{padding:6px 10px 7px;min-width:auto}
+            #view-schedule .sched-nav-heading-actions .sched-page-btn svg{width:18px;height:18px}
+            #view-schedule .sched-nav-heading-actions .subnav-item svg{width:18px;height:18px}
+          }
+          @media (max-width:1200px){
+            #view-schedule .sched-nav-heading-actions .sched-page-btn span,
+            #view-schedule .sched-nav-heading-actions .sched-page-btn{
+              font-size:11px;
+            }
+            #view-schedule .sched-nav-heading-actions .subnav-item{font-size:11px}
           }
           #view-schedule .subnav-item{
             display:inline-flex;flex-direction:column;
