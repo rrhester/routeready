@@ -616,17 +616,35 @@ select.field{
 
 /* ── Liquid-glass lens that slides between active tabs ─────
    Positioned + sized in JS (see _updateTabLens in app.js).
-   It transitions transform/width/height with a slow easing
-   curve to feel like a glass element gliding, not snapping.   */
+   Two-element structure so translate and scale can animate on
+   independent transforms instead of fighting for one property:
+     .tab-lens         — positioning shell, animates translate
+                         + width/height (the slide).
+     .tab-lens-inner   — visual layer, briefly scales up mid-flight
+                         and settles back to 1 (the "stretch").
+   The stretch is what sells the motion: like the iOS Dock, the
+   lens swells slightly as it leaves the old tab and settles into
+   its resting size as it lands. */
 .tab-lens{
   position:absolute;
   top:0;left:0;
   width:46px;height:34px;
-  border-radius:16px;
   pointer-events:none;
   z-index:0;
   opacity:0;
   transform:translate3d(0,0,0);
+  transition:
+    transform 480ms cubic-bezier(.22,1,.36,1),
+    width    320ms cubic-bezier(.22,1,.36,1),
+    height   320ms cubic-bezier(.22,1,.36,1),
+    opacity  220ms ease-out;
+  will-change:transform, width, height;
+}
+.tab-lens.ready{ opacity:1 }
+
+.tab-lens-inner{
+  position:absolute;inset:0;
+  border-radius:16px;
   background:
     linear-gradient(180deg,
       rgba(255,255,255,.55) 0%,
@@ -643,18 +661,24 @@ select.field{
     inset 0 1px 0 rgba(255,255,255,.72),
     inset 0 -1px 0 rgba(37,99,235,.10),
     inset 0 0 0 1px rgba(37,99,235,.14);
-  transition:
-    transform 460ms cubic-bezier(.22,1,.36,1),
-    width    320ms cubic-bezier(.22,1,.36,1),
-    height   320ms cubic-bezier(.22,1,.36,1),
-    opacity  220ms ease-out;
-  will-change:transform, width, height;
+  transform:scale(1);
+  transform-origin:center;
+  will-change:transform;
   overflow:hidden;
 }
-.tab-lens.ready{ opacity:1 }
+.tab-lens.moving .tab-lens-inner{
+  animation: rrLensStretch 480ms cubic-bezier(.22,1,.36,1);
+}
+@keyframes rrLensStretch{
+  0%   { transform: scale(1); }
+  38%  { transform: scale(1.18); }
+  72%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
 /* Subtle inner refraction — a faint diagonal sheen that adds
    depth without reading as a separate UI element. */
-.tab-lens::after{
+.tab-lens-inner::after{
   content:"";position:absolute;inset:0;border-radius:inherit;
   background:linear-gradient(160deg,
     rgba(255,255,255,.28) 0%,
@@ -665,7 +689,7 @@ select.field{
 /* Shimmer that travels across the lens during a slide. JS adds the
    .moving class for a single frame to restart the animation, then it
    plays once and fades. */
-.tab-lens::before{
+.tab-lens-inner::before{
   content:"";position:absolute;top:0;bottom:0;left:0;width:60%;
   background:linear-gradient(110deg,
     rgba(255,255,255,0) 0%,
@@ -675,7 +699,7 @@ select.field{
   opacity:0;
   pointer-events:none;
 }
-.tab-lens.moving::before{ animation: rrLensShimmer 520ms ease-out; }
+.tab-lens.moving .tab-lens-inner::before{ animation: rrLensShimmer 520ms ease-out; }
 @keyframes rrLensShimmer{
   0%   { transform:translateX(-110%); opacity:0; }
   35%  { opacity:.9; }
@@ -685,7 +709,8 @@ select.field{
   .tab-lens{
     transition:opacity 120ms linear;
   }
-  .tab-lens::before{ display:none; }
+  .tab-lens.moving .tab-lens-inner,
+  .tab-lens.moving .tab-lens-inner::before{ animation:none; }
   .tab.active .tab-ic{ transform:none; }
   .tab.active svg{ filter:none; }
 }
