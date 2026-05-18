@@ -11309,6 +11309,94 @@ body.rr-cmdk-open{ overflow:hidden }
              for touch-target comfort matching the app's list rows. */
           #view-schedule .pool-driver{padding:var(--s-2-5) var(--s-3)}
 
+          /* ── Calm pass · stop yelling, reserve color for problems ──
+             Seven small moves that together take the page from
+             "look-at-me" to "I'll tell you when something needs you". */
+
+          /* (1) Reserve color for problems · neutralize the rest.
+             Coverage at 100% drops the green tint and progress-bar so
+             the at-rest state is just typography. The .is-primary-bad
+             red treatment for <100% is left in place from the earlier
+             pass — that's the one "needs attention" color we want to
+             keep. */
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary:not(.is-primary-bad){
+            background:var(--surface);
+            border-color:rgba(15,23,42,.06);
+            box-shadow:0 8px 24px rgba(15,23,42,.05), inset 0 1px 0 rgba(255,255,255,.55);
+          }
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary:not(.is-primary-bad) .stat-mini-value{
+            color:var(--text) !important;
+          }
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary:not(.is-primary-bad)::before{
+            background:rgba(15,23,42,.05);
+          }
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary:not(.is-primary-bad)::after{
+            background:rgba(15,23,42,.25);
+          }
+
+          /* (2) Mute repeating shift times — when ≥2 chips in a row
+             share the same start/end, the matches render in subtle
+             text so the eye glides past the routine and lands on the
+             outliers. JS tags the matching chips with .is-routine. */
+          #view-schedule .shift-chip.is-routine{
+            background:transparent;
+            border-color:transparent;
+          }
+          #view-schedule .shift-chip.is-routine .shift-chip-route,
+          #view-schedule .shift-chip.is-routine .shift-chip-time{
+            color:var(--text-subtle);
+            font-weight:500;
+          }
+
+          /* (3) Drop the bottom coverage strip · the day-header count
+             already tells the same story. */
+          #view-schedule .coverage-strip{display:none}
+
+          /* (4) Slow the micro-interactions. Bump the dashboard's
+             100/150ms transitions to a more composed 250ms with an
+             ease-out curve, scoped to this view only. */
+          #view-schedule{
+            --t-fast:   250ms cubic-bezier(.33,0,.67,1);
+            --t-smooth: 250ms cubic-bezier(.33,0,.67,1);
+            --t-spring: 280ms cubic-bezier(.34,1.2,.64,1);
+          }
+
+          /* (5) Quiet the right rail. Open-shift chips no longer
+             carry a dashed outline + tinted background — a single
+             subtle row reads as a list, not a wall of alerts. */
+          #view-schedule .shift-chip.open{
+            background:transparent;
+            border:1px solid rgba(15,23,42,.06);
+            color:var(--text-muted);
+          }
+          #view-schedule .shift-chip.open:hover{
+            background:var(--canvas);
+            border-color:rgba(15,23,42,.10);
+            box-shadow:none;
+            color:var(--text);
+          }
+          #view-schedule .pool-openshifts-head{
+            color:var(--text-subtle);
+          }
+
+          /* (6) Single weight on labels · uppercase 700 reads as
+             shouting; drop to 500 with tighter tracking so the
+             labels recede behind the values they describe. */
+          #view-schedule .stat-mini-label,
+          #view-schedule .pool-head,
+          #view-schedule .pool-openshifts-head,
+          #view-schedule .pool-section-label,
+          #view-schedule .cal-cell-head,
+          #view-schedule .sched-insights-head,
+          #view-schedule .coverage-cell:first-child{
+            font-weight:500;
+            letter-spacing:.02em;
+          }
+
+          /* (7) Extra breathing room between the subnav and the KPI
+             strip — the page lands instead of cramming. */
+          #view-schedule .sched-subnav-row{margin-bottom:var(--s-8)}
+
         </style>
         <style>
           /* ── Schedule · week view (scoped) ─────────────────────────
