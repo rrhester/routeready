@@ -5865,13 +5865,8 @@ async function renderAvatarStudio() {
     accent: meta.accent || null,
     source: null,         // HTMLImageElement when an upload is present
     sourceMime: null,
-    sourceBlob: null,     // raw file bytes — sent to Claude for fresh uploads
     previewDataUrl: null, // latest rendered output as a dataURL
-    previewKind: null,    // "local" or "claude" — drives the save path
     renderToken: 0,       // bumped to invalidate stale renders
-    claudePending: false, // an inflight call is in progress
-    claudeCache: {},      // style_id → svg dataURL, keyed by source identity
-    claudeSourceTag: null,// changes when the upload changes; busts the cache
   };
 
   // Header title is set by the router from the route's `title` field
@@ -6019,12 +6014,9 @@ function _bindAvatarStudio(session) {
   main.querySelector("#av-upload-btn").addEventListener("click", () => fileInput.click());
   main.querySelector("#av-generate-btn").addEventListener("click", () => {
     if (!_avatarStudio.source) { toast("Upload a photo first to generate an avatar.", "warn"); return; }
-    // AI tab → Claude. Cartoon tab → instant local stylisation.
-    if (_avatarStudio.activeCat === "ai") {
-      _avatarStudioGenerateWithClaude(session, { force: true });
-    } else {
-      _avatarStudioApplyStyle();
-    }
+    _avatarStudio.activeStyleId = _avatarStudio.activeCat === "ai" ? "ai-clean" : "cartoon-classic";
+    _avatarStudioRefreshStyleGrid(session);
+    _avatarStudioApplyStyle();
   });
 
   fileInput.addEventListener("change", async (e) => {
@@ -6036,11 +6028,6 @@ function _bindAvatarStudio(session) {
       const img = await _loadImageFromFile(file);
       _avatarStudio.source = img;
       _avatarStudio.sourceMime = file.type;
-      _avatarStudio.sourceBlob = file;
-      // Fresh upload → bust the Claude cache; old style renders no
-      // longer reflect this face.
-      _avatarStudio.claudeCache = {};
-      _avatarStudio.claudeSourceTag = "u-" + Date.now();
       // First upload usually means "use the photo as-is" — drop the
       // style back to Clean so the preview reads as the real photo.
       _avatarStudio.activeCat = "ai";
@@ -6084,11 +6071,7 @@ function _bindAvatarStudio(session) {
 
   main.querySelector("#av-regenerate-btn").addEventListener("click", () => {
     if (!_avatarStudio.source) { toast("Upload a photo to regenerate.", "warn"); return; }
-    if (_avatarStudio.activeCat === "ai") {
-      _avatarStudioGenerateWithClaude(session, { force: true });
-    } else {
-      _avatarStudioApplyStyle({ jitter: true });
-    }
+    _avatarStudioApplyStyle({ jitter: true });
   });
 
   main.querySelector("#av-revert-btn").addEventListener("click", () => {
@@ -6149,16 +6132,7 @@ function _avatarStudioBindStyleGrid(session) {
         c.classList.toggle("is-selected", sel);
         c.setAttribute("aria-selected", String(sel));
       });
-      // Cartoon styles render instantly via the local pipeline.
-      // AI styles either pull from the per-source Claude cache or
-      // kick off a fresh Claude call so the preview is the real AI
-      // version, not just a colour-filtered photo.
-      const style = AVATAR_STYLES.find(s => s.id === id);
-      if (style && style.cat === "ai" && _avatarStudio.source) {
-        _avatarStudioGenerateWithClaude(session, { force: false });
-      } else {
-        _avatarStudioApplyStyle();
-      }
+      _avatarStudioApplyStyle();
     });
   });
 }
@@ -6238,150 +6212,6 @@ function _avatarStudioUpdatePreviewRing() {
     : `0 22px 60px -20px rgba(8,18,60,.45)`;
 }
 
-// ── Claude-powered generation ──────────────────────────────────────
-// Calls the avatar-claude edge function with the current photo + the
-// active AI style. Caches the result so re-tapping the same style is
-// instant; force=true bypasses the cache (Regenerate / Generate).
-async function _avatarStudioGenerateWithClaude(session, opts) {
-  opts = opts || {};
-  const studio = _avatarStudio;
-  if (!studio || !studio.source) return;
-  if (!session?.token) return;
-  const styleId = studio.activeStyleId;
-
-  // Cache key includes source identity so a fresh upload doesn't
-  // serve the previous driver's render.
-  const sourceTag = studio.claudeSourceTag || (session.photo_path ? "p-" + session.photo_path : "p-none");
-  const cacheKey = `${sourceTag}::${styleId}`;
-  if (!opts.force && studio.claudeCache[cacheKey]) {
-    studio.previewKind = "claude";
-    studio.previewDataUrl = studio.claudeCache[cacheKey];
-    const preview = document.getElementById("av-preview");
-    if (preview) {
-      preview.style.backgroundImage = `url('${studio.previewDataUrl}')`;
-      preview.querySelector(".av-preview-fallback")?.remove();
-    }
-    _avatarStudioUpdatePreviewRing();
-    return;
-  }
-
-  // Surface the call in the UI: show the spinner, render the local
-  // preview underneath so the screen never goes blank.
-  const myToken = ++studio.renderToken;
-  studio.claudePending = true;
-  const spinner = document.getElementById("av-preview-spinner");
-  if (spinner) spinner.hidden = false;
-  // Paint a local preview as a placeholder while Claude works.
-  _avatarStudioApplyStyle();
-
-  // Build request body. Prefer the uploaded blob (fresh upload not
-  // yet saved); fall back to the driver's persisted photo on the
-  // server.
-  const payload = {
-    token: session.token,
-    style_id: styleId,
-    nonce: opts.force ? Math.random().toString(36).slice(2, 8) : undefined,
-  };
-  if (studio.sourceBlob) {
-    try {
-      const b64 = await _blobToBase64(studio.sourceBlob);
-      payload.photo_b64  = b64;
-      payload.photo_mime = studio.sourceBlob.type || "image/jpeg";
-    } catch {
-      // Falls through to server-side photo_path lookup.
-    }
-  }
-
-  toast("Generating with Claude…");
-  let result = null;
-  try {
-    const res = await fetch(`${cfg.SUPABASE_URL}/functions/v1/avatar-claude`, {
-      method: "POST",
-      headers: {
-        "content-type":  "application/json",
-        "Authorization": "Bearer " + cfg.SUPABASE_ANON_KEY,
-        "apikey":        cfg.SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify(payload),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (studio.renderToken !== myToken) return; // user moved on
-    if (!res.ok || !json?.svg) {
-      const detail = json?.error || res.statusText || "unknown";
-      toast("Claude couldn't generate that style: " + detail, "warn");
-      return;
-    }
-    result = json;
-  } catch (err) {
-    if (studio.renderToken !== myToken) return;
-    toast(_friendlyError(err, "Couldn't reach Claude. Check your connection and try again."), "warn");
-    return;
-  } finally {
-    if (studio.renderToken === myToken) {
-      studio.claudePending = false;
-      if (spinner) spinner.hidden = true;
-    }
-  }
-
-  if (!result || studio.renderToken !== myToken) return;
-
-  // Encode the SVG as a data URL the browser can render directly.
-  const dataUrl = `data:image/svg+xml;base64,${_b64encodeUtf8(result.svg)}`;
-  studio.claudeCache[cacheKey] = dataUrl;
-  studio.previewDataUrl = dataUrl;
-  studio.previewKind    = "claude";
-  studio.claudeSvg      = result.svg;
-
-  const preview = document.getElementById("av-preview");
-  if (preview) {
-    preview.style.backgroundImage = `url('${dataUrl}')`;
-    preview.querySelector(".av-preview-fallback")?.remove();
-  }
-  _avatarStudioUpdatePreviewRing();
-  toast("Avatar ready", "ok");
-}
-
-// ── Encode helpers ─────────────────────────────────────────────────
-function _blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const r = String(reader.result || "");
-      const i = r.indexOf(",");
-      resolve(i >= 0 ? r.slice(i + 1) : r);
-    };
-    reader.onerror = () => reject(new Error("blob_read_failed"));
-    reader.readAsDataURL(blob);
-  });
-}
-function _b64encodeUtf8(str) {
-  // SVG strings may contain non-ASCII (em-dashes, accented names) —
-  // btoa() chokes on those, so route through encodeURIComponent first.
-  return btoa(unescape(encodeURIComponent(str)));
-}
-
-// Rasterise an SVG string to a square JPEG dataURL so the existing
-// upload pipeline (which expects a raster image) can ship it.
-function _rasteriseSvgToJpeg(svg, size) {
-  return new Promise((resolve, reject) => {
-    const svgUrl = `data:image/svg+xml;base64,${_b64encodeUtf8(svg)}`;
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement("canvas");
-      c.width = size; c.height = size;
-      const ctx = c.getContext("2d");
-      // Plain white backdrop — JPEG has no alpha, so we'd lose
-      // transparency anyway; bake it in.
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(0, 0, size, size);
-      ctx.drawImage(img, 0, 0, size, size);
-      resolve(c.toDataURL("image/jpeg", 0.92));
-    };
-    img.onerror = () => reject(new Error("svg_rasterise_failed"));
-    img.src = svgUrl;
-  });
-}
-
 async function _avatarStudioSave(session) {
   const studio = _avatarStudio;
   const btn = document.getElementById("av-save-btn");
@@ -6391,15 +6221,7 @@ async function _avatarStudioSave(session) {
   }
   if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
   try {
-    // SVG-based previews (Claude renders) need to be rasterised to a
-    // JPEG before going through upload-driver-photo, which only
-    // accepts raster mimes. Local-style previews are already JPEG
-    // dataURLs from the canvas pipeline.
-    let jpegDataUrl = studio.previewDataUrl;
-    if (studio.previewKind === "claude" && studio.claudeSvg) {
-      jpegDataUrl = await _rasteriseSvgToJpeg(studio.claudeSvg, 512);
-    }
-    const blob = await _dataUrlToBlob(jpegDataUrl);
+    const blob = await _dataUrlToBlob(studio.previewDataUrl);
     // Encode the chosen style into the filename for traceability
     // ("clean-1716020000.jpg" etc); the bucket already namespaces by
     // driver id so collisions are impossible.
@@ -6431,8 +6253,12 @@ async function _avatarStudioSave(session) {
 // regenerate so a re-tap actually produces a perceptibly fresh image.
 function _avatarRender(img, kind, opts) {
   opts = opts || {};
-  const requested = Math.max(64, Math.min(1024, opts.size || 512));
+  const size = Math.max(64, Math.min(1024, opts.size || 512));
   const seed = typeof opts.seed === "number" ? opts.seed : 0;
+  const c = document.createElement("canvas");
+  c.width = size; c.height = size;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
 
   // Square-crop the source onto a face-friendly framing. We bias
   // slightly upward so the eyes land in the upper third of the tile,
@@ -6442,19 +6268,6 @@ function _avatarRender(img, kind, opts) {
   const side = Math.min(sw, sh);
   const sx = (sw - side) / 2;
   const sy = Math.max(0, (sh - side) / 2 - side * 0.08);
-
-  // Cap the canvas size to the source's shortest side so we never
-  // upscale — upscaling tiny avatars to 512² produces the blurry-
-  // face mush you can see if you skip this clamp. CSS upscale of a
-  // sharp 240² canvas reads far better than canvas upscale.
-  const size = Math.max(64, Math.min(requested, side));
-  const c = document.createElement("canvas");
-  c.width = size; c.height = size;
-  const ctx = c.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return null;
-  // Crisp downscale where we can.
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
 
   // Style-specific pre-fill (e.g. tinted background for cartoon
   // styles so the head pops off a flat plane).
