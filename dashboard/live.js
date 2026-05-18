@@ -23141,12 +23141,12 @@ window.goto = function (view) {
 
 function _toggleSchedQuickSettings(force) {
   const pop = document.getElementById("rr-sched-quick-settings-popover");
-  const toggle = document.getElementById("rr-sched-quick-settings-toggle");
-  if (!pop || !toggle) return false;
+  const toggle = document.getElementById("rr-sched-settings-open-h");
+  if (!pop) return false;
   const isOpen = !pop.hidden;
   const next = (typeof force === "boolean") ? force : !isOpen;
   pop.hidden = !next;
-  toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next) {
     // Refresh from cached settings each time we open so the inputs
     // reflect the most recent values.
@@ -23165,16 +23165,9 @@ function _toggleSchedQuickSettings(force) {
 window._rrToggleSchedQuickSettings = _toggleSchedQuickSettings;
 
 document.addEventListener("click", (e) => {
-  // Split-toggle chevron on the Settings tile → inline quick-edit
-  // popover (Block / Cushion / Max days / Report time). Sits on top
-  // of the gear-icon click so it takes precedence when the chevron
-  // is clicked.
-  if (e.target.closest("#rr-sched-quick-settings-toggle")) {
-    e.preventDefault();
-    e.stopPropagation();
-    _toggleSchedQuickSettings();
-    return;
-  }
+  // (Legacy split-toggle chevron removed — the Settings button
+  // itself now opens the popover via the #rr-sched-settings-open-h
+  // handler below.)
   if (e.target.closest("#rr-sched-quick-settings-close")) {
     e.preventDefault();
     _toggleSchedQuickSettings(false);
@@ -23183,7 +23176,14 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("#rr-sched-quick-settings-advanced")) {
     e.preventDefault();
     _toggleSchedQuickSettings(false);
-    openSchedSettingsDrawer();
+    // Render inline rather than the side drawer.
+    _activateSchedSub("advanced");
+    if (typeof loadSchedulingSettings === "function") loadSchedulingSettings();
+    return;
+  }
+  if (e.target.closest("#rr-sched-advanced-back")) {
+    e.preventDefault();
+    _activateSchedSub("week");
     return;
   }
   // Click outside the popover (and outside the toggle) closes it.
@@ -23277,17 +23277,24 @@ function _updateFinalizeButton() {
     }
   }
 
-  // Page sub-line green ✓ Live pill — only when finalized.
+  // ✓ LIVE pill · anchored inside the page title (next to "Schedule")
+  // so it never overlaps the navigation tiles. Previously appended to
+  // the page-sub which sat below the title — it bled into the Week
+  // view tab on tighter viewports.
+  const pageTitle = document.querySelector("#view-schedule .sched-nav-heading .page-title");
   const pageSub = document.getElementById("rr-sched-page-sub");
-  if (pageSub) {
-    let pill = document.getElementById("rr-sched-page-sub-live");
+  // Remove any legacy pill that was previously attached to the sub-line.
+  const legacy = document.getElementById("rr-sched-page-sub-live");
+  if (legacy) legacy.remove();
+  if (pageTitle) {
+    let pill = document.getElementById("rr-sched-page-title-live");
     if (isFinal) {
       if (!pill) {
         pill = document.createElement("span");
-        pill.id = "rr-sched-page-sub-live";
-        pill.style.cssText = "display:inline-flex;align-items:center;gap:var(--s-1);background:var(--green);color:#fff;font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-lg);margin-left:8px;vertical-align:middle";
-        pill.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Live`;
-        pageSub.appendChild(pill);
+        pill.id = "rr-sched-page-title-live";
+        pill.style.cssText = "display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:var(--r-pill);margin-left:10px;vertical-align:middle;line-height:1;position:relative;top:-3px";
+        pill.innerHTML = `<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Live`;
+        pageTitle.appendChild(pill);
       }
     } else if (pill) {
       pill.remove();
@@ -23349,15 +23356,18 @@ function _activateSchedSub(sub) {
   if (view) view.style.display = "block";
 }
 document.addEventListener("click", (e) => {
-  // Van Assignments tile → open the existing Workspaces "Van
-  // assignments" board (primary + backup driver chains, grounded
-  // status, notes — the full standing-tool board) instead of the
-  // simple per-week pairing list.
+  // Van Assignments tile → switch to the inline Van Assignments
+  // sub-view + auto-run the week's vehicle_day_assignments fill.
   if (e.target.closest("#rr-sched-vans-h")) {
     e.preventDefault();
-    try { _wsBoardId = "__vehicles__"; } catch (_) { /* set when WS module mounts */ }
-    if (typeof window.goto === "function") window.goto("workspaces");
-    else if (typeof loadWorkspacesView === "function") loadWorkspacesView();
+    _activateSchedSub("vans");
+    runSchedVanAssignmentsForWeek();
+    return;
+  }
+  // Re-run from the inline button.
+  if (e.target.closest("#rr-sched-vans-run")) {
+    e.preventDefault();
+    runSchedVanAssignmentsForWeek();
     return;
   }
   // Day navigation inside the Today view.
@@ -23503,7 +23513,123 @@ async function renderSchedTodayView() {
 }
 window._rrRenderSchedTodayView = renderSchedTodayView;
 
-// ─── Van assignments renderer ───────────────────────────────────────
+// ─── Van assignments · run for week + render results inline ──────────
+// Fans out today_roster_auto_assign(p_date) for each day of the
+// visible week. The RPC fills vehicle_day_assignments for shifts that
+// don't yet have a van, using the standing chain + branded-first
+// pool. Results render in #sched-sub-vans and propagate to the
+// driver app via the existing driver_vehicle_days resolver — no
+// extra plumbing needed.
+async function runSchedVanAssignmentsForWeek() {
+  const body = document.getElementById("rr-sched-vans-body");
+  const btn  = document.getElementById("rr-sched-vans-run");
+  if (!body) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { body.innerHTML = `<div class="sched-vans-empty">DSP not loaded.</div>`; return; }
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+
+  if (btn) { btn.disabled = true; const orig = btn.innerHTML; btn.dataset.rrOrig = orig; btn.innerHTML = `<svg viewBox="0 0 24 24" class="rr-sf-spin" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Assigning…`; }
+  body.innerHTML = `<div class="rr-loading">Assigning vans for the week…</div>`;
+
+  // Fan out one RPC per day. today_roster_auto_assign reads the
+  // standing primary/backup chain so already-scheduled drivers get
+  // their van without per-day clicks.
+  const dates = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), i)));
+  const results = await Promise.all(dates.map(d =>
+    sb.rpc("today_roster_auto_assign", { p_date: d }).then(r => ({ date: d, ...r }), e => ({ date: d, error: e }))
+  ));
+
+  let totalAssigned = 0;
+  let totalUnassigned = 0;
+  const dayRows = results.map(r => {
+    if (r.error) {
+      return { date: r.date, assigned: [], unassigned: [], error: r.error.message || String(r.error) };
+    }
+    const data = r.data || {};
+    const assigned = data.assigned || [];
+    const unassigned = data.unassigned || [];
+    totalAssigned += assigned.length;
+    totalUnassigned += unassigned.length;
+    return { date: r.date, assigned, unassigned, error: null };
+  });
+
+  // Refresh the calendar grid so the chip-side van labels update.
+  if (typeof renderScheduleWeek === "function") {
+    try { await renderScheduleWeek(); } catch (_) { /* non-fatal */ }
+  }
+
+  // Render the result table.
+  const dayHeader = (iso) => {
+    const dt = new Date(iso + "T12:00:00");
+    return dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  };
+  const sections = dayRows.map(r => {
+    if (r.error) {
+      return `<div class="sched-vans-day">
+        <div class="sched-vans-day-head">${escapeHtml(dayHeader(r.date))}</div>
+        <div class="sched-vans-day-err">Couldn't assign · ${escapeHtml(r.error)}</div>
+      </div>`;
+    }
+    if (!r.assigned.length && !r.unassigned.length) {
+      return `<div class="sched-vans-day">
+        <div class="sched-vans-day-head">${escapeHtml(dayHeader(r.date))}</div>
+        <div class="sched-vans-day-empty">No drivers scheduled.</div>
+      </div>`;
+    }
+    const assignedRows = r.assigned.map(a => `
+      <div class="sched-vans-row">
+        <div class="sched-vans-van">
+          <div class="sched-vans-van-code">${escapeHtml(a.vehicle_name || "—")}</div>
+          <div class="sched-vans-van-meta">${a.fem_protected ? "Branded · FEM protected" : ""}</div>
+        </div>
+        <div>
+          <div class="sched-vans-driver-label">Driver</div>
+          <div class="sched-vans-driver-name">${escapeHtml(a.driver_name || "—")}</div>
+        </div>
+        <div>
+          <div class="sched-vans-driver-label">Route</div>
+          <div class="sched-vans-driver-name">${escapeHtml(a.route_code || "—")}</div>
+        </div>
+      </div>
+    `).join("");
+    const unassignedRows = r.unassigned.map(u => `
+      <div class="sched-vans-row" style="border-left:3px solid var(--sch-amber)">
+        <div class="sched-vans-van">
+          <div class="sched-vans-van-code" style="color:var(--sch-amber-dark)">No van</div>
+          <div class="sched-vans-van-meta">${escapeHtml(u.reason || "no van available")}</div>
+        </div>
+        <div>
+          <div class="sched-vans-driver-label">Driver</div>
+          <div class="sched-vans-driver-name">${escapeHtml(u.driver_name || "—")}</div>
+        </div>
+        <div>
+          <div class="sched-vans-driver-label">Route</div>
+          <div class="sched-vans-driver-name">${escapeHtml(u.route_code || "—")}</div>
+        </div>
+      </div>
+    `).join("");
+    return `<div class="sched-vans-day">
+      <div class="sched-vans-day-head">
+        <span>${escapeHtml(dayHeader(r.date))}</span>
+        <span class="sched-vans-day-meta">${r.assigned.length} assigned${r.unassigned.length ? " · " + r.unassigned.length + " unassigned" : ""}</span>
+      </div>
+      ${assignedRows}${unassignedRows}
+    </div>`;
+  }).join("");
+
+  const summary = `<div class="sched-vans-summary">
+    <strong>${totalAssigned}</strong> van${totalAssigned === 1 ? "" : "s"} assigned this week${totalUnassigned > 0 ? ` · <strong style="color:var(--sch-amber-dark)">${totalUnassigned}</strong> driver${totalUnassigned === 1 ? "" : "s"} without a van` : ""}.
+    Drivers will see their van in the RouteReady driver app.
+  </div>`;
+
+  body.innerHTML = `${summary}${sections}`;
+  toast(`Vans assigned · ${totalAssigned} placement${totalAssigned === 1 ? "" : "s"}${totalUnassigned ? " · " + totalUnassigned + " gap" + (totalUnassigned === 1 ? "" : "s") : ""}`, totalUnassigned > 0 ? "warn" : "success");
+
+  if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.rrOrig || "Assign vans for this week"; delete btn.dataset.rrOrig; }
+}
+window._rrRunSchedVanAssignmentsForWeek = runSchedVanAssignmentsForWeek;
+
+// ─── Van assignments renderer (legacy) ──────────────────────────────
 // Driver ↔ vehicle pairings for the visible week, read from the
 // existing vehicle_pairings / day_vehicle_assignment tables via a
 // best-effort RPC. Falls back to listing scheduled drivers + their
