@@ -1741,16 +1741,16 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 /* Step header — eyebrow / title / sub kept as one tight group so the
    card's section gap doesn't blow the heading apart. */
 .rr-onb-step-head{display:flex;flex-direction:column;gap:var(--s-2)}
-.rr-onb-step-eyebrow{font-size:var(--fs-xs);font-weight:600;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
+.rr-onb-step-eyebrow{font-size:var(--fs-xs);font-weight:600;color:var(--accent);letter-spacing:.04em;text-transform:uppercase;line-height:1.2}
 .rr-onb-step-title{font-size:var(--fs-xxl);font-weight:700;letter-spacing:-.015em;line-height:1.15;margin:0}
 .rr-onb-step-sub{font-size:var(--fs-base);color:var(--text-muted);margin:0;max-width:56ch;line-height:1.5}
 
 .rr-onb-fields{display:flex;flex-direction:column;gap:var(--s-4)}
 .rr-onb-field-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
 @media (max-width:600px){.rr-onb-field-row{grid-template-columns:1fr}}
-.rr-onb-field-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:6px}
+.rr-onb-field-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:var(--s-2);line-height:1.2}
 .rr-onb-optional{font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-subtle)}
-.rr-onb-field-help{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px;line-height:1.4}
+.rr-onb-field-help{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-1);line-height:1.45}
 .rr-onb-field-help a{color:var(--accent-text);text-decoration:none;font-weight:600}
 
 .rr-onb-card-foot{
@@ -1789,7 +1789,7 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
   display:inline-flex;align-items:center;gap:var(--s-2);
   background:var(--canvas);
   border:1px solid var(--border);border-radius:var(--r-md);
-  padding:var(--s-2) 14px;
+  padding:var(--s-2) var(--s-3-5);
   font-size:var(--fs-sm);font-weight:600;color:var(--text);
   text-transform:capitalize;
 }
