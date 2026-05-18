@@ -11779,6 +11779,942 @@ body.rr-cmdk-open{ overflow:hidden }
           }
         </style>
 
+        <style>
+          /* ══════════════════════════════════════════════════════════
+             SCHEDULE · FLUENT OPERATIONS WORKSPACE
+             ──────────────────────────────────────────────────────────
+             Microsoft 365-inspired pass that supersedes the earlier
+             "driver-app vibe" + "sidebar-blue" passes. One cohesive
+             surface — Outlook Calendar density, Teams subnav, Planner
+             chips, M365 admin command bar. Quiet hairlines instead of
+             shadows, modest 6/8px radii, restrained color, tabular
+             numerics, Fluent blue #2563EB for the operational accent.
+             Appended late so it wins source order over the legacy
+             scoped rules above without touching the rest of the app.
+             ═══════════════════════════════════════════════════════════ */
+
+          /* Schedule-local tokens (kept off :root so we don't bleed
+             into other views). */
+          #view-schedule{
+            --sch-blue:#2563EB;
+            --sch-blue-strong:#1D4ED8;
+            --sch-blue-soft:rgba(37,99,235,.08);
+            --sch-blue-softer:rgba(37,99,235,.05);
+            --sch-blue-tint:rgba(37,99,235,.035);
+            --sch-blue-text:#1E40AF;
+            --sch-line:rgba(15,23,42,.07);
+            --sch-line-strong:rgba(15,23,42,.10);
+            --sch-line-subtle:rgba(15,23,42,.04);
+            --sch-surface:#FFFFFF;
+            --sch-surface-2:#FAFBFC;
+            --sch-surface-3:#F3F4F6;
+            --sch-hover:rgba(15,23,42,.04);
+            --sch-pressed:rgba(15,23,42,.06);
+            --sch-amber-soft:rgba(180,83,9,.10);
+            --sch-amber:#B45309;
+            --sch-amber-dark:#92400E;
+            --sch-green:#107C41;
+            --sch-green-soft:rgba(16,124,65,.10);
+            --sch-red:#B91C1C;
+            --sch-red-soft:rgba(185,28,28,.08);
+            --sch-radius:6px;
+            --sch-radius-lg:8px;
+          }
+
+          /* ── Page header / command band ──────────────────────────
+             Title left, ghost command bar right, single hairline
+             beneath. Reads as one M365 toolbar instead of free-floating
+             pills. */
+          #view-schedule .page-header{
+            align-items:flex-end;
+            padding-bottom:var(--s-4);
+            margin-bottom:var(--s-5);
+            border-bottom:1px solid var(--sch-line);
+          }
+          #view-schedule .page-title{
+            font-size:22px;font-weight:600;
+            letter-spacing:-.015em;line-height:1.2;
+            color:var(--text);
+          }
+          #view-schedule .page-sub{
+            font-size:var(--fs-sm);font-weight:500;
+            color:var(--text-subtle);margin-top:2px;
+          }
+          #view-schedule .page-actions{gap:2px;align-items:center;flex-wrap:wrap}
+
+          /* Page-action buttons — ghost command items */
+          #view-schedule .sched-page-btn{
+            appearance:none;
+            background:transparent;
+            border:1px solid transparent;
+            color:var(--text-muted);
+            font-family:inherit;font-weight:500;
+            font-size:var(--fs-sm);line-height:1;
+            display:inline-flex;align-items:center;gap:7px;
+            padding:7px 10px;
+            border-radius:var(--sch-radius);
+            cursor:pointer;
+            box-shadow:none;
+            transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
+          }
+          #view-schedule .sched-page-btn svg{
+            width:14px;height:14px;flex-shrink:0;
+            color:var(--text-subtle);stroke-width:1.75;
+          }
+          #view-schedule .sched-page-btn:hover{
+            background:var(--sch-hover);
+            color:var(--text);
+            border-color:transparent;
+            box-shadow:none;
+          }
+          #view-schedule .sched-page-btn:hover svg{color:var(--sch-blue)}
+          #view-schedule .sched-page-btn:focus-visible{
+            outline:none;
+            box-shadow:0 0 0 2px var(--sch-blue);
+          }
+
+          /* Finalize — quiet primary, no shouting */
+          #view-schedule .sched-page-btn#rr-sched-finalize-h{
+            color:var(--sch-blue);
+            background:var(--sch-blue-soft);
+            border-color:transparent;
+          }
+          #view-schedule .sched-page-btn#rr-sched-finalize-h svg{color:var(--sch-blue)}
+          #view-schedule .sched-page-btn#rr-sched-finalize-h:hover{
+            background:var(--sch-blue);
+            color:#fff;
+            border-color:transparent;
+          }
+          #view-schedule .sched-page-btn#rr-sched-finalize-h:hover svg{color:#fff}
+          #view-schedule .sched-page-btn#rr-sched-finalize-h[data-rr-stage="live"]{
+            background:var(--sch-green-soft);
+            color:var(--sch-green);
+          }
+          #view-schedule .sched-page-btn#rr-sched-finalize-h[data-rr-stage="live"] svg{color:var(--sch-green)}
+          #view-schedule .sched-page-btn#rr-sched-finalize-h[data-rr-stage="live"]:hover{
+            background:var(--sch-green);color:#fff;
+          }
+          #view-schedule .sched-page-btn#rr-sched-finalize-h[data-rr-stage="live"]:hover svg{color:#fff}
+
+          /* Week navigator — Outlook segmented control */
+          #view-schedule .sched-week-nav{
+            display:inline-flex;align-items:stretch;
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius);
+            padding:0;
+            box-shadow:none;
+            margin-left:6px;
+            overflow:hidden;
+          }
+          #view-schedule .sched-week-nav-btn,
+          #view-schedule .sched-week-nav-today,
+          #view-schedule .sched-week-nav-range{
+            appearance:none;background:transparent;border:0;cursor:pointer;
+            font:inherit;display:inline-flex;align-items:center;
+            color:var(--text-muted);
+            height:30px;
+            border-radius:0;
+            box-shadow:none;
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-schedule .sched-week-nav-btn{
+            width:30px;justify-content:center;
+          }
+          #view-schedule .sched-week-nav-btn:hover{
+            background:var(--sch-hover);
+            color:var(--text);
+            box-shadow:none;
+          }
+          #view-schedule .sched-week-nav-btn svg{width:13px;height:13px}
+          #view-schedule .sched-week-nav-today{
+            padding:0 12px;
+            font-size:var(--fs-sm);font-weight:500;
+            color:var(--sch-blue);
+            border-left:1px solid var(--sch-line);
+            border-right:1px solid var(--sch-line);
+            text-transform:none;letter-spacing:0;
+            background:transparent;
+          }
+          #view-schedule .sched-week-nav-today:hover{
+            background:var(--sch-blue-softer);
+          }
+          #view-schedule .sched-week-nav-today.is-on-today{
+            color:var(--text-subtle);
+            cursor:default;pointer-events:none;
+            background:transparent;
+          }
+          #view-schedule .sched-week-nav-range{
+            padding:0 var(--s-3);gap:6px;
+            font-size:var(--fs-sm);font-weight:500;color:var(--text);
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .sched-week-nav-range:hover{
+            background:var(--sch-hover);color:var(--text);
+          }
+          #view-schedule .sched-week-nav-range svg{
+            width:10px;height:10px;color:var(--text-subtle);
+          }
+          #view-schedule .sched-week-nav-btn:focus-visible,
+          #view-schedule .sched-week-nav-today:focus-visible,
+          #view-schedule .sched-week-nav-range:focus-visible{
+            outline:none;
+            box-shadow:inset 0 0 0 2px var(--sch-blue);
+          }
+
+          /* ── KPI strip — quiet operational metrics ───────────────
+             Single horizontal row of "dot · label · sub" inside one
+             outlined container with thin vertical dividers — Microsoft
+             365 admin pattern, no per-tile shadows. */
+          #view-schedule #rr-sched-kpis.sched-kpi-pills{
+            display:flex;flex-wrap:wrap;align-items:stretch;
+            gap:0;
+            margin:0 0 var(--s-4) 0;
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius);
+            padding:0;
+            box-shadow:none;
+            overflow:hidden;
+          }
+          #view-schedule .sched-kpi-pill{
+            display:inline-flex;align-items:center;gap:10px;
+            color:var(--text);font-weight:600;font-size:var(--fs-sm);
+            font-variant-numeric:tabular-nums;
+            padding:10px 18px;
+            border-right:1px solid var(--sch-line-subtle);
+            line-height:1.2;
+            transition:background var(--t-fast);
+          }
+          #view-schedule .sched-kpi-pill:last-child{border-right:0}
+          #view-schedule .sched-kpi-pill[data-clickable="true"]{cursor:pointer}
+          #view-schedule .sched-kpi-pill[data-clickable="true"]:hover{
+            background:var(--sch-hover);color:var(--text);
+          }
+          #view-schedule .sched-kpi-dot{
+            width:8px;height:8px;border-radius:50%;flex-shrink:0;
+          }
+          #view-schedule .sched-kpi-text{
+            display:inline-flex;flex-direction:column;line-height:1.15;gap:1px;
+          }
+          #view-schedule .sched-kpi-sub{
+            font-size:var(--fs-xs);font-weight:500;
+            color:var(--text-subtle);
+            letter-spacing:0;text-transform:none;
+          }
+
+          /* ── Subnav · Teams horizontal tabs ──────────────────────
+             Replace the gradient pill bar with a clean tab strip that
+             rests on a single hairline. Active tab gets a 2px Fluent-
+             blue underline; no fills, no badges-as-shouting. */
+          #view-schedule .sched-subnav-row{
+            display:flex;align-items:center;justify-content:space-between;
+            gap:var(--s-3);margin-bottom:var(--s-5);flex-wrap:wrap;
+            border-bottom:1px solid var(--sch-line);
+            padding:0;
+          }
+          #view-schedule .sched-subnav-row > .subnav{
+            margin-bottom:0;
+            display:inline-flex;gap:0;
+            background:transparent;
+            background-image:none;
+            border:0;border-radius:0;padding:0;
+            box-shadow:none;
+          }
+          #view-schedule .subnav-item{
+            padding:9px 14px;
+            font-size:var(--fs-sm);font-weight:500;
+            color:var(--text-muted);
+            background:transparent;border:0;border-radius:0;
+            letter-spacing:0;line-height:1.2;
+            position:relative;
+            transition:color var(--t-fast),background var(--t-fast);
+          }
+          #view-schedule .subnav-item::after{display:none !important}
+          #view-schedule .subnav-item:hover{
+            color:var(--text);
+            background:var(--sch-hover);
+          }
+          #view-schedule .subnav-item.active{
+            color:var(--sch-blue);
+            background:transparent;
+            font-weight:600;
+            box-shadow:none;
+          }
+          #view-schedule .subnav-item.active::before{
+            content:"";position:absolute;
+            left:8px;right:8px;bottom:-1px;height:2px;
+            background:var(--sch-blue);
+            border-radius:1px 1px 0 0;
+          }
+          /* Inline time-off counter — calm amber dot, not a loud chip */
+          #view-schedule .subnav-item .nav-badge{
+            background:var(--sch-amber-soft) !important;
+            color:var(--sch-amber) !important;
+            font-weight:600 !important;
+            font-size:10px !important;
+            padding:1px 6px !important;
+            border-radius:var(--r-pill) !important;
+            margin-left:6px !important;
+            letter-spacing:0;
+          }
+
+          /* ── Builder layout — schedule + right rail ──────────── */
+          #view-schedule .builder-shell{
+            grid-template-columns:1fr 300px;
+            gap:var(--s-4);
+          }
+          @media (max-width:1180px){
+            #view-schedule .builder-shell{grid-template-columns:1fr}
+          }
+
+          /* ── Calendar surface · Outlook Calendar feel ────────── */
+          #view-schedule .cal-wrap{
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius-lg);
+            box-shadow:none;
+            overflow:hidden;
+            overflow-y:auto;
+            max-height:calc(60px * 20 + 60px);
+            scrollbar-width:thin;
+            scrollbar-color:var(--sch-line-strong) transparent;
+          }
+          #view-schedule .cal-grid{
+            grid-template-columns:220px repeat(7,minmax(0,1fr));
+            border-bottom:1px solid var(--sch-line-subtle);
+          }
+          #view-schedule .cal-grid.head{
+            background:var(--sch-surface-2);
+            border-bottom:1px solid var(--sch-line);
+          }
+          #view-schedule .cal-grid.head .cal-cell-head:first-child{
+            background:var(--sch-surface-2);
+          }
+
+          /* Day-of-week header — small label + big day number */
+          #view-schedule .cal-cell-head{
+            padding:10px 8px 9px;
+            text-align:center;
+            font-size:11px;font-weight:600;
+            color:var(--text-subtle);
+            letter-spacing:.04em;text-transform:uppercase;
+            border-right:1px solid var(--sch-line-subtle);
+            position:relative;
+          }
+          #view-schedule .cal-cell-head:first-child{
+            text-align:left;
+            padding-left:var(--s-4);
+            color:var(--text);font-weight:600;
+          }
+          #view-schedule .cal-cell-head:last-child{border-right:0}
+          #view-schedule .cal-cell-head .day-num{
+            display:block;
+            font-size:18px;font-weight:600;
+            color:var(--text);
+            text-transform:none;letter-spacing:-.01em;
+            margin-top:3px;font-variant-numeric:tabular-nums;
+            line-height:1.1;
+          }
+          #view-schedule .cal-cell-head.today{
+            background:var(--sch-blue-tint);
+            color:var(--sch-blue);
+          }
+          #view-schedule .cal-cell-head.today .day-num{color:var(--sch-blue)}
+          #view-schedule .cal-cell-head.today::after{
+            content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
+            background:var(--sch-blue);
+          }
+          #view-schedule .cal-cell-head .day-coverage{
+            display:block;
+            font-size:10px;font-weight:500;
+            color:var(--text-subtle);
+            font-variant-numeric:tabular-nums;letter-spacing:0;
+            margin-top:3px;text-transform:none;
+          }
+
+          /* Driver row label · sticky left */
+          #view-schedule .cal-row-label{
+            padding:10px var(--s-4);
+            display:flex;align-items:center;gap:10px;
+            border-right:1px solid var(--sch-line-subtle);
+            background:var(--sch-surface);
+            position:sticky;left:0;z-index:1;
+            transition:background var(--t-fast);
+          }
+          #view-schedule .cal-row-label-name{
+            font-size:var(--fs-sm);font-weight:600;
+            color:var(--text);line-height:1.25;
+          }
+          #view-schedule .cal-row-label-meta{
+            font-size:11px;color:var(--text-subtle);
+            margin-top:1px;letter-spacing:0;font-weight:500;
+          }
+
+          /* Whole-row hover · Outlook-style scan band */
+          #view-schedule .cal-grid:not(.head):hover .cal-row-label{
+            background:var(--sch-blue-softer);
+          }
+          #view-schedule .cal-grid:not(.head):hover .cal-cell{
+            background:var(--sch-blue-softer);
+          }
+          #view-schedule .cal-grid:not(.head):hover .cal-cell.today{
+            background:var(--sch-blue-soft);
+          }
+
+          /* Calendar cell */
+          #view-schedule .cal-cell{
+            border-right:1px solid var(--sch-line-subtle);
+            padding:6px;min-height:60px;
+            display:flex;align-items:stretch;justify-content:stretch;
+            cursor:pointer;
+            transition:background var(--t-fast);
+            position:relative;
+            background:var(--sch-surface);
+          }
+          #view-schedule .cal-cell:last-child{border-right:0}
+          #view-schedule .cal-cell.today{
+            background:var(--sch-blue-tint);
+            box-shadow:none;
+          }
+          #view-schedule .cal-cell.rr-drag-over{
+            background:var(--sch-blue-soft) !important;
+            box-shadow:inset 0 0 0 2px var(--sch-blue);
+          }
+          #view-schedule .cal-cell.empty-slot{
+            background:repeating-linear-gradient(
+              135deg,
+              var(--sch-surface-2) 0,
+              var(--sch-surface-2) 6px,
+              var(--sch-surface-3) 6px,
+              var(--sch-surface-3) 12px
+            );
+          }
+          #view-schedule .cal-cell.empty-slot:hover{background:var(--sch-blue-softer)}
+
+          /* Shift chip · Outlook event bar */
+          #view-schedule .shift-chip{
+            flex:1;
+            padding:6px 8px 6px 10px;
+            border-radius:4px;
+            background:var(--sch-blue-soft);
+            border:0;
+            border-left:3px solid var(--sch-blue);
+            display:flex;flex-direction:column;
+            align-items:flex-start;justify-content:center;
+            font-size:var(--fs-xs);line-height:1.25;
+            color:var(--sch-blue-text);
+            transition:background var(--t-fast),border-left-color var(--t-fast);
+            box-shadow:none;
+          }
+          #view-schedule .cal-cell:hover .shift-chip{box-shadow:none}
+          #view-schedule .cal-cell:hover .shift-chip:not(.off):not(.timeoff):not(.open){
+            background:rgba(37,99,235,.14);
+            border-left-color:var(--sch-blue-strong);
+          }
+          #view-schedule .shift-chip-route{
+            font-weight:600;color:var(--sch-blue-text);
+            font-variant-numeric:tabular-nums;font-size:var(--fs-xs);
+            letter-spacing:0;
+          }
+          #view-schedule .shift-chip-time{
+            color:var(--text-muted);font-size:11px;margin-top:1px;
+            font-variant-numeric:tabular-nums;
+            font-weight:500;letter-spacing:0;
+          }
+
+          /* Routine · recede so outliers pop */
+          #view-schedule .shift-chip.is-routine{
+            background:var(--sch-blue-softer);
+            border-left-color:rgba(37,99,235,.45);
+          }
+          #view-schedule .shift-chip.is-routine .shift-chip-route{
+            color:color-mix(in srgb, var(--sch-blue-text) 60%, transparent);
+            font-weight:600;
+          }
+          #view-schedule .shift-chip.is-routine .shift-chip-time{
+            color:var(--text-subtle);font-weight:500;
+          }
+
+          /* Pending swap · amber accent */
+          #view-schedule .shift-chip.swap{
+            background:var(--sch-amber-soft);
+            border:0;
+            border-left:3px solid var(--sch-amber);
+            color:var(--sch-amber-dark);
+          }
+          #view-schedule .shift-chip.swap .shift-chip-route{color:var(--sch-amber-dark)}
+          #view-schedule .shift-chip.swap .shift-chip-time{color:var(--sch-amber-dark)}
+
+          /* Time off · neutral muted fill */
+          #view-schedule .shift-chip.timeoff{
+            background:var(--sch-surface-3);
+            border:0;
+            border-left:3px solid var(--text-disabled);
+            color:var(--text-muted);
+            text-align:center;justify-content:center;align-items:center;
+            font-weight:600;
+          }
+          #view-schedule .shift-chip.timeoff .shift-chip-route{
+            color:var(--text-muted);font-weight:600;
+            letter-spacing:.04em;font-size:10px;text-transform:uppercase;
+          }
+
+          /* Off · faint Outlook-style "out" marker, no chip border */
+          #view-schedule .shift-chip.off{
+            background:transparent;border:0;
+            color:var(--text-disabled);
+            font-size:11px;font-weight:500;
+            text-align:center;justify-content:center;align-items:center;
+            letter-spacing:.02em;font-style:normal;
+            box-shadow:none;
+          }
+          #view-schedule .shift-chip.off:empty{color:transparent}
+
+          /* Open shift · dashed invitation */
+          #view-schedule .shift-chip.open{
+            background:transparent;
+            border:1px dashed var(--sch-line-strong);
+            border-left:1px dashed var(--sch-line-strong);
+            color:var(--text-muted);
+            text-align:center;justify-content:center;align-items:center;
+            font-weight:600;font-size:11px;
+            padding:6px 8px;
+            border-radius:4px;
+            box-shadow:none;
+          }
+          #view-schedule .shift-chip.open:hover{
+            border-color:var(--sch-blue);
+            border-style:solid;
+            color:var(--sch-blue);
+            background:var(--sch-blue-softer);
+            box-shadow:none;
+          }
+          #view-schedule .shift-chip.add-here{
+            background:transparent;
+            border:1px dashed var(--sch-line-strong);
+            color:var(--text-subtle);
+            text-align:center;justify-content:center;align-items:center;
+            font-weight:500;font-size:11px;
+            border-radius:4px;
+            padding:6px 8px;
+          }
+          #view-schedule .shift-chip.add-here:hover{
+            border-color:var(--sch-blue);
+            border-style:solid;
+            color:var(--sch-blue);
+            background:var(--sch-blue-softer);
+          }
+
+          /* Drag cursors */
+          #view-schedule .shift-chip[draggable="true"]{cursor:grab}
+          #view-schedule .shift-chip[draggable="true"]:active{cursor:grabbing}
+
+          /* Coverage strip — retained hidden (header counts already
+             carry the same signal). */
+          #view-schedule .coverage-strip{display:none}
+
+          /* Conflict marker · small flag in the cell corner */
+          #view-schedule .conflict-marker{
+            position:absolute;top:4px;right:4px;
+            width:16px;height:16px;border-radius:50%;
+            background:var(--sch-amber);color:#fff;
+            font-size:10px;font-weight:700;
+            display:flex;align-items:center;justify-content:center;
+            line-height:1;z-index:2;
+            box-shadow:0 0 0 2px var(--sch-surface);
+          }
+          #view-schedule .conflict-marker.error{background:var(--sch-red)}
+
+          /* Header sort toggle */
+          #view-schedule .rr-tf-icon{
+            appearance:none;
+            background:transparent;border:1px solid transparent;
+            border-radius:var(--sch-radius);
+            width:24px;height:24px;
+            display:inline-flex;align-items:center;justify-content:center;
+            color:var(--text-subtle);cursor:pointer;
+            transition:background var(--t-fast),color var(--t-fast);
+            box-shadow:none;
+          }
+          #view-schedule .rr-tf-icon:hover{
+            background:var(--sch-hover);color:var(--text);
+            box-shadow:none;
+          }
+
+          /* ── Right rail · driver pool ────────────────────────── */
+          #view-schedule .sched-right-rail{
+            display:flex;flex-direction:column;gap:var(--s-3);
+            position:sticky;top:80px;
+            max-height:calc(100vh - 100px);overflow-y:auto;
+            scrollbar-width:thin;scrollbar-color:var(--sch-line-strong) transparent;
+          }
+          #view-schedule .driver-pool{
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius-lg);
+            padding:var(--s-4);
+            box-shadow:none;
+            display:flex;flex-direction:column;gap:var(--s-3);
+            position:static;max-height:none;
+          }
+          #view-schedule .pool-head{
+            display:flex;justify-content:space-between;align-items:center;
+            font-size:var(--fs-sm);font-weight:600;
+            color:var(--text);
+            letter-spacing:0;text-transform:none;
+            padding-bottom:var(--s-2);
+            border-bottom:1px solid var(--sch-line-subtle);
+          }
+          #view-schedule .pool-head > span:last-child{
+            font-size:var(--fs-xs);font-weight:500;
+            color:var(--text-subtle);
+            letter-spacing:0;text-transform:none;
+          }
+          #view-schedule .pool-search{
+            width:100%;
+            padding:6px 10px;
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius);
+            font-size:var(--fs-sm);
+            background:var(--sch-surface-2);
+            color:var(--text);
+            box-shadow:none;
+            transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast);
+          }
+          #view-schedule .pool-search:hover{background:var(--sch-surface)}
+          #view-schedule .pool-search:focus{
+            outline:none;
+            background:var(--sch-surface);
+            border-color:var(--sch-blue);
+            box-shadow:0 0 0 1px var(--sch-blue);
+          }
+          #view-schedule .pool-section-label{
+            font-size:11px;font-weight:600;
+            color:var(--text-subtle);
+            letter-spacing:.04em;text-transform:uppercase;
+            margin:8px 0 4px;
+          }
+          #view-schedule .pool-driver{
+            display:grid;grid-template-columns:auto 1fr auto;
+            gap:var(--s-2);align-items:center;
+            padding:7px 8px;
+            border-radius:var(--sch-radius);
+            cursor:grab;
+            border:1px solid transparent;
+            background:transparent;
+            transition:background var(--t-fast),border-color var(--t-fast);
+            box-shadow:none;
+          }
+          #view-schedule .pool-driver:hover:not(.maxed):not(.off){
+            background:var(--sch-hover);
+            border-color:transparent;
+            box-shadow:none;
+          }
+          #view-schedule .pool-driver:active:not(.maxed):not(.off){
+            cursor:grabbing;
+            background:var(--sch-blue-soft);
+            border-color:transparent;
+          }
+          #view-schedule .pool-driver-name{
+            font-size:var(--fs-sm);font-weight:600;
+            color:var(--text);line-height:1.3;
+          }
+          #view-schedule .pool-driver-meta{
+            font-size:11px;color:var(--text-subtle);
+            margin-top:1px;letter-spacing:0;
+          }
+          #view-schedule .pool-driver-hours{
+            font-size:11px;font-weight:600;
+            color:var(--text-muted);
+            background:var(--sch-surface-3);
+            padding:1px 7px;border-radius:var(--r-pill);
+            white-space:nowrap;font-variant-numeric:tabular-nums;
+            border:0;
+          }
+          #view-schedule .pool-driver.maxed{opacity:.55}
+          #view-schedule .pool-driver.maxed .pool-driver-hours{
+            background:var(--sch-amber-soft);color:var(--sch-amber);
+          }
+          #view-schedule .pool-driver.off{opacity:.5;cursor:default}
+          #view-schedule .pool-driver.off:hover{background:transparent}
+
+          /* Open shifts panel · driver-pool footer */
+          #view-schedule .pool-openshifts-foot{
+            padding-top:var(--s-3);
+            border-top:1px solid var(--sch-line-subtle);
+            margin-top:var(--s-2);
+            display:flex;flex-direction:column;gap:var(--s-2);
+          }
+          #view-schedule .pool-openshifts-head{
+            display:flex;align-items:center;gap:8px;
+            font-size:var(--fs-sm);font-weight:600;
+            color:var(--text);
+            letter-spacing:0;text-transform:none;
+          }
+          #view-schedule .pool-openshifts-count{
+            margin-left:auto;
+            font-size:var(--fs-xs);font-weight:500;
+            color:var(--text-subtle);
+            letter-spacing:0;text-transform:none;
+          }
+          #view-schedule .pool-openshifts-body{
+            display:flex;flex-direction:column;gap:6px;
+          }
+          #view-schedule .pool-openshifts-empty{
+            display:flex;flex-direction:column;align-items:center;justify-content:center;
+            gap:4px;padding:var(--s-3) var(--s-2) 6px;text-align:center;
+          }
+          #view-schedule .pool-openshifts-check{
+            display:inline-flex;align-items:center;justify-content:center;
+            width:28px;height:28px;border-radius:50%;
+            background:var(--sch-green-soft);color:var(--sch-green);
+            margin-bottom:4px;
+          }
+          #view-schedule .pool-openshifts-empty-title{
+            font-size:var(--fs-sm);font-weight:600;color:var(--text);
+          }
+          #view-schedule .pool-openshifts-empty-sub{
+            font-size:11px;color:var(--text-subtle);
+          }
+          #view-schedule .pool-openshifts-empty .btn{margin-top:6px}
+          #view-schedule .pool-openshifts-needs{
+            font-size:11px;color:var(--text-subtle);font-weight:500;
+            display:flex;align-items:center;gap:6px;
+          }
+          #view-schedule .pool-openshifts-needs-dot{
+            width:6px;height:6px;border-radius:50%;background:var(--sch-amber);
+          }
+
+          /* Hide leftover toolbar rail (JS hooks still read its
+             buttons via display:none state). */
+          #view-schedule .sched-toolbar-rail{display:none !important}
+
+          /* Insights panel · same surface treatment as the grid */
+          #view-schedule .sched-insights{
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius-lg);
+            box-shadow:none;
+          }
+          #view-schedule .sched-insights-head{
+            font-weight:600;
+            letter-spacing:0;text-transform:none;
+            color:var(--text);
+          }
+
+          /* Skeleton loader · subtle, Fluent rhythm */
+          #view-schedule .cal-skel .cal-skel-row{
+            display:grid;grid-template-columns:220px repeat(7,1fr);
+            border-bottom:1px solid var(--sch-line-subtle);
+          }
+          #view-schedule .cal-skel .cal-skel-label{
+            padding:10px var(--s-4);
+            display:flex;align-items:center;gap:10px;
+            border-right:1px solid var(--sch-line-subtle);
+          }
+          #view-schedule .cal-skel .av{
+            width:28px;height:28px;border-radius:50%;
+            background:var(--sch-surface-3);
+            position:relative;overflow:hidden;flex:0 0 auto;
+          }
+          #view-schedule .cal-skel .bar{
+            height:10px;border-radius:var(--r-md);
+            background:var(--sch-surface-3);
+            position:relative;overflow:hidden;
+          }
+          #view-schedule .cal-skel .cell{
+            border-right:1px solid var(--sch-line-subtle);
+            padding:6px;min-height:60px;
+            position:relative;overflow:hidden;
+          }
+          #view-schedule .cal-skel .cell::before{
+            content:"";position:absolute;inset:8px 6px;border-radius:4px;
+            background:var(--sch-surface-3);
+          }
+          #view-schedule .cal-skel .av::after,
+          #view-schedule .cal-skel .bar::after,
+          #view-schedule .cal-skel .cell::after{
+            content:"";position:absolute;inset:0;
+            background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);
+            transform:translateX(-100%);
+            animation:drShimmer 1.4s ease-in-out infinite;
+          }
+
+          /* ── Staff sub-view · parity with the week grid ──────── */
+          #view-schedule .stf-grid-wrap{
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius-lg);
+            box-shadow:none;
+          }
+          #view-schedule .stf-grid > .head{
+            background:var(--sch-surface-2);
+            font-size:11px;font-weight:600;
+            letter-spacing:.04em;text-transform:uppercase;
+            color:var(--text-subtle);
+            padding:10px 12px;
+            border-top:0;
+          }
+          #view-schedule .stf-grid > div{
+            border-top:1px solid var(--sch-line-subtle);
+          }
+          #view-schedule .stf-grid .stf-name{border-right:1px solid var(--sch-line-subtle)}
+          #view-schedule .stf-grid .day-head{border-left:1px solid var(--sch-line-subtle)}
+          #view-schedule .stf-grid .day-head.today{
+            background:var(--sch-blue-tint);
+            color:var(--sch-blue);
+          }
+          #view-schedule .stf-grid .stf-cell{
+            border-left:1px solid var(--sch-line-subtle);
+          }
+          #view-schedule .stf-grid .stf-cell.today{
+            background:var(--sch-blue-tint);
+          }
+          #view-schedule .stf-grid .stf-cell.today:hover{
+            background:var(--sch-blue-soft);
+          }
+          #view-schedule .stf-grid .stf-cell:hover{
+            background:var(--sch-hover);
+          }
+          #view-schedule .stf-grid .stf-cell .stf-chip{
+            background:var(--sch-blue-soft);
+            color:var(--sch-blue-text);
+            border:0;border-left:3px solid var(--sch-blue);
+            border-radius:4px;
+            padding:6px 8px;
+            font-size:var(--fs-xs);font-weight:600;line-height:1.4;
+          }
+          #view-schedule .stf-grid .stf-cell .stf-chip .stf-chip-time{
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .stf-grid .stf-cell .stf-chip .stf-chip-role{
+            font-size:10px;color:var(--text-muted);font-weight:600;
+            letter-spacing:.04em;text-transform:uppercase;margin-top:2px;
+          }
+          #view-schedule .stf-week-nav{
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius);
+            padding:0;
+            overflow:hidden;
+          }
+          #view-schedule .stf-week-nav button{
+            color:var(--text-muted);padding:6px 12px;
+            border-radius:0;
+          }
+          #view-schedule .stf-week-nav button:hover{
+            background:var(--sch-hover);color:var(--text);
+          }
+          #view-schedule .stf-week-nav .lbl{
+            font-size:var(--fs-sm);font-weight:500;color:var(--text);
+            padding:0 8px;font-variant-numeric:tabular-nums;
+            min-width:160px;text-align:center;
+            border-left:1px solid var(--sch-line);
+            border-right:1px solid var(--sch-line);
+          }
+
+          /* ── Schedule-grid table (By driver sub-view) ─────────── */
+          #view-schedule .schedule-grid-wrap{
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius-lg);
+            box-shadow:none;
+          }
+          #view-schedule .sg-toolbar{
+            background:var(--sch-surface-2);
+            border-bottom:1px solid var(--sch-line-subtle);
+            color:var(--text-muted);
+          }
+          #view-schedule .schedule-table thead th{
+            background:var(--sch-surface-2);
+            font-size:11px;font-weight:600;
+            color:var(--text-subtle);
+            letter-spacing:.04em;text-transform:uppercase;
+            border-bottom:1px solid var(--sch-line);
+          }
+          #view-schedule .schedule-table tbody td{
+            border-bottom:1px solid var(--sch-line-subtle);
+          }
+          #view-schedule .day-toggle{
+            border:1px solid var(--sch-line-strong);
+            background:var(--sch-surface);
+            box-shadow:none;
+          }
+          #view-schedule .day-toggle:hover{
+            background:var(--sch-hover);
+            border-color:var(--sch-line-strong);
+            color:var(--text);
+          }
+          #view-schedule .day-toggle.on{
+            background:var(--sch-blue);
+            border-color:var(--sch-blue);
+            color:#fff;
+          }
+
+          /* Template cards · calm Planner-style tiles */
+          #view-schedule .template-card{
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius-lg);
+            box-shadow:none;
+            transition:background var(--t-fast),border-color var(--t-fast);
+          }
+          #view-schedule .template-card:hover{
+            background:var(--sch-surface-2);
+            border-color:var(--sch-line-strong);
+            box-shadow:none;
+          }
+          #view-schedule .template-card-name{color:var(--text);font-weight:600}
+          #view-schedule .template-card-meta{border-top-color:var(--sch-line-subtle)}
+
+          /* Approval cards · neutral surface, calm hover */
+          #view-schedule .approval-card{
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius-lg);
+            box-shadow:none;
+          }
+          #view-schedule .approval-card:hover{
+            background:var(--sch-surface-2);
+            border-color:var(--sch-line-strong);
+            box-shadow:none;
+          }
+
+          /* Open-shift listing cards (approval sub-views) */
+          #view-schedule .open-shift{
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius-lg);
+            box-shadow:none;
+            border-left:3px solid var(--sch-red);
+          }
+          #view-schedule .open-shift:hover{
+            background:var(--sch-surface-2);
+            border-color:var(--sch-line-strong);
+            box-shadow:none;
+          }
+
+          /* Inline "Insights" text link (when KPIs toggle hides) */
+          #view-schedule .rr-text-link{
+            color:var(--sch-blue);font-weight:500;
+            text-decoration:none;
+          }
+          #view-schedule .rr-text-link:hover{text-decoration:underline}
+
+          /* Avatar circles · slightly tighter Fluent ring */
+          #view-schedule .avatar-sm{
+            font-weight:600;
+            box-shadow:inset 0 0 0 1px rgba(15,23,42,.04);
+          }
+
+          /* Hide the legacy is-primary stat-mini coverage decoration —
+             the KPI strip now renders as sched-kpi-pill instead and
+             the leftover ::before/::after progress bar from the
+             previous pass would interfere. */
+          #view-schedule #rr-sched-kpis .stat-mini{display:none}
+        </style>
+
           <!-- Hidden offset-tabs strip — week selection moved to the
                sched-week-nav navigator next to the subnav, but renderScheduleWeek
                + a few helpers still read .sched-week-tab[data-rr-week-offset]
