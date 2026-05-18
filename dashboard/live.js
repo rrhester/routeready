@@ -23126,6 +23126,7 @@ function _updateFinalizeButton() {
   // Visible header button — proxies clicks to #schedule-cta.
   const hdrBtn = document.getElementById("rr-sched-finalize-h");
   if (hdrBtn) {
+    hdrBtn.dataset.rrStage = isFinal ? "live" : "finalize";
     if (isFinal) {
       hdrBtn.innerHTML = `${finalIcon} Unfinalize`;
       hdrBtn.title = "This week is live · drivers see it. Click to take it back to draft.";
@@ -23172,7 +23173,7 @@ function _confirmLiveScheduleEdit() {
 }
 
 document.addEventListener("click", async (e) => {
-  if (e.target.closest("#schedule-cta")) {
+  if (e.target.closest("#schedule-cta, #rr-sched-finalize-h")) {
     e.preventDefault();
     const target = !window._rrWeekFinalized;
     if (target) {
@@ -24224,11 +24225,27 @@ function _schedShiftChip(sh, extras) {
       : `Road training${sh.trainer_name ? " with " + escapeHtml(sh.trainer_name) : ""} — riding along, not route coverage`;
     return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="background:${bg};border-color:${bg};color:${fg};cursor:default" title="${titleText}"><div class="shift-chip-route">${label}</div>${sub ? `<div class="shift-chip-time">${sub}</div>` : ""}</div>`;
   }
-  const timeRange = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
+  // starts_at lives in the DB as (wave_time − report_lead) so the chip
+  // can advertise the time we want the driver onsite. Surface both:
+  // "Report 6:30a · Wave 7:00a – 6:00p" so dispatchers reading the
+  // grid see the actual arrival time and the dispatch wave at a
+  // glance.
+  const _eff = window._rrEffectiveSettings || {};
+  const _reportLead = Math.max(0, parseInt(_eff.report_lead_minutes, 10) || 0);
+  const reportStr = sh.starts_at ? fmtTimeShort(sh.starts_at) : "";
+  const endStr    = sh.ends_at   ? fmtTimeShort(sh.ends_at)   : "";
+  const waveStr   = sh.starts_at && _reportLead > 0
+    ? fmtTimeShort(new Date(new Date(sh.starts_at).getTime() + _reportLead * 60000))
+    : reportStr;
+  const timeRange = reportStr && endStr
+    ? (_reportLead > 0
+        ? `<span class="shift-chip-rpt">Rpt ${reportStr}</span><span class="shift-chip-wave">${waveStr} – ${endStr}</span>`
+        : `${waveStr} – ${endStr}`)
+    : "";
   // No route_code yet → just show the time range on the headline (and
   // skip the sub-line, since it would duplicate the start time).
   const hasRoute = !!sh.route_code;
-  const r = hasRoute ? escapeHtml(sh.route_code) : (timeRange || (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift"));
+  const r = hasRoute ? escapeHtml(sh.route_code) : (timeRange ? (reportStr && _reportLead > 0 ? `${waveStr} – ${endStr}` : timeRange) : (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift"));
   const time = hasRoute ? timeRange : "";
   const ex = sh.is_cushion
     ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em">EX</span>`
