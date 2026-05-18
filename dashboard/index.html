@@ -3943,18 +3943,18 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   background:var(--brand-grad);color:#fff;
   display:flex;align-items:center;justify-content:center;font-size:var(--fs-base);font-weight:700;flex-shrink:0;
 }
-.detail-name{font-size:18px;font-weight:700;letter-spacing:-.01em;margin:0 0 4px 0}
+.detail-name{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;margin:0 0 var(--s-1) 0;line-height:1.2}
 .detail-meta{font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5}
 .detail-body{flex:1;overflow-y:auto;padding:var(--s-5);display:flex;flex-direction:column;gap:var(--s-4)}
 .detail-section{
   background:var(--canvas);border-radius:var(--r-md);padding:var(--s-4);
 }
 .detail-section-label{
-  font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--text-muted);margin-bottom:var(--s-2);
+  font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--text-muted);margin-bottom:var(--s-2);line-height:1.2;
 }
 .detail-stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-3)}
-.detail-stat-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:3px}
+.detail-stat-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-1);line-height:1.2}
 .detail-stat-value{font-size:var(--fs-lg);font-weight:700;color:var(--text)}
 .detail-timeline{display:flex;flex-direction:column;gap:var(--s-2-5)}
 .detail-timeline-item{
@@ -6261,7 +6261,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .cl-card-foot strong{color:var(--text);font-weight:600}
 .cl-card-status{
   display:inline-flex;align-items:center;gap:var(--s-1);
-  font-size:var(--fs-xs);font-weight:600;padding:2px var(--s-2);border-radius:var(--r-md);
+  font-size:var(--fs-xs);font-weight:600;padding:2px var(--s-2);border-radius:var(--r-lg);
 }
 .cl-card-status.done{background:var(--green-soft);color:var(--green)}
 .cl-card-status.partial{background:var(--amber-soft);color:var(--amber)}
@@ -7039,8 +7039,8 @@ body.rr-cmdk-open{ overflow:hidden }
 .bb-saved-card-cta:hover{background:var(--accent-hover)}
 .bb-saved-card-cta svg{width:12px;height:12px;stroke-width:2.5}
 
-.bb-section-title{font-size:var(--fs-base);font-weight:600;color:var(--text);margin:0 0 var(--s-2) 0}
-.bb-section-sub{font-size:var(--fs-sm);color:var(--text-muted);margin:0 0 var(--s-3) 0}
+.bb-section-title{font-size:var(--fs-base);font-weight:700;color:var(--text);margin:0 0 var(--s-2) 0;letter-spacing:-.005em}
+.bb-section-sub{font-size:var(--fs-sm);color:var(--text-muted);margin:0 0 var(--s-3) 0;line-height:1.45}
 
 /* ─── STAFFING RISK ──────────────────────────────────────────── */
 .staffing-hero{
@@ -7200,7 +7200,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .iv-stat{padding:0 var(--s-4);border-right:1px solid var(--border-subtle)}
 .iv-stat:last-child{border-right:none}
-.iv-stat-label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px}
+.iv-stat-label{font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:var(--s-2);line-height:1.2}
 .iv-stat-value{font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1}
 .iv-stat.ok .iv-stat-value,
 .iv-stat.warn .iv-stat-value,
