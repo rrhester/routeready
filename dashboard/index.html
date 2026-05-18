@@ -11229,6 +11229,44 @@ body.rr-cmdk-open{ overflow:hidden }
             </button>
           </div>
 
+          <!-- Schedule settings · per-week values that drive Smart
+               Fill, route planning, and shift regeneration. Live in
+               the navigation heading so dispatchers can tune them
+               for the visible week without opening the drawer. Auto-
+               save runs on change and triggers the same regen path
+               as the drawer's Save button. -->
+          <div class="sched-ribbon-settings" id="rr-sched-nav-settings">
+            <label class="sched-nav-setting" title="Hours per shift">
+              <span class="sched-nav-setting-label">Block</span>
+              <span class="sched-nav-setting-control">
+                <input class="sched-nav-setting-input" id="rr-set-block-hours" type="number" min="1" max="14" step="1" autocomplete="off"/>
+                <span class="sched-nav-setting-unit">h</span>
+              </span>
+            </label>
+            <label class="sched-nav-setting" title="Extra shifts above the route plan">
+              <span class="sched-nav-setting-label">Cushion</span>
+              <span class="sched-nav-setting-control">
+                <input class="sched-nav-setting-input" id="rr-set-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off"/>
+                <span class="sched-nav-setting-unit">%</span>
+              </span>
+            </label>
+            <label class="sched-nav-setting" title="Auto-assign cap per driver">
+              <span class="sched-nav-setting-label">Max days</span>
+              <span class="sched-nav-setting-control">
+                <input class="sched-nav-setting-input" id="rr-set-max-days" type="number" min="1" max="7" step="1" autocomplete="off"/>
+                <span class="sched-nav-setting-unit">d</span>
+              </span>
+            </label>
+            <label class="sched-nav-setting" title="Minutes drivers clock in before the wave">
+              <span class="sched-nav-setting-label">Report</span>
+              <span class="sched-nav-setting-control">
+                <input class="sched-nav-setting-input" id="rr-set-report-lead" type="number" min="0" max="120" step="5" autocomplete="off"/>
+                <span class="sched-nav-setting-unit">min</span>
+              </span>
+            </label>
+            <span class="sched-nav-setting-status" id="rr-sched-nav-settings-status" aria-live="polite"></span>
+          </div>
+
           <!-- Week navigator — Outlook segmented control, sits on
                the far right of the ribbon. -->
           <div class="sched-week-nav" id="rr-sched-week-nav" role="group" aria-label="Week navigation">
@@ -12109,12 +12147,106 @@ body.rr-cmdk-open{ overflow:hidden }
              on the navigation strip (Microsoft Office ribbon does this
              between each command in a group). Faint but visible. */
           #view-schedule .sched-nav-heading-actions > .subnav > .subnav-item,
-          #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions > .sched-page-btn{
+          #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions > .sched-page-btn,
+          #view-schedule .sched-nav-heading-actions > .sched-ribbon-settings > .sched-nav-setting{
             box-shadow:inset 1px 0 0 var(--sch-line);
           }
           #view-schedule .sched-nav-heading-actions > .subnav > .subnav-item:first-child,
-          #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions > .sched-page-btn:first-child{
+          #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions > .sched-page-btn:first-child,
+          #view-schedule .sched-nav-heading-actions > .sched-ribbon-settings > .sched-nav-setting:first-child{
             box-shadow:none;
+          }
+
+          /* Schedule-settings cluster · inline editable per-week
+             parameters that drive Smart Fill + shift regeneration.
+             Compact Outlook-ribbon-style tiles: small label on top,
+             editable number + unit on the bottom. */
+          #view-schedule .sched-ribbon-settings{
+            display:inline-flex;align-items:center;gap:0;
+            padding:0;
+            flex:0 0 auto;
+            align-self:center;
+            position:relative;
+          }
+          #view-schedule .sched-nav-heading-actions > .sched-ribbon-settings::before{
+            content:"";
+            width:1px;
+            background:var(--sch-line-strong);
+            margin:8px var(--s-2);
+            height:32px;align-self:center;
+            flex:0 0 auto;display:block;
+          }
+          #view-schedule .sched-nav-setting{
+            display:inline-flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:3px;
+            padding:5px 10px 6px;
+            min-width:auto;
+            border-radius:var(--sch-radius);
+            cursor:text;
+            transition:background var(--t-fast);
+          }
+          #view-schedule .sched-nav-setting:hover{background:var(--sch-hover)}
+          #view-schedule .sched-nav-setting-label{
+            font-size:10px;font-weight:500;
+            color:var(--text-subtle);
+            letter-spacing:.04em;text-transform:uppercase;
+            line-height:1;
+          }
+          #view-schedule .sched-nav-setting-control{
+            display:inline-flex;align-items:baseline;gap:2px;
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .sched-nav-setting-input{
+            appearance:none;
+            border:1px solid transparent;
+            background:transparent;
+            color:var(--sch-blue-text);
+            font:inherit;font-weight:600;font-size:14px;
+            line-height:1.1;
+            width:32px;padding:1px 2px;
+            text-align:center;
+            border-radius:4px;
+            font-variant-numeric:tabular-nums;
+            -moz-appearance:textfield;
+          }
+          #view-schedule .sched-nav-setting-input::-webkit-outer-spin-button,
+          #view-schedule .sched-nav-setting-input::-webkit-inner-spin-button{
+            -webkit-appearance:none;margin:0;
+          }
+          #view-schedule .sched-nav-setting-input:hover{
+            background:var(--sch-surface-2);
+            border-color:var(--sch-line);
+          }
+          #view-schedule .sched-nav-setting-input:focus{
+            outline:none;
+            background:var(--sch-surface);
+            border-color:var(--sch-blue);
+            box-shadow:0 0 0 1px var(--sch-blue);
+          }
+          #view-schedule .sched-nav-setting-input[data-rr-saving="1"]{
+            background:var(--sch-blue-softer);
+          }
+          #view-schedule .sched-nav-setting-input[data-rr-saved="1"]{
+            background:var(--sch-green-soft);
+          }
+          #view-schedule .sched-nav-setting-input[data-rr-error="1"]{
+            background:var(--sch-red-soft);
+            color:var(--sch-red);
+          }
+          #view-schedule .sched-nav-setting-unit{
+            font-size:11px;font-weight:600;
+            color:var(--text-muted);
+            line-height:1.1;
+          }
+          #view-schedule .sched-nav-setting-status{
+            font-size:10px;color:var(--text-subtle);
+            padding:0 8px;align-self:center;
+            font-variant-numeric:tabular-nums;
+            min-width:60px;
+          }
+          @media (max-width:1280px){
+            #view-schedule .sched-nav-setting{padding:4px 6px 5px}
+            #view-schedule .sched-nav-setting-input{font-size:13px;width:28px}
           }
           #view-schedule .sched-nav-heading-actions > .sched-week-nav{
             align-self:center;flex:0 0 auto;
@@ -13126,49 +13258,13 @@ body.rr-cmdk-open{ overflow:hidden }
           <div class="rr-drawer-body">
             <!-- Capacity & timing -->
             <div class="rr-drawer-section">
-              <div class="rr-drawer-form-row">
-                <div>
-                  <div class="rr-drawer-form-label">Block length</div>
-                  <div class="rr-drawer-form-help">Hours per shift.</div>
-                  <div class="rr-default-hint" data-rr-default-for="rr-set-block-hours" hidden></div>
-                </div>
-                <div class="rr-drawer-form-control">
-                  <input class="form-input rr-drawer-num-input" id="rr-set-block-hours" type="number" min="1" max="14" step="1"/>
-                  <span class="rr-drawer-unit">hours</span>
-                </div>
-              </div>
-              <div class="rr-drawer-form-row">
-                <div>
-                  <div class="rr-drawer-form-label">Cushion</div>
-                  <div class="rr-drawer-form-help">Extra shifts above the route plan. <span id="rr-cushion-rec"></span></div>
-                  <div class="rr-default-hint" data-rr-default-for="rr-set-cushion-pct" hidden></div>
-                </div>
-                <div class="rr-drawer-form-control">
-                  <input class="form-input rr-drawer-num-input" id="rr-set-cushion-pct" type="number" min="0" max="50" step="1"/>
-                  <span class="rr-drawer-unit">%</span>
-                </div>
-              </div>
-              <div class="rr-drawer-form-row">
-                <div>
-                  <div class="rr-drawer-form-label">Max days per week</div>
-                  <div class="rr-drawer-form-help">Auto-assign cap per driver.</div>
-                  <div class="rr-default-hint" data-rr-default-for="rr-set-max-days" hidden></div>
-                </div>
-                <div class="rr-drawer-form-control">
-                  <input class="form-input rr-drawer-num-input" id="rr-set-max-days" type="number" min="1" max="7" step="1"/>
-                  <span class="rr-drawer-unit">days</span>
-                </div>
-              </div>
-              <div class="rr-drawer-form-row">
-                <div>
-                  <div class="rr-drawer-form-label">Report time</div>
-                  <div class="rr-drawer-form-help">Drivers clock in this many minutes before the wave.</div>
-                  <div class="rr-default-hint" data-rr-default-for="rr-set-report-lead" hidden></div>
-                </div>
-                <div class="rr-drawer-form-control">
-                  <input class="form-input rr-drawer-num-input" id="rr-set-report-lead" type="number" min="0" max="120" step="5"/>
-                  <span class="rr-drawer-unit">min</span>
-                </div>
+              <!-- Block / Cushion / Max days / Report time have moved
+                   to the schedule's navigation heading where they're
+                   editable inline. The inputs themselves (with their
+                   IDs) now live there; this section just keeps the
+                   remaining drawer-only controls below. -->
+              <div class="rr-drawer-section-help" style="margin-bottom:var(--s-3)">
+                <strong>Block</strong>, <strong>Cushion</strong>, <strong>Max days</strong>, and <strong>Report time</strong> are now editable directly in the navigation bar above the schedule.
               </div>
               <div class="rr-drawer-form-row">
                 <div>
