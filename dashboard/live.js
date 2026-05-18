@@ -24643,8 +24643,15 @@ async function renderScheduleWeek() {
     kpis.id = "rr-sched-kpis";
     kpis.className = "driver-stat-row";
     kpis.style.cssText = `grid-template-columns:${_kpiGridCols}`;
-    const toolbar = sub.querySelector(".sched-toolbar-rail, .sched-toolbar");
-    if (toolbar) toolbar.insertAdjacentElement("afterend", kpis);
+    // Slot the strip into the KPI row's left column so the week-range
+    // scroller (right column) sits flush above the Open Shifts rail.
+    const kpiRow = sub.querySelector(".sched-kpi-row");
+    if (kpiRow) {
+      kpiRow.insertBefore(kpis, kpiRow.firstChild);
+    } else {
+      const toolbar = sub.querySelector(".sched-toolbar-rail, .sched-toolbar");
+      if (toolbar) toolbar.insertAdjacentElement("afterend", kpis);
+    }
   } else {
     kpis.className = "driver-stat-row";
     kpis.style.cssText = `grid-template-columns:${_kpiGridCols}`;
@@ -24657,7 +24664,7 @@ async function renderScheduleWeek() {
       ${sublabel ? `<div class="stat-mini-sub">${sublabel}</div>` : ""}
     </div>`;
   };
-  const coverageTone = pct >= 100 ? "ok" : pct >= 90 ? "warn" : "bad";
+  const coverageTone = pct >= 100 ? "ok" : "bad";
   const otValue = totalOvertimeHrs === 0 ? "0h" : `${Math.round(totalOvertimeHrs * 10) / 10}h`;
   // Training pipeline this week: distinct trainees in classroom training
   // (shift_kind='training'), distinct ride-along assignments, and a
@@ -24777,6 +24784,7 @@ async function renderScheduleWeek() {
     const coverageCard = kpiCards[0]; // Coverage is the first card
     if (coverageCard) {
       coverageCard.classList.add("is-primary");
+      coverageCard.classList.toggle("is-primary-bad", pct < 100);
       const ratio = totalNeeded > 0 ? Math.max(0, Math.min(1, totalFilled / totalNeeded)) : 1;
       coverageCard.style.setProperty("--rr-coverage-fill", String(ratio));
     }
