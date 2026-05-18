@@ -11219,6 +11219,14 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 16 11 19 16 14"/></svg>
               Route planning
             </button>
+            <button class="sched-page-btn" id="rr-sched-today-view-h" type="button" title="See only the schedule for the selected day" aria-label="Today view">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15" r="2.2" fill="currentColor"/></svg>
+              Today view
+            </button>
+            <button class="sched-page-btn" id="rr-sched-vans-h" type="button" title="Van assignments for this week" aria-label="Van assignments">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h12v10H3z"/><path d="M15 11h4l2 3v3h-6z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
+              Van Assignments
+            </button>
             <div class="sched-settings-split">
               <button class="sched-page-btn sched-page-btn--split" id="rr-sched-settings-open-h" type="button" title="Schedule settings for this week" aria-label="Schedule settings">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -12412,6 +12420,169 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-quick-settings-advanced:hover{
             background:rgba(0,120,212,.08);
             color:#0078d4;
+          }
+
+          /* ── Today view · single-day roster ──────────────────────
+             Left-justified vertical list of every driver scheduled
+             for the selected day. No right rail. */
+          #view-schedule .sched-today-shell{
+            max-width:720px;margin:0;
+            display:flex;flex-direction:column;gap:var(--s-3);
+          }
+          #view-schedule .sched-today-head{
+            display:flex;align-items:flex-end;justify-content:space-between;
+            gap:var(--s-3);padding-bottom:var(--s-3);
+            border-bottom:1px solid var(--sch-line);
+          }
+          #view-schedule .sched-today-date{
+            font-size:22px;font-weight:600;letter-spacing:-.015em;color:var(--text);
+            line-height:1.2;
+          }
+          #view-schedule .sched-today-meta{
+            font-size:var(--fs-sm);color:var(--text-subtle);font-weight:500;
+            margin-top:2px;
+          }
+          #view-schedule .sched-today-day-nav{
+            display:inline-flex;align-items:stretch;
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius);
+            overflow:hidden;
+            align-self:center;
+          }
+          #view-schedule .sched-today-day-btn,
+          #view-schedule .sched-today-day-today{
+            appearance:none;background:transparent;border:0;cursor:pointer;
+            color:var(--text-muted);height:32px;
+            display:inline-flex;align-items:center;justify-content:center;
+            font:inherit;font-size:var(--fs-sm);
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-schedule .sched-today-day-btn{width:32px}
+          #view-schedule .sched-today-day-btn svg{width:14px;height:14px}
+          #view-schedule .sched-today-day-btn:hover{background:var(--sch-hover);color:var(--text)}
+          #view-schedule .sched-today-day-today{
+            padding:0 14px;color:var(--sch-blue);font-weight:500;
+            border-left:1px solid var(--sch-line);
+            border-right:1px solid var(--sch-line);
+          }
+          #view-schedule .sched-today-day-today:hover{background:var(--sch-blue-softer)}
+          #view-schedule .sched-today-body{
+            display:flex;flex-direction:column;gap:8px;
+          }
+          #view-schedule .sched-today-row{
+            display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;
+            padding:12px 16px;
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius-lg);
+            transition:background var(--t-fast),border-color var(--t-fast);
+          }
+          #view-schedule .sched-today-row:hover{
+            background:var(--sch-blue-softer);border-color:var(--sch-line-strong);
+          }
+          #view-schedule .sched-today-driver{display:flex;align-items:center;gap:10px}
+          #view-schedule .sched-today-driver .avatar-sm{width:36px;height:36px;font-size:13px}
+          #view-schedule .sched-today-driver-name{font-size:var(--fs-base);font-weight:600;color:var(--text);line-height:1.2}
+          #view-schedule .sched-today-driver-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
+          #view-schedule .sched-today-shift{
+            display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+          }
+          #view-schedule .sched-today-shift-route{
+            font-size:var(--fs-sm);font-weight:600;color:var(--sch-blue-text);
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .sched-today-shift-time{
+            font-size:var(--fs-xs);color:var(--text-muted);
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .sched-today-shift-time .shift-chip-rpt{
+            color:var(--text-subtle);font-size:11px;display:block;
+          }
+          #view-schedule .sched-today-shift-time .shift-chip-wave{
+            color:var(--sch-blue-text);font-weight:600;display:block;
+          }
+          #view-schedule .sched-today-tag{
+            font-size:11px;font-weight:600;color:var(--text-muted);
+            padding:2px 8px;border-radius:var(--r-pill);
+            background:var(--sch-surface-3);
+          }
+          #view-schedule .sched-today-row.off .sched-today-tag{
+            color:var(--text-disabled);background:transparent;font-style:italic;
+          }
+          #view-schedule .sched-today-row.pto{border-left:3px solid var(--sch-amber)}
+          #view-schedule .sched-today-row.pto .sched-today-tag{
+            color:var(--sch-amber-dark);background:var(--sch-amber-soft);
+          }
+          #view-schedule .sched-today-empty{
+            padding:48px 24px;text-align:center;
+            color:var(--text-subtle);font-size:var(--fs-sm);
+            background:var(--sch-surface-2);
+            border:1px dashed var(--sch-line-strong);
+            border-radius:var(--sch-radius-lg);
+          }
+          #view-schedule .sched-today-section-head{
+            font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+            color:var(--text-subtle);
+            margin:14px 0 6px;
+          }
+
+          /* ── Van Assignments view ───────────────────────────────── */
+          #view-schedule .sched-vans-shell{
+            max-width:920px;margin:0;
+            display:flex;flex-direction:column;gap:var(--s-3);
+          }
+          #view-schedule .sched-vans-head{
+            display:flex;align-items:flex-end;justify-content:space-between;
+            gap:var(--s-3);padding-bottom:var(--s-3);
+            border-bottom:1px solid var(--sch-line);
+          }
+          #view-schedule .sched-vans-title{
+            font-size:22px;font-weight:600;letter-spacing:-.015em;color:var(--text);
+            line-height:1.2;
+          }
+          #view-schedule .sched-vans-meta{
+            font-size:var(--fs-sm);color:var(--text-subtle);font-weight:500;
+            margin-top:2px;
+          }
+          #view-schedule .sched-vans-body{
+            display:flex;flex-direction:column;gap:6px;
+          }
+          #view-schedule .sched-vans-row{
+            display:grid;grid-template-columns:auto 1fr 1fr;gap:14px;align-items:center;
+            padding:10px 14px;
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius-lg);
+          }
+          #view-schedule .sched-vans-row:hover{background:var(--sch-blue-softer)}
+          #view-schedule .sched-vans-van{
+            display:flex;flex-direction:column;gap:2px;
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .sched-vans-van-code{
+            font-size:var(--fs-base);font-weight:600;color:var(--text);
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .sched-vans-van-meta{
+            font-size:var(--fs-xs);color:var(--text-subtle);
+          }
+          #view-schedule .sched-vans-driver-label{
+            font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+            color:var(--text-subtle);margin-bottom:2px;
+          }
+          #view-schedule .sched-vans-driver-name{
+            font-size:var(--fs-sm);font-weight:600;color:var(--text);
+          }
+          #view-schedule .sched-vans-driver-name.empty{
+            color:var(--text-disabled);font-style:italic;font-weight:500;
+          }
+          #view-schedule .sched-vans-empty{
+            padding:48px 24px;text-align:center;
+            color:var(--text-subtle);font-size:var(--fs-sm);
+            background:var(--sch-surface-2);
+            border:1px dashed var(--sch-line-strong);
+            border-radius:var(--sch-radius-lg);
           }
 
           /* Bigger ribbon icons + equal-width Finalize/Unfinalize.
@@ -13866,6 +14037,50 @@ body.rr-cmdk-open{ overflow:hidden }
         <div class="sched-subview" id="sched-sub-time-off" style="display:none">
           <div id="rr-time-off-body"><div class="rr-loading">Loading time off requests</div></div>
         </div><!-- /sched-sub-time-off -->
+
+        <!-- TODAY VIEW — single-day roster.  Left-justified vertical
+             list of every driver scheduled for the selected day.  No
+             right rail / open-shifts panel.  Populated by
+             renderSchedTodayView() in live.js. -->
+        <div class="sched-subview" id="sched-sub-today" style="display:none">
+          <div class="sched-today-shell">
+            <div class="sched-today-head">
+              <div class="sched-today-head-l">
+                <div class="sched-today-date" id="rr-sched-today-date">—</div>
+                <div class="sched-today-meta" id="rr-sched-today-meta">—</div>
+              </div>
+              <div class="sched-today-day-nav" role="group" aria-label="Day navigation">
+                <button type="button" class="sched-today-day-btn" id="rr-sched-today-prev" aria-label="Previous day">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <button type="button" class="sched-today-day-today" id="rr-sched-today-today">Today</button>
+                <button type="button" class="sched-today-day-btn" id="rr-sched-today-next" aria-label="Next day">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="sched-today-body" id="rr-sched-today-body">
+              <div class="rr-loading">Loading today's schedule…</div>
+            </div>
+          </div>
+        </div><!-- /sched-sub-today -->
+
+        <!-- VAN ASSIGNMENTS — driver ↔ vehicle pairings for the
+             visible week.  Populated by renderSchedVanAssignments()
+             in live.js. -->
+        <div class="sched-subview" id="sched-sub-vans" style="display:none">
+          <div class="sched-vans-shell">
+            <div class="sched-vans-head">
+              <div>
+                <div class="sched-vans-title">Van Assignments</div>
+                <div class="sched-vans-meta" id="rr-sched-vans-meta">Driver ↔ vehicle pairings for this week</div>
+              </div>
+            </div>
+            <div class="sched-vans-body" id="rr-sched-vans-body">
+              <div class="rr-loading">Loading van assignments…</div>
+            </div>
+          </div>
+        </div><!-- /sched-sub-vans -->
 
         <!-- STAFF SCHEDULE — support roles (dispatchers, fleet, HR, ops, other).
              Standalone roster + weekly grid, completely separate from the

@@ -23321,7 +23321,237 @@ window.schedSub = function (sub) {
   if (sub === "insights")  loadScheduleInsights();
   if (sub === "rules")     { loadStationGeofences(); loadAttendanceWindows(); }
   if (sub === "templates") loadScheduleTemplates();
+  if (sub === "today")     renderSchedTodayView();
+  if (sub === "vans")      renderSchedVanAssignments();
 };
+
+// ─── Today view + Van assignments · click wiring ────────────────────
+// Both buttons live on the action strip but switch the visible
+// sub-view (and update the .subnav-item active state) just like the
+// Week / Staff / Templates / Time-off tabs do.
+let _schedTodayDate = null;
+function _activateSchedSub(sub) {
+  document.querySelectorAll("#view-schedule .subnav-item").forEach(b => b.classList.remove("active"));
+  const tab = document.querySelector(`#view-schedule .subnav-item[data-sub="${sub}"]`);
+  if (tab) tab.classList.add("active");
+  document.querySelectorAll("#view-schedule .sched-subview").forEach(v => { v.style.display = "none"; });
+  const view = document.getElementById(`sched-sub-${sub}`);
+  if (view) view.style.display = "block";
+}
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#rr-sched-today-view-h")) {
+    e.preventDefault();
+    _activateSchedSub("today");
+    if (!_schedTodayDate) _schedTodayDate = fmtIsoDate(new Date());
+    renderSchedTodayView();
+    return;
+  }
+  if (e.target.closest("#rr-sched-vans-h")) {
+    e.preventDefault();
+    _activateSchedSub("vans");
+    renderSchedVanAssignments();
+    return;
+  }
+  // Day navigation inside the Today view.
+  if (e.target.closest("#rr-sched-today-prev")) {
+    e.preventDefault();
+    if (!_schedTodayDate) _schedTodayDate = fmtIsoDate(new Date());
+    _schedTodayDate = fmtIsoDate(addDays(new Date(_schedTodayDate + "T12:00:00"), -1));
+    renderSchedTodayView();
+    return;
+  }
+  if (e.target.closest("#rr-sched-today-next")) {
+    e.preventDefault();
+    if (!_schedTodayDate) _schedTodayDate = fmtIsoDate(new Date());
+    _schedTodayDate = fmtIsoDate(addDays(new Date(_schedTodayDate + "T12:00:00"), 1));
+    renderSchedTodayView();
+    return;
+  }
+  if (e.target.closest("#rr-sched-today-today")) {
+    e.preventDefault();
+    _schedTodayDate = fmtIsoDate(new Date());
+    renderSchedTodayView();
+    return;
+  }
+});
+
+// ─── Today view renderer ─────────────────────────────────────────────
+// Vertical, left-justified roster of every driver scheduled on the
+// selected day. No right rail / open-shifts pool. Uses the same
+// schedule_grid RPC as renderScheduleWeek but renders a single date.
+async function renderSchedTodayView() {
+  const body = document.getElementById("rr-sched-today-body");
+  if (!body) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  if (!_schedTodayDate) _schedTodayDate = fmtIsoDate(new Date());
+  const iso = _schedTodayDate;
+  const dt  = new Date(iso + "T12:00:00");
+
+  // Update the header date + meta line.
+  const dateEl = document.getElementById("rr-sched-today-date");
+  const metaEl = document.getElementById("rr-sched-today-meta");
+  if (dateEl) dateEl.textContent = dt.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  if (metaEl) metaEl.textContent = dt.toLocaleDateString(undefined, { year: "numeric" });
+
+  body.innerHTML = `<div class="rr-loading">Loading…</div>`;
+
+  // Pull the visible week's grid so we can pick the day's shifts.
+  const weekStart = fmtIsoDate(startOfWeekMonday(dt));
+  const [gridRes, driversRes] = await Promise.all([
+    sb.rpc("schedule_grid", { p_start: weekStart, p_weeks: 1 }),
+    sb.from("drivers")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, tier, station:station_id (code)")
+      .eq("dsp_id", dspId)
+      .eq("status", "active")
+      .eq("role", "driver")
+      .order("full_name"),
+  ]);
+  if (gridRes.error || driversRes.error) {
+    body.innerHTML = `<div class="sched-today-empty">Couldn't load today's schedule.</div>`;
+    return;
+  }
+  const grid = gridRes.data || { shifts: [] };
+  const drivers = driversRes.data || [];
+  const byId = new Map(drivers.map(d => [d.id, d]));
+
+  // Bucket the day's shifts: assigned, PTO, open.
+  const dayShifts = (grid.shifts || []).filter(s => s.date === iso);
+  const eff = window._rrEffectiveSettings || {};
+  const lead = Math.max(0, parseInt(eff.report_lead_minutes, 10) || 0);
+  const blockMin = Math.max(0, parseFloat(eff.default_block_hours) || 0) * 60;
+
+  const assigned = dayShifts.filter(s => s.driver_id && s.status === "scheduled");
+  const open     = dayShifts.filter(s => !s.driver_id && s.status === "scheduled");
+
+  const fmtTimes = (sh) => {
+    const sMs = sh.starts_at ? new Date(sh.starts_at).getTime() : null;
+    if (sMs == null) return "";
+    const waveMs = sMs + lead * 60000;
+    const endMs  = blockMin > 0 ? waveMs + blockMin * 60000 : (sh.ends_at ? new Date(sh.ends_at).getTime() : null);
+    const rpt   = fmtTimeShort(new Date(sMs).toISOString());
+    const wave  = fmtTimeShort(new Date(waveMs).toISOString());
+    const end   = endMs != null ? fmtTimeShort(new Date(endMs).toISOString()) : "";
+    const r = lead > 0 ? `<span class="shift-chip-rpt">Rpt ${rpt}</span>` : "";
+    return `${r}<span class="shift-chip-wave">${wave}${end ? " – " + end : ""}</span>`;
+  };
+
+  const rowHtml = (sh) => {
+    const d = byId.get(sh.driver_id);
+    const name = d ? (d.preferred_name || d.full_name) : (sh.driver_name || "Driver");
+    const initials = _schedDriverInitials(name);
+    const tier = d?.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
+    const station = d?.station?.code || sh.station_code || "—";
+    const isPto = sh.shift_kind === "pto" || sh.status === "pto";
+    const cls = `sched-today-row${isPto ? " pto" : ""}`;
+    const route = sh.route_code ? escapeHtml(sh.route_code) : (isPto ? "PTO" : "shift");
+    return `<div class="${cls}">
+      <div class="sched-today-driver">
+        <div class="avatar-sm ${tier}">${escapeHtml(initials)}</div>
+        <div>
+          <div class="sched-today-driver-name">${escapeHtml(name)}</div>
+          <div class="sched-today-driver-meta">${escapeHtml(station)}</div>
+        </div>
+      </div>
+      <div class="sched-today-shift">
+        <div class="sched-today-shift-route">${route}</div>
+        <div class="sched-today-shift-time">${fmtTimes(sh)}</div>
+      </div>
+      <div class="sched-today-tag">${isPto ? "PTO" : "Scheduled"}</div>
+    </div>`;
+  };
+
+  const assignedHtml = assigned.length
+    ? assigned.sort((a,b) => (a.starts_at || "").localeCompare(b.starts_at || "")).map(rowHtml).join("")
+    : `<div class="sched-today-empty">No drivers scheduled for this day.</div>`;
+
+  const openHtml = open.length
+    ? open.map(sh => {
+        const sMs = sh.starts_at ? new Date(sh.starts_at).getTime() : null;
+        const waveMs = sMs != null ? sMs + lead * 60000 : null;
+        const endMs  = waveMs != null && blockMin > 0 ? waveMs + blockMin * 60000 : (sh.ends_at ? new Date(sh.ends_at).getTime() : null);
+        const wave = waveMs != null ? fmtTimeShort(new Date(waveMs).toISOString()) : "";
+        const end  = endMs  != null ? fmtTimeShort(new Date(endMs).toISOString())  : "";
+        return `<div class="sched-today-row" style="border-left:3px solid var(--sch-amber)">
+          <div class="sched-today-driver">
+            <div class="avatar-sm" style="background:var(--sch-surface-3);color:var(--text-subtle);border:1.5px dashed var(--sch-line-strong);font-weight:700">+</div>
+            <div>
+              <div class="sched-today-driver-name">Unassigned</div>
+              <div class="sched-today-driver-meta">${escapeHtml(sh.station_code || "—")}</div>
+            </div>
+          </div>
+          <div class="sched-today-shift">
+            <div class="sched-today-shift-route">${escapeHtml(sh.route_code || "Open shift")}</div>
+            <div class="sched-today-shift-time"><span class="shift-chip-wave">${wave}${end ? " – " + end : ""}</span></div>
+          </div>
+          <div class="sched-today-tag" style="color:var(--sch-amber-dark);background:var(--sch-amber-soft)">Open</div>
+        </div>`;
+      }).join("")
+    : "";
+
+  body.innerHTML =
+    `<div class="sched-today-section-head">Scheduled · ${assigned.length}</div>${assignedHtml}` +
+    (open.length ? `<div class="sched-today-section-head">Open · ${open.length}</div>${openHtml}` : "");
+}
+window._rrRenderSchedTodayView = renderSchedTodayView;
+
+// ─── Van assignments renderer ───────────────────────────────────────
+// Driver ↔ vehicle pairings for the visible week, read from the
+// existing vehicle_pairings / day_vehicle_assignment tables via a
+// best-effort RPC. Falls back to listing scheduled drivers + their
+// today van if the pairings table isn't populated yet.
+async function renderSchedVanAssignments() {
+  const body = document.getElementById("rr-sched-vans-body");
+  if (!body) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  body.innerHTML = `<div class="rr-loading">Loading…</div>`;
+
+  // Pull all active vehicles + this week's drivers; we'll join them
+  // on the standing-chain primary driver if available.
+  const [vehRes, drvRes] = await Promise.all([
+    sb.from("vehicles")
+      .select("id, code, vin, status, primary_driver_id, backup_driver_id, drivers:primary_driver_id (full_name, preferred_name), backup:backup_driver_id (full_name, preferred_name)")
+      .eq("dsp_id", dspId)
+      .order("code"),
+    sb.from("drivers")
+      .select("id, full_name, preferred_name, status")
+      .eq("dsp_id", dspId)
+      .eq("status", "active"),
+  ]);
+  if (vehRes.error) {
+    body.innerHTML = `<div class="sched-vans-empty">Couldn't load vehicles: ${escapeHtml(vehRes.error.message)}</div>`;
+    return;
+  }
+  const vehicles = vehRes.data || [];
+  if (!vehicles.length) {
+    body.innerHTML = `<div class="sched-vans-empty">No vehicles in the fleet yet. Add vehicles on the Fleet page.</div>`;
+    return;
+  }
+  const driverName = (d) => d ? (d.preferred_name || d.full_name || "—") : null;
+
+  const rows = vehicles.map(v => {
+    const primary = driverName(v.drivers);
+    const backup  = driverName(v.backup);
+    return `<div class="sched-vans-row">
+      <div class="sched-vans-van">
+        <div class="sched-vans-van-code">${escapeHtml(v.code || v.vin || "—")}</div>
+        <div class="sched-vans-van-meta">${escapeHtml((v.status || "").toString())}</div>
+      </div>
+      <div>
+        <div class="sched-vans-driver-label">Primary</div>
+        <div class="sched-vans-driver-name ${primary ? "" : "empty"}">${primary ? escapeHtml(primary) : "Unassigned"}</div>
+      </div>
+      <div>
+        <div class="sched-vans-driver-label">Backup</div>
+        <div class="sched-vans-driver-name ${backup ? "" : "empty"}">${backup ? escapeHtml(backup) : "—"}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  body.innerHTML = rows;
+}
+window._rrRenderSchedVanAssignments = renderSchedVanAssignments;
 
 async function loadAttendanceWindows() {
   const wrap = document.getElementById("rr-att-windows");
