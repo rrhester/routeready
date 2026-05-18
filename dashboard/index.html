@@ -12043,15 +12043,14 @@ body.rr-cmdk-open{ overflow:hidden }
 
           /* ── Navigation heading · single horizontal ribbon ──────
              Title on the left, all icon clusters (nav tabs + commands
-             + week nav) right-justified on the same line. Outlook-
-             style thin Fluent dividers separate each cluster.
-             Wraps gracefully on cramped viewports so nothing is
-             ever invisible. */
+             + week nav) right-justified on the SAME line — never
+             wraps. If the viewport is too narrow, the actions cluster
+             scrolls horizontally so nothing falls to a second row. */
           #view-schedule .sched-nav-heading{
             display:flex;align-items:center;
             justify-content:space-between;
-            gap:var(--s-4);
-            flex-wrap:wrap;
+            gap:var(--s-3);
+            flex-wrap:nowrap;
             padding-bottom:var(--s-3);
             margin-bottom:var(--s-4);
             border-bottom:1px solid var(--sch-line);
@@ -12060,61 +12059,83 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:0 0 auto;min-width:0;
           }
           #view-schedule .sched-nav-heading-actions{
-            display:flex;align-items:stretch;
+            display:flex;align-items:center;
             justify-content:flex-end;
-            flex-wrap:wrap;
+            flex-wrap:nowrap;
             gap:0;
             margin-left:auto;
-            min-width:0;
+            min-width:0;max-width:100%;
+            overflow-x:auto;
+            scrollbar-width:thin;
+            min-height:52px;
           }
           #view-schedule .sched-nav-heading-actions > .subnav{
             margin-bottom:0;
-            display:inline-flex;align-items:stretch;gap:2px;
+            display:inline-flex;align-items:center;gap:0;
             background:transparent;background-image:none;
             border:0;border-radius:0;padding:0;
             box-shadow:none;
             flex:0 0 auto;
+            align-self:center;
           }
           #view-schedule .sched-ribbon-actions{
-            display:inline-flex;align-items:stretch;gap:0;
+            display:inline-flex;align-items:center;gap:0;
             padding:0;
             flex:0 0 auto;
+            align-self:center;
           }
-          /* Outlook-style group dividers — thin Fluent lines between
-             each cluster on the ribbon. */
+          /* Outlook-style group dividers — slightly stronger Fluent
+             line between each cluster (tabs ↔ commands ↔ week nav). */
           #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions::before,
           #view-schedule .sched-nav-heading-actions > .sched-week-nav::before{
             content:"";
             width:1px;
-            background:var(--sch-line);
-            margin:8px var(--s-3);
+            background:var(--sch-line-strong);
+            margin:8px var(--s-2);
             align-self:stretch;
             flex:0 0 auto;
             display:block;
+            height:32px;align-self:center;
+          }
+
+          /* Per-icon dividers · soft Fluent line between every tile
+             on the navigation strip (Microsoft Office ribbon does this
+             between each command in a group). Faint but visible. */
+          #view-schedule .sched-nav-heading-actions > .subnav > .subnav-item,
+          #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions > .sched-page-btn{
+            box-shadow:inset 1px 0 0 var(--sch-line);
+          }
+          #view-schedule .sched-nav-heading-actions > .subnav > .subnav-item:first-child,
+          #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions > .sched-page-btn:first-child{
+            box-shadow:none;
           }
           #view-schedule .sched-nav-heading-actions > .sched-week-nav{
             align-self:center;flex:0 0 auto;
             display:inline-flex;align-items:stretch;
           }
-          /* Compact under-cramped viewports — shrink tile padding
-             so all icons keep fitting alongside the title. */
-          @media (max-width:1500px){
-            #view-schedule .sched-nav-heading{gap:var(--s-3)}
-            #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions::before,
-            #view-schedule .sched-nav-heading-actions > .sched-week-nav::before{
-              margin:8px var(--s-2);
-            }
-            #view-schedule .sched-nav-heading-actions .sched-page-btn{padding:6px 10px 6px;min-width:auto}
-            #view-schedule .sched-nav-heading-actions .subnav-item{padding:6px 10px 7px;min-width:auto}
-            #view-schedule .sched-nav-heading-actions .sched-page-btn svg{width:18px;height:18px}
-            #view-schedule .sched-nav-heading-actions .subnav-item svg{width:18px;height:18px}
+          /* Compact tile sizing across the board so every cluster
+             fits on the same line at typical laptop widths. */
+          #view-schedule .sched-nav-heading-actions .sched-page-btn{
+            padding:6px 10px 6px;min-width:auto;gap:4px;
           }
-          @media (max-width:1200px){
-            #view-schedule .sched-nav-heading-actions .sched-page-btn span,
-            #view-schedule .sched-nav-heading-actions .sched-page-btn{
-              font-size:11px;
+          #view-schedule .sched-nav-heading-actions .sched-page-btn svg{
+            width:18px;height:18px;
+          }
+          #view-schedule .sched-nav-heading-actions .subnav-item{
+            padding:6px 10px 7px;min-width:auto;gap:4px;
+          }
+          #view-schedule .sched-nav-heading-actions .subnav-item svg{
+            width:18px;height:18px;
+          }
+          @media (max-width:1280px){
+            #view-schedule .sched-nav-heading-actions .sched-page-btn,
+            #view-schedule .sched-nav-heading-actions .subnav-item{
+              font-size:11px;padding:5px 8px 6px;
             }
-            #view-schedule .sched-nav-heading-actions .subnav-item{font-size:11px}
+            #view-schedule .sched-nav-heading-actions .sched-page-btn svg,
+            #view-schedule .sched-nav-heading-actions .subnav-item svg{
+              width:16px;height:16px;
+            }
           }
           #view-schedule .subnav-item{
             display:inline-flex;flex-direction:column;
