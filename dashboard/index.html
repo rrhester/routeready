@@ -11335,12 +11335,13 @@ body.rr-cmdk-open{ overflow:hidden }
           }
 
           /* (2) Mute repeating shift times — when ≥2 chips in a row
-             share the same start/end, the matches render in subtle
-             text so the eye glides past the routine and lands on the
-             outliers. JS tags the matching chips with .is-routine. */
+             share the same start/end, the matches keep the chip bubble
+             but the text fades to subtle so the eye glides past the
+             routine and lands on outliers. JS tags matches with
+             .is-routine. */
           #view-schedule .shift-chip.is-routine{
-            background:transparent;
-            border-color:transparent;
+            background:var(--surface);
+            border-color:rgba(15,23,42,.06);
           }
           #view-schedule .shift-chip.is-routine .shift-chip-route,
           #view-schedule .shift-chip.is-routine .shift-chip-time{
@@ -11393,9 +11394,12 @@ body.rr-cmdk-open{ overflow:hidden }
             letter-spacing:.02em;
           }
 
-          /* (7) Extra breathing room between the subnav and the KPI
-             strip — the page lands instead of cramming. */
-          #view-schedule .sched-subnav-row{margin-bottom:var(--s-8)}
+          /* (7) Extra breathing room between the three zones —
+             subnav tabs → KPI strip → schedule grid. Use the
+             biggest spacing token so each zone gets a deliberate
+             pause before the next. */
+          #view-schedule .sched-subnav-row{margin-bottom:var(--s-10)}
+          #view-schedule .sched-kpi-row{margin-bottom:var(--s-10)}
 
         </style>
         <style>
