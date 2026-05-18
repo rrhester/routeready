@@ -34008,7 +34008,7 @@ async function _flLoadRoster() {
   if (tbody && !_fleetRows.length) tbody.innerHTML = _flRosterSkeleton(6);
   const { data, error } = await sb.rpc("vehicles_roster");
   if (error) {
-    if (tbody) tbody.innerHTML = `<tr><td colspan="7"><div class="fl-empty"><h3>Couldn't load fleet</h3><p>${escapeHtml(error.message || "Try again")}</p></div></td></tr>`;
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8"><div class="fl-empty"><h3>Couldn't load fleet</h3><p>${escapeHtml(error.message || "Try again")}</p></div></td></tr>`;
     return;
   }
   _fleetRows = Array.isArray(data) ? data : [];
@@ -34018,7 +34018,7 @@ async function _flLoadRoster() {
 }
 
 function _flRosterSkeleton(n) {
-  const row = `<tr style="pointer-events:none"><td><div style="display:flex;align-items:center;gap:var(--s-2-5)"><div class="fl-skel-thumb"></div><div style="flex:1"><div class="fl-skel-cell" style="width:50%"></div><div class="fl-skel-cell" style="width:35%;margin-top:6px;height:10px"></div></div></div></td><td><div class="fl-skel-cell" style="width:60%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:40%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:55%"></div></td><td><div class="fl-skel-cell" style="width:45%"></div></td></tr>`;
+  const row = `<tr style="pointer-events:none"><td><div style="display:flex;align-items:center;gap:var(--s-2-5)"><div class="fl-skel-thumb"></div><div style="flex:1"><div class="fl-skel-cell" style="width:50%"></div><div class="fl-skel-cell" style="width:35%;margin-top:6px;height:10px"></div></div></div></td><td><div class="fl-skel-cell" style="width:80%"></div></td><td><div class="fl-skel-cell" style="width:60%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:40%"></div></td><td><div class="fl-skel-cell" style="width:50%"></div></td><td><div class="fl-skel-cell" style="width:55%"></div></td><td><div class="fl-skel-cell" style="width:45%"></div></td></tr>`;
   return row.repeat(n);
 }
 
@@ -34131,25 +34131,26 @@ function _flRenderRoster() {
   const rows = _flApplyRosterFilters(_fleetRows);
   if (rows.length === 0) {
     tbody.innerHTML = _fleetRows.length === 0
-      ? `<tr><td colspan="7"><div class="fl-empty">
+      ? `<tr><td colspan="8"><div class="fl-empty">
           <div class="ic">${_flVanIconSvg()}</div>
           <h3>No vans yet</h3>
           <p>Add your first van to start tracking service, inspections, and driver assignments.</p>
           <button class="btn btn-primary" data-rr-fleet-add-empty><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add van</button>
         </div></td></tr>`
-      : `<tr><td colspan="7" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current filters.</td></tr>`;
+      : `<tr><td colspan="8" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current filters.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((v) => {
     const yearModel = [v.year, v.make, v.model].filter(Boolean).join(" ") || "";
     const ownershipLine = `${_flOwnershipLabel(v.ownership)}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
-    const vehSub = [v.vin && `VIN: ${v.vin}`, v.station_code].filter(Boolean).join(" · ");
+    const vehSub = v.station_code || "";
     return `<tr data-rr-vehicle-id="${escapeHtml(v.id)}">
       <td><div style="display:flex;align-items:center;gap:var(--s-2-5)">${_flVehThumb(v)}<div>
         <div class="cell-name">${escapeHtml(v.name)}</div>
         ${vehSub ? `<div class="cell-name-sub">${escapeHtml(vehSub)}</div>` : ""}
         <div class="cell-chips">${_dvicChipHtml(v)}</div>
       </div></div></td>
+      <td>${v.vin ? `<span style="font-family:var(--ff-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:var(--fs-sm)">${escapeHtml(v.vin)}</span>` : `<span style="color:var(--text-subtle)">—</span>`}</td>
       <td>${ownershipLine}${v.kind && v.kind !== "van" ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(v.kind)}</div>` : ""}</td>
       <td>${_flOpStatCell(v)}</td>
       <td>${_flDocCell(v)}</td>
