@@ -5705,7 +5705,30 @@ async function renderCheckinCard(session) {
        </div>`
     : "";
 
-  const windowOpen = !!status.window_is_open;
+  const windowOpen   = !!status.window_is_open;
+  const nowMs        = Date.now();
+  const closeAtMs    = shift.window_close_at ? new Date(shift.window_close_at).getTime() : NaN;
+  const windowClosed = !windowOpen && Number.isFinite(closeAtMs) && nowMs > closeAtMs;
+  const noStartTime  = !shift.starts_at;
+  const windowCloseTxt = shift.window_close_at
+    ? new Date(shift.window_close_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    : "—";
+
+  if (noStartTime) {
+    slot.innerHTML = `
+      <div class="opens-card opens-card-warn" aria-disabled="true">
+        <div class="opens-card-row">
+          <div class="opens-card-icon">${clockIcon}</div>
+          <div class="opens-card-body">
+            <div class="opens-card-title">Check-in unavailable</div>
+            <div class="opens-card-meta">No scheduled start time on this shift yet — contact dispatch.</div>
+          </div>
+        </div>
+      </div>`;
+    showMissed(true);
+    return;
+  }
+
   if (windowOpen) {
     slot.innerHTML = `
       <button class="opens-card" id="rr-checkin-btn" type="button">
@@ -5719,6 +5742,17 @@ async function renderCheckinCard(session) {
         </div>
       </button>`;
     document.getElementById("rr-checkin-btn").addEventListener("click", () => doCheckin(session));
+  } else if (windowClosed) {
+    slot.innerHTML = `
+      <div class="opens-card opens-card-warn" aria-disabled="true">
+        <div class="opens-card-row">
+          <div class="opens-card-icon">${clockIcon}</div>
+          <div class="opens-card-body">
+            <div class="opens-card-title">Check-in closed at ${escapeHtml(windowCloseTxt)}</div>
+            <div class="opens-card-meta">If you still need to start your shift, contact dispatch.</div>
+          </div>
+        </div>
+      </div>`;
   } else {
     slot.innerHTML = `
       <div class="opens-card" aria-disabled="true">
@@ -5770,6 +5804,8 @@ async function doCheckin(session) {
       const msg = error.message || "";
       if      (msg.includes("out_of_geofence"))         toast(msg.replace(/^.*out_of_geofence:\s*/, "Too far from station: "), "warn");
       else if (msg.includes("too_early_to_checkin"))    toast(msg.replace(/^.*too_early_to_checkin:\s*/, ""), "warn");
+      else if (msg.includes("too_late_to_checkin"))     toast("Check-in window has closed. Contact dispatch if you still need to start your shift.", "warn");
+      else if (msg.includes("no_checkin_window"))       toast("Your shift doesn't have a scheduled start time yet. Contact dispatch.", "warn");
       else if (msg.includes("no_shift_today"))          toast("No shift scheduled today", "warn");
       else if (msg.includes("geofence_not_configured")) toast("Dispatcher hasn't set the geofence yet", "warn");
       else                                              toast("Check-in failed: " + msg, "warn");
