@@ -41,11 +41,11 @@
   /* Sidebar — calm graphite/navy operational surface.  Tuned to
      support the white workspace rather than dominate it.  Active
      state is a soft translucent layer, not a saturated glow. */
-  --sidebar:#131A2A;
-  --sidebar-grad:linear-gradient(180deg, #172033 0%, #111827 100%);
-  --sidebar-hover:rgba(255,255,255,.04);
-  --sidebar-active:linear-gradient(90deg, rgba(59,130,246,.14) 0%, rgba(59,130,246,.04) 100%);
-  --sidebar-divider:rgba(255,255,255,.06);
+  --sidebar:#0F6CBD;
+  --sidebar-grad:linear-gradient(180deg, #0F6CBD 0%, #0B5394 100%);
+  --sidebar-hover:rgba(255,255,255,.10);
+  --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.18) 0%, rgba(255,255,255,.04) 100%);
+  --sidebar-divider:rgba(255,255,255,.12);
   --glass:rgba(255,255,255,.80);
   --glass-strong:rgba(255,255,255,.90);
 
@@ -484,14 +484,14 @@ a{color:inherit;text-decoration:none}
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
-  /* Deep navy with the slightest indigo lift toward the bottom —
-     reads as solid premium chrome, not a brand gradient. Matches
-     the mockup. */
-  --sidebar:#15193D;
-  --sidebar-grad:linear-gradient(180deg, #15193D 0%, #1A1F47 100%);
-  --sidebar-hover:rgba(255,255,255,.06);
-  --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.02) 100%);
-  --sidebar-divider:rgba(255,255,255,.06);
+  /* Microsoft Fluent communicationBlue — Outlook / M365 brand
+     chrome. Subtle vertical gradient adds depth without reading
+     as a marketing flourish. */
+  --sidebar:#0F6CBD;
+  --sidebar-grad:linear-gradient(180deg, #0F6CBD 0%, #0B5394 100%);
+  --sidebar-hover:rgba(255,255,255,.10);
+  --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.18) 0%, rgba(255,255,255,.04) 100%);
+  --sidebar-divider:rgba(255,255,255,.12);
 
   background:var(--sidebar);
   background-image:var(--sidebar-grad);
