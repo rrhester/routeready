@@ -24225,19 +24225,27 @@ function _schedShiftChip(sh, extras) {
       : `Road training${sh.trainer_name ? " with " + escapeHtml(sh.trainer_name) : ""} — riding along, not route coverage`;
     return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="background:${bg};border-color:${bg};color:${fg};cursor:default" title="${titleText}"><div class="shift-chip-route">${label}</div>${sub ? `<div class="shift-chip-time">${sub}</div>` : ""}</div>`;
   }
-  // starts_at lives in the DB as (wave_time − report_lead) so the chip
-  // can advertise the time we want the driver onsite. Surface both:
-  // "Report 6:30a · Wave 7:00a – 6:00p" so dispatchers reading the
-  // grid see the actual arrival time and the dispatch wave at a
-  // glance.
+  // The DB stores starts_at = wave_time − report_lead (driver clock-in)
+  // and ends_at = starts_at + block_hours (driver clock-out). The chip
+  // surfaces three operationally meaningful times: the report time
+  // (starts_at), the wave time (starts_at + lead), and the wave end
+  // (wave + block). Computing wave end from settings instead of
+  // ends_at avoids the "wave + block − lead" bug where the chip
+  // showed the end of clock-out time instead of the end of the wave.
   const _eff = window._rrEffectiveSettings || {};
   const _reportLead = Math.max(0, parseInt(_eff.report_lead_minutes, 10) || 0);
-  const reportStr = sh.starts_at ? fmtTimeShort(sh.starts_at) : "";
-  const endStr    = sh.ends_at   ? fmtTimeShort(sh.ends_at)   : "";
-  const waveStr   = sh.starts_at && _reportLead > 0
-    ? fmtTimeShort(new Date(new Date(sh.starts_at).getTime() + _reportLead * 60000))
-    : reportStr;
-  const timeRange = reportStr && endStr
+  const _blockMin = Math.max(0, parseFloat(_eff.default_block_hours) || 0) * 60;
+  const _startMs = sh.starts_at ? new Date(sh.starts_at).getTime() : null;
+  const _waveStartMs = (_startMs != null) ? _startMs + _reportLead * 60000 : null;
+  const _waveEndMs = (_waveStartMs != null && _blockMin > 0)
+    ? _waveStartMs + _blockMin * 60000
+    : (sh.ends_at ? new Date(sh.ends_at).getTime() : null);
+  const reportStr = _startMs != null ? fmtTimeShort(new Date(_startMs).toISOString()) : "";
+  const waveStr   = _waveStartMs != null ? fmtTimeShort(new Date(_waveStartMs).toISOString()) : reportStr;
+  const endStr    = _waveEndMs != null ? fmtTimeShort(new Date(_waveEndMs).toISOString()) : "";
+  // "Rpt 6:30a · 7:00a – 5:00p" when a report lead is configured;
+  // just "7:00a – 5:00p" otherwise.
+  const timeRange = waveStr && endStr
     ? (_reportLead > 0
         ? `<span class="shift-chip-rpt">Rpt ${reportStr}</span><span class="shift-chip-wave">${waveStr} – ${endStr}</span>`
         : `${waveStr} – ${endStr}`)
@@ -24245,7 +24253,7 @@ function _schedShiftChip(sh, extras) {
   // No route_code yet → just show the time range on the headline (and
   // skip the sub-line, since it would duplicate the start time).
   const hasRoute = !!sh.route_code;
-  const r = hasRoute ? escapeHtml(sh.route_code) : (timeRange ? (reportStr && _reportLead > 0 ? `${waveStr} – ${endStr}` : timeRange) : (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift"));
+  const r = hasRoute ? escapeHtml(sh.route_code) : (waveStr && endStr ? `${waveStr} – ${endStr}` : (waveStr || reportStr || "shift"));
   const time = hasRoute ? timeRange : "";
   const ex = sh.is_cushion
     ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em">EX</span>`
@@ -24906,9 +24914,22 @@ async function renderScheduleWeek() {
       if (r >= slots.length) return `<div class="${cls}"><div class="shift-chip off"></div></div>`;
       const slot = slots[r];
       const data = `data-rr-cell="open" data-rr-cell-date="${iso}"`;
+      const eff = window._rrEffectiveSettings || {};
+      const blockH = eff.default_block_hours
+        || window.RR?.dsp?.metadata?.scheduling?.default_block_hours
+        || 10;
+      const lead = Math.max(0, parseInt(eff.report_lead_minutes, 10) || 0);
       if (slot.kind === "real") {
-        const startLbl = slot.starts_at ? fmtTimeShort(slot.starts_at) : "";
-        const endLbl   = slot.ends_at   ? fmtTimeShort(slot.ends_at)   : "";
+        // Real open shift — derive wave start/end from starts_at + lead
+        // so the end time reflects wave + block (not starts_at + block,
+        // which underreports by `lead` minutes).
+        const sMs = slot.starts_at ? new Date(slot.starts_at).getTime() : null;
+        const waveStartMs = sMs != null ? sMs + lead * 60000 : null;
+        const waveEndMs = waveStartMs != null
+          ? waveStartMs + blockH * 3600000
+          : (slot.ends_at ? new Date(slot.ends_at).getTime() : null);
+        const startLbl = waveStartMs != null ? fmtTimeShort(new Date(waveStartMs).toISOString()) : "";
+        const endLbl   = waveEndMs   != null ? fmtTimeShort(new Date(waveEndMs).toISOString())   : "";
         const label = startLbl && endLbl ? `${startLbl} – ${endLbl}` : (startLbl || slot.route_code || "open");
         const ex = slot.is_cushion
           ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em">EX</span>`
@@ -24916,14 +24937,11 @@ async function renderScheduleWeek() {
         const style = slot.is_cushion ? ' style="border-color:rgba(245,158,11,.22)"' : "";
         return `<div class="${cls}" ${data}><div class="shift-chip open" draggable="true" data-rr-shift-id="${slot.shift_id}"${style}>+ ${escapeHtml(label)}${ex}</div></div>`;
       }
-      const eff = window._rrEffectiveSettings || {};
-      const blockH = eff.default_block_hours
-        || window.RR?.dsp?.metadata?.scheduling?.default_block_hours
-        || 10;
-      const lead = Math.max(0, parseInt(eff.report_lead_minutes, 10) || 0);
-      const reportStart = addHoursToWaveTime(slot.wave_start, -lead / 60);
-      const vStart = fmtWaveTime(reportStart);
-      const vEnd   = fmtWaveTime(addHoursToWaveTime(reportStart, blockH));
+      // Virtual (OKAMI-driven) open slot — wave start is the configured
+      // wave time, wave end is wave + block. Subtracting lead from
+      // reportStart and re-adding block produces the wrong end.
+      const vStart = fmtWaveTime(slot.wave_start);
+      const vEnd   = fmtWaveTime(addHoursToWaveTime(slot.wave_start, blockH));
       const virtLabel = vStart && vEnd ? `${vStart} – ${vEnd}` : (vStart || "open");
       return `<div class="${cls}" ${data}><div class="shift-chip open" data-rr-virtual-station="${slot.station_id}" style="opacity:.65;border-style:dashed" title="From OKAMI demand · drag a driver to fill">+ ${escapeHtml(virtLabel)}</div></div>`;
     }).join("");
@@ -25011,22 +25029,15 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
   };
 
   const fmtVirtualTime = (sh) => {
-    // virtual chips don't have a real ends_at — derive a label from the
-    // wave start + the configured block hours so the chip reads naturally.
-    // Subtract report_lead_minutes so the chip shows the time we're
-    // actually telling the driver to arrive at the station, matching
-    // the real-shift chips after the DB-side fix.
-    if (!sh.virtual) return (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
+    // Display the wave window (wave start → wave + block) instead of
+    // the clock-in window. Lead minutes are still surfaced as the
+    // "Rpt …" prefix when there's a configured report lead.
     const eff = window._rrEffectiveSettings || {};
     const block = eff.default_block_hours
       || (window.RR?.dsp?.metadata?.scheduling?.default_block_hours)
       || 10;
     const lead = Math.max(0, parseInt(eff.report_lead_minutes, 10) || 0);
-    const [h, m] = (sh.wave_start || "07:00").split(":").map(Number);
-    const startMins = ((h || 0) * 60 + (m || 0)) - lead;
-    const endMins = startMins + block * 60;
     const fmt = (mins) => {
-      // Wrap negatives (e.g. wave 00:10 minus 20min lead) cleanly.
       const total = ((mins % 1440) + 1440) % 1440;
       let hh = Math.floor(total / 60);
       const mm = total % 60;
@@ -25034,7 +25045,34 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       hh = hh % 12 || 12;
       return `${hh}:${String(mm).padStart(2,"0")}${ampm}`;
     };
-    return `${fmt(startMins)} – ${fmt(endMins)}`;
+
+    if (!sh.virtual) {
+      // Real shift — starts_at is wave_time − lead in the DB. Add the
+      // lead back to get the wave start, then add block to get the
+      // wave end.
+      const sMs = sh.starts_at ? new Date(sh.starts_at).getTime() : null;
+      if (sMs == null) return "";
+      const waveStartMs = sMs + lead * 60000;
+      const waveEndMs   = waveStartMs + block * 3600000;
+      const reportLabel = fmtTimeShort(new Date(sMs).toISOString());
+      const waveLabel   = fmtTimeShort(new Date(waveStartMs).toISOString());
+      const endLabel    = fmtTimeShort(new Date(waveEndMs).toISOString());
+      if (lead > 0) {
+        return `<span class="shift-chip-rpt">Rpt ${reportLabel}</span><span class="shift-chip-wave">${waveLabel} – ${endLabel}</span>`;
+      }
+      return `${waveLabel} – ${endLabel}`;
+    }
+
+    // Virtual chip — wave start comes from the configured wave time
+    // directly; report time is wave − lead.
+    const [h, m] = (sh.wave_start || "07:00").split(":").map(Number);
+    const waveMins = (h || 0) * 60 + (m || 0);
+    const endMins = waveMins + block * 60;
+    if (lead > 0) {
+      const reportMins = waveMins - lead;
+      return `<span class="shift-chip-rpt">Rpt ${fmt(reportMins)}</span><span class="shift-chip-wave">${fmt(waveMins)} – ${fmt(endMins)}</span>`;
+    }
+    return `${fmt(waveMins)} – ${fmt(endMins)}`;
   };
 
   const shiftItem = (sh, opts) => {
