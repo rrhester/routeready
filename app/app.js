@@ -5067,6 +5067,26 @@ async function renderFormFill() {
   // until the form is submitted (success path explicitly clears it).
   const DRAFT_KEY = `form:${id}`;
   const _formEl = document.getElementById("rr-form-fill");
+
+  // Apply any server-side prefills (e.g. the resolved van number on the
+  // Vehicle Concerns form) before draft restoration so a stored draft
+  // still wins over the prefill if the driver previously edited the
+  // value mid-form.
+  const _prefill = (form.prefill && typeof form.prefill === "object") ? form.prefill : null;
+  if (_prefill) {
+    for (const [fid, val] of Object.entries(_prefill)) {
+      if (val == null || val === "") continue;
+      const root = _formEl.querySelector(`[data-rr-field="${CSS.escape(fid)}"]`);
+      if (!root) continue;
+      const t = root.getAttribute("data-rr-type");
+      if (t === "short_text" || t === "long_text" || t === "email" ||
+          t === "phone"      || t === "number"    || t === "date"  ||
+          t === "time"       || t === "signature" || t === "dropdown") {
+        if ("value" in root) root.value = val;
+      }
+    }
+  }
+
   const _restored = getDraft(DRAFT_KEY);
   if (_restored && typeof _restored === "object") {
     for (const [fid, val] of Object.entries(_restored)) {
