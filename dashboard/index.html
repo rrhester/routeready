@@ -12944,7 +12944,7 @@ body.rr-cmdk-open{ overflow:hidden }
           <div class="ot-stat">
             <span class="ot-stat-label">Worked / projected</span>
             <div class="ot-skel" style="width:55%;height:22px"></div>
-            <span class="ot-stat-sub">Real check-ins + 10-min early assumption</span>
+            <span class="ot-stat-sub">Real driver app check-ins only</span>
           </div>
           <div class="ot-stat">
             <span class="ot-stat-label">Variance vs schedule</span>
@@ -12974,9 +12974,9 @@ body.rr-cmdk-open{ overflow:hidden }
             <option value="">All locations</option>
           </select>
           <span style="flex:1"></span>
-          <span class="ot-assumption" title="Worked hours = real driver_checkins time when available, else assume clock-in 10 minutes before scheduled start and clock-out at scheduled end. NCNS, call-off, and VTO contribute 0 worked hours (still counted as scheduled).">
+          <span class="ot-assumption" title="Worked hours come from real driver app check-ins only. If a driver never checked in, the shift contributes 0 worked hours regardless of status — no projection. In-progress shifts (checked in, not yet checked out) count elapsed time up to the scheduled end. NCNS, call-off, and VTO are 0 worked (still counted as scheduled).">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            Real check-ins where available · 10-min early fallback · NCNS / VTO / call-off = 0 worked
+            Real driver app check-ins only · no check-in = 0 worked · NCNS / VTO / call-off = 0 worked
           </span>
         </div>
 

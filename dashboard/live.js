@@ -37925,7 +37925,7 @@ function _otRenderStats(d) {
     <div class="ot-stat">
       <span class="ot-stat-label">Worked / projected</span>
       <div class="ot-stat-value">${_otFmtHours(s.total_worked_hours)}<span class="ot-stat-value-suffix">h</span></div>
-      <span class="ot-stat-sub">Real check-ins + 10-min early assumption</span>
+      <span class="ot-stat-sub">Real driver app check-ins only</span>
     </div>
     <div class="ot-stat">
       <span class="ot-stat-label">Variance vs schedule</span>
