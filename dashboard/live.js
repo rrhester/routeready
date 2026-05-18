@@ -23101,27 +23101,55 @@ document.addEventListener("keydown", (e) => {
 // see Finalize at all times — Smart Fill lives in the toolbar
 // alongside it.
 function _updateFinalizeButton() {
-  const btn = document.getElementById("schedule-cta");
-  if (!btn) return;
   const isFinal = !!window._rrWeekFinalized;
-  btn.dataset.rrStage = isFinal ? "live" : "finalize";
+  const finalIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  const draftIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`;
 
-  // Toolbar pill styling — transparent by default like the other
-  // tool buttons. Once the week is finalized we tint it green-soft
-  // with a checkmark so the operator can see "live" at a glance
-  // without it screaming as a primary CTA.
-  if (isFinal) {
-    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Live`;
-    btn.style.background = "var(--green-soft)";
-    btn.style.color = "var(--green)";
-    btn.style.fontWeight = "600";
-    btn.title = "This week is live · drivers see it. Click to take it back to draft.";
-  } else {
-    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Finalize`;
-    btn.style.background = "";
-    btn.style.color = "";
-    btn.style.fontWeight = "";
-    btn.title = "Push this week's schedule to drivers";
+  const btn = document.getElementById("schedule-cta");
+  if (btn) {
+    btn.dataset.rrStage = isFinal ? "live" : "finalize";
+    if (isFinal) {
+      btn.innerHTML = `${finalIcon} Live`;
+      btn.style.background = "var(--green-soft)";
+      btn.style.color = "var(--green)";
+      btn.style.fontWeight = "600";
+      btn.title = "This week is live · drivers see it. Click to take it back to draft.";
+    } else {
+      btn.innerHTML = `${draftIcon} Finalize`;
+      btn.style.background = "";
+      btn.style.color = "";
+      btn.style.fontWeight = "";
+      btn.title = "Push this week's schedule to drivers";
+    }
+  }
+
+  // Visible header button — proxies clicks to #schedule-cta.
+  const hdrBtn = document.getElementById("rr-sched-finalize-h");
+  if (hdrBtn) {
+    if (isFinal) {
+      hdrBtn.innerHTML = `${finalIcon} Unfinalize`;
+      hdrBtn.title = "This week is live · drivers see it. Click to take it back to draft.";
+    } else {
+      hdrBtn.innerHTML = `${draftIcon} Finalize`;
+      hdrBtn.title = "Push this week's schedule to drivers";
+    }
+  }
+
+  // Page sub-line green ✓ Live pill — only when finalized.
+  const pageSub = document.getElementById("rr-sched-page-sub");
+  if (pageSub) {
+    let pill = document.getElementById("rr-sched-page-sub-live");
+    if (isFinal) {
+      if (!pill) {
+        pill = document.createElement("span");
+        pill.id = "rr-sched-page-sub-live";
+        pill.style.cssText = "display:inline-flex;align-items:center;gap:var(--s-1);background:var(--green);color:#fff;font-size:var(--fs-xs);font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-lg);margin-left:8px;vertical-align:middle";
+        pill.innerHTML = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Live`;
+        pageSub.appendChild(pill);
+      }
+    } else if (pill) {
+      pill.remove();
+    }
   }
 }
 window._rrUpdateScheduleCta = _updateFinalizeButton;
@@ -24196,8 +24224,12 @@ function _schedShiftChip(sh, extras) {
       : `Road training${sh.trainer_name ? " with " + escapeHtml(sh.trainer_name) : ""} — riding along, not route coverage`;
     return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="background:${bg};border-color:${bg};color:${fg};cursor:default" title="${titleText}"><div class="shift-chip-route">${label}</div>${sub ? `<div class="shift-chip-time">${sub}</div>` : ""}</div>`;
   }
-  const r = sh.route_code ? escapeHtml(sh.route_code) : (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift");
-  const time = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
+  const timeRange = (sh.starts_at && sh.ends_at) ? `${fmtTimeShort(sh.starts_at)} – ${fmtTimeShort(sh.ends_at)}` : "";
+  // No route_code yet → just show the time range on the headline (and
+  // skip the sub-line, since it would duplicate the start time).
+  const hasRoute = !!sh.route_code;
+  const r = hasRoute ? escapeHtml(sh.route_code) : (timeRange || (sh.starts_at ? fmtTimeShort(sh.starts_at) : "shift"));
+  const time = hasRoute ? timeRange : "";
   const ex = sh.is_cushion
     ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em">EX</span>`
     : "";
@@ -24806,7 +24838,6 @@ async function renderScheduleWeek() {
     const display = displayDriverName(d);
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
     const station = d.station?.code || "—";
-    const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
     const totalHours = hoursPerDriver.get(d.id) || 0;
     const hoursLabel = totalHours > 0
       ? `${Math.round(totalHours * 10) / 10}h scheduled`
@@ -24847,7 +24878,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}"${rel} ${data}>${star}${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(tenure)} · ${escapeHtml(hoursLabel)}</div></div></div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(hoursLabel)}</div></div></div>
       ${cells}
     </div>`;
   }).join("");
