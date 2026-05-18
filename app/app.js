@@ -7257,28 +7257,62 @@ async function checkAndShowPendingRecognition(session) {
   if (!session || !session.token) return;
   // Already on /welcome with an event in the stash — nothing to do.
   if (currentRoute() === "/welcome" && _currentCelebrationEv) return;
-  // Legacy session cap REMOVED — iOS PWA can persist sessionStorage
-  // across full app close, which stuck users at "already shown" forever
-  // and silently blocked every subsequent celebration.  The localStorage
-  // dismissed-IDs set (_recogDismissedIds) is the canonical guard now:
-  // a dismissed event id can never re-fire, while a brand-new celebration
-  // always can.  One-time cleanup of the stale key below frees stuck users.
+  // Legacy session cap cleanup — iOS PWA can persist sessionStorage
+  // across full app close.  Strip the stale key so anyone upgrading
+  // from a pre-v124 build is freed on first load.
   try { sessionStorage.removeItem("rr.recogShownThisSession"); } catch (_) {}
-  let r;
-  try {
-    r = await sb.rpc("driver_recognitions_pending", { p_token: session.token });
-  } catch (e) { console.warn("[recog] rpc threw:", e?.message); return; }
-  if (r.error) { console.warn("[recog] rpc error:", r.error.message); return; }
-  const ev = r.data;
-  if (!ev || !ev.id) return;
-  if (_recogDismissedIds.has(ev.id)) return;
-  // Stash and navigate.  The /welcome route's render reads from the
-  // module-level vars.  No JS handlers needed for the dismiss path —
-  // the user taps an anchor and the hash changes; the router does the
-  // rest.
-  _currentCelebrationEv      = ev;
-  _currentCelebrationSession = session;
-  navigate("/welcome");
+
+  // STALE HEAD-OF-LINE RECONCILIATION (the actual root cause of "Halloween
+  // never shows after I dismissed Welcome"):
+  //
+  // The pending RPC returns the OLDEST sent-but-not-dismissed row.  If a
+  // previous dismiss RPC failed (easy to hit on iOS PWA — the dismiss is
+  // fire-and-forget right before a hash navigation, and iOS frequently
+  // cancels in-flight fetches when the page transitions), the row stays
+  // sent_at + dismissed_at=null on the server forever.  The client knows
+  // it was dismissed (it's in _recogDismissedIds, localStorage-persisted),
+  // so checkAndShowPendingRecognition returns early — and every newer
+  // celebration sits behind that stale row forever.
+  //
+  // Fix: when the pending RPC returns an id that's already in the
+  // dismissed-set, RECONCILE — re-issue the dismiss RPC and ask again.
+  // Walks past stale rows until a genuinely new event surfaces, or up to
+  // 5 hops (bounded to avoid runaway loops if the server keeps failing).
+  const reconciledIds = new Set();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    let r;
+    try {
+      r = await sb.rpc("driver_recognitions_pending", { p_token: session.token });
+    } catch (e) { console.warn("[recog] rpc threw:", e?.message); return; }
+    if (r.error) { console.warn("[recog] rpc error:", r.error.message); return; }
+    const ev = r.data;
+    if (!ev || !ev.id) return;
+
+    if (_recogDismissedIds.has(ev.id)) {
+      if (reconciledIds.has(ev.id)) return;        // dismiss RPC keeps failing → give up
+      reconciledIds.add(ev.id);
+      try {
+        const dismissed = await sb.rpc("driver_recognition_dismiss", { p_token: session.token, p_id: ev.id });
+        if (dismissed?.error) {
+          console.warn("[recog] stale-dismiss reconcile failed:", dismissed.error.message);
+          return;
+        }
+      } catch (e) {
+        console.warn("[recog] stale-dismiss reconcile failed:", e?.message);
+        return;
+      }
+      continue;     // ask the RPC again — should now return the next row
+    }
+
+    // Genuinely new event — stash and navigate.  The /welcome route's
+    // render reads from the module-level vars.  No JS handlers needed
+    // for the dismiss path — the user taps an anchor and the hash
+    // changes; the router does the rest.
+    _currentCelebrationEv      = ev;
+    _currentCelebrationSession = session;
+    navigate("/welcome");
+    return;
+  }
 }
 
 // ── _recogTheme ─────────────────────────────────────────────────────
