@@ -14843,26 +14843,26 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:var(--shadow-xl);
           }
           .docs-coc-head{
-            padding:18px 22px 16px;border-bottom:1px solid var(--border);
+            padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);
             background:linear-gradient(180deg, var(--surface) 0%, var(--canvas) 220%);
           }
           .docs-coc-head .row1{ display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3-5); }
-          .docs-coc-head .ttl{ font-size:16px;font-weight:700;color:var(--text);line-height:1.25; }
-          .docs-coc-head .sub{ font-size:11.5px;color:var(--text-subtle);margin-top:3px; }
+          .docs-coc-head .ttl{ font-size:var(--fs-lg);font-weight:700;color:var(--text);line-height:1.25;letter-spacing:-.01em; }
+          .docs-coc-head .sub{ font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-1); }
           .docs-coc-head .sub code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
           .docs-coc-verdict{
-            display:flex;align-items:center;gap:var(--s-2-5);margin-top:14px;padding:11px 14px;border-radius:var(--r-lg);
-            font-size:12.5px;font-weight:600;
+            display:flex;align-items:center;gap:var(--s-2-5);margin-top:var(--s-3-5);padding:var(--s-3) var(--s-3-5);border-radius:var(--r-lg);
+            font-size:var(--fs-sm);font-weight:600;
           }
           .docs-coc-verdict.ok{ background:var(--green-soft);color:var(--green);border:1px solid var(--green-border); }
           .docs-coc-verdict.bad{ background:var(--red-soft);color:var(--red);border:1px solid var(--red-border); }
           .docs-coc-verdict svg{ width:18px;height:18px;flex:0 0 auto; }
           .docs-coc-verdict .vsub{ font-weight:500;color:inherit;opacity:.78;font-size:var(--fs-xs);display:block;margin-top:1px; }
-          .docs-coc-body{ flex:1;overflow-y:auto;padding:18px 22px 22px; }
+          .docs-coc-body{ flex:1;overflow-y:auto;padding:var(--s-4) var(--s-5); }
 
           .docs-coc-sectionlabel{
-            font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-subtle);
-            margin:18px 0 10px;display:flex;align-items:center;gap:var(--s-2);
+            font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);
+            margin:var(--s-4) 0 var(--s-2-5);display:flex;align-items:center;gap:var(--s-2);line-height:1.2;
           }
           .docs-coc-sectionlabel:first-child{ margin-top:0; }
           .docs-coc-sectionlabel::after{ content:"";flex:1;height:1px;background:var(--border); }
@@ -14873,16 +14873,16 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Security record card */
           .docs-secrec{
             background:linear-gradient(165deg, var(--surface) 0%, var(--canvas) 130%);
-            border:1px solid var(--border-strong);border-radius:12px;padding:var(--s-3-5) var(--s-4);box-shadow:var(--shadow-sm);
+            border:1px solid var(--border-strong);border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);box-shadow:var(--shadow-sm);
           }
           .docs-secrec-checks{ display:flex;flex-wrap:wrap;gap:var(--s-2);margin-bottom:var(--s-3); }
           .docs-secrec-check{
-            display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:8px;
-            font-size:11.5px;font-weight:600;background:var(--green-soft);color:var(--green);border:1px solid var(--green-border);
+            display:inline-flex;align-items:center;gap:6px;padding:4px var(--s-2-5);border-radius:var(--r-md);
+            font-size:var(--fs-xs);font-weight:600;background:var(--green-soft);color:var(--green);border:1px solid var(--green-border);
           }
           .docs-secrec-check svg{ width:13px;height:13px; }
           .docs-secrec-check.pending{ background:var(--canvas);color:var(--text-subtle);border-color:var(--border); }
-          .docs-secrec-row{ display:flex;gap:var(--s-2-5);font-size:11.5px;padding:3px 0; }
+          .docs-secrec-row{ display:flex;gap:var(--s-2-5);font-size:var(--fs-xs);padding:3px 0; }
           .docs-secrec-row .k{ flex:0 0 122px;color:var(--text-subtle);font-weight:600; }
           .docs-secrec-row .v{
             color:var(--text-muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;
@@ -14907,16 +14907,16 @@ body.rr-cmdk-open{ overflow:hidden }
           .docs-tl-node.bad{ background:var(--red);border-color:var(--red); }
           .docs-tl-node svg{ width:8px;height:8px;color:var(--accent); }
           .docs-tl-head{ display:flex;align-items:baseline;gap:var(--s-2);flex-wrap:wrap; }
-          .docs-tl-kind{ font-size:12.5px;font-weight:600;color:var(--text); }
-          .docs-tl-time{ font-size:10.5px;color:var(--text-subtle);font-variant-numeric:tabular-nums; }
-          .docs-tl-meta{ font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px; }
+          .docs-tl-kind{ font-size:var(--fs-sm);font-weight:600;color:var(--text); }
+          .docs-tl-time{ font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums; }
+          .docs-tl-meta{ font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-1); }
           .docs-tl-hash{
-            margin-top:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:var(--text-subtle);
+            margin-top:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-xs);color:var(--text-subtle);
             background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);padding:2px 7px;display:inline-block;word-break:break-all;
           }
           .docs-coc-foot{
-            margin-top:18px;padding-top:14px;border-top:1px solid var(--border);
-            font-size:10.5px;color:var(--text-subtle);line-height:1.6;
+            margin-top:var(--s-4);padding-top:var(--s-3-5);border-top:1px solid var(--border);
+            font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.6;
           }
 
           /* Completion rail — sent → opened → signed, shown under the chip */
