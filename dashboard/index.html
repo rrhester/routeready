@@ -11404,16 +11404,6 @@ body.rr-cmdk-open{ overflow:hidden }
             transition:width var(--t-spring);
           }
 
-          /* Day-header status dot under the day number. Replaces the
-             verbose "2 / 9" text with a single colored dot so the eye
-             scans the row quickly and lands on issues. */
-          #view-schedule .cal-cell-head .day-dot{
-            display:inline-block;width:6px;height:6px;border-radius:50%;
-            margin-top:6px;background:var(--text-subtle);
-          }
-          #view-schedule .cal-cell-head .day-dot.full{background:var(--green)}
-          #view-schedule .cal-cell-head .day-dot.partial{background:var(--amber)}
-          #view-schedule .cal-cell-head .day-dot.gap{background:var(--red)}
           #view-schedule .cal-cell-head .day-coverage{
             display:block;font-size:10px;font-weight:600;color:var(--text-subtle);
             font-variant-numeric:tabular-nums;letter-spacing:.04em;margin-top:2px;
@@ -11421,9 +11411,8 @@ body.rr-cmdk-open{ overflow:hidden }
           }
 
           /* ── Right-rail layout ─────────────────────────────────────
-             Operational Insights and Open Shifts panels live above the
-             existing Driver pool. Same card vocabulary as the rest of
-             the dashboard. */
+             Driver pool sits in a sticky right rail; the Open Shifts
+             panel hangs off the bottom of the pool. */
           #view-schedule .sched-right-rail{
             display:flex;flex-direction:column;gap:var(--s-3);
             position:sticky;top:80px;
@@ -11431,58 +11420,6 @@ body.rr-cmdk-open{ overflow:hidden }
             scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;
           }
           #view-schedule .sched-right-rail .driver-pool{position:static;max-height:none}
-
-          #view-schedule .sched-insights{
-            background:var(--surface);border:1px solid var(--border);
-            border-radius:var(--r-lg);padding:var(--s-3-5) var(--s-4);
-            display:flex;flex-direction:column;gap:var(--s-2-5);
-          }
-          #view-schedule .sched-insights-head{
-            display:flex;align-items:center;gap:8px;
-            font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
-            text-transform:uppercase;color:var(--text-muted);
-          }
-          #view-schedule .sched-insights-head svg{color:var(--accent)}
-          #view-schedule .sched-insights-count{
-            margin-left:auto;background:var(--accent-soft);color:var(--accent-text);
-            font-size:10px;font-weight:700;padding:2px 7px;border-radius:var(--r-pill);
-            letter-spacing:0;text-transform:none;
-          }
-
-          #view-schedule .sched-insights-body{
-            display:flex;flex-direction:column;gap:6px;
-          }
-          #view-schedule .sched-insight-row{
-            display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center;
-            padding:8px 10px;border-radius:var(--r-md);
-            background:var(--canvas);
-            cursor:pointer;transition:background var(--t-fast);
-            text-align:left;border:0;font:inherit;color:inherit;width:100%;
-          }
-          #view-schedule .sched-insight-row:hover{background:var(--surface-hover, var(--canvas));}
-          #view-schedule .sched-insight-row .sched-insight-icon{
-            width:32px;height:32px;border-radius:var(--r-md);
-            display:inline-flex;align-items:center;justify-content:center;
-            background:var(--accent-soft);color:var(--accent-text);
-          }
-          #view-schedule .sched-insight-row[data-tone="warn"] .sched-insight-icon{background:var(--amber-soft);color:var(--amber-dark, var(--amber))}
-          #view-schedule .sched-insight-row[data-tone="bad"]  .sched-insight-icon{background:rgba(225,29,72,.10);color:var(--red)}
-          #view-schedule .sched-insight-row[data-tone="ok"]   .sched-insight-icon{background:var(--green-soft);color:var(--green)}
-          #view-schedule .sched-insight-row[data-tone="info"] .sched-insight-icon{background:var(--accent-soft);color:var(--accent-text)}
-          #view-schedule .sched-insight-icon svg{width:16px;height:16px}
-          #view-schedule .sched-insight-text{min-width:0}
-          #view-schedule .sched-insight-title{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.3;letter-spacing:-.005em}
-          #view-schedule .sched-insight-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px;line-height:1.3}
-          #view-schedule .sched-insight-row .chev{color:var(--text-subtle);flex-shrink:0}
-          #view-schedule .sched-insight-empty{
-            font-size:var(--fs-sm);color:var(--text-subtle);
-            padding:var(--s-2) var(--s-1);
-          }
-          #view-schedule .sched-insights-foot{
-            font-size:var(--fs-sm);font-weight:500;color:var(--accent-text);
-            text-decoration:none;align-self:flex-start;padding-top:2px;
-          }
-          #view-schedule .sched-insights-foot:hover{text-decoration:underline}
 
           /* Driver-pool footer · Open Shifts. Mirrors the empty-state
              visual from the mockup (green check medallion + "All shifts
@@ -11684,22 +11621,9 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </div>
 
-          <!-- Right rail: Operational Insights → Open Shifts → Driver pool.
-               Insights + Open Shifts are populated by renderScheduleWeek;
+          <!-- Right rail: Open Shifts panel lives inside the Driver pool footer;
                the Driver pool keeps its existing click-to-assign markup. -->
           <div class="sched-right-rail">
-            <aside class="sched-insights" id="rr-sched-insights" aria-label="Operational insights">
-              <div class="sched-insights-head">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                <span>Operational Insights</span>
-                <span class="sched-insights-count" id="rr-sched-insights-count">0</span>
-              </div>
-              <div class="sched-insights-body" id="rr-sched-insights-body">
-                <div class="sched-insight-empty">No insights right now.</div>
-              </div>
-              <a href="#" class="sched-insights-foot" id="rr-sched-insights-all" onclick="event.preventDefault();(typeof _rrOpenInsightsModal==='function')&&_rrOpenInsightsModal()">View all insights →</a>
-            </aside>
-
           <!-- DRIVER POOL — drag-to-assign or click to insert -->
           <aside class="driver-pool">
             <div class="pool-head">

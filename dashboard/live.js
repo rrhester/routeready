@@ -24758,10 +24758,8 @@ async function renderScheduleWeek() {
   }
 
   // ── Day headers (skip first cell which is "Driver")
-  // Headers now use a small status dot under the day number (green when
-  // fully covered, amber for partial, red for a gap) plus a compact
-  // "filled / needed" line — matches the schedule mockup's day strip
-  // and reads faster than the prior "✓ Complete" / "2 / 9" copy.
+  // Headers show day name, day number, and a compact "filled / needed"
+  // line — green/amber/red on the count itself conveys coverage state.
   const headRow = sub.querySelector(".cal-grid.head");
   if (headRow) {
     const heads = headRow.querySelectorAll(".cal-cell-head");
@@ -24772,21 +24770,17 @@ async function renderScheduleWeek() {
       const iso = fmtIsoDate(dt);
       const c = fillByDate.get(iso) || { needed: 0, filled: 0 };
       cellHead.classList.toggle("today", iso === todayIso);
-      let dotCls = "";
       let coverageLine = "";
       if (c.needed > 0) {
         if (c.filled >= c.needed) {
-          dotCls = "full";
           coverageLine = `<span class="day-coverage">${c.filled}/${c.needed}</span>`;
         } else if (c.filled === 0) {
-          dotCls = "gap";
           coverageLine = `<span class="day-coverage" style="color:var(--red)">0/${c.needed}</span>`;
         } else {
-          dotCls = "partial";
           coverageLine = `<span class="day-coverage" style="color:var(--amber-dark, var(--amber))">${c.filled}/${c.needed}</span>`;
         }
       }
-      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span><span class="day-dot ${dotCls}"></span>${coverageLine}`;
+      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${coverageLine}`;
     }
   }
 
@@ -24825,89 +24819,6 @@ async function renderScheduleWeek() {
       pill.title = isLive ? "This week's schedule is live" : "This week is still a draft — push from Finalize when ready";
     }
   } catch (e) { /* nothing to do */ }
-
-  // ── Operational Insights — AI-generated (analytics-ai edge function).
-  // The computed week summary below is shipped to the model as context so
-  // it can return up to 5 short, action-oriented insights without making
-  // its own tool calls. Results are cached per (week_start, snapshot) so
-  // re-renders of the same week don't re-spend tokens. The render is
-  // non-blocking — the strip shows a loading state immediately and gets
-  // replaced when the call returns.
-  try {
-    // Build per-driver lists so Claude can name names + recommend
-    // specific actions, not just headline counts.
-    const driverById = new Map(drivers.map(d => [d.id, d]));
-    const otDrivers = [];
-    const otApproach = [];
-    for (const [id, hrs] of hoursPerDriver) {
-      const d = driverById.get(id);
-      if (!d) continue;
-      const name = displayDriverName(d);
-      if (hrs > 40) otDrivers.push({ name, hours: Math.round(hrs * 10) / 10, over: Math.round((hrs - 40) * 10) / 10 });
-      else if (hrs >= 36) otApproach.push({ name, hours: Math.round(hrs * 10) / 10 });
-    }
-    const todayDtCert = new Date();
-    const horizonIsoCert = fmtIsoDate(addDays(todayDtCert, 14));
-    const todayIsoCert = fmtIsoDate(todayDtCert);
-    const certsExpiring = [];
-    for (const d of drivers) {
-      if (d.dl_expires_on && d.dl_expires_on >= todayIsoCert && d.dl_expires_on <= horizonIsoCert) {
-        const days = Math.round((new Date(d.dl_expires_on + "T12:00:00") - todayDtCert) / 86400000);
-        certsExpiring.push({ name: displayDriverName(d), expires_on: d.dl_expires_on, days_until: Math.max(0, days) });
-      }
-    }
-    // Open shifts by day → which days have gaps + the per-day count.
-    const openShiftsByDay = [];
-    for (const iso of days) {
-      const list = openShiftsByDate.get(iso) || [];
-      if (list.length > 0) {
-        const dt = new Date(iso + "T12:00:00");
-        openShiftsByDay.push({
-          date: iso,
-          weekday: RR_DAY_SHORT[dt.getDay()],
-          count: list.length,
-          routes: list.slice(0, 6).map(s => s.route_label || s.route_id || s.service_type || "open").join(", "),
-        });
-      }
-    }
-    const prefMissesNamed = prefMissList.slice(0, 10).map(m => ({
-      name: m.name,
-      scheduled: m.scheduled,
-      prefers: m.pref,
-      off_preferred_days: m.off,
-    }));
-    const violationsNamed = (violations || []).slice(0, 10).map(v => ({
-      driver: v.driver,
-      kind: v.kind,
-      note: v.note,
-    }));
-    const aiSnapshot = {
-      week_start: _schedStart,
-      drivers_active: drivers.length,
-      hours_scheduled: Math.round(totalHoursWeek),
-      coverage_pct: pct,
-      filled: totalFilled,
-      needed: totalNeeded,
-      open_shifts: totalAllOpen,
-      open_shifts_by_day: openShiftsByDay,
-      overtime_drivers_count: driversInOt,
-      overtime_hours: Math.round(totalOvertimeHrs * 10) / 10,
-      overtime_drivers: otDrivers.slice(0, 8),
-      ot_approaching_drivers_count: otApproach.length,
-      ot_approaching_drivers: otApproach.slice(0, 8),
-      rule_violations_count: (violations || []).length,
-      rule_violations: violationsNamed,
-      pref_mismatches_count: prefMissList.length,
-      pref_mismatches: prefMissesNamed,
-      pref_honored: prefHonored,
-      pref_denom: prefDenom,
-      certs_expiring_14d_count: certsExpiring.length,
-      certs_expiring_14d: certsExpiring,
-      trainees: trainingTotal,
-      payroll_estimate: Math.round(estimatedPayrollCost),
-    };
-    _rrRenderScheduleInsights(aiSnapshot);
-  } catch (e) { console.warn("insights render:", e); }
 
   // ── Driver-pool open-shifts footer — empty-state visual from the
   // mockup when totalAllOpen is 0, count + manage when there are gaps.
@@ -25090,233 +25001,6 @@ async function renderScheduleWeek() {
   if (lic) lic.remove();
 
   renderSchedOpenShiftsPool(sub, grid.shifts || [], drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver, virtualByDate);
-}
-
-// ── Operational Insights · AI-driven (analytics-ai edge function) ─────────
-// The schedule rail's Insights panel asks Claude for up to 5 short,
-// action-oriented operational insights for the current week.  The week's
-// computed snapshot (driver counts, hours, OT, coverage, prefs, certs,
-// open shifts, violations, …) is passed in the prompt so Claude doesn't
-// need to make tool calls — keeps the round-trip under ~2s and the cost
-// minimal.  Results are cached per snapshot so re-rendering the same
-// week doesn't re-spend.
-const _RR_INSIGHTS_CACHE = new Map(); // key: snapshot signature → { result, ts }
-const _RR_INSIGHTS_TTL_MS = 5 * 60 * 1000; // 5 min
-
-function _rrInsightTone(text) {
-  const t = String(text || "").toLowerCase();
-  if (/overtime|violation|expir|critical|over budget|unsafe|terminat/.test(t)) return "bad";
-  if (/approach|risk|mismatch|tight|warning|gap|short|miss|low/.test(t))     return "warn";
-  if (/good|covered|on track|all set|nice|great|healthy|nothing|none|no \b/.test(t)) return "ok";
-  return "info";
-}
-function _rrInsightIcon(tone) {
-  // Explicit width/height on every SVG — the modal lives outside the
-  // #view-schedule scope so the scoped `svg{width:16px;height:16px}`
-  // rule doesn't apply, and without it the icon expanded to fill the
-  // medallion's intrinsic size.
-  const a = 'width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
-  if (tone === "bad")  return `<svg ${a}><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
-  if (tone === "warn") return `<svg ${a}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
-  if (tone === "ok")   return `<svg ${a}><polyline points="20 6 9 17 4 12"/></svg>`;
-  return `<svg ${a}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
-}
-function _rrInsightSplit(bullet) {
-  const s0 = String(bullet || "").trim();
-  // Pull off the recommended action first — Claude is prompted to put
-  // it after " | Action:" so we can show it on its own line.
-  let action = "";
-  let s = s0;
-  const aMatch = s.match(/\s*[|;]\s*action\s*[:\-]\s*(.+)$/i);
-  if (aMatch) {
-    action = aMatch[1].trim().replace(/^["'“‘]+|["'”’]+$/g, "");
-    s = s.slice(0, aMatch.index).trim();
-  }
-  // Split title vs sub on " — " / " – " / " - " / ": ".
-  const m = s.match(/^(.{4,80}?)(?:\s[—–-]\s|\:\s)(.+)$/);
-  if (m) return { title: m[1].trim(), sub: m[2].trim(), action };
-  // Try splitting at a sentence boundary past the first ~40 chars.
-  if (s.length > 70) {
-    const idx = s.indexOf(". ");
-    if (idx > 20 && idx < s.length - 4) return { title: s.slice(0, idx).trim(), sub: s.slice(idx + 2).trim(), action };
-  }
-  return { title: s, sub: "", action };
-}
-
-async function _rrFetchScheduleInsights(snapshot) {
-  if (typeof sb === "undefined" || !sb?.functions?.invoke) return null;
-  const key = JSON.stringify(snapshot);
-  const cached = _RR_INSIGHTS_CACHE.get(key);
-  if (cached && (Date.now() - cached.ts) < _RR_INSIGHTS_TTL_MS) return cached.result;
-  const prompt = [
-    `Generate up to 5 short, action-oriented operational insights about my DSP's schedule for the week starting ${snapshot.week_start}.`,
-    ``,
-    `Here is the week's computed snapshot — use these numbers AND name specific drivers from the lists below directly. Do NOT call any data tools.`,
-    "```json",
-    JSON.stringify(snapshot, null, 2),
-    "```",
-    ``,
-    `Format every bullet EXACTLY like this:`,
-    `  Title — Who/what (with specific names from the snapshot if available) | Action: One concrete next step a dispatcher can take right now.`,
-    ``,
-    `Rules:`,
-    `1. Return between 1 and 5 bullets via the render_result tool with kind="text_summary".`,
-    `2. Title is a count/headline under 8 words. The middle clause names WHO (driver names) or WHAT (specific routes/days) is causing the issue — pull from the per-driver and per-day arrays in the snapshot.`,
-    `3. The "| Action:" suffix is REQUIRED on every bullet. It must recommend ONE specific corrective action (examples: "Swap Mateo off Saturday onto Hill's Friday", "Run Smart Fill for Sat 17 to staff the 3 open routes", "Schedule a DL renewal for Beckett before May 28"). Keep it under 14 words and start with a verb.`,
-    `4. Focus on issues a dispatcher needs to act on TODAY: overtime drivers, drivers approaching OT, open shifts (call out which days), preferred-day mismatches (call out which drivers), certifications expiring soon (call out which drivers and how soon), rule violations.`,
-    `5. Skip categories where the snapshot is empty — only surface real signal.`,
-    `6. If everything looks healthy, return ONE bullet like: "Schedule is clean — no issues need attention | Action: Spot-check Smart Fill recommendations for next week".`,
-    `7. The body field should be a 1-2 sentence overall summary of the week's posture.`,
-  ].join("\n");
-  try {
-    const { data, error } = await sb.functions.invoke("analytics-ai", { body: { prompt, conversation: [] } });
-    if (error || !data?.result) return null;
-    _RR_INSIGHTS_CACHE.set(key, { result: data.result, ts: Date.now() });
-    return data.result;
-  } catch (e) {
-    console.warn("ai insights fetch:", e);
-    return null;
-  }
-}
-
-function _rrRenderInsightsLoading(ibody, icount) {
-  if (icount) icount.textContent = "…";
-  ibody.innerHTML = `
-    <div class="sched-insight-row" data-tone="info" style="cursor:default">
-      <span class="sched-insight-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
-      <span class="sched-insight-text">
-        <div class="sched-insight-title">Analyzing this week…</div>
-        <div class="sched-insight-sub">Asking RouteReady AI for the top issues</div>
-      </span>
-    </div>`;
-}
-
-function _rrRenderInsightsRows(ibody, icount, rows) {
-  const limited = rows.slice(0, 4);
-  if (icount) icount.textContent = String(Math.min(rows.length, 5));
-  if (limited.length === 0) {
-    ibody.innerHTML = `<div class="sched-insight-empty">No issues this week. Nice.</div>`;
-    return;
-  }
-  ibody.innerHTML = limited.map((r, idx) => `
-    <button type="button" class="sched-insight-row" data-tone="${r.tone}" data-rr-insight-idx="${idx}" title="${r.action ? `Action: ${escapeHtml(r.action)}` : ""}">
-      <span class="sched-insight-icon">${r.icon}</span>
-      <span class="sched-insight-text">
-        <div class="sched-insight-title">${escapeHtml(r.title)}</div>
-        ${r.sub ? `<div class="sched-insight-sub">${escapeHtml(r.sub)}</div>` : ""}
-      </span>
-      <svg class="chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </button>
-  `).join("");
-  ibody.querySelectorAll(".sched-insight-row").forEach(btn => {
-    btn.addEventListener("click", () => _rrOpenInsightsModal());
-  });
-}
-
-async function _rrRenderScheduleInsights(snapshot) {
-  const ibody = document.getElementById("rr-sched-insights-body");
-  const icount = document.getElementById("rr-sched-insights-count");
-  if (!ibody) return;
-  // Stash latest snapshot so the modal can re-use it for "Refresh".
-  window._rrInsightsSnapshot = snapshot;
-  _rrRenderInsightsLoading(ibody, icount);
-  const result = await _rrFetchScheduleInsights(snapshot);
-  // Stash the full result so the modal can show body + every bullet.
-  window._rrInsightsResult = result;
-  if (!result || result.kind !== "text_summary" || !Array.isArray(result.data?.bullets)) {
-    ibody.innerHTML = `<div class="sched-insight-empty">Couldn't reach the AI insights service. Try refresh.</div>`;
-    if (icount) icount.textContent = "0";
-    return;
-  }
-  const bullets = result.data.bullets.filter(b => String(b || "").trim());
-  const rows = bullets.map(b => {
-    const { title, sub } = _rrInsightSplit(b);
-    const tone = _rrInsightTone(b);
-    return { title, sub, tone, icon: _rrInsightIcon(tone), raw: b };
-  });
-  _rrRenderInsightsRows(ibody, icount, rows);
-}
-
-function _rrOpenInsightsModal() {
-  const result = window._rrInsightsResult;
-  const snapshot = window._rrInsightsSnapshot;
-  document.getElementById("rr-sched-insights-modal")?.remove();
-  const m = document.createElement("div");
-  m.id = "rr-sched-insights-modal";
-  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
-  const bullets = (result?.kind === "text_summary" && Array.isArray(result.data?.bullets))
-    ? result.data.bullets.slice(0, 5)
-    : [];
-  const body = result?.kind === "text_summary" ? String(result.data?.body || "") : "";
-  const wkLabel = snapshot?.week_start || "this week";
-  // Modal lives in document.body, so the #view-schedule-scoped row
-  // styles don't apply — inline the layout/typography here so the rows
-  // render correctly anywhere on the page.
-  const _toneIconBg = (tone) =>
-    tone === "bad"  ? "background:rgba(225,29,72,.10);color:var(--red)" :
-    tone === "warn" ? "background:var(--amber-soft);color:var(--amber-dark, var(--amber))" :
-    tone === "ok"   ? "background:var(--green-soft);color:var(--green)" :
-                      "background:var(--accent-soft);color:var(--accent-text)";
-  const _rowStyle = "display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-radius:var(--r-md);background:var(--canvas);margin-bottom:6px";
-  const _iconStyle = (tone) => `width:32px;height:32px;border-radius:var(--r-md);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;${_toneIconBg(tone)}`;
-  const bulletHtml = bullets.length === 0
-    ? `<div style="padding:var(--s-4);color:var(--text-subtle);font-size:var(--fs-sm)">No insights returned for this week.</div>`
-    : bullets.map((b, i) => {
-        const { title, sub, action } = _rrInsightSplit(b);
-        const tone = _rrInsightTone(b);
-        const actionLine = action
-          ? `<div style="display:flex;align-items:flex-start;gap:6px;margin-top:8px;padding:7px 10px;border-radius:var(--r-md);background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);line-height:1.4">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px;flex-shrink:0"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
-              <span><strong style="font-weight:700">Action:</strong> ${escapeHtml(action)}</span>
-            </div>`
-          : "";
-        return `<div style="padding:10px 12px;border-radius:var(--r-md);background:var(--canvas);margin-bottom:6px">
-          <div style="display:grid;grid-template-columns:32px 1fr auto;gap:10px;align-items:center">
-            <span style="${_iconStyle(tone)}">${_rrInsightIcon(tone)}</span>
-            <span style="min-width:0">
-              <div style="font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.3">${escapeHtml(title)}</div>
-              ${sub ? `<div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px;line-height:1.3">${escapeHtml(sub)}</div>` : ""}
-            </span>
-            <span style="font-size:10px;font-weight:700;color:var(--text-subtle);letter-spacing:.04em;text-transform:uppercase">#${i + 1}</span>
-          </div>
-          ${actionLine}
-        </div>`;
-      }).join("");
-  m.innerHTML = `
-    <div id="rr-sched-insights-modal-card" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:620px;width:100%;max-height:84vh;overflow-y:auto;box-shadow:var(--shadow-pop)">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:10px;min-width:0">
-          <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--r-md);background:var(--accent-soft);color:var(--accent-text);flex-shrink:0">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          </span>
-          <div style="min-width:0">
-            <div style="font-size:var(--fs-base);font-weight:700;color:var(--text);letter-spacing:-.01em">Operational insights</div>
-            <div class="u-xs-subtle">Week of ${escapeHtml(wkLabel)} · generated by RouteReady AI</div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <button type="button" id="rr-sched-insights-refresh" class="btn btn-sm" title="Re-ask the AI for a fresh take">Refresh</button>
-          <button type="button" id="rr-sched-insights-modal-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 8px">×</button>
-        </div>
-      </div>
-      ${body ? `<div style="padding:var(--s-3-5) var(--s-5);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;border-bottom:1px solid var(--border)">${escapeHtml(body)}</div>` : ""}
-      <div style="padding:var(--s-3-5) var(--s-5);display:flex;flex-direction:column;gap:0">${bulletHtml}</div>
-      <div style="padding:var(--s-2-5) var(--s-5);font-size:var(--fs-xs);color:var(--text-subtle);border-top:1px solid var(--border);background:var(--canvas)">Tip: regenerated up to once every 5 minutes per week. Click Refresh to ask again.</div>
-    </div>`;
-  document.body.appendChild(m);
-  m.addEventListener("click", (ev) => {
-    if (ev.target === m || ev.target.id === "rr-sched-insights-modal-close") m.remove();
-  });
-  document.getElementById("rr-sched-insights-refresh")?.addEventListener("click", async () => {
-    if (!snapshot) return;
-    // Bust the cache for this snapshot so the next fetch hits the API.
-    _RR_INSIGHTS_CACHE.delete(JSON.stringify(snapshot));
-    const refreshBtn = document.getElementById("rr-sched-insights-refresh");
-    if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = "Refreshing…"; }
-    await _rrRenderScheduleInsights(snapshot);
-    m.remove();
-    _rrOpenInsightsModal();
-  });
 }
 
 let _poolSortMode = "day"; // 'day' | 'wave'
