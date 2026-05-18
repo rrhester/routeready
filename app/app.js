@@ -1548,11 +1548,22 @@ function renderShell(session) {
 // lens itself is a plain absolutely-positioned element that animates
 // transform/width/height — GPU-friendly and respects reduced-motion
 // via CSS.
+//
+// renderShell() wipes #app's innerHTML on every route render, so the
+// tabbar (and the lens with it) is destroyed and recreated on each
+// tab switch. To keep the slide animation visible across that rebuild
+// we cache the previous lens geometry here and, on a freshly mounted
+// shell, paint the new lens at the *previous* tab's spot first, then
+// move it to the new active tab on the next frame so the CSS
+// transition has something to interpolate from.
+let _lensState = { x: null, y: null, w: null, h: null };
+
 function _updateTabLens() {
   const bar = document.querySelector(".tabbar");
   if (!bar) return;
   let lens = bar.querySelector(".tab-lens");
-  if (!lens) {
+  const isFresh = !lens;
+  if (isFresh) {
     lens = document.createElement("span");
     lens.className = "tab-lens";
     lens.setAttribute("aria-hidden", "true");
@@ -1572,20 +1583,41 @@ function _updateTabLens() {
   const h = Math.round(icRect.height + padY * 2);
   const x = Math.round(icRect.left - barRect.left - padX);
   const y = Math.round(icRect.top  - barRect.top  - padY);
-  const prevX = lens._x;
-  lens.style.width  = w + "px";
-  lens.style.height = h + "px";
-  lens.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-  lens._x = x;
-  // Trigger the one-shot shimmer only when the lens actually slides
-  // sideways (a real tab switch), not on the first mount or a resize.
-  if (lens.classList.contains("ready") && prevX != null && Math.abs(prevX - x) > 2) {
-    lens.classList.remove("moving");
-    void lens.offsetWidth; // restart keyframe
-    lens.classList.add("moving");
+
+  const applyTarget = () => {
+    const prevX = lens._x;
+    lens.style.width  = w + "px";
+    lens.style.height = h + "px";
+    lens.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    lens._x = x;
+    if (lens.classList.contains("ready") && prevX != null && Math.abs(prevX - x) > 2) {
+      lens.classList.remove("moving");
+      void lens.offsetWidth;
+      lens.classList.add("moving");
+    }
+    _lensState = { x, y, w, h };
+  };
+
+  if (isFresh && _lensState.x != null) {
+    // Seed the new lens at the *previous* active tab's geometry with
+    // transitions disabled, then re-enable transitions and move it to
+    // the new target on the next frame. The result is a visible slide
+    // instead of a teleport on every tab tap.
+    lens.style.transition = "none";
+    lens.style.width  = _lensState.w + "px";
+    lens.style.height = _lensState.h + "px";
+    lens.style.transform = `translate3d(${_lensState.x}px, ${_lensState.y}px, 0)`;
+    lens._x = _lensState.x;
+    lens.classList.add("ready");
+    void lens.offsetWidth; // flush the initial paint
+    lens.style.transition = "";
+    requestAnimationFrame(applyTarget);
+    return;
   }
-  // Reveal on the next frame so the very first paint doesn't render
-  // the lens at 0,0 before snapping to the active tab.
+
+  applyTarget();
+  // Reveal on the next frame so the very first paint of a brand-new
+  // session doesn't render the lens at 0,0 before snapping into place.
   requestAnimationFrame(() => lens.classList.add("ready"));
 }
 
