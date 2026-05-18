@@ -24248,7 +24248,8 @@ function _schedShiftChip(sh, extras) {
     ? `<span title="${escapeHtml(extras.traineeName)} is riding along" style="display:inline-flex;align-items:center;gap:3px;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em">+ ${escapeHtml(extras.traineeName.split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</span>`
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
-  return `<div class="shift-chip" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove"><div class="shift-chip-route">${r}${ex}${stBadge}${traineeBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
+  const routineCls = extras?.routine ? ' is-routine' : '';
+  return `<div class="shift-chip${routineCls}" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove"><div class="shift-chip-route">${r}${ex}${stBadge}${traineeBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -24701,12 +24702,18 @@ async function renderScheduleWeek() {
   const trainingTotal  = trainingRows.length;
   const trainingValue  = trainingTotal === 0 ? "0" : String(trainingTotal);
 
+  // Color only when there's a problem. At-rest values render neutral
+  // so the eye lands on red and only on red.
+  const violationsTone = violations.length > 0 ? "bad" : "default";
+  const otTone = totalOvertimeHrs > 0 ? "bad" : "default";
+  const prefTone = (prefDenom > 0 && prefHonored < prefDenom) ? "bad" : "default";
+
   kpis.innerHTML =
     kpiCard("Coverage", `${pct}%`, `${totalFilled} / ${totalNeeded} shifts`, coverageTone) +
-    kpiCard("Rule violations", String(violations.length), "", "default") +
-    kpiCard("Overtime", otValue, "", "default") +
+    kpiCard("Rule violations", String(violations.length), "", violationsTone) +
+    kpiCard("Overtime", otValue, "", otTone) +
     kpiCard("Hours scheduled", `${Math.round(totalHoursWeek)}h`, "", "default") +
-    kpiCard("Preferences", prefDenom === 0 ? "—" : `${prefHonored} / ${prefDenom}`, "", "default") +
+    kpiCard("Preferences", prefDenom === 0 ? "—" : `${prefHonored} / ${prefDenom}`, "", prefTone) +
     kpiCard("Training", trainingValue, "", "default");
   kpis.dataset.rrViolations = JSON.stringify(violations);
   kpis.dataset.rrPrefMisses = JSON.stringify(prefMissList);
@@ -24853,6 +24860,24 @@ async function renderScheduleWeek() {
       ? `<span title="Driver's license expired ${new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString()}" style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,.12);color:var(--red);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>DL EXP</span>`
       : "";
     const prefSet = _prefByDriver.get(d.id) || null;
+    // Row-default time pattern — when most of this driver's shifts share
+    // one start/end, mute the matching chips so the eye glides past the
+    // repetition and lands on outliers. Only mutes when ≥2 shifts share
+    // the pattern (otherwise there is no "default" yet).
+    const _timeCounts = new Map();
+    for (const iso of days) {
+      for (const sh of (shiftsByDriverDate.get(`${d.id}|${iso}`) || [])) {
+        if (!sh.starts_at || !sh.ends_at || sh.shift_kind !== "regular") continue;
+        const k = `${sh.starts_at.slice(11,16)}|${sh.ends_at.slice(11,16)}`;
+        _timeCounts.set(k, (_timeCounts.get(k) || 0) + 1);
+      }
+    }
+    let _rowDefaultKey = "";
+    let _rowDefaultMax = 0;
+    for (const [k, c] of _timeCounts) {
+      if (c > _rowDefaultMax) { _rowDefaultMax = c; _rowDefaultKey = k; }
+    }
+    if (_rowDefaultMax < 2) _rowDefaultKey = "";
     const cells = days.map(iso => {
       const cls = `cal-cell${iso === todayIso ? " today" : ""}`;
       const data = `data-rr-cell="driver-day" data-rr-cell-date="${iso}" data-rr-cell-driver="${d.id}"${d.station_id ? ` data-rr-cell-station="${d.station_id}"` : ""}`;
@@ -24877,7 +24902,15 @@ async function renderScheduleWeek() {
       if (!busy)
         return `<div class="${cls}"${rel} ${data}>${star}<div class="shift-chip off">Off</div></div>`;
       const traineeName = traineeByTrainerDate.get(`${d.id}|${iso}`) || null;
-      const chips = list.map(sh => _schedShiftChip(sh, sh.shift_kind === "regular" && traineeName ? { traineeName } : null)).join("");
+      const chips = list.map(sh => {
+        const key = sh.starts_at && sh.ends_at
+          ? `${sh.starts_at.slice(11,16)}|${sh.ends_at.slice(11,16)}`
+          : "";
+        const routine = sh.shift_kind === "regular" && _rowDefaultKey !== "" && key === _rowDefaultKey;
+        const extras = (sh.shift_kind === "regular" && traineeName) ? { traineeName } : {};
+        if (routine) extras.routine = true;
+        return _schedShiftChip(sh, Object.keys(extras).length ? extras : null);
+      }).join("");
       return `<div class="${cls}"${rel} ${data}>${star}${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
