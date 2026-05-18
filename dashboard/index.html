@@ -30,7 +30,7 @@
      cards.  The page itself is plain white (body uses --surface).
      Updated to the enterprise governance palette: cooler greys
      that pair with the new graphite sidebar. */
-  --canvas:#F8FAFC;
+  --canvas:#EFF2FB;
   --canvas-grad:none;
   --surface:#FFFFFF;
   --surface-secondary:#FCFCFD;
@@ -102,18 +102,24 @@
      / Indigo — pairs with the Primary Azure system).  Per the
      governance brief: status colors must mean the same thing
      everywhere in the app, no per-page reinterpretation. */
-  --green:#10B981;          /* operational / healthy / active */
-  --green-bright:#34D399;
-  --green-dark:#059669;
-  --green-soft:rgba(16,185,129,.10);
-  --green-soft-strong:rgba(16,185,129,.14);
-  --green-border:rgba(16,185,129,.22);
-  --amber:#F59E0B;          /* pending / waiting / attention */
-  --amber-bright:#FBBF24;
-  --amber-dark:#B45309;
-  --amber-soft:rgba(245,158,11,.10);
-  --amber-soft-strong:rgba(245,158,11,.14);
-  --amber-border:rgba(245,158,11,.22);
+  /* Positive signal in the sidebar's blue family — sky #0EA5E9
+     instead of emerald green. Reserved for "healthy / active /
+     done". */
+  --green:#0EA5E9;
+  --green-bright:#38BDF8;
+  --green-dark:#0369A1;
+  --green-soft:rgba(14,165,233,.10);
+  --green-soft-strong:rgba(14,165,233,.14);
+  --green-border:rgba(14,165,233,.22);
+  /* Warning signal in the same brand family — indigo-bright
+     #6366F1 instead of amber. Reserved for "pending / waiting /
+     needs attention soon". */
+  --amber:#6366F1;
+  --amber-bright:#818CF8;
+  --amber-dark:#4338CA;
+  --amber-soft:rgba(99,102,241,.10);
+  --amber-soft-strong:rgba(99,102,241,.14);
+  --amber-border:rgba(99,102,241,.22);
   --amber-grad:linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
   --red:#E11D48;            /* issue / risk / critical */
   --red-bright:#F43F5E;
@@ -175,10 +181,12 @@
   --blur-md: 14px;
   --blur-lg: 24px;
 
-  /* ── Transitions (Fluent — fast, functional) ─────────────── */
-  --t-fast: 100ms cubic-bezier(.33,0,.67,1);
-  --t-smooth: 150ms cubic-bezier(.33,0,.67,1);
-  --t-spring: 200ms cubic-bezier(.34,1.4,.64,1);
+  /* ── Transitions ──────────────────────────────────────────
+     Composed, not snappy. ~250ms with an ease-out curve reads
+     as a considered platform instead of a reactive one. */
+  --t-fast: 250ms cubic-bezier(.33,0,.67,1);
+  --t-smooth: 250ms cubic-bezier(.33,0,.67,1);
+  --t-spring: 280ms cubic-bezier(.34,1.2,.64,1);
 
   /* ── System surfaces ─────────────────────────────────────── */
   /* Single source of truth for modal backdrops + focus rings so
@@ -2620,12 +2628,18 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .rr-tf-popover button.active{background:var(--accent);color:#fff}
 
 .stat-mini{
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+  background:var(--surface);
+  border:1px solid rgba(15,23,42,.06);
+  border-radius:18px;
   padding:var(--s-4) var(--s-5);
-  transition:border-color var(--t-fast), box-shadow var(--t-fast);
+  box-shadow:0 8px 24px rgba(15,23,42,.05), inset 0 1px 0 rgba(255,255,255,.55);
+  transition:transform var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
 }
-.stat-mini:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
-.stat-mini-label{font-size:var(--fs-xs);color:var(--text-muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:var(--s-1);line-height:1.2}
+.stat-mini:hover{
+  border-color:rgba(15,23,42,.10);
+  box-shadow:0 10px 28px rgba(15,23,42,.07), inset 0 1px 0 rgba(255,255,255,.55);
+}
+.stat-mini-label{font-size:var(--fs-xs);color:var(--text-muted);font-weight:500;letter-spacing:.02em;text-transform:uppercase;margin-bottom:var(--s-1);line-height:1.2}
 .stat-mini-value{font-size:var(--fs-xl);font-weight:700;color:var(--text);letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.05}
 .stat-mini-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:var(--s-1)}
 
@@ -11203,17 +11217,8 @@ body.rr-cmdk-open{ overflow:hidden }
              canvas, softer card radii, gentle elevation in place of
              hard borders, slightly rounder shift chips. Scoped to the
              Schedule view only. */
-          #view-schedule{background:#F6F8FC}
-          #view-schedule .stat-mini{
-            border-radius:18px;
-            border-color:rgba(15,23,42,.06);
-            box-shadow:0 8px 24px rgba(15,23,42,.05), inset 0 1px 0 rgba(255,255,255,.55);
-            transition:transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
-          }
-          #view-schedule .stat-mini:hover{
-            border-color:rgba(15,23,42,.10);
-            box-shadow:0 10px 28px rgba(15,23,42,.07), inset 0 1px 0 rgba(255,255,255,.55);
-          }
+          /* Schedule canvas + .stat-mini elevation now live in the
+             global rules at the top of the file. */
           #view-schedule .cal-wrap{
             border-radius:22px;
             border-color:rgba(15,23,42,.06);
@@ -11379,14 +11384,8 @@ body.rr-cmdk-open{ overflow:hidden }
              already tells the same story. */
           #view-schedule .coverage-strip{display:none}
 
-          /* (4) Slow the micro-interactions. Bump the dashboard's
-             100/150ms transitions to a more composed 250ms with an
-             ease-out curve, scoped to this view only. */
-          #view-schedule{
-            --t-fast:   250ms cubic-bezier(.33,0,.67,1);
-            --t-smooth: 250ms cubic-bezier(.33,0,.67,1);
-            --t-spring: 280ms cubic-bezier(.34,1.2,.64,1);
-          }
+          /* (4) Slow micro-interactions now live at :root so every
+             page inherits the calmer ~250ms transitions. */
 
           /* (5) Quiet the right rail. Open-shift chips no longer
              carry a dashed outline + tinted background — a single
@@ -11433,25 +11432,11 @@ body.rr-cmdk-open{ overflow:hidden }
              active subnav tab, hover lifts) with the same deeper
              navy so the page reads as one product with the sidebar. */
 
-          /* Canvas shifts a touch toward the sidebar's hue family so
-             the two surfaces feel continuous. Green and amber are
-             remapped to sky and indigo-bright so they live in the
-             brand family. Red is left canonical — it's the one
-             "outside the family" color, reserved for true alarms, so
-             problems read clearly without competing with the brand. */
-          #view-schedule{
-            background:#EFF2FB;
-            /* Positive (was Emerald green #10B981) → sky. */
-            --green:#0EA5E9;
-            --green-bright:#38BDF8;
-            --green-dark:#0369A1;
-            --green-soft:rgba(14,165,233,.12);
-            /* Warning (was Amber #F59E0B) → indigo-bright. */
-            --amber:#6366F1;
-            --amber-bright:#818CF8;
-            --amber-dark:#4338CA;
-            --amber-soft:rgba(99,102,241,.12);
-          }
+          /* Canvas + brand-family color tokens now live at :root so
+             every page inherits the same palette — those overrides
+             were removed from this scope. The lines below are
+             Schedule-only treatments that don't apply to other
+             views. */
 
           /* Active subnav tab — echo the sidebar's active row with
              a deep navy text + an underline rail in the same indigo
