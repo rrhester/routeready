@@ -26852,13 +26852,6 @@ window.goto = function (view) {
   if (typeof _origGotoForSched === "function") _origGotoForSched(view);
   if (view === "schedule") {
     _rrWocLoad();
-    // Forecast section starts collapsed on every Schedule entry.
-    // KPI bar starts collapsed every Schedule view entry — matches the
-    // Insights pattern used elsewhere.
-    const kbox = document.getElementById("rr-sched-kpis");
-    if (kbox) kbox.style.display = "none";
-    const ktog = document.getElementById("rr-sched-kpis-toggle");
-    if (ktog) { ktog.setAttribute("aria-pressed", "false"); ktog.classList.remove("is-on"); }
     loadScheduleView();
     loadCoverageRadar();
     _schedRealtimeStart();
