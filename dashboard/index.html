@@ -4977,9 +4977,9 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .rr-cmdk-row{
   display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:var(--s-2-5);align-items:center;
   padding:var(--s-2) var(--s-2-5);
-  border-radius:8px;
+  border-radius:var(--r-md);
   cursor:pointer;
-  transition:background 80ms ease;
+  transition:background var(--t-fast);
 }
 .rr-cmdk-row.active{
   background:linear-gradient(180deg, var(--accent-soft) 0%, var(--accent-soft) 100%);
