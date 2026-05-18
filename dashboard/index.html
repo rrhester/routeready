@@ -30,7 +30,7 @@
      cards.  The page itself is plain white (body uses --surface).
      Updated to the enterprise governance palette: cooler greys
      that pair with the new graphite sidebar. */
-  --canvas:#EFF2FB;
+  --canvas:#EDEFF6;
   --canvas-grad:none;
   --surface:#FFFFFF;
   --surface-secondary:#FCFCFD;
@@ -94,7 +94,7 @@
   /* Headline gradient — used on hero chips, big avatars, key actions */
   --brand-grad:linear-gradient(135deg, #2563EB 0%, #6366F1 100%);
   /* Dark-hero gradient — used on briefing cards, invoice icons, etc. */
-  --brand-grad-dark:linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
+  --brand-grad-dark:linear-gradient(135deg, #0F172A 0%, #1A1F47 100%);
   /* Violet pair — used on referrals, marketing chips, etc. */
   --violet-grad:linear-gradient(135deg, #7C3AED 0%, #9333EA 100%);
 
@@ -11439,8 +11439,7 @@ body.rr-cmdk-open{ overflow:hidden }
              subnav tabs → KPI strip → schedule grid. Use the
              biggest spacing token so each zone gets a deliberate
              pause before the next. */
-          #view-schedule .sched-subnav-row{margin-bottom:var(--s-10)}
-          #view-schedule .sched-kpi-row{margin-bottom:var(--s-10)}
+          #view-schedule .sched-subnav-row{margin-bottom:var(--s-5)}
 
           /* ── Match the sidebar's deep-blue brand on the page ──────
              Pull the schedule canvas slightly toward the sidebar's
@@ -11454,12 +11453,11 @@ body.rr-cmdk-open{ overflow:hidden }
              Schedule-only treatments that don't apply to other
              views. */
 
-          /* Scroller-row · pushes the week-range nav to the top right,
-             aligned with the Schedule page title above it. */
+          /* Scroller-row · right-aligned, sits between the page
+             header and the KPI pill row. */
           #view-schedule .sched-scroller-row{
             display:flex;justify-content:flex-end;
-            margin-top:calc(var(--s-6) * -1);
-            margin-bottom:var(--s-6);
+            margin:0 0 var(--s-5) 0;
           }
 
           /* KPI pill row · compact inline dot+label pills sitting
@@ -11491,10 +11489,10 @@ body.rr-cmdk-open{ overflow:hidden }
              a deep navy text + an underline rail in the same indigo
              family used in the sidebar gradient. */
           #view-schedule .subnav-item.active{
-            color:#1E3A8A;
+            color:#1A1F47;
           }
           #view-schedule .subnav-item.active::after{
-            background:#1E3A8A;
+            background:#1A1F47;
           }
 
           /* Finalize button — when the schedule is live, the green
@@ -11502,27 +11500,27 @@ body.rr-cmdk-open{ overflow:hidden }
              accent-soft into the deeper navy family so the primary
              action on this page nods at the sidebar. */
           #view-schedule .sched-page-btn#rr-sched-finalize-h:not([data-rr-stage="live"]):hover{
-            background:#1E3A8A;
+            background:#1A1F47;
             color:#fff;
-            border-color:#1E3A8A;
+            border-color:#1A1F47;
           }
           #view-schedule .sched-page-btn#rr-sched-finalize-h:not([data-rr-stage="live"]):hover svg{color:#fff}
 
           /* Week-nav pill picks up a hair of the sidebar's deep
              border instead of the generic shadow. */
           #view-schedule .sched-week-nav{
-            border-color:rgba(30,58,138,.10);
+            border-color:rgba(26,31,71,.10);
           }
 
           /* Pool search focus, KPI primary border, shift-chip hover
              — pull the accent rim toward the deeper indigo so it
              reads as the same brand color the sidebar carries. */
           #view-schedule .pool-search:focus{
-            border-color:#1E3A8A;
-            box-shadow:0 0 0 3px rgba(30,58,138,.16);
+            border-color:#1A1F47;
+            box-shadow:0 0 0 3px rgba(26,31,71,.16);
           }
           #view-schedule .cal-cell:hover .shift-chip:not(.off):not(.timeoff):not(.open){
-            border-color:#1E3A8A;
+            border-color:#1A1F47;
           }
 
         </style>
@@ -11820,24 +11818,6 @@ body.rr-cmdk-open{ overflow:hidden }
               <button class="sched-tool-btn" id="schedule-cta" type="button" title="Push this week's schedule to drivers">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                 Finalize
-              </button>
-            </div>
-          </div>
-
-          <!-- KPI row · holds the JS-injected #rr-sched-kpis (left) and
-               the week-range scroller (right rail column). -->
-          <div class="sched-kpi-row">
-            <div class="sched-week-nav" id="rr-sched-week-nav" role="group" aria-label="Week navigation">
-              <button type="button" class="sched-week-nav-btn" id="rr-sched-week-prev" title="Previous week" aria-label="Previous week">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <button type="button" class="sched-week-nav-today" id="rr-sched-week-today" title="Jump to this week">Today</button>
-              <button type="button" class="sched-week-nav-range" id="rr-sched-week-range" title="Cycle through the next four weeks">
-                <span id="rr-sched-week-range-label">This week</span>
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-              </button>
-              <button type="button" class="sched-week-nav-btn" id="rr-sched-week-next" title="Next week" aria-label="Next week">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </div>
           </div>
