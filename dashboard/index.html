@@ -484,16 +484,14 @@ a{color:inherit;text-decoration:none}
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
-  /* Driver-app brand blue, dialed back to ambient-sidebar weight —
-     the home hero's bright gradient was too loud at full sidebar
-     height. Uses the app's pressed-accent gradient (--accent-grad-pressed)
-     deepened a notch, so the brand still reads as "the driver-app
-     blue" without billboard energy. */
-  --sidebar:#162B5F;
-  --sidebar-grad:linear-gradient(180deg, #16275A 0%, #1E3A8A 60%, #1D4ED8 100%);
-  --sidebar-hover:rgba(255,255,255,.08);
-  --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.14) 0%, rgba(255,255,255,.03) 100%);
-  --sidebar-divider:rgba(255,255,255,.08);
+  /* Deep navy with the slightest indigo lift toward the bottom —
+     reads as solid premium chrome, not a brand gradient. Matches
+     the mockup. */
+  --sidebar:#15193D;
+  --sidebar-grad:linear-gradient(180deg, #15193D 0%, #1A1F47 100%);
+  --sidebar-hover:rgba(255,255,255,.06);
+  --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.02) 100%);
+  --sidebar-divider:rgba(255,255,255,.06);
 
   background:var(--sidebar);
   background-image:var(--sidebar-grad);
@@ -11195,9 +11193,27 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        <!-- Sub-nav (left) and week-range picker (right) share a row so
-             they read as a single top-of-grid control band, matching the
-             mockup. The kpis toggle is kept hidden for compatibility. -->
+        <!-- Top-right week-range scroller — same row as the page title. -->
+        <div class="sched-scroller-row">
+          <div class="sched-week-nav" id="rr-sched-week-nav" role="group" aria-label="Week navigation">
+            <button type="button" class="sched-week-nav-btn" id="rr-sched-week-prev" title="Previous week" aria-label="Previous week">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button type="button" class="sched-week-nav-today" id="rr-sched-week-today" title="Jump to this week">Today</button>
+            <button type="button" class="sched-week-nav-range" id="rr-sched-week-range" title="Cycle through the next four weeks">
+              <span id="rr-sched-week-range-label">This week</span>
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button type="button" class="sched-week-nav-btn" id="rr-sched-week-next" title="Next week" aria-label="Next week">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI pill row · populated by renderScheduleWeek. -->
+        <div id="rr-sched-kpis" class="sched-kpi-pills"></div>
+
+        <!-- Subnav tabs. -->
         <div class="sched-subnav-row">
           <div class="subnav" data-rr-tabbar="schedule">
             <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">Week view</button>
@@ -11437,6 +11453,39 @@ body.rr-cmdk-open{ overflow:hidden }
              were removed from this scope. The lines below are
              Schedule-only treatments that don't apply to other
              views. */
+
+          /* Scroller-row · pushes the week-range nav to the top right,
+             aligned with the Schedule page title above it. */
+          #view-schedule .sched-scroller-row{
+            display:flex;justify-content:flex-end;
+            margin-top:calc(var(--s-6) * -1);
+            margin-bottom:var(--s-6);
+          }
+
+          /* KPI pill row · compact inline dot+label pills sitting
+             between the page sub-line and the subnav. */
+          #view-schedule #rr-sched-kpis.sched-kpi-pills{
+            display:flex;flex-wrap:wrap;align-items:center;
+            gap:var(--s-5);
+            margin:0 0 var(--s-6) 0;
+            font-size:var(--fs-sm);
+          }
+          #view-schedule .sched-kpi-pill{
+            display:inline-flex;align-items:center;gap:8px;
+            color:var(--text);font-weight:600;
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .sched-kpi-pill[data-clickable="true"]{cursor:pointer}
+          #view-schedule .sched-kpi-pill[data-clickable="true"]:hover{color:var(--accent-text)}
+          #view-schedule .sched-kpi-dot{
+            width:9px;height:9px;border-radius:50%;flex-shrink:0;
+          }
+          #view-schedule .sched-kpi-text{display:inline-flex;flex-direction:column;line-height:1.1}
+          #view-schedule .sched-kpi-sub{
+            font-size:var(--fs-xs);font-weight:500;
+            color:var(--text-subtle);
+            margin-top:2px;
+          }
 
           /* Active subnav tab — echo the sidebar's active row with
              a deep navy text + an underline rail in the same indigo
