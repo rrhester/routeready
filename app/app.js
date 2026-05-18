@@ -7257,13 +7257,13 @@ async function checkAndShowPendingRecognition(session) {
   if (!session || !session.token) return;
   // Already on /welcome with an event in the stash — nothing to do.
   if (currentRoute() === "/welcome" && _currentCelebrationEv) return;
-  // SHOWN-THIS-SESSION GATE — cap to ONE celebration per app session.
-  // Without this, dismissing one celebration would immediately route
-  // the user back to /welcome with the next queued event on the very
-  // next foreground re-check.  Cleared on a real page reload.
-  try {
-    if (sessionStorage.getItem("rr.recogShownThisSession") === "1") return;
-  } catch (_) {}
+  // Legacy session cap REMOVED — iOS PWA can persist sessionStorage
+  // across full app close, which stuck users at "already shown" forever
+  // and silently blocked every subsequent celebration.  The localStorage
+  // dismissed-IDs set (_recogDismissedIds) is the canonical guard now:
+  // a dismissed event id can never re-fire, while a brand-new celebration
+  // always can.  One-time cleanup of the stale key below frees stuck users.
+  try { sessionStorage.removeItem("rr.recogShownThisSession"); } catch (_) {}
   let r;
   try {
     r = await sb.rpc("driver_recognitions_pending", { p_token: session.token });
@@ -7746,11 +7746,10 @@ function renderCelebrationRoute() {
   }
   if (!reduced) _playCelebrationChime();
 
-  // Mark this event as session-shown the moment we paint, so a fast
-  // foreground re-check (visibilitychange firing during the same
-  // celebration view) can't pick up a second queued event and stack a
-  // re-navigation on top of the current one.
-  try { sessionStorage.setItem("rr.recogShownThisSession", "1"); } catch (_) {}
+  // Removed the session-shown sessionStorage write — see the matching
+  // comment in checkAndShowPendingRecognition.  _celebrationOpen is
+  // implicit via the route (we're at /welcome) and the localStorage
+  // dismissed-IDs set covers replay.
 
   if (session && session.token && ev.id) {
     sb.rpc("driver_recognition_delivered", { p_token: session.token, p_id: ev.id })
