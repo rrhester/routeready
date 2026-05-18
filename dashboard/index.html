@@ -12121,8 +12121,10 @@ body.rr-cmdk-open{ overflow:hidden }
             gap:0;
             margin-left:auto;
             min-width:0;max-width:100%;
-            overflow-x:auto;
-            scrollbar-width:thin;
+            /* overflow:visible so the quick-settings popover can
+               escape the strip — earlier overflow-x:auto clipped
+               every dropdown that hung below the navigation row. */
+            overflow:visible;
             min-height:52px;
           }
           #view-schedule .sched-nav-heading-actions > .subnav{
@@ -12295,8 +12297,14 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-page-btn-split-toggle:focus-visible{
             background:var(--sch-blue-softer);color:var(--sch-blue);outline:none;
           }
+          /* Important: the .sched-nav-heading-actions .sched-page-btn
+             svg rule bumps every icon to 28px. The chevron lives
+             inside the Settings button so it'd inherit that size.
+             Pin it to 10px with high enough specificity to win. */
+          #view-schedule .sched-nav-heading-actions .sched-page-btn .sched-page-btn-split-toggle svg,
           #view-schedule .sched-page-btn-split-toggle svg{
-            width:10px;height:10px;
+            width:10px !important;height:10px !important;
+            color:inherit;stroke-width:2;
           }
           #view-schedule .sched-page-btn-split-toggle[aria-expanded="true"]{
             background:var(--sch-blue-soft);color:var(--sch-blue);
