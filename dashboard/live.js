@@ -38480,29 +38480,6 @@ document.addEventListener("click", async (e) => {
     openRecogSendModal({});
     return;
   }
-  if (e.target.closest("#rr-recog-welcome-btn") || e.target.closest("#rr-recog-welcome-card")) {
-    // Card-level click should only trigger when the operator clicks
-    // outside the dropdowns / sub-controls (which there aren't on this
-    // card today, so a card-level handler is fine).
-    e.preventDefault();
-    openRecogSendModal({ kind: "welcome_to_team" });
-    return;
-  }
-  if (e.target.closest("#rr-recog-baby-boy-btn") || e.target.closest("#rr-recog-baby-boy-card")) {
-    e.preventDefault();
-    openRecogSendModal({ kind: "baby_boy" });
-    return;
-  }
-  if (e.target.closest("#rr-recog-baby-girl-btn") || e.target.closest("#rr-recog-baby-girl-card")) {
-    e.preventDefault();
-    openRecogSendModal({ kind: "baby_girl" });
-    return;
-  }
-  if (e.target.closest("#rr-recog-baby-expecting-btn") || e.target.closest("#rr-recog-baby-expecting-card")) {
-    e.preventDefault();
-    openRecogSendModal({ kind: "baby_expecting" });
-    return;
-  }
   const celebrate = e.target.closest("[data-rr-recog-celebrate]");
   if (celebrate) {
     e.preventDefault();
