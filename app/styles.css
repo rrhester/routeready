@@ -2645,3 +2645,196 @@ body.is-home main > .home-hero{
    Keep just the active-indicator opacity bump for consistency. */
 .tab.active::before{ background:#2563FF;opacity:.65 }
 .tab.active{ color:#2563FF }
+
+/* ── Avatar Studio · /settings/avatar ─────────────────────────────
+   Three stacked sections — preview hero, style grid (tabbed AI /
+   Cartoon), accent + summary — over the standard page bg. Reads as
+   premium-operational, not social-media: calm spacing, soft shadows,
+   one strong accent, no playful motifs. */
+.av-studio{
+  padding: 6px 16px 28px;
+  display:flex;flex-direction:column;gap:18px;
+  max-width:520px;margin:0 auto;
+}
+
+.av-hero{
+  display:flex;flex-direction:column;align-items:center;
+  padding:18px 18px 16px;border-radius:24px;
+  background:linear-gradient(180deg, #FFFFFF 0%, #F6F8FC 100%);
+  border:1px solid var(--border);
+  box-shadow:var(--shadow-md);
+}
+.av-preview-wrap{
+  position:relative;padding:6px;border-radius:50%;
+  background:radial-gradient(circle at 30% 20%, #ffffff, #EEF2FF 60%, #DCE6FB);
+}
+.av-preview{
+  width:148px;height:148px;border-radius:50%;
+  background:#E5E7EB center / cover no-repeat;
+  display:flex;align-items:center;justify-content:center;
+  color:#1F2937;font-size:46px;font-weight:700;letter-spacing:-.02em;
+  position:relative;overflow:hidden;
+  transition: box-shadow 220ms var(--ease-out);
+}
+.av-preview-fallback{
+  width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg, #1D4ED8, #2563EB 60%, #4F8AF7);
+  color:#fff;
+}
+.av-preview-spinner{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+}
+.av-hero-copy{
+  margin-top:14px;text-align:center;
+}
+.av-hero-title{
+  font-size:14px;color:var(--text-muted);font-weight:500;line-height:1.45;letter-spacing:-.005em;
+}
+
+.av-primary-actions{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  width:100%;margin-top:16px;
+}
+.av-primary{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:46px;border-radius:14px;
+  font:inherit;font-size:14.5px;font-weight:600;letter-spacing:-.005em;
+  cursor:pointer;
+  transition: transform 110ms var(--ease-spring), background 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+}
+.av-primary:active{ transform:scale(.98) }
+.av-primary-secondary{
+  background:#FFFFFF;color:var(--text);
+  border:1px solid var(--border-strong);
+  box-shadow:var(--shadow-xs);
+}
+.av-primary-secondary:hover{ background:var(--canvas) }
+.av-primary-primary{
+  background:var(--accent-grad);color:#fff;border:0;
+  box-shadow:0 10px 22px -8px rgba(37,99,235,.45);
+}
+.av-primary-primary:hover{ background:var(--accent-grad-hover) }
+
+.av-section{
+  display:flex;flex-direction:column;gap:10px;
+}
+.av-section-label{
+  font-size:11px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;
+  color:var(--text-subtle);padding-left:2px;
+}
+
+.av-tabs{
+  display:grid;grid-template-columns:1fr 1fr;gap:6px;
+  background:var(--canvas);padding:4px;border-radius:14px;
+  border:1px solid var(--border);
+}
+.av-tab{
+  appearance:none;border:0;background:transparent;
+  font:inherit;font-size:13.5px;font-weight:600;letter-spacing:-.005em;
+  color:var(--text-muted);
+  min-height:38px;border-radius:10px;cursor:pointer;
+  transition: background 140ms var(--ease-out), color 140ms var(--ease-out), box-shadow 140ms var(--ease-out);
+}
+.av-tab.is-active{
+  background:#fff;color:var(--accent);
+  box-shadow:0 1px 2px rgba(15,23,42,.06), 0 4px 12px -6px rgba(15,23,42,.16);
+}
+
+.av-style-grid{
+  display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;
+}
+@media (max-width: 380px){
+  .av-style-grid{ grid-template-columns:repeat(3, 1fr) }
+}
+.av-style-card{
+  appearance:none;border:0;background:transparent;padding:0;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  transition: transform 110ms var(--ease-spring);
+}
+.av-style-card:active{ transform:scale(.97) }
+.av-style-thumb{
+  position:relative;width:100%;aspect-ratio:1/1;border-radius:14px;
+  background:var(--canvas) center / cover no-repeat;
+  border:2px solid transparent;
+  box-shadow:0 1px 2px rgba(15,23,42,.05), 0 6px 14px -10px rgba(15,23,42,.18);
+  transition: border-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
+}
+.av-style-card.is-selected .av-style-thumb{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(37,99,235,.18), 0 6px 14px -8px rgba(37,99,235,.40);
+}
+.av-style-check{
+  position:absolute;top:6px;right:6px;
+  width:20px;height:20px;border-radius:50%;
+  background:var(--accent);color:#fff;
+  display:none;align-items:center;justify-content:center;
+  box-shadow:0 4px 10px rgba(37,99,235,.45);
+}
+.av-style-card.is-selected .av-style-check{ display:inline-flex }
+.av-style-label{
+  font-size:12px;font-weight:600;color:var(--text);letter-spacing:-.002em;
+  text-align:center;
+}
+
+.av-accents{
+  display:flex;align-items:center;gap:12px;padding:4px 2px;
+}
+.av-accent{
+  position:relative;width:30px;height:30px;border-radius:50%;
+  border:0;cursor:pointer;padding:0;
+  transition: transform 110ms var(--ease-spring), box-shadow 140ms var(--ease-out);
+}
+.av-accent:active{ transform:scale(.92) }
+.av-accent.is-selected{
+  box-shadow:0 0 0 2px #fff, 0 0 0 4px currentColor;
+}
+.av-accent-tick{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:#fff;
+  text-shadow:0 1px 2px rgba(8,18,60,.35);
+}
+.av-accent[data-av-accent="none"].is-selected{ color:#94A3B8 }
+.av-accent[data-av-accent="none"] .av-accent-tick{ color:#64748B;text-shadow:none }
+
+.av-section-summary{
+  background:var(--surface);border:1px solid var(--border);border-radius:18px;
+  padding:14px 16px;
+  display:flex;flex-direction:column;gap:0;
+  box-shadow:var(--shadow-xs);
+}
+.av-summary-row{
+  display:flex;align-items:center;justify-content:space-between;
+  min-height:42px;padding:6px 0;
+  border-bottom:1px solid var(--border-subtle);
+}
+.av-summary-row:last-child{ border-bottom:0 }
+.av-summary-key{
+  font-size:13px;color:var(--text-subtle);font-weight:500;letter-spacing:-.002em;
+}
+.av-summary-val{
+  font-size:14px;color:var(--text);font-weight:600;letter-spacing:-.005em;
+  max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+.av-actions-foot{
+  display:flex;flex-direction:column;gap:10px;margin-top:4px;
+}
+.av-actions-foot-row{
+  display:flex;align-items:center;justify-content:center;gap:18px;
+  margin-top:2px;
+}
+.av-text-btn{
+  appearance:none;border:0;background:transparent;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;
+  font:inherit;font-size:13px;font-weight:600;color:var(--accent);letter-spacing:-.002em;
+  min-height:36px;padding:6px 8px;border-radius:10px;
+  transition: background 140ms var(--ease-out);
+}
+.av-text-btn:hover{ background:var(--accent-soft) }
+.av-text-btn:active{ background:var(--accent-soft-strong) }
+
+/* Avatars inherit the accent ring without overriding existing
+   rounded layouts. `.rr-av` is applied by avatarHtml() so the ring
+   shows up consistently across home, team, chat headers. */
+.rr-av{ transition: box-shadow 200ms var(--ease-out) }
