@@ -820,7 +820,7 @@ a{color:inherit;text-decoration:none}
    landed with the driver. */
 .att-coach-chip{
   display:inline-flex;align-items:center;gap:3px;
-  padding:1px 7px;border-radius:8px;
+  padding:1px 7px;border-radius:var(--r-lg);
   font-size:10px;font-weight:700;line-height:1.5;
   letter-spacing:.04em;text-transform:uppercase;
   background:var(--canvas);color:var(--text-muted);
@@ -864,7 +864,7 @@ a{color:inherit;text-decoration:none}
 .origin-badge{
   display:inline-flex;align-items:center;gap:var(--s-1);
   font-size:var(--fs-xs);font-weight:600;line-height:1.5;
-  padding:1px 7px;border-radius:8px;
+  padding:1px 7px;border-radius:var(--r-lg);
   background:var(--canvas);color:var(--text-subtle);
   border:1px solid var(--border);
   white-space:nowrap;
@@ -3919,7 +3919,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .search-result:last-child{border-bottom:none}
 .search-result-name{font-size:var(--fs-md);font-weight:600;color:var(--text)}
 .search-result-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
-.search-result-tag{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);background:var(--canvas);padding:2px 7px;border-radius:8px}
+.search-result-tag{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);background:var(--canvas);padding:2px 8px;border-radius:var(--r-lg)}
 
 /* ─────────────────────────────────────────────────────────────
    APPLICANT / DRIVER DETAIL DRAWERS
@@ -4023,7 +4023,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
 .cc-factor-text strong{font-weight:600}
 .cc-factor-text small{color:var(--text-subtle);font-size:var(--fs-xs);display:block;margin-top:2px}
 .cc-factor-impact{
-  font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:8px;white-space:nowrap;
+  font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:var(--r-lg);white-space:nowrap;
 }
 .cc-factor-impact.pos{background:var(--green-soft);color:var(--green)}
 .cc-factor-impact.neg{background:var(--red-soft);color:var(--red)}
@@ -5399,7 +5399,7 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 .form-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-sm)}
 .form-card-status{
-  font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:8px;
+  font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:var(--r-lg);
   background:var(--green-soft);color:var(--green);align-self:flex-start;
   display:inline-flex;align-items:center;gap:var(--s-1);
 }
@@ -5957,7 +5957,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .pool-driver-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
 .pool-driver-hours{
   font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);
-  background:var(--canvas);padding:1px 6px;border-radius:8px;white-space:nowrap;
+  background:var(--canvas);padding:1px 7px;border-radius:var(--r-lg);white-space:nowrap;
 }
 .pool-driver.maxed .pool-driver-hours{color:var(--amber);background:var(--amber-soft)}
 .pool-driver.off{opacity:.5;cursor:not-allowed}
@@ -6208,7 +6208,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .cl-subtab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-xs)}
 .cl-subtab-badge{
   display:inline-flex;align-items:center;justify-content:center;min-width:18px;
-  height:16px;padding:0 5px;border-radius:8px;font-size:10px;font-weight:700;
+  height:16px;padding:0 5px;border-radius:var(--r-lg);font-size:10px;font-weight:700;
   background:var(--canvas);color:var(--text-subtle);border:1px solid var(--border);
 }
 .cl-subtab.active .cl-subtab-badge{background:var(--canvas);color:var(--text-subtle)}
@@ -6356,7 +6356,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .asset-row:hover{background:var(--canvas)}
 .asset-id{font-family:'SF Mono',Menlo,monospace;font-size:var(--fs-xs);color:var(--text-muted)}
 .asset-name{font-weight:600;color:var(--text)}
-.asset-status{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:8px}
+.asset-status{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:var(--r-lg)}
 .asset-status.assigned{background:var(--green-soft);color:var(--green)}
 .asset-status.inv{background:var(--canvas);color:var(--text-muted)}
 .asset-status.lost{background:var(--red-soft);color:var(--red)}
@@ -6476,7 +6476,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .sd-extraction.active .sd-extraction-toggle svg{width:11px;height:11px}
 .sd-extraction-name{font-size:var(--fs-md);font-weight:600;color:var(--text);flex:1}
 .sd-extraction-count{font-size:var(--fs-xs);color:var(--text-muted)}
-.sd-extraction-route{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:8px;background:var(--accent-soft);color:var(--accent-text);letter-spacing:.02em;text-transform:uppercase}
+.sd-extraction-route{font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:var(--r-lg);background:var(--accent-soft);color:var(--accent-text);letter-spacing:.02em;text-transform:uppercase}
 .sd-extraction-conf{font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600}
 
 .sd-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
@@ -6866,7 +6866,7 @@ body.rr-cmdk-open{ overflow:hidden }
 .bb-data-name{font-weight:600;color:var(--text)}
 .bb-data-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
 .bb-data-status{
-  font-size:var(--fs-xs);font-weight:600;padding:2px 9px;border-radius:8px;letter-spacing:.02em;
+  font-size:var(--fs-xs);font-weight:600;padding:2px 8px;border-radius:var(--r-lg);letter-spacing:.02em;
 }
 .bb-data-status.uploaded{background:var(--green-soft);color:var(--green)}
 .bb-data-status.needed{background:var(--red-soft);color:var(--red)}
