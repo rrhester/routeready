@@ -13550,112 +13550,28 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-sev.critical{background:var(--red-soft);color:var(--red)}
 
           /* ── Fleet execution KPI strip ─────────────────────────────
-             Two cards (FEM + VORR) over a quiet recommendations rail.
-             Built to feel operational, not decorative: each card is a
-             single-click drill-down, the accent ribbon flips with the
-             threshold so peripheral vision picks up the state, and the
-             whole strip collapses gracefully when there are no branded
-             vans in the fleet yet. */
+             Reuses the dashboard's stock .kpi-card system so the FEM
+             and VORR cards read as part of the same KPI family as
+             every other surface in the app — same padding, same brand
+             ribbon, same label/value/sub rhythm.  We only override the
+             grid to 2-up and make the cards behave as buttons; state
+             is conveyed by a single pip in .kpi-sub, never by red
+             chrome on the card itself. */
           #view-fleet .fl-exec-strip{margin-bottom:var(--s-5)}
-          #view-fleet .fl-exec-grid{
-            display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
-            gap:var(--s-4);
+          #view-fleet .fl-exec-strip .kpi-grid{
+            grid-template-columns:repeat(2,minmax(0,1fr));
+            margin-bottom:0;
           }
           @media (max-width:880px){
-            #view-fleet .fl-exec-grid{grid-template-columns:1fr}
+            #view-fleet .fl-exec-strip .kpi-grid{grid-template-columns:1fr}
           }
-          #view-fleet .fl-exec-card{
-            position:relative;overflow:hidden;
-            background:var(--surface);background-image:var(--surface-grad);
-            border:1px solid var(--border);border-radius:var(--r-lg);
-            padding:var(--s-5) var(--s-5) var(--s-4);
-            box-shadow:var(--shadow-sm), var(--highlight-top);
-            cursor:pointer;text-align:left;
-            transition:box-shadow var(--t-smooth), transform var(--t-smooth), border-color var(--t-smooth);
-            display:flex;flex-direction:column;gap:var(--s-3);
+          #view-fleet .fl-exec-strip .kpi-card{
+            cursor:pointer;
           }
-          #view-fleet .fl-exec-card:hover{
-            border-color:var(--accent-border);
-            box-shadow:var(--shadow-md-hover), var(--highlight-top);
-            transform:translateY(-1px);
+          #view-fleet .fl-exec-strip .kpi-card:focus-visible{
+            outline:none;border-color:var(--accent);
+            box-shadow:var(--ring-focus), var(--highlight-top);
           }
-          #view-fleet .fl-exec-card:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus), var(--highlight-top)}
-          #view-fleet .fl-exec-card::before{
-            content:"";position:absolute;top:0;left:0;right:0;height:3px;
-            background:var(--green);
-          }
-          #view-fleet .fl-exec-card[data-state="warning"]::before{background:var(--amber)}
-          #view-fleet .fl-exec-card[data-state="critical"]::before{background:var(--red)}
-
-          #view-fleet .fl-exec-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3)}
-          #view-fleet .fl-exec-title{
-            font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
-            text-transform:uppercase;color:var(--text-muted);
-          }
-          #view-fleet .fl-exec-state{
-            display:inline-flex;align-items:center;gap:6px;
-            font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;
-            text-transform:uppercase;
-            padding:2px var(--s-2);border-radius:var(--r-pill);
-            background:var(--green-soft);color:var(--green);
-          }
-          #view-fleet .fl-exec-card[data-state="warning"] .fl-exec-state{background:var(--amber-soft);color:var(--amber-dark)}
-          #view-fleet .fl-exec-card[data-state="critical"] .fl-exec-state{background:var(--red-soft);color:var(--red)}
-          #view-fleet .fl-exec-state .pip{width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto}
-
-          #view-fleet .fl-exec-num{
-            display:flex;align-items:baseline;gap:var(--s-2);
-          }
-          #view-fleet .fl-exec-num .v{
-            font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1;
-            color:var(--text);font-variant-numeric:tabular-nums;
-          }
-          #view-fleet .fl-exec-num .sub{
-            font-size:var(--fs-md);color:var(--text-subtle);
-            font-variant-numeric:tabular-nums;
-          }
-
-          #view-fleet .fl-exec-segs{
-            display:flex;gap:var(--s-3);flex-wrap:wrap;
-            padding-top:var(--s-2);
-            border-top:1px solid var(--border-subtle);
-          }
-          #view-fleet .fl-exec-seg{display:flex;flex-direction:column;gap:2px;min-width:0}
-          #view-fleet .fl-exec-seg .l{
-            font-size:var(--fs-xs);color:var(--text-subtle);
-            display:inline-flex;align-items:center;gap:6px;
-          }
-          #view-fleet .fl-exec-seg .l .dot{width:6px;height:6px;border-radius:50%;flex:0 0 auto}
-          #view-fleet .fl-exec-seg .l .dot.green{background:var(--green)}
-          #view-fleet .fl-exec-seg .l .dot.amber{background:var(--amber)}
-          #view-fleet .fl-exec-seg .l .dot.red{background:var(--red)}
-          #view-fleet .fl-exec-seg .l .dot.muted{background:var(--text-subtle)}
-          #view-fleet .fl-exec-seg .n{
-            font-size:var(--fs-base);font-weight:600;color:var(--text);
-            font-variant-numeric:tabular-nums;
-          }
-
-          /* Recommendations rail · subtle horizontal strip beneath the
-             two cards.  Stays quiet at 0 items, escalates with severity. */
-          #view-fleet .fl-exec-recs{
-            margin-top:var(--s-3);
-            display:flex;flex-direction:column;gap:6px;
-          }
-          #view-fleet .fl-exec-rec{
-            display:flex;align-items:center;gap:var(--s-2-5);
-            padding:8px var(--s-3);
-            background:var(--canvas);border:1px solid var(--border-subtle);
-            border-radius:var(--r-md);
-            font-size:var(--fs-md);color:var(--text-muted);
-          }
-          #view-fleet .fl-exec-rec.sev-warning{background:var(--amber-soft);border-color:var(--amber-border);color:var(--amber-dark)}
-          #view-fleet .fl-exec-rec.sev-critical{background:var(--red-soft);border-color:var(--red-border);color:var(--red)}
-          #view-fleet .fl-exec-rec .ic{
-            width:14px;height:14px;flex:0 0 auto;
-            display:inline-flex;align-items:center;justify-content:center;
-            color:currentColor;
-          }
-          #view-fleet .fl-exec-rec .ic svg{width:100%;height:100%}
 
           /* Drill-down slide-over — reuses the Fleet drawer cosmetics
              (sticky head, body scroller) but stays self-contained so we
@@ -13747,38 +13663,36 @@ body.rr-cmdk-open{ overflow:hidden }
         <!-- Fleet Execution KPI strip · FEM (Amazon's 14-day rolling
              deploy compliance) + VORR (branded-fleet readiness rate).
              Painted by _flRenderExecKpis() in live.js from the
-             fleet_execution_summary RPC (migration 0301).  Cards are
-             keyboard-accessible buttons that open a slide-over
-             drill-down — at-risk vans for FEM, grounded vans for VORR. -->
+             fleet_execution_summary RPC (migration 0301).  Cards reuse
+             the dashboard's stock .kpi-card pattern and open a
+             slide-over drill-down on click — at-risk vans for FEM,
+             grounded vans for VORR. -->
         <div class="fl-exec-strip" id="rr-fleet-exec-strip" hidden>
-          <div class="fl-exec-grid">
-            <button type="button" class="fl-exec-card" id="rr-fem-card"
-                    data-state="healthy" aria-label="Open Fleet Execution Metric drill-down">
-              <div class="fl-exec-head">
-                <span class="fl-exec-title">Fleet Execution · 14-day</span>
-                <span class="fl-exec-state" id="rr-fem-state"><span class="pip"></span>Healthy</span>
+          <div class="kpi-grid">
+            <div class="kpi-card" id="rr-fem-card" role="button" tabindex="0"
+                 aria-label="Open Fleet Execution Metric drill-down">
+              <div class="kpi-label">Fleet Execution · 14-day</div>
+              <div class="kpi-value">
+                <span id="rr-fem-value">—</span><span class="kpi-value-fraction" id="rr-fem-frac"></span>
               </div>
-              <div class="fl-exec-num">
-                <span class="v" id="rr-fem-value">—</span>
-                <span class="sub" id="rr-fem-sub">of branded fleet deployed</span>
+              <div class="kpi-sub">
+                <span class="kpi-pip green" id="rr-fem-pip"></span>
+                <span id="rr-fem-sub">Loading…</span>
               </div>
-              <div class="fl-exec-segs" id="rr-fem-segs"></div>
-            </button>
+            </div>
 
-            <button type="button" class="fl-exec-card" id="rr-vorr-card"
-                    data-state="healthy" aria-label="Open Vehicle Operational Readiness drill-down">
-              <div class="fl-exec-head">
-                <span class="fl-exec-title">Operational Readiness · VORR</span>
-                <span class="fl-exec-state" id="rr-vorr-state"><span class="pip"></span>Healthy</span>
+            <div class="kpi-card" id="rr-vorr-card" role="button" tabindex="0"
+                 aria-label="Open Vehicle Operational Readiness drill-down">
+              <div class="kpi-label">Operational Readiness · VORR</div>
+              <div class="kpi-value">
+                <span id="rr-vorr-value">—</span><span class="kpi-value-fraction" id="rr-vorr-frac"></span>
               </div>
-              <div class="fl-exec-num">
-                <span class="v" id="rr-vorr-value">—</span>
-                <span class="sub" id="rr-vorr-sub">of branded fleet operational</span>
+              <div class="kpi-sub">
+                <span class="kpi-pip green" id="rr-vorr-pip"></span>
+                <span id="rr-vorr-sub">Loading…</span>
               </div>
-              <div class="fl-exec-segs" id="rr-vorr-segs"></div>
-            </button>
+            </div>
           </div>
-          <div class="fl-exec-recs" id="rr-fleet-exec-recs"></div>
         </div>
 
         <div class="fl-roster-bar">

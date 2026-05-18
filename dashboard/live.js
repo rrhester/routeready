@@ -34059,80 +34059,52 @@ function _flRenderExecKpis() {
   }
   strip.hidden = false;
 
-  // FEM card · % compliant (healthy + warning) of branded non-grounded.
-  // Card-level state escalates to "critical" only on actual violation,
-  // "warning" once at-risk vans exist, otherwise "healthy".
-  const femCard = document.getElementById("rr-fem-card");
-  const femState =
-    (fem.violation || 0) > 0 ? "critical" :
-    (fem.at_risk  || 0) > 0  ? "warning"  : "healthy";
-  femCard.dataset.state = femState;
+  // FEM · standard kpi-card rhythm.  State is conveyed by the single
+  // pip in .kpi-sub plus the sub-line copy; no red chrome on the card
+  // itself.  Sub-line carries the breakdown counts so the detail still
+  // lives on the page without a noisy segment row.
   const femPct = fem.percent == null ? "—" : (Number(fem.percent).toFixed(1) + "%");
   document.getElementById("rr-fem-value").textContent = femPct;
-  const femStateLabel =
-    femState === "critical" ? "Violation" :
-    femState === "warning"  ? "At risk"   : "On track";
-  const femStateEl = document.getElementById("rr-fem-state");
-  femStateEl.innerHTML = `<span class="pip"></span>${escapeHtml(femStateLabel)}`;
-  document.getElementById("rr-fem-sub").textContent =
-    `${fem.compliant || 0} of ${fem.total_in_scope || 0} branded vans deployed in last 14 days`;
-  document.getElementById("rr-fem-segs").innerHTML = [
-    _flKpiSegment("green", "Healthy",   fem.healthy   || 0),
-    _flKpiSegment("amber", "Warning",   fem.warning   || 0),
-    _flKpiSegment("amber", "At risk",   fem.at_risk   || 0),
-    _flKpiSegment("red",   "Violation", fem.violation || 0),
-    _flKpiSegment("muted", "Grounded",  fem.excluded_grounded || 0),
-  ].join("");
+  const femFrac = document.getElementById("rr-fem-frac");
+  femFrac.textContent = fem.total_in_scope ? ` / ${fem.total_in_scope} vans` : "";
+  const femPip = document.getElementById("rr-fem-pip");
+  femPip.classList.remove("green","amber","red");
+  femPip.classList.add(
+    (fem.violation || 0) > 0 ? "red" :
+    (fem.at_risk   || 0) > 0 ? "amber" : "green"
+  );
+  document.getElementById("rr-fem-sub").textContent = _flFemSubText(fem);
 
-  // VORR card · active / total branded.
-  const vorrCard = document.getElementById("rr-vorr-card");
-  const vorrState = vorr.threshold_status || "healthy";
-  vorrCard.dataset.state = vorrState;
+  // VORR · same pattern.
   const vorrPct = vorr.percent == null ? "—" : (Number(vorr.percent).toFixed(1) + "%");
   document.getElementById("rr-vorr-value").textContent = vorrPct;
-  const vorrStateLabel =
-    vorrState === "critical" ? "Below target" :
-    vorrState === "warning"  ? "At risk"      : "Healthy";
-  document.getElementById("rr-vorr-state").innerHTML =
-    `<span class="pip"></span>${escapeHtml(vorrStateLabel)}`;
-  document.getElementById("rr-vorr-sub").textContent =
-    `${vorr.active || 0} active · ${vorr.grounded || 0} grounded · ${vorr.total_branded || 0} branded total`;
-  document.getElementById("rr-vorr-segs").innerHTML = [
-    _flKpiSegment("green", "Active",         vorr.active        || 0),
-    _flKpiSegment("red",   "Grounded",       vorr.grounded      || 0),
-    _flKpiSegment("muted", "Branded fleet",  vorr.total_branded || 0),
-  ].join("");
-
-  // Recommendations rail · severity-ordered, capped at 4 so it stays
-  // readable.  Empty when there's nothing to nudge — calm by default.
-  const rail = document.getElementById("rr-fleet-exec-recs");
-  const recs = Array.isArray(s.recommendations) ? s.recommendations.slice(0, 4) : [];
-  rail.innerHTML = recs.map((r) => {
-    const sev = r.severity === "critical" ? "sev-critical"
-              : r.severity === "warning"  ? "sev-warning"
-              :                              "";
-    return `<div class="fl-exec-rec ${sev}">
-      <span class="ic">${_flExecRecIcon(r.severity)}</span>
-      <span>${escapeHtml(r.message || "")}</span>
-    </div>`;
-  }).join("");
+  const vorrFrac = document.getElementById("rr-vorr-frac");
+  vorrFrac.textContent = vorr.total_branded ? ` / ${vorr.total_branded} branded` : "";
+  const vorrPip = document.getElementById("rr-vorr-pip");
+  vorrPip.classList.remove("green","amber","red");
+  vorrPip.classList.add(
+    vorr.threshold_status === "critical" ? "red" :
+    vorr.threshold_status === "warning"  ? "amber" : "green"
+  );
+  document.getElementById("rr-vorr-sub").textContent = _flVorrSubText(vorr);
 }
 
-function _flKpiSegment(dotClass, label, n) {
-  return `<div class="fl-exec-seg">
-    <span class="l"><span class="dot ${dotClass}"></span>${escapeHtml(label)}</span>
-    <span class="n">${Number(n).toLocaleString()}</span>
-  </div>`;
+function _flFemSubText(fem) {
+  const total = fem.total_in_scope || 0;
+  if (total === 0) return "No branded vans in scope";
+  const v = fem.violation || 0;
+  const r = fem.at_risk   || 0;
+  if (v > 0) return `${v} in violation · ${r} at risk`;
+  if (r > 0) return `${r} approaching 14-day window`;
+  return `All ${total} vans deployed in last 14 days`;
 }
-
-function _flExecRecIcon(severity) {
-  if (severity === "critical") {
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
-  }
-  if (severity === "warning") {
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
-  }
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+function _flVorrSubText(vorr) {
+  const total = vorr.total_branded || 0;
+  if (total === 0) return "No branded vans in fleet";
+  const g = vorr.grounded || 0;
+  const a = vorr.active   || 0;
+  if (g === 0) return `${a} active · full readiness`;
+  return `${a} active · ${g} grounded`;
 }
 
 // ─── KPI drill-down slide-overs ──────────────────────────────────────
@@ -34305,11 +34277,24 @@ function _flExecVorrDrawerHtml(vorr) {
     </div>`;
 }
 
-// Wire the KPI cards once on first paint of the Fleet view.  Idempotent
-// guard via dataset flag so re-renders don't stack listeners.
+// Wire the KPI cards · click + keyboard (Enter / Space, since the
+// cards are role=button divs).  Single delegated listener so re-renders
+// can't stack handlers.
+function _flExecCardFrom(target) {
+  if (!target || !target.closest) return null;
+  return target.closest("#rr-fem-card, #rr-vorr-card");
+}
 document.addEventListener("click", (e) => {
-  const card = e.target.closest && e.target.closest("#view-fleet .fl-exec-card");
+  const card = _flExecCardFrom(e.target);
   if (!card) return;
+  if (card.id === "rr-fem-card")  _flOpenExecDrawer("fem");
+  if (card.id === "rr-vorr-card") _flOpenExecDrawer("vorr");
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const card = _flExecCardFrom(e.target);
+  if (!card) return;
+  e.preventDefault();
   if (card.id === "rr-fem-card")  _flOpenExecDrawer("fem");
   if (card.id === "rr-vorr-card") _flOpenExecDrawer("vorr");
 });
