@@ -12071,12 +12071,19 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-nav-heading-actions > .subnav{
             margin-bottom:0;
-            display:inline-flex;align-items:center;gap:0;
+            display:inline-flex !important;
+            align-items:center;gap:0;
             background:transparent;background-image:none;
             border:0;border-radius:0;padding:0;
             box-shadow:none;
             flex:0 0 auto;
             align-self:center;
+            width:auto !important;min-width:0;
+            border-bottom:0;
+          }
+          #view-schedule .sched-nav-heading-actions > .subnav > .subnav-item{
+            visibility:visible;
+            display:inline-flex !important;
           }
           #view-schedule .sched-ribbon-actions{
             display:inline-flex;align-items:center;gap:0;
