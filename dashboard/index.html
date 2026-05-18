@@ -11845,26 +11845,31 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-sm);font-weight:500;
             color:var(--text-subtle);margin-top:2px;
           }
-          #view-schedule .page-actions{gap:2px;align-items:center;flex-wrap:wrap}
+          #view-schedule .page-actions{gap:4px;align-items:stretch;flex-wrap:wrap;min-height:60px}
 
-          /* Page-action buttons — ghost command items */
+          /* Page-action buttons — Outlook ribbon command tiles.
+             Icon stacked above the label, generous vertical padding,
+             consistent column width so the row reads as a ribbon
+             group instead of a row of pill buttons. */
           #view-schedule .sched-page-btn{
             appearance:none;
             background:transparent;
             border:1px solid transparent;
             color:var(--text-muted);
             font-family:inherit;font-weight:500;
-            font-size:var(--fs-sm);line-height:1;
-            display:inline-flex;align-items:center;gap:7px;
-            padding:7px 10px;
+            font-size:var(--fs-sm);line-height:1.2;
+            display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+            gap:6px;
+            padding:8px 14px 7px;
+            min-width:64px;
             border-radius:var(--sch-radius);
             cursor:pointer;
             box-shadow:none;
             transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
           }
           #view-schedule .sched-page-btn svg{
-            width:14px;height:14px;flex-shrink:0;
-            color:var(--text-subtle);stroke-width:1.75;
+            width:22px;height:22px;flex-shrink:0;
+            color:var(--text-muted);stroke-width:1.5;
           }
           #view-schedule .sched-page-btn:hover{
             background:var(--sch-hover);
@@ -11901,7 +11906,8 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-page-btn#rr-sched-finalize-h[data-rr-stage="live"]:hover svg{color:#fff}
 
-          /* Week navigator — Outlook segmented control */
+          /* Week navigator — Outlook segmented control, sized to
+             match the ribbon tiles next to it. */
           #view-schedule .sched-week-nav{
             display:inline-flex;align-items:stretch;
             background:var(--sch-surface);
@@ -11909,7 +11915,8 @@ body.rr-cmdk-open{ overflow:hidden }
             border-radius:var(--sch-radius);
             padding:0;
             box-shadow:none;
-            margin-left:6px;
+            margin-left:10px;
+            align-self:center;
             overflow:hidden;
           }
           #view-schedule .sched-week-nav-btn,
@@ -11918,13 +11925,13 @@ body.rr-cmdk-open{ overflow:hidden }
             appearance:none;background:transparent;border:0;cursor:pointer;
             font:inherit;display:inline-flex;align-items:center;
             color:var(--text-muted);
-            height:30px;
+            height:38px;
             border-radius:0;
             box-shadow:none;
             transition:background var(--t-fast),color var(--t-fast);
           }
           #view-schedule .sched-week-nav-btn{
-            width:30px;justify-content:center;
+            width:34px;justify-content:center;
           }
           #view-schedule .sched-week-nav-btn:hover{
             background:var(--sch-hover);
