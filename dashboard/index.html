@@ -11450,8 +11450,21 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Schedule page leans almost entirely white — color is
              reserved for the schedule itself (shift chips), buttons,
              and the one signal that demands action (red alarms).
-             Everything else uses the navy family or no color at all. */
-          #view-schedule{background:#FFFFFF}
+             Every accent color used on the page is pulled into the
+             sidebar's navy family so the surface feels like a single
+             material. Red is the only out-of-family color. */
+          #view-schedule{
+            background:#FFFFFF;
+            /* Accent family → sidebar navy. Drives shift chips, focus
+               rings, route text, and any --accent-* consumer. */
+            --accent:#2C3170;
+            --accent-hover:#1A1F47;
+            --accent-text:#1A1F47;
+            --accent-soft:rgba(26,31,71,.06);
+            --accent-soft-strong:rgba(26,31,71,.10);
+            --accent-border:rgba(26,31,71,.18);
+            --brand-grad:linear-gradient(180deg, #2C3170 0%, #1A1F47 100%);
+          }
 
           /* Tighter page-header → KPI strip rhythm. Default --s-8
              (32px) below the page header reads as a big empty band
