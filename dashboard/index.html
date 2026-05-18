@@ -11212,7 +11212,73 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           /* Pill the page-action buttons (Smart Fill / Route planning /
              Settings / Finalize) to match the driver app's soft chrome. */
-          #view-schedule .sched-page-btn{border-radius:999px}
+          #view-schedule .sched-page-btn{
+            border-radius:999px;
+            background:var(--canvas);
+            border-color:rgba(15,23,42,.06);
+            box-shadow:0 1px 2px rgba(15,23,42,.04);
+          }
+          #view-schedule .sched-page-btn:hover{
+            background:var(--surface);
+            box-shadow:0 4px 12px rgba(15,23,42,.06);
+          }
+
+          /* Coverage KPI primary card — swap the hard 1px outline glow
+             for the same soft-shadow recipe the other cards use. */
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary{
+            box-shadow:0 8px 24px rgba(15,23,42,.05), inset 0 1px 0 rgba(255,255,255,.55);
+          }
+          #view-schedule #rr-sched-kpis .stat-mini.is-primary.is-primary-bad{
+            box-shadow:0 8px 24px rgba(15,23,42,.05), inset 0 1px 0 rgba(255,255,255,.55);
+          }
+
+          /* Driver-pool search input — softer border, gentle shadow. */
+          #view-schedule .pool-search{
+            border-radius:12px;
+            border-color:rgba(15,23,42,.06);
+            box-shadow:0 1px 2px rgba(15,23,42,.04);
+          }
+          #view-schedule .pool-search:focus{
+            border-color:var(--accent);
+            box-shadow:0 0 0 3px var(--accent-soft);
+          }
+
+          /* Pool driver row — soften hover so it lifts instead of
+             outlining. */
+          #view-schedule .pool-driver{border-radius:14px}
+          #view-schedule .pool-driver:hover{
+            border-color:rgba(15,23,42,.04);
+            box-shadow:0 1px 2px rgba(15,23,42,.04);
+          }
+
+          /* Week-range nav inner buttons — gentle hover rim instead of
+             a flat background swap. */
+          #view-schedule .sched-week-nav-btn:hover{
+            box-shadow:inset 0 0 0 1px var(--accent-soft);
+          }
+
+          /* "Today" button gets a soft resting tint so it doesn't read
+             as floating text inside the pill. */
+          #view-schedule .sched-week-nav-today{
+            background:rgba(37,99,235,.06);
+          }
+
+          /* Icon-toggle (driver sort, KPI mini-toggles) gets a
+             whisper-soft resting surface. */
+          #view-schedule .rr-tf-icon{
+            background:rgba(15,23,42,.02);
+            border-radius:10px;
+          }
+          #view-schedule .rr-tf-icon:hover{
+            background:var(--accent-soft);
+          }
+
+          /* Coverage strip cells — round the outer corners so the
+             strip sits visually inside the rounded .cal-wrap above it
+             instead of butting against a sharp edge. */
+          #view-schedule .coverage-strip{
+            border-top:1px solid rgba(15,23,42,.06);
+          }
 
         </style>
         <style>
