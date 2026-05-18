@@ -10156,6 +10156,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
             <button class="settings-nav-item" data-set="licenses" onclick="setSettingsSection(this)">License renewals</button>
             <button class="settings-nav-item" data-set="scheduling" onclick="setSettingsSection(this)">Scheduling</button>
+            <button class="settings-nav-item" data-set="recognition" onclick="setSettingsSection(this); if (typeof loadRecognitionSettings === 'function') loadRecognitionSettings();">Recognition</button>
             <button class="settings-nav-item" data-set="billing" onclick="setSettingsSection(this)">Billing</button>
           </nav>
 
@@ -10986,6 +10987,29 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
 
             <!-- LICENSE RENEWALS SECTION -->
+
+            <!-- RECOGNITION SECTION -->
+            <div class="settings-section hidden" data-set="recognition">
+              <div class="settings-section-head">
+                <h2 class="settings-section-title">Recognition</h2>
+                <p class="settings-section-sub">Per-celebration auto-fire toggles.  A scheduled job runs every morning and sends the celebrations you've enabled to qualifying active drivers — birthdays + work anniversaries on the right day, holidays on the right date.  Nothing fires until you flip a toggle here.</p>
+              </div>
+
+              <div id="rr-recog-settings-status" class="u-xs-subtle" style="margin-bottom:var(--s-3)">Loading…</div>
+
+              <div id="rr-recog-settings-groups"></div>
+
+              <div class="form-row" style="margin-top:var(--s-5);border-top:1px solid var(--border-subtle);padding-top:var(--s-4)">
+                <div>
+                  <div class="form-label">Run today's auto-fire now</div>
+                  <div class="form-help">Manually invoke the auto-fire engine for today.  Safe to re-run — celebrations already created today are skipped.  Useful for testing or for catching up after a missed cron run.</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:var(--s-2-5)">
+                  <span id="rr-recog-autofire-status" class="u-xs-subtle"></span>
+                  <button class="btn btn-primary" type="button" id="rr-recog-autofire-now">Run now</button>
+                </div>
+              </div>
+            </div>
 
             <!-- BILLING SECTION -->
             <div class="settings-section hidden" data-set="billing">
@@ -19575,6 +19599,7 @@ John,Smith,555-0101,john@example.com</code>
     referrals: { title:'Hiring referrals', sub:'KPIs, leaderboard, auto-invite, milestone payouts.' },
     sms: { title:'SMS & messaging', sub:'Quiet hours, opt-out handling, default templates.' },
     video: { title:'Video screening', sub:'Recorded video introductions from applicants.' },
+    recognition: { title:'Recognition', sub:'Per-celebration auto-fire toggles and copy overrides.' },
     billing: { title:'Billing', sub:'Subscription, invoices, payment method.' }
   };
   function setSettingsSection(btn){
@@ -22621,7 +22646,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260518-celebration22"></script>
+<script type="module" src="./live.js?v=20260518-recog-autofire"></script>
 
 </body>
 </html>

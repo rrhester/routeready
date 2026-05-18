@@ -38384,3 +38384,221 @@ async function openRecogSendModal(opts) {
     }
   }, 0);
 }
+
+
+// ═════════════════════════════════════════════════════════════════════
+//  RECOGNITION SETTINGS PANE  (Settings → Recognition)
+// ═════════════════════════════════════════════════════════════════════
+// Renders the per-kind enable toggles + customize-copy controls for all
+// 27 celebration kinds (grouped Core / Baby / Holidays).  Backed by
+// recognition_settings_list / recognition_settings_set in migration
+// 0296.  Each toggle change persists immediately — no save button.
+//
+// Also wires the "Run today's auto-fire now" button so dispatchers can
+// manually invoke recognition_autofire(current_date) for testing /
+// recovery without waiting for the daily cron.
+
+const _RECOG_KIND_GROUPS = [
+  {
+    label: "Core",
+    sub: "Built-in celebrations driven by driver birthday / hire date.",
+    kinds: ["birthday", "work_anniversary", "safety_milestone", "welcome_to_team", "custom"],
+  },
+  {
+    label: "Baby",
+    sub: "Send manually when a driver shares the news.  Auto-fire has no effect here (no birth-date field on drivers yet).",
+    kinds: ["baby_boy", "baby_girl", "baby_expecting"],
+  },
+  {
+    label: "Holidays",
+    sub: "Sent to every active driver on the matching calendar date.  Easter and Nth-weekday holidays (Thanksgiving, Memorial Day, etc.) are computed automatically.",
+    kinds: [
+      "holiday_new_years_day", "holiday_mlk_day", "holiday_valentines_day",
+      "holiday_presidents_day", "holiday_st_patricks_day", "holiday_easter",
+      "holiday_mothers_day", "holiday_memorial_day", "holiday_juneteenth",
+      "holiday_fathers_day", "holiday_independence_day", "holiday_labor_day",
+      "holiday_indigenous_peoples_day", "holiday_halloween",
+      "holiday_veterans_day", "holiday_thanksgiving", "holiday_christmas",
+    ],
+  },
+];
+
+const _RECOG_KIND_LABELS = {
+  birthday: "Birthday",
+  work_anniversary: "Work anniversary",
+  safety_milestone: "Safety milestone",
+  welcome_to_team: "Welcome to the team",
+  custom: "Custom note",
+  baby_boy: "It's a boy",
+  baby_girl: "It's a girl",
+  baby_expecting: "Expecting",
+  holiday_new_years_day: "New Year's Day",
+  holiday_mlk_day: "Martin Luther King Jr. Day",
+  holiday_valentines_day: "Valentine's Day",
+  holiday_presidents_day: "Presidents' Day",
+  holiday_st_patricks_day: "St. Patrick's Day",
+  holiday_easter: "Easter",
+  holiday_mothers_day: "Mother's Day",
+  holiday_memorial_day: "Memorial Day",
+  holiday_juneteenth: "Juneteenth",
+  holiday_fathers_day: "Father's Day",
+  holiday_independence_day: "Independence Day (4th of July)",
+  holiday_labor_day: "Labor Day",
+  holiday_indigenous_peoples_day: "Indigenous Peoples' Day",
+  holiday_halloween: "Halloween",
+  holiday_veterans_day: "Veterans Day",
+  holiday_thanksgiving: "Thanksgiving",
+  holiday_christmas: "Christmas",
+};
+
+let _recogSettingsByKind = {};   // { kind: { enabled, custom_title, custom_message, recipient_scope, default_title, default_message } }
+
+async function loadRecognitionSettings() {
+  const statusEl = document.getElementById("rr-recog-settings-status");
+  const groupsEl = document.getElementById("rr-recog-settings-groups");
+  if (!groupsEl) return;
+  if (statusEl) statusEl.textContent = "Loading…";
+  groupsEl.innerHTML = "";
+
+  const { data, error } = await sb.rpc("recognition_settings_list");
+  if (error) {
+    if (statusEl) statusEl.textContent = "Couldn't load settings: " + (error.message || "");
+    return;
+  }
+  _recogSettingsByKind = {};
+  (Array.isArray(data) ? data : []).forEach((r) => { _recogSettingsByKind[r.kind] = r; });
+
+  groupsEl.innerHTML = _RECOG_KIND_GROUPS.map((g) => {
+    const rows = g.kinds.map((k) => _recogSettingsRow(k)).join("");
+    return `
+      <div style="margin:0 0 var(--s-5) 0">
+        <h3 style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:0 0 4px 0">${escapeHtml(g.label)}</h3>
+        <p style="font-size:var(--fs-sm);color:var(--text-subtle);margin:0 0 var(--s-3) 0;line-height:1.5">${escapeHtml(g.sub)}</p>
+        <div style="border:1px solid var(--border-subtle);border-radius:var(--r-md);overflow:hidden">
+          ${rows}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  if (statusEl) statusEl.textContent = "";
+}
+window.loadRecognitionSettings = loadRecognitionSettings;
+
+function _recogSettingsRow(kind) {
+  const s = _recogSettingsByKind[kind] || { enabled: false, custom_title: null, custom_message: null, recipient_scope: "all_active", default_title: "", default_message: "" };
+  const label = _RECOG_KIND_LABELS[kind] || kind;
+  const titleVal = s.custom_title != null ? s.custom_title : "";
+  const msgVal = s.custom_message != null ? s.custom_message : "";
+  const hasCustom = !!(s.custom_title || s.custom_message);
+  return `
+    <div class="rr-recog-setting-row" data-rr-recog-kind="${escapeHtml(kind)}" style="padding:var(--s-3-5) var(--s-4);border-bottom:1px solid var(--border-subtle);background:var(--surface)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;color:var(--text);font-size:var(--fs-md)">${escapeHtml(label)}</div>
+          <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px"><span style="color:var(--text-muted)">Default:</span> ${escapeHtml(s.default_title || "")}</div>
+        </div>
+        <label class="toggle" style="flex:0 0 auto">
+          <input type="checkbox" data-rr-recog-toggle ${s.enabled ? "checked" : ""}/>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <details style="margin-top:var(--s-2-5)" ${hasCustom ? "open" : ""}>
+        <summary style="cursor:pointer;font-size:var(--fs-sm);color:var(--accent-text);user-select:none">Customize copy</summary>
+        <div style="margin-top:var(--s-2-5);display:grid;gap:var(--s-2-5)">
+          <div>
+            <div class="form-label" style="margin-bottom:4px">Custom title</div>
+            <input class="form-input" data-rr-recog-title type="text" placeholder="${escapeHtml(s.default_title || "")}" value="${escapeHtml(titleVal)}"/>
+          </div>
+          <div>
+            <div class="form-label" style="margin-bottom:4px">Custom message</div>
+            <textarea class="form-input" data-rr-recog-message rows="2" style="font-family:inherit;resize:vertical" placeholder="Leave blank to send title only">${escapeHtml(msgVal)}</textarea>
+          </div>
+          <div style="display:flex;justify-content:flex-end;align-items:center;gap:var(--s-2)">
+            <span class="u-xs-subtle" data-rr-recog-rowstatus></span>
+            <button class="btn btn-sm" type="button" data-rr-recog-savecopy>Save copy</button>
+          </div>
+        </div>
+      </details>
+    </div>
+  `;
+}
+
+// Delegated change/click handlers for the recognition settings pane.
+document.addEventListener("change", async (e) => {
+  const toggle = e.target.closest("[data-rr-recog-toggle]");
+  if (!toggle) return;
+  const row = toggle.closest("[data-rr-recog-kind]");
+  if (!row) return;
+  const kind = row.getAttribute("data-rr-recog-kind");
+  const enabled = !!toggle.checked;
+  const s = _recogSettingsByKind[kind] || {};
+  toggle.disabled = true;
+  const { error } = await sb.rpc("recognition_settings_set", {
+    p_kind: kind,
+    p_enabled: enabled,
+    p_custom_title: s.custom_title,
+    p_custom_message: s.custom_message,
+    p_recipient_scope: s.recipient_scope || "all_active",
+  });
+  toggle.disabled = false;
+  if (error) {
+    toggle.checked = !enabled;
+    toast("Couldn't update: " + (error.message || ""), "warn");
+    return;
+  }
+  _recogSettingsByKind[kind] = Object.assign({}, s, { enabled });
+  toast((enabled ? "Enabled " : "Disabled ") + (_RECOG_KIND_LABELS[kind] || kind));
+});
+
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-rr-recog-savecopy]");
+  if (btn) {
+    const row = btn.closest("[data-rr-recog-kind]");
+    if (!row) return;
+    const kind = row.getAttribute("data-rr-recog-kind");
+    const titleEl = row.querySelector("[data-rr-recog-title]");
+    const msgEl = row.querySelector("[data-rr-recog-message]");
+    const statusEl = row.querySelector("[data-rr-recog-rowstatus]");
+    const s = _recogSettingsByKind[kind] || { enabled: false, recipient_scope: "all_active" };
+    btn.disabled = true;
+    if (statusEl) statusEl.textContent = "Saving…";
+    const { error } = await sb.rpc("recognition_settings_set", {
+      p_kind: kind,
+      p_enabled: !!s.enabled,
+      p_custom_title: titleEl ? (titleEl.value || null) : null,
+      p_custom_message: msgEl ? (msgEl.value || null) : null,
+      p_recipient_scope: s.recipient_scope || "all_active",
+    });
+    btn.disabled = false;
+    if (error) {
+      if (statusEl) statusEl.textContent = "";
+      toast("Save failed: " + (error.message || ""), "warn");
+      return;
+    }
+    _recogSettingsByKind[kind] = Object.assign({}, s, {
+      custom_title:   titleEl ? (titleEl.value.trim() || null) : null,
+      custom_message: msgEl   ? (msgEl.value.trim()   || null) : null,
+    });
+    if (statusEl) statusEl.textContent = "Saved";
+    setTimeout(() => { if (statusEl) statusEl.textContent = ""; }, 1500);
+    return;
+  }
+
+  const fireBtn = e.target.closest("#rr-recog-autofire-now");
+  if (fireBtn) {
+    const statusEl = document.getElementById("rr-recog-autofire-status");
+    fireBtn.disabled = true;
+    if (statusEl) statusEl.textContent = "Running…";
+    const { data, error } = await sb.rpc("recognition_autofire", {});
+    fireBtn.disabled = false;
+    if (error) {
+      if (statusEl) statusEl.textContent = "";
+      toast("Auto-fire failed: " + (error.message || ""), "warn");
+      return;
+    }
+    const count = (typeof data === "number") ? data : parseInt(data, 10) || 0;
+    if (statusEl) statusEl.textContent = `Created ${count} celebration${count === 1 ? "" : "s"}`;
+    toast(`Auto-fire complete: ${count} celebration${count === 1 ? "" : "s"} created`);
+  }
+});
