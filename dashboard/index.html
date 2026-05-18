@@ -11219,52 +11219,70 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 16 11 19 16 14"/></svg>
               Route planning
             </button>
-            <button class="sched-page-btn" id="rr-sched-settings-open-h" type="button" title="Schedule settings for this week" aria-label="Schedule settings">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              Settings
-            </button>
+            <div class="sched-settings-split">
+              <button class="sched-page-btn sched-page-btn--split" id="rr-sched-settings-open-h" type="button" title="Schedule settings for this week" aria-label="Schedule settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Settings
+                <span class="sched-page-btn-split-toggle" id="rr-sched-quick-settings-toggle" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-quick-settings-popover" title="Quick edit Block / Cushion / Max days / Report">
+                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                </span>
+              </button>
+              <!-- Inline quick-edit popover · per-week values that
+                   drive Smart Fill + shift regeneration. Anchored to
+                   the Settings tile's split-toggle chevron. Auto-save
+                   runs on change and triggers the same regen path as
+                   the drawer's Save button. -->
+              <div class="sched-quick-settings-popover" id="rr-sched-quick-settings-popover" role="dialog" aria-modal="false" aria-label="Schedule quick settings" hidden>
+                <div class="sched-quick-settings-head">
+                  <span class="sched-quick-settings-title">This week's settings</span>
+                  <button type="button" class="sched-quick-settings-close" id="rr-sched-quick-settings-close" aria-label="Close">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div class="sched-quick-settings-body">
+                  <label class="sched-quick-setting">
+                    <span class="sched-quick-setting-label">Block length</span>
+                    <span class="sched-quick-setting-help">Hours per shift</span>
+                    <span class="sched-quick-setting-control">
+                      <input class="sched-quick-setting-input" id="rr-set-block-hours" type="number" min="1" max="14" step="1" autocomplete="off"/>
+                      <span class="sched-quick-setting-unit">h</span>
+                    </span>
+                  </label>
+                  <label class="sched-quick-setting">
+                    <span class="sched-quick-setting-label">Cushion</span>
+                    <span class="sched-quick-setting-help">Extra shifts above the route plan</span>
+                    <span class="sched-quick-setting-control">
+                      <input class="sched-quick-setting-input" id="rr-set-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off"/>
+                      <span class="sched-quick-setting-unit">%</span>
+                    </span>
+                  </label>
+                  <label class="sched-quick-setting">
+                    <span class="sched-quick-setting-label">Max days per week</span>
+                    <span class="sched-quick-setting-help">Auto-assign cap per driver</span>
+                    <span class="sched-quick-setting-control">
+                      <input class="sched-quick-setting-input" id="rr-set-max-days" type="number" min="1" max="7" step="1" autocomplete="off"/>
+                      <span class="sched-quick-setting-unit">d</span>
+                    </span>
+                  </label>
+                  <label class="sched-quick-setting">
+                    <span class="sched-quick-setting-label">Report time</span>
+                    <span class="sched-quick-setting-help">Driver clock-in lead before the wave</span>
+                    <span class="sched-quick-setting-control">
+                      <input class="sched-quick-setting-input" id="rr-set-report-lead" type="number" min="0" max="120" step="5" autocomplete="off"/>
+                      <span class="sched-quick-setting-unit">min</span>
+                    </span>
+                  </label>
+                </div>
+                <div class="sched-quick-settings-foot">
+                  <span class="sched-quick-settings-status" id="rr-sched-nav-settings-status" aria-live="polite"></span>
+                  <button type="button" class="sched-quick-settings-advanced" id="rr-sched-quick-settings-advanced">Advanced settings…</button>
+                </div>
+              </div>
+            </div>
             <button class="sched-page-btn" id="rr-sched-finalize-h" type="button" title="Push this week's schedule to drivers">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               Finalize
             </button>
-          </div>
-
-          <!-- Schedule settings · per-week values that drive Smart
-               Fill, route planning, and shift regeneration. Live in
-               the navigation heading so dispatchers can tune them
-               for the visible week without opening the drawer. Auto-
-               save runs on change and triggers the same regen path
-               as the drawer's Save button. -->
-          <div class="sched-ribbon-settings" id="rr-sched-nav-settings">
-            <label class="sched-nav-setting" title="Hours per shift">
-              <span class="sched-nav-setting-label">Block</span>
-              <span class="sched-nav-setting-control">
-                <input class="sched-nav-setting-input" id="rr-set-block-hours" type="number" min="1" max="14" step="1" autocomplete="off"/>
-                <span class="sched-nav-setting-unit">h</span>
-              </span>
-            </label>
-            <label class="sched-nav-setting" title="Extra shifts above the route plan">
-              <span class="sched-nav-setting-label">Cushion</span>
-              <span class="sched-nav-setting-control">
-                <input class="sched-nav-setting-input" id="rr-set-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off"/>
-                <span class="sched-nav-setting-unit">%</span>
-              </span>
-            </label>
-            <label class="sched-nav-setting" title="Auto-assign cap per driver">
-              <span class="sched-nav-setting-label">Max days</span>
-              <span class="sched-nav-setting-control">
-                <input class="sched-nav-setting-input" id="rr-set-max-days" type="number" min="1" max="7" step="1" autocomplete="off"/>
-                <span class="sched-nav-setting-unit">d</span>
-              </span>
-            </label>
-            <label class="sched-nav-setting" title="Minutes drivers clock in before the wave">
-              <span class="sched-nav-setting-label">Report</span>
-              <span class="sched-nav-setting-control">
-                <input class="sched-nav-setting-input" id="rr-set-report-lead" type="number" min="0" max="120" step="5" autocomplete="off"/>
-                <span class="sched-nav-setting-unit">min</span>
-              </span>
-            </label>
-            <span class="sched-nav-setting-status" id="rr-sched-nav-settings-status" aria-live="polite"></span>
           </div>
 
           <!-- Week navigator — Outlook segmented control, sits on
@@ -12252,28 +12270,182 @@ body.rr-cmdk-open{ overflow:hidden }
             align-self:center;flex:0 0 auto;
             display:inline-flex;align-items:stretch;
           }
-          /* Compact tile sizing across the board so every cluster
-             fits on the same line at typical laptop widths. */
+          /* Settings + popover wrapper · positions the popover
+             beneath the Settings tile. */
+          #view-schedule .sched-settings-split{
+            position:relative;
+            display:inline-flex;
+            align-items:stretch;
+          }
+
+          /* Settings split-button — main tile opens the full drawer,
+             the small chevron in the bottom-right opens an inline
+             quick-edit popover for Block / Cushion / Max days /
+             Report time. */
+          #view-schedule .sched-page-btn--split{position:relative;padding-right:22px}
+          #view-schedule .sched-page-btn-split-toggle{
+            position:absolute;right:2px;bottom:2px;
+            width:18px;height:18px;border-radius:4px;
+            display:inline-flex;align-items:center;justify-content:center;
+            color:var(--text-subtle);
+            background:transparent;border:0;cursor:pointer;
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-schedule .sched-page-btn-split-toggle:hover,
+          #view-schedule .sched-page-btn-split-toggle:focus-visible{
+            background:var(--sch-blue-softer);color:var(--sch-blue);outline:none;
+          }
+          #view-schedule .sched-page-btn-split-toggle svg{
+            width:10px;height:10px;
+          }
+          #view-schedule .sched-page-btn-split-toggle[aria-expanded="true"]{
+            background:var(--sch-blue-soft);color:var(--sch-blue);
+          }
+
+          /* Quick-settings popover · anchored beneath the Settings
+             tile's split-toggle chevron. Compact Outlook-style flyout
+             with the four per-week values inline-editable, auto-save
+             on change. */
+          #view-schedule .sched-quick-settings-popover{
+            position:absolute;
+            top:100%;right:0;
+            margin-top:6px;
+            z-index:50;
+            background:var(--sch-surface);
+            border:1px solid var(--sch-line-strong);
+            border-radius:var(--sch-radius-lg);
+            box-shadow:0 12px 32px rgba(15,23,42,.16);
+            width:320px;max-width:calc(100vw - 40px);
+            padding:0;
+            font-family:inherit;
+          }
+          #view-schedule .sched-quick-settings-popover[hidden]{display:none}
+          #view-schedule .sched-quick-settings-head{
+            display:flex;align-items:center;justify-content:space-between;
+            padding:12px 14px 8px;
+            border-bottom:1px solid var(--sch-line-subtle);
+          }
+          #view-schedule .sched-quick-settings-title{
+            font-size:13px;font-weight:600;color:var(--text);letter-spacing:0;
+          }
+          #view-schedule .sched-quick-settings-close{
+            appearance:none;background:transparent;border:0;cursor:pointer;
+            width:24px;height:24px;border-radius:4px;
+            display:inline-flex;align-items:center;justify-content:center;
+            color:var(--text-subtle);
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-schedule .sched-quick-settings-close:hover{
+            background:var(--sch-hover);color:var(--text);
+          }
+          #view-schedule .sched-quick-settings-body{
+            display:flex;flex-direction:column;
+            padding:6px 4px;
+          }
+          #view-schedule .sched-quick-setting{
+            display:grid;grid-template-columns:1fr auto;column-gap:12px;row-gap:0;
+            align-items:center;
+            padding:8px 12px;
+            border-radius:6px;
+            cursor:text;
+            transition:background var(--t-fast);
+          }
+          #view-schedule .sched-quick-setting:hover{background:var(--sch-hover)}
+          #view-schedule .sched-quick-setting-label{
+            font-size:13px;font-weight:600;color:var(--text);grid-column:1;line-height:1.2;
+          }
+          #view-schedule .sched-quick-setting-help{
+            font-size:11px;color:var(--text-subtle);grid-column:1;line-height:1.3;margin-top:2px;
+          }
+          #view-schedule .sched-quick-setting-control{
+            display:inline-flex;align-items:baseline;gap:3px;
+            grid-column:2;grid-row:1 / span 2;
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .sched-quick-setting-input{
+            appearance:none;
+            border:1px solid var(--sch-line);
+            background:var(--sch-surface-2);
+            color:var(--sch-blue-text);
+            font:inherit;font-weight:600;font-size:15px;
+            width:54px;padding:5px 8px;
+            text-align:right;
+            border-radius:6px;
+            font-variant-numeric:tabular-nums;
+            -moz-appearance:textfield;
+            transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast);
+          }
+          #view-schedule .sched-quick-setting-input::-webkit-outer-spin-button,
+          #view-schedule .sched-quick-setting-input::-webkit-inner-spin-button{
+            -webkit-appearance:none;margin:0;
+          }
+          #view-schedule .sched-quick-setting-input:hover{background:var(--sch-surface);border-color:var(--sch-line-strong)}
+          #view-schedule .sched-quick-setting-input:focus{
+            outline:none;background:var(--sch-surface);
+            border-color:var(--sch-blue);
+            box-shadow:0 0 0 2px var(--sch-blue-softer);
+          }
+          #view-schedule .sched-quick-setting-input[data-rr-saving="1"]{background:var(--sch-blue-softer)}
+          #view-schedule .sched-quick-setting-input[data-rr-saved="1"]{background:var(--sch-green-soft);border-color:var(--sch-green)}
+          #view-schedule .sched-quick-setting-input[data-rr-error="1"]{background:var(--sch-red-soft);border-color:var(--sch-red);color:var(--sch-red)}
+          #view-schedule .sched-quick-setting-unit{
+            font-size:12px;font-weight:600;color:var(--text-muted);
+          }
+          #view-schedule .sched-quick-settings-foot{
+            display:flex;align-items:center;justify-content:space-between;gap:8px;
+            padding:10px 14px;
+            border-top:1px solid var(--sch-line-subtle);
+            background:var(--sch-surface-2);
+            border-radius:0 0 var(--sch-radius-lg) var(--sch-radius-lg);
+          }
+          #view-schedule .sched-quick-settings-status{
+            font-size:11px;color:var(--text-subtle);
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .sched-quick-settings-advanced{
+            appearance:none;background:transparent;border:0;cursor:pointer;
+            font:inherit;font-size:12px;font-weight:500;
+            color:var(--sch-blue);padding:4px 6px;border-radius:4px;
+            transition:background var(--t-fast);
+          }
+          #view-schedule .sched-quick-settings-advanced:hover{
+            background:var(--sch-blue-softer);
+          }
+
+          /* Bigger ribbon icons + equal-width Finalize/Unfinalize.
+             Icons bumped ~55% so the strip reads as a true Microsoft
+             ribbon; tiles widened to match. Finalize has a fixed
+             min-width so the strip doesn't reflow when the label
+             flips between "Finalize" and "Unfinalize". */
           #view-schedule .sched-nav-heading-actions .sched-page-btn{
-            padding:6px 10px 6px;min-width:auto;gap:4px;
+            padding:8px 12px 9px;min-width:80px;gap:6px;
           }
           #view-schedule .sched-nav-heading-actions .sched-page-btn svg{
-            width:18px;height:18px;
+            width:28px;height:28px;
           }
           #view-schedule .sched-nav-heading-actions .subnav-item{
-            padding:6px 10px 7px;min-width:auto;gap:4px;
+            padding:8px 12px 10px;min-width:80px;gap:6px;
           }
           #view-schedule .sched-nav-heading-actions .subnav-item svg{
-            width:18px;height:18px;
+            width:28px;height:28px;
+          }
+          /* Finalize / Unfinalize ride the same fixed footprint so
+             toggling the label doesn't shift every tile to the left
+             of it. 96 px comfortably fits "Unfinalize" + 28 px icon. */
+          #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-finalize-h{
+            min-width:96px;
           }
           @media (max-width:1280px){
             #view-schedule .sched-nav-heading-actions .sched-page-btn,
             #view-schedule .sched-nav-heading-actions .subnav-item{
-              font-size:11px;padding:5px 8px 6px;
+              font-size:11px;padding:6px 10px 7px;min-width:72px;
+            }
+            #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-finalize-h{
+              min-width:88px;
             }
             #view-schedule .sched-nav-heading-actions .sched-page-btn svg,
             #view-schedule .sched-nav-heading-actions .subnav-item svg{
-              width:16px;height:16px;
+              width:24px;height:24px;
             }
           }
           #view-schedule .subnav-item{

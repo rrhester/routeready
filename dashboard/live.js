@@ -23015,7 +23015,7 @@ async function _navSettingsTriggerSave(inputEl) {
 document.addEventListener("input", (e) => {
   const input = e.target;
   if (!input || !input.id || !_NAV_SETTING_IDS.has(input.id)) return;
-  if (!input.closest("#rr-sched-nav-settings")) return;
+  if (!input.closest("#rr-sched-quick-settings-popover")) return;
   if (_navSettingsSaveTimer) clearTimeout(_navSettingsSaveTimer);
   _flashNavStatus("Editing…", "var(--text-subtle)");
   _navSettingsSaveTimer = setTimeout(() => {
@@ -23028,10 +23028,18 @@ document.addEventListener("change", (e) => {
   // triggering an `input` event in some browsers.
   const input = e.target;
   if (!input || !input.id || !_NAV_SETTING_IDS.has(input.id)) return;
-  if (!input.closest("#rr-sched-nav-settings")) return;
+  if (!input.closest("#rr-sched-quick-settings-popover")) return;
   if (_navSettingsSaveTimer) clearTimeout(_navSettingsSaveTimer);
   _navSettingsSaveTimer = null;
   _navSettingsTriggerSave(input);
+});
+// Escape closes the quick-settings popover.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const pop = document.getElementById("rr-sched-quick-settings-popover");
+  if (pop && !pop.hidden) {
+    _toggleSchedQuickSettings(false);
+  }
 });
 
 // ─── Schedule · Settings drawer ────────────────────────────────────────
@@ -23131,7 +23139,61 @@ window.goto = function (view) {
   if (view !== "schedule" && view !== "okami") closeOkamiOverlay();
 };
 
+function _toggleSchedQuickSettings(force) {
+  const pop = document.getElementById("rr-sched-quick-settings-popover");
+  const toggle = document.getElementById("rr-sched-quick-settings-toggle");
+  if (!pop || !toggle) return false;
+  const isOpen = !pop.hidden;
+  const next = (typeof force === "boolean") ? force : !isOpen;
+  pop.hidden = !next;
+  toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  if (next) {
+    // Refresh from cached settings each time we open so the inputs
+    // reflect the most recent values.
+    if (typeof loadSchedulingSettings === "function") {
+      loadSchedulingSettings();
+    }
+    // Defer focus so the popover finishes painting before we move
+    // the caret into the first input.
+    setTimeout(() => {
+      const first = pop.querySelector("input");
+      if (first) try { first.focus(); first.select(); } catch (_) {}
+    }, 30);
+  }
+  return next;
+}
+window._rrToggleSchedQuickSettings = _toggleSchedQuickSettings;
+
 document.addEventListener("click", (e) => {
+  // Split-toggle chevron on the Settings tile → inline quick-edit
+  // popover (Block / Cushion / Max days / Report time). Sits on top
+  // of the gear-icon click so it takes precedence when the chevron
+  // is clicked.
+  if (e.target.closest("#rr-sched-quick-settings-toggle")) {
+    e.preventDefault();
+    e.stopPropagation();
+    _toggleSchedQuickSettings();
+    return;
+  }
+  if (e.target.closest("#rr-sched-quick-settings-close")) {
+    e.preventDefault();
+    _toggleSchedQuickSettings(false);
+    return;
+  }
+  if (e.target.closest("#rr-sched-quick-settings-advanced")) {
+    e.preventDefault();
+    _toggleSchedQuickSettings(false);
+    openSchedSettingsDrawer();
+    return;
+  }
+  // Click outside the popover (and outside the toggle) closes it.
+  const pop = document.getElementById("rr-sched-quick-settings-popover");
+  if (pop && !pop.hidden
+      && !e.target.closest("#rr-sched-quick-settings-popover")
+      && !e.target.closest("#rr-sched-quick-settings-toggle")) {
+    _toggleSchedQuickSettings(false);
+  }
+
   if (e.target.closest("#rr-sched-settings-open, #rr-sched-settings-open-h")) {
     e.preventDefault();
     openSchedSettingsDrawer();
