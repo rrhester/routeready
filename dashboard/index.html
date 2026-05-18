@@ -13255,7 +13255,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
           /* Sent / Scheduled / Cancelled status chips on History */
           #view-recognition .rg-status{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px var(--s-2);border-radius:var(--r-pill)}
-          #view-recognition .rg-status.sent{background:var(--green-soft, #dcfce7);color:var(--green-dark, #166534)}
+          #view-recognition .rg-status.sent{background:var(--green-soft);color:var(--green-dark)}
           #view-recognition .rg-status.scheduled{background:var(--accent-soft);color:var(--accent-text)}
           #view-recognition .rg-status.cancelled{background:var(--canvas);color:var(--text-subtle)}
 
@@ -13264,10 +13264,11 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-recognition .rg-avatar{width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent-text);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:var(--fs-sm);overflow:hidden;flex:0 0 auto}
           #view-recognition .rg-avatar img{width:100%;height:100%;object-fit:cover}
 
-          #view-recognition .rg-celebrate-btn{display:inline-flex;align-items:center;gap:6px;padding:4px var(--s-3);border:1px solid var(--accent);border-radius:var(--r-md);background:var(--accent);color:#fff;font-weight:600;font-size:var(--fs-sm);cursor:pointer;line-height:1.2}
-          #view-recognition .rg-celebrate-btn:hover{filter:brightness(1.05)}
-          #view-recognition .rg-celebrate-btn[disabled]{opacity:.55;cursor:not-allowed}
-          #view-recognition .rg-sent-pill{display:inline-flex;align-items:center;gap:4px;padding:2px var(--s-2);border-radius:var(--r-pill);background:var(--green-soft, #dcfce7);color:var(--green-dark, #166534);font-size:var(--fs-xs);font-weight:700}
+          #view-recognition .rg-celebrate-btn{display:inline-flex;align-items:center;gap:6px;padding:5px var(--s-3);border:0;border-radius:var(--r-md);background:var(--accent);color:#fff;font-weight:600;font-size:var(--fs-sm);cursor:pointer;line-height:1.2;box-shadow:0 1px 2px rgba(37,99,235,.18);transition:background var(--t-fast), box-shadow var(--t-fast)}
+          #view-recognition .rg-celebrate-btn:hover{background:var(--accent-hover);box-shadow:0 1px 2px rgba(37,99,235,.22), 0 4px 10px -4px rgba(37,99,235,.24)}
+          #view-recognition .rg-celebrate-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+          #view-recognition .rg-celebrate-btn[disabled]{opacity:.5;cursor:not-allowed}
+          #view-recognition .rg-sent-pill{display:inline-flex;align-items:center;gap:4px;padding:2px var(--s-2);border-radius:var(--r-pill);background:var(--green-soft);color:var(--green-dark);font-size:var(--fs-xs);font-weight:700}
 
           /* Safety-milestones placeholder card */
           #view-recognition .rg-stub{padding:var(--s-8) var(--s-6);text-align:center;border:1px dashed var(--border);border-radius:var(--r-lg);background:var(--surface)}
