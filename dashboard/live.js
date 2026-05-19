@@ -27169,26 +27169,6 @@ async function renderScheduleWeek() {
     || (a.name || "").localeCompare(b.name || "")
   );
 
-  // ── Forward outlook · how the fleet starts next Monday ──
-  // For every branded van, find its most recent usage at or
-  // before the visible week's Sunday, then compute days-idle as
-  // of next Monday. Classify and tally. Operator gets a calm,
-  // forward-looking line: "Next Monday · 0 Critical · 1 Risk
-  // · 2 Watch · 8 Healthy".
-  const _nextMondayIso = fmtIsoDate(addDays(new Date(femWeekDates[6] + "T12:00:00"), 1));
-  const femForecast = { healthy: 0, watch: 0, risk: 0, critical: 0, violation: 0 };
-  for (const v of femVehicles) {
-    const list = femUsage.get(v.id) || [];
-    let lastUsed = null;
-    for (const e of list) {
-      if (e <= femWeekDates[6]) lastUsed = e;
-      else break;
-    }
-    const days = lastUsed ? femDaysBetween(_nextMondayIso, lastUsed) : Infinity;
-    const cls = femClassify(days);
-    if (cls.tier === "never_used") femForecast.violation++;
-    else femForecast[cls.tier] = (femForecast[cls.tier] || 0) + 1;
-  }
 
   // Compact pill row matching the mockup: dot + label, with the
   // Coverage pill carrying a subtle "X / Y shifts" sub-line.
@@ -27257,10 +27237,6 @@ async function renderScheduleWeek() {
   kpis.dataset.rrFemRisks    = JSON.stringify(femRisks);
   kpis.dataset.rrFemUpcoming = JSON.stringify(femUpcoming);
   kpis.dataset.rrFemCounts   = JSON.stringify(femWeekCounts);
-  kpis.dataset.rrFemForecast = JSON.stringify({ ...femForecast, _asOf: _nextMondayIso });
-  if (typeof window._rrRenderForecastCard === "function") {
-    window._rrRenderForecastCard();
-  }
   // ── Auto-rescue trigger ──
   // If any branded van is projected to cross the Critical (13d)
   // or Violation (14d+) threshold this week AND we haven't
@@ -28040,48 +28016,6 @@ function bindSchedWeekNav() {
     };
   }
 
-  // ── Forward outlook renderer ──
-  // Reads kpis.dataset.rrFemForecast (set by renderScheduleWeek)
-  // and paints a tier-pip strip showing what next Monday's
-  // branded-van fleet looks like assuming this week's rotations
-  // land as planned. Calm Microsoft Fluent voice — "Next Monday"
-  // eyebrow, then non-zero tiers only, then an as-of date stamp.
-  if (!window._rrForecastRendererInstalled) {
-    window._rrForecastRendererInstalled = true;
-    window._rrRenderForecastCard = function () {
-      const host = document.getElementById("rr-sched-forecast");
-      const kpis = document.getElementById("rr-sched-kpis");
-      if (!host || !kpis) return;
-      let fc;
-      try { fc = JSON.parse(kpis.dataset.rrFemForecast || "null"); } catch { fc = null; }
-      if (!fc) { host.hidden = true; host.innerHTML = ""; return; }
-      const total = (fc.healthy || 0) + (fc.watch || 0) + (fc.risk || 0) + (fc.critical || 0) + (fc.violation || 0);
-      if (total === 0) { host.hidden = true; host.innerHTML = ""; return; }
-      const asOfLbl = (() => {
-        try {
-          return new Date(fc._asOf + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
-        } catch { return ""; }
-      })();
-      // Tier colors — calm. Red only for critical/violation;
-      // amber for watch/risk; green for healthy.
-      const pip = (count, tier, label, color) => {
-        if (!count) return "";
-        return `<span class="sched-forecast-pip"><span class="sched-forecast-pip-dot" style="background:${color}"></span>${count} ${label}</span>`;
-      };
-      const pips =
-        pip(fc.violation, "violation", "Violation", "#C42B1C") +
-        pip(fc.critical,  "critical",  "Critical",  "#C42B1C") +
-        pip(fc.risk,      "risk",      "Risk",      "#B45309") +
-        pip(fc.watch,     "watch",     "Watch",     "#B45309") +
-        pip(fc.healthy,   "healthy",   "Healthy",   "#107C41");
-      host.innerHTML =
-        `<span class="sched-forecast-label">Forward outlook</span>` +
-        `<span class="sched-forecast-pips">${pips || "<span class=\"sched-forecast-pip\">All branded vans healthy</span>"}</span>` +
-        `<span class="sched-forecast-asof">As of ${asOfLbl}</span>`;
-      host.hidden = false;
-    };
-  }
-
   // ── Weekly recap renderer (audit #15) ──
   // Surfaces the FEM digest for the visible week: how many
   // branded vans were auto-rotated, VERO defects prevented,
@@ -28176,7 +28110,6 @@ function bindSchedWeekNav() {
   // navigations because each installer is gated by its own
   // _rrInstalled flag.
   if (typeof window._rrRenderAutoRescueBanner === "function") window._rrRenderAutoRescueBanner();
-  if (typeof window._rrRenderForecastCard === "function")     window._rrRenderForecastCard();
   if (typeof window._rrRenderWeeklyRecapLink === "function")  window._rrRenderWeeklyRecapLink();
 
   // ── Pool sort toggle (Day / Wave time)
