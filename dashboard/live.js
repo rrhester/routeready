@@ -24852,7 +24852,7 @@ async function _refreshAssignVansLabel() {
     const chevron = btn.querySelector(".sched-page-btn-split-toggle");
     btn.insertBefore(labelNode, chevron || null);
   }
-  labelNode.textContent = assigned ? "Unassign Vans" : "Assign Vans";
+  labelNode.textContent = assigned ? "Unassign" : "Assign";
   const title = assigned
     ? "Clear every vehicle assignment for this week"
     : "Auto-assign vans for this week using the standing primary / backup chain";
