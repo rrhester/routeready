@@ -11512,20 +11512,28 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-subnav-row{margin-bottom:var(--s-6)}
 
           /* Driver row label — bump vertical padding so the avatar +
-             name + meta line aren't crowded against the cell edge. */
-          #view-schedule .cal-row-label{padding:var(--s-3-5) var(--s-4)}
+             name + meta line aren't crowded against the cell edge.
+             Stepped from s-3-5 (14px) to s-4 (16px) for the premium
+             grid pass — the row labels keep pace with the cell bump
+             below so vertical rhythm stays even. */
+          #view-schedule .cal-row-label{padding:var(--s-4) var(--s-4)}
 
           /* Day-header in the calendar — symmetric vertical rhythm so
              "SUN / 17 / 5/6" doesn't read top-heavy. */
-          #view-schedule .cal-cell-head{padding:var(--s-3-5) var(--s-2-5)}
+          #view-schedule .cal-cell-head{padding:var(--s-4) var(--s-2-5)}
 
-          /* Cells in the grid get one extra pixel of room on each side
-             — still tight, just not gratuitously cramped. */
-          #view-schedule .cal-cell{padding:8px}
+          /* Cells in the grid get extra vertical room so each chip
+             reads as a deliberate object rather than a packed list
+             row — Outlook-calendar breathing. 8px → 10px adds ~12–15%
+             to the rendered row height once you account for the chip
+             baseline + gap. */
+          #view-schedule .cal-cell{padding:10px}
 
           /* Coverage strip cells — a touch more vertical room so they
-             read as a deliberate footer instead of a thin status line. */
-          #view-schedule .coverage-cell{padding:var(--s-2-5) var(--s-2)}
+             read as a deliberate footer instead of a thin status line.
+             Bumped in lockstep with .cal-cell so the footer doesn't
+             look thinner than the rows above it. */
+          #view-schedule .coverage-cell{padding:var(--s-3) var(--s-2)}
 
           /* Pool driver row — bump padding from 7px/8px to 10px/12px
              for touch-target comfort matching the app's list rows. */
