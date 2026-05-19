@@ -27370,7 +27370,9 @@ async function renderScheduleWeek() {
     }
   }
 
-  // ── Week-range navigator label + Live/Draft pill (page header)
+  // ── Week-range navigator label + Live/Draft pill (page header).
+  // Operators asked for the ISO week number alongside the date range
+  // so they can match against payroll exports / Amazon scorecard rows.
   try {
     const lbl = document.getElementById("rr-sched-week-range-label");
     if (lbl) {
@@ -27379,7 +27381,8 @@ async function renderScheduleWeek() {
       const bTxt = sameMonth
         ? weekEnd.toLocaleDateString(undefined, { day: "numeric" })
         : weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-      lbl.textContent = `${aTxt} – ${bTxt}`;
+      const wk = isoWeekNumber(weekStart);
+      lbl.textContent = `Wk ${wk} · ${aTxt} – ${bTxt}`;
     }
   } catch (e) { /* nothing to do */ }
 
@@ -27811,49 +27814,51 @@ function bindSchedWeekNav() {
   if (!sub) return;
   _schedNavBound = true;
 
-  // Page-header week-nav (prev / range / next) — delegates to the
-  // hidden 4-week offset tabs that renderScheduleWeek keeps in sync.
-  const _activeOffset = () => {
-    const all = Array.from(document.querySelectorAll("#rr-sched-week-tabs .sched-week-tab"));
-    const idx = all.findIndex(b => b.classList.contains("active"));
-    return idx >= 0 ? idx : 0;
+  // Page-header week-nav (prev / today / range / next).
+  //
+  // Previous version delegated to the hidden 4-week offset tab strip,
+  // which capped forward navigation at +3 weeks (Next stopped working
+  // once "In 3 weeks" was active). Now the buttons advance
+  // _schedStart directly by ±7 days, so the operator can scroll
+  // forward / back indefinitely. The hidden tab strip still gets
+  // synced inside renderScheduleWeek for any helper that still
+  // reads .sched-week-tab[data-rr-week-offset]; nothing here depends
+  // on it anymore.
+  const _currentMonday = () => {
+    if (_schedStart) return new Date(_schedStart + "T12:00:00");
+    return startOfWeekMonday(new Date());
   };
-  const _clickOffset = (off) => {
-    const tab = document.querySelector(`#rr-sched-week-tabs .sched-week-tab[data-rr-week-offset="${off}"]`);
-    if (tab) tab.click();
+  const _goToWeek = (monday) => {
+    const iso = fmtIsoDate(monday);
+    if (iso === _schedStart) return;
+    _schedStart = iso;
+    (async () => {
+      try { await loadSchedulingSettings(); } catch (e) { console.warn("settings reload:", e); }
+      try { await renderScheduleWeek();    } catch (e) { console.warn("render reload:", e); }
+      _syncNavButtons();
+    })();
   };
+  const _shiftWeek = (deltaWeeks) => _goToWeek(addDays(_currentMonday(), deltaWeeks * 7));
   const _syncNavButtons = () => {
-    const off = _activeOffset();
-    const prevBtn = document.getElementById("rr-sched-week-prev");
-    const nextBtn = document.getElementById("rr-sched-week-next");
+    const todayMonday = fmtIsoDate(startOfWeekMonday(new Date()));
+    const cur = _schedStart || todayMonday;
     const todayBtn = document.getElementById("rr-sched-week-today");
-    if (prevBtn) prevBtn.disabled = off <= 0;
-    if (nextBtn) nextBtn.disabled = off >= 3;
-    if (todayBtn) todayBtn.classList.toggle("is-on-today", off === 0);
+    if (todayBtn) todayBtn.classList.toggle("is-on-today", cur === todayMonday);
   };
   const prevBtn = document.getElementById("rr-sched-week-prev");
   const nextBtn = document.getElementById("rr-sched-week-next");
   const rangeBtn = document.getElementById("rr-sched-week-range");
   const todayBtn = document.getElementById("rr-sched-week-today");
-  if (prevBtn) prevBtn.addEventListener("click", () => {
-    const off = _activeOffset();
-    if (off > 0) _clickOffset(off - 1);
-  });
-  if (nextBtn) nextBtn.addEventListener("click", () => {
-    const off = _activeOffset();
-    if (off < 3) _clickOffset(off + 1);
-  });
+  if (prevBtn) prevBtn.addEventListener("click", () => _shiftWeek(-1));
+  if (nextBtn) nextBtn.addEventListener("click", () => _shiftWeek(1));
   if (todayBtn) todayBtn.addEventListener("click", () => {
-    if (_activeOffset() !== 0) _clickOffset(0);
+    _goToWeek(startOfWeekMonday(new Date()));
   });
-  if (rangeBtn) rangeBtn.addEventListener("click", () => {
-    // No date-picker yet — cycle through the four available offsets
-    // so the operator can step forward to a specific week.
-    const off = _activeOffset();
-    _clickOffset((off + 1) % 4);
-  });
-  // Resync prev/next disabled state on any week-tab click — including the
-  // hidden ones we drive programmatically — and on initial bind.
+  // The chevron-down on the range button — kept as a quick "next week"
+  // shortcut now that there's no fixed cycle to cycle through.
+  if (rangeBtn) rangeBtn.addEventListener("click", () => _shiftWeek(1));
+  // Resync Today's active state whenever the hidden offset tabs are
+  // clicked (other helpers still drive those).
   document.addEventListener("click", (e) => {
     if (e.target.closest("#rr-sched-week-tabs .sched-week-tab")) {
       setTimeout(_syncNavButtons, 0);
