@@ -24210,11 +24210,25 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     return true;
   };
 
-  // Resolve every scheduled shift in (date, starts_at, driver_name) order.
-  const sorted = shifts.slice().sort((a, b) =>
-    (a.date || "").localeCompare(b.date || "") ||
-    (a.starts_at || "").localeCompare(b.starts_at || "")
-  );
+  // Resolve in (date, chain-priority, starts_at, driver_id) order.
+  // The chain-priority tier puts drivers with a standing primary
+  // chain ahead of chain-less drivers within the same date, so the
+  // primary always claims their van via step (1) before a chain-
+  // less driver can take it from the pool. Without this ordering,
+  // a chain-less driver processed first could steal e.g. Van 10
+  // from its primary owner Pickle and force Pickle onto a random
+  // pool van — operator-visible bug.
+  const hasPrimary = (driverId) =>
+    (driverChain.get(driverId) || []).some(c => (c.rank | 0) === 0);
+  const sorted = shifts.slice().sort((a, b) => {
+    const dateCmp = (a.date || "").localeCompare(b.date || "");
+    if (dateCmp !== 0) return dateCmp;
+    const aPrim = hasPrimary(a.driver_id) ? 0 : 1;
+    const bPrim = hasPrimary(b.driver_id) ? 0 : 1;
+    if (aPrim !== bPrim) return aPrim - bPrim;
+    return (a.starts_at || "").localeCompare(b.starts_at || "")
+        || (a.driver_id || "").localeCompare(b.driver_id || "");
+  });
 
   const writes = [];
   let unassigned = 0;
@@ -24247,12 +24261,37 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       }
     }
 
-    // (3) pool fall-through — first un-claimed van for the date.
+    // (3) pool fall-through — first un-claimed van for the date,
+    // but RESERVE any van whose primary chain owner is also
+    // scheduled today (they'll claim it via step (1) when their
+    // shift comes up in the loop). Without this gate, a chain-less
+    // driver processed earlier in the iteration order can steal a
+    // primary's van and strand the primary — operator-visible as
+    // "Pickle is Van 10's primary but is on Van 2 today while
+    // Chucky has Van 10." The exception: if the chain-primary IS
+    // this current driver, they already failed step (1) so the
+    // skip is moot.
     if (!pick) {
+      const scheduledToday = scheduledByDate.get(s.date) || new Set();
       for (const v of poolSorted) {
         if (!isVanFreeOnDate(v.id, s.date)) continue;
+        const vanPrimary = chain.find(c => c.vehicle_id === v.id && (c.rank | 0) === 0);
+        if (vanPrimary
+            && vanPrimary.driver_id !== s.driver_id
+            && scheduledToday.has(vanPrimary.driver_id)) continue;
         pick = v;
         break;
+      }
+      // If every free van is reserved for an unclaimed primary,
+      // make a second pass without the reservation rather than
+      // strand this driver entirely — the primary will fall
+      // through the same way and get a pool van later.
+      if (!pick) {
+        for (const v of poolSorted) {
+          if (!isVanFreeOnDate(v.id, s.date)) continue;
+          pick = v;
+          break;
+        }
       }
     }
 
