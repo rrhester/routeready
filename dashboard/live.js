@@ -23957,10 +23957,30 @@ async function _runSchedVanAssignmentsBackground() {
     // standing primary → backup chain and falls back to the
     // branded-first random pool, so all three tiers fire.
     const dates = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), i)));
-    await Promise.all(dates.map(d =>
+    const results = await Promise.all(dates.map(d =>
       sb.rpc("today_roster_auto_assign", { p_date: d })
         .catch(err => ({ error: err }))
     ));
+    // Diagnostic — log per-day assigned / unassigned counts so we
+    // can verify the chain → pool fall-through actually fired and
+    // identify drivers who can't be placed (no chain + empty pool).
+    try {
+      let totA = 0, totU = 0;
+      results.forEach((r, i) => {
+        if (r && r.error) { console.warn(`assignVans ${dates[i]} · error`, r.error.message || r.error); return; }
+        const d = (r && r.data) || {};
+        const a = (d.assigned    || []).length;
+        const u = (d.unassigned  || []).length;
+        totA += a; totU += u;
+        if (u > 0) {
+          console.log(`assignVans ${dates[i]} · ${a} assigned · ${u} unassigned`, (d.unassigned || []).map(x => `${x.driver_name || x.driver_id} (${x.reason || "no_van"})`));
+        }
+      });
+      console.log(`assignVans week ${_schedStart} · total ${totA} placements · ${totU} drivers without a van`);
+      if (totU > 0) {
+        toast(`Assigned ${totA} vans · ${totU} driver${totU === 1 ? "" : "s"} still without a van. Check standing chains.`, "warn");
+      }
+    } catch (_) { /* diagnostics never throw */ }
 
     // Repaint the calendar with the fresh assignments so the
     // dispatcher sees the result in-place; driver app already
