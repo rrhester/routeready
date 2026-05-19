@@ -14095,8 +14095,33 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .ws-veh-down{display:inline-flex;align-items:center;padding:1px 6px;font-size:10px;font-weight:700;letter-spacing:.05em;border-radius:var(--r-pill);background:var(--sch-red-soft);color:var(--sch-red);border:1px solid rgba(196,43,28,.24);margin-left:4px}
           #view-schedule .ws-veh-down.warn{background:rgba(180,83,9,.10);color:#92400E;border-color:rgba(180,83,9,.24)}
           #view-schedule .ws-veh-down.crit{background:#9F1239;color:#fff;border-color:var(--sch-red)}
-          #view-schedule .ws-veh-row.is-grounded{background:rgba(196,43,28,.025)}
-          #view-schedule .ws-veh-row.is-grounded:hover td{background:rgba(196,43,28,.05)}
+          /* Chain editor · sticky page header + sticky table head
+             so the page tools / column labels stay visible while
+             the long van list scrolls underneath. Topbar (56 px)
+             stays anchored above. */
+          #view-schedule #sched-sub-vans-chain .ws-head{
+            position:sticky;top:56px;z-index:6;
+            background:#fff;
+            padding-top:12px;padding-bottom:12px;
+            margin-bottom:0;
+          }
+          #view-schedule #sched-sub-vans-chain thead th{
+            position:sticky;top:148px;z-index:5;
+            background:#fff;
+            box-shadow:inset 0 -1px 0 var(--sch-line);
+          }
+          /* Grounded rows · vertical accent line + standalone dot
+             instead of a row tint + GROUNDED pill (per operator). */
+          #view-schedule .ws-veh-row.is-grounded td:first-child{
+            box-shadow:inset 3px 0 0 var(--sch-red, #C42B1C);
+          }
+          #view-schedule .ws-veh-status-dot{
+            display:inline-block;width:9px;height:9px;border-radius:50%;
+          }
+          #view-schedule .ws-veh-status-dot.grounded{
+            background:var(--sch-red, #C42B1C);
+            box-shadow:0 0 0 3px rgba(196,43,28,.16);
+          }
           #view-schedule .ws-veh-name-ro{font-weight:600;color:var(--text)}
           #view-schedule .ws-addrow{display:flex;align-items:center;gap:8px;width:100%;padding:14px 16px;border:0;border-top:1px solid var(--sch-line-subtle);background:transparent;color:var(--text-subtle);font:inherit;font-size:13px;font-weight:500;cursor:pointer;text-align:left;transition:background var(--t-fast),color var(--t-fast)}
           #view-schedule .ws-addrow:hover{background:var(--sch-hover);color:var(--sch-blue)}
@@ -17872,8 +17897,34 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-workspaces .ws-veh-down.warn{background:var(--amber-soft);color:var(--amber-dark);border-color:var(--amber-border)}
           #view-workspaces .ws-veh-down.crit{background:#9F1239;color:#fff;border-color:var(--red-dark)}
-          #view-workspaces .ws-veh-row.is-grounded{background:rgba(225,29,72,.025)}
-          #view-workspaces .ws-veh-row.is-grounded:hover td{background:rgba(225,29,72,.05)}
+          /* Chain editor · sticky page header + sticky table head
+             so the page tools / column labels stay visible while
+             the long van list scrolls underneath. */
+          #view-workspaces .ws-head{
+            position:sticky;top:56px;z-index:6;
+            background:#fff;
+            padding-top:12px;padding-bottom:12px;
+            margin-bottom:0;
+          }
+          #view-workspaces thead th{
+            position:sticky;top:148px;z-index:5;
+            background:#fff;
+            box-shadow:inset 0 -1px 0 var(--sch-line, var(--border));
+          }
+          /* Grounded rows · no background tint per operator. The
+             warning lives in a 3 px red vertical line on the row's
+             first cell, plus a standalone red dot in the Status
+             column. Subtle, scan-friendly. */
+          #view-workspaces .ws-veh-row.is-grounded td:first-child{
+            box-shadow:inset 3px 0 0 var(--sch-red, #C42B1C);
+          }
+          #view-workspaces .ws-veh-status-dot{
+            display:inline-block;width:9px;height:9px;border-radius:50%;
+          }
+          #view-workspaces .ws-veh-status-dot.grounded{
+            background:var(--sch-red, #C42B1C);
+            box-shadow:0 0 0 3px rgba(196,43,28,.16);
+          }
 
           /* Van name is read-only on this board — Fleet roster owns the
              record. */

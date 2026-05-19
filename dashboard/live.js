@@ -28326,96 +28326,21 @@ function bindSchedWeekNav() {
   });
   }
 
-  // ── KPI: clicking the Fleet rotation pill opens the at-risk
-  //    van drill-down. Lists each branded van that will cross the
-  //    14-day rotation rule this week + the first day it does.
+  // ── KPI: clicking the Fleet rotation pill jumps to the Van
+  //    assignments chain editor. (Previous behavior opened an at-
+  //    risk drill-down modal — operator preferred direct nav so
+  //    they can act on the assignments instead of just reading a
+  //    list.) The chain editor surface already highlights the
+  //    at-risk vans via their last-14-days strip.
   if (!window._rrFemRotationHandlerInstalled) {
     window._rrFemRotationHandlerInstalled = true;
     document.addEventListener("click", (e) => {
       if (!e.target.closest('[data-rr-kpi="rotation"]')) return;
-      const kpiHost = document.getElementById("rr-sched-kpis");
-      if (!kpiHost) return;
-      let risks = [];
-      let upcoming = [];
-      let counts = { watch: 0, risk: 0, critical: 0, violation: 0 };
-      try { risks    = JSON.parse(kpiHost.dataset.rrFemRisks    || "[]"); } catch {}
-      try { upcoming = JSON.parse(kpiHost.dataset.rrFemUpcoming || "[]"); } catch {}
-      try { counts   = JSON.parse(kpiHost.dataset.rrFemCounts   || "{}") || counts; } catch {}
-      let m = document.getElementById("rr-fem-rotation-modal");
-      if (m) m.remove();
-      m = document.createElement("div");
-      m.id = "rr-fem-rotation-modal";
-      m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
-      const dayLbl = (iso) => {
-        const d = new Date(iso + "T12:00:00");
-        return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-      };
-      // Tier dot color — calm: amber for watch/risk, red for
-      // critical/violation. Matches the existing schedule palette.
-      const dotFor = (tier) => {
-        if (tier === "violation" || tier === "never_used") return "var(--sch-red, #C42B1C)";
-        if (tier === "critical") return "var(--sch-red, #C42B1C)";
-        if (tier === "risk")     return "#B45309";
-        if (tier === "watch")    return "#B45309";
-        return "#1A1F47";
-      };
-      // "Days to defect" framing — flip the mental model from
-      // historical ("12d unused") to operational ("2d to defect").
-      // Past-violation reads "0d · already in defect" so the
-      // operator sees the scorecard hit explicitly.
-      const headlineFor = (x) => {
-        if (x.daysToDefect === 0 && x.days !== null && x.days >= 14) {
-          return `0d · in defect`;
-        }
-        if (x.daysToDefect === 0) return `Defect today`;
-        return `${x.daysToDefect}d to defect`;
-      };
-      const subFor = (x) => {
-        if (x.days === null) return `Never used · first dispatch ${dayLbl(x.firstCrossing)}`;
-        return `${x.days}d idle by ${dayLbl(x.firstCrossing)}`;
-      };
-      // Unrecoverable-state explanation. Because femRisks is
-      // computed AFTER the auto-rescue pass, every entry here
-      // is something the engine tried and couldn't rotate.
-      // Surface the concrete next step so the operator isn't
-      // staring at a red dot with no path forward.
-      const reasonForStuck = `No displaceable driver available today · schedule one more driver or wait for a backup chain holder to come on shift.`;
-      // Tier-pip strip — peripheral awareness inside the modal:
-      // shows the full watchlist landscape, not just critical/
-      // violation. Only non-zero tiers render to keep it calm.
-      const pipParts = [];
-      if (counts.violation > 0) pipParts.push(`<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;color:var(--text)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotFor("violation")}"></span>${counts.violation} Violation</span>`);
-      if (counts.critical  > 0) pipParts.push(`<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;color:var(--text)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotFor("critical")}"></span>${counts.critical} Critical</span>`);
-      if (counts.risk      > 0) pipParts.push(`<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;color:var(--text)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotFor("risk")}"></span>${counts.risk} Risk</span>`);
-      if (counts.watch     > 0) pipParts.push(`<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;color:var(--text)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotFor("watch")}"></span>${counts.watch} Watch</span>`);
-      const pipStrip = pipParts.length
-        ? `<div style="display:flex;gap:var(--s-3);padding:var(--s-2-5) 18px;border-bottom:1px solid var(--sch-line-subtle, var(--border-subtle));background:var(--sch-surface-2, var(--canvas))">${pipParts.join("")}</div>`
-        : "";
-      // VERO consequence language — calm, plain English. Operator
-      // gets the "why this matters on my scorecard" framing
-      // without an alarm tone.
-      const veroNote = `<div style="padding:var(--s-3) 18px;font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;border-bottom:1px solid var(--sch-line-subtle, var(--border-subtle))">Each branded van past 14 days unused triggers a VERO defect on this week's scorecard. RouteReady is watching the rolling window and proactively rotating at the 13-day mark.</div>`;
-      // Per-van row — Microsoft-list voice. Van name on the
-      // left, headline days-to-defect chip on the right, calm
-      // sub-line in between.
-      const list = risks.length === 0
-        ? `<div style="padding:18px;color:var(--text-muted);font-size:var(--fs-sm);line-height:1.5">No branded van is projected to cross 13 days unused this week. ${upcoming.length > 0 ? `Next to enter Watch: <strong>${escapeHtml(upcoming[0].name)}</strong> on ${escapeHtml(dayLbl(upcoming[0].watchOn))}.` : `No watchlist activity in the visible week.`}</div>`
-        : risks.map(x => {
-            const headline = headlineFor(x);
-            return `<div style="padding:var(--s-3) 18px;border-top:1px solid var(--sch-line-subtle, var(--border-subtle))"><div style="display:flex;gap:var(--s-3);align-items:center"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotFor(x.tier)};flex:0 0 auto"></span><div style="flex:1;min-width:0"><div style="font-size:var(--fs-md);font-weight:600;color:var(--text);letter-spacing:-.005em">Van ${escapeHtml(x.name)}</div><div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px">${escapeHtml(subFor(x))}</div></div><span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--sch-red, #C42B1C);font-variant-numeric:tabular-nums">${escapeHtml(headline)}</span></div><div style="margin-top:6px;margin-left:16px;font-size:var(--fs-xs);color:var(--text-muted);line-height:1.4">${escapeHtml(reasonForStuck)}</div></div>`;
-          }).join("");
-      m.innerHTML = `
-        <div style="background:var(--surface);border:1px solid var(--sch-line, var(--border));border-radius:10px;max-width:540px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 1px 2px rgba(15,23,42,.04),0 1px 1px rgba(15,23,42,.02)">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-3-5) 18px;border-bottom:1px solid var(--sch-line, var(--border));background:var(--sch-surface-2, var(--canvas))">
-            <div><div style="font-size:var(--fs-base);font-weight:600;color:var(--text);letter-spacing:-.005em">Fleet rotation</div><div style="font-size:11px;font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${risks.length} approaching defect</div></div>
-            <button type="button" id="rr-fem-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
-          </div>
-          ${pipStrip}
-          ${veroNote}
-          <div>${list}</div>
-        </div>`;
-      document.body.appendChild(m);
-      m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-fem-close") m.remove(); });
+      e.preventDefault();
+      try {
+        if (typeof _activateSchedSub === "function") _activateSchedSub("vans-chain");
+        if (typeof renderSchedVanAssignmentsBoard === "function") renderSchedVanAssignmentsBoard();
+      } catch (err) { console.warn("rotation KPI → chain editor:", err); }
     });
   }
   // ── Auto-rescue banner renderer ──
@@ -33648,12 +33573,14 @@ function _wsVehStatusCell(v) {
   const lifecycle = _WS_VEH_STATUS_LABEL[v.status] || v.status || "—";
   const grounded  = v.operational_status === "grounded";
   if (grounded) {
+    // Operator: drop the GROUNDED + days pills entirely. Surface
+    // just an alert dot in the Status column; the vertical accent
+    // line on the row's left edge (CSS .ws-veh-row.is-grounded
+    // ::before) carries the rest of the warning weight.
     const days = _wsDaysSince(v.grounded_since);
-    const dayCls = (days != null && days >= 14) ? "crit" : (days != null && days >= 7) ? "warn" : "";
-    const box = `<span class="ws-veh-down" data-rr-tt="Change from the Fleet roster">${days == null ? "0d" : days + "d"}</span>`;
-    return `<div class="ws-veh-status is-grounded" title="Grounded · change from the Fleet roster">
-      <span class="ws-veh-status-pill grounded"><span class="dot"></span>Grounded</span>
-      <span class="ws-veh-down ${dayCls}">${days == null ? "0d" : days + "d"}</span>
+    const dayTip = days == null ? "Grounded" : `Grounded · ${days}d`;
+    return `<div class="ws-veh-status is-grounded" title="${escapeHtml(dayTip)} · change from the Fleet roster">
+      <span class="ws-veh-status-dot grounded" aria-label="${escapeHtml(dayTip)}"></span>
     </div>`;
   }
   return `<div class="ws-veh-status" title="Change from the Fleet roster">
