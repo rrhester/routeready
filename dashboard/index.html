@@ -7779,63 +7779,121 @@ body.rr-cmdk-open{ overflow:hidden }
    shared .status-pill / .btn / .form-input tokens for everything
    inside. No hardcoded colours — everything resolves through the
    palette tokens defined in :root. */
-#sched-sub-time-off .to-page{display:flex;flex-direction:column;gap:var(--s-4)}
-#sched-sub-time-off .to-card{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:var(--r-xl);
+/* Requests sub-view (PTO / Time off, Availability) — Microsoft
+   Fluent treatment: card surface with subtle elevation, Outlook-
+   style head bar, calm hairlines. Same .to-* class names as the
+   legacy #sched-sub-time-off scope so the renderer doesn't have
+   to change — we just extend the selector to include the new
+   #sched-sub-requests panel host. */
+#sched-sub-time-off .to-page,
+#sched-sub-requests .to-page{display:flex;flex-direction:column;gap:var(--s-4)}
+#sched-sub-time-off .to-card,
+#sched-sub-requests .to-card{
+  background:#fff;
+  border:1px solid var(--sch-line, var(--border));
+  border-radius:var(--r-lg, 10px);
   overflow:hidden;
+  box-shadow:0 1px 2px rgba(15,23,42,.04),0 1px 1px rgba(15,23,42,.02);
 }
-#sched-sub-time-off .to-card-head{
-  padding:var(--s-3) var(--s-5);
-  background:var(--canvas);
-  border-bottom:1px solid var(--border-subtle);
+#sched-sub-time-off .to-card-head,
+#sched-sub-requests .to-card-head{
+  padding:var(--s-3-5) var(--s-5);
+  background:var(--sch-surface-2, var(--canvas));
+  border-bottom:1px solid var(--sch-line, var(--border-subtle));
   display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);
 }
-#sched-sub-time-off .to-card-head-title{
+#sched-sub-time-off .to-card-head-title,
+#sched-sub-requests .to-card-head-title{
   font-size:var(--fs-md);font-weight:700;color:var(--text);
   line-height:1.25;letter-spacing:-.005em;
 }
-#sched-sub-time-off .to-card-head-count{
-  font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+#sched-sub-time-off .to-card-head-count,
+#sched-sub-requests .to-card-head-count{
+  font-size:11px;font-weight:700;color:var(--text-subtle);
+  text-transform:uppercase;letter-spacing:.06em;
 }
-#sched-sub-time-off .to-row{
+#sched-sub-time-off .to-row,
+#sched-sub-requests .to-row{
   padding:var(--s-4) var(--s-5);
-  border-top:1px solid var(--border-subtle);
+  border-top:1px solid var(--sch-line-subtle, var(--border-subtle));
+  transition:background var(--t-fast);
 }
-#sched-sub-time-off .to-row:first-child{border-top:0}
-#sched-sub-time-off .to-row-head{
+#sched-sub-time-off .to-row:hover,
+#sched-sub-requests .to-row:hover{background:var(--sch-blue-softer, rgba(15,108,189,.04))}
+#sched-sub-time-off .to-row:first-child,
+#sched-sub-requests .to-row:first-child{border-top:0}
+#sched-sub-time-off .to-row-head,
+#sched-sub-requests .to-row-head{
   display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);
 }
-#sched-sub-time-off .to-row-name{
+#sched-sub-time-off .to-row-name,
+#sched-sub-requests .to-row-name{
   font-size:var(--fs-md);font-weight:600;color:var(--text);
   line-height:1.3;
 }
-#sched-sub-time-off .to-row-range{
+#sched-sub-time-off .to-row-range,
+#sched-sub-requests .to-row-range{
   font-size:var(--fs-sm);color:var(--text-subtle);
   margin-top:2px;
 }
-#sched-sub-time-off .to-row-reason{
+#sched-sub-time-off .to-row-reason,
+#sched-sub-requests .to-row-reason{
   font-size:var(--fs-sm);color:var(--text-muted);
   margin-top:var(--s-2);line-height:1.45;
 }
-#sched-sub-time-off .to-row-reason-empty{
+#sched-sub-time-off .to-row-reason-empty,
+#sched-sub-requests .to-row-reason-empty{
   color:var(--text-subtle);font-style:italic;
 }
-#sched-sub-time-off .to-row-note-ro{
+#sched-sub-time-off .to-row-note-ro,
+#sched-sub-requests .to-row-note-ro{
   margin-top:var(--s-2-5);
-  background:var(--canvas);border-radius:var(--r-md);
+  background:var(--sch-surface-2, var(--canvas));border-radius:var(--r-md);
   padding:var(--s-2) var(--s-3);
   font-size:var(--fs-sm);color:var(--text);line-height:1.45;
 }
-#sched-sub-time-off .to-row-note-ro strong{color:var(--text-muted);font-weight:600}
-#sched-sub-time-off textarea.form-input{
+#sched-sub-time-off .to-row-note-ro strong,
+#sched-sub-requests .to-row-note-ro strong{color:var(--text-muted);font-weight:600}
+#sched-sub-time-off textarea.form-input,
+#sched-sub-requests textarea.form-input{
   margin-top:var(--s-2-5);
   max-width:none;min-height:64px;
+  border-radius:var(--r-md);
+  border:1px solid var(--sch-line, var(--border));
+  padding:var(--s-2-5) var(--s-3);
+  font-size:var(--fs-sm);
+  transition:border-color var(--t-fast),box-shadow var(--t-fast);
 }
-#sched-sub-time-off .to-row-actions{
+#sched-sub-time-off textarea.form-input:focus,
+#sched-sub-requests textarea.form-input:focus{
+  outline:none;border-color:var(--sch-blue, var(--accent));
+  box-shadow:0 0 0 1px var(--sch-blue, var(--accent));
+}
+#sched-sub-time-off .to-row-actions,
+#sched-sub-requests .to-row-actions{
   display:flex;justify-content:flex-end;gap:var(--s-2);
-  margin-top:var(--s-2-5);
+  margin-top:var(--s-3);
+}
+
+/* Picker row at the top of #sched-sub-requests. */
+#sched-sub-requests .sched-requests-head{
+  display:flex;align-items:center;gap:var(--s-3);
+  padding-bottom:var(--s-3);
+  margin-bottom:var(--s-2);
+}
+#sched-sub-requests .sched-requests-picker{
+  display:inline-flex;align-items:center;gap:var(--s-2);
+}
+#sched-sub-requests .sched-requests-picker-label{
+  font-size:11px;font-weight:700;color:var(--text-subtle);
+  text-transform:uppercase;letter-spacing:.06em;
+}
+#sched-sub-requests .sched-requests-picker .form-input{
+  font-size:var(--fs-sm);padding:6px 10px;
+  border:1px solid var(--sch-line, var(--border));
+  border-radius:var(--r-md);
+  background:#fff;
+  min-width:180px;
 }
 
 /* ─────────────────────────────────────────────────────────────
