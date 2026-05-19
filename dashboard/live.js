@@ -23139,6 +23139,101 @@ window.goto = function (view) {
   if (view !== "schedule" && view !== "okami") closeOkamiOverlay();
 };
 
+// ─── Drag-to-reorder for the schedule's navigation tiles ───────────
+// Both the action-strip command tiles (Smart Fill / Route planning /
+// Van Assignments / Settings / Finalize) and the subnav tabs (Today /
+// Week / Staff / Templates / Requests) can be drag-reordered. Order
+// is stored in localStorage as a per-DSP preference so it survives
+// reload but doesn't leak across operators.
+(function () {
+  let dragEl = null;
+  function clearMarkers() {
+    document.querySelectorAll("#view-schedule .rr-tile-drop-before, #view-schedule .rr-tile-drop-after, #view-schedule .rr-tile-dragging")
+      .forEach(el => el.classList.remove("rr-tile-drop-before", "rr-tile-drop-after", "rr-tile-dragging"));
+  }
+  function tileGroup(el) {
+    // Reorders are scoped to the immediate flex container (so a
+    // command tile can't be dropped into the tab cluster, and vice
+    // versa). Returns the parent that holds the matching siblings.
+    if (!el) return null;
+    return el.parentElement;
+  }
+  function persistOrder(group) {
+    if (!group) return;
+    const key = group.matches(".subnav") ? "rr-sched-nav-order-tabs" : "rr-sched-nav-order-actions";
+    const ids = Array.from(group.children).filter(c => c.dataset && c.dataset.rrTile).map(c => c.dataset.rrTile);
+    try { localStorage.setItem(key, JSON.stringify(ids)); } catch (_) {}
+  }
+  function restoreOrder() {
+    document.querySelectorAll("#view-schedule .sched-ribbon-actions, #view-schedule .sched-nav-heading-actions .subnav").forEach(group => {
+      const key = group.matches(".subnav") ? "rr-sched-nav-order-tabs" : "rr-sched-nav-order-actions";
+      let order;
+      try { order = JSON.parse(localStorage.getItem(key) || "null"); } catch (_) { order = null; }
+      if (!Array.isArray(order) || !order.length) return;
+      // Move children in saved order; unknown / new children stay
+      // at the tail.
+      const byId = new Map(Array.from(group.children).map(c => [c.dataset && c.dataset.rrTile, c]).filter(([k]) => k));
+      order.forEach(id => { const el = byId.get(id); if (el) group.appendChild(el); });
+    });
+  }
+  // Restore once the schedule view is in the DOM. We retry briefly
+  // because index.html boot may rebuild parts of the strip.
+  let tries = 0;
+  const t = setInterval(() => {
+    const ready = document.querySelector("#view-schedule .sched-ribbon-actions [data-rr-tile]");
+    if (ready) { restoreOrder(); clearInterval(t); }
+    if (++tries > 40) clearInterval(t);
+  }, 100);
+
+  document.addEventListener("dragstart", (e) => {
+    const tile = e.target.closest("#view-schedule [data-rr-tile][draggable='true']");
+    if (!tile) return;
+    dragEl = tile;
+    tile.classList.add("rr-tile-dragging");
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", tile.dataset.rrTile || ""); } catch (_) {}
+    }
+  });
+  document.addEventListener("dragover", (e) => {
+    if (!dragEl) return;
+    const tile = e.target.closest("#view-schedule [data-rr-tile][draggable='true']");
+    if (!tile || tile === dragEl) return;
+    // Only allow reorder within the same group (action tiles ↔
+    // action tiles, nav tabs ↔ nav tabs).
+    if (tileGroup(tile) !== tileGroup(dragEl)) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    const rect = tile.getBoundingClientRect();
+    const before = (e.clientX - rect.left) < rect.width / 2;
+    // Clear markers on siblings, set on target.
+    tileGroup(tile).querySelectorAll(".rr-tile-drop-before, .rr-tile-drop-after").forEach(el => {
+      if (el !== tile) el.classList.remove("rr-tile-drop-before", "rr-tile-drop-after");
+    });
+    tile.classList.toggle("rr-tile-drop-before", before);
+    tile.classList.toggle("rr-tile-drop-after", !before);
+  });
+  document.addEventListener("dragleave", (e) => {
+    const tile = e.target.closest("#view-schedule [data-rr-tile]");
+    if (!tile) return;
+    tile.classList.remove("rr-tile-drop-before", "rr-tile-drop-after");
+  });
+  document.addEventListener("drop", (e) => {
+    if (!dragEl) return;
+    const tile = e.target.closest("#view-schedule [data-rr-tile][draggable='true']");
+    if (!tile || tile === dragEl) { clearMarkers(); dragEl = null; return; }
+    if (tileGroup(tile) !== tileGroup(dragEl)) { clearMarkers(); dragEl = null; return; }
+    e.preventDefault();
+    const rect = tile.getBoundingClientRect();
+    const before = (e.clientX - rect.left) < rect.width / 2;
+    tile.parentNode.insertBefore(dragEl, before ? tile : tile.nextSibling);
+    persistOrder(tileGroup(dragEl));
+    clearMarkers();
+    dragEl = null;
+  });
+  document.addEventListener("dragend", () => { clearMarkers(); dragEl = null; });
+})();
+
 function _toggleSchedQuickSettings(force) {
   const pop = document.getElementById("rr-sched-quick-settings-popover");
   const toggle = document.getElementById("rr-sched-settings-open-h");
