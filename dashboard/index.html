@@ -11223,9 +11223,9 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 16 11 19 16 14"/></svg>
               Route planning
             </button>
-            <button class="sched-page-btn" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Van assignments board" aria-label="Van assignments">
+            <button class="sched-page-btn" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h12v10H3z"/><path d="M15 11h4l2 3v3h-6z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
-              Van Assignments
+              Assign Vans
             </button>
             <div class="sched-settings-split">
               <button class="sched-page-btn" id="rr-sched-settings-open-h" data-rr-tile="settings" draggable="true" type="button" title="Schedule settings for this week" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-quick-settings-popover" aria-label="Schedule settings">
@@ -11281,6 +11281,57 @@ body.rr-cmdk-open{ overflow:hidden }
                 <div class="sched-quick-settings-foot">
                   <span class="sched-quick-settings-status" id="rr-sched-nav-settings-status" aria-live="polite"></span>
                   <button type="button" class="sched-quick-settings-advanced" id="rr-sched-quick-settings-advanced">Advanced settings…</button>
+                </div>
+                <!-- Inline-expand advanced section · revealed when the
+                     popover's .is-advanced class is set. Lives inside
+                     the popover so it stays an "inline adjustment"
+                     rather than a full-page sub-view. -->
+                <div class="sched-quick-advanced">
+                  <div class="rr-drawer-section">
+                    <div class="rr-drawer-form-row">
+                      <div>
+                        <div class="rr-drawer-form-label">Availability override</div>
+                        <div class="rr-drawer-form-help">Smart Fill ignores driver availability when no one matches a day. Use on tight weeks.</div>
+                      </div>
+                      <div class="rr-drawer-form-control">
+                        <label class="rr-toggle">
+                          <input type="checkbox" id="rr-set-availability-override"/>
+                          <span class="rr-toggle-track"><span class="rr-toggle-thumb"></span></span>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="rr-drawer-form-row">
+                      <div>
+                        <div class="rr-drawer-form-label">Preferred-day tiebreaker</div>
+                        <div class="rr-drawer-form-help">When more drivers want a day than there are shifts on it, who gets it.</div>
+                      </div>
+                      <div class="rr-drawer-form-control">
+                        <select class="form-input" id="rr-set-pref-tiebreaker">
+                          <option value="least_loaded">Fewest shifts so far (default)</option>
+                          <option value="seniority">Most senior (hire date)</option>
+                          <option value="fairness">Least recently honored</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="rr-drawer-section">
+                    <div class="rr-drawer-section-head">
+                      <div class="rr-drawer-section-title">Wave start times</div>
+                      <button class="btn btn-sm" id="rr-set-add-wave" type="button">+ Add wave</button>
+                    </div>
+                    <div id="rr-set-waves" class="rr-drawer-waves"></div>
+                  </div>
+                  <div class="rr-drawer-section">
+                    <div class="rr-drawer-section-head">
+                      <div class="rr-drawer-section-title">Service types</div>
+                    </div>
+                    <div class="rr-drawer-section-help">Activate the route categories your DSP runs. Inactive types are hidden in OKAMI; activating one adds a demand row per wave.</div>
+                    <div id="rr-set-service-types" class="rr-drawer-service-types"></div>
+                  </div>
+                  <div class="sched-quick-advanced-foot">
+                    <span id="rr-set-sched-status" class="rr-drawer-status"></span>
+                    <button class="btn btn-primary btn-sm" id="rr-set-sched-save" type="button">Save changes</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -12446,6 +12497,55 @@ body.rr-cmdk-open{ overflow:hidden }
             background:rgba(0,120,212,.08);
             color:#0078d4;
           }
+          /* Inline-expand advanced section · revealed when the
+             popover gets .is-advanced. Popover width grows so the
+             rr-drawer-form-row two-column layout has room. */
+          #view-schedule .sched-quick-advanced{
+            display:none;
+            border-top:1px solid rgba(15,23,42,.10);
+            padding:10px 14px 12px;
+            background:#FFFFFF;
+            border-radius:0 0 4px 4px;
+            max-height:60vh;overflow-y:auto;
+          }
+          #view-schedule .sched-quick-settings-popover.is-advanced{
+            min-width:380px;
+          }
+          #view-schedule .sched-quick-settings-popover.is-advanced .sched-quick-advanced{
+            display:block;
+          }
+          #view-schedule .sched-quick-advanced .rr-drawer-section + .rr-drawer-section{
+            margin-top:12px;padding-top:12px;
+            border-top:1px solid rgba(15,23,42,.06);
+          }
+          #view-schedule .sched-quick-advanced .rr-drawer-form-row{
+            display:grid;grid-template-columns:1fr auto;column-gap:12px;
+            align-items:center;padding:6px 0;
+          }
+          #view-schedule .sched-quick-advanced .rr-drawer-form-label{
+            font-size:13px;font-weight:600;color:#1f1f1f;line-height:1.2;
+          }
+          #view-schedule .sched-quick-advanced .rr-drawer-form-help{
+            font-size:11px;color:#605e5c;margin-top:2px;line-height:1.3;
+          }
+          #view-schedule .sched-quick-advanced .rr-drawer-section-head{
+            display:flex;align-items:center;justify-content:space-between;
+            margin-bottom:6px;
+          }
+          #view-schedule .sched-quick-advanced .rr-drawer-section-title{
+            font-size:11px;font-weight:600;letter-spacing:.04em;
+            text-transform:uppercase;color:var(--text-subtle);
+          }
+          #view-schedule .sched-quick-advanced-foot{
+            display:flex;align-items:center;justify-content:flex-end;
+            gap:8px;padding-top:10px;
+            border-top:1px solid rgba(15,23,42,.06);
+            margin-top:8px;
+          }
+          #view-schedule .sched-quick-advanced-foot .rr-drawer-status{
+            font-size:11px;color:var(--text-subtle);margin-right:auto;
+            font-variant-numeric:tabular-nums;
+          }
 
           /* Smart Fill spinner — replaces the bolt icon while the
              RPC chain runs so the operator sees immediate feedback. */
@@ -12778,6 +12878,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border-radius:var(--sch-radius-lg);
           }
           #view-schedule .sched-vans-summary{
+            display:flex;align-items:center;gap:10px;flex-wrap:wrap;
             padding:12px 14px;
             background:var(--sch-blue-softer);
             border:1px solid var(--sch-line);
@@ -12785,6 +12886,7 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-sm);color:var(--text);
             margin-bottom:var(--s-3);
           }
+          #view-schedule .sched-vans-summary > .btn{margin-left:auto}
           #view-schedule .sched-vans-day{
             margin-bottom:var(--s-3);
           }
@@ -13821,74 +13923,9 @@ body.rr-cmdk-open{ overflow:hidden }
              tiebreaker, Wave start times, Service types).  Reached
              from the "Advanced settings…" link in the inline quick-
              settings popover. -->
-        <div class="sched-subview" id="sched-sub-advanced" style="display:none">
-          <div class="sched-advanced-shell">
-            <div class="sched-advanced-head">
-              <div>
-                <div class="sched-advanced-title">Advanced settings</div>
-                <div class="sched-advanced-meta">For the visible week. Future weeks inherit until they get their own row.</div>
-              </div>
-              <button type="button" class="btn btn-sm" id="rr-sched-advanced-back">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-                Back to week
-              </button>
-            </div>
-            <div class="sched-advanced-body">
-              <div class="rr-drawer-section">
-                <div class="rr-drawer-section-help" style="margin-bottom:var(--s-3)">
-                  <strong>Block</strong>, <strong>Cushion</strong>, <strong>Max days</strong>, and <strong>Report time</strong> are editable inline from the Settings tile's quick-edit menu.
-                </div>
-                <div class="rr-drawer-form-row">
-                  <div>
-                    <div class="rr-drawer-form-label">Availability override</div>
-                    <div class="rr-drawer-form-help">Smart Fill ignores driver availability when no one matches a day. Use on tight weeks.</div>
-                    <div class="rr-default-hint" data-rr-default-for="rr-set-availability-override" hidden></div>
-                  </div>
-                  <div class="rr-drawer-form-control">
-                    <label class="rr-toggle">
-                      <input type="checkbox" id="rr-set-availability-override"/>
-                      <span class="rr-toggle-track"><span class="rr-toggle-thumb"></span></span>
-                    </label>
-                  </div>
-                </div>
-                <div class="rr-drawer-form-row">
-                  <div>
-                    <div class="rr-drawer-form-label">Preferred-day tiebreaker</div>
-                    <div class="rr-drawer-form-help">When more drivers want a day than there are shifts on it, who gets it.</div>
-                    <div class="rr-default-hint" data-rr-default-for="rr-set-pref-tiebreaker" hidden></div>
-                  </div>
-                  <div class="rr-drawer-form-control">
-                    <select class="form-input" id="rr-set-pref-tiebreaker">
-                      <option value="least_loaded">Fewest shifts so far (default)</option>
-                      <option value="seniority">Most senior (hire date)</option>
-                      <option value="fairness">Least recently honored</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div class="rr-drawer-section">
-                <div class="rr-drawer-section-head">
-                  <div class="rr-drawer-section-title">Wave start times</div>
-                  <button class="btn btn-sm" id="rr-set-add-wave" type="button">+ Add wave</button>
-                </div>
-                <div id="rr-set-waves" class="rr-drawer-waves"></div>
-              </div>
-
-              <div class="rr-drawer-section">
-                <div class="rr-drawer-section-head">
-                  <div class="rr-drawer-section-title">Service types</div>
-                </div>
-                <div class="rr-drawer-section-help">Activate the route categories your DSP runs. Inactive types are hidden in OKAMI; activating one adds a demand row per wave.</div>
-                <div id="rr-set-service-types" class="rr-drawer-service-types"></div>
-              </div>
-            </div>
-            <div class="sched-advanced-foot">
-              <span id="rr-set-sched-status" class="rr-drawer-status"></span>
-              <button class="btn btn-primary btn-sm" id="rr-set-sched-save" type="button">Save changes</button>
-            </div>
-          </div>
-        </div><!-- /sched-sub-advanced -->
+        <!-- (Advanced settings now expand inline inside the Settings
+             tile's quick-edit popover, not as a full sub-view. The
+             previous #sched-sub-advanced is removed.) -->
 
         <!-- Legacy drawer aside kept hidden in the DOM so old click
              handlers (#rr-sched-settings-backdrop, #rr-sched-settings-close)

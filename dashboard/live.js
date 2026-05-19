@@ -23270,15 +23270,17 @@ document.addEventListener("click", (e) => {
   }
   if (e.target.closest("#rr-sched-quick-settings-advanced")) {
     e.preventDefault();
-    _toggleSchedQuickSettings(false);
-    // Render inline rather than the side drawer.
-    _activateSchedSub("advanced");
-    if (typeof loadSchedulingSettings === "function") loadSchedulingSettings();
-    return;
-  }
-  if (e.target.closest("#rr-sched-advanced-back")) {
-    e.preventDefault();
-    _activateSchedSub("week");
+    // Expand the popover inline rather than switch to a full sub-
+    // view. Toggling .is-advanced reveals the advanced controls
+    // (availability override · tiebreaker · waves · service types)
+    // directly inside the popover dropdown.
+    const pop = document.getElementById("rr-sched-quick-settings-popover");
+    if (pop) {
+      const expanded = pop.classList.toggle("is-advanced");
+      const link = e.target.closest("#rr-sched-quick-settings-advanced");
+      if (link) link.textContent = expanded ? "Hide advanced settings" : "Advanced settings…";
+      if (expanded && typeof loadSchedulingSettings === "function") loadSchedulingSettings();
+    }
     return;
   }
   // Click outside the popover (and outside the toggle) closes it.
@@ -23451,14 +23453,15 @@ function _activateSchedSub(sub) {
   if (view) view.style.display = "block";
 }
 document.addEventListener("click", (e) => {
-  // Van Assignments tile → switch to the inline sub-view and render
-  // the same editable Van assignments board the Workspaces page uses
-  // (primary + backup driver per van, status, notes). No auto-run —
-  // the operator edits the standing chain directly.
+  // Assign Vans tile → runs the auto-assignment for the visible
+  // week using each driver's standing primary/backup chain, falling
+  // back to the branded-first pool when neither rank is available.
+  // Result populates the schedule's vans sub-view + propagates to
+  // the driver app via the existing driver_vehicle_days resolver.
   if (e.target.closest("#rr-sched-vans-h")) {
     e.preventDefault();
     _activateSchedSub("vans");
-    renderSchedVanAssignmentsBoard();
+    runSchedVanAssignmentsForWeek();
     return;
   }
   // Day navigation inside the Today view.
@@ -23576,7 +23579,7 @@ async function renderSchedTodayView() {
 
   const assignedHtml = assigned.length
     ? assigned.sort((a,b) => (a.starts_at || "").localeCompare(b.starts_at || "")).map(rowHtml).join("")
-    : `<div class="sched-today-empty">No drivers scheduled for this day.</div>`;
+    : "";
 
   const openHtml = open.length
     ? open.map(sh => {
@@ -23605,9 +23608,10 @@ async function renderSchedTodayView() {
       }).join("")
     : "";
 
+  // Empty day = blank body (no headers, no placeholder copy).
   body.innerHTML =
-    `<div class="sched-today-section-head">Scheduled · ${assigned.length}</div>${assignedHtml}` +
-    (open.length ? `<div class="sched-today-section-head">Open · ${open.length}</div>${openHtml}` : "");
+    (assigned.length ? `<div class="sched-today-section-head">Scheduled · ${assigned.length}</div>${assignedHtml}` : "") +
+    (open.length     ? `<div class="sched-today-section-head">Open · ${open.length}</div>${openHtml}`               : "");
 
   _wireSchedTodayDragReorder(body);
 }
@@ -23855,9 +23859,12 @@ async function runSchedVanAssignmentsForWeek() {
   const summary = `<div class="sched-vans-summary">
     <strong>${totalAssigned}</strong> van${totalAssigned === 1 ? "" : "s"} assigned this week${totalUnassigned > 0 ? ` · <strong style="color:var(--sch-amber-dark)">${totalUnassigned}</strong> driver${totalUnassigned === 1 ? "" : "s"} without a van` : ""}.
     Drivers will see their van in the RouteReady driver app.
+    <button type="button" class="btn btn-sm" id="rr-sched-vans-rerun" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Re-run</button>
   </div>`;
 
   body.innerHTML = `${summary}${sections}`;
+  const reBtn = document.getElementById("rr-sched-vans-rerun");
+  if (reBtn) reBtn.addEventListener("click", (ev) => { ev.preventDefault(); runSchedVanAssignmentsForWeek(); });
   toast(`Vans assigned · ${totalAssigned} placement${totalAssigned === 1 ? "" : "s"}${totalUnassigned ? " · " + totalUnassigned + " gap" + (totalUnassigned === 1 ? "" : "s") : ""}`, totalUnassigned > 0 ? "warn" : "success");
 
   if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.rrOrig || "Assign vans for this week"; delete btn.dataset.rrOrig; }
