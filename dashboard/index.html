@@ -8164,10 +8164,6 @@ body.rr-cmdk-open{ overflow:hidden }
     </div>
 
     <nav class="nav">
-      <button class="nav-item active" data-view="dashboard" data-c="dashboard" onclick="goto('dashboard')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
-        Today
-      </button>
       <button class="nav-item" data-view="pipeline" data-c="pipeline" onclick="goto('pipeline')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M9 18h6"/></svg></span>
         Hiring Pipeline
@@ -8196,7 +8192,7 @@ body.rr-cmdk-open{ overflow:hidden }
         Compliance
         <span class="nav-badge" style="background:var(--red)">3</span>
       </button>
-      <button class="nav-item" data-view="schedule" data-c="schedule" onclick="goto('schedule')">
+      <button class="nav-item active" data-view="schedule" data-c="schedule" onclick="goto('schedule')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><line x1="3.5" y1="10" x2="20.5" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/><rect x="7" y="13" width="3" height="3" rx=".6" fill="currentColor" stroke="none"/></svg></span>
         Schedule
         <span class="nav-badge" style="background:var(--amber)">5</span>
@@ -8488,7 +8484,7 @@ body.rr-cmdk-open{ overflow:hidden }
     </div>
 
     <!-- ─── DASHBOARD VIEW ─── -->
-    <div class="view active" id="view-dashboard">
+    <div class="view" id="view-dashboard">
       <div class="page">
 
         <!-- First-run welcome zone · revealed by live.js for newly-
@@ -11376,7 +11372,7 @@ body.rr-cmdk-open{ overflow:hidden }
     <!-- ═══════════════════════════════════════════════════════════
          SCHEDULE VIEW — full DSP-grade schedule system
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-schedule">
+    <div class="view active" id="view-schedule">
       <div class="page">
         <!-- Navigation heading — the schedule's single horizontal
              ribbon. Title sits on the left, the full icon cluster
