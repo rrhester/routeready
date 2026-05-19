@@ -23617,13 +23617,12 @@ async function renderSchedVanAssignmentsBoard() {
   // Reuse the workspaces renderer to produce identical markup.
   _wsRenderVehicles(body);
 
-  // Replace the "Workflows /" breadcrumb at the top with a "Back to
-  // week" link that returns to the calendar grid — the operator is
-  // in the schedule view, not the workflows view.
-  const crumb = body.querySelector(".ws-crumb");
-  if (crumb) {
-    crumb.innerHTML = `<a data-rr-sched-vans-back style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;color:var(--text-subtle);font-weight:500"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>Back to week</a>`;
-  }
+  // Strip the "Workflows / Van assignments / Set the primary driver…"
+  // header block entirely — the action-strip tile already labels
+  // this view and the operator doesn't need a second header inside
+  // the schedule.
+  const head = body.querySelector(".ws-head");
+  if (head) head.remove();
 
   // Wire change/click handlers directly to this container — the
   // workspaces _wsBindRoot only binds to a single root via a global
@@ -23631,7 +23630,6 @@ async function renderSchedVanAssignmentsBoard() {
   if (!_schedVansBound) {
     _schedVansBound = true;
     body.addEventListener("click", (e) => {
-      if (e.target.closest("[data-rr-sched-vans-back]")) { e.preventDefault(); _activateSchedSub("week"); return; }
       if (e.target.closest("[data-rr-veh-add]"))         { _wsVehAdd().then(() => renderSchedVanAssignmentsBoard()); return; }
       const vehX = e.target.closest("[data-rr-veh-archive]");
       if (vehX) {
@@ -37935,6 +37933,93 @@ document.addEventListener("click", async (e) => {
 
 let _toRows = [];
 
+// ─── Schedule · Requests sub-view (PTO + Availability switcher) ────
+// The Requests tab on the schedule's nav owns two request types.
+// The inline picker (#rr-sched-req-type) flips which one is
+// visible; each panel calls its own RPC + renderer so both fully
+// populate when chosen.
+function _renderSchedRequestsActive() {
+  const sel = document.getElementById("rr-sched-req-type");
+  const ptoPanel = document.getElementById("rr-sched-req-pto-panel");
+  const avPanel  = document.getElementById("rr-sched-req-avail-panel");
+  if (!sel || !ptoPanel || !avPanel) {
+    // Older callers still address only the legacy time-off body.
+    if (document.getElementById("rr-time-off-body") && typeof loadTimeOffView === "function") {
+      loadTimeOffView();
+    }
+    return;
+  }
+  const which = sel.value || "pto";
+  ptoPanel.hidden = which !== "pto";
+  avPanel.hidden  = which !== "availability";
+  if (which === "pto") {
+    try { loadTimeOffView(); } catch (e) { console.warn("loadTimeOffView:", e); }
+  } else {
+    renderSchedAvailabilityRequestsInline();
+  }
+}
+window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
+
+// Single-listener wiring for the picker.
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.id === "rr-sched-req-type") {
+    _renderSchedRequestsActive();
+  }
+});
+
+// Compact inline renderer for availability requests, used by the
+// Schedule's Requests tab. Reads the same RPC the Drivers ›
+// Availability page uses (availability_request_list) and renders a
+// simple decision-ready list. Bigger UX (KPIs + impact stats) stays
+// on the Drivers page; this is the schedule's at-a-glance triage.
+async function renderSchedAvailabilityRequestsInline() {
+  const host = document.getElementById("rr-sched-avail-req-list");
+  if (!host) return;
+  host.innerHTML = `<div class="rr-loading">Loading availability requests…</div>`;
+  let res;
+  try { res = await sb.rpc("availability_request_list"); }
+  catch (e) { host.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(String((e && e.message) || e))}</div>`; return; }
+  if (res?.error) {
+    host.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(res.error.message || String(res.error))}</div>`;
+    return;
+  }
+  const rows = Array.isArray(res.data) ? res.data : [];
+  if (!rows.length) {
+    host.innerHTML = `<div class="sched-today-empty">No availability change requests right now.</div>`;
+    return;
+  }
+
+  const fmtDate = (s) => s ? new Date(s + (String(s).length === 10 ? "T12:00:00" : "")).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+  const fmtStatus = (s) => {
+    if (s === "approved") return `<span class="sched-today-tag" style="color:var(--sch-green);background:var(--sch-green-soft)">Approved</span>`;
+    if (s === "denied")   return `<span class="sched-today-tag" style="color:var(--sch-red);background:var(--sch-red-soft)">Denied</span>`;
+    return `<span class="sched-today-tag" style="color:var(--sch-amber-dark);background:var(--sch-amber-soft)">Pending</span>`;
+  };
+  const daysHtml = (days) => {
+    const order = ["mon","tue","wed","thu","fri","sat","sun"];
+    const set = new Set(Array.isArray(days) ? days.map(d => String(d).toLowerCase()) : []);
+    return order.map(d => `<span class="sched-req-day${set.has(d) ? " on" : ""}">${d.slice(0,1).toUpperCase()}</span>`).join("");
+  };
+  host.innerHTML = rows.map(r => {
+    const name = r.driver_name || r.full_name || "—";
+    const initials = (name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
+    const effective = r.effective_on ? `Effective ${fmtDate(r.effective_on)}` : "Effective when approved";
+    return `<div class="sched-today-row" style="grid-template-columns:18px 240px 1fr auto">
+      <span></span>
+      <div class="sched-today-driver">
+        <div class="avatar-sm">${escapeHtml(initials)}</div>
+        <div>
+          <div class="sched-today-driver-name">${escapeHtml(name)}</div>
+          <div class="sched-today-driver-meta">${escapeHtml(effective)}</div>
+        </div>
+      </div>
+      <div class="sched-req-days">${daysHtml(r.requested_days || r.days || [])}</div>
+      ${fmtStatus(r.status)}
+    </div>`;
+  }).join("");
+}
+window._rrRenderSchedAvailabilityRequestsInline = renderSchedAvailabilityRequestsInline;
+
 async function loadTimeOffView() {
   const body = document.getElementById("rr-time-off-body");
   if (!body) return;
@@ -37969,7 +38054,11 @@ function _toRefreshNavBadge() {
     if (typeof prev !== "function" || prev._wrappedForTimeOff) return false;
     window.schedSub = function (sub) {
       prev(sub);
-      if (sub === "time-off") loadTimeOffView();
+      if (sub === "time-off" || sub === "requests") {
+        // Either legacy "time-off" or the new "requests" tab. Render
+        // whichever request type the inline picker is set to.
+        _renderSchedRequestsActive();
+      }
     };
     window.schedSub._wrappedForTimeOff = true;
     return true;
