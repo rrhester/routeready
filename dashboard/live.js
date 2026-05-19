@@ -23440,7 +23440,26 @@ window.schedSub = function (sub) {
   if (sub === "templates") loadScheduleTemplates();
   if (sub === "today")     renderSchedTodayView();
   if (sub === "vans")      renderSchedVanAssignments();
+  // Restore the default "Schedule / Week of ..." title block when
+  // leaving Today view — renderSchedTodayView overwrites it.
+  if (sub !== "today") _resetSchedHeading();
 };
+
+// Reset the page-title / sub-line back to "Schedule" and the
+// visible week range. renderScheduleWeek owns the week-range
+// label via the existing rr-sched-page-sub element, so we just
+// reset the title text + leave the sub-line for the next paint.
+function _resetSchedHeading() {
+  const titleEl = document.querySelector("#view-schedule .sched-nav-heading .page-title");
+  if (!titleEl) return;
+  const livePill = titleEl.querySelector("#rr-sched-page-title-live");
+  if (titleEl.firstChild && titleEl.firstChild.nodeType === 3) {
+    titleEl.firstChild.nodeValue = "Schedule";
+  } else {
+    titleEl.textContent = "Schedule";
+    if (livePill) titleEl.appendChild(livePill);
+  }
+}
 
 // ─── Today view + Van assignments · click wiring ────────────────────
 // Both buttons live on the action strip but switch the visible
@@ -23517,11 +23536,20 @@ async function renderSchedTodayView() {
   const iso = _schedTodayDate;
   const dt  = new Date(iso + "T12:00:00");
 
-  // Update the header date + meta line.
-  const dateEl = document.getElementById("rr-sched-today-date");
-  const metaEl = document.getElementById("rr-sched-today-meta");
-  if (dateEl) dateEl.textContent = dt.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
-  if (metaEl) metaEl.textContent = dt.toLocaleDateString(undefined, { year: "numeric" });
+  // Update the page-header title block to reflect the day being
+  // viewed (the old in-body heading is gone). "Today view" sits
+  // where "Schedule" usually is; the sub-line shows
+  // "Tuesday, May 19, 2026".
+  const titleEl = document.querySelector("#view-schedule .sched-nav-heading .page-title");
+  const subEl   = document.getElementById("rr-sched-page-sub");
+  if (titleEl) {
+    // Preserve the LIVE pill (rendered as a child span by
+    // _updateFinalizeButton); just replace the text node.
+    const livePill = titleEl.querySelector("#rr-sched-page-title-live");
+    titleEl.textContent = "Today view";
+    if (livePill) titleEl.appendChild(livePill);
+  }
+  if (subEl) subEl.textContent = dt.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
   body.innerHTML = `<div class="rr-loading">Loading…</div>`;
 
