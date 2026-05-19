@@ -11525,13 +11525,6 @@ body.rr-cmdk-open{ overflow:hidden }
              Populated by _rrRenderForecastCard() in live.js, which
              renderScheduleWeek calls after the FEM compute. -->
         <div id="rr-sched-forecast" class="sched-forecast" hidden></div>
-        <!-- Sticky FEM day-strip · 7 thin cells (Sun-Sat) colored
-             by the worst tier seen across the branded fleet that
-             day. Pure peripheral awareness — operator never has
-             to look at it directly but it's always there. Hover
-             a cell for the per-day tier breakdown. Painted by
-             _rrRenderFemDayStrip() in live.js. -->
-        <div id="rr-sched-fem-day-strip" class="sched-fem-day-strip" hidden></div>
         <!-- Weekly recap link · opens a modal with the FEM
              digest for the visible week (audit #15). -->
         <div id="rr-sched-recap-link-wrap" class="sched-recap-link-wrap" hidden>
@@ -11881,57 +11874,6 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-forecast-asof{
             margin-left:auto;font-size:11px;color:var(--text-subtle);
             font-variant-numeric:tabular-nums;
-          }
-          /* This-week "Days needing attention" strip · readable
-             tier words per day instead of color-only dots.
-
-             Renders as a sentence fragment:
-               DAYS NEEDING ATTENTION   Tue Critical · 1 van
-                                        Wed Watch · 2 vans
-
-             Microsoft tone — uppercase eyebrow + sentence-case
-             tier labels in tier color, "1 van" suffix in muted
-             secondary. Operator reads it once and knows what
-             needs doing. Healthy days are NOT shown; the whole
-             strip is hidden when every day is healthy. */
-          #view-schedule .sched-fem-day-strip{
-            display:flex;align-items:baseline;gap:var(--s-3);
-            flex-wrap:wrap;
-            margin-top:8px;
-            padding:8px 0;
-            font-size:12px;
-            border-top:1px solid var(--sch-line-subtle, var(--border-subtle));
-          }
-          #view-schedule .sched-fem-day-strip[hidden]{display:none}
-          #view-schedule .sched-fem-day-strip-label{
-            font-size:10px;font-weight:700;
-            color:var(--text-subtle);
-            text-transform:uppercase;letter-spacing:.06em;
-            flex:0 0 auto;
-          }
-          #view-schedule .sched-fem-day-strip-row{
-            display:inline-flex;align-items:baseline;
-            gap:var(--s-4);
-            flex-wrap:wrap;
-          }
-          #view-schedule .sched-fem-day-item{
-            display:inline-flex;align-items:baseline;gap:5px;
-            font-size:12px;
-            color:var(--text);
-            letter-spacing:0;
-            font-variant-numeric:tabular-nums;
-          }
-          #view-schedule .sched-fem-day-item-day{
-            font-weight:600;color:var(--text);
-          }
-          #view-schedule .sched-fem-day-item-tier{
-            font-weight:700;letter-spacing:.01em;
-          }
-          #view-schedule .sched-fem-day-item-count{
-            font-weight:500;color:var(--text-subtle);
-          }
-          #view-schedule .sched-fem-day-item.is-today .sched-fem-day-item-day{
-            color:var(--sch-blue, #0F6CBD);font-weight:700;
           }
           /* Weekly recap link · sits below the day strip when a
              run has happened on the visible week. Outlook "View
