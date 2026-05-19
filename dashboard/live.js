@@ -28162,45 +28162,46 @@ function bindSchedWeekNav() {
       try { strip = JSON.parse(kpis.dataset.rrFemDayStrip || "[]"); } catch { strip = []; }
       if (!Array.isArray(strip) || strip.length === 0) { host.hidden = true; host.innerHTML = ""; return; }
       const todayIso = fmtIsoDate(new Date());
-      const tipDayLbl = (iso) => {
-        try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
+      const shortDayLbl = (iso) => {
+        try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" }); }
         catch { return iso; }
       };
-      const shortDayLbl = (iso) => {
-        try {
-          const d = new Date(iso + "T12:00:00");
-          return d.toLocaleDateString(undefined, { weekday: "short" });
-        } catch { return iso; }
-      };
-      // Suppress the strip entirely when every day is healthy —
-      // the operator doesn't need a noisy green strip telling
-      // them "all good." The "Reviewed Ns ago · auto-rotation
-      // armed" sub-line already handles that messaging.
-      const anyAtRisk = strip.some(d => {
-        const t = d.state && d.state.tier;
-        return t && t !== "healthy";
-      });
-      if (!anyAtRisk) { host.hidden = true; host.innerHTML = ""; return; }
+      // Pull the worst tier per day. Healthy days are dropped —
+      // the operator only needs to see days that need attention.
+      // If every day is healthy, the strip stays hidden (the
+      // "Reviewed Ns ago · auto-rotation armed" line already
+      // says "all good").
+      const atRiskDays = strip
+        .map(d => ({ ...d, state: d.state || { tier: "healthy", counts: {} } }))
+        .filter(d => d.state.tier && d.state.tier !== "healthy");
+      if (atRiskDays.length === 0) { host.hidden = true; host.innerHTML = ""; return; }
 
-      const pills = strip.map(d => {
-        const s = d.state || { tier: "healthy", counts: {} };
-        const counts = s.counts || {};
-        const tip = (() => {
-          const parts = [];
-          if (counts.violation > 0) parts.push(`${counts.violation} Violation`);
-          if (counts.critical  > 0) parts.push(`${counts.critical} Critical`);
-          if (counts.risk      > 0) parts.push(`${counts.risk} Risk`);
-          if (counts.watch     > 0) parts.push(`${counts.watch} Watch`);
-          if (parts.length === 0) return `${tipDayLbl(d.date)} · all branded vans healthy`;
-          return `${tipDayLbl(d.date)} · ${parts.join(" · ")}`;
-        })();
+      // Tier presentation — labels (Microsoft sentence-case),
+      // text colors, and the order to pick which COUNT to
+      // surface as the headline number per day.
+      const tierMeta = {
+        violation: { label: "Violation", color: "#C42B1C" },
+        critical:  { label: "Critical",  color: "#C42B1C" },
+        risk:      { label: "Risk",      color: "#B45309" },
+        watch:     { label: "Watch",     color: "#B45309" },
+      };
+      const items = atRiskDays.map(d => {
+        const tier = d.state.tier;
+        const counts = d.state.counts || {};
+        const headlineCount = counts[tier] || 0;
+        const meta = tierMeta[tier] || { label: tier, color: "var(--text-subtle)" };
         const isToday = d.date === todayIso;
-        const tierCls = s.tier || "healthy";
-        return `<span class="sched-fem-day-cell is-${tierCls}${isToday ? " is-today" : ""}" title="${escapeHtml(tip)}"><span class="sched-fem-day-cell-label">${escapeHtml(shortDayLbl(d.date))}</span><span class="sched-fem-day-cell-dot" aria-hidden="true"></span></span>`;
+        const vansLbl = headlineCount > 0
+          ? `${headlineCount} van${headlineCount === 1 ? "" : "s"}`
+          : "";
+        // "Tue · Critical · 1 van" — day on the left, tier word
+        // colored, count after.
+        return `<span class="sched-fem-day-item${isToday ? " is-today" : ""}" data-tier="${tier}"><span class="sched-fem-day-item-day">${escapeHtml(shortDayLbl(d.date))}</span><span class="sched-fem-day-item-tier" style="color:${meta.color}">${escapeHtml(meta.label)}</span>${vansLbl ? `<span class="sched-fem-day-item-count">· ${escapeHtml(vansLbl)}</span>` : ""}</span>`;
       }).join("");
+
       host.innerHTML =
-        `<span class="sched-fem-day-strip-label">This week</span>` +
-        `<span class="sched-fem-day-strip-row">${pills}</span>`;
+        `<span class="sched-fem-day-strip-label">Days needing attention</span>` +
+        `<span class="sched-fem-day-strip-row">${items}</span>`;
       host.hidden = false;
     };
   }

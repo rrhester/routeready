@@ -11882,23 +11882,24 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-left:auto;font-size:11px;color:var(--text-subtle);
             font-variant-numeric:tabular-nums;
           }
-          /* This-week day status strip · seven labeled pills, one
-             per day. Microsoft Outlook calendar pattern — each
-             pill reads as a sentence fragment ("Mon ● Tue ● …")
-             with a tier-colored dot beside the day abbreviation.
-             Replaces the earlier full-width red bar, which
-             operators read as "everything is broken" with no
-             label context.
+          /* This-week "Days needing attention" strip · readable
+             tier words per day instead of color-only dots.
 
-             Eyebrow label on the left (THIS WEEK), pills in a
-             row, today's label is blue + 700 weight. Healthy
-             days get a calm hairline dot; at-risk days pop. */
+             Renders as a sentence fragment:
+               DAYS NEEDING ATTENTION   Tue Critical · 1 van
+                                        Wed Watch · 2 vans
+
+             Microsoft tone — uppercase eyebrow + sentence-case
+             tier labels in tier color, "1 van" suffix in muted
+             secondary. Operator reads it once and knows what
+             needs doing. Healthy days are NOT shown; the whole
+             strip is hidden when every day is healthy. */
           #view-schedule .sched-fem-day-strip{
-            display:flex;align-items:center;gap:var(--s-3);
+            display:flex;align-items:baseline;gap:var(--s-3);
             flex-wrap:wrap;
             margin-top:8px;
-            padding:6px 0;
-            font-size:11px;
+            padding:8px 0;
+            font-size:12px;
             border-top:1px solid var(--sch-line-subtle, var(--border-subtle));
           }
           #view-schedule .sched-fem-day-strip[hidden]{display:none}
@@ -11909,39 +11910,28 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:0 0 auto;
           }
           #view-schedule .sched-fem-day-strip-row{
-            display:inline-flex;align-items:center;
-            gap:var(--s-3);
+            display:inline-flex;align-items:baseline;
+            gap:var(--s-4);
             flex-wrap:wrap;
           }
-          #view-schedule .sched-fem-day-cell{
-            display:inline-flex;align-items:center;gap:5px;
-            font-size:11px;font-weight:500;
-            color:var(--text-muted);
+          #view-schedule .sched-fem-day-item{
+            display:inline-flex;align-items:baseline;gap:5px;
+            font-size:12px;
+            color:var(--text);
             letter-spacing:0;
             font-variant-numeric:tabular-nums;
-            padding:0;
-            background:transparent;border:0;
-            cursor:default;
           }
-          #view-schedule .sched-fem-day-cell-dot{
-            display:inline-block;width:8px;height:8px;border-radius:50%;
-            background:rgba(15,23,42,.18);
-            flex:0 0 auto;
-            transition:background var(--t-fast);
+          #view-schedule .sched-fem-day-item-day{
+            font-weight:600;color:var(--text);
           }
-          #view-schedule .sched-fem-day-cell.is-healthy   .sched-fem-day-cell-dot{ background:rgba(15,23,42,.18); }
-          #view-schedule .sched-fem-day-cell.is-watch     .sched-fem-day-cell-dot{ background:#D9A33E; }
-          #view-schedule .sched-fem-day-cell.is-risk      .sched-fem-day-cell-dot{ background:#B45309; }
-          #view-schedule .sched-fem-day-cell.is-critical  .sched-fem-day-cell-dot{ background:#C42B1C; }
-          #view-schedule .sched-fem-day-cell.is-violation .sched-fem-day-cell-dot{
-            background:#C42B1C;
-            box-shadow:0 0 0 2px rgba(196,43,28,.18);
+          #view-schedule .sched-fem-day-item-tier{
+            font-weight:700;letter-spacing:.01em;
           }
-          #view-schedule .sched-fem-day-cell.is-today{
+          #view-schedule .sched-fem-day-item-count{
+            font-weight:500;color:var(--text-subtle);
+          }
+          #view-schedule .sched-fem-day-item.is-today .sched-fem-day-item-day{
             color:var(--sch-blue, #0F6CBD);font-weight:700;
-          }
-          #view-schedule .sched-fem-day-cell-label{
-            letter-spacing:.01em;
           }
           /* Weekly recap link · sits below the day strip when a
              run has happened on the visible week. Outlook "View
