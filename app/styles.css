@@ -499,11 +499,14 @@ select.field{
 .shift-card.is-today .date-day{color:var(--accent)}
 .shift-card .date-month{font-size:10px;color:var(--text-subtle);margin-top:3px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
 .shift-card .meta-time-row{
-  display:flex;align-items:baseline;justify-content:flex-start;gap:var(--s-3);flex-wrap:wrap;
+  display:flex;align-items:baseline;justify-content:flex-start;
+  gap:var(--s-3);flex-wrap:wrap;
 }
 .shift-card .meta-time{
-  display:flex;align-items:baseline;flex-wrap:wrap;
-  gap:4px 6px;
+  display:grid;
+  grid-template-columns:max-content 1fr;
+  align-items:baseline;
+  gap:0 6px;
   font-size:var(--fs-md);font-weight:600;color:var(--text);
   font-variant-numeric:tabular-nums;letter-spacing:-.005em;
   line-height:1.25;
@@ -511,12 +514,14 @@ select.field{
 .shift-card .meta-time-lbl{
   font-size:10px;font-weight:700;color:var(--text-subtle);
   text-transform:uppercase;letter-spacing:.06em;
+  align-self:baseline;
 }
-.shift-card .meta-time-lbl--mid{margin-left:8px}
 .shift-card .meta-time-val{font-weight:600;color:var(--text)}
 .shift-card .meta-wave-line{
   margin-top:2px;
-  display:flex;align-items:baseline;gap:4px;
+  display:grid;
+  grid-template-columns:max-content 1fr;
+  align-items:baseline;gap:0 6px;
   font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);
   font-variant-numeric:tabular-nums;
 }
