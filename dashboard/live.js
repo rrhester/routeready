@@ -24113,29 +24113,28 @@ async function _runSchedVanAssignmentsBackground() {
 }
 window._rrRunSchedVanAssignmentsBackground = _runSchedVanAssignmentsBackground;
 
-// Client-side van assignment resolver — works correctly even when
-// the DB function over-excludes vans whose chain drivers are
-// scheduled but using a different vehicle. For every scheduled
-// shift in [startIso..endIso]:
-//   1. Skip if the (driver, date) already has a vehicle_day_
-//      assignment.
-//   2. Try the driver's standing primary van. If the van isn't
-//      taken yet on that date (no override, no other primary
-//      claim from another driver scheduled today, no other
-//      backup claim), assign it.
-//   3. Try the driver's standing backup(s) in rank order under
-//      the same "is this van still free this date?" gate.
-//   4. Fall through to the pool: every active + operational +
-//      non-archived vehicle not already claimed on the date,
-//      branded-first, never-deployed first, alphabetical
-//      tie-break.
+// Client-side van assignment resolver — VAN-centric, per the
+// operator's rule:
+//
+//   For each van on each date:
+//     1. If the van's PRIMARY chain owner is scheduled today and
+//        doesn't already have a different van, they get it.
+//     2. Else if any SECONDARY (rank > 0, lowest first) is
+//        scheduled today and unassigned, they get it.
+//     3. Else the van enters today's open pool.
+//
+// Then drivers still without a van get paired with vans still in
+// the pool (branded-first, alphabetical) until one side runs out.
+//
+// Manual overrides in vehicle_day_assignments are honored — the
+// (driver, van) pair they pin is seeded into the day's state
+// before phase 1 runs, so the chain logic naturally skips them.
 //
 // All writes go through vehicle_day_assignment_set so the same
 // uniqueness constraints (one driver per van per date, one van
 // per driver per date) the operator hits manually are enforced.
 async function _assignVansForRange(startIso, endIso, dspId) {
-  // Pull everything we need in one go so we don't fight with
-  // concurrent inserts.
+  // Pull everything we need in one go.
   const [shiftsRes, vehRes, chainRes, existingRes] = await Promise.all([
     sb.from("shifts")
       .select("id, date, driver_id, status, starts_at, station_id, route_code")
@@ -24154,155 +24153,124 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       .eq("dsp_id", dspId)
       .gte("date", startIso).lte("date", endIso),
   ]);
-  // Surface any RLS or column errors loudly — silent empty arrays
-  // were why the operator saw "0 assigned · 49 unassigned" earlier.
-  if (shiftsRes && shiftsRes.error) console.warn("assignVans · shifts fetch failed", shiftsRes.error);
-  if (vehRes && vehRes.error)       console.warn("assignVans · vehicles fetch failed", vehRes.error);
-  if (chainRes && chainRes.error)   console.warn("assignVans · chain fetch failed", chainRes.error);
-  if (existingRes && existingRes.error) console.warn("assignVans · existing assignments fetch failed", existingRes.error);
+  if (shiftsRes?.error)   console.warn("assignVans · shifts fetch failed", shiftsRes.error);
+  if (vehRes?.error)      console.warn("assignVans · vehicles fetch failed", vehRes.error);
+  if (chainRes?.error)    console.warn("assignVans · chain fetch failed", chainRes.error);
+  if (existingRes?.error) console.warn("assignVans · existing fetch failed", existingRes.error);
 
-  const shifts   = (shiftsRes.data   || []);
-  const vehicles = (vehRes.data      || []).filter(v => v.archived_at == null && ["active","spare"].includes(v.status) && (v.operational_status || "operational") !== "grounded");
+  const shifts   = shiftsRes?.data   || [];
+  const vehicles = (vehRes?.data     || []).filter(v =>
+       v.archived_at == null
+    && ["active","spare"].includes(v.status)
+    && (v.operational_status || "operational") !== "grounded"
+  );
+  const chain    = chainRes?.data    || [];
+  const existing = existingRes?.data || [];
+
   if (!vehicles.length) {
-    console.warn(`assignVans · fleet pool is empty (vehRes.data=${(vehRes.data || []).length} rows before status filter)`);
+    console.warn(`assignVans · fleet pool empty (${(vehRes?.data || []).length} rows before status filter)`);
   }
-  const chain    = (chainRes.data    || []);
-  const existing = (existingRes.data || []);
 
-  // Index helpers.
-  const driverChain = new Map(); // driver_id → [{vehicle_id, rank}] sorted by rank
+  // Index van → chain rows, sorted by rank (primary first).
+  const vanChain = new Map();
   for (const c of chain) {
-    const list = driverChain.get(c.driver_id) || [];
+    const list = vanChain.get(c.vehicle_id) || [];
     list.push(c);
-    driverChain.set(c.driver_id, list);
+    vanChain.set(c.vehicle_id, list);
   }
-  for (const [, list] of driverChain) list.sort((a, b) => (a.rank | 0) - (b.rank | 0));
+  for (const [, list] of vanChain) list.sort((a, b) => (a.rank | 0) - (b.rank | 0));
 
-  // (vehicle_id, date) → driver_id for everyone already pinned
-  const vanTaken = new Map();   // `${vehicle_id}|${date}` -> driver_id
-  const driverHasVan = new Map(); // `${driver_id}|${date}` -> vehicle_id
-  for (const r of existing) {
-    vanTaken.set(`${r.vehicle_id}|${r.date}`, r.driver_id);
-    driverHasVan.set(`${r.driver_id}|${r.date}`, r.vehicle_id);
-  }
-
-  // Index drivers scheduled per date so chain resolution can see
-  // who's working today.
-  const scheduledByDate = new Map(); // date → Set(driver_id)
+  // Index scheduled drivers per date.
+  const scheduledByDate = new Map();
   for (const s of shifts) {
+    if (!s.driver_id) continue;
     const set = scheduledByDate.get(s.date) || new Set();
     set.add(s.driver_id);
     scheduledByDate.set(s.date, set);
   }
 
-  const vehById = new Map(vehicles.map(v => [v.id, v]));
-  const poolSorted = vehicles.slice().sort((a, b) => {
-    // Branded vans first (FEM protection), then alphabetical name.
+  // Index overrides per date.
+  const overridesByDate = new Map(); // date → [{driver_id, vehicle_id}]
+  for (const r of existing) {
+    const list = overridesByDate.get(r.date) || [];
+    list.push(r);
+    overridesByDate.set(r.date, list);
+  }
+
+  // Van order for both chain phases and pool: branded first,
+  // then alphabetical by name — deterministic and FEM-aware.
+  const vansSorted = vehicles.slice().sort((a, b) => {
     const ab = a.is_branded === false ? 1 : 0;
     const bb = b.is_branded === false ? 1 : 0;
     if (ab !== bb) return ab - bb;
     return (a.name || "").localeCompare(b.name || "");
   });
 
-  const isVanFreeOnDate = (vehId, date) => {
-    const key = `${vehId}|${date}`;
-    if (vanTaken.has(key)) return false;
-    return true;
-  };
-
-  // Resolve in (date, chain-priority, starts_at, driver_id) order.
-  // The chain-priority tier puts drivers with a standing primary
-  // chain ahead of chain-less drivers within the same date, so the
-  // primary always claims their van via step (1) before a chain-
-  // less driver can take it from the pool. Without this ordering,
-  // a chain-less driver processed first could steal e.g. Van 10
-  // from its primary owner Pickle and force Pickle onto a random
-  // pool van — operator-visible bug.
-  const hasPrimary = (driverId) =>
-    (driverChain.get(driverId) || []).some(c => (c.rank | 0) === 0);
-  const sorted = shifts.slice().sort((a, b) => {
-    const dateCmp = (a.date || "").localeCompare(b.date || "");
-    if (dateCmp !== 0) return dateCmp;
-    const aPrim = hasPrimary(a.driver_id) ? 0 : 1;
-    const bPrim = hasPrimary(b.driver_id) ? 0 : 1;
-    if (aPrim !== bPrim) return aPrim - bPrim;
-    return (a.starts_at || "").localeCompare(b.starts_at || "")
-        || (a.driver_id || "").localeCompare(b.driver_id || "");
-  });
-
   const writes = [];
   let unassigned = 0;
-  for (const s of sorted) {
-    const k = `${s.driver_id}|${s.date}`;
-    if (driverHasVan.has(k)) continue; // already pinned (override / earlier loop iteration)
 
-    let pick = null;
+  // Process each date independently.
+  const allDates = Array.from(scheduledByDate.keys()).sort();
+  for (const date of allDates) {
+    const scheduled = scheduledByDate.get(date) || new Set();
+    const driverAssigned = new Map(); // driver_id → vehicle_id
+    const vanAssigned    = new Map(); // vehicle_id → driver_id
 
-    // (1) primary
-    const chainList = driverChain.get(s.driver_id) || [];
-    const primary = chainList.find(c => (c.rank | 0) === 0);
-    if (primary && vehById.has(primary.vehicle_id) && isVanFreeOnDate(primary.vehicle_id, s.date)) {
-      pick = vehById.get(primary.vehicle_id);
+    // Seed with any existing overrides for this date (manual
+    // pins the operator already made). We don't re-write these.
+    for (const r of overridesByDate.get(date) || []) {
+      driverAssigned.set(r.driver_id, r.vehicle_id);
+      vanAssigned.set(r.vehicle_id, r.driver_id);
     }
 
-    // (2) backup, lowest rank first
-    if (!pick) {
-      const backups = chainList.filter(c => (c.rank | 0) > 0);
+    // ── Phase 1a: every scheduled primary claims their van ──
+    // Walking vans (not drivers) means there's no iteration-order
+    // race — Van 10's primary owner always gets Van 10 if they're
+    // scheduled, regardless of who else might want it.
+    for (const v of vansSorted) {
+      if (vanAssigned.has(v.id)) continue;
+      const primary = (vanChain.get(v.id) || []).find(c => (c.rank | 0) === 0);
+      if (!primary) continue;
+      if (!scheduled.has(primary.driver_id)) continue;
+      if (driverAssigned.has(primary.driver_id)) continue; // already on another van via override
+      driverAssigned.set(primary.driver_id, v.id);
+      vanAssigned.set(v.id, primary.driver_id);
+      writes.push({ driver_id: primary.driver_id, date, vehicle_id: v.id });
+    }
+
+    // ── Phase 1b: primary not scheduled → secondary picks it up ──
+    // "Secondary" = lowest unclaimed rank > 0 from the same chain.
+    for (const v of vansSorted) {
+      if (vanAssigned.has(v.id)) continue;
+      const backups = (vanChain.get(v.id) || []).filter(c => (c.rank | 0) > 0);
       for (const b of backups) {
-        if (!vehById.has(b.vehicle_id)) continue;
-        if (!isVanFreeOnDate(b.vehicle_id, s.date)) continue;
-        // Backup picks only when the primary of THAT van isn't
-        // scheduled today.
-        const vanPrimary = chain.find(c => c.vehicle_id === b.vehicle_id && (c.rank | 0) === 0);
-        const primaryScheduled = vanPrimary && scheduledByDate.get(s.date)?.has(vanPrimary.driver_id);
-        if (primaryScheduled) continue;
-        pick = vehById.get(b.vehicle_id);
+        if (!scheduled.has(b.driver_id)) continue;
+        if (driverAssigned.has(b.driver_id)) continue; // already has their own primary or another backup
+        driverAssigned.set(b.driver_id, v.id);
+        vanAssigned.set(v.id, b.driver_id);
+        writes.push({ driver_id: b.driver_id, date, vehicle_id: v.id });
         break;
       }
     }
 
-    // (3) pool fall-through — first un-claimed van for the date,
-    // but RESERVE any van whose primary chain owner is also
-    // scheduled today (they'll claim it via step (1) when their
-    // shift comes up in the loop). Without this gate, a chain-less
-    // driver processed earlier in the iteration order can steal a
-    // primary's van and strand the primary — operator-visible as
-    // "Pickle is Van 10's primary but is on Van 2 today while
-    // Chucky has Van 10." The exception: if the chain-primary IS
-    // this current driver, they already failed step (1) so the
-    // skip is moot.
-    if (!pick) {
-      const scheduledToday = scheduledByDate.get(s.date) || new Set();
-      for (const v of poolSorted) {
-        if (!isVanFreeOnDate(v.id, s.date)) continue;
-        const vanPrimary = chain.find(c => c.vehicle_id === v.id && (c.rank | 0) === 0);
-        if (vanPrimary
-            && vanPrimary.driver_id !== s.driver_id
-            && scheduledToday.has(vanPrimary.driver_id)) continue;
-        pick = v;
-        break;
-      }
-      // If every free van is reserved for an unclaimed primary,
-      // make a second pass without the reservation rather than
-      // strand this driver entirely — the primary will fall
-      // through the same way and get a pool van later.
-      if (!pick) {
-        for (const v of poolSorted) {
-          if (!isVanFreeOnDate(v.id, s.date)) continue;
-          pick = v;
-          break;
-        }
-      }
+    // ── Phase 2: open pool ──
+    // Vans nobody on the chain claimed today + drivers without a
+    // van. Pair them off in deterministic order (van: branded
+    // first / alphabetical; driver: id sort) so re-runs produce
+    // the same result.
+    const poolDrivers = Array.from(scheduled)
+      .filter(d => !driverAssigned.has(d))
+      .sort();
+    const poolVans = vansSorted.filter(v => !vanAssigned.has(v.id));
+    const pair = Math.min(poolDrivers.length, poolVans.length);
+    for (let i = 0; i < pair; i++) {
+      driverAssigned.set(poolDrivers[i], poolVans[i].id);
+      vanAssigned.set(poolVans[i].id, poolDrivers[i]);
+      writes.push({ driver_id: poolDrivers[i], date, vehicle_id: poolVans[i].id });
     }
-
-    if (!pick) {
-      unassigned += 1;
-      continue;
+    if (poolDrivers.length > poolVans.length) {
+      unassigned += poolDrivers.length - poolVans.length;
     }
-
-    vanTaken.set(`${pick.id}|${s.date}`, s.driver_id);
-    driverHasVan.set(`${s.driver_id}|${s.date}`, pick.id);
-    writes.push({ driver_id: s.driver_id, date: s.date, vehicle_id: pick.id });
   }
 
   // Fire the writes in parallel chunks of 10. vehicle_day_
