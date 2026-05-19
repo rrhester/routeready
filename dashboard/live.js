@@ -24285,22 +24285,28 @@ async function _runSchedVanAssignmentsBackground() {
     //   4. fall-through pool: any active+operational vehicle not
     //      yet assigned to anyone this date, branded-first,
     //      never-deployed first, alphabetical tie-break
-    const dates = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), i)));
+    // Capture the visible week BEFORE the await so that if the
+    // operator navigates to a different week while the resolver
+    // is in flight, the cached _rrLastVanRun stays attributed to
+    // the week the writes actually targeted (not whatever week
+    // happens to be visible when the promise resolves).
+    const runWeekStart = _schedStart;
+    const dates = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(new Date(runWeekStart + "T12:00:00"), i)));
     const weekEndIso = dates[dates.length - 1];
-    const totals = await _assignVansForRange(_schedStart, weekEndIso, dspId);
+    const totals = await _assignVansForRange(runWeekStart, weekEndIso, dspId);
     // Stash the per-write reasons + the high-level totals so the
     // chip decorator + the auto-rescue banner can surface "why"
-    // for the freshest run. Keyed by week start so navigating
-    // weeks doesn't show stale strings.
+    // for the freshest run. Keyed by the captured week so a
+    // mid-flight week change can't misattribute the results.
     window._rrLastVanRun = {
-      weekStart: _schedStart,
+      weekStart: runWeekStart,
       reasons:   Array.isArray(totals.reasons) ? totals.reasons : [],
       assigned:  totals.assigned || 0,
       unassigned: totals.unassigned || 0,
       fem:       totals.fem || null,
       ts:        Date.now(),
     };
-    console.log(`assignVans week ${_schedStart} · ${totals.assigned} placement${totals.assigned === 1 ? "" : "s"} · ${totals.unassigned} driver${totals.unassigned === 1 ? "" : "s"} without a van`);
+    console.log(`assignVans week ${runWeekStart} · ${totals.assigned} placement${totals.assigned === 1 ? "" : "s"} · ${totals.unassigned} driver${totals.unassigned === 1 ? "" : "s"} without a van`);
     if (totals.unassigned > 0) {
       toast(`Assigned ${totals.assigned} van${totals.assigned === 1 ? "" : "s"} · ${totals.unassigned} driver${totals.unassigned === 1 ? "" : "s"} still without a van (fleet may be tapped out).`, "warn");
     }
