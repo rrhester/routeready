@@ -11514,11 +11514,6 @@ body.rr-cmdk-open{ overflow:hidden }
              that actually displaced anyone. Calm Outlook tone —
              one sentence, lowercase verb, no exclamation. -->
         <div id="rr-sched-auto-rescue-banner" class="sched-fem-banner" hidden></div>
-        <!-- Forward outlook card · how the fleet will look next
-             Monday assuming this week's rotations land as planned.
-             Populated by _rrRenderForecastCard() in live.js, which
-             renderScheduleWeek calls after the FEM compute. -->
-        <div id="rr-sched-forecast" class="sched-forecast" hidden></div>
         <!-- Weekly recap link · opens a modal with the FEM
              digest for the visible week (audit #15). -->
         <div id="rr-sched-recap-link-wrap" class="sched-recap-link-wrap" hidden>
@@ -11822,42 +11817,6 @@ body.rr-cmdk-open{ overflow:hidden }
             transition:color var(--t-fast);
           }
           #view-schedule .sched-fem-banner-close:hover{color:var(--text)}
-          /* Forward outlook card · "Next Monday · 0 Critical · 2
-             Watch · 8 Healthy." One line, no chrome — sits as a
-             quiet operational forecast under the KPI strip.
-             Calm Microsoft tone — uppercase eyebrow label,
-             tier-pip strip, tabular figures. */
-          #view-schedule .sched-forecast{
-            display:flex;align-items:center;gap:var(--s-3);
-            padding:8px var(--s-3);
-            margin-top:8px;
-            background:transparent;
-            border-top:1px solid var(--sch-line-subtle, var(--border-subtle));
-            font-size:var(--fs-xs);color:var(--text-muted);
-          }
-          #view-schedule .sched-forecast[hidden]{display:none}
-          #view-schedule .sched-forecast-label{
-            font-size:11px;font-weight:700;color:var(--text-subtle);
-            text-transform:uppercase;letter-spacing:.06em;
-            flex:0 0 auto;
-          }
-          #view-schedule .sched-forecast-pips{
-            display:inline-flex;align-items:center;gap:var(--s-3);
-            flex-wrap:wrap;
-          }
-          #view-schedule .sched-forecast-pip{
-            display:inline-flex;align-items:center;gap:5px;
-            font-size:var(--fs-xs);color:var(--text);
-            font-variant-numeric:tabular-nums;font-weight:500;
-          }
-          #view-schedule .sched-forecast-pip-dot{
-            display:inline-block;width:7px;height:7px;border-radius:50%;
-            flex:0 0 auto;
-          }
-          #view-schedule .sched-forecast-asof{
-            margin-left:auto;font-size:11px;color:var(--text-subtle);
-            font-variant-numeric:tabular-nums;
-          }
           /* Weekly recap link · sits below the day strip when a
              run has happened on the visible week. Outlook "View
              details" link voice — text-only, blue, subtle. */
