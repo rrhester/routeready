@@ -11360,10 +11360,6 @@ body.rr-cmdk-open{ overflow:hidden }
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_secondary" checked> <span class="sf-rule-name">Move a backup driver onto an at-risk van to prevent a VERO defect</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_primary" checked> <span class="sf-rule-name">Move a primary driver onto an at-risk van as a last resort</span></label>
                 </div>
-                <!-- Inline explainer · expanded by the "i" icon in the
-                     popover header. DSP-operator voice — no Phase 1a /
-                     2 / 3 engineer language. Default hidden. -->
-                <div class="sched-vans-rules-explainer" id="rr-sched-vans-rules-explainer" hidden></div>
               </div>
             </div>
             <div class="sched-settings-split">
@@ -12743,91 +12739,128 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-vans-rules-info svg{
             display:block;
           }
-          /* Inline explainer · expanded by the "i" icon in the
-             popover header. DSP-operator voice — plain English,
-             real-world examples, no engineer jargon. */
-          #view-schedule .sched-vans-rules-explainer{
-            border-top:1px solid rgba(15,23,42,.08);
+          /* Van rules explainer modal · opened by the "i" icon in
+             the rules popover. Centered overlay, Outlook tone —
+             hairline border, soft elevation, calm header bar. */
+          .rr-vans-rules-modal{
+            position:fixed;inset:0;z-index:9999;
+            background:rgba(15,23,42,.32);
+            display:flex;align-items:center;justify-content:center;
+            padding:var(--s-6);
+            backdrop-filter:blur(2px);
+          }
+          .rr-vans-rules-modal .rr-vans-rules-modal-card{
+            background:#fff;
+            border:1px solid var(--sch-line, var(--border));
+            border-radius:12px;
+            max-width:720px;width:100%;max-height:85vh;
+            display:flex;flex-direction:column;
+            box-shadow:0 8px 32px -8px rgba(15,23,42,.22),
+                       0 2px 4px rgba(15,23,42,.04);
+            font-family:inherit;
+          }
+          .rr-vans-rules-modal .rr-vans-rules-modal-bar{
+            display:flex;align-items:flex-start;justify-content:space-between;
+            gap:var(--s-3);
+            padding:16px 20px;
+            border-bottom:1px solid var(--sch-line, var(--border));
             background:var(--sch-surface-2, #FAFBFC);
-            padding:var(--s-3) 14px var(--s-3);
-            font-size:12px;color:var(--text);
-            line-height:1.55;
-            max-height:55vh;overflow-y:auto;
+            border-radius:12px 12px 0 0;
+            flex:0 0 auto;
           }
-          #view-schedule .sched-vans-rules-explainer[hidden]{display:none}
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-intro{
-            margin:0 0 var(--s-3);
-            color:var(--text-muted);font-size:12px;line-height:1.55;
+          .rr-vans-rules-modal .rr-vans-rules-modal-eyebrow{
+            font-size:11px;font-weight:700;color:var(--text-subtle);
+            text-transform:uppercase;letter-spacing:.06em;
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-intro strong{
+          .rr-vans-rules-modal .rr-vans-rules-modal-h1{
+            font-size:var(--fs-base, 15px);font-weight:600;color:var(--text);
+            letter-spacing:-.005em;margin-top:3px;
+          }
+          .rr-vans-rules-modal .rr-vans-rules-modal-close{
+            background:none;border:0;cursor:pointer;
+            color:var(--text-muted);
+            padding:4px;border-radius:6px;line-height:0;
+            display:inline-flex;align-items:center;justify-content:center;
+            transition:background var(--t-fast,150ms), color var(--t-fast,150ms);
+          }
+          .rr-vans-rules-modal .rr-vans-rules-modal-close:hover{
+            background:rgba(15,23,42,.06);color:var(--text);
+          }
+          .rr-vans-rules-modal .rr-vans-rules-modal-close:focus-visible{
+            outline:none;box-shadow:var(--ring-focus);
+          }
+          .rr-vans-rules-modal .rr-vans-rules-modal-body{
+            padding:18px 20px 20px;
+            overflow-y:auto;
+            font-size:13px;line-height:1.55;color:var(--text);
+          }
+          .rr-vans-rules-modal .rr-rule-explain-intro{
+            margin:0 0 var(--s-3, 12px);
+            color:var(--text-muted);font-size:13px;line-height:1.6;
+          }
+          .rr-vans-rules-modal .rr-rule-explain-intro strong{
             color:var(--text);font-weight:600;
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain{
-            padding:var(--s-2-5) 0;
-            border-top:1px solid rgba(15,23,42,.08);
+          .rr-vans-rules-modal .rr-rule-explain{
+            padding:var(--s-3, 12px) 0;
+            border-top:1px solid var(--sch-line-subtle, rgba(15,23,42,.06));
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain:first-of-type{
+          .rr-vans-rules-modal .rr-rule-explain:first-of-type{
             border-top:0;padding-top:0;
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-title{
-            font-size:12px;font-weight:600;color:var(--text);
+          .rr-vans-rules-modal .rr-rule-explain-title{
+            font-size:13px;font-weight:600;color:var(--text);
             letter-spacing:-.005em;
-            margin-bottom:5px;
+            margin-bottom:6px;
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-row{
+          .rr-vans-rules-modal .rr-rule-explain-row{
             display:grid;
-            grid-template-columns:60px 1fr;
-            gap:8px;
-            padding:2px 0;
+            grid-template-columns:118px 1fr;
+            gap:var(--s-3, 12px);
+            padding:3px 0;
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-lbl{
-            font-size:9px;font-weight:700;
+          .rr-vans-rules-modal .rr-rule-explain-lbl{
+            font-size:10px;font-weight:700;
             text-transform:uppercase;letter-spacing:.06em;
             padding-top:3px;
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-lbl-on{
-            color:#15803D;
+          .rr-vans-rules-modal .rr-rule-explain-lbl-on{color:#15803D}
+          .rr-vans-rules-modal .rr-rule-explain-lbl-off{color:#B45309}
+          .rr-vans-rules-modal .rr-rule-explain-lbl-eg{color:var(--text-subtle)}
+          .rr-vans-rules-modal .rr-rule-explain-text{
+            font-size:13px;color:var(--text-muted);line-height:1.55;
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-lbl-off{
-            color:#B45309;
-          }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-lbl-eg{
-            color:var(--text-subtle);
-          }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-text{
-            font-size:12px;color:var(--text-muted);line-height:1.5;
-          }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-text strong{
+          .rr-vans-rules-modal .rr-rule-explain-text strong{
             color:var(--text);font-weight:600;
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-h3{
+          .rr-vans-rules-modal .rr-rule-explain-h3{
             font-size:11px;font-weight:700;color:var(--text-subtle);
             text-transform:uppercase;letter-spacing:.06em;
-            margin:var(--s-3) 0 var(--s-2);
+            margin:18px 0 var(--s-2, 8px);
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-combo{
+          .rr-vans-rules-modal .rr-rule-explain-combo{
             display:grid;
             grid-template-columns:1fr 1fr;
-            gap:6px var(--s-2);
-            padding:5px 0;
-            border-top:1px solid rgba(15,23,42,.06);
+            gap:6px var(--s-3, 12px);
+            padding:7px 0;
+            border-top:1px solid var(--sch-line-subtle, rgba(15,23,42,.06));
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-combo:first-of-type{border-top:0}
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-combo-want{
-            font-size:12px;color:var(--text);font-weight:500;
+          .rr-vans-rules-modal .rr-rule-explain-combo:first-of-type{border-top:0}
+          .rr-vans-rules-modal .rr-rule-explain-combo-want{
+            font-size:13px;color:var(--text);font-weight:500;
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-combo-do{
-            font-size:11px;color:var(--text-muted);line-height:1.5;
+          .rr-vans-rules-modal .rr-rule-explain-combo-do{
+            font-size:12px;color:var(--text-muted);line-height:1.55;
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-combo-do strong{
+          .rr-vans-rules-modal .rr-rule-explain-combo-do strong{
             color:var(--text);font-weight:600;
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-notes{
-            margin:var(--s-3) 0 0;padding:0 0 0 16px;
-            font-size:11px;color:var(--text-muted);line-height:1.55;
+          .rr-vans-rules-modal .rr-rule-explain-notes{
+            margin:18px 0 0;padding:0 0 0 18px;
+            font-size:12px;color:var(--text-muted);line-height:1.6;
           }
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-notes li{margin-bottom:5px}
-          #view-schedule .sched-vans-rules-explainer .rr-rule-explain-notes strong{
+          .rr-vans-rules-modal .rr-rule-explain-notes li{margin-bottom:6px}
+          .rr-vans-rules-modal .rr-rule-explain-notes strong{
             color:var(--text);font-weight:600;
           }
           #view-schedule .sched-smartfill-rules-body{
