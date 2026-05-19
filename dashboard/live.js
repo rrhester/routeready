@@ -26503,6 +26503,18 @@ async function openShiftEditModal(shiftId) {
           <input type="time" id="rr-shift-edit-end" value="${escapeHtml(endHM)}" class="form-input" style="max-width:160px" />
         </label>
         <div id="rr-shift-edit-status" style="font-size:var(--fs-xs);color:var(--text-subtle);min-height:14px"></div>
+        <!-- Recognition · per-shift entry point. Opens the Kudos
+             modal with this driver locked in so the dispatcher can
+             send recognition without leaving the shift edit flow. -->
+        <div class="rr-shift-edit-recognition" data-rr-driver-id="${escapeHtml(sh.driver_id || '')}">
+          <div class="rr-shift-edit-recognition-row">
+            <div>
+              <div class="rr-shift-edit-recognition-label">Recognition</div>
+              <div class="rr-shift-edit-recognition-help" id="rr-shift-edit-recognition-help">Loading…</div>
+            </div>
+            <button type="button" class="btn btn-sm" id="rr-shift-edit-send-kudos">Send Kudos</button>
+          </div>
+        </div>
         <details style="margin-top:4px">
           <summary style="cursor:pointer;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)">History</summary>
           <div id="rr-shift-edit-history" style="margin-top:var(--s-2);font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5">Loading…</div>
@@ -26520,6 +26532,53 @@ async function openShiftEditModal(shiftId) {
 
   // Load shift history lazily — fire once the modal is on screen.
   _loadShiftHistory(shiftId);
+  // Load recent recognition for this shift's driver (1 line summary).
+  if (sh.driver_id) {
+    (async () => {
+      try {
+        const { data } = await sb
+          .from("driver_recognitions")
+          .select("title, sent_at, scheduled_for, created_at")
+          .eq("driver_id", sh.driver_id)
+          .in("status", ["sent", "scheduled"])
+          .order("sent_at", { ascending: false, nullsFirst: false })
+          .limit(1);
+        const help = document.getElementById("rr-shift-edit-recognition-help");
+        if (!help) return;
+        const r = (Array.isArray(data) && data[0]) || null;
+        if (!r) {
+          help.textContent = "No recognition history yet.";
+          return;
+        }
+        const when = r.sent_at || r.scheduled_for || r.created_at;
+        const ago = (() => {
+          if (!when) return "";
+          const days = Math.round((Date.now() - new Date(when).getTime()) / 86400000);
+          if (days <= 0) return "today";
+          if (days === 1) return "yesterday";
+          if (days < 7) return `${days}d ago`;
+          if (days < 30) return `${Math.round(days / 7)}w ago`;
+          return new Date(when).toLocaleDateString();
+        })();
+        help.textContent = `Last: "${r.title}" · ${ago}`;
+      } catch (_) {}
+    })();
+  }
+  // Send Kudos handler · opens the global modal with this driver locked.
+  document.getElementById("rr-shift-edit-send-kudos")?.addEventListener("click", () => {
+    if (!sh.driver_id) {
+      toast("This shift has no driver assigned yet", "warn");
+      return;
+    }
+    const driver = {
+      id: sh.driver_id,
+      full_name: sh.drivers?.full_name,
+      preferred_name: sh.drivers?.preferred_name,
+    };
+    if (typeof window._rrOpenKudosModal === "function") {
+      window._rrOpenKudosModal({ driver });
+    }
+  });
 
   const close = () => m.remove();
   m.addEventListener("click", async (e) => {
@@ -26706,7 +26765,13 @@ function _schedShiftChip(sh, extras) {
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';
-  return `<div class="shift-chip${routineCls}" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove">${eyebrowRoute}${startLine}${waveLine}</div>`;
+  // Ambient recognition · soft warm ring + tiny corner sparkle on
+  // hover when the driver has any recognition in the last 14 days.
+  const recogCls = extras?.recognized ? ' is-recognized' : '';
+  const recogTip = (extras?.recognized && extras.recognized.title)
+    ? ` · ${escapeHtml(extras.recognized.title)}`
+    : (extras?.recognized ? " · Recently recognized" : "");
+  return `<div class="shift-chip${routineCls}${recogCls}" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove${recogTip}">${eyebrowRoute}${startLine}${waveLine}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -26781,6 +26846,42 @@ async function renderScheduleWeek() {
   // shifts" because the 7 missing shifts are pinned to inactive
   // drivers and don't get counted as either.
   const visibleDriverIds = new Set(drivers.map(d => d.id));
+
+  // ── Recognition Layer ─────────────────────────────────────────────
+  // Lightweight ambient indicator: any driver who's received a
+  // recognition in the last 14 days gets their shift chips marked
+  // with a soft warm ring. Batched into one query per render so we
+  // don't fan out N requests across the grid. Stored on each driver
+  // object as ._recognized = true so shiftChipHtml can read it
+  // without a second lookup.
+  try {
+    const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+    const driverIds = drivers.map(d => d.id);
+    if (driverIds.length) {
+      const { data: rec, error: recErr } = await sb
+        .from("driver_recognitions")
+        .select("driver_id, sent_at, kind, title")
+        .in("driver_id", driverIds)
+        .eq("status", "sent")
+        .gte("sent_at", cutoff);
+      if (!recErr && Array.isArray(rec)) {
+        const latest = new Map(); // driver_id -> { kind, title, sent_at }
+        for (const r of rec) {
+          const prev = latest.get(r.driver_id);
+          if (!prev || (r.sent_at && r.sent_at > (prev.sent_at || ""))) {
+            latest.set(r.driver_id, { kind: r.kind, title: r.title, sent_at: r.sent_at });
+          }
+        }
+        for (const d of drivers) {
+          const m = latest.get(d.id);
+          if (m) {
+            d._recognized = true;
+            d._recognizedSummary = m;
+          }
+        }
+      }
+    }
+  } catch (_) { /* recognition layer is purely cosmetic — failures are silent */ }
 
   // Index shifts by driver/date and collect open shifts by date.
   const shiftsByDriverDate = new Map();
@@ -27513,6 +27614,7 @@ async function renderScheduleWeek() {
         const routine = sh.shift_kind === "regular" && _rowDefaultKey !== "" && key === _rowDefaultKey;
         const extras = (sh.shift_kind === "regular" && traineeName) ? { traineeName } : {};
         if (routine) extras.routine = true;
+        if (d._recognized) extras.recognized = d._recognizedSummary || true;
         return _schedShiftChip(sh, Object.keys(extras).length ? extras : null);
       }).join("");
       return `<div class="${cls}"${rel} ${data}>${star}${chips}</div>`;
@@ -42088,5 +42190,253 @@ document.addEventListener("click", async (e) => {
     const next = !side.classList.contains("collapsed");
     apply(next);
     try { localStorage.setItem(KEY, next ? "1" : "0"); } catch (_) {}
+  });
+})();
+
+// ── Schedule Recognition Layer · Kudos quick-send ──────────────────
+// The Kudos icon in the Schedule ribbon's SECONDARY group opens a
+// lightweight Send Kudos modal. Operational morale infrastructure,
+// not an HR rewards system — driver picker, six quick-pick chips,
+// optional short note, single Send. Backed by recognition_send and
+// the existing driver_recognitions schema (migration 0290 + 0295).
+(function () {
+  const QUICK_PICKS = [
+    { kind: "custom",           anim: "sparkle",  title: "Helped with a rescue",  blurb: "Stepped up on a tough day." },
+    { kind: "custom",           anim: "star",     title: "Perfect attendance",    blurb: "Zero no-shows this month." },
+    { kind: "custom",           anim: "hearts",   title: "Customer compliment",   blurb: "Customer reached out to say thanks." },
+    { kind: "custom",           anim: "trophy",   title: "On-time streak",        blurb: "Five days in a row clocked in early." },
+    { kind: "safety_milestone", anim: "trophy",   title: "Safety milestone",      blurb: "Clean record · no incidents." },
+    { kind: "custom",           anim: "sparkle",  title: "Custom note",           blurb: "Write your own — note required." },
+  ];
+
+  function _kudosFmtRel(iso) {
+    if (!iso) return "";
+    const ms = Date.now() - new Date(iso).getTime();
+    const d = Math.round(ms / 86400000);
+    if (d <= 0) return "today";
+    if (d === 1) return "yesterday";
+    if (d < 7) return `${d}d ago`;
+    if (d < 30) return `${Math.round(d / 7)}w ago`;
+    return new Date(iso).toLocaleDateString();
+  }
+
+  async function _kudosLoadDriverHistory(driverId) {
+    if (!driverId) return [];
+    try {
+      const { data, error } = await sb
+        .from("driver_recognitions")
+        .select("id, kind, title, message, status, sent_at, scheduled_for, created_at")
+        .eq("driver_id", driverId)
+        .in("status", ["sent", "scheduled"])
+        .order("sent_at", { ascending: false, nullsFirst: false })
+        .limit(5);
+      if (error) return [];
+      return Array.isArray(data) ? data : [];
+    } catch (_) { return []; }
+  }
+
+  // Driver dropdown options. Pulls from _schedDriverList when set
+  // (always populated by renderScheduleWeek), falls back to
+  // querying drivers directly if the schedule hasn't rendered yet.
+  async function _kudosDriverOptions() {
+    if (Array.isArray(window._schedDriverList) && window._schedDriverList.length) {
+      return window._schedDriverList;
+    }
+    try {
+      const { data, error } = await sb
+        .from("drivers")
+        .select("id, full_name, preferred_name, station_id, stations(code)")
+        .eq("dsp_id", window.RR?.dsp?.id)
+        .eq("status", "active")
+        .order("full_name");
+      if (error) return [];
+      return Array.isArray(data) ? data : [];
+    } catch (_) { return []; }
+  }
+
+  function _kudosDriverLabel(d) {
+    const name = (d.preferred_name && d.preferred_name.trim()) || d.full_name || "Driver";
+    const code = d.stations?.code || d.station?.code || "";
+    return code ? `${name} · ${code}` : name;
+  }
+
+  function _kudosRenderHistory(host, rows) {
+    if (!host) return;
+    if (!rows || rows.length === 0) {
+      host.innerHTML = `<div class="rr-kudos-empty">No recognition history yet for this driver.</div>`;
+      return;
+    }
+    host.innerHTML = rows.map((r) => `
+      <div class="rr-kudos-history-row">
+        <span class="rr-kudos-history-dot"></span>
+        <div class="rr-kudos-history-body">
+          <div class="rr-kudos-history-title">${escapeHtml(r.title || r.kind || "Recognition")}</div>
+          ${r.message ? `<div class="rr-kudos-history-msg">${escapeHtml(r.message)}</div>` : ""}
+        </div>
+        <div class="rr-kudos-history-when">${escapeHtml(_kudosFmtRel(r.sent_at || r.scheduled_for || r.created_at))}</div>
+      </div>
+    `).join("");
+  }
+
+  function _kudosBuildPanel(opts) {
+    const lockedDriver = opts?.driver || null;
+    const onSent = opts?.onSent || (() => {});
+    return `
+      <div class="rr-kudos-card" role="dialog" aria-modal="true" aria-labelledby="rr-kudos-title">
+        <div class="rr-kudos-head">
+          <div>
+            <div class="rr-kudos-eyebrow">Recognition</div>
+            <div class="rr-kudos-title" id="rr-kudos-title">Send Kudos</div>
+          </div>
+          <button type="button" class="rr-kudos-close" id="rr-kudos-close" aria-label="Close">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="rr-kudos-body">
+          <div class="rr-kudos-field">
+            <span class="rr-kudos-label">Driver</span>
+            ${lockedDriver
+              ? `<div class="rr-kudos-driver-locked">${escapeHtml(_kudosDriverLabel(lockedDriver))}</div>
+                 <input type="hidden" id="rr-kudos-driver" value="${escapeHtml(lockedDriver.id)}"/>`
+              : `<select class="form-input" id="rr-kudos-driver"></select>`}
+          </div>
+          <div class="rr-kudos-field">
+            <span class="rr-kudos-label">Reason</span>
+            <div class="rr-kudos-picks" id="rr-kudos-picks">
+              ${QUICK_PICKS.map((p, i) => `
+                <button type="button" class="rr-kudos-pick${i === 0 ? " is-active" : ""}" data-rr-kudos-pick="${i}">
+                  <div class="rr-kudos-pick-title">${escapeHtml(p.title)}</div>
+                  <div class="rr-kudos-pick-blurb">${escapeHtml(p.blurb)}</div>
+                </button>
+              `).join("")}
+            </div>
+          </div>
+          <div class="rr-kudos-field">
+            <span class="rr-kudos-label">Note <span class="rr-kudos-label-hint">optional</span></span>
+            <textarea class="form-input rr-kudos-note" id="rr-kudos-note" rows="2" maxlength="280" placeholder="Add a short personal note — they'll see this in the app."></textarea>
+          </div>
+          <div class="rr-kudos-history-wrap" id="rr-kudos-history" hidden>
+            <div class="rr-kudos-history-head">Recent recognition</div>
+            <div class="rr-kudos-history-list" id="rr-kudos-history-list"></div>
+          </div>
+        </div>
+        <div class="rr-kudos-foot">
+          <span class="rr-kudos-status" id="rr-kudos-status" aria-live="polite"></span>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="btn btn-sm" id="rr-kudos-cancel">Cancel</button>
+            <button type="button" class="btn btn-sm btn-primary" id="rr-kudos-send">Send</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function openKudosModal(opts) {
+    document.getElementById("rr-kudos-modal")?.remove();
+    const m = document.createElement("div");
+    m.id = "rr-kudos-modal";
+    m.className = "rr-kudos-overlay";
+    m.innerHTML = _kudosBuildPanel(opts || {});
+    document.body.appendChild(m);
+
+    let selectedPick = 0;
+    let driverId = opts?.driver?.id || null;
+
+    // Populate driver dropdown when not locked.
+    if (!opts?.driver) {
+      const sel = document.getElementById("rr-kudos-driver");
+      const list = await _kudosDriverOptions();
+      sel.innerHTML = `<option value="">Pick a driver…</option>` + list.map((d) =>
+        `<option value="${escapeHtml(d.id)}">${escapeHtml(_kudosDriverLabel(d))}</option>`
+      ).join("");
+      sel.addEventListener("change", async () => {
+        driverId = sel.value || null;
+        await _refreshHistory();
+      });
+    } else {
+      await _refreshHistory();
+    }
+
+    async function _refreshHistory() {
+      const wrap = document.getElementById("rr-kudos-history");
+      const list = document.getElementById("rr-kudos-history-list");
+      if (!wrap || !list) return;
+      if (!driverId) { wrap.hidden = true; return; }
+      list.innerHTML = `<div class="rr-kudos-empty">Loading…</div>`;
+      wrap.hidden = false;
+      const rows = await _kudosLoadDriverHistory(driverId);
+      _kudosRenderHistory(list, rows);
+    }
+
+    // Quick-pick chips
+    m.querySelectorAll("[data-rr-kudos-pick]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectedPick = parseInt(btn.getAttribute("data-rr-kudos-pick"), 10) || 0;
+        m.querySelectorAll(".rr-kudos-pick").forEach((b, i) => b.classList.toggle("is-active", i === selectedPick));
+      });
+    });
+
+    const close = () => m.remove();
+    m.addEventListener("click", (e) => {
+      if (e.target === m || e.target.closest("#rr-kudos-close, #rr-kudos-cancel")) {
+        close();
+      }
+    });
+
+    document.getElementById("rr-kudos-send").addEventListener("click", async () => {
+      const sendBtn = document.getElementById("rr-kudos-send");
+      const status  = document.getElementById("rr-kudos-status");
+      if (!driverId) {
+        if (status) { status.textContent = "Pick a driver first."; status.style.color = "var(--red)"; }
+        return;
+      }
+      const pick = QUICK_PICKS[selectedPick] || QUICK_PICKS[0];
+      const note = (document.getElementById("rr-kudos-note")?.value || "").trim();
+      // Custom-note pick requires a message — everything else accepts
+      // the canned blurb if none was typed.
+      const isCustom = (pick.title === "Custom note");
+      if (isCustom && !note) {
+        if (status) { status.textContent = "Add a short note first."; status.style.color = "var(--red)"; }
+        return;
+      }
+      sendBtn.disabled = true;
+      if (status) { status.textContent = "Sending…"; status.style.color = "var(--text-subtle)"; }
+      try {
+        const { error } = await sb.rpc("recognition_send", {
+          p_driver_id:    driverId,
+          p_kind:         pick.kind,
+          p_title:        pick.title,
+          p_message:      note || pick.blurb,
+          p_animation:    pick.anim,
+        });
+        if (error) {
+          if (status) { status.textContent = "Send failed: " + (error.message || ""); status.style.color = "var(--red)"; }
+          sendBtn.disabled = false;
+          return;
+        }
+        if (status) { status.textContent = "Sent · driver will see it in the app"; status.style.color = "var(--green)"; }
+        toast("Kudos sent", "success");
+        // Re-paint chip ring next render by re-running renderScheduleWeek.
+        try { if (typeof renderScheduleWeek === "function") renderScheduleWeek(); } catch (_) {}
+        opts?.onSent?.();
+        setTimeout(close, 700);
+      } catch (e) {
+        if (status) { status.textContent = "Send failed: " + (e?.message || ""); status.style.color = "var(--red)"; }
+        sendBtn.disabled = false;
+      }
+    });
+
+    document.addEventListener("keydown", function esc(ev) {
+      if (ev.key === "Escape") { close(); document.removeEventListener("keydown", esc); }
+    });
+  }
+
+  window._rrOpenKudosModal = openKudosModal;
+
+  // Kudos icon click · global send (no driver pre-selected).
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-sched-kudos-h")) {
+      e.preventDefault();
+      openKudosModal({});
+    }
   });
 })();
