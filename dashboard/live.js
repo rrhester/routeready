@@ -23365,124 +23365,148 @@ window._rrLoadVanRules = function () {
 // checkbox in plain English (what each rule does + a concrete
 // example + common combos). Triggered by the small "i" icon
 // in the rules popover header. Calm Outlook tone.
-// Inline-expand the rules explainer below the rule checkboxes
-// (inside the same popover, not a separate modal). DSP-operator
-// voice — plain English describing what each checkbox does in
-// terms a fleet manager would say, with real-world examples
-// instead of internal phase numbers.
-//
-// The explainer renders once on first open and toggles
-// visibility on subsequent clicks. The i-icon toggles the
-// aria-expanded state.
+// Open the rules explainer as a centered modal (not an inline
+// expand inside the rules popover — operator wanted it as a
+// dedicated overlay so they can read it without losing the
+// checkbox panel below). Keeps the DSP-operator voice (no Phase
+// 1a/1b/2/3 jargon, no rule-key names), and the same On / Off /
+// Example / When-to-turn-off rows for each of the seven rules.
 function _openVanRulesExplainer() {
-  const host  = document.getElementById("rr-sched-vans-rules-explainer");
-  const icon  = document.getElementById("rr-sched-vans-rules-info");
-  if (!host) return;
-  if (!host.hidden) {
-    host.hidden = true;
-    if (icon) icon.setAttribute("aria-expanded", "false");
-    return;
-  }
-  if (!host.dataset.rrBuilt) {
-    const ruleBlock = (title, on, off, example, whenOff) => `
-      <div class="rr-rule-explain">
-        <div class="rr-rule-explain-title">${escapeHtml(title)}</div>
-        <div class="rr-rule-explain-row"><span class="rr-rule-explain-lbl rr-rule-explain-lbl-on">On</span><span class="rr-rule-explain-text">${on}</span></div>
-        <div class="rr-rule-explain-row"><span class="rr-rule-explain-lbl rr-rule-explain-lbl-off">Off</span><span class="rr-rule-explain-text">${off}</span></div>
-        <div class="rr-rule-explain-row"><span class="rr-rule-explain-lbl rr-rule-explain-lbl-eg">Example</span><span class="rr-rule-explain-text">${example}</span></div>
-        <div class="rr-rule-explain-row"><span class="rr-rule-explain-lbl rr-rule-explain-lbl-eg">When to turn off</span><span class="rr-rule-explain-text">${whenOff}</span></div>
-      </div>`;
-    const intro = `<p class="rr-rule-explain-intro">
-      When you click <strong>Assign Vans</strong>, RouteReady walks every day of the week and assigns each van in this order:
-      first the primary driver gets their van, then a backup picks it up if the primary is off, then any remaining drivers
-      get whatever vans are left over, and finally if a branded van is about to hit Amazon's 14-day rotation rule we'll
-      move a driver onto it to keep your VERO scorecard clean. Each checkbox below lets you turn one of those steps off.
-    </p>`;
-    const rules = [
-      ruleBlock(
-        "Each van's primary driver keeps their van when they're scheduled",
-        "Your van's primary driver always gets their van on days they're working.",
-        "Primary drivers don't get their own van automatically. They go through the same matching as everyone else and could end up on any van.",
-        "Pickle is Van 10's primary driver, scheduled Monday. <strong>On</strong> → Pickle drives Van 10. <strong>Off</strong> → Pickle could end up on any van.",
-        "Almost never. This is how drivers expect things to work — they know their van. Leave it on."
-      ),
-      ruleBlock(
-        "When the primary is off, the backup driver takes the van",
-        "If a van's primary driver isn't working, the backup driver gets to drive that van.",
-        "Backup drivers don't automatically pick up their primary's van. They go into the regular pool with everyone else.",
-        "Pickle (primary of Van 10) is off Monday; Bob (her backup) is scheduled. <strong>On</strong> → Bob drives Van 10. <strong>Off</strong> → Van 10 goes to whoever the pool matching picks.",
-        "If you'd rather assign backup drivers by hand instead of letting the system pick automatically."
-      ),
-      ruleBlock(
-        "Match remaining drivers with any leftover vans",
-        "Drivers who don't have a primary or backup assignment get matched with whatever vans are still available.",
-        "Drivers without a chain don't get a van. They show up on the schedule as unassigned and you'll need to handle them manually.",
-        "Greg isn't anyone's primary or backup but is scheduled Monday. <strong>On</strong> → Greg gets a leftover van. <strong>Off</strong> → Greg has no van; the schedule shows it.",
-        "When you want to pin every driver-to-van pairing manually and not let the system fill gaps."
-      ),
-      ruleBlock(
-        "Assign branded (Amazon-wrapped) vans first",
-        "Branded vans always get assigned to a driver before plain vans. This is how you keep branded vehicles on the road, which Amazon expects on your VERO scorecard.",
-        "Branded and plain vans are treated equally. A driver might get a plain van even when a branded one is sitting idle, which can hurt your scorecard.",
-        "A driver could take Van 6 (branded) or Van 99 (plain). <strong>On</strong> → Van 6. <strong>Off</strong> → whichever is alphabetically first.",
-        "Almost never. You need this on for VERO. Only for testing scenarios."
-      ),
-      ruleBlock(
-        "Prioritize branded vans approaching the 14-day rotation rule",
-        "Amazon's VERO rule says every branded van must run at least one route in any 14-day window. This setting puts branded vans that have been idle longest at the top of the assignment list, so they get rotated before they hit the rule.",
-        "Branded vans get assigned alphabetically. A van sitting 12 days idle might stay parked while a fresh one gets picked — and on day 14 you take a VERO defect.",
-        "Van 6 (branded, 12 days idle) and Van 8 (branded, 2 days idle). <strong>On</strong> → Van 6 is assigned first. <strong>Off</strong> → alphabetical order.",
-        "Only if you'd rather manage rotation manually outside of RouteReady. Most operators leave this on so the system protects the scorecard for them."
-      ),
-      ruleBlock(
-        "Move a backup driver onto an at-risk van to prevent a VERO defect",
-        "When a branded van hits 13 days idle (one day before the VERO defect), RouteReady will pull a driver off their backup van and put them on the at-risk one. The backup van sits idle that day, but the at-risk one gets rotated so you avoid the scorecard hit.",
-        "RouteReady won't move backup drivers around. If no spare driver is available when a branded van reaches 13 days idle, that van stays parked and your scorecard takes the hit on day 14.",
-        "Van 6 is at 13 days idle. No spare drivers available. Bob is driving Van 8 today as a backup (Van 8 has been used recently). <strong>On</strong> → Bob moves to Van 6; Van 8 sits idle today. <strong>Off</strong> → Van 6 stays parked and slips into VERO defect tomorrow.",
-        "If you don't want the system rearranging backup driver assignments, even at the cost of an occasional VERO defect."
-      ),
-      ruleBlock(
-        "Move a primary driver onto an at-risk van as a last resort",
-        "If RouteReady can't find a spare driver or a backup driver to move, it will reassign a primary driver to the at-risk van. This only fires when nothing else works.",
-        "Primary drivers stay on their own van no matter what. If the system can't find another way to rotate an at-risk branded van, you'll get a VERO defect.",
-        "Van 6 is at 14 days idle. No spare drivers, no backups to move. Alice is driving Van 1 (her primary, used yesterday). <strong>On</strong> → Alice moves to Van 6; Van 1 sits idle today. <strong>Off</strong> → Van 6 stays parked and you take the defect.",
-        "If keeping each primary driver on their own van matters more to your team than the occasional VERO defect. Most operators leave this on because the system only uses it as a last resort."
-      ),
-    ].join("");
-    const combos = `
-      <h3 class="rr-rule-explain-h3">Common setups</h3>
-      <div class="rr-rule-explain-combo">
-        <span class="rr-rule-explain-combo-want">Default — let RouteReady do its job</span>
-        <span class="rr-rule-explain-combo-do">All seven checked</span>
-      </div>
-      <div class="rr-rule-explain-combo">
-        <span class="rr-rule-explain-combo-want">Keep primary drivers on their own van</span>
-        <span class="rr-rule-explain-combo-do">All checked except <strong>"Move a primary driver"</strong></span>
-      </div>
-      <div class="rr-rule-explain-combo">
-        <span class="rr-rule-explain-combo-want">Handle rotation yourself, no system moves</span>
-        <span class="rr-rule-explain-combo-do">Uncheck <strong>"Prioritize branded vans"</strong> + both <strong>"Move…"</strong> rules</span>
-      </div>
-      <div class="rr-rule-explain-combo">
-        <span class="rr-rule-explain-combo-want">Only honor primaries + backups, no pool matching</span>
-        <span class="rr-rule-explain-combo-do">Uncheck <strong>"Match remaining drivers"</strong> + both <strong>"Move…"</strong> rules</span>
-      </div>
-      <div class="rr-rule-explain-combo">
-        <span class="rr-rule-explain-combo-want">Pure alphabetical assignment</span>
-        <span class="rr-rule-explain-combo-do">Uncheck <strong>"Assign branded vans first"</strong> + <strong>"Prioritize branded vans"</strong></span>
-      </div>`;
-    const footnotes = `
-      <ul class="rr-rule-explain-notes">
-        <li>Any van you've <strong>manually pinned</strong> to a driver stays put. None of these rules override your manual assignments.</li>
-        <li>Vans you've <strong>grounded or archived</strong> in Fleet are never assigned by RouteReady, regardless of which rules are on or off.</li>
-        <li>The two <strong>"Move…"</strong> rules are tried in order — backup first, then primary. Turning off the backup rule while leaving the primary rule on makes RouteReady <em>more</em> aggressive, not less: it'll skip straight to moving primary drivers.</li>
-      </ul>`;
-    host.innerHTML = intro + rules + combos + footnotes;
-    host.dataset.rrBuilt = "1";
-  }
-  host.hidden = false;
+  document.getElementById("rr-vans-rules-explainer-modal")?.remove();
+  const icon = document.getElementById("rr-sched-vans-rules-info");
   if (icon) icon.setAttribute("aria-expanded", "true");
-  host.scrollIntoView({ block: "nearest", behavior: "smooth" });
+
+  const ruleBlock = (title, on, off, example, whenOff) => `
+    <div class="rr-rule-explain">
+      <div class="rr-rule-explain-title">${escapeHtml(title)}</div>
+      <div class="rr-rule-explain-row"><span class="rr-rule-explain-lbl rr-rule-explain-lbl-on">On</span><span class="rr-rule-explain-text">${on}</span></div>
+      <div class="rr-rule-explain-row"><span class="rr-rule-explain-lbl rr-rule-explain-lbl-off">Off</span><span class="rr-rule-explain-text">${off}</span></div>
+      <div class="rr-rule-explain-row"><span class="rr-rule-explain-lbl rr-rule-explain-lbl-eg">Example</span><span class="rr-rule-explain-text">${example}</span></div>
+      <div class="rr-rule-explain-row"><span class="rr-rule-explain-lbl rr-rule-explain-lbl-eg">When to turn off</span><span class="rr-rule-explain-text">${whenOff}</span></div>
+    </div>`;
+  const intro = `<p class="rr-rule-explain-intro">
+    When you click <strong>Assign Vans</strong>, RouteReady walks every day of the week and assigns each van in this order:
+    first the primary driver gets their van, then a backup picks it up if the primary is off, then any remaining drivers
+    get whatever vans are left over, and finally if a branded van is about to hit Amazon's 14-day rotation rule we'll
+    move a driver onto it to keep your VERO scorecard clean. Each checkbox below lets you turn one of those steps off.
+  </p>`;
+  const rules = [
+    ruleBlock(
+      "Each van's primary driver keeps their van when they're scheduled",
+      "Your van's primary driver always gets their van on days they're working.",
+      "Primary drivers don't get their own van automatically. They go through the same matching as everyone else and could end up on any van.",
+      "Pickle is Van 10's primary driver, scheduled Monday. <strong>On</strong> → Pickle drives Van 10. <strong>Off</strong> → Pickle could end up on any van.",
+      "Almost never. This is how drivers expect things to work — they know their van. Leave it on."
+    ),
+    ruleBlock(
+      "When the primary is off, the backup driver takes the van",
+      "If a van's primary driver isn't working, the backup driver gets to drive that van.",
+      "Backup drivers don't automatically pick up their primary's van. They go into the regular pool with everyone else.",
+      "Pickle (primary of Van 10) is off Monday; Bob (her backup) is scheduled. <strong>On</strong> → Bob drives Van 10. <strong>Off</strong> → Van 10 goes to whoever the pool matching picks.",
+      "If you'd rather assign backup drivers by hand instead of letting the system pick automatically."
+    ),
+    ruleBlock(
+      "Match remaining drivers with any leftover vans",
+      "Drivers who don't have a primary or backup assignment get matched with whatever vans are still available.",
+      "Drivers without a chain don't get a van. They show up on the schedule as unassigned and you'll need to handle them manually.",
+      "Greg isn't anyone's primary or backup but is scheduled Monday. <strong>On</strong> → Greg gets a leftover van. <strong>Off</strong> → Greg has no van; the schedule shows it.",
+      "When you want to pin every driver-to-van pairing manually and not let the system fill gaps."
+    ),
+    ruleBlock(
+      "Assign branded (Amazon-wrapped) vans first",
+      "Branded vans always get assigned to a driver before plain vans. This is how you keep branded vehicles on the road, which Amazon expects on your VERO scorecard.",
+      "Branded and plain vans are treated equally. A driver might get a plain van even when a branded one is sitting idle, which can hurt your scorecard.",
+      "A driver could take Van 6 (branded) or Van 99 (plain). <strong>On</strong> → Van 6. <strong>Off</strong> → whichever is alphabetically first.",
+      "Almost never. You need this on for VERO. Only for testing scenarios."
+    ),
+    ruleBlock(
+      "Prioritize branded vans approaching the 14-day rotation rule",
+      "Amazon's VERO rule says every branded van must run at least one route in any 14-day window. This setting puts branded vans that have been idle longest at the top of the assignment list, so they get rotated before they hit the rule.",
+      "Branded vans get assigned alphabetically. A van sitting 12 days idle might stay parked while a fresh one gets picked — and on day 14 you take a VERO defect.",
+      "Van 6 (branded, 12 days idle) and Van 8 (branded, 2 days idle). <strong>On</strong> → Van 6 is assigned first. <strong>Off</strong> → alphabetical order.",
+      "Only if you'd rather manage rotation manually outside of RouteReady. Most operators leave this on so the system protects the scorecard for them."
+    ),
+    ruleBlock(
+      "Move a backup driver onto an at-risk van to prevent a VERO defect",
+      "When a branded van hits 13 days idle (one day before the VERO defect), RouteReady will pull a driver off their backup van and put them on the at-risk one. The backup van sits idle that day, but the at-risk one gets rotated so you avoid the scorecard hit.",
+      "RouteReady won't move backup drivers around. If no spare driver is available when a branded van reaches 13 days idle, that van stays parked and your scorecard takes the hit on day 14.",
+      "Van 6 is at 13 days idle. No spare drivers available. Bob is driving Van 8 today as a backup (Van 8 has been used recently). <strong>On</strong> → Bob moves to Van 6; Van 8 sits idle today. <strong>Off</strong> → Van 6 stays parked and slips into VERO defect tomorrow.",
+      "If you don't want the system rearranging backup driver assignments, even at the cost of an occasional VERO defect."
+    ),
+    ruleBlock(
+      "Move a primary driver onto an at-risk van as a last resort",
+      "If RouteReady can't find a spare driver or a backup driver to move, it will reassign a primary driver to the at-risk van. This only fires when nothing else works.",
+      "Primary drivers stay on their own van no matter what. If the system can't find another way to rotate an at-risk branded van, you'll get a VERO defect.",
+      "Van 6 is at 14 days idle. No spare drivers, no backups to move. Alice is driving Van 1 (her primary, used yesterday). <strong>On</strong> → Alice moves to Van 6; Van 1 sits idle today. <strong>Off</strong> → Van 6 stays parked and you take the defect.",
+      "If keeping each primary driver on their own van matters more to your team than the occasional VERO defect. Most operators leave this on because the system only uses it as a last resort."
+    ),
+  ].join("");
+  const combos = `
+    <h3 class="rr-rule-explain-h3">Common setups</h3>
+    <div class="rr-rule-explain-combo">
+      <span class="rr-rule-explain-combo-want">Default — let RouteReady do its job</span>
+      <span class="rr-rule-explain-combo-do">All seven checked</span>
+    </div>
+    <div class="rr-rule-explain-combo">
+      <span class="rr-rule-explain-combo-want">Keep primary drivers on their own van</span>
+      <span class="rr-rule-explain-combo-do">All checked except <strong>"Move a primary driver"</strong></span>
+    </div>
+    <div class="rr-rule-explain-combo">
+      <span class="rr-rule-explain-combo-want">Handle rotation yourself, no system moves</span>
+      <span class="rr-rule-explain-combo-do">Uncheck <strong>"Prioritize branded vans"</strong> + both <strong>"Move…"</strong> rules</span>
+    </div>
+    <div class="rr-rule-explain-combo">
+      <span class="rr-rule-explain-combo-want">Only honor primaries + backups, no pool matching</span>
+      <span class="rr-rule-explain-combo-do">Uncheck <strong>"Match remaining drivers"</strong> + both <strong>"Move…"</strong> rules</span>
+    </div>
+    <div class="rr-rule-explain-combo">
+      <span class="rr-rule-explain-combo-want">Pure alphabetical assignment</span>
+      <span class="rr-rule-explain-combo-do">Uncheck <strong>"Assign branded vans first"</strong> + <strong>"Prioritize branded vans"</strong></span>
+    </div>`;
+  const footnotes = `
+    <ul class="rr-rule-explain-notes">
+      <li>Any van you've <strong>manually pinned</strong> to a driver stays put. None of these rules override your manual assignments.</li>
+      <li>Vans you've <strong>grounded or archived</strong> in Fleet are never assigned by RouteReady, regardless of which rules are on or off.</li>
+      <li>The two <strong>"Move…"</strong> rules are tried in order — backup first, then primary. Turning off the backup rule while leaving the primary rule on makes RouteReady <em>more</em> aggressive, not less: it'll skip straight to moving primary drivers.</li>
+    </ul>`;
+
+  const m = document.createElement("div");
+  m.id = "rr-vans-rules-explainer-modal";
+  m.className = "rr-vans-rules-modal";
+  m.setAttribute("role", "dialog");
+  m.setAttribute("aria-modal", "true");
+  m.setAttribute("aria-labelledby", "rr-vans-rules-modal-title");
+  m.innerHTML = `
+    <div class="rr-vans-rules-modal-card" role="document">
+      <div class="rr-vans-rules-modal-bar">
+        <div>
+          <div class="rr-vans-rules-modal-eyebrow">Van assignment rules</div>
+          <div class="rr-vans-rules-modal-h1" id="rr-vans-rules-modal-title">What each checkbox does</div>
+        </div>
+        <button type="button" id="rr-vans-rules-modal-close" class="rr-vans-rules-modal-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="rr-vans-rules-modal-body">
+        ${intro}
+        ${rules}
+        ${combos}
+        ${footnotes}
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => {
+    m.remove();
+    if (icon) icon.setAttribute("aria-expanded", "false");
+  };
+  m.addEventListener("click", (ev) => {
+    if (ev.target === m || ev.target.closest("#rr-vans-rules-modal-close")) close();
+  });
+  // Esc closes.
+  const onKey = (ev) => {
+    if (ev.key === "Escape") { close(); document.removeEventListener("keydown", onKey); }
+  };
+  document.addEventListener("keydown", onKey);
 }
 window._rrOpenVanRulesExplainer = _openVanRulesExplainer;
 
