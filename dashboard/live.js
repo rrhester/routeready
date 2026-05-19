@@ -27648,8 +27648,17 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
   const aside = sub.querySelector("aside.driver-pool");
   if (!aside) return;
 
-  // Real open shifts = unassigned scheduled shifts in the visible week.
-  const realOpen = (allShifts || []).filter(sh => !sh.driver_id && sh.status === "scheduled");
+  // Real open shifts = scheduled shifts that the KPI strip also
+  // surfaces as "open" — either driver_id is null OR the assigned
+  // driver isn't in the visible roster (orphaned to PTO / inactive
+  // / archived). Mirrors the isAssigned check that powers the KPI
+  // pill in renderScheduleWeek so the right-panel count + the KPI
+  // count never diverge.
+  const visibleIds = new Set((drivers || []).map(d => d.id));
+  const realOpen = (allShifts || []).filter(sh =>
+    sh.status === "scheduled" &&
+    !(sh.driver_id && visibleIds.has(sh.driver_id))
+  );
 
   // Virtual gaps = slots needed by OKAMI demand minus real shift rows. We
   // synthesize a chip per gap so the operator can drag-fill them; the drop
