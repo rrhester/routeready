@@ -26683,6 +26683,129 @@ function _renderShiftChangeRow(c) {
   return `<div style="padding:6px 0;border-top:1px solid var(--border)"><div style="color:var(--text)">${summary}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:2px">${escapeHtml(when)} · ${who}</div></div>`;
 }
 
+// ── Milestone banner · refined recognition ribbon ─────────────────
+// Renders the diagonal corner ribbon + a hidden "Send note" action
+// pill in the bottom-right of the driver row label. The pill fades
+// in on row hover and opens the Kudos modal pre-filled with this
+// driver + the appropriate recognition kind.
+//
+// This is the start of a reusable RouteReady recognition language —
+// future milestones (trainer recognition, top performer, work-
+// milestone) plug in by adding a new modifier class and a tone
+// entry below.
+function _rrRenderMilestoneCorner(d, banner) {
+  const sparkIcon = `<svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.7 5.6 5.6 1.7-5.6 1.7L12 17.1l-1.7-5.6L4.7 9.8l5.6-1.7z"/></svg>`;
+  const cakeIcon  = `<svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" aria-hidden="true"><path d="M6 11.5h12V19a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM7.5 5.8a1 1 0 1 1 2 0v.9a1 1 0 0 1-2 0zM11 5.2a1 1 0 1 1 2 0v.9a1 1 0 0 1-2 0zM14.5 5.8a1 1 0 1 1 2 0v.9a1 1 0 0 1-2 0zM5 8.6c0-.55.45-1 1-1h12c.55 0 1 .45 1 1V11H5z"/></svg>`;
+  const icon = banner.type === "birthday" ? cakeIcon : sparkIcon;
+  const label = banner.type === "birthday" ? "Birthday" : `Anniv · ${banner.label}`;
+  const fullTitle = banner.type === "birthday"
+    ? "Birthday" + (banner.isToday ? " · today" : "")
+    : `Work anniversary · ${banner.label}${banner.isToday ? " · today" : ""}`;
+  return `
+    <div class="cal-row-milestone${banner.isToday ? " is-today" : ""}" data-rr-milestone-type="${escapeHtml(banner.type)}" data-rr-driver-id="${escapeHtml(d.id)}">
+      <span class="cal-row-milestone-ribbon cal-row-milestone-ribbon--${escapeHtml(banner.type)}" aria-label="${escapeHtml(fullTitle)}" title="${escapeHtml(fullTitle)}">
+        <span class="cal-row-milestone-icon">${icon}</span>
+        <span class="cal-row-milestone-label">${escapeHtml(label)}</span>
+      </span>
+      <button type="button" class="cal-row-milestone-action" data-rr-milestone-send aria-label="Send a ${escapeHtml(label.toLowerCase())} note">
+        <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Send note
+      </button>
+    </div>`;
+}
+
+// Click handler · opens the Kudos modal with the driver locked and
+// the recognition kind preset to birthday or work_anniversary so
+// the operator's note rides on top of the canned defaults.
+document.addEventListener("click", (e) => {
+  const action = e.target.closest("[data-rr-milestone-send]");
+  if (!action) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const root = action.closest(".cal-row-milestone");
+  if (!root) return;
+  const driverId = root.getAttribute("data-rr-driver-id");
+  const type     = root.getAttribute("data-rr-milestone-type");
+  const driver   = (window._schedDriverList || []).find((x) => x.id === driverId);
+  if (!driver || typeof window._rrOpenKudosModal !== "function") return;
+  window._rrOpenKudosModal({
+    driver,
+    presetKind: type === "birthday" ? "birthday" : "work_anniversary",
+  });
+});
+
+// ── Milestone display rules · DSP toggles which milestones show
+// (matching the Rules-popover pattern used by Smart Fill / Assign /
+// Targets). Persisted in localStorage; defaults: everything on. ──
+const _RR_MILESTONE_RULES_KEY = "rr-sched-milestone-rules";
+const _RR_MILESTONE_RULE_DEFAULTS = { birthday: true, anniversary: true };
+function _rrLoadMilestoneRules() {
+  try {
+    const raw = localStorage.getItem(_RR_MILESTONE_RULES_KEY);
+    if (!raw) return { ..._RR_MILESTONE_RULE_DEFAULTS };
+    const parsed = JSON.parse(raw);
+    return { ..._RR_MILESTONE_RULE_DEFAULTS, ...parsed };
+  } catch (_) { return { ..._RR_MILESTONE_RULE_DEFAULTS }; }
+}
+function _rrSaveMilestoneRule(rule, value) {
+  try {
+    const cur = _rrLoadMilestoneRules();
+    cur[rule] = !!value;
+    localStorage.setItem(_RR_MILESTONE_RULES_KEY, JSON.stringify(cur));
+  } catch (_) {}
+}
+window._rrLoadMilestoneRules = _rrLoadMilestoneRules;
+
+// Toggle the Recognition rules popover under the Kudos tile + sync
+// the checkboxes against persisted state. Mirrors the pattern used
+// by the Smart Fill / Van rules popovers.
+(function () {
+  function paintRules() {
+    const cur = _rrLoadMilestoneRules();
+    document.querySelectorAll("[data-rr-milestone-rule]").forEach((cb) => {
+      const k = cb.getAttribute("data-rr-milestone-rule");
+      if (k in cur) cb.checked = !!cur[k];
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", paintRules);
+  } else {
+    setTimeout(paintRules, 0);
+  }
+  document.addEventListener("click", (e) => {
+    // Toggle popover visibility from the Rules footer link.
+    const toggle = e.target.closest("#rr-sched-milestone-rules-toggle");
+    if (toggle) {
+      e.preventDefault();
+      const pop = document.getElementById("rr-sched-milestone-rules-popover");
+      if (!pop) return;
+      const isOpen = !pop.hidden;
+      // Close other rules popovers first so only one is open at a time.
+      document.querySelectorAll(".sched-smartfill-rules-popover, .sched-vans-rules-popover, .sched-quick-settings-popover, .sched-milestone-rules-popover")
+        .forEach((p) => { if (p !== pop) p.hidden = true; });
+      pop.hidden = isOpen;
+      toggle.setAttribute("aria-expanded", isOpen ? "false" : "true");
+      if (!pop.hidden) paintRules();
+      return;
+    }
+    // Click outside the popover closes it.
+    const pop = document.getElementById("rr-sched-milestone-rules-popover");
+    if (pop && !pop.hidden && !e.target.closest("#rr-sched-milestone-rules-popover, #rr-sched-milestone-rules-toggle")) {
+      pop.hidden = true;
+      document.getElementById("rr-sched-milestone-rules-toggle")?.setAttribute("aria-expanded", "false");
+    }
+  });
+  // Checkbox change · persist + re-render the schedule so banners
+  // appear/disappear immediately.
+  document.addEventListener("change", (e) => {
+    const cb = e.target.closest("[data-rr-milestone-rule]");
+    if (!cb) return;
+    const k = cb.getAttribute("data-rr-milestone-rule");
+    _rrSaveMilestoneRule(k, cb.checked);
+    try { if (typeof renderScheduleWeek === "function") renderScheduleWeek(); } catch (_) {}
+  });
+})();
+
 function _schedShiftChip(sh, extras) {
   // Training (Day 1+2 at the station) and ride-along (Day 3 shadowing a
   // trainer) shifts get their own visual treatment so the operator can
@@ -26889,6 +27012,7 @@ async function renderScheduleWeek() {
   // label. Pure presentational; values live on each driver record
   // (birthday / hire_date columns).
   try {
+    const milestoneRules = _rrLoadMilestoneRules();
     const weekIsoSet = new Set();
     for (let i = 0; i < 7; i++) weekIsoSet.add(fmtIsoDate(addDays(weekStart, i)));
     // mm-dd of every day in the visible week — match against driver
@@ -26899,9 +27023,10 @@ async function renderScheduleWeek() {
     for (const d of drivers) {
       let banner = null;
       // Birthday wins over anniversary if both fall in the same week.
-      if (d.birthday && weekMonthDay.has(String(d.birthday).slice(5))) {
+      // DSP can disable either kind via the Kudos > Rules popover.
+      if (milestoneRules.birthday && d.birthday && weekMonthDay.has(String(d.birthday).slice(5))) {
         banner = { type: "birthday", label: "Birthday" };
-      } else if (d.hire_date && weekMonthDay.has(String(d.hire_date).slice(5))) {
+      } else if (milestoneRules.anniversary && d.hire_date && weekMonthDay.has(String(d.hire_date).slice(5))) {
         const hire = new Date(String(d.hire_date) + "T12:00:00");
         const yrs  = Math.max(0, weekStart.getFullYear() - hire.getFullYear());
         if (yrs >= 1) {
@@ -27659,7 +27784,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}"${rel} ${data}>${star}${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${d._recognized ? `<span class="cal-row-label-recog" title="Recognized recently${d._recognizedSummary?.title ? ` · ${escapeHtml(d._recognizedSummary.title)}` : ""}" aria-label="Recognized recently"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 14.5 9.5 22 12 14.5 14.5 12 22 9.5 14.5 2 12 9.5 9.5"/></svg></span>` : ""}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(hoursLabel)}</div></div>${d._milestoneBanner ? `<span class="cal-row-label-banner cal-row-label-banner--${escapeHtml(d._milestoneBanner.type)}${d._milestoneBanner.isToday ? " is-today" : ""}" aria-label="${d._milestoneBanner.type === 'birthday' ? 'Birthday' : 'Anniversary ' + escapeHtml(d._milestoneBanner.label)}" title="${d._milestoneBanner.type === 'birthday' ? 'Birthday' : 'Work anniversary · ' + escapeHtml(d._milestoneBanner.label)}${d._milestoneBanner.isToday ? ' · today' : ''}">${d._milestoneBanner.type === 'birthday' ? 'Birthday' : 'Anniv · ' + escapeHtml(d._milestoneBanner.label)}</span>` : ""}</div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${d._recognized ? `<span class="cal-row-label-recog" title="Recognized recently${d._recognizedSummary?.title ? ` · ${escapeHtml(d._recognizedSummary.title)}` : ""}" aria-label="Recognized recently"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 14.5 9.5 22 12 14.5 14.5 12 22 9.5 14.5 2 12 9.5 9.5"/></svg></span>` : ""}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(hoursLabel)}</div></div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div>
       ${cells}
     </div>`;
   }).join("");
@@ -42317,15 +42442,18 @@ document.addEventListener("click", async (e) => {
     `).join("");
   }
 
-  function _kudosBuildPanel(opts) {
+  function _kudosBuildPanel(opts, picks) {
     const lockedDriver = opts?.driver || null;
-    const onSent = opts?.onSent || (() => {});
+    const milestone = opts?.presetKind === "birthday" ? "Birthday"
+                    : opts?.presetKind === "work_anniversary" ? "Anniversary"
+                    : null;
+    const titleText = milestone ? `Send a ${milestone} note` : "Send Kudos";
     return `
       <div class="rr-kudos-card" role="dialog" aria-modal="true" aria-labelledby="rr-kudos-title">
         <div class="rr-kudos-head">
           <div>
-            <div class="rr-kudos-eyebrow">Recognition</div>
-            <div class="rr-kudos-title" id="rr-kudos-title">Send Kudos</div>
+            <div class="rr-kudos-eyebrow">Recognition${milestone ? ` · ${escapeHtml(milestone)}` : ""}</div>
+            <div class="rr-kudos-title" id="rr-kudos-title">${escapeHtml(titleText)}</div>
           </div>
           <button type="button" class="rr-kudos-close" id="rr-kudos-close" aria-label="Close">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -42342,7 +42470,7 @@ document.addEventListener("click", async (e) => {
           <div class="rr-kudos-field">
             <span class="rr-kudos-label">Reason</span>
             <div class="rr-kudos-picks" id="rr-kudos-picks">
-              ${QUICK_PICKS.map((p, i) => `
+              ${picks.map((p, i) => `
                 <button type="button" class="rr-kudos-pick${i === 0 ? " is-active" : ""}" data-rr-kudos-pick="${i}">
                   <div class="rr-kudos-pick-title">${escapeHtml(p.title)}</div>
                   <div class="rr-kudos-pick-blurb">${escapeHtml(p.blurb)}</div>
@@ -42371,10 +42499,26 @@ document.addEventListener("click", async (e) => {
 
   async function openKudosModal(opts) {
     document.getElementById("rr-kudos-modal")?.remove();
+    // When a milestone preset is supplied (from the row-label
+    // "Send note" pill), prepend a milestone-specific pick at index
+    // 0 so the operator can send a Birthday / Anniversary note in
+    // one click. Falls back to the standard QUICK_PICKS otherwise.
+    let picks = QUICK_PICKS;
+    if (opts?.presetKind === "birthday") {
+      picks = [
+        { kind: "birthday", anim: "cake", title: "Happy birthday!", blurb: "Hope you have a great day from the team." },
+        ...QUICK_PICKS,
+      ];
+    } else if (opts?.presetKind === "work_anniversary") {
+      picks = [
+        { kind: "work_anniversary", anim: "confetti", title: "Happy work anniversary!", blurb: "Thanks for all you do — here's to another great year." },
+        ...QUICK_PICKS,
+      ];
+    }
     const m = document.createElement("div");
     m.id = "rr-kudos-modal";
     m.className = "rr-kudos-overlay";
-    m.innerHTML = _kudosBuildPanel(opts || {});
+    m.innerHTML = _kudosBuildPanel(opts || {}, picks);
     document.body.appendChild(m);
 
     let selectedPick = 0;
@@ -42428,7 +42572,7 @@ document.addEventListener("click", async (e) => {
         if (status) { status.textContent = "Pick a driver first."; status.style.color = "var(--red)"; }
         return;
       }
-      const pick = QUICK_PICKS[selectedPick] || QUICK_PICKS[0];
+      const pick = picks[selectedPick] || picks[0];
       const note = (document.getElementById("rr-kudos-note")?.value || "").trim();
       // Custom-note pick requires a message — everything else accepts
       // the canned blurb if none was typed.
