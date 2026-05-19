@@ -11532,6 +11532,11 @@ body.rr-cmdk-open{ overflow:hidden }
              a cell for the per-day tier breakdown. Painted by
              _rrRenderFemDayStrip() in live.js. -->
         <div id="rr-sched-fem-day-strip" class="sched-fem-day-strip" hidden></div>
+        <!-- Weekly recap link · opens a modal with the FEM
+             digest for the visible week (audit #15). -->
+        <div id="rr-sched-recap-link-wrap" class="sched-recap-link-wrap" hidden>
+          <a href="#" role="button" class="sched-recap-link" id="rr-sched-recap-link">View weekly recap →</a>
+        </div>
         <a href="#" role="button" class="rr-text-link" id="rr-sched-kpis-toggle" aria-pressed="true" style="display:none">Insights</a>
 
         <!-- WEEK VIEW SUB-VIEW -->
@@ -11903,6 +11908,22 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-fem-day-cell.is-today{
             box-shadow:inset 0 0 0 1.5px var(--sch-blue, #0F6CBD);
           }
+          /* Weekly recap link · sits below the day strip when a
+             run has happened on the visible week. Outlook "View
+             details" link voice — text-only, blue, subtle. */
+          #view-schedule .sched-recap-link-wrap{
+            margin-top:8px;
+            font-size:11px;
+          }
+          #view-schedule .sched-recap-link-wrap[hidden]{display:none}
+          #view-schedule .sched-recap-link{
+            color:var(--sch-blue, #0F6CBD);
+            text-decoration:none;font-weight:600;
+            cursor:pointer;
+            font-size:11px;
+            letter-spacing:0;
+          }
+          #view-schedule .sched-recap-link:hover{text-decoration:underline}
 
           /* Active subnav tab — echo the sidebar's active row with
              a deep navy text + an underline rail in the same indigo
@@ -13360,6 +13381,38 @@ body.rr-cmdk-open{ overflow:hidden }
             font-variant-numeric:tabular-nums;
             letter-spacing:.01em;
             line-height:1;
+          }
+          /* Rescue-recommendation sub-row · injected by
+             _rrDecorateChainEditorRescues below each at-risk van
+             row. Calm Outlook "inline detail" pattern — no chip
+             border, just a hairline-top, tier label on the left,
+             recommendation on the right. */
+          #view-schedule .ws-veh-table tr[data-rr-rescue-row] td{
+            padding:7px 16px 11px;
+            border-top:0;
+            background:var(--sch-surface-2, #FAFBFC);
+            border-bottom:1px solid var(--sch-line-subtle, var(--border-subtle));
+          }
+          #view-schedule .sched-chain-rescue-cell{
+            display:flex;align-items:center;gap:var(--s-3);
+            font-size:11px;
+            flex-wrap:wrap;
+          }
+          #view-schedule .sched-chain-rescue-tier{
+            font-size:10px;font-weight:700;
+            letter-spacing:.06em;text-transform:uppercase;
+            font-variant-numeric:tabular-nums;
+            flex:0 0 auto;
+          }
+          #view-schedule .sched-chain-rescue-rec{
+            font-size:11px;color:#9A6420;
+            line-height:1.4;flex:1;min-width:0;
+          }
+          #view-schedule .sched-chain-rescue-rec strong{
+            font-weight:600;color:#7A4F1A;
+          }
+          #view-schedule .sched-chain-rescue-rec-stuck{
+            color:var(--text-subtle);
           }
           #view-schedule .ws-veh-input,#view-schedule .ws-veh-select{width:100%;font-size:13px;padding:7px 10px;background:var(--sch-surface);border:1px solid var(--sch-line);border-radius:6px;color:var(--text);font-family:inherit;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
           #view-schedule .ws-veh-input:focus,#view-schedule .ws-veh-select:focus{outline:none;border-color:var(--sch-blue);box-shadow:0 0 0 1px var(--sch-blue)}

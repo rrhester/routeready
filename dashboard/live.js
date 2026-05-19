@@ -24133,9 +24133,9 @@ async function renderSchedVanAssignmentsBoard() {
   // a per-row rotation heat map (audit item #5).
   const todayIso = fmtIsoDate(new Date());
   const heatmapStartIso = fmtIsoDate(addDays(new Date(todayIso + "T12:00:00"), -13));
-  let vRes, dRes, hRes;
+  let vRes, dRes, hRes, sRes, tdvRes;
   try {
-    [vRes, dRes, hRes] = await Promise.all([
+    [vRes, dRes, hRes, sRes, tdvRes] = await Promise.all([
       sb.rpc("vehicles_list"),
       sb.from("drivers")
         .select("id, full_name, preferred_name")
@@ -24146,6 +24146,21 @@ async function renderSchedVanAssignmentsBoard() {
         .select("vehicle_id, date")
         .eq("dsp_id", dspId)
         .gte("date", heatmapStartIso).lte("date", todayIso),
+      // Today's shifts so we know who's actually working —
+      // powers the rescue-recommendation badge for at-risk rows.
+      sb.from("shifts")
+        .select("driver_id, status")
+        .eq("dsp_id", dspId)
+        .eq("date", todayIso)
+        .in("status", ["scheduled", "completed", "late"])
+        .not("driver_id", "is", null),
+      // Today's existing vehicle_day_assignments so we know
+      // which driver is on which van as of right now (the
+      // donor pool for the rescue recommendation).
+      sb.from("vehicle_day_assignments")
+        .select("driver_id, vehicle_id")
+        .eq("dsp_id", dspId)
+        .eq("date", todayIso),
     ]);
   } catch (e) {
     body.innerHTML = `<div class="sched-vans-empty">Couldn't load van assignments · ${escapeHtml(e?.message || String(e))}</div>`;
@@ -24183,6 +24198,28 @@ async function renderSchedVanAssignmentsBoard() {
   // dispatched, hairline when idle. No tooltip click — just
   // peripheral awareness of rotation rhythm per van.
   _rrDecorateChainEditorHeatmap(body, heatmapByVan, todayIso);
+
+  // ── Rescue-recommendation decorator (audit #7) ──
+  // For every at-risk van (Risk / Critical / Violation tier as
+  // of today), inject a sub-row recommending the lowest-impact
+  // donor — a chain-bound driver currently sitting on a healthy
+  // van. Mirrors Phase 3's _pickDonor logic so the chain editor
+  // shows the operator what Assign Vans WOULD do without making
+  // them run it. Read-only; no commit until they click Assign
+  // Vans.
+  const todayScheduled = new Set((sRes?.data || []).map(s => s.driver_id).filter(Boolean));
+  const driverOnVanToday = new Map();
+  for (const r of (tdvRes?.data || [])) {
+    if (r.driver_id && r.vehicle_id) driverOnVanToday.set(r.driver_id, r.vehicle_id);
+  }
+  _rrDecorateChainEditorRescues(body, {
+    vehicles: _wsVehicles,
+    drivers:  _wsDrivers,
+    heatmapByVan,
+    todayIso,
+    todayScheduled,
+    driverOnVanToday,
+  });
 
   // Wire change/click handlers directly to this container — the
   // workspaces _wsBindRoot only binds to a single root via a global
@@ -24280,6 +24317,101 @@ function _rrDecorateChainEditorHeatmap(body, usageByVan, todayIso) {
   });
 }
 window._rrDecorateChainEditorHeatmap = _rrDecorateChainEditorHeatmap;
+
+// For each at-risk van (Risk/Critical/Violation tier today),
+// inject a sub-row below it in the chain editor recommending
+// the lowest-impact rescue donor. Mirrors Phase 3's _pickDonor
+// logic — chain-bound driver currently on a healthy van,
+// freshest first. Surface as a calm manila eyebrow line so it
+// reads as a system recommendation, not a CTA.
+function _rrDecorateChainEditorRescues(body, ctx) {
+  if (!body || !ctx) return;
+  const table = body.querySelector(".ws-veh-table");
+  if (!table) return;
+  const { vehicles, drivers, heatmapByVan, todayIso, todayScheduled, driverOnVanToday } = ctx;
+  const driverNameById = new Map((drivers || []).map(d => [d.id, d.name]));
+  // Days-idle as of today for each branded van.
+  const daysIdleFor = (vehId) => {
+    const usage = heatmapByVan.get(vehId);
+    if (!usage || usage.size === 0) return Infinity;
+    // Walk backwards from today; first dispatched day wins.
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(todayIso + "T12:00:00"); d.setDate(d.getDate() - i);
+      const iso = fmtIsoDate(d);
+      if (usage.has(iso)) return i;
+    }
+    return Infinity;
+  };
+  // Build the donor universe — every scheduled driver who's on
+  // a chain (primary or secondary) for some van today.
+  const chainDriverToVans = new Map(); // driver_id → [{ vehicle_id, rank }]
+  for (const v of (vehicles || [])) {
+    for (const cd of (v.drivers || [])) {
+      if (!cd || !cd.driver_id) continue;
+      const list = chainDriverToVans.get(cd.driver_id) || [];
+      list.push({ vehicle_id: v.id, rank: cd.rank });
+      chainDriverToVans.set(cd.driver_id, list);
+    }
+  }
+  // For each at-risk van, find the best donor.
+  table.querySelectorAll("tbody tr[data-veh-id]").forEach(tr => {
+    const vehId = tr.getAttribute("data-veh-id");
+    const veh = (vehicles || []).find(v => v.id === vehId);
+    if (!veh || veh.is_branded === false) return; // FEM only
+    const days = daysIdleFor(vehId);
+    // Recommend on Risk (11+) and above — gives the operator
+    // visibility BEFORE the Critical proactive trigger fires.
+    if (!(days >= 11)) return;
+    // Skip if this row already has a recommendation row.
+    if (tr.nextElementSibling && tr.nextElementSibling.matches("tr[data-rr-rescue-row]")) return;
+    // Candidate donors — chain-bound, scheduled today, currently
+    // on a van OTHER than this at-risk one whose days-idle < 11
+    // (healthy / watch). Pick the freshest (lowest idle).
+    const candidates = [];
+    for (const [drvId, vans] of chainDriverToVans) {
+      if (!todayScheduled.has(drvId)) continue;
+      const currentVan = driverOnVanToday.get(drvId);
+      if (!currentVan || currentVan === vehId) continue;
+      const donorIdle = daysIdleFor(currentVan);
+      if (donorIdle >= 11) continue; // donor van too close to risk
+      // Donor must be chain-bound to their CURRENT van (not a
+      // pool placement).
+      const chainHere = vans.find(c => c.vehicle_id === currentVan);
+      if (!chainHere) continue;
+      candidates.push({
+        driver_id:  drvId,
+        driver_name: driverNameById.get(drvId) || "—",
+        from_van:   (vehicles.find(v => v.id === currentVan) || {}).name || "—",
+        donor_idle: donorIdle,
+        from_role:  (chainHere.rank | 0) === 0 ? "primary" : "secondary",
+      });
+    }
+    candidates.sort((a, b) => a.donor_idle - b.donor_idle);
+    const best = candidates[0];
+    // Tier label — calm Microsoft voice. Critical = red,
+    // Risk = amber.
+    const tier = days >= 14 ? "violation"
+               : days >= 13 ? "critical"
+               : "risk";
+    const tierLbl = tier === "violation" ? "Violation · 14+d idle"
+                  : tier === "critical"  ? `Critical · ${days}d idle, ${Math.max(0, 14 - days)}d to defect`
+                  : `Risk · ${days}d idle`;
+    const tierColor = tier === "risk" ? "#B45309" : "#C42B1C";
+    let recHtml;
+    if (best) {
+      const fromLbl = `${escapeHtml(best.from_role === "primary" ? "primary" : "secondary")} of Van ${escapeHtml(best.from_van)}`;
+      recHtml = `<span class="sched-chain-rescue-rec"><strong>Recommended donor</strong> · ${escapeHtml(best.driver_name)} (${fromLbl}, ${best.donor_idle}d idle)</span>`;
+    } else {
+      recHtml = `<span class="sched-chain-rescue-rec sched-chain-rescue-rec-stuck">No displaceable donor on shift today — schedule one more driver or wait for a chain holder.</span>`;
+    }
+    const newRow = document.createElement("tr");
+    newRow.setAttribute("data-rr-rescue-row", "1");
+    const colspan = tr.children.length;
+    newRow.innerHTML = `<td colspan="${colspan}" class="sched-chain-rescue-cell"><span class="sched-chain-rescue-tier" style="color:${tierColor}">${escapeHtml(tierLbl)}</span>${recHtml}</td>`;
+    tr.parentNode.insertBefore(newRow, tr.nextElementSibling);
+  });
+}
+window._rrDecorateChainEditorRescues = _rrDecorateChainEditorRescues;
 
 // ─── Van assignments · LEGACY auto-assign-for-week helper ────────────
 // Still available via window._rrRunSchedVanAssignmentsForWeek so the
@@ -28051,11 +28183,93 @@ function bindSchedWeekNav() {
     };
   }
 
-  // All four install-once-then-bind renderers (reviewed stamp,
-  // auto-rescue banner, forecast card, FEM day strip) live
-  // inside this binder. The schedule entry path awaits
-  // renderScheduleWeek() BEFORE bindSchedWeekNav() runs, so on
-  // the FIRST render of a fresh
+  // ── Weekly recap renderer (audit #15) ──
+  // Surfaces the FEM digest for the visible week: how many
+  // branded vans were auto-rotated, VERO defects prevented,
+  // primary/secondary displacements, current at-risk count.
+  // Operator clicks the "View weekly recap" link below the
+  // day-strip; modal opens with a calm Outlook-style summary
+  // they can screenshot or copy. No email infrastructure —
+  // visibility-only first pass per the audit ask.
+  if (!window._rrWeeklyRecapInstalled) {
+    window._rrWeeklyRecapInstalled = true;
+    window._rrRenderWeeklyRecapLink = function () {
+      const wrap = document.getElementById("rr-sched-recap-link-wrap");
+      if (!wrap) return;
+      const run = window._rrLastVanRun;
+      // Only show the link when there's a run to recap that
+      // matches the visible week — keeps the chrome quiet on
+      // weeks the operator hasn't touched yet.
+      if (!run || run.weekStart !== _schedStart) { wrap.hidden = true; return; }
+      wrap.hidden = false;
+    };
+    // Click → open recap modal.
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest("#rr-sched-recap-link")) return;
+      e.preventDefault();
+      const run = window._rrLastVanRun;
+      if (!run) return;
+      const kpis = document.getElementById("rr-sched-kpis");
+      let counts = { watch: 0, risk: 0, critical: 0, violation: 0 };
+      try { counts = JSON.parse(kpis?.dataset.rrFemCounts || "{}") || counts; } catch {}
+      // Compose the digest from reasons[] + counts.
+      const rescues   = (run.reasons || []).filter(r => typeof r.phase === "string" && r.phase.startsWith("rescue-"));
+      const primary   = rescues.filter(r => r.phase === "rescue-from-primary").length;
+      const secondary = rescues.filter(r => r.phase === "rescue-from-secondary").length;
+      const pool      = rescues.filter(r => r.phase === "rescue-from-pool").length;
+      // "VERO defects prevented" — number of unique vans that
+      // received a rescue placement (each rotated van avoided
+      // the scorecard hit).
+      const defectsPrevented = new Set(rescues.map(r => r.vehicle_id)).size;
+      const totalWrites = run.assigned || 0;
+      const fem = run.fem || {};
+      const stillAtRisk = (fem.brandedAtCritical || 0) + (fem.brandedAtViolation || 0);
+      const weekLbl = (() => {
+        try {
+          const s = new Date(run.weekStart + "T12:00:00");
+          const e = new Date(s); e.setDate(e.getDate() + 6);
+          const f = (d) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+          return `${f(s)} – ${f(e)}`;
+        } catch { return run.weekStart; }
+      })();
+      let m = document.getElementById("rr-sched-recap-modal");
+      if (m) m.remove();
+      m = document.createElement("div");
+      m.id = "rr-sched-recap-modal";
+      m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+      const line = (label, value, sub) =>
+        `<div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--s-3);padding:var(--s-3) 18px;border-top:1px solid var(--sch-line-subtle, var(--border-subtle))"><div><div style="font-size:var(--fs-md);font-weight:600;color:var(--text);letter-spacing:-.005em">${escapeHtml(label)}</div>${sub ? `<div style="font-size:11px;color:var(--text-subtle);margin-top:1px">${escapeHtml(sub)}</div>` : ""}</div><div style="font-size:18px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums">${value}</div></div>`;
+      m.innerHTML = `
+        <div style="background:var(--surface);border:1px solid var(--sch-line, var(--border));border-radius:10px;max-width:540px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 1px 2px rgba(15,23,42,.04),0 1px 1px rgba(15,23,42,.02)">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-3-5) 18px;border-bottom:1px solid var(--sch-line, var(--border));background:var(--sch-surface-2, var(--canvas))">
+            <div>
+              <div style="font-size:var(--fs-base);font-weight:600;color:var(--text);letter-spacing:-.005em">Weekly fleet recap</div>
+              <div style="font-size:11px;font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${escapeHtml(weekLbl)}</div>
+            </div>
+            <button type="button" id="rr-recap-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+          </div>
+          <div style="padding:var(--s-3) 18px;font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;border-bottom:1px solid var(--sch-line, var(--border))">
+            RouteReady ran auto-assignment on this week's schedule and applied FEM rotation rules. Below is what the system did + what's still pending.
+          </div>
+          <div>
+            ${line("Assignments written", totalWrites, totalWrites === 0 ? "No rotations needed this week" : "Includes chain + pool placements")}
+            ${line("VERO defects prevented", defectsPrevented, defectsPrevented === 0 ? "No branded vans were past 14 days" : `${defectsPrevented} branded van${defectsPrevented === 1 ? "" : "s"} kept under the rolling 14-day window`)}
+            ${line("Primary displacements", primary, primary === 0 ? "No chain primaries moved" : "Primary owners moved to rotate an at-risk van")}
+            ${line("Secondary displacements", secondary, secondary === 0 ? "No backups moved" : "Backups moved to rotate an at-risk van")}
+            ${line("Pool placements", pool, pool === 0 ? "No pool-only rescues" : "Chain-less drivers absorbed at-risk vans")}
+            ${line("Still at risk", stillAtRisk, stillAtRisk === 0 ? "Fleet rotation is healthy going forward" : "Schedule more drivers or wait for chain holders to come on shift")}
+          </div>
+        </div>`;
+      document.body.appendChild(m);
+      m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-recap-close") m.remove(); });
+    });
+  }
+
+  // All five install-once-then-bind renderers (reviewed stamp,
+  // auto-rescue banner, forecast card, FEM day strip, weekly
+  // recap link) live inside this binder. The schedule entry
+  // path awaits renderScheduleWeek() BEFORE bindSchedWeekNav()
+  // runs, so on the FIRST render of a fresh
   // page load the guarded calls inside renderScheduleWeek were
   // all false → outputs stayed hidden until some later
   // navigation triggered another render. Fire each once now,
@@ -28066,6 +28280,7 @@ function bindSchedWeekNav() {
   if (typeof window._rrRenderAutoRescueBanner === "function") window._rrRenderAutoRescueBanner();
   if (typeof window._rrRenderForecastCard === "function")     window._rrRenderForecastCard();
   if (typeof window._rrRenderFemDayStrip === "function")      window._rrRenderFemDayStrip();
+  if (typeof window._rrRenderWeeklyRecapLink === "function")  window._rrRenderWeeklyRecapLink();
 
   // ── Pool sort toggle (Day / Wave time)
   sub.addEventListener("click", (e) => {
