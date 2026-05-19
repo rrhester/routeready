@@ -24046,8 +24046,7 @@ async function _runSchedVanAssignmentsBackground() {
   if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
 
   // Swap the van glyph for the same spinner Smart Fill uses.
-  btn.dataset.rrBusy = "1";
-  btn.disabled = true;
+  _markTileBusy(btn);
   const svg = btn.querySelector("svg");
   if (svg) {
     svg.outerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>`;
@@ -24087,8 +24086,7 @@ async function _runSchedVanAssignmentsBackground() {
       try { await _decorateScheduleChipsWithVans(); } catch (_) {}
     }
   } finally {
-    btn.disabled = false;
-    delete btn.dataset.rrBusy;
+    _clearTileBusy(btn);
     if (orig) {
       const cur = btn.querySelector("svg");
       if (cur) cur.outerHTML = orig;
@@ -24284,8 +24282,7 @@ async function _runSchedVanUnassignBackground() {
   if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
   const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
 
-  btn.dataset.rrBusy = "1";
-  btn.disabled = true;
+  _markTileBusy(btn);
   const svg = btn.querySelector("svg");
   if (svg) {
     svg.outerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>`;
@@ -24319,8 +24316,7 @@ async function _runSchedVanUnassignBackground() {
       try { await _decorateScheduleChipsWithVans(); } catch (_) {}
     }
   } finally {
-    btn.disabled = false;
-    delete btn.dataset.rrBusy;
+    _clearTileBusy(btn);
     if (orig) {
       const cur = btn.querySelector("svg");
       if (cur) cur.outerHTML = orig;
@@ -24816,6 +24812,25 @@ document.addEventListener("click", (e) => {
   document.body.appendChild(pop);
 });
 
+// Set of tile element IDs whose runner is currently in flight.
+// Populated when a runner enters its try block and cleared in its
+// finally. The view-load safety net consults this set so it never
+// unsticks a lock that's still legitimately held by a running
+// async operation across navigation away + back.
+window._rrSchedTileLiveLocks = window._rrSchedTileLiveLocks || new Set();
+function _markTileBusy(btn) {
+  if (!btn) return;
+  btn.dataset.rrBusy = "1";
+  btn.disabled = true;
+  if (btn.id) window._rrSchedTileLiveLocks.add(btn.id);
+}
+function _clearTileBusy(btn) {
+  if (!btn) return;
+  delete btn.dataset.rrBusy;
+  btn.disabled = false;
+  if (btn.id) window._rrSchedTileLiveLocks.delete(btn.id);
+}
+
 async function loadScheduleView() {
   // Wrap every step so a single thrown function (missing helper,
   // schema mismatch, etc.) can't blank the entire schedule view.
@@ -24825,10 +24840,13 @@ async function loadScheduleView() {
   // the operator's layout survives navigation + reload.
   try { if (typeof window._rrRestoreSchedTileOrder === "function") window._rrRestoreSchedTileOrder(); } catch (_) {}
   // Safety net: if a previous Assign Vans / Smart Fill run threw
-  // before its finally block could run, the tile's data-rr-busy
+  // before its finally block could fire, the tile's data-rr-busy
   // attribute would stay "1" and silently block every subsequent
-  // click. Reset it on view show.
+  // click. Only clear locks that aren't held by an actively
+  // running runner so we don't clobber an in-flight operation
+  // across a navigation away + back.
   document.querySelectorAll("#view-schedule .sched-page-btn[data-rr-busy='1']").forEach(btn => {
+    if (btn.id && window._rrSchedTileLiveLocks.has(btn.id)) return; // active runner — leave alone
     delete btn.dataset.rrBusy;
     btn.disabled = false;
   });
@@ -24913,8 +24931,7 @@ window.openAiSchedule = async function () {
   const btn = document.getElementById("rr-sched-smartfill-h");
   const orig = btn ? btn.innerHTML : "";
   if (btn) {
-    btn.disabled = true;
-    btn.dataset.rrBusy = "1";
+    _markTileBusy(btn);
     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>Smart Fill`;
   }
   try {
@@ -24923,8 +24940,7 @@ window.openAiSchedule = async function () {
     await autoFillScheduleWeek();
   } finally {
     if (btn) {
-      btn.disabled = false;
-      delete btn.dataset.rrBusy;
+      _clearTileBusy(btn);
       btn.innerHTML = orig;
     }
   }
