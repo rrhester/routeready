@@ -12703,22 +12703,24 @@ body.rr-cmdk-open{ overflow:hidden }
              Sits above the existing bottom-right chain-editor
              chevron; both can co-exist on the same split tile. */
           #view-schedule .sched-page-btn--has-rules{padding-top:16px}
-          /* Tiny corner marker, NOT a second button. No box / border
-             by default; just a watermark glyph in the corner.
-             Hover / focus / expanded reveal the affordance with a
-             soft-blue ring. Click target stays at 14×14 so it's
-             reachable; visible glyph is 9×9. */
+          /* Tiny corner marker. Hairline strokes (1) on a 6×6 glyph
+             inside a 12×12 hit area, no box / border / background.
+             Reads as a quiet hint that the tile has settings, not
+             a competing icon. */
           #view-schedule .sched-page-btn-rules-toggle{
             position:absolute;right:1px;top:1px;
-            width:14px;height:14px;padding:0;border-radius:3px;
+            width:12px;height:12px;padding:0;border-radius:3px;
             display:inline-flex;align-items:center;justify-content:center;
             line-height:0;
-            color:rgba(15,23,42,.42);
+            color:rgba(15,23,42,.36);
             background:transparent;border:0;
             cursor:pointer;
-            transition:background var(--t-fast),color var(--t-fast);
+            transition:color var(--t-fast);
           }
-          #view-schedule .sched-page-btn-rules-toggle svg{display:block;width:9px;height:9px}
+          #view-schedule .sched-page-btn-rules-toggle svg{
+            display:block;width:6px;height:6px;
+            stroke-width:1;
+          }
           #view-schedule .sched-page-btn-rules-toggle:hover,
           #view-schedule .sched-page-btn-rules-toggle:focus-visible{
             color:var(--sch-blue);outline:none;
