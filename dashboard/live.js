@@ -23237,6 +23237,59 @@ window.goto = function (view) {
   document.addEventListener("dragend", () => { clearMarkers(); dragEl = null; });
 })();
 
+// Smart Fill rules popover · toggleable on/off per rule. State
+// lives in localStorage; the chevron itself just opens / closes
+// the dropdown. Restoring saved state on view show keeps the
+// checkboxes in sync across reloads.
+const _RR_SF_RULES_KEY = "rr-sched-smartfill-rules";
+function _restoreSmartFillRules() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  if (!saved || typeof saved !== "object") return;
+  document.querySelectorAll("#rr-sched-smartfill-rules-body [data-rr-sf-rule]").forEach(cb => {
+    const k = cb.getAttribute("data-rr-sf-rule");
+    if (Object.prototype.hasOwnProperty.call(saved, k)) cb.checked = !!saved[k];
+  });
+}
+function _toggleSchedSmartFillRules(force) {
+  const pop = document.getElementById("rr-sched-smartfill-rules-popover");
+  const toggle = document.getElementById("rr-sched-smartfill-rules-toggle");
+  if (!pop) return false;
+  const isOpen = !pop.hidden;
+  const next = (typeof force === "boolean") ? force : !isOpen;
+  pop.hidden = !next;
+  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  if (next) _restoreSmartFillRules();
+  return next;
+}
+window._rrToggleSchedSmartFillRules = _toggleSchedSmartFillRules;
+// Persist a checkbox change.
+document.addEventListener("change", (e) => {
+  const cb = e.target && e.target.closest && e.target.closest("#rr-sched-smartfill-rules-body [data-rr-sf-rule]");
+  if (!cb) return;
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  saved[cb.getAttribute("data-rr-sf-rule")] = !!cb.checked;
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+});
+// Outside click closes the popover.
+document.addEventListener("click", (e) => {
+  const pop = document.getElementById("rr-sched-smartfill-rules-popover");
+  if (pop && !pop.hidden
+      && !e.target.closest("#rr-sched-smartfill-rules-popover")
+      && !e.target.closest("#rr-sched-smartfill-rules-toggle")) {
+    _toggleSchedSmartFillRules(false);
+  }
+});
+// Escape closes the popover.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const pop = document.getElementById("rr-sched-smartfill-rules-popover");
+  if (pop && !pop.hidden) _toggleSchedSmartFillRules(false);
+});
+
 function _toggleSchedQuickSettings(force) {
   const pop = document.getElementById("rr-sched-quick-settings-popover");
   const toggle = document.getElementById("rr-sched-settings-open-h");
@@ -23475,6 +23528,15 @@ function _activateSchedSub(sub) {
   if (view) view.style.display = "block";
 }
 document.addEventListener("click", (e) => {
+  // Chevron split-toggle on the Smart Fill tile → open the rules
+  // popover. Sits on top of the main tile click so the chevron
+  // wins when targeted.
+  if (e.target.closest("#rr-sched-smartfill-rules-toggle")) {
+    e.preventDefault();
+    e.stopPropagation();
+    _toggleSchedSmartFillRules();
+    return;
+  }
   // Chevron split-toggle on the Assign Vans tile → open the
   // editable van / driver chain editor. Sits on top of the main
   // tile click so the chevron's hit area wins when targeted.
@@ -24030,7 +24092,7 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       .in("status", ["scheduled", "completed", "late"])
       .not("driver_id", "is", null),
     sb.from("vehicles")
-      .select("id, name, plate, status, operational_status, is_branded, archived_at, last_deployed_at")
+      .select("id, name, plate, status, operational_status, is_branded, archived_at")
       .eq("dsp_id", dspId)
       .is("archived_at", null),
     sb.from("vehicle_driver_assignments")
@@ -24040,8 +24102,18 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       .eq("dsp_id", dspId)
       .gte("date", startIso).lte("date", endIso),
   ]);
+  // Surface any RLS or column errors loudly — silent empty arrays
+  // were why the operator saw "0 assigned · 49 unassigned" earlier.
+  if (shiftsRes && shiftsRes.error) console.warn("assignVans · shifts fetch failed", shiftsRes.error);
+  if (vehRes && vehRes.error)       console.warn("assignVans · vehicles fetch failed", vehRes.error);
+  if (chainRes && chainRes.error)   console.warn("assignVans · chain fetch failed", chainRes.error);
+  if (existingRes && existingRes.error) console.warn("assignVans · existing assignments fetch failed", existingRes.error);
+
   const shifts   = (shiftsRes.data   || []);
   const vehicles = (vehRes.data      || []).filter(v => v.archived_at == null && ["active","spare"].includes(v.status) && (v.operational_status || "operational") !== "grounded");
+  if (!vehicles.length) {
+    console.warn(`assignVans · fleet pool is empty (vehRes.data=${(vehRes.data || []).length} rows before status filter)`);
+  }
   const chain    = (chainRes.data    || []);
   const existing = (existingRes.data || []);
 
@@ -24073,12 +24145,10 @@ async function _assignVansForRange(startIso, endIso, dspId) {
 
   const vehById = new Map(vehicles.map(v => [v.id, v]));
   const poolSorted = vehicles.slice().sort((a, b) => {
+    // Branded vans first (FEM protection), then alphabetical name.
     const ab = a.is_branded === false ? 1 : 0;
     const bb = b.is_branded === false ? 1 : 0;
     if (ab !== bb) return ab - bb;
-    const al = a.last_deployed_at || "";
-    const bl = b.last_deployed_at || "";
-    if (al !== bl) return al < bl ? -1 : 1;
     return (a.name || "").localeCompare(b.name || "");
   });
 

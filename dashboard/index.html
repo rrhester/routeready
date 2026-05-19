@@ -11224,10 +11224,34 @@ body.rr-cmdk-open{ overflow:hidden }
                as the nav tabs, separated by a thin Outlook-style
                group divider. -->
           <div class="sched-ribbon-actions" id="rr-sched-page-actions">
-            <button class="sched-page-btn" id="rr-sched-smartfill-h" data-rr-tile="smartfill" draggable="true" type="button" onclick="openAiSchedule()" title="Auto-staff this week from your rules + OKAMI demand">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              Smart Fill
-            </button>
+            <div class="sched-smartfill-split">
+              <button class="sched-page-btn sched-page-btn--split" id="rr-sched-smartfill-h" data-rr-tile="smartfill" draggable="true" type="button" onclick="openAiSchedule()" title="Auto-staff this week from your rules + OKAMI demand">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Smart Fill
+                <span class="sched-page-btn-split-toggle" id="rr-sched-smartfill-rules-toggle" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-smartfill-rules-popover" title="Smart Fill rules">
+                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                </span>
+              </button>
+              <!-- Smart Fill rules popover · checkboxes per rule so
+                   the DSP can toggle which rules apply on the next
+                   Smart Fill run. State persists in localStorage. -->
+              <div class="sched-smartfill-rules-popover" id="rr-sched-smartfill-rules-popover" role="dialog" aria-modal="false" aria-label="Smart Fill rules" hidden>
+                <div class="sched-smartfill-rules-head">Smart Fill rules</div>
+                <div class="sched-smartfill-rules-body" id="rr-sched-smartfill-rules-body">
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name">Driver's license valid through the shift date</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="status_active" checked> <span class="sf-rule-name">Driver status = active or onboarding</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dot_required" checked> <span class="sf-rule-name">DOT certification for Step Van routes</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="xl_required" checked> <span class="sf-rule-name">XL certification for Extra-Large routes</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="max_days" checked> <span class="sf-rule-name">Max days per week cap</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="availability" checked> <span class="sf-rule-name">Driver's saved availability for this day-of-week</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="pto_block" checked> <span class="sf-rule-name">Approved PTO blocks auto-fill</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="cushion" checked> <span class="sf-rule-name">Apply Cushion % over OKAMI demand</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="wave_times" checked> <span class="sf-rule-name">Use configured Wave start times</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="service_types" checked> <span class="sf-rule-name">Only auto-fill active service types</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="max_hours" checked> <span class="sf-rule-name">Cap each driver at the weekly hour limit</span></label>
+                </div>
+              </div>
+            </div>
             <button class="sched-page-btn sched-page-btn--okami" id="rr-sched-okami-open-h" data-rr-tile="okami" draggable="true" type="button" title="Route planning for this week" aria-label="Route planning">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect class="rp-cal" x="3" y="4" width="18" height="18" rx="2"/><line class="rp-cal" x1="16" y1="2" x2="16" y2="6"/><line class="rp-cal" x1="8" y1="2" x2="8" y2="6"/><line class="rp-cal" x1="3" y1="10" x2="21" y2="10"/><polyline class="rp-check" points="8 16 11 19 16 14"/></svg>
               Route planning
@@ -12413,10 +12437,52 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           /* Settings + popover wrapper · positions the popover
              beneath the Settings tile. */
-          #view-schedule .sched-settings-split{
+          #view-schedule .sched-settings-split,
+          #view-schedule .sched-smartfill-split{
             position:relative;
             display:inline-flex;
             align-items:stretch;
+          }
+
+          /* Smart Fill rules popover · Outlook-style flyout with a
+             scrollable list of rule checkboxes. */
+          #view-schedule .sched-smartfill-rules-popover{
+            position:absolute;
+            top:calc(100% + 4px);right:0;
+            z-index:50;
+            background:#fff;
+            border:1px solid rgba(15,23,42,.18);
+            border-radius:4px;
+            box-shadow:0 6px 18px rgba(15,23,42,.18);
+            min-width:300px;max-width:calc(100vw - 40px);
+            padding:6px 0 8px;
+            font-family:inherit;
+          }
+          #view-schedule .sched-smartfill-rules-popover[hidden]{display:none}
+          #view-schedule .sched-smartfill-rules-head{
+            font-size:13px;font-weight:600;color:#1f1f1f;
+            padding:8px 14px 6px;
+            border-bottom:1px solid rgba(15,23,42,.08);
+            margin-bottom:4px;
+          }
+          #view-schedule .sched-smartfill-rules-body{
+            display:flex;flex-direction:column;
+            max-height:60vh;overflow-y:auto;
+          }
+          #view-schedule .sched-smartfill-rule{
+            display:flex;align-items:center;gap:10px;
+            padding:7px 14px;
+            font-size:13px;color:#1f1f1f;
+            cursor:pointer;
+            transition:background 80ms linear;
+          }
+          #view-schedule .sched-smartfill-rule:hover{background:rgba(0,120,212,.08)}
+          #view-schedule .sched-smartfill-rule input[type="checkbox"]{
+            width:14px;height:14px;cursor:pointer;accent-color:#0078d4;
+            margin:0;
+          }
+          #view-schedule .sched-smartfill-rule .sf-rule-name{
+            flex:1;line-height:1.3;
           }
 
           /* Settings split-button — main tile opens the full drawer,
