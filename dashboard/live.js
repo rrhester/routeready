@@ -9424,12 +9424,20 @@ function _renderTpUnifiedRoster(attData, rosterData, error, otData) {
     };
   });
 
+  // Drop drivers whose attendance has already been resolved as
+  // "not working today" — once a dispatcher confirms or excuses a
+  // NCNS / called-off, the driver shouldn't keep cluttering the
+  // active roster. (Late drivers stay visible because they're
+  // still expected to work.)
+  const resolvedAbsent = (r) => !!r.decision && (r.computed_outcome === "ncns" || r.computed_outcome === "missed_reported");
+  const visibleRows = rows.filter(r => !resolvedAbsent(r));
+
   // Onboarding shifts (Day 1+2 class training, Day 3 road training) get
   // pulled out of the main wave grid and rendered in their own section
   // so the dispatcher can scan the actual route coverage cleanly.
-  const classTrainingRows = rows.filter(r => r.shift_kind === "training");
-  const roadTrainingRows  = rows.filter(r => r.shift_kind === "ride_along");
-  const regularRows       = rows.filter(r => r.shift_kind !== "training" && r.shift_kind !== "ride_along");
+  const classTrainingRows = visibleRows.filter(r => r.shift_kind === "training");
+  const roadTrainingRows  = visibleRows.filter(r => r.shift_kind === "ride_along");
+  const regularRows       = visibleRows.filter(r => r.shift_kind !== "training" && r.shift_kind !== "ride_along");
 
   // Group regular rows by wave_index
   const byWave = new Map();
