@@ -26698,17 +26698,26 @@ function _rrRenderMilestoneCorner(d, banner) {
   const cakeIcon  = `<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M6 12h12V19a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM7.5 5.8a1 1 0 1 1 2 0v.9a1 1 0 0 1-2 0zM11 5.2a1 1 0 1 1 2 0v.9a1 1 0 0 1-2 0zM14.5 5.8a1 1 0 1 1 2 0v.9a1 1 0 0 1-2 0zM5 9.1c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v2.4H5z"/></svg>`;
   const sparkIcon = `<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.7 5.6 5.6 1.7-5.6 1.7L12 17.1l-1.7-5.6L4.7 9.8l5.6-1.7z"/></svg>`;
   const icon = banner.type === "birthday" ? cakeIcon : sparkIcon;
-  const label = banner.type === "birthday" ? "Birthday" : `Anniv · ${banner.label}`;
+  // Date suffix · "May 18" so the dispatcher knows the day at a
+  // glance and the modal can pre-populate the same value.
+  let dayLabel = "";
+  if (banner.date) {
+    try {
+      dayLabel = new Date(banner.date + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    } catch (_) {}
+  }
+  const baseLabel = banner.type === "birthday" ? "Birthday" : `Anniv · ${banner.label}`;
+  const label = dayLabel ? `${baseLabel} · ${dayLabel}` : baseLabel;
   const fullTitle = banner.type === "birthday"
-    ? "Birthday" + (banner.isToday ? " · today" : "")
-    : `Work anniversary · ${banner.label}${banner.isToday ? " · today" : ""}`;
+    ? `Birthday${dayLabel ? ` · ${dayLabel}` : ""}${banner.isToday ? " · today" : ""}`
+    : `Work anniversary · ${banner.label}${dayLabel ? ` · ${dayLabel}` : ""}${banner.isToday ? " · today" : ""}`;
   return `
-    <div class="cal-row-milestone${banner.isToday ? " is-today" : ""}" data-rr-milestone-type="${escapeHtml(banner.type)}" data-rr-driver-id="${escapeHtml(d.id)}">
+    <div class="cal-row-milestone${banner.isToday ? " is-today" : ""}" data-rr-milestone-type="${escapeHtml(banner.type)}" data-rr-driver-id="${escapeHtml(d.id)}" data-rr-milestone-date="${escapeHtml(banner.date || "")}">
       <span class="cal-row-milestone-pill cal-row-milestone-pill--${escapeHtml(banner.type)}" aria-label="${escapeHtml(fullTitle)}" title="${escapeHtml(fullTitle)}">
         <span class="cal-row-milestone-icon">${icon}</span>
         <span class="cal-row-milestone-label">${escapeHtml(label)}</span>
       </span>
-      <button type="button" class="cal-row-milestone-action" data-rr-milestone-send aria-label="Send a ${escapeHtml(label.toLowerCase())} note">
+      <button type="button" class="cal-row-milestone-action" data-rr-milestone-send aria-label="Send a ${escapeHtml(baseLabel.toLowerCase())} note">
         <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         Send note
       </button>
@@ -26730,6 +26739,7 @@ document.addEventListener("click", (e) => {
   }
   const driverId = root.getAttribute("data-rr-driver-id");
   const type     = root.getAttribute("data-rr-milestone-type");
+  const date     = root.getAttribute("data-rr-milestone-date") || "";
   const driver   = (window._schedDriverList || []).find((x) => x.id === driverId);
   if (!driver) {
     console.warn("[milestone send] driver not in _schedDriverList:", driverId);
@@ -26742,6 +26752,7 @@ document.addEventListener("click", (e) => {
   window._rrOpenKudosModal({
     driver,
     presetKind: type === "birthday" ? "birthday" : "work_anniversary",
+    presetDate: date,
   });
 });
 
@@ -42550,10 +42561,16 @@ document.addEventListener("click", async (e) => {
             <span class="rr-kudos-label">Note${presetPick ? "" : ' <span class="rr-kudos-label-hint">optional</span>'}</span>
             <textarea class="form-input rr-kudos-note" id="rr-kudos-note" rows="3" maxlength="280" placeholder="${presetPick ? "" : "Add a short personal note — they'll see this in the app."}">${presetPick ? escapeHtml(presetPick.blurb) : ""}</textarea>
           </div>
+          ${presetPick ? `
+          <div class="rr-kudos-field">
+            <span class="rr-kudos-label">Deliver on</span>
+            <input type="date" class="form-input" id="rr-kudos-deliver-on" min="${escapeHtml((new Date()).toISOString().slice(0,10))}" value="${escapeHtml(opts?.presetDate || (new Date()).toISOString().slice(0,10))}"/>
+            <span class="rr-kudos-label-hint">Driver sees the celebration in their app on this date.</span>
+          </div>` : `
           <div class="rr-kudos-history-wrap" id="rr-kudos-history" hidden>
             <div class="rr-kudos-history-head">Recent recognition</div>
             <div class="rr-kudos-history-list" id="rr-kudos-history-list"></div>
-          </div>
+          </div>`}
         </div>
         <div class="rr-kudos-foot">
           <span class="rr-kudos-status" id="rr-kudos-status" aria-live="polite"></span>
@@ -42673,21 +42690,41 @@ document.addEventListener("click", async (e) => {
         // without p_metadata is still on the server, and PostgREST
         // refuses to pick between them when the optional args aren't
         // supplied).
-        const { error } = await sb.rpc("recognition_send", {
+        // p_scheduled_for · when present and > today, recognition_send
+        // marks the row as 'scheduled' so the driver sees the
+        // celebration on the right day in their app. Pulled from the
+        // milestone preset modal's "Deliver on" date picker.
+        const deliverOn = (document.getElementById("rr-kudos-deliver-on")?.value || "").trim();
+        const args = {
           p_driver_id:    driverId,
           p_kind:         pick.kind,
           p_title:        pick.title,
           p_message:      note || pick.blurb,
           p_animation:    pick.anim,
           p_metadata:     {},
-        });
+        };
+        if (deliverOn) {
+          args.p_scheduled_for = deliverOn;
+          args.p_occasion_on   = deliverOn;
+        }
+        const { error } = await sb.rpc("recognition_send", args);
         if (error) {
           if (status) { status.textContent = "Send failed: " + (error.message || ""); status.style.color = "var(--red)"; }
           sendBtn.disabled = false;
           return;
         }
-        if (status) { status.textContent = "Sent · driver will see it in the app"; status.style.color = "var(--green)"; }
-        toast("Kudos sent", "success");
+        // Tailor the confirmation copy to delivery mode so the
+        // operator knows whether the celebration fires now or on a
+        // future date.
+        const today = (new Date()).toISOString().slice(0,10);
+        const scheduled = deliverOn && deliverOn > today;
+        if (status) {
+          status.textContent = scheduled
+            ? `Scheduled · delivers ${new Date(deliverOn + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+            : "Sent · driver will see it in the app";
+          status.style.color = "var(--green)";
+        }
+        toast(scheduled ? `Kudos scheduled for ${new Date(deliverOn + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : "Kudos sent", "success");
         // Re-paint chip ring next render by re-running renderScheduleWeek.
         try { if (typeof renderScheduleWeek === "function") renderScheduleWeek(); } catch (_) {}
         opts?.onSent?.();
