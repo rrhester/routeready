@@ -12893,7 +12893,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h{order:20}
           /* SECONDARY · Unassign + Kudos — quietest treatment */
           #view-schedule .sched-ribbon-actions--grouped .sched-vans-rules-split{order:30}
-          #view-schedule .sched-ribbon-actions--grouped #rr-sched-kudos-h{order:31}
+          #view-schedule .sched-ribbon-actions--grouped .sched-kudos-split{order:31}
 
           /* Divider before each new action-group's leading item. */
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h,
@@ -14512,16 +14512,22 @@ body.rr-cmdk-open{ overflow:hidden }
              (trainer recognition, top performer, work milestone)
              can plug in by adding a new modifier class below. */
           #view-schedule .cal-row-label{position:relative;overflow:hidden}
+          /* Zero-size anchor in the bottom-right corner of the row
+             label. Children position themselves independently so
+             only the ribbon rotates and the action pill stays
+             horizontal. */
           #view-schedule .cal-row-milestone{
             position:absolute;
-            right:-26px;bottom:6px;
-            display:flex;align-items:center;gap:0;
+            right:0;bottom:0;
+            width:0;height:0;
             z-index:2;
             pointer-events:none;
-            transform:rotate(-22deg);
-            transform-origin:center;
           }
           #view-schedule .cal-row-milestone-ribbon{
+            position:absolute;
+            right:-22px;bottom:6px;
+            transform:rotate(-22deg);
+            transform-origin:center;
             display:inline-flex;align-items:center;justify-content:center;
             gap:5px;
             min-width:96px;
@@ -14567,14 +14573,17 @@ body.rr-cmdk-open{ overflow:hidden }
             color:#5A4310;
             border-color:rgba(184,137,48,.40);
           }
-          /* "Send note" action · hidden until row hover. Slides up
-             from below the ribbon. Subtle, not flashy. */
+          /* "Send note" action · horizontal pill anchored to the
+             top-right of the row label so it sits opposite the
+             rotated ribbon. Hidden until row hover; calm fade +
+             slight slide. */
           #view-schedule .cal-row-milestone-action{
+            position:absolute;
+            top:8px;right:8px;
             display:inline-flex;align-items:center;justify-content:center;
             gap:4px;
-            margin-left:-6px;
             padding:3px 10px 3px 8px;
-            font-size:9.5px;font-weight:600;letter-spacing:.04em;
+            font-size:10px;font-weight:600;letter-spacing:.02em;
             color:var(--text);
             background:#fff;
             border:1px solid rgba(15,23,42,.14);
@@ -14583,9 +14592,10 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:0 1px 2px rgba(15,23,42,.06),
                        0 4px 10px rgba(15,23,42,.08);
             opacity:0;
-            transform:translateY(4px);
+            transform:translateY(-2px);
             transition:opacity 180ms ease, transform 220ms ease;
             pointer-events:auto;
+            white-space:nowrap;
           }
           #view-schedule .cal-row-milestone-action svg{flex:0 0 auto;color:var(--sch-blue)}
           #view-schedule .cal-row-milestone-action:hover{
