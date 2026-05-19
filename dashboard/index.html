@@ -8019,15 +8019,18 @@ body.rr-cmdk-open{ overflow:hidden }
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 15 15"/><path d="M9 2h6"/><path d="M5 5l1.5 1.5"/><path d="M19 5l-1.5 1.5"/></svg></span>
         Overtime
       </button>
-      <!-- Workspaces sidebar nav is hidden — the fleet assignment
-           tool (primary / backup driver chain editor) now lives
-           inside the Schedule view's Assign Vans flow.  The
-           Workspaces view stays in the DOM so the inline Van
-           Assignments renderer can keep reusing
-           loadWorkspacesView / _wsRenderVehicles. -->
+      <!-- Workspaces page is hidden from the sidebar but stays in
+           the DOM so the Schedule view's Van Assignments flow can
+           reuse loadWorkspacesView / _wsRenderVehicles internally.
+           A separate "Workflows" nav-item below routes to the
+           Forms + Checklists subtabs. -->
       <button class="nav-item" data-view="workspaces" data-c="forms" onclick="goto('workspaces')" style="display:none" aria-hidden="true">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
         Workspaces
+      </button>
+      <button class="nav-item" data-view="forms" data-c="forms" onclick="goto('forms')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></span>
+        Workflows
       </button>
       <button class="nav-item" data-view="messages" data-c="messages" onclick="goto('messages')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
@@ -11225,8 +11228,8 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               Smart Fill
             </button>
-            <button class="sched-page-btn" id="rr-sched-okami-open-h" data-rr-tile="okami" draggable="true" type="button" title="Route planning for this week" aria-label="Route planning">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 16 11 19 16 14"/></svg>
+            <button class="sched-page-btn sched-page-btn--okami" id="rr-sched-okami-open-h" data-rr-tile="okami" draggable="true" type="button" title="Route planning for this week" aria-label="Route planning">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect class="rp-cal" x="3" y="4" width="18" height="18" rx="2"/><line class="rp-cal" x1="16" y1="2" x2="16" y2="6"/><line class="rp-cal" x1="8" y1="2" x2="8" y2="6"/><line class="rp-cal" x1="3" y1="10" x2="21" y2="10"/><polyline class="rp-check" points="8 16 11 19 16 14"/></svg>
               Route planning
             </button>
             <button class="sched-page-btn sched-page-btn--split" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
@@ -12226,6 +12229,20 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:0 0 auto;
             display:block;
             height:32px;align-self:center;
+          }
+
+          /* Route Planning icon · calendar in Fluent dark blue,
+             checkmark in Fluent communicationGreen. Tile chrome
+             stays the same; only the SVG strokes are painted. */
+          #view-schedule .sched-nav-heading-actions .sched-page-btn--okami svg .rp-cal,
+          #view-schedule .sched-nav-heading-actions .sched-page-btn--okami:hover svg .rp-cal,
+          #view-schedule .sched-nav-heading-actions .sched-page-btn--okami:focus svg .rp-cal{
+            stroke:#0F6CBD !important;
+          }
+          #view-schedule .sched-nav-heading-actions .sched-page-btn--okami svg .rp-check,
+          #view-schedule .sched-nav-heading-actions .sched-page-btn--okami:hover svg .rp-check,
+          #view-schedule .sched-nav-heading-actions .sched-page-btn--okami:focus svg .rp-check{
+            stroke:#107C41 !important;stroke-width:2.5;
           }
 
           /* Requests tile's inbox icon takes the manila-envelope
@@ -16522,7 +16539,9 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <div class="subnav" data-rr-tabbar="workspaces">
           <button class="subnav-item active" data-sub="forms">Forms</button>
-          <button class="subnav-item" data-sub="workflows" onclick="goto('workspaces')">Workflows</button>
+          <!-- Workflows (boards) tab hidden — the fleet assignment
+               board now lives in the Schedule view. -->
+          <button class="subnav-item" data-sub="workflows" onclick="goto('workspaces')" style="display:none" aria-hidden="true">Workflows</button>
           <button class="subnav-item" data-sub="checklists" onclick="goto('checklists')">Checklists</button>
         </div>
 
@@ -16719,7 +16738,9 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <div class="subnav" data-rr-tabbar="checklists">
           <button class="subnav-item" data-sub="forms" onclick="goto('forms')">Forms</button>
-          <button class="subnav-item" data-sub="workflows" onclick="goto('workspaces')">Workflows</button>
+          <!-- Workflows (boards) tab hidden — fleet assignment
+               board moved to the Schedule view. -->
+          <button class="subnav-item" data-sub="workflows" onclick="goto('workspaces')" style="display:none" aria-hidden="true">Workflows</button>
           <button class="subnav-item active" data-sub="checklists" onclick="checklistSub('my')">Checklists <span style="background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;padding:1px 7px;border-radius:8px;margin-left:4px">14</span></button>
         </div>
 
