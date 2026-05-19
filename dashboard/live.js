@@ -26964,6 +26964,15 @@ async function renderScheduleWeek() {
   const femRisks    = [];
   const femUpcoming = []; // { vehicle_id, name, watchOn, daysOnWatchDay } — healthy vans projected to enter Watch this week
   let femWeekCounts = { watch: 0, risk: 0, critical: 0, violation: 0 };
+  // Per-day worst tier across the branded fleet — drives the
+  // sticky FEM day-strip below the ribbon (audit item #13).
+  // For each date, we accumulate the lowest tier rank seen and
+  // a histogram so the hover tooltip can read "Tue · 1 Critical
+  // · 2 Watch."
+  const femDayState = new Map();
+  for (const d of femWeekDates) {
+    femDayState.set(d, { tier: "healthy", rank: 5, counts: { watch:0, risk:0, critical:0, violation:0 } });
+  }
   for (const v of femVehicles) {
     const list = femUsage.get(v.id) || [];
     const usageSet = new Set(list);
@@ -26994,6 +27003,15 @@ async function renderScheduleWeek() {
       if (!firstWatchDate && cls.rank <= 4) {
         firstWatchDate = d;
         firstWatchDays = days === Infinity ? null : days;
+      }
+      // Roll the day's worst-tier state forward for the strip.
+      const state = femDayState.get(d);
+      if (state) {
+        if (cls.rank < state.rank) { state.rank = cls.rank; state.tier = cls.tier === "never_used" ? "violation" : cls.tier; }
+        if (cls.rank <= 4) {
+          const bucket = cls.tier === "never_used" ? "violation" : cls.tier;
+          state.counts[bucket] = (state.counts[bucket] || 0) + 1;
+        }
       }
     }
     // Anything that hit Critical / Violation / Never-used during
@@ -27126,8 +27144,14 @@ async function renderScheduleWeek() {
   kpis.dataset.rrFemUpcoming = JSON.stringify(femUpcoming);
   kpis.dataset.rrFemCounts   = JSON.stringify(femWeekCounts);
   kpis.dataset.rrFemForecast = JSON.stringify({ ...femForecast, _asOf: _nextMondayIso });
+  kpis.dataset.rrFemDayStrip = JSON.stringify(
+    femWeekDates.map(d => ({ date: d, state: femDayState.get(d) }))
+  );
   if (typeof window._rrRenderForecastCard === "function") {
     window._rrRenderForecastCard();
+  }
+  if (typeof window._rrRenderFemDayStrip === "function") {
+    window._rrRenderFemDayStrip();
   }
   // Render epoch for the "Reviewed Ns ago" stamp under the KPI
   // strip. Updated every 30s by the polling tick (see below).
@@ -27987,10 +28011,51 @@ function bindSchedWeekNav() {
     };
   }
 
-  // All three install-once-then-bind renderers (reviewed stamp,
-  // auto-rescue banner, forecast card) live inside this binder.
-  // The schedule entry path awaits renderScheduleWeek() BEFORE
-  // bindSchedWeekNav() runs, so on the FIRST render of a fresh
+  // ── FEM sticky day-strip renderer ──
+  // Always-on peripheral awareness — 7 thin cells under the
+  // KPI strip, color-tinted by the worst tier any branded van
+  // hits each day. Microsoft Outlook day-pip pattern: no
+  // labels, no chrome, just glance-able fleet health. Hover a
+  // cell for the per-day breakdown.
+  if (!window._rrFemDayStripInstalled) {
+    window._rrFemDayStripInstalled = true;
+    window._rrRenderFemDayStrip = function () {
+      const host = document.getElementById("rr-sched-fem-day-strip");
+      const kpis = document.getElementById("rr-sched-kpis");
+      if (!host || !kpis) return;
+      let strip = [];
+      try { strip = JSON.parse(kpis.dataset.rrFemDayStrip || "[]"); } catch { strip = []; }
+      if (!Array.isArray(strip) || strip.length === 0) { host.hidden = true; host.innerHTML = ""; return; }
+      const todayIso = fmtIsoDate(new Date());
+      const dayLbl = (iso) => {
+        try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
+        catch { return iso; }
+      };
+      const html = strip.map(d => {
+        const s = d.state || { tier: "healthy", counts: {} };
+        const counts = s.counts || {};
+        const tip = (() => {
+          const parts = [];
+          if (counts.violation > 0) parts.push(`${counts.violation} Violation`);
+          if (counts.critical  > 0) parts.push(`${counts.critical} Critical`);
+          if (counts.risk      > 0) parts.push(`${counts.risk} Risk`);
+          if (counts.watch     > 0) parts.push(`${counts.watch} Watch`);
+          if (parts.length === 0) return `${dayLbl(d.date)} · all branded vans healthy`;
+          return `${dayLbl(d.date)} · ${parts.join(" · ")}`;
+        })();
+        const isToday = d.date === todayIso;
+        return `<span class="sched-fem-day-cell is-${s.tier || "healthy"}${isToday ? " is-today" : ""}" title="${escapeHtml(tip)}"></span>`;
+      }).join("");
+      host.innerHTML = html;
+      host.hidden = false;
+    };
+  }
+
+  // All four install-once-then-bind renderers (reviewed stamp,
+  // auto-rescue banner, forecast card, FEM day strip) live
+  // inside this binder. The schedule entry path awaits
+  // renderScheduleWeek() BEFORE bindSchedWeekNav() runs, so on
+  // the FIRST render of a fresh
   // page load the guarded calls inside renderScheduleWeek were
   // all false → outputs stayed hidden until some later
   // navigation triggered another render. Fire each once now,
@@ -28000,6 +28065,7 @@ function bindSchedWeekNav() {
   if (typeof window._rrTickFleetReviewedStamp === "function") window._rrTickFleetReviewedStamp();
   if (typeof window._rrRenderAutoRescueBanner === "function") window._rrRenderAutoRescueBanner();
   if (typeof window._rrRenderForecastCard === "function")     window._rrRenderForecastCard();
+  if (typeof window._rrRenderFemDayStrip === "function")      window._rrRenderFemDayStrip();
 
   // ── Pool sort toggle (Day / Wave time)
   sub.addEventListener("click", (e) => {

@@ -11525,6 +11525,13 @@ body.rr-cmdk-open{ overflow:hidden }
              Populated by _rrRenderForecastCard() in live.js, which
              renderScheduleWeek calls after the FEM compute. -->
         <div id="rr-sched-forecast" class="sched-forecast" hidden></div>
+        <!-- Sticky FEM day-strip · 7 thin cells (Sun-Sat) colored
+             by the worst tier seen across the branded fleet that
+             day. Pure peripheral awareness — operator never has
+             to look at it directly but it's always there. Hover
+             a cell for the per-day tier breakdown. Painted by
+             _rrRenderFemDayStrip() in live.js. -->
+        <div id="rr-sched-fem-day-strip" class="sched-fem-day-strip" hidden></div>
         <a href="#" role="button" class="rr-text-link" id="rr-sched-kpis-toggle" aria-pressed="true" style="display:none">Insights</a>
 
         <!-- WEEK VIEW SUB-VIEW -->
@@ -11869,6 +11876,32 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-forecast-asof{
             margin-left:auto;font-size:11px;color:var(--text-subtle);
             font-variant-numeric:tabular-nums;
+          }
+          /* Sticky FEM day-strip · always-on peripheral awareness.
+             Microsoft Outlook day-pip pattern — 7 thin cells in a
+             row, no labels, color reflects the worst tier each
+             day. Operator senses fleet health without thinking
+             about it. Hover for the per-day breakdown. */
+          #view-schedule .sched-fem-day-strip{
+            display:grid;grid-template-columns:repeat(7, 1fr);
+            gap:2px;
+            margin-top:6px;
+            padding:0;
+            height:4px;
+          }
+          #view-schedule .sched-fem-day-strip[hidden]{display:none}
+          #view-schedule .sched-fem-day-cell{
+            display:block;height:4px;border-radius:1px;
+            background:rgba(15,23,42,.06);
+            transition:background var(--t-fast);
+          }
+          #view-schedule .sched-fem-day-cell.is-healthy   { background:rgba(15,23,42,.06); }
+          #view-schedule .sched-fem-day-cell.is-watch     { background:rgba(180,83,9,.40); }
+          #view-schedule .sched-fem-day-cell.is-risk      { background:rgba(180,83,9,.70); }
+          #view-schedule .sched-fem-day-cell.is-critical  { background:rgba(196,43,28,.85); }
+          #view-schedule .sched-fem-day-cell.is-violation { background:#C42B1C; }
+          #view-schedule .sched-fem-day-cell.is-today{
+            box-shadow:inset 0 0 0 1.5px var(--sch-blue, #0F6CBD);
           }
 
           /* Active subnav tab — echo the sidebar's active row with
