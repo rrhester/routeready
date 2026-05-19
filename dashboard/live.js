@@ -23341,74 +23341,11 @@ function _toggleSchedVanRules(force) {
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next) {
     _restoreSchedVanRules();
-    // Surface the protected / exempted VIN list each time the
-    // popover opens so the operator can see at a glance what's
-    // currently excluded from rotation (grounded / archived /
-    // retired). Fired async; the popover stays open while the
-    // fetch resolves.
-    if (typeof _rrRenderVanRulesExempted === "function") _rrRenderVanRulesExempted();
   }
   return next;
 }
 window._rrToggleSchedVanRules = _toggleSchedVanRules;
 
-// Fetch + paint the "Excluded from rotation today" list inside
-// the van-rules popover. Reads vehicles for the current DSP and
-// shows every entry the resolver would skip — operator gets a
-// concrete list of edge cases instead of wondering "is my
-// grounded van being counted?"
-async function _rrRenderVanRulesExempted() {
-  const host = document.getElementById("rr-sched-vans-rules-exempted");
-  if (!host) return;
-  const dspId = window.RR?.dsp?.id;
-  if (!dspId) { host.innerHTML = ""; return; }
-  host.innerHTML = `<div class="sched-van-rules-exempted-head">Excluded from rotation today</div><div class="sched-van-rules-exempted-empty">Loading…</div>`;
-  let res;
-  try {
-    res = await sb.from("vehicles")
-      .select("id, name, status, operational_status, archived_at, is_branded")
-      .eq("dsp_id", dspId);
-  } catch (e) {
-    host.innerHTML = `<div class="sched-van-rules-exempted-head">Excluded from rotation today</div><div class="sched-van-rules-exempted-empty">Couldn't load · ${escapeHtml(e?.message || String(e))}</div>`;
-    return;
-  }
-  if (res?.error) {
-    host.innerHTML = `<div class="sched-van-rules-exempted-head">Excluded from rotation today</div><div class="sched-van-rules-exempted-empty">Couldn't load · ${escapeHtml(res.error.message)}</div>`;
-    return;
-  }
-  const all = res.data || [];
-  // Same filter the resolver applies in reverse — any van that
-  // FAILS the active/spare + non-grounded + non-archived check
-  // is "exempted."
-  const exempted = all.filter(v =>
-       v.archived_at != null
-    || !["active","spare"].includes(v.status)
-    || (v.operational_status || "operational") === "grounded"
-  );
-  const reasonFor = (v) => {
-    if (v.archived_at != null) return "Archived";
-    if ((v.operational_status || "operational") === "grounded") return "Grounded";
-    if (v.status === "retired")        return "Retired";
-    if (v.status === "out_of_service") return "Out of service";
-    if (v.status === "inactive")       return "Inactive";
-    return v.status ? `Status: ${v.status}` : "Excluded";
-  };
-  if (exempted.length === 0) {
-    host.innerHTML = `<div class="sched-van-rules-exempted-head">Excluded from rotation today</div><div class="sched-van-rules-exempted-empty">Every van is eligible · nothing excluded.</div>`;
-    return;
-  }
-  // Sort by name, branded vans first inside same-name for the
-  // (extremely unlikely) collisions.
-  exempted.sort((a, b) =>
-    (a.name || "").localeCompare(b.name || "")
-    || ((a.is_branded === false) ? 1 : 0) - ((b.is_branded === false) ? 1 : 0)
-  );
-  host.innerHTML = `<div class="sched-van-rules-exempted-head">Excluded from rotation today · ${exempted.length}</div>` +
-    exempted.map(v =>
-      `<div class="sched-van-rules-exempted-row"><span class="sched-van-rules-exempted-dot" aria-hidden="true"></span><span class="sched-van-rules-exempted-name">${escapeHtml(v.name || "—")}</span><span class="sched-van-rules-exempted-reason">${escapeHtml(reasonFor(v))}${v.is_branded === false ? " · non-branded" : ""}</span></div>`
-    ).join("");
-}
-window._rrRenderVanRulesExempted = _rrRenderVanRulesExempted;
 // Public reader so _assignVansForRange can query the live rule
 // state without a DOM read.
 window._rrLoadVanRules = function () {
@@ -23423,6 +23360,110 @@ window._rrLoadVanRules = function () {
   }
   return out;
 };
+
+// Open the explainer modal that documents every van-rule
+// checkbox in plain English (what each rule does + a concrete
+// example + common combos). Triggered by the small "i" icon
+// in the rules popover header. Calm Outlook tone.
+function _openVanRulesExplainer() {
+  document.getElementById("rr-vans-rules-explainer-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-vans-rules-explainer-modal";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  const ruleBlock = (rule, title, on, off, example, whenOff) => `
+    <div class="rr-rule-explain">
+      <div class="rr-rule-explain-head">
+        <span class="rr-rule-explain-key">${escapeHtml(rule)}</span>
+        <span class="rr-rule-explain-title">${escapeHtml(title)}</span>
+      </div>
+      <div class="rr-rule-explain-row"><span class="rr-rule-explain-lbl rr-rule-explain-lbl-on">ON</span><span class="rr-rule-explain-text">${on}</span></div>
+      <div class="rr-rule-explain-row"><span class="rr-rule-explain-lbl rr-rule-explain-lbl-off">OFF</span><span class="rr-rule-explain-text">${off}</span></div>
+      <div class="rr-rule-explain-row"><span class="rr-rule-explain-lbl">Example</span><span class="rr-rule-explain-text">${example}</span></div>
+      <div class="rr-rule-explain-row"><span class="rr-rule-explain-lbl">When to turn off</span><span class="rr-rule-explain-text">${whenOff}</span></div>
+    </div>`;
+  const intro = `<p class="rr-rule-explain-intro">
+    Each <strong>Assign Vans</strong> run walks four phases per day, in order:
+    <strong>Primary chain</strong> → <strong>Secondary chain</strong> →
+    <strong>Open pool</strong> → <strong>FEM rescue</strong>.
+    Each checkbox is a guard on one phase. Unchecking it skips that phase or changes its behavior.
+  </p>`;
+  const rules = [
+    ruleBlock("primary_chain", "Honor primary chain",
+      "When a driver is the primary of Van 10 and is scheduled today, they get Van 10. Always.",
+      "Phase 1a skips. Primaries don't auto-claim their van; every driver — even chain holders — goes through pool / secondary / rescue.",
+      "Pickle is Van 10's primary, scheduled Monday. ON → Pickle drives Van 10. OFF → Pickle is in the pool with everyone else.",
+      "Almost never. This is the bedrock signal. Mainly stress tests or pure pool-based assignment."),
+    ruleBlock("secondary_chain", "Honor secondary chain",
+      "When Van 10's primary is off but its secondary is scheduled, the secondary gets Van 10.",
+      "Phase 1b skips. Secondaries never auto-fill; Van 10 goes straight to the pool when its primary is off.",
+      "Pickle (primary) is off Monday; Bob (secondary) is scheduled. ON → Bob drives Van 10. OFF → Van 10 is in the pool, Bob is in the driver pool.",
+      "When you want chain primaries to be the only chain signal and backups treated like everyone else."),
+    ruleBlock("pool_fill", "Fill remaining drivers from the open pool",
+      "After chain claims, any scheduled driver still without a van gets paired with a van nobody claimed.",
+      "Phase 2 skips. Chain-less drivers stay unassigned; the KPI counts them toward <em>drivers without a van</em>.",
+      "Greg has no chain assignment, scheduled Monday. ON → Greg gets a pool van. OFF → Greg has no van; KPI flags it.",
+      'Strict mode: when auto-assign should <em>only</em> honor explicit chains.'),
+    ruleBlock("branded_first", "Branded vans sort first within each tier",
+      "Branded vans always sort ahead of non-branded in every phase. A pool driver gets a branded van before a non-branded one.",
+      "Branded and non-branded mix in one alphabetical sort. Pool driver might get a non-branded van before a branded one.",
+      "Pool driver, choice of Van 6 (branded, healthy) and Van 99 (non-branded, healthy). ON → Van 6. OFF → whichever sorts first alphabetically.",
+      "Almost never. Branded-first protects your VERO scorecard. Only for truly random pool distribution testing."),
+    ruleBlock("fem_priority", "FEM rotation priority (at-risk branded vans first)",
+      "Among branded vans, those closest to the 14-day rule get assigned first. A branded van at 12 days idle outranks a branded van at 2 days.",
+      "All branded vans sort alphabetically. A 13-day-idle van might stay unrotated while a fresh one gets picked.",
+      "Pool driver, Van 6 (branded, 12d idle) vs Van 8 (branded, 2d idle). ON → Van 6. OFF → alphabetical.",
+      "When you'll manually manage rotation and want pure alphabetical assignment. Most operators leave this ON."),
+    ruleBlock("rescue_secondary", "Auto-rescue: displace a secondary to rotate a &gt;14d van",
+      "When a branded van crosses 13 days idle and no pool driver is available, the engine moves a scheduled driver OFF their secondary van onto the at-risk one. Donor's van must be healthy (&lt;11d idle).",
+      "Phase 3b skips. If only secondaries are available to displace, the at-risk van stays unrotated and the KPI flares red.",
+      "Van 6 is at 13 days. No pool drivers. Bob is on Van 8 (secondary, 2d idle). ON → Bob moves to Van 6; Van 8 sits idle. OFF → Van 6 stays unrotated.",
+      "When you don't want backups disrupted even at the cost of a VERO defect. Conservative mode."),
+    ruleBlock("rescue_primary", "Auto-rescue: displace a primary to rotate a &gt;14d van",
+      "When pool and secondary displacement both fail, the engine displaces a chain primary off their van onto the at-risk one. Most aggressive option.",
+      "Phase 3c skips. Primary owners are never disturbed. If steps (a) and (b) both fail, the van stays unrotated.",
+      "Van 6 is at 14 days. No pool, no secondaries. Alice is on Van 1 (primary, 2d idle). ON → Alice moves to Van 6; Van 1 sits idle. OFF → Van 6 stays unrotated and slips into Violation.",
+      "When chain primary ownership is sacred and you'd rather absorb a VERO hit than displace a primary owner. Most operators leave this ON."),
+  ].join("");
+  const combos = `
+    <h3 class="rr-rule-explain-h3">Common combinations</h3>
+    <table class="rr-rule-explain-table">
+      <thead><tr><th>You want…</th><th>Settings</th></tr></thead>
+      <tbody>
+        <tr><td>Default — let the engine do its job</td><td>All seven ON</td></tr>
+        <tr><td>Less aggressive (no primary disruption)</td><td>All ON except <strong>rescue_primary</strong> OFF</td></tr>
+        <tr><td>No rotation pressure (manual mode)</td><td><strong>fem_priority</strong>, <strong>rescue_secondary</strong>, <strong>rescue_primary</strong> OFF</td></tr>
+        <tr><td>Strict chain-only (no pool, no rescue)</td><td><strong>pool_fill</strong>, both rescue rules OFF</td></tr>
+        <tr><td>Pure alphabetical (no FEM, no branded priority)</td><td><strong>branded_first</strong>, <strong>fem_priority</strong> OFF</td></tr>
+      </tbody>
+    </table>`;
+  const footnotes = `
+    <ul class="rr-rule-explain-notes">
+      <li><strong>Manual overrides</strong> always win. If you pinned a driver to a van, no rule turns that off.</li>
+      <li><strong>Grounded / archived vans</strong> are always excluded from rotation, regardless of rule settings.</li>
+      <li>The two rescue rules are <strong>independent but ordered</strong> — secondary tried before primary. Turning off <strong>rescue_secondary</strong> while leaving <strong>rescue_primary</strong> on means the engine skips straight to primary displacement (more aggressive, not less).</li>
+    </ul>`;
+  m.innerHTML = `
+    <div class="rr-rule-explain-card">
+      <div class="rr-rule-explain-bar">
+        <div>
+          <div class="rr-rule-explain-eyebrow">Van assignment rules</div>
+          <div class="rr-rule-explain-h1">What each checkbox does</div>
+        </div>
+        <button type="button" id="rr-rule-explain-close" class="rr-rule-explain-close" aria-label="Close">×</button>
+      </div>
+      <div class="rr-rule-explain-body">
+        ${intro}
+        ${rules}
+        ${combos}
+        ${footnotes}
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", (ev) => {
+    if (ev.target === m || ev.target.id === "rr-rule-explain-close") m.remove();
+  });
+}
+window._rrOpenVanRulesExplainer = _openVanRulesExplainer;
 
 // Auto-close inline popovers when the cursor truly leaves them.
 // Both popovers + their trigger tile sit inside a wrapper (the
@@ -23832,6 +23873,15 @@ document.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     _toggleSchedVanRules();
+    return;
+  }
+  // Info "i" icon inside the rules popover → opens a calm modal
+  // with "what each rule does + examples + common combos." Stops
+  // propagation so the popover stays open behind the modal.
+  if (e.target.closest("#rr-sched-vans-rules-info")) {
+    e.preventDefault();
+    e.stopPropagation();
+    _openVanRulesExplainer();
     return;
   }
   // (The old "Back to week" button was removed when the inline

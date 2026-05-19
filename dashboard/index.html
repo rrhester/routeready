@@ -11339,7 +11339,18 @@ body.rr-cmdk-open{ overflow:hidden }
                    resolver in _assignVansForRange reads it at the
                    start of every run. -->
               <div class="sched-vans-rules-popover" id="rr-sched-vans-rules-popover" role="dialog" aria-modal="false" aria-label="Van assignment rules" hidden>
-                <div class="sched-smartfill-rules-head">Van assignment rules</div>
+                <div class="sched-vans-rules-head">
+                  <span class="sched-vans-rules-head-title">Van assignment rules</span>
+                  <button type="button" class="sched-vans-rules-info" id="rr-sched-vans-rules-info"
+                    aria-label="What each rule does"
+                    title="What each rule does · click for the explainer">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="12" y1="16" x2="12" y2="12"/>
+                      <line x1="12" y1="8"  x2="12.01" y2="8"/>
+                    </svg>
+                  </button>
+                </div>
                 <div class="sched-smartfill-rules-body" id="rr-sched-vans-rules-body">
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="primary_chain" checked> <span class="sf-rule-name">Honor primary chain (scheduled primary keeps their van)</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="secondary_chain" checked> <span class="sf-rule-name">Honor secondary chain (secondary fills in when primary is off)</span></label>
@@ -11349,14 +11360,6 @@ body.rr-cmdk-open{ overflow:hidden }
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_secondary" checked> <span class="sf-rule-name">Auto-rescue: displace a secondary to rotate a &gt;14d van</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_primary" checked> <span class="sf-rule-name">Auto-rescue: displace a primary to rotate a &gt;14d van</span></label>
                 </div>
-                <!-- Protected / exempted VIN visibility · closes
-                     the "what about my edge cases?" loop. Lists
-                     every van excluded from rotation by the
-                     existing eligibility filter (grounded /
-                     archived / retired). Populated by
-                     _rrRenderVanRulesExempted() in live.js the
-                     moment the rules popover is opened. -->
-                <div class="sched-van-rules-exempted" id="rr-sched-vans-rules-exempted"></div>
               </div>
             </div>
             <div class="sched-settings-split">
@@ -12707,50 +12710,158 @@ body.rr-cmdk-open{ overflow:hidden }
             border-bottom:1px solid rgba(15,23,42,.08);
             margin-bottom:4px;
           }
+          /* Van rules popover head — same look as the Smart Fill
+             head, but flex-row so we can drop a small info icon
+             on the right. The icon opens an explainer modal with
+             "what each rule does + examples + common combos." */
+          #view-schedule .sched-vans-rules-head{
+            display:flex;align-items:center;justify-content:space-between;gap:8px;
+            font-size:13px;font-weight:600;color:#1f1f1f;
+            padding:8px 14px 6px;
+            border-bottom:1px solid rgba(15,23,42,.08);
+            margin-bottom:4px;
+          }
+          #view-schedule .sched-vans-rules-head-title{
+            font-size:13px;font-weight:600;color:#1f1f1f;
+          }
+          #view-schedule .sched-vans-rules-info{
+            display:inline-flex;align-items:center;justify-content:center;
+            width:22px;height:22px;border-radius:50%;
+            background:transparent;border:0;cursor:pointer;
+            color:var(--text-subtle);
+            padding:0;
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-schedule .sched-vans-rules-info:hover,
+          #view-schedule .sched-vans-rules-info:focus-visible{
+            background:var(--sch-blue-softer);color:var(--sch-blue);outline:none;
+          }
+          #view-schedule .sched-vans-rules-info svg{
+            display:block;
+          }
+          /* Explainer modal opened from the rules-popover "i" icon.
+             Outlook card — sch-surface-2 header, hairline-separated
+             rule sections, calm tone, no shadows beyond the soft
+             elevation. */
+          #rr-vans-rules-explainer-modal .rr-rule-explain-card{
+            background:#fff;
+            border:1px solid var(--sch-line, var(--border));
+            border-radius:10px;
+            max-width:680px;width:100%;max-height:85vh;
+            display:flex;flex-direction:column;
+            box-shadow:0 1px 2px rgba(15,23,42,.04),0 1px 1px rgba(15,23,42,.02);
+            font-family:inherit;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-bar{
+            display:flex;align-items:center;justify-content:space-between;
+            gap:var(--s-3);
+            padding:var(--s-3-5) 18px;
+            border-bottom:1px solid var(--sch-line, var(--border));
+            background:var(--sch-surface-2, var(--canvas));
+            flex:0 0 auto;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-eyebrow{
+            font-size:11px;font-weight:700;color:var(--text-subtle);
+            text-transform:uppercase;letter-spacing:.06em;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-h1{
+            font-size:var(--fs-base);font-weight:600;color:var(--text);
+            letter-spacing:-.005em;margin-top:2px;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-close{
+            background:none;border:0;font-size:var(--fs-xl);cursor:pointer;
+            color:var(--text-muted);padding:0 6px;line-height:1;
+            transition:color var(--t-fast);
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-close:hover{color:var(--text)}
+          #rr-vans-rules-explainer-modal .rr-rule-explain-body{
+            padding:var(--s-3) 18px var(--s-4);
+            overflow-y:auto;
+            font-size:13px;line-height:1.55;color:var(--text);
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-intro{
+            margin:0 0 var(--s-3);
+            color:var(--text-muted);
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-intro strong{
+            color:var(--text);font-weight:600;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain{
+            padding:var(--s-3) 0;
+            border-top:1px solid var(--sch-line-subtle, var(--border-subtle));
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain:first-of-type{border-top:0;padding-top:0}
+          #rr-vans-rules-explainer-modal .rr-rule-explain-head{
+            display:flex;align-items:baseline;gap:var(--s-2);
+            margin-bottom:6px;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-key{
+            font-family:'Inter Tight','Inter',ui-monospace,monospace;
+            font-size:11px;font-weight:700;
+            color:var(--sch-blue, #0F6CBD);
+            letter-spacing:.02em;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-title{
+            font-size:13px;font-weight:600;color:var(--text);
+            letter-spacing:-.005em;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-row{
+            display:grid;
+            grid-template-columns:120px 1fr;
+            gap:var(--s-3);
+            padding:3px 0;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-lbl{
+            font-size:10px;font-weight:700;color:var(--text-subtle);
+            text-transform:uppercase;letter-spacing:.06em;
+            padding-top:3px;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-lbl-on{
+            color:#15803D;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-lbl-off{
+            color:#B45309;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-text{
+            font-size:13px;color:var(--text-muted);line-height:1.5;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-text em{
+            font-style:italic;color:var(--text);
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-text strong{
+            color:var(--text);font-weight:600;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-h3{
+            font-size:13px;font-weight:700;color:var(--text);
+            margin:var(--s-4) 0 var(--s-2);
+            letter-spacing:-.005em;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-table{
+            width:100%;border-collapse:collapse;font-size:12px;
+            margin-bottom:var(--s-3);
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-table th{
+            text-align:left;font-size:10px;font-weight:700;
+            color:var(--text-subtle);
+            text-transform:uppercase;letter-spacing:.06em;
+            padding:6px 10px;
+            background:var(--sch-surface-2, var(--canvas));
+            border-bottom:1px solid var(--sch-line-subtle, var(--border-subtle));
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-table td{
+            padding:7px 10px;color:var(--text);
+            border-top:1px solid var(--sch-line-subtle, var(--border-subtle));
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-table tr:first-child td{border-top:0}
+          #rr-vans-rules-explainer-modal .rr-rule-explain-notes{
+            margin:var(--s-3) 0 0;padding:0 0 0 18px;
+            font-size:12px;color:var(--text-muted);line-height:1.55;
+          }
+          #rr-vans-rules-explainer-modal .rr-rule-explain-notes li{margin-bottom:4px}
+          #rr-vans-rules-explainer-modal .rr-rule-explain-notes strong{color:var(--text);font-weight:600}
           #view-schedule .sched-smartfill-rules-body{
             display:flex;flex-direction:column;
             max-height:60vh;overflow-y:auto;
-          }
-          /* Protected / exempted VIN list · sits below the rule
-             checkboxes in the van-rules popover. Calm Microsoft
-             "supplementary" tone — uppercase eyebrow heading,
-             one row per excluded van with the reason. No CTA,
-             no edit affordance; this is informational only. */
-          #view-schedule .sched-van-rules-exempted{
-            margin-top:4px;
-            border-top:1px solid rgba(15,23,42,.08);
-            padding:8px 14px 4px;
-            background:var(--sch-surface-2, #FAFBFC);
-            font-size:11px;color:var(--text-subtle);
-          }
-          #view-schedule .sched-van-rules-exempted[hidden]{display:none}
-          #view-schedule .sched-van-rules-exempted-head{
-            font-size:10px;font-weight:700;
-            text-transform:uppercase;letter-spacing:.06em;
-            color:var(--text-subtle);
-            margin-bottom:4px;
-          }
-          #view-schedule .sched-van-rules-exempted-row{
-            display:flex;align-items:center;gap:6px;
-            padding:3px 0;
-            font-size:11px;color:var(--text);
-            line-height:1.35;
-          }
-          #view-schedule .sched-van-rules-exempted-dot{
-            display:inline-block;width:6px;height:6px;border-radius:50%;
-            flex:0 0 auto;
-            background:var(--text-subtle);
-          }
-          #view-schedule .sched-van-rules-exempted-name{
-            font-weight:600;color:var(--text);
-            font-variant-numeric:tabular-nums;
-            min-width:36px;
-          }
-          #view-schedule .sched-van-rules-exempted-reason{
-            color:var(--text-subtle);font-weight:500;
-          }
-          #view-schedule .sched-van-rules-exempted-empty{
-            color:var(--text-subtle);font-style:normal;font-size:11px;
           }
           #view-schedule .sched-smartfill-rule{
             display:flex;align-items:center;gap:10px;
