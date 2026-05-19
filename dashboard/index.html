@@ -11187,23 +11187,23 @@ body.rr-cmdk-open{ overflow:hidden }
 
           <div class="sched-nav-heading-actions">
           <div class="subnav" data-rr-tabbar="schedule">
-            <button class="subnav-item" data-sub="today" onclick="schedSub('today')">
+            <button class="subnav-item" data-sub="today" data-rr-tile="today" draggable="true" onclick="schedSub('today')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15" r="2.2" fill="currentColor"/></svg>
               <span>Today view</span>
             </button>
-            <button class="subnav-item active" data-sub="week" onclick="schedSub('week')">
+            <button class="subnav-item active" data-sub="week" data-rr-tile="week" draggable="true" onclick="schedSub('week')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
               <span>Week view</span>
             </button>
-            <button class="subnav-item" data-sub="staff" onclick="schedSub('staff')">
+            <button class="subnav-item" data-sub="staff" data-rr-tile="staff" draggable="true" onclick="schedSub('staff')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               <span>Staff</span>
             </button>
-            <button class="subnav-item" data-sub="templates" onclick="schedSub('templates')">
+            <button class="subnav-item" data-sub="templates" data-rr-tile="templates" draggable="true" onclick="schedSub('templates')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
               <span>Templates</span>
             </button>
-            <button class="subnav-item" data-sub="requests" onclick="schedSub('requests')">
+            <button class="subnav-item" data-sub="requests" data-rr-tile="requests" draggable="true" onclick="schedSub('requests')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
               <span>Requests</span>
               <span class="nav-badge" id="rr-sched-time-off-badge" style="display:none">0</span>
@@ -11215,20 +11215,20 @@ body.rr-cmdk-open{ overflow:hidden }
                as the nav tabs, separated by a thin Outlook-style
                group divider. -->
           <div class="sched-ribbon-actions" id="rr-sched-page-actions">
-            <button class="sched-page-btn" id="rr-sched-smartfill-h" type="button" onclick="openAiSchedule()" title="Auto-staff this week from your rules + OKAMI demand">
+            <button class="sched-page-btn" id="rr-sched-smartfill-h" data-rr-tile="smartfill" draggable="true" type="button" onclick="openAiSchedule()" title="Auto-staff this week from your rules + OKAMI demand">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               Smart Fill
             </button>
-            <button class="sched-page-btn" id="rr-sched-okami-open-h" type="button" title="Route planning for this week" aria-label="Route planning">
+            <button class="sched-page-btn" id="rr-sched-okami-open-h" data-rr-tile="okami" draggable="true" type="button" title="Route planning for this week" aria-label="Route planning">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 16 11 19 16 14"/></svg>
               Route planning
             </button>
-            <button class="sched-page-btn" id="rr-sched-vans-h" type="button" title="Van assignments board" aria-label="Van assignments">
+            <button class="sched-page-btn" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Van assignments board" aria-label="Van assignments">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h12v10H3z"/><path d="M15 11h4l2 3v3h-6z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
               Van Assignments
             </button>
             <div class="sched-settings-split">
-              <button class="sched-page-btn" id="rr-sched-settings-open-h" type="button" title="Schedule settings for this week" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-quick-settings-popover" aria-label="Schedule settings">
+              <button class="sched-page-btn" id="rr-sched-settings-open-h" data-rr-tile="settings" draggable="true" type="button" title="Schedule settings for this week" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-quick-settings-popover" aria-label="Schedule settings">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 Settings
               </button>
@@ -11284,7 +11284,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 </div>
               </div>
             </div>
-            <button class="sched-page-btn" id="rr-sched-finalize-h" type="button" title="Push this week's schedule to drivers">
+            <button class="sched-page-btn" id="rr-sched-finalize-h" data-rr-tile="finalize" draggable="true" type="button" title="Push this week's schedule to drivers">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               Finalize
             </button>
@@ -12166,6 +12166,34 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:0 0 auto;
             display:block;
             height:32px;align-self:center;
+          }
+
+          /* Drag-to-reorder for the navigation tiles (action strip +
+             nav tabs). Browsers paint a default dotted focus outline
+             on draggable buttons during the drag and on focus; null
+             every form here so the strip never shows a dotted box.
+             The drop indicator is a clean 2 px Fluent-blue rail on
+             the leading edge of the target tile. */
+          #view-schedule .sched-nav-heading-actions [draggable="true"]{cursor:grab}
+          #view-schedule .sched-nav-heading-actions [draggable="true"]:active{cursor:grabbing}
+          #view-schedule .sched-nav-heading-actions .sched-page-btn:focus,
+          #view-schedule .sched-nav-heading-actions .sched-page-btn:focus-visible,
+          #view-schedule .sched-nav-heading-actions .subnav-item:focus,
+          #view-schedule .sched-nav-heading-actions .subnav-item:focus-visible{
+            outline:none !important;
+          }
+          #view-schedule .sched-nav-heading-actions .sched-page-btn::-moz-focus-inner,
+          #view-schedule .sched-nav-heading-actions .subnav-item::-moz-focus-inner{
+            border:0;padding:0;
+          }
+          #view-schedule .sched-nav-heading-actions .rr-tile-dragging{
+            opacity:.45;
+          }
+          #view-schedule .sched-nav-heading-actions .rr-tile-drop-before{
+            box-shadow:inset 3px 0 0 0 var(--sch-blue) !important;
+          }
+          #view-schedule .sched-nav-heading-actions .rr-tile-drop-after{
+            box-shadow:inset -3px 0 0 0 var(--sch-blue) !important;
           }
 
           /* Per-icon dividers · soft Fluent line between every tile
