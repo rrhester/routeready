@@ -542,10 +542,10 @@ a{color:inherit;text-decoration:none}
 .nav{display:flex;flex-direction:column;gap:1px;flex:1;min-height:0;overflow-y:auto}
 .nav-item{
   position:relative;
-  display:flex;align-items:center;gap:var(--s-2-5);
-  padding:7px var(--s-3);border-radius:var(--r-md);
-  color:rgba(226,232,240,.78);
-  font-size:var(--fs-md);font-weight:500;letter-spacing:0;
+  display:flex;align-items:center;gap:var(--s-3);
+  padding:6px var(--s-3);border-radius:var(--r-md);
+  color:rgba(226,232,240,.72);
+  font-size:var(--fs-sm);font-weight:500;letter-spacing:0;
   cursor:pointer;
   transition:background var(--t-smooth), color var(--t-smooth);
   border:none;background:transparent;text-align:left;width:100%;
@@ -585,23 +585,25 @@ a{color:inherit;text-decoration:none}
   color:var(--ni-fg, #fff);
 }
 /* Icon strokes — calm operational weight; no glow / drop-shadow.
-   Width/height stepped up 50% (15→23) per operator ask; the nav-icon
-   container bumped in lockstep (26→39) so the tile padding stays
-   consistent with the larger glyph. */
+   Sized for the Outlook icon-forward rail: 26 px monoline glyphs
+   sit in a transparent container so the icon reads as the primary
+   signal, with a quieter label next to it (instead of a tinted
+   tile competing with the glyph). */
 .nav-item svg{
-  width:23px;height:23px;flex-shrink:0;stroke-width:2;
+  width:26px;height:26px;flex-shrink:0;stroke-width:1.8;
   transition:color var(--t-smooth);
 }
 .nav-badge{ display:none }
 
-/* Tinted icon container — Fluent-style soft tile.  Saturation
-   dialed down ~10-15%; container brightness matches the calm
-   sidebar atmosphere instead of competing with it. */
+/* Transparent icon container — no tile background by default.
+   Active rows still get a subtle tinted background on the
+   container so the operator can see which row is selected at a
+   glance, but inactive rows are pure icon-on-rail. */
 .nav-icon{
   display:inline-flex;align-items:center;justify-content:center;
-  width:39px;height:39px;border-radius:var(--r-md);flex-shrink:0;
-  background:var(--ni-bg, rgba(255,255,255,.04));
-  color:var(--ni-fg, var(--text-inverse-muted));
+  width:32px;height:32px;border-radius:var(--r-md);flex-shrink:0;
+  background:transparent;
+  color:var(--ni-fg, var(--text-inverse));
   transition:background var(--t-smooth), color var(--t-smooth);
 }
 /* Active icon: lean on the category's `--ni-bg-strong` (defined per
