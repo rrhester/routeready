@@ -11228,12 +11228,10 @@ body.rr-cmdk-open{ overflow:hidden }
                group divider. -->
           <div class="sched-ribbon-actions" id="rr-sched-page-actions">
             <div class="sched-smartfill-split">
-              <button class="sched-page-btn sched-page-btn--split" id="rr-sched-smartfill-h" data-rr-tile="smartfill" draggable="true" type="button" title="Auto-staff this week from your rules + OKAMI demand">
+              <button class="sched-page-btn sched-page-btn--has-rules" id="rr-sched-smartfill-h" data-rr-tile="smartfill" draggable="true" type="button" title="Auto-staff this week from your rules + OKAMI demand">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 Smart Fill
-                <span class="sched-page-btn-split-toggle" id="rr-sched-smartfill-rules-toggle" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-smartfill-rules-popover" title="Smart Fill rules">
-                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-                </span>
+                <span class="sched-page-btn-rules-toggle" id="rr-sched-smartfill-rules-toggle" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-smartfill-rules-popover" title="Smart Fill rules — toggle parts of the auto-staff logic on/off">R</span>
               </button>
               <!-- Smart Fill rules popover · checkboxes per rule so
                    the DSP can toggle which rules apply on the next
@@ -11252,6 +11250,16 @@ body.rr-cmdk-open{ overflow:hidden }
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="wave_times" checked> <span class="sf-rule-name">Use configured Wave start times</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="service_types" checked> <span class="sf-rule-name">Only auto-fill active service types</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="max_hours" checked> <span class="sf-rule-name">Cap each driver at the weekly hour limit</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="consecutive_days"> <span class="sf-rule-name">Prefer consecutive working days (days off cluster back-to-back)</span></label>
+                  <div class="sched-smartfill-rule-advanced" data-rr-sf-advanced-of="consecutive_days">
+                    <span class="sf-advanced-label">Tiebreaker when multiple drivers can extend a run:</span>
+                    <select class="form-input sf-advanced-select" data-rr-sf-tiebreaker>
+                      <option value="inherit">Use week's setting (default)</option>
+                      <option value="least_loaded">Fewest shifts so far</option>
+                      <option value="seniority">Most senior (hire date)</option>
+                      <option value="fairness">Least recently honored</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -12485,12 +12493,12 @@ body.rr-cmdk-open{ overflow:hidden }
              secondary chain / pool / FEM priority / auto-rescue).
              Sits above the existing bottom-right chain-editor
              chevron; both can co-exist on the same split tile. */
-          #view-schedule .sched-page-btn--has-rules{padding-top:14px}
+          #view-schedule .sched-page-btn--has-rules{padding-top:18px}
           #view-schedule .sched-page-btn-rules-toggle{
-            position:absolute;right:2px;top:2px;
-            min-width:16px;height:16px;padding:0 3px;border-radius:4px;
+            position:absolute;right:3px;top:3px;
+            min-width:24px;height:24px;padding:0 5px;border-radius:5px;
             display:inline-flex;align-items:center;justify-content:center;
-            font-size:10px;font-weight:700;line-height:1;
+            font-size:14px;font-weight:700;line-height:1;
             font-family:'Inter Tight','Inter',system-ui,sans-serif;
             letter-spacing:0;
             color:var(--text-subtle);
@@ -12564,6 +12572,26 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-smartfill-rule .sf-rule-name{
             flex:1;line-height:1.3;
+          }
+          /* Advanced sub-row nested under a Smart Fill rule —
+             only enabled when its parent rule is checked. Hidden
+             when the parent is off (we toggle .is-on via JS). */
+          #view-schedule .sched-smartfill-rule-advanced{
+            display:flex;align-items:center;gap:8px;
+            padding:6px 14px 8px 38px;
+            font-size:12px;color:#444;
+            opacity:.4;pointer-events:none;
+            transition:opacity 120ms linear;
+          }
+          #view-schedule .sched-smartfill-rule-advanced.is-on{
+            opacity:1;pointer-events:auto;
+          }
+          #view-schedule .sched-smartfill-rule-advanced .sf-advanced-label{
+            flex:0 0 auto;color:#666;
+          }
+          #view-schedule .sched-smartfill-rule-advanced .sf-advanced-select{
+            flex:1 1 auto;min-width:0;
+            font-size:12px;padding:4px 8px;
           }
 
           /* Settings split-button — main tile opens the full drawer,
