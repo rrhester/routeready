@@ -13271,10 +13271,13 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--sch-blue-soft);
           }
 
-          /* Calendar cell */
+          /* Calendar cell — premium grid pass: padding bumped 6→10
+             and min-height 60→68 for ~12–15% more breathing room per
+             row. Keep this in sync with the earlier .cal-cell rule
+             above so the cascade doesn't silently undo the bump. */
           #view-schedule .cal-cell{
             border-right:1px solid var(--sch-line-subtle);
-            padding:6px;min-height:60px;
+            padding:10px;min-height:68px;
             display:flex;align-items:stretch;justify-content:stretch;
             cursor:pointer;
             transition:background var(--t-fast);
