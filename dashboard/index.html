@@ -11637,21 +11637,30 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
             <div class="sched-vans-rules-split">
               <button class="sched-page-btn sched-page-btn--split" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
-                <svg class="rr-van-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <!-- Cargo bay fill (transparent by default; blue-soft when vans are assigned) -->
-                  <path class="rr-van-fill" d="M3 7.5h11v8.5H3z"/>
-                  <!-- Cab fill -->
-                  <path class="rr-van-fill" d="M14 10.5h4.4L21 13.5V16h-7v-5.5z"/>
-                  <!-- Outlines -->
-                  <path d="M3 7.5h11v8.5H3z"/>
-                  <path d="M14 10.5h4.4L21 13.5V16h-7"/>
-                  <!-- Wheels · stroked + hub dot for that polished delivery-van look -->
-                  <circle cx="7"  cy="17.2" r="1.9"/>
-                  <circle cx="17" cy="17.2" r="1.9"/>
-                  <circle class="rr-van-hub" cx="7"  cy="17.2" r=".55"/>
-                  <circle class="rr-van-hub" cx="17" cy="17.2" r=".55"/>
-                  <!-- Cab window slit -->
-                  <line x1="15.6" y1="11.8" x2="20" y2="11.8"/>
+                <!-- Front-view sprinter-style van silhouette per
+                     operator. Body fills with currentColor; CSS
+                     swaps the color via data-rr-assigned and
+                     data-rr-finalized on the tile:
+                       · default      · gray outline (no body fill)
+                       · assigned     · brand-blue body
+                       · finalized    · brand-red body (locked) -->
+                <svg class="rr-van-svg" viewBox="0 0 24 24" stroke="none" aria-hidden="true">
+                  <!-- Body silhouette · rounded-top cab + lower bumper + wheel arches -->
+                  <path class="rr-van-body" fill="currentColor" d="M6.6 4.4h10.8a1.4 1.4 0 0 1 1.4 1.4V18.6a.5.5 0 0 1-.5.5h-1l-.25.85a.4.4 0 0 1-.38.28h-1.16a.4.4 0 0 1-.38-.28L15 19.1H9l-.18.85a.4.4 0 0 1-.38.28H7.28a.4.4 0 0 1-.38-.28L6.65 19.1h-1a.5.5 0 0 1-.5-.5V5.8A1.4 1.4 0 0 1 6.55 4.4z"/>
+                  <!-- Windshield knockout -->
+                  <rect x="7.3" y="6.6" width="9.4" height="4.6" rx=".25" fill="#fff"/>
+                  <!-- Wipers -->
+                  <line x1="8" y1="11.1" x2="11" y2="9.2" stroke="#fff" stroke-width=".55" stroke-linecap="round"/>
+                  <line x1="13" y1="9.2" x2="16" y2="11.1" stroke="#fff" stroke-width=".55" stroke-linecap="round"/>
+                  <!-- Hood seam -->
+                  <line x1="6.6" y1="12.3" x2="17.4" y2="12.3" stroke="#fff" stroke-width=".6"/>
+                  <!-- Headlights · angled inward toward the grille -->
+                  <path d="M6.6 13.6 h2.4 l-.4 1.1 h-2 z" fill="#fff"/>
+                  <path d="M17.4 13.6 h-2.4 l.4 1.1 h2 z" fill="#fff"/>
+                  <!-- Grille -->
+                  <rect x="9.6" y="13.9" width="4.8" height="1.5" rx=".25" fill="#fff"/>
+                  <!-- License plate -->
+                  <rect x="10.2" y="16.4" width="3.6" height="1" rx=".2" fill="#fff"/>
                 </svg>
                 Assign
                 <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
@@ -12879,19 +12888,19 @@ body.rr-cmdk-open{ overflow:hidden }
             stroke:currentColor;
           }
 
-          /* Van tile · state-aware monoline.
-             · Unassigned · gray monoline (utility tone — operator needs to act)
-             · Assigned   · van turns blue + cargo + cab pick up a soft-blue fill */
+          /* Van tile · front-view silhouette, state-aware fill.
+             · Default          · gray outline-only (text-subtle)
+             · Assigned         · brand-blue body fill
+             · Finalized        · brand-red body fill (locked)
+             The body path uses fill:currentColor so flipping the
+             color cascades to the silhouette automatically. */
           #view-schedule #rr-sched-vans-h .rr-van-svg{
             color:var(--text-subtle);
             transition:color var(--t-fast,150ms);
+            overflow:visible;
           }
-          #view-schedule #rr-sched-vans-h .rr-van-fill{
-            fill:transparent;stroke:none;
+          #view-schedule #rr-sched-vans-h .rr-van-body{
             transition:fill var(--t-fast,150ms);
-          }
-          #view-schedule #rr-sched-vans-h .rr-van-hub{
-            fill:currentColor;stroke:none;
           }
           #view-schedule #rr-sched-vans-h:hover .rr-van-svg{
             color:var(--text);
@@ -12899,11 +12908,11 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule #rr-sched-vans-h[data-rr-assigned="1"] .rr-van-svg{
             color:var(--sch-blue);
           }
-          #view-schedule #rr-sched-vans-h[data-rr-assigned="1"] .rr-van-fill{
-            fill:var(--sch-blue-softer);
+          #view-schedule #rr-sched-vans-h[data-rr-finalized="1"] .rr-van-svg{
+            color:#C42B1C;
           }
-          #view-schedule #rr-sched-vans-h[data-rr-assigned="1"]:hover .rr-van-fill{
-            fill:var(--sch-blue-soft);
+          #view-schedule #rr-sched-vans-h[data-rr-finalized="1"]:hover .rr-van-svg{
+            color:#A11E13;
           }
 
           /* WORKFLOW primary accent — single CTA in the strip. */

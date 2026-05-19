@@ -23755,6 +23755,11 @@ function _updateFinalizeButton() {
     }
   }
 
+  // Mirror finalize state onto the Assign-Vans tile so its van
+  // silhouette can flip color (CSS reads data-rr-finalized).
+  const vansBtn = document.getElementById("rr-sched-vans-h");
+  if (vansBtn) vansBtn.dataset.rrFinalized = isFinal ? "1" : "0";
+
   // ✓ LIVE pill · anchored inside the page title (next to "Schedule")
   // so it never overlaps the navigation tiles. Previously appended to
   // the page-sub which sat below the title — it bled into the Week
