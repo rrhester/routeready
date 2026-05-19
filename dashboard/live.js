@@ -26765,13 +26765,7 @@ function _schedShiftChip(sh, extras) {
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';
-  // Ambient recognition · soft warm ring + tiny corner sparkle on
-  // hover when the driver has any recognition in the last 14 days.
-  const recogCls = extras?.recognized ? ' is-recognized' : '';
-  const recogTip = (extras?.recognized && extras.recognized.title)
-    ? ` · ${escapeHtml(extras.recognized.title)}`
-    : (extras?.recognized ? " · Recently recognized" : "");
-  return `<div class="shift-chip${routineCls}${recogCls}" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove${recogTip}">${eyebrowRoute}${startLine}${waveLine}</div>`;
+  return `<div class="shift-chip${routineCls}" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove">${eyebrowRoute}${startLine}${waveLine}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -27614,13 +27608,12 @@ async function renderScheduleWeek() {
         const routine = sh.shift_kind === "regular" && _rowDefaultKey !== "" && key === _rowDefaultKey;
         const extras = (sh.shift_kind === "regular" && traineeName) ? { traineeName } : {};
         if (routine) extras.routine = true;
-        if (d._recognized) extras.recognized = d._recognizedSummary || true;
         return _schedShiftChip(sh, Object.keys(extras).length ? extras : null);
       }).join("");
       return `<div class="${cls}"${rel} ${data}>${star}${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(hoursLabel)}</div></div></div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${d._recognized ? `<span class="cal-row-label-recog" title="Recognized recently${d._recognizedSummary?.title ? ` · ${escapeHtml(d._recognizedSummary.title)}` : ""}" aria-label="Recognized recently"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 14.5 9.5 22 12 14.5 14.5 12 22 9.5 14.5 2 12 9.5 9.5"/></svg></span>` : ""}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(hoursLabel)}</div></div></div>
       ${cells}
     </div>`;
   }).join("");
