@@ -26691,15 +26691,21 @@ function _schedShiftChip(sh, extras) {
     : (stBadge || traineeBadge)
       ? `<div class="shift-chip-route-code">${stBadge}${traineeBadge}</div>`
       : "";
-  const waveDisplay = waveStr
-    ? `<div class="shift-chip-row"><span class="shift-chip-row-lbl">Wave</span><span class="shift-chip-row-val">${waveStr}${endStr ? ` – ${endStr}` : ""}</span></div>`
+  // Line 1 · Start (report time) + End (block end)
+  // Line 2 · Wave time (when routes dispatch)
+  // Line 3 · Van # (appended later by the post-Assign-Vans decorator)
+  const startLine = (reportStr || endStr)
+    ? `<div class="shift-chip-row">
+         ${reportStr ? `<span class="shift-chip-row-lbl">Start</span><span class="shift-chip-row-val">${reportStr}</span>` : ""}
+         ${endStr   ? `<span class="shift-chip-row-lbl shift-chip-row-lbl--mid">End</span><span class="shift-chip-row-val">${endStr}</span>` : ""}
+       </div>`
     : "";
-  const startDisplay = (_reportLead > 0 && reportStr)
-    ? `<div class="shift-chip-row"><span class="shift-chip-row-lbl">Start</span><span class="shift-chip-row-val">${reportStr}</span></div>`
+  const waveLine = waveStr
+    ? `<div class="shift-chip-row"><span class="shift-chip-row-lbl">Wave time</span><span class="shift-chip-row-val">${waveStr}</span></div>`
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';
-  return `<div class="shift-chip${routineCls}" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove">${eyebrowRoute}${waveDisplay}${startDisplay}</div>`;
+  return `<div class="shift-chip${routineCls}" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove">${eyebrowRoute}${startLine}${waveLine}</div>`;
 }
 
 function _schedDriverInitials(name) {

@@ -2152,23 +2152,17 @@ function shiftCardHtml(s, isToday, vanInfo, opts) {
   const day = s.date.getDate();
   const month = s.date.toLocaleDateString(undefined, { month: "short" });
 
-  // The block range using starts_at / ends_at IS the scheduled time —
-  // the time we're telling the driver to arrive at the station and the
-  // hours they're being paid for. When the DSP has set a report-lead,
-  // the route's actual departure time (wave_starts_at = starts_at +
-  // report_lead) is rendered as a small "Wave HH:MMam" tag on the
-  // right of the time row so the driver can tell the two apart at a
-  // glance. No tag when scheduled == wave (lead = 0) to avoid
-  // redundant info.
-  const blockRange = (s.starts_at && s.ends_at)
-    ? `${fmtTime(s.starts_at)} – ${fmtTime(s.ends_at)}`
-    : "";
+  // Line 1 · "Start 9:40am  End 8:00pm" — what the driver clocks
+  //          in / out at (matches their paid block).
+  // Line 2 · "Wave time 10:00am"        — when their wave actually
+  //          dispatches; only shown when it differs from Start
+  //          (i.e. the DSP set a report-lead).
+  const startTxt = s.starts_at ? fmtTime(s.starts_at) : "";
+  const endTxt   = s.ends_at   ? fmtTime(s.ends_at)   : "";
   const hasLead = s.reportLeadMinutes > 0
     && s.wave_starts_at
     && new Date(s.wave_starts_at).getTime() !== new Date(s.starts_at).getTime();
-  const waveTag = hasLead
-    ? `<span class="meta-wave-tag">Wave ${escapeHtml(fmtTime(s.wave_starts_at))}</span>`
-    : "";
+  const waveTxt = hasLead ? fmtTime(s.wave_starts_at) : "";
 
   const tags = [];
   if (s.status === "completed") tags.push(`<span class="tag" style="background:var(--canvas)">Completed</span>`);
@@ -2203,9 +2197,12 @@ function shiftCardHtml(s, isToday, vanInfo, opts) {
       </div>
       <div style="flex:1;min-width:0">
         <div class="meta-time-row">
-          <div class="meta-time">${escapeHtml(blockRange)}</div>
-          ${waveTag}
+          <div class="meta-time">
+            ${startTxt ? `<span class="meta-time-lbl">Start</span> <span class="meta-time-val">${escapeHtml(startTxt)}</span>` : ""}
+            ${endTxt ? `<span class="meta-time-lbl meta-time-lbl--mid">End</span> <span class="meta-time-val">${escapeHtml(endTxt)}</span>` : ""}
+          </div>
         </div>
+        ${waveTxt ? `<div class="meta-wave-line"><span class="meta-time-lbl">Wave time</span> <span class="meta-time-val">${escapeHtml(waveTxt)}</span></div>` : ""}
         <div class="meta-station">${escapeHtml(stationLine)}${isOnboardingShift && s.station ? ` · ${escapeHtml(s.station)}` : ""}</div>
         ${vanName ? `<div style="margin-top:4px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)">Vehicle ${escapeHtml(vanName)}${isRotation ? ` <span style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#B45309;background:rgba(180,83,9,.10);border:1px solid rgba(180,83,9,.20);border-radius:3px;padding:1px 5px;margin-left:5px">Rotation</span>` : ""}</div>` : ""}
         ${wxSlot}
