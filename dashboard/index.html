@@ -11637,7 +11637,22 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
             <div class="sched-vans-rules-split">
               <button class="sched-page-btn sched-page-btn--split" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path class="van-cargo" d="M3 7h12v10H3z"/><path class="van-cab" d="M15 11h4l2 3v3h-6z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
+                <svg class="rr-van-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <!-- Cargo bay fill (transparent by default; blue-soft when vans are assigned) -->
+                  <path class="rr-van-fill" d="M3 7.5h11v8.5H3z"/>
+                  <!-- Cab fill -->
+                  <path class="rr-van-fill" d="M14 10.5h4.4L21 13.5V16h-7v-5.5z"/>
+                  <!-- Outlines -->
+                  <path d="M3 7.5h11v8.5H3z"/>
+                  <path d="M14 10.5h4.4L21 13.5V16h-7"/>
+                  <!-- Wheels · stroked + hub dot for that polished delivery-van look -->
+                  <circle cx="7"  cy="17.2" r="1.9"/>
+                  <circle cx="17" cy="17.2" r="1.9"/>
+                  <circle class="rr-van-hub" cx="7"  cy="17.2" r=".55"/>
+                  <circle class="rr-van-hub" cx="17" cy="17.2" r=".55"/>
+                  <!-- Cab window slit -->
+                  <line x1="15.6" y1="11.8" x2="20" y2="11.8"/>
+                </svg>
                 Assign
                 <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
                   <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
@@ -12859,15 +12874,36 @@ body.rr-cmdk-open{ overflow:hidden }
              check decoration so all icons read as monoline. The
              override is scoped to the grouped ribbon so it doesn't
              leak into other views. */
-          #view-schedule .sched-ribbon-actions--grouped .sched-page-btn .van-cargo,
-          #view-schedule .sched-ribbon-actions--grouped .sched-page-btn .van-cab{
-            fill:none;stroke:currentColor;
-          }
-          #view-schedule .sched-ribbon-actions--grouped .sched-page-btn .rp-check{
-            stroke:currentColor;
-          }
+          #view-schedule .sched-ribbon-actions--grouped .sched-page-btn .rp-check,
           #view-schedule .sched-ribbon-actions--grouped .sched-page-btn .rp-cal{
             stroke:currentColor;
+          }
+
+          /* Van tile · state-aware monoline.
+             · Unassigned · gray monoline (utility tone — operator needs to act)
+             · Assigned   · van turns blue + cargo + cab pick up a soft-blue fill */
+          #view-schedule #rr-sched-vans-h .rr-van-svg{
+            color:var(--text-subtle);
+            transition:color var(--t-fast,150ms);
+          }
+          #view-schedule #rr-sched-vans-h .rr-van-fill{
+            fill:transparent;stroke:none;
+            transition:fill var(--t-fast,150ms);
+          }
+          #view-schedule #rr-sched-vans-h .rr-van-hub{
+            fill:currentColor;stroke:none;
+          }
+          #view-schedule #rr-sched-vans-h:hover .rr-van-svg{
+            color:var(--text);
+          }
+          #view-schedule #rr-sched-vans-h[data-rr-assigned="1"] .rr-van-svg{
+            color:var(--sch-blue);
+          }
+          #view-schedule #rr-sched-vans-h[data-rr-assigned="1"] .rr-van-fill{
+            fill:var(--sch-blue-softer);
+          }
+          #view-schedule #rr-sched-vans-h[data-rr-assigned="1"]:hover .rr-van-fill{
+            fill:var(--sch-blue-soft);
           }
 
           /* WORKFLOW primary accent — single CTA in the strip. */
