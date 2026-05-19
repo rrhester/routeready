@@ -42444,3 +42444,36 @@ document.addEventListener("click", async (e) => {
     }
   });
 })();
+
+// ── Schedule auto-boot ─────────────────────────────────────────────
+// Schedule is the default active view on page load (see #view-
+// schedule.active in index.html). Without a goto('schedule') the
+// static mockup HTML inside the view container stays visible until
+// the operator clicks the sidebar item. Auto-fire the schedule
+// loaders once auth has resolved so a refresh paints real data
+// straight away. Gate on window.RR.dsp.id (set in the boot path)
+// and retry briefly until it's available, then fire once.
+(function () {
+  let fired = false;
+  const tryFire = () => {
+    if (fired) return true;
+    if (!document.querySelector("#view-schedule.view.active")) return true; // not the default — nothing to do
+    if (!window.RR?.dsp?.id) return false; // auth not ready yet
+    if (typeof window.goto !== "function") return false; // goto wrappers haven't settled
+    fired = true;
+    try { window.goto("schedule"); } catch (e) { console.warn("schedule auto-boot:", e); }
+    return true;
+  };
+  const start = () => {
+    if (tryFire()) return;
+    let n = 0;
+    const t = setInterval(() => {
+      if (tryFire() || ++n > 60) clearInterval(t);
+    }, 100);
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
+})();
