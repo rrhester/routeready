@@ -23339,10 +23339,76 @@ function _toggleSchedVanRules(force) {
   const next = (typeof force === "boolean") ? force : !isOpen;
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
-  if (next) _restoreSchedVanRules();
+  if (next) {
+    _restoreSchedVanRules();
+    // Surface the protected / exempted VIN list each time the
+    // popover opens so the operator can see at a glance what's
+    // currently excluded from rotation (grounded / archived /
+    // retired). Fired async; the popover stays open while the
+    // fetch resolves.
+    if (typeof _rrRenderVanRulesExempted === "function") _rrRenderVanRulesExempted();
+  }
   return next;
 }
 window._rrToggleSchedVanRules = _toggleSchedVanRules;
+
+// Fetch + paint the "Excluded from rotation today" list inside
+// the van-rules popover. Reads vehicles for the current DSP and
+// shows every entry the resolver would skip — operator gets a
+// concrete list of edge cases instead of wondering "is my
+// grounded van being counted?"
+async function _rrRenderVanRulesExempted() {
+  const host = document.getElementById("rr-sched-vans-rules-exempted");
+  if (!host) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { host.innerHTML = ""; return; }
+  host.innerHTML = `<div class="sched-van-rules-exempted-head">Excluded from rotation today</div><div class="sched-van-rules-exempted-empty">Loading…</div>`;
+  let res;
+  try {
+    res = await sb.from("vehicles")
+      .select("id, name, status, operational_status, archived_at, is_branded")
+      .eq("dsp_id", dspId);
+  } catch (e) {
+    host.innerHTML = `<div class="sched-van-rules-exempted-head">Excluded from rotation today</div><div class="sched-van-rules-exempted-empty">Couldn't load · ${escapeHtml(e?.message || String(e))}</div>`;
+    return;
+  }
+  if (res?.error) {
+    host.innerHTML = `<div class="sched-van-rules-exempted-head">Excluded from rotation today</div><div class="sched-van-rules-exempted-empty">Couldn't load · ${escapeHtml(res.error.message)}</div>`;
+    return;
+  }
+  const all = res.data || [];
+  // Same filter the resolver applies in reverse — any van that
+  // FAILS the active/spare + non-grounded + non-archived check
+  // is "exempted."
+  const exempted = all.filter(v =>
+       v.archived_at != null
+    || !["active","spare"].includes(v.status)
+    || (v.operational_status || "operational") === "grounded"
+  );
+  const reasonFor = (v) => {
+    if (v.archived_at != null) return "Archived";
+    if ((v.operational_status || "operational") === "grounded") return "Grounded";
+    if (v.status === "retired")        return "Retired";
+    if (v.status === "out_of_service") return "Out of service";
+    if (v.status === "inactive")       return "Inactive";
+    return v.status ? `Status: ${v.status}` : "Excluded";
+  };
+  if (exempted.length === 0) {
+    host.innerHTML = `<div class="sched-van-rules-exempted-head">Excluded from rotation today</div><div class="sched-van-rules-exempted-empty">Every van is eligible · nothing excluded.</div>`;
+    return;
+  }
+  // Sort by name, branded vans first inside same-name for the
+  // (extremely unlikely) collisions.
+  exempted.sort((a, b) =>
+    (a.name || "").localeCompare(b.name || "")
+    || ((a.is_branded === false) ? 1 : 0) - ((b.is_branded === false) ? 1 : 0)
+  );
+  host.innerHTML = `<div class="sched-van-rules-exempted-head">Excluded from rotation today · ${exempted.length}</div>` +
+    exempted.map(v =>
+      `<div class="sched-van-rules-exempted-row"><span class="sched-van-rules-exempted-dot" aria-hidden="true"></span><span class="sched-van-rules-exempted-name">${escapeHtml(v.name || "—")}</span><span class="sched-van-rules-exempted-reason">${escapeHtml(reasonFor(v))}${v.is_branded === false ? " · non-branded" : ""}</span></div>`
+    ).join("");
+}
+window._rrRenderVanRulesExempted = _rrRenderVanRulesExempted;
 // Public reader so _assignVansForRange can query the live rule
 // state without a DOM read.
 window._rrLoadVanRules = function () {
@@ -24062,16 +24128,24 @@ async function renderSchedVanAssignmentsBoard() {
 
   body.innerHTML = `<div class="rr-loading">Loading van assignments…</div>`;
 
-  // Fetch the same data the workspaces "Van assignments" board uses.
-  let vRes, dRes;
+  // Fetch the same data the workspaces "Van assignments" board uses,
+  // plus a 14-day window of vehicle_day_assignments so we can paint
+  // a per-row rotation heat map (audit item #5).
+  const todayIso = fmtIsoDate(new Date());
+  const heatmapStartIso = fmtIsoDate(addDays(new Date(todayIso + "T12:00:00"), -13));
+  let vRes, dRes, hRes;
   try {
-    [vRes, dRes] = await Promise.all([
+    [vRes, dRes, hRes] = await Promise.all([
       sb.rpc("vehicles_list"),
       sb.from("drivers")
         .select("id, full_name, preferred_name")
         .eq("dsp_id", dspId).eq("status", "active")
         .order("full_name", { ascending: true })
         .limit(500),
+      sb.from("vehicle_day_assignments")
+        .select("vehicle_id, date")
+        .eq("dsp_id", dspId)
+        .gte("date", heatmapStartIso).lte("date", todayIso),
     ]);
   } catch (e) {
     body.innerHTML = `<div class="sched-vans-empty">Couldn't load van assignments · ${escapeHtml(e?.message || String(e))}</div>`;
@@ -24085,6 +24159,15 @@ async function renderSchedVanAssignmentsBoard() {
     return { id: d.id, name: nm, initials: _wsInitials(nm) };
   });
 
+  // Build the heat map index: vehicle_id → Set<iso>.
+  const heatmapByVan = new Map();
+  for (const r of (hRes?.data || [])) {
+    if (!r.vehicle_id || !r.date) continue;
+    const s = heatmapByVan.get(r.vehicle_id) || new Set();
+    s.add(r.date);
+    heatmapByVan.set(r.vehicle_id, s);
+  }
+
   // Reuse the workspaces renderer to produce identical markup.
   _wsRenderVehicles(body);
 
@@ -24094,6 +24177,12 @@ async function renderSchedVanAssignmentsBoard() {
   // the schedule.
   const head = body.querySelector(".ws-head");
   if (head) head.remove();
+
+  // Inject the 14-day rotation heat map as a new column before
+  // Notes. Calm Microsoft pattern: tiny squares, green when
+  // dispatched, hairline when idle. No tooltip click — just
+  // peripheral awareness of rotation rhythm per van.
+  _rrDecorateChainEditorHeatmap(body, heatmapByVan, todayIso);
 
   // Wire change/click handlers directly to this container — the
   // workspaces _wsBindRoot only binds to a single root via a global
@@ -24126,6 +24215,71 @@ async function renderSchedVanAssignmentsBoard() {
   }
 }
 window._rrRenderSchedVanAssignmentsBoard = renderSchedVanAssignmentsBoard;
+
+// Post-process the chain-editor table to inject a 14-day
+// rotation heat-map column. Operates on the rendered DOM so
+// the shared _wsRenderVehicles renderer stays untouched (it's
+// also used by the Workflows page where we don't want the
+// extra column).
+function _rrDecorateChainEditorHeatmap(body, usageByVan, todayIso) {
+  if (!body) return;
+  const table = body.querySelector(".ws-veh-table");
+  if (!table) return;
+  // Build the 14-day date array (oldest first → today last).
+  const dates = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(todayIso + "T12:00:00");
+    d.setDate(d.getDate() - i);
+    dates.push(fmtIsoDate(d));
+  }
+  // Header column · uppercase eyebrow voice matches the rest
+  // of the table.
+  const headRow = table.querySelector("thead tr");
+  if (headRow && !headRow.querySelector("[data-rr-heatmap-head]")) {
+    const th = document.createElement("th");
+    th.setAttribute("data-rr-heatmap-head", "1");
+    th.style.cssText = "min-width:160px;text-align:left;white-space:nowrap";
+    th.textContent = "Last 14 days";
+    // Insert before Notes (5th cell, 0-indexed).
+    const notesTh = headRow.children[4];
+    if (notesTh) headRow.insertBefore(th, notesTh);
+    else headRow.appendChild(th);
+  }
+  // Body cells.
+  table.querySelectorAll("tbody tr[data-veh-id]").forEach(tr => {
+    if (tr.querySelector("[data-rr-heatmap-cell]")) return;
+    const vehId = tr.getAttribute("data-veh-id");
+    const usage = usageByVan.get(vehId) || new Set();
+    let lastUsed = null;
+    for (const iso of dates) { if (usage.has(iso)) lastUsed = iso; }
+    const cells = dates.map((iso) => {
+      const used = usage.has(iso);
+      const label = (() => {
+        try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
+        catch { return iso; }
+      })();
+      return `<span class="rr-heatmap-cell${used ? " is-used" : ""}" title="${escapeHtml(label)} · ${used ? "dispatched" : "idle"}"></span>`;
+    }).join("");
+    // Days-idle eyebrow next to the strip — calm, lowercase
+    // sub-text. When the van has never been dispatched in the
+    // window, label reads "no dispatch in 14d".
+    let idleLabel = "";
+    if (lastUsed) {
+      const lastIdx = dates.indexOf(lastUsed);
+      const daysSince = dates.length - 1 - lastIdx;
+      idleLabel = daysSince === 0 ? "today" : `${daysSince}d idle`;
+    } else {
+      idleLabel = "no dispatch in 14d";
+    }
+    const td = document.createElement("td");
+    td.setAttribute("data-rr-heatmap-cell", "1");
+    td.innerHTML = `<div class="rr-heatmap-wrap"><div class="rr-heatmap-strip">${cells}</div><div class="rr-heatmap-sub">${escapeHtml(idleLabel)}</div></div>`;
+    const notesTd = tr.children[4];
+    if (notesTd) tr.insertBefore(td, notesTd);
+    else tr.appendChild(td);
+  });
+}
+window._rrDecorateChainEditorHeatmap = _rrDecorateChainEditorHeatmap;
 
 // ─── Van assignments · LEGACY auto-assign-for-week helper ────────────
 // Still available via window._rrRunSchedVanAssignmentsForWeek so the
@@ -26883,6 +27037,27 @@ async function renderScheduleWeek() {
     || (a.name || "").localeCompare(b.name || "")
   );
 
+  // ── Forward outlook · how the fleet starts next Monday ──
+  // For every branded van, find its most recent usage at or
+  // before the visible week's Sunday, then compute days-idle as
+  // of next Monday. Classify and tally. Operator gets a calm,
+  // forward-looking line: "Next Monday · 0 Critical · 1 Risk
+  // · 2 Watch · 8 Healthy".
+  const _nextMondayIso = fmtIsoDate(addDays(new Date(femWeekDates[6] + "T12:00:00"), 1));
+  const femForecast = { healthy: 0, watch: 0, risk: 0, critical: 0, violation: 0 };
+  for (const v of femVehicles) {
+    const list = femUsage.get(v.id) || [];
+    let lastUsed = null;
+    for (const e of list) {
+      if (e <= femWeekDates[6]) lastUsed = e;
+      else break;
+    }
+    const days = lastUsed ? femDaysBetween(_nextMondayIso, lastUsed) : Infinity;
+    const cls = femClassify(days);
+    if (cls.tier === "never_used") femForecast.violation++;
+    else femForecast[cls.tier] = (femForecast[cls.tier] || 0) + 1;
+  }
+
   // Compact pill row matching the mockup: dot + label, with the
   // Coverage pill carrying a subtle "X / Y shifts" sub-line.
   if (kpis) {
@@ -26950,6 +27125,10 @@ async function renderScheduleWeek() {
   kpis.dataset.rrFemRisks    = JSON.stringify(femRisks);
   kpis.dataset.rrFemUpcoming = JSON.stringify(femUpcoming);
   kpis.dataset.rrFemCounts   = JSON.stringify(femWeekCounts);
+  kpis.dataset.rrFemForecast = JSON.stringify({ ...femForecast, _asOf: _nextMondayIso });
+  if (typeof window._rrRenderForecastCard === "function") {
+    window._rrRenderForecastCard();
+  }
   // Render epoch for the "Reviewed Ns ago" stamp under the KPI
   // strip. Updated every 30s by the polling tick (see below).
   kpis.dataset.rrRenderedAt  = String(Date.now());
@@ -27737,26 +27916,14 @@ function bindSchedWeekNav() {
       const host = document.getElementById("rr-sched-auto-rescue-banner");
       if (!host) return;
       const run = window._rrLastVanRun;
-      // Bail if no run, or the run was for a different week than
-      // the one currently displayed.
       if (!run || run.weekStart !== _schedStart) { host.hidden = true; host.innerHTML = ""; return; }
-      // Bail if the operator already dismissed THIS run.
       if (window._rrAutoRescueDismissedTs === run.ts) { host.hidden = true; host.innerHTML = ""; return; }
       const rescues = (run.reasons || []).filter(r => typeof r.phase === "string" && r.phase.startsWith("rescue-"));
       if (rescues.length === 0) { host.hidden = true; host.innerHTML = ""; return; }
-      // Build the narration. Group by phase so the operator sees
-      // "displaced 1 primary + 2 secondaries" structure if it
-      // matters. Keep it to one line; details live in the modal.
       const primaryCount   = rescues.filter(r => r.phase === "rescue-from-primary").length;
       const secondaryCount = rescues.filter(r => r.phase === "rescue-from-secondary").length;
       const poolCount      = rescues.filter(r => r.phase === "rescue-from-pool").length;
-      const vanNames = Array.from(new Set(rescues.map(r => {
-        // The reasons[] payload doesn't include the vehicle name
-        // (only the id) — we'll fall back to the count phrasing
-        // unless one rescue happened, where we can look up the
-        // name via the chip cache.
-        return r.vehicle_id;
-      }))).length;
+      const vanNames = Array.from(new Set(rescues.map(r => r.vehicle_id))).length;
       const detail = [];
       if (primaryCount   > 0) detail.push(`${primaryCount} primary`);
       if (secondaryCount > 0) detail.push(`${secondaryCount} secondary`);
@@ -27777,6 +27944,62 @@ function bindSchedWeekNav() {
       }
     };
   }
+
+  // ── Forward outlook renderer ──
+  // Reads kpis.dataset.rrFemForecast (set by renderScheduleWeek)
+  // and paints a tier-pip strip showing what next Monday's
+  // branded-van fleet looks like assuming this week's rotations
+  // land as planned. Calm Microsoft Fluent voice — "Next Monday"
+  // eyebrow, then non-zero tiers only, then an as-of date stamp.
+  if (!window._rrForecastRendererInstalled) {
+    window._rrForecastRendererInstalled = true;
+    window._rrRenderForecastCard = function () {
+      const host = document.getElementById("rr-sched-forecast");
+      const kpis = document.getElementById("rr-sched-kpis");
+      if (!host || !kpis) return;
+      let fc;
+      try { fc = JSON.parse(kpis.dataset.rrFemForecast || "null"); } catch { fc = null; }
+      if (!fc) { host.hidden = true; host.innerHTML = ""; return; }
+      const total = (fc.healthy || 0) + (fc.watch || 0) + (fc.risk || 0) + (fc.critical || 0) + (fc.violation || 0);
+      if (total === 0) { host.hidden = true; host.innerHTML = ""; return; }
+      const asOfLbl = (() => {
+        try {
+          return new Date(fc._asOf + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+        } catch { return ""; }
+      })();
+      // Tier colors — calm. Red only for critical/violation;
+      // amber for watch/risk; green for healthy.
+      const pip = (count, tier, label, color) => {
+        if (!count) return "";
+        return `<span class="sched-forecast-pip"><span class="sched-forecast-pip-dot" style="background:${color}"></span>${count} ${label}</span>`;
+      };
+      const pips =
+        pip(fc.violation, "violation", "Violation", "#C42B1C") +
+        pip(fc.critical,  "critical",  "Critical",  "#C42B1C") +
+        pip(fc.risk,      "risk",      "Risk",      "#B45309") +
+        pip(fc.watch,     "watch",     "Watch",     "#B45309") +
+        pip(fc.healthy,   "healthy",   "Healthy",   "#107C41");
+      host.innerHTML =
+        `<span class="sched-forecast-label">Forward outlook</span>` +
+        `<span class="sched-forecast-pips">${pips || "<span class=\"sched-forecast-pip\">All branded vans healthy</span>"}</span>` +
+        `<span class="sched-forecast-asof">As of ${asOfLbl}</span>`;
+      host.hidden = false;
+    };
+  }
+
+  // All three install-once-then-bind renderers (reviewed stamp,
+  // auto-rescue banner, forecast card) live inside this binder.
+  // The schedule entry path awaits renderScheduleWeek() BEFORE
+  // bindSchedWeekNav() runs, so on the FIRST render of a fresh
+  // page load the guarded calls inside renderScheduleWeek were
+  // all false → outputs stayed hidden until some later
+  // navigation triggered another render. Fire each once now,
+  // after the install blocks above. Idempotent on later
+  // navigations because each installer is gated by its own
+  // _rrInstalled flag.
+  if (typeof window._rrTickFleetReviewedStamp === "function") window._rrTickFleetReviewedStamp();
+  if (typeof window._rrRenderAutoRescueBanner === "function") window._rrRenderAutoRescueBanner();
+  if (typeof window._rrRenderForecastCard === "function")     window._rrRenderForecastCard();
 
   // ── Pool sort toggle (Day / Wave time)
   sub.addEventListener("click", (e) => {
