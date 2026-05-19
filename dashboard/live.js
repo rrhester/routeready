@@ -24377,8 +24377,12 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       const isBranded = v && v.is_branded !== false;
       const last = lastUsedAsOf(vehicle_id, date);
       const days = last ? daysBetween(date, last) : null;
-      const phaseLabel = phase === "primary"   ? "Primary chain"
-                       : phase === "secondary" ? "Secondary chain"
+      const phaseLabel = phase === "primary"              ? "Primary chain"
+                       : phase === "secondary"            ? "Secondary chain"
+                       : phase === "pool"                 ? "Open pool"
+                       : phase === "rescue-from-pool"     ? "FEM rescue · from pool"
+                       : phase === "rescue-from-secondary"? "FEM rescue · displaced a secondary"
+                       : phase === "rescue-from-primary"  ? "FEM rescue · displaced a primary"
                        : "Open pool";
       const reason = isBranded
         ? `${phaseLabel} · ${classifyFem(days).label}`
@@ -24434,6 +24438,99 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     }
     if (poolDrivers.length > poolVans.length) {
       unassigned += poolDrivers.length - poolVans.length;
+    }
+
+    // ── Phase 3: FEM RESCUE — supersede chain ──
+    // Per operator rule: a branded van at >=14 days unused must be
+    // rotated TODAY if there's any way to find a driver for it.
+    // Escalation ladder for each unassigned at-risk van:
+    //   (a) pull a driver from the open pool (none left at this
+    //       point — phase 2 emptied it — but kept for safety).
+    //   (b) displace a scheduled driver currently on a SECONDARY
+    //       chain van whose donor van is still healthy (idle
+    //       < 11 days). Donor van goes idle today; the rescued
+    //       driver moves to the at-risk van.
+    //   (c) displace a scheduled driver currently on their
+    //       PRIMARY chain van under the same donor-van-healthy
+    //       gate.
+    // Donors are picked freshest-first (lowest daysSince on their
+    // current van) so we minimize the FEM impact of the swap.
+    // If no displaceable donor exists, the at-risk van stays
+    // unrotated and the FEM KPI will surface a red state — which
+    // per the operator's rule is reserved for the genuinely
+    // impossible case ("not enough routes/drivers to rotate the
+    // fleet").
+    const atRiskUnassigned = vehicles.filter(v => {
+      if (v.is_branded === false) return false;
+      if (vanAssigned.has(v.id)) return false;
+      const last = lastUsedAsOf(v.id, date);
+      const days = last ? daysBetween(date, last) : Infinity;
+      return days >= 14; // operator's 14-day threshold
+    }).sort((a, b) => {
+      // Oldest-unused first — rotate the most urgent first.
+      const la = lastUsedAsOf(a.id, date);
+      const lb = lastUsedAsOf(b.id, date);
+      const da = la ? daysBetween(date, la) : Infinity;
+      const db = lb ? daysBetween(date, lb) : Infinity;
+      return db - da;
+    });
+    // Helper: remove the pending (date, drvId) write so the
+    // displaced driver doesn't get persisted on their old van.
+    const _unrecord = (drvId) => {
+      const wIdx = writes.findIndex(w => w.date === date && w.driver_id === drvId);
+      if (wIdx >= 0) writes.splice(wIdx, 1);
+      const rIdx = reasons.findIndex(r => r.date === date && r.driver_id === drvId);
+      if (rIdx >= 0) reasons.splice(rIdx, 1);
+    };
+    // Helper: find a displaceable driver currently sitting on a
+    // van of the given chain rank (0 = primary, >0 = secondary).
+    // Returns the freshest donor or null. Skips donor vans that
+    // are themselves in the risk/violation tier — pushing those
+    // an extra day idle would just move the problem.
+    const _pickDonor = (rankWanted) => {
+      const candidates = [];
+      for (const [drvId, vehId] of driverAssigned) {
+        if (!scheduled.has(drvId)) continue; // override-pinned, not on shift
+        const chainEntry = (vanChain.get(vehId) || []).find(c => c.driver_id === drvId);
+        if (!chainEntry) continue; // pool/override-bound — not a chain donor
+        const isPrimary = (chainEntry.rank | 0) === 0;
+        if (rankWanted === 0 && !isPrimary) continue;
+        if (rankWanted > 0 && isPrimary) continue;
+        const last = lastUsedAsOf(vehId, date);
+        const days = last ? daysBetween(date, last) : Infinity;
+        if (days >= 11) continue; // donor van too close to risk — would worsen FEM
+        candidates.push({ drvId, vehId, days });
+      }
+      candidates.sort((a, b) => a.days - b.days); // freshest donor first
+      return candidates[0] || null;
+    };
+    for (const v of atRiskUnassigned) {
+      // (a) Pool — likely empty after phase 2, but check anyway.
+      const poolLeft = Array.from(scheduled).find(d => !driverAssigned.has(d));
+      if (poolLeft) {
+        recordWrite(poolLeft, v.id, "rescue-from-pool");
+        continue;
+      }
+      // (b) Displace a secondary.
+      const sec = _pickDonor(1);
+      if (sec) {
+        driverAssigned.delete(sec.drvId);
+        vanAssigned.delete(sec.vehId);
+        _unrecord(sec.drvId);
+        recordWrite(sec.drvId, v.id, "rescue-from-secondary");
+        continue;
+      }
+      // (c) Displace a primary.
+      const pri = _pickDonor(0);
+      if (pri) {
+        driverAssigned.delete(pri.drvId);
+        vanAssigned.delete(pri.vehId);
+        _unrecord(pri.drvId);
+        recordWrite(pri.drvId, v.id, "rescue-from-primary");
+        continue;
+      }
+      // (d) Mathematically impossible — van stays unrotated.
+      // The FEM KPI will surface this.
     }
 
     // Promote today's writes into usageByVan so the NEXT date's
