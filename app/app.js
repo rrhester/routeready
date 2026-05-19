@@ -1748,11 +1748,23 @@ async function renderSchedule() {
     // Which van you're on, by date — from the dispatch van-assignment
     // chains, resolved against the schedule (primary when scheduled and
     // in service; the backup picks it up when the primary isn't).
+    // vanByIso: date → { name, isRotation }. `isRotation` is true
+    // when the assigned van isn't part of the driver's standing
+    // chain — i.e., they got a non-default van today via FEM
+    // rescue, pool fill, or a manual rotation. Surfaced as a
+    // calm "(rotation)" sub-note on the shift card so the
+    // driver knows why they're not on their usual van.
     const vanByIso = new Map();
     try {
       const vRes = await sb.rpc("driver_vehicle_days", { p_token: session.token });
       for (const r of (Array.isArray(vRes?.data) ? vRes.data : [])) {
-        if (r && r.date && r.vehicle) vanByIso.set(r.date, r.vehicle);
+        if (r && r.date && r.vehicle) {
+          // is_chain_match may be missing on older RPC builds;
+          // treat undefined as "true" so we don't false-flag
+          // chain assignments as rotations.
+          const isRotation = (r.is_chain_match === false) || r.via === "rotation";
+          vanByIso.set(r.date, { name: r.vehicle, isRotation });
+        }
       }
     } catch (e) { /* no van data — schedule renders without it */ }
 
@@ -2131,7 +2143,11 @@ document.addEventListener("click", (e) => {
 // chevron (cards aren't tappable yet) and no "Scheduled" tag (every
 // non-completed shift is scheduled — redundant). Only badges that
 // carry information appear: Completed, service type, EX cushion.
-function shiftCardHtml(s, isToday, vanName, opts) {
+function shiftCardHtml(s, isToday, vanInfo, opts) {
+  // Back-compat: callers passed a plain string for vanName before
+  // the chain-match RPC change. Accept either shape.
+  const vanName     = (vanInfo && typeof vanInfo === "object") ? vanInfo.name : vanInfo;
+  const isRotation  = !!(vanInfo && typeof vanInfo === "object" && vanInfo.isRotation);
   const dow = s.date.toLocaleDateString(undefined, { weekday: "short" });
   const day = s.date.getDate();
   const month = s.date.toLocaleDateString(undefined, { month: "short" });
@@ -2191,7 +2207,7 @@ function shiftCardHtml(s, isToday, vanName, opts) {
           ${waveTag}
         </div>
         <div class="meta-station">${escapeHtml(stationLine)}${isOnboardingShift && s.station ? ` · ${escapeHtml(s.station)}` : ""}</div>
-        ${vanName ? `<div style="margin-top:4px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)">Vehicle ${escapeHtml(vanName)}</div>` : ""}
+        ${vanName ? `<div style="margin-top:4px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)">Vehicle ${escapeHtml(vanName)}${isRotation ? ` <span style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#B45309;background:rgba(180,83,9,.10);border:1px solid rgba(180,83,9,.20);border-radius:3px;padding:1px 5px;margin-left:5px">Rotation</span>` : ""}</div>` : ""}
         ${wxSlot}
         ${tags.length ? `<div class="meta-tags">${tags.join("")}</div>` : ""}
         ${opts?.swappable && s.status === "scheduled" && !isOnboardingShift ? `
