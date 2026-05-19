@@ -584,9 +584,12 @@ a{color:inherit;text-decoration:none}
   background:var(--ni-bg-strong, rgba(255,255,255,.20));
   color:var(--ni-fg, #fff);
 }
-/* Icon strokes — calm operational weight; no glow / drop-shadow */
+/* Icon strokes — calm operational weight; no glow / drop-shadow.
+   Width/height stepped up 50% (15→23) per operator ask; the nav-icon
+   container bumped in lockstep (26→39) so the tile padding stays
+   consistent with the larger glyph. */
 .nav-item svg{
-  width:15px;height:15px;flex-shrink:0;stroke-width:2;
+  width:23px;height:23px;flex-shrink:0;stroke-width:2;
   transition:color var(--t-smooth);
 }
 .nav-badge{ display:none }
@@ -596,7 +599,7 @@ a{color:inherit;text-decoration:none}
    sidebar atmosphere instead of competing with it. */
 .nav-icon{
   display:inline-flex;align-items:center;justify-content:center;
-  width:26px;height:26px;border-radius:var(--r-md);flex-shrink:0;
+  width:39px;height:39px;border-radius:var(--r-md);flex-shrink:0;
   background:var(--ni-bg, rgba(255,255,255,.04));
   color:var(--ni-fg, var(--text-inverse-muted));
   transition:background var(--t-smooth), color var(--t-smooth);
@@ -11252,10 +11255,6 @@ body.rr-cmdk-open{ overflow:hidden }
                 </div>
               </div>
             </div>
-            <button class="sched-page-btn sched-page-btn--okami" id="rr-sched-okami-open-h" data-rr-tile="okami" draggable="true" type="button" title="Route planning for this week" aria-label="Route planning">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect class="rp-cal" x="3" y="4" width="18" height="18" rx="2"/><line class="rp-cal" x1="16" y1="2" x2="16" y2="6"/><line class="rp-cal" x1="8" y1="2" x2="8" y2="6"/><line class="rp-cal" x1="3" y1="10" x2="21" y2="10"/><polyline class="rp-check" points="8 16 11 19 16 14"/></svg>
-              Route planning
-            </button>
             <button class="sched-page-btn sched-page-btn--split" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path class="van-cargo" d="M3 7h12v10H3z"/><path class="van-cab" d="M15 11h4l2 3v3h-6z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
               Assign Vans
@@ -11264,15 +11263,22 @@ body.rr-cmdk-open{ overflow:hidden }
               </span>
             </button>
             <div class="sched-settings-split">
-              <button class="sched-page-btn" id="rr-sched-settings-open-h" data-rr-tile="settings" draggable="true" type="button" title="Schedule settings for this week" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-quick-settings-popover" aria-label="Schedule settings">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                Settings
+              <button class="sched-page-btn sched-page-btn--okami sched-page-btn--split" id="rr-sched-okami-open-h" data-rr-tile="okami" draggable="true" type="button" title="Route planning for this week" aria-label="Route planning">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect class="rp-cal" x="3" y="4" width="18" height="18" rx="2"/><line class="rp-cal" x1="16" y1="2" x2="16" y2="6"/><line class="rp-cal" x1="8" y1="2" x2="8" y2="6"/><line class="rp-cal" x1="3" y1="10" x2="21" y2="10"/><polyline class="rp-check" points="8 16 11 19 16 14"/></svg>
+                Route planning
+                <span class="sched-page-btn-split-toggle" id="rr-sched-settings-toggle" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-quick-settings-popover" title="Schedule settings for this week">
+                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                </span>
               </button>
               <!-- Inline quick-edit popover · per-week values that
                    drive Smart Fill + shift regeneration. Anchored to
-                   the Settings tile's split-toggle chevron. Auto-save
-                   runs on change and triggers the same regen path as
-                   the drawer's Save button. -->
+                   the Route planning tile's split-toggle chevron
+                   (the standalone Settings tile was removed; the
+                   popover is the operator's only entry point for
+                   block / cushion / max-days / report-time edits
+                   from the action strip). Auto-save runs on change
+                   and triggers the same regen path as the drawer's
+                   Save button. -->
               <div class="sched-quick-settings-popover" id="rr-sched-quick-settings-popover" role="dialog" aria-modal="false" aria-label="Schedule quick settings" hidden>
                 <div class="sched-quick-settings-head">
                   <span class="sched-quick-settings-title">This week's settings</span>

@@ -23329,7 +23329,11 @@ document.addEventListener("keydown", (e) => {
 
 function _toggleSchedQuickSettings(force) {
   const pop = document.getElementById("rr-sched-quick-settings-popover");
-  const toggle = document.getElementById("rr-sched-settings-open-h");
+  // Chevron now lives on the Route planning tile's split-toggle —
+  // the standalone Settings tile was removed. Fall back to the old
+  // id in case any legacy markup is still around.
+  const toggle = document.getElementById("rr-sched-settings-toggle")
+              || document.getElementById("rr-sched-settings-open-h");
   if (!pop) return false;
   const isOpen = !pop.hidden;
   const next = (typeof force === "boolean") ? force : !isOpen;
@@ -23389,8 +23393,13 @@ document.addEventListener("click", (e) => {
   // popover's "Advanced settings…" link or via #rr-sched-settings-open
   // (the hidden helper in the old toolbar rail) so existing callers
   // can still force the drawer when they need it.
-  if (e.target.closest("#rr-sched-settings-open-h")) {
+  // Chevron split-toggle on the Route planning tile → open the
+  // quick-settings popover (the only entry point now that the
+  // standalone Settings tile is gone). Stop propagation so the
+  // Route planning runner doesn't also fire from the same click.
+  if (e.target.closest("#rr-sched-settings-toggle")) {
     e.preventDefault();
+    e.stopPropagation();
     _toggleSchedQuickSettings();
     return;
   }
@@ -23404,7 +23413,8 @@ document.addEventListener("click", (e) => {
     closeSchedSettingsDrawer();
     return;
   }
-  if (e.target.closest("#rr-sched-okami-open, #rr-sched-okami-open-h")) {
+  if (e.target.closest("#rr-sched-okami-open, #rr-sched-okami-open-h")
+      && !e.target.closest("#rr-sched-settings-toggle")) {
     e.preventDefault();
     openOkamiOverlay();
     return;
