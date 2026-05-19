@@ -23498,7 +23498,9 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("#rr-sched-vans-h") && !e.target.closest("#rr-sched-vans-chain-toggle")) {
     e.preventDefault();
     const btn = document.getElementById("rr-sched-vans-h");
-    if (btn && btn.dataset.rrAssigned === "1") {
+    const assigned = btn && btn.dataset.rrAssigned === "1";
+    console.log(`assignVans tile click · state=${assigned ? "assigned" : "unassigned"} · firing ${assigned ? "unassign" : "assign"}`);
+    if (assigned) {
       _runSchedVanUnassignBackground();
     } else {
       _runSchedVanAssignmentsBackground();
@@ -24186,12 +24188,21 @@ async function _runSchedVanUnassignBackground() {
     // Direct delete using the dispatcher RLS policy (dsp_id +
     // is_staff('dispatcher')). Covers every driver for every day
     // in the visible week.
-    await sb.from("vehicle_day_assignments")
-      .delete()
-      .eq("dsp_id", dspId)
-      .gte("date", _schedStart)
-      .lte("date", weekEndIso)
-      .catch(err => ({ error: err }));
+    let delErr = null;
+    try {
+      const res = await sb.from("vehicle_day_assignments")
+        .delete()
+        .eq("dsp_id", dspId)
+        .gte("date", _schedStart)
+        .lte("date", weekEndIso);
+      delErr = res && res.error ? res.error : null;
+    } catch (e) { delErr = e; }
+    if (delErr) {
+      console.warn("unassignVans · delete failed", delErr.message || delErr);
+      toast("Couldn't clear vehicle assignments: " + (delErr.message || delErr), "warn");
+    } else {
+      toast("Cleared vehicle assignments for this week.", "success");
+    }
 
     // Repaint the grid so the "Van NNN" stamps disappear.
     if (typeof renderScheduleWeek === "function") {
@@ -24221,20 +24232,31 @@ async function _refreshAssignVansLabel() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId || !_schedStart) return;
   const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
-  let res;
+  let count = 0;
   try {
-    res = await sb.from("vehicle_day_assignments")
+    const res = await sb.from("vehicle_day_assignments")
       .select("id", { count: "exact", head: true })
       .eq("dsp_id", dspId)
       .gte("date", _schedStart)
       .lte("date", weekEndIso);
+    count = (res && (res.count || 0)) || 0;
   } catch (_) { return; }
-  const count = (res && (res.count || 0)) || 0;
   const assigned = count > 0;
   btn.dataset.rrAssigned = assigned ? "1" : "0";
-  // Swap the trailing text node (the icon SVG + chevron span stay).
-  const labelTarget = Array.from(btn.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
-  if (labelTarget) labelTarget.textContent = assigned ? "Unassign Vans" : "Assign Vans";
+  // Update the label robustly. We re-find the trailing text node
+  // every call (the SVG swap during spinner runs can briefly
+  // change the child order). If no text node is found we append
+  // one — this also covers the case where an earlier render left
+  // the label empty.
+  let labelNode = Array.from(btn.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+  if (!labelNode) {
+    labelNode = document.createTextNode("");
+    // Insert before the chevron span so the label still sits on
+    // the icon column.
+    const chevron = btn.querySelector(".sched-page-btn-split-toggle");
+    btn.insertBefore(labelNode, chevron || null);
+  }
+  labelNode.textContent = assigned ? "Unassign Vans" : "Assign Vans";
   const title = assigned
     ? "Clear every vehicle assignment for this week"
     : "Auto-assign vans for this week using the standing primary / backup chain";
