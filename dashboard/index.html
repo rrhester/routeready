@@ -11677,15 +11677,17 @@ body.rr-cmdk-open{ overflow:hidden }
              global rules at the top of the file. */
           #view-schedule .cal-wrap{
             border-radius:22px;
-            border-color:rgba(15,23,42,.06);
-            box-shadow:0 8px 24px rgba(15,23,42,.05), inset 0 1px 0 rgba(255,255,255,.55);
+            background:var(--sch-surface);
+            border:1px solid rgba(15,23,42,.08);
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 28px rgba(15,23,42,.07);
             overflow:hidden;
           }
           #view-schedule .driver-pool,
           #view-schedule .sched-insights{
             border-radius:22px;
-            border-color:rgba(15,23,42,.06);
-            box-shadow:0 8px 24px rgba(15,23,42,.05), inset 0 1px 0 rgba(255,255,255,.55);
+            background:var(--sch-surface);
+            border:1px solid rgba(15,23,42,.08);
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 28px rgba(15,23,42,.07);
           }
           #view-schedule .shift-chip{
             border-radius:14px;
@@ -11902,12 +11904,17 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Page-header → KPI strip rhythm is now handled by the
              tightened global .page-header margin-bottom. */
 
-          /* KPI pill row · compact inline dot+label pills sitting
-             between the page sub-line and the subnav. */
+          /* KPI pill row · enclosed white card so it pops against
+             the cooler workspace bg. */
           #view-schedule #rr-sched-kpis.sched-kpi-pills{
             display:flex;flex-wrap:wrap;align-items:center;
             gap:var(--s-5);
             margin:0 0 var(--s-4) 0;
+            padding:12px 18px;
+            background:var(--sch-surface);
+            border:1px solid rgba(15,23,42,.08);
+            border-radius:10px;
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
             font-size:var(--fs-sm);
           }
           #view-schedule .sched-kpi-pill{
@@ -12321,10 +12328,9 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-red-soft:rgba(185,28,28,.08);
             --sch-radius:6px;
             --sch-radius-lg:8px;
-            /* Workspace bg sits slightly off-white so the white
-               KPI strip / calendar grid / pool / popovers all pop
-               against it. Cards stay pure #FFFFFF (sch-surface). */
-            background:var(--sch-surface-2);
+            /* Workspace bg sits a touch cooler / darker than the
+               cards so they read as bright elevated surfaces. */
+            background:#EEF1F5;
           }
 
           /* ── Page header / command band ──────────────────────────
@@ -12531,9 +12537,9 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:14px 18px;
             margin-bottom:var(--s-4);
             background:var(--sch-surface);
-            border:1px solid var(--sch-line);
-            border-radius:8px;
-            box-shadow:0 1px 2px rgba(15,23,42,.04);
+            border:1px solid rgba(15,23,42,.08);
+            border-radius:10px;
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
           }
           #view-schedule .sched-nav-heading .page-header-l{
             flex:0 0 auto;min-width:0;
