@@ -14095,32 +14095,58 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .ws-veh-down{display:inline-flex;align-items:center;padding:1px 6px;font-size:10px;font-weight:700;letter-spacing:.05em;border-radius:var(--r-pill);background:var(--sch-red-soft);color:var(--sch-red);border:1px solid rgba(196,43,28,.24);margin-left:4px}
           #view-schedule .ws-veh-down.warn{background:rgba(180,83,9,.10);color:#92400E;border-color:rgba(180,83,9,.24)}
           #view-schedule .ws-veh-down.crit{background:#9F1239;color:#fff;border-color:var(--sch-red)}
-          /* Chain editor · sticky page header + sticky table head
-             so the page tools / column labels stay visible while
-             the long van list scrolls underneath. Topbar (56 px)
-             stays anchored above. */
-          #view-schedule #sched-sub-vans-chain .ws-head{
-            position:sticky;top:56px;z-index:6;
-            background:#fff;
-            padding-top:12px;padding-bottom:12px;
-            margin-bottom:0;
-          }
+          /* Chain editor · sticky table head so column labels
+             stay pinned as the van list scrolls. ws-head was
+             removed inside the chain editor (renderSchedVan­
+             AssignmentsBoard strips it), so the thead pins
+             directly below the topbar. */
           #view-schedule #sched-sub-vans-chain thead th{
-            position:sticky;top:148px;z-index:5;
+            position:sticky;top:56px;z-index:5;
             background:#fff;
             box-shadow:inset 0 -1px 0 var(--sch-line);
+            font-size:11px;font-weight:700;
+            text-transform:uppercase;letter-spacing:.06em;
+            color:var(--text-subtle);
+            padding:10px 12px;
           }
-          /* Grounded rows · vertical accent line + standalone dot
-             instead of a row tint + GROUNDED pill (per operator). */
+          /* Grounded rows · vertical accent on the first cell. */
           #view-schedule .ws-veh-row.is-grounded td:first-child{
             box-shadow:inset 3px 0 0 var(--sch-red, #C42B1C);
           }
+          /* Status column · clean colored dot, no pill chrome. */
           #view-schedule .ws-veh-status-dot{
-            display:inline-block;width:9px;height:9px;border-radius:50%;
+            display:inline-block;width:10px;height:10px;border-radius:50%;
           }
           #view-schedule .ws-veh-status-dot.grounded{
             background:var(--sch-red, #C42B1C);
-            box-shadow:0 0 0 3px rgba(196,43,28,.16);
+          }
+          #view-schedule .ws-veh-status-dot.active{
+            background:var(--sch-green, #107C41);
+          }
+          /* VIN cell · monospaced, slightly subtler than the body. */
+          #view-schedule .ws-veh-vin{
+            font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+            font-size:11.5px;color:var(--text-muted);
+            letter-spacing:.02em;
+          }
+          /* Ownership · tiny tag-style label. */
+          #view-schedule .ws-veh-ownership{
+            display:inline-flex;align-items:center;
+            padding:2px 7px;border-radius:999px;
+            font-size:10.5px;font-weight:600;letter-spacing:.04em;
+            text-transform:uppercase;
+            background:var(--sch-surface-2, #FAFBFC);
+            color:var(--text-muted);
+            border:1px solid var(--sch-line);
+          }
+          #view-schedule .ws-veh-ownership--amazon_owned{
+            background:#EEF4FF;color:#1E40AF;border-color:rgba(30,64,175,.22);
+          }
+          #view-schedule .ws-veh-ownership--rental{
+            background:#FDF6E3;color:#7A5B14;border-color:rgba(184,137,48,.24);
+          }
+          #view-schedule .ws-veh-ownership--leased{
+            background:#F1F5F9;color:#475569;border-color:rgba(71,85,105,.18);
           }
           #view-schedule .ws-veh-name-ro{font-weight:600;color:var(--text)}
           #view-schedule .ws-addrow{display:flex;align-items:center;gap:8px;width:100%;padding:14px 16px;border:0;border-top:1px solid var(--sch-line-subtle);background:transparent;color:var(--text-subtle);font:inherit;font-size:13px;font-weight:500;cursor:pointer;text-align:left;transition:background var(--t-fast),color var(--t-fast)}
@@ -17897,9 +17923,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-workspaces .ws-veh-down.warn{background:var(--amber-soft);color:var(--amber-dark);border-color:var(--amber-border)}
           #view-workspaces .ws-veh-down.crit{background:#9F1239;color:#fff;border-color:var(--red-dark)}
-          /* Chain editor · sticky page header + sticky table head
-             so the page tools / column labels stay visible while
-             the long van list scrolls underneath. */
+          /* Chain editor · sticky page header + sticky table head. */
           #view-workspaces .ws-head{
             position:sticky;top:56px;z-index:6;
             background:#fff;
@@ -17910,20 +17934,47 @@ body.rr-cmdk-open{ overflow:hidden }
             position:sticky;top:148px;z-index:5;
             background:#fff;
             box-shadow:inset 0 -1px 0 var(--sch-line, var(--border));
+            font-size:11px;font-weight:700;
+            text-transform:uppercase;letter-spacing:.06em;
+            color:var(--text-subtle);
+            padding:10px 12px;
           }
-          /* Grounded rows · no background tint per operator. The
-             warning lives in a 3 px red vertical line on the row's
-             first cell, plus a standalone red dot in the Status
-             column. Subtle, scan-friendly. */
+          /* Grounded rows · vertical red accent line. */
           #view-workspaces .ws-veh-row.is-grounded td:first-child{
             box-shadow:inset 3px 0 0 var(--sch-red, #C42B1C);
           }
+          /* Status column · clean dots, no pill chrome. */
           #view-workspaces .ws-veh-status-dot{
-            display:inline-block;width:9px;height:9px;border-radius:50%;
+            display:inline-block;width:10px;height:10px;border-radius:50%;
           }
           #view-workspaces .ws-veh-status-dot.grounded{
             background:var(--sch-red, #C42B1C);
-            box-shadow:0 0 0 3px rgba(196,43,28,.16);
+          }
+          #view-workspaces .ws-veh-status-dot.active{
+            background:var(--sch-green, #107C41);
+          }
+          #view-workspaces .ws-veh-vin{
+            font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+            font-size:11.5px;color:var(--text-muted);
+            letter-spacing:.02em;
+          }
+          #view-workspaces .ws-veh-ownership{
+            display:inline-flex;align-items:center;
+            padding:2px 7px;border-radius:999px;
+            font-size:10.5px;font-weight:600;letter-spacing:.04em;
+            text-transform:uppercase;
+            background:var(--sch-surface-2, #FAFBFC);
+            color:var(--text-muted);
+            border:1px solid var(--sch-line, var(--border));
+          }
+          #view-workspaces .ws-veh-ownership--amazon_owned{
+            background:#EEF4FF;color:#1E40AF;border-color:rgba(30,64,175,.22);
+          }
+          #view-workspaces .ws-veh-ownership--rental{
+            background:#FDF6E3;color:#7A5B14;border-color:rgba(184,137,48,.24);
+          }
+          #view-workspaces .ws-veh-ownership--leased{
+            background:#F1F5F9;color:#475569;border-color:rgba(71,85,105,.18);
           }
 
           /* Van name is read-only on this board — Fleet roster owns the
