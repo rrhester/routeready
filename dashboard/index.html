@@ -14524,60 +14524,48 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .cal-row-milestone-ribbon{
             display:inline-flex;align-items:center;justify-content:center;
             gap:5px;
-            min-width:104px;
-            padding:3px 28px 3px 24px;
+            min-width:96px;
+            padding:2px 22px 2px 18px;
             text-align:center;
-            font-size:9.5px;font-weight:600;
-            letter-spacing:.09em;
+            font-size:8.5px;font-weight:600;
+            letter-spacing:.08em;
             text-transform:uppercase;
-            color:#fff;
             font-feature-settings:"calt" off, "liga" off;
             white-space:nowrap;
-            background:linear-gradient(135deg, #C9CFDA 0%, #939AA9 100%);
-            box-shadow:
-              inset 0 1px 0 rgba(255,255,255,.38),
-              inset 0 -1px 0 rgba(15,23,42,.08),
-              0 1px 1px rgba(15,23,42,.05),
-              0 3px 6px rgba(15,23,42,.10);
+            background:#F4F5F7;
+            color:#52606D;
+            border:1px solid rgba(15,23,42,.08);
           }
           #view-schedule .cal-row-milestone-icon{
             display:inline-flex;align-items:center;justify-content:center;
-            opacity:.95;
-            filter:drop-shadow(0 1px 0 rgba(15,23,42,.18));
+            opacity:.85;
           }
-          #view-schedule .cal-row-milestone-label{
-            line-height:1;
-            position:relative;top:.2px;
-          }
-          /* Birthday · softer rose, less aggressive than the
-             previous pink. Outer shadow tinted to match so the
-             banner reads as one cohesive material. */
+          #view-schedule .cal-row-milestone-label{line-height:1}
+          /* Birthday · very pale rose tint with deep rose ink. Reads
+             as a calm enterprise marker, not a sticker. */
           #view-schedule .cal-row-milestone-ribbon--birthday{
-            background:linear-gradient(135deg, #F3B9CB 0%, #C76691 100%);
-            box-shadow:
-              inset 0 1px 0 rgba(255,255,255,.45),
-              inset 0 -1px 0 rgba(122,42,77,.18),
-              0 1px 1px rgba(15,23,42,.05),
-              0 3px 6px rgba(199,102,145,.28);
+            background:#FCEFF4;
+            color:#9B3F69;
+            border-color:rgba(199,102,145,.22);
           }
-          /* Anniversary · muted gold, same material treatment. */
+          /* Anniversary · pale gold tint with deep gold ink. */
           #view-schedule .cal-row-milestone-ribbon--anniversary{
-            background:linear-gradient(135deg, #EFCC85 0%, #B88930 100%);
-            box-shadow:
-              inset 0 1px 0 rgba(255,255,255,.45),
-              inset 0 -1px 0 rgba(102,68,15,.16),
-              0 1px 1px rgba(15,23,42,.05),
-              0 3px 6px rgba(184,137,48,.28);
+            background:#FBF3DE;
+            color:#7A5B14;
+            border-color:rgba(184,137,48,.24);
           }
-          /* Today gets a thin inner halo so the day itself reads
-             as the moment to send the note. */
-          #view-schedule .cal-row-milestone.is-today .cal-row-milestone-ribbon{
-            box-shadow:
-              inset 0 0 0 1px rgba(255,255,255,.65),
-              inset 0 1px 0 rgba(255,255,255,.55),
-              inset 0 -1px 0 rgba(15,23,42,.10),
-              0 2px 4px rgba(15,23,42,.08),
-              0 4px 10px rgba(15,23,42,.10);
+          /* Today · slightly stronger tint + ink so the actual day
+             reads as the moment to send a note, without becoming
+             loud. */
+          #view-schedule .cal-row-milestone.is-today .cal-row-milestone-ribbon--birthday{
+            background:#F8E1EA;
+            color:#7A2A4D;
+            border-color:rgba(199,102,145,.36);
+          }
+          #view-schedule .cal-row-milestone.is-today .cal-row-milestone-ribbon--anniversary{
+            background:#F7E9C4;
+            color:#5A4310;
+            border-color:rgba(184,137,48,.40);
           }
           /* "Send note" action · hidden until row hover. Slides up
              from below the ribbon. Subtle, not flashy. */
