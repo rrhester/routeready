@@ -24251,21 +24251,34 @@ async function _assignVansForRange(startIso, endIso, dspId) {
 
   // Fire the writes in parallel chunks of 10. vehicle_day_
   // assignment_set is upsert-safe so partial completion is fine.
+  //
+  // Wrap each builder in an async IIFE with try/catch — calling
+  // `.catch(...)` directly on a PostgrestFilterBuilder throws
+  // "x.catch is not a function" because the builder is a thenable
+  // that only implements `.then`. That sync throw used to bubble
+  // out of `chunk.map`, abort the for-loop before any writes
+  // landed, and leave the operator looking at "spinner spun
+  // briefly, nothing happened."
   let assigned = 0;
   const chunkSize = 10;
   for (let i = 0; i < writes.length; i += chunkSize) {
     const chunk = writes.slice(i, i + chunkSize);
-    const res = await Promise.all(chunk.map(w =>
-      sb.rpc("vehicle_day_assignment_set", {
-        p_driver_id:  w.driver_id,
-        p_date:       w.date,
-        p_vehicle_id: w.vehicle_id,
-        p_source:     "auto",
-        p_notes:      null,
-      }).catch(err => ({ error: err }))
-    ));
+    const res = await Promise.all(chunk.map(async (w) => {
+      try {
+        return await sb.rpc("vehicle_day_assignment_set", {
+          p_driver_id:  w.driver_id,
+          p_date:       w.date,
+          p_vehicle_id: w.vehicle_id,
+          p_source:     "auto",
+          p_notes:      null,
+        });
+      } catch (err) {
+        return { error: err };
+      }
+    }));
     res.forEach(r => { if (!(r && r.error)) assigned += 1; else console.warn("vehicle_day_assignment_set:", r.error); });
   }
+  console.log(`assignVans writes complete · ${assigned}/${writes.length} succeeded`);
   return { assigned, unassigned };
 }
 window._rrAssignVansForRange = _assignVansForRange;
