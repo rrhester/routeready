@@ -23953,34 +23953,28 @@ async function _runSchedVanAssignmentsBackground() {
   }
 
   try {
-    // Fan out one RPC per day. today_roster_auto_assign reads the
-    // standing primary → backup chain and falls back to the
-    // branded-first random pool, so all three tiers fire.
+    // Client-side runner: we don't trust today_roster_auto_assign
+    // alone here because its pool-exclusion query removes a van
+    // whenever ANY of its standing-chain drivers is scheduled,
+    // even if that driver is actually using a different van as
+    // their primary. The DB function leaves drivers stranded
+    // without a van even when free vans exist in the fleet.
+    //
+    // We re-implement the resolution properly:
+    //   1. existing vehicle_day_assignment → keep
+    //   2. standing primary chain (if its van is unused this date)
+    //   3. standing backup chain (if primary is unscheduled and the
+    //      backup's van is unused this date)
+    //   4. fall-through pool: any active+operational vehicle not
+    //      yet assigned to anyone this date, branded-first,
+    //      never-deployed first, alphabetical tie-break
     const dates = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), i)));
-    const results = await Promise.all(dates.map(d =>
-      sb.rpc("today_roster_auto_assign", { p_date: d })
-        .catch(err => ({ error: err }))
-    ));
-    // Diagnostic — log per-day assigned / unassigned counts so we
-    // can verify the chain → pool fall-through actually fired and
-    // identify drivers who can't be placed (no chain + empty pool).
-    try {
-      let totA = 0, totU = 0;
-      results.forEach((r, i) => {
-        if (r && r.error) { console.warn(`assignVans ${dates[i]} · error`, r.error.message || r.error); return; }
-        const d = (r && r.data) || {};
-        const a = (d.assigned    || []).length;
-        const u = (d.unassigned  || []).length;
-        totA += a; totU += u;
-        if (u > 0) {
-          console.log(`assignVans ${dates[i]} · ${a} assigned · ${u} unassigned`, (d.unassigned || []).map(x => `${x.driver_name || x.driver_id} (${x.reason || "no_van"})`));
-        }
-      });
-      console.log(`assignVans week ${_schedStart} · total ${totA} placements · ${totU} drivers without a van`);
-      if (totU > 0) {
-        toast(`Assigned ${totA} vans · ${totU} driver${totU === 1 ? "" : "s"} still without a van. Check standing chains.`, "warn");
-      }
-    } catch (_) { /* diagnostics never throw */ }
+    const weekEndIso = dates[dates.length - 1];
+    const totals = await _assignVansForRange(_schedStart, weekEndIso, dspId);
+    console.log(`assignVans week ${_schedStart} · ${totals.assigned} placement${totals.assigned === 1 ? "" : "s"} · ${totals.unassigned} driver${totals.unassigned === 1 ? "" : "s"} without a van`);
+    if (totals.unassigned > 0) {
+      toast(`Assigned ${totals.assigned} van${totals.assigned === 1 ? "" : "s"} · ${totals.unassigned} driver${totals.unassigned === 1 ? "" : "s"} still without a van (fleet may be tapped out).`, "warn");
+    }
 
     // Repaint the calendar with the fresh assignments so the
     // dispatcher sees the result in-place; driver app already
@@ -24002,6 +23996,172 @@ async function _runSchedVanAssignmentsBackground() {
   }
 }
 window._rrRunSchedVanAssignmentsBackground = _runSchedVanAssignmentsBackground;
+
+// Client-side van assignment resolver — works correctly even when
+// the DB function over-excludes vans whose chain drivers are
+// scheduled but using a different vehicle. For every scheduled
+// shift in [startIso..endIso]:
+//   1. Skip if the (driver, date) already has a vehicle_day_
+//      assignment.
+//   2. Try the driver's standing primary van. If the van isn't
+//      taken yet on that date (no override, no other primary
+//      claim from another driver scheduled today, no other
+//      backup claim), assign it.
+//   3. Try the driver's standing backup(s) in rank order under
+//      the same "is this van still free this date?" gate.
+//   4. Fall through to the pool: every active + operational +
+//      non-archived vehicle not already claimed on the date,
+//      branded-first, never-deployed first, alphabetical
+//      tie-break.
+//
+// All writes go through vehicle_day_assignment_set so the same
+// uniqueness constraints (one driver per van per date, one van
+// per driver per date) the operator hits manually are enforced.
+async function _assignVansForRange(startIso, endIso, dspId) {
+  // Pull everything we need in one go so we don't fight with
+  // concurrent inserts.
+  const [shiftsRes, vehRes, chainRes, existingRes] = await Promise.all([
+    sb.from("shifts")
+      .select("id, date, driver_id, status, starts_at, station_id, route_code")
+      .eq("dsp_id", dspId)
+      .gte("date", startIso).lte("date", endIso)
+      .in("status", ["scheduled", "completed", "late"])
+      .not("driver_id", "is", null),
+    sb.from("vehicles")
+      .select("id, name, plate, status, operational_status, is_branded, archived_at, last_deployed_at")
+      .eq("dsp_id", dspId)
+      .is("archived_at", null),
+    sb.from("vehicle_driver_assignments")
+      .select("vehicle_id, driver_id, rank"),
+    sb.from("vehicle_day_assignments")
+      .select("driver_id, vehicle_id, date")
+      .eq("dsp_id", dspId)
+      .gte("date", startIso).lte("date", endIso),
+  ]);
+  const shifts   = (shiftsRes.data   || []);
+  const vehicles = (vehRes.data      || []).filter(v => v.archived_at == null && ["active","spare"].includes(v.status) && (v.operational_status || "operational") !== "grounded");
+  const chain    = (chainRes.data    || []);
+  const existing = (existingRes.data || []);
+
+  // Index helpers.
+  const driverChain = new Map(); // driver_id → [{vehicle_id, rank}] sorted by rank
+  for (const c of chain) {
+    const list = driverChain.get(c.driver_id) || [];
+    list.push(c);
+    driverChain.set(c.driver_id, list);
+  }
+  for (const [, list] of driverChain) list.sort((a, b) => (a.rank | 0) - (b.rank | 0));
+
+  // (vehicle_id, date) → driver_id for everyone already pinned
+  const vanTaken = new Map();   // `${vehicle_id}|${date}` -> driver_id
+  const driverHasVan = new Map(); // `${driver_id}|${date}` -> vehicle_id
+  for (const r of existing) {
+    vanTaken.set(`${r.vehicle_id}|${r.date}`, r.driver_id);
+    driverHasVan.set(`${r.driver_id}|${r.date}`, r.vehicle_id);
+  }
+
+  // Index drivers scheduled per date so chain resolution can see
+  // who's working today.
+  const scheduledByDate = new Map(); // date → Set(driver_id)
+  for (const s of shifts) {
+    const set = scheduledByDate.get(s.date) || new Set();
+    set.add(s.driver_id);
+    scheduledByDate.set(s.date, set);
+  }
+
+  const vehById = new Map(vehicles.map(v => [v.id, v]));
+  const poolSorted = vehicles.slice().sort((a, b) => {
+    const ab = a.is_branded === false ? 1 : 0;
+    const bb = b.is_branded === false ? 1 : 0;
+    if (ab !== bb) return ab - bb;
+    const al = a.last_deployed_at || "";
+    const bl = b.last_deployed_at || "";
+    if (al !== bl) return al < bl ? -1 : 1;
+    return (a.name || "").localeCompare(b.name || "");
+  });
+
+  const isVanFreeOnDate = (vehId, date) => {
+    const key = `${vehId}|${date}`;
+    if (vanTaken.has(key)) return false;
+    return true;
+  };
+
+  // Resolve every scheduled shift in (date, starts_at, driver_name) order.
+  const sorted = shifts.slice().sort((a, b) =>
+    (a.date || "").localeCompare(b.date || "") ||
+    (a.starts_at || "").localeCompare(b.starts_at || "")
+  );
+
+  const writes = [];
+  let unassigned = 0;
+  for (const s of sorted) {
+    const k = `${s.driver_id}|${s.date}`;
+    if (driverHasVan.has(k)) continue; // already pinned (override / earlier loop iteration)
+
+    let pick = null;
+
+    // (1) primary
+    const chainList = driverChain.get(s.driver_id) || [];
+    const primary = chainList.find(c => (c.rank | 0) === 0);
+    if (primary && vehById.has(primary.vehicle_id) && isVanFreeOnDate(primary.vehicle_id, s.date)) {
+      pick = vehById.get(primary.vehicle_id);
+    }
+
+    // (2) backup, lowest rank first
+    if (!pick) {
+      const backups = chainList.filter(c => (c.rank | 0) > 0);
+      for (const b of backups) {
+        if (!vehById.has(b.vehicle_id)) continue;
+        if (!isVanFreeOnDate(b.vehicle_id, s.date)) continue;
+        // Backup picks only when the primary of THAT van isn't
+        // scheduled today.
+        const vanPrimary = chain.find(c => c.vehicle_id === b.vehicle_id && (c.rank | 0) === 0);
+        const primaryScheduled = vanPrimary && scheduledByDate.get(s.date)?.has(vanPrimary.driver_id);
+        if (primaryScheduled) continue;
+        pick = vehById.get(b.vehicle_id);
+        break;
+      }
+    }
+
+    // (3) pool fall-through — first un-claimed van for the date.
+    if (!pick) {
+      for (const v of poolSorted) {
+        if (!isVanFreeOnDate(v.id, s.date)) continue;
+        pick = v;
+        break;
+      }
+    }
+
+    if (!pick) {
+      unassigned += 1;
+      continue;
+    }
+
+    vanTaken.set(`${pick.id}|${s.date}`, s.driver_id);
+    driverHasVan.set(`${s.driver_id}|${s.date}`, pick.id);
+    writes.push({ driver_id: s.driver_id, date: s.date, vehicle_id: pick.id });
+  }
+
+  // Fire the writes in parallel chunks of 10. vehicle_day_
+  // assignment_set is upsert-safe so partial completion is fine.
+  let assigned = 0;
+  const chunkSize = 10;
+  for (let i = 0; i < writes.length; i += chunkSize) {
+    const chunk = writes.slice(i, i + chunkSize);
+    const res = await Promise.all(chunk.map(w =>
+      sb.rpc("vehicle_day_assignment_set", {
+        p_driver_id:  w.driver_id,
+        p_date:       w.date,
+        p_vehicle_id: w.vehicle_id,
+        p_source:     "auto",
+        p_notes:      null,
+      }).catch(err => ({ error: err }))
+    ));
+    res.forEach(r => { if (!(r && r.error)) assigned += 1; else console.warn("vehicle_day_assignment_set:", r.error); });
+  }
+  return { assigned, unassigned };
+}
+window._rrAssignVansForRange = _assignVansForRange;
 
 // Mirror runner that clears every vehicle_day_assignment for the
 // visible week. Same spinner motion, same chip repaint.
