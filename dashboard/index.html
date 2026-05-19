@@ -12756,8 +12756,16 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:0 var(--s-2);
           }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group{
-            margin-left:6px;padding-left:12px;
-            border-left:1px solid var(--sch-line);
+            margin-left:8px;padding-left:14px;
+            position:relative;
+          }
+          #view-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group::before{
+            content:"";
+            position:absolute;
+            left:0;top:50%;
+            width:1px;height:32px;
+            margin-top:-16px;
+            background:rgba(15,23,42,.18);
           }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item{
             font-weight:500;
@@ -12809,12 +12817,21 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-ribbon-actions--grouped .sched-vans-rules-split{order:30}
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-kudos-h{order:31}
 
-          /* Hairline divider before each new group's leading item. */
+          /* Divider before each new action-group's leading item. */
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h,
           #view-schedule .sched-ribbon-actions--grouped .sched-vans-rules-split{
-            margin-left:10px;
-            padding-left:12px;
-            border-left:1px solid var(--sch-line);
+            margin-left:12px;
+            padding-left:14px;
+            position:relative;
+          }
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h::before,
+          #view-schedule .sched-ribbon-actions--grouped .sched-vans-rules-split::before{
+            content:"";
+            position:absolute;
+            left:0;top:50%;
+            width:1px;height:32px;
+            margin-top:-16px;
+            background:rgba(15,23,42,.18);
           }
 
           /* Quiet, utility-grade default for every tile EXCEPT the
