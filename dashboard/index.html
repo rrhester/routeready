@@ -11337,12 +11337,13 @@ body.rr-cmdk-open{ overflow:hidden }
                group divider. -->
           <div class="sched-ribbon-actions" id="rr-sched-page-actions">
             <div class="sched-smartfill-split">
-              <button class="sched-page-btn sched-page-btn--has-rules" id="rr-sched-smartfill-h" data-rr-tile="smartfill" draggable="true" type="button" title="Auto-staff this week from your rules + OKAMI demand">
+              <button class="sched-page-btn" id="rr-sched-smartfill-h" data-rr-tile="smartfill" draggable="true" type="button" title="Auto-staff this week from your rules + OKAMI demand">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 Smart Fill
-                <span class="sched-page-btn-rules-toggle" id="rr-sched-smartfill-rules-toggle" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-smartfill-rules-popover" title="Smart Fill rules — toggle parts of the auto-staff logic on/off" aria-label="Smart Fill rules">
-                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-                </span>
+              </button>
+              <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-smartfill-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-smartfill-rules-popover" title="Smart Fill rules — toggle parts of the auto-staff logic on/off">
+                Rules
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
               </button>
               <!-- Smart Fill rules popover · checkboxes per rule so
                    the DSP can toggle which rules apply on the next
@@ -11376,15 +11377,16 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
             <div class="sched-vans-rules-split">
-              <button class="sched-page-btn sched-page-btn--split sched-page-btn--has-rules" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
+              <button class="sched-page-btn sched-page-btn--split" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path class="van-cargo" d="M3 7h12v10H3z"/><path class="van-cab" d="M15 11h4l2 3v3h-6z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
                 Assign
                 <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
                   <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                 </span>
-                <span class="sched-page-btn-rules-toggle" id="rr-sched-vans-rules-toggle" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-vans-rules-popover" title="Van assignment rules — toggle parts of the auto-assign logic on/off" aria-label="Van assignment rules">
-                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-                </span>
+              </button>
+              <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-vans-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-vans-rules-popover" title="Van assignment rules — toggle parts of the auto-assign logic on/off">
+                Rules
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
               </button>
               <!-- Van assignment rules popover · checkboxes per rule
                    so the operator can toggle parts of the auto-assign
@@ -12693,6 +12695,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-vans-rules-split{
             position:relative;
             display:inline-flex;
+            flex-direction:column;
             align-items:stretch;
           }
 
@@ -12702,39 +12705,39 @@ body.rr-cmdk-open{ overflow:hidden }
              secondary chain / pool / FEM priority / auto-rescue).
              Sits above the existing bottom-right chain-editor
              chevron; both can co-exist on the same split tile. */
-          #view-schedule .sched-page-btn--has-rules{padding-top:16px}
-          /* Chevron split-toggle for rules · matches the existing
-             .sched-page-btn-split-toggle pattern (chain editor /
-             Targets / Settings) so all secondary-action chevrons
-             feel consistent. On Smart Fill this is the only
-             chevron and sits bottom-right. On Assign it sits
-             top-right so it doesn't collide with the chain-editor
-             chevron in bottom-right. */
-          #view-schedule .sched-page-btn-rules-toggle{
-            position:absolute;right:2px;bottom:2px;
-            width:18px;height:18px;border-radius:4px;
-            display:inline-flex;align-items:center;justify-content:center;
-            color:var(--text-subtle);
-            background:transparent;border:0;cursor:pointer;
-            transition:background var(--t-fast),color var(--t-fast);
-          }
-          /* Assign tile · rules chevron stays bottom-right; the
-             chain-editor chevron is pushed to top-right (swapped
-             per operator). */
+          /* Ribbon-footer "Rules ⌄" link · Outlook Quick Steps
+             pattern. Sits BELOW the main action tile (Smart Fill /
+             Assign) instead of squeezing onto the tile itself.
+             Text + chevron, calm hover state, no border. The
+             chain-editor chevron is pushed to top-right on the
+             Assign tile (was bottom-right) so the bottom edge is
+             clean for the footer link below it. */
           #view-schedule .sched-page-btn--split .sched-page-btn-split-toggle{
             right:2px;bottom:auto;top:2px;
           }
-          #view-schedule .sched-nav-heading-actions .sched-page-btn .sched-page-btn-rules-toggle svg,
-          #view-schedule .sched-page-btn-rules-toggle svg{
-            width:10px !important;height:10px !important;
-            display:block;color:inherit;stroke-width:2;
+          #view-schedule .sched-page-btn-rules-foot{
+            display:flex;align-items:center;justify-content:center;
+            gap:4px;
+            margin:4px auto 0;
+            padding:3px 8px;border-radius:4px;
+            background:transparent;border:0;cursor:pointer;
+            font-family:inherit;
+            font-size:11px;font-weight:500;letter-spacing:.01em;
+            color:var(--text-subtle);
+            transition:background var(--t-fast),color var(--t-fast);
           }
-          #view-schedule .sched-page-btn-rules-toggle:hover,
-          #view-schedule .sched-page-btn-rules-toggle:focus-visible{
-            background:var(--sch-blue-softer);color:var(--sch-blue);outline:none;
+          #view-schedule .sched-page-btn-rules-foot svg{
+            width:9px;height:9px;display:block;color:inherit;stroke-width:2;
           }
-          #view-schedule .sched-page-btn-rules-toggle[aria-expanded="true"]{
-            background:var(--sch-blue-soft);color:var(--sch-blue);
+          #view-schedule .sched-page-btn-rules-foot:hover,
+          #view-schedule .sched-page-btn-rules-foot:focus-visible{
+            color:var(--sch-blue);
+            background:var(--sch-blue-softer);
+            outline:none;
+          }
+          #view-schedule .sched-page-btn-rules-foot[aria-expanded="true"]{
+            color:var(--sch-blue);
+            background:var(--sch-blue-soft);
           }
 
           /* Van rules popover · mirrors the Smart Fill rules
