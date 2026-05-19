@@ -7881,21 +7881,6 @@ body.rr-cmdk-open{ overflow:hidden }
   padding-bottom:var(--s-3);
   margin-bottom:var(--s-2);
 }
-#sched-sub-requests .sched-requests-picker{
-  display:inline-flex;align-items:center;gap:var(--s-2);
-}
-#sched-sub-requests .sched-requests-picker-label{
-  font-size:11px;font-weight:700;color:var(--text-subtle);
-  text-transform:uppercase;letter-spacing:.06em;
-}
-#sched-sub-requests .sched-requests-picker .form-input{
-  font-size:var(--fs-sm);padding:6px 10px;
-  border:1px solid var(--sch-line, var(--border));
-  border-radius:var(--r-md);
-  background:#fff;
-  min-width:180px;
-}
-
 /* ─────────────────────────────────────────────────────────────
    DVIC compare modal — lifted out of an innerHTML <style> block
    so the CSS is parsed once at page load instead of every time a
@@ -13246,23 +13231,39 @@ body.rr-cmdk-open{ overflow:hidden }
             padding-bottom:var(--s-3);margin-bottom:var(--s-3);
             border-bottom:1px solid var(--sch-line);
           }
-          #view-schedule .sched-requests-picker{
-            display:inline-flex;align-items:center;gap:8px;
-          }
-          #view-schedule .sched-requests-picker-label{
-            font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
-            color:var(--text-subtle);
-          }
-          #view-schedule .sched-requests-picker .form-input{
-            min-width:220px;padding:7px 12px;
-            background:var(--sch-surface);
+          /* Fluent segmented control · sits where the dropdown used
+             to. Replaces a labeled <select> with a two-button pill
+             where the active state matches Outlook's filter strip. */
+          #view-schedule .sched-req-seg{
+            display:inline-flex;align-items:center;gap:0;
+            background:var(--sch-surface-2, #FAFBFC);
             border:1px solid var(--sch-line);
-            border-radius:var(--sch-radius);
-            font-size:var(--fs-sm);font-weight:500;color:var(--text);
+            border-radius:var(--sch-radius, 6px);
+            padding:2px;
           }
-          #view-schedule .sched-requests-picker .form-input:focus{
-            outline:none;border-color:var(--sch-blue);box-shadow:0 0 0 1px var(--sch-blue);
+          #view-schedule .sched-req-seg-btn{
+            display:inline-flex;align-items:center;gap:7px;
+            background:transparent;border:0;cursor:pointer;
+            padding:6px 12px;border-radius:5px;
+            font-size:var(--fs-sm, 13px);font-weight:500;
+            color:var(--text-muted);
+            transition:background var(--t-fast, 150ms), color var(--t-fast, 150ms);
           }
+          #view-schedule .sched-req-seg-btn:hover{
+            color:var(--text);
+            background:rgba(15,108,189,.06);
+          }
+          #view-schedule .sched-req-seg-btn:focus-visible{
+            outline:none;box-shadow:var(--ring-focus);
+          }
+          #view-schedule .sched-req-seg-btn.active{
+            background:#fff;
+            color:var(--sch-blue, #0F6CBD);
+            font-weight:600;
+            box-shadow:0 1px 2px rgba(15,23,42,.06),
+                       0 0 0 1px var(--sch-line);
+          }
+          #view-schedule .sched-req-seg-btn svg{flex:0 0 auto}
           #view-schedule .sched-requests-panel[hidden]{display:none}
           #view-schedule .sched-req-days{
             display:inline-flex;align-items:center;gap:4px;
@@ -14951,18 +14952,28 @@ body.rr-cmdk-open{ overflow:hidden }
         </div><!-- /sched-sub-templates -->
 
         <!-- REQUESTS · combined PTO + Availability triage inline in
-             the schedule. The select toggles which panel the operator
-             sees; both kinds are wired to their real renderers
-             (loadTimeOffView / loadAvailabilityRequests). -->
+             the schedule. Fluent segmented control toggles which
+             panel the operator sees; both kinds are wired to their
+             real renderers (loadTimeOffView / loadAvailabilityRequests).
+             A hidden mirror <select id="rr-sched-req-type"> stays
+             in the DOM so _renderSchedRequestsActive (live.js) can
+             read its .value without changes. -->
         <div class="sched-subview" id="sched-sub-requests" style="display:none">
           <div class="sched-requests-head">
-            <label class="sched-requests-picker">
-              <span class="sched-requests-picker-label">Request type</span>
-              <select class="form-input" id="rr-sched-req-type">
-                <option value="pto">PTO / Time off</option>
-                <option value="availability">Availability changes</option>
-              </select>
-            </label>
+            <div class="sched-req-seg" role="tablist" aria-label="Request type" id="rr-sched-req-seg">
+              <button type="button" role="tab" class="sched-req-seg-btn active" data-rr-req-tab="pto" aria-selected="true">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                PTO / Time off
+              </button>
+              <button type="button" role="tab" class="sched-req-seg-btn" data-rr-req-tab="availability" aria-selected="false">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Availability changes
+              </button>
+            </div>
+            <select id="rr-sched-req-type" hidden aria-hidden="true">
+              <option value="pto" selected>PTO / Time off</option>
+              <option value="availability">Availability changes</option>
+            </select>
           </div>
           <div class="sched-requests-panel" id="rr-sched-req-pto-panel">
             <div id="rr-time-off-body"><div class="rr-loading">Loading time off requests</div></div>

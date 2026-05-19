@@ -40218,11 +40218,31 @@ function _renderSchedRequestsActive() {
 }
 window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
 
-// Single-listener wiring for the picker.
+// Single-listener wiring for the picker. The visible UI is now a
+// Fluent segmented control (#rr-sched-req-seg); a hidden mirror
+// <select id="rr-sched-req-type"> stays in the DOM so
+// _renderSchedRequestsActive can keep reading sel.value without
+// changes. Clicking a segment updates the select + active class
+// and re-renders.
 document.addEventListener("change", (e) => {
   if (e.target && e.target.id === "rr-sched-req-type") {
     _renderSchedRequestsActive();
   }
+});
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("#rr-sched-req-seg .sched-req-seg-btn");
+  if (!btn) return;
+  const which = btn.dataset.rrReqTab;
+  if (!which) return;
+  const seg = btn.closest("#rr-sched-req-seg");
+  seg.querySelectorAll(".sched-req-seg-btn").forEach((b) => {
+    const isActive = b === btn;
+    b.classList.toggle("active", isActive);
+    b.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+  const sel = document.getElementById("rr-sched-req-type");
+  if (sel && sel.value !== which) sel.value = which;
+  _renderSchedRequestsActive();
 });
 
 // Compact inline renderer for availability requests, used by the
