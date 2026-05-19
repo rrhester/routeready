@@ -8564,6 +8564,18 @@ function _tpSubscribeRealtime() {
 }
 
 async function loadTodayPlan() {
+  // If the shell drifted into the schedule's Today sub-view and
+  // the operator is now visiting the dashboard's Today nav, pull
+  // it back to the anchor so the renderer paints into a visible
+  // host. Skip when the schedule's Today host is itself visible —
+  // that's the case where renderSchedTodayView just mounted the
+  // shell there and called us, and yanking it back would race
+  // the whole point.
+  const schedHost = document.getElementById("rr-sched-today-plan-host");
+  const schedHostVisible = !!schedHost?.offsetParent;
+  if (!schedHostVisible && typeof _rrMoveTodayShellTo === "function") {
+    _rrMoveTodayShellTo("rr-today-plan-anchor");
+  }
   const shell = document.getElementById("rr-today-plan-shell");
   if (!shell) return;
 
@@ -8579,7 +8591,13 @@ async function loadTodayPlan() {
 
   if (_todayPlanTimer) clearInterval(_todayPlanTimer);
   _todayPlanTimer = setInterval(() => {
-    if (document.getElementById("view-dashboard")?.classList.contains("active") && !document.hidden && _tpDateIso === _tpToday()) {
+    // Poll whenever the shell is mounted in a VISIBLE host — either
+    // the dashboard's Today nav OR the schedule's Today sub-view.
+    // offsetParent is null for any element whose ancestor chain
+    // includes display:none, so this single check covers both
+    // mount points without special-casing.
+    const shellVisible = !!document.getElementById("rr-today-plan-shell")?.offsetParent;
+    if (shellVisible && !document.hidden && _tpDateIso === _tpToday()) {
       _refreshTodayPlanData();
     } else if (_tpDateIso !== _tpToday()) {
       // Future-day view stays static — no 30s polling.  The user can
@@ -23651,6 +23669,12 @@ window.schedSub = function (sub) {
   // Restore the default "Schedule / Week of ..." title block when
   // leaving Today view — renderSchedTodayView overwrites it.
   if (sub !== "today") _resetSchedHeading();
+  // When leaving the Today sub-view, return the canonical Today
+  // shell to its dashboard anchor so the dashboard's own Today nav
+  // still works the next time the operator visits it.
+  if (sub !== "today" && typeof _rrMoveTodayShellTo === "function") {
+    _rrMoveTodayShellTo("rr-today-plan-anchor");
+  }
 };
 
 // Reset the page-title / sub-line back to "Schedule" and the
@@ -23793,7 +23817,55 @@ document.addEventListener("click", (e) => {
 // Vertical, left-justified roster of every driver scheduled on the
 // selected day. No right rail / open-shifts pool. Uses the same
 // schedule_grid RPC as renderScheduleWeek but renders a single date.
+// Schedule's Today sub-view → mount the canonical Today's Plan
+// shell here (same DOM, same renderer, same logic, same realtime
+// hooks the dashboard's Today nav surfaces). Operator asked to see
+// the actual today's roster in this sub-view, exactly like the
+// dashboard "Today's Plan" page.
+//
+// Implementation: instead of duplicating the renderer, we MOVE the
+// single canonical #rr-today-plan-shell DOM node between two hosts:
+//   - #rr-today-plan-anchor (inside #view-dashboard) — default home.
+//   - #rr-sched-today-plan-host (inside #sched-sub-today) — mount here
+//     when the schedule's Today sub-view is active.
+// loadTodayPlan() reads the shell wherever it lives, so the same
+// renderer drives both surfaces without a refactor.
+function _rrMoveTodayShellTo(hostId) {
+  const host = document.getElementById(hostId);
+  const shell = document.getElementById("rr-today-plan-shell");
+  if (!host || !shell) return;
+  if (shell.parentNode === host) return;
+  host.innerHTML = "";
+  host.appendChild(shell);
+}
+window._rrMoveTodayShellTo = _rrMoveTodayShellTo;
+
 async function renderSchedTodayView() {
+  _rrMoveTodayShellTo("rr-sched-today-plan-host");
+  if (typeof loadTodayPlan === "function") {
+    try { await loadTodayPlan(); }
+    catch (e) { console.warn("renderSchedTodayView · loadTodayPlan:", e); }
+  }
+  // Swap the schedule's page-title to "Today's Plan" for clarity;
+  // the dashboard's own title bar isn't visible in this sub-view.
+  const titleEl = document.querySelector("#view-schedule .sched-nav-heading .page-title");
+  if (titleEl) {
+    const livePill = titleEl.querySelector("#rr-sched-page-title-live");
+    titleEl.textContent = "Today's Plan";
+    if (livePill) titleEl.appendChild(livePill);
+  }
+  const subEl = document.getElementById("rr-sched-page-sub");
+  if (subEl) {
+    const dt = new Date();
+    subEl.textContent = dt.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  }
+}
+window._rrRenderSchedTodayView = renderSchedTodayView;
+
+// Stub kept so the no-longer-used legacy block below compiles —
+// the early return prevents anything past this point from running.
+async function _renderSchedTodayView_LEGACY_UNUSED() {
+  return;
   const body = document.getElementById("rr-sched-today-body");
   if (!body) return;
   const dspId = window.RR?.dsp?.id;
@@ -23801,21 +23873,6 @@ async function renderSchedTodayView() {
   if (!_schedTodayDate) _schedTodayDate = fmtIsoDate(new Date());
   const iso = _schedTodayDate;
   const dt  = new Date(iso + "T12:00:00");
-
-  // Update the page-header title block to reflect the day being
-  // viewed (the old in-body heading is gone). "Today view" sits
-  // where "Schedule" usually is; the sub-line shows
-  // "Tuesday, May 19, 2026".
-  const titleEl = document.querySelector("#view-schedule .sched-nav-heading .page-title");
-  const subEl   = document.getElementById("rr-sched-page-sub");
-  if (titleEl) {
-    // Preserve the LIVE pill (rendered as a child span by
-    // _updateFinalizeButton); just replace the text node.
-    const livePill = titleEl.querySelector("#rr-sched-page-title-live");
-    titleEl.textContent = "Today view";
-    if (livePill) titleEl.appendChild(livePill);
-  }
-  if (subEl) subEl.textContent = dt.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
   body.innerHTML = `<div class="rr-loading">Loading…</div>`;
 

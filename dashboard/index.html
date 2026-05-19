@@ -8410,8 +8410,10 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        <div id="rr-today-plan-shell">
-          <div class="rr-loading">Loading today's plan</div>
+        <div id="rr-today-plan-anchor">
+          <div id="rr-today-plan-shell">
+            <div class="rr-loading">Loading today's plan</div>
+          </div>
         </div>
 
       </div>
@@ -14600,25 +14602,16 @@ body.rr-cmdk-open{ overflow:hidden }
              right rail / open-shifts panel.  Populated by
              renderSchedTodayView() in live.js. -->
         <div class="sched-subview" id="sched-sub-today" style="display:none">
-          <div class="sched-today-shell">
-            <!-- The date heading lives in the page-title area now —
-                 see _setSchedHeadingForToday() in live.js. Day nav
-                 stays on its own so the operator can step through
-                 dates from the body. -->
-            <div class="sched-today-head sched-today-head--compact">
-              <div class="sched-today-day-nav" role="group" aria-label="Day navigation">
-                <button type="button" class="sched-today-day-btn" id="rr-sched-today-prev" aria-label="Previous day">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                </button>
-                <button type="button" class="sched-today-day-today" id="rr-sched-today-today">Today</button>
-                <button type="button" class="sched-today-day-btn" id="rr-sched-today-next" aria-label="Next day">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                </button>
-              </div>
-            </div>
-            <div class="sched-today-body" id="rr-sched-today-body">
-              <div class="rr-loading">Loading today's schedule…</div>
-            </div>
+          <!-- Schedule's Today sub-view is a mount-point for the
+               dashboard's "Today's Plan" shell. When this sub-view
+               becomes active, renderSchedTodayView moves the same
+               #rr-today-plan-shell node here so the operator sees
+               the canonical today's roster with all the dashboard's
+               logic + auto-refresh + realtime hooks intact. When the
+               sub-view is left, the shell returns to its anchor in
+               #view-dashboard. -->
+          <div id="rr-sched-today-plan-host">
+            <div class="rr-loading">Loading today's plan…</div>
           </div>
         </div><!-- /sched-sub-today -->
 
