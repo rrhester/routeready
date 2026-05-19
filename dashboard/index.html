@@ -14444,6 +14444,41 @@ body.rr-cmdk-open{ overflow:hidden }
             opacity:1;
             transform:scale(1.08);
           }
+
+          /* Diagonal milestone banner · bottom-right corner of the
+             driver row label. Cuts the corner at ~-32° so it reads
+             as a folded-flag ribbon. Subtle by default; today's
+             milestone gets a slightly stronger tint. */
+          #view-schedule .cal-row-label{position:relative;overflow:hidden}
+          #view-schedule .cal-row-label-banner{
+            position:absolute;
+            right:-24px;
+            bottom:7px;
+            min-width:96px;
+            padding:2px 30px;
+            transform:rotate(-32deg);
+            transform-origin:center;
+            text-align:center;
+            font-size:9px;font-weight:700;
+            letter-spacing:.06em;
+            text-transform:uppercase;
+            color:#fff;
+            background:linear-gradient(135deg, #9CA3AF, #6B7280);
+            box-shadow:0 1px 2px rgba(15,23,42,.12);
+            pointer-events:none;
+            z-index:2;
+            white-space:nowrap;
+          }
+          #view-schedule .cal-row-label-banner--birthday{
+            background:linear-gradient(135deg, #F472B6, #DB2777);
+          }
+          #view-schedule .cal-row-label-banner--anniversary{
+            background:linear-gradient(135deg, #F5C242, #B6850F);
+          }
+          #view-schedule .cal-row-label-banner.is-today{
+            box-shadow:0 1px 2px rgba(15,23,42,.18),
+                       0 0 0 2px rgba(255,255,255,.55) inset;
+          }
           #view-schedule .shift-chip-time .shift-chip-rpt{
             font-size:10px;color:var(--text-subtle);font-weight:500;
           }
