@@ -42046,6 +42046,10 @@ document.addEventListener("click", async (e) => {
     const side = document.querySelector("aside.sidebar");
     if (!side) return;
     side.classList.toggle("collapsed", !!collapsed);
+    // Boot-class on <html> is set inline before render to avoid
+    // flash; once the runtime class is applied, the boot class is
+    // no longer authoritative — clear it.
+    document.documentElement.classList.remove("rr-sidebar-collapsed-boot");
     const btn = document.getElementById("rr-sidebar-collapse");
     if (btn) {
       btn.setAttribute("aria-pressed", collapsed ? "true" : "false");
@@ -42053,11 +42057,18 @@ document.addEventListener("click", async (e) => {
       btn.setAttribute("title",      collapsed ? "Expand sidebar" : "Collapse sidebar");
     }
   };
-  // Restore on first paint.
+  // Restore on first paint. Default state is COLLAPSED — operators
+  // open many DSP dashboards, and a fresh dashboard should start in
+  // the compact rail so the content area is maximized from the
+  // first frame. Once the user toggles, that explicit choice
+  // persists in localStorage and wins on subsequent loads.
   const restore = () => {
     let saved = null;
     try { saved = localStorage.getItem(KEY); } catch (_) {}
-    apply(saved === "1");
+    // null / missing → collapsed (first-time default).
+    // "0" → user explicitly expanded.
+    // "1" → user explicitly collapsed.
+    apply(saved !== "0");
   };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", restore);
