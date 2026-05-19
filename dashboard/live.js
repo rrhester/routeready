@@ -42401,12 +42401,18 @@ document.addEventListener("click", async (e) => {
       sendBtn.disabled = true;
       if (status) { status.textContent = "Sending…"; status.style.color = "var(--text-subtle)"; }
       try {
+        // Pass p_metadata so PostgREST picks the 10-arg overload of
+        // recognition_send unambiguously (an older 9-arg overload
+        // without p_metadata is still on the server, and PostgREST
+        // refuses to pick between them when the optional args aren't
+        // supplied).
         const { error } = await sb.rpc("recognition_send", {
           p_driver_id:    driverId,
           p_kind:         pick.kind,
           p_title:        pick.title,
           p_message:      note || pick.blurb,
           p_animation:    pick.anim,
+          p_metadata:     {},
         });
         if (error) {
           if (status) { status.textContent = "Send failed: " + (error.message || ""); status.style.color = "var(--red)"; }
