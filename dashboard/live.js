@@ -26798,7 +26798,7 @@ async function renderScheduleWeek() {
   const [gridRes, driversRes, toRes, femVehRes, femAssignRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
-      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, tier, metadata, dl_expires_on, dot_certified, xl_certified, is_trainer, station:station_id (code)")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, birthday, tier, metadata, dl_expires_on, dot_certified, xl_certified, is_trainer, station:station_id (code)")
       .eq("dsp_id", dspId)
       .eq("status", "active")
       .eq("role", "driver")
@@ -26881,6 +26881,47 @@ async function renderScheduleWeek() {
       }
     }
   } catch (_) { /* recognition layer is purely cosmetic — failures are silent */ }
+
+  // ── Milestone banner ──────────────────────────────────────────────
+  // Driver-row diagonal ribbon: if the visible week contains a
+  // driver's birthday or hire-date anniversary, stamp the row with
+  // a small slanted banner in the bottom-right corner of the row
+  // label. Pure presentational; values live on each driver record
+  // (birthday / hire_date columns).
+  try {
+    const weekIsoSet = new Set();
+    for (let i = 0; i < 7; i++) weekIsoSet.add(fmtIsoDate(addDays(weekStart, i)));
+    // mm-dd of every day in the visible week — match against driver
+    // birthday / hire_date mm-dd. (year-on-year recurring event.)
+    const weekMonthDay = new Set();
+    for (const iso of weekIsoSet) weekMonthDay.add(iso.slice(5));
+    const todayIso = fmtIsoDate(new Date());
+    for (const d of drivers) {
+      let banner = null;
+      // Birthday wins over anniversary if both fall in the same week.
+      if (d.birthday && weekMonthDay.has(String(d.birthday).slice(5))) {
+        banner = { type: "birthday", label: "Birthday" };
+      } else if (d.hire_date && weekMonthDay.has(String(d.hire_date).slice(5))) {
+        const hire = new Date(String(d.hire_date) + "T12:00:00");
+        const yrs  = Math.max(0, weekStart.getFullYear() - hire.getFullYear());
+        if (yrs >= 1) {
+          banner = { type: "anniversary", label: `${yrs} yr${yrs === 1 ? "" : "s"}` };
+        }
+      }
+      if (banner) {
+        // Surface the exact day inside the week so the tooltip can
+        // say "Today" or "Wednesday" instead of just a banner.
+        const monthDay = banner.type === "birthday"
+          ? String(d.birthday).slice(5)
+          : String(d.hire_date).slice(5);
+        for (const iso of weekIsoSet) {
+          if (iso.slice(5) === monthDay) { banner.date = iso; break; }
+        }
+        banner.isToday = banner.date === todayIso;
+        d._milestoneBanner = banner;
+      }
+    }
+  } catch (_) { /* banner is decorative — silent on failure */ }
 
   // Index shifts by driver/date and collect open shifts by date.
   const shiftsByDriverDate = new Map();
@@ -27618,7 +27659,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}"${rel} ${data}>${star}${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${d._recognized ? `<span class="cal-row-label-recog" title="Recognized recently${d._recognizedSummary?.title ? ` · ${escapeHtml(d._recognizedSummary.title)}` : ""}" aria-label="Recognized recently"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 14.5 9.5 22 12 14.5 14.5 12 22 9.5 14.5 2 12 9.5 9.5"/></svg></span>` : ""}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(hoursLabel)}</div></div></div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${d._recognized ? `<span class="cal-row-label-recog" title="Recognized recently${d._recognizedSummary?.title ? ` · ${escapeHtml(d._recognizedSummary.title)}` : ""}" aria-label="Recognized recently"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 14.5 9.5 22 12 14.5 14.5 12 22 9.5 14.5 2 12 9.5 9.5"/></svg></span>` : ""}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(hoursLabel)}</div></div>${d._milestoneBanner ? `<span class="cal-row-label-banner cal-row-label-banner--${escapeHtml(d._milestoneBanner.type)}${d._milestoneBanner.isToday ? " is-today" : ""}" aria-label="${d._milestoneBanner.type === 'birthday' ? 'Birthday' : 'Anniversary ' + escapeHtml(d._milestoneBanner.label)}" title="${d._milestoneBanner.type === 'birthday' ? 'Birthday' : 'Work anniversary · ' + escapeHtml(d._milestoneBanner.label)}${d._milestoneBanner.isToday ? ' · today' : ''}">${d._milestoneBanner.type === 'birthday' ? 'Birthday' : 'Anniv · ' + escapeHtml(d._milestoneBanner.label)}</span>` : ""}</div>
       ${cells}
     </div>`;
   }).join("");
