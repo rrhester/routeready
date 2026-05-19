@@ -23490,14 +23490,19 @@ document.addEventListener("click", (e) => {
     _activateSchedSub("week");
     return;
   }
-  // Main Assign Vans tile → runs the auto-assignment in the
-  // background. The chip-decoration paints the assigned van into
-  // every chip on the calendar grid, and the driver app picks the
-  // change up via driver_vehicle_days — no sub-view switch needed.
-  // Motion lives on the tile's icon while the RPC chain runs.
+  // Main Assign Vans tile → toggles assignment for the visible
+  // week. When the week is empty the click runs auto-assign; when
+  // any vehicle_day_assignment exists for the week the click
+  // clears them. Label flips between "Assign Vans" / "Unassign
+  // Vans" automatically.
   if (e.target.closest("#rr-sched-vans-h") && !e.target.closest("#rr-sched-vans-chain-toggle")) {
     e.preventDefault();
-    _runSchedVanAssignmentsBackground();
+    const btn = document.getElementById("rr-sched-vans-h");
+    if (btn && btn.dataset.rrAssigned === "1") {
+      _runSchedVanUnassignBackground();
+    } else {
+      _runSchedVanAssignmentsBackground();
+    }
     return;
   }
   // Day navigation inside the Today view.
@@ -23973,9 +23978,90 @@ async function _runSchedVanAssignmentsBackground() {
       const cur = btn.querySelector("svg");
       if (cur) cur.outerHTML = orig;
     }
+    _refreshAssignVansLabel();
   }
 }
 window._rrRunSchedVanAssignmentsBackground = _runSchedVanAssignmentsBackground;
+
+// Mirror runner that clears every vehicle_day_assignment for the
+// visible week. Same spinner motion, same chip repaint.
+async function _runSchedVanUnassignBackground() {
+  const btn = document.getElementById("rr-sched-vans-h");
+  if (!btn) return;
+  if (btn.dataset.rrBusy === "1") return;
+  const orig = btn.querySelector("svg")?.outerHTML || "";
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
+
+  btn.dataset.rrBusy = "1";
+  btn.disabled = true;
+  const svg = btn.querySelector("svg");
+  if (svg) {
+    svg.outerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>`;
+  }
+
+  try {
+    // Direct delete using the dispatcher RLS policy (dsp_id +
+    // is_staff('dispatcher')). Covers every driver for every day
+    // in the visible week.
+    await sb.from("vehicle_day_assignments")
+      .delete()
+      .eq("dsp_id", dspId)
+      .gte("date", _schedStart)
+      .lte("date", weekEndIso)
+      .catch(err => ({ error: err }));
+
+    // Repaint the grid so the "Van NNN" stamps disappear.
+    if (typeof renderScheduleWeek === "function") {
+      try { await renderScheduleWeek(); } catch (_) {}
+    }
+    if (typeof _decorateScheduleChipsWithVans === "function") {
+      try { await _decorateScheduleChipsWithVans(); } catch (_) {}
+    }
+  } finally {
+    btn.disabled = false;
+    delete btn.dataset.rrBusy;
+    if (orig) {
+      const cur = btn.querySelector("svg");
+      if (cur) cur.outerHTML = orig;
+    }
+    _refreshAssignVansLabel();
+  }
+}
+window._rrRunSchedVanUnassignBackground = _runSchedVanUnassignBackground;
+
+// Reflect the current week's assignment state on the tile label.
+// Counts vehicle_day_assignments for the week; non-zero ⇒ flip to
+// "Unassign Vans", zero ⇒ "Assign Vans".
+async function _refreshAssignVansLabel() {
+  const btn = document.getElementById("rr-sched-vans-h");
+  if (!btn) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !_schedStart) return;
+  const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
+  let res;
+  try {
+    res = await sb.from("vehicle_day_assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("dsp_id", dspId)
+      .gte("date", _schedStart)
+      .lte("date", weekEndIso);
+  } catch (_) { return; }
+  const count = (res && (res.count || 0)) || 0;
+  const assigned = count > 0;
+  btn.dataset.rrAssigned = assigned ? "1" : "0";
+  // Swap the trailing text node (the icon SVG + chevron span stay).
+  const labelTarget = Array.from(btn.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+  if (labelTarget) labelTarget.textContent = assigned ? "Unassign Vans" : "Assign Vans";
+  const title = assigned
+    ? "Clear every vehicle assignment for this week"
+    : "Auto-assign vans for this week using the standing primary / backup chain";
+  btn.setAttribute("title", title);
+  btn.setAttribute("aria-label", assigned ? "Unassign vans" : "Assign vans");
+}
+window._rrRefreshAssignVansLabel = _refreshAssignVansLabel;
 
 // Paint a small "Van X" line into every chip on the schedule grid
 // using vehicle_day_assignments for the visible week. Driver app
@@ -25917,6 +26003,12 @@ async function renderScheduleWeek() {
   // chips show the van even before the operator re-runs Assign
   // Vans. Safe no-op when no assignments exist for the week.
   if (typeof _decorateScheduleChipsWithVans === "function") _decorateScheduleChipsWithVans();
+  // Reflect the current week's assignment state on the Assign Vans
+  // tile (label flips between "Assign Vans" and "Unassign Vans").
+  if (typeof _refreshAssignVansLabel === "function") _refreshAssignVansLabel();
+  // Re-apply the saved nav-tile order so a full page refresh always
+  // restores the operator's preferred layout.
+  if (typeof window._rrRestoreSchedTileOrder === "function") window._rrRestoreSchedTileOrder();
 }
 
 let _poolSortMode = "day"; // 'day' | 'wave'
