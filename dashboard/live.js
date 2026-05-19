@@ -25735,6 +25735,28 @@ async function autoAssignDriversForWeek() {
     driverShiftDates.get(sh.driver_id).add(sh.date);
   }
 
+  // Hours-per-shift lookup so we can compute weekly-hours totals
+  // (used by the SF max_hours rule + pto_count_in_cap rule).
+  // Falls back to 10h when the row has no starts/ends pair.
+  const shiftHoursById = new Map();
+  for (const sh of allShiftsForDateLookup) {
+    let h = 10;
+    if (sh.starts_at && sh.ends_at) {
+      const calc = (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000;
+      if (calc > 0 && calc <= 24) h = calc;
+    }
+    shiftHoursById.set(sh.id, h);
+  }
+
+  // Pre-seed per-driver scheduled hours from existing assignments
+  // so the SF planner sees the running total before its first seat.
+  const seededHours = new Map();
+  for (const sh of allShiftsForDateLookup) {
+    if (!sh.driver_id) continue;
+    seededHours.set(sh.driver_id,
+      (seededHours.get(sh.driver_id) || 0) + (shiftHoursById.get(sh.id) || 10));
+  }
+
   // PTO map: driver_id -> Set<iso>.
   const driverPtoDates = new Map();
   for (const t of pto) {
@@ -25769,11 +25791,23 @@ async function autoAssignDriversForWeek() {
     prefBase.set(d.id, Number(d.metadata?.scheduling?.pref_honored) || 0);
   }
 
+  // Smart Fill operator rules (max_hours + pto_count_in_cap):
+  // - max_hours: when on, the planner won't push a driver over 40
+  //   weekly hours of scheduled shifts.
+  // - pto_count_in_cap: when also on, PTO days (8h each) are added
+  //   to the running total before the cap check.
+  // Both come from the rules popover on the Smart Fill tile; sfRules
+  // is already loaded above for consecutive_days/tiebreaker.
+  const SF_HOURS_CAP = 40;
+  const sfMaxHoursOn   = sfRules.max_hours !== false; // default ON
+  const sfPtoInCap     = sfRules.pto_count_in_cap === true; // default OFF
+  const ptoHoursOf = (d) => (driverPtoDates.get(d.id)?.size || 0) * 8;
+
   // Every hard gate except the day-of-week one (kept separate so the
   // preference pass can restrict to "available AND prefers this day").
   // Expired DL / missing cert / PTO / already-shifted-that-day / over the
   // weekly cap / can't-start-that-early all block regardless of override.
-  const eligible = (d, sh, booked) => {
+  const eligible = (d, sh, booked, bookedHours) => {
     if (!driverLicenseOkForDate(d, sh.date)) return false;
     if (!driverHasCertsFor(d, sh.service_type_id)) return false;
     if (driverPtoDates.get(d.id)?.has(sh.date)) return false;
@@ -25781,6 +25815,16 @@ async function autoAssignDriversForWeek() {
     if ((booked.get(d.id)?.size || 0) >= maxDays) return false;
     const es = d.metadata?.availability?.earliest_start;
     if (es && _startsBeforeEarliest(_shiftStartHM(sh.starts_at), es)) return false;
+    // Weekly-hours cap (SF max_hours rule). Optional PTO inclusion
+    // per the pto_count_in_cap rule. Skip when caller didn't pass
+    // bookedHours (legacy code path) — fail-open keeps behavior
+    // identical for any unconverted caller.
+    if (sfMaxHoursOn && bookedHours) {
+      const scheduled = bookedHours.get(d.id) || 0;
+      const pto = sfPtoInCap ? ptoHoursOf(d) : 0;
+      const candH = shiftHoursById.get(sh.id) || 10;
+      if (scheduled + pto + candH > SF_HOURS_CAP) return false;
+    }
     return true;
   };
   const availableOn = (d, sh, dow) => driverDaysOn(d.id, sh.date).includes(dow);
@@ -25830,17 +25874,22 @@ async function autoAssignDriversForWeek() {
   const buildPlan = (usePreferences) => {
     const booked = new Map();
     for (const [k, v] of driverShiftDates) booked.set(k, new Set(v));
+    // Running per-driver scheduled-hours total. Seeded from existing
+    // assignments so the planner respects the weekly cap from the
+    // start, then bumped by seat() as each shift is placed.
+    const bookedHours = new Map(seededHours);
     const prefBumps = new Map();
     const assignments = new Map();
     const seat = (sh, d) => {
       assignments.set(sh.id, d.id);
       if (!booked.has(d.id)) booked.set(d.id, new Set());
       booked.get(d.id).add(sh.date);
+      bookedHours.set(d.id, (bookedHours.get(d.id) || 0) + (shiftHoursById.get(sh.id) || 10));
     };
     if (usePreferences) {
       for (const sh of openShifts) {
         const dow = DOW[new Date(sh.date + "T12:00:00").getDay()];
-        const cands = drivers.filter(d => preferredOf.get(d.id)?.has(dow) && availableOn(d, sh, dow) && eligible(d, sh, booked));
+        const cands = drivers.filter(d => preferredOf.get(d.id)?.has(dow) && availableOn(d, sh, dow) && eligible(d, sh, booked, bookedHours));
         if (cands.length === 0) continue;
         const w = pickWinner(cands, booked, prefBumps, sh.date);
         if (!w) continue;
@@ -25851,8 +25900,8 @@ async function autoAssignDriversForWeek() {
     for (const sh of openShifts) {
       if (assignments.has(sh.id)) continue;
       const dow = DOW[new Date(sh.date + "T12:00:00").getDay()];
-      let cands = drivers.filter(d => availableOn(d, sh, dow) && eligible(d, sh, booked));
-      if (cands.length === 0 && allowOverride) cands = drivers.filter(d => eligible(d, sh, booked));
+      let cands = drivers.filter(d => availableOn(d, sh, dow) && eligible(d, sh, booked, bookedHours));
+      if (cands.length === 0 && allowOverride) cands = drivers.filter(d => eligible(d, sh, booked, bookedHours));
       if (cands.length === 0) continue;
       // Route through pickWinner so the consecutive_days adjacency
       // bonus + the configured tiebreaker apply to this fallback
