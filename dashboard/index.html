@@ -12763,9 +12763,10 @@ body.rr-cmdk-open{ overflow:hidden }
             content:"";
             position:absolute;
             left:0;top:50%;
-            width:1px;height:32px;
-            margin-top:-16px;
-            background:rgba(15,23,42,.18);
+            width:2px;height:36px;
+            margin-top:-18px;
+            background:rgba(15,23,42,.28);
+            border-radius:1px;
           }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item{
             font-weight:500;
@@ -12829,9 +12830,10 @@ body.rr-cmdk-open{ overflow:hidden }
             content:"";
             position:absolute;
             left:0;top:50%;
-            width:1px;height:32px;
-            margin-top:-16px;
-            background:rgba(15,23,42,.18);
+            width:2px;height:36px;
+            margin-top:-18px;
+            background:rgba(15,23,42,.28);
+            border-radius:1px;
           }
 
           /* Quiet, utility-grade default for every tile EXCEPT the
@@ -14377,31 +14379,25 @@ body.rr-cmdk-open{ overflow:hidden }
           }
 
           /* ── Recognition Layer ────────────────────────────────────
-             Driver-level: when any shift's driver was recognized in
-             the last 14 days, the chip gets a soft warm halo. On
-             hover, a tiny sparkle reveals in the corner. Ambient
-             only — no animations beyond a one-shot fade-in on hover,
-             no color saturation that competes with operational data
-             (PTO, cushion, today). */
-          #view-schedule .shift-chip.is-recognized{
-            position:relative;
-            box-shadow:
-              0 0 0 1px rgba(212,160,23,.18),
-              0 0 0 3px rgba(212,160,23,.06);
+             Driver-level marker, NOT on the chip — a tiny gold spark
+             next to the driver's name in the row label. Keeps the
+             recognition signal away from operational chip data
+             (cushion stripe, today highlight, etc.) so it never gets
+             confused with the EX-stripe. Subtle by default; lights
+             up to full opacity on hover of the row label. */
+          #view-schedule .cal-row-label-recog{
+            display:inline-flex;align-items:center;justify-content:center;
+            margin-left:6px;
+            vertical-align:middle;
+            color:#D4A013;
+            opacity:.85;
+            line-height:0;
+            transition:opacity var(--t-fast, 150ms), transform var(--t-fast, 150ms);
+            filter:drop-shadow(0 0 1.5px rgba(212,160,23,.35));
           }
-          #view-schedule .shift-chip.is-recognized::after{
-            content:"";
-            position:absolute;top:3px;right:3px;
-            width:6px;height:6px;border-radius:50%;
-            background:radial-gradient(circle at 30% 30%, #FFD167 0%, #D4A013 70%, rgba(212,160,23,0) 100%);
-            opacity:0;
-            transform:scale(.6);
-            transition:opacity 240ms ease, transform 240ms ease;
-            pointer-events:none;
-          }
-          #view-schedule .cal-cell:hover .shift-chip.is-recognized::after{
+          #view-schedule .cal-row-label:hover .cal-row-label-recog{
             opacity:1;
-            transform:scale(1);
+            transform:scale(1.08);
           }
           #view-schedule .shift-chip-time .shift-chip-rpt{
             font-size:10px;color:var(--text-subtle);font-weight:500;
