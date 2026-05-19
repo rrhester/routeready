@@ -23540,13 +23540,22 @@ window.schedSub = function (sub) {
 // label via the existing rr-sched-page-sub element, so we just
 // reset the title text + leave the sub-line for the next paint.
 function _resetSchedHeading() {
+  _setSchedHeadingTitle("Schedule");
+}
+
+// Swap the schedule's ribbon title to an arbitrary string while
+// preserving the live-status pill that lives at the end of the
+// title element. Sub-views like Today and Van assignments use
+// this to retitle the page without painting a second header
+// inside their own DOM.
+function _setSchedHeadingTitle(text) {
   const titleEl = document.querySelector("#view-schedule .sched-nav-heading .page-title");
   if (!titleEl) return;
   const livePill = titleEl.querySelector("#rr-sched-page-title-live");
   if (titleEl.firstChild && titleEl.firstChild.nodeType === 3) {
-    titleEl.firstChild.nodeValue = "Schedule";
+    titleEl.firstChild.nodeValue = text;
   } else {
-    titleEl.textContent = "Schedule";
+    titleEl.textContent = text;
     if (livePill) titleEl.appendChild(livePill);
   }
 }
@@ -23563,6 +23572,16 @@ function _activateSchedSub(sub) {
   document.querySelectorAll("#view-schedule .sched-subview").forEach(v => { v.style.display = "none"; });
   const view = document.getElementById(`sched-sub-${sub}`);
   if (view) view.style.display = "block";
+
+  // Swap the ribbon page-title for sub-views that don't paint
+  // their own header. Van assignments → retitle; everything else
+  // → fall back to "Schedule" via _resetSchedHeading.
+  if (sub === "vans-chain") {
+    _setSchedHeadingTitle("Van assignments");
+  } else if (sub !== "today") {
+    // Today owns its own title swap via renderSchedTodayView.
+    _resetSchedHeading();
+  }
 }
 document.addEventListener("click", (e) => {
   // Chevron split-toggle on the Smart Fill tile → open the rules
@@ -23584,11 +23603,9 @@ document.addEventListener("click", (e) => {
     renderSchedVanAssignmentsBoard();
     return;
   }
-  if (e.target.closest("#rr-sched-vans-chain-back")) {
-    e.preventDefault();
-    _activateSchedSub("week");
-    return;
-  }
+  // (The old "Back to week" button was removed when the inline
+  // header came out — operators leave the chain editor by
+  // clicking another tab in the same ribbon, Outlook-style.)
   // Main Assign Vans tile → toggles assignment for the visible
   // week. When the week is empty the click runs auto-assign; when
   // any vehicle_day_assignment exists for the week the click

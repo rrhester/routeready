@@ -12941,14 +12941,18 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .ws-crumb .sep{display:none}
           #view-schedule .ws-board-name{display:inline-flex;align-items:center;gap:7px;font-family:'Inter Tight','Inter',system-ui,sans-serif;font-size:22px;font-weight:600;color:var(--text);letter-spacing:-.015em;line-height:1.2;margin-top:2px}
           #view-schedule .ws-board-name .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-          #view-schedule .ws-grid-wrap{background:#fff;border:1px solid var(--sch-line);border-radius:8px;overflow:hidden}
-          #view-schedule .ws-veh-table{width:100%;border-collapse:collapse;font-size:13px}
-          #view-schedule .ws-veh-table th{text-align:left;padding:9px 12px;background:var(--sch-surface-2);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);border-bottom:1px solid var(--sch-line);white-space:nowrap}
-          #view-schedule .ws-veh-table td{padding:7px 10px;border-top:1px solid var(--sch-line-subtle);vertical-align:middle}
+          /* Microsoft Fluent surface for the van-chain editor: subtle
+             elevation, calmer hairlines, more breathing room in every
+             row. The table is the only object on screen so it earns a
+             real card treatment rather than the flat-on-canvas look. */
+          #view-schedule .ws-grid-wrap{background:#fff;border:1px solid var(--sch-line);border-radius:var(--r-lg,10px);overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04),0 1px 1px rgba(15,23,42,.02)}
+          #view-schedule .ws-veh-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm,13px)}
+          #view-schedule .ws-veh-table th{text-align:left;padding:13px 16px;background:var(--sch-surface-2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);border-bottom:1px solid var(--sch-line);white-space:nowrap}
+          #view-schedule .ws-veh-table td{padding:11px 14px;border-top:1px solid var(--sch-line-subtle);vertical-align:middle}
           #view-schedule .ws-veh-table tbody tr:first-child td{border-top:none}
           #view-schedule .ws-veh-table tbody tr:hover td{background:var(--sch-blue-softer)}
-          #view-schedule .ws-veh-table th.ws-veh-act,#view-schedule .ws-veh-table td.ws-veh-act{width:36px;padding-left:2px;padding-right:10px;text-align:center}
-          #view-schedule .ws-veh-input,#view-schedule .ws-veh-select{width:100%;font-size:12px;padding:5px 8px;background:var(--sch-surface);border:1px solid var(--sch-line);border-radius:6px;color:var(--text);font-family:inherit}
+          #view-schedule .ws-veh-table th.ws-veh-act,#view-schedule .ws-veh-table td.ws-veh-act{width:36px;padding-left:2px;padding-right:14px;text-align:center}
+          #view-schedule .ws-veh-input,#view-schedule .ws-veh-select{width:100%;font-size:13px;padding:7px 10px;background:var(--sch-surface);border:1px solid var(--sch-line);border-radius:6px;color:var(--text);font-family:inherit;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
           #view-schedule .ws-veh-input:focus,#view-schedule .ws-veh-select:focus{outline:none;border-color:var(--sch-blue);box-shadow:0 0 0 1px var(--sch-blue)}
           #view-schedule .ws-veh-x{appearance:none;background:transparent;border:0;color:var(--text-subtle);cursor:pointer;padding:5px;border-radius:6px;display:inline-flex;opacity:0;transition:opacity var(--t-fast),color var(--t-fast),background var(--t-fast)}
           #view-schedule .ws-veh-table tbody tr:hover .ws-veh-x{opacity:1}
@@ -12971,7 +12975,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .ws-veh-row.is-grounded{background:rgba(196,43,28,.025)}
           #view-schedule .ws-veh-row.is-grounded:hover td{background:rgba(196,43,28,.05)}
           #view-schedule .ws-veh-name-ro{font-weight:600;color:var(--text)}
-          #view-schedule .ws-addrow{display:flex;align-items:center;gap:8px;width:100%;padding:11px 14px;border:0;border-top:1px solid var(--sch-line-subtle);background:transparent;color:var(--text-subtle);font:inherit;font-size:13px;font-weight:500;cursor:pointer;text-align:left;transition:background var(--t-fast),color var(--t-fast)}
+          #view-schedule .ws-addrow{display:flex;align-items:center;gap:8px;width:100%;padding:14px 16px;border:0;border-top:1px solid var(--sch-line-subtle);background:transparent;color:var(--text-subtle);font:inherit;font-size:13px;font-weight:500;cursor:pointer;text-align:left;transition:background var(--t-fast),color var(--t-fast)}
           #view-schedule .ws-addrow:hover{background:var(--sch-hover);color:var(--sch-blue)}
           #view-schedule .ws-addrow svg{width:14px;height:14px;flex:0 0 auto}
 
@@ -14526,16 +14530,10 @@ body.rr-cmdk-open{ overflow:hidden }
              Populated by renderSchedVanAssignmentsBoard() in
              live.js (reuses _wsRenderVehicles internally). -->
         <div class="sched-subview" id="sched-sub-vans-chain" style="display:none">
-          <div class="sched-vans-chain-head">
-            <div>
-              <div class="sched-vans-chain-title">Van assignments</div>
-              <div class="sched-vans-chain-meta">Set each van's primary driver and a backup who picks it up when the primary isn't scheduled.</div>
-            </div>
-            <button type="button" class="btn btn-sm" id="rr-sched-vans-chain-back">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:13px;height:13px"><polyline points="15 18 9 12 15 6"/></svg>
-              Back to week
-            </button>
-          </div>
+          <!-- No inline header: the page-title in the ribbon swaps to
+               "Van assignments" while this view is active. Operators
+               navigate back via the Week / Today / Staff tabs in the
+               same ribbon. -->
           <div id="rr-sched-vans-chain-body">
             <div class="rr-loading">Loading van / driver chains…</div>
           </div>
