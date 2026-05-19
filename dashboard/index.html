@@ -12968,22 +12968,26 @@ body.rr-cmdk-open{ overflow:hidden }
             color:#A11E13;
           }
 
-          /* WORKFLOW primary accent — single CTA in the strip. */
+          /* WORKFLOW accent — calmer treatment per operator. Soft
+             blue tinted pill with blue ink (was full-saturation
+             white-on-blue). Still the only accent in the strip but
+             reads at peer-level intensity with the live-state
+             green pill. */
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h{
-            background:var(--sch-blue);
-            color:#fff;
+            background:var(--sch-blue-soft, rgba(37,99,235,.10));
+            color:var(--sch-blue, #2563EB);
             border-radius:6px;
             padding:8px 14px;
             font-weight:600;
-            box-shadow:0 1px 2px rgba(15,108,189,.18);
+            box-shadow:inset 0 0 0 1px rgba(37,99,235,.20);
             transition:background var(--t-fast,150ms), box-shadow var(--t-fast,150ms);
           }
-          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h svg{color:#fff}
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h svg{color:var(--sch-blue, #2563EB)}
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h:hover{
-            background:#0A5394;
-            box-shadow:0 2px 6px rgba(15,108,189,.24);
+            background:rgba(37,99,235,.16);
+            box-shadow:inset 0 0 0 1px rgba(37,99,235,.32);
           }
-          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h:hover svg{color:#fff}
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h:hover svg{color:var(--sch-blue, #2563EB)}
           /* When the week is live, swap to the calm green "Unfinalize"
              pill — still distinct, still the only accent tile. */
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h[data-rr-stage="live"]{
