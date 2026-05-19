@@ -23265,6 +23265,58 @@ function _toggleSchedSmartFillRules(force) {
 }
 window._rrToggleSchedSmartFillRules = _toggleSchedSmartFillRules;
 
+// ── Van assignment rules · same pattern as Smart Fill rules ──
+// Operator toggles which parts of the van auto-assign logic to
+// apply on the next run. State persists in localStorage; the
+// resolver in _assignVansForRange reads it via _rrLoadVanRules
+// at the start of every run.
+const _RR_VAN_RULES_KEY = "rr-sched-van-rules";
+const _RR_VAN_RULE_DEFAULTS = {
+  primary_chain:    true,
+  secondary_chain:  true,
+  pool_fill:        true,
+  branded_first:    true,
+  fem_priority:     true,
+  rescue_secondary: true,
+  rescue_primary:   true,
+};
+function _restoreSchedVanRules() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_VAN_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  if (!saved || typeof saved !== "object") return;
+  document.querySelectorAll("#rr-sched-vans-rules-body [data-rr-van-rule]").forEach(cb => {
+    const k = cb.getAttribute("data-rr-van-rule");
+    if (Object.prototype.hasOwnProperty.call(saved, k)) cb.checked = !!saved[k];
+  });
+}
+function _toggleSchedVanRules(force) {
+  const pop = document.getElementById("rr-sched-vans-rules-popover");
+  const toggle = document.getElementById("rr-sched-vans-rules-toggle");
+  if (!pop) return false;
+  const isOpen = !pop.hidden;
+  const next = (typeof force === "boolean") ? force : !isOpen;
+  pop.hidden = !next;
+  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  if (next) _restoreSchedVanRules();
+  return next;
+}
+window._rrToggleSchedVanRules = _toggleSchedVanRules;
+// Public reader so _assignVansForRange can query the live rule
+// state without a DOM read.
+window._rrLoadVanRules = function () {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_VAN_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  const out = {};
+  for (const k of Object.keys(_RR_VAN_RULE_DEFAULTS)) {
+    out[k] = (saved && Object.prototype.hasOwnProperty.call(saved, k))
+      ? !!saved[k]
+      : _RR_VAN_RULE_DEFAULTS[k];
+  }
+  return out;
+};
+
 // Auto-close inline popovers when the cursor truly leaves them.
 // Both popovers + their trigger tile sit inside a wrapper (the
 // .sched-settings-split / .sched-smartfill-split div). mouseleave
@@ -23274,8 +23326,9 @@ window._rrToggleSchedSmartFillRules = _toggleSchedSmartFillRules;
 // the menu mid-reach.
 (function bindPopoverAutoClose() {
   const cases = [
-    { wrap: ".sched-settings-split",  fn: () => _toggleSchedQuickSettings(false) },
-    { wrap: ".sched-smartfill-split", fn: () => _toggleSchedSmartFillRules(false) },
+    { wrap: ".sched-settings-split",   fn: () => _toggleSchedQuickSettings(false) },
+    { wrap: ".sched-smartfill-split",  fn: () => _toggleSchedSmartFillRules(false) },
+    { wrap: ".sched-vans-rules-split", fn: () => _toggleSchedVanRules(false) },
   ];
   const wired = new WeakSet();
   function wire(host, closeFn) {
@@ -23311,6 +23364,16 @@ document.addEventListener("change", (e) => {
   saved[cb.getAttribute("data-rr-sf-rule")] = !!cb.checked;
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
 });
+// Persist a Van-rules checkbox change.
+document.addEventListener("change", (e) => {
+  const cb = e.target && e.target.closest && e.target.closest("#rr-sched-vans-rules-body [data-rr-van-rule]");
+  if (!cb) return;
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_VAN_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  saved[cb.getAttribute("data-rr-van-rule")] = !!cb.checked;
+  try { localStorage.setItem(_RR_VAN_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+});
 // Outside click closes the popover.
 document.addEventListener("click", (e) => {
   const pop = document.getElementById("rr-sched-smartfill-rules-popover");
@@ -23319,12 +23382,20 @@ document.addEventListener("click", (e) => {
       && !e.target.closest("#rr-sched-smartfill-rules-toggle")) {
     _toggleSchedSmartFillRules(false);
   }
+  const vpop = document.getElementById("rr-sched-vans-rules-popover");
+  if (vpop && !vpop.hidden
+      && !e.target.closest("#rr-sched-vans-rules-popover")
+      && !e.target.closest("#rr-sched-vans-rules-toggle")) {
+    _toggleSchedVanRules(false);
+  }
 });
 // Escape closes the popover.
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   const pop = document.getElementById("rr-sched-smartfill-rules-popover");
   if (pop && !pop.hidden) _toggleSchedSmartFillRules(false);
+  const vpop = document.getElementById("rr-sched-vans-rules-popover");
+  if (vpop && !vpop.hidden) _toggleSchedVanRules(false);
 });
 
 function _toggleSchedQuickSettings(force) {
@@ -23627,6 +23698,15 @@ document.addEventListener("click", (e) => {
     renderSchedVanAssignmentsBoard();
     return;
   }
+  // "R" badge in the top-right of the Assign Vans tile → open the
+  // van assignment rules popover. Stops propagation so the main
+  // tile click (auto-assign) doesn't also fire.
+  if (e.target.closest("#rr-sched-vans-rules-toggle")) {
+    e.preventDefault();
+    e.stopPropagation();
+    _toggleSchedVanRules();
+    return;
+  }
   // (The old "Back to week" button was removed when the inline
   // header came out — operators leave the chain editor by
   // clicking another tab in the same ribbon, Outlook-style.)
@@ -23635,7 +23715,9 @@ document.addEventListener("click", (e) => {
   // any vehicle_day_assignment exists for the week the click
   // clears them. Label flips between "Assign Vans" / "Unassign
   // Vans" automatically.
-  if (e.target.closest("#rr-sched-vans-h") && !e.target.closest("#rr-sched-vans-chain-toggle")) {
+  if (e.target.closest("#rr-sched-vans-h")
+      && !e.target.closest("#rr-sched-vans-chain-toggle")
+      && !e.target.closest("#rr-sched-vans-rules-toggle")) {
     e.preventDefault();
     const btn = document.getElementById("rr-sched-vans-h");
     const assigned = btn && btn.dataset.rrAssigned === "1";
@@ -24192,6 +24274,15 @@ window._rrRunSchedVanAssignmentsBackground = _runSchedVanAssignmentsBackground;
 // dashboard-ready counters for branded-van rotation health,
 // `reasons` carries per-write phase + FEM-tier explainability.
 async function _assignVansForRange(startIso, endIso, dspId) {
+  // Load operator-toggled rules. Missing = on by default. The "R"
+  // badge popover on the Assign Vans tile is where the operator
+  // flips these. Each rule guards a specific phase below.
+  const rules = (typeof window._rrLoadVanRules === "function")
+    ? window._rrLoadVanRules()
+    : { primary_chain: true, secondary_chain: true, pool_fill: true,
+        branded_first: true, fem_priority: true,
+        rescue_secondary: true, rescue_primary: true };
+
   // FEM lookback — 14 days before the assignment window so every
   // branded van's most recent dispatch is in range for the
   // rolling 14-day rotation calculation.
@@ -24326,12 +24417,17 @@ async function _assignVansForRange(startIso, endIso, dspId) {
   const sortVansForDate = (vans, date) => vans.slice().sort((a, b) => {
     const aBranded = a.is_branded !== false;
     const bBranded = b.is_branded !== false;
-    if (aBranded !== bBranded) return aBranded ? -1 : 1;
-    if (!aBranded && !bBranded) {
-      // Both non-branded — alphabetical only, no FEM logic.
+    // "Branded vans first" rule — if disabled, branded and non-branded
+    // mix in a single tier (alphabetical).
+    if (rules.branded_first && aBranded !== bBranded) return aBranded ? -1 : 1;
+    // FEM priority rule — when on, branded vans use the urgency
+    // ladder (Violation→Risk→Watch→Healthy) within their tier.
+    // When off, all branded vans sort alphabetically alongside
+    // non-branded.
+    if (!rules.fem_priority || !aBranded || !bBranded) {
       return (a.name || "").localeCompare(b.name || "");
     }
-    // Both branded — apply FEM-aware ordering.
+    // Both branded + FEM priority on — apply FEM-aware ordering.
     const lastA = lastUsedAsOf(a.id, date);
     const lastB = lastUsedAsOf(b.id, date);
     const daysA = lastA ? daysBetween(date, lastA) : null;
@@ -24339,7 +24435,6 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     const ca = classifyFem(daysA);
     const cb = classifyFem(daysB);
     if (ca.urgency !== cb.urgency) return ca.urgency - cb.urgency;
-    // null (never_used) ranks before any number (most overdue).
     if (daysA === null && daysB !== null) return -1;
     if (daysA !== null && daysB === null) return  1;
     if ((daysA || 0) !== (daysB || 0)) return (daysB || 0) - (daysA || 0);
@@ -24399,27 +24494,33 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     // race — Van 10's primary owner always gets Van 10 if they're
     // scheduled, regardless of who else might want it. FEM never
     // takes a van away from its scheduled primary.
-    for (const v of vansToday) {
-      if (vanAssigned.has(v.id)) continue;
-      const primary = (vanChain.get(v.id) || []).find(c => (c.rank | 0) === 0);
-      if (!primary) continue;
-      if (!scheduled.has(primary.driver_id)) continue;
-      if (driverAssigned.has(primary.driver_id)) continue;
-      recordWrite(primary.driver_id, v.id, "primary");
+    // Guarded by the `primary_chain` rule.
+    if (rules.primary_chain) {
+      for (const v of vansToday) {
+        if (vanAssigned.has(v.id)) continue;
+        const primary = (vanChain.get(v.id) || []).find(c => (c.rank | 0) === 0);
+        if (!primary) continue;
+        if (!scheduled.has(primary.driver_id)) continue;
+        if (driverAssigned.has(primary.driver_id)) continue;
+        recordWrite(primary.driver_id, v.id, "primary");
+      }
     }
 
     // ── Phase 1b: primary not scheduled → secondary picks it up ──
     // "Secondary" = lowest unclaimed rank > 0 from the same chain.
     // FEM-sorted iteration naturally pushes at-risk branded vans
     // ahead of fresher ones in this phase.
-    for (const v of vansToday) {
-      if (vanAssigned.has(v.id)) continue;
-      const backups = (vanChain.get(v.id) || []).filter(c => (c.rank | 0) > 0);
-      for (const b of backups) {
-        if (!scheduled.has(b.driver_id)) continue;
-        if (driverAssigned.has(b.driver_id)) continue;
-        recordWrite(b.driver_id, v.id, "secondary");
-        break;
+    // Guarded by the `secondary_chain` rule.
+    if (rules.secondary_chain) {
+      for (const v of vansToday) {
+        if (vanAssigned.has(v.id)) continue;
+        const backups = (vanChain.get(v.id) || []).filter(c => (c.rank | 0) > 0);
+        for (const b of backups) {
+          if (!scheduled.has(b.driver_id)) continue;
+          if (driverAssigned.has(b.driver_id)) continue;
+          recordWrite(b.driver_id, v.id, "secondary");
+          break;
+        }
       }
     }
 
@@ -24428,16 +24529,26 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     // van. The FEM-aware vansToday order means at-risk branded
     // vans get assigned first, then watch, then healthy, then
     // non-branded alphabetical.
-    const poolDrivers = Array.from(scheduled)
-      .filter(d => !driverAssigned.has(d))
-      .sort();
-    const poolVans = vansToday.filter(v => !vanAssigned.has(v.id));
-    const pair = Math.min(poolDrivers.length, poolVans.length);
-    for (let i = 0; i < pair; i++) {
-      recordWrite(poolDrivers[i], poolVans[i].id, "pool");
-    }
-    if (poolDrivers.length > poolVans.length) {
-      unassigned += poolDrivers.length - poolVans.length;
+    // Guarded by the `pool_fill` rule.
+    let poolDrivers = [];
+    let poolVans    = [];
+    if (rules.pool_fill) {
+      poolDrivers = Array.from(scheduled)
+        .filter(d => !driverAssigned.has(d))
+        .sort();
+      poolVans = vansToday.filter(v => !vanAssigned.has(v.id));
+      const pair = Math.min(poolDrivers.length, poolVans.length);
+      for (let i = 0; i < pair; i++) {
+        recordWrite(poolDrivers[i], poolVans[i].id, "pool");
+      }
+      if (poolDrivers.length > poolVans.length) {
+        unassigned += poolDrivers.length - poolVans.length;
+      }
+    } else {
+      // When pool fill is off, the chain-less scheduled drivers
+      // simply go without a van. Count them as unassigned so the
+      // KPI reflects the operator's choice.
+      unassigned += Array.from(scheduled).filter(d => !driverAssigned.has(d)).length;
     }
 
     // ── Phase 3: FEM RESCUE — supersede chain ──
@@ -24511,26 +24622,31 @@ async function _assignVansForRange(startIso, endIso, dspId) {
         recordWrite(poolLeft, v.id, "rescue-from-pool");
         continue;
       }
-      // (b) Displace a secondary.
-      const sec = _pickDonor(1);
-      if (sec) {
-        driverAssigned.delete(sec.drvId);
-        vanAssigned.delete(sec.vehId);
-        _unrecord(sec.drvId);
-        recordWrite(sec.drvId, v.id, "rescue-from-secondary");
-        continue;
+      // (b) Displace a secondary (guarded by rescue_secondary rule).
+      if (rules.rescue_secondary) {
+        const sec = _pickDonor(1);
+        if (sec) {
+          driverAssigned.delete(sec.drvId);
+          vanAssigned.delete(sec.vehId);
+          _unrecord(sec.drvId);
+          recordWrite(sec.drvId, v.id, "rescue-from-secondary");
+          continue;
+        }
       }
-      // (c) Displace a primary.
-      const pri = _pickDonor(0);
-      if (pri) {
-        driverAssigned.delete(pri.drvId);
-        vanAssigned.delete(pri.vehId);
-        _unrecord(pri.drvId);
-        recordWrite(pri.drvId, v.id, "rescue-from-primary");
-        continue;
+      // (c) Displace a primary (guarded by rescue_primary rule).
+      if (rules.rescue_primary) {
+        const pri = _pickDonor(0);
+        if (pri) {
+          driverAssigned.delete(pri.drvId);
+          vanAssigned.delete(pri.vehId);
+          _unrecord(pri.drvId);
+          recordWrite(pri.drvId, v.id, "rescue-from-primary");
+          continue;
+        }
       }
       // (d) Mathematically impossible — van stays unrotated.
-      // The FEM KPI will surface this.
+      // The FEM KPI will surface this (whether by physics or by
+      // the operator's rule choices).
     }
 
     // Promote today's writes into usageByVan so the NEXT date's
