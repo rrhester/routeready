@@ -728,6 +728,31 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 }
 .topbar::after{ display:none; }
 .topbar-title{font-size:var(--fs-base);font-weight:600;color:var(--text)}
+
+/* Hard-refresh icon in the topbar — sits ahead of the Ask bar so
+   the operator can force-pull a fresh build when their browser is
+   sitting on cached scripts. Quiet by default; subtle blue hover. */
+.hdr-refresh{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:32px;
+  background:transparent;border:0;cursor:pointer;
+  color:var(--text-subtle);
+  border-radius:6px;
+  flex:0 0 auto;
+  transition:background var(--t-fast,150ms), color var(--t-fast,150ms), transform 320ms ease;
+}
+.hdr-refresh:hover{
+  background:var(--accent-soft);
+  color:var(--accent-text);
+}
+.hdr-refresh:focus-visible{
+  outline:none;background:var(--accent-soft);color:var(--accent-text);
+  box-shadow:var(--ring-focus);
+}
+.hdr-refresh.is-spinning svg{
+  animation:hdr-refresh-spin .6s ease;
+}
+@keyframes hdr-refresh-spin{ from{transform:rotate(0)} to{transform:rotate(360deg)} }
 .topbar-context{font-size:var(--fs-sm);color:var(--text-subtle);margin-left:var(--s-3)}
 .topbar-spacer{flex:1}
 
@@ -8419,6 +8444,13 @@ body.rr-cmdk-open{ overflow:hidden }
 
     <!-- Top bar -->
     <header class="topbar">
+      <!-- Hard-refresh · forces a fresh fetch of the dashboard
+           (HTML + cache-busted live.js) so the operator can pick
+           up a deploy when their browser is sitting on a cached
+           build. Subtle by default; faint hover state. -->
+      <button type="button" id="rr-hdr-refresh" class="hdr-refresh" title="Refresh dashboard (clears cached scripts)" aria-label="Refresh dashboard">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
+      </button>
       <form id="rr-hdr-ask-form" class="hdr-ask" autocomplete="off">
         <span class="hdr-ask-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg>
@@ -11876,7 +11908,7 @@ body.rr-cmdk-open{ overflow:hidden }
              global rules at the top of the file. */
           #view-schedule .cal-wrap{
             border-radius:22px;
-            background:var(--sch-surface);
+            background:#FFFFFF;
             border:1px solid rgba(15,23,42,.08);
             box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 28px rgba(15,23,42,.07);
             overflow:hidden;
@@ -11884,7 +11916,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .driver-pool,
           #view-schedule .sched-insights{
             border-radius:22px;
-            background:var(--sch-surface);
+            background:#FFFFFF;
             border:1px solid rgba(15,23,42,.08);
             box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 28px rgba(15,23,42,.07);
           }
@@ -12103,14 +12135,13 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Page-header → KPI strip rhythm is now handled by the
              tightened global .page-header margin-bottom. */
 
-          /* KPI pill row · enclosed white card so it pops against
-             the cooler workspace bg. */
+          /* KPI pill row · pure-white enclosed card. */
           #view-schedule #rr-sched-kpis.sched-kpi-pills{
             display:flex;flex-wrap:wrap;align-items:center;
             gap:var(--s-5);
             margin:0 0 var(--s-4) 0;
             padding:12px 18px;
-            background:var(--sch-surface);
+            background:#FFFFFF;
             border:1px solid rgba(15,23,42,.08);
             border-radius:10px;
             box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
@@ -12726,8 +12757,8 @@ body.rr-cmdk-open{ overflow:hidden }
              + week nav) right-justified on the SAME line — never
              wraps. If the viewport is too narrow, the actions cluster
              scrolls horizontally so nothing falls to a second row. */
-          /* Action ribbon as an enclosed card so it visually
-             separates from the off-white workspace below. */
+          /* Action ribbon as an enclosed card. Pure white so it
+             pops cleanly against the cooler workspace below. */
           #view-schedule .sched-nav-heading{
             display:flex;align-items:center;
             justify-content:space-between;
@@ -12735,7 +12766,7 @@ body.rr-cmdk-open{ overflow:hidden }
             flex-wrap:nowrap;
             padding:14px 18px;
             margin-bottom:var(--s-4);
-            background:var(--sch-surface);
+            background:#FFFFFF;
             border:1px solid rgba(15,23,42,.08);
             border-radius:10px;
             box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);

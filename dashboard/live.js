@@ -42486,6 +42486,37 @@ document.addEventListener("click", async (e) => {
   });
 })();
 
+// ── Topbar hard-refresh ────────────────────────────────────────────
+// Header refresh icon (top-left of the topbar) appends a cache-bust
+// query to the URL and reloads. Forces the browser to fetch a fresh
+// HTML + the new live.js when a deploy has shipped but the operator's
+// browser is sitting on cached assets. Tiny spin animation on click
+// so it feels responsive.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("#rr-hdr-refresh");
+  if (!btn) return;
+  e.preventDefault();
+  btn.classList.add("is-spinning");
+  // Try to purge the service-worker / browser caches first so the
+  // next fetch goes to the network, then navigate with a cache-bust
+  // query so even intermediary caches get bypassed.
+  const finish = () => {
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set("_cb", String(Date.now()));
+      window.location.replace(u.toString());
+    } catch (_) {
+      window.location.reload();
+    }
+  };
+  if (typeof caches !== "undefined" && caches.keys) {
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+      .then(finish, finish);
+  } else {
+    finish();
+  }
+});
+
 // ── Schedule auto-boot ─────────────────────────────────────────────
 // Schedule is the default active view on page load (see #view-
 // schedule.active in index.html). Without a goto('schedule') the
