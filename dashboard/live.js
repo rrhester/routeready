@@ -39543,9 +39543,13 @@ async function loadTimeOffView() {
 function _toRefreshNavBadge() {
   const badge = document.getElementById("rr-sched-time-off-badge");
   if (!badge) return;
+  // Indicator-only (red dot, no number) per operator. Show when
+  // there's at least one pending request; otherwise hide entirely.
   const n = _toRows.filter((r) => r.status === "pending").length;
-  if (n > 0) { badge.textContent = String(n); badge.style.display = "inline-block"; }
-  else       { badge.style.display = "none"; badge.textContent = "0"; }
+  badge.textContent = ""; // dot only — never render a count
+  badge.style.display = n > 0 ? "inline-block" : "none";
+  badge.setAttribute("title", n > 0 ? `${n} active request${n === 1 ? "" : "s"}` : "");
+  badge.setAttribute("aria-label", n > 0 ? `${n} active request${n === 1 ? "" : "s"}` : "");
 }
 
 // Hook the Schedule view's sub-tab router so opening Time off loads
