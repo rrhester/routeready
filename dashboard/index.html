@@ -12231,20 +12231,8 @@ body.rr-cmdk-open{ overflow:hidden }
             height:32px;align-self:center;
           }
 
-          /* Assign Vans icon · paint the van glyph orange so it
-             reads at a glance against the rest of the strip. Tile
-             background and label stay untouched. */
-          #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-vans-h svg,
-          #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-vans-h:hover svg,
-          #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-vans-h:focus svg{
-            color:#EA580C;
-          }
-          /* While the background runner spins, keep the orange tint
-             on the spinner SVG too so the motion reads as the van
-             working. */
-          #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-vans-h[data-rr-busy="1"] svg{
-            color:#EA580C;
-          }
+          /* (Assign Vans icon stays the default tile color — the
+             orange tint was removed per the operator's request.) */
 
           /* Route Planning icon · calendar in Fluent dark blue,
              checkmark in Fluent communicationGreen. Tile chrome
@@ -14408,11 +14396,11 @@ body.rr-cmdk-open{ overflow:hidden }
              renderSchedTodayView() in live.js. -->
         <div class="sched-subview" id="sched-sub-today" style="display:none">
           <div class="sched-today-shell">
-            <div class="sched-today-head">
-              <div class="sched-today-head-l">
-                <div class="sched-today-date" id="rr-sched-today-date">—</div>
-                <div class="sched-today-meta" id="rr-sched-today-meta">—</div>
-              </div>
+            <!-- The date heading lives in the page-title area now —
+                 see _setSchedHeadingForToday() in live.js. Day nav
+                 stays on its own so the operator can step through
+                 dates from the body. -->
+            <div class="sched-today-head sched-today-head--compact">
               <div class="sched-today-day-nav" role="group" aria-label="Day navigation">
                 <button type="button" class="sched-today-day-btn" id="rr-sched-today-prev" aria-label="Previous day">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
