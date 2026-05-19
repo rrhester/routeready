@@ -23453,11 +23453,26 @@ function _activateSchedSub(sub) {
   if (view) view.style.display = "block";
 }
 document.addEventListener("click", (e) => {
-  // Assign Vans tile → runs the auto-assignment for the visible
-  // week using each driver's standing primary/backup chain, falling
-  // back to the branded-first pool when neither rank is available.
-  // Result populates the schedule's vans sub-view + propagates to
-  // the driver app via the existing driver_vehicle_days resolver.
+  // Chevron split-toggle on the Assign Vans tile → open the
+  // editable van / driver chain editor. Sits on top of the main
+  // tile click so the chevron's hit area wins when targeted.
+  if (e.target.closest("#rr-sched-vans-chain-toggle")) {
+    e.preventDefault();
+    e.stopPropagation();
+    _activateSchedSub("vans-chain");
+    renderSchedVanAssignmentsBoard();
+    return;
+  }
+  if (e.target.closest("#rr-sched-vans-chain-back")) {
+    e.preventDefault();
+    _activateSchedSub("week");
+    return;
+  }
+  // Main Assign Vans tile → runs the auto-assignment for the
+  // visible week using each driver's standing primary/backup chain,
+  // falling back to the branded-first pool when neither rank is
+  // available. Result populates the schedule's vans sub-view + the
+  // driver app (driver_vehicle_days).
   if (e.target.closest("#rr-sched-vans-h")) {
     e.preventDefault();
     _activateSchedSub("vans");
@@ -23683,7 +23698,11 @@ function _wireSchedTodayDragReorder(body) {
 // for the chain, vehicle_field_set / vehicle_archive for status).
 let _schedVansBound = false;
 async function renderSchedVanAssignmentsBoard() {
-  const body = document.getElementById("rr-sched-vans-body");
+  // Prefer the dedicated chain-editor sub-view; fall back to the
+  // legacy #rr-sched-vans-body host for callers that still target
+  // the auto-assign result view.
+  const body = document.getElementById("rr-sched-vans-chain-body")
+            || document.getElementById("rr-sched-vans-body");
   if (!body) return;
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { body.innerHTML = `<div class="sched-vans-empty">DSP not loaded.</div>`; return; }
@@ -23859,41 +23878,81 @@ async function runSchedVanAssignmentsForWeek() {
   const summary = `<div class="sched-vans-summary">
     <strong>${totalAssigned}</strong> van${totalAssigned === 1 ? "" : "s"} assigned this week${totalUnassigned > 0 ? ` · <strong style="color:var(--sch-amber-dark)">${totalUnassigned}</strong> driver${totalUnassigned === 1 ? "" : "s"} without a van` : ""}.
     Drivers will see their van in the RouteReady driver app.
-    <button type="button" class="btn btn-sm" id="rr-sched-vans-edit-chain" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:13px;height:13px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg> Edit chain</button>
-    <button type="button" class="btn btn-sm" id="rr-sched-vans-rerun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Re-run</button>
+    <button type="button" class="btn btn-sm" id="rr-sched-vans-rerun" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Re-run</button>
   </div>`;
 
   body.innerHTML = `${summary}${sections}`;
   const reBtn = document.getElementById("rr-sched-vans-rerun");
   if (reBtn) reBtn.addEventListener("click", (ev) => { ev.preventDefault(); runSchedVanAssignmentsForWeek(); });
-  const editBtn = document.getElementById("rr-sched-vans-edit-chain");
-  if (editBtn) editBtn.addEventListener("click", (ev) => {
-    ev.preventDefault();
-    // Swap the body to the editable Workflows chain board. A small
-    // back link returns to the auto-assign results.
-    renderSchedVanAssignmentsBoard();
-    // Inject a "← Back to assignments" link above the table.
-    setTimeout(() => {
-      const head = body.querySelector(".ws-head");
-      if (head) head.remove();
-      const wrap = body.querySelector(".ws-grid-wrap");
-      if (wrap && !document.getElementById("rr-sched-vans-back-results")) {
-        const back = document.createElement("div");
-        back.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px";
-        back.innerHTML = `<button id="rr-sched-vans-back-results" type="button" class="btn btn-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:13px;height:13px"><polyline points="15 18 9 12 15 6"/></svg> Back to assignments</button><div style="font-size:var(--fs-xs);color:var(--text-subtle)">Edits propagate to Smart Fill + future Assign Vans runs.</div>`;
-        wrap.parentNode.insertBefore(back, wrap);
-        back.querySelector("#rr-sched-vans-back-results").addEventListener("click", (ev2) => {
-          ev2.preventDefault();
-          runSchedVanAssignmentsForWeek();
-        });
-      }
-    }, 80);
-  });
+
+  // Decorate the calendar chips with the freshly-assigned van code
+  // so the operator sees the assignment in-place on the schedule
+  // grid. Driver app already gets it via driver_vehicle_days.
+  _decorateScheduleChipsWithVans();
   toast(`Vans assigned · ${totalAssigned} placement${totalAssigned === 1 ? "" : "s"}${totalUnassigned ? " · " + totalUnassigned + " gap" + (totalUnassigned === 1 ? "" : "s") : ""}`, totalUnassigned > 0 ? "warn" : "success");
 
   if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.rrOrig || "Assign vans for this week"; delete btn.dataset.rrOrig; }
 }
 window._rrRunSchedVanAssignmentsForWeek = runSchedVanAssignmentsForWeek;
+
+// Paint a small "Van X" line into every chip on the schedule grid
+// using vehicle_day_assignments for the visible week. Driver app
+// already sees the van via driver_vehicle_days — this brings the
+// dispatcher's view in line.
+async function _decorateScheduleChipsWithVans() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !_schedStart) return;
+  const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
+  let res;
+  try {
+    res = await sb.from("vehicle_day_assignments")
+      .select("driver_id, date, vehicle_id, vehicles:vehicle_id (name)")
+      .eq("dsp_id", dspId)
+      .gte("date", _schedStart).lte("date", weekEndIso);
+  } catch (_) { return; }
+  if (res?.error) return;
+  const rows = res.data || [];
+  if (!rows.length) return;
+  const byKey = new Map();
+  for (const r of rows) {
+    const van = r.vehicles?.name;
+    if (!van) continue;
+    byKey.set(`${r.driver_id}|${r.date}`, van);
+  }
+  // Find every shift chip in the visible schedule grid and append
+  // the van pill. Chips render with data-rr-shift-id but no
+  // driver_id, so cross-reference the row label's driver name
+  // via the shifts cache. Easiest path: re-fetch the grid is
+  // overkill; instead, key by data-rr-cell driver_id + date if
+  // present, otherwise iterate every chip and look up its
+  // grandparent row's cal-row-label-name + day index.
+  const sub = document.getElementById("sched-sub-week");
+  if (!sub) return;
+  // Re-query the latest grid data from window._rrLastGridShifts
+  // if exposed by renderScheduleWeek. Falls back to skipping
+  // decoration when unavailable.
+  const shifts = Array.isArray(window._rrLastGridShifts) ? window._rrLastGridShifts : null;
+  if (!shifts) return;
+  const shiftIdToKey = new Map();
+  for (const sh of shifts) {
+    if (!sh.driver_id || !sh.date) continue;
+    shiftIdToKey.set(String(sh.id), `${sh.driver_id}|${sh.date}`);
+  }
+  sub.querySelectorAll(".shift-chip[data-rr-shift-id]").forEach(chip => {
+    const id = chip.dataset.rrShiftId;
+    const key = shiftIdToKey.get(String(id));
+    if (!key) return;
+    const van = byKey.get(key);
+    if (!van) return;
+    // Replace any prior decoration.
+    chip.querySelector(".shift-chip-van")?.remove();
+    const el = document.createElement("div");
+    el.className = "shift-chip-van";
+    el.textContent = `Van ${van}`;
+    chip.appendChild(el);
+  });
+}
+window._rrDecorateScheduleChipsWithVans = _decorateScheduleChipsWithVans;
 
 // ─── Van assignments renderer (legacy) ──────────────────────────────
 // Driver ↔ vehicle pairings for the visible week, read from the
@@ -25763,6 +25822,15 @@ async function renderScheduleWeek() {
   if (lic) lic.remove();
 
   renderSchedOpenShiftsPool(sub, grid.shifts || [], drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver, virtualByDate);
+
+  // Cache the shift payload so the post-Assign-Vans decorator can
+  // cross-reference shift_id → (driver_id, date) when painting van
+  // codes onto each chip.
+  try { window._rrLastGridShifts = grid.shifts || []; } catch (_) {}
+  // Repaint van decorations from any existing assignments so the
+  // chips show the van even before the operator re-runs Assign
+  // Vans. Safe no-op when no assignments exist for the week.
+  if (typeof _decorateScheduleChipsWithVans === "function") _decorateScheduleChipsWithVans();
 }
 
 let _poolSortMode = "day"; // 'day' | 'wave'

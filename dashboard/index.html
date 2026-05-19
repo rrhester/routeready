@@ -11229,9 +11229,12 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 16 11 19 16 14"/></svg>
               Route planning
             </button>
-            <button class="sched-page-btn" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
+            <button class="sched-page-btn sched-page-btn--split" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h12v10H3z"/><path d="M15 11h4l2 3v3h-6z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
               Assign Vans
+              <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+              </span>
             </button>
             <div class="sched-settings-split">
               <button class="sched-page-btn" id="rr-sched-settings-open-h" data-rr-tile="settings" draggable="true" type="button" title="Schedule settings for this week" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-quick-settings-popover" aria-label="Schedule settings">
@@ -12786,6 +12789,34 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-advanced-foot .rr-drawer-status{
             font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;
+          }
+
+          /* Van pill stamped onto every chip after Assign Vans runs.
+             Reads as a quiet tertiary line under the time so the
+             driver / route stays the dominant info. */
+          #view-schedule .shift-chip .shift-chip-van{
+            font-size:10px;font-weight:600;
+            color:var(--text-subtle);
+            margin-top:2px;letter-spacing:.02em;
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .shift-chip:not(.off):not(.timeoff):not(.open) .shift-chip-van{
+            color:var(--sch-blue-text);
+          }
+
+          /* Van chain editor sub-view header */
+          #view-schedule .sched-vans-chain-head{
+            display:flex;align-items:flex-end;justify-content:space-between;
+            gap:var(--s-3);padding-bottom:var(--s-3);margin-bottom:var(--s-3);
+            border-bottom:1px solid var(--sch-line);
+          }
+          #view-schedule .sched-vans-chain-title{
+            font-size:22px;font-weight:600;letter-spacing:-.015em;color:var(--text);
+            line-height:1.2;
+          }
+          #view-schedule .sched-vans-chain-meta{
+            font-size:var(--fs-sm);color:var(--text-subtle);font-weight:500;margin-top:2px;
+            max-width:60ch;
           }
 
           /* ── Van Assignments view · Workflows board mounted inline ─ */
@@ -14366,17 +14397,36 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div><!-- /sched-sub-today -->
 
-        <!-- VAN ASSIGNMENTS · the same editable board the Workspaces
-             page renders, but mounted inline inside the schedule
-             view. Clicking the action-strip Van Assignments tile
-             switches here; renderSchedVanAssignmentsBoard() loads
-             the vehicles + drivers and reuses _wsRenderVehicles to
-             produce identical markup. -->
+        <!-- VAN ASSIGNMENTS · auto-assign result view. The action-
+             strip Assign Vans tile triggers today_roster_auto_assign
+             for each day in the week and populates this view with a
+             summary + per-day cards. -->
         <div class="sched-subview" id="sched-sub-vans" style="display:none">
           <div id="rr-sched-vans-body">
             <div class="rr-loading">Loading van assignments…</div>
           </div>
         </div><!-- /sched-sub-vans -->
+
+        <!-- VAN ↔ DRIVER CHAIN EDITOR · the editable Fleet Assignment
+             tool (Van · Status · Primary · Backup · Notes). Reached
+             from the chevron split-toggle on the Assign Vans tile.
+             Populated by renderSchedVanAssignmentsBoard() in
+             live.js (reuses _wsRenderVehicles internally). -->
+        <div class="sched-subview" id="sched-sub-vans-chain" style="display:none">
+          <div class="sched-vans-chain-head">
+            <div>
+              <div class="sched-vans-chain-title">Van assignments</div>
+              <div class="sched-vans-chain-meta">Set each van's primary driver and a backup who picks it up when the primary isn't scheduled.</div>
+            </div>
+            <button type="button" class="btn btn-sm" id="rr-sched-vans-chain-back">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:13px;height:13px"><polyline points="15 18 9 12 15 6"/></svg>
+              Back to week
+            </button>
+          </div>
+          <div id="rr-sched-vans-chain-body">
+            <div class="rr-loading">Loading van / driver chains…</div>
+          </div>
+        </div><!-- /sched-sub-vans-chain -->
 
         <!-- STAFF SCHEDULE — support roles (dispatchers, fleet, HR, ops, other).
              Standalone roster + weekly grid, completely separate from the
