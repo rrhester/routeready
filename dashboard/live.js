@@ -26747,55 +26747,96 @@ async function renderScheduleWeek() {
   for (const [, list] of femUsage) list.sort();
   const femWeekDates = [];
   for (let i = 0; i < 7; i++) femWeekDates.push(fmtIsoDate(addDays(weekStart, i)));
-  const femRisks = [];
+  // For each branded van we collect two things across the visible
+  // week:
+  //   - the worst tier it hits and on what day (drives the KPI
+  //     drill-down + the "Vans at Critical/Violation" count)
+  //   - the FIRST day it enters Watch or worse (drives the
+  //     "Next at-risk van" empty-state forecast when no one is
+  //     currently in the danger zone)
+  // Tier walk uses the same running-idle counter that the
+  // existing rescue trigger uses, so KPI semantics stay in sync.
+  const femClassify = (daysSince) => {
+    if (daysSince === null || daysSince === Infinity) return { tier: "never_used", rank: 0 };
+    if (daysSince >= 14) return { tier: "violation", rank: 1 };
+    if (daysSince >= 13) return { tier: "critical",  rank: 2 };
+    if (daysSince >= 11) return { tier: "risk",      rank: 3 };
+    if (daysSince >= 7)  return { tier: "watch",     rank: 4 };
+    return                       { tier: "healthy",  rank: 5 };
+  };
+  const femRisks    = [];
+  const femUpcoming = []; // { vehicle_id, name, watchOn, daysOnWatchDay } — healthy vans projected to enter Watch this week
+  let femWeekCounts = { watch: 0, risk: 0, critical: 0, violation: 0 };
   for (const v of femVehicles) {
     const list = femUsage.get(v.id) || [];
-    const usageSet = new Set(list); // dates this van will be / was used
-    // Most recent use strictly BEFORE the visible week begins —
-    // this seeds the running idle count.
+    const usageSet = new Set(list);
     let lastUsed = null;
     for (const e of list) {
       if (e < femWeekDates[0]) lastUsed = e;
       else break;
     }
-    // Walk the week day-by-day. If a day has a scheduled use, the
-    // van is NOT idle that day (counter resets). Otherwise check
-    // whether the running idle count crosses 14 — that's the
-    // first day the van crosses the operator's red threshold.
-    // This is the fix for: "if a van is scheduled to be used
-    // before the >14 day event, it should not flag" — we now
-    // honor forward-looking assignments instead of just the
-    // pure historical idle count.
-    let firstCrossing = null;
-    let crossingDays = null;
+    // Walk every day this week. Track the worst tier rank
+    // (1=violation … 5=healthy) and the date the van first
+    // enters Watch.
+    let worstTier = "healthy";
+    let worstRank = 5;
+    let worstDate = null;
+    let worstDays = null;
+    let firstWatchDate = null;
+    let firstWatchDays = null;
     for (const d of femWeekDates) {
-      if (usageSet.has(d)) {
-        // Van is being rotated today — reset the idle counter.
-        lastUsed = d;
-        continue;
-      }
+      if (usageSet.has(d)) { lastUsed = d; continue; }
       const days = lastUsed ? femDaysBetween(d, lastUsed) : Infinity;
-      // Flag at >=13 days (Critical tier, proactive rescue trigger)
-      // so the operator gets the one-day buffer before VERO bites.
-      // Previously this only flagged at >14 (Violation only).
-      if (days >= 13) {
-        firstCrossing = d;
-        crossingDays = days === Infinity ? null : days;
-        break;
+      const cls = femClassify(days);
+      if (cls.rank < worstRank) {
+        worstRank = cls.rank;
+        worstTier = cls.tier;
+        worstDate = d;
+        worstDays = days === Infinity ? null : days;
+      }
+      if (!firstWatchDate && cls.rank <= 4) {
+        firstWatchDate = d;
+        firstWatchDays = days === Infinity ? null : days;
       }
     }
-    if (firstCrossing) {
+    // Anything that hit Critical / Violation / Never-used during
+    // the week shows up in the KPI's at-risk list. Watch + Risk
+    // count toward the sub-line tier breakdown but don't
+    // dominate the headline number — we keep that anchored to
+    // "vans approaching defect" so the operator's primary worry
+    // is the proactive trigger, not the watchlist.
+    if (worstTier !== "healthy") femWeekCounts[worstTier === "never_used" ? "violation" : worstTier]++;
+    if (worstRank <= 2) {
+      // Critical (worstRank=2) or Violation/never-used (worstRank=1).
       femRisks.push({
         vehicle_id: v.id,
         name: v.name || "—",
-        firstCrossing,
-        days: crossingDays, // null = never used
+        tier: worstTier,
+        firstCrossing: worstDate,
+        days: worstDays,
+        // Days remaining until defect (14d violation). 0 once
+        // we're past it. Operator's mental model is "how much
+        // runway?", so this becomes the headline number in the
+        // drill-down.
+        daysToDefect: worstDays === null ? 0 : Math.max(0, 14 - worstDays),
+      });
+    } else if (firstWatchDate) {
+      femUpcoming.push({
+        vehicle_id: v.id,
+        name: v.name || "—",
+        watchOn: firstWatchDate,
+        daysOnWatchDay: firstWatchDays,
       });
     }
   }
   femRisks.sort((a, b) =>
     (a.firstCrossing || "").localeCompare(b.firstCrossing || "")
     || ((b.days ?? Infinity) - (a.days ?? Infinity))
+    || (a.name || "").localeCompare(b.name || "")
+  );
+  femUpcoming.sort((a, b) =>
+    (a.watchOn || "").localeCompare(b.watchOn || "")
+    || ((b.daysOnWatchDay || 0) - (a.daysOnWatchDay || 0))
     || (a.name || "").localeCompare(b.name || "")
   );
 
@@ -26813,20 +26854,68 @@ async function renderScheduleWeek() {
     // Violations when they actually flare — those keep red so the
     // operator sees the alarm. Everything at-rest reads neutral navy.
     const navy = "#1A1F47";
-    const rotationLabel = femRisks.length === 0
-      ? "Fleet rotation OK"
-      : `${femRisks.length} Van${femRisks.length === 1 ? "" : "s"} >14d`;
+    // Fleet-rotation pill — Fluent voice:
+    //   Healthy → "Fleet rotation healthy" + forecast sub-line of
+    //             the next van projected into Watch/Risk this week.
+    //   Watch/Risk only → still healthy headline, sub-line counts
+    //             the watchlist so the operator has peripheral
+    //             awareness without an alarm.
+    //   Critical/Violation → headline becomes "N vans approaching
+    //             defect" with the days-to-defect framing in the
+    //             modal drill-down. Sub-line breaks down the tier
+    //             counts so the operator sees the whole landscape.
+    const _wkDayLbl = (iso) => {
+      try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "long" }); }
+      catch { return ""; }
+    };
+    const nextUp = femUpcoming[0];
+    let rotationLabel, rotationSub, rotationDotRed;
+    if (femRisks.length === 0) {
+      rotationDotRed = false;
+      rotationLabel  = "Fleet rotation healthy";
+      // Empty-state forecast: surface the next van projected to
+      // enter Watch (or worse) inside the visible week. Calm,
+      // forward-looking; replaces the old "OK ✓" anaemic state.
+      if (nextUp) {
+        rotationSub = `Next at-risk van · ${nextUp.name} hits Watch ${_wkDayLbl(nextUp.watchOn)}`;
+      } else {
+        rotationSub = "No branded van projected to enter Watch this week";
+      }
+    } else {
+      rotationDotRed = true;
+      rotationLabel  = `${femRisks.length} van${femRisks.length === 1 ? "" : "s"} approaching defect`;
+      // Sub-line tier breakdown — only show non-zero buckets so
+      // it reads calm. Critical / Violation are always shown
+      // when present; Watch / Risk join in when relevant.
+      const parts = [];
+      if (femWeekCounts.violation > 0) parts.push(`${femWeekCounts.violation} Violation`);
+      if (femWeekCounts.critical  > 0) parts.push(`${femWeekCounts.critical} Critical`);
+      if (femWeekCounts.risk      > 0) parts.push(`${femWeekCounts.risk} Risk`);
+      if (femWeekCounts.watch     > 0) parts.push(`${femWeekCounts.watch} Watch`);
+      rotationSub = parts.join(" · ");
+    }
     const rotationTitle = femRisks.length === 0
       ? "Every branded non-grounded van stays under the 14-day rotation rule this week"
-      : `${femRisks.length} branded van${femRisks.length === 1 ? "" : "s"} will cross the 14-day rotation rule this week — click for details`;
+      : `Click for details · ${femRisks.length} branded van${femRisks.length === 1 ? "" : "s"} projected to cross 13+ days unused`;
     kpis.innerHTML =
       pill("coverage", navy, `${pct}% Coverage`, `${totalFilled} / ${totalNeeded} shifts`, false, "") +
       pill("violations", violations.length > 0 ? "var(--red)" : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
       pill("overtime", totalOvertimeHrs > 0 ? "var(--red)" : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
       pill("open-shifts", navy, `${totalAllOpen} Open Shift${totalAllOpen === 1 ? "" : "s"}`, "", false, totalAllOpen === 0 ? "All shifts covered" : `${totalAllOpen} unfilled shift${totalAllOpen === 1 ? "" : "s"} this week`) +
-      pill("rotation",   femRisks.length > 0 ? "var(--red)" : navy, rotationLabel, "", femRisks.length > 0, rotationTitle);
+      pill("rotation",   rotationDotRed ? "var(--red)" : navy, rotationLabel, rotationSub, femRisks.length > 0, rotationTitle);
   }
-  kpis.dataset.rrFemRisks = JSON.stringify(femRisks);
+  kpis.dataset.rrFemRisks    = JSON.stringify(femRisks);
+  kpis.dataset.rrFemUpcoming = JSON.stringify(femUpcoming);
+  kpis.dataset.rrFemCounts   = JSON.stringify(femWeekCounts);
+  // Render epoch for the "Reviewed Ns ago" stamp under the KPI
+  // strip. Updated every 30s by the polling tick (see below).
+  kpis.dataset.rrRenderedAt  = String(Date.now());
+  // Re-paint the "Reviewed Ns ago" stamp now that the KPI strip
+  // is freshly rendered; the 30s tick below keeps it current
+  // afterwards.
+  if (typeof window._rrTickFleetReviewedStamp === "function") {
+    window._rrTickFleetReviewedStamp();
+  }
   kpis.dataset.rrViolations = JSON.stringify(violations);
   kpis.dataset.rrPrefMisses = JSON.stringify(prefMissList);
   kpis.dataset.rrPrefSummary = JSON.stringify({ honored: prefHonored, denom: prefDenom });
@@ -27452,7 +27541,11 @@ function bindSchedWeekNav() {
       const kpiHost = document.getElementById("rr-sched-kpis");
       if (!kpiHost) return;
       let risks = [];
-      try { risks = JSON.parse(kpiHost.dataset.rrFemRisks || "[]"); } catch {}
+      let upcoming = [];
+      let counts = { watch: 0, risk: 0, critical: 0, violation: 0 };
+      try { risks    = JSON.parse(kpiHost.dataset.rrFemRisks    || "[]"); } catch {}
+      try { upcoming = JSON.parse(kpiHost.dataset.rrFemUpcoming || "[]"); } catch {}
+      try { counts   = JSON.parse(kpiHost.dataset.rrFemCounts   || "{}") || counts; } catch {}
       let m = document.getElementById("rr-fem-rotation-modal");
       if (m) m.remove();
       m = document.createElement("div");
@@ -27462,24 +27555,94 @@ function bindSchedWeekNav() {
         const d = new Date(iso + "T12:00:00");
         return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
       };
+      // Tier dot color — calm: amber for watch/risk, red for
+      // critical/violation. Matches the existing schedule palette.
+      const dotFor = (tier) => {
+        if (tier === "violation" || tier === "never_used") return "var(--sch-red, #C42B1C)";
+        if (tier === "critical") return "var(--sch-red, #C42B1C)";
+        if (tier === "risk")     return "#B45309";
+        if (tier === "watch")    return "#B45309";
+        return "#1A1F47";
+      };
+      // "Days to defect" framing — flip the mental model from
+      // historical ("12d unused") to operational ("2d to defect").
+      // Past-violation reads "0d · already in defect" so the
+      // operator sees the scorecard hit explicitly.
+      const headlineFor = (x) => {
+        if (x.daysToDefect === 0 && x.days !== null && x.days >= 14) {
+          return `0d · in defect`;
+        }
+        if (x.daysToDefect === 0) return `Defect today`;
+        return `${x.daysToDefect}d to defect`;
+      };
+      const subFor = (x) => {
+        if (x.days === null) return `Never used · first dispatch ${dayLbl(x.firstCrossing)}`;
+        return `${x.days}d idle by ${dayLbl(x.firstCrossing)}`;
+      };
+      // Tier-pip strip — peripheral awareness inside the modal:
+      // shows the full watchlist landscape, not just critical/
+      // violation. Only non-zero tiers render to keep it calm.
+      const pipParts = [];
+      if (counts.violation > 0) pipParts.push(`<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;color:var(--text)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotFor("violation")}"></span>${counts.violation} Violation</span>`);
+      if (counts.critical  > 0) pipParts.push(`<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;color:var(--text)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotFor("critical")}"></span>${counts.critical} Critical</span>`);
+      if (counts.risk      > 0) pipParts.push(`<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;color:var(--text)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotFor("risk")}"></span>${counts.risk} Risk</span>`);
+      if (counts.watch     > 0) pipParts.push(`<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:600;color:var(--text)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotFor("watch")}"></span>${counts.watch} Watch</span>`);
+      const pipStrip = pipParts.length
+        ? `<div style="display:flex;gap:var(--s-3);padding:var(--s-2-5) 18px;border-bottom:1px solid var(--sch-line-subtle, var(--border-subtle));background:var(--sch-surface-2, var(--canvas))">${pipParts.join("")}</div>`
+        : "";
+      // VERO consequence language — calm, plain English. Operator
+      // gets the "why this matters on my scorecard" framing
+      // without an alarm tone.
+      const veroNote = `<div style="padding:var(--s-3) 18px;font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;border-bottom:1px solid var(--sch-line-subtle, var(--border-subtle))">Each branded van past 14 days unused triggers a VERO defect on this week's scorecard. RouteReady is watching the rolling window and proactively rotating at the 13-day mark.</div>`;
+      // Per-van row — Microsoft-list voice. Van name on the
+      // left, headline days-to-defect chip on the right, calm
+      // sub-line in between.
       const list = risks.length === 0
-        ? '<div class="rr-empty-inline">No branded vans at risk this week ✓</div>'
+        ? `<div style="padding:18px;color:var(--text-muted);font-size:var(--fs-sm);line-height:1.5">No branded van is projected to cross 13 days unused this week. ${upcoming.length > 0 ? `Next to enter Watch: <strong>${escapeHtml(upcoming[0].name)}</strong> on ${escapeHtml(dayLbl(upcoming[0].watchOn))}.` : `No watchlist activity in the visible week.`}</div>`
         : risks.map(x => {
-            const daysLabel = (x.days == null) ? "Never used"
-                            : `${x.days} day${x.days === 1 ? "" : "s"} idle`;
-            return `<div style="padding:var(--s-2-5) var(--s-3-5);border-top:1px solid var(--border);display:flex;gap:var(--s-3);align-items:center"><div style="flex:1"><div style="font-size:var(--fs-md);font-weight:600">Van ${escapeHtml(x.name)}</div><div class="u-xs-subtle">First crosses &gt;14d on ${escapeHtml(dayLbl(x.firstCrossing))}</div></div><span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--red)">${escapeHtml(daysLabel)}</span></div>`;
+            const headline = headlineFor(x);
+            return `<div style="padding:var(--s-3) 18px;border-top:1px solid var(--sch-line-subtle, var(--border-subtle));display:flex;gap:var(--s-3);align-items:center"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotFor(x.tier)};flex:0 0 auto"></span><div style="flex:1;min-width:0"><div style="font-size:var(--fs-md);font-weight:600;color:var(--text);letter-spacing:-.005em">Van ${escapeHtml(x.name)}</div><div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px">${escapeHtml(subFor(x))}</div></div><span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--sch-red, #C42B1C);font-variant-numeric:tabular-nums">${escapeHtml(headline)}</span></div>`;
           }).join("");
       m.innerHTML = `
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:540px;width:100%;max-height:80vh;overflow-y:auto">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) 18px;border-bottom:1px solid var(--border)">
-            <div><div style="font-size:var(--fs-base);font-weight:600">Fleet rotation risk</div><div class="u-sm-subtle">${risks.length} branded van${risks.length === 1 ? "" : "s"} will cross 14 days unused this week</div></div>
+        <div style="background:var(--surface);border:1px solid var(--sch-line, var(--border));border-radius:10px;max-width:540px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 1px 2px rgba(15,23,42,.04),0 1px 1px rgba(15,23,42,.02)">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-3-5) 18px;border-bottom:1px solid var(--sch-line, var(--border));background:var(--sch-surface-2, var(--canvas))">
+            <div><div style="font-size:var(--fs-base);font-weight:600;color:var(--text);letter-spacing:-.005em">Fleet rotation</div><div style="font-size:11px;font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${risks.length} approaching defect</div></div>
             <button type="button" id="rr-fem-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
           </div>
+          ${pipStrip}
+          ${veroNote}
           <div>${list}</div>
         </div>`;
       document.body.appendChild(m);
       m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-fem-close") m.remove(); });
     });
+  }
+  // ── "Reviewed Ns ago" ticker for the Fleet rotation stamp ──
+  // Re-paints every 30 seconds so the operator sees a live
+  // timestamp rather than a static label. Self-bounded — clears
+  // text when the KPI host is detached.
+  if (!window._rrFleetReviewedTickInstalled) {
+    window._rrFleetReviewedTickInstalled = true;
+    window._rrTickFleetReviewedStamp = function () {
+      const host = document.getElementById("rr-sched-fleet-reviewed");
+      const kpis = document.getElementById("rr-sched-kpis");
+      if (!host || !kpis) return;
+      const at = Number(kpis.dataset.rrRenderedAt || 0);
+      if (!at) { host.textContent = ""; return; }
+      const s = Math.max(0, Math.floor((Date.now() - at) / 1000));
+      let when;
+      if (s < 5) when = "just now";
+      else if (s < 60) when = `${s} sec ago`;
+      else if (s < 3600) when = `${Math.floor(s / 60)} min ago`;
+      else when = `${Math.floor(s / 3600)} hr ago`;
+      let armed = "";
+      try {
+        const risks = JSON.parse(kpis.dataset.rrFemRisks || "[]");
+        if (risks.length === 0) armed = " · Auto-rotation armed for the rest of the week";
+      } catch {}
+      host.textContent = `Reviewed ${when}${armed}`;
+    };
+    setInterval(window._rrTickFleetReviewedStamp, 30000);
   }
 
   // ── Pool sort toggle (Day / Wave time)
