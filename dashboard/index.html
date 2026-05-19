@@ -11233,7 +11233,7 @@ body.rr-cmdk-open{ overflow:hidden }
               Route planning
             </button>
             <button class="sched-page-btn sched-page-btn--split" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h12v10H3z"/><path d="M15 11h4l2 3v3h-6z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path class="van-cargo" d="M3 7h12v10H3z"/><path class="van-cab" d="M15 11h4l2 3v3h-6z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
               Assign Vans
               <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
                 <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
@@ -12231,8 +12231,24 @@ body.rr-cmdk-open{ overflow:hidden }
             height:32px;align-self:center;
           }
 
-          /* (Assign Vans icon stays the default tile color — the
-             orange tint was removed per the operator's request.) */
+          /* Assign Vans tile · default state matches the strip.
+             When the week is assigned (data-rr-assigned="1") the
+             cargo box paints dark Fluent blue + the cab paints red
+             — both fills + strokes — so the icon reads as "loaded
+             and ready". Spinner motion is preserved during a run
+             via the existing rr-sf-spin keyframes. */
+          #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-vans-h[data-rr-assigned="1"] svg .van-cargo{
+            stroke:#0F6CBD;fill:#0F6CBD;
+          }
+          #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-vans-h[data-rr-assigned="1"] svg .van-cab{
+            stroke:#C42B1C;fill:#C42B1C;
+          }
+          /* While the run is in flight the spinner replaces the
+             van SVG entirely — the spinner inherits currentColor so
+             the tile color tone stays consistent. */
+          #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-vans-h[data-rr-busy="1"] svg{
+            color:var(--sch-blue);
+          }
 
           /* Route Planning icon · calendar in Fluent dark blue,
              checkmark in Fluent communicationGreen. Tile chrome
