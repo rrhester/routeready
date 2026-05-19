@@ -26691,17 +26691,18 @@ function _schedShiftChip(sh, extras) {
     : (stBadge || traineeBadge)
       ? `<div class="shift-chip-route-code">${stBadge}${traineeBadge}</div>`
       : "";
-  // Line 1 · Start (report time) + End (block end)
-  // Line 2 · Wave time (when routes dispatch)
-  // Line 3 · Van # (appended later by the post-Assign-Vans decorator)
-  const startLine = (reportStr || endStr)
-    ? `<div class="shift-chip-row">
-         ${reportStr ? `<span class="shift-chip-row-lbl">Start</span><span class="shift-chip-row-val">${reportStr}</span>` : ""}
-         ${endStr   ? `<span class="shift-chip-row-lbl shift-chip-row-lbl--mid">End</span><span class="shift-chip-row-val">${endStr}</span>` : ""}
-       </div>`
+  // Tight three-line layout · Start–End time range, Wave time,
+  // Van # (the last appended later by the post-Assign-Vans
+  // decorator). All on one line each, no wrapping, no extra
+  // padding — the calendar cell needs to stay short.
+  const range = (reportStr && endStr)
+    ? `${reportStr} – ${endStr}`
+    : (reportStr || endStr || "");
+  const startLine = range
+    ? `<div class="shift-chip-row"><span class="shift-chip-row-lbl">Start</span><span class="shift-chip-row-val">${range}</span></div>`
     : "";
   const waveLine = waveStr
-    ? `<div class="shift-chip-row"><span class="shift-chip-row-lbl">Wave time</span><span class="shift-chip-row-val">${waveStr}</span></div>`
+    ? `<div class="shift-chip-row"><span class="shift-chip-row-lbl">Wave</span><span class="shift-chip-row-val">${waveStr}</span></div>`
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';

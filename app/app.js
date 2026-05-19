@@ -2198,11 +2198,11 @@ function shiftCardHtml(s, isToday, vanInfo, opts) {
       <div style="flex:1;min-width:0">
         <div class="meta-time-row">
           <div class="meta-time">
-            ${startTxt ? `<span class="meta-time-lbl">Start</span> <span class="meta-time-val">${escapeHtml(startTxt)}</span>` : ""}
-            ${endTxt ? `<span class="meta-time-lbl meta-time-lbl--mid">End</span> <span class="meta-time-val">${escapeHtml(endTxt)}</span>` : ""}
+            <span class="meta-time-lbl">Start</span>
+            <span class="meta-time-val">${escapeHtml(startTxt && endTxt ? `${startTxt} – ${endTxt}` : (startTxt || endTxt || ""))}</span>
           </div>
         </div>
-        ${waveTxt ? `<div class="meta-wave-line"><span class="meta-time-lbl">Wave time</span> <span class="meta-time-val">${escapeHtml(waveTxt)}</span></div>` : ""}
+        ${waveTxt ? `<div class="meta-wave-line"><span class="meta-time-lbl">Wave</span> <span class="meta-time-val">${escapeHtml(waveTxt)}</span></div>` : ""}
         <div class="meta-station">${escapeHtml(stationLine)}${isOnboardingShift && s.station ? ` · ${escapeHtml(s.station)}` : ""}</div>
         ${vanName ? `<div style="margin-top:4px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)">Vehicle ${escapeHtml(vanName)}${isRotation ? ` <span style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#B45309;background:rgba(180,83,9,.10);border:1px solid rgba(180,83,9,.20);border-radius:3px;padding:1px 5px;margin-left:5px">Rotation</span>` : ""}</div>` : ""}
         ${wxSlot}
