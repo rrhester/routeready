@@ -28147,8 +28147,11 @@ function bindSchedWeekNav() {
   // Always-on peripheral awareness — 7 thin cells under the
   // KPI strip, color-tinted by the worst tier any branded van
   // hits each day. Microsoft Outlook day-pip pattern: no
-  // labels, no chrome, just glance-able fleet health. Hover a
-  // cell for the per-day breakdown.
+  // labels, just glance-able fleet health per day. Reads like
+  // a sentence fragment: "THIS WEEK   Mon ●  Tue ●  Wed ●  …"
+  // where each dot is tier-colored. Hover any pill for the
+  // detailed per-day breakdown. Hidden entirely when every
+  // day is healthy — no signal, no noise.
   if (!window._rrFemDayStripInstalled) {
     window._rrFemDayStripInstalled = true;
     window._rrRenderFemDayStrip = function () {
@@ -28159,11 +28162,27 @@ function bindSchedWeekNav() {
       try { strip = JSON.parse(kpis.dataset.rrFemDayStrip || "[]"); } catch { strip = []; }
       if (!Array.isArray(strip) || strip.length === 0) { host.hidden = true; host.innerHTML = ""; return; }
       const todayIso = fmtIsoDate(new Date());
-      const dayLbl = (iso) => {
+      const tipDayLbl = (iso) => {
         try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
         catch { return iso; }
       };
-      const html = strip.map(d => {
+      const shortDayLbl = (iso) => {
+        try {
+          const d = new Date(iso + "T12:00:00");
+          return d.toLocaleDateString(undefined, { weekday: "short" });
+        } catch { return iso; }
+      };
+      // Suppress the strip entirely when every day is healthy —
+      // the operator doesn't need a noisy green strip telling
+      // them "all good." The "Reviewed Ns ago · auto-rotation
+      // armed" sub-line already handles that messaging.
+      const anyAtRisk = strip.some(d => {
+        const t = d.state && d.state.tier;
+        return t && t !== "healthy";
+      });
+      if (!anyAtRisk) { host.hidden = true; host.innerHTML = ""; return; }
+
+      const pills = strip.map(d => {
         const s = d.state || { tier: "healthy", counts: {} };
         const counts = s.counts || {};
         const tip = (() => {
@@ -28172,13 +28191,16 @@ function bindSchedWeekNav() {
           if (counts.critical  > 0) parts.push(`${counts.critical} Critical`);
           if (counts.risk      > 0) parts.push(`${counts.risk} Risk`);
           if (counts.watch     > 0) parts.push(`${counts.watch} Watch`);
-          if (parts.length === 0) return `${dayLbl(d.date)} · all branded vans healthy`;
-          return `${dayLbl(d.date)} · ${parts.join(" · ")}`;
+          if (parts.length === 0) return `${tipDayLbl(d.date)} · all branded vans healthy`;
+          return `${tipDayLbl(d.date)} · ${parts.join(" · ")}`;
         })();
         const isToday = d.date === todayIso;
-        return `<span class="sched-fem-day-cell is-${s.tier || "healthy"}${isToday ? " is-today" : ""}" title="${escapeHtml(tip)}"></span>`;
+        const tierCls = s.tier || "healthy";
+        return `<span class="sched-fem-day-cell is-${tierCls}${isToday ? " is-today" : ""}" title="${escapeHtml(tip)}"><span class="sched-fem-day-cell-label">${escapeHtml(shortDayLbl(d.date))}</span><span class="sched-fem-day-cell-dot" aria-hidden="true"></span></span>`;
       }).join("");
-      host.innerHTML = html;
+      host.innerHTML =
+        `<span class="sched-fem-day-strip-label">This week</span>` +
+        `<span class="sched-fem-day-strip-row">${pills}</span>`;
       host.hidden = false;
     };
   }
