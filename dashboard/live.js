@@ -23264,6 +23264,43 @@ function _toggleSchedSmartFillRules(force) {
   return next;
 }
 window._rrToggleSchedSmartFillRules = _toggleSchedSmartFillRules;
+
+// Auto-close inline popovers when the cursor truly leaves them.
+// Both popovers + their trigger tile sit inside a wrapper (the
+// .sched-settings-split / .sched-smartfill-split div). mouseleave
+// on the wrapper means the cursor is no longer over either the
+// popover or its trigger button — close after a ~280 ms grace so
+// brief excursions toward a different sub-element don't dismiss
+// the menu mid-reach.
+(function bindPopoverAutoClose() {
+  const cases = [
+    { wrap: ".sched-settings-split",  fn: () => _toggleSchedQuickSettings(false) },
+    { wrap: ".sched-smartfill-split", fn: () => _toggleSchedSmartFillRules(false) },
+  ];
+  const wired = new WeakSet();
+  function wire(host, closeFn) {
+    if (!host || wired.has(host)) return;
+    wired.add(host);
+    let timer = null;
+    const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+    const arm    = () => { cancel(); timer = setTimeout(closeFn, 280); };
+    host.addEventListener("mouseleave", arm);
+    host.addEventListener("mouseenter", cancel);
+    // Touch devices don't fire mouseleave reliably — rely on the
+    // existing outside-click + Escape handlers there.
+  }
+  let tries = 0;
+  const t = setInterval(() => {
+    let allFound = true;
+    for (const c of cases) {
+      const host = document.querySelector(`#view-schedule ${c.wrap}`);
+      if (host) wire(host, c.fn);
+      else allFound = false;
+    }
+    if (allFound) clearInterval(t);
+    if (++tries > 40) clearInterval(t);
+  }, 100);
+})();
 // Persist a checkbox change.
 document.addEventListener("change", (e) => {
   const cb = e.target && e.target.closest && e.target.closest("#rr-sched-smartfill-rules-body [data-rr-sf-rule]");
@@ -24787,6 +24824,14 @@ async function loadScheduleView() {
   // Restore the saved nav-tile order every time the view shows so
   // the operator's layout survives navigation + reload.
   try { if (typeof window._rrRestoreSchedTileOrder === "function") window._rrRestoreSchedTileOrder(); } catch (_) {}
+  // Safety net: if a previous Assign Vans / Smart Fill run threw
+  // before its finally block could run, the tile's data-rr-busy
+  // attribute would stay "1" and silently block every subsequent
+  // click. Reset it on view show.
+  document.querySelectorAll("#view-schedule .sched-page-btn[data-rr-busy='1']").forEach(btn => {
+    delete btn.dataset.rrBusy;
+    btn.disabled = false;
+  });
   try { loadTimeOffList();      } catch (e) { console.warn("schedule · timeOff:", e); }
   try { loadOpenShifts();       } catch (e) { console.warn("schedule · openShifts:", e); }
   try {
