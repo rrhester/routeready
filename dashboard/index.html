@@ -13994,6 +13994,40 @@ body.rr-cmdk-open{ overflow:hidden }
             font-weight:500;letter-spacing:0;
             display:flex;flex-direction:column;line-height:1.25;gap:1px;
           }
+          /* Cleaner labeled chip body · Wave / Start / Van as
+             aligned "Label · value" rows. */
+          #view-schedule .shift-chip-route-code{
+            font-weight:600;color:var(--sch-blue-text);
+            font-size:11px;letter-spacing:.02em;
+            line-height:1.2;
+            margin-bottom:3px;
+            display:flex;align-items:center;gap:4px;
+          }
+          #view-schedule .shift-chip-row{
+            display:grid;
+            grid-template-columns:34px 1fr;
+            gap:6px;
+            align-items:baseline;
+            font-size:11px;
+            line-height:1.3;
+            color:var(--text);
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .shift-chip-row + .shift-chip-row{margin-top:1px}
+          #view-schedule .shift-chip-row-lbl{
+            font-size:9px;font-weight:700;
+            text-transform:uppercase;letter-spacing:.06em;
+            color:var(--text-subtle);
+          }
+          #view-schedule .shift-chip-row-val{
+            font-weight:500;color:var(--text);
+          }
+          #view-schedule .shift-chip-van{
+            margin-top:3px;
+            font-size:11px;font-weight:600;
+            color:var(--sch-blue);
+            letter-spacing:.01em;
+          }
           #view-schedule .shift-chip-time .shift-chip-rpt{
             font-size:10px;color:var(--text-subtle);font-weight:500;
           }

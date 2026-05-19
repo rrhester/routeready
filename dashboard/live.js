@@ -26662,30 +26662,7 @@ function _schedShiftChip(sh, extras) {
   const reportStr = _startMs != null ? fmtTimeShort(new Date(_startMs).toISOString()) : "";
   const waveStr   = _waveStartMs != null ? fmtTimeShort(new Date(_waveStartMs).toISOString()) : reportStr;
   const endStr    = _waveEndMs != null ? fmtTimeShort(new Date(_waveEndMs).toISOString()) : "";
-  // "Rpt 6:30a / Wave 7:00a – 5:00p" when a report lead is configured;
-  // just "Wave 7:00a – 5:00p" otherwise. The explicit "Wave" prefix
-  // makes the dispatch wave time immediately visible to the
-  // dispatcher reading the grid.
-  const waveLine = waveStr
-    ? `<span class="shift-chip-wave">Wave ${waveStr}${endStr ? ` – ${endStr}` : ""}</span>`
-    : "";
-  const rptLine = (_reportLead > 0 && reportStr)
-    ? `<span class="shift-chip-rpt">Rpt ${reportStr}</span>`
-    : "";
-  const timeRange = waveLine ? `${rptLine}${waveLine}` : "";
-  // No route_code yet → headline shows the wave time range. We still
-  // want the Rpt line visible below the headline when a report lead
-  // is configured — otherwise the grid silently drops the report
-  // time even though the Open Shifts panel shows it. Without this,
-  // operators see "10:00am – 8:00pm" on the chip but "Rpt 9:40am ·
-  // Wave 10:00am – 8:00pm" in the side panel and assume the report
-  // time didn't get applied.
   const hasRoute = !!sh.route_code;
-  const r = hasRoute ? escapeHtml(sh.route_code) : (waveStr && endStr ? `${waveStr} – ${endStr}` : (waveStr || reportStr || "shift"));
-  const time = hasRoute ? timeRange : (rptLine || "");
-  const ex = sh.is_cushion
-    ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em">EX</span>`
-    : "";
   // Service-type badge — shown for any non-SP shift so an XL/HUB/ASU
   // shift is visually distinguishable. SP shifts (the default) get no
   // badge to keep the chip clean for single-type DSPs.
@@ -26700,9 +26677,29 @@ function _schedShiftChip(sh, extras) {
   const traineeBadge = extras?.traineeName
     ? `<span title="${escapeHtml(extras.traineeName)} is riding along" style="display:inline-flex;align-items:center;gap:3px;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em">+ ${escapeHtml(extras.traineeName.split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase())}</span>`
     : "";
+  // Card body · cleaner two-line layout per operator. The yellow
+  // side-stripe still marks cushion shifts (border-color below);
+  // the inline EX badge was removed for clarity.
+  //   • Wave  10:00am – 8:00pm     (always rendered)
+  //   • Start 9:40am               (rendered when report lead > 0)
+  //   • Van 9                      (appended later by the post-
+  //                                 assign-vans decorator)
+  // When a route code is set, it sits as a small eyebrow above the
+  // Wave line so the route is still discoverable at a glance.
+  const eyebrowRoute = hasRoute
+    ? `<div class="shift-chip-route-code">${escapeHtml(sh.route_code)}${stBadge}${traineeBadge}</div>`
+    : (stBadge || traineeBadge)
+      ? `<div class="shift-chip-route-code">${stBadge}${traineeBadge}</div>`
+      : "";
+  const waveDisplay = waveStr
+    ? `<div class="shift-chip-row"><span class="shift-chip-row-lbl">Wave</span><span class="shift-chip-row-val">${waveStr}${endStr ? ` – ${endStr}` : ""}</span></div>`
+    : "";
+  const startDisplay = (_reportLead > 0 && reportStr)
+    ? `<div class="shift-chip-row"><span class="shift-chip-row-lbl">Start</span><span class="shift-chip-row-val">${reportStr}</span></div>`
+    : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';
-  return `<div class="shift-chip${routineCls}" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove"><div class="shift-chip-route">${r}${ex}${stBadge}${traineeBadge}</div>${time ? `<div class="shift-chip-time">${time}</div>` : ""}</div>`;
+  return `<div class="shift-chip${routineCls}" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove">${eyebrowRoute}${waveDisplay}${startDisplay}</div>`;
 }
 
 function _schedDriverInitials(name) {
