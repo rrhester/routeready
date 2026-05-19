@@ -27261,15 +27261,6 @@ async function renderScheduleWeek() {
   if (typeof window._rrRenderForecastCard === "function") {
     window._rrRenderForecastCard();
   }
-  // Render epoch for the "Reviewed Ns ago" stamp under the KPI
-  // strip. Updated every 30s by the polling tick (see below).
-  kpis.dataset.rrRenderedAt  = String(Date.now());
-  // Re-paint the "Reviewed Ns ago" stamp now that the KPI strip
-  // is freshly rendered; the 30s tick below keeps it current
-  // afterwards.
-  if (typeof window._rrTickFleetReviewedStamp === "function") {
-    window._rrTickFleetReviewedStamp();
-  }
   // ── Auto-rescue trigger ──
   // If any branded van is projected to cross the Critical (13d)
   // or Violation (14d+) threshold this week AND we haven't
@@ -28006,34 +27997,6 @@ function bindSchedWeekNav() {
       m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-fem-close") m.remove(); });
     });
   }
-  // ── "Reviewed Ns ago" ticker for the Fleet rotation stamp ──
-  // Re-paints every 30 seconds so the operator sees a live
-  // timestamp rather than a static label. Self-bounded — clears
-  // text when the KPI host is detached.
-  if (!window._rrFleetReviewedTickInstalled) {
-    window._rrFleetReviewedTickInstalled = true;
-    window._rrTickFleetReviewedStamp = function () {
-      const host = document.getElementById("rr-sched-fleet-reviewed");
-      const kpis = document.getElementById("rr-sched-kpis");
-      if (!host || !kpis) return;
-      const at = Number(kpis.dataset.rrRenderedAt || 0);
-      if (!at) { host.textContent = ""; return; }
-      const s = Math.max(0, Math.floor((Date.now() - at) / 1000));
-      let when;
-      if (s < 5) when = "just now";
-      else if (s < 60) when = `${s} sec ago`;
-      else if (s < 3600) when = `${Math.floor(s / 60)} min ago`;
-      else when = `${Math.floor(s / 3600)} hr ago`;
-      let armed = "";
-      try {
-        const risks = JSON.parse(kpis.dataset.rrFemRisks || "[]");
-        if (risks.length === 0) armed = " · Auto-rotation armed for the rest of the week";
-      } catch {}
-      host.textContent = `Reviewed ${when}${armed}`;
-    };
-    setInterval(window._rrTickFleetReviewedStamp, 30000);
-  }
-
   // ── Auto-rescue banner renderer ──
   // Reads window._rrLastVanRun (set by the runner after every
   // Assign Vans pass) and surfaces a one-line summary when the
@@ -28212,7 +28175,6 @@ function bindSchedWeekNav() {
   // after the install blocks above. Idempotent on later
   // navigations because each installer is gated by its own
   // _rrInstalled flag.
-  if (typeof window._rrTickFleetReviewedStamp === "function") window._rrTickFleetReviewedStamp();
   if (typeof window._rrRenderAutoRescueBanner === "function") window._rrRenderAutoRescueBanner();
   if (typeof window._rrRenderForecastCard === "function")     window._rrRenderForecastCard();
   if (typeof window._rrRenderWeeklyRecapLink === "function")  window._rrRenderWeeklyRecapLink();

@@ -11508,12 +11508,6 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <!-- KPI pill row · populated by renderScheduleWeek. -->
         <div id="rr-sched-kpis" class="sched-kpi-pills"></div>
-        <!-- "Reviewed Ns ago" stamp — feeds operator trust that
-             the KPI strip is live, not static. Populated by
-             _rrTickFleetReviewedStamp() in live.js, which the 30s
-             today-plan poll re-fires (and renderScheduleWeek
-             stamps the rendered-at epoch onto #rr-sched-kpis). -->
-        <div id="rr-sched-fleet-reviewed" class="sched-fleet-reviewed" aria-live="polite"></div>
         <!-- Quiet auto-rescue banner. Populated by
              _rrRenderAutoRescueBanner() after the auto-rescue
              trigger inside renderScheduleWeek finishes a run
@@ -11794,17 +11788,6 @@ body.rr-cmdk-open{ overflow:hidden }
             color:var(--text-subtle);
             margin-top:2px;
           }
-          /* "Reviewed Ns ago" stamp · sits one line under the KPI
-             pills. Microsoft Outlook "Synced 2 min ago" voice —
-             one sentence, lowercase verb, tabular-numeric. */
-          #view-schedule .sched-fleet-reviewed{
-            font-size:11px;color:var(--text-subtle);
-            font-variant-numeric:tabular-nums;
-            letter-spacing:.01em;
-            margin-top:6px;
-            min-height:14px;
-          }
-          #view-schedule .sched-fleet-reviewed[hidden]{display:none}
           /* Auto-rescue banner · one line below the KPI strip
              when the engine has narrated a rotation it did on
              its own. Calm Outlook tone — surface, no shadow,
