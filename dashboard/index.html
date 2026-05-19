@@ -14511,79 +14511,65 @@ body.rr-cmdk-open{ overflow:hidden }
              corner — calm fade, not flashy. Future milestones
              (trainer recognition, top performer, work milestone)
              can plug in by adding a new modifier class below. */
-          #view-schedule .cal-row-label{position:relative;overflow:hidden}
-          /* Zero-size anchor in the bottom-right corner of the row
-             label. Children position themselves independently so
-             only the ribbon rotates and the action pill stays
-             horizontal. */
+          /* Floating recognition pill · sits on the right side of
+             the driver row label. On row hover a sibling "Send
+             note" pill slides in next to it. Calm, premium tone —
+             pale tint background, deep ink, hairline border. */
+          #view-schedule .cal-row-label{position:relative}
           #view-schedule .cal-row-milestone{
-            position:absolute;
-            right:0;bottom:0;
-            width:0;height:0;
-            z-index:2;
-            pointer-events:none;
+            margin-left:auto;
+            display:inline-flex;align-items:center;gap:6px;
+            flex:0 0 auto;
           }
-          #view-schedule .cal-row-milestone-ribbon{
-            position:absolute;
-            right:-22px;bottom:6px;
-            transform:rotate(-22deg);
-            transform-origin:center;
+          #view-schedule .cal-row-milestone-pill{
             display:inline-flex;align-items:center;justify-content:center;
             gap:5px;
-            min-width:96px;
-            padding:2px 22px 2px 18px;
-            text-align:center;
-            font-size:8.5px;font-weight:600;
-            letter-spacing:.08em;
-            text-transform:uppercase;
-            font-feature-settings:"calt" off, "liga" off;
+            padding:3px 10px 3px 8px;
+            border-radius:999px;
+            font-size:11px;font-weight:600;
+            letter-spacing:.005em;
             white-space:nowrap;
             background:#F4F5F7;
             color:#52606D;
             border:1px solid rgba(15,23,42,.08);
+            transition:transform 220ms ease, box-shadow 220ms ease;
           }
           #view-schedule .cal-row-milestone-icon{
             display:inline-flex;align-items:center;justify-content:center;
-            opacity:.85;
+            opacity:.95;
           }
           #view-schedule .cal-row-milestone-label{line-height:1}
-          /* Birthday · very pale rose tint with deep rose ink. Reads
-             as a calm enterprise marker, not a sticker. */
-          #view-schedule .cal-row-milestone-ribbon--birthday{
+          /* Birthday · pale rose. */
+          #view-schedule .cal-row-milestone-pill--birthday{
             background:#FCEFF4;
             color:#9B3F69;
             border-color:rgba(199,102,145,.22);
           }
-          /* Anniversary · pale gold tint with deep gold ink. */
-          #view-schedule .cal-row-milestone-ribbon--anniversary{
+          /* Anniversary · pale gold. */
+          #view-schedule .cal-row-milestone-pill--anniversary{
             background:#FBF3DE;
             color:#7A5B14;
             border-color:rgba(184,137,48,.24);
           }
-          /* Today · slightly stronger tint + ink so the actual day
-             reads as the moment to send a note, without becoming
-             loud. */
-          #view-schedule .cal-row-milestone.is-today .cal-row-milestone-ribbon--birthday{
+          /* Today · deepen the tint and ink one tier so the actual
+             day reads as the moment to act. */
+          #view-schedule .cal-row-milestone.is-today .cal-row-milestone-pill--birthday{
             background:#F8E1EA;
             color:#7A2A4D;
             border-color:rgba(199,102,145,.36);
           }
-          #view-schedule .cal-row-milestone.is-today .cal-row-milestone-ribbon--anniversary{
+          #view-schedule .cal-row-milestone.is-today .cal-row-milestone-pill--anniversary{
             background:#F7E9C4;
             color:#5A4310;
             border-color:rgba(184,137,48,.40);
           }
-          /* "Send note" action · horizontal pill anchored to the
-             top-right of the row label so it sits opposite the
-             rotated ribbon. Hidden until row hover; calm fade +
-             slight slide. */
+          /* "Send note" · sibling pill, hidden until row hover.
+             Slides in from the right with a calm fade. */
           #view-schedule .cal-row-milestone-action{
-            position:absolute;
-            top:8px;right:8px;
             display:inline-flex;align-items:center;justify-content:center;
             gap:4px;
             padding:3px 10px 3px 8px;
-            font-size:10px;font-weight:600;letter-spacing:.02em;
+            font-size:11px;font-weight:600;letter-spacing:.005em;
             color:var(--text);
             background:#fff;
             border:1px solid rgba(15,23,42,.14);
@@ -14592,9 +14578,8 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:0 1px 2px rgba(15,23,42,.06),
                        0 4px 10px rgba(15,23,42,.08);
             opacity:0;
-            transform:translateY(-2px);
+            transform:translateX(-4px);
             transition:opacity 180ms ease, transform 220ms ease;
-            pointer-events:auto;
             white-space:nowrap;
           }
           #view-schedule .cal-row-milestone-action svg{flex:0 0 auto;color:var(--sch-blue)}
@@ -14606,7 +14591,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .cal-row-label:hover .cal-row-milestone-action,
           #view-schedule .cal-row-milestone-action:focus-visible{
             opacity:1;
-            transform:translateY(0);
+            transform:translateX(0);
           }
 
           /* Recognition rules popover · sits under the Kudos tile,

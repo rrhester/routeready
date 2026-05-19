@@ -26683,19 +26683,15 @@ function _renderShiftChangeRow(c) {
   return `<div style="padding:6px 0;border-top:1px solid var(--border)"><div style="color:var(--text)">${summary}</div><div style="font-size:10px;color:var(--text-subtle);margin-top:2px">${escapeHtml(when)} · ${who}</div></div>`;
 }
 
-// ── Milestone banner · refined recognition ribbon ─────────────────
-// Renders the diagonal corner ribbon + a hidden "Send note" action
-// pill in the bottom-right of the driver row label. The pill fades
-// in on row hover and opens the Kudos modal pre-filled with this
-// driver + the appropriate recognition kind.
-//
-// This is the start of a reusable RouteReady recognition language —
-// future milestones (trainer recognition, top performer, work-
-// milestone) plug in by adding a new modifier class and a tone
-// entry below.
+// ── Milestone pill · floating recognition marker ──────────────────
+// Small horizontal pill anchored to the right side of the driver
+// row label. On row hover, a sibling "Send note" pill slides in
+// next to it. This replaces the earlier diagonal-ribbon treatment;
+// the modifier class pattern (--birthday / --anniversary) carries
+// over so future milestones plug in with one new modifier + icon.
 function _rrRenderMilestoneCorner(d, banner) {
-  const sparkIcon = `<svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.7 5.6 5.6 1.7-5.6 1.7L12 17.1l-1.7-5.6L4.7 9.8l5.6-1.7z"/></svg>`;
-  const cakeIcon  = `<svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor" aria-hidden="true"><path d="M6 11.5h12V19a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM7.5 5.8a1 1 0 1 1 2 0v.9a1 1 0 0 1-2 0zM11 5.2a1 1 0 1 1 2 0v.9a1 1 0 0 1-2 0zM14.5 5.8a1 1 0 1 1 2 0v.9a1 1 0 0 1-2 0zM5 8.6c0-.55.45-1 1-1h12c.55 0 1 .45 1 1V11H5z"/></svg>`;
+  const cakeIcon  = `<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M6 12h12V19a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM7.5 5.8a1 1 0 1 1 2 0v.9a1 1 0 0 1-2 0zM11 5.2a1 1 0 1 1 2 0v.9a1 1 0 0 1-2 0zM14.5 5.8a1 1 0 1 1 2 0v.9a1 1 0 0 1-2 0zM5 9.1c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v2.4H5z"/></svg>`;
+  const sparkIcon = `<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.7 5.6 5.6 1.7-5.6 1.7L12 17.1l-1.7-5.6L4.7 9.8l5.6-1.7z"/></svg>`;
   const icon = banner.type === "birthday" ? cakeIcon : sparkIcon;
   const label = banner.type === "birthday" ? "Birthday" : `Anniv · ${banner.label}`;
   const fullTitle = banner.type === "birthday"
@@ -26703,7 +26699,7 @@ function _rrRenderMilestoneCorner(d, banner) {
     : `Work anniversary · ${banner.label}${banner.isToday ? " · today" : ""}`;
   return `
     <div class="cal-row-milestone${banner.isToday ? " is-today" : ""}" data-rr-milestone-type="${escapeHtml(banner.type)}" data-rr-driver-id="${escapeHtml(d.id)}">
-      <span class="cal-row-milestone-ribbon cal-row-milestone-ribbon--${escapeHtml(banner.type)}" aria-label="${escapeHtml(fullTitle)}" title="${escapeHtml(fullTitle)}">
+      <span class="cal-row-milestone-pill cal-row-milestone-pill--${escapeHtml(banner.type)}" aria-label="${escapeHtml(fullTitle)}" title="${escapeHtml(fullTitle)}">
         <span class="cal-row-milestone-icon">${icon}</span>
         <span class="cal-row-milestone-label">${escapeHtml(label)}</span>
       </span>
