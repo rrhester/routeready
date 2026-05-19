@@ -11255,13 +11255,33 @@ body.rr-cmdk-open{ overflow:hidden }
                 </div>
               </div>
             </div>
-            <button class="sched-page-btn sched-page-btn--split" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path class="van-cargo" d="M3 7h12v10H3z"/><path class="van-cab" d="M15 11h4l2 3v3h-6z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
-              Assign Vans
-              <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
-                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-              </span>
-            </button>
+            <div class="sched-vans-rules-split">
+              <button class="sched-page-btn sched-page-btn--split sched-page-btn--has-rules" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path class="van-cargo" d="M3 7h12v10H3z"/><path class="van-cab" d="M15 11h4l2 3v3h-6z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>
+                Assign Vans
+                <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
+                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                </span>
+                <span class="sched-page-btn-rules-toggle" id="rr-sched-vans-rules-toggle" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-vans-rules-popover" title="Van assignment rules — toggle parts of the auto-assign logic on/off">R</span>
+              </button>
+              <!-- Van assignment rules popover · checkboxes per rule
+                   so the operator can toggle parts of the auto-assign
+                   logic on/off. State persists in localStorage; the
+                   resolver in _assignVansForRange reads it at the
+                   start of every run. -->
+              <div class="sched-vans-rules-popover" id="rr-sched-vans-rules-popover" role="dialog" aria-modal="false" aria-label="Van assignment rules" hidden>
+                <div class="sched-smartfill-rules-head">Van assignment rules</div>
+                <div class="sched-smartfill-rules-body" id="rr-sched-vans-rules-body">
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="primary_chain" checked> <span class="sf-rule-name">Honor primary chain (scheduled primary keeps their van)</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="secondary_chain" checked> <span class="sf-rule-name">Honor secondary chain (secondary fills in when primary is off)</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="pool_fill" checked> <span class="sf-rule-name">Fill remaining drivers from the open pool</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="branded_first" checked> <span class="sf-rule-name">Branded vans sort first within each tier</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="fem_priority" checked> <span class="sf-rule-name">FEM rotation priority (at-risk branded vans assigned first)</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_secondary" checked> <span class="sf-rule-name">Auto-rescue: displace a secondary to rotate a &gt;14d van</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_primary" checked> <span class="sf-rule-name">Auto-rescue: displace a primary to rotate a &gt;14d van</span></label>
+                </div>
+              </div>
+            </div>
             <div class="sched-settings-split">
               <button class="sched-page-btn sched-page-btn--okami sched-page-btn--split" id="rr-sched-okami-open-h" data-rr-tile="okami" draggable="true" type="button" title="Route planning for this week" aria-label="Route planning">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect class="rp-cal" x="3" y="4" width="18" height="18" rx="2"/><line class="rp-cal" x1="16" y1="2" x2="16" y2="6"/><line class="rp-cal" x1="8" y1="2" x2="8" y2="6"/><line class="rp-cal" x1="3" y1="10" x2="21" y2="10"/><polyline class="rp-check" points="8 16 11 19 16 14"/></svg>
@@ -12452,11 +12472,58 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Settings + popover wrapper · positions the popover
              beneath the Settings tile. */
           #view-schedule .sched-settings-split,
-          #view-schedule .sched-smartfill-split{
+          #view-schedule .sched-smartfill-split,
+          #view-schedule .sched-vans-rules-split{
             position:relative;
             display:inline-flex;
             align-items:stretch;
           }
+
+          /* "R" badge in the TOP-RIGHT of the Assign Vans tile —
+             opens an inline rules popover where the operator can
+             toggle parts of the van-assign logic (primary chain /
+             secondary chain / pool / FEM priority / auto-rescue).
+             Sits above the existing bottom-right chain-editor
+             chevron; both can co-exist on the same split tile. */
+          #view-schedule .sched-page-btn--has-rules{padding-top:14px}
+          #view-schedule .sched-page-btn-rules-toggle{
+            position:absolute;right:2px;top:2px;
+            min-width:16px;height:16px;padding:0 3px;border-radius:4px;
+            display:inline-flex;align-items:center;justify-content:center;
+            font-size:10px;font-weight:700;line-height:1;
+            font-family:'Inter Tight','Inter',system-ui,sans-serif;
+            letter-spacing:0;
+            color:var(--text-subtle);
+            background:transparent;border:1px solid rgba(15,23,42,.18);
+            cursor:pointer;
+            transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
+          }
+          #view-schedule .sched-page-btn-rules-toggle:hover,
+          #view-schedule .sched-page-btn-rules-toggle:focus-visible{
+            background:var(--sch-blue-softer);color:var(--sch-blue);
+            border-color:var(--sch-blue);outline:none;
+          }
+          #view-schedule .sched-page-btn-rules-toggle[aria-expanded="true"]{
+            background:var(--sch-blue-soft);color:var(--sch-blue);
+            border-color:var(--sch-blue);
+          }
+
+          /* Van rules popover · mirrors the Smart Fill rules
+             popover styling so both feel like the same Outlook
+             ribbon flyout. */
+          #view-schedule .sched-vans-rules-popover{
+            position:absolute;
+            top:calc(100% + 4px);right:0;
+            z-index:50;
+            background:#fff;
+            border:1px solid rgba(15,23,42,.18);
+            border-radius:4px;
+            box-shadow:0 6px 18px rgba(15,23,42,.18);
+            min-width:340px;max-width:calc(100vw - 40px);
+            padding:6px 0 8px;
+            font-family:inherit;
+          }
+          #view-schedule .sched-vans-rules-popover[hidden]{display:none}
 
           /* Smart Fill rules popover · Outlook-style flyout with a
              scrollable list of rule checkboxes. */
