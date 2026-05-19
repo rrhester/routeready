@@ -27096,15 +27096,6 @@ async function renderScheduleWeek() {
   const femRisks    = [];
   const femUpcoming = []; // { vehicle_id, name, watchOn, daysOnWatchDay } — healthy vans projected to enter Watch this week
   let femWeekCounts = { watch: 0, risk: 0, critical: 0, violation: 0 };
-  // Per-day worst tier across the branded fleet — drives the
-  // sticky FEM day-strip below the ribbon (audit item #13).
-  // For each date, we accumulate the lowest tier rank seen and
-  // a histogram so the hover tooltip can read "Tue · 1 Critical
-  // · 2 Watch."
-  const femDayState = new Map();
-  for (const d of femWeekDates) {
-    femDayState.set(d, { tier: "healthy", rank: 5, counts: { watch:0, risk:0, critical:0, violation:0 } });
-  }
   for (const v of femVehicles) {
     const list = femUsage.get(v.id) || [];
     const usageSet = new Set(list);
@@ -27135,15 +27126,6 @@ async function renderScheduleWeek() {
       if (!firstWatchDate && cls.rank <= 4) {
         firstWatchDate = d;
         firstWatchDays = days === Infinity ? null : days;
-      }
-      // Roll the day's worst-tier state forward for the strip.
-      const state = femDayState.get(d);
-      if (state) {
-        if (cls.rank < state.rank) { state.rank = cls.rank; state.tier = cls.tier === "never_used" ? "violation" : cls.tier; }
-        if (cls.rank <= 4) {
-          const bucket = cls.tier === "never_used" ? "violation" : cls.tier;
-          state.counts[bucket] = (state.counts[bucket] || 0) + 1;
-        }
       }
     }
     // Anything that hit Critical / Violation / Never-used during
@@ -27276,14 +27258,8 @@ async function renderScheduleWeek() {
   kpis.dataset.rrFemUpcoming = JSON.stringify(femUpcoming);
   kpis.dataset.rrFemCounts   = JSON.stringify(femWeekCounts);
   kpis.dataset.rrFemForecast = JSON.stringify({ ...femForecast, _asOf: _nextMondayIso });
-  kpis.dataset.rrFemDayStrip = JSON.stringify(
-    femWeekDates.map(d => ({ date: d, state: femDayState.get(d) }))
-  );
   if (typeof window._rrRenderForecastCard === "function") {
     window._rrRenderForecastCard();
-  }
-  if (typeof window._rrRenderFemDayStrip === "function") {
-    window._rrRenderFemDayStrip();
   }
   // Render epoch for the "Reviewed Ns ago" stamp under the KPI
   // strip. Updated every 30s by the polling tick (see below).
@@ -28143,69 +28119,6 @@ function bindSchedWeekNav() {
     };
   }
 
-  // ── FEM sticky day-strip renderer ──
-  // Always-on peripheral awareness — 7 thin cells under the
-  // KPI strip, color-tinted by the worst tier any branded van
-  // hits each day. Microsoft Outlook day-pip pattern: no
-  // labels, just glance-able fleet health per day. Reads like
-  // a sentence fragment: "THIS WEEK   Mon ●  Tue ●  Wed ●  …"
-  // where each dot is tier-colored. Hover any pill for the
-  // detailed per-day breakdown. Hidden entirely when every
-  // day is healthy — no signal, no noise.
-  if (!window._rrFemDayStripInstalled) {
-    window._rrFemDayStripInstalled = true;
-    window._rrRenderFemDayStrip = function () {
-      const host = document.getElementById("rr-sched-fem-day-strip");
-      const kpis = document.getElementById("rr-sched-kpis");
-      if (!host || !kpis) return;
-      let strip = [];
-      try { strip = JSON.parse(kpis.dataset.rrFemDayStrip || "[]"); } catch { strip = []; }
-      if (!Array.isArray(strip) || strip.length === 0) { host.hidden = true; host.innerHTML = ""; return; }
-      const todayIso = fmtIsoDate(new Date());
-      const shortDayLbl = (iso) => {
-        try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" }); }
-        catch { return iso; }
-      };
-      // Pull the worst tier per day. Healthy days are dropped —
-      // the operator only needs to see days that need attention.
-      // If every day is healthy, the strip stays hidden (the
-      // "Reviewed Ns ago · auto-rotation armed" line already
-      // says "all good").
-      const atRiskDays = strip
-        .map(d => ({ ...d, state: d.state || { tier: "healthy", counts: {} } }))
-        .filter(d => d.state.tier && d.state.tier !== "healthy");
-      if (atRiskDays.length === 0) { host.hidden = true; host.innerHTML = ""; return; }
-
-      // Tier presentation — labels (Microsoft sentence-case),
-      // text colors, and the order to pick which COUNT to
-      // surface as the headline number per day.
-      const tierMeta = {
-        violation: { label: "Violation", color: "#C42B1C" },
-        critical:  { label: "Critical",  color: "#C42B1C" },
-        risk:      { label: "Risk",      color: "#B45309" },
-        watch:     { label: "Watch",     color: "#B45309" },
-      };
-      const items = atRiskDays.map(d => {
-        const tier = d.state.tier;
-        const counts = d.state.counts || {};
-        const headlineCount = counts[tier] || 0;
-        const meta = tierMeta[tier] || { label: tier, color: "var(--text-subtle)" };
-        const isToday = d.date === todayIso;
-        const vansLbl = headlineCount > 0
-          ? `${headlineCount} van${headlineCount === 1 ? "" : "s"}`
-          : "";
-        // "Tue · Critical · 1 van" — day on the left, tier word
-        // colored, count after.
-        return `<span class="sched-fem-day-item${isToday ? " is-today" : ""}" data-tier="${tier}"><span class="sched-fem-day-item-day">${escapeHtml(shortDayLbl(d.date))}</span><span class="sched-fem-day-item-tier" style="color:${meta.color}">${escapeHtml(meta.label)}</span>${vansLbl ? `<span class="sched-fem-day-item-count">· ${escapeHtml(vansLbl)}</span>` : ""}</span>`;
-      }).join("");
-
-      host.innerHTML =
-        `<span class="sched-fem-day-strip-label">Days needing attention</span>` +
-        `<span class="sched-fem-day-strip-row">${items}</span>`;
-      host.hidden = false;
-    };
-  }
-
   // ── Weekly recap renderer (audit #15) ──
   // Surfaces the FEM digest for the visible week: how many
   // branded vans were auto-rotated, VERO defects prevented,
@@ -28302,7 +28215,6 @@ function bindSchedWeekNav() {
   if (typeof window._rrTickFleetReviewedStamp === "function") window._rrTickFleetReviewedStamp();
   if (typeof window._rrRenderAutoRescueBanner === "function") window._rrRenderAutoRescueBanner();
   if (typeof window._rrRenderForecastCard === "function")     window._rrRenderForecastCard();
-  if (typeof window._rrRenderFemDayStrip === "function")      window._rrRenderFemDayStrip();
   if (typeof window._rrRenderWeeklyRecapLink === "function")  window._rrRenderWeeklyRecapLink();
 
   // ── Pool sort toggle (Day / Wave time)
