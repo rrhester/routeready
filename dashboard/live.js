@@ -24285,10 +24285,28 @@ async function _runSchedVanAssignmentsBackground() {
     //   4. fall-through pool: any active+operational vehicle not
     //      yet assigned to anyone this date, branded-first,
     //      never-deployed first, alphabetical tie-break
-    const dates = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), i)));
+    // Capture the visible week BEFORE the await so that if the
+    // operator navigates to a different week while the resolver
+    // is in flight, the cached _rrLastVanRun stays attributed to
+    // the week the writes actually targeted (not whatever week
+    // happens to be visible when the promise resolves).
+    const runWeekStart = _schedStart;
+    const dates = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(new Date(runWeekStart + "T12:00:00"), i)));
     const weekEndIso = dates[dates.length - 1];
-    const totals = await _assignVansForRange(_schedStart, weekEndIso, dspId);
-    console.log(`assignVans week ${_schedStart} · ${totals.assigned} placement${totals.assigned === 1 ? "" : "s"} · ${totals.unassigned} driver${totals.unassigned === 1 ? "" : "s"} without a van`);
+    const totals = await _assignVansForRange(runWeekStart, weekEndIso, dspId);
+    // Stash the per-write reasons + the high-level totals so the
+    // chip decorator + the auto-rescue banner can surface "why"
+    // for the freshest run. Keyed by the captured week so a
+    // mid-flight week change can't misattribute the results.
+    window._rrLastVanRun = {
+      weekStart: runWeekStart,
+      reasons:   Array.isArray(totals.reasons) ? totals.reasons : [],
+      assigned:  totals.assigned || 0,
+      unassigned: totals.unassigned || 0,
+      fem:       totals.fem || null,
+      ts:        Date.now(),
+    };
+    console.log(`assignVans week ${runWeekStart} · ${totals.assigned} placement${totals.assigned === 1 ? "" : "s"} · ${totals.unassigned} driver${totals.unassigned === 1 ? "" : "s"} without a van`);
     if (totals.unassigned > 0) {
       toast(`Assigned ${totals.assigned} van${totals.assigned === 1 ? "" : "s"} · ${totals.unassigned} driver${totals.unassigned === 1 ? "" : "s"} still without a van (fleet may be tapped out).`, "warn");
     }
@@ -24980,6 +24998,18 @@ async function _decorateScheduleChipsWithVans() {
     if (!sh.driver_id || !sh.date) continue;
     shiftIdToKey.set(String(sh.id), `${sh.driver_id}|${sh.date}`);
   }
+  // Reasons[] index from the most recent Assign Vans run on the
+  // visible week. Lets us paint a small "rotation" eyebrow next
+  // to the van label when the assignment came from a rescue
+  // path (Phase 3 displacement) — operator gets passive
+  // visibility into what the system did and why.
+  let reasonsByKey = new Map();
+  const run = window._rrLastVanRun;
+  if (run && run.weekStart === _schedStart && Array.isArray(run.reasons)) {
+    for (const r of run.reasons) {
+      reasonsByKey.set(`${r.driver_id}|${r.date}`, r);
+    }
+  }
   sub.querySelectorAll(".shift-chip[data-rr-shift-id]").forEach(chip => {
     const id = chip.dataset.rrShiftId;
     const key = shiftIdToKey.get(String(id));
@@ -24990,7 +25020,20 @@ async function _decorateScheduleChipsWithVans() {
     chip.querySelector(".shift-chip-van")?.remove();
     const el = document.createElement("div");
     el.className = "shift-chip-van";
-    el.textContent = `Van ${van}`;
+    // When the reasons[] index says this assignment came from a
+    // FEM-rescue phase, append a small uppercase eyebrow so the
+    // operator can tell at a glance that the system intervened.
+    // The full reason string goes into the chip's `title` for a
+    // desktop hover tooltip — Microsoft Outlook calendar pattern.
+    const reason = reasonsByKey.get(key);
+    const isRescue = reason && typeof reason.phase === "string" && reason.phase.startsWith("rescue-");
+    if (isRescue) {
+      el.classList.add("is-rotation");
+      el.innerHTML = `Van ${escapeHtml(van)} <span class="shift-chip-van-tag">Rotation</span>`;
+      chip.setAttribute("title", reason.reason || "FEM rotation pick");
+    } else {
+      el.textContent = `Van ${van}`;
+    }
     chip.appendChild(el);
   });
 }
@@ -26916,6 +26959,35 @@ async function renderScheduleWeek() {
   if (typeof window._rrTickFleetReviewedStamp === "function") {
     window._rrTickFleetReviewedStamp();
   }
+  // ── Auto-rescue trigger ──
+  // If any branded van is projected to cross the Critical (13d)
+  // or Violation (14d+) threshold this week AND we haven't
+  // already auto-fired on this week, fire Assign Vans quietly.
+  // The runner is idempotent — if everything's already optimally
+  // assigned the second run is a no-op. Gated so we only fire
+  // once per visible week per session (operator can still
+  // manually re-run via the tile).
+  if (femRisks.length > 0
+      && window._rrFemAutoRescuedFor !== _schedStart
+      && typeof _runSchedVanAssignmentsBackground === "function") {
+    const btn = document.getElementById("rr-sched-vans-h");
+    if (!btn || btn.dataset.rrBusy !== "1") {
+      window._rrFemAutoRescuedFor = _schedStart;
+      window._rrFemAutoRescuePending = true; // banner reads this on next render
+      // Fire & forget — the runner repaints renderScheduleWeek
+      // when it finishes, which re-enters here with
+      // _rrFemAutoRescuedFor already set, so we don't loop.
+      Promise.resolve().then(() => _runSchedVanAssignmentsBackground());
+    }
+  }
+  // Render the auto-rescue banner if the last run did any
+  // rescue-path writes on the visible week. Self-dismisses when
+  // the operator clicks the × or navigates weeks. Guarded
+  // because the renderer is installed further down in the same
+  // function (first-call ordering).
+  if (typeof window._rrRenderAutoRescueBanner === "function") {
+    window._rrRenderAutoRescueBanner();
+  }
   kpis.dataset.rrViolations = JSON.stringify(violations);
   kpis.dataset.rrPrefMisses = JSON.stringify(prefMissList);
   kpis.dataset.rrPrefSummary = JSON.stringify({ honored: prefHonored, denom: prefDenom });
@@ -27579,6 +27651,12 @@ function bindSchedWeekNav() {
         if (x.days === null) return `Never used · first dispatch ${dayLbl(x.firstCrossing)}`;
         return `${x.days}d idle by ${dayLbl(x.firstCrossing)}`;
       };
+      // Unrecoverable-state explanation. Because femRisks is
+      // computed AFTER the auto-rescue pass, every entry here
+      // is something the engine tried and couldn't rotate.
+      // Surface the concrete next step so the operator isn't
+      // staring at a red dot with no path forward.
+      const reasonForStuck = `No displaceable driver available today · schedule one more driver or wait for a backup chain holder to come on shift.`;
       // Tier-pip strip — peripheral awareness inside the modal:
       // shows the full watchlist landscape, not just critical/
       // violation. Only non-zero tiers render to keep it calm.
@@ -27601,7 +27679,7 @@ function bindSchedWeekNav() {
         ? `<div style="padding:18px;color:var(--text-muted);font-size:var(--fs-sm);line-height:1.5">No branded van is projected to cross 13 days unused this week. ${upcoming.length > 0 ? `Next to enter Watch: <strong>${escapeHtml(upcoming[0].name)}</strong> on ${escapeHtml(dayLbl(upcoming[0].watchOn))}.` : `No watchlist activity in the visible week.`}</div>`
         : risks.map(x => {
             const headline = headlineFor(x);
-            return `<div style="padding:var(--s-3) 18px;border-top:1px solid var(--sch-line-subtle, var(--border-subtle));display:flex;gap:var(--s-3);align-items:center"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotFor(x.tier)};flex:0 0 auto"></span><div style="flex:1;min-width:0"><div style="font-size:var(--fs-md);font-weight:600;color:var(--text);letter-spacing:-.005em">Van ${escapeHtml(x.name)}</div><div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px">${escapeHtml(subFor(x))}</div></div><span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--sch-red, #C42B1C);font-variant-numeric:tabular-nums">${escapeHtml(headline)}</span></div>`;
+            return `<div style="padding:var(--s-3) 18px;border-top:1px solid var(--sch-line-subtle, var(--border-subtle))"><div style="display:flex;gap:var(--s-3);align-items:center"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotFor(x.tier)};flex:0 0 auto"></span><div style="flex:1;min-width:0"><div style="font-size:var(--fs-md);font-weight:600;color:var(--text);letter-spacing:-.005em">Van ${escapeHtml(x.name)}</div><div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px">${escapeHtml(subFor(x))}</div></div><span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--sch-red, #C42B1C);font-variant-numeric:tabular-nums">${escapeHtml(headline)}</span></div><div style="margin-top:6px;margin-left:16px;font-size:var(--fs-xs);color:var(--text-muted);line-height:1.4">${escapeHtml(reasonForStuck)}</div></div>`;
           }).join("");
       m.innerHTML = `
         <div style="background:var(--surface);border:1px solid var(--sch-line, var(--border));border-radius:10px;max-width:540px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 1px 2px rgba(15,23,42,.04),0 1px 1px rgba(15,23,42,.02)">
@@ -27643,6 +27721,61 @@ function bindSchedWeekNav() {
       host.textContent = `Reviewed ${when}${armed}`;
     };
     setInterval(window._rrTickFleetReviewedStamp, 30000);
+  }
+
+  // ── Auto-rescue banner renderer ──
+  // Reads window._rrLastVanRun (set by the runner after every
+  // Assign Vans pass) and surfaces a one-line summary when the
+  // run actually performed FEM-rescue writes on the visible week.
+  // No banner when the run was a no-op or only ran chain/pool
+  // assignments — we only narrate when the system did something
+  // the operator might not have expected. Microsoft tone: lower-
+  // case verbs, numbers before nouns, no exclamation.
+  if (!window._rrAutoRescueRendererInstalled) {
+    window._rrAutoRescueRendererInstalled = true;
+    window._rrRenderAutoRescueBanner = function () {
+      const host = document.getElementById("rr-sched-auto-rescue-banner");
+      if (!host) return;
+      const run = window._rrLastVanRun;
+      // Bail if no run, or the run was for a different week than
+      // the one currently displayed.
+      if (!run || run.weekStart !== _schedStart) { host.hidden = true; host.innerHTML = ""; return; }
+      // Bail if the operator already dismissed THIS run.
+      if (window._rrAutoRescueDismissedTs === run.ts) { host.hidden = true; host.innerHTML = ""; return; }
+      const rescues = (run.reasons || []).filter(r => typeof r.phase === "string" && r.phase.startsWith("rescue-"));
+      if (rescues.length === 0) { host.hidden = true; host.innerHTML = ""; return; }
+      // Build the narration. Group by phase so the operator sees
+      // "displaced 1 primary + 2 secondaries" structure if it
+      // matters. Keep it to one line; details live in the modal.
+      const primaryCount   = rescues.filter(r => r.phase === "rescue-from-primary").length;
+      const secondaryCount = rescues.filter(r => r.phase === "rescue-from-secondary").length;
+      const poolCount      = rescues.filter(r => r.phase === "rescue-from-pool").length;
+      const vanNames = Array.from(new Set(rescues.map(r => {
+        // The reasons[] payload doesn't include the vehicle name
+        // (only the id) — we'll fall back to the count phrasing
+        // unless one rescue happened, where we can look up the
+        // name via the chip cache.
+        return r.vehicle_id;
+      }))).length;
+      const detail = [];
+      if (primaryCount   > 0) detail.push(`${primaryCount} primary`);
+      if (secondaryCount > 0) detail.push(`${secondaryCount} secondary`);
+      if (poolCount      > 0) detail.push(`${poolCount} from the pool`);
+      const detailStr = detail.length ? `displaced ${detail.join(", ")}` : "";
+      const sentence = vanNames === 1
+        ? `Auto-rotated <strong>1 branded van</strong> today · ${detailStr}.`
+        : `Auto-rotated <strong>${vanNames} branded vans</strong> this week · ${detailStr}.`;
+      host.innerHTML = `<span class="sched-fem-banner-dot" aria-hidden="true"></span><span class="sched-fem-banner-text">${sentence}</span><button type="button" class="sched-fem-banner-close" aria-label="Dismiss">×</button>`;
+      host.hidden = false;
+      const closeBtn = host.querySelector(".sched-fem-banner-close");
+      if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+          window._rrAutoRescueDismissedTs = run.ts;
+          host.hidden = true;
+          host.innerHTML = "";
+        }, { once: true });
+      }
+    };
   }
 
   // ── Pool sort toggle (Day / Wave time)

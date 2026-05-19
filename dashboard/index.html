@@ -11506,6 +11506,12 @@ body.rr-cmdk-open{ overflow:hidden }
              today-plan poll re-fires (and renderScheduleWeek
              stamps the rendered-at epoch onto #rr-sched-kpis). -->
         <div id="rr-sched-fleet-reviewed" class="sched-fleet-reviewed" aria-live="polite"></div>
+        <!-- Quiet auto-rescue banner. Populated by
+             _rrRenderAutoRescueBanner() after the auto-rescue
+             trigger inside renderScheduleWeek finishes a run
+             that actually displaced anyone. Calm Outlook tone —
+             one sentence, lowercase verb, no exclamation. -->
+        <div id="rr-sched-auto-rescue-banner" class="sched-fem-banner" hidden></div>
         <a href="#" role="button" class="rr-text-link" id="rr-sched-kpis-toggle" aria-pressed="true" style="display:none">Insights</a>
 
         <!-- WEEK VIEW SUB-VIEW -->
@@ -11781,6 +11787,40 @@ body.rr-cmdk-open{ overflow:hidden }
             min-height:14px;
           }
           #view-schedule .sched-fleet-reviewed[hidden]{display:none}
+          /* Auto-rescue banner · one line below the KPI strip
+             when the engine has narrated a rotation it did on
+             its own. Calm Outlook tone — surface, no shadow,
+             hairline-bottom, green dot meaning "system did its
+             job." Operator dismisses via × or by navigating
+             weeks. */
+          #view-schedule .sched-fem-banner{
+            display:flex;align-items:center;gap:var(--s-2-5);
+            padding:var(--s-2-5) var(--s-3-5);
+            margin-top:var(--s-2);
+            background:var(--sch-surface-2, var(--canvas));
+            border:1px solid var(--sch-line-subtle, var(--border-subtle));
+            border-radius:var(--r-md, 8px);
+            font-size:var(--fs-sm);color:var(--text);
+            letter-spacing:-.005em;
+          }
+          #view-schedule .sched-fem-banner[hidden]{display:none}
+          #view-schedule .sched-fem-banner-dot{
+            display:inline-block;width:8px;height:8px;border-radius:50%;
+            background:var(--sch-green, #107C41);
+            box-shadow:0 0 0 2px #fff;
+            flex:0 0 auto;
+          }
+          #view-schedule .sched-fem-banner-text{
+            flex:1;line-height:1.45;
+          }
+          #view-schedule .sched-fem-banner-text strong{font-weight:600;color:var(--text)}
+          #view-schedule .sched-fem-banner-close{
+            background:transparent;border:0;cursor:pointer;
+            font-size:18px;line-height:1;
+            color:var(--text-subtle);padding:0 6px;
+            transition:color var(--t-fast);
+          }
+          #view-schedule .sched-fem-banner-close:hover{color:var(--text)}
 
           /* Active subnav tab — echo the sidebar's active row with
              a deep navy text + an underline rail in the same indigo
@@ -13114,6 +13154,24 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .shift-chip:not(.off):not(.timeoff):not(.open) .shift-chip-van{
             color:var(--sch-blue-text);
+          }
+          /* "Rotation" eyebrow on chips where the assignment came
+             from an FEM rescue phase. Microsoft Fluent voice —
+             uppercase 9px, .06em tracking, calm amber (not red).
+             The chip itself keeps its normal color; the eyebrow
+             provides passive at-a-glance visibility. */
+          #view-schedule .shift-chip .shift-chip-van.is-rotation{
+            display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap;
+          }
+          #view-schedule .shift-chip .shift-chip-van-tag{
+            font-size:9px;font-weight:700;
+            letter-spacing:.06em;text-transform:uppercase;
+            color:#B45309;
+            background:rgba(180,83,9,.08);
+            border:1px solid rgba(180,83,9,.18);
+            border-radius:3px;
+            padding:1px 5px;
+            line-height:1.15;
           }
 
           /* Van chain editor sub-view header */
