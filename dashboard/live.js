@@ -24382,8 +24382,10 @@ function _rrDecorateChainEditorHeatmap(body, usageByVan, todayIso) {
     th.setAttribute("data-rr-heatmap-head", "1");
     th.style.cssText = "min-width:160px;text-align:left;white-space:nowrap";
     th.textContent = "Last 14 days";
-    // Insert before Notes (5th cell, 0-indexed).
-    const notesTh = headRow.children[4];
+    // Insert before Notes. Columns now: Van | Status | VIN |
+    // Ownership | Primary | Backup | Notes | (delete). Notes is
+    // index 6.
+    const notesTh = headRow.children[6];
     if (notesTh) headRow.insertBefore(th, notesTh);
     else headRow.appendChild(th);
   }
@@ -24416,7 +24418,9 @@ function _rrDecorateChainEditorHeatmap(body, usageByVan, todayIso) {
     const td = document.createElement("td");
     td.setAttribute("data-rr-heatmap-cell", "1");
     td.innerHTML = `<div class="rr-heatmap-wrap"><div class="rr-heatmap-strip">${cells}</div><div class="rr-heatmap-sub">${escapeHtml(idleLabel)}</div></div>`;
-    const notesTd = tr.children[4];
+    // Notes cell index changed (Van | Status | VIN | Ownership |
+    // Primary | Backup | Notes | delete → Notes is index 6).
+    const notesTd = tr.children[6];
     if (notesTd) tr.insertBefore(td, notesTd);
     else tr.appendChild(td);
   });
@@ -33570,22 +33574,35 @@ function _wsDaysSince(iso) {
 }
 
 function _wsVehStatusCell(v) {
-  const lifecycle = _WS_VEH_STATUS_LABEL[v.status] || v.status || "—";
-  const grounded  = v.operational_status === "grounded";
+  // Operator: status column is now a clean dot — green for active,
+  // red for grounded. No pill chrome, no text label. The vertical
+  // accent line on the row's left edge carries the warning weight
+  // for grounded vans.
+  const grounded = v.operational_status === "grounded";
   if (grounded) {
-    // Operator: drop the GROUNDED + days pills entirely. Surface
-    // just an alert dot in the Status column; the vertical accent
-    // line on the row's left edge (CSS .ws-veh-row.is-grounded
-    // ::before) carries the rest of the warning weight.
     const days = _wsDaysSince(v.grounded_since);
-    const dayTip = days == null ? "Grounded" : `Grounded · ${days}d`;
-    return `<div class="ws-veh-status is-grounded" title="${escapeHtml(dayTip)} · change from the Fleet roster">
-      <span class="ws-veh-status-dot grounded" aria-label="${escapeHtml(dayTip)}"></span>
+    const tip = days == null ? "Grounded" : `Grounded · ${days}d`;
+    return `<div class="ws-veh-status is-grounded" title="${escapeHtml(tip)} · change from the Fleet roster">
+      <span class="ws-veh-status-dot grounded" aria-label="${escapeHtml(tip)}"></span>
     </div>`;
   }
-  return `<div class="ws-veh-status" title="Change from the Fleet roster">
-    <span class="ws-veh-status-pill ${escapeHtml(v.status || "active")}"><span class="dot"></span>${escapeHtml(lifecycle)}</span>
+  const lifecycle = _WS_VEH_STATUS_LABEL[v.status] || v.status || "Active";
+  return `<div class="ws-veh-status" title="${escapeHtml(lifecycle)} · change from the Fleet roster">
+    <span class="ws-veh-status-dot active" aria-label="${escapeHtml(lifecycle)}"></span>
   </div>`;
+}
+
+// Ownership type label for the chain editor's Ownership column.
+const _WS_OWNERSHIP_LABEL = {
+  amazon_owned: "Amazon",
+  dsp_owned:    "DSP",
+  rental:       "Rental",
+  leased:       "Leased",
+};
+function _wsOwnershipCell(v) {
+  const k = v.ownership || "dsp_owned";
+  const label = _WS_OWNERSHIP_LABEL[k] || k;
+  return `<span class="ws-veh-ownership ws-veh-ownership--${escapeHtml(k)}">${escapeHtml(label)}</span>`;
 }
 
 function _wsRenderVehicles(root) {
@@ -33620,6 +33637,8 @@ function _wsRenderVehicles(root) {
     return `<tr data-veh-id="${escapeHtml(v.id)}" class="ws-veh-row${rowCls}">
       <td><span class="ws-veh-name-ro" title="Change from the Fleet roster">${escapeHtml(v.name || "—")}</span></td>
       <td>${_wsVehStatusCell(v)}</td>
+      <td><span class="ws-veh-vin" title="${escapeHtml(v.vin || "—")}">${escapeHtml(v.vin || "—")}</span></td>
+      <td>${_wsOwnershipCell(v)}</td>
       <td><select class="form-input ws-veh-select" data-veh-role="primary">${drvOpt(primary && primary.driver_id, claimedPrimary)}</select></td>
       <td><select class="form-input ws-veh-select" data-veh-role="backup">${drvOpt(backup && backup.driver_id, claimedBackup)}</select></td>
       <td><input class="form-input ws-veh-input" data-veh-field="notes" value="${escapeHtml(v.notes || "")}" maxlength="200" placeholder="—"></td>
@@ -33637,14 +33656,16 @@ function _wsRenderVehicles(root) {
     <div class="ws-grid-wrap" style="overflow-x:auto">
       <table class="ws-veh-table">
         <thead><tr>
-          <th style="min-width:120px">Van</th>
-          <th style="min-width:148px">Status</th>
+          <th style="min-width:80px">Van</th>
+          <th style="min-width:60px">Status</th>
+          <th style="min-width:148px">VIN</th>
+          <th style="min-width:80px">Ownership</th>
           <th style="min-width:168px">Primary driver</th>
           <th style="min-width:168px">Backup</th>
           <th style="min-width:200px">Notes</th>
           <th class="ws-veh-act"></th>
         </tr></thead>
-        <tbody>${_wsVehicles.length ? _wsVehicles.map(rowHtml).join("") : `<tr><td colspan="6" style="padding:22px 16px;color:var(--text-subtle);font-size:var(--fs-sm);text-align:center">No vans yet — add your first one below.</td></tr>`}</tbody>
+        <tbody>${_wsVehicles.length ? _wsVehicles.map(rowHtml).join("") : `<tr><td colspan="8" style="padding:22px 16px;color:var(--text-subtle);font-size:var(--fs-sm);text-align:center">No vans yet — add your first one below.</td></tr>`}</tbody>
       </table>
       <button type="button" class="ws-addrow" data-rr-veh-add><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add van</button>
     </div>`;
