@@ -11291,7 +11291,9 @@ body.rr-cmdk-open{ overflow:hidden }
               <button class="sched-page-btn sched-page-btn--has-rules" id="rr-sched-smartfill-h" data-rr-tile="smartfill" draggable="true" type="button" title="Auto-staff this week from your rules + OKAMI demand">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 Smart Fill
-                <span class="sched-page-btn-rules-toggle" id="rr-sched-smartfill-rules-toggle" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-smartfill-rules-popover" title="Smart Fill rules — toggle parts of the auto-staff logic on/off">R</span>
+                <span class="sched-page-btn-rules-toggle" id="rr-sched-smartfill-rules-toggle" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-smartfill-rules-popover" title="Smart Fill rules — toggle parts of the auto-staff logic on/off" aria-label="Smart Fill rules">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="18" r="2"/></svg>
+                </span>
               </button>
               <!-- Smart Fill rules popover · checkboxes per rule so
                    the DSP can toggle which rules apply on the next
@@ -11331,7 +11333,9 @@ body.rr-cmdk-open{ overflow:hidden }
                 <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
                   <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                 </span>
-                <span class="sched-page-btn-rules-toggle" id="rr-sched-vans-rules-toggle" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-vans-rules-popover" title="Van assignment rules — toggle parts of the auto-assign logic on/off">R</span>
+                <span class="sched-page-btn-rules-toggle" id="rr-sched-vans-rules-toggle" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-vans-rules-popover" title="Van assignment rules — toggle parts of the auto-assign logic on/off" aria-label="Van assignment rules">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="18" r="2"/></svg>
+                </span>
               </button>
               <!-- Van assignment rules popover · checkboxes per rule
                    so the operator can toggle parts of the auto-assign
@@ -12652,16 +12656,15 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-page-btn--has-rules{padding-top:16px}
           #view-schedule .sched-page-btn-rules-toggle{
             position:absolute;right:3px;top:3px;
-            min-width:18px;height:18px;padding:0 4px;border-radius:4px;
+            width:18px;height:18px;padding:0;border-radius:4px;
             display:inline-flex;align-items:center;justify-content:center;
-            font-size:11px;font-weight:700;line-height:1;
-            font-family:'Inter Tight','Inter',system-ui,sans-serif;
-            letter-spacing:0;
+            line-height:0;
             color:var(--text-subtle);
-            background:transparent;border:1px solid rgba(15,23,42,.18);
+            background:#fff;border:1px solid rgba(15,23,42,.18);
             cursor:pointer;
             transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
           }
+          #view-schedule .sched-page-btn-rules-toggle svg{display:block}
           #view-schedule .sched-page-btn-rules-toggle:hover,
           #view-schedule .sched-page-btn-rules-toggle:focus-visible{
             background:var(--sch-blue-softer);color:var(--sch-blue);
