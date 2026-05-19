@@ -14004,28 +14004,29 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-bottom:3px;
             display:flex;align-items:center;gap:4px;
           }
-          /* Tight aligned rows · 36 px label column so START / WAVE
-             stack flush; no row gap (line-height carries spacing). */
+          /* Tight aligned rows · 32 px label column. Body text sized
+             down so the full Start–End range ("9:40am – 8:00pm")
+             fits in the cell without clipping the closing 'm'. */
           #view-schedule .shift-chip-row{
             display:grid;
-            grid-template-columns:36px 1fr;
+            grid-template-columns:32px 1fr;
             align-items:baseline;
             gap:0 6px;
-            font-size:11px;line-height:1.2;
+            font-size:10px;line-height:1.2;
             color:var(--text);
             font-variant-numeric:tabular-nums;
             white-space:nowrap;
           }
           #view-schedule .shift-chip-row-lbl{
-            font-size:9px;font-weight:700;
-            text-transform:uppercase;letter-spacing:.05em;
+            font-size:8px;font-weight:700;
+            text-transform:uppercase;letter-spacing:.04em;
             color:var(--text-subtle);
           }
           #view-schedule .shift-chip-row-val{
             font-weight:600;color:var(--text);
           }
           #view-schedule .shift-chip-van{
-            font-size:11px;font-weight:600;
+            font-size:10px;font-weight:600;
             color:var(--sch-blue);
             letter-spacing:.01em;
             line-height:1.2;
