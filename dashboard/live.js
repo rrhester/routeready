@@ -40402,6 +40402,9 @@ function _toRenderView(body) {
     btn.addEventListener("click", () => _toDecide(btn));
   });
   body.querySelector("#rr-pto-report-btn")?.addEventListener("click", openPtoReportModal);
+  // Decorate each pending row with a coverage verdict so the
+  // dispatcher knows up-front whether approving forces a rule break.
+  _toPaintCoverage(body).catch((e) => console.warn("coverage check:", e));
 }
 
 
@@ -40552,12 +40555,58 @@ function _toPendingRowHtml(r) {
         <span class="status-pill status-pill-pending">Pending</span>
       </div>
       ${reason}
+      <div class="to-row-coverage" data-rr-to-coverage="${escapeHtml(r.id)}">
+        <span class="to-row-coverage-dot"></span>
+        <span class="to-row-coverage-text u-sm-subtle">Checking coverage…</span>
+      </div>
       <textarea class="form-input" data-rr-to-note="${escapeHtml(r.id)}" rows="2" placeholder="Optional note to send to the driver…" maxlength="500"></textarea>
       <div class="to-row-actions">
         <button type="button" class="btn btn-sm btn-danger" data-rr-to-decide="deny" data-rr-to-id="${escapeHtml(r.id)}">Deny</button>
         <button type="button" class="btn btn-sm btn-primary" data-rr-to-decide="approve" data-rr-to-id="${escapeHtml(r.id)}">Approve</button>
       </div>
     </div>`;
+}
+
+// After each pending row renders, fetch its coverage check and
+// repaint the inline strip with a colored verdict so the
+// dispatcher can see whether approving would force a rule break.
+async function _toPaintCoverage(host) {
+  const slots = host ? host.querySelectorAll("[data-rr-to-coverage]") : [];
+  for (const slot of slots) {
+    const id = slot.getAttribute("data-rr-to-coverage");
+    if (!id) continue;
+    let res;
+    try { res = await sb.rpc("dispatch_time_off_coverage", { p_request_id: id }); }
+    catch (e) { res = { error: e }; }
+    if (res?.error || !res?.data) {
+      slot.classList.add("to-cov-unknown");
+      slot.querySelector(".to-row-coverage-text").textContent = "Coverage check unavailable";
+      continue;
+    }
+    const d = res.data;
+    const total = Number(d.shifts_total || 0);
+    const cap   = Number(d.max_hours_per_week || 40);
+    let cls, msg;
+    if (d.status === "no_shifts") {
+      cls = "to-cov-empty";
+      msg = "No shifts in this range — no coverage needed.";
+    } else if (d.status === "covered") {
+      cls = "to-cov-ok";
+      msg = total === 1
+        ? "Shift can be covered — another eligible driver is available."
+        : `All ${total} shifts can be covered — eligible drivers available.`;
+    } else if (d.status === "rule_break") {
+      const n = Number(d.rule_break || 0);
+      cls = "to-cov-rule";
+      msg = `Would push someone over the ${cap}h weekly cap on ${n} shift${n === 1 ? "" : "s"} — approving means breaking the overtime rule.`;
+    } else {
+      const n = Number(d.no_coverage || 0);
+      cls = "to-cov-blocked";
+      msg = `${n} shift${n === 1 ? " has" : "s have"} no eligible drivers — coverage can't be filled by anyone right now.`;
+    }
+    slot.classList.add(cls);
+    slot.querySelector(".to-row-coverage-text").textContent = msg;
+  }
 }
 
 function _toDecidedRowHtml(r) {

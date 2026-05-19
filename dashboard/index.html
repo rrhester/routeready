@@ -7875,6 +7875,70 @@ body.rr-cmdk-open{ overflow:hidden }
   margin-top:var(--s-3);
 }
 
+/* Coverage verdict strip · painted into each pending row by
+   _toPaintCoverage after the row mounts. Calm Outlook tone —
+   8 px dot + sentence, color matches the verdict (green / amber
+   / red). */
+#sched-sub-time-off .to-row-coverage,
+#sched-sub-requests .to-row-coverage{
+  display:flex;align-items:center;gap:8px;
+  margin-top:var(--s-2);
+  padding:8px 12px;
+  background:var(--sch-surface-2, #FAFBFC);
+  border:1px solid var(--sch-line, var(--border));
+  border-radius:var(--r-md);
+  font-size:var(--fs-sm, 13px);line-height:1.45;
+  color:var(--text);
+}
+#sched-sub-time-off .to-row-coverage .to-row-coverage-dot,
+#sched-sub-requests .to-row-coverage .to-row-coverage-dot{
+  flex:0 0 auto;
+  width:8px;height:8px;border-radius:50%;
+  background:var(--text-subtle);
+}
+#sched-sub-time-off .to-row-coverage.to-cov-ok,
+#sched-sub-requests .to-row-coverage.to-cov-ok{
+  background:rgba(16,124,65,.06);
+  border-color:rgba(16,124,65,.28);
+  color:#0F5C32;
+}
+#sched-sub-time-off .to-row-coverage.to-cov-ok .to-row-coverage-dot,
+#sched-sub-requests .to-row-coverage.to-cov-ok .to-row-coverage-dot{
+  background:#107C41;
+}
+#sched-sub-time-off .to-row-coverage.to-cov-rule,
+#sched-sub-requests .to-row-coverage.to-cov-rule{
+  background:rgba(180,83,9,.06);
+  border-color:rgba(180,83,9,.28);
+  color:#9A4400;
+}
+#sched-sub-time-off .to-row-coverage.to-cov-rule .to-row-coverage-dot,
+#sched-sub-requests .to-row-coverage.to-cov-rule .to-row-coverage-dot{
+  background:#B45309;
+}
+#sched-sub-time-off .to-row-coverage.to-cov-blocked,
+#sched-sub-requests .to-row-coverage.to-cov-blocked{
+  background:rgba(196,43,28,.06);
+  border-color:rgba(196,43,28,.28);
+  color:#A11E13;
+}
+#sched-sub-time-off .to-row-coverage.to-cov-blocked .to-row-coverage-dot,
+#sched-sub-requests .to-row-coverage.to-cov-blocked .to-row-coverage-dot{
+  background:#C42B1C;
+}
+#sched-sub-time-off .to-row-coverage.to-cov-empty,
+#sched-sub-requests .to-row-coverage.to-cov-empty{
+  color:var(--text-muted);
+}
+#sched-sub-time-off .to-row-coverage.to-cov-unknown,
+#sched-sub-requests .to-row-coverage.to-cov-unknown{
+  color:var(--text-muted);
+}
+#sched-sub-time-off .to-row-coverage .to-row-coverage-text,
+#sched-sub-requests .to-row-coverage .to-row-coverage-text{
+  color:inherit;
+}
+
 /* Picker row at the top of #sched-sub-requests. */
 #sched-sub-requests .sched-requests-head{
   display:flex;align-items:center;gap:var(--s-3);
