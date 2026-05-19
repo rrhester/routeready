@@ -23471,15 +23471,14 @@ document.addEventListener("click", (e) => {
     _activateSchedSub("week");
     return;
   }
-  // Main Assign Vans tile → runs the auto-assignment for the
-  // visible week using each driver's standing primary/backup chain,
-  // falling back to the branded-first pool when neither rank is
-  // available. Result populates the schedule's vans sub-view + the
-  // driver app (driver_vehicle_days).
-  if (e.target.closest("#rr-sched-vans-h")) {
+  // Main Assign Vans tile → runs the auto-assignment in the
+  // background. The chip-decoration paints the assigned van into
+  // every chip on the calendar grid, and the driver app picks the
+  // change up via driver_vehicle_days — no sub-view switch needed.
+  // Motion lives on the tile's icon while the RPC chain runs.
+  if (e.target.closest("#rr-sched-vans-h") && !e.target.closest("#rr-sched-vans-chain-toggle")) {
     e.preventDefault();
-    _activateSchedSub("vans");
-    runSchedVanAssignmentsForWeek();
+    _runSchedVanAssignmentsBackground();
     return;
   }
   // Day navigation inside the Today view.
@@ -23897,6 +23896,58 @@ async function runSchedVanAssignmentsForWeek() {
   if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.rrOrig || "Assign vans for this week"; delete btn.dataset.rrOrig; }
 }
 window._rrRunSchedVanAssignmentsForWeek = runSchedVanAssignmentsForWeek;
+
+// Background runner for the Assign Vans tile. Spins the tile icon
+// (same motion as Smart Fill) while today_roster_auto_assign fans
+// out across the week, then decorates every shift chip with the
+// assigned van. No toast, no sub-view switch — feedback lives in
+// the icon motion + chip update.
+async function _runSchedVanAssignmentsBackground() {
+  const btn = document.getElementById("rr-sched-vans-h");
+  if (!btn) return;
+  if (btn.dataset.rrBusy === "1") return; // double-fire guard
+  const orig = btn.querySelector("svg")?.outerHTML || "";
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+
+  // Swap the van glyph for the same spinner Smart Fill uses.
+  btn.dataset.rrBusy = "1";
+  btn.disabled = true;
+  const svg = btn.querySelector("svg");
+  if (svg) {
+    svg.outerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>`;
+  }
+
+  try {
+    // Fan out one RPC per day. today_roster_auto_assign reads the
+    // standing primary → backup chain and falls back to the
+    // branded-first random pool, so all three tiers fire.
+    const dates = Array.from({ length: 7 }, (_, i) => fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), i)));
+    await Promise.all(dates.map(d =>
+      sb.rpc("today_roster_auto_assign", { p_date: d })
+        .catch(err => ({ error: err }))
+    ));
+
+    // Repaint the calendar with the fresh assignments so the
+    // dispatcher sees the result in-place; driver app already
+    // resolves via driver_vehicle_days.
+    if (typeof renderScheduleWeek === "function") {
+      try { await renderScheduleWeek(); } catch (_) { /* non-fatal */ }
+    }
+    if (typeof _decorateScheduleChipsWithVans === "function") {
+      try { await _decorateScheduleChipsWithVans(); } catch (_) {}
+    }
+  } finally {
+    btn.disabled = false;
+    delete btn.dataset.rrBusy;
+    if (orig) {
+      const cur = btn.querySelector("svg");
+      if (cur) cur.outerHTML = orig;
+    }
+  }
+}
+window._rrRunSchedVanAssignmentsBackground = _runSchedVanAssignmentsBackground;
 
 // Paint a small "Van X" line into every chip on the schedule grid
 // using vehicle_day_assignments for the visible week. Driver app
@@ -24436,7 +24487,8 @@ window.openAiSchedule = async function () {
     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>Smart Fill`;
   }
   try {
-    toast("Smart-filling…", "info", 1500);
+    // No toast — the spinning bolt icon is enough feedback per
+    // the operator's request.
     await autoFillScheduleWeek();
   } finally {
     if (btn) {

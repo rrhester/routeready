@@ -12231,6 +12231,21 @@ body.rr-cmdk-open{ overflow:hidden }
             height:32px;align-self:center;
           }
 
+          /* Assign Vans icon · paint the van glyph orange so it
+             reads at a glance against the rest of the strip. Tile
+             background and label stay untouched. */
+          #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-vans-h svg,
+          #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-vans-h:hover svg,
+          #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-vans-h:focus svg{
+            color:#EA580C;
+          }
+          /* While the background runner spins, keep the orange tint
+             on the spinner SVG too so the motion reads as the van
+             working. */
+          #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-vans-h[data-rr-busy="1"] svg{
+            color:#EA580C;
+          }
+
           /* Route Planning icon · calendar in Fluent dark blue,
              checkmark in Fluent communicationGreen. Tile chrome
              stays the same; only the SVG strokes are painted. */
