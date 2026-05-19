@@ -27987,17 +27987,19 @@ function bindSchedWeekNav() {
     };
   }
 
-  // The forecast renderer is install-once-then-bound. On the
-  // FIRST schedule render of a fresh page load, renderScheduleWeek
-  // already populated kpis.dataset.rrFemForecast — but the
-  // renderer hadn't been installed yet, so the guarded call
-  // inside renderScheduleWeek was a no-op. Fire it now (after
-  // the install block above) so the first render paints the
-  // card. Idempotent on subsequent navigations because the
-  // installer is gated by _rrForecastRendererInstalled.
-  if (typeof window._rrRenderForecastCard === "function") {
-    window._rrRenderForecastCard();
-  }
+  // All three install-once-then-bind renderers (reviewed stamp,
+  // auto-rescue banner, forecast card) live inside this binder.
+  // The schedule entry path awaits renderScheduleWeek() BEFORE
+  // bindSchedWeekNav() runs, so on the FIRST render of a fresh
+  // page load the guarded calls inside renderScheduleWeek were
+  // all false → outputs stayed hidden until some later
+  // navigation triggered another render. Fire each once now,
+  // after the install blocks above. Idempotent on later
+  // navigations because each installer is gated by its own
+  // _rrInstalled flag.
+  if (typeof window._rrTickFleetReviewedStamp === "function") window._rrTickFleetReviewedStamp();
+  if (typeof window._rrRenderAutoRescueBanner === "function") window._rrRenderAutoRescueBanner();
+  if (typeof window._rrRenderForecastCard === "function")     window._rrRenderForecastCard();
 
   // ── Pool sort toggle (Day / Wave time)
   sub.addEventListener("click", (e) => {
