@@ -42026,3 +42026,43 @@ document.addEventListener("click", async (e) => {
     toast(`Auto-fire complete: ${count} celebration${count === 1 ? "" : "s"} created`);
   }
 });
+
+// Sidebar collapse · toggles icon-only mode for the left rail.
+// State persists in localStorage so the operator's preference
+// sticks across reloads. Restored before first paint so the rail
+// doesn't flicker between widths.
+(function () {
+  const KEY = "rr-sidebar-collapsed";
+  const apply = (collapsed) => {
+    const side = document.querySelector("aside.sidebar");
+    if (!side) return;
+    side.classList.toggle("collapsed", !!collapsed);
+    const btn = document.getElementById("rr-sidebar-collapse");
+    if (btn) {
+      btn.setAttribute("aria-pressed", collapsed ? "true" : "false");
+      btn.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+      btn.setAttribute("title",      collapsed ? "Expand sidebar" : "Collapse sidebar");
+    }
+  };
+  // Restore on first paint.
+  const restore = () => {
+    let saved = null;
+    try { saved = localStorage.getItem(KEY); } catch (_) {}
+    apply(saved === "1");
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", restore);
+  } else {
+    restore();
+  }
+  // Click handler.
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("#rr-sidebar-collapse");
+    if (!btn) return;
+    const side = document.querySelector("aside.sidebar");
+    if (!side) return;
+    const next = !side.classList.contains("collapsed");
+    apply(next);
+    try { localStorage.setItem(KEY, next ? "1" : "0"); } catch (_) {}
+  });
+})();
