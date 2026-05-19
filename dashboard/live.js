@@ -22884,8 +22884,13 @@ document.addEventListener("click", async (e) => {
 
   // Remove a wave row. closest() instead of matches() so clicks on
   // the inner SVG icon bubble up to the button correctly.
+  // stopPropagation() is critical here · once the row is removed
+  // from the DOM the click target is detached, so a later
+  // click-outside-popover handler can't find the popover ancestor
+  // and would close the Targets > Rules popover unexpectedly.
   if (e.target.closest?.("[data-rr-remove-wave]")) {
     e.preventDefault();
+    e.stopPropagation();
     const row = e.target.closest("[data-rr-wave]");
     if (row) row.remove();
     return;
@@ -26719,11 +26724,21 @@ document.addEventListener("click", (e) => {
   e.preventDefault();
   e.stopPropagation();
   const root = action.closest(".cal-row-milestone");
-  if (!root) return;
+  if (!root) {
+    console.warn("[milestone send] click target has no .cal-row-milestone ancestor");
+    return;
+  }
   const driverId = root.getAttribute("data-rr-driver-id");
   const type     = root.getAttribute("data-rr-milestone-type");
   const driver   = (window._schedDriverList || []).find((x) => x.id === driverId);
-  if (!driver || typeof window._rrOpenKudosModal !== "function") return;
+  if (!driver) {
+    console.warn("[milestone send] driver not in _schedDriverList:", driverId);
+    return;
+  }
+  if (typeof window._rrOpenKudosModal !== "function") {
+    console.warn("[milestone send] _rrOpenKudosModal not loaded — likely stale cached JS, hit the refresh button in the topbar");
+    return;
+  }
   window._rrOpenKudosModal({
     driver,
     presetKind: type === "birthday" ? "birthday" : "work_anniversary",

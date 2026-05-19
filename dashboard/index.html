@@ -14513,13 +14513,15 @@ body.rr-cmdk-open{ overflow:hidden }
              can plug in by adding a new modifier class below. */
           /* Floating recognition pill · sits on the right side of
              the driver row label. On row hover a sibling "Send
-             note" pill slides in next to it. Calm, premium tone —
-             pale tint background, deep ink, hairline border. */
+             note" pill slides DOWN from above the pill. Calm,
+             premium tone — pale tint background, deep ink,
+             hairline border. */
           #view-schedule .cal-row-label{position:relative}
           #view-schedule .cal-row-milestone{
             margin-left:auto;
             display:inline-flex;align-items:center;gap:6px;
             flex:0 0 auto;
+            position:relative;
           }
           #view-schedule .cal-row-milestone-pill{
             display:inline-flex;align-items:center;justify-content:center;
@@ -14563,12 +14565,16 @@ body.rr-cmdk-open{ overflow:hidden }
             color:#5A4310;
             border-color:rgba(184,137,48,.40);
           }
-          /* "Send note" · sibling pill, hidden until row hover.
-             Slides in from the right with a calm fade. */
+          /* "Send note" · pops ABOVE the milestone pill on row
+             hover. Absolute-positioned so the surrounding row
+             layout doesn't shift; slides down 4 px into position
+             with a calm fade. */
           #view-schedule .cal-row-milestone-action{
+            position:absolute;
+            right:0;bottom:calc(100% + 6px);
             display:inline-flex;align-items:center;justify-content:center;
             gap:4px;
-            padding:3px 10px 3px 8px;
+            padding:4px 10px 4px 8px;
             font-size:11px;font-weight:600;letter-spacing:.005em;
             color:var(--text);
             background:#fff;
@@ -14576,11 +14582,12 @@ body.rr-cmdk-open{ overflow:hidden }
             border-radius:999px;
             cursor:pointer;
             box-shadow:0 1px 2px rgba(15,23,42,.06),
-                       0 4px 10px rgba(15,23,42,.08);
+                       0 6px 14px rgba(15,23,42,.10);
             opacity:0;
-            transform:translateX(-4px);
+            transform:translateY(4px);
             transition:opacity 180ms ease, transform 220ms ease;
             white-space:nowrap;
+            z-index:3;
           }
           #view-schedule .cal-row-milestone-action svg{flex:0 0 auto;color:var(--sch-blue)}
           #view-schedule .cal-row-milestone-action:hover{
@@ -14591,7 +14598,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .cal-row-label:hover .cal-row-milestone-action,
           #view-schedule .cal-row-milestone-action:focus-visible{
             opacity:1;
-            transform:translateX(0);
+            transform:translateY(0);
           }
 
           /* Recognition rules popover · sits under the Kudos tile,
