@@ -26964,6 +26964,10 @@ async function renderScheduleWeek() {
   const timeOff = toRes.data      || [];
 
   _schedDriverList = drivers; // existing add-shift modal reads this list
+  // Mirror onto window so cross-module consumers (milestone send-
+  // note handler, Kudos modal driver picker) can read it. The
+  // top-level `let` above doesn't attach to window automatically.
+  window._schedDriverList = drivers;
 
   // Driver-column sort lives in a small popover behind a sort icon —
   // matches the Turnover KPI's time-frame switcher pattern (see
