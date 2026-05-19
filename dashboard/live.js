@@ -24292,14 +24292,20 @@ async function _runSchedVanAssignmentsBackground() {
     if (totals.unassigned > 0) {
       toast(`Assigned ${totals.assigned} van${totals.assigned === 1 ? "" : "s"} · ${totals.unassigned} driver${totals.unassigned === 1 ? "" : "s"} still without a van (fleet may be tapped out).`, "warn");
     }
-    // FEM violation toast — only when at least one branded van is
-    // STILL past the 14-day rotation window after the assigner did
-    // its best. Watch / risk states stay silent; they appear in the
-    // console summary + the returned `fem` object for the future
-    // dashboard KPI cards.
-    if (totals.fem && totals.fem.brandedAtViolation > 0) {
-      const v = totals.fem.brandedAtViolation;
-      toast(`${v} branded van${v === 1 ? "" : "s"} past the 14-day rotation window — review the chain editor.`, "warn");
+    // FEM toast — surface anything at Critical (13d) or Violation
+    // (14+d) after the assigner did its best. Critical is the
+    // proactive trigger (one operational day before scorecard),
+    // Violation is the actual scorecard hit. Both warrant a toast
+    // so the operator sees them before reviewing the chain editor.
+    // Watch/risk stay silent; they appear in the console summary
+    // and the returned `fem` object for the KPI cards.
+    if (totals.fem && (totals.fem.brandedAtCritical > 0 || totals.fem.brandedAtViolation > 0)) {
+      const c = totals.fem.brandedAtCritical  || 0;
+      const v = totals.fem.brandedAtViolation || 0;
+      const parts = [];
+      if (v > 0) parts.push(`${v} branded van${v === 1 ? "" : "s"} past 14-day rotation`);
+      if (c > 0) parts.push(`${c} at Critical (13d, rotate today)`);
+      toast(parts.join(" · ") + " — review the chain editor.", "warn");
     }
 
     // Repaint the calendar with the fresh assignments so the
@@ -24487,13 +24493,18 @@ async function _assignVansForRange(startIso, endIso, dspId) {
   // FEM tier classification — branded-only.
   //   Healthy:    0–6 days unused
   //   Watch:      7–10 days unused
-  //   Risk:       11–13 days unused
-  //   Violation:  14+ days unused
+  //   Risk:       11–12 days unused
+  //   Critical:   13 days unused — proactive rescue trigger
+  //                (one operational day of buffer before VERO bites)
+  //   Violation:  14+ days unused — scorecard hit
   //   Never Used: no prior history (highest urgency, tied with Violation)
-  // Lower `urgency` value = process first.
+  // Lower `urgency` value = process first. Critical, Violation,
+  // and Never Used all share urgency 0 because they all signal
+  // "rescue this van today before it slips further."
   const classifyFem = (daysSince) => {
     if (daysSince === null)    return { tier: "never_used", urgency: 0, label: "Never used" };
     if (daysSince >= 14)       return { tier: "violation",  urgency: 0, label: `Violation · ${daysSince}d unused` };
+    if (daysSince >= 13)       return { tier: "critical",   urgency: 0, label: `Critical · ${daysSince}d unused` };
     if (daysSince >= 11)       return { tier: "risk",       urgency: 1, label: `Risk · ${daysSince}d unused` };
     if (daysSince >= 7)        return { tier: "watch",      urgency: 2, label: `Watch · ${daysSince}d unused` };
     return                            { tier: "healthy",   urgency: 3, label: `Healthy · ${daysSince}d unused` };
@@ -24646,8 +24657,12 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     }
 
     // ── Phase 3: FEM RESCUE — supersede chain ──
-    // Per operator rule: a branded van at >=14 days unused must be
-    // rotated TODAY if there's any way to find a driver for it.
+    // Per operator rule (aligned to Amazon VERO): a branded van
+    // at >=13 days unused must be rotated TODAY if there's any
+    // way to find a driver for it. Trigger is 13d (Critical tier)
+    // not 14d (Violation) so the system has one operational day
+    // of buffer before the scorecard hit.
+    //
     // Escalation ladder for each unassigned at-risk van:
     //   (a) pull a driver from the open pool (none left at this
     //       point — phase 2 emptied it — but kept for safety).
@@ -24670,7 +24685,7 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       if (vanAssigned.has(v.id)) return false;
       const last = lastUsedAsOf(v.id, date);
       const days = last ? daysBetween(date, last) : Infinity;
-      return days >= 14; // operator's 14-day threshold
+      return days >= 13; // Critical (13d) + Violation (14d+) + Never Used
     }).sort((a, b) => {
       // Oldest-unused first — rotate the most urgent first.
       const la = lastUsedAsOf(a.id, date);
@@ -24763,10 +24778,12 @@ async function _assignVansForRange(startIso, endIso, dspId) {
   const fem = {
     brandedNeverUsed:    0,
     brandedAtWatch:      0,
-    brandedAtRisk:       0,
-    brandedAtViolation:  0,
-    unusedSevenPlus:     0, // branded vans, includes never-used
+    brandedAtRisk:       0,  // 11–12 days idle
+    brandedAtCritical:   0,  // 13 days idle — proactive rescue trigger
+    brandedAtViolation:  0,  // 14+ days idle — scorecard hit
+    unusedSevenPlus:     0,  // branded vans, includes never-used
     unusedElevenPlus:    0,
+    unusedThirteenPlus:  0,  // NEW · matches the 13d proactive trigger
     unusedFourteenPlus:  0,
   };
   for (const v of vehicles) {
@@ -24777,9 +24794,11 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     if (cls.tier === "never_used") fem.brandedNeverUsed++;
     if (cls.tier === "watch")      fem.brandedAtWatch++;
     if (cls.tier === "risk")       fem.brandedAtRisk++;
+    if (cls.tier === "critical")   fem.brandedAtCritical++;
     if (cls.tier === "violation")  fem.brandedAtViolation++;
     if (days === null || days >= 7)  fem.unusedSevenPlus++;
     if (days === null || days >= 11) fem.unusedElevenPlus++;
+    if (days === null || days >= 13) fem.unusedThirteenPlus++;
     if (days === null || days >= 14) fem.unusedFourteenPlus++;
   }
 
@@ -24814,7 +24833,7 @@ async function _assignVansForRange(startIso, endIso, dspId) {
   }
   console.log(`assignVans writes complete · ${assigned}/${writes.length} succeeded`);
   console.log(
-    `assignVans FEM @ ${summaryAsOf} · branded: never=${fem.brandedNeverUsed} watch=${fem.brandedAtWatch} risk=${fem.brandedAtRisk} violation=${fem.brandedAtViolation} · unused 7+/11+/14+ = ${fem.unusedSevenPlus}/${fem.unusedElevenPlus}/${fem.unusedFourteenPlus}`
+    `assignVans FEM @ ${summaryAsOf} · branded: never=${fem.brandedNeverUsed} watch=${fem.brandedAtWatch} risk=${fem.brandedAtRisk} critical=${fem.brandedAtCritical} violation=${fem.brandedAtViolation} · unused 7+/11+/13+/14+ = ${fem.unusedSevenPlus}/${fem.unusedElevenPlus}/${fem.unusedThirteenPlus}/${fem.unusedFourteenPlus}`
   );
   return { assigned, unassigned, fem, reasons };
 }
@@ -26756,7 +26775,10 @@ async function renderScheduleWeek() {
         continue;
       }
       const days = lastUsed ? femDaysBetween(d, lastUsed) : Infinity;
-      if (days > 14) {
+      // Flag at >=13 days (Critical tier, proactive rescue trigger)
+      // so the operator gets the one-day buffer before VERO bites.
+      // Previously this only flagged at >14 (Violation only).
+      if (days >= 13) {
         firstCrossing = d;
         crossingDays = days === Infinity ? null : days;
         break;
