@@ -11349,6 +11349,14 @@ body.rr-cmdk-open{ overflow:hidden }
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_secondary" checked> <span class="sf-rule-name">Auto-rescue: displace a secondary to rotate a &gt;14d van</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_primary" checked> <span class="sf-rule-name">Auto-rescue: displace a primary to rotate a &gt;14d van</span></label>
                 </div>
+                <!-- Protected / exempted VIN visibility · closes
+                     the "what about my edge cases?" loop. Lists
+                     every van excluded from rotation by the
+                     existing eligibility filter (grounded /
+                     archived / retired). Populated by
+                     _rrRenderVanRulesExempted() in live.js the
+                     moment the rules popover is opened. -->
+                <div class="sched-van-rules-exempted" id="rr-sched-vans-rules-exempted"></div>
               </div>
             </div>
             <div class="sched-settings-split">
@@ -11512,6 +11520,11 @@ body.rr-cmdk-open{ overflow:hidden }
              that actually displaced anyone. Calm Outlook tone —
              one sentence, lowercase verb, no exclamation. -->
         <div id="rr-sched-auto-rescue-banner" class="sched-fem-banner" hidden></div>
+        <!-- Forward outlook card · how the fleet will look next
+             Monday assuming this week's rotations land as planned.
+             Populated by _rrRenderForecastCard() in live.js, which
+             renderScheduleWeek calls after the FEM compute. -->
+        <div id="rr-sched-forecast" class="sched-forecast" hidden></div>
         <a href="#" role="button" class="rr-text-link" id="rr-sched-kpis-toggle" aria-pressed="true" style="display:none">Insights</a>
 
         <!-- WEEK VIEW SUB-VIEW -->
@@ -11821,6 +11834,42 @@ body.rr-cmdk-open{ overflow:hidden }
             transition:color var(--t-fast);
           }
           #view-schedule .sched-fem-banner-close:hover{color:var(--text)}
+          /* Forward outlook card · "Next Monday · 0 Critical · 2
+             Watch · 8 Healthy." One line, no chrome — sits as a
+             quiet operational forecast under the KPI strip.
+             Calm Microsoft tone — uppercase eyebrow label,
+             tier-pip strip, tabular figures. */
+          #view-schedule .sched-forecast{
+            display:flex;align-items:center;gap:var(--s-3);
+            padding:8px var(--s-3);
+            margin-top:8px;
+            background:transparent;
+            border-top:1px solid var(--sch-line-subtle, var(--border-subtle));
+            font-size:var(--fs-xs);color:var(--text-muted);
+          }
+          #view-schedule .sched-forecast[hidden]{display:none}
+          #view-schedule .sched-forecast-label{
+            font-size:11px;font-weight:700;color:var(--text-subtle);
+            text-transform:uppercase;letter-spacing:.06em;
+            flex:0 0 auto;
+          }
+          #view-schedule .sched-forecast-pips{
+            display:inline-flex;align-items:center;gap:var(--s-3);
+            flex-wrap:wrap;
+          }
+          #view-schedule .sched-forecast-pip{
+            display:inline-flex;align-items:center;gap:5px;
+            font-size:var(--fs-xs);color:var(--text);
+            font-variant-numeric:tabular-nums;font-weight:500;
+          }
+          #view-schedule .sched-forecast-pip-dot{
+            display:inline-block;width:7px;height:7px;border-radius:50%;
+            flex:0 0 auto;
+          }
+          #view-schedule .sched-forecast-asof{
+            margin-left:auto;font-size:11px;color:var(--text-subtle);
+            font-variant-numeric:tabular-nums;
+          }
 
           /* Active subnav tab — echo the sidebar's active row with
              a deep navy text + an underline rail in the same indigo
@@ -12699,6 +12748,47 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;flex-direction:column;
             max-height:60vh;overflow-y:auto;
           }
+          /* Protected / exempted VIN list · sits below the rule
+             checkboxes in the van-rules popover. Calm Microsoft
+             "supplementary" tone — uppercase eyebrow heading,
+             one row per excluded van with the reason. No CTA,
+             no edit affordance; this is informational only. */
+          #view-schedule .sched-van-rules-exempted{
+            margin-top:4px;
+            border-top:1px solid rgba(15,23,42,.08);
+            padding:8px 14px 4px;
+            background:var(--sch-surface-2, #FAFBFC);
+            font-size:11px;color:var(--text-subtle);
+          }
+          #view-schedule .sched-van-rules-exempted[hidden]{display:none}
+          #view-schedule .sched-van-rules-exempted-head{
+            font-size:10px;font-weight:700;
+            text-transform:uppercase;letter-spacing:.06em;
+            color:var(--text-subtle);
+            margin-bottom:4px;
+          }
+          #view-schedule .sched-van-rules-exempted-row{
+            display:flex;align-items:center;gap:6px;
+            padding:3px 0;
+            font-size:11px;color:var(--text);
+            line-height:1.35;
+          }
+          #view-schedule .sched-van-rules-exempted-dot{
+            display:inline-block;width:6px;height:6px;border-radius:50%;
+            flex:0 0 auto;
+            background:var(--text-subtle);
+          }
+          #view-schedule .sched-van-rules-exempted-name{
+            font-weight:600;color:var(--text);
+            font-variant-numeric:tabular-nums;
+            min-width:36px;
+          }
+          #view-schedule .sched-van-rules-exempted-reason{
+            color:var(--text-subtle);font-weight:500;
+          }
+          #view-schedule .sched-van-rules-exempted-empty{
+            color:var(--text-subtle);font-style:normal;font-size:11px;
+          }
           #view-schedule .sched-smartfill-rule{
             display:flex;align-items:center;gap:10px;
             padding:7px 14px;
@@ -13212,6 +13302,32 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .ws-veh-table tbody tr:first-child td{border-top:none}
           #view-schedule .ws-veh-table tbody tr:hover td{background:var(--sch-blue-softer)}
           #view-schedule .ws-veh-table th.ws-veh-act,#view-schedule .ws-veh-table td.ws-veh-act{width:36px;padding-left:2px;padding-right:14px;text-align:center}
+          /* Per-row 14-day rotation heat map · injected by
+             _rrDecorateChainEditorHeatmap into the chain editor
+             table. Calm Microsoft squares — 10×14 cells, 2 px
+             gap, green when dispatched, hairline when idle. */
+          #view-schedule .ws-veh-table .rr-heatmap-wrap{
+            display:flex;flex-direction:column;gap:4px;
+          }
+          #view-schedule .ws-veh-table .rr-heatmap-strip{
+            display:inline-flex;gap:2px;
+          }
+          #view-schedule .ws-veh-table .rr-heatmap-cell{
+            display:inline-block;width:9px;height:14px;border-radius:2px;
+            background:rgba(15,23,42,.08);
+            border:1px solid rgba(15,23,42,.04);
+            transition:background var(--t-fast);
+          }
+          #view-schedule .ws-veh-table .rr-heatmap-cell.is-used{
+            background:var(--sch-green, #107C41);
+            border-color:rgba(16,124,65,.32);
+          }
+          #view-schedule .ws-veh-table .rr-heatmap-sub{
+            font-size:11px;color:var(--text-subtle);
+            font-variant-numeric:tabular-nums;
+            letter-spacing:.01em;
+            line-height:1;
+          }
           #view-schedule .ws-veh-input,#view-schedule .ws-veh-select{width:100%;font-size:13px;padding:7px 10px;background:var(--sch-surface);border:1px solid var(--sch-line);border-radius:6px;color:var(--text);font-family:inherit;transition:border-color var(--t-fast),box-shadow var(--t-fast)}
           #view-schedule .ws-veh-input:focus,#view-schedule .ws-veh-select:focus{outline:none;border-color:var(--sch-blue);box-shadow:0 0 0 1px var(--sch-blue)}
           #view-schedule .ws-veh-x{appearance:none;background:transparent;border:0;color:var(--text-subtle);cursor:pointer;padding:5px;border-radius:6px;display:inline-flex;opacity:0;transition:opacity var(--t-fast),color var(--t-fast),background var(--t-fast)}
