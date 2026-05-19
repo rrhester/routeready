@@ -23859,12 +23859,36 @@ async function runSchedVanAssignmentsForWeek() {
   const summary = `<div class="sched-vans-summary">
     <strong>${totalAssigned}</strong> van${totalAssigned === 1 ? "" : "s"} assigned this week${totalUnassigned > 0 ? ` · <strong style="color:var(--sch-amber-dark)">${totalUnassigned}</strong> driver${totalUnassigned === 1 ? "" : "s"} without a van` : ""}.
     Drivers will see their van in the RouteReady driver app.
-    <button type="button" class="btn btn-sm" id="rr-sched-vans-rerun" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Re-run</button>
+    <button type="button" class="btn btn-sm" id="rr-sched-vans-edit-chain" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:13px;height:13px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg> Edit chain</button>
+    <button type="button" class="btn btn-sm" id="rr-sched-vans-rerun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Re-run</button>
   </div>`;
 
   body.innerHTML = `${summary}${sections}`;
   const reBtn = document.getElementById("rr-sched-vans-rerun");
   if (reBtn) reBtn.addEventListener("click", (ev) => { ev.preventDefault(); runSchedVanAssignmentsForWeek(); });
+  const editBtn = document.getElementById("rr-sched-vans-edit-chain");
+  if (editBtn) editBtn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    // Swap the body to the editable Workflows chain board. A small
+    // back link returns to the auto-assign results.
+    renderSchedVanAssignmentsBoard();
+    // Inject a "← Back to assignments" link above the table.
+    setTimeout(() => {
+      const head = body.querySelector(".ws-head");
+      if (head) head.remove();
+      const wrap = body.querySelector(".ws-grid-wrap");
+      if (wrap && !document.getElementById("rr-sched-vans-back-results")) {
+        const back = document.createElement("div");
+        back.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px";
+        back.innerHTML = `<button id="rr-sched-vans-back-results" type="button" class="btn btn-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:13px;height:13px"><polyline points="15 18 9 12 15 6"/></svg> Back to assignments</button><div style="font-size:var(--fs-xs);color:var(--text-subtle)">Edits propagate to Smart Fill + future Assign Vans runs.</div>`;
+        wrap.parentNode.insertBefore(back, wrap);
+        back.querySelector("#rr-sched-vans-back-results").addEventListener("click", (ev2) => {
+          ev2.preventDefault();
+          runSchedVanAssignmentsForWeek();
+        });
+      }
+    }, 80);
+  });
   toast(`Vans assigned · ${totalAssigned} placement${totalAssigned === 1 ? "" : "s"}${totalUnassigned ? " · " + totalUnassigned + " gap" + (totalUnassigned === 1 ? "" : "s") : ""}`, totalUnassigned > 0 ? "warn" : "success");
 
   if (btn) { btn.disabled = false; btn.innerHTML = btn.dataset.rrOrig || "Assign vans for this week"; delete btn.dataset.rrOrig; }

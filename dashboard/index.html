@@ -8019,7 +8019,13 @@ body.rr-cmdk-open{ overflow:hidden }
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 15 15"/><path d="M9 2h6"/><path d="M5 5l1.5 1.5"/><path d="M19 5l-1.5 1.5"/></svg></span>
         Overtime
       </button>
-      <button class="nav-item" data-view="workspaces" data-c="forms" onclick="goto('workspaces')">
+      <!-- Workspaces sidebar nav is hidden — the fleet assignment
+           tool (primary / backup driver chain editor) now lives
+           inside the Schedule view's Assign Vans flow.  The
+           Workspaces view stays in the DOM so the inline Van
+           Assignments renderer can keep reusing
+           loadWorkspacesView / _wsRenderVehicles. -->
+      <button class="nav-item" data-view="workspaces" data-c="forms" onclick="goto('workspaces')" style="display:none" aria-hidden="true">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
         Workspaces
       </button>
@@ -12217,6 +12223,16 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:0 0 auto;
             display:block;
             height:32px;align-self:center;
+          }
+
+          /* Requests tile's inbox icon takes the manila-envelope
+             color (only the icon — not the tile background).  Both
+             default and hover/active states stay manila so the icon
+             reads consistently. */
+          #view-schedule .sched-nav-heading-actions .subnav-item[data-rr-tile="requests"] svg,
+          #view-schedule .sched-nav-heading-actions .subnav-item[data-rr-tile="requests"]:hover svg,
+          #view-schedule .sched-nav-heading-actions .subnav-item[data-rr-tile="requests"].active svg{
+            color:#C9A66B;
           }
 
           /* Drag-to-reorder for the navigation tiles (action strip +
