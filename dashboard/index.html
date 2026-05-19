@@ -12718,9 +12718,10 @@ body.rr-cmdk-open{ overflow:hidden }
             background:transparent;border:0;cursor:pointer;
             transition:background var(--t-fast),color var(--t-fast);
           }
-          /* Assign tile already uses bottom-right for the chain-editor
-             chevron — push its rules chevron to top-right. */
-          #view-schedule .sched-page-btn--split .sched-page-btn-rules-toggle{
+          /* Assign tile · rules chevron stays bottom-right; the
+             chain-editor chevron is pushed to top-right (swapped
+             per operator). */
+          #view-schedule .sched-page-btn--split .sched-page-btn-split-toggle{
             right:2px;bottom:auto;top:2px;
           }
           #view-schedule .sched-nav-heading-actions .sched-page-btn .sched-page-btn-rules-toggle svg,
