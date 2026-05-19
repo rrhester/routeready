@@ -31633,7 +31633,29 @@ function _wsVehStatusCell(v) {
 }
 
 function _wsRenderVehicles(root) {
-  const drvOpt = (selId) => `<option value="">— none —</option>` + _wsDrivers.map(d => `<option value="${escapeHtml(d.id)}"${d.id === selId ? " selected" : ""}>${escapeHtml(d.name)}</option>`).join("");
+  // Build the "already a primary somewhere" and "already a backup
+  // somewhere" sets so each driver only appears as an option on
+  // the row where they're currently claimed. A driver can hold at
+  // most one primary slot and at most one backup slot across the
+  // fleet.
+  const claimedPrimary = new Set();
+  const claimedBackup  = new Set();
+  for (const vv of (_wsVehicles || [])) {
+    for (const d of (vv.drivers || [])) {
+      if (!d || !d.driver_id) continue;
+      if (d.rank === 0)      claimedPrimary.add(d.driver_id);
+      else if (d.rank === 1) claimedBackup.add(d.driver_id);
+    }
+  }
+  // selId is the driver currently assigned in this slot — always
+  // include them so the operator can keep their pick even if it
+  // happens to collide with another row.
+  const drvOpt = (selId, claimedSet) =>
+    `<option value="">— none —</option>` +
+    _wsDrivers
+      .filter(d => d.id === selId || !claimedSet.has(d.id))
+      .map(d => `<option value="${escapeHtml(d.id)}"${d.id === selId ? " selected" : ""}>${escapeHtml(d.name)}</option>`)
+      .join("");
   const rowHtml = (v) => {
     const primary = (v.drivers || []).find(d => d.rank === 0);
     const backup  = (v.drivers || []).find(d => d.rank === 1);
@@ -31642,8 +31664,8 @@ function _wsRenderVehicles(root) {
     return `<tr data-veh-id="${escapeHtml(v.id)}" class="ws-veh-row${rowCls}">
       <td><span class="ws-veh-name-ro" title="Change from the Fleet roster">${escapeHtml(v.name || "—")}</span></td>
       <td>${_wsVehStatusCell(v)}</td>
-      <td><select class="form-input ws-veh-select" data-veh-role="primary">${drvOpt(primary && primary.driver_id)}</select></td>
-      <td><select class="form-input ws-veh-select" data-veh-role="backup">${drvOpt(backup && backup.driver_id)}</select></td>
+      <td><select class="form-input ws-veh-select" data-veh-role="primary">${drvOpt(primary && primary.driver_id, claimedPrimary)}</select></td>
+      <td><select class="form-input ws-veh-select" data-veh-role="backup">${drvOpt(backup && backup.driver_id, claimedBackup)}</select></td>
       <td><input class="form-input ws-veh-input" data-veh-field="notes" value="${escapeHtml(v.notes || "")}" maxlength="200" placeholder="—"></td>
       <td class="ws-veh-act"><button type="button" class="ws-veh-x" data-rr-veh-archive title="Remove this van"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></td>
     </tr>`;
