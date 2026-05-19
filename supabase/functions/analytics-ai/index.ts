@@ -30,7 +30,7 @@ const json = (body: unknown, status = 200) =>
 
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const DEFAULT_MODEL = Deno.env.get("ANTHROPIC_MODEL") || "claude-sonnet-4-6";
-const MAX_TOOL_ITERATIONS = 6;
+const MAX_TOOL_ITERATIONS = 10;
 const MAX_TOOL_ROWS = 200;
 
 // ───────────────────────────────────────────────────────────────────────
@@ -290,6 +290,252 @@ const TOOLS = [
     },
   },
 
+  // ── Fleet ────────────────────────────────────────────────────────
+  {
+    name: "query_vehicles",
+    description:
+      "Look up vehicles in this DSP's fleet. Use for any question about vans / vehicles — names, VINs, branded status, ownership type, operational status (active / grounded), how many days a van has been grounded, or recent rotation usage. Returns up to 200 rows.",
+    input_schema: {
+      type: "object",
+      properties: {
+        operational_status: { type: "string", description: "Filter by 'active' or 'grounded'." },
+        branded:            { type: "boolean", description: "true → only branded (Amazon-wrapped) vans; false → only non-branded." },
+        ownership:          { type: "string", description: "amazon_owned | dsp_owned | rental | leased" },
+        grounded_for_at_least_days: { type: "integer", description: "Only include grounded vans that have been grounded this many days or more." },
+      },
+    },
+    handler: async (input: any, { supa, dspId }: ToolContext) => {
+      let q = supa.from("vehicles")
+        .select("id, name, vin, is_branded, ownership, status, operational_status, grounded_since, archived_at")
+        .eq("dsp_id", dspId)
+        .is("archived_at", null)
+        .limit(MAX_TOOL_ROWS);
+      if (input.operational_status) q = q.eq("operational_status", input.operational_status);
+      if (typeof input.branded === "boolean") q = q.eq("is_branded", input.branded);
+      if (input.ownership) q = q.eq("ownership", input.ownership);
+      if (typeof input.grounded_for_at_least_days === "number" && input.grounded_for_at_least_days > 0) {
+        const cutoff = new Date(Date.now() - input.grounded_for_at_least_days * 86400000).toISOString();
+        q = q.lte("grounded_since", cutoff).eq("operational_status", "grounded");
+      }
+      const { data, error } = await q.order("name");
+      if (error) return { error: error.message };
+      const today = Date.now();
+      const rows = (data || []).map((v: any) => ({
+        id: v.id,
+        name: v.name,
+        vin: v.vin,
+        branded: !!v.is_branded,
+        ownership: v.ownership,
+        status: v.status,
+        operational_status: v.operational_status,
+        grounded_since: v.grounded_since,
+        grounded_days: v.grounded_since ? Math.floor((today - new Date(v.grounded_since).getTime()) / 86400000) : null,
+      }));
+      return { total: rows.length, rows };
+    },
+  },
+
+  // ── Time off / PTO ───────────────────────────────────────────────
+  {
+    name: "time_off_overview",
+    description:
+      "Summarize PTO and time-off activity. Use when the prompt asks about pending requests, who's out, upcoming PTO, PTO usage, or unpaid time off. Returns counts by status + the next upcoming approved windows.",
+    input_schema: {
+      type: "object",
+      properties: {
+        status:         { type: "string", description: "pending | approved | denied | cancelled (omit for all)" },
+        upcoming_days:  { type: "integer", description: "Limit approved-window list to start_date within this many days. Default 30." },
+      },
+    },
+    handler: async (input: any, { supa, dspId }: ToolContext) => {
+      const since = new Date().toISOString().slice(0, 10);
+      const horizon = new Date(Date.now() + (input.upcoming_days ?? 30) * 86400000).toISOString().slice(0, 10);
+      let q = supa.from("time_off_requests")
+        .select("id, driver_id, start_date, end_date, status, is_pto, reason, drivers:driver_id(full_name)")
+        .eq("dsp_id", dspId)
+        .limit(MAX_TOOL_ROWS);
+      if (input.status) q = q.eq("status", input.status);
+      const { data, error } = await q.order("start_date", { ascending: false });
+      if (error) return { error: error.message };
+      const byStatus: Record<string, number> = {};
+      const upcoming: any[] = [];
+      const ptoOnly = (data || []).filter((r: any) => r.is_pto !== false);
+      for (const r of (data || [])) {
+        byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+        if (r.status === "approved" && r.start_date >= since && r.start_date <= horizon) {
+          upcoming.push({
+            driver_name: (r as any).drivers?.full_name || "(unknown)",
+            start_date: r.start_date,
+            end_date: r.end_date,
+            is_pto: !!r.is_pto,
+            reason: r.reason,
+          });
+        }
+      }
+      upcoming.sort((a, b) => a.start_date.localeCompare(b.start_date));
+      return {
+        total: (data || []).length,
+        pto_count: ptoOnly.length,
+        by_status: byStatus,
+        upcoming_approved: upcoming.slice(0, 50),
+      };
+    },
+  },
+
+  // ── Recognition history ─────────────────────────────────────────
+  {
+    name: "recognition_history",
+    description:
+      "Look up recognition events (kudos, birthdays, anniversaries, safety milestones) sent in this DSP. Use for prompts about who's been recognized recently, recognition trends by kind, or per-driver recognition history.",
+    input_schema: {
+      type: "object",
+      properties: {
+        days:    { type: "integer", description: "How many days back to look. Default 30." },
+        kind:    { type: "string", description: "Filter by recognition kind (e.g. birthday, work_anniversary, safety_milestone, custom)." },
+        driver_id: { type: "string", description: "Optional driver UUID." },
+      },
+    },
+    handler: async (input: any, { supa, dspId }: ToolContext) => {
+      const days = Math.max(1, Math.min(365, input.days || 30));
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      let q = supa.from("driver_recognitions")
+        .select("id, driver_id, kind, title, sent_at, scheduled_for, status, drivers:driver_id(full_name)")
+        .eq("dsp_id", dspId)
+        .gte("sent_at", since)
+        .eq("status", "sent")
+        .limit(MAX_TOOL_ROWS);
+      if (input.kind) q = q.eq("kind", input.kind);
+      if (input.driver_id) q = q.eq("driver_id", input.driver_id);
+      const { data, error } = await q.order("sent_at", { ascending: false });
+      if (error) return { error: error.message };
+      const byKind: Record<string, number> = {};
+      const rows = (data || []).map((r: any) => {
+        byKind[r.kind] = (byKind[r.kind] || 0) + 1;
+        return {
+          id: r.id,
+          driver_id: r.driver_id,
+          driver_name: r.drivers?.full_name || "(unknown)",
+          kind: r.kind,
+          title: r.title,
+          sent_at: r.sent_at,
+        };
+      });
+      return {
+        date_range: { since: since.slice(0, 10), days },
+        total: rows.length,
+        by_kind: byKind,
+        rows: rows.slice(0, 80),
+      };
+    },
+  },
+
+  // ── Overtime analysis ───────────────────────────────────────────
+  {
+    name: "overtime_analysis",
+    description:
+      "Aggregate paid hours per driver across a date range and surface who's over / approaching the weekly OT threshold (40 h by default). Use for OT exposure, cost questions, who's at risk this week.",
+    input_schema: {
+      type: "object",
+      properties: {
+        week_start: { type: "string", description: "ISO date (YYYY-MM-DD) for the Monday/Sunday of the week to analyze. Defaults to current week." },
+        threshold:  { type: "integer", description: "Hours that count as OT. Default 40." },
+      },
+    },
+    handler: async (input: any, { supa, dspId }: ToolContext) => {
+      const today = new Date();
+      const dow = today.getUTCDay();
+      const monday = new Date(today.getTime() - dow * 86400000);
+      const wkStart = (input.week_start || monday.toISOString().slice(0, 10));
+      const wkEnd = new Date(new Date(wkStart + "T12:00:00").getTime() + 6 * 86400000).toISOString().slice(0, 10);
+      const threshold = input.threshold || 40;
+      const { data, error } = await supa.from("shifts")
+        .select("driver_id, date, starts_at, ends_at, status, block_hours, drivers:driver_id(full_name)")
+        .eq("dsp_id", dspId)
+        .gte("date", wkStart).lte("date", wkEnd)
+        .in("status", ["scheduled", "completed", "late"])
+        .limit(2000);
+      if (error) return { error: error.message };
+      const byDriver = new Map<string, { name: string; hours: number; shifts: number }>();
+      for (const s of (data || [])) {
+        const dur = s.block_hours
+          || ((s.starts_at && s.ends_at) ? ((new Date(s.ends_at).getTime() - new Date(s.starts_at).getTime()) / 3600000) : 10);
+        const cur = byDriver.get(s.driver_id) || { name: (s as any).drivers?.full_name || "(unknown)", hours: 0, shifts: 0 };
+        cur.hours += dur;
+        cur.shifts += 1;
+        byDriver.set(s.driver_id, cur);
+      }
+      const rows = [...byDriver.entries()]
+        .map(([id, v]) => ({ driver_id: id, name: v.name, hours: Math.round(v.hours * 10) / 10, shifts: v.shifts, over_threshold: v.hours > threshold }))
+        .sort((a, b) => b.hours - a.hours);
+      return {
+        week: { start: wkStart, end: wkEnd },
+        threshold,
+        total_drivers: rows.length,
+        drivers_over_threshold: rows.filter(r => r.over_threshold).length,
+        total_ot_hours: rows.reduce((s, r) => s + Math.max(0, r.hours - threshold), 0),
+        rows,
+      };
+    },
+  },
+
+  // ── Recent attendance issues ────────────────────────────────────
+  {
+    name: "attendance_incidents",
+    description:
+      "List recent attendance incidents (late, no-show, called-off) with the dispatcher's decision. Use for accountability questions, repeat-offender analysis, or coaching prep.",
+    input_schema: {
+      type: "object",
+      properties: {
+        days:        { type: "integer", description: "How many days back to scan. Default 30." },
+        outcome:     { type: "string", description: "tardy | ncns | missed_reported (omit for all three)." },
+        driver_id:   { type: "string", description: "Optional driver UUID." },
+        decided:     { type: "boolean", description: "true → only rows with a decision; false → only undecided." },
+      },
+    },
+    handler: async (input: any, { supa, dspId }: ToolContext) => {
+      const days = Math.max(1, Math.min(180, input.days || 30));
+      const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      let q = supa.from("today_attendance_history")
+        .select("date, driver_id, driver_name, computed_outcome, decision, missed_reason, starts_at")
+        .eq("dsp_id", dspId)
+        .gte("date", since)
+        .in("computed_outcome", ["tardy", "ncns", "missed_reported"])
+        .limit(MAX_TOOL_ROWS);
+      if (input.outcome)  q = q.eq("computed_outcome", input.outcome);
+      if (input.driver_id) q = q.eq("driver_id", input.driver_id);
+      if (typeof input.decided === "boolean") {
+        q = input.decided ? q.not("decision", "is", null) : q.is("decision", null);
+      }
+      const { data, error } = await q.order("date", { ascending: false });
+      if (error) {
+        // Fall back to live today_attendance if the history view isn't
+        // present in this environment. Better to surface incomplete
+        // data than 500 the chat.
+        return { error: error.message, hint: "today_attendance_history may not be available; try attendance_metrics for week aggregates." };
+      }
+      const byOutcome: Record<string, number> = {};
+      const byDriver = new Map<string, { name: string; tardy: number; ncns: number; missed: number }>();
+      for (const r of (data || [])) {
+        byOutcome[r.computed_outcome] = (byOutcome[r.computed_outcome] || 0) + 1;
+        const cur = byDriver.get(r.driver_id) || { name: r.driver_name, tardy: 0, ncns: 0, missed: 0 };
+        if (r.computed_outcome === "tardy") cur.tardy += 1;
+        else if (r.computed_outcome === "ncns") cur.ncns += 1;
+        else cur.missed += 1;
+        byDriver.set(r.driver_id, cur);
+      }
+      const repeat = [...byDriver.entries()]
+        .map(([id, v]) => ({ driver_id: id, name: v.name, total: v.tardy + v.ncns + v.missed, tardy: v.tardy, ncns: v.ncns, missed: v.missed }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 50);
+      return {
+        date_range: { since, days },
+        total: (data || []).length,
+        by_outcome: byOutcome,
+        repeat_offenders: repeat,
+      };
+    },
+  },
+
   {
     name: "render_result",
     description:
@@ -330,8 +576,20 @@ const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
 
 const SYSTEM_PROMPT = `You are RouteReady's analytics agent for a Delivery Service Partner (DSP). The dispatcher will ask natural-language questions about their operation. Use the data tools to gather what you need, then deliver the final answer by calling the render_result tool exactly once.
 
+Data domains you can reach:
+  * Drivers · query_drivers (roster, license, certs, hire date, station)
+  * Fleet   · query_vehicles (vans, VIN, ownership, branded, grounded)
+  * Schedule · schedule_coverage (filled vs needed per day), overtime_analysis (weekly hours, OT exposure)
+  * Attendance · attendance_metrics (week aggregates), attendance_incidents (recent late / NCNS / called-off events with decisions)
+  * Time off · time_off_overview (pending vs approved, upcoming PTO)
+  * Recognition · recognition_history (recent kudos / milestones)
+  * Compliance · license_status (expirations)
+  * Pipeline · applicant_pipeline (hiring funnel)
+
 Guidelines:
 - Always scope your reasoning to this single DSP. The data tools are pre-scoped — you don't need to mention DSP IDs.
+- For "broad" prompts (e.g. "give me a state-of-the-DSP", "anything I should worry about today?", "weekly briefing"): call 3-5 tools across domains, then synthesize. The agent is allowed to make multi-step plans.
+- For specific prompts (e.g. "how many drivers expire next month?"), one tool is usually enough.
 - Pick the simplest render kind that answers the question:
   * kpi for a single headline number ("how many active drivers?")
   * kpi_grid for 2-6 related numbers ("attendance health this month")
@@ -340,9 +598,9 @@ Guidelines:
   * clarification_needed when the prompt is ambiguous (e.g. no time window for a trend) — include 2-3 sharper follow-up prompts
 - Always set a clear, specific title and the human-readable source ("drivers", "drivers + shifts", "applicants", etc.).
 - Include date_range whenever the answer depends on a window of time.
-- Provide 2-4 follow-up_suggestions tailored to what you just showed.
+- Provide 2-4 follow-up_suggestions tailored to what you just showed; mix domains when the answer spans multiple data sources.
 - Never fabricate fields or counts. If a tool returns 0 rows, say so honestly.
-- If the user asks "what KPIs should I watch today?", call multiple data tools to gather signals (attendance, license, coverage), then return a kpi_grid or text_summary highlighting the 2-4 things that look most actionable.
+- If a tool returns an error, try a related one before giving up (e.g. attendance_incidents → attendance_metrics).
 `;
 
 // ───────────────────────────────────────────────────────────────────────
