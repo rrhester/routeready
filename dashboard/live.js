@@ -23251,7 +23251,30 @@ function _restoreSmartFillRules() {
     const k = cb.getAttribute("data-rr-sf-rule");
     if (Object.prototype.hasOwnProperty.call(saved, k)) cb.checked = !!saved[k];
   });
+  // Restore the tiebreaker select nested under consecutive_days.
+  const tbSel = document.querySelector("#rr-sched-smartfill-rules-body [data-rr-sf-tiebreaker]");
+  if (tbSel && typeof saved.tiebreaker === "string") tbSel.value = saved.tiebreaker;
+  _refreshSfAdvancedGating();
 }
+// Toggle the visual gating on .sched-smartfill-rule-advanced rows
+// so an advanced sub-input only reads as enabled when its parent
+// checkbox is checked.
+function _refreshSfAdvancedGating() {
+  document.querySelectorAll("#rr-sched-smartfill-rules-body .sched-smartfill-rule-advanced").forEach(adv => {
+    const parentKey = adv.getAttribute("data-rr-sf-advanced-of");
+    if (!parentKey) return;
+    const cb = document.querySelector(`#rr-sched-smartfill-rules-body [data-rr-sf-rule="${parentKey}"]`);
+    adv.classList.toggle("is-on", !!(cb && cb.checked));
+  });
+}
+// Public reader so autoAssignDriversForWeek can query the live SF
+// rule state without a DOM read.
+window._rrLoadSfRules = function () {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  return saved || {};
+};
 function _toggleSchedSmartFillRules(force) {
   const pop = document.getElementById("rr-sched-smartfill-rules-popover");
   const toggle = document.getElementById("rr-sched-smartfill-rules-toggle");
@@ -23362,6 +23385,20 @@ document.addEventListener("change", (e) => {
   try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
   catch (_) { saved = {}; }
   saved[cb.getAttribute("data-rr-sf-rule")] = !!cb.checked;
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+  // Refresh advanced sub-rows when the parent toggles (e.g.,
+  // consecutive_days governs the tiebreaker select beneath it).
+  _refreshSfAdvancedGating();
+});
+// Persist the Smart Fill tiebreaker dropdown (nested under
+// consecutive_days rule).
+document.addEventListener("change", (e) => {
+  const sel = e.target && e.target.closest && e.target.closest("#rr-sched-smartfill-rules-body [data-rr-sf-tiebreaker]");
+  if (!sel) return;
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  saved.tiebreaker = sel.value;
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
 });
 // Persist a Van-rules checkbox change.
@@ -25480,6 +25517,19 @@ async function autoAssignDriversForWeek() {
     }
   } catch (_) { /* fall back to defaults */ }
 
+  // Smart Fill operator-toggleable rules (from the R-badge popover).
+  // - consecutive_days: prefer extending an existing run so the
+  //   driver's days off cluster together.
+  // - tiebreaker (in this popover, default = "inherit"): per-rule
+  //   override of the per-week tiebreaker. Only applied when
+  //   consecutive_days is on.
+  const sfRules = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+  const wantConsecutive = sfRules.consecutive_days === true;
+  if (wantConsecutive && typeof sfRules.tiebreaker === "string"
+      && ["least_loaded","seniority","fairness"].includes(sfRules.tiebreaker)) {
+    tiebreaker = sfRules.tiebreaker;
+  }
+
   // Pull drivers + their cert flags, the per-week shifts (with their
   // service_type_id so we can check cert requirements), the active
   // service types (which carry requires_dot / requires_xl), and any
@@ -25681,11 +25731,29 @@ async function autoAssignDriversForWeek() {
 
   // Winner among candidates per the DSP's configured tiebreaker; all modes
   // fall back to least-loaded so a tie is still resolved deterministically.
-  const pickWinner = (cands, booked, prefBumps) => {
+  // When the consecutive_days rule is on, an "adjacency bonus" prepends
+  // the score array so candidates whose existing bookings would extend
+  // a run (D-1 or D+1 already booked) sort ahead of candidates who
+  // would start a new island. Lower score = better.
+  const _dayMs = 86400000;
+  const adjacencyScore = (d, dateIso, booked) => {
+    if (!wantConsecutive) return 0;
+    const dates = booked.get(d.id);
+    if (!dates || dates.size === 0) return 0; // no bookings yet — no run to extend
+    const dt = new Date(dateIso + "T12:00:00").getTime();
+    const prev = fmtIsoDate(new Date(dt - _dayMs));
+    const next = fmtIsoDate(new Date(dt + _dayMs));
+    let bonus = 0;
+    if (dates.has(prev)) bonus -= 1;
+    if (dates.has(next)) bonus -= 1;
+    return bonus; // -2, -1, or 0 — lower is "more consecutive"
+  };
+  const pickWinner = (cands, booked, prefBumps, dateIso) => {
     const score = (d) => {
-      if (tiebreaker === "seniority") return [d.hire_date || "9999-12-31", loadOf(d.id, booked)];
-      if (tiebreaker === "fairness")  return [(prefBase.get(d.id) || 0) + (prefBumps.get(d.id) || 0), loadOf(d.id, booked)];
-      return [loadOf(d.id, booked), 0];
+      const adj = adjacencyScore(d, dateIso || "", booked);
+      if (tiebreaker === "seniority") return [adj, d.hire_date || "9999-12-31", loadOf(d.id, booked)];
+      if (tiebreaker === "fairness")  return [adj, (prefBase.get(d.id) || 0) + (prefBumps.get(d.id) || 0), loadOf(d.id, booked)];
+      return [adj, loadOf(d.id, booked), 0];
     };
     let best = null, bestScore = null;
     for (const d of cands) {
@@ -25717,7 +25785,7 @@ async function autoAssignDriversForWeek() {
         const dow = DOW[new Date(sh.date + "T12:00:00").getDay()];
         const cands = drivers.filter(d => preferredOf.get(d.id)?.has(dow) && availableOn(d, sh, dow) && eligible(d, sh, booked));
         if (cands.length === 0) continue;
-        const w = pickWinner(cands, booked, prefBumps);
+        const w = pickWinner(cands, booked, prefBumps, sh.date);
         if (!w) continue;
         seat(sh, w);
         prefBumps.set(w.id, (prefBumps.get(w.id) || 0) + 1);
@@ -25729,8 +25797,11 @@ async function autoAssignDriversForWeek() {
       let cands = drivers.filter(d => availableOn(d, sh, dow) && eligible(d, sh, booked));
       if (cands.length === 0 && allowOverride) cands = drivers.filter(d => eligible(d, sh, booked));
       if (cands.length === 0) continue;
-      cands.sort((a, b) => loadOf(a.id, booked) - loadOf(b.id, booked));
-      seat(sh, cands[0]);
+      // Route through pickWinner so the consecutive_days adjacency
+      // bonus + the configured tiebreaker apply to this fallback
+      // pass too, not just the preference pass above.
+      const w = pickWinner(cands, booked, prefBumps, sh.date);
+      seat(sh, w || cands[0]);
     }
     return { assignments, prefBumps, covered: assignments.size };
   };
@@ -26554,17 +26625,32 @@ async function renderScheduleWeek() {
   const femRisks = [];
   for (const v of femVehicles) {
     const list = femUsage.get(v.id) || [];
+    const usageSet = new Set(list); // dates this van will be / was used
+    // Most recent use strictly BEFORE the visible week begins —
+    // this seeds the running idle count.
+    let lastUsed = null;
+    for (const e of list) {
+      if (e < femWeekDates[0]) lastUsed = e;
+      else break;
+    }
+    // Walk the week day-by-day. If a day has a scheduled use, the
+    // van is NOT idle that day (counter resets). Otherwise check
+    // whether the running idle count crosses 14 — that's the
+    // first day the van crosses the operator's red threshold.
+    // This is the fix for: "if a van is scheduled to be used
+    // before the >14 day event, it should not flag" — we now
+    // honor forward-looking assignments instead of just the
+    // pure historical idle count.
     let firstCrossing = null;
     let crossingDays = null;
     for (const d of femWeekDates) {
-      // Most recent usage strictly before d.
-      let last = null;
-      for (const e of list) {
-        if (e < d) last = e;
-        else break;
+      if (usageSet.has(d)) {
+        // Van is being rotated today — reset the idle counter.
+        lastUsed = d;
+        continue;
       }
-      const days = last ? femDaysBetween(d, last) : Infinity;
-      if (days > 14) { // > 14 days unused = the operator's red threshold
+      const days = lastUsed ? femDaysBetween(d, lastUsed) : Infinity;
+      if (days > 14) {
         firstCrossing = d;
         crossingDays = days === Infinity ? null : days;
         break;
