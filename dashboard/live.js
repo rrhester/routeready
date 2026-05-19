@@ -28299,34 +28299,52 @@ function bindSchedWeekNav() {
     }
   });
 
-  // ── KPI: clicking the Rule violations pill opens a list modal.
-  // KPI host now lives above the subview, so listen on document.
+  // ── KPI: clicking the Rule violations pill drops an INLINE panel
+  // below the KPI strip listing every violation. Click the pill
+  // again (or the panel's ×) to collapse. Replaces the previous
+  // centered modal — operators wanted to see the violations in
+  // context without losing the schedule grid behind them.
   if (!window._rrViolationsHandlerInstalled) {
   window._rrViolationsHandlerInstalled = true;
   document.addEventListener("click", (e) => {
+    if (e.target.closest("#rr-sched-violations-close")) {
+      document.getElementById("rr-sched-violations-panel")?.remove();
+      return;
+    }
     if (!e.target.closest('[data-rr-kpi="violations"]')) return;
+    e.preventDefault();
     const kpiHost = document.getElementById("rr-sched-kpis");
     if (!kpiHost) return;
+    // Toggle off if already open.
+    const existing = document.getElementById("rr-sched-violations-panel");
+    if (existing) { existing.remove(); return; }
     let v = [];
     try { v = JSON.parse(kpiHost.dataset.rrViolations || "[]"); } catch {}
-    let m = document.getElementById("rr-violations-modal");
-    if (m) m.remove();
-    m = document.createElement("div");
-    m.id = "rr-violations-modal";
-    m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     const list = v.length === 0
-      ? '<div class="rr-empty-inline">No rule violations this week ✓</div>'
-      : v.map(x => `<div style="padding:var(--s-2-5) var(--s-3-5);border-top:1px solid var(--border);display:flex;gap:var(--s-3);align-items:center"><div style="flex:1"><div style="font-size:var(--fs-md);font-weight:600">${escapeHtml(x.driver)}</div><div class="u-xs-subtle">${escapeHtml(x.note)}</div></div><span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--red)">${x.kind.replace(/_/g, " ")}</span></div>`).join("");
-    m.innerHTML = `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:540px;width:100%;max-height:80vh;overflow-y:auto">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) 18px;border-bottom:1px solid var(--border)">
-          <div><div style="font-size:var(--fs-base);font-weight:600">Rule violations</div><div class="u-sm-subtle">${v.length} this week</div></div>
-          <button type="button" id="rr-vio-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+      ? '<div class="rr-sched-violations-empty">No rule violations this week ✓</div>'
+      : v.map(x => `
+          <div class="rr-sched-violations-row">
+            <span class="rr-sched-violations-kind">${escapeHtml(String(x.kind).replace(/_/g, " "))}</span>
+            <div class="rr-sched-violations-body">
+              <div class="rr-sched-violations-driver">${escapeHtml(x.driver)}</div>
+              <div class="rr-sched-violations-note">${escapeHtml(x.note)}</div>
+            </div>
+          </div>`).join("");
+    const panel = document.createElement("section");
+    panel.id = "rr-sched-violations-panel";
+    panel.className = "rr-sched-violations-panel";
+    panel.innerHTML = `
+      <header class="rr-sched-violations-head">
+        <div>
+          <div class="rr-sched-violations-eyebrow">Rule violations</div>
+          <div class="rr-sched-violations-count">${v.length} this week</div>
         </div>
-        <div>${list}</div>
-      </div>`;
-    document.body.appendChild(m);
-    m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-vio-close") m.remove(); });
+        <button type="button" id="rr-sched-violations-close" class="rr-sched-violations-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </header>
+      <div class="rr-sched-violations-list">${list}</div>`;
+    kpiHost.insertAdjacentElement("afterend", panel);
   });
   }
 

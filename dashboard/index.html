@@ -12175,6 +12175,69 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
             font-size:var(--fs-sm);
           }
+          /* Rule violations inline panel · drops under the KPI strip
+             when the operator taps the Violations pill. Calm white
+             card matching the KPI strip's chrome. */
+          #view-schedule .rr-sched-violations-panel{
+            margin:0 0 var(--s-4) 0;
+            background:#FFFFFF;
+            border:1px solid rgba(15,23,42,.08);
+            border-left:3px solid var(--sch-red, #C42B1C);
+            border-radius:10px;
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
+            overflow:hidden;
+          }
+          #view-schedule .rr-sched-violations-head{
+            display:flex;align-items:center;justify-content:space-between;
+            gap:var(--s-3);
+            padding:12px 18px;
+            border-bottom:1px solid var(--sch-line);
+            background:var(--sch-surface-2, #FAFBFC);
+          }
+          #view-schedule .rr-sched-violations-eyebrow{
+            font-size:11px;font-weight:700;color:var(--text-subtle);
+            text-transform:uppercase;letter-spacing:.06em;
+          }
+          #view-schedule .rr-sched-violations-count{
+            font-size:14px;font-weight:600;color:var(--text);
+            letter-spacing:-.005em;margin-top:2px;
+          }
+          #view-schedule .rr-sched-violations-close{
+            background:none;border:0;cursor:pointer;
+            color:var(--text-muted);
+            padding:4px;border-radius:6px;line-height:0;
+            display:inline-flex;align-items:center;justify-content:center;
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-schedule .rr-sched-violations-close:hover{
+            background:rgba(15,23,42,.06);color:var(--text);
+          }
+          #view-schedule .rr-sched-violations-list{
+            display:flex;flex-direction:column;
+          }
+          #view-schedule .rr-sched-violations-row{
+            display:grid;
+            grid-template-columns:140px 1fr;
+            gap:14px;align-items:start;
+            padding:10px 18px;
+            border-top:1px solid var(--sch-line);
+          }
+          #view-schedule .rr-sched-violations-row:first-child{border-top:0}
+          #view-schedule .rr-sched-violations-kind{
+            font-size:10px;font-weight:700;letter-spacing:.06em;
+            text-transform:uppercase;
+            color:var(--sch-red, #C42B1C);
+            padding-top:3px;
+          }
+          #view-schedule .rr-sched-violations-driver{
+            font-size:13px;font-weight:600;color:var(--text);
+          }
+          #view-schedule .rr-sched-violations-note{
+            font-size:12px;color:var(--text-muted);margin-top:2px;line-height:1.45;
+          }
+          #view-schedule .rr-sched-violations-empty{
+            padding:14px 18px;font-size:13px;color:var(--text-subtle);
+          }
           #view-schedule .sched-kpi-pill{
             display:inline-flex;align-items:center;gap:8px;
             color:var(--text);font-weight:600;
@@ -14099,11 +14162,25 @@ body.rr-cmdk-open{ overflow:hidden }
              stay pinned as the van list scrolls. ws-head was
              removed inside the chain editor (renderSchedVan­
              AssignmentsBoard strips it), so the thead pins
-             directly below the topbar. */
+             directly below the topbar.
+
+             The .ws-grid-wrap parent uses overflow-x:auto for
+             horizontal scrolling on narrow viewports; we set
+             overflow-y:visible there explicitly so the sticky
+             context falls through to the page scroll, otherwise
+             thead would never stick (sticky vertical depends on
+             the nearest scrolling ancestor). */
+          #view-schedule #sched-sub-vans-chain .ws-grid-wrap{
+            overflow-y:visible;
+          }
+          #view-schedule #sched-sub-vans-chain thead{
+            position:relative;z-index:20;
+          }
           #view-schedule #sched-sub-vans-chain thead th{
-            position:sticky;top:56px;z-index:5;
+            position:sticky;top:56px;z-index:20;
             background:#fff;
-            box-shadow:inset 0 -1px 0 var(--sch-line);
+            box-shadow:inset 0 -1px 0 var(--sch-line),
+                       0 1px 0 var(--sch-line);
             font-size:11px;font-weight:700;
             text-transform:uppercase;letter-spacing:.06em;
             color:var(--text-subtle);
