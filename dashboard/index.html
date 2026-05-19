@@ -11852,14 +11852,36 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
               Finalize
             </button>
-            <!-- Kudos · placeholder action-strip tile, not wired to
-                 anything yet per operator. Drops into the same drag-
-                 reorder group as the other action tiles. Lives on
-                 the schedule strip, NOT the sidebar. -->
-            <button class="sched-page-btn" id="rr-sched-kudos-h" data-rr-tile="kudos" draggable="true" type="button" title="Kudos">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-              Kudos
-            </button>
+            <!-- Kudos · opens the Send Kudos modal (live.js). Below
+                 it sits a Rules footer that lets the DSP toggle
+                 which milestone banners appear on the schedule. -->
+            <div class="sched-kudos-split">
+              <button class="sched-page-btn" id="rr-sched-kudos-h" data-rr-tile="kudos" draggable="true" type="button" title="Kudos">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                Kudos
+              </button>
+              <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-milestone-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-milestone-rules-popover" title="Recognition rules · toggle birthday + anniversary banners">
+                Rules
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+              </button>
+              <!-- Milestone rules popover · DSP picks which
+                   recognition banners to surface on the schedule.
+                   State persists in localStorage; renderScheduleWeek
+                   reads it through _rrLoadMilestoneRules(). -->
+              <div class="sched-milestone-rules-popover" id="rr-sched-milestone-rules-popover" role="dialog" aria-modal="false" aria-label="Recognition rules" hidden>
+                <div class="sched-milestone-rules-head">Recognition rules</div>
+                <div class="sched-milestone-rules-body">
+                  <label class="sched-smartfill-rule">
+                    <input type="checkbox" data-rr-milestone-rule="birthday" checked>
+                    <span class="sf-rule-name">Show birthday banner on the schedule</span>
+                  </label>
+                  <label class="sched-smartfill-rule">
+                    <input type="checkbox" data-rr-milestone-rule="anniversary" checked>
+                    <span class="sf-rule-name">Show work anniversary banner on the schedule</span>
+                  </label>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Week navigator — Outlook segmented control, sits on
@@ -14476,39 +14498,139 @@ body.rr-cmdk-open{ overflow:hidden }
             transform:scale(1.08);
           }
 
-          /* Diagonal milestone banner · bottom-right corner of the
-             driver row label. Cuts the corner at ~-32° so it reads
-             as a folded-flag ribbon. Subtle by default; today's
-             milestone gets a slightly stronger tint. */
+          /* ── Milestone ribbon · refined recognition language ─────
+             The reusable RouteReady recognition surface. Softer rose
+             / muted gold tone, gentler angle (~-22°), tiny inline
+             icon, layered material (gradient + inner highlight +
+             outer drop shadow tinted by the ribbon color). On row
+             hover, a small "Send note" pill slides in from the
+             corner — calm fade, not flashy. Future milestones
+             (trainer recognition, top performer, work milestone)
+             can plug in by adding a new modifier class below. */
           #view-schedule .cal-row-label{position:relative;overflow:hidden}
-          #view-schedule .cal-row-label-banner{
+          #view-schedule .cal-row-milestone{
             position:absolute;
-            right:-24px;
-            bottom:7px;
-            min-width:96px;
-            padding:2px 30px;
-            transform:rotate(-32deg);
+            right:-26px;bottom:6px;
+            display:flex;align-items:center;gap:0;
+            z-index:2;
+            pointer-events:none;
+            transform:rotate(-22deg);
             transform-origin:center;
+          }
+          #view-schedule .cal-row-milestone-ribbon{
+            display:inline-flex;align-items:center;justify-content:center;
+            gap:5px;
+            min-width:104px;
+            padding:3px 28px 3px 24px;
             text-align:center;
-            font-size:9px;font-weight:700;
-            letter-spacing:.06em;
+            font-size:9.5px;font-weight:600;
+            letter-spacing:.09em;
             text-transform:uppercase;
             color:#fff;
-            background:linear-gradient(135deg, #9CA3AF, #6B7280);
-            box-shadow:0 1px 2px rgba(15,23,42,.12);
-            pointer-events:none;
-            z-index:2;
+            font-feature-settings:"calt" off, "liga" off;
             white-space:nowrap;
+            background:linear-gradient(135deg, #C9CFDA 0%, #939AA9 100%);
+            box-shadow:
+              inset 0 1px 0 rgba(255,255,255,.38),
+              inset 0 -1px 0 rgba(15,23,42,.08),
+              0 1px 1px rgba(15,23,42,.05),
+              0 3px 6px rgba(15,23,42,.10);
           }
-          #view-schedule .cal-row-label-banner--birthday{
-            background:linear-gradient(135deg, #F472B6, #DB2777);
+          #view-schedule .cal-row-milestone-icon{
+            display:inline-flex;align-items:center;justify-content:center;
+            opacity:.95;
+            filter:drop-shadow(0 1px 0 rgba(15,23,42,.18));
           }
-          #view-schedule .cal-row-label-banner--anniversary{
-            background:linear-gradient(135deg, #F5C242, #B6850F);
+          #view-schedule .cal-row-milestone-label{
+            line-height:1;
+            position:relative;top:.2px;
           }
-          #view-schedule .cal-row-label-banner.is-today{
-            box-shadow:0 1px 2px rgba(15,23,42,.18),
-                       0 0 0 2px rgba(255,255,255,.55) inset;
+          /* Birthday · softer rose, less aggressive than the
+             previous pink. Outer shadow tinted to match so the
+             banner reads as one cohesive material. */
+          #view-schedule .cal-row-milestone-ribbon--birthday{
+            background:linear-gradient(135deg, #F3B9CB 0%, #C76691 100%);
+            box-shadow:
+              inset 0 1px 0 rgba(255,255,255,.45),
+              inset 0 -1px 0 rgba(122,42,77,.18),
+              0 1px 1px rgba(15,23,42,.05),
+              0 3px 6px rgba(199,102,145,.28);
+          }
+          /* Anniversary · muted gold, same material treatment. */
+          #view-schedule .cal-row-milestone-ribbon--anniversary{
+            background:linear-gradient(135deg, #EFCC85 0%, #B88930 100%);
+            box-shadow:
+              inset 0 1px 0 rgba(255,255,255,.45),
+              inset 0 -1px 0 rgba(102,68,15,.16),
+              0 1px 1px rgba(15,23,42,.05),
+              0 3px 6px rgba(184,137,48,.28);
+          }
+          /* Today gets a thin inner halo so the day itself reads
+             as the moment to send the note. */
+          #view-schedule .cal-row-milestone.is-today .cal-row-milestone-ribbon{
+            box-shadow:
+              inset 0 0 0 1px rgba(255,255,255,.65),
+              inset 0 1px 0 rgba(255,255,255,.55),
+              inset 0 -1px 0 rgba(15,23,42,.10),
+              0 2px 4px rgba(15,23,42,.08),
+              0 4px 10px rgba(15,23,42,.10);
+          }
+          /* "Send note" action · hidden until row hover. Slides up
+             from below the ribbon. Subtle, not flashy. */
+          #view-schedule .cal-row-milestone-action{
+            display:inline-flex;align-items:center;justify-content:center;
+            gap:4px;
+            margin-left:-6px;
+            padding:3px 10px 3px 8px;
+            font-size:9.5px;font-weight:600;letter-spacing:.04em;
+            color:var(--text);
+            background:#fff;
+            border:1px solid rgba(15,23,42,.14);
+            border-radius:999px;
+            cursor:pointer;
+            box-shadow:0 1px 2px rgba(15,23,42,.06),
+                       0 4px 10px rgba(15,23,42,.08);
+            opacity:0;
+            transform:translateY(4px);
+            transition:opacity 180ms ease, transform 220ms ease;
+            pointer-events:auto;
+          }
+          #view-schedule .cal-row-milestone-action svg{flex:0 0 auto;color:var(--sch-blue)}
+          #view-schedule .cal-row-milestone-action:hover{
+            background:var(--sch-blue-softer);
+            border-color:rgba(15,108,189,.32);
+            color:var(--sch-blue);
+          }
+          #view-schedule .cal-row-label:hover .cal-row-milestone-action,
+          #view-schedule .cal-row-milestone-action:focus-visible{
+            opacity:1;
+            transform:translateY(0);
+          }
+
+          /* Recognition rules popover · sits under the Kudos tile,
+             same .sched-page-btn-rules-foot pattern as Smart Fill /
+             Assign / Targets. */
+          #view-schedule .sched-kudos-split{position:relative;display:inline-flex;flex-direction:column;align-items:stretch}
+          #view-schedule .sched-milestone-rules-popover{
+            position:absolute;
+            top:calc(100% + 6px);right:0;
+            z-index:50;
+            min-width:260px;max-width:300px;
+            background:#fff;
+            border:1px solid rgba(15,23,42,.14);
+            border-radius:8px;
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 12px 28px rgba(15,23,42,.12);
+            padding:10px 12px;
+          }
+          #view-schedule .sched-milestone-rules-popover[hidden]{display:none}
+          #view-schedule .sched-milestone-rules-head{
+            font-size:11px;font-weight:700;color:var(--text-subtle);
+            text-transform:uppercase;letter-spacing:.06em;
+            padding-bottom:6px;margin-bottom:6px;
+            border-bottom:1px solid var(--sch-line);
+          }
+          #view-schedule .sched-milestone-rules-body{
+            display:flex;flex-direction:column;gap:6px;
           }
           #view-schedule .shift-chip-time .shift-chip-rpt{
             font-size:10px;color:var(--text-subtle);font-weight:500;
