@@ -23593,6 +23593,20 @@ document.addEventListener("click", (e) => {
     _toggleSchedSmartFillRules();
     return;
   }
+  // Main Smart Fill tile (anywhere outside the chevron) → run
+  // auto-staff. We route the click through here instead of an
+  // inline `onclick="openAiSchedule()"` on the button itself so
+  // clicking the chevron doesn't accidentally fire the runner —
+  // the inline onclick fires synchronously on button-bubble
+  // BEFORE this document handler gets a chance to stopPropagation,
+  // and the runner's first move is to swap the chevron out of
+  // the DOM for a spinner. That was the visible "shift" the
+  // operator saw every time they clicked the chevron.
+  if (e.target.closest("#rr-sched-smartfill-h") && !e.target.closest("#rr-sched-smartfill-rules-toggle")) {
+    e.preventDefault();
+    if (typeof openAiSchedule === "function") openAiSchedule();
+    return;
+  }
   // Chevron split-toggle on the Assign Vans tile → open the
   // editable van / driver chain editor. Sits on top of the main
   // tile click so the chevron's hit area wins when targeted.
@@ -25816,11 +25830,16 @@ function _schedShiftChip(sh, extras) {
     ? `<span class="shift-chip-rpt">Rpt ${reportStr}</span>`
     : "";
   const timeRange = waveLine ? `${rptLine}${waveLine}` : "";
-  // No route_code yet → just show the time range on the headline (and
-  // skip the sub-line, since it would duplicate the start time).
+  // No route_code yet → headline shows the wave time range. We still
+  // want the Rpt line visible below the headline when a report lead
+  // is configured — otherwise the grid silently drops the report
+  // time even though the Open Shifts panel shows it. Without this,
+  // operators see "10:00am – 8:00pm" on the chip but "Rpt 9:40am ·
+  // Wave 10:00am – 8:00pm" in the side panel and assume the report
+  // time didn't get applied.
   const hasRoute = !!sh.route_code;
   const r = hasRoute ? escapeHtml(sh.route_code) : (waveStr && endStr ? `${waveStr} – ${endStr}` : (waveStr || reportStr || "shift"));
-  const time = hasRoute ? timeRange : "";
+  const time = hasRoute ? timeRange : (rptLine || "");
   const ex = sh.is_cushion
     ? `<span style="display:inline-block;background:var(--amber-soft);color:var(--amber-dark);font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em">EX</span>`
     : "";
@@ -25859,7 +25878,13 @@ async function renderScheduleWeek() {
   const weekEndIso = fmtIsoDate(weekEnd);
   const todayIso  = fmtIsoDate(new Date());
 
-  const [gridRes, driversRes, toRes] = await Promise.all([
+  // Pull the FEM-KPI inputs alongside the grid in one round-trip.
+  // 14-day lookback so we can detect any branded non-grounded van
+  // that will cross the >14-day rotation rule at some point during
+  // the visible week (see `femRisks` computation further below).
+  const femLookbackIso = fmtIsoDate(addDays(weekStart, -14));
+
+  const [gridRes, driversRes, toRes, femVehRes, femAssignRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, tier, metadata, dl_expires_on, dot_certified, xl_certified, is_trainer, station:station_id (code)")
@@ -25873,11 +25898,21 @@ async function renderScheduleWeek() {
       .eq("status", "approved")
       .lte("start_date", weekEndIso)
       .gte("end_date", _schedStart),
+    sb.from("vehicles")
+      .select("id, name, is_branded, status, operational_status, archived_at")
+      .eq("dsp_id", dspId)
+      .is("archived_at", null),
+    sb.from("vehicle_day_assignments")
+      .select("vehicle_id, date")
+      .eq("dsp_id", dspId)
+      .gte("date", femLookbackIso).lte("date", weekEndIso),
   ]);
 
   if (gridRes.error)    { console.warn("schedule_grid:", gridRes.error.message); return; }
   if (driversRes.error) { console.warn("drivers load:", driversRes.error.message); return; }
   if (toRes.error)      { console.warn("time_off load:", toRes.error.message); return; }
+  if (femVehRes?.error)    console.warn("FEM vehicles load:", femVehRes.error.message);
+  if (femAssignRes?.error) console.warn("FEM assignments load:", femAssignRes.error.message);
 
   const grid    = gridRes.data    || { coverage: [], shifts: [] };
   const drivers = driversRes.data || [];
@@ -26265,6 +26300,68 @@ async function renderScheduleWeek() {
   const trainingTotal  = trainingRows.length;
   const trainingValue  = trainingTotal === 0 ? "0" : String(trainingTotal);
 
+  // ── FEM rotation risk for the visible week ──
+  // For every branded, non-grounded, non-archived van, walk each
+  // day in the visible week and compute "days since the most
+  // recent assignment STRICTLY BEFORE this day" (using the 14-day
+  // lookback + any assignments already pinned in the visible week).
+  // A van flips to "at risk" the first day that count crosses 15
+  // (operator's stated threshold: >14 days unused).
+  //
+  // Output:
+  //   femRisks = [{ vehicle_id, name, firstCrossing, days }, …]
+  //   firstCrossing is the first weekday the van will be >14d idle.
+  const femDaysBetween = (later, earlier) =>
+    Math.round((new Date(later + "T12:00:00").getTime() - new Date(earlier + "T12:00:00").getTime()) / 86400000);
+  const femVehicles = (femVehRes?.data || []).filter(v =>
+       v.archived_at == null
+    && ["active","spare"].includes(v.status)
+    && (v.operational_status || "operational") !== "grounded"
+    && v.is_branded !== false
+  );
+  const femUsage = new Map(); // vehicle_id → sorted list of usage dates
+  for (const r of (femAssignRes?.data || [])) {
+    const list = femUsage.get(r.vehicle_id) || [];
+    list.push(r.date);
+    femUsage.set(r.vehicle_id, list);
+  }
+  for (const [, list] of femUsage) list.sort();
+  const femWeekDates = [];
+  for (let i = 0; i < 7; i++) femWeekDates.push(fmtIsoDate(addDays(weekStart, i)));
+  const femRisks = [];
+  for (const v of femVehicles) {
+    const list = femUsage.get(v.id) || [];
+    let firstCrossing = null;
+    let crossingDays = null;
+    for (const d of femWeekDates) {
+      // Most recent usage strictly before d.
+      let last = null;
+      for (const e of list) {
+        if (e < d) last = e;
+        else break;
+      }
+      const days = last ? femDaysBetween(d, last) : Infinity;
+      if (days > 14) { // > 14 days unused = the operator's red threshold
+        firstCrossing = d;
+        crossingDays = days === Infinity ? null : days;
+        break;
+      }
+    }
+    if (firstCrossing) {
+      femRisks.push({
+        vehicle_id: v.id,
+        name: v.name || "—",
+        firstCrossing,
+        days: crossingDays, // null = never used
+      });
+    }
+  }
+  femRisks.sort((a, b) =>
+    (a.firstCrossing || "").localeCompare(b.firstCrossing || "")
+    || ((b.days ?? Infinity) - (a.days ?? Infinity))
+    || (a.name || "").localeCompare(b.name || "")
+  );
+
   // Compact pill row matching the mockup: dot + label, with the
   // Coverage pill carrying a subtle "X / Y shifts" sub-line.
   if (kpis) {
@@ -26279,12 +26376,20 @@ async function renderScheduleWeek() {
     // Violations when they actually flare — those keep red so the
     // operator sees the alarm. Everything at-rest reads neutral navy.
     const navy = "#1A1F47";
+    const rotationLabel = femRisks.length === 0
+      ? "Fleet rotation OK"
+      : `${femRisks.length} Van${femRisks.length === 1 ? "" : "s"} >14d`;
+    const rotationTitle = femRisks.length === 0
+      ? "Every branded non-grounded van stays under the 14-day rotation rule this week"
+      : `${femRisks.length} branded van${femRisks.length === 1 ? "" : "s"} will cross the 14-day rotation rule this week — click for details`;
     kpis.innerHTML =
       pill("coverage", navy, `${pct}% Coverage`, `${totalFilled} / ${totalNeeded} shifts`, false, "") +
       pill("violations", violations.length > 0 ? "var(--red)" : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
       pill("overtime", totalOvertimeHrs > 0 ? "var(--red)" : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
-      pill("open-shifts", navy, `${totalAllOpen} Open Shift${totalAllOpen === 1 ? "" : "s"}`, "", false, totalAllOpen === 0 ? "All shifts covered" : `${totalAllOpen} unfilled shift${totalAllOpen === 1 ? "" : "s"} this week`);
+      pill("open-shifts", navy, `${totalAllOpen} Open Shift${totalAllOpen === 1 ? "" : "s"}`, "", false, totalAllOpen === 0 ? "All shifts covered" : `${totalAllOpen} unfilled shift${totalAllOpen === 1 ? "" : "s"} this week`) +
+      pill("rotation",   femRisks.length > 0 ? "var(--red)" : navy, rotationLabel, "", femRisks.length > 0, rotationTitle);
   }
+  kpis.dataset.rrFemRisks = JSON.stringify(femRisks);
   kpis.dataset.rrViolations = JSON.stringify(violations);
   kpis.dataset.rrPrefMisses = JSON.stringify(prefMissList);
   kpis.dataset.rrPrefSummary = JSON.stringify({ honored: prefHonored, denom: prefDenom });
@@ -26898,6 +27003,46 @@ function bindSchedWeekNav() {
     document.body.appendChild(m);
     m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-vio-close") m.remove(); });
   });
+  }
+
+  // ── KPI: clicking the Fleet rotation pill opens the at-risk
+  //    van drill-down. Lists each branded van that will cross the
+  //    14-day rotation rule this week + the first day it does.
+  if (!window._rrFemRotationHandlerInstalled) {
+    window._rrFemRotationHandlerInstalled = true;
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest('[data-rr-kpi="rotation"]')) return;
+      const kpiHost = document.getElementById("rr-sched-kpis");
+      if (!kpiHost) return;
+      let risks = [];
+      try { risks = JSON.parse(kpiHost.dataset.rrFemRisks || "[]"); } catch {}
+      let m = document.getElementById("rr-fem-rotation-modal");
+      if (m) m.remove();
+      m = document.createElement("div");
+      m.id = "rr-fem-rotation-modal";
+      m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+      const dayLbl = (iso) => {
+        const d = new Date(iso + "T12:00:00");
+        return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+      };
+      const list = risks.length === 0
+        ? '<div class="rr-empty-inline">No branded vans at risk this week ✓</div>'
+        : risks.map(x => {
+            const daysLabel = (x.days == null) ? "Never used"
+                            : `${x.days} day${x.days === 1 ? "" : "s"} idle`;
+            return `<div style="padding:var(--s-2-5) var(--s-3-5);border-top:1px solid var(--border);display:flex;gap:var(--s-3);align-items:center"><div style="flex:1"><div style="font-size:var(--fs-md);font-weight:600">Van ${escapeHtml(x.name)}</div><div class="u-xs-subtle">First crosses &gt;14d on ${escapeHtml(dayLbl(x.firstCrossing))}</div></div><span style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--red)">${escapeHtml(daysLabel)}</span></div>`;
+          }).join("");
+      m.innerHTML = `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:540px;width:100%;max-height:80vh;overflow-y:auto">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) 18px;border-bottom:1px solid var(--border)">
+            <div><div style="font-size:var(--fs-base);font-weight:600">Fleet rotation risk</div><div class="u-sm-subtle">${risks.length} branded van${risks.length === 1 ? "" : "s"} will cross 14 days unused this week</div></div>
+            <button type="button" id="rr-fem-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+          </div>
+          <div>${list}</div>
+        </div>`;
+      document.body.appendChild(m);
+      m.addEventListener("click", (ev) => { if (ev.target === m || ev.target.id === "rr-fem-close") m.remove(); });
+    });
   }
 
   // ── Pool sort toggle (Day / Wave time)
