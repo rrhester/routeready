@@ -23184,6 +23184,9 @@ window.goto = function (view) {
     if (ready) { restoreOrder(); clearInterval(t); }
     if (++tries > 40) clearInterval(t);
   }, 100);
+  // Re-apply saved order every time the schedule view is shown so
+  // navigation away + back preserves the operator's layout.
+  window._rrRestoreSchedTileOrder = restoreOrder;
 
   document.addEventListener("dragstart", (e) => {
     const tile = e.target.closest("#view-schedule [data-rr-tile][draggable='true']");
@@ -24344,6 +24347,9 @@ async function loadScheduleView() {
   // schema mismatch, etc.) can't blank the entire schedule view.
   // Each error gets a console warning; the page keeps rendering.
   try { _clearScheduleMockup(); } catch (e) { console.warn("schedule · clearMockup:", e); }
+  // Restore the saved nav-tile order every time the view shows so
+  // the operator's layout survives navigation + reload.
+  try { if (typeof window._rrRestoreSchedTileOrder === "function") window._rrRestoreSchedTileOrder(); } catch (_) {}
   try { loadTimeOffList();      } catch (e) { console.warn("schedule · timeOff:", e); }
   try { loadOpenShifts();       } catch (e) { console.warn("schedule · openShifts:", e); }
   try {
