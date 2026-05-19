@@ -24092,6 +24092,15 @@ async function _runSchedVanAssignmentsBackground() {
     if (totals.unassigned > 0) {
       toast(`Assigned ${totals.assigned} van${totals.assigned === 1 ? "" : "s"} · ${totals.unassigned} driver${totals.unassigned === 1 ? "" : "s"} still without a van (fleet may be tapped out).`, "warn");
     }
+    // FEM violation toast — only when at least one branded van is
+    // STILL past the 14-day rotation window after the assigner did
+    // its best. Watch / risk states stay silent; they appear in the
+    // console summary + the returned `fem` object for the future
+    // dashboard KPI cards.
+    if (totals.fem && totals.fem.brandedAtViolation > 0) {
+      const v = totals.fem.brandedAtViolation;
+      toast(`${v} branded van${v === 1 ? "" : "s"} past the 14-day rotation window — review the chain editor.`, "warn");
+    }
 
     // Repaint the calendar with the fresh assignments so the
     // dispatcher sees the result in-place; driver app already
@@ -24124,7 +24133,28 @@ window._rrRunSchedVanAssignmentsBackground = _runSchedVanAssignmentsBackground;
 //     3. Else the van enters today's open pool.
 //
 // Then drivers still without a van get paired with vans still in
-// the pool (branded-first, alphabetical) until one side runs out.
+// the pool until one side runs out.
+//
+// FEM (Fleet Execution Management) layer — BRANDED vans only:
+// Amazon DSPs are penalised when a branded van sits idle for 14+
+// days. We surface that risk by classifying each branded van
+// (Healthy 0–6d / Watch 7–10d / Risk 11–13d / Violation 14+d /
+// Never Used) using vehicle_day_assignments history from the
+// 14 days leading up to each assignment date. The van iteration
+// order then becomes:
+//
+//   1. Branded with highest urgency (Violation / Never Used)
+//   2. Branded · Risk
+//   3. Branded · Watch
+//   4. Branded · Healthy
+//   5. Non-branded (alphabetical only — NO FEM logic applied)
+//
+// Within a tier we go oldest-unused-first, alphabetical tie-break.
+// Phase 1a (primary) and 1b (secondary) use this order too so a
+// scheduled secondary picks up an at-risk branded van before a
+// fresher one — but a scheduled PRIMARY always gets their own van
+// (FEM never pulls a primary off their van). Open pool (phase 2)
+// is where FEM has the strongest visible effect.
 //
 // Manual overrides in vehicle_day_assignments are honored — the
 // (driver, van) pair they pin is seeded into the day's state
@@ -24133,9 +24163,20 @@ window._rrRunSchedVanAssignmentsBackground = _runSchedVanAssignmentsBackground;
 // All writes go through vehicle_day_assignment_set so the same
 // uniqueness constraints (one driver per van per date, one van
 // per driver per date) the operator hits manually are enforced.
+//
+// Returns { assigned, unassigned, fem, reasons } — `fem` carries
+// dashboard-ready counters for branded-van rotation health,
+// `reasons` carries per-write phase + FEM-tier explainability.
 async function _assignVansForRange(startIso, endIso, dspId) {
-  // Pull everything we need in one go.
-  const [shiftsRes, vehRes, chainRes, existingRes] = await Promise.all([
+  // FEM lookback — 14 days before the assignment window so every
+  // branded van's most recent dispatch is in range for the
+  // rolling 14-day rotation calculation.
+  const lookbackIso = fmtIsoDate(addDays(new Date(startIso + "T12:00:00"), -14));
+
+  // Pull everything we need in one go. The vehicle_day_assignments
+  // query spans [lookback, end] so we get history (for FEM seeding)
+  // and overrides (for chain seeding) in a single round-trip.
+  const [shiftsRes, vehRes, chainRes, assignmentsRes] = await Promise.all([
     sb.from("shifts")
       .select("id, date, driver_id, status, starts_at, station_id, route_code")
       .eq("dsp_id", dspId)
@@ -24151,27 +24192,30 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     sb.from("vehicle_day_assignments")
       .select("driver_id, vehicle_id, date")
       .eq("dsp_id", dspId)
-      .gte("date", startIso).lte("date", endIso),
+      .gte("date", lookbackIso).lte("date", endIso),
   ]);
-  if (shiftsRes?.error)   console.warn("assignVans · shifts fetch failed", shiftsRes.error);
-  if (vehRes?.error)      console.warn("assignVans · vehicles fetch failed", vehRes.error);
-  if (chainRes?.error)    console.warn("assignVans · chain fetch failed", chainRes.error);
-  if (existingRes?.error) console.warn("assignVans · existing fetch failed", existingRes.error);
+  if (shiftsRes?.error)      console.warn("assignVans · shifts fetch failed", shiftsRes.error);
+  if (vehRes?.error)         console.warn("assignVans · vehicles fetch failed", vehRes.error);
+  if (chainRes?.error)       console.warn("assignVans · chain fetch failed", chainRes.error);
+  if (assignmentsRes?.error) console.warn("assignVans · assignments fetch failed", assignmentsRes.error);
 
-  const shifts   = shiftsRes?.data   || [];
-  const vehicles = (vehRes?.data     || []).filter(v =>
+  const shifts          = shiftsRes?.data      || [];
+  const vehicles        = (vehRes?.data        || []).filter(v =>
        v.archived_at == null
     && ["active","spare"].includes(v.status)
     && (v.operational_status || "operational") !== "grounded"
   );
-  const chain    = chainRes?.data    || [];
-  const existing = existingRes?.data || [];
+  const chain           = chainRes?.data       || [];
+  const allAssignments  = assignmentsRes?.data || [];
+  const existing        = allAssignments.filter(r => r.date >= startIso);
+  const history         = allAssignments.filter(r => r.date <  startIso);
 
   if (!vehicles.length) {
     console.warn(`assignVans · fleet pool empty (${(vehRes?.data || []).length} rows before status filter)`);
   }
 
   // Index van → chain rows, sorted by rank (primary first).
+  const vehById = new Map(vehicles.map(v => [v.id, v]));
   const vanChain = new Map();
   for (const c of chain) {
     const list = vanChain.get(c.vehicle_id) || [];
@@ -24190,87 +24234,222 @@ async function _assignVansForRange(startIso, endIso, dspId) {
   }
 
   // Index overrides per date.
-  const overridesByDate = new Map(); // date → [{driver_id, vehicle_id}]
+  const overridesByDate = new Map();
   for (const r of existing) {
     const list = overridesByDate.get(r.date) || [];
     list.push(r);
     overridesByDate.set(r.date, list);
   }
 
-  // Van order for both chain phases and pool: branded first,
-  // then alphabetical by name — deterministic and FEM-aware.
-  const vansSorted = vehicles.slice().sort((a, b) => {
-    const ab = a.is_branded === false ? 1 : 0;
-    const bb = b.is_branded === false ? 1 : 0;
-    if (ab !== bb) return ab - bb;
+  // ── FEM (Fleet Execution / 14-day rotation) helpers — branded only ──
+  //
+  // usageByVan[vehId] is the ascending-sorted list of every date this
+  // van has a vehicle_day_assignment row. Seeded with the lookback
+  // history + the visible-week overrides. We APPEND each write as we
+  // make it so subsequent dates in the loop see fresh state.
+  const usageByVan = new Map();
+  for (const r of history.concat(existing)) {
+    const list = usageByVan.get(r.vehicle_id) || [];
+    list.push(r.date);
+    usageByVan.set(r.vehicle_id, list);
+  }
+  for (const [, list] of usageByVan) list.sort();
+
+  // lastUsedAsOf(vehId, date) — most recent usage STRICTLY before
+  // `date`, or null if the van has no prior usage in our window.
+  // null is interpreted as "never used" (highest FEM urgency).
+  const lastUsedAsOf = (vehId, date) => {
+    const list = usageByVan.get(vehId);
+    if (!list) return null;
+    let result = null;
+    for (const d of list) {
+      if (d < date) result = d;
+      else break; // list sorted ascending
+    }
+    return result;
+  };
+
+  const daysBetween = (later, earlier) =>
+    Math.round(
+      (new Date(later + "T12:00:00").getTime() - new Date(earlier + "T12:00:00").getTime())
+      / 86400000
+    );
+
+  // FEM tier classification — branded-only.
+  //   Healthy:    0–6 days unused
+  //   Watch:      7–10 days unused
+  //   Risk:       11–13 days unused
+  //   Violation:  14+ days unused
+  //   Never Used: no prior history (highest urgency, tied with Violation)
+  // Lower `urgency` value = process first.
+  const classifyFem = (daysSince) => {
+    if (daysSince === null)    return { tier: "never_used", urgency: 0, label: "Never used" };
+    if (daysSince >= 14)       return { tier: "violation",  urgency: 0, label: `Violation · ${daysSince}d unused` };
+    if (daysSince >= 11)       return { tier: "risk",       urgency: 1, label: `Risk · ${daysSince}d unused` };
+    if (daysSince >= 7)        return { tier: "watch",      urgency: 2, label: `Watch · ${daysSince}d unused` };
+    return                            { tier: "healthy",   urgency: 3, label: `Healthy · ${daysSince}d unused` };
+  };
+
+  // Sort vans for a given assignment date. FEM-aware for BRANDED
+  // vans only; non-branded keep the legacy alphabetical sort.
+  // Order:
+  //   1. Branded sorts before non-branded (always)
+  //   2. Branded: FEM urgency (Violation/Never→Risk→Watch→Healthy)
+  //   3. Branded: oldest unused first within the same tier
+  //   4. Alphabetical tie-break
+  // Recomputed per date because each iteration's writes update
+  // usageByVan and shift the daysSince for downstream dates.
+  const sortVansForDate = (vans, date) => vans.slice().sort((a, b) => {
+    const aBranded = a.is_branded !== false;
+    const bBranded = b.is_branded !== false;
+    if (aBranded !== bBranded) return aBranded ? -1 : 1;
+    if (!aBranded && !bBranded) {
+      // Both non-branded — alphabetical only, no FEM logic.
+      return (a.name || "").localeCompare(b.name || "");
+    }
+    // Both branded — apply FEM-aware ordering.
+    const lastA = lastUsedAsOf(a.id, date);
+    const lastB = lastUsedAsOf(b.id, date);
+    const daysA = lastA ? daysBetween(date, lastA) : null;
+    const daysB = lastB ? daysBetween(date, lastB) : null;
+    const ca = classifyFem(daysA);
+    const cb = classifyFem(daysB);
+    if (ca.urgency !== cb.urgency) return ca.urgency - cb.urgency;
+    // null (never_used) ranks before any number (most overdue).
+    if (daysA === null && daysB !== null) return -1;
+    if (daysA !== null && daysB === null) return  1;
+    if ((daysA || 0) !== (daysB || 0)) return (daysB || 0) - (daysA || 0);
     return (a.name || "").localeCompare(b.name || "");
   });
 
-  const writes = [];
+  // ── Date loop ──
+  const writes  = [];
+  const reasons = [];
   let unassigned = 0;
-
-  // Process each date independently.
   const allDates = Array.from(scheduledByDate.keys()).sort();
+
   for (const date of allDates) {
     const scheduled = scheduledByDate.get(date) || new Set();
     const driverAssigned = new Map(); // driver_id → vehicle_id
     const vanAssigned    = new Map(); // vehicle_id → driver_id
 
-    // Seed with any existing overrides for this date (manual
-    // pins the operator already made). We don't re-write these.
+    // Seed with any existing overrides for this date (manual pins
+    // the operator already made). We don't re-write these.
     for (const r of overridesByDate.get(date) || []) {
       driverAssigned.set(r.driver_id, r.vehicle_id);
       vanAssigned.set(r.vehicle_id, r.driver_id);
     }
 
+    const vansToday = sortVansForDate(vehicles, date);
+
+    // Record-and-explain helper: writes the assignment, updates the
+    // in-memory state maps, and stamps an explainability entry with
+    // the phase + FEM tier so callers can surface "why" later.
+    const recordWrite = (driver_id, vehicle_id, phase) => {
+      driverAssigned.set(driver_id, vehicle_id);
+      vanAssigned.set(vehicle_id, driver_id);
+      writes.push({ driver_id, date, vehicle_id });
+      const v = vehById.get(vehicle_id);
+      const isBranded = v && v.is_branded !== false;
+      const last = lastUsedAsOf(vehicle_id, date);
+      const days = last ? daysBetween(date, last) : null;
+      const phaseLabel = phase === "primary"   ? "Primary chain"
+                       : phase === "secondary" ? "Secondary chain"
+                       : "Open pool";
+      const reason = isBranded
+        ? `${phaseLabel} · ${classifyFem(days).label}`
+        : `${phaseLabel} · Non-branded`;
+      reasons.push({
+        driver_id, vehicle_id, date, phase,
+        fem: isBranded ? classifyFem(days).tier : "non-branded",
+        reason,
+      });
+    };
+
     // ── Phase 1a: every scheduled primary claims their van ──
     // Walking vans (not drivers) means there's no iteration-order
     // race — Van 10's primary owner always gets Van 10 if they're
-    // scheduled, regardless of who else might want it.
-    for (const v of vansSorted) {
+    // scheduled, regardless of who else might want it. FEM never
+    // takes a van away from its scheduled primary.
+    for (const v of vansToday) {
       if (vanAssigned.has(v.id)) continue;
       const primary = (vanChain.get(v.id) || []).find(c => (c.rank | 0) === 0);
       if (!primary) continue;
       if (!scheduled.has(primary.driver_id)) continue;
-      if (driverAssigned.has(primary.driver_id)) continue; // already on another van via override
-      driverAssigned.set(primary.driver_id, v.id);
-      vanAssigned.set(v.id, primary.driver_id);
-      writes.push({ driver_id: primary.driver_id, date, vehicle_id: v.id });
+      if (driverAssigned.has(primary.driver_id)) continue;
+      recordWrite(primary.driver_id, v.id, "primary");
     }
 
     // ── Phase 1b: primary not scheduled → secondary picks it up ──
     // "Secondary" = lowest unclaimed rank > 0 from the same chain.
-    for (const v of vansSorted) {
+    // FEM-sorted iteration naturally pushes at-risk branded vans
+    // ahead of fresher ones in this phase.
+    for (const v of vansToday) {
       if (vanAssigned.has(v.id)) continue;
       const backups = (vanChain.get(v.id) || []).filter(c => (c.rank | 0) > 0);
       for (const b of backups) {
         if (!scheduled.has(b.driver_id)) continue;
-        if (driverAssigned.has(b.driver_id)) continue; // already has their own primary or another backup
-        driverAssigned.set(b.driver_id, v.id);
-        vanAssigned.set(v.id, b.driver_id);
-        writes.push({ driver_id: b.driver_id, date, vehicle_id: v.id });
+        if (driverAssigned.has(b.driver_id)) continue;
+        recordWrite(b.driver_id, v.id, "secondary");
         break;
       }
     }
 
-    // ── Phase 2: open pool ──
+    // ── Phase 2: open pool — FEM-aware ──
     // Vans nobody on the chain claimed today + drivers without a
-    // van. Pair them off in deterministic order (van: branded
-    // first / alphabetical; driver: id sort) so re-runs produce
-    // the same result.
+    // van. The FEM-aware vansToday order means at-risk branded
+    // vans get assigned first, then watch, then healthy, then
+    // non-branded alphabetical.
     const poolDrivers = Array.from(scheduled)
       .filter(d => !driverAssigned.has(d))
       .sort();
-    const poolVans = vansSorted.filter(v => !vanAssigned.has(v.id));
+    const poolVans = vansToday.filter(v => !vanAssigned.has(v.id));
     const pair = Math.min(poolDrivers.length, poolVans.length);
     for (let i = 0; i < pair; i++) {
-      driverAssigned.set(poolDrivers[i], poolVans[i].id);
-      vanAssigned.set(poolVans[i].id, poolDrivers[i]);
-      writes.push({ driver_id: poolDrivers[i], date, vehicle_id: poolVans[i].id });
+      recordWrite(poolDrivers[i], poolVans[i].id, "pool");
     }
     if (poolDrivers.length > poolVans.length) {
       unassigned += poolDrivers.length - poolVans.length;
     }
+
+    // Promote today's writes into usageByVan so the NEXT date's
+    // FEM sort sees them as recently used (no re-sort needed —
+    // dates iterate ascending so we always append in order).
+    for (const w of writes) {
+      if (w.date !== date) continue;
+      const list = usageByVan.get(w.vehicle_id) || [];
+      list.push(date);
+      usageByVan.set(w.vehicle_id, list);
+    }
+  }
+
+  // ── FEM summary AT END OF RANGE for dashboard surfaces ──
+  // Forward-looking: "how does the fleet look the day AFTER this
+  // window?" so an operator viewing the current week sees what
+  // their next-week starting state will be. Counters are
+  // branded-only since FEM only applies to branded vans.
+  const summaryAsOf = fmtIsoDate(addDays(new Date(endIso + "T12:00:00"), 1));
+  const fem = {
+    brandedNeverUsed:    0,
+    brandedAtWatch:      0,
+    brandedAtRisk:       0,
+    brandedAtViolation:  0,
+    unusedSevenPlus:     0, // branded vans, includes never-used
+    unusedElevenPlus:    0,
+    unusedFourteenPlus:  0,
+  };
+  for (const v of vehicles) {
+    if (v.is_branded === false) continue; // FEM is branded-only
+    const last = lastUsedAsOf(v.id, summaryAsOf);
+    const days = last ? daysBetween(summaryAsOf, last) : null;
+    const cls = classifyFem(days);
+    if (cls.tier === "never_used") fem.brandedNeverUsed++;
+    if (cls.tier === "watch")      fem.brandedAtWatch++;
+    if (cls.tier === "risk")       fem.brandedAtRisk++;
+    if (cls.tier === "violation")  fem.brandedAtViolation++;
+    if (days === null || days >= 7)  fem.unusedSevenPlus++;
+    if (days === null || days >= 11) fem.unusedElevenPlus++;
+    if (days === null || days >= 14) fem.unusedFourteenPlus++;
   }
 
   // Fire the writes in parallel chunks of 10. vehicle_day_
@@ -24303,7 +24482,10 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     res.forEach(r => { if (!(r && r.error)) assigned += 1; else console.warn("vehicle_day_assignment_set:", r.error); });
   }
   console.log(`assignVans writes complete · ${assigned}/${writes.length} succeeded`);
-  return { assigned, unassigned };
+  console.log(
+    `assignVans FEM @ ${summaryAsOf} · branded: never=${fem.brandedNeverUsed} watch=${fem.brandedAtWatch} risk=${fem.brandedAtRisk} violation=${fem.brandedAtViolation} · unused 7+/11+/14+ = ${fem.unusedSevenPlus}/${fem.unusedElevenPlus}/${fem.unusedFourteenPlus}`
+  );
+  return { assigned, unassigned, fem, reasons };
 }
 window._rrAssignVansForRange = _assignVansForRange;
 
