@@ -8247,6 +8247,23 @@ body.rr-cmdk-open{ overflow:hidden }
   border:1px solid var(--sch-line);
   border-radius:6px;
 }
+/* Milestone preset summary · replaces the reason-chip grid when
+   the modal is opened from a Send-note pill. Shows the locked
+   message title + a small hint that the note below is editable. */
+.rr-kudos-overlay .rr-kudos-preset-summary{
+  display:flex;flex-direction:column;gap:3px;
+  padding:9px 11px;
+  background:var(--sch-surface-2, #FAFBFC);
+  border:1px solid var(--sch-line);
+  border-radius:6px;
+}
+.rr-kudos-overlay .rr-kudos-preset-title{
+  font-size:13px;font-weight:600;color:var(--text);
+  letter-spacing:-.005em;
+}
+.rr-kudos-overlay .rr-kudos-preset-hint{
+  font-size:11px;color:var(--text-muted);line-height:1.45;
+}
 .rr-kudos-overlay .rr-kudos-picks{
   display:grid;grid-template-columns:repeat(2,1fr);gap:6px;
 }
@@ -8365,10 +8382,6 @@ body.rr-cmdk-open{ overflow:hidden }
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
         Drivers
         <span class="nav-badge" style="background:var(--amber)">5</span>
-      </button>
-      <button class="nav-item" data-view="recognition" data-c="drivers" onclick="goto('recognition')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M17 5h2a2 2 0 0 1 2 2 5 5 0 0 1-5 5"/><path d="M7 5H5a2 2 0 0 0-2 2 5 5 0 0 0 5 5"/></svg></span>
-        Recognition
       </button>
       <button class="nav-item" data-view="onboarding-ops" data-c="drivers" onclick="goto('onboarding-ops')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="15.5 11 17.5 13 21.5 9"/></svg></span>
@@ -11597,6 +11610,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <button class="subnav-item" data-sub="today" data-rr-tile="today" onclick="schedSub('today')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15" r="2.2" fill="currentColor"/></svg>
                 <span>Today view</span>
+                <span class="sched-today-indicator" id="rr-sched-today-att-badge" style="display:none" aria-label="Attendance tasks need attention" title="Attendance tasks need attention"></span>
               </button>
             </div>
           </div>
@@ -13080,6 +13094,20 @@ body.rr-cmdk-open{ overflow:hidden }
             pointer-events:none;
           }
           #view-schedule .subnav-item[data-rr-tile="requests"].active .sched-requests-indicator{
+            box-shadow:0 0 0 2px var(--sch-blue-softer, #EAF2FB);
+          }
+          /* Today view · same red-dot pattern when there are
+             attendance tasks (late / no-show shifts on today)
+             that haven't been resolved yet. */
+          #view-schedule .subnav-item[data-rr-tile="today"]{position:relative}
+          #view-schedule .sched-today-indicator{
+            position:absolute;top:4px;right:4px;
+            width:8px;height:8px;border-radius:50%;
+            background:var(--sch-red, #C42B1C);
+            box-shadow:0 0 0 2px #fff;
+            pointer-events:none;
+          }
+          #view-schedule .subnav-item[data-rr-tile="today"].active .sched-today-indicator{
             box-shadow:0 0 0 2px var(--sch-blue-softer, #EAF2FB);
           }
 

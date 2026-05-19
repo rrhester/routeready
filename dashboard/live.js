@@ -26767,6 +26767,46 @@ function _rrSaveMilestoneRule(rule, value) {
 }
 window._rrLoadMilestoneRules = _rrLoadMilestoneRules;
 
+// ── Today view · attendance badge ─────────────────────────────────
+// Red dot on the Today view tab when there are attendance items
+// for today that haven't been cleared — shifts in late / no_show
+// state that don't yet have a resolution. Single-shot fetch on
+// schedule mount + a 5-minute refresher; also refreshed when the
+// realtime shifts channel fires.
+async function _rrRefreshTodayAttBadge() {
+  const badge = document.getElementById("rr-sched-today-att-badge");
+  if (!badge) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  try {
+    const today = (new Date()).toISOString().slice(0, 10);
+    const { count, error } = await sb
+      .from("shifts")
+      .select("id", { count: "exact", head: true })
+      .eq("dsp_id", dspId)
+      .eq("date", today)
+      .in("status", ["late", "no_show"]);
+    if (error) return;
+    const n = count || 0;
+    badge.style.display = n > 0 ? "inline-block" : "none";
+    badge.setAttribute("title", n > 0 ? `${n} attendance task${n === 1 ? "" : "s"} need attention` : "");
+  } catch (_) { /* badge is decorative · silent on failure */ }
+}
+window._rrRefreshTodayAttBadge = _rrRefreshTodayAttBadge;
+// Fire on initial paint + every 5 minutes while the page is open.
+(function () {
+  const fire = () => { try { _rrRefreshTodayAttBadge(); } catch (_) {} };
+  const start = () => {
+    fire();
+    setInterval(fire, 5 * 60 * 1000);
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => setTimeout(start, 800));
+  } else {
+    setTimeout(start, 800);
+  }
+})();
+
 // Toggle the Recognition rules popover under the Kudos tile + sync
 // the checkboxes against persisted state. Mirrors the pattern used
 // by the Smart Fill / Van rules popovers.
@@ -42463,6 +42503,11 @@ document.addEventListener("click", async (e) => {
                     : opts?.presetKind === "work_anniversary" ? "Anniversary"
                     : null;
     const titleText = milestone ? `Send a ${milestone} note` : "Send Kudos";
+    // Milestone presets · DSP isn't picking a reason; the kind is
+    // fixed, the message is pre-filled with a professional default
+    // that the operator can edit or send as-is. Hide the reason
+    // grid entirely and lock the preset pick (always picks[0]).
+    const presetPick = milestone ? picks[0] : null;
     return `
       <div class="rr-kudos-card" role="dialog" aria-modal="true" aria-labelledby="rr-kudos-title">
         <div class="rr-kudos-head">
@@ -42482,20 +42527,28 @@ document.addEventListener("click", async (e) => {
                  <input type="hidden" id="rr-kudos-driver" value="${escapeHtml(lockedDriver.id)}"/>`
               : `<select class="form-input" id="rr-kudos-driver"></select>`}
           </div>
+          ${presetPick
+            ? `<div class="rr-kudos-field">
+                <span class="rr-kudos-label">Message</span>
+                <div class="rr-kudos-preset-summary">
+                  <div class="rr-kudos-preset-title">${escapeHtml(presetPick.title)}</div>
+                  <div class="rr-kudos-preset-hint">Edit below or hit Send to use the default message.</div>
+                </div>
+              </div>`
+            : `<div class="rr-kudos-field">
+                <span class="rr-kudos-label">Reason</span>
+                <div class="rr-kudos-picks" id="rr-kudos-picks">
+                  ${picks.map((p, i) => `
+                    <button type="button" class="rr-kudos-pick${i === 0 ? " is-active" : ""}" data-rr-kudos-pick="${i}">
+                      <div class="rr-kudos-pick-title">${escapeHtml(p.title)}</div>
+                      <div class="rr-kudos-pick-blurb">${escapeHtml(p.blurb)}</div>
+                    </button>
+                  `).join("")}
+                </div>
+              </div>`}
           <div class="rr-kudos-field">
-            <span class="rr-kudos-label">Reason</span>
-            <div class="rr-kudos-picks" id="rr-kudos-picks">
-              ${picks.map((p, i) => `
-                <button type="button" class="rr-kudos-pick${i === 0 ? " is-active" : ""}" data-rr-kudos-pick="${i}">
-                  <div class="rr-kudos-pick-title">${escapeHtml(p.title)}</div>
-                  <div class="rr-kudos-pick-blurb">${escapeHtml(p.blurb)}</div>
-                </button>
-              `).join("")}
-            </div>
-          </div>
-          <div class="rr-kudos-field">
-            <span class="rr-kudos-label">Note <span class="rr-kudos-label-hint">optional</span></span>
-            <textarea class="form-input rr-kudos-note" id="rr-kudos-note" rows="2" maxlength="280" placeholder="Add a short personal note — they'll see this in the app."></textarea>
+            <span class="rr-kudos-label">Note${presetPick ? "" : ' <span class="rr-kudos-label-hint">optional</span>'}</span>
+            <textarea class="form-input rr-kudos-note" id="rr-kudos-note" rows="3" maxlength="280" placeholder="${presetPick ? "" : "Add a short personal note — they'll see this in the app."}">${presetPick ? escapeHtml(presetPick.blurb) : ""}</textarea>
           </div>
           <div class="rr-kudos-history-wrap" id="rr-kudos-history" hidden>
             <div class="rr-kudos-history-head">Recent recognition</div>
@@ -42518,17 +42571,33 @@ document.addEventListener("click", async (e) => {
     // "Send note" pill), prepend a milestone-specific pick at index
     // 0 so the operator can send a Birthday / Anniversary note in
     // one click. Falls back to the standard QUICK_PICKS otherwise.
+    // When a milestone preset is supplied the modal hides the
+    // reason chips entirely (the kind is fixed) and pre-fills the
+    // note with a professional default. DSP can send as-is or edit
+    // the note. firstName is interpolated into the default so it
+    // reads as a personal note rather than a templated blast.
     let picks = QUICK_PICKS;
-    if (opts?.presetKind === "birthday") {
-      picks = [
-        { kind: "birthday", anim: "cake", title: "Happy birthday!", blurb: "Hope you have a great day from the team." },
-        ...QUICK_PICKS,
-      ];
-    } else if (opts?.presetKind === "work_anniversary") {
-      picks = [
-        { kind: "work_anniversary", anim: "confetti", title: "Happy work anniversary!", blurb: "Thanks for all you do — here's to another great year." },
-        ...QUICK_PICKS,
-      ];
+    if (opts?.presetKind === "birthday" || opts?.presetKind === "work_anniversary") {
+      const firstName = (opts.driver?.preferred_name && opts.driver.preferred_name.trim().split(/\s+/)[0])
+        || (opts.driver?.first_name && opts.driver.first_name.trim())
+        || (opts.driver?.full_name && opts.driver.full_name.trim().split(/\s+/)[0])
+        || "";
+      const greeting = firstName ? `, ${firstName}` : "";
+      if (opts.presetKind === "birthday") {
+        picks = [{
+          kind: "birthday",
+          anim: "cake",
+          title: "Happy birthday!",
+          blurb: `Wishing you a great birthday${greeting} — thanks for everything you do. The whole team's cheering for you today.`,
+        }];
+      } else {
+        picks = [{
+          kind: "work_anniversary",
+          anim: "confetti",
+          title: "Happy work anniversary!",
+          blurb: `Congrats on another year${greeting}. Thanks for the work you put in every day — looking forward to many more.`,
+        }];
+      }
     }
     const m = document.createElement("div");
     m.id = "rr-kudos-modal";
