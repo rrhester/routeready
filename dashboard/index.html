@@ -11683,35 +11683,22 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
             <div class="sched-vans-rules-split">
               <button class="sched-page-btn sched-page-btn--split" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
-                <!-- Side-view box truck per operator. Default state
-                     is a clean monoline outline. When vans are
-                     assigned for the week, two brief paintbrush
-                     swipes show through:
-                       · cargo box · dark blue stroke
-                       · cab       · brand red stroke
-                     Strokes are angled, semi-transparent, with
-                     round line caps so they read as hand-painted
-                     marks rather than full fills. -->
+                <!-- Side-view box truck. Sized to match the
+                     Targets calendar icon. Default state is a
+                     clean monoline outline; when vans are assigned
+                     for the week the cargo box fills with dark
+                     blue and the cab fills with brand red. -->
                 <svg class="rr-van-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <!-- Cargo box (left) -->
-                  <rect x="2.3" y="6.2" width="12.4" height="9.6" rx=".8"/>
-                  <!-- Cab (right) · sloped roof + vertical front -->
-                  <path d="M14.7 9 h4.1 l2.5 3.1 v3.7 h-6.6z"/>
-                  <!-- Underside seam between wheels -->
-                  <line x1="14.7" y1="15.8" x2="21.3" y2="15.8"/>
+                  <!-- Cargo box (left, larger) -->
+                  <rect class="rr-van-cargo" x="2" y="4.5" width="13" height="12" rx="1"/>
+                  <!-- Cab (right) · flat top then sloped windshield -->
+                  <path class="rr-van-cab" d="M15 8 h4.4 l2.6 3.2 v5.3 h-7z"/>
                   <!-- Wheels -->
-                  <circle cx="6.5"  cy="16.5" r="1.9"/>
-                  <circle cx="17.7" cy="16.5" r="1.9"/>
+                  <circle cx="6.5"  cy="18" r="2"/>
+                  <circle cx="17.6" cy="18" r="2"/>
                   <!-- Wheel hubs -->
-                  <circle class="rr-van-hub" cx="6.5"  cy="16.5" r=".55" fill="currentColor" stroke="none"/>
-                  <circle class="rr-van-hub" cx="17.7" cy="16.5" r=".55" fill="currentColor" stroke="none"/>
-                  <!-- Paint-brush accents · visible only when
-                       data-rr-assigned=1. Cargo stripe = dark blue,
-                       cab stripe = red. ~28% width of each panel,
-                       angled slightly, semi-transparent so they
-                       read as a brush-mark, not a fill. -->
-                  <path class="rr-van-paint-cargo" d="M4.5 11.6 L12.3 10.6" stroke-width="2.4" stroke-linecap="round" opacity="0"/>
-                  <path class="rr-van-paint-cab"   d="M15.6 12.7 L20.2 12.0" stroke-width="2.2" stroke-linecap="round" opacity="0"/>
+                  <circle class="rr-van-hub" cx="6.5"  cy="18" r=".6" fill="currentColor" stroke="none"/>
+                  <circle class="rr-van-hub" cx="17.6" cy="18" r=".6" fill="currentColor" stroke="none"/>
                 </svg>
                 Assign
                 <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
@@ -12961,12 +12948,12 @@ body.rr-cmdk-open{ overflow:hidden }
           }
 
           /* Van tile · side-view box truck. Default is a clean
-             monoline outline. When vans are assigned, two brief
-             paintbrush stripes fade in:
-               · cargo box · dark blue
-               · cab       · brand red
-             Strokes use round line caps + low opacity so they read
-             as hand-painted marks, never as a panel fill. */
+             monoline outline. When vans are assigned for the
+             visible week the cargo + cab fill with solid color:
+               · cargo box · dark blue (#1E40AF)
+               · cab       · brand red (#C42B1C)
+             Outline stroke flips to white inside the filled
+             panels so the body lines stay readable. */
           #view-schedule #rr-sched-vans-h .rr-van-svg{
             color:var(--text-subtle);
             transition:color var(--t-fast,150ms);
@@ -12975,21 +12962,17 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule #rr-sched-vans-h:hover .rr-van-svg{
             color:var(--text);
           }
-          #view-schedule #rr-sched-vans-h .rr-van-paint-cargo,
-          #view-schedule #rr-sched-vans-h .rr-van-paint-cab{
-            transition:opacity var(--t-fast,150ms);
+          #view-schedule #rr-sched-vans-h .rr-van-cargo,
+          #view-schedule #rr-sched-vans-h .rr-van-cab{
+            transition:fill var(--t-fast,150ms), stroke var(--t-fast,150ms);
           }
-          #view-schedule #rr-sched-vans-h[data-rr-assigned="1"] .rr-van-paint-cargo{
-            stroke:#1E40AF;   /* dark blue */
-            opacity:.78;
+          #view-schedule #rr-sched-vans-h[data-rr-assigned="1"] .rr-van-cargo{
+            fill:#1E40AF;
+            stroke:#1E40AF;
           }
-          #view-schedule #rr-sched-vans-h[data-rr-assigned="1"] .rr-van-paint-cab{
-            stroke:#C42B1C;   /* brand red */
-            opacity:.78;
-          }
-          #view-schedule #rr-sched-vans-h[data-rr-assigned="1"]:hover .rr-van-paint-cargo,
-          #view-schedule #rr-sched-vans-h[data-rr-assigned="1"]:hover .rr-van-paint-cab{
-            opacity:1;
+          #view-schedule #rr-sched-vans-h[data-rr-assigned="1"] .rr-van-cab{
+            fill:#C42B1C;
+            stroke:#C42B1C;
           }
 
           /* WORKFLOW accent — calmer treatment per operator. Soft
