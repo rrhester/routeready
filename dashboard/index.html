@@ -14532,17 +14532,18 @@ body.rr-cmdk-open{ overflow:hidden }
              corner — calm fade, not flashy. Future milestones
              (trainer recognition, top performer, work milestone)
              can plug in by adding a new modifier class below. */
-          /* Floating recognition pill · sits on the right side of
-             the driver row label. On row hover a sibling "Send
-             note" pill slides DOWN from above the pill. Calm,
-             premium tone — pale tint background, deep ink,
-             hairline border. */
-          #view-schedule .cal-row-label{position:relative}
+          /* Floating recognition pill · sits on its own line below
+             the driver name + meta inside the row label so it
+             never bleeds into the schedule grid. On row hover the
+             "Send note" pill pops above it. */
+          #view-schedule .cal-row-label{position:relative;overflow:hidden}
+          #view-schedule .cal-row-label-body{min-width:0;flex:1 1 auto}
           #view-schedule .cal-row-milestone{
-            margin-left:auto;
+            margin-top:4px;
             display:inline-flex;align-items:center;gap:6px;
             flex:0 0 auto;
             position:relative;
+            max-width:100%;
           }
           #view-schedule .cal-row-milestone-pill{
             display:inline-flex;align-items:center;justify-content:center;
