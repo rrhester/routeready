@@ -23910,6 +23910,7 @@ window.schedSub = function (sub) {
   if (sub === "templates") loadScheduleTemplates();
   if (sub === "today")     renderSchedTodayView();
   if (sub === "vans")      renderSchedVanAssignments();
+  if (sub === "calendar" && typeof renderFleetCalendar === "function") renderFleetCalendar();
   // Restore the default "Schedule / Week of ..." title block when
   // leaving Today view — renderSchedTodayView overwrites it.
   if (sub !== "today") _resetSchedHeading();
@@ -23928,7 +23929,7 @@ window.schedSub = function (sub) {
     const dd = document.getElementById("rr-sched-req-drilldown");
     if (dd) { dd.hidden = true; dd.innerHTML = ""; dd.dataset.rrOpenKpi = ""; }
   }
-  if (sub !== "today" && sub !== "requests") {
+  if (sub !== "today" && sub !== "requests" && sub !== "calendar") {
     const kpisHost = document.getElementById("rr-sched-kpis");
     if (kpisHost) kpisHost.innerHTML = "";
     if (typeof renderScheduleWeek === "function") {
@@ -23936,6 +23937,236 @@ window.schedSub = function (sub) {
     }
   }
 };
+
+// ─── Fleet calendar · month grid of free-form scheduled events ──────
+// Opened via the Calendar tab in the schedule ribbon. Events persist
+// in fleet_calendar_events (migration 0306), DSP-scoped and shared.
+let _fleetCalMonth  = null;   // Date — the 1st of the displayed month
+let _fleetCalEvents = [];     // last-loaded events for the visible grid
+let _fleetCalBound  = false;  // host click delegation installed once
+
+function renderFleetCalendar() {
+  const host = document.getElementById("rr-fleet-cal-host");
+  if (!host) return;
+  if (!_fleetCalMonth) {
+    const n = new Date();
+    _fleetCalMonth = new Date(n.getFullYear(), n.getMonth(), 1);
+  }
+  _paintFleetCalendar();
+}
+window.renderFleetCalendar = renderFleetCalendar;
+
+// "08:30" → "8:30a" · compact 12-hour label for the event chip.
+function _fcTimeLabel(hhmm) {
+  if (!hhmm) return "";
+  const [h, mn] = String(hhmm).split(":").map(Number);
+  if (Number.isNaN(h)) return "";
+  const ap  = h < 12 ? "a" : "p";
+  const h12 = (h % 12) || 12;
+  return mn ? `${h12}:${String(mn).padStart(2, "0")}${ap}` : `${h12}${ap}`;
+}
+
+async function _paintFleetCalendar() {
+  const host = document.getElementById("rr-fleet-cal-host");
+  if (!host) return;
+  const month = _fleetCalMonth;
+  const y = month.getFullYear(), m = month.getMonth();
+  const monthLabel = month.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  // 6-week grid starting on the Sunday on/before the 1st.
+  const first = new Date(y, m, 1);
+  const gridStart = new Date(y, m, 1 - first.getDay());
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + i);
+    cells.push(d);
+  }
+
+  // Events across the visible range.
+  let events = [];
+  try {
+    const { data, error } = await sb.rpc("fleet_calendar_events_list", {
+      p_from: fmtIsoDate(cells[0]),
+      p_to:   fmtIsoDate(cells[41]),
+    });
+    if (error) throw error;
+    events = Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.warn("fleet_calendar_events_list:", e);
+    host.innerHTML = `<div class="rr-fc-err">Couldn't load the calendar · ${escapeHtml(e?.message || String(e))}</div>`;
+    return;
+  }
+  _fleetCalEvents = events;
+  const byDate = new Map();
+  for (const ev of events) {
+    const list = byDate.get(ev.event_date) || [];
+    list.push(ev);
+    byDate.set(ev.event_date, list);
+  }
+
+  const todayIso = fmtIsoDate(new Date());
+  const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const cellHtml = cells.map(d => {
+    const iso = fmtIsoDate(d);
+    const cls = ["rr-fc-cell"];
+    if (d.getMonth() !== m)  cls.push("is-other-month");
+    if (iso === todayIso)    cls.push("is-today");
+    const evs = (byDate.get(iso) || []).map(ev => {
+      const t = ev.start_time
+        ? `<span class="rr-fc-event-time">${escapeHtml(_fcTimeLabel(ev.start_time))}</span>`
+        : "";
+      return `<button type="button" class="rr-fc-event" data-fc-event="${escapeHtml(ev.id)}">`
+        + `${t}<span class="rr-fc-event-title">${escapeHtml(ev.title)}</span></button>`;
+    }).join("");
+    return `<div class="${cls.join(" ")}" data-fc-date="${iso}">`
+      + `<span class="rr-fc-daynum">${d.getDate()}</span>${evs}</div>`;
+  }).join("");
+
+  host.innerHTML = `
+    <div class="rr-fc-bar">
+      <div class="rr-fc-title">${escapeHtml(monthLabel)}</div>
+      <div class="rr-fc-monthnav">
+        <button type="button" class="rr-fc-navbtn" data-fc-nav="prev" aria-label="Previous month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <button type="button" class="rr-fc-navbtn rr-fc-today" data-fc-nav="today">Today</button>
+        <button type="button" class="rr-fc-navbtn" data-fc-nav="next" aria-label="Next month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+      </div>
+      <div class="rr-fc-spacer"></div>
+      <button type="button" class="rr-fc-add" data-fc-nav="add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add event</button>
+    </div>
+    <div class="rr-fc-grid">
+      ${weekdays.map(w => `<div class="rr-fc-weekday">${w}</div>`).join("")}
+      ${cellHtml}
+    </div>`;
+
+  if (!_fleetCalBound) {
+    _fleetCalBound = true;
+    host.addEventListener("click", _onFleetCalClick);
+  }
+}
+
+function _onFleetCalClick(e) {
+  const nav = e.target.closest("[data-fc-nav]");
+  if (nav) {
+    const a = nav.getAttribute("data-fc-nav");
+    if (a === "prev")  _fleetCalMonth = new Date(_fleetCalMonth.getFullYear(), _fleetCalMonth.getMonth() - 1, 1);
+    if (a === "next")  _fleetCalMonth = new Date(_fleetCalMonth.getFullYear(), _fleetCalMonth.getMonth() + 1, 1);
+    if (a === "today") { const n = new Date(); _fleetCalMonth = new Date(n.getFullYear(), n.getMonth(), 1); }
+    if (a === "add")   { _openFleetCalEventModal(null, fmtIsoDate(new Date())); return; }
+    _paintFleetCalendar();
+    return;
+  }
+  const evBtn = e.target.closest("[data-fc-event]");
+  if (evBtn) {
+    e.stopPropagation();
+    _openFleetCalEventModal(evBtn.getAttribute("data-fc-event"), null);
+    return;
+  }
+  const cell = e.target.closest("[data-fc-date]");
+  if (cell) _openFleetCalEventModal(null, cell.getAttribute("data-fc-date"));
+}
+
+// Add / edit / delete one event. eventId null → new event on dateIso.
+function _openFleetCalEventModal(eventId, dateIso) {
+  const existing = eventId ? (_fleetCalEvents.find(e => e.id === eventId) || null) : null;
+  const ev = existing || {
+    id: null, title: "", event_date: dateIso || fmtIsoDate(new Date()),
+    start_time: "", end_time: "", notes: "",
+  };
+
+  const old = document.getElementById("rr-fc-event-modal");
+  if (old) old.remove();
+  const m = document.createElement("div");
+  m.id = "rr-fc-event-modal";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.innerHTML = `
+    <div role="dialog" aria-label="Calendar event" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:420px;overflow:hidden">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);font-size:var(--fs-lg);font-weight:600">${existing ? "Edit event" : "New event"}</div>
+      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5)">
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:var(--fs-sm);font-weight:600">Title</span>
+          <input type="text" id="rr-fc-f-title" class="form-input" maxlength="120" placeholder="e.g. Van 12 maintenance" value="${escapeHtml(ev.title)}" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:var(--fs-sm);font-weight:600">Date</span>
+          <input type="date" id="rr-fc-f-date" class="form-input" value="${escapeHtml(ev.event_date)}" />
+        </label>
+        <div style="display:flex;gap:var(--s-3)">
+          <label style="flex:1;display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:var(--fs-sm);font-weight:600">Start</span>
+            <input type="time" id="rr-fc-f-start" class="form-input" value="${escapeHtml(ev.start_time || "")}" />
+          </label>
+          <label style="flex:1;display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:var(--fs-sm);font-weight:600">End</span>
+            <input type="time" id="rr-fc-f-end" class="form-input" value="${escapeHtml(ev.end_time || "")}" />
+          </label>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:var(--fs-sm);font-weight:600">Notes</span>
+          <textarea id="rr-fc-f-notes" class="form-input" rows="3" maxlength="500" placeholder="Optional">${escapeHtml(ev.notes || "")}</textarea>
+        </label>
+        <div id="rr-fc-f-status" style="font-size:var(--fs-xs);color:var(--sch-red, #C42B1C);min-height:14px"></div>
+      </div>
+      <div style="padding:var(--s-3-5) var(--s-5);border-top:1px solid var(--border);display:flex;align-items:center;gap:var(--s-3)">
+        ${existing ? `<button type="button" class="btn btn-sm" id="rr-fc-delete" style="color:var(--sch-red,#C42B1C)">Delete</button>` : ""}
+        <div style="flex:1"></div>
+        <button type="button" class="btn btn-sm" id="rr-fc-cancel">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" id="rr-fc-save">${existing ? "Save" : "Add event"}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
+  document.addEventListener("keydown", onKey);
+  m.addEventListener("click", (e) => { if (e.target === m) close(); });
+  m.querySelector("#rr-fc-cancel").addEventListener("click", close);
+  const titleEl = m.querySelector("#rr-fc-f-title");
+  titleEl.focus();
+
+  m.querySelector("#rr-fc-save").addEventListener("click", async () => {
+    const status = m.querySelector("#rr-fc-f-status");
+    const title  = titleEl.value.trim();
+    const date   = m.querySelector("#rr-fc-f-date").value;
+    const start  = m.querySelector("#rr-fc-f-start").value || null;
+    const end    = m.querySelector("#rr-fc-f-end").value || null;
+    const notes  = m.querySelector("#rr-fc-f-notes").value.trim() || null;
+    if (!title) { status.textContent = "Add a title.";  return; }
+    if (!date)  { status.textContent = "Pick a date.";  return; }
+    const saveBtn = m.querySelector("#rr-fc-save");
+    saveBtn.disabled = true;
+    try {
+      const { error } = await sb.rpc("fleet_calendar_event_upsert", {
+        p_id: ev.id, p_title: title, p_event_date: date,
+        p_start_time: start, p_end_time: end, p_notes: notes,
+      });
+      if (error) throw error;
+      close();
+      _paintFleetCalendar();
+    } catch (err) {
+      console.warn("fleet_calendar_event_upsert:", err);
+      status.textContent = "Couldn't save · " + (err?.message || "try again");
+      saveBtn.disabled = false;
+    }
+  });
+
+  const delBtn = m.querySelector("#rr-fc-delete");
+  if (delBtn) delBtn.addEventListener("click", async () => {
+    if (!confirm("Delete this event?")) return;
+    delBtn.disabled = true;
+    try {
+      const { error } = await sb.rpc("fleet_calendar_event_delete", { p_id: ev.id });
+      if (error) throw error;
+      close();
+      _paintFleetCalendar();
+    } catch (err) {
+      console.warn("fleet_calendar_event_delete:", err);
+      m.querySelector("#rr-fc-f-status").textContent = "Couldn't delete · " + (err?.message || "try again");
+      delBtn.disabled = false;
+    }
+  });
+}
 
 // Reset the page-title / sub-line back to "Schedule" and the
 // visible week range. renderScheduleWeek owns the week-range

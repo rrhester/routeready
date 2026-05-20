@@ -11862,6 +11862,10 @@ body.rr-cmdk-open{ overflow:hidden }
                 <span>Today view</span>
                 <span class="sched-today-indicator" id="rr-sched-today-att-badge" style="display:none" aria-label="Attendance tasks need attention" title="Attendance tasks need attention"></span>
               </button>
+              <button class="subnav-item" data-sub="calendar" data-rr-tile="calendar" onclick="schedSub('calendar')" title="Fleet calendar — schedule events on any day">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.1" fill="currentColor" stroke="none"/></svg>
+                <span>Calendar</span>
+              </button>
             </div>
           </div>
           <!-- PLANNING group · Staff, Templates, Requests. -->
@@ -16340,6 +16344,125 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="rr-loading">Loading van assignments…</div>
           </div>
         </div><!-- /sched-sub-vans -->
+
+        <!-- FLEET CALENDAR · month grid for free-form scheduled events.
+             Populated by renderFleetCalendar() in live.js; events are
+             DSP-scoped and persist via the fleet_calendar_events table
+             (migration 0306). -->
+        <div class="sched-subview" id="sched-sub-calendar" style="display:none">
+          <style>
+            #view-schedule .rr-fleet-cal{
+              background:var(--sch-surface);
+              border:1px solid var(--sch-line);
+              border-radius:var(--sch-radius-lg);
+              overflow:hidden;
+            }
+            #view-schedule .rr-fc-bar{
+              display:flex;align-items:center;gap:12px;
+              padding:14px 16px;
+              border-bottom:1px solid var(--sch-line);
+              background:var(--sch-surface-2);
+            }
+            #view-schedule .rr-fc-title{
+              font-size:20px;font-weight:600;letter-spacing:-.01em;
+              color:var(--text);min-width:170px;
+            }
+            #view-schedule .rr-fc-monthnav{
+              display:inline-flex;align-items:stretch;
+              border:1px solid var(--sch-line);border-radius:var(--sch-radius);
+              overflow:hidden;
+            }
+            #view-schedule .rr-fc-navbtn{
+              appearance:none;background:transparent;border:0;cursor:pointer;
+              font:inherit;color:var(--text-muted);
+              display:inline-flex;align-items:center;justify-content:center;
+              height:32px;padding:0 10px;
+              transition:background var(--t-fast),color var(--t-fast);
+            }
+            #view-schedule .rr-fc-navbtn:hover{background:var(--sch-hover);color:var(--text)}
+            #view-schedule .rr-fc-navbtn:active{background:var(--sch-pressed)}
+            #view-schedule .rr-fc-navbtn.rr-fc-today{
+              padding:0 12px;font-size:var(--fs-sm);font-weight:500;
+              color:var(--sch-blue);
+              border-left:1px solid var(--sch-line);
+              border-right:1px solid var(--sch-line);
+            }
+            #view-schedule .rr-fc-navbtn svg{width:15px;height:15px}
+            #view-schedule .rr-fc-spacer{flex:1}
+            #view-schedule .rr-fc-add{
+              appearance:none;cursor:pointer;font:inherit;
+              display:inline-flex;align-items:center;gap:6px;
+              height:32px;padding:0 14px;border-radius:var(--sch-radius);
+              background:var(--sch-blue);color:#fff;border:1px solid transparent;
+              font-size:var(--fs-sm);font-weight:600;
+              transition:background var(--t-fast);
+            }
+            #view-schedule .rr-fc-add:hover{background:var(--sch-blue-strong)}
+            #view-schedule .rr-fc-add svg{width:14px;height:14px}
+            #view-schedule .rr-fc-grid{
+              display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
+            }
+            #view-schedule .rr-fc-weekday{
+              padding:9px 10px;text-align:left;
+              font-size:11px;font-weight:600;letter-spacing:.05em;
+              text-transform:uppercase;color:var(--text-subtle);
+              background:var(--sch-surface-2);
+              border-bottom:1px solid var(--sch-line);
+              border-right:1px solid var(--sch-line-subtle);
+            }
+            #view-schedule .rr-fc-weekday:last-child{border-right:0}
+            #view-schedule .rr-fc-cell{
+              min-height:108px;
+              padding:6px 7px 8px;
+              border-right:1px solid var(--sch-line-subtle);
+              border-bottom:1px solid var(--sch-line-subtle);
+              background:var(--sch-surface);
+              cursor:pointer;
+              display:flex;flex-direction:column;gap:3px;
+              transition:background var(--t-fast);
+            }
+            #view-schedule .rr-fc-cell:nth-child(7n){border-right:0}
+            #view-schedule .rr-fc-cell:hover{background:var(--sch-blue-softer)}
+            #view-schedule .rr-fc-cell.is-other-month{background:var(--sch-surface-2)}
+            #view-schedule .rr-fc-cell.is-other-month .rr-fc-daynum{color:var(--text-disabled)}
+            #view-schedule .rr-fc-cell.is-today{background:var(--sch-blue-tint)}
+            #view-schedule .rr-fc-daynum{
+              font-size:12px;font-weight:600;color:var(--text-muted);
+              align-self:flex-start;
+              min-width:20px;height:20px;
+              display:inline-flex;align-items:center;justify-content:center;
+              border-radius:50%;
+            }
+            #view-schedule .rr-fc-cell.is-today .rr-fc-daynum{
+              background:var(--sch-blue);color:#fff;
+            }
+            #view-schedule .rr-fc-event{
+              appearance:none;text-align:left;cursor:pointer;
+              font:inherit;width:100%;
+              display:flex;flex-direction:column;gap:0;
+              padding:3px 6px;border-radius:4px;
+              background:var(--sch-blue-soft);
+              border:0;border-left:3px solid var(--sch-blue);
+              color:var(--sch-blue-text);
+              transition:background var(--t-fast);
+            }
+            #view-schedule .rr-fc-event:hover{background:rgba(37,99,235,.16)}
+            #view-schedule .rr-fc-event-title{
+              font-size:11px;font-weight:600;line-height:1.3;
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+            }
+            #view-schedule .rr-fc-event-time{
+              font-size:10px;font-weight:500;color:var(--text-muted);
+              font-variant-numeric:tabular-nums;
+            }
+            #view-schedule .rr-fc-err{
+              padding:22px 16px;font-size:var(--fs-sm);color:var(--sch-red);
+            }
+          </style>
+          <div id="rr-fleet-cal-host" class="rr-fleet-cal">
+            <div class="rr-loading">Loading calendar…</div>
+          </div>
+        </div><!-- /sched-sub-calendar -->
 
         <!-- VAN ↔ DRIVER CHAIN EDITOR · the editable Fleet Assignment
              tool (Van · Status · Primary · Backup · Notes). Reached
