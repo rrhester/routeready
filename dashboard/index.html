@@ -16385,7 +16385,73 @@ body.rr-cmdk-open{ overflow:hidden }
             }
             @media (max-width:1180px){
               .rr-fc-shell{grid-template-columns:1fr}
-              .rr-fc-rail-space{display:none}
+            }
+            /* ── Service providers rail ─────────────────────────────
+               Vendors the operator can drag onto a day cell to book
+               service. Reads like the schedule's Open shifts box. */
+            .rr-fc-prov{
+              background:var(--sch-surface);
+              border:1px solid var(--sch-line);
+              border-radius:var(--sch-radius-lg);
+              overflow:hidden;
+            }
+            .rr-fc-prov-head{
+              display:flex;align-items:center;gap:8px;
+              padding:13px 14px;
+              border-bottom:1px solid var(--sch-line);
+              background:var(--sch-surface-2);
+            }
+            .rr-fc-prov-title{
+              font-size:14px;font-weight:600;color:var(--text);flex:1;
+            }
+            .rr-fc-prov-add{
+              appearance:none;cursor:pointer;font:inherit;
+              display:inline-flex;align-items:center;gap:4px;
+              height:28px;padding:0 10px;border-radius:var(--sch-radius);
+              background:var(--sch-blue);color:#fff;border:1px solid transparent;
+              font-size:12px;font-weight:600;
+              transition:background var(--t-fast);
+            }
+            .rr-fc-prov-add:hover{background:var(--sch-blue-strong)}
+            .rr-fc-prov-hint{
+              padding:9px 14px;font-size:11px;color:var(--text-subtle);
+              border-bottom:1px solid var(--sch-line-subtle);
+            }
+            .rr-fc-prov-list{
+              display:flex;flex-direction:column;gap:7px;
+              padding:11px;max-height:520px;overflow-y:auto;
+            }
+            .rr-fc-prov-chip{
+              appearance:none;text-align:left;cursor:grab;font:inherit;
+              display:flex;flex-direction:column;gap:1px;
+              padding:8px 10px;border-radius:var(--sch-radius);
+              background:var(--sch-blue-soft);
+              border:1px solid transparent;border-left:3px solid var(--sch-blue);
+              transition:background var(--t-fast),box-shadow var(--t-fast);
+            }
+            .rr-fc-prov-chip:hover{background:rgba(37,99,235,.14)}
+            .rr-fc-prov-chip:active{cursor:grabbing}
+            .rr-fc-prov-chip.rr-fc-dragging{opacity:.45}
+            .rr-fc-prov-chip-name{
+              font-size:12px;font-weight:600;color:var(--sch-blue-text);
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+            }
+            .rr-fc-prov-chip-kind{
+              font-size:10px;font-weight:500;color:var(--text-muted);
+              text-transform:uppercase;letter-spacing:.04em;
+            }
+            .rr-fc-prov-empty{
+              padding:18px 14px;text-align:center;
+              font-size:12px;color:var(--text-subtle);
+            }
+            /* Day cell lit up while a provider is dragged over it. */
+            .rr-fc-cell.rr-fc-drop{
+              background:var(--sch-blue-soft);
+              box-shadow:inset 0 0 0 2px var(--sch-blue);
+            }
+            .rr-fc-event-vendor{
+              font-size:10px;font-weight:500;color:var(--sch-blue-text);
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
             }
             .rr-fc-bar{
               display:flex;align-items:center;gap:12px;
@@ -16509,7 +16575,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div id="rr-fleet-cal-host" class="rr-fleet-cal">
               <div class="rr-loading">Loading calendar…</div>
             </div>
-            <div class="rr-fc-rail-space" aria-hidden="true"></div>
+            <div class="rr-fc-rail-space" id="rr-fc-providers"></div>
           </div>
         </div><!-- /sched-sub-calendar -->
 
@@ -17704,9 +17770,9 @@ body.rr-cmdk-open{ overflow:hidden }
               <button class="btn btn-ghost btn-icon" id="rr-fleet-export" title="Export CSV" aria-label="Export">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               </button>
-              <button class="btn btn-primary" id="rr-fleet-add">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add van
+              <button type="button" class="fl-ribbon-btn" id="rr-fleet-add" aria-label="Add van" title="Add van">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="7" width="13" height="10" rx="1.5"/><path d="M14 10h3.6l3 3.2V17H14z"/><circle cx="6" cy="18.5" r="2.2"/><circle cx="17" cy="18.5" r="2.2"/><line x1="7.5" y1="9.6" x2="7.5" y2="14.4"/><line x1="5.1" y1="12" x2="9.9" y2="12"/></svg>
+                <span>Add van</span>
               </button>
             </div>
           </div>
@@ -18246,18 +18312,15 @@ body.rr-cmdk-open{ overflow:hidden }
           .fl-exec-empty p{margin:0;font-size:var(--fs-md);max-width:380px;margin-inline:auto}
         </style>
 
-        <!-- MY VEHICLES sub-tab — roster -->
-        <div class="fl-sub active" id="fl-sub-vehicles">
-
         <!-- Fleet Execution KPI strip · FEM (Amazon's 14-day rolling
              deploy compliance) + VORR (branded-fleet readiness rate).
              Painted by _flRenderExecKpis() in live.js from the
              fleet_execution_summary RPC (migration 0301).  Cards reuse
              the dashboard's stock .kpi-card pattern and open a
              slide-over drill-down on click — at-risk vans for FEM,
-             grounded vans for VORR. -->
-        <!-- Slim KPI strip · joined pills, matching the schedule
-             page's KPI bar. Populated by _flRenderExecKpis(). -->
+             grounded vans for VORR.
+             Lives outside the sub-tabs so the slim KPI board shows on
+             every Fleet view — Vehicles, Issues and Fleet calendar. -->
         <div class="fl-kpi-pills" id="rr-fleet-exec-strip" hidden>
           <div class="fl-kpi-pill" id="rr-fem-card" role="button" tabindex="0"
                aria-label="Open Fleet Execution Metric drill-down">
@@ -18277,6 +18340,8 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
+        <!-- MY VEHICLES sub-tab — roster -->
+        <div class="fl-sub active" id="fl-sub-vehicles">
         <div class="table-wrap">
           <!-- Search + filters live in the table card's header. -->
           <div class="fl-roster-bar">
