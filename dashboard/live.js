@@ -37212,7 +37212,9 @@ function _flOwnershipLabel(o) {
 // ─── Sub-tab routing ─────────────────────────────────────────────────
 window.fleetSub = function (sub) {
   _fleetSub = sub;
-  document.querySelectorAll("#view-fleet .subnav-item").forEach((b) => {
+  // The Vehicles / Issues views are switched from the icon ribbon
+  // (the old tab bar was removed) — toggle the active ribbon button.
+  document.querySelectorAll("#view-fleet .fl-ribbon-view").forEach((b) => {
     b.classList.toggle("active", b.getAttribute("data-sub") === sub);
   });
   document.querySelectorAll("#view-fleet .fl-sub").forEach((s) => s.classList.remove("active"));
