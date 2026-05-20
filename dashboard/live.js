@@ -24103,7 +24103,7 @@ async function _paintFleetCalendar() {
         <button type="button" class="rr-fc-navbtn" data-fc-nav="next" aria-label="Next week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
       </div>
       <div class="rr-fc-spacer"></div>
-      <button type="button" class="rr-fc-add" data-fc-nav="add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add event</button>
+      <span class="rr-fc-bar-hint">Click a day to add an event</span>
     </div>
     <div class="rr-fc-grid">${head}${rows}</div>`;
 
@@ -24146,8 +24146,6 @@ function _onFleetCalDrop(e) {
 
 // Service-providers rail · vendors the operator drags onto the grid.
 async function _paintFleetProviders() {
-  const host = document.getElementById("rr-fc-providers");
-  if (!host) return;
   try {
     const { data, error } = await sb.rpc("vendors_for_dsp");
     if (error) throw error;
@@ -24155,6 +24153,15 @@ async function _paintFleetProviders() {
   } catch (e) {
     console.warn("fleet calendar providers load:", e);
   }
+  _renderFleetProviders();
+}
+window._paintFleetProviders = _paintFleetProviders;
+
+// Paint the providers rail from the in-memory _fleetCalProviders list
+// (no fetch) — used for instant feedback after adding a provider.
+function _renderFleetProviders() {
+  const host = document.getElementById("rr-fc-providers");
+  if (!host) return;
   const chips = _fleetCalProviders.length
     ? _fleetCalProviders.map(v =>
         `<button type="button" class="rr-fc-prov-chip" draggable="true" data-fc-provider="${escapeHtml(v.id)}" title="Drag onto a day to schedule service">
@@ -24194,7 +24201,6 @@ async function _paintFleetProviders() {
     });
   }
 }
-window._paintFleetProviders = _paintFleetProviders;
 
 // Add a service provider (a vendor) from the calendar rail.
 function _openFleetProviderModal() {
@@ -24243,7 +24249,7 @@ function _openFleetProviderModal() {
     const btn = m.querySelector("#rr-fc-prov-save");
     btn.disabled = true;
     try {
-      const { error } = await sb.rpc("vendor_save", {
+      const { data, error } = await sb.rpc("vendor_save", {
         p_id: null,
         p_name: name,
         p_kind: m.querySelector("#rr-fc-prov-kind").value,
@@ -24251,7 +24257,15 @@ function _openFleetProviderModal() {
         p_contact_email: null,
       });
       if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
       close();
+      // Show the new provider immediately (from the insert's return
+      // value), then reconcile the rail from the server.
+      if (row && row.id && !_fleetCalProviders.some(v => v.id === row.id)) {
+        _fleetCalProviders.unshift(row);
+        _renderFleetProviders();
+      }
+      if (typeof toast === "function") toast("Service provider added");
       _paintFleetProviders();
     } catch (err) {
       console.warn("vendor_save:", err);
