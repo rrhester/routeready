@@ -24059,14 +24059,21 @@ async function _paintFleetCalendar() {
   _fleetCalVans   = vans;
   _fleetCalEvents = events;
 
-  // Index events by van + date.
+  // Index events by van + date. Multi-day events (end_date beyond
+  // event_date) land on every day they span within the visible week.
+  const dayIsos = days.map(d => fmtIsoDate(d));
   const byKey = new Map();
   for (const ev of events) {
     if (!ev.vehicle_id) continue;
-    const k = ev.vehicle_id + "|" + ev.event_date;
-    let list = byKey.get(k);
-    if (!list) { list = []; byKey.set(k, list); }
-    list.push(ev);
+    const evStart = ev.event_date;
+    const evEnd   = ev.end_date || ev.event_date;
+    for (const iso of dayIsos) {
+      if (iso < evStart || iso > evEnd) continue;
+      const k = ev.vehicle_id + "|" + iso;
+      let list = byKey.get(k);
+      if (!list) { list = []; byKey.set(k, list); }
+      list.push(ev);
+    }
   }
 
   const todayIso = fmtIsoDate(new Date());
@@ -24351,6 +24358,7 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId) {
     id: null,
     title: dropVendor ? `Service — ${dropVendor.name}` : "",
     event_date: dateIso || fmtIsoDate(new Date()),
+    end_date: "",
     vehicle_id: vanId || (_fleetCalVans[0] && _fleetCalVans[0].id) || "",
     vendor_id: vendorId || "",
     start_time: "", end_time: "", notes: "",
@@ -24389,10 +24397,16 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId) {
           <span style="font-size:var(--fs-sm);font-weight:600">Service provider</span>
           <select id="rr-fc-f-vendor" class="form-input">${vendorOpts}</select>
         </label>
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:var(--fs-sm);font-weight:600">Date</span>
-          <input type="date" id="rr-fc-f-date" class="form-input" value="${escapeHtml(ev.event_date)}" />
-        </label>
+        <div style="display:flex;gap:var(--s-3)">
+          <label style="flex:1;display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:var(--fs-sm);font-weight:600">Start date</span>
+            <input type="date" id="rr-fc-f-date" class="form-input" value="${escapeHtml(ev.event_date)}" />
+          </label>
+          <label style="flex:1;display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:var(--fs-sm);font-weight:600">End date <span style="color:var(--text-subtle);font-weight:500">(optional)</span></span>
+            <input type="date" id="rr-fc-f-enddate" class="form-input" value="${escapeHtml(ev.end_date && ev.end_date !== ev.event_date ? ev.end_date : "")}" />
+          </label>
+        </div>
         <div style="display:flex;gap:var(--s-3)">
           <label style="flex:1;display:flex;flex-direction:column;gap:4px">
             <span style="font-size:var(--fs-sm);font-weight:600">Start</span>
@@ -24431,19 +24445,21 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId) {
     const title  = titleEl.value.trim();
     const van    = m.querySelector("#rr-fc-f-van").value || null;
     const vendor = m.querySelector("#rr-fc-f-vendor").value || null;
-    const date   = m.querySelector("#rr-fc-f-date").value;
+    const date    = m.querySelector("#rr-fc-f-date").value;
+    const endDate = m.querySelector("#rr-fc-f-enddate").value || null;
     const start  = m.querySelector("#rr-fc-f-start").value || null;
     const end    = m.querySelector("#rr-fc-f-end").value || null;
     const notes  = m.querySelector("#rr-fc-f-notes").value.trim() || null;
     if (!title) { status.textContent = "Add a title."; return; }
     if (!van)   { status.textContent = "Pick a van.";  return; }
-    if (!date)  { status.textContent = "Pick a date."; return; }
+    if (!date)  { status.textContent = "Pick a start date."; return; }
+    if (endDate && endDate < date) { status.textContent = "End date can't be before the start date."; return; }
     const saveBtn = m.querySelector("#rr-fc-save");
     saveBtn.disabled = true;
     try {
       const { error } = await sb.rpc("fleet_calendar_event_upsert", {
-        p_id: ev.id, p_title: title, p_event_date: date, p_vehicle_id: van,
-        p_vendor_id: vendor, p_start_time: start, p_end_time: end, p_notes: notes,
+        p_id: ev.id, p_title: title, p_event_date: date, p_end_date: endDate,
+        p_vehicle_id: van, p_vendor_id: vendor, p_start_time: start, p_end_time: end, p_notes: notes,
       });
       if (error) throw error;
       close();
@@ -25054,7 +25070,11 @@ async function _rrDecorateChainEditorHeatmap(body, usageByVan, todayIso, drivers
       const reason = ev.vendor_name
         ? `${ev.title || "Service"} — ${ev.vendor_name}`
         : (ev.title || "Scheduled service");
-      if (!m.has(ev.event_date)) m.set(ev.event_date, reason);
+      // Mark every future day the event spans (multi-day events).
+      const evStart = ev.event_date, evEnd = ev.end_date || ev.event_date;
+      for (const iso of futureDates) {
+        if (iso >= evStart && iso <= evEnd && !m.has(iso)) m.set(iso, reason);
+      }
     }
   } catch (e) {
     console.warn("utilization/readiness future data:", e);
