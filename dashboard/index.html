@@ -12421,37 +12421,23 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
             font-size:var(--fs-sm);
           }
-          /* Rule violations · pops out as a flyover drawer anchored
-             to the Violations KPI pill — same overlay behaviour as
-             the Smart Fill / Targets "Rules ⌄" popovers, so it never
-             pushes the schedule grid down. */
+          /* Rule violations · pops out as a flyover drawer, JS-
+             anchored just under the Violations KPI pill. It's
+             position:fixed so no ancestor overflow — nor a rebuild
+             of the KPI strip — can clip or wipe it. Same overlay
+             spirit as the Smart Fill / Targets "Rules ⌄" popovers;
+             it never pushes the schedule grid down. */
           #view-schedule .rr-sched-violations-panel{
-            position:absolute;
-            top:calc(100% + 6px);left:0;
-            z-index:60;
+            position:fixed;
+            z-index:200;
             width:440px;max-width:calc(100vw - 48px);
             margin:0;
             background:#FFFFFF;
             border:1px solid rgba(15,23,42,.18);
             border-left:3px solid var(--sch-red, #C42B1C);
             border-radius:8px;
-            box-shadow:0 6px 18px rgba(15,23,42,.18);
+            box-shadow:0 10px 28px rgba(15,23,42,.20);
             overflow:hidden;
-          }
-          /* The KPI strip clips its corners with overflow:hidden;
-             switch to visible so the drawer can escape it, and round
-             the end pills directly so the corners still read clean. */
-          #view-schedule #rr-sched-kpis.sched-kpi-pills{overflow:visible}
-          #view-schedule #rr-sched-kpis .sched-kpi-pill:first-child{
-            border-top-left-radius:var(--sch-radius);
-            border-bottom-left-radius:var(--sch-radius);
-          }
-          #view-schedule #rr-sched-kpis .sched-kpi-pill:last-child{
-            border-top-right-radius:var(--sch-radius);
-            border-bottom-right-radius:var(--sch-radius);
-          }
-          #view-schedule #rr-sched-kpis .sched-kpi-pill[data-rr-kpi="violations"]{
-            position:relative;
           }
           #view-schedule .rr-sched-violations-head{
             display:flex;align-items:center;justify-content:space-between;
@@ -13035,6 +13021,21 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:none;
           }
           #view-schedule .sched-week-nav-btn svg{width:15px;height:15px}
+          /* Pressed state · instant tactile feedback the moment a
+             week-nav control is clicked. */
+          #view-schedule .sched-week-nav-btn:active,
+          #view-schedule .sched-week-nav-today:active,
+          #view-schedule .sched-week-nav-range:active{
+            background:var(--sch-pressed);
+          }
+          /* While the next week's data loads, the grid dims briefly
+             so the click reads as registered without waiting on the
+             settings + render round-trip. */
+          #view-schedule #sched-sub-week.rr-week-switching .cal-wrap{
+            opacity:.5;
+            pointer-events:none;
+            transition:opacity 120ms ease-out;
+          }
           #view-schedule .sched-week-nav-today{
             padding:0 12px;
             font-size:var(--fs-sm);font-weight:500;
@@ -14730,7 +14731,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .cal-grid{
             grid-template-columns:220px repeat(7,minmax(0,1fr));
-            border-bottom:1px solid var(--sch-line-subtle);
+            border-bottom:1px solid var(--sch-line);
           }
           #view-schedule .cal-grid.head{
             background:var(--sch-surface-2);
@@ -14747,7 +14748,7 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:11px;font-weight:600;
             color:var(--text-subtle);
             letter-spacing:.04em;text-transform:uppercase;
-            border-right:1px solid var(--sch-line-subtle);
+            border-right:1px solid var(--sch-line);
             position:relative;
           }
           #view-schedule .cal-cell-head:first-child{
@@ -14785,7 +14786,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .cal-row-label{
             padding:10px var(--s-4);
             display:flex;align-items:center;gap:10px;
-            border-right:1px solid var(--sch-line-subtle);
+            border-right:1px solid var(--sch-line);
             background:var(--sch-surface);
             position:sticky;left:0;z-index:1;
             transition:background var(--t-fast);
@@ -14815,7 +14816,7 @@ body.rr-cmdk-open{ overflow:hidden }
              row. Keep this in sync with the earlier .cal-cell rule
              above so the cascade doesn't silently undo the bump. */
           #view-schedule .cal-cell{
-            border-right:1px solid var(--sch-line-subtle);
+            border-right:1px solid var(--sch-line);
             padding:11px;min-height:78px;
             display:flex;align-items:stretch;justify-content:stretch;
             cursor:pointer;
@@ -14848,9 +14849,9 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:1;
             padding:5px 8px 5px 10px;
             border-radius:4px;
-            background:var(--sch-blue-soft);
+            background:var(--sch-blue-softer);
             border:0;
-            border-left:3px solid var(--sch-blue);
+            border-left:3px solid rgba(37,99,235,.5);
             display:flex;flex-direction:column;
             align-items:stretch;justify-content:center;
             gap:1px;

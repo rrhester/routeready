@@ -27717,6 +27717,10 @@ async function renderScheduleWeek() {
     // Violations when they actually flare — those keep red so the
     // operator sees the alarm. Everything at-rest reads neutral navy.
     const navy = "#1A1F47";
+    // Microsoft / Fluent 2 alert red — every KPI dot uses this one
+    // red when its metric is in an alert state, so the strip reads
+    // as consistent mission-status indicators.
+    const msRed = "#D13438";
     // Fleet-rotation pill — Fluent voice:
     //   Healthy → "Fleet rotation healthy" + forecast sub-line of
     //             the next van projected into Watch/Risk this week.
@@ -27761,11 +27765,10 @@ async function renderScheduleWeek() {
       ? "Every branded non-grounded van stays under the 14-day rotation rule this week"
       : `Click for details · ${femRisks.length} branded van${femRisks.length === 1 ? "" : "s"} projected to cross 13+ days unused`;
     kpis.innerHTML =
-      pill("coverage", navy, `${pct}% Coverage`, `${totalFilled} / ${totalNeeded} shifts`, false, "") +
-      pill("violations", violations.length > 0 ? "var(--red)" : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
-      pill("overtime", totalOvertimeHrs > 0 ? "var(--red)" : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
-      pill("open-shifts", navy, `${totalAllOpen} Open Shift${totalAllOpen === 1 ? "" : "s"}`, "", false, totalAllOpen === 0 ? "All shifts covered" : `${totalAllOpen} unfilled shift${totalAllOpen === 1 ? "" : "s"} this week`) +
-      pill("rotation",   rotationDotRed ? "var(--red)" : navy, rotationLabel, rotationSub, femRisks.length > 0, rotationTitle);
+      pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${totalNeeded} shifts`, false, pct < 100 ? `${Math.max(0, totalNeeded - totalFilled)} shift${(totalNeeded - totalFilled) === 1 ? "" : "s"} still uncovered this week` : "Every shift covered this week") +
+      pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
+      pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
+      pill("rotation",   rotationDotRed ? msRed : navy, rotationLabel, rotationSub, femRisks.length > 0, rotationTitle);
   }
   kpis.dataset.rrFemRisks    = JSON.stringify(femRisks);
   kpis.dataset.rrFemUpcoming = JSON.stringify(femUpcoming);
@@ -28303,10 +28306,19 @@ function bindSchedWeekNav() {
     const iso = fmtIsoDate(monday);
     if (iso === _schedStart) return;
     _schedStart = iso;
+    // Instant feedback — the settings + render round-trip takes a
+    // beat, so acknowledge the click synchronously: sync the nav
+    // buttons now and dim the grid so the operator sees the week
+    // change register immediately instead of staring at a stale
+    // grid until the async work lands.
+    _syncNavButtons();
+    const wk = document.getElementById("sched-sub-week");
+    wk?.classList.add("rr-week-switching");
     (async () => {
       try { await loadSchedulingSettings(); } catch (e) { console.warn("settings reload:", e); }
       try { await renderScheduleWeek();    } catch (e) { console.warn("render reload:", e); }
       _syncNavButtons();
+      wk?.classList.remove("rr-week-switching");
     })();
   };
   const _shiftWeek = (deltaWeeks) => _goToWeek(addDays(_currentMonday(), deltaWeeks * 7));
@@ -28446,8 +28458,30 @@ function bindSchedWeekNav() {
         </button>
       </header>
       <div class="rr-sched-violations-list">${list}</div>`;
-    // Anchor inside the pill so it positions like the Rules popovers.
-    pill.appendChild(el);
+    // Mount on the view root (a stable container that survives KPI
+    // strip rebuilds) and pin it just under the pill. position:fixed
+    // means viewport coords from getBoundingClientRect drop straight
+    // in — no offset-parent math, no ancestor clipping.
+    const host = document.getElementById("view-schedule") || document.body;
+    host.appendChild(el);
+    const place = () => {
+      const r = pill.getBoundingClientRect();
+      const w = el.offsetWidth || 440;
+      el.style.top  = (r.bottom + 6) + "px";
+      el.style.left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12)) + "px";
+    };
+    place();
+  });
+  // A scroll or resize dismisses the drawer rather than letting it
+  // drift away from the pill it's anchored to.
+  window.addEventListener("scroll", () => {
+    document.getElementById("rr-sched-violations-panel")?.remove();
+  }, true);
+  window.addEventListener("resize", () => {
+    document.getElementById("rr-sched-violations-panel")?.remove();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") document.getElementById("rr-sched-violations-panel")?.remove();
   });
   }
 
