@@ -37134,21 +37134,107 @@ function _flOpenOpStatMenu(triggerBtn) {
     if (!btn || btn.disabled) return;
     e.preventDefault();
     const next = btn.getAttribute("data-set");
-    let reason = null;
-    if (next === "grounded") {
-      reason = prompt(`Reason for grounding ${name || "this vehicle"}?  (optional)`);
-      if (reason === null) { _flCloseOpStatMenu(); return; }   // user hit Cancel
-    }
     _flCloseOpStatMenu();
+    // Grounding now goes through a category picker (warranty /
+    // preventive / body damage / other) which fires the RPC itself.
+    if (next === "grounded") {
+      _flOpenGroundingModal(id, name);
+      return;
+    }
     const { error } = await sb.rpc("vehicle_set_operational_status", {
       p_id: id,
       p_status: next,
-      p_reason: reason || null,
+      p_reason: null,
     });
     if (error) { toast("Couldn't update status: " + error.message, "danger"); return; }
-    toast(next === "grounded" ? "Vehicle grounded" : "Vehicle returned to service");
+    toast("Vehicle returned to service");
     if (typeof loadFleetView === "function") loadFleetView();
     else if (typeof _flLoadRoster === "function") _flLoadRoster();
+  });
+}
+
+// ── Grounding category picker ────────────────────────────────────────
+// Categories: warranty work (drives the RO clock + request), preventive
+// maintenance, body damage, other. Opened from the op-status menu when
+// the operator marks a van grounded.
+const _FL_GROUND_CATEGORIES = [
+  { key: "warranty",    label: "Warranty work",         hint: "Starts the RO request + repair clock." },
+  { key: "preventive",  label: "Preventive maintenance", hint: "Scheduled service — no RO clock." },
+  { key: "body_damage", label: "Body damage",            hint: "Collision or cosmetic — no RO clock." },
+  { key: "other",       label: "Other",                  hint: "Anything else keeping the van down." },
+];
+const _FL_GROUND_CAT_LABEL = {
+  warranty: "Warranty work", preventive: "Preventive maintenance",
+  body_damage: "Body damage", other: "Other",
+};
+
+function _flOpenGroundingModal(vehicleId, vehicleName) {
+  document.getElementById("rr-fl-ground-modal")?.remove();
+  let picked = "warranty";
+  const m = document.createElement("div");
+  m.id = "rr-fl-ground-modal";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  const cats = _FL_GROUND_CATEGORIES.map(c => `
+    <button type="button" class="rr-fl-ground-cat${c.key === picked ? " is-picked" : ""}" data-cat="${c.key}">
+      <span class="rr-fl-ground-radio"></span>
+      <span class="rr-fl-ground-cat-text">
+        <span class="rr-fl-ground-cat-label">${escapeHtml(c.label)}</span>
+        <span class="rr-fl-ground-cat-hint">${escapeHtml(c.hint)}</span>
+      </span>
+    </button>`).join("");
+  m.innerHTML = `
+    <div role="dialog" aria-label="Ground vehicle" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:440px;overflow:hidden">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
+        <div style="font-size:var(--fs-lg);font-weight:600">Ground ${escapeHtml(vehicleName || "vehicle")}</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Pick why the van is going down.</div>
+      </div>
+      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3)">
+        <div class="rr-fl-ground-cats">${cats}</div>
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:var(--fs-sm);font-weight:600">Note <span style="color:var(--text-subtle);font-weight:500">(optional)</span></span>
+          <textarea id="rr-fl-ground-note" class="form-input" rows="2" maxlength="300" placeholder="Add any detail for the team"></textarea>
+        </label>
+        <div id="rr-fl-ground-status" style="font-size:var(--fs-xs);color:var(--red);min-height:14px"></div>
+      </div>
+      <div style="padding:var(--s-3-5) var(--s-5);border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-3)">
+        <button type="button" class="btn btn-sm" id="rr-fl-ground-cancel">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" id="rr-fl-ground-confirm">Ground vehicle</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
+  document.addEventListener("keydown", onKey);
+  m.addEventListener("click", (e) => { if (e.target === m) close(); });
+  m.querySelector("#rr-fl-ground-cancel").addEventListener("click", close);
+
+  m.querySelector(".rr-fl-ground-cats").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cat]");
+    if (!b) return;
+    picked = b.getAttribute("data-cat");
+    m.querySelectorAll(".rr-fl-ground-cat").forEach(el =>
+      el.classList.toggle("is-picked", el.getAttribute("data-cat") === picked));
+  });
+
+  m.querySelector("#rr-fl-ground-confirm").addEventListener("click", async () => {
+    const note = m.querySelector("#rr-fl-ground-note").value.trim() || null;
+    const btn  = m.querySelector("#rr-fl-ground-confirm");
+    btn.disabled = true;
+    try {
+      const { error } = await sb.rpc("vehicle_set_operational_status", {
+        p_id: vehicleId, p_status: "grounded", p_reason: note, p_category: picked,
+      });
+      if (error) throw error;
+      close();
+      toast("Vehicle grounded · " + (_FL_GROUND_CAT_LABEL[picked] || "grounded"));
+      if (typeof loadFleetView === "function") loadFleetView();
+      else if (typeof _flLoadRoster === "function") _flLoadRoster();
+    } catch (err) {
+      console.warn("vehicle_set_operational_status:", err);
+      m.querySelector("#rr-fl-ground-status").textContent = "Couldn't ground the van · " + (err?.message || "try again");
+      btn.disabled = false;
+    }
   });
 }
 
@@ -37629,6 +37715,19 @@ function _flClockChip(deadline, hasRO) {
 function _flRepairStatusCell(v) {
   if ((v.operational_status || "operational") === "operational") {
     return `<span style="color:var(--text-subtle);font-size:var(--fs-xs)">—</span>`;
+  }
+  // Only Warranty work drives the RO request + repair clock. Other
+  // categories just show the category + days grounded. Legacy grounds
+  // (no category on file) keep the warranty/RO behavior.
+  const cat = v.grounded_category || "warranty";
+  if (cat !== "warranty") {
+    const labels = { preventive: "Preventive maintenance", body_damage: "Body damage", other: "Other" };
+    const days = v.days_grounded != null ? v.days_grounded : 0;
+    return `
+      <div class="fl-repair-status fl-rs-nonwarranty">
+        <div class="fl-rs-cat">${escapeHtml(labels[cat] || "Grounded")}</div>
+        <div class="fl-rs-days">${days}d grounded</div>
+      </div>`;
   }
   const grounded = v.grounded_since ? new Date(v.grounded_since) : null;
   const ro2bd  = grounded ? _flAddBusinessDays(grounded, 2)  : null;
