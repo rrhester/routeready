@@ -14393,75 +14393,80 @@ body.rr-cmdk-open{ overflow:hidden }
              _rrDecorateChainEditorHeatmap. 14 past usage blocks, a
              subtle "today" divider, then 7 future readiness blocks.
              Calm Microsoft squares — 9×14, 2 px gap. */
-          #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-wrap{
+          #view-fleet .rr-heatmap-wrap{
             display:flex;flex-direction:column;gap:4px;
           }
           /* Title row of the column header + the i-info affordance. */
-          #rr-sched-vans-chain-body .rr-heatmap-headtitle{
+          #view-fleet .rr-heatmap-headtitle{
             display:flex;align-items:center;gap:5px;
           }
-          #rr-sched-vans-chain-body .rr-heatmap-info{
+          #view-fleet .rr-heatmap-info{
             display:inline-flex;align-items:center;cursor:help;
             color:var(--text-subtle);
           }
           /* "Past 14 days / TODAY / Next 7 days" group labels — widths
              match the block groups so each label sits over its run. */
-          #rr-sched-vans-chain-body .rr-heatmap-headsub{
+          #view-fleet .rr-heatmap-headsub{
             display:inline-flex;align-items:center;gap:36px;
             margin-top:5px;text-transform:none;
           }
-          #rr-sched-vans-chain-body .rr-heatmap-hs{
+          #view-fleet .rr-heatmap-hs{
             font-size:9px;font-weight:600;letter-spacing:.02em;
             color:var(--text-subtle);
           }
-          #rr-sched-vans-chain-body .rr-heatmap-hs.hs-past{width:152px;text-align:center}
-          #rr-sched-vans-chain-body .rr-heatmap-hs.hs-today{
+          #view-fleet .rr-heatmap-hs.hs-past{width:152px;text-align:center}
+          #view-fleet .rr-heatmap-hs.hs-today{
             width:1px;text-align:center;white-space:nowrap;overflow:visible;
           }
-          #rr-sched-vans-chain-body .rr-heatmap-hs.hs-future{width:75px;text-align:center}
+          #view-fleet .rr-heatmap-hs.hs-future{width:75px;text-align:center}
           /* Strip · two block groups with the "today" hairline between
              them; the wide gap leaves room for the TODAY label. */
-          #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-strip{
+          #view-fleet .rr-heatmap-strip{
             display:inline-flex;gap:36px;align-items:center;
           }
-          #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-grp{
+          #view-fleet .rr-heatmap-grp{
             display:inline-flex;gap:2px;
           }
-          #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-cell{
+          #view-fleet .rr-heatmap-cell{
             display:inline-block;width:9px;height:14px;border-radius:2px;
             background:rgba(15,23,42,.08);
             border:1px solid rgba(15,23,42,.04);
             transition:background var(--t-fast);
           }
-          #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-cell.is-used{
+          #view-fleet .rr-heatmap-cell.is-used{
             background:var(--sch-green, #107C41);
             border-color:rgba(16,124,65,.32);
           }
           /* Today marker — a quiet 1 px hairline between past + future. */
-          #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-div{
+          #view-fleet .rr-heatmap-div{
             display:inline-block;width:1px;height:16px;
             background:rgba(15,23,42,.30);
           }
           /* Future readiness · outlined blocks so they read as
              "upcoming" against the filled past blocks. */
-          #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-cell.is-future{
+          #view-fleet .rr-heatmap-cell.is-future{
             background:transparent;
             border:1px solid rgba(15,23,42,.22);
           }
-          #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-cell.is-future.is-service{
+          #view-fleet .rr-heatmap-cell.is-future.is-service{
             background:rgba(180,83,9,.08);
             border-color:rgba(180,83,9,.55);
           }
-          #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-cell.is-future.is-grounded{
+          #view-fleet .rr-heatmap-cell.is-future.is-grounded{
             background:rgba(185,28,28,.07);
             border-color:rgba(185,28,28,.55);
           }
-          #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-sub{
+          #view-fleet .rr-heatmap-sub{
             font-size:11px;color:var(--text-subtle);
             font-variant-numeric:tabular-nums;
             letter-spacing:.01em;
             line-height:1;
           }
+          #view-fleet .rr-heatmap-loading{
+            font-size:var(--fs-xs);color:var(--text-subtle);
+          }
+          #view-fleet .fl-util-th,
+          #view-fleet .fl-util-cell{min-width:332px}
           /* Rescue-recommendation sub-row · injected by
              _rrDecorateChainEditorRescues below each at-risk van
              row. Calm Outlook "inline detail" pattern — no chip
@@ -18477,7 +18482,10 @@ body.rr-cmdk-open{ overflow:hidden }
                 <th>Documents</th>
                 <th>Driver reports</th>
                 <th>Repair status</th>
-                <th>Last route</th>
+                <th class="fl-util-th">
+                  <div class="rr-heatmap-headtitle">Utilization / Readiness<span class="rr-heatmap-info" title="Past 14 days of van usage, a marker for today, then the next 7 days of scheduled readiness. Green = used · amber = scheduled service · red = grounded."><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span></div>
+                  <div class="rr-heatmap-headsub"><span class="rr-heatmap-hs hs-past">Past 14 days</span><span class="rr-heatmap-hs hs-today">TODAY</span><span class="rr-heatmap-hs hs-future">Next 7 days</span></div>
+                </th>
               </tr>
             </thead>
             <tbody id="fleet-tbody">
