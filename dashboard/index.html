@@ -12421,17 +12421,37 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
             font-size:var(--fs-sm);
           }
-          /* Rule violations inline panel · drops under the KPI strip
-             when the operator taps the Violations pill. Calm white
-             card matching the KPI strip's chrome. */
+          /* Rule violations · pops out as a flyover drawer anchored
+             to the Violations KPI pill — same overlay behaviour as
+             the Smart Fill / Targets "Rules ⌄" popovers, so it never
+             pushes the schedule grid down. */
           #view-schedule .rr-sched-violations-panel{
-            margin:0 0 var(--s-4) 0;
+            position:absolute;
+            top:calc(100% + 6px);left:0;
+            z-index:60;
+            width:440px;max-width:calc(100vw - 48px);
+            margin:0;
             background:#FFFFFF;
-            border:1px solid rgba(15,23,42,.08);
+            border:1px solid rgba(15,23,42,.18);
             border-left:3px solid var(--sch-red, #C42B1C);
-            border-radius:10px;
-            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
+            border-radius:8px;
+            box-shadow:0 6px 18px rgba(15,23,42,.18);
             overflow:hidden;
+          }
+          /* The KPI strip clips its corners with overflow:hidden;
+             switch to visible so the drawer can escape it, and round
+             the end pills directly so the corners still read clean. */
+          #view-schedule #rr-sched-kpis.sched-kpi-pills{overflow:visible}
+          #view-schedule #rr-sched-kpis .sched-kpi-pill:first-child{
+            border-top-left-radius:var(--sch-radius);
+            border-bottom-left-radius:var(--sch-radius);
+          }
+          #view-schedule #rr-sched-kpis .sched-kpi-pill:last-child{
+            border-top-right-radius:var(--sch-radius);
+            border-bottom-right-radius:var(--sch-radius);
+          }
+          #view-schedule #rr-sched-kpis .sched-kpi-pill[data-rr-kpi="violations"]{
+            position:relative;
           }
           #view-schedule .rr-sched-violations-head{
             display:flex;align-items:center;justify-content:space-between;
@@ -12460,6 +12480,8 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .rr-sched-violations-list{
             display:flex;flex-direction:column;
+            max-height:min(58vh,420px);
+            overflow-y:auto;
           }
           #view-schedule .rr-sched-violations-row{
             display:grid;
@@ -15607,6 +15629,25 @@ body.rr-cmdk-open{ overflow:hidden }
             height:24px;
             margin-top:-12px;
             background:var(--sch-line-strong);
+          }
+
+          /* Invisible footer · the commands that carry a real
+             "Rules ⌄" footer (Smart Fill, Assign, Targets, Kudos)
+             stand ~23px taller than the ones that don't (the
+             Week / Today / Staff / Requests tab groups and
+             Finalize). Reserve that same height beneath the
+             footer-less commands so every icon lands on one
+             shared baseline once the ribbon centers each unit.
+
+             It's applied as bottom margin — not padding or an
+             inserted box — so the command's own border-box is
+             untouched: the tab-underline still hugs its label
+             and the filled Finalize chip doesn't grow a hollow
+             tail. The 23px matches the real footer's reserved
+             space (4px gap + ~19px "Rules ⌄" row). */
+          #view-schedule .sched-nav-heading-actions .sched-ribbon-group,
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h{
+            margin-bottom:23px;
           }
         </style>
 
