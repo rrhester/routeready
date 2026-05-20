@@ -8500,16 +8500,17 @@ function _tpDateShift(deltaDays) {
   const cur = _tpDateIso || _tpToday();
   const d = new Date(cur + "T12:00:00");
   d.setDate(d.getDate() + deltaDays);
-  const iso = fmtIsoDate(d);
+  _tpDateGoTo(fmtIsoDate(d));
+}
+function _tpDateGoTo(iso) {
   const today = _tpToday(); const max = _tpMaxDate();
-  if (iso < today || iso > max) return;
+  if (!iso || iso < today || iso > max) return;
+  if (iso === _tpDateIso) return;
   _tpDateIso = iso;
   _tpRenderDateLabel();
   _refreshTodayPlanData();
 }
 function _tpRenderDateLabel() {
-  const dateEl = document.getElementById("rr-today-date");
-  if (!dateEl) return;
   const iso = _tpDateIso || _tpToday();
   const today = _tpToday();
   const d = new Date(iso + "T12:00:00");
@@ -8517,16 +8518,52 @@ function _tpRenderDateLabel() {
   const isToday = iso === today;
   const tomorrow = (() => { const t = new Date(); t.setDate(t.getDate()+1); return fmtIsoDate(t); })();
   const prefix = isToday ? "" : (iso === tomorrow ? "Tomorrow · " : "");
-  dateEl.textContent = prefix + label;
-  // Update nav state
-  const nav = document.getElementById("rr-tp-datenav");
-  if (nav) nav.style.display = "";
-  const prev = document.getElementById("rr-tp-prev");
-  const next = document.getElementById("rr-tp-next");
-  const todayBtn = document.getElementById("rr-tp-today");
-  if (prev) prev.disabled = iso <= today;
-  if (next) next.disabled = iso >= _tpMaxDate();
-  if (todayBtn) todayBtn.classList.toggle("is-on-today", isToday);
+  const dateEl = document.getElementById("rr-today-date");
+  if (dateEl) dateEl.textContent = prefix + label;
+  _tpRenderDayStrip();
+}
+
+// Fluent / Outlook-style mini calendar strip · 7 cells covering today
+// → today+6. Lives inside #rr-today-plan-shell so it travels with the
+// shell between the dashboard's Today nav and the schedule's Today
+// sub-view (which mounts the same shell DOM).
+function _tpRenderDayStrip() {
+  const host = document.getElementById("rr-tp-daystrip");
+  if (!host) return;
+  const todayIso = _tpToday();
+  const activeIso = _tpDateIso || todayIso;
+  const maxIso = _tpMaxDate();
+  const base = new Date(todayIso + "T12:00:00");
+  const cells = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(base.getTime()); d.setDate(d.getDate() + i);
+    const iso = fmtIsoDate(d);
+    const wd = d.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3);
+    const num = d.getDate();
+    const cls = "tp-day-cell"
+      + (iso === activeIso ? " is-active" : "")
+      + (iso === todayIso ? " is-today" : "");
+    const aria = d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+    cells.push(
+      `<button type="button" class="${cls}" data-tp-day-iso="${iso}" aria-pressed="${iso === activeIso}" aria-label="${aria}">`
+      + `<span class="tp-day-cell-wd">${wd}</span>`
+      + `<span class="tp-day-cell-num">${num}</span>`
+      + `</button>`
+    );
+  }
+  const onToday = activeIso === todayIso;
+  host.innerHTML =
+      `<button type="button" class="tp-daystrip-arrow" id="rr-tp-daystrip-prev" title="Previous day" aria-label="Previous day"${activeIso <= todayIso ? " disabled" : ""}>`
+    +   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>`
+    + `</button>`
+    + `<div class="tp-daystrip-cells">${cells.join("")}</div>`
+    + `<button type="button" class="tp-daystrip-arrow" id="rr-tp-daystrip-next" title="Next day" aria-label="Next day"${activeIso >= maxIso ? " disabled" : ""}>`
+    +   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>`
+    + `</button>`
+    + `<button type="button" class="tp-daystrip-today${onToday ? " is-on-today" : ""}" id="rr-tp-daystrip-today" aria-label="Jump to today">`
+    +   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`
+    +   `<span>Today</span>`
+    + `</button>`;
 }
 
 // Subscribe to the two tables that drive the OT headroom column. On
@@ -8629,7 +8666,8 @@ async function loadTodayPlan() {
   // Weather card removed from the Today plan per operator direction —
   // the radar still has its own surface elsewhere if/when re-enabled.
   const skeletonOk = !!document.getElementById("rr-tp-roster")
-                  && !!document.getElementById("rr-tp-meta");
+                  && !!document.getElementById("rr-tp-meta")
+                  && !!document.getElementById("rr-tp-daystrip");
   if (!skeletonOk) {
     shell.dataset.rrPlanShell = "1";
     // Structured skeleton — mirrors the final layout (4 KPI chips +
@@ -8639,6 +8677,7 @@ async function loadTodayPlan() {
     const skelRow = `<div class="tp-skel-row"><span class="rr-skel rr-skel-circle" style="width:28px;height:28px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:24%"></span><span class="rr-skel rr-skel-sm" style="width:14%"></span><span class="rr-skel rr-skel-sm" style="width:18%"></span><span class="rr-skel rr-skel-sm" style="width:12%;margin-left:auto"></span></div>`;
     const skelChip = (toneClass) => `<div class="tp-day-chip${toneClass ? ' ' + toneClass : ''}"><div class="tp-day-chip-label tp-skel-label"><span class="rr-skel rr-skel-sm" style="width:80px"></span></div><span class="rr-skel rr-skel-lg" style="width:48px;height:24px"></span><div class="tp-skel-sub"><span class="rr-skel rr-skel-sm" style="width:62%"></span></div></div>`;
     shell.innerHTML = `
+      <div id="rr-tp-daystrip" class="tp-daystrip" role="group" aria-label="Pick a day"></div>
       <div id="rr-tp-meta" class="card card-compact">
         <div class="tp-day-meta" aria-busy="true" aria-label="Loading today's plan overview">
           ${skelChip('')}
@@ -8653,6 +8692,9 @@ async function loadTodayPlan() {
         <div class="tp-skel-list" aria-busy="true">${skelRow}${skelRow}${skelRow}${skelRow}${skelRow}${skelRow}</div>
       </div>`;
   }
+
+  // Paint the day strip now that #rr-tp-daystrip exists in the shell.
+  _tpRenderDayStrip();
 
   // Stale-while-revalidate: render last-known cached data instantly so
   // the page is filled in the same frame the operator clicks Today.
@@ -10019,25 +10061,40 @@ function _tpReloadRoster() {
 
 // ── Today's Plan · 7-day date navigator wiring ──────────────────────
 document.addEventListener("click", (e) => {
-  if (e.target.closest && e.target.closest("#rr-tp-prev"))   { e.preventDefault(); _tpDateShift(-1); return; }
-  if (e.target.closest && e.target.closest("#rr-tp-next"))   { e.preventDefault(); _tpDateShift( 1); return; }
-  if (e.target.closest && e.target.closest("#rr-tp-today"))  {
+  if (!e.target.closest) return;
+  // Legacy page-header nav (removed from the markup but handlers kept
+  // in case other surfaces still reference these IDs).
+  if (e.target.closest("#rr-tp-prev"))   { e.preventDefault(); _tpDateShift(-1); return; }
+  if (e.target.closest("#rr-tp-next"))   { e.preventDefault(); _tpDateShift( 1); return; }
+  if (e.target.closest("#rr-tp-today"))  {
     e.preventDefault();
-    if (_tpDateIso !== _tpToday()) {
-      _tpDateIso = _tpToday();
-      _tpRenderDateLabel();
-      _refreshTodayPlanData();
-    }
+    _tpDateGoTo(_tpToday());
+    return;
+  }
+  // New in-shell day strip.
+  if (e.target.closest("#rr-tp-daystrip-prev"))  { e.preventDefault(); _tpDateShift(-1); return; }
+  if (e.target.closest("#rr-tp-daystrip-next"))  { e.preventDefault(); _tpDateShift( 1); return; }
+  if (e.target.closest("#rr-tp-daystrip-today")) {
+    e.preventDefault();
+    _tpDateGoTo(_tpToday());
+    return;
+  }
+  const cell = e.target.closest("[data-tp-day-iso]");
+  if (cell) {
+    e.preventDefault();
+    _tpDateGoTo(cell.getAttribute("data-tp-day-iso"));
     return;
   }
 });
 // Keyboard shortcut: ← / → walk the navigator when the Today's Plan
-// view is the active dashboard.  Ignored when the operator is typing.
+// shell is visible on either the dashboard's Today nav or the
+// schedule's Today sub-view. Ignored when the operator is typing.
 document.addEventListener("keydown", (e) => {
   if (e.altKey || e.ctrlKey || e.metaKey) return;
   const tag = (e.target?.tagName || "").toLowerCase();
   if (tag === "input" || tag === "textarea" || tag === "select" || e.target?.isContentEditable) return;
-  if (!document.getElementById("view-dashboard")?.classList.contains("active")) return;
+  const shellVisible = !!document.getElementById("rr-today-plan-shell")?.offsetParent;
+  if (!shellVisible) return;
   if (e.key === "ArrowLeft")  _tpDateShift(-1);
   if (e.key === "ArrowRight") _tpDateShift( 1);
 });
