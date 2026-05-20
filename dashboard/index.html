@@ -14405,25 +14405,30 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .ws-veh-down{display:inline-flex;align-items:center;padding:1px 6px;font-size:10px;font-weight:700;letter-spacing:.05em;border-radius:var(--r-pill);background:var(--sch-red-soft);color:var(--sch-red);border:1px solid rgba(196,43,28,.24);margin-left:4px}
           #view-schedule .ws-veh-down.warn{background:rgba(180,83,9,.10);color:#92400E;border-color:rgba(180,83,9,.24)}
           #view-schedule .ws-veh-down.crit{background:#9F1239;color:#fff;border-color:var(--sch-red)}
-          /* Chain editor · sticky table head so column labels
-             stay pinned as the van list scrolls. ws-head was
-             removed inside the chain editor (renderSchedVan­
-             AssignmentsBoard strips it), so the thead pins
-             directly below the topbar.
+          /* Chain editor · the table wrapper is its OWN scroll
+             container (capped height + overflow:auto), and the
+             thead sticks at top:0 of that container.
 
-             The .ws-grid-wrap parent uses overflow:clip (set above)
-             so the rounded corners still trim the table but no
-             scroll container is created — sticky vertical pinning
-             falls through to the page scroll instead of being
-             trapped at the wrap. */
+             Earlier attempts pinned the thead to the *page* scroll
+             with top:56px. That's fragile: any ancestor that
+             becomes a scroll container (e.g. the inline
+             overflow-x:auto this template used to carry) silently
+             captures the sticky context, and the 56px offset then
+             opens a gap at the top of that container where body
+             rows show *above* the header. Self-contained scroll +
+             top:0 removes both failure modes — same pattern the
+             calendar grid (.cal-wrap) already uses. */
           #view-schedule #sched-sub-vans-chain .ws-grid-wrap{
-            overflow:clip;
+            overflow:auto;
+            max-height:calc(100vh - 210px);
+            scrollbar-width:thin;
+            scrollbar-color:var(--sch-line-strong) transparent;
           }
           #view-schedule #sched-sub-vans-chain thead{
             position:relative;z-index:30;
           }
           #view-schedule #sched-sub-vans-chain thead th{
-            position:sticky;top:56px;z-index:30;
+            position:sticky;top:0;z-index:30;
             background:#fff;
             box-shadow:inset 0 -1px 0 var(--sch-line),
                        0 1px 0 var(--sch-line);
@@ -18168,7 +18173,11 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:var(--s-4) var(--s-4) var(--s-5);min-height:128px;
           }
           #view-workspaces .ws-skel-card .rr-skel{display:block}
-          #view-workspaces .ws-grid-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden}
+          /* Workspaces · horizontal scroll on narrow viewports.
+             The shared template (live.js _wsRenderVehicles) no
+             longer carries an inline overflow-x:auto, so workspaces
+             needs the scroll affordance declared here. */
+          #view-workspaces .ws-grid-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:auto}
           #view-workspaces .ws-grid-scroll{overflow-x:auto}
           #view-workspaces .ws-grid{width:100%;border-collapse:collapse;font-size:var(--fs-md)}
           #view-workspaces .ws-grid th{text-align:left;padding:11px 12px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);border-bottom:1px solid var(--border);white-space:nowrap}
