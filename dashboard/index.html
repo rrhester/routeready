@@ -13151,7 +13151,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group > .subnav{
             margin-bottom:0;
             display:inline-flex !important;
-            align-items:center;gap:0;
+            align-items:center;gap:6px;
             background:transparent;background-image:none;
             border:0;border-radius:0;padding:0;
             box-shadow:none;
@@ -14654,10 +14654,12 @@ body.rr-cmdk-open{ overflow:hidden }
             min-width:72px;
             font-size:var(--fs-sm);font-weight:500;
             color:var(--text-muted);
-            background:transparent;border:0;border-radius:var(--sch-radius) var(--sch-radius) 0 0;
+            background:var(--sch-surface-2);
+            border:1px solid var(--sch-line);
+            border-radius:var(--sch-radius);
             letter-spacing:0;line-height:1.2;
             position:relative;
-            transition:color var(--t-fast),background var(--t-fast);
+            transition:color var(--t-fast),background var(--t-fast),border-color var(--t-fast);
           }
           #view-schedule .subnav-item::after{display:none !important}
           #view-schedule .subnav-item svg{
@@ -14673,16 +14675,14 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .subnav-item.active{
             color:var(--sch-blue);
             background:var(--sch-blue-softer);
+            border-color:var(--sch-blue);
             font-weight:600;
             box-shadow:none;
           }
           #view-schedule .subnav-item.active svg{color:var(--sch-blue)}
-          #view-schedule .subnav-item.active::before{
-            content:"";position:absolute;
-            left:8px;right:8px;bottom:-1px;height:3px;
-            background:var(--sch-blue);
-            border-radius:2px 2px 0 0;
-          }
+          /* Boxed tabs carry the active state with a blue border +
+             fill, so the old bottom-underline marker is dropped. */
+          #view-schedule .subnav-item.active::before{display:none}
           /* Inline time-off counter — pinned to the tile's top-right
              corner so it reads as a small alert badge without
              breaking the icon-above-label rhythm. */
@@ -15611,10 +15611,12 @@ body.rr-cmdk-open{ overflow:hidden }
           }
 
           /* Engagement command (Kudos) · softest. Flat, no resting
-             surface, muted label — present but never dominant. */
+             surface, muted label — present but never dominant. It
+             still gets the shared command box so every toolbar
+             command reads as a uniformly framed control. */
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-kudos-h{
-            background:transparent;
-            border:1px solid transparent;
+            background:var(--sch-surface-2);
+            border:1px solid var(--sch-line);
             color:var(--text-muted);
           }
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-kudos-h:hover{
