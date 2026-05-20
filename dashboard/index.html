@@ -14424,9 +14424,13 @@ body.rr-cmdk-open{ overflow:hidden }
             scrollbar-width:thin;
             scrollbar-color:var(--sch-line-strong) transparent;
           }
-          #view-schedule #sched-sub-vans-chain thead{
-            position:relative;z-index:30;
-          }
+          /* Do NOT give the thead (or any tr) a position — a
+             positioned table-row-group traps the sticky <th>
+             constraint rect inside the one-row-tall thead box, so
+             the header can't pin and van rows scroll above it. The
+             <th> cells below are position:sticky on their own and
+             create their own stacking contexts, so they still
+             paint over the un-positioned tbody. */
           #view-schedule #sched-sub-vans-chain thead th{
             position:sticky;top:0;z-index:30;
             background:#fff;
