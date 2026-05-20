@@ -3614,6 +3614,11 @@ select.form-input{
   display:flex;align-items:stretch;justify-content:center;
   cursor:pointer;transition:background var(--t-fast);
   position:relative;
+  /* Hard guard against chip bleed-over: the cell is a grid child
+     with minmax(0,1fr), but flex items inside still get min-content
+     widths that can push past the column border. min-width:0 +
+     overflow:hidden keeps the chip contained at the cell edge. */
+  min-width:0;overflow:hidden;
 }
 .cal-cell:last-child{border-right:none}
 .cal-cell:hover{background:var(--canvas)}
@@ -3640,6 +3645,10 @@ select.form-input{
   display:flex;flex-direction:column;align-items:flex-start;justify-content:center;
   font-size:var(--fs-xs);line-height:1.25;
   transition:transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
+  /* Allow the chip to shrink with the cell. Without min-width:0 the
+     chip's min-content (set by the unwrappable time text) forces
+     it past the cell border. */
+  min-width:0;max-width:100%;overflow:hidden;
 }
 .cal-cell:hover .shift-chip{box-shadow:0 1px 2px rgba(15,23,42,.06)}
 .cal-cell:hover .shift-chip:not(.off):not(.timeoff):not(.open){
@@ -14307,7 +14316,11 @@ body.rr-cmdk-open{ overflow:hidden }
              elevation, calmer hairlines, more breathing room in every
              row. The table is the only object on screen so it earns a
              real card treatment rather than the flat-on-canvas look. */
-          #view-schedule .ws-grid-wrap{background:#fff;border:1px solid var(--sch-line);border-radius:var(--r-lg,10px);overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04),0 1px 1px rgba(15,23,42,.02)}
+          /* overflow:clip (not hidden) so the rounded corners still
+             trim the inner table, but no scroll container is created
+             — that's what was trapping the sticky thead context and
+             letting Van 10 render above the column header on scroll. */
+          #view-schedule .ws-grid-wrap{background:#fff;border:1px solid var(--sch-line);border-radius:var(--r-lg,10px);overflow:clip;box-shadow:0 1px 2px rgba(15,23,42,.04),0 1px 1px rgba(15,23,42,.02)}
           #view-schedule .ws-veh-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm,13px)}
           #view-schedule .ws-veh-table th{text-align:left;padding:13px 16px;background:var(--sch-surface-2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);border-bottom:1px solid var(--sch-line);white-space:nowrap}
           #view-schedule .ws-veh-table td{padding:11px 14px;border-top:1px solid var(--sch-line-subtle);vertical-align:middle}
@@ -14398,20 +14411,19 @@ body.rr-cmdk-open{ overflow:hidden }
              AssignmentsBoard strips it), so the thead pins
              directly below the topbar.
 
-             The .ws-grid-wrap parent uses overflow-x:auto for
-             horizontal scrolling on narrow viewports; we set
-             overflow-y:visible there explicitly so the sticky
-             context falls through to the page scroll, otherwise
-             thead would never stick (sticky vertical depends on
-             the nearest scrolling ancestor). */
+             The .ws-grid-wrap parent uses overflow:clip (set above)
+             so the rounded corners still trim the table but no
+             scroll container is created — sticky vertical pinning
+             falls through to the page scroll instead of being
+             trapped at the wrap. */
           #view-schedule #sched-sub-vans-chain .ws-grid-wrap{
-            overflow-y:visible;
+            overflow:clip;
           }
           #view-schedule #sched-sub-vans-chain thead{
-            position:relative;z-index:20;
+            position:relative;z-index:30;
           }
           #view-schedule #sched-sub-vans-chain thead th{
-            position:sticky;top:56px;z-index:20;
+            position:sticky;top:56px;z-index:30;
             background:#fff;
             box-shadow:inset 0 -1px 0 var(--sch-line),
                        0 1px 0 var(--sch-line);
@@ -14843,13 +14855,17 @@ body.rr-cmdk-open{ overflow:hidden }
              fits in the cell without clipping the closing 'm'. */
           #view-schedule .shift-chip-row{
             display:grid;
-            grid-template-columns:32px 1fr;
+            grid-template-columns:32px minmax(0,1fr);
             align-items:baseline;
             gap:0 6px;
             font-size:10px;line-height:1.2;
             color:var(--text);
             font-variant-numeric:tabular-nums;
             white-space:nowrap;
+            /* minmax(0,1fr) above + min-width:0 here so the value
+               column can shrink and ellipsis when the calendar cell
+               is narrower than the time string's natural width. */
+            min-width:0;
           }
           #view-schedule .shift-chip-row-lbl{
             font-size:8px;font-weight:700;
@@ -14858,6 +14874,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .shift-chip-row-val{
             font-weight:600;color:var(--text);
+            min-width:0;overflow:hidden;text-overflow:ellipsis;
           }
           #view-schedule .shift-chip-van{
             font-size:10px;font-weight:600;
