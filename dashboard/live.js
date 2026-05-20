@@ -23910,7 +23910,10 @@ window.schedSub = function (sub) {
   if (sub === "templates") loadScheduleTemplates();
   if (sub === "today")     renderSchedTodayView();
   if (sub === "vans")      renderSchedVanAssignments();
-  if (sub === "calendar" && typeof renderFleetCalendar === "function") renderFleetCalendar();
+  if (sub === "calendar") {
+    if (typeof _mountFleetCalendar === "function") _mountFleetCalendar("sched-sub-calendar");
+    if (typeof renderFleetCalendar === "function") renderFleetCalendar();
+  }
   // Restore the default "Schedule / Week of ..." title block when
   // leaving Today view — renderSchedTodayView overwrites it.
   if (sub !== "today") _resetSchedHeading();
@@ -23964,6 +23967,20 @@ function _fcTimeLabel(hhmm) {
   const h12 = (h % 12) || 12;
   return mn ? `${h12}:${String(mn).padStart(2, "0")}${ap}` : `${h12}${ap}`;
 }
+
+// The fleet calendar is a single shared DOM node (.rr-fc-shell). Both
+// the Schedule view and the Fleet view host it; this relocates that
+// one node into whichever page is opening it, so there is only ever
+// one calendar — one set of state, listeners and live data, no copy
+// to drift out of sync.
+function _mountFleetCalendar(targetId) {
+  const shell  = document.querySelector(".rr-fc-shell");
+  const target = document.getElementById(targetId);
+  if (shell && target && shell.parentElement !== target) {
+    target.appendChild(shell);
+  }
+}
+window._mountFleetCalendar = _mountFleetCalendar;
 
 function renderFleetCalendar() {
   const host = document.getElementById("rr-fleet-cal-host");
@@ -37323,6 +37340,12 @@ window.fleetSub = function (sub) {
   document.getElementById("fl-sub-" + sub)?.classList.add("active");
   if (sub === "vehicles")    _flLoadRoster();
   else if (sub === "issues") _flLoadIssues();
+  else if (sub === "calendar") {
+    // Pull the one shared calendar node into the Fleet view, then
+    // render — same calendar the Schedule page's tab shows.
+    if (typeof _mountFleetCalendar === "function") _mountFleetCalendar("fl-sub-calendar");
+    if (typeof renderFleetCalendar === "function") renderFleetCalendar();
+  }
 };
 
 // ─── Master loader (entry point from refreshActiveView) ──────────────
@@ -37331,6 +37354,12 @@ async function loadFleetView() {
   // stay accurate; issues come along when the operator opens that tab.
   await _flLoadRoster();
   if (_fleetSub === "issues") await _flLoadIssues();
+  // Re-home the shared calendar node if the operator was last on the
+  // Fleet calendar sub (it may have moved to the Schedule view since).
+  if (_fleetSub === "calendar") {
+    _mountFleetCalendar("fl-sub-calendar");
+    if (typeof renderFleetCalendar === "function") renderFleetCalendar();
+  }
   _flPaintTabCounts();
 }
 

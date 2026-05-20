@@ -16351,58 +16351,75 @@ body.rr-cmdk-open{ overflow:hidden }
              (migration 0306). -->
         <div class="sched-subview" id="sched-sub-calendar" style="display:none">
           <style>
-            #view-schedule .rr-fleet-cal{
-              background:var(--sch-surface);
-              border:1px solid var(--sch-line);
-              border-radius:var(--sch-radius-lg);
-              overflow:hidden;
-            }
-            /* Match the week view's builder layout — calendar on the
-               left, a reserved 300px space on the right the same
-               size as the Open shifts box. */
-            #view-schedule .rr-fc-shell{
+            /* The calendar is one shared DOM node moved between the
+               Schedule and Fleet views (see _mountFleetCalendar).
+               Selectors are view-agnostic and the Schedule design
+               tokens are re-declared on the shell so it renders
+               identically wherever it is mounted. */
+            .rr-fc-shell{
+              --sch-blue:#2563EB;
+              --sch-blue-strong:#1D4ED8;
+              --sch-blue-soft:rgba(37,99,235,.08);
+              --sch-blue-softer:rgba(37,99,235,.05);
+              --sch-blue-tint:rgba(37,99,235,.035);
+              --sch-blue-text:#1E40AF;
+              --sch-line:rgba(15,23,42,.07);
+              --sch-line-subtle:rgba(15,23,42,.04);
+              --sch-surface:#FFFFFF;
+              --sch-surface-2:#FAFBFC;
+              --sch-hover:rgba(15,23,42,.04);
+              --sch-pressed:rgba(15,23,42,.06);
+              --sch-red:#B91C1C;
+              --sch-radius:6px;
+              --sch-radius-lg:8px;
               display:grid;
               grid-template-columns:1fr 300px;
               gap:var(--s-4);
               align-items:start;
             }
-            @media (max-width:1180px){
-              #view-schedule .rr-fc-shell{grid-template-columns:1fr}
-              #view-schedule .rr-fc-rail-space{display:none}
+            .rr-fleet-cal{
+              background:var(--sch-surface);
+              border:1px solid var(--sch-line);
+              border-radius:var(--sch-radius-lg);
+              overflow:hidden;
             }
-            #view-schedule .rr-fc-bar{
+            @media (max-width:1180px){
+              .rr-fc-shell{grid-template-columns:1fr}
+              .rr-fc-rail-space{display:none}
+            }
+            .rr-fc-bar{
               display:flex;align-items:center;gap:12px;
               padding:14px 16px;
               border-bottom:1px solid var(--sch-line);
               background:var(--sch-surface-2);
             }
-            #view-schedule .rr-fc-title{
+            .rr-fc-title{
               font-size:20px;font-weight:600;letter-spacing:-.01em;
               color:var(--text);min-width:170px;
             }
-            #view-schedule .rr-fc-monthnav{
+            .rr-fc-monthnav{
               display:inline-flex;align-items:stretch;
               border:1px solid var(--sch-line);border-radius:var(--sch-radius);
               overflow:hidden;
             }
-            #view-schedule .rr-fc-navbtn{
+            .rr-fc-navbtn{
               appearance:none;background:transparent;border:0;cursor:pointer;
               font:inherit;color:var(--text-muted);
               display:inline-flex;align-items:center;justify-content:center;
               height:32px;padding:0 10px;
               transition:background var(--t-fast),color var(--t-fast);
             }
-            #view-schedule .rr-fc-navbtn:hover{background:var(--sch-hover);color:var(--text)}
-            #view-schedule .rr-fc-navbtn:active{background:var(--sch-pressed)}
-            #view-schedule .rr-fc-navbtn.rr-fc-today{
+            .rr-fc-navbtn:hover{background:var(--sch-hover);color:var(--text)}
+            .rr-fc-navbtn:active{background:var(--sch-pressed)}
+            .rr-fc-navbtn.rr-fc-today{
               padding:0 12px;font-size:var(--fs-sm);font-weight:500;
               color:var(--sch-blue);
               border-left:1px solid var(--sch-line);
               border-right:1px solid var(--sch-line);
             }
-            #view-schedule .rr-fc-navbtn svg{width:15px;height:15px}
-            #view-schedule .rr-fc-spacer{flex:1}
-            #view-schedule .rr-fc-add{
+            .rr-fc-navbtn svg{width:15px;height:15px}
+            .rr-fc-spacer{flex:1}
+            .rr-fc-add{
               appearance:none;cursor:pointer;font:inherit;
               display:inline-flex;align-items:center;gap:6px;
               height:32px;padding:0 14px;border-radius:var(--sch-radius);
@@ -16410,17 +16427,17 @@ body.rr-cmdk-open{ overflow:hidden }
               font-size:var(--fs-sm);font-weight:600;
               transition:background var(--t-fast);
             }
-            #view-schedule .rr-fc-add:hover{background:var(--sch-blue-strong)}
-            #view-schedule .rr-fc-add svg{width:14px;height:14px}
+            .rr-fc-add:hover{background:var(--sch-blue-strong)}
+            .rr-fc-add svg{width:14px;height:14px}
             /* Week grid · one row per van (like the driver schedule,
                but the left column is a van). 200px van column + 7
                day columns. */
-            #view-schedule .rr-fc-grid{
+            .rr-fc-grid{
               display:grid;
               grid-template-columns:200px repeat(7,minmax(0,1fr));
             }
-            #view-schedule .rr-fc-grid > *:nth-child(8n){border-right:0}
-            #view-schedule .rr-fc-cell-head{
+            .rr-fc-grid > *:nth-child(8n){border-right:0}
+            .rr-fc-cell-head{
               padding:8px 8px 9px;text-align:center;
               font-size:11px;font-weight:600;letter-spacing:.05em;
               text-transform:uppercase;color:var(--text-subtle);
@@ -16428,19 +16445,19 @@ body.rr-cmdk-open{ overflow:hidden }
               border-bottom:1px solid var(--sch-line);
               border-right:1px solid var(--sch-line-subtle);
             }
-            #view-schedule .rr-fc-cell-head.rr-fc-vancol-head{
+            .rr-fc-cell-head.rr-fc-vancol-head{
               text-align:left;padding-left:14px;color:var(--text);
             }
-            #view-schedule .rr-fc-cell-head.is-today{
+            .rr-fc-cell-head.is-today{
               background:var(--sch-blue-tint);color:var(--sch-blue);
             }
-            #view-schedule .rr-fc-dow{display:block}
-            #view-schedule .rr-fc-dnum{
+            .rr-fc-dow{display:block}
+            .rr-fc-dnum{
               display:block;margin-top:2px;
               font-size:16px;font-weight:600;color:var(--text);
             }
-            #view-schedule .rr-fc-cell-head.is-today .rr-fc-dnum{color:var(--sch-blue)}
-            #view-schedule .rr-fc-vancol{
+            .rr-fc-cell-head.is-today .rr-fc-dnum{color:var(--sch-blue)}
+            .rr-fc-vancol{
               padding:9px 14px;
               display:flex;align-items:center;
               font-size:var(--fs-sm);font-weight:600;color:var(--text);
@@ -16448,7 +16465,7 @@ body.rr-cmdk-open{ overflow:hidden }
               border-right:1px solid var(--sch-line);
               border-bottom:1px solid var(--sch-line-subtle);
             }
-            #view-schedule .rr-fc-cell{
+            .rr-fc-cell{
               min-height:62px;
               padding:6px 7px;
               border-right:1px solid var(--sch-line-subtle);
@@ -16458,14 +16475,14 @@ body.rr-cmdk-open{ overflow:hidden }
               display:flex;flex-direction:column;gap:3px;
               transition:background var(--t-fast);
             }
-            #view-schedule .rr-fc-cell:hover{background:var(--sch-blue-softer)}
-            #view-schedule .rr-fc-cell.is-today{background:var(--sch-blue-tint)}
-            #view-schedule .rr-fc-empty{
+            .rr-fc-cell:hover{background:var(--sch-blue-softer)}
+            .rr-fc-cell.is-today{background:var(--sch-blue-tint)}
+            .rr-fc-empty{
               grid-column:1 / -1;
               padding:26px 16px;text-align:center;
               font-size:var(--fs-sm);color:var(--text-subtle);
             }
-            #view-schedule .rr-fc-event{
+            .rr-fc-event{
               appearance:none;text-align:left;cursor:pointer;
               font:inherit;width:100%;
               display:flex;flex-direction:column;gap:0;
@@ -16475,16 +16492,16 @@ body.rr-cmdk-open{ overflow:hidden }
               color:var(--sch-blue-text);
               transition:background var(--t-fast);
             }
-            #view-schedule .rr-fc-event:hover{background:rgba(37,99,235,.16)}
-            #view-schedule .rr-fc-event-title{
+            .rr-fc-event:hover{background:rgba(37,99,235,.16)}
+            .rr-fc-event-title{
               font-size:11px;font-weight:600;line-height:1.3;
               white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
             }
-            #view-schedule .rr-fc-event-time{
+            .rr-fc-event-time{
               font-size:10px;font-weight:500;color:var(--text-muted);
               font-variant-numeric:tabular-nums;
             }
-            #view-schedule .rr-fc-err{
+            .rr-fc-err{
               padding:22px 16px;font-size:var(--fs-sm);color:var(--sch-red);
             }
           </style>
@@ -17668,12 +17685,12 @@ body.rr-cmdk-open{ overflow:hidden }
                 <span>Issues</span>
                 <span class="fl-ribbon-count" id="rr-fleet-tabcount-issues" style="display:none">0</span>
               </button>
-            </div>
-            <div class="fl-ribbon-group">
-              <button type="button" class="fl-ribbon-btn" onclick="goto('fleet-calendar')" aria-label="Fleet calendar" title="Fleet calendar — schedule events per van">
+              <button type="button" class="fl-ribbon-btn fl-ribbon-view" data-sub="calendar" onclick="fleetSub('calendar')" aria-label="Fleet calendar" title="Fleet calendar — schedule events per van">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.1" fill="currentColor" stroke="none"/></svg>
                 <span>Fleet calendar</span>
               </button>
+            </div>
+            <div class="fl-ribbon-group">
               <button type="button" class="fl-ribbon-btn" aria-label="Placeholder action">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
                 <span>—</span>
@@ -18353,6 +18370,12 @@ body.rr-cmdk-open{ overflow:hidden }
             </table>
           </div>
         </div>
+
+        <!-- FLEET CALENDAR sub-tab — hosts the one shared calendar
+             node (.rr-fc-shell), relocated here from #view-schedule
+             by _mountFleetCalendar() so both pages drive the exact
+             same calendar, state and listeners. -->
+        <div class="fl-sub" id="fl-sub-calendar"></div>
       </div>
     </div>
 
@@ -23293,12 +23316,11 @@ John,Smith,555-0101,john@example.com</code>
       if (typeof pipeSub === 'function') pipeSub('interview');
       return;
     }
-    // The Fleet calendar lives on the Schedule view (its 'calendar'
-    // sub-tab) — there is exactly one calendar. The Fleet page just
-    // routes here so both pages open the same live view.
+    // The Fleet calendar is one shared node hosted by either the
+    // Fleet or the Schedule view; this opens it on the Fleet page.
     if (view === 'fleet-calendar') {
-      goto('schedule');
-      if (typeof schedSub === 'function') schedSub('calendar');
+      goto('fleet');
+      if (typeof fleetSub === 'function') fleetSub('calendar');
       return;
     }
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
