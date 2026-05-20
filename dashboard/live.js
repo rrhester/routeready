@@ -37010,7 +37010,7 @@ function _flOpStatCell(v) {
   // the operational pill stands alone — cleaner alignment + a calmer
   // visual rhythm across the roster.
   return `<button type="button" class="fl-opstat-btn" data-rr-opstat-id="${escapeHtml(v.id)}" data-rr-opstat-now="${escapeHtml(v.operational_status || "operational")}" data-rr-opstat-cat="${escapeHtml(v.grounded_category || "")}" data-rr-opstat-name="${escapeHtml(v.nickname || v.name || "")}">
-    <span class="fl-opstat-row">${pill}</span>
+    <span class="fl-opstat-row">${pill}${_flDaysGroundedBadge(v)}</span>
     <svg class="fl-opstat-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
   </button>`;
 }
