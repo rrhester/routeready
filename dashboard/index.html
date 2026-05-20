@@ -17802,6 +17802,35 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Repair-status cell · two labelled clocks + RO entry box.
              Stacked rows so each clock has its own label header. */
           #view-fleet .fl-repair-status{display:flex;flex-direction:column;gap:5px;min-width:200px}
+          /* Non-warranty grounded vans · just the category + days. */
+          #view-fleet .fl-rs-nonwarranty{gap:2px}
+          #view-fleet .fl-rs-cat{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+          #view-fleet .fl-rs-days{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums}
+          /* Grounding category picker (modal · mounted on <body>). */
+          .rr-fl-ground-cats{display:flex;flex-direction:column;gap:6px}
+          .rr-fl-ground-cat{
+            appearance:none;cursor:pointer;font:inherit;text-align:left;
+            display:flex;align-items:flex-start;gap:10px;
+            padding:10px 12px;border-radius:var(--r-md);
+            background:var(--surface);border:1px solid var(--border);
+            transition:background var(--t-fast),border-color var(--t-fast);
+          }
+          .rr-fl-ground-cat:hover{background:var(--surface-hover)}
+          .rr-fl-ground-cat.is-picked{
+            background:var(--accent-soft);border-color:var(--accent);
+          }
+          .rr-fl-ground-radio{
+            flex:0 0 auto;width:16px;height:16px;margin-top:1px;
+            border-radius:50%;border:2px solid var(--border-strong,rgba(15,23,42,.22));
+            transition:border-color var(--t-fast);
+          }
+          .rr-fl-ground-cat.is-picked .rr-fl-ground-radio{
+            border-color:var(--accent);
+            box-shadow:inset 0 0 0 3px var(--accent);
+          }
+          .rr-fl-ground-cat-text{display:flex;flex-direction:column;gap:1px;min-width:0}
+          .rr-fl-ground-cat-label{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+          .rr-fl-ground-cat-hint{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4}
           #view-fleet .fl-rs-row{display:grid;grid-template-columns:120px 1fr;gap:var(--s-2);align-items:center}
           #view-fleet .fl-rs-label{
             font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
