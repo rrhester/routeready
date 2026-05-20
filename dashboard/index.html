@@ -17645,54 +17645,53 @@ body.rr-cmdk-open{ overflow:hidden }
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-fleet">
       <div class="page">
-        <div class="page-header">
-          <div class="page-header-l">
+        <!-- Page ribbon · the Fleet title rides the icon strip, just
+             like the schedule page. View switchers + page actions sit
+             on the right. Wiring is in fleetSub() in live.js. -->
+        <div class="fl-ribbon" aria-label="Fleet">
+          <div class="fl-ribbon-titlewrap">
             <div class="page-icon" data-c="fleet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></div>
             <div>
               <h1 class="page-title">Fleet</h1>
               <p class="page-sub" id="rr-fleet-page-sub">Loading…</p>
             </div>
           </div>
-          <div class="page-actions">
-            <button class="btn btn-ghost btn-icon" id="rr-fleet-export" title="Export CSV" aria-label="Export">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            </button>
-            <button class="btn btn-primary" id="rr-fleet-add">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add van
-            </button>
-          </div>
-        </div>
-
-        <!-- Icon ribbon · view switchers (Vehicles / Issues) replace
-             the old tab bar, plus placeholder action buttons. Wiring
-             is in fleetSub() in live.js. -->
-        <div class="fl-ribbon" aria-label="Fleet views and actions">
-          <div class="fl-ribbon-group">
-            <button type="button" class="fl-ribbon-btn fl-ribbon-view active" data-sub="vehicles" onclick="fleetSub('vehicles')" aria-label="My vehicles">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="6" width="14" height="11" rx="1.5"/><path d="M15 9h4l3.2 3.4V17H15z"/><circle cx="6" cy="18.5" r="2.3"/><circle cx="17.5" cy="18.5" r="2.3"/></svg>
-              <span>Vehicles</span>
-              <span class="fl-ribbon-count" id="rr-fleet-tabcount-vehicles">0</span>
-            </button>
-            <button type="button" class="fl-ribbon-btn fl-ribbon-view" data-sub="issues" onclick="fleetSub('issues')" aria-label="Issues">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              <span>Issues</span>
-              <span class="fl-ribbon-count" id="rr-fleet-tabcount-issues" style="display:none">0</span>
-            </button>
-          </div>
-          <div class="fl-ribbon-group">
-            <button type="button" class="fl-ribbon-btn" aria-label="Placeholder action">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
-              <span>—</span>
-            </button>
-            <button type="button" class="fl-ribbon-btn" aria-label="Placeholder action">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
-              <span>—</span>
-            </button>
-            <button type="button" class="fl-ribbon-btn" aria-label="Placeholder action">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
-              <span>—</span>
-            </button>
+          <div class="fl-ribbon-actions">
+            <div class="fl-ribbon-group">
+              <button type="button" class="fl-ribbon-btn fl-ribbon-view active" data-sub="vehicles" onclick="fleetSub('vehicles')" aria-label="My vehicles">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="6" width="14" height="11" rx="1.5"/><path d="M15 9h4l3.2 3.4V17H15z"/><circle cx="6" cy="18.5" r="2.3"/><circle cx="17.5" cy="18.5" r="2.3"/></svg>
+                <span>Vehicles</span>
+                <span class="fl-ribbon-count" id="rr-fleet-tabcount-vehicles">0</span>
+              </button>
+              <button type="button" class="fl-ribbon-btn fl-ribbon-view" data-sub="issues" onclick="fleetSub('issues')" aria-label="Issues">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span>Issues</span>
+                <span class="fl-ribbon-count" id="rr-fleet-tabcount-issues" style="display:none">0</span>
+              </button>
+            </div>
+            <div class="fl-ribbon-group">
+              <button type="button" class="fl-ribbon-btn" aria-label="Placeholder action">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
+                <span>—</span>
+              </button>
+              <button type="button" class="fl-ribbon-btn" aria-label="Placeholder action">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
+                <span>—</span>
+              </button>
+              <button type="button" class="fl-ribbon-btn" aria-label="Placeholder action">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
+                <span>—</span>
+              </button>
+            </div>
+            <div class="fl-ribbon-tail">
+              <button class="btn btn-ghost btn-icon" id="rr-fleet-export" title="Export CSV" aria-label="Export">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+              <button class="btn btn-primary" id="rr-fleet-add">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add van
+              </button>
+            </div>
           </div>
         </div>
 
@@ -17865,23 +17864,44 @@ body.rr-cmdk-open{ overflow:hidden }
              grid to 2-up and make the cards behave as buttons; state
              is conveyed by a single pip in .kpi-sub, never by red
              chrome on the card itself. */
-          /* ── Icon ribbon · matches the schedule page's command bar
-             (same white card chrome + dimensions). Placeholder
-             buttons for now. ── */
+          /* ── Page ribbon · set 1:1 with the schedule page's icon
+             strip (.sched-nav-heading) — same card chrome, padding,
+             radius, shadow, and title-left / actions-right layout. ── */
           #view-fleet .fl-ribbon{
             display:flex;align-items:center;
-            gap:8px;flex-wrap:wrap;
+            justify-content:space-between;
+            gap:var(--s-3);flex-wrap:nowrap;
             padding:14px 18px;
             margin-bottom:var(--s-4);
             background:#FFFFFF;
             border:1px solid rgba(15,23,42,.08);
             border-radius:10px;
             box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
-            min-height:52px;
+          }
+          #view-fleet .fl-ribbon-titlewrap{
+            display:flex;align-items:center;gap:var(--s-3);min-width:0;
+          }
+          #view-fleet .fl-ribbon .page-title{
+            font-size:22px;font-weight:600;
+            letter-spacing:-.015em;line-height:1.2;margin:0;
+          }
+          #view-fleet .fl-ribbon .page-sub{
+            font-size:var(--fs-sm);font-weight:500;
+            color:var(--text-subtle);margin:2px 0 0;
+          }
+          #view-fleet .fl-ribbon-actions{
+            display:flex;align-items:center;
+            justify-content:flex-end;
+            gap:0;flex-wrap:nowrap;min-width:0;
+          }
+          #view-fleet .fl-ribbon-tail{
+            display:flex;align-items:center;gap:8px;
+            margin-left:10px;align-self:center;
           }
           #view-fleet .fl-ribbon-group{
-            display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+            display:flex;align-items:center;gap:6px;flex-wrap:nowrap;
             margin-bottom:23px;
+            padding:0 var(--s-2);
           }
           #view-fleet .fl-ribbon-btn{
             position:relative;
@@ -17900,7 +17920,7 @@ body.rr-cmdk-open{ overflow:hidden }
             background:rgba(15,23,42,.04);color:var(--text);
             border-color:rgba(15,23,42,.10);
           }
-          #view-fleet .fl-ribbon-btn svg{width:26px;height:26px;stroke-width:1.6}
+          #view-fleet .fl-ribbon-btn svg{width:32px;height:32px;stroke-width:1.6}
           #view-fleet .fl-ribbon-btn span{font-size:var(--fs-sm);font-weight:500}
           /* Active view switcher — blue box, mirrors the schedule
              ribbon's active tab. */
