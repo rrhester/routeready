@@ -602,7 +602,7 @@ a{color:inherit;text-decoration:none}
    signal, with a quieter label next to it (instead of a tinted
    tile competing with the glyph). */
 .nav-item svg{
-  width:26px;height:26px;flex-shrink:0;stroke-width:1.8;
+  width:30px;height:30px;flex-shrink:0;stroke-width:1.8;
   transition:color var(--t-smooth);
 }
 .nav-badge{ display:none }
@@ -670,9 +670,12 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
    Active rows still get a subtle tinted background on the
    container so the operator can see which row is selected at a
    glance, but inactive rows are pure icon-on-rail. */
+/* Every glyph is bottom-aligned inside a fixed-height box, so all
+   icons share one footer baseline and read as level with each
+   other regardless of how their viewBox content sits. */
 .nav-icon{
-  display:inline-flex;align-items:center;justify-content:center;
-  width:32px;height:32px;border-radius:var(--r-md);flex-shrink:0;
+  display:inline-flex;align-items:flex-end;justify-content:center;
+  width:37px;height:37px;border-radius:var(--r-md);flex-shrink:0;
   background:transparent;
   color:var(--ni-fg, var(--text-inverse));
   transition:background var(--t-smooth), color var(--t-smooth);
