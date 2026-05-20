@@ -8666,30 +8666,39 @@ async function loadTodayPlan() {
   // Weather card removed from the Today plan per operator direction —
   // the radar still has its own surface elsewhere if/when re-enabled.
   const skeletonOk = !!document.getElementById("rr-tp-roster")
-                  && !!document.getElementById("rr-tp-meta")
+                  && !!document.getElementById("rr-tp-kpis")
+                  && !!document.getElementById("rr-tp-rightrail")
                   && !!document.getElementById("rr-tp-daystrip");
   if (!skeletonOk) {
     shell.dataset.rrPlanShell = "1";
-    // Structured skeleton — mirrors the final layout (4 KPI chips +
-    // roster card with header + six row placeholders) so the page
-    // doesn't reflow when the cache or RPC fills in.  Each shimmer
-    // bar uses the canonical .rr-skel primitive.
+    // Layout (top → bottom):
+    //   day strip · day picker
+    //   tp-kpis   · minimal dot-pill KPI strip (replaces the old
+    //               4-chip card; same numbers, Fluent voice)
+    //   tp-mainrow · two-column grid · roster (left) + rightrail
+    //                (right) — rightrail is a placeholder card the
+    //                operator wants reserved for an upcoming pane.
     const skelRow = `<div class="tp-skel-row"><span class="rr-skel rr-skel-circle" style="width:28px;height:28px;flex:0 0 auto"></span><span class="rr-skel rr-skel-md" style="width:24%"></span><span class="rr-skel rr-skel-sm" style="width:14%"></span><span class="rr-skel rr-skel-sm" style="width:18%"></span><span class="rr-skel rr-skel-sm" style="width:12%;margin-left:auto"></span></div>`;
-    const skelChip = (toneClass) => `<div class="tp-day-chip${toneClass ? ' ' + toneClass : ''}"><div class="tp-day-chip-label tp-skel-label"><span class="rr-skel rr-skel-sm" style="width:80px"></span></div><span class="rr-skel rr-skel-lg" style="width:48px;height:24px"></span><div class="tp-skel-sub"><span class="rr-skel rr-skel-sm" style="width:62%"></span></div></div>`;
+    const skelKpi = `<span class="tp-kpi-pill is-skel"><span class="rr-skel rr-skel-circle" style="width:9px;height:9px"></span><span class="rr-skel rr-skel-sm" style="width:92px"></span></span>`;
     shell.innerHTML = `
       <div id="rr-tp-daystrip" class="tp-daystrip" role="group" aria-label="Pick a day"></div>
-      <div id="rr-tp-meta" class="card card-compact">
-        <div class="tp-day-meta" aria-busy="true" aria-label="Loading today's plan overview">
-          ${skelChip('')}
-          ${skelChip('')}
-          ${skelChip('')}
-          ${skelChip('')}
-        </div>
+      <div id="rr-tp-kpis" class="tp-kpis" aria-busy="true" aria-label="Today plan overview">
+        ${skelKpi}${skelKpi}${skelKpi}${skelKpi}
       </div>
       <div id="rr-tp-ridealong-alerts"></div>
-      <div id="rr-tp-roster" class="card card-flush">
-        <div class="rr-tp-section-head">Today's roster</div>
-        <div class="tp-skel-list" aria-busy="true">${skelRow}${skelRow}${skelRow}${skelRow}${skelRow}${skelRow}</div>
+      <div id="rr-tp-mainrow" class="tp-mainrow">
+        <div id="rr-tp-roster" class="card card-flush">
+          <div class="rr-tp-section-head">Today's roster</div>
+          <div class="tp-skel-list" aria-busy="true">${skelRow}${skelRow}${skelRow}${skelRow}${skelRow}${skelRow}</div>
+        </div>
+        <aside id="rr-tp-rightrail" class="tp-rightrail card" aria-label="Reserved panel">
+          <div class="tp-rightrail-eyebrow">Reserved</div>
+          <div class="tp-rightrail-title">Right-rail placeholder</div>
+          <div class="tp-rightrail-body">
+            This panel will be wired up shortly. Holding the space so the
+            roster layout can settle in its final two-column rhythm.
+          </div>
+        </aside>
       </div>`;
   }
 
@@ -9294,7 +9303,7 @@ function _tpRowActions(r) {
 
 // Top-of-page overview — a quiet SaaS summary strip above the roster.
 function _renderTpMeta(attData, rosterData) {
-  const el = document.getElementById("rr-tp-meta");
+  const el = document.getElementById("rr-tp-kpis");
   if (!el) return;
   const viewIso = (typeof _tpDateIso === "string" && _tpDateIso) || (typeof _tpToday === "function" ? _tpToday() : null);
   const todayIso = (typeof _tpToday === "function" ? _tpToday() : null);
@@ -9319,44 +9328,52 @@ function _renderTpMeta(attData, rosterData) {
     };
   }
   const rows = attData?.rows || [];
+  el.removeAttribute("aria-busy");
   if (!rows.length) {
-    el.innerHTML = `<div class="tp-day-empty">${escapeHtml(planning ? "No shifts scheduled for this day." : "No shifts scheduled today.")}</div>`;
+    el.innerHTML = `<span class="tp-kpi-empty">${escapeHtml(planning ? "No shifts scheduled for this day." : "No shifts scheduled today.")}</span>`;
+    _renderSchedTodayKpisMirror(null);
     return;
   }
   const waves = new Set(rows.map(r => r.wave_index ?? 0));
   const extras = rows.filter(r => r.is_cushion).length;
   const flagged = rows.filter(r => ["tardy","ncns","missed_reported"].includes(r.computed_outcome) && !r.decision).length;
   const checkedIn = rows.filter(r => ["checked_in", "checked_out"].includes(r.computed_outcome)).length;
-  const attentionTone = flagged > 0 ? (flagged >= 3 ? "red" : "amber") : "green";
-  const attendanceSub = planning
-    ? "Planning mode"
-    : `${checkedIn} checked in${rows.length ? ` · ${Math.round((checkedIn / rows.length) * 100)}%` : ""}`;
-  const attentionSub = planning
-    ? "Live attendance starts day-of"
-    : (flagged > 0 ? "Open decisions to review" : "No open attendance decisions");
-  el.innerHTML = `
-    <div class="tp-day-meta" aria-label="Today plan overview">
-      <div class="tp-day-chip">
-        <div class="tp-day-chip-label">Scheduled</div>
-        <div class="tp-day-chip-value">${rows.length}</div>
-        <div class="tp-day-chip-sub">${escapeHtml(waves.size + " wave" + (waves.size === 1 ? "" : "s"))}</div>
-      </div>
-      <div class="tp-day-chip" data-tone="green">
-        <div class="tp-day-chip-label">Attendance</div>
-        <div class="tp-day-chip-value">${planning ? "—" : checkedIn}</div>
-        <div class="tp-day-chip-sub">${escapeHtml(attendanceSub)}</div>
-      </div>
-      <div class="tp-day-chip" data-tone="amber">
-        <div class="tp-day-chip-label">Extras</div>
-        <div class="tp-day-chip-value">${extras}</div>
-        <div class="tp-day-chip-sub">Cushion / Ex drivers</div>
-      </div>
-      <div class="tp-day-chip" data-tone="${attentionTone}">
-        <div class="tp-day-chip-label">Attention</div>
-        <div class="tp-day-chip-value">${planning ? "—" : flagged}</div>
-        <div class="tp-day-chip-sub">${escapeHtml(attentionSub)}</div>
-      </div>
-    </div>`;
+  const navy = "#1A1F47";
+  const pct = rows.length ? Math.round((checkedIn / rows.length) * 100) : 0;
+  const summary = {
+    scheduled:  { value: rows.length, sub: `${waves.size} wave${waves.size === 1 ? "" : "s"}`,    tone: "navy" },
+    attendance: { value: planning ? "—" : checkedIn, sub: planning ? "Planning mode" : `${pct}% checked in`, tone: "navy" },
+    extras:     { value: extras, sub: "Cushion / Ex drivers", tone: "navy" },
+    attention:  { value: planning ? "—" : flagged, sub: planning ? "Live attendance starts day-of" : (flagged > 0 ? `${flagged} decision${flagged === 1 ? "" : "s"} to review` : "No open attendance decisions"), tone: flagged > 0 ? "red" : "navy" },
+  };
+  const pill = (key, label, val) => {
+    const color = val.tone === "red" ? "var(--red)" : navy;
+    const subHtml = val.sub ? `<span class="tp-kpi-sub">${escapeHtml(String(val.sub))}</span>` : "";
+    return `<span class="tp-kpi-pill" data-rr-tp-kpi="${key}"><span class="tp-kpi-dot" style="background:${color}"></span><span class="tp-kpi-text">${escapeHtml(String(val.value))} ${escapeHtml(label)}${subHtml}</span></span>`;
+  };
+  el.innerHTML =
+      pill("scheduled",  "Scheduled",  summary.scheduled)
+    + pill("attendance", "Checked in", summary.attendance)
+    + pill("extras",     "Extras",     summary.extras)
+    + pill("attention",  flagged === 1 ? "Open decision" : "Open decisions", summary.attention);
+  _renderSchedTodayKpisMirror(el.innerHTML);
+}
+
+// When the schedule's Today sub-view is the visible host for the
+// Today's Plan shell, mirror the in-shell minimal KPI strip into the
+// schedule-level #rr-sched-kpis pill row so the operator sees Today
+// KPIs in the same place the week KPIs normally live. Leaving the
+// Today sub-view triggers renderScheduleWeek which repaints the
+// weekly pills, so no explicit restore is needed.
+function _renderSchedTodayKpisMirror(innerHtml) {
+  const schedHost = document.getElementById("rr-sched-today-plan-host");
+  const visible = !!schedHost?.offsetParent;
+  if (!visible) return;
+  const target = document.getElementById("rr-sched-kpis");
+  if (!target) return;
+  if (innerHtml == null) { target.innerHTML = ""; return; }
+  target.classList.add("sched-kpi-pills");
+  target.innerHTML = innerHtml;
 }
 
 function _renderTpUnifiedRoster(attData, rosterData, error, otData) {
@@ -23898,9 +23915,16 @@ window.schedSub = function (sub) {
   if (sub !== "today") _resetSchedHeading();
   // When leaving the Today sub-view, return the canonical Today
   // shell to its dashboard anchor so the dashboard's own Today nav
-  // still works the next time the operator visits it.
-  if (sub !== "today" && typeof _rrMoveTodayShellTo === "function") {
-    _rrMoveTodayShellTo("rr-today-plan-anchor");
+  // still works the next time the operator visits it. Also repaint
+  // the schedule's KPI strip back to weekly numbers — Today view
+  // overwrote it with today's pills.
+  if (sub !== "today") {
+    if (typeof _rrMoveTodayShellTo === "function") _rrMoveTodayShellTo("rr-today-plan-anchor");
+    const kpisHost = document.getElementById("rr-sched-kpis");
+    if (kpisHost) kpisHost.innerHTML = "";
+    if (typeof renderScheduleWeek === "function") {
+      try { renderScheduleWeek(); } catch (_) { /* non-fatal */ }
+    }
   }
 };
 

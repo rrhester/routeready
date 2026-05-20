@@ -1249,6 +1249,72 @@ button.card:focus-visible{
 #rr-today-plan-shell{display:flex;flex-direction:column;gap:var(--s-4)}
 #rr-today-plan-shell .card{border-color:var(--border-subtle);box-shadow:0 1px 2px rgba(15,23,42,.04),0 18px 48px rgba(15,23,42,.04)}
 #rr-tp-meta{margin-bottom:0!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
+
+/* ── Today's Plan · minimal KPI strip ───────────────────────────
+   Replaces the 4-chip card with a Fluent dot+label pill row that
+   mirrors the schedule's #rr-sched-kpis voice exactly. When the
+   schedule's Today sub-view is active, this same markup is also
+   mirrored into #rr-sched-kpis so the schedule's KPI strip shows
+   today's numbers in the same minimal style. */
+.tp-kpis{
+  display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-5);
+  padding:12px 18px;
+  background:var(--surface);
+  border:1px solid rgba(15,23,42,.08);
+  border-radius:10px;
+  box-shadow:var(--shadow-sm);
+  font-size:var(--fs-sm);
+  min-height:46px;
+}
+.tp-kpi-pill,
+#view-schedule #rr-sched-kpis .tp-kpi-pill{
+  display:inline-flex;align-items:center;gap:8px;
+  color:var(--text);font-weight:600;
+  font-variant-numeric:tabular-nums;
+}
+.tp-kpi-pill.is-skel{opacity:.5}
+.tp-kpi-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.tp-kpi-text{display:inline-flex;flex-direction:column;line-height:1.1}
+.tp-kpi-sub{font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);margin-top:2px}
+.tp-kpi-empty{font-size:var(--fs-sm);color:var(--text-subtle);font-style:italic}
+
+/* ── Today's Plan · two-column main row ────────────────────────
+   Roster on the left, reserved right-rail card on the right.
+   Collapses to single column on narrower viewports so the
+   roster stays readable on smaller laptops. */
+.tp-mainrow{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 320px;
+  gap:var(--s-4);
+  align-items:start;
+}
+@media (max-width:1180px){
+  .tp-mainrow{grid-template-columns:minmax(0,1fr)}
+}
+
+/* Right-rail placeholder card · Fluent calm panel until future
+   content lands. Sits one notch above the page like the
+   schedule's driver-pool right rail. */
+.tp-rightrail{
+  display:flex;flex-direction:column;gap:8px;
+  padding:18px 20px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r-lg);
+  box-shadow:var(--shadow-sm);
+  min-height:280px;
+}
+.tp-rightrail-eyebrow{
+  font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--text-subtle);
+}
+.tp-rightrail-title{
+  font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.005em;
+}
+.tp-rightrail-body{
+  font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.45;
+  margin-top:4px;
+}
 .tp-day-meta{
   display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s-3);
 }
