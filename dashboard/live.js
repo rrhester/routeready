@@ -23986,6 +23986,19 @@ function _mountFleetCalendar(targetId) {
 }
 window._mountFleetCalendar = _mountFleetCalendar;
 
+// The fleet assignment portal — the van / driver chain editor — is
+// likewise one shared DOM node (#rr-sched-vans-chain-body). This
+// relocates it into whichever view (Schedule or Fleet) is opening it,
+// so both pages drive the same portal with one set of state.
+function _mountAssignPortal(targetId) {
+  const node   = document.getElementById("rr-sched-vans-chain-body");
+  const target = document.getElementById(targetId);
+  if (node && target && node.parentElement !== target) {
+    target.appendChild(node);
+  }
+}
+window._mountAssignPortal = _mountAssignPortal;
+
 function renderFleetCalendar() {
   const host = document.getElementById("rr-fleet-cal-host");
   if (!host) return;
@@ -24502,6 +24515,8 @@ function _activateSchedSub(sub) {
   // → fall back to "Schedule" via _resetSchedHeading.
   if (sub === "vans-chain") {
     _setSchedHeadingTitle("Van assignments");
+    // Re-home the shared assignment portal into the Schedule view.
+    if (typeof _mountAssignPortal === "function") _mountAssignPortal("sched-sub-vans-chain");
   } else if (sub !== "today") {
     // Today owns its own title swap via renderSchedTodayView.
     _resetSchedHeading();
@@ -37579,6 +37594,11 @@ window.fleetSub = function (sub) {
     if (typeof _mountFleetCalendar === "function") _mountFleetCalendar("fl-sub-calendar");
     if (typeof renderFleetCalendar === "function") renderFleetCalendar();
   }
+  else if (sub === "assign") {
+    // Pull the one shared assignment portal into the Fleet view.
+    if (typeof _mountAssignPortal === "function") _mountAssignPortal("fl-sub-assign");
+    if (typeof renderSchedVanAssignmentsBoard === "function") renderSchedVanAssignmentsBoard();
+  }
 };
 
 // ─── Master loader (entry point from refreshActiveView) ──────────────
@@ -37587,11 +37607,16 @@ async function loadFleetView() {
   // stay accurate; issues come along when the operator opens that tab.
   await _flLoadRoster();
   if (_fleetSub === "issues") await _flLoadIssues();
-  // Re-home the shared calendar node if the operator was last on the
-  // Fleet calendar sub (it may have moved to the Schedule view since).
+  // Re-home the shared calendar / assignment nodes if the operator
+  // was last on one of those subs (they may have moved to the
+  // Schedule view since).
   if (_fleetSub === "calendar") {
     _mountFleetCalendar("fl-sub-calendar");
     if (typeof renderFleetCalendar === "function") renderFleetCalendar();
+  }
+  if (_fleetSub === "assign") {
+    _mountAssignPortal("fl-sub-assign");
+    if (typeof renderSchedVanAssignmentsBoard === "function") renderSchedVanAssignmentsBoard();
   }
   _flPaintTabCounts();
 }
