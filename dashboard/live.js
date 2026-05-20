@@ -23915,11 +23915,20 @@ window.schedSub = function (sub) {
   if (sub !== "today") _resetSchedHeading();
   // When leaving the Today sub-view, return the canonical Today
   // shell to its dashboard anchor so the dashboard's own Today nav
-  // still works the next time the operator visits it. Also repaint
-  // the schedule's KPI strip back to weekly numbers — Today view
-  // overwrote it with today's pills.
-  if (sub !== "today") {
-    if (typeof _rrMoveTodayShellTo === "function") _rrMoveTodayShellTo("rr-today-plan-anchor");
+  // still works the next time the operator visits it.
+  if (sub !== "today" && typeof _rrMoveTodayShellTo === "function") {
+    _rrMoveTodayShellTo("rr-today-plan-anchor");
+  }
+  // KPI strip ownership per sub-view:
+  //   today    → mirrored from the Today shell (_renderTpMeta)
+  //   requests → painted by _renderSchedRequestsKpis
+  //   other    → renderScheduleWeek repaints weekly KPIs
+  // Close any Requests drill-down when leaving the Requests tab.
+  if (sub !== "requests") {
+    const dd = document.getElementById("rr-sched-req-drilldown");
+    if (dd) { dd.hidden = true; dd.innerHTML = ""; dd.dataset.rrOpenKpi = ""; }
+  }
+  if (sub !== "today" && sub !== "requests") {
     const kpisHost = document.getElementById("rr-sched-kpis");
     if (kpisHost) kpisHost.innerHTML = "";
     if (typeof renderScheduleWeek === "function") {
@@ -40646,6 +40655,7 @@ function _renderSchedRequestsActive() {
     if (document.getElementById("rr-time-off-body") && typeof loadTimeOffView === "function") {
       loadTimeOffView();
     }
+    _renderSchedRequestsKpis();
     return;
   }
   const which = sel.value || "pto";
@@ -40656,8 +40666,252 @@ function _renderSchedRequestsActive() {
   } else {
     renderSchedAvailabilityRequestsInline();
   }
+  _renderSchedRequestsKpis();
 }
 window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
+
+// Requests sub-view KPI strip · paints into #rr-sched-kpis when the
+// operator is on the Requests tab. Four operational pills (Pending /
+// Decisions this week / Approval rate / Most-requested days). Each
+// pill is clickable and drops an inline drill-down preview into
+// #rr-sched-req-drilldown beneath the strip, with "View on driver"
+// links into the existing driver drawer.
+let _rrReqKpiData = null;
+async function _renderSchedRequestsKpis() {
+  const host = document.getElementById("rr-sched-kpis");
+  if (!host) return;
+  // Skeleton while loading so the strip never empties briefly.
+  host.classList.add("sched-kpi-pills");
+  host.innerHTML = `<span class="sched-kpi-pill" style="opacity:.5"><span class="sched-kpi-dot" style="background:#94A3B8"></span><span class="sched-kpi-text">Loading request KPIs…</span></span>`;
+  // Both endpoints are lightweight list reads; run in parallel and
+  // tolerate either failing.
+  const [ptoRes, avRes] = await Promise.allSettled([
+    sb.rpc("dispatch_time_off_list"),
+    sb.rpc("availability_request_list"),
+  ]);
+  const ptoRows = (ptoRes.status === "fulfilled" && Array.isArray(ptoRes.value.data)) ? ptoRes.value.data : [];
+  const avRows  = (avRes.status  === "fulfilled" && Array.isArray(avRes.value.data))  ? avRes.value.data  : [];
+  _rrReqKpiData = { pto: ptoRows, av: avRows };
+
+  // Pending — total across PTO + Availability.
+  const ptoPending = ptoRows.filter(r => r.status === "pending");
+  const avPending  = avRows.filter(r => r.status === "pending");
+  const pendingTotal = ptoPending.length + avPending.length;
+
+  // Decisions in the last 7 days · use decided_at / updated_at where
+  // available, fall back to created_at.
+  const now = Date.now();
+  const weekAgo = now - 7 * 86400000;
+  const decidedField = (r) => r.decided_at || r.updated_at || r.created_at;
+  const decisionsThisWeek = []
+    .concat(ptoRows.filter(r => r.status !== "pending" && decidedField(r) && new Date(decidedField(r)).getTime() >= weekAgo))
+    .concat(avRows.filter(r => r.status !== "pending" && decidedField(r) && new Date(decidedField(r)).getTime() >= weekAgo));
+
+  // Approval rate · last 30 days of decisions across both streams.
+  const thirtyAgo = now - 30 * 86400000;
+  const decidedRecent = []
+    .concat(ptoRows.filter(r => r.status !== "pending" && decidedField(r) && new Date(decidedField(r)).getTime() >= thirtyAgo))
+    .concat(avRows.filter(r => r.status !== "pending" && decidedField(r) && new Date(decidedField(r)).getTime() >= thirtyAgo));
+  const approved = decidedRecent.filter(r => r.status === "approved").length;
+  const approvalPct = decidedRecent.length > 0 ? Math.round((approved / decidedRecent.length) * 100) : null;
+
+  // Most-requested day-of-week · PTO start_date histogram (the
+  // operational signal — when do drivers tend to take PTO).
+  const dayCounts = new Array(7).fill(0);
+  const dayLabels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  for (const r of ptoRows) {
+    if (!r.start_date) continue;
+    try { dayCounts[new Date(r.start_date + "T12:00:00").getDay()]++; } catch (_) {}
+  }
+  let topDay = -1, topDayN = 0;
+  for (let i = 0; i < 7; i++) {
+    if (dayCounts[i] > topDayN) { topDay = i; topDayN = dayCounts[i]; }
+  }
+  const topDayLabel = topDay >= 0 ? dayLabels[topDay] : "—";
+
+  const navy = "#1A1F47";
+  const pill = (key, dot, label, sub) => {
+    const subHtml = sub ? `<span class="sched-kpi-sub">${escapeHtml(sub)}</span>` : "";
+    return `<span class="sched-kpi-pill" data-rr-req-kpi="${key}" data-clickable="true" tabindex="0" role="button"><span class="sched-kpi-dot" style="background:${dot}"></span><span class="sched-kpi-text">${escapeHtml(label)}${subHtml}</span></span>`;
+  };
+  host.innerHTML =
+      pill("pending",   pendingTotal > 0 ? "var(--red)" : navy,
+           `${pendingTotal} Pending`,
+           pendingTotal === 0 ? "All caught up" : `${ptoPending.length} PTO · ${avPending.length} Availability`)
+    + pill("decisions", navy,
+           `${decisionsThisWeek.length} Decision${decisionsThisWeek.length === 1 ? "" : "s"} this week`,
+           decisionsThisWeek.length === 0 ? "—" : "Approve / deny activity")
+    + pill("approval",  navy,
+           approvalPct == null ? "— Approval rate" : `${approvalPct}% Approval rate`,
+           decidedRecent.length === 0 ? "No decisions yet" : `${approved} / ${decidedRecent.length} approved · last 30d`)
+    + pill("topday",    navy,
+           `Top PTO day · ${topDayLabel}`,
+           topDayN === 0 ? "No PTO data yet" : `${topDayN} request${topDayN === 1 ? "" : "s"} start on ${topDayLabel}`);
+
+  // Re-render any currently-open drill-down so its counts stay fresh.
+  const dd = document.getElementById("rr-sched-req-drilldown");
+  if (dd && dd.dataset.rrOpenKpi) {
+    _renderSchedReqDrilldown(dd.dataset.rrOpenKpi);
+  }
+}
+
+function _renderSchedReqDrilldown(kpi) {
+  const host = document.getElementById("rr-sched-req-drilldown");
+  if (!host) return;
+  if (!_rrReqKpiData) { host.hidden = true; host.innerHTML = ""; return; }
+  const { pto, av } = _rrReqKpiData;
+  let title = "";
+  let rows = [];
+  let source = "";
+
+  const driverNameOf = (r) => r.driver_name || r.driver?.full_name || r.full_name || "(driver)";
+  const fmtDate = (d) => { try { return new Date(d + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return d; } };
+
+  if (kpi === "pending") {
+    title = "Pending requests";
+    rows = []
+      .concat(pto.filter(r => r.status === "pending").map(r => ({
+        kind: "PTO", driver_id: r.driver_id, name: driverNameOf(r),
+        line: `${fmtDate(r.start_date)} – ${fmtDate(r.end_date)}${r.reason ? ` · ${r.reason}` : ""}`,
+        ts: r.created_at,
+      })))
+      .concat(av.filter(r => r.status === "pending").map(r => ({
+        kind: "Availability", driver_id: r.driver_id, name: driverNameOf(r),
+        line: r.summary || r.change_summary || "Availability change",
+        ts: r.created_at,
+      })));
+    rows.sort((a, b) => (a.ts || "").localeCompare(b.ts || ""));
+    source = "dispatch_time_off_list + availability_request_list · status=pending";
+  } else if (kpi === "decisions") {
+    title = "Decisions in the last 7 days";
+    const weekAgo = Date.now() - 7 * 86400000;
+    const decided = []
+      .concat(pto.filter(r => r.status !== "pending").map(r => ({
+        kind: "PTO", driver_id: r.driver_id, name: driverNameOf(r),
+        line: `${fmtDate(r.start_date)} – ${fmtDate(r.end_date)} · ${r.status}`,
+        ts: r.decided_at || r.updated_at || r.created_at,
+        status: r.status,
+      })))
+      .concat(av.filter(r => r.status !== "pending").map(r => ({
+        kind: "Availability", driver_id: r.driver_id, name: driverNameOf(r),
+        line: `${r.summary || "Availability change"} · ${r.status}`,
+        ts: r.decided_at || r.updated_at || r.created_at,
+        status: r.status,
+      })))
+      .filter(r => r.ts && new Date(r.ts).getTime() >= weekAgo)
+      .sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
+    rows = decided;
+    source = "Decisions in last 7 days · both streams";
+  } else if (kpi === "approval") {
+    title = "Approval rate breakdown · last 30 days";
+    const thirtyAgo = Date.now() - 30 * 86400000;
+    const recent = []
+      .concat(pto.filter(r => r.status !== "pending").map(r => ({
+        kind: "PTO", driver_id: r.driver_id, name: driverNameOf(r),
+        line: `${fmtDate(r.start_date)} – ${fmtDate(r.end_date)}`,
+        ts: r.decided_at || r.updated_at || r.created_at,
+        status: r.status,
+      })))
+      .concat(av.filter(r => r.status !== "pending").map(r => ({
+        kind: "Availability", driver_id: r.driver_id, name: driverNameOf(r),
+        line: r.summary || "Availability change",
+        ts: r.decided_at || r.updated_at || r.created_at,
+        status: r.status,
+      })))
+      .filter(r => r.ts && new Date(r.ts).getTime() >= thirtyAgo)
+      .sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
+    rows = recent;
+    source = "Decisions in last 30 days · grouped by outcome";
+  } else if (kpi === "topday") {
+    title = "PTO requests · day-of-week histogram";
+    const dayLabels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const buckets = new Array(7).fill(0).map(() => []);
+    for (const r of pto) {
+      if (!r.start_date) continue;
+      try { buckets[new Date(r.start_date + "T12:00:00").getDay()].push(r); } catch (_) {}
+    }
+    const max = Math.max(1, ...buckets.map(b => b.length));
+    const dayHtml = buckets.map((b, i) => {
+      const pct = Math.round((b.length / max) * 100);
+      return `<div class="rr-sched-req-dd-day"><span class="rr-sched-req-dd-day-lbl">${dayLabels[i]}</span><span class="rr-sched-req-dd-day-bar"><span style="width:${pct}%"></span></span><span class="rr-sched-req-dd-day-n">${b.length}</span></div>`;
+    }).join("");
+    host.dataset.rrOpenKpi = kpi;
+    host.hidden = false;
+    host.innerHTML = `
+      <div class="rr-sched-req-dd-head">
+        <div>
+          <div class="rr-sched-req-dd-eyebrow">Drill-down</div>
+          <div class="rr-sched-req-dd-title">${escapeHtml(title)}</div>
+        </div>
+        <button type="button" class="rr-sched-req-dd-close" aria-label="Close" data-rr-req-dd-close>×</button>
+      </div>
+      <div class="rr-sched-req-dd-days">${dayHtml}</div>
+      <div class="rr-sched-req-dd-source">Source · all PTO requests with a start date</div>`;
+    return;
+  } else {
+    host.hidden = true; host.innerHTML = "";
+    return;
+  }
+
+  host.dataset.rrOpenKpi = kpi;
+  host.hidden = false;
+  const listHtml = rows.length === 0
+    ? `<div class="rr-sched-req-dd-empty">No matching requests.</div>`
+    : rows.slice(0, 12).map(r => `
+        <div class="rr-sched-req-dd-row">
+          <span class="rr-sched-req-dd-kind">${escapeHtml(r.kind)}</span>
+          <div class="rr-sched-req-dd-body">
+            <div class="rr-sched-req-dd-name">${escapeHtml(r.name)}</div>
+            <div class="rr-sched-req-dd-line">${escapeHtml(r.line || "")}</div>
+          </div>
+          ${r.status ? `<span class="rr-sched-req-dd-status is-${escapeHtml(r.status)}">${escapeHtml(r.status)}</span>` : ""}
+          ${r.driver_id ? `<button type="button" class="rr-sched-req-dd-open" data-rr-req-driver="${escapeHtml(r.driver_id)}">View on driver →</button>` : ""}
+        </div>`).join("");
+  const moreHtml = rows.length > 12 ? `<div class="rr-sched-req-dd-more">Showing 12 of ${rows.length}</div>` : "";
+  host.innerHTML = `
+    <div class="rr-sched-req-dd-head">
+      <div>
+        <div class="rr-sched-req-dd-eyebrow">Drill-down</div>
+        <div class="rr-sched-req-dd-title">${escapeHtml(title)}</div>
+      </div>
+      <button type="button" class="rr-sched-req-dd-close" aria-label="Close" data-rr-req-dd-close>×</button>
+    </div>
+    <div class="rr-sched-req-dd-list">${listHtml}</div>
+    ${moreHtml}
+    <div class="rr-sched-req-dd-source">${escapeHtml(source)}</div>`;
+}
+
+// Click delegation for the Requests KPI strip + drill-down.
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  const kpi = e.target.closest("[data-rr-req-kpi]");
+  if (kpi) {
+    e.preventDefault();
+    const key = kpi.getAttribute("data-rr-req-kpi");
+    const dd = document.getElementById("rr-sched-req-drilldown");
+    // Toggle: clicking the open KPI again closes the panel.
+    if (dd && dd.dataset.rrOpenKpi === key && !dd.hidden) {
+      dd.hidden = true; dd.innerHTML = ""; dd.dataset.rrOpenKpi = "";
+      return;
+    }
+    _renderSchedReqDrilldown(key);
+    return;
+  }
+  const close = e.target.closest("[data-rr-req-dd-close]");
+  if (close) {
+    e.preventDefault();
+    const dd = document.getElementById("rr-sched-req-drilldown");
+    if (dd) { dd.hidden = true; dd.innerHTML = ""; dd.dataset.rrOpenKpi = ""; }
+    return;
+  }
+  const drv = e.target.closest("[data-rr-req-driver]");
+  if (drv) {
+    e.preventDefault();
+    const did = drv.getAttribute("data-rr-req-driver");
+    if (did && typeof openDriverDrawer === "function") openDriverDrawer(did);
+    return;
+  }
+});
 
 // Single-listener wiring for the picker. The visible UI is now a
 // Fluent segmented control (#rr-sched-req-seg); a hidden mirror
