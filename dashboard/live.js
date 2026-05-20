@@ -24147,7 +24147,7 @@ function _onFleetCalDrop(e) {
 // Service-providers rail · vendors the operator drags onto the grid.
 async function _paintFleetProviders() {
   try {
-    const { data, error } = await sb.rpc("vendors_for_dsp");
+    const { data, error } = await sb.rpc("fleet_calendar_providers");
     if (error) throw error;
     _fleetCalProviders = Array.isArray(data) ? data : [];
   } catch (e) {
