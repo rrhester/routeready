@@ -23938,25 +23938,24 @@ window.schedSub = function (sub) {
   }
 };
 
-// ─── Fleet calendar · month grid of free-form scheduled events ──────
-// Opened via the Calendar tab in the schedule ribbon. Events persist
-// in fleet_calendar_events (migration 0306), DSP-scoped and shared.
-let _fleetCalMonth  = null;   // Date — the 1st of the displayed month
-let _fleetCalEvents = [];     // last-loaded events for the visible grid
-let _fleetCalBound  = false;  // host click delegation installed once
+// ─── Fleet calendar · week grid, one row per van ────────────────────
+// Opened via the Fleet calendar tab in the schedule ribbon. Reads
+// like the driver schedule, but each row is a van instead of a
+// driver. Events persist in fleet_calendar_events (migrations 0306 +
+// 0307), DSP-scoped and shared.
+let _fleetCalWeekStart = null;  // Date — Sunday of the displayed week
+let _fleetCalVans      = [];    // vans (rows), name-sorted
+let _fleetCalEvents    = [];    // events for the visible week
+let _fleetCalBound     = false; // host click delegation installed once
 
-function renderFleetCalendar() {
-  const host = document.getElementById("rr-fleet-cal-host");
-  if (!host) return;
-  if (!_fleetCalMonth) {
-    const n = new Date();
-    _fleetCalMonth = new Date(n.getFullYear(), n.getMonth(), 1);
-  }
-  _paintFleetCalendar();
+// Sunday on/before the given date, at local midnight.
+function _fcSunday(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - x.getDay());
+  return x;
 }
-window.renderFleetCalendar = renderFleetCalendar;
 
-// "08:30" → "8:30a" · compact 12-hour label for the event chip.
+// "08:30" → "8:30a" · compact 12-hour label for an event chip.
 function _fcTimeLabel(hhmm) {
   if (!hhmm) return "";
   const [h, mn] = String(hhmm).split(":").map(Number);
@@ -23966,79 +23965,108 @@ function _fcTimeLabel(hhmm) {
   return mn ? `${h12}:${String(mn).padStart(2, "0")}${ap}` : `${h12}${ap}`;
 }
 
+function renderFleetCalendar() {
+  const host = document.getElementById("rr-fleet-cal-host");
+  if (!host) return;
+  if (!_fleetCalWeekStart) _fleetCalWeekStart = _fcSunday(new Date());
+  _paintFleetCalendar();
+}
+window.renderFleetCalendar = renderFleetCalendar;
+
 async function _paintFleetCalendar() {
   const host = document.getElementById("rr-fleet-cal-host");
   if (!host) return;
-  const month = _fleetCalMonth;
-  const y = month.getFullYear(), m = month.getMonth();
-  const monthLabel = month.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 
-  // 6-week grid starting on the Sunday on/before the 1st.
-  const first = new Date(y, m, 1);
-  const gridStart = new Date(y, m, 1 - first.getDay());
-  const cells = [];
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(gridStart);
-    d.setDate(gridStart.getDate() + i);
-    cells.push(d);
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(_fleetCalWeekStart);
+    d.setDate(d.getDate() + i);
+    days.push(d);
   }
 
-  // Events across the visible range.
-  let events = [];
+  let vans = [], events = [];
   try {
-    const { data, error } = await sb.rpc("fleet_calendar_events_list", {
-      p_from: fmtIsoDate(cells[0]),
-      p_to:   fmtIsoDate(cells[41]),
-    });
-    if (error) throw error;
-    events = Array.isArray(data) ? data : [];
+    const [vRes, eRes] = await Promise.all([
+      sb.from("vehicles").select("id, name").is("archived_at", null),
+      sb.rpc("fleet_calendar_events_list", {
+        p_from: fmtIsoDate(days[0]),
+        p_to:   fmtIsoDate(days[6]),
+      }),
+    ]);
+    if (vRes.error) throw vRes.error;
+    if (eRes.error) throw eRes.error;
+    vans   = Array.isArray(vRes.data) ? vRes.data : [];
+    events = Array.isArray(eRes.data) ? eRes.data : [];
   } catch (e) {
-    console.warn("fleet_calendar_events_list:", e);
+    console.warn("fleet calendar load:", e);
     host.innerHTML = `<div class="rr-fc-err">Couldn't load the calendar · ${escapeHtml(e?.message || String(e))}</div>`;
     return;
   }
+
+  // Van rows sorted numeric-aware (van "9" before "10").
+  vans.sort((a, b) =>
+    String(a.name || "").localeCompare(String(b.name || ""), undefined, { numeric: true })
+  );
+  _fleetCalVans   = vans;
   _fleetCalEvents = events;
-  const byDate = new Map();
+
+  // Index events by van + date.
+  const byKey = new Map();
   for (const ev of events) {
-    const list = byDate.get(ev.event_date) || [];
+    if (!ev.vehicle_id) continue;
+    const k = ev.vehicle_id + "|" + ev.event_date;
+    let list = byKey.get(k);
+    if (!list) { list = []; byKey.set(k, list); }
     list.push(ev);
-    byDate.set(ev.event_date, list);
   }
 
   const todayIso = fmtIsoDate(new Date());
-  const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const fmtMd = (d) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const weekLabel = `${fmtMd(days[0])} – ${fmtMd(days[6])}`;
 
-  const cellHtml = cells.map(d => {
-    const iso = fmtIsoDate(d);
-    const cls = ["rr-fc-cell"];
-    if (d.getMonth() !== m)  cls.push("is-other-month");
-    if (iso === todayIso)    cls.push("is-today");
-    const evs = (byDate.get(iso) || []).map(ev => {
-      const t = ev.start_time
-        ? `<span class="rr-fc-event-time">${escapeHtml(_fcTimeLabel(ev.start_time))}</span>`
-        : "";
-      return `<button type="button" class="rr-fc-event" data-fc-event="${escapeHtml(ev.id)}">`
-        + `${t}<span class="rr-fc-event-title">${escapeHtml(ev.title)}</span></button>`;
-    }).join("");
-    return `<div class="${cls.join(" ")}" data-fc-date="${iso}">`
-      + `<span class="rr-fc-daynum">${d.getDate()}</span>${evs}</div>`;
-  }).join("");
+  // Header row · Van label + 7 day headers.
+  let head = `<div class="rr-fc-cell-head rr-fc-vancol-head">Van</div>`;
+  for (const d of days) {
+    const cls = fmtIsoDate(d) === todayIso ? " is-today" : "";
+    head += `<div class="rr-fc-cell-head${cls}">`
+      + `<span class="rr-fc-dow">${escapeHtml(d.toLocaleDateString(undefined, { weekday: "short" }).toUpperCase())}</span>`
+      + `<span class="rr-fc-dnum">${d.getDate()}</span></div>`;
+  }
+
+  // One row per van.
+  let rows = "";
+  if (vans.length === 0) {
+    rows = `<div class="rr-fc-empty">No vans in the fleet yet — add vans on the Fleet page, then schedule events here.</div>`;
+  } else {
+    for (const v of vans) {
+      rows += `<div class="rr-fc-vancol">${escapeHtml(v.name || "—")}</div>`;
+      for (const d of days) {
+        const iso = fmtIsoDate(d);
+        const cls = iso === todayIso ? " is-today" : "";
+        const evs = (byKey.get(v.id + "|" + iso) || []).map(ev => {
+          const t = ev.start_time
+            ? `<span class="rr-fc-event-time">${escapeHtml(_fcTimeLabel(ev.start_time))}</span>`
+            : "";
+          return `<button type="button" class="rr-fc-event" data-fc-event="${escapeHtml(ev.id)}">`
+            + `${t}<span class="rr-fc-event-title">${escapeHtml(ev.title)}</span></button>`;
+        }).join("");
+        rows += `<div class="rr-fc-cell${cls}" data-fc-date="${iso}" data-fc-van="${escapeHtml(v.id)}">${evs}</div>`;
+      }
+    }
+  }
 
   host.innerHTML = `
     <div class="rr-fc-bar">
-      <div class="rr-fc-title">${escapeHtml(monthLabel)}</div>
+      <div class="rr-fc-title">${escapeHtml(weekLabel)}</div>
       <div class="rr-fc-monthnav">
-        <button type="button" class="rr-fc-navbtn" data-fc-nav="prev" aria-label="Previous month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-        <button type="button" class="rr-fc-navbtn rr-fc-today" data-fc-nav="today">Today</button>
-        <button type="button" class="rr-fc-navbtn" data-fc-nav="next" aria-label="Next month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+        <button type="button" class="rr-fc-navbtn" data-fc-nav="prev" aria-label="Previous week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <button type="button" class="rr-fc-navbtn rr-fc-today" data-fc-nav="today">This week</button>
+        <button type="button" class="rr-fc-navbtn" data-fc-nav="next" aria-label="Next week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
       </div>
       <div class="rr-fc-spacer"></div>
       <button type="button" class="rr-fc-add" data-fc-nav="add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add event</button>
     </div>
-    <div class="rr-fc-grid">
-      ${weekdays.map(w => `<div class="rr-fc-weekday">${w}</div>`).join("")}
-      ${cellHtml}
-    </div>`;
+    <div class="rr-fc-grid">${head}${rows}</div>`;
 
   if (!_fleetCalBound) {
     _fleetCalBound = true;
@@ -24050,28 +24078,32 @@ function _onFleetCalClick(e) {
   const nav = e.target.closest("[data-fc-nav]");
   if (nav) {
     const a = nav.getAttribute("data-fc-nav");
-    if (a === "prev")  _fleetCalMonth = new Date(_fleetCalMonth.getFullYear(), _fleetCalMonth.getMonth() - 1, 1);
-    if (a === "next")  _fleetCalMonth = new Date(_fleetCalMonth.getFullYear(), _fleetCalMonth.getMonth() + 1, 1);
-    if (a === "today") { const n = new Date(); _fleetCalMonth = new Date(n.getFullYear(), n.getMonth(), 1); }
-    if (a === "add")   { _openFleetCalEventModal(null, fmtIsoDate(new Date())); return; }
+    if (a === "prev")  { const d = new Date(_fleetCalWeekStart); d.setDate(d.getDate() - 7); _fleetCalWeekStart = d; }
+    if (a === "next")  { const d = new Date(_fleetCalWeekStart); d.setDate(d.getDate() + 7); _fleetCalWeekStart = d; }
+    if (a === "today") { _fleetCalWeekStart = _fcSunday(new Date()); }
+    if (a === "add")   { _openFleetCalEventModal(null, null, null); return; }
     _paintFleetCalendar();
     return;
   }
   const evBtn = e.target.closest("[data-fc-event]");
   if (evBtn) {
     e.stopPropagation();
-    _openFleetCalEventModal(evBtn.getAttribute("data-fc-event"), null);
+    _openFleetCalEventModal(evBtn.getAttribute("data-fc-event"), null, null);
     return;
   }
   const cell = e.target.closest("[data-fc-date]");
-  if (cell) _openFleetCalEventModal(null, cell.getAttribute("data-fc-date"));
+  if (cell) {
+    _openFleetCalEventModal(null, cell.getAttribute("data-fc-date"), cell.getAttribute("data-fc-van"));
+  }
 }
 
-// Add / edit / delete one event. eventId null → new event on dateIso.
-function _openFleetCalEventModal(eventId, dateIso) {
+// Add / edit / delete one event. eventId null → new event; dateIso /
+// vanId prefill the day + van when adding from a grid cell.
+function _openFleetCalEventModal(eventId, dateIso, vanId) {
   const existing = eventId ? (_fleetCalEvents.find(e => e.id === eventId) || null) : null;
   const ev = existing || {
     id: null, title: "", event_date: dateIso || fmtIsoDate(new Date()),
+    vehicle_id: vanId || (_fleetCalVans[0] && _fleetCalVans[0].id) || "",
     start_time: "", end_time: "", notes: "",
   };
 
@@ -24080,13 +24112,20 @@ function _openFleetCalEventModal(eventId, dateIso) {
   const m = document.createElement("div");
   m.id = "rr-fc-event-modal";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  const vanOpts = _fleetCalVans
+    .map(v => `<option value="${escapeHtml(v.id)}"${v.id === ev.vehicle_id ? " selected" : ""}>${escapeHtml(v.name || "—")}</option>`)
+    .join("");
   m.innerHTML = `
     <div role="dialog" aria-label="Calendar event" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:420px;overflow:hidden">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);font-size:var(--fs-lg);font-weight:600">${existing ? "Edit event" : "New event"}</div>
       <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5)">
         <label style="display:flex;flex-direction:column;gap:4px">
           <span style="font-size:var(--fs-sm);font-weight:600">Title</span>
-          <input type="text" id="rr-fc-f-title" class="form-input" maxlength="120" placeholder="e.g. Van 12 maintenance" value="${escapeHtml(ev.title)}" />
+          <input type="text" id="rr-fc-f-title" class="form-input" maxlength="120" placeholder="e.g. Maintenance — oil change" value="${escapeHtml(ev.title)}" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:var(--fs-sm);font-weight:600">Van</span>
+          <select id="rr-fc-f-van" class="form-input">${vanOpts || `<option value="">No vans available</option>`}</select>
         </label>
         <label style="display:flex;flex-direction:column;gap:4px">
           <span style="font-size:var(--fs-sm);font-weight:600">Date</span>
@@ -24128,17 +24167,19 @@ function _openFleetCalEventModal(eventId, dateIso) {
   m.querySelector("#rr-fc-save").addEventListener("click", async () => {
     const status = m.querySelector("#rr-fc-f-status");
     const title  = titleEl.value.trim();
+    const van    = m.querySelector("#rr-fc-f-van").value || null;
     const date   = m.querySelector("#rr-fc-f-date").value;
     const start  = m.querySelector("#rr-fc-f-start").value || null;
     const end    = m.querySelector("#rr-fc-f-end").value || null;
     const notes  = m.querySelector("#rr-fc-f-notes").value.trim() || null;
-    if (!title) { status.textContent = "Add a title.";  return; }
-    if (!date)  { status.textContent = "Pick a date.";  return; }
+    if (!title) { status.textContent = "Add a title."; return; }
+    if (!van)   { status.textContent = "Pick a van.";  return; }
+    if (!date)  { status.textContent = "Pick a date."; return; }
     const saveBtn = m.querySelector("#rr-fc-save");
     saveBtn.disabled = true;
     try {
       const { error } = await sb.rpc("fleet_calendar_event_upsert", {
-        p_id: ev.id, p_title: title, p_event_date: date,
+        p_id: ev.id, p_title: title, p_event_date: date, p_vehicle_id: van,
         p_start_time: start, p_end_time: end, p_notes: notes,
       });
       if (error) throw error;
