@@ -26712,6 +26712,19 @@ async function autoAssignDriversForWeek() {
       && ["least_loaded","seniority","fairness"].includes(sfRules.tiebreaker)) {
     tiebreaker = sfRules.tiebreaker;
   }
+  // Each operator-toggleable eligibility rule. All ship checked, so an
+  // absent key (rule never touched) reads as ON; only an explicit
+  // uncheck (false) disables the gate. Unchecking a rule here actually
+  // removes that filter from the planner — previously most of these
+  // checkboxes were decorative and the gates were hard-coded.
+  const sfDlValid      = sfRules.dl_valid      !== false;
+  const sfStatusActive = sfRules.status_active !== false;
+  const sfDotRequired  = sfRules.dot_required  !== false;
+  const sfXlRequired   = sfRules.xl_required   !== false;
+  const sfMaxDaysOn    = sfRules.max_days      !== false;
+  const sfAvailability = sfRules.availability  !== false;
+  const sfPtoBlock     = sfRules.pto_block     !== false;
+  const sfServiceTypes = sfRules.service_types !== false;
 
   // Pull drivers + their cert flags, the per-week shifts (with their
   // service_type_id so we can check cert requirements), the active
@@ -26719,9 +26732,8 @@ async function autoAssignDriversForWeek() {
   // approved PTO inside the week.
   const [driversRes, ptoRes, shiftsRes, svcRes] = await Promise.all([
     sb.from("drivers")
-      .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified")
+      .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified, status")
       .eq("dsp_id", dspId)
-      .eq("status", "active")
       .order("full_name"),
     sb.from("time_off_requests")
       .select("driver_id, start_date, end_date, is_pto")
@@ -26735,7 +26747,7 @@ async function autoAssignDriversForWeek() {
       .gte("date", _schedStart)
       .lte("date", weekEndIso),
     sb.from("service_types")
-      .select("id, code, label, requires_dot, requires_xl")
+      .select("id, code, label, requires_dot, requires_xl, active")
       .eq("dsp_id", dspId),
   ]);
 
@@ -26744,19 +26756,27 @@ async function autoAssignDriversForWeek() {
     return { assigned: 0, skippedExpired: [] };
   }
 
-  const drivers = driversRes.data || [];
+  // status_active rule: when on, restrict to active/onboarding drivers
+  // (matching the rule label). When unchecked, every driver row the DSP
+  // has is a candidate, whatever their status.
+  const drivers = (driversRes.data || []).filter(d =>
+    !sfStatusActive || d.status === "active" || d.status === "onboarding");
   const pto     = ptoRes.data     || [];
   // Map service_type_id → { requires_dot, requires_xl } so we can
   // gate driver eligibility per shift.
   const serviceCerts = new Map();
+  // service_types rule: ids of service types still marked active, so the
+  // planner can skip open shifts on a retired service type.
+  const activeServiceTypeIds = new Set();
   for (const s of (svcRes?.data || [])) {
     serviceCerts.set(s.id, { requires_dot: !!s.requires_dot, requires_xl: !!s.requires_xl });
+    if (s.active !== false) activeServiceTypeIds.add(s.id);
   }
   const driverHasCertsFor = (driver, serviceTypeId) => {
     const cert = serviceCerts.get(serviceTypeId);
     if (!cert) return true; // unknown service type → don't gate
-    if (cert.requires_dot && !driver.dot_certified) return false;
-    if (cert.requires_xl  && !driver.xl_certified)  return false;
+    if (sfDotRequired && cert.requires_dot && !driver.dot_certified) return false;
+    if (sfXlRequired  && cert.requires_xl  && !driver.xl_certified)  return false;
     return true;
   };
   // Smart Fill only touches *regular* route-staffing shifts. Training
@@ -26821,7 +26841,7 @@ async function autoAssignDriversForWeek() {
   // the operator after the run.
   const skippedExpired = [];
   for (const d of drivers) {
-    if (!driverLicenseOk(d)) {
+    if (sfDlValid && !driverLicenseOk(d)) {
       skippedExpired.push({
         id: d.id,
         full_name: d.full_name,
@@ -26898,7 +26918,8 @@ async function autoAssignDriversForWeek() {
   // Sort: date asc → regular shifts before cushion (extras) → starts_at asc.
   // Default rule per the operator: fill non-cushion before EX shifts so the
   // buffer only gets a driver after all the planned routes are covered.
-  const openShifts = shifts.filter(sh => !sh.driver_id && sh.status === "scheduled")
+  const openShifts = shifts.filter(sh => !sh.driver_id && sh.status === "scheduled"
+      && (!sfServiceTypes || !sh.service_type_id || activeServiceTypeIds.has(sh.service_type_id)))
     .sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
       const ac = a.is_cushion ? 1 : 0;
@@ -26934,13 +26955,16 @@ async function autoAssignDriversForWeek() {
   // Expired DL / missing cert / PTO / already-shifted-that-day / over the
   // weekly cap / can't-start-that-early all block regardless of override.
   const eligible = (d, sh, booked, bookedHours) => {
-    if (!driverLicenseOkForDate(d, sh.date)) return false;
+    if (sfDlValid && !driverLicenseOkForDate(d, sh.date)) return false;
     if (!driverHasCertsFor(d, sh.service_type_id)) return false;
-    if (driverPtoDates.get(d.id)?.has(sh.date)) return false;
+    if (sfPtoBlock && driverPtoDates.get(d.id)?.has(sh.date)) return false;
+    // Same-day double-book is never allowed — not a toggleable rule.
     if (booked.get(d.id)?.has(sh.date)) return false;
-    if ((booked.get(d.id)?.size || 0) >= maxDays) return false;
+    if (sfMaxDaysOn && (booked.get(d.id)?.size || 0) >= maxDays) return false;
+    // earliest_start is part of the driver's saved availability, so it
+    // rides the same toggle as the day-of-week availability check.
     const es = d.metadata?.availability?.earliest_start;
-    if (es && _startsBeforeEarliest(_shiftStartHM(sh.starts_at), es)) return false;
+    if (sfAvailability && es && _startsBeforeEarliest(_shiftStartHM(sh.starts_at), es)) return false;
     // Weekly-hours cap (SF max_hours rule). Optional PTO inclusion
     // per the pto_count_in_cap rule. Skip when caller didn't pass
     // bookedHours (legacy code path) — fail-open keeps behavior
@@ -26953,7 +26977,9 @@ async function autoAssignDriversForWeek() {
     }
     return true;
   };
-  const availableOn = (d, sh, dow) => driverDaysOn(d.id, sh.date).includes(dow);
+  // availability rule: when off, ignore the driver's saved day-of-week
+  // availability entirely so every driver is a candidate every day.
+  const availableOn = (d, sh, dow) => !sfAvailability || driverDaysOn(d.id, sh.date).includes(dow);
   const loadOf = (id, booked) => booked.get(id)?.size || 0;
 
   // Winner among candidates per the DSP's configured tiebreaker; all modes
