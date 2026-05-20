@@ -17697,7 +17697,14 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <style>
           /* ── Fleet · roster refinements (scoped) ─────────────────── */
-          #view-fleet .fl-roster-bar{display:flex;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3);flex-wrap:wrap}
+          /* Search + filters · the table card's header strip. Sits
+             inside .table-wrap, above the column headers. */
+          #view-fleet .fl-roster-bar{
+            display:flex;align-items:center;gap:var(--s-3);flex-wrap:wrap;
+            padding:12px 16px;
+            background:var(--surface);
+            border-bottom:1px solid var(--border);
+          }
           #view-fleet .fl-roster-bar .fl-search{position:relative;flex:1;min-width:220px;max-width:380px}
           #view-fleet .fl-roster-bar .fl-search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-subtle);pointer-events:none}
           #view-fleet .fl-roster-bar .fl-search input{
@@ -18113,36 +18120,32 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        <div class="fl-roster-bar">
-          <div class="fl-search">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input id="rr-fleet-search" type="search" placeholder="Search by name, plate, VIN, driver…" autocomplete="off">
-          </div>
-          <div class="fl-bar-spacer"></div>
-          <select id="rr-fleet-status" class="fl-filter" aria-label="Filter by status">
-            <option value="">Status: All</option>
-            <option value="active">Active</option>
-            <option value="spare">Spare</option>
-            <option value="out_of_service">Out of service</option>
-            <option value="retired">Retired</option>
-          </select>
-          <select id="rr-fleet-station" class="fl-filter" aria-label="Filter by station">
-            <option value="">Station: All</option>
-          </select>
-          <select id="rr-fleet-docs" class="fl-filter" aria-label="Filter by document exception">
-            <option value="">Docs: All</option>
-            <option value="any">Any exception</option>
-            <option value="expired">Expired</option>
-            <option value="expiring_soon">Expiring soon</option>
-            <option value="missing">Missing</option>
-          </select>
-        </div>
-
-        <!-- Driver-reported legend · explains the ⚑ chip drivers trigger
-             by submitting the Vehicle Concerns form (see migration 0289).
-             Renders as a quiet info strip so leadership knows what the
-             icon means even before any concern has been submitted. -->
         <div class="table-wrap">
+          <!-- Search + filters live in the table card's header. -->
+          <div class="fl-roster-bar">
+            <div class="fl-search">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="rr-fleet-search" type="search" placeholder="Search by name, plate, VIN, driver…" autocomplete="off">
+            </div>
+            <div class="fl-bar-spacer"></div>
+            <select id="rr-fleet-status" class="fl-filter" aria-label="Filter by status">
+              <option value="">Status: All</option>
+              <option value="active">Active</option>
+              <option value="spare">Spare</option>
+              <option value="out_of_service">Out of service</option>
+              <option value="retired">Retired</option>
+            </select>
+            <select id="rr-fleet-station" class="fl-filter" aria-label="Filter by station">
+              <option value="">Station: All</option>
+            </select>
+            <select id="rr-fleet-docs" class="fl-filter" aria-label="Filter by document exception">
+              <option value="">Docs: All</option>
+              <option value="any">Any exception</option>
+              <option value="expired">Expired</option>
+              <option value="expiring_soon">Expiring soon</option>
+              <option value="missing">Missing</option>
+            </select>
+          </div>
           <table class="table">
             <thead>
               <tr>
@@ -18172,26 +18175,27 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <!-- ISSUES sub-tab — open + completed -->
         <div class="fl-sub" id="fl-sub-issues">
-          <div class="fl-roster-bar">
-            <div class="fl-search">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input id="rr-fleet-issues-search" type="search" placeholder="Search by van, plate, title…" autocomplete="off">
-            </div>
-            <div class="fl-bar-spacer"></div>
-            <select id="rr-fleet-issues-state" class="fl-filter" aria-label="Filter by state">
-              <option value="open">Open</option>
-              <option value="completed">Completed</option>
-              <option value="all">All</option>
-            </select>
-            <select id="rr-fleet-issues-sev" class="fl-filter" aria-label="Filter by severity">
-              <option value="">Severity: All</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
           <div class="table-wrap">
+            <!-- Search + filters live in the table card's header. -->
+            <div class="fl-roster-bar">
+              <div class="fl-search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input id="rr-fleet-issues-search" type="search" placeholder="Search by van, plate, title…" autocomplete="off">
+              </div>
+              <div class="fl-bar-spacer"></div>
+              <select id="rr-fleet-issues-state" class="fl-filter" aria-label="Filter by state">
+                <option value="open">Open</option>
+                <option value="completed">Completed</option>
+                <option value="all">All</option>
+              </select>
+              <select id="rr-fleet-issues-sev" class="fl-filter" aria-label="Filter by severity">
+                <option value="">Severity: All</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
             <table class="table">
               <thead>
                 <tr>
