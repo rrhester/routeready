@@ -23972,6 +23972,15 @@ function _fcTimeLabel(hhmm) {
   return mn ? `${h12}:${String(mn).padStart(2, "0")}${ap}` : `${h12}${ap}`;
 }
 
+// "May 21 – May 23" for an event date span (single day → one date).
+function _fcRangeLabel(aIso, bIso) {
+  const f = (iso) => {
+    try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+    catch { return iso; }
+  };
+  return aIso === bIso ? f(aIso) : `${f(aIso)} – ${f(bIso)}`;
+}
+
 // The fleet calendar is a single shared DOM node (.rr-fc-shell). Both
 // the Schedule view and the Fleet view host it; this relocates that
 // one node into whichever page is opening it, so there is only ever
@@ -24059,59 +24068,78 @@ async function _paintFleetCalendar() {
   _fleetCalVans   = vans;
   _fleetCalEvents = events;
 
-  // Index events by van + date. Multi-day events (end_date beyond
-  // event_date) land on every day they span within the visible week.
-  const dayIsos = days.map(d => fmtIsoDate(d));
-  const byKey = new Map();
-  for (const ev of events) {
-    if (!ev.vehicle_id) continue;
-    const evStart = ev.event_date;
-    const evEnd   = ev.end_date || ev.event_date;
-    for (const iso of dayIsos) {
-      if (iso < evStart || iso > evEnd) continue;
-      const k = ev.vehicle_id + "|" + iso;
-      let list = byKey.get(k);
-      if (!list) { list = []; byKey.set(k, list); }
-      list.push(ev);
-    }
-  }
-
-  const todayIso = fmtIsoDate(new Date());
+  const dayIsos   = days.map(d => fmtIsoDate(d));
+  const weekStart = dayIsos[0], weekEnd = dayIsos[6];
+  const todayIso  = fmtIsoDate(new Date());
   const fmtMd = (d) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const weekLabel = `${fmtMd(days[0])} – ${fmtMd(days[6])}`;
 
+  // Group events per van (each event — incl. multi-day — is rendered
+  // once as a continuous bar, not copied per day).
+  const eventsByVan = new Map();
+  for (const ev of events) {
+    if (!ev.vehicle_id) continue;
+    const evEnd = ev.end_date || ev.event_date;
+    if (ev.event_date > weekEnd || evEnd < weekStart) continue;
+    let list = eventsByVan.get(ev.vehicle_id);
+    if (!list) { list = []; eventsByVan.set(ev.vehicle_id, list); }
+    list.push(ev);
+  }
+
   // Header row · Van label + 7 day headers.
   let head = `<div class="rr-fc-cell-head rr-fc-vancol-head">Van</div>`;
-  for (const d of days) {
-    const cls = fmtIsoDate(d) === todayIso ? " is-today" : "";
+  days.forEach((d, di) => {
+    const cls = (fmtIsoDate(d) === todayIso ? " is-today" : "") + (di === 6 ? " rr-fc-col-last" : "");
     head += `<div class="rr-fc-cell-head${cls}">`
       + `<span class="rr-fc-dow">${escapeHtml(d.toLocaleDateString(undefined, { weekday: "short" }).toUpperCase())}</span>`
       + `<span class="rr-fc-dnum">${d.getDate()}</span></div>`;
-  }
+  });
 
-  // One row per van.
+  // One row per van · empty day cells (click targets) plus a layer of
+  // continuous event bars placed by CSS-grid column span.
   let rows = "";
   if (vans.length === 0) {
     rows = `<div class="rr-fc-empty">No vans in the fleet yet — add vans on the Fleet page, then schedule events here.</div>`;
   } else {
-    for (const v of vans) {
-      rows += `<div class="rr-fc-vancol">${escapeHtml(v.name || "—")}</div>`;
-      for (const d of days) {
-        const iso = fmtIsoDate(d);
-        const cls = iso === todayIso ? " is-today" : "";
-        const evs = (byKey.get(v.id + "|" + iso) || []).map(ev => {
-          const t = ev.start_time
-            ? `<span class="rr-fc-event-time">${escapeHtml(_fcTimeLabel(ev.start_time))}</span>`
-            : "";
-          const ven = ev.vendor_name
-            ? `<span class="rr-fc-event-vendor">${escapeHtml(ev.vendor_name)}</span>`
-            : "";
-          return `<button type="button" class="rr-fc-event" data-fc-event="${escapeHtml(ev.id)}">`
-            + `${t}<span class="rr-fc-event-title">${escapeHtml(ev.title)}</span>${ven}</button>`;
-        }).join("");
-        rows += `<div class="rr-fc-cell${cls}" data-fc-date="${iso}" data-fc-van="${escapeHtml(v.id)}">${evs}</div>`;
+    vans.forEach((v, vi) => {
+      const vanEvents = (eventsByVan.get(v.id) || []).slice()
+        .sort((a, b) => (a.event_date < b.event_date ? -1 : a.event_date > b.event_date ? 1 : 0));
+      // Lane assignment — overlapping bars stack instead of colliding.
+      const laneEnd = [];
+      for (const ev of vanEvents) {
+        const evEnd = ev.end_date || ev.event_date;
+        let lane = laneEnd.findIndex(end => end < ev.event_date);
+        if (lane === -1) { lane = laneEnd.length; laneEnd.push(evEnd); }
+        else laneEnd[lane] = evEnd;
+        ev._lane = lane;
       }
-    }
+      const laneCount = Math.max(1, laneEnd.length);
+      const rowH = Math.max(62, 6 + (laneCount - 1) * 42 + 38 + 8);
+
+      rows += `<div class="rr-fc-vancol">${escapeHtml(v.name || "—")}</div>`;
+      for (let di = 0; di < 7; di++) {
+        const iso = dayIsos[di];
+        const cls = (iso === todayIso ? " is-today" : "") + (di === 6 ? " rr-fc-col-last" : "");
+        rows += `<div class="rr-fc-cell${cls}" data-fc-date="${iso}" data-fc-van="${escapeHtml(v.id)}" style="min-height:${rowH}px"></div>`;
+      }
+      for (const ev of vanEvents) {
+        const evEnd = ev.end_date || ev.event_date;
+        const sIdx  = dayIsos.indexOf(ev.event_date < weekStart ? weekStart : ev.event_date);
+        const eIdx  = dayIsos.indexOf(evEnd > weekEnd ? weekEnd : evEnd);
+        if (sIdx < 0 || eIdx < 0) continue;
+        const contL = ev.event_date < weekStart;
+        const contR = evEnd > weekEnd;
+        const ven = ev.vendor_name
+          ? `<span class="rr-fc-event-vendor">${escapeHtml(ev.vendor_name)}</span>`
+          : (ev.start_time ? `<span class="rr-fc-event-time">${escapeHtml(_fcTimeLabel(ev.start_time))}</span>` : "");
+        const multi = evEnd !== ev.event_date;
+        const tip = `${ev.title}${multi ? ` · ${_fcRangeLabel(ev.event_date, evEnd)}` : ""}`;
+        rows += `<button type="button" class="rr-fc-event rr-fc-event-bar${contL ? " is-cont-left" : ""}${contR ? " is-cont-right" : ""}"`
+          + ` style="grid-row:${vi + 2};grid-column:${sIdx + 2} / ${eIdx + 3};margin-top:${6 + ev._lane * 42}px"`
+          + ` data-fc-event="${escapeHtml(ev.id)}" title="${escapeHtml(tip)}">`
+          + `<span class="rr-fc-event-title">${escapeHtml(ev.title)}</span>${ven}</button>`;
+      }
+    });
   }
 
   host.innerHTML = `
