@@ -15548,6 +15548,66 @@ body.rr-cmdk-open{ overflow:hidden }
              the leftover ::before/::after progress bar from the
              previous pass would interfere. */
           #view-schedule #rr-sched-kpis .stat-mini{display:none}
+
+          /* ──────────────────────────────────────────────────────
+             Fluent-2 alignment · toolbar command hierarchy.
+
+             The ribbon carries commands of different intent, and
+             they should not all compete for attention equally:
+
+               · Workflow   — Finalize. Strongest: a filled chip.
+                              (Styled above; unchanged here.)
+               · Automation — Smart Fill, Assign, Targets. Medium:
+                              a quiet defined surface so they read
+                              as a deliberate tool cluster, one
+                              step below the filled workflow chip.
+               · Engagement — Kudos. Softest: flat + muted, so a
+                              social action never outranks the
+                              operational work.
+
+             Navigation (Week/Today) and utility (Staff/Requests)
+             tabs already read as quiet subnav and are left as-is.
+             ────────────────────────────────────────────────────── */
+
+          /* Automation commands · medium emphasis. The hairline
+             surface lifts them above the flat engagement command
+             without borrowing Finalize's filled treatment. */
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-smartfill-h,
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-vans-h,
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-okami-open-h{
+            background:var(--sch-surface-2);
+            border:1px solid var(--sch-line);
+            color:var(--text);
+          }
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-smartfill-h:hover,
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-vans-h:hover,
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-okami-open-h:hover{
+            background:var(--sch-hover);
+            border-color:var(--sch-line-strong);
+            color:var(--text);
+          }
+
+          /* Engagement command (Kudos) · softest. Flat, no resting
+             surface, muted label — present but never dominant. */
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-kudos-h{
+            background:transparent;
+            border:1px solid transparent;
+            color:var(--text-muted);
+          }
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-kudos-h:hover{
+            background:var(--sch-hover);
+            color:var(--text);
+          }
+
+          /* Ribbon group divider · hairline, not a hard rule. The
+             prior 2px / .28-opacity bar read as a heavy separator;
+             a single low-contrast line is the calmer Fluent cue. */
+          #view-schedule .sched-ribbon-group + .sched-ribbon-group::before{
+            width:1px;
+            height:24px;
+            margin-top:-12px;
+            background:var(--sch-line-strong);
+          }
         </style>
 
           <!-- Hidden offset-tabs strip — week selection moved to the
