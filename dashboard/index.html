@@ -16357,6 +16357,19 @@ body.rr-cmdk-open{ overflow:hidden }
               border-radius:var(--sch-radius-lg);
               overflow:hidden;
             }
+            /* Match the week view's builder layout — calendar on the
+               left, a reserved 300px space on the right the same
+               size as the Open shifts box. */
+            #view-schedule .rr-fc-shell{
+              display:grid;
+              grid-template-columns:1fr 300px;
+              gap:var(--s-4);
+              align-items:start;
+            }
+            @media (max-width:1180px){
+              #view-schedule .rr-fc-shell{grid-template-columns:1fr}
+              #view-schedule .rr-fc-rail-space{display:none}
+            }
             #view-schedule .rr-fc-bar{
               display:flex;align-items:center;gap:12px;
               padding:14px 16px;
@@ -16475,8 +16488,11 @@ body.rr-cmdk-open{ overflow:hidden }
               padding:22px 16px;font-size:var(--fs-sm);color:var(--sch-red);
             }
           </style>
-          <div id="rr-fleet-cal-host" class="rr-fleet-cal">
-            <div class="rr-loading">Loading calendar…</div>
+          <div class="rr-fc-shell">
+            <div id="rr-fleet-cal-host" class="rr-fleet-cal">
+              <div class="rr-loading">Loading calendar…</div>
+            </div>
+            <div class="rr-fc-rail-space" aria-hidden="true"></div>
           </div>
         </div><!-- /sched-sub-calendar -->
 
