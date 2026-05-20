@@ -25112,8 +25112,17 @@ async function _rrDecorateChainEditorHeatmap(body, usageByVan, todayIso, drivers
   if (headRow && !headRow.querySelector("[data-rr-heatmap-head]")) {
     const th = document.createElement("th");
     th.setAttribute("data-rr-heatmap-head", "1");
-    th.style.cssText = "min-width:248px;text-align:left;white-space:nowrap";
-    th.textContent = "Utilization / Readiness";
+    th.style.cssText = "min-width:288px;text-align:left;white-space:nowrap;padding-left:14px";
+    th.innerHTML =
+      `<div class="rr-heatmap-headtitle">Utilization / Readiness`
+      + `<span class="rr-heatmap-info" title="Past 14 days of van usage, a marker for today, then the next 7 days of scheduled readiness. Green = used · amber = scheduled service · red = grounded.">`
+      + `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`
+      + `</span></div>`
+      + `<div class="rr-heatmap-headsub">`
+      + `<span class="rr-heatmap-hs hs-past">Past 14 days</span>`
+      + `<span class="rr-heatmap-hs hs-today">TODAY</span>`
+      + `<span class="rr-heatmap-hs hs-future">Next 7 days</span>`
+      + `</div>`;
     const notesTh = headRow.children[6];
     if (notesTh) headRow.insertBefore(th, notesTh); else headRow.appendChild(th);
   }
@@ -25164,9 +25173,11 @@ async function _rrDecorateChainEditorHeatmap(body, usageByVan, todayIso, drivers
     const td = document.createElement("td");
     td.setAttribute("data-rr-heatmap-cell", "1");
     td.innerHTML = `<div class="rr-heatmap-wrap">`
-      + `<div class="rr-heatmap-strip">${pastCells}`
+      + `<div class="rr-heatmap-strip">`
+      + `<span class="rr-heatmap-grp">${pastCells}</span>`
       + `<span class="rr-heatmap-div" aria-hidden="true" title="Today"></span>`
-      + `${futureCells}</div>`
+      + `<span class="rr-heatmap-grp">${futureCells}</span>`
+      + `</div>`
       + `<div class="rr-heatmap-sub">${escapeHtml(statusLine)}</div></div>`;
     const notesTd = tr.children[6];
     if (notesTd) tr.insertBefore(td, notesTd); else tr.appendChild(td);
