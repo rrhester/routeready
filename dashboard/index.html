@@ -8043,6 +8043,102 @@ body.rr-cmdk-open{ overflow:hidden }
    legacy #sched-sub-time-off scope so the renderer doesn't have
    to change — we just extend the selector to include the new
    #sched-sub-requests panel host. */
+
+/* ── Requests · KPI drill-down panel ───────────────────────────
+   Drops in below the KPI strip when a KPI pill is clicked.  Calm
+   white card with a left accent rail and a row list; each row
+   has a "View on driver →" link that opens the existing driver
+   drawer. */
+.rr-sched-req-drilldown{
+  background:#FFFFFF;
+  border:1px solid rgba(15,23,42,.08);
+  border-left:3px solid var(--accent);
+  border-radius:10px;
+  box-shadow:var(--shadow-sm);
+  margin:0 0 var(--s-4) 0;
+  overflow:hidden;
+}
+.rr-sched-req-dd-head{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  gap:var(--s-3);padding:12px 18px;
+  border-bottom:1px solid var(--border-subtle);
+  background:var(--surface-secondary, #FAFBFD);
+}
+.rr-sched-req-dd-eyebrow{
+  font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--text-subtle);
+}
+.rr-sched-req-dd-title{
+  font-size:14px;font-weight:600;color:var(--text);margin-top:2px;letter-spacing:-.005em;
+}
+.rr-sched-req-dd-close{
+  background:none;border:0;cursor:pointer;color:var(--text-muted);
+  font-size:20px;line-height:1;padding:4px 8px;border-radius:6px;
+  transition:background var(--t-fast),color var(--t-fast);
+}
+.rr-sched-req-dd-close:hover{background:var(--canvas);color:var(--text)}
+.rr-sched-req-dd-list{display:flex;flex-direction:column}
+.rr-sched-req-dd-row{
+  display:grid;
+  grid-template-columns:90px 1fr auto auto;
+  gap:var(--s-3);align-items:center;
+  padding:10px 18px;
+  border-top:1px solid var(--border-subtle);
+}
+.rr-sched-req-dd-row:first-child{border-top:0}
+.rr-sched-req-dd-kind{
+  font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-subtle);
+}
+.rr-sched-req-dd-body{min-width:0}
+.rr-sched-req-dd-name{font-size:13px;font-weight:600;color:var(--text)}
+.rr-sched-req-dd-line{font-size:12px;color:var(--text-subtle);margin-top:2px;line-height:1.4}
+.rr-sched-req-dd-status{
+  font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  padding:2px 8px;border-radius:var(--r-pill);
+  background:var(--canvas);color:var(--text-muted);
+}
+.rr-sched-req-dd-status.is-approved{background:var(--green-soft);color:var(--green)}
+.rr-sched-req-dd-status.is-denied{background:var(--red-soft);color:var(--red)}
+.rr-sched-req-dd-status.is-cancelled{background:var(--canvas);color:var(--text-subtle)}
+.rr-sched-req-dd-open{
+  appearance:none;background:transparent;border:0;cursor:pointer;font:inherit;
+  font-size:12px;font-weight:600;color:var(--accent-text);
+  padding:4px 8px;border-radius:var(--r-md);
+  transition:background var(--t-fast);
+}
+.rr-sched-req-dd-open:hover{background:var(--accent-soft)}
+.rr-sched-req-dd-more{
+  padding:8px 18px;font-size:11px;color:var(--text-subtle);
+  border-top:1px solid var(--border-subtle);background:var(--surface-secondary, #FAFBFD);
+}
+.rr-sched-req-dd-empty{padding:24px 18px;font-size:13px;color:var(--text-subtle);text-align:center}
+.rr-sched-req-dd-source{
+  padding:8px 18px;font-size:11px;color:var(--text-subtle);
+  background:var(--surface-secondary, #FAFBFD);border-top:1px solid var(--border-subtle);
+}
+/* Day-of-week histogram (topday drill-down) */
+.rr-sched-req-dd-days{display:flex;flex-direction:column;gap:6px;padding:14px 18px}
+.rr-sched-req-dd-day{
+  display:grid;grid-template-columns:36px 1fr 36px;gap:10px;align-items:center;
+  font-size:12px;color:var(--text);
+}
+.rr-sched-req-dd-day-lbl{font-weight:600;color:var(--text-muted);letter-spacing:.02em;text-transform:uppercase;font-size:10.5px}
+.rr-sched-req-dd-day-bar{
+  height:8px;border-radius:4px;background:var(--canvas);overflow:hidden;
+}
+.rr-sched-req-dd-day-bar > span{
+  display:block;height:100%;background:var(--accent);border-radius:4px;
+  transition:width var(--t-smooth);
+}
+.rr-sched-req-dd-day-n{font-variant-numeric:tabular-nums;font-weight:600;text-align:right;color:var(--text)}
+.rr-sched-req-dd-split{display:flex;flex-direction:column;gap:10px;padding:14px 18px}
+.rr-sched-req-dd-split-row{
+  display:grid;grid-template-columns:90px 1fr 110px;gap:10px;align-items:center;
+  font-size:12px;color:var(--text);
+}
+.rr-sched-req-dd-split-lbl{font-weight:600;color:var(--text-muted);letter-spacing:.02em;text-transform:uppercase;font-size:10.5px}
+
 #sched-sub-time-off .to-page,
 #sched-sub-requests .to-page{display:flex;flex-direction:column;gap:var(--s-4)}
 #sched-sub-time-off .to-card,
@@ -16052,6 +16148,10 @@ body.rr-cmdk-open{ overflow:hidden }
              in the DOM so _renderSchedRequestsActive (live.js) can
              read its .value without changes. -->
         <div class="sched-subview" id="sched-sub-requests" style="display:none">
+          <!-- Inline drill-down panel for the Requests KPI strip.
+               Hidden by default; _renderSchedReqDrilldown unhides it
+               when a KPI pill is clicked. -->
+          <div id="rr-sched-req-drilldown" class="rr-sched-req-drilldown" hidden></div>
           <div class="sched-requests-head">
             <div class="sched-req-seg" role="tablist" aria-label="Request type" id="rr-sched-req-seg">
               <button type="button" role="tab" class="sched-req-seg-btn active" data-rr-req-tab="pto" aria-selected="true">
