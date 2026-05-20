@@ -24163,11 +24163,18 @@ function _renderFleetProviders() {
   const host = document.getElementById("rr-fc-providers");
   if (!host) return;
   const chips = _fleetCalProviders.length
-    ? _fleetCalProviders.map(v =>
-        `<button type="button" class="rr-fc-prov-chip" draggable="true" data-fc-provider="${escapeHtml(v.id)}" title="Drag onto a day to schedule service">
-          <span class="rr-fc-prov-chip-name">${escapeHtml(v.name || "—")}</span>
-          <span class="rr-fc-prov-chip-kind">${escapeHtml(_fcVendorKindLabel(v.kind))}</span>
-        </button>`).join("")
+    ? _fleetCalProviders.map(v => {
+        const nm = escapeHtml(v.name || "—");
+        return `<div class="rr-fc-prov-chip" draggable="true" data-fc-provider="${escapeHtml(v.id)}" title="Drag onto a day to schedule service">
+          <span class="rr-fc-prov-chip-text">
+            <span class="rr-fc-prov-chip-name">${nm}</span>
+            <span class="rr-fc-prov-chip-kind">${escapeHtml(_fcVendorKindLabel(v.kind))}</span>
+          </span>
+          <button type="button" class="rr-fc-prov-del" draggable="false" data-fc-prov-del="${escapeHtml(v.id)}" aria-label="Remove ${nm}" title="Remove">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>`;
+      }).join("")
     : `<div class="rr-fc-prov-empty">No service providers yet. Add one, then drag it onto a day to schedule service.</div>`;
   host.innerHTML = `
     <div class="rr-fc-prov">
@@ -24181,7 +24188,9 @@ function _renderFleetProviders() {
   if (!_fleetProvBound) {
     _fleetProvBound = true;
     host.addEventListener("click", (e) => {
-      if (e.target.closest("[data-fc-prov-add]")) _openFleetProviderModal();
+      if (e.target.closest("[data-fc-prov-add]")) { _openFleetProviderModal(); return; }
+      const del = e.target.closest("[data-fc-prov-del]");
+      if (del) { e.stopPropagation(); _removeFleetProvider(del.getAttribute("data-fc-prov-del")); }
     });
     host.addEventListener("dragstart", (e) => {
       const chip = e.target.closest("[data-fc-provider]");
@@ -24199,6 +24208,22 @@ function _renderFleetProviders() {
       _fcDragVendorId = null;
       if (_fcDropCell) { _fcDropCell.classList.remove("rr-fc-drop"); _fcDropCell = null; }
     });
+  }
+}
+
+// Remove a provider from the rail (soft delete — see migration 0311).
+async function _removeFleetProvider(vendorId) {
+  const prov = _fleetCalProviders.find(v => v.id === vendorId);
+  if (!confirm(`Remove ${prov ? prov.name : "this provider"} from service providers?`)) return;
+  try {
+    const { error } = await sb.rpc("fleet_calendar_provider_remove", { p_id: vendorId });
+    if (error) throw error;
+    _fleetCalProviders = _fleetCalProviders.filter(v => v.id !== vendorId);
+    _renderFleetProviders();
+    if (typeof toast === "function") toast("Service provider removed");
+  } catch (err) {
+    console.warn("fleet_calendar_provider_remove:", err);
+    if (typeof toast === "function") toast("Couldn't remove · " + (err?.message || "try again"), "danger");
   }
 }
 
@@ -24246,6 +24271,11 @@ function _openFleetProviderModal() {
     const status = m.querySelector("#rr-fc-prov-status");
     const name = nameEl.value.trim();
     if (!name) { status.textContent = "Add a name."; return; }
+    // One row per provider — no duplicates.
+    if (_fleetCalProviders.some(v => (v.name || "").trim().toLowerCase() === name.toLowerCase())) {
+      status.textContent = `"${name}" is already in the list.`;
+      return;
+    }
     const btn = m.querySelector("#rr-fc-prov-save");
     btn.disabled = true;
     try {
