@@ -8623,6 +8623,42 @@ body.rr-cmdk-open{ overflow:hidden }
 </head>
 <body>
 
+<!-- Boot overlay · covers the static mock content until live.js has
+     loaded real data, so a refresh shows a clean loading state rather
+     than flashing placeholder numbers. Removed by _rrHideBootOverlay()
+     once boot completes; a hard 8s cap below prevents a stuck overlay. -->
+<style>
+  #rr-boot-overlay{
+    position:fixed;inset:0;z-index:99999;background:#EEF1F5;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    transition:opacity .4s ease;
+  }
+  #rr-boot-overlay.rr-hide{opacity:0;pointer-events:none}
+  #rr-boot-overlay .rr-boot-mark{
+    width:46px;height:46px;border-radius:12px;background:#2563EB;color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    font-size:24px;font-weight:700;font-family:'Inter Tight','Inter',system-ui,sans-serif;
+  }
+  #rr-boot-overlay .rr-boot-spin{
+    width:26px;height:26px;border-radius:50%;
+    border:3px solid rgba(15,23,42,.12);border-top-color:#2563EB;
+    animation:rrBootSpin .7s linear infinite;
+  }
+  @keyframes rrBootSpin{to{transform:rotate(360deg)}}
+  #rr-boot-overlay .rr-boot-text{font-size:13px;font-weight:500;color:#64748B}
+</style>
+<div id="rr-boot-overlay" aria-hidden="true">
+  <div class="rr-boot-mark">R</div>
+  <div class="rr-boot-spin"></div>
+  <div class="rr-boot-text">Loading your fleet…</div>
+</div>
+<script>
+  // Safety cap — reveal the app after 8s even if live.js never signals.
+  setTimeout(function(){
+    var o = document.getElementById('rr-boot-overlay');
+    if (o) o.classList.add('rr-hide');
+  }, 8000);
+</script>
 
 <div class="app">
 

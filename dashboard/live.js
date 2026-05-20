@@ -21860,6 +21860,18 @@ if (document.querySelector(".view.active")?.id === "view-dashboard") {
   }, 0);
 }
 
+// Reveal the app · boot has run past the auth + DSP awaits and kicked
+// the active view's loaders, so live data replaces the static mock
+// shortly. Lift the boot overlay after a short settle for that paint.
+window._rrHideBootOverlay = function () {
+  const o = document.getElementById("rr-boot-overlay");
+  if (!o || o._rrHidden) return;
+  o._rrHidden = true;
+  o.classList.add("rr-hide");
+  setTimeout(() => o.remove(), 450);
+};
+setTimeout(window._rrHideBootOverlay, 1600);
+
 // Inline runtime styles for live-rendered surfaces.
 const _styleEl = document.createElement("style");
 _styleEl.textContent = `
