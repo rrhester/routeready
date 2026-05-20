@@ -17892,6 +17892,117 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-sev.high{background:var(--amber-soft);color:var(--amber-dark)}
           #view-fleet .fl-sev.critical{background:var(--red-soft);color:var(--red)}
 
+          /* ── Fluent 2 restyle · Fleet roster ───────────────────────────
+             Microsoft 365 / Windows 11 surface language: Segoe UI,
+             crisp 4px corners, Fluent neutral + brand-blue palette,
+             quiet 1px strokes, and the signature animated accent
+             underline on text fields. Scoped to #view-fleet so the
+             rest of the app's design system is untouched. */
+          #view-fleet{
+            --flu-brand:#0F6CBD;
+            --flu-brand-hover:#115EA3;
+            --flu-stroke:#E1DFDD;
+            --flu-stroke-strong:#C7C6C4;
+            --flu-bg-hover:#F5F5F5;
+            --flu-bg-selected:#EBF3FC;
+            --flu-fg:#242424;
+            --flu-fg-2:#605E5C;
+            --flu-radius:4px;
+            --flu-success-fg:#0E700E;  --flu-success-bg:#DFF6DD;  --flu-success-bd:#BDDFB6;
+            --flu-danger-fg:#B10E1C;   --flu-danger-bg:#FDE7E9;   --flu-danger-bd:#F1BCC1;
+            --flu-warning-fg:#7A5C00;  --flu-warning-bg:#FFF4CE;  --flu-warning-bd:#F2E2A8;
+            --flu-font:"Segoe UI Variable Text","Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+          }
+          #view-fleet .table,
+          #view-fleet .fl-roster-bar,
+          #view-fleet .fl-ribbon{font-family:var(--flu-font)}
+
+          /* Header — Fluent DataGrid: sentence case, quiet, thin rule */
+          #view-fleet .table thead th{
+            background:var(--surface);
+            color:var(--flu-fg-2);
+            font-weight:600;
+            text-transform:none;
+            letter-spacing:.01em;
+            border-bottom:1px solid var(--flu-stroke);
+          }
+          #view-fleet .table thead th[data-rr-sort]:hover,
+          #view-fleet .table thead th[data-att-sort]:hover{color:var(--flu-brand)}
+
+          /* Rows — thin Fluent dividers + neutral hover */
+          #view-fleet .table tbody td{border-bottom:1px solid var(--flu-stroke);color:var(--flu-fg)}
+          #view-fleet .table tbody tr:hover{background:var(--flu-bg-hover)}
+
+          /* Square Fluent corners across the roster's chips & controls */
+          #view-fleet .fl-down-badge,
+          #view-fleet .fl-clock,
+          #view-fleet .fl-sev,
+          #view-fleet .fl-rs-ro-input,
+          #view-fleet .fl-opstat-btn,
+          #view-fleet .fl-veh-thumb,
+          #view-fleet .fl-roster-bar .fl-search input,
+          #view-fleet .fl-roster-bar select.fl-filter{border-radius:var(--flu-radius)}
+
+          /* Status dropdown trigger — Fluent subtle button */
+          #view-fleet .fl-opstat-btn:hover{background:var(--flu-bg-hover);border-color:var(--flu-stroke)}
+          #view-fleet .fl-opstat-btn:focus-visible{
+            border-color:var(--flu-brand);box-shadow:none;
+            outline:2px solid var(--flu-brand);outline-offset:-1px;
+          }
+
+          /* Text fields — Fluent field: neutral border, darker bottom
+             edge, 2px brand underline on focus (no glow, no reflow) */
+          #view-fleet .fl-rs-ro-input,
+          #view-fleet .fl-roster-bar .fl-search input,
+          #view-fleet .fl-roster-bar select.fl-filter{
+            border-color:var(--flu-stroke-strong);
+            border-bottom-color:var(--flu-fg-2);
+          }
+          #view-fleet .fl-rs-ro-input:focus,
+          #view-fleet .fl-roster-bar .fl-search input:focus,
+          #view-fleet .fl-roster-bar select.fl-filter:focus{
+            outline:none;
+            border-color:var(--flu-stroke-strong);
+            border-bottom-color:var(--flu-brand);
+            box-shadow:inset 0 -2px 0 0 var(--flu-brand);
+          }
+          #view-fleet .fl-roster-bar select.fl-filter.is-set{
+            color:var(--flu-brand);border-color:var(--flu-stroke-strong);
+            background-color:var(--flu-bg-selected);
+          }
+
+          /* Status text — Fluent semantic foregrounds */
+          #view-fleet .fl-opstat.operational{color:var(--flu-success-fg)}
+          #view-fleet .fl-opstat.operational .dot{background:var(--flu-success-fg)}
+          #view-fleet .fl-opstat.grounded{color:var(--flu-danger-fg)}
+          #view-fleet .fl-opstat.grounded .dot{background:var(--flu-danger-fg)}
+
+          /* Badges — Fluent tint badges (filled for critical) */
+          #view-fleet .fl-down-badge{
+            background:var(--flu-danger-bg);color:var(--flu-danger-fg);
+            border-color:var(--flu-danger-bd);
+          }
+          #view-fleet .fl-down-badge.warn{
+            background:var(--flu-warning-bg);color:var(--flu-warning-fg);
+            border-color:var(--flu-warning-bd);
+          }
+          #view-fleet .fl-down-badge.crit{
+            background:var(--flu-danger-fg);color:#fff;border-color:var(--flu-danger-fg);
+          }
+          #view-fleet .fl-clock.fl-clock-ok,
+          #view-fleet .fl-clock.fl-clock-met{
+            background:var(--flu-success-bg);color:var(--flu-success-fg);border-color:var(--flu-success-bd);
+          }
+          #view-fleet .fl-clock.fl-clock-warn{
+            background:var(--flu-warning-bg);color:var(--flu-warning-fg);border-color:var(--flu-warning-bd);
+          }
+          #view-fleet .fl-clock.fl-clock-crit{
+            background:var(--flu-danger-fg);color:#fff;border-color:var(--flu-danger-fg);
+          }
+          #view-fleet .fl-sev.medium{background:var(--flu-bg-selected);color:var(--flu-brand)}
+          #view-fleet .fl-sev.high{background:var(--flu-warning-bg);color:var(--flu-warning-fg)}
+          #view-fleet .fl-sev.critical{background:var(--flu-danger-bg);color:var(--flu-danger-fg)}
+
           /* ── Fleet execution KPI strip ─────────────────────────────
              Reuses the dashboard's stock .kpi-card system so the FEM
              and VORR cards read as part of the same KPI family as
