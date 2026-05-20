@@ -33769,7 +33769,7 @@ function _wsRenderVehicles(root) {
         <p style="font-size:var(--fs-sm);color:var(--text-muted);margin:5px 0 0;line-height:1.45;max-width:66ch">Set the primary driver for each van, and a backup who picks it up when the primary isn't scheduled. Status (including grounded state) is read-only here — change it from the <strong>Fleet roster</strong>.</p>
       </div>
     </div>
-    <div class="ws-grid-wrap" style="overflow-x:auto">
+    <div class="ws-grid-wrap">
       <table class="ws-veh-table">
         <thead><tr>
           <th style="min-width:80px">Van</th>

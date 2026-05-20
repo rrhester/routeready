@@ -18168,7 +18168,11 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:var(--s-4) var(--s-4) var(--s-5);min-height:128px;
           }
           #view-workspaces .ws-skel-card .rr-skel{display:block}
-          #view-workspaces .ws-grid-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden}
+          /* Workspaces · horizontal scroll on narrow viewports.
+             The shared template (live.js _wsRenderVehicles) no
+             longer carries an inline overflow-x:auto, so workspaces
+             needs the scroll affordance declared here. */
+          #view-workspaces .ws-grid-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);overflow:auto}
           #view-workspaces .ws-grid-scroll{overflow-x:auto}
           #view-workspaces .ws-grid{width:100%;border-collapse:collapse;font-size:var(--fs-md)}
           #view-workspaces .ws-grid th{text-align:left;padding:11px 12px;background:var(--canvas);font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);border-bottom:1px solid var(--border);white-space:nowrap}
