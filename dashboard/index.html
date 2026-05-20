@@ -17670,9 +17670,9 @@ body.rr-cmdk-open{ overflow:hidden }
               </button>
             </div>
             <div class="fl-ribbon-group">
-              <button type="button" class="fl-ribbon-btn" aria-label="Placeholder action">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
-                <span>—</span>
+              <button type="button" class="fl-ribbon-btn" onclick="goto('fleet-calendar')" aria-label="Fleet calendar" title="Fleet calendar — schedule events per van">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.1" fill="currentColor" stroke="none"/></svg>
+                <span>Fleet calendar</span>
               </button>
               <button type="button" class="fl-ribbon-btn" aria-label="Placeholder action">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
@@ -23291,6 +23291,14 @@ John,Smith,555-0101,john@example.com</code>
     if (view === 'interview') {
       goto('pipeline');
       if (typeof pipeSub === 'function') pipeSub('interview');
+      return;
+    }
+    // The Fleet calendar lives on the Schedule view (its 'calendar'
+    // sub-tab) — there is exactly one calendar. The Fleet page just
+    // routes here so both pages open the same live view.
+    if (view === 'fleet-calendar') {
+      goto('schedule');
+      if (typeof schedSub === 'function') schedSub('calendar');
       return;
     }
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
