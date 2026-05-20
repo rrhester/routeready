@@ -39583,39 +39583,71 @@ async function _stfNewStaffPrompt(existingId) {
   if (existingId) {
     existing = (_stfData?.staff || []).find(m => m.id === existingId) || null;
     if (!existing) {
-      // Re-fetch full row when not already loaded.
       const { data } = await sb.rpc("staff_members_list");
       existing = (data || []).find(m => m.id === existingId) || null;
     }
   }
-  const fullName = prompt(existing ? "Full name:" : "Full name for the new staff member:", existing?.full_name || "");
-  if (fullName === null) return;
-  const trimmed = (fullName || "").trim();
-  if (!trimmed) { toast("Full name is required.", "warn"); return; }
+  _stfShowStaffForm(existing);
+}
 
-  const roleInput = prompt("Role (dispatcher / fleet_manager / hr / ops_manager / other):", existing?.role || "other");
-  if (roleInput === null) return;
-  const role = (roleInput || "other").trim().toLowerCase();
-  if (!["dispatcher","fleet_manager","hr","ops_manager","other"].includes(role)) {
-    toast("Role must be one of: dispatcher, fleet_manager, hr, ops_manager, other.", "warn");
-    return;
-  }
-
-  const args = {
-    p_id:             existing?.id || null,
-    p_full_name:      trimmed,
-    p_preferred_name: existing?.preferred_name || null,
-    p_role:           role,
-    p_email:          existing?.email || null,
-    p_phone:          existing?.phone || null,
-    p_app_user_id:    existing?.app_user_id || null,
-    p_notes:          existing?.notes || null,
-  };
-  const { error } = await sb.rpc("staff_member_upsert", args);
-  if (error) { toast("Save failed: " + error.message, "warn"); return; }
-  toast(existing ? "Staff member updated." : "Staff member added.", "ok");
-  await _stfRenderManageList();
-  loadStaffSchedule();
+// In-modal form for add/edit. Replaces the two browser prompt() calls
+// — operators were getting a free-text "Role" prompt that accepted
+// garbage, then bouncing off the validation toast.  This renders the
+// name + role inputs inline in the manage modal's body with a real
+// <select> for role.  Cancel returns to the list; Save calls the same
+// staff_member_upsert RPC.
+function _stfShowStaffForm(existing) {
+  const list = document.getElementById("rr-staff-manage-list");
+  if (!list) return;
+  const isEdit = !!existing;
+  const roleOptions = Object.entries(_STF_ROLE_LABEL).map(([val, label]) => {
+    const sel = (existing?.role || "dispatcher") === val ? " selected" : "";
+    return `<option value="${val}"${sel}>${escapeHtml(label)}</option>`;
+  }).join("");
+  list.innerHTML = `
+    <form class="stf-form" id="rr-stf-form" novalidate>
+      <h4 class="stf-form-title">${isEdit ? "Edit staff member" : "Add staff member"}</h4>
+      <label class="stf-form-field">
+        <span>Full name</span>
+        <input type="text" name="full_name" required value="${escapeHtml(existing?.full_name || "")}" placeholder="e.g. Jamie Rivera" autocomplete="off">
+      </label>
+      <label class="stf-form-field">
+        <span>Role</span>
+        <select name="role">${roleOptions}</select>
+      </label>
+      <div class="stf-form-actions">
+        <button type="button" class="btn btn-sm" data-rr-stf-form-cancel>Cancel</button>
+        <button type="submit" class="btn btn-sm btn-primary">${isEdit ? "Save changes" : "Add staff member"}</button>
+      </div>
+    </form>
+  `;
+  const form = document.getElementById("rr-stf-form");
+  form?.querySelector('input[name="full_name"]')?.focus();
+  form?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(form);
+    const trimmed = String(fd.get("full_name") || "").trim();
+    if (!trimmed) { toast("Full name is required.", "warn"); return; }
+    const role = String(fd.get("role") || "dispatcher");
+    const args = {
+      p_id:             existing?.id || null,
+      p_full_name:      trimmed,
+      p_preferred_name: existing?.preferred_name || null,
+      p_role:           role,
+      p_email:          existing?.email || null,
+      p_phone:          existing?.phone || null,
+      p_app_user_id:    existing?.app_user_id || null,
+      p_notes:          existing?.notes || null,
+    };
+    const { error } = await sb.rpc("staff_member_upsert", args);
+    if (error) { toast("Save failed: " + error.message, "warn"); return; }
+    toast(existing ? "Staff member updated." : "Staff member added.", "ok");
+    await _stfRenderManageList();
+    loadStaffSchedule();
+  });
+  form?.querySelector("[data-rr-stf-form-cancel]")?.addEventListener("click", () => {
+    _stfRenderManageList();
+  });
 }
 
 async function _stfArchiveStaff(id) {
