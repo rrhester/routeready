@@ -1338,6 +1338,77 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 }
 .tp-ot-headroom.is-warn{color:var(--amber-dark);font-weight:600}
 .tp-ot-headroom.is-ot{color:var(--red);font-weight:700}
+
+/* ── Today's Plan · day scroller (Fluent / Outlook mini-calendar) ──
+   7 day cells covering today → today+6.  Click a cell to jump to it;
+   chevrons walk one day; the trailing "Today" pill snaps back.  Lives
+   inside #rr-today-plan-shell so it travels with the shell into the
+   schedule's Today sub-view. */
+.tp-daystrip{
+  display:flex;align-items:stretch;gap:6px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:6px;
+  box-shadow:var(--shadow-xs);
+}
+.tp-daystrip-arrow{
+  appearance:none;background:transparent;border:0;cursor:pointer;color:var(--text-muted);
+  width:36px;border-radius:var(--r-md);
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:background var(--t-fast),color var(--t-fast);
+}
+.tp-daystrip-arrow:hover{background:var(--canvas);color:var(--text)}
+.tp-daystrip-arrow:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+.tp-daystrip-arrow:disabled{opacity:.32;cursor:not-allowed}
+.tp-daystrip-arrow svg{width:14px;height:14px}
+.tp-daystrip-cells{
+  display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);
+  flex:1;gap:4px;
+}
+.tp-day-cell{
+  appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;
+  padding:8px 4px 12px;border-radius:var(--r-md);
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  color:var(--text-muted);
+  transition:background var(--t-fast),color var(--t-fast);
+  position:relative;
+}
+.tp-day-cell:hover{background:var(--canvas);color:var(--text)}
+.tp-day-cell:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+.tp-day-cell-wd{
+  font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:inherit;line-height:1;
+}
+.tp-day-cell-num{
+  font-family:'Inter Tight','Inter',sans-serif;
+  font-size:18px;font-weight:600;line-height:1;
+  font-variant-numeric:tabular-nums;letter-spacing:-.01em;
+  color:var(--text);
+}
+.tp-day-cell.is-today .tp-day-cell-num::after{
+  content:"";position:absolute;left:50%;transform:translateX(-50%);
+  bottom:5px;width:4px;height:4px;border-radius:50%;background:var(--accent);
+}
+.tp-day-cell.is-active{background:var(--accent-soft);color:var(--accent-text)}
+.tp-day-cell.is-active .tp-day-cell-num{color:var(--accent-text)}
+.tp-day-cell.is-active.is-today .tp-day-cell-num::after{background:var(--accent-text)}
+.tp-daystrip-today{
+  appearance:none;background:transparent;border:0;cursor:pointer;font:inherit;
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--accent-text);padding:0 var(--s-3);border-radius:var(--r-md);
+  display:inline-flex;align-items:center;gap:6px;
+  transition:background var(--t-fast),color var(--t-fast);
+}
+.tp-daystrip-today:hover{background:var(--accent-soft)}
+.tp-daystrip-today:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+.tp-daystrip-today.is-on-today{color:var(--text-subtle);cursor:default;pointer-events:none}
+.tp-daystrip-today svg{width:13px;height:13px}
+@media (max-width:640px){
+  .tp-day-cell{padding:6px 2px 10px}
+  .tp-day-cell-num{font-size:15px}
+  .tp-daystrip-today span{display:none}
+  .tp-daystrip-today{padding:0 var(--s-2)}
+}
+
 @media (max-width:900px){.tp-day-meta{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.tp-day-meta{grid-template-columns:1fr}.tp-roster-table th,.tp-roster-table td{padding-left:var(--s-3);padding-right:var(--s-3)}}
 
@@ -8768,38 +8839,9 @@ body.rr-cmdk-open{ overflow:hidden }
               <p class="page-sub" id="rr-today-date">—</p>
             </div>
           </div>
-          <!-- 7-day navigator · today + 6 forward.  Buttons disable at
-               the boundaries; "Today" snaps back to current date. -->
-          <div class="page-actions" id="rr-tp-datenav" style="display:none">
-            <style>
-              #rr-tp-datenav{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:3px}
-              #rr-tp-datenav .nav-btn{
-                appearance:none;background:transparent;border:0;cursor:pointer;color:var(--text-muted);
-                width:30px;height:30px;border-radius:var(--r-md);display:inline-flex;align-items:center;justify-content:center;
-                transition:background var(--t-fast), color var(--t-fast);
-              }
-              #rr-tp-datenav .nav-btn:hover{background:var(--canvas);color:var(--text)}
-              #rr-tp-datenav .nav-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
-              #rr-tp-datenav .nav-btn:disabled{opacity:.35;cursor:not-allowed}
-              #rr-tp-datenav .nav-btn svg{width:14px;height:14px}
-              #rr-tp-datenav .nav-today{
-                font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-                color:var(--accent-text);padding:0 var(--s-2-5);border-radius:var(--r-md);cursor:pointer;height:26px;
-                background:transparent;border:0;display:inline-flex;align-items:center;
-                transition:background var(--t-fast);
-              }
-              #rr-tp-datenav .nav-today:hover{background:var(--accent-soft)}
-              #rr-tp-datenav .nav-today:focus-visible{outline:none;box-shadow:var(--ring-focus)}
-              #rr-tp-datenav .nav-today.is-on-today{color:var(--text-subtle);cursor:default;pointer-events:none}
-            </style>
-            <button type="button" class="nav-btn" id="rr-tp-prev" title="Previous day" aria-label="Previous day">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <button type="button" class="nav-today" id="rr-tp-today">Today</button>
-            <button type="button" class="nav-btn" id="rr-tp-next" title="Next day" aria-label="Next day">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
+          <!-- Day nav lives inside #rr-today-plan-shell as .tp-daystrip
+               so it travels with the shell into the schedule's Today
+               sub-view. See _tpRenderDayStrip() in live.js. -->
         </div>
 
         <div id="rr-today-plan-anchor">
