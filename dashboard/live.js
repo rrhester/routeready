@@ -39600,9 +39600,18 @@ function _stfShowStaffForm(existing) {
   const list = document.getElementById("rr-staff-manage-list");
   if (!list) return;
   const isEdit = !!existing;
-  const roleOptions = Object.entries(_STF_ROLE_LABEL).map(([val, label]) => {
-    const sel = (existing?.role || "dispatcher") === val ? " selected" : "";
-    return `<option value="${val}"${sel}>${escapeHtml(label)}</option>`;
+  // Preserve roles we don't recognize (legacy values, or newly added
+  // backend roles not yet mirrored in _STF_ROLE_LABEL). Render the raw
+  // string as its own option so editing + saving without touching the
+  // dropdown doesn't silently rewrite the row to "dispatcher".
+  const existingRole = existing?.role || "dispatcher";
+  const roleEntries = [...Object.entries(_STF_ROLE_LABEL)];
+  if (existing && existingRole && !(existingRole in _STF_ROLE_LABEL)) {
+    roleEntries.push([existingRole, existingRole]);
+  }
+  const roleOptions = roleEntries.map(([val, label]) => {
+    const sel = existingRole === val ? " selected" : "";
+    return `<option value="${escapeHtml(val)}"${sel}>${escapeHtml(label)}</option>`;
   }).join("");
   list.innerHTML = `
     <form class="stf-form" id="rr-stf-form" novalidate>
