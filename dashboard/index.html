@@ -14321,7 +14321,15 @@ body.rr-cmdk-open{ overflow:hidden }
              — that's what was trapping the sticky thead context and
              letting Van 10 render above the column header on scroll. */
           #view-schedule .ws-grid-wrap{background:#fff;border:1px solid var(--sch-line);border-radius:var(--r-lg,10px);overflow:clip;box-shadow:0 1px 2px rgba(15,23,42,.04),0 1px 1px rgba(15,23,42,.02)}
-          #view-schedule .ws-veh-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm,13px)}
+          /* border-collapse:separate (not collapse) is required for
+             the sticky thead to paint correctly. In a collapsed-
+             border table the browser paints tbody cell borders in a
+             separate late pass that ignores the thead's stacking
+             context — so a scrolling van row paints ON TOP of the
+             pinned header and looks like it's sitting above it. With
+             separate borders + zero spacing the table looks
+             identical but the sticky header stacks properly. */
+          #view-schedule .ws-veh-table{width:100%;border-collapse:separate;border-spacing:0;font-size:var(--fs-sm,13px)}
           #view-schedule .ws-veh-table th{text-align:left;padding:13px 16px;background:var(--sch-surface-2);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-subtle);border-bottom:1px solid var(--sch-line);white-space:nowrap}
           #view-schedule .ws-veh-table td{padding:11px 14px;border-top:1px solid var(--sch-line-subtle);vertical-align:middle}
           #view-schedule .ws-veh-table tbody tr:first-child td{border-top:none}
