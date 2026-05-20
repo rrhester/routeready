@@ -23950,6 +23950,10 @@ let _fleetCalWeekStart = null;  // Date — Sunday of the displayed week
 let _fleetCalVans      = [];    // vans (rows), name-sorted
 let _fleetCalEvents    = [];    // events for the visible week
 let _fleetCalBound     = false; // host click delegation installed once
+let _fleetCalProviders = [];    // service providers (vendors)
+let _fcDragVendorId    = null;  // vendor id mid-drag, null otherwise
+let _fcDropCell        = null;  // day cell currently under the drag
+let _fleetProvBound    = false; // providers rail delegation installed once
 
 // Sunday on/before the given date, at local midnight.
 function _fcSunday(d) {
@@ -23987,8 +23991,23 @@ function renderFleetCalendar() {
   if (!host) return;
   if (!_fleetCalWeekStart) _fleetCalWeekStart = _fcSunday(new Date());
   _paintFleetCalendar();
+  _paintFleetProviders();
 }
 window.renderFleetCalendar = renderFleetCalendar;
+
+// Friendly labels for the vendor.kind column (free text in the DB).
+const _FC_VENDOR_KINDS = {
+  repair:     "Repair shop",
+  dealership: "Dealership",
+  mobile:     "Mobile mechanic",
+  tow:        "Tow",
+  parts:      "Parts",
+  other:      "Other",
+};
+function _fcVendorKindLabel(kind) {
+  if (!kind) return "Provider";
+  return _FC_VENDOR_KINDS[kind] || (kind.charAt(0).toUpperCase() + kind.slice(1));
+}
 
 async function _paintFleetCalendar() {
   const host = document.getElementById("rr-fleet-cal-host");
@@ -24064,8 +24083,11 @@ async function _paintFleetCalendar() {
           const t = ev.start_time
             ? `<span class="rr-fc-event-time">${escapeHtml(_fcTimeLabel(ev.start_time))}</span>`
             : "";
+          const ven = ev.vendor_name
+            ? `<span class="rr-fc-event-vendor">${escapeHtml(ev.vendor_name)}</span>`
+            : "";
           return `<button type="button" class="rr-fc-event" data-fc-event="${escapeHtml(ev.id)}">`
-            + `${t}<span class="rr-fc-event-title">${escapeHtml(ev.title)}</span></button>`;
+            + `${t}<span class="rr-fc-event-title">${escapeHtml(ev.title)}</span>${ven}</button>`;
         }).join("");
         rows += `<div class="rr-fc-cell${cls}" data-fc-date="${iso}" data-fc-van="${escapeHtml(v.id)}">${evs}</div>`;
       }
@@ -24088,7 +24110,155 @@ async function _paintFleetCalendar() {
   if (!_fleetCalBound) {
     _fleetCalBound = true;
     host.addEventListener("click", _onFleetCalClick);
+    host.addEventListener("dragover", _onFleetCalDragOver);
+    host.addEventListener("drop", _onFleetCalDrop);
   }
+}
+
+// A service-provider chip is being dragged over a day cell — allow the
+// drop and light the cell up.
+function _onFleetCalDragOver(e) {
+  if (!_fcDragVendorId) return;
+  const cell = e.target.closest(".rr-fc-cell[data-fc-date]");
+  if (!cell) return;
+  e.preventDefault();
+  try { e.dataTransfer.dropEffect = "copy"; } catch (_) { /* noop */ }
+  if (_fcDropCell !== cell) {
+    if (_fcDropCell) _fcDropCell.classList.remove("rr-fc-drop");
+    _fcDropCell = cell;
+    cell.classList.add("rr-fc-drop");
+  }
+}
+
+// Provider dropped on a day cell → open the event modal prefilled with
+// the cell's van + date and the dragged provider, so the operator just
+// confirms the date/time and schedules it.
+function _onFleetCalDrop(e) {
+  if (!_fcDragVendorId) return;
+  const cell = e.target.closest(".rr-fc-cell[data-fc-date]");
+  if (!cell) return;
+  e.preventDefault();
+  const vendorId = _fcDragVendorId;
+  _fcDragVendorId = null;
+  if (_fcDropCell) { _fcDropCell.classList.remove("rr-fc-drop"); _fcDropCell = null; }
+  _openFleetCalEventModal(null, cell.getAttribute("data-fc-date"), cell.getAttribute("data-fc-van"), vendorId);
+}
+
+// Service-providers rail · vendors the operator drags onto the grid.
+async function _paintFleetProviders() {
+  const host = document.getElementById("rr-fc-providers");
+  if (!host) return;
+  try {
+    const { data, error } = await sb.rpc("vendors_for_dsp");
+    if (error) throw error;
+    _fleetCalProviders = Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.warn("fleet calendar providers load:", e);
+  }
+  const chips = _fleetCalProviders.length
+    ? _fleetCalProviders.map(v =>
+        `<button type="button" class="rr-fc-prov-chip" draggable="true" data-fc-provider="${escapeHtml(v.id)}" title="Drag onto a day to schedule service">
+          <span class="rr-fc-prov-chip-name">${escapeHtml(v.name || "—")}</span>
+          <span class="rr-fc-prov-chip-kind">${escapeHtml(_fcVendorKindLabel(v.kind))}</span>
+        </button>`).join("")
+    : `<div class="rr-fc-prov-empty">No service providers yet. Add one, then drag it onto a day to schedule service.</div>`;
+  host.innerHTML = `
+    <div class="rr-fc-prov">
+      <div class="rr-fc-prov-head">
+        <span class="rr-fc-prov-title">Service providers</span>
+        <button type="button" class="rr-fc-prov-add" data-fc-prov-add><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button>
+      </div>
+      <div class="rr-fc-prov-hint">Drag a provider onto a day to schedule service.</div>
+      <div class="rr-fc-prov-list">${chips}</div>
+    </div>`;
+  if (!_fleetProvBound) {
+    _fleetProvBound = true;
+    host.addEventListener("click", (e) => {
+      if (e.target.closest("[data-fc-prov-add]")) _openFleetProviderModal();
+    });
+    host.addEventListener("dragstart", (e) => {
+      const chip = e.target.closest("[data-fc-provider]");
+      if (!chip) return;
+      _fcDragVendorId = chip.getAttribute("data-fc-provider");
+      chip.classList.add("rr-fc-dragging");
+      try {
+        e.dataTransfer.effectAllowed = "copy";
+        e.dataTransfer.setData("text/plain", _fcDragVendorId);
+      } catch (_) { /* noop */ }
+    });
+    host.addEventListener("dragend", (e) => {
+      const chip = e.target.closest("[data-fc-provider]");
+      if (chip) chip.classList.remove("rr-fc-dragging");
+      _fcDragVendorId = null;
+      if (_fcDropCell) { _fcDropCell.classList.remove("rr-fc-drop"); _fcDropCell = null; }
+    });
+  }
+}
+window._paintFleetProviders = _paintFleetProviders;
+
+// Add a service provider (a vendor) from the calendar rail.
+function _openFleetProviderModal() {
+  document.getElementById("rr-fc-prov-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-fc-prov-modal";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  const kindOpts = Object.entries(_FC_VENDOR_KINDS)
+    .map(([k, label]) => `<option value="${k}"${k === "repair" ? " selected" : ""}>${escapeHtml(label)}</option>`)
+    .join("");
+  m.innerHTML = `
+    <div role="dialog" aria-label="Add service provider" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:400px;overflow:hidden">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);font-size:var(--fs-lg);font-weight:600">Add service provider</div>
+      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5)">
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:var(--fs-sm);font-weight:600">Name</span>
+          <input type="text" id="rr-fc-prov-name" class="form-input" maxlength="120" placeholder="e.g. Hester Ford" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:var(--fs-sm);font-weight:600">Type</span>
+          <select id="rr-fc-prov-kind" class="form-input">${kindOpts}</select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:var(--fs-sm);font-weight:600">Phone <span style="color:var(--text-subtle);font-weight:500">(optional)</span></span>
+          <input type="tel" id="rr-fc-prov-phone" class="form-input" maxlength="40" placeholder="(555) 010-0100" />
+        </label>
+        <div id="rr-fc-prov-status" style="font-size:var(--fs-xs);color:var(--sch-red,#C42B1C);min-height:14px"></div>
+      </div>
+      <div style="padding:var(--s-3-5) var(--s-5);border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-3)">
+        <button type="button" class="btn btn-sm" id="rr-fc-prov-cancel">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" id="rr-fc-prov-save">Add provider</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
+  document.addEventListener("keydown", onKey);
+  m.addEventListener("click", (e) => { if (e.target === m) close(); });
+  m.querySelector("#rr-fc-prov-cancel").addEventListener("click", close);
+  const nameEl = m.querySelector("#rr-fc-prov-name");
+  nameEl.focus();
+  m.querySelector("#rr-fc-prov-save").addEventListener("click", async () => {
+    const status = m.querySelector("#rr-fc-prov-status");
+    const name = nameEl.value.trim();
+    if (!name) { status.textContent = "Add a name."; return; }
+    const btn = m.querySelector("#rr-fc-prov-save");
+    btn.disabled = true;
+    try {
+      const { error } = await sb.rpc("vendor_save", {
+        p_id: null,
+        p_name: name,
+        p_kind: m.querySelector("#rr-fc-prov-kind").value,
+        p_contact_phone: m.querySelector("#rr-fc-prov-phone").value.trim() || null,
+        p_contact_email: null,
+      });
+      if (error) throw error;
+      close();
+      _paintFleetProviders();
+    } catch (err) {
+      console.warn("vendor_save:", err);
+      status.textContent = "Couldn't add · " + (err?.message || "try again");
+      btn.disabled = false;
+    }
+  });
 }
 
 function _onFleetCalClick(e) {
@@ -24115,12 +24285,17 @@ function _onFleetCalClick(e) {
 }
 
 // Add / edit / delete one event. eventId null → new event; dateIso /
-// vanId prefill the day + van when adding from a grid cell.
-function _openFleetCalEventModal(eventId, dateIso, vanId) {
+// vanId / vendorId prefill the day, van + service provider (the last
+// set when the event is created by dragging a provider onto a cell).
+function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId) {
   const existing = eventId ? (_fleetCalEvents.find(e => e.id === eventId) || null) : null;
+  const dropVendor = vendorId ? (_fleetCalProviders.find(v => v.id === vendorId) || null) : null;
   const ev = existing || {
-    id: null, title: "", event_date: dateIso || fmtIsoDate(new Date()),
+    id: null,
+    title: dropVendor ? `Service — ${dropVendor.name}` : "",
+    event_date: dateIso || fmtIsoDate(new Date()),
     vehicle_id: vanId || (_fleetCalVans[0] && _fleetCalVans[0].id) || "",
+    vendor_id: vendorId || "",
     start_time: "", end_time: "", notes: "",
   };
 
@@ -24131,6 +24306,15 @@ function _openFleetCalEventModal(eventId, dateIso, vanId) {
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   const vanOpts = _fleetCalVans
     .map(v => `<option value="${escapeHtml(v.id)}"${v.id === ev.vehicle_id ? " selected" : ""}>${escapeHtml(v.name || "—")}</option>`)
+    .join("");
+  // Keep an event's existing provider selectable even if it is paused
+  // (paused vendors are absent from _fleetCalProviders).
+  const provList = _fleetCalProviders.slice();
+  if (ev.vendor_id && !provList.some(v => v.id === ev.vendor_id)) {
+    provList.push({ id: ev.vendor_id, name: ev.vendor_name || "Provider" });
+  }
+  const vendorOpts = `<option value="">None</option>` + provList
+    .map(v => `<option value="${escapeHtml(v.id)}"${v.id === ev.vendor_id ? " selected" : ""}>${escapeHtml(v.name || "—")}</option>`)
     .join("");
   m.innerHTML = `
     <div role="dialog" aria-label="Calendar event" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:420px;overflow:hidden">
@@ -24143,6 +24327,10 @@ function _openFleetCalEventModal(eventId, dateIso, vanId) {
         <label style="display:flex;flex-direction:column;gap:4px">
           <span style="font-size:var(--fs-sm);font-weight:600">Van</span>
           <select id="rr-fc-f-van" class="form-input">${vanOpts || `<option value="">No vans available</option>`}</select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:var(--fs-sm);font-weight:600">Service provider</span>
+          <select id="rr-fc-f-vendor" class="form-input">${vendorOpts}</select>
         </label>
         <label style="display:flex;flex-direction:column;gap:4px">
           <span style="font-size:var(--fs-sm);font-weight:600">Date</span>
@@ -24185,6 +24373,7 @@ function _openFleetCalEventModal(eventId, dateIso, vanId) {
     const status = m.querySelector("#rr-fc-f-status");
     const title  = titleEl.value.trim();
     const van    = m.querySelector("#rr-fc-f-van").value || null;
+    const vendor = m.querySelector("#rr-fc-f-vendor").value || null;
     const date   = m.querySelector("#rr-fc-f-date").value;
     const start  = m.querySelector("#rr-fc-f-start").value || null;
     const end    = m.querySelector("#rr-fc-f-end").value || null;
@@ -24197,7 +24386,7 @@ function _openFleetCalEventModal(eventId, dateIso, vanId) {
     try {
       const { error } = await sb.rpc("fleet_calendar_event_upsert", {
         p_id: ev.id, p_title: title, p_event_date: date, p_vehicle_id: van,
-        p_start_time: start, p_end_time: end, p_notes: notes,
+        p_vendor_id: vendor, p_start_time: start, p_end_time: end, p_notes: notes,
       });
       if (error) throw error;
       close();
