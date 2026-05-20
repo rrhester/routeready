@@ -24927,7 +24927,7 @@ async function renderSchedVanAssignmentsBoard() {
         .order("full_name", { ascending: true })
         .limit(500),
       sb.from("vehicle_day_assignments")
-        .select("vehicle_id, date, driver_id")
+        .select("vehicle_id, date")
         .eq("dsp_id", dspId)
         .gte("date", heatmapStartIso).lte("date", todayIso),
       // Today's shifts so we know who's actually working —
@@ -24958,18 +24958,14 @@ async function renderSchedVanAssignmentsBoard() {
     return { id: d.id, name: nm, initials: _wsInitials(nm) };
   });
 
-  // Build the heat map index: vehicle_id → Set<iso>, plus a parallel
-  // vehicle_id → Map<iso, driver_id> for the timeline tooltips.
+  // Build the heat map index: vehicle_id → Set<iso> (used by the
+  // rescue-recommendation decorator).
   const heatmapByVan = new Map();
-  const heatmapDriversByVan = new Map();
   for (const r of (hRes?.data || [])) {
     if (!r.vehicle_id || !r.date) continue;
     const s = heatmapByVan.get(r.vehicle_id) || new Set();
     s.add(r.date);
     heatmapByVan.set(r.vehicle_id, s);
-    let dm = heatmapDriversByVan.get(r.vehicle_id);
-    if (!dm) { dm = new Map(); heatmapDriversByVan.set(r.vehicle_id, dm); }
-    if (r.driver_id) dm.set(r.date, r.driver_id);
   }
 
   // Reuse the workspaces renderer to produce identical markup.
@@ -24981,12 +24977,6 @@ async function renderSchedVanAssignmentsBoard() {
   // the schedule.
   const head = body.querySelector(".ws-head");
   if (head) head.remove();
-
-  // Inject the 14-day rotation heat map as a new column before
-  // Notes. Calm Microsoft pattern: tiny squares, green when
-  // dispatched, hairline when idle. No tooltip click — just
-  // peripheral awareness of rotation rhythm per van.
-  _rrDecorateChainEditorHeatmap(body, heatmapByVan, todayIso, heatmapDriversByVan, _wsDrivers);
 
   // ── Rescue-recommendation decorator (audit #7) ──
   // For every at-risk van (Risk / Critical / Violation tier as
@@ -25047,144 +25037,6 @@ window._rrRenderSchedVanAssignmentsBoard = renderSchedVanAssignmentsBoard;
 // the shared _wsRenderVehicles renderer stays untouched (it's
 // also used by the Workflows page where we don't want the
 // extra column).
-// Utilization / Readiness timeline · 14 past usage blocks, a "today"
-// divider, then 7 future readiness blocks (available / scheduled
-// service / grounded). Async because future readiness needs the
-// vehicles' operational_status + the fleet calendar.
-async function _rrDecorateChainEditorHeatmap(body, usageByVan, todayIso, driversByVan, driverList) {
-  if (!body) return;
-  const table = body.querySelector(".ws-veh-table");
-  if (!table) return;
-
-  driversByVan = driversByVan || new Map();
-  const driverName = new Map((driverList || []).map(d => [d.id, d.name]));
-
-  const PAST = 14, FUTURE = 7;
-  const pastDates = [], futureDates = [];
-  for (let i = PAST - 1; i >= 0; i--) {
-    const d = new Date(todayIso + "T12:00:00"); d.setDate(d.getDate() - i);
-    pastDates.push(fmtIsoDate(d));
-  }
-  for (let i = 1; i <= FUTURE; i++) {
-    const d = new Date(todayIso + "T12:00:00"); d.setDate(d.getDate() + i);
-    futureDates.push(fmtIsoDate(d));
-  }
-  const fmtLong = (iso) => {
-    try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
-    catch { return iso; }
-  };
-  const fmtWkdy = (iso) => {
-    try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" }); }
-    catch { return iso; }
-  };
-
-  // Future readiness · grounded vans + scheduled service from the
-  // fleet calendar. Failures degrade to "all available".
-  const groundedSet = new Set();
-  const serviceByVan = new Map(); // vehId → Map<iso, reason>
-  try {
-    const dspId = window.RR?.dsp?.id;
-    const [vehRes, evRes] = await Promise.all([
-      sb.from("vehicles").select("id, operational_status").eq("dsp_id", dspId),
-      sb.rpc("fleet_calendar_events_list", { p_from: futureDates[0], p_to: futureDates[FUTURE - 1] }),
-    ]);
-    for (const v of (vehRes?.data || [])) {
-      if ((v.operational_status || "operational") === "grounded") groundedSet.add(v.id);
-    }
-    for (const ev of (Array.isArray(evRes?.data) ? evRes.data : [])) {
-      if (!ev.vehicle_id || !ev.event_date) continue;
-      let m = serviceByVan.get(ev.vehicle_id);
-      if (!m) { m = new Map(); serviceByVan.set(ev.vehicle_id, m); }
-      const reason = ev.vendor_name
-        ? `${ev.title || "Service"} — ${ev.vendor_name}`
-        : (ev.title || "Scheduled service");
-      // Mark every future day the event spans (multi-day events).
-      const evStart = ev.event_date, evEnd = ev.end_date || ev.event_date;
-      for (const iso of futureDates) {
-        if (iso >= evStart && iso <= evEnd && !m.has(iso)) m.set(iso, reason);
-      }
-    }
-  } catch (e) {
-    console.warn("utilization/readiness future data:", e);
-  }
-
-  const headRow = table.querySelector("thead tr");
-  if (headRow && !headRow.querySelector("[data-rr-heatmap-head]")) {
-    const th = document.createElement("th");
-    th.setAttribute("data-rr-heatmap-head", "1");
-    th.style.cssText = "min-width:332px;text-align:left;white-space:nowrap;padding-left:14px";
-    th.innerHTML =
-      `<div class="rr-heatmap-headtitle">Utilization / Readiness`
-      + `<span class="rr-heatmap-info" title="Past 14 days of van usage, a marker for today, then the next 7 days of scheduled readiness. Green = used · amber = scheduled service · red = grounded.">`
-      + `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`
-      + `</span></div>`
-      + `<div class="rr-heatmap-headsub">`
-      + `<span class="rr-heatmap-hs hs-past">Past 14 days</span>`
-      + `<span class="rr-heatmap-hs hs-today">TODAY</span>`
-      + `<span class="rr-heatmap-hs hs-future">Next 7 days</span>`
-      + `</div>`;
-    const notesTh = headRow.children[6];
-    if (notesTh) headRow.insertBefore(th, notesTh); else headRow.appendChild(th);
-  }
-
-  table.querySelectorAll("tbody tr[data-veh-id]").forEach(tr => {
-    if (tr.querySelector("[data-rr-heatmap-cell]")) return;
-    const vehId   = tr.getAttribute("data-veh-id");
-    const usage   = usageByVan.get(vehId) || new Set();
-    const dmap    = driversByVan.get(vehId) || new Map();
-    const grounded = groundedSet.has(vehId);
-    const svc     = serviceByVan.get(vehId) || new Map();
-
-    // Past · green when dispatched, light gray when idle.
-    let lastUsedIdx = -1;
-    const pastCells = pastDates.map((iso, idx) => {
-      const used = usage.has(iso);
-      if (used) lastUsedIdx = idx;
-      let tip = `${fmtLong(iso)} · `;
-      if (used) {
-        const dn = dmap.get(iso) ? driverName.get(dmap.get(iso)) : null;
-        tip += dn ? `Dispatched — ${dn}` : "Dispatched";
-      } else { tip += "Idle"; }
-      return `<span class="rr-heatmap-cell${used ? " is-used" : ""}" title="${escapeHtml(tip)}"></span>`;
-    }).join("");
-
-    // Future · outlined when available, amber for scheduled service,
-    // rose when grounded.
-    let firstServiceIso = null;
-    const futureCells = futureDates.map(iso => {
-      let cls = "rr-heatmap-cell is-future", tip = `${fmtLong(iso)} · `;
-      if (grounded) { cls += " is-grounded"; tip += "Grounded — unavailable"; }
-      else if (svc.has(iso)) {
-        cls += " is-service"; tip += `Scheduled service — ${svc.get(iso)}`;
-        if (!firstServiceIso) firstServiceIso = iso;
-      } else { tip += "Available"; }
-      return `<span class="${cls}" title="${escapeHtml(tip)}"></span>`;
-    }).join("");
-
-    // Compact status line.
-    const daysSince = lastUsedIdx >= 0 ? (pastDates.length - 1 - lastUsedIdx) : PAST;
-    const pastPart  = daysSince === 0 ? "Used today" : `${daysSince}d idle`;
-    let futurePart  = "";
-    if (grounded)              futurePart = "grounded";
-    else if (firstServiceIso)  futurePart = `Service ${fmtWkdy(firstServiceIso)}`;
-    else if (daysSince >= 13)  futurePart = "rotation needed";
-    const statusLine = futurePart ? `${pastPart} · ${futurePart}` : pastPart;
-
-    const td = document.createElement("td");
-    td.setAttribute("data-rr-heatmap-cell", "1");
-    td.innerHTML = `<div class="rr-heatmap-wrap">`
-      + `<div class="rr-heatmap-strip">`
-      + `<span class="rr-heatmap-grp">${pastCells}</span>`
-      + `<span class="rr-heatmap-div" aria-hidden="true" title="Today"></span>`
-      + `<span class="rr-heatmap-grp">${futureCells}</span>`
-      + `</div>`
-      + `<div class="rr-heatmap-sub">${escapeHtml(statusLine)}</div></div>`;
-    const notesTd = tr.children[6];
-    if (notesTd) tr.insertBefore(td, notesTd); else tr.appendChild(td);
-  });
-}
-window._rrDecorateChainEditorHeatmap = _rrDecorateChainEditorHeatmap;
-
 // For each at-risk van (Risk/Critical/Violation tier today),
 // inject a sub-row below it in the chain editor recommending
 // the lowest-impact rescue donor. Mirrors Phase 3's _pickDonor
@@ -38210,10 +38062,134 @@ function _flRenderRoster() {
       <td>${_flDocCell(v)}</td>
       <td>${_flDriverReportsCell(v)}</td>
       <td>${_flRepairStatusCell(v)}</td>
-      <td><span class="fl-date${v.last_route_completed_at ? "" : " dim"}">${v.last_route_completed_at ? escapeHtml(_flRelative(v.last_route_completed_at)) : "—"}</span></td>
+      <td class="fl-util-cell" data-rr-util-veh="${escapeHtml(v.id)}"><span class="rr-heatmap-loading">Loading…</span></td>
     </tr>`;
   }).join("");
+  _flRenderUtilization();
 }
+
+// Fill the Utilization / Readiness column · 14 past usage blocks, a
+// today marker, then 7 future readiness blocks. Async because it
+// needs van_day_assignments + the fleet calendar.
+async function _flRenderUtilization() {
+  const tbody = document.getElementById("fleet-tbody");
+  if (!tbody) return;
+  const cells = tbody.querySelectorAll("[data-rr-util-veh]");
+  if (!cells.length) return;
+
+  const todayIso = fmtIsoDate(new Date());
+  const PAST = 14, FUTURE = 7;
+  const pastDates = [], futureDates = [];
+  for (let i = PAST - 1; i >= 0; i--) {
+    const d = new Date(todayIso + "T12:00:00"); d.setDate(d.getDate() - i);
+    pastDates.push(fmtIsoDate(d));
+  }
+  for (let i = 1; i <= FUTURE; i++) {
+    const d = new Date(todayIso + "T12:00:00"); d.setDate(d.getDate() + i);
+    futureDates.push(fmtIsoDate(d));
+  }
+  const fmtLong = (iso) => {
+    try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
+    catch { return iso; }
+  };
+  const fmtWkdy = (iso) => {
+    try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short" }); }
+    catch { return iso; }
+  };
+
+  const usageByVan   = new Map();  // vehId → Set<iso>
+  const driversByVan = new Map();  // vehId → Map<iso, driverId>
+  const driverName   = new Map();  // driverId → name
+  const serviceByVan = new Map();  // vehId → Map<iso, reason>
+  const groundedSet  = new Set((_fleetRows || [])
+    .filter(v => (v.operational_status || "operational") === "grounded")
+    .map(v => v.id));
+  try {
+    const dspId = window.RR?.dsp?.id;
+    const [usageRes, drvRes, evRes] = await Promise.all([
+      sb.from("vehicle_day_assignments")
+        .select("vehicle_id, date, driver_id")
+        .eq("dsp_id", dspId)
+        .gte("date", pastDates[0]).lte("date", todayIso),
+      sb.from("drivers").select("id, full_name, preferred_name").eq("dsp_id", dspId).limit(500),
+      sb.rpc("fleet_calendar_events_list", { p_from: futureDates[0], p_to: futureDates[FUTURE - 1] }),
+    ]);
+    for (const r of (usageRes?.data || [])) {
+      if (!r.vehicle_id || !r.date) continue;
+      let s = usageByVan.get(r.vehicle_id);
+      if (!s) { s = new Set(); usageByVan.set(r.vehicle_id, s); }
+      s.add(r.date);
+      let dm = driversByVan.get(r.vehicle_id);
+      if (!dm) { dm = new Map(); driversByVan.set(r.vehicle_id, dm); }
+      if (r.driver_id) dm.set(r.date, r.driver_id);
+    }
+    for (const d of (drvRes?.data || [])) {
+      driverName.set(d.id, (d.preferred_name && d.preferred_name.trim()) || (d.full_name && d.full_name.trim()) || "Driver");
+    }
+    for (const ev of (Array.isArray(evRes?.data) ? evRes.data : [])) {
+      if (!ev.vehicle_id || !ev.event_date) continue;
+      let m = serviceByVan.get(ev.vehicle_id);
+      if (!m) { m = new Map(); serviceByVan.set(ev.vehicle_id, m); }
+      const reason = ev.vendor_name
+        ? `${ev.title || "Service"} — ${ev.vendor_name}`
+        : (ev.title || "Scheduled service");
+      const evStart = ev.event_date, evEnd = ev.end_date || ev.event_date;
+      for (const iso of futureDates) {
+        if (iso >= evStart && iso <= evEnd && !m.has(iso)) m.set(iso, reason);
+      }
+    }
+  } catch (e) {
+    console.warn("fleet utilization data:", e);
+  }
+
+  cells.forEach(cell => {
+    const vehId    = cell.getAttribute("data-rr-util-veh");
+    const usage    = usageByVan.get(vehId) || new Set();
+    const dmap     = driversByVan.get(vehId) || new Map();
+    const grounded = groundedSet.has(vehId);
+    const svc      = serviceByVan.get(vehId) || new Map();
+
+    let lastUsedIdx = -1;
+    const pastCells = pastDates.map((iso, idx) => {
+      const used = usage.has(iso);
+      if (used) lastUsedIdx = idx;
+      let tip = `${fmtLong(iso)} · `;
+      if (used) {
+        const dn = dmap.get(iso) ? driverName.get(dmap.get(iso)) : null;
+        tip += dn ? `Dispatched — ${dn}` : "Dispatched";
+      } else { tip += "Idle"; }
+      return `<span class="rr-heatmap-cell${used ? " is-used" : ""}" title="${escapeHtml(tip)}"></span>`;
+    }).join("");
+
+    let firstServiceIso = null;
+    const futureCells = futureDates.map(iso => {
+      let cls = "rr-heatmap-cell is-future", tip = `${fmtLong(iso)} · `;
+      if (grounded) { cls += " is-grounded"; tip += "Grounded — unavailable"; }
+      else if (svc.has(iso)) {
+        cls += " is-service"; tip += `Scheduled service — ${svc.get(iso)}`;
+        if (!firstServiceIso) firstServiceIso = iso;
+      } else { tip += "Available"; }
+      return `<span class="${cls}" title="${escapeHtml(tip)}"></span>`;
+    }).join("");
+
+    const daysSince = lastUsedIdx >= 0 ? (pastDates.length - 1 - lastUsedIdx) : PAST;
+    const pastPart  = daysSince === 0 ? "Used today" : `${daysSince}d idle`;
+    let futurePart  = "";
+    if (grounded)             futurePart = "grounded";
+    else if (firstServiceIso) futurePart = `Service ${fmtWkdy(firstServiceIso)}`;
+    else if (daysSince >= 13) futurePart = "rotation needed";
+    const statusLine = futurePart ? `${pastPart} · ${futurePart}` : pastPart;
+
+    cell.innerHTML = `<div class="rr-heatmap-wrap">`
+      + `<div class="rr-heatmap-strip">`
+      + `<span class="rr-heatmap-grp">${pastCells}</span>`
+      + `<span class="rr-heatmap-div" aria-hidden="true" title="Today"></span>`
+      + `<span class="rr-heatmap-grp">${futureCells}</span>`
+      + `</div>`
+      + `<div class="rr-heatmap-sub">${escapeHtml(statusLine)}</div></div>`;
+  });
+}
+window._flRenderUtilization = _flRenderUtilization;
 
 // Save the RO code on blur or Enter.  Empty → leave alone (no destructive default).
 async function _flSaveRoCode(input) {
