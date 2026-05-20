@@ -24,20 +24,24 @@
    DESIGN TOKENS
    ───────────────────────────────────────────────────────────── */
 :root{
-  /* ── Surfaces — crisp white workspace, dark sidebar chrome ──── */
-  /* --canvas is the *recessed-fill* tone (table headers, chips,
-     ghost buttons) — a faint neutral that reads inside the white
-     cards.  The page itself is plain white (body uses --surface).
-     Updated to the enterprise governance palette: cooler greys
-     that pair with the new graphite sidebar. */
-  --canvas:#FFFFFF;
+  /* ── Surfaces — Fluent / Windows 11 tonal hierarchy ──────────
+     The page (body / .main) sits on a soft cool blue-gray so cards
+     read as elevated against it without leaning on shadow.  Cards
+     stay crisp white; recessed fills inside cards (table headers,
+     ghost buttons, section heads) also use --canvas so the whole
+     surface system shares one resting tone.
+
+     This is the foundational depth move: a single tonal step
+     between the page and the cards creates Outlook / Teams /
+     Azure-style hierarchy without gradients, glow, or chrome. */
+  --canvas:#F3F5F9;
   --canvas-grad:none;
   --surface:#FFFFFF;
-  --surface-secondary:#FCFCFD;
-  --surface-elevated:#F5F7FA;
+  --surface-secondary:#FAFBFD;
+  --surface-elevated:#F7F9FC;
   --surface-grad:linear-gradient(180deg, #FFFFFF 0%, #FCFCFC 100%);
-  --surface-hover:rgba(15,23,42,.03);
-  --surface-pressed:rgba(15,23,42,.05);
+  --surface-hover:rgba(15,23,42,.035);
+  --surface-pressed:rgba(15,23,42,.06);
   /* Sidebar — calm graphite/navy operational surface.  Tuned to
      support the white workspace rather than dominate it.  Active
      state is a soft translucent layer, not a saturated glow. */
@@ -162,21 +166,28 @@
   /* Pills / fully-rounded — capsule chips, dots, status badges */
   --r-pill:999px;
 
-  /* ── Shadows — soft daylight: low, diffuse, cards float lightly */
-  --shadow-xs: 0 1px 2px rgba(15,23,42,.05);
-  --shadow-sm: 0 1px 3px rgba(15,23,42,.06);
+  /* ── Shadows — soft ambient daylight ───────────────────────
+     Microsoft Fluent / Office surfaces lean on hairline borders +
+     tonal layering, not shadow. These tokens stay barely visible
+     at rest, then lift one notch on hover. Each token pairs a
+     tight 1-2px contact shadow with a longer, very low-opacity
+     ambient shadow so cards feel anchored without floating. */
+  --shadow-xs: 0 1px 1px rgba(15,23,42,.04);
+  --shadow-sm: 0 1px 2px rgba(15,23,42,.04),
+               0 1px 3px rgba(15,23,42,.04);
   --shadow-md: 0 1px 2px rgba(15,23,42,.04),
-               0 4px 12px rgba(15,23,42,.06);
-  --shadow-lg: 0 2px 6px rgba(15,23,42,.05),
-               0 14px 36px rgba(15,23,42,.10);
-  --shadow-xl: 0 4px 12px rgba(15,23,42,.07),
-               0 28px 60px rgba(15,23,42,.14);
-  --shadow-sm-hover: 0 2px 6px rgba(15,23,42,.07),
-                     0 6px 16px rgba(15,23,42,.05);
-  --shadow-md-hover: 0 4px 12px rgba(15,23,42,.08),
-                     0 12px 28px rgba(15,23,42,.07);
+               0 4px 10px rgba(15,23,42,.05);
+  --shadow-lg: 0 2px 4px rgba(15,23,42,.05),
+               0 12px 28px rgba(15,23,42,.08);
+  --shadow-xl: 0 4px 10px rgba(15,23,42,.06),
+               0 24px 48px rgba(15,23,42,.12);
+  --shadow-sm-hover: 0 1px 2px rgba(15,23,42,.05),
+                     0 4px 10px rgba(15,23,42,.06);
+  --shadow-md-hover: 0 2px 4px rgba(15,23,42,.06),
+                     0 10px 22px rgba(15,23,42,.07);
   /* Popovers + dropdown menus — sit above the page, no second layer */
-  --shadow-pop: 0 12px 32px rgba(15,23,42,.12);
+  --shadow-pop: 0 8px 24px rgba(15,23,42,.10),
+                0 2px 4px rgba(15,23,42,.04);
   /* Subtle inner recess for inputs / sunken surfaces */
   --inset-input: inset 0 1px 2px rgba(15,23,42,.04);
   /* Top sheen kept subtle — Fluent doesn't lean on highlights */
@@ -212,7 +223,7 @@ body{
   font-size:var(--fs-base);
   line-height:1.5;
   color:var(--text);
-  background-color:var(--surface);
+  background-color:var(--canvas);
   background-image:var(--canvas-grad);
   background-attachment:fixed;
   -webkit-font-smoothing:antialiased;
@@ -724,7 +735,7 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   display:flex;align-items:center;padding:0 var(--s-6);gap:var(--s-4);
   background:var(--surface);
   border-bottom:1px solid var(--border);
-  box-shadow:var(--shadow-xs);
+  box-shadow:0 1px 0 rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.04);
 }
 .topbar::after{ display:none; }
 .topbar-title{font-size:var(--fs-base);font-weight:600;color:var(--text)}
@@ -1191,6 +1202,29 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   padding:var(--s-5);
   box-shadow:var(--shadow-sm), var(--highlight-top);
   transition:box-shadow var(--t-smooth), border-color var(--t-smooth), transform var(--t-smooth);
+}
+/* Quiet hover lift — 1px translate + softer ambient shadow.  Only
+   activates on interactive cards (so static dashboards don't feel
+   twitchy). Disabled inside grids of compact cards that would
+   compete with their hover targets via [data-rr-no-card-hover]. */
+.card[data-rr-clickable],
+a.card,
+button.card{
+  cursor:pointer;
+}
+.card[data-rr-clickable]:hover,
+a.card:hover,
+button.card:hover{
+  transform:translateY(-1px);
+  box-shadow:var(--shadow-sm-hover), var(--highlight-top);
+  border-color:var(--border-strong);
+}
+.card[data-rr-clickable]:focus-visible,
+a.card:focus-visible,
+button.card:focus-visible{
+  outline:none;
+  border-color:var(--accent);
+  box-shadow:var(--shadow-sm-hover), var(--highlight-top), var(--ring-focus);
 }
 .card-compact{padding:var(--s-4) var(--s-5)}
 .card-flush{padding:0;overflow:hidden}
@@ -14470,12 +14504,16 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule .builder-shell{grid-template-columns:1fr}
           }
 
-          /* ── Calendar surface · Outlook Calendar feel ────────── */
+          /* ── Calendar surface · Outlook Calendar feel ──────────
+             Sits on the canvas tone (cool blue-gray) so the white
+             grid reads as the primary operational surface.  Contact
+             shadow + border give it the same anchored feel as
+             Outlook's calendar pane without leaning on chrome. */
           #view-schedule .cal-wrap{
             background:var(--sch-surface);
             border:1px solid var(--sch-line);
             border-radius:var(--sch-radius-lg);
-            box-shadow:none;
+            box-shadow:var(--shadow-xs);
             overflow:hidden;
             overflow-y:auto;
             max-height:calc(60px * 20 + 60px);
@@ -14956,7 +14994,11 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid var(--sch-line);
             border-radius:var(--sch-radius-lg);
             padding:var(--s-4);
-            box-shadow:none;
+            /* Right-rail surface — sits one notch above the calendar
+               pane to read as a floating action surface (Outlook /
+               Teams pattern). Ambient shadow stays nearly invisible
+               at rest. */
+            box-shadow:var(--shadow-sm);
             display:flex;flex-direction:column;gap:var(--s-3);
             position:static;max-height:none;
           }
