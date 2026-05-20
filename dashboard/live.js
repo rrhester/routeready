@@ -24248,9 +24248,11 @@ function _renderFleetProviders() {
   if (!_fleetProvBound) {
     _fleetProvBound = true;
     host.addEventListener("click", (e) => {
-      if (e.target.closest("[data-fc-prov-add]")) { _openFleetProviderModal(); return; }
+      if (e.target.closest("[data-fc-prov-add]")) { _openFleetProviderModal(null); return; }
       const del = e.target.closest("[data-fc-prov-del]");
-      if (del) { e.stopPropagation(); _removeFleetProvider(del.getAttribute("data-fc-prov-del")); }
+      if (del) { e.stopPropagation(); _removeFleetProvider(del.getAttribute("data-fc-prov-del")); return; }
+      const chip = e.target.closest("[data-fc-provider]");
+      if (chip) _openFleetProviderModal(chip.getAttribute("data-fc-provider"));
     });
     host.addEventListener("dragstart", (e) => {
       const chip = e.target.closest("[data-fc-provider]");
@@ -24287,39 +24289,75 @@ async function _removeFleetProvider(vendorId) {
   }
 }
 
-// Add a service provider (a vendor) from the calendar rail.
-function _openFleetProviderModal() {
+// Add (id null) or view/edit a service provider — full detail card:
+// name, type, address, phone, email, points of contact, notes.
+function _openFleetProviderModal(vendorId) {
+  const existing = vendorId ? (_fleetCalProviders.find(v => v.id === vendorId) || null) : null;
   document.getElementById("rr-fc-prov-modal")?.remove();
   const m = document.createElement("div");
   m.id = "rr-fc-prov-modal";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  const kind = existing ? (existing.kind || "repair") : "repair";
   const kindOpts = Object.entries(_FC_VENDOR_KINDS)
-    .map(([k, label]) => `<option value="${k}"${k === "repair" ? " selected" : ""}>${escapeHtml(label)}</option>`)
+    .map(([k, label]) => `<option value="${k}"${k === kind ? " selected" : ""}>${escapeHtml(label)}</option>`)
     .join("");
+  const fld = (label, id, val, ph, type) =>
+    `<label style="display:flex;flex-direction:column;gap:4px">
+       <span style="font-size:var(--fs-sm);font-weight:600">${label}</span>
+       <input type="${type || "text"}" id="${id}" class="form-input" maxlength="160" placeholder="${ph}" value="${escapeHtml(val || "")}" />
+     </label>`;
   m.innerHTML = `
-    <div role="dialog" aria-label="Add service provider" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:400px;overflow:hidden">
-      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);font-size:var(--fs-lg);font-weight:600">Add service provider</div>
-      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5)">
-        <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:var(--fs-sm);font-weight:600">Name</span>
-          <input type="text" id="rr-fc-prov-name" class="form-input" maxlength="120" placeholder="e.g. Hester Ford" />
-        </label>
+    <div role="dialog" aria-label="Service provider" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:440px;overflow:hidden;display:flex;flex-direction:column;max-height:86vh">
+      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);font-size:var(--fs-lg);font-weight:600">${existing ? "Service provider" : "Add service provider"}</div>
+      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5);overflow:auto">
+        ${fld("Name", "rr-fc-prov-name", existing && existing.name, "e.g. Hester Ford")}
         <label style="display:flex;flex-direction:column;gap:4px">
           <span style="font-size:var(--fs-sm);font-weight:600">Type</span>
           <select id="rr-fc-prov-kind" class="form-input">${kindOpts}</select>
         </label>
+        ${fld("Address", "rr-fc-prov-address", existing && existing.address, "Street, city, state")}
+        <div style="display:flex;gap:var(--s-3)">
+          <div style="flex:1">${fld("Phone", "rr-fc-prov-phone", existing && existing.phone, "(555) 010-0100", "tel")}</div>
+          <div style="flex:1">${fld("Email", "rr-fc-prov-email", existing && existing.email, "shop@example.com", "email")}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:var(--fs-sm);font-weight:600;flex:1">Points of contact</span>
+            <button type="button" id="rr-fc-poc-add" class="btn btn-sm">+ Contact</button>
+          </div>
+          <div id="rr-fc-prov-contacts" style="display:flex;flex-direction:column;gap:6px"></div>
+        </div>
         <label style="display:flex;flex-direction:column;gap:4px">
-          <span style="font-size:var(--fs-sm);font-weight:600">Phone <span style="color:var(--text-subtle);font-weight:500">(optional)</span></span>
-          <input type="tel" id="rr-fc-prov-phone" class="form-input" maxlength="40" placeholder="(555) 010-0100" />
+          <span style="font-size:var(--fs-sm);font-weight:600">Notes <span style="color:var(--text-subtle);font-weight:500">(optional)</span></span>
+          <textarea id="rr-fc-prov-notes" class="form-input" rows="2" maxlength="500" placeholder="Anything useful for the team">${escapeHtml(existing && existing.notes || "")}</textarea>
         </label>
         <div id="rr-fc-prov-status" style="font-size:var(--fs-xs);color:var(--sch-red,#C42B1C);min-height:14px"></div>
       </div>
       <div style="padding:var(--s-3-5) var(--s-5);border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-3)">
         <button type="button" class="btn btn-sm" id="rr-fc-prov-cancel">Cancel</button>
-        <button type="button" class="btn btn-sm btn-primary" id="rr-fc-prov-save">Add provider</button>
+        <button type="button" class="btn btn-sm btn-primary" id="rr-fc-prov-save">${existing ? "Save" : "Add provider"}</button>
       </div>
     </div>`;
   document.body.appendChild(m);
+
+  const contactsHost = m.querySelector("#rr-fc-prov-contacts");
+  const addContactRow = (c) => {
+    c = c || {};
+    const row = document.createElement("div");
+    row.className = "rr-fc-poc-row";
+    row.style.cssText = "display:flex;gap:6px;align-items:center";
+    row.innerHTML =
+      `<input type="text" class="form-input rr-fc-poc-name" maxlength="80" placeholder="Name" value="${escapeHtml(c.name || "")}" style="flex:1.2;min-width:0" />`
+      + `<input type="text" class="form-input rr-fc-poc-role" maxlength="60" placeholder="Role" value="${escapeHtml(c.role || "")}" style="flex:1;min-width:0" />`
+      + `<input type="tel" class="form-input rr-fc-poc-phone" maxlength="40" placeholder="Phone" value="${escapeHtml(c.phone || "")}" style="flex:1;min-width:0" />`
+      + `<button type="button" class="rr-fc-poc-del" aria-label="Remove contact" style="flex:0 0 auto;width:24px;height:24px;border:0;background:transparent;color:var(--text-subtle);cursor:pointer;font-size:16px;line-height:1">×</button>`;
+    row.querySelector(".rr-fc-poc-del").addEventListener("click", () => row.remove());
+    contactsHost.appendChild(row);
+  };
+  const seed = (existing && Array.isArray(existing.contacts)) ? existing.contacts : [];
+  if (seed.length) seed.forEach(addContactRow); else addContactRow();
+  m.querySelector("#rr-fc-poc-add").addEventListener("click", () => addContactRow());
+
   const onKey = (e) => { if (e.key === "Escape") close(); };
   const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
   document.addEventListener("keydown", onKey);
@@ -24327,39 +24365,48 @@ function _openFleetProviderModal() {
   m.querySelector("#rr-fc-prov-cancel").addEventListener("click", close);
   const nameEl = m.querySelector("#rr-fc-prov-name");
   nameEl.focus();
+
   m.querySelector("#rr-fc-prov-save").addEventListener("click", async () => {
     const status = m.querySelector("#rr-fc-prov-status");
     const name = nameEl.value.trim();
     if (!name) { status.textContent = "Add a name."; return; }
-    // One row per provider — no duplicates.
-    if (_fleetCalProviders.some(v => (v.name || "").trim().toLowerCase() === name.toLowerCase())) {
+    // One row per provider — no duplicates (skip self when editing).
+    if (_fleetCalProviders.some(v => v.id !== vendorId && (v.name || "").trim().toLowerCase() === name.toLowerCase())) {
       status.textContent = `"${name}" is already in the list.`;
       return;
     }
+    const contacts = [...m.querySelectorAll(".rr-fc-poc-row")].map(r => ({
+      name:  r.querySelector(".rr-fc-poc-name").value.trim(),
+      role:  r.querySelector(".rr-fc-poc-role").value.trim(),
+      phone: r.querySelector(".rr-fc-poc-phone").value.trim(),
+    })).filter(c => c.name || c.phone || c.role);
     const btn = m.querySelector("#rr-fc-prov-save");
     btn.disabled = true;
     try {
-      const { data, error } = await sb.rpc("vendor_save", {
-        p_id: null,
+      const { data, error } = await sb.rpc("fleet_calendar_provider_upsert", {
+        p_id: vendorId || null,
         p_name: name,
         p_kind: m.querySelector("#rr-fc-prov-kind").value,
-        p_contact_phone: m.querySelector("#rr-fc-prov-phone").value.trim() || null,
-        p_contact_email: null,
+        p_address: m.querySelector("#rr-fc-prov-address").value.trim() || null,
+        p_phone: m.querySelector("#rr-fc-prov-phone").value.trim() || null,
+        p_email: m.querySelector("#rr-fc-prov-email").value.trim() || null,
+        p_contacts: contacts,
+        p_notes: m.querySelector("#rr-fc-prov-notes").value.trim() || null,
       });
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
       close();
-      // Show the new provider immediately (from the insert's return
-      // value), then reconcile the rail from the server.
-      if (row && row.id && !_fleetCalProviders.some(v => v.id === row.id)) {
-        _fleetCalProviders.unshift(row);
+      if (row && row.id) {
+        const i = _fleetCalProviders.findIndex(v => v.id === row.id);
+        if (i >= 0) _fleetCalProviders[i] = row;
+        else _fleetCalProviders.unshift(row);
         _renderFleetProviders();
       }
-      if (typeof toast === "function") toast("Service provider added");
+      if (typeof toast === "function") toast(existing ? "Provider updated" : "Service provider added");
       _paintFleetProviders();
     } catch (err) {
-      console.warn("vendor_save:", err);
-      status.textContent = "Couldn't add · " + (err?.message || "try again");
+      console.warn("fleet_calendar_provider_upsert:", err);
+      status.textContent = "Couldn't save · " + (err?.message || "try again");
       btn.disabled = false;
     }
   });
