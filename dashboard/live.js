@@ -24087,10 +24087,10 @@ async function _paintFleetCalendar() {
   }
 
   // Header row · Van label + 7 day headers.
-  let head = `<div class="rr-fc-cell-head rr-fc-vancol-head">Van</div>`;
+  let head = `<div class="rr-fc-cell-head rr-fc-vancol-head" style="grid-row:1;grid-column:1">Van</div>`;
   days.forEach((d, di) => {
     const cls = (fmtIsoDate(d) === todayIso ? " is-today" : "") + (di === 6 ? " rr-fc-col-last" : "");
-    head += `<div class="rr-fc-cell-head${cls}">`
+    head += `<div class="rr-fc-cell-head${cls}" style="grid-row:1;grid-column:${di + 2}">`
       + `<span class="rr-fc-dow">${escapeHtml(d.toLocaleDateString(undefined, { weekday: "short" }).toUpperCase())}</span>`
       + `<span class="rr-fc-dnum">${d.getDate()}</span></div>`;
   });
@@ -24116,11 +24116,11 @@ async function _paintFleetCalendar() {
       const laneCount = Math.max(1, laneEnd.length);
       const rowH = Math.max(62, 6 + (laneCount - 1) * 42 + 38 + 8);
 
-      rows += `<div class="rr-fc-vancol">${escapeHtml(v.name || "—")}</div>`;
+      rows += `<div class="rr-fc-vancol" style="grid-row:${vi + 2};grid-column:1">${escapeHtml(v.name || "—")}</div>`;
       for (let di = 0; di < 7; di++) {
         const iso = dayIsos[di];
         const cls = (iso === todayIso ? " is-today" : "") + (di === 6 ? " rr-fc-col-last" : "");
-        rows += `<div class="rr-fc-cell${cls}" data-fc-date="${iso}" data-fc-van="${escapeHtml(v.id)}" style="min-height:${rowH}px"></div>`;
+        rows += `<div class="rr-fc-cell${cls}" data-fc-date="${iso}" data-fc-van="${escapeHtml(v.id)}" style="grid-row:${vi + 2};grid-column:${di + 2};min-height:${rowH}px"></div>`;
       }
       for (const ev of vanEvents) {
         const evEnd = ev.end_date || ev.event_date;
