@@ -28397,25 +28397,27 @@ function bindSchedWeekNav() {
     }
   });
 
-  // ── KPI: clicking the Rule violations pill drops an INLINE panel
-  // below the KPI strip listing every violation. Click the pill
-  // again (or the panel's ×) to collapse. Replaces the previous
-  // centered modal — operators wanted to see the violations in
-  // context without losing the schedule grid behind them.
+  // ── KPI: clicking the Rule violations pill pops out a flyover
+  // drawer anchored to the pill — the same overlay behaviour as the
+  // Smart Fill / Targets "Rules ⌄" popovers, so the violations list
+  // floats over the schedule instead of pushing the grid down. The
+  // pill (or ×) toggles it; a click anywhere outside dismisses it.
   if (!window._rrViolationsHandlerInstalled) {
   window._rrViolationsHandlerInstalled = true;
   document.addEventListener("click", (e) => {
-    if (e.target.closest("#rr-sched-violations-close")) {
-      document.getElementById("rr-sched-violations-panel")?.remove();
-      return;
-    }
-    if (!e.target.closest('[data-rr-kpi="violations"]')) return;
+    const panel = document.getElementById("rr-sched-violations-panel");
+    // × closes the drawer.
+    if (e.target.closest("#rr-sched-violations-close")) { panel?.remove(); return; }
+    // Clicks inside the open drawer are inert.
+    if (panel && e.target.closest("#rr-sched-violations-panel")) return;
+    // Any other click while open — the pill itself or outside —
+    // dismisses it (flyover behaviour).
+    if (panel) { panel.remove(); return; }
+    const pill = e.target.closest('[data-rr-kpi="violations"]');
+    if (!pill) return;
     e.preventDefault();
     const kpiHost = document.getElementById("rr-sched-kpis");
     if (!kpiHost) return;
-    // Toggle off if already open.
-    const existing = document.getElementById("rr-sched-violations-panel");
-    if (existing) { existing.remove(); return; }
     let v = [];
     try { v = JSON.parse(kpiHost.dataset.rrViolations || "[]"); } catch {}
     const list = v.length === 0
@@ -28428,10 +28430,12 @@ function bindSchedWeekNav() {
               <div class="rr-sched-violations-note">${escapeHtml(x.note)}</div>
             </div>
           </div>`).join("");
-    const panel = document.createElement("section");
-    panel.id = "rr-sched-violations-panel";
-    panel.className = "rr-sched-violations-panel";
-    panel.innerHTML = `
+    const el = document.createElement("section");
+    el.id = "rr-sched-violations-panel";
+    el.className = "rr-sched-violations-panel";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-label", "Rule violations");
+    el.innerHTML = `
       <header class="rr-sched-violations-head">
         <div>
           <div class="rr-sched-violations-eyebrow">Rule violations</div>
@@ -28442,7 +28446,8 @@ function bindSchedWeekNav() {
         </button>
       </header>
       <div class="rr-sched-violations-list">${list}</div>`;
-    kpiHost.insertAdjacentElement("afterend", panel);
+    // Anchor inside the pill so it positions like the Rules popovers.
+    pill.appendChild(el);
   });
   }
 
