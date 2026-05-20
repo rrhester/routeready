@@ -25112,7 +25112,7 @@ async function _rrDecorateChainEditorHeatmap(body, usageByVan, todayIso, drivers
   if (headRow && !headRow.querySelector("[data-rr-heatmap-head]")) {
     const th = document.createElement("th");
     th.setAttribute("data-rr-heatmap-head", "1");
-    th.style.cssText = "min-width:288px;text-align:left;white-space:nowrap;padding-left:14px";
+    th.style.cssText = "min-width:332px;text-align:left;white-space:nowrap;padding-left:14px";
     th.innerHTML =
       `<div class="rr-heatmap-headtitle">Utilization / Readiness`
       + `<span class="rr-heatmap-info" title="Past 14 days of van usage, a marker for today, then the next 7 days of scheduled readiness. Green = used · amber = scheduled service · red = grounded.">`
