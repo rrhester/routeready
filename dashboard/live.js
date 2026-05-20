@@ -37009,7 +37009,7 @@ function _flOpStatCell(v) {
   // along here; they now live in their own "Driver reports" column so
   // the operational pill stands alone — cleaner alignment + a calmer
   // visual rhythm across the roster.
-  return `<button type="button" class="fl-opstat-btn" data-rr-opstat-id="${escapeHtml(v.id)}" data-rr-opstat-now="${escapeHtml(v.operational_status || "operational")}" data-rr-opstat-name="${escapeHtml(v.nickname || v.name || "")}">
+  return `<button type="button" class="fl-opstat-btn" data-rr-opstat-id="${escapeHtml(v.id)}" data-rr-opstat-now="${escapeHtml(v.operational_status || "operational")}" data-rr-opstat-cat="${escapeHtml(v.grounded_category || "")}" data-rr-opstat-name="${escapeHtml(v.nickname || v.name || "")}">
     <span class="fl-opstat-row">${pill}</span>
     <svg class="fl-opstat-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
   </button>`;
@@ -37101,18 +37101,28 @@ function _flOpenOpStatMenu(triggerBtn) {
   _flCloseOpStatMenu();
   const id      = triggerBtn.getAttribute("data-rr-opstat-id");
   const current = triggerBtn.getAttribute("data-rr-opstat-now") || "operational";
+  const cat     = triggerBtn.getAttribute("data-rr-opstat-cat") || "";
   const name    = triggerBtn.getAttribute("data-rr-opstat-name") || "";
   const rect    = triggerBtn.getBoundingClientRect();
   const menu    = document.createElement("div");
   menu.className = "fl-opstat-menu";
   menu.setAttribute("role", "menu");
+  // For an already-grounded van the second row lets the operator set
+  // or change the grounding category instead of being a dead "current"
+  // row — that's the only way to reach the category picker for vans
+  // grounded before categories existed.
+  const groundedRow = current === "grounded"
+    ? `<button class="row" data-set="category" type="button">
+         <span class="pip red"></span>Set grounding category<span class="sub">${escapeHtml(_FL_GROUND_CAT_LABEL[cat] || "None")}</span>
+       </button>`
+    : `<button class="row" data-set="grounded" type="button">
+         <span class="pip red"></span>Mark grounded
+       </button>`;
   menu.innerHTML = `
     <button class="row${current === "operational" ? " is-active" : ""}" data-set="operational" type="button" ${current === "operational" ? "disabled" : ""}>
       <span class="pip green"></span>Mark operational${current === "operational" ? `<span class="sub">Current</span>` : ""}
     </button>
-    <button class="row${current === "grounded" ? " is-active" : ""}" data-set="grounded" type="button" ${current === "grounded" ? "disabled" : ""}>
-      <span class="pip red"></span>Mark grounded${current === "grounded" ? `<span class="sub">Current</span>` : ""}
-    </button>`;
+    ${groundedRow}`;
   document.body.appendChild(menu);
   // Position below the trigger, right-aligned to the chevron
   const margin = 4;
@@ -37139,6 +37149,10 @@ function _flOpenOpStatMenu(triggerBtn) {
     // preventive / body damage / other) which fires the RPC itself.
     if (next === "grounded") {
       _flOpenGroundingModal(id, name);
+      return;
+    }
+    if (next === "category") {
+      _flOpenGroundingModal(id, name, { alreadyGrounded: true, currentCategory: cat });
       return;
     }
     const { error } = await sb.rpc("vehicle_set_operational_status", {
@@ -37168,9 +37182,11 @@ const _FL_GROUND_CAT_LABEL = {
   body_damage: "Body damage", other: "Other",
 };
 
-function _flOpenGroundingModal(vehicleId, vehicleName) {
+function _flOpenGroundingModal(vehicleId, vehicleName, opts) {
+  opts = opts || {};
+  const editMode = !!opts.alreadyGrounded;
   document.getElementById("rr-fl-ground-modal")?.remove();
-  let picked = "warranty";
+  let picked = opts.currentCategory || "warranty";
   const m = document.createElement("div");
   m.id = "rr-fl-ground-modal";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
@@ -37185,8 +37201,8 @@ function _flOpenGroundingModal(vehicleId, vehicleName) {
   m.innerHTML = `
     <div role="dialog" aria-label="Ground vehicle" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:440px;overflow:hidden">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
-        <div style="font-size:var(--fs-lg);font-weight:600">Ground ${escapeHtml(vehicleName || "vehicle")}</div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">Pick why the van is going down.</div>
+        <div style="font-size:var(--fs-lg);font-weight:600">${editMode ? "Grounding category" : "Ground " + escapeHtml(vehicleName || "vehicle")}</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${editMode ? "Update why " + escapeHtml(vehicleName || "this van") + " is down." : "Pick why the van is going down."}</div>
       </div>
       <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3)">
         <div class="rr-fl-ground-cats">${cats}</div>
@@ -37198,7 +37214,7 @@ function _flOpenGroundingModal(vehicleId, vehicleName) {
       </div>
       <div style="padding:var(--s-3-5) var(--s-5);border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--s-3)">
         <button type="button" class="btn btn-sm" id="rr-fl-ground-cancel">Cancel</button>
-        <button type="button" class="btn btn-sm btn-primary" id="rr-fl-ground-confirm">Ground vehicle</button>
+        <button type="button" class="btn btn-sm btn-primary" id="rr-fl-ground-confirm">${editMode ? "Save category" : "Ground vehicle"}</button>
       </div>
     </div>`;
   document.body.appendChild(m);
@@ -37227,7 +37243,7 @@ function _flOpenGroundingModal(vehicleId, vehicleName) {
       });
       if (error) throw error;
       close();
-      toast("Vehicle grounded · " + (_FL_GROUND_CAT_LABEL[picked] || "grounded"));
+      toast((editMode ? "Grounding category · " : "Vehicle grounded · ") + (_FL_GROUND_CAT_LABEL[picked] || "grounded"));
       if (typeof loadFleetView === "function") loadFleetView();
       else if (typeof _flLoadRoster === "function") _flLoadRoster();
     } catch (err) {
