@@ -40671,82 +40671,78 @@ function _renderSchedRequestsActive() {
 window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
 
 // Requests sub-view KPI strip · paints into #rr-sched-kpis when the
-// operator is on the Requests tab. Four operational pills (Pending /
-// Decisions this week / Approval rate / Most-requested days). Each
-// pill is clickable and drops an inline drill-down preview into
-// #rr-sched-req-drilldown beneath the strip, with "View on driver"
-// links into the existing driver drawer.
-let _rrReqKpiData = null;
+// operator is on the Requests tab. Mirrors the EXACT four KPIs from
+// the Drivers → Availability sub-tab (Least covered day / Full-time
+// drivers / Avg days per driver / Weekend coverage) using the same
+// _buildAvailImpactCtx + _computeAvailKpis pipeline.
+//
+// Clicking any pill drops an inline preview into #rr-sched-req-drilldown
+// (compact version of the same drill-down rendered on the Drivers
+// page) plus a "View full report →" link that jumps to
+// Drivers → Availability with the panel pre-opened.
+//
+// Stale-response guard: every entry bumps _rrReqKpiToken; the async
+// continuation only paints if the captured token still matches AND
+// the Requests sub-view is still the visible one. Prevents a slow
+// RPC from overwriting the Week/Today KPI strip after a tab switch.
+let _rrReqKpiToken = 0;
 async function _renderSchedRequestsKpis() {
   const host = document.getElementById("rr-sched-kpis");
   if (!host) return;
-  // Skeleton while loading so the strip never empties briefly.
+  const token = ++_rrReqKpiToken;
+  const stillCurrent = () => {
+    if (token !== _rrReqKpiToken) return false;
+    const sub = document.getElementById("sched-sub-requests");
+    if (!sub || sub.style.display === "none") return false;
+    return true;
+  };
   host.classList.add("sched-kpi-pills");
-  host.innerHTML = `<span class="sched-kpi-pill" style="opacity:.5"><span class="sched-kpi-dot" style="background:#94A3B8"></span><span class="sched-kpi-text">Loading request KPIs…</span></span>`;
-  // Both endpoints are lightweight list reads; run in parallel and
-  // tolerate either failing.
-  const [ptoRes, avRes] = await Promise.allSettled([
-    sb.rpc("dispatch_time_off_list"),
-    sb.rpc("availability_request_list"),
+  host.innerHTML = `<span class="sched-kpi-pill" style="opacity:.5"><span class="sched-kpi-dot" style="background:#94A3B8"></span><span class="sched-kpi-text">Loading availability KPIs…</span></span>`;
+
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { host.innerHTML = ""; return; }
+  const today = new Date();
+  const monday = (typeof startOfWeekMonday === "function") ? startOfWeekMonday(today) : today;
+  const startIso = fmtIsoDate(monday);
+  // Reuse the same two endpoints loadAvailabilityRequests reads so
+  // the strip shows the same numbers the Drivers page would. Both
+  // are scoped to the active DSP.
+  const [drvRes, gridRes] = await Promise.allSettled([
+    sb.from("drivers")
+      .select("id, status, score, metadata")
+      .eq("dsp_id", dspId)
+      .in("status", ["active", "onboarding"]),
+    sb.rpc("okami_grid", { p_start: startIso, p_weeks: 4 }),
   ]);
-  const ptoRows = (ptoRes.status === "fulfilled" && Array.isArray(ptoRes.value.data)) ? ptoRes.value.data : [];
-  const avRows  = (avRes.status  === "fulfilled" && Array.isArray(avRes.value.data))  ? avRes.value.data  : [];
-  _rrReqKpiData = { pto: ptoRows, av: avRows };
-
-  // Pending — total across PTO + Availability.
-  const ptoPending = ptoRows.filter(r => r.status === "pending");
-  const avPending  = avRows.filter(r => r.status === "pending");
-  const pendingTotal = ptoPending.length + avPending.length;
-
-  // Decisions in the last 7 days · use decided_at / updated_at where
-  // available, fall back to created_at.
-  const now = Date.now();
-  const weekAgo = now - 7 * 86400000;
-  const decidedField = (r) => r.decided_at || r.updated_at || r.created_at;
-  const decisionsThisWeek = []
-    .concat(ptoRows.filter(r => r.status !== "pending" && decidedField(r) && new Date(decidedField(r)).getTime() >= weekAgo))
-    .concat(avRows.filter(r => r.status !== "pending" && decidedField(r) && new Date(decidedField(r)).getTime() >= weekAgo));
-
-  // Approval rate · last 30 days of decisions across both streams.
-  const thirtyAgo = now - 30 * 86400000;
-  const decidedRecent = []
-    .concat(ptoRows.filter(r => r.status !== "pending" && decidedField(r) && new Date(decidedField(r)).getTime() >= thirtyAgo))
-    .concat(avRows.filter(r => r.status !== "pending" && decidedField(r) && new Date(decidedField(r)).getTime() >= thirtyAgo));
-  const approved = decidedRecent.filter(r => r.status === "approved").length;
-  const approvalPct = decidedRecent.length > 0 ? Math.round((approved / decidedRecent.length) * 100) : null;
-
-  // Most-requested day-of-week · PTO start_date histogram (the
-  // operational signal — when do drivers tend to take PTO).
-  const dayCounts = new Array(7).fill(0);
-  const dayLabels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  for (const r of ptoRows) {
-    if (!r.start_date) continue;
-    try { dayCounts[new Date(r.start_date + "T12:00:00").getDay()]++; } catch (_) {}
+  // Bail if the operator left the Requests sub-view (or fired a
+  // newer KPI render) while the RPCs were in flight.
+  if (!stillCurrent()) return;
+  const drivers = (drvRes.status === "fulfilled" && Array.isArray(drvRes.value.data)) ? drvRes.value.data : [];
+  const grid    = (gridRes.status === "fulfilled" && Array.isArray(gridRes.value.data)) ? gridRes.value.data : [];
+  // Build the impact context the Drivers → Availability page uses,
+  // then compute the same KPIs.
+  if (typeof _buildAvailImpactCtx === "function") {
+    _availImpactCtx = _buildAvailImpactCtx(drivers, grid);
   }
-  let topDay = -1, topDayN = 0;
-  for (let i = 0; i < 7; i++) {
-    if (dayCounts[i] > topDayN) { topDay = i; topDayN = dayCounts[i]; }
-  }
-  const topDayLabel = topDay >= 0 ? dayLabels[topDay] : "—";
+  const kpis = (typeof _computeAvailKpis === "function") ? _computeAvailKpis() : null;
+  if (!kpis) { host.innerHTML = `<span class="sched-kpi-pill" style="opacity:.6"><span class="sched-kpi-text">Availability data unavailable.</span></span>`; return; }
 
   const navy = "#1A1F47";
+  // Tone the dot when a KPI surfaces an issue: least-covered day
+  // under 60% supply reads red; weekend coverage under 35% reads red.
+  const leastDot = (typeof kpis.leastCovered.minPct === "number" && kpis.leastCovered.minPct < 60) ? "var(--red)" : navy;
+  const wkDot    = (typeof kpis.weekend.weekendCount === "number" && _availImpactCtx?.totalActive
+                    && Math.round(kpis.weekend.weekendCount / _availImpactCtx.totalActive * 100) < 35) ? "var(--red)" : navy;
+
   const pill = (key, dot, label, sub) => {
     const subHtml = sub ? `<span class="sched-kpi-sub">${escapeHtml(sub)}</span>` : "";
     return `<span class="sched-kpi-pill" data-rr-req-kpi="${key}" data-clickable="true" tabindex="0" role="button"><span class="sched-kpi-dot" style="background:${dot}"></span><span class="sched-kpi-text">${escapeHtml(label)}${subHtml}</span></span>`;
   };
   host.innerHTML =
-      pill("pending",   pendingTotal > 0 ? "var(--red)" : navy,
-           `${pendingTotal} Pending`,
-           pendingTotal === 0 ? "All caught up" : `${ptoPending.length} PTO · ${avPending.length} Availability`)
-    + pill("decisions", navy,
-           `${decisionsThisWeek.length} Decision${decisionsThisWeek.length === 1 ? "" : "s"} this week`,
-           decisionsThisWeek.length === 0 ? "—" : "Approve / deny activity")
-    + pill("approval",  navy,
-           approvalPct == null ? "— Approval rate" : `${approvalPct}% Approval rate`,
-           decidedRecent.length === 0 ? "No decisions yet" : `${approved} / ${decidedRecent.length} approved · last 30d`)
-    + pill("topday",    navy,
-           `Top PTO day · ${topDayLabel}`,
-           topDayN === 0 ? "No PTO data yet" : `${topDayN} request${topDayN === 1 ? "" : "s"} start on ${topDayLabel}`);
+      pill("leastCovered", leastDot, `${kpis.leastCovered.display} Least covered`, kpis.leastCovered.sub)
+    + pill("ftpt",         navy,     `${kpis.ftpt.display} Full-time drivers`,    kpis.ftpt.sub)
+    + pill("avgDays",      navy,     `${kpis.avgDays.display} Avg days / driver`, kpis.avgDays.sub)
+    + pill("weekend",      wkDot,    `${kpis.weekend.display} Weekend coverage`,  kpis.weekend.sub);
 
   // Re-render any currently-open drill-down so its counts stay fresh.
   const dd = document.getElementById("rr-sched-req-drilldown");
@@ -40755,129 +40751,124 @@ async function _renderSchedRequestsKpis() {
   }
 }
 
+// Inline preview mirroring the Drivers → Availability drill-down for
+// the four KPIs. The full reports live on that page (with full
+// rendering / interactivity); this preview gives the operator the
+// same numbers + a "View full report →" link that jumps there.
 function _renderSchedReqDrilldown(kpi) {
   const host = document.getElementById("rr-sched-req-drilldown");
   if (!host) return;
-  if (!_rrReqKpiData) { host.hidden = true; host.innerHTML = ""; return; }
-  const { pto, av } = _rrReqKpiData;
-  let title = "";
-  let rows = [];
-  let source = "";
-
-  const driverNameOf = (r) => r.driver_name || r.driver?.full_name || r.full_name || "(driver)";
-  const fmtDate = (d) => { try { return new Date(d + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return d; } };
-
-  if (kpi === "pending") {
-    title = "Pending requests";
-    rows = []
-      .concat(pto.filter(r => r.status === "pending").map(r => ({
-        kind: "PTO", driver_id: r.driver_id, name: driverNameOf(r),
-        line: `${fmtDate(r.start_date)} – ${fmtDate(r.end_date)}${r.reason ? ` · ${r.reason}` : ""}`,
-        ts: r.created_at,
-      })))
-      .concat(av.filter(r => r.status === "pending").map(r => ({
-        kind: "Availability", driver_id: r.driver_id, name: driverNameOf(r),
-        line: r.summary || r.change_summary || "Availability change",
-        ts: r.created_at,
-      })));
-    rows.sort((a, b) => (a.ts || "").localeCompare(b.ts || ""));
-    source = "dispatch_time_off_list + availability_request_list · status=pending";
-  } else if (kpi === "decisions") {
-    title = "Decisions in the last 7 days";
-    const weekAgo = Date.now() - 7 * 86400000;
-    const decided = []
-      .concat(pto.filter(r => r.status !== "pending").map(r => ({
-        kind: "PTO", driver_id: r.driver_id, name: driverNameOf(r),
-        line: `${fmtDate(r.start_date)} – ${fmtDate(r.end_date)} · ${r.status}`,
-        ts: r.decided_at || r.updated_at || r.created_at,
-        status: r.status,
-      })))
-      .concat(av.filter(r => r.status !== "pending").map(r => ({
-        kind: "Availability", driver_id: r.driver_id, name: driverNameOf(r),
-        line: `${r.summary || "Availability change"} · ${r.status}`,
-        ts: r.decided_at || r.updated_at || r.created_at,
-        status: r.status,
-      })))
-      .filter(r => r.ts && new Date(r.ts).getTime() >= weekAgo)
-      .sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
-    rows = decided;
-    source = "Decisions in last 7 days · both streams";
-  } else if (kpi === "approval") {
-    title = "Approval rate breakdown · last 30 days";
-    const thirtyAgo = Date.now() - 30 * 86400000;
-    const recent = []
-      .concat(pto.filter(r => r.status !== "pending").map(r => ({
-        kind: "PTO", driver_id: r.driver_id, name: driverNameOf(r),
-        line: `${fmtDate(r.start_date)} – ${fmtDate(r.end_date)}`,
-        ts: r.decided_at || r.updated_at || r.created_at,
-        status: r.status,
-      })))
-      .concat(av.filter(r => r.status !== "pending").map(r => ({
-        kind: "Availability", driver_id: r.driver_id, name: driverNameOf(r),
-        line: r.summary || "Availability change",
-        ts: r.decided_at || r.updated_at || r.created_at,
-        status: r.status,
-      })))
-      .filter(r => r.ts && new Date(r.ts).getTime() >= thirtyAgo)
-      .sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
-    rows = recent;
-    source = "Decisions in last 30 days · grouped by outcome";
-  } else if (kpi === "topday") {
-    title = "PTO requests · day-of-week histogram";
-    const dayLabels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-    const buckets = new Array(7).fill(0).map(() => []);
-    for (const r of pto) {
-      if (!r.start_date) continue;
-      try { buckets[new Date(r.start_date + "T12:00:00").getDay()].push(r); } catch (_) {}
-    }
-    const max = Math.max(1, ...buckets.map(b => b.length));
-    const dayHtml = buckets.map((b, i) => {
-      const pct = Math.round((b.length / max) * 100);
-      return `<div class="rr-sched-req-dd-day"><span class="rr-sched-req-dd-day-lbl">${dayLabels[i]}</span><span class="rr-sched-req-dd-day-bar"><span style="width:${pct}%"></span></span><span class="rr-sched-req-dd-day-n">${b.length}</span></div>`;
-    }).join("");
+  const ctx = _availImpactCtx;
+  const kpis = (typeof _computeAvailKpis === "function") ? _computeAvailKpis() : null;
+  if (!ctx || !kpis || ctx.totalActive === 0) {
     host.dataset.rrOpenKpi = kpi;
     host.hidden = false;
     host.innerHTML = `
       <div class="rr-sched-req-dd-head">
         <div>
           <div class="rr-sched-req-dd-eyebrow">Drill-down</div>
-          <div class="rr-sched-req-dd-title">${escapeHtml(title)}</div>
+          <div class="rr-sched-req-dd-title">No availability data yet</div>
         </div>
         <button type="button" class="rr-sched-req-dd-close" aria-label="Close" data-rr-req-dd-close>×</button>
       </div>
-      <div class="rr-sched-req-dd-days">${dayHtml}</div>
-      <div class="rr-sched-req-dd-source">Source · all PTO requests with a start date</div>`;
+      <div class="rr-sched-req-dd-empty">Add active drivers and have them submit availability to see the breakdown.</div>`;
     return;
+  }
+
+  const dayLabel = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" };
+  const dayShort = ["mon","tue","wed","thu","fri","sat","sun"];
+
+  let title = "";
+  let body = "";
+  let source = "";
+
+  if (kpi === "leastCovered") {
+    title = "Coverage by day · % of active drivers available";
+    source = `Across ${ctx.totalActive} active driver${ctx.totalActive === 1 ? "" : "s"} · same data as Drivers → Availability`;
+    const total = ctx.totalActive;
+    body = `<div class="rr-sched-req-dd-days">` + dayShort.map(d => {
+      const supply = ctx.supplyByDow[d] || 0;
+      const pct = total > 0 ? Math.round((supply / total) * 100) : 0;
+      const isMin = d === kpis.leastCovered.minDow;
+      const barCol = isMin ? "var(--red)" : "var(--accent)";
+      return `<div class="rr-sched-req-dd-day">
+        <span class="rr-sched-req-dd-day-lbl" style="${isMin ? "color:var(--red)" : ""}">${dayLabel[d].slice(0,3)}</span>
+        <span class="rr-sched-req-dd-day-bar"><span style="width:${pct}%;background:${barCol}"></span></span>
+        <span class="rr-sched-req-dd-day-n">${pct}%</span>
+      </div>`;
+    }).join("") + `</div>`;
+  } else if (kpi === "ftpt") {
+    title = "Full-time vs part-time split";
+    source = `Drivers with ≥4 days of availability count as FT · same logic as Drivers → Availability`;
+    const ft = kpis.ftpt.ft || 0;
+    const pt = kpis.ftpt.pt || 0;
+    const total = ft + pt;
+    const ftPct = total > 0 ? Math.round((ft / total) * 100) : 0;
+    const ptPct = 100 - ftPct;
+    body = `
+      <div class="rr-sched-req-dd-split">
+        <div class="rr-sched-req-dd-split-row">
+          <div class="rr-sched-req-dd-split-lbl">Full-time</div>
+          <div class="rr-sched-req-dd-day-bar"><span style="width:${ftPct}%;background:var(--accent)"></span></div>
+          <div class="rr-sched-req-dd-day-n">${ft} · ${ftPct}%</div>
+        </div>
+        <div class="rr-sched-req-dd-split-row">
+          <div class="rr-sched-req-dd-split-lbl">Part-time</div>
+          <div class="rr-sched-req-dd-day-bar"><span style="width:${ptPct}%;background:var(--text-subtle)"></span></div>
+          <div class="rr-sched-req-dd-day-n">${pt} · ${ptPct}%</div>
+        </div>
+      </div>`;
+  } else if (kpi === "avgDays") {
+    title = "Distribution of days-per-driver";
+    source = `${kpis.avgDays.withDaysCount || 0} of ${ctx.totalActive} active drivers have set availability`;
+    const buckets = [0,0,0,0,0,0,0,0]; // index = number of days 0–7
+    for (const d of (ctx.driverDays || [])) {
+      const n = Math.min(7, d.days.length);
+      buckets[n]++;
+    }
+    const max = Math.max(1, ...buckets);
+    body = `<div class="rr-sched-req-dd-days">` + buckets.map((c, i) => {
+      const pct = Math.round((c / max) * 100);
+      return `<div class="rr-sched-req-dd-day">
+        <span class="rr-sched-req-dd-day-lbl">${i}d</span>
+        <span class="rr-sched-req-dd-day-bar"><span style="width:${pct}%;background:var(--accent)"></span></span>
+        <span class="rr-sched-req-dd-day-n">${c}</span>
+      </div>`;
+    }).join("") + `</div>`;
+  } else if (kpi === "weekend") {
+    title = "Weekend coverage · who can work Sat or Sun";
+    source = `${kpis.weekend.weekendCount || 0} of ${ctx.totalActive} active drivers offer weekend availability`;
+    const satN = (ctx.supplyByDow.sat || 0);
+    const sunN = (ctx.supplyByDow.sun || 0);
+    const bothN = (ctx.driverDays || []).filter(d => d.days.includes("sat") && d.days.includes("sun")).length;
+    const total = ctx.totalActive;
+    const row = (lbl, n) => {
+      const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+      return `<div class="rr-sched-req-dd-day">
+        <span class="rr-sched-req-dd-day-lbl">${lbl}</span>
+        <span class="rr-sched-req-dd-day-bar"><span style="width:${pct}%;background:var(--accent)"></span></span>
+        <span class="rr-sched-req-dd-day-n">${n} · ${pct}%</span>
+      </div>`;
+    };
+    body = `<div class="rr-sched-req-dd-days">${row("Sat", satN)}${row("Sun", sunN)}${row("Both", bothN)}</div>`;
   } else {
-    host.hidden = true; host.innerHTML = "";
-    return;
+    host.hidden = true; host.innerHTML = ""; return;
   }
 
   host.dataset.rrOpenKpi = kpi;
   host.hidden = false;
-  const listHtml = rows.length === 0
-    ? `<div class="rr-sched-req-dd-empty">No matching requests.</div>`
-    : rows.slice(0, 12).map(r => `
-        <div class="rr-sched-req-dd-row">
-          <span class="rr-sched-req-dd-kind">${escapeHtml(r.kind)}</span>
-          <div class="rr-sched-req-dd-body">
-            <div class="rr-sched-req-dd-name">${escapeHtml(r.name)}</div>
-            <div class="rr-sched-req-dd-line">${escapeHtml(r.line || "")}</div>
-          </div>
-          ${r.status ? `<span class="rr-sched-req-dd-status is-${escapeHtml(r.status)}">${escapeHtml(r.status)}</span>` : ""}
-          ${r.driver_id ? `<button type="button" class="rr-sched-req-dd-open" data-rr-req-driver="${escapeHtml(r.driver_id)}">View on driver →</button>` : ""}
-        </div>`).join("");
-  const moreHtml = rows.length > 12 ? `<div class="rr-sched-req-dd-more">Showing 12 of ${rows.length}</div>` : "";
   host.innerHTML = `
     <div class="rr-sched-req-dd-head">
       <div>
-        <div class="rr-sched-req-dd-eyebrow">Drill-down</div>
+        <div class="rr-sched-req-dd-eyebrow">Inline preview</div>
         <div class="rr-sched-req-dd-title">${escapeHtml(title)}</div>
       </div>
-      <button type="button" class="rr-sched-req-dd-close" aria-label="Close" data-rr-req-dd-close>×</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button type="button" class="rr-sched-req-dd-open" data-rr-req-full-report="${escapeHtml(kpi)}">View full report →</button>
+        <button type="button" class="rr-sched-req-dd-close" aria-label="Close" data-rr-req-dd-close>×</button>
+      </div>
     </div>
-    <div class="rr-sched-req-dd-list">${listHtml}</div>
-    ${moreHtml}
+    ${body}
     <div class="rr-sched-req-dd-source">${escapeHtml(source)}</div>`;
 }
 
@@ -40904,11 +40895,15 @@ document.addEventListener("click", (e) => {
     if (dd) { dd.hidden = true; dd.innerHTML = ""; dd.dataset.rrOpenKpi = ""; }
     return;
   }
-  const drv = e.target.closest("[data-rr-req-driver]");
-  if (drv) {
+  const full = e.target.closest("[data-rr-req-full-report]");
+  if (full) {
     e.preventDefault();
-    const did = drv.getAttribute("data-rr-req-driver");
-    if (did && typeof openDriverDrawer === "function") openDriverDrawer(did);
+    const kpi = full.getAttribute("data-rr-req-full-report");
+    // Stash the KPI so the Availability sub-tab opens the matching
+    // drill-down panel automatically when its renderer runs.
+    _availKpiDetailKpi = kpi;
+    if (typeof goto === "function") goto("drivers");
+    if (typeof drSub === "function") drSub("availability");
     return;
   }
 });
