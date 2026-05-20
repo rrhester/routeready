@@ -14396,8 +14396,36 @@ body.rr-cmdk-open{ overflow:hidden }
           #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-wrap{
             display:flex;flex-direction:column;gap:4px;
           }
+          /* Title row of the column header + the i-info affordance. */
+          #rr-sched-vans-chain-body .rr-heatmap-headtitle{
+            display:flex;align-items:center;gap:5px;
+          }
+          #rr-sched-vans-chain-body .rr-heatmap-info{
+            display:inline-flex;align-items:center;cursor:help;
+            color:var(--text-subtle);
+          }
+          /* "Past 14 days / TODAY / Next 7 days" group labels — widths
+             match the block groups so each label sits over its run. */
+          #rr-sched-vans-chain-body .rr-heatmap-headsub{
+            display:inline-flex;align-items:center;gap:16px;
+            margin-top:5px;text-transform:none;
+          }
+          #rr-sched-vans-chain-body .rr-heatmap-hs{
+            font-size:9px;font-weight:600;letter-spacing:.02em;
+            color:var(--text-subtle);
+          }
+          #rr-sched-vans-chain-body .rr-heatmap-hs.hs-past{width:152px;text-align:center}
+          #rr-sched-vans-chain-body .rr-heatmap-hs.hs-today{
+            width:1px;text-align:center;white-space:nowrap;overflow:visible;
+          }
+          #rr-sched-vans-chain-body .rr-heatmap-hs.hs-future{width:75px;text-align:center}
+          /* Strip · two block groups with the "today" hairline between
+             them; 16 px gap leaves room for the TODAY label. */
           #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-strip{
-            display:inline-flex;gap:2px;align-items:center;
+            display:inline-flex;gap:16px;align-items:center;
+          }
+          #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-grp{
+            display:inline-flex;gap:2px;
           }
           #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-cell{
             display:inline-block;width:9px;height:14px;border-radius:2px;
@@ -14418,15 +14446,15 @@ body.rr-cmdk-open{ overflow:hidden }
              "upcoming" against the filled past blocks. */
           #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-cell.is-future{
             background:transparent;
-            border:1px solid rgba(15,23,42,.20);
+            border:1px solid rgba(15,23,42,.22);
           }
           #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-cell.is-future.is-service{
-            background:rgba(180,83,9,.16);
-            border-color:rgba(180,83,9,.50);
+            background:rgba(180,83,9,.08);
+            border-color:rgba(180,83,9,.55);
           }
           #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-cell.is-future.is-grounded{
-            background:rgba(185,28,28,.18);
-            border-color:rgba(185,28,28,.45);
+            background:rgba(185,28,28,.07);
+            border-color:rgba(185,28,28,.55);
           }
           #rr-sched-vans-chain-body .ws-veh-table .rr-heatmap-sub{
             font-size:11px;color:var(--text-subtle);
