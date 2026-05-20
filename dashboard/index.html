@@ -16062,6 +16062,26 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-staff-manage .stf-row .nm{font-weight:600}
             #rr-staff-manage .stf-row .sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px}
             #rr-staff-manage .f{padding:var(--s-3-5) 24px;border-top:1px solid var(--border);display:flex;gap:var(--s-2);justify-content:space-between}
+            #rr-staff-manage .stf-form{display:flex;flex-direction:column;gap:var(--s-3)}
+            #rr-staff-manage .stf-form-title{margin:0 0 var(--s-1) 0;font-size:15px;font-weight:600;color:var(--text)}
+            #rr-staff-manage .stf-form-field{display:flex;flex-direction:column;gap:6px;font-size:var(--fs-sm);color:var(--text-muted);font-weight:600}
+            #rr-staff-manage .stf-form-field input,
+            #rr-staff-manage .stf-form-field select{
+              width:100%;padding:var(--s-2) var(--s-2-5);
+              border:1px solid var(--border);border-radius:var(--r-md);
+              font:inherit;background:var(--canvas);color:var(--text);
+            }
+            #rr-staff-manage .stf-form-field select{
+              appearance:none;
+              background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+              background-repeat:no-repeat;background-position:right 10px center;
+              padding-right:32px;
+            }
+            #rr-staff-manage .stf-form-field input:focus,
+            #rr-staff-manage .stf-form-field select:focus{
+              outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);
+            }
+            #rr-staff-manage .stf-form-actions{display:flex;gap:var(--s-2);justify-content:flex-end;margin-top:var(--s-2)}
 
             /* Shift modal — also reuses the modal pattern */
             #rr-staff-shift-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:none;align-items:flex-start;justify-content:center;padding:60px 20px}
