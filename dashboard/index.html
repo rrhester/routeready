@@ -8305,12 +8305,45 @@ body.rr-cmdk-open{ overflow:hidden }
   color:inherit;
 }
 
-/* Picker row at the top of #sched-sub-requests. */
-#sched-sub-requests .sched-requests-head{
-  display:flex;align-items:center;gap:var(--s-3);
-  padding-bottom:var(--s-3);
-  margin-bottom:var(--s-2);
+/* Split-screen Requests · Availability (left) + PTO (right), each a
+   large Fluent card. Microsoft tokens shared with the schedule view. */
+#sched-sub-requests .sched-requests-split{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:var(--s-4);
+  align-items:start;
 }
+@media (max-width:1080px){
+  #sched-sub-requests .sched-requests-split{grid-template-columns:1fr}
+}
+#sched-sub-requests .sched-requests-card{
+  background:#fff;
+  border:1px solid var(--sch-line, rgba(15,23,42,.07));
+  border-radius:10px;
+  box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
+  overflow:hidden;min-width:0;
+}
+#sched-sub-requests .sched-requests-card-head{
+  display:flex;align-items:center;gap:8px;
+  padding:13px 18px;
+  border-bottom:1px solid var(--sch-line, rgba(15,23,42,.07));
+  color:var(--sch-blue, #0F6CBD);
+}
+#sched-sub-requests .sched-requests-card-title{
+  font-size:13px;font-weight:600;color:var(--text);letter-spacing:.01em;
+}
+#sched-sub-requests .sched-requests-card-body{padding:12px 16px 14px}
+/* Inside the panel card the request groups are flat sections, not
+   nested cards. */
+#sched-sub-requests .to-card{
+  background:transparent;border:0;border-radius:0;box-shadow:none;overflow:visible;
+}
+#sched-sub-requests .to-card-head{
+  padding:8px 0 2px;background:transparent;border-bottom:0;
+}
+#sched-sub-requests .to-card-head-title{font-size:12px}
+#sched-sub-requests .to-row{padding:var(--s-3) 0}
+#sched-sub-requests .to-page{gap:var(--s-3)}
 /* ─────────────────────────────────────────────────────────────
    DVIC compare modal — lifted out of an innerHTML <style> block
    so the CSS is parsed once at page load instead of every time a
@@ -14514,45 +14547,6 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule #sched-sub-requests{display:none}
           #view-schedule #sched-sub-requests[style*="block"],
           #view-schedule .sched-subview#sched-sub-requests[style*="block"]{display:block !important}
-          #view-schedule .sched-requests-head{
-            display:flex;align-items:center;gap:var(--s-3);
-            padding-bottom:var(--s-3);margin-bottom:var(--s-3);
-            border-bottom:1px solid var(--sch-line);
-          }
-          /* Fluent segmented control · sits where the dropdown used
-             to. Replaces a labeled <select> with a two-button pill
-             where the active state matches Outlook's filter strip. */
-          #view-schedule .sched-req-seg{
-            display:inline-flex;align-items:center;gap:0;
-            background:var(--sch-surface-2, #FAFBFC);
-            border:1px solid var(--sch-line);
-            border-radius:var(--sch-radius, 6px);
-            padding:2px;
-          }
-          #view-schedule .sched-req-seg-btn{
-            display:inline-flex;align-items:center;gap:7px;
-            background:transparent;border:0;cursor:pointer;
-            padding:6px 12px;border-radius:5px;
-            font-size:var(--fs-sm, 13px);font-weight:500;
-            color:var(--text-muted);
-            transition:background var(--t-fast, 150ms), color var(--t-fast, 150ms);
-          }
-          #view-schedule .sched-req-seg-btn:hover{
-            color:var(--text);
-            background:rgba(15,108,189,.06);
-          }
-          #view-schedule .sched-req-seg-btn:focus-visible{
-            outline:none;box-shadow:var(--ring-focus);
-          }
-          #view-schedule .sched-req-seg-btn.active{
-            background:#fff;
-            color:var(--sch-blue, #0F6CBD);
-            font-weight:600;
-            box-shadow:0 1px 2px rgba(15,23,42,.06),
-                       0 0 0 1px var(--sch-line);
-          }
-          #view-schedule .sched-req-seg-btn svg{flex:0 0 auto}
-          #view-schedule .sched-requests-panel[hidden]{display:none}
           #view-schedule .sched-req-days{
             display:inline-flex;align-items:center;gap:4px;
           }
@@ -16686,39 +16680,32 @@ body.rr-cmdk-open{ overflow:hidden }
           <div id="rr-tpl-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--s-3)"></div>
         </div><!-- /sched-sub-templates -->
 
-        <!-- REQUESTS · combined PTO + Availability triage inline in
-             the schedule. Fluent segmented control toggles which
-             panel the operator sees; both kinds are wired to their
-             real renderers (loadTimeOffView / loadAvailabilityRequests).
-             A hidden mirror <select id="rr-sched-req-type"> stays
-             in the DOM so _renderSchedRequestsActive (live.js) can
-             read its .value without changes. -->
+        <!-- REQUESTS · PTO + Availability triage inline in the
+             schedule, split-screen — both kinds render at once
+             (Availability left, PTO right) via _renderSchedRequestsActive. -->
         <div class="sched-subview" id="sched-sub-requests" style="display:none">
           <!-- Inline drill-down panel for the Requests KPI strip.
                Hidden by default; _renderSchedReqDrilldown unhides it
                when a KPI pill is clicked. -->
           <div id="rr-sched-req-drilldown" class="rr-sched-req-drilldown" hidden></div>
-          <div class="sched-requests-head">
-            <div class="sched-req-seg" role="tablist" aria-label="Request type" id="rr-sched-req-seg">
-              <button type="button" role="tab" class="sched-req-seg-btn active" data-rr-req-tab="pto" aria-selected="true">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                PTO / Time off
-              </button>
-              <button type="button" role="tab" class="sched-req-seg-btn" data-rr-req-tab="availability" aria-selected="false">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                Availability changes
-              </button>
-            </div>
-            <select id="rr-sched-req-type" hidden aria-hidden="true">
-              <option value="pto" selected>PTO / Time off</option>
-              <option value="availability">Availability changes</option>
-            </select>
-          </div>
-          <div class="sched-requests-panel" id="rr-sched-req-pto-panel">
-            <div id="rr-time-off-body"><div class="rr-loading">Loading time off requests</div></div>
-          </div>
-          <div class="sched-requests-panel" id="rr-sched-req-avail-panel" hidden>
-            <div id="rr-sched-avail-req-list"><div class="rr-loading">Loading availability requests</div></div>
+          <!-- Split screen · Availability changes (left) and PTO /
+               Time off (right), each in its own large card. Both
+               render at once — no tab toggle. -->
+          <div class="sched-requests-split">
+            <section class="sched-requests-card" id="rr-sched-req-avail-panel">
+              <header class="sched-requests-card-head">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="sched-requests-card-title">Availability changes</span>
+              </header>
+              <div class="sched-requests-card-body" id="rr-sched-avail-req-list"><div class="rr-loading">Loading availability requests</div></div>
+            </section>
+            <section class="sched-requests-card" id="rr-sched-req-pto-panel">
+              <header class="sched-requests-card-head">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span class="sched-requests-card-title">PTO &amp; Time off</span>
+              </header>
+              <div class="sched-requests-card-body" id="rr-time-off-body"><div class="rr-loading">Loading time off requests</div></div>
+            </section>
           </div>
         </div><!-- /sched-sub-requests -->
 
@@ -28046,7 +28033,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-maxdayslive"></script>
+<script type="module" src="./live.js?v=20260521-reqsplit"></script>
 
 </body>
 </html>

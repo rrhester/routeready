@@ -42799,16 +42799,13 @@ document.addEventListener("click", async (e) => {
 
 let _toRows = [];
 
-// ─── Schedule · Requests sub-view (PTO + Availability switcher) ────
-// The Requests tab on the schedule's nav owns two request types.
-// The inline picker (#rr-sched-req-type) flips which one is
-// visible; each panel calls its own RPC + renderer so both fully
-// populate when chosen.
+// ─── Schedule · Requests sub-view (PTO + Availability, split) ──────
+// The Requests tab shows both request types side by side. Each panel
+// calls its own RPC + renderer; both populate on every render.
 function _renderSchedRequestsActive() {
-  const sel = document.getElementById("rr-sched-req-type");
   const ptoPanel = document.getElementById("rr-sched-req-pto-panel");
   const avPanel  = document.getElementById("rr-sched-req-avail-panel");
-  if (!sel || !ptoPanel || !avPanel) {
+  if (!ptoPanel || !avPanel) {
     // Older callers still address only the legacy time-off body.
     if (document.getElementById("rr-time-off-body") && typeof loadTimeOffView === "function") {
       loadTimeOffView();
@@ -42816,14 +42813,12 @@ function _renderSchedRequestsActive() {
     _renderSchedRequestsKpis();
     return;
   }
-  const which = sel.value || "pto";
-  ptoPanel.hidden = which !== "pto";
-  avPanel.hidden  = which !== "availability";
-  if (which === "pto") {
-    try { loadTimeOffView(); } catch (e) { console.warn("loadTimeOffView:", e); }
-  } else {
-    renderSchedAvailabilityRequestsInline();
-  }
+  // Split screen — both panels render at once (Availability left,
+  // PTO / Time off right).
+  try { renderSchedAvailabilityRequestsInline(); }
+  catch (e) { console.warn("renderSchedAvailabilityRequestsInline:", e); }
+  try { loadTimeOffView(); }
+  catch (e) { console.warn("loadTimeOffView:", e); }
   _renderSchedRequestsKpis();
 }
 window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
@@ -43066,32 +43061,8 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// Single-listener wiring for the picker. The visible UI is now a
-// Fluent segmented control (#rr-sched-req-seg); a hidden mirror
-// <select id="rr-sched-req-type"> stays in the DOM so
-// _renderSchedRequestsActive can keep reading sel.value without
-// changes. Clicking a segment updates the select + active class
-// and re-renders.
-document.addEventListener("change", (e) => {
-  if (e.target && e.target.id === "rr-sched-req-type") {
-    _renderSchedRequestsActive();
-  }
-});
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest("#rr-sched-req-seg .sched-req-seg-btn");
-  if (!btn) return;
-  const which = btn.dataset.rrReqTab;
-  if (!which) return;
-  const seg = btn.closest("#rr-sched-req-seg");
-  seg.querySelectorAll(".sched-req-seg-btn").forEach((b) => {
-    const isActive = b === btn;
-    b.classList.toggle("active", isActive);
-    b.setAttribute("aria-selected", isActive ? "true" : "false");
-  });
-  const sel = document.getElementById("rr-sched-req-type");
-  if (sel && sel.value !== which) sel.value = which;
-  _renderSchedRequestsActive();
-});
+// The Requests sub-view shows both request types at once (split
+// screen), so there's no longer a type picker to wire.
 
 // Compact inline renderer for availability requests, used by the
 // Schedule's Requests tab. Reads the same RPC the Drivers ›
