@@ -28942,8 +28942,10 @@ async function renderScheduleWeek() {
     const pill = (key, color, label, sub, clickable, title) => {
       const cl = clickable ? ' data-clickable="true"' : "";
       const tt = title ? ` title="${title}"` : "";
-      const subHtml = sub ? `<span class="sched-kpi-sub">${sub}</span>` : "";
-      return `<span class="sched-kpi-pill" data-rr-kpi="${key}"${cl}${tt}><span class="sched-kpi-dot" style="background:${color}"></span><span class="sched-kpi-text">${label}${subHtml}</span></span>`;
+      // Always render the sub line (blank → spacer) so every KPI cell
+      // is the same two-line height.
+      const subHtml = `<span class="sched-kpi-sub">${sub || "&nbsp;"}</span>`;
+      return `<span class="sched-kpi-pill" data-rr-kpi="${key}"${cl}${tt}><span class="sched-kpi-dot" style="background:${color}"></span><span class="sched-kpi-text"><span class="sched-kpi-val">${label}</span>${subHtml}</span></span>`;
     };
     // Dots stay in the sidebar's navy family except for OT Risk and
     // Violations when they actually flare — those keep red so the

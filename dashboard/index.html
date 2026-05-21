@@ -11942,72 +11942,81 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="sched-smartfill-rules-popover" id="rr-sched-smartfill-rules-popover" role="dialog" aria-modal="false" aria-label="Smart Fill rules" hidden>
                 <div class="sched-smartfill-rules-head">Smart Fill rules</div>
                 <div class="sched-smartfill-rules-body" id="rr-sched-smartfill-rules-body">
-                  <!-- Grouped into Fluent-style sections so the (now long)
-                       rule list stays scannable. Section labels hide in
-                       Manual mode, where only a short set of rules show. -->
+                  <!-- Fluent-style sections laid out across two columns so
+                       the rule set reads wide rather than as a tall column.
+                       Each .sf-section keeps its header with its rules;
+                       --keep sections stay visible in Manual mode. -->
 
                   <!-- ── Scheduling mode ── pick ONE. Smart Fill auto-staffs
                        from the rules below; Manual turns Smart Fill (and
                        every rule) off. Persists as `manual_mode`. -->
-                  <div class="sf-section-label">Scheduling mode</div>
-                  <div class="sched-smartfill-rule sched-smartfill-rule--manual sched-smartfill-mode">
-                    <label class="sf-mode-opt"><input type="radio" name="rr-sf-mode" data-rr-sf-mode="smart" checked> <span class="sf-rule-name"><strong>Smart Fill</strong> · auto-staff the board from the rules below</span></label>
-                    <label class="sf-mode-opt"><input type="radio" name="rr-sf-mode" data-rr-sf-mode="manual"> <span class="sf-rule-name"><strong>Manual scheduling</strong> · turn off Smart Fill and all rules — fill the board by hand</span></label>
+                  <div class="sf-section sf-section--keep">
+                    <div class="sf-section-label">Scheduling mode</div>
+                    <div class="sched-smartfill-rule sched-smartfill-rule--manual sched-smartfill-mode">
+                      <label class="sf-mode-opt"><input type="radio" name="rr-sf-mode" data-rr-sf-mode="smart" checked> <span class="sf-rule-name"><strong>Smart Fill</strong> · auto-staff the board from the rules below</span></label>
+                      <label class="sf-mode-opt"><input type="radio" name="rr-sf-mode" data-rr-sf-mode="manual"> <span class="sf-rule-name"><strong>Manual scheduling</strong> · turn off Smart Fill and all rules — fill the board by hand</span></label>
+                    </div>
                   </div>
 
                   <!-- ── Auto-fill boundary ── pick ONE boundary mode; the
                        max-days cap closes the group. -->
-                  <div class="sf-section-label">Auto-fill boundary</div>
-                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="preferred_only"> <span class="sf-rule-name"><strong>Auto Fill only Preferred Availability</strong> · fills shifts using each driver's preferred days only</span></label>
-                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="availability_only"> <span class="sf-rule-name"><strong>Auto Fill Availability</strong> · fills shifts using each driver's full availability</span></label>
-                  <div class="sched-smartfill-rule sched-smartfill-rule--baseline sched-smartfill-rule--field">
-                    <span class="sf-rule-name">Max allowable days per week</span>
-                    <input class="form-input sf-maxdays-input" id="rr-set-max-days" type="number" min="0" max="7" step="1" autocomplete="off" aria-label="Max allowable days per week"/>
+                  <div class="sf-section">
+                    <div class="sf-section-label">Auto-fill boundary</div>
+                    <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="preferred_only"> <span class="sf-rule-name"><strong>Auto Fill only Preferred Availability</strong> · fills shifts using each driver's preferred days only</span></label>
+                    <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="availability_only"> <span class="sf-rule-name"><strong>Auto Fill Availability</strong> · fills shifts using each driver's full availability</span></label>
+                    <div class="sched-smartfill-rule sched-smartfill-rule--baseline sched-smartfill-rule--field">
+                      <span class="sf-rule-name">Max allowable days per week</span>
+                      <input class="form-input sf-maxdays-input" id="rr-set-max-days" type="number" min="0" max="7" step="1" autocomplete="off" aria-label="Max allowable days per week"/>
+                    </div>
                   </div>
 
                   <!-- ── Rules ── compliance gates. DL + WOC carry
                        --manual-keep so they stay available in Manual mode. -->
-                  <div class="sf-section-label">Rules</div>
-                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline sched-smartfill-rule--manual-keep"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name"><strong>Driver's license must be valid</strong> · skip drivers with an expired license</span></label>
-                  <div class="sched-smartfill-rule-advanced sched-smartfill-rule-advanced--manual-keep is-on" data-rr-sf-advanced-of="dl_valid">
-                    <span class="sf-advanced-label">Stop scheduling</span>
-                    <input class="form-input sf-advanced-select" id="rr-set-dl-protection-days" type="number" min="0" max="365" step="1" value="0" autocomplete="off" aria-label="Days before license expiration to stop scheduling" style="max-width:64px"/>
-                    <span class="sf-advanced-label">days before expiration</span>
+                  <div class="sf-section sf-section--keep">
+                    <div class="sf-section-label">Rules</div>
+                    <label class="sched-smartfill-rule sched-smartfill-rule--baseline sched-smartfill-rule--manual-keep"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name"><strong>Driver's license must be valid</strong> · skip drivers with an expired license</span></label>
+                    <div class="sched-smartfill-rule-advanced sched-smartfill-rule-advanced--manual-keep is-on" data-rr-sf-advanced-of="dl_valid">
+                      <span class="sf-advanced-label">Stop scheduling</span>
+                      <input class="form-input sf-advanced-select" id="rr-set-dl-protection-days" type="number" min="0" max="365" step="1" value="0" autocomplete="off" aria-label="Days before license expiration to stop scheduling" style="max-width:64px"/>
+                      <span class="sf-advanced-label">days before expiration</span>
+                    </div>
+                    <label class="sched-smartfill-rule sched-smartfill-rule--baseline sched-smartfill-rule--manual-keep"><input type="checkbox" data-rr-sf-rule="woc" checked> <span class="sf-rule-name"><strong>WOC · Working Hours Compliance</strong> · cap consecutive days and weekly hours per driver</span></label>
+                    <div class="sched-smartfill-rule-advanced sched-smartfill-rule-advanced--manual-keep is-on" data-rr-sf-advanced-of="woc">
+                      <span class="sf-advanced-label">Max</span>
+                      <input class="form-input sf-advanced-select" id="rr-set-woc-max-days" type="number" min="1" max="7" step="1" value="6" autocomplete="off" aria-label="Maximum consecutive days a driver can be scheduled" style="max-width:64px"/>
+                      <span class="sf-advanced-label">consecutive days</span>
+                    </div>
+                    <div class="sched-smartfill-rule-advanced sched-smartfill-rule-advanced--manual-keep is-on" data-rr-sf-advanced-of="woc">
+                      <span class="sf-advanced-label">Max</span>
+                      <input class="form-input sf-advanced-select" id="rr-set-woc-max-hours" type="number" min="1" max="168" step="1" value="40" autocomplete="off" aria-label="Maximum hours a driver can be scheduled per week" style="max-width:64px"/>
+                      <span class="sf-advanced-label">hours per week</span>
+                    </div>
+                    <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="attendance_penalty"> <span class="sf-rule-name"><strong>Attendance Penalty</strong> · drivers on a Final corrective action are filled last</span></label>
                   </div>
-                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline sched-smartfill-rule--manual-keep"><input type="checkbox" data-rr-sf-rule="woc" checked> <span class="sf-rule-name"><strong>WOC · Working Hours Compliance</strong> · cap consecutive days and weekly hours per driver</span></label>
-                  <div class="sched-smartfill-rule-advanced sched-smartfill-rule-advanced--manual-keep is-on" data-rr-sf-advanced-of="woc">
-                    <span class="sf-advanced-label">Max</span>
-                    <input class="form-input sf-advanced-select" id="rr-set-woc-max-days" type="number" min="1" max="7" step="1" value="6" autocomplete="off" aria-label="Maximum consecutive days a driver can be scheduled" style="max-width:64px"/>
-                    <span class="sf-advanced-label">consecutive days</span>
-                  </div>
-                  <div class="sched-smartfill-rule-advanced sched-smartfill-rule-advanced--manual-keep is-on" data-rr-sf-advanced-of="woc">
-                    <span class="sf-advanced-label">Max</span>
-                    <input class="form-input sf-advanced-select" id="rr-set-woc-max-hours" type="number" min="1" max="168" step="1" value="40" autocomplete="off" aria-label="Maximum hours a driver can be scheduled per week" style="max-width:64px"/>
-                    <span class="sf-advanced-label">hours per week</span>
-                  </div>
-                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="attendance_penalty"> <span class="sf-rule-name"><strong>Attendance Penalty</strong> · drivers on a Final corrective action are filled last</span></label>
 
                   <!-- ── Enhancements ── optional post-passes that swap
                        drivers after the schedule is built. -->
-                  <div class="sf-section-label">Enhancements</div>
-                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline" id="rr-sf-enh-row"><input type="checkbox" data-rr-sf-rule="preferred_enhancement"> <span class="sf-rule-name"><strong>Preferred Availability Enhancement</strong> · after the run, swap drivers onto their preferred days</span></label>
-                  <label class="sched-smartfill-rule-advanced sf-enh-sub" data-rr-sf-advanced-of="preferred_enhancement">
-                    <input type="checkbox" data-rr-sf-rule="preferred_enhancement_contiguous">
-                    <span>Keep each driver's days contiguous</span>
-                  </label>
-                  <label class="sched-smartfill-rule-advanced sf-enh-sub" data-rr-sf-advanced-of="preferred_enhancement">
-                    <input type="checkbox" data-rr-sf-rule="preferred_enhancement_extra">
-                    <span>Extra rotations — allow swaps that scatter days</span>
-                  </label>
-                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="affinity_enhancement"> <span class="sf-rule-name"><strong>Driver Affinity Enhancement</strong> · after the run, swap drivers onto the weekdays they usually work</span></label>
-                  <div class="sched-smartfill-rule-advanced" data-rr-sf-advanced-of="affinity_enhancement">
-                    <span class="sf-advanced-label">Rolling period</span>
-                    <input class="form-input sf-advanced-select" id="rr-set-affinity-weeks" type="number" min="1" max="26" step="1" value="4" autocomplete="off" aria-label="Affinity rolling period in weeks" style="max-width:64px"/>
-                    <span class="sf-advanced-label">weeks</span>
-                  </div>
-                  <div class="sched-smartfill-rule-advanced sf-affinity-order-row" data-rr-sf-advanced-of="affinity_enhancement">
-                    <span class="sf-advanced-label">Day priority</span>
-                    <div class="sf-affinity-dayorder" id="rr-set-affinity-day-order"></div>
+                  <div class="sf-section">
+                    <div class="sf-section-label">Enhancements</div>
+                    <label class="sched-smartfill-rule sched-smartfill-rule--baseline" id="rr-sf-enh-row"><input type="checkbox" data-rr-sf-rule="preferred_enhancement"> <span class="sf-rule-name"><strong>Preferred Availability Enhancement</strong> · after the run, swap drivers onto their preferred days</span></label>
+                    <label class="sched-smartfill-rule-advanced sf-enh-sub" data-rr-sf-advanced-of="preferred_enhancement">
+                      <input type="checkbox" data-rr-sf-rule="preferred_enhancement_contiguous">
+                      <span>Keep each driver's days contiguous</span>
+                    </label>
+                    <label class="sched-smartfill-rule-advanced sf-enh-sub" data-rr-sf-advanced-of="preferred_enhancement">
+                      <input type="checkbox" data-rr-sf-rule="preferred_enhancement_extra">
+                      <span>Extra rotations — allow swaps that scatter days</span>
+                    </label>
+                    <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="affinity_enhancement"> <span class="sf-rule-name"><strong>Driver Affinity Enhancement</strong> · after the run, swap drivers onto the weekdays they usually work</span></label>
+                    <div class="sched-smartfill-rule-advanced" data-rr-sf-advanced-of="affinity_enhancement">
+                      <span class="sf-advanced-label">Rolling period</span>
+                      <input class="form-input sf-advanced-select" id="rr-set-affinity-weeks" type="number" min="1" max="26" step="1" value="4" autocomplete="off" aria-label="Affinity rolling period in weeks" style="max-width:64px"/>
+                      <span class="sf-advanced-label">weeks</span>
+                    </div>
+                    <div class="sched-smartfill-rule-advanced sf-affinity-order-row" data-rr-sf-advanced-of="affinity_enhancement">
+                      <span class="sf-advanced-label">Day priority</span>
+                      <div class="sf-affinity-dayorder" id="rr-set-affinity-day-order"></div>
+                    </div>
                   </div>
                 </div>
                 <!-- Smart Fill advanced settings -->
@@ -12508,10 +12517,12 @@ body.rr-cmdk-open{ overflow:hidden }
 
           /* KPI pill row · pure-white enclosed card. */
           #view-schedule #rr-sched-kpis.sched-kpi-pills{
-            display:flex;flex-wrap:wrap;align-items:center;
-            gap:var(--s-5);
+            display:grid;
+            grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+            align-items:stretch;
+            gap:0;
             margin:0 0 var(--s-4) 0;
-            padding:12px 18px;
+            padding:10px 0;
             background:#FFFFFF;
             border:1px solid rgba(15,23,42,.08);
             border-radius:10px;
@@ -12589,21 +12600,33 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .rr-sched-violations-empty{
             padding:14px 18px;font-size:13px;color:var(--text-subtle);
           }
+          /* Uniform KPI cells — equal-width grid columns, hairline
+             dividers, every cell the same two-line height. */
           #view-schedule .sched-kpi-pill{
-            display:inline-flex;align-items:center;gap:8px;
+            display:flex;align-items:center;gap:9px;
+            min-width:0;
+            padding:3px 18px;
+            border-left:1px solid rgba(15,23,42,.08);
             color:var(--text);font-weight:600;
             font-variant-numeric:tabular-nums;
           }
+          #view-schedule .sched-kpi-pill:first-child{border-left:0}
           #view-schedule .sched-kpi-pill[data-clickable="true"]{cursor:pointer}
           #view-schedule .sched-kpi-pill[data-clickable="true"]:hover{color:var(--accent-text)}
           #view-schedule .sched-kpi-dot{
             width:9px;height:9px;border-radius:50%;flex-shrink:0;
           }
-          #view-schedule .sched-kpi-text{display:inline-flex;flex-direction:column;line-height:1.1}
+          #view-schedule .sched-kpi-text{
+            display:flex;flex-direction:column;line-height:1.15;min-width:0;
+          }
+          #view-schedule .sched-kpi-val{
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
           #view-schedule .sched-kpi-sub{
             font-size:var(--fs-xs);font-weight:500;
             color:var(--text-subtle);
             margin-top:2px;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
           }
           /* Auto-rescue banner · one line below the KPI strip
              when the engine has narrated a rotation it did on
@@ -13751,7 +13774,7 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid rgba(15,23,42,.14);
             border-radius:6px;
             box-shadow:0 8px 20px rgba(15,23,42,.18), 0 0 2px rgba(15,23,42,.12);
-            min-width:340px;max-width:calc(100vw - 40px);
+            min-width:660px;max-width:calc(100vw - 40px);
             max-height:calc(100vh - 130px);overflow-y:auto;
             padding:4px 0 6px;
             font-family:"Segoe UI", "Segoe UI Web", system-ui, -apple-system, sans-serif;
@@ -13764,18 +13787,38 @@ body.rr-cmdk-open{ overflow:hidden }
             border-bottom:1px solid rgba(15,23,42,.08);
             margin-bottom:4px;
           }
+          /* Two-column section grid — keeps the popover wide and short
+             rather than a long single column. Each .sf-section holds a
+             header + its rules so a section never splits across columns. */
+          #view-schedule .sched-smartfill-rules-body{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:2px 8px;
+            align-items:start;
+            padding:2px 6px 4px;
+          }
+          #view-schedule .sf-section{
+            min-width:0;
+            padding:4px 0 8px;
+          }
+          /* Hairline divider between the two columns, Fluent-style. */
+          #view-schedule .sf-section:nth-child(even){
+            border-left:1px solid rgba(15,23,42,.07);
+          }
           /* Fluent-style section labels grouping the rule list. */
           #view-schedule .sf-section-label{
             font-size:11px;font-weight:600;
             text-transform:uppercase;letter-spacing:.06em;
             color:#616161;
-            padding:11px 16px 3px;
+            padding:8px 16px 4px;
           }
-          #view-schedule .sched-smartfill-rules-body > .sf-section-label:first-child{
-            padding-top:5px;
-          }
-          /* Manual mode shows only a short rule set — drop the headers. */
+          /* Manual mode: only the --keep sections show; drop the rest
+             and the section headers (the visible set is short). */
           #view-schedule .sched-smartfill-rules-body.is-manual .sf-section-label{
+            display:none;
+          }
+          #view-schedule .sched-smartfill-rules-body.is-manual
+            .sf-section:not(.sf-section--keep){
             display:none;
           }
           /* Van rules popover head — same look as the Smart Fill
@@ -27955,7 +27998,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-fifthday"></script>
+<script type="module" src="./live.js?v=20260521-uipolish"></script>
 
 </body>
 </html>
