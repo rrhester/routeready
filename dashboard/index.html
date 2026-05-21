@@ -3576,18 +3576,20 @@ select.form-input{
 .cal-wrap::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
 .cal-grid{
   display:grid;grid-template-columns:200px repeat(7,1fr);
-  border-bottom:1px solid var(--border);
+  border-bottom:1px solid rgba(15,23,42,.05);
 }
 .cal-grid.head{
-  background:var(--canvas);border-bottom:1px solid var(--border);
+  background:var(--canvas);border-bottom:1px solid rgba(15,23,42,.05);
   /* Keep day-of-week labels in view as the operator scrolls past
      the first 7 drivers. */
   position:sticky;top:0;z-index:2;
 }
+/* Day header — calm, spacious enterprise hierarchy: a small muted
+   weekday label over a larger dominant date. */
 .cal-cell-head{
-  padding:var(--s-3) var(--s-2) var(--s-2-5);text-align:center;font-size:var(--fs-xs);color:var(--text-subtle);
-  font-weight:600;letter-spacing:.04em;text-transform:uppercase;
-  border-right:1px solid var(--border-subtle);
+  padding:10px var(--s-2) 11px;text-align:center;font-size:10px;color:var(--text-subtle);
+  font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+  border-right:1px solid rgba(15,23,42,.05);
   position:relative;
 }
 .cal-cell-head:last-child{border-right:none}
@@ -3599,13 +3601,13 @@ select.form-input{
   background:var(--accent);
 }
 .cal-cell-head .day-num{
-  display:block;font-size:20px;color:var(--text);text-transform:none;letter-spacing:-.02em;
-  margin-top:3px;font-weight:700;font-variant-numeric:tabular-nums;
+  display:block;font-size:21px;color:var(--text);text-transform:none;letter-spacing:-.02em;
+  margin-top:4px;font-weight:700;font-variant-numeric:tabular-nums;
 }
 .cal-cell-head.today .day-num{color:var(--accent-text)}
 .cal-row-label{
   padding:var(--s-3) var(--s-4);display:flex;align-items:center;gap:var(--s-2-5);
-  border-right:1px solid var(--border-subtle);background:var(--surface);
+  border-right:1px solid rgba(15,23,42,.05);background:var(--surface);
   position:sticky;left:0;z-index:1;
   transition:background var(--t-fast);
 }
@@ -3613,7 +3615,7 @@ select.form-input{
 .cal-row-label-name{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.2}
 .cal-row-label-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;letter-spacing:.01em}
 .cal-cell{
-  border-right:1px solid var(--sch-line);padding:6px;min-height:64px;
+  border-right:1px solid rgba(15,23,42,.05);padding:6px;min-height:64px;
   display:flex;align-items:stretch;justify-content:center;
   cursor:pointer;transition:background var(--t-fast);
   position:relative;
@@ -3627,6 +3629,12 @@ select.form-input{
 .cal-cell:hover{background:var(--canvas)}
 .cal-cell.today{background:#FAFBFC;box-shadow:inset 2px 0 0 var(--accent-soft)}
 .cal-cell.today:hover{background:var(--canvas)}
+/* Preferred-day cell tint — faint enough to scan past, present
+   enough to read as intent. Met = calm green wash, want = amber. */
+.cal-cell--pref-met{background:rgba(16,124,90,.045)}
+.cal-cell--pref-want{background:rgba(245,158,11,.06)}
+.cal-grid:not(.head):hover .cal-cell--pref-met,
+.cal-grid:not(.head):hover .cal-cell--pref-want{background:var(--canvas)}
 /* Subtle whole-row highlight on hover so the operator can scan a
    driver's week left-to-right without losing their place. */
 .cal-grid:not(.head):hover .cal-cell{background:var(--canvas)}
@@ -15231,14 +15239,14 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Shift chip · Outlook event bar */
           #view-schedule .shift-chip{
             flex:1;
-            padding:5px 8px 5px 10px;
-            border-radius:4px;
+            padding:5px 8px 6px 9px;
+            border-radius:3px;
             background:var(--sch-blue-softer);
             border:0;
-            border-left:3px solid rgba(37,99,235,.5);
+            border-left:2px solid rgba(15,108,189,.55);
             display:flex;flex-direction:column;
             align-items:stretch;justify-content:center;
-            gap:1px;
+            gap:2px;
             font-size:var(--fs-xs);line-height:1.2;
             color:var(--sch-blue-text);
             transition:background var(--t-fast),border-left-color var(--t-fast);
@@ -15246,8 +15254,21 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .cal-cell:hover .shift-chip{box-shadow:none}
           #view-schedule .cal-cell:hover .shift-chip:not(.off):not(.timeoff):not(.open){
-            background:rgba(37,99,235,.14);
-            border-left-color:var(--sch-blue-strong);
+            background:rgba(15,108,189,.10);
+            border-left-color:rgba(15,108,189,.85);
+          }
+          /* Chip typography hierarchy · primary time / secondary wave. */
+          #view-schedule .shift-chip-primary{
+            font-size:13px;font-weight:600;line-height:1.2;
+            color:var(--text);letter-spacing:-.01em;
+            font-variant-numeric:tabular-nums;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-schedule .shift-chip-secondary{
+            font-size:11px;font-weight:500;line-height:1.2;
+            color:var(--text-muted);
+            font-variant-numeric:tabular-nums;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
           }
           #view-schedule .shift-chip-route{
             font-weight:600;color:var(--sch-blue-text);
@@ -15269,35 +15290,9 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-bottom:3px;
             display:flex;align-items:center;gap:4px;
           }
-          /* Tight aligned rows · 32 px label column. Body text sized
-             down so the full Start–End range ("9:40am – 8:00pm")
-             fits in the cell without clipping the closing 'm'. */
-          #view-schedule .shift-chip-row{
-            display:grid;
-            grid-template-columns:32px minmax(0,1fr);
-            align-items:baseline;
-            gap:0 6px;
-            font-size:10px;line-height:1.2;
-            color:var(--text);
-            font-variant-numeric:tabular-nums;
-            white-space:nowrap;
-            /* minmax(0,1fr) above + min-width:0 here so the value
-               column can shrink and ellipsis when the calendar cell
-               is narrower than the time string's natural width. */
-            min-width:0;
-          }
-          #view-schedule .shift-chip-row-lbl{
-            font-size:8px;font-weight:700;
-            text-transform:uppercase;letter-spacing:.04em;
-            color:var(--text-subtle);
-          }
-          #view-schedule .shift-chip-row-val{
-            font-weight:600;color:var(--text);
-            min-width:0;overflow:hidden;text-overflow:ellipsis;
-          }
           #view-schedule .shift-chip-van{
-            font-size:10px;font-weight:600;
-            color:var(--sch-blue);
+            font-size:10px;font-weight:500;
+            color:var(--text-subtle);
             letter-spacing:.01em;
             line-height:1.2;
             margin-top:1px;
@@ -27996,7 +27991,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-reqsym"></script>
+<script type="module" src="./live.js?v=20260521-grid2"></script>
 
 </body>
 </html>
