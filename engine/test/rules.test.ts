@@ -358,3 +358,44 @@ test("DOT-first — a DOT route is filled before a standard route", () => {
     "standard route should be left uncovered",
   );
 });
+
+// --- R020 — baseline preferred-availability-only mode ----------------------
+
+test("R020 — baseline mode schedules only on preferred days", () => {
+  // d_pref prefers Mondays; d_none has no preferred availability.
+  const r = runEngine(
+    input({
+      shifts: [
+        shift({ shift_id: "mon", date: "2026-05-25" }), // Monday
+        shift({ shift_id: "tue", date: "2026-05-26" }), // Tuesday
+      ],
+      drivers: [
+        driver({
+          driver_id: "d_pref",
+          preferred_availability: { "1": [{ start: "00:00", end: "48:00" }] },
+        }),
+        driver({ driver_id: "d_none" }),
+      ],
+      settings: { preferred_availability_required: true },
+    }),
+  );
+  // d_pref takes Monday; Tuesday + d_none get nothing.
+  assert.equal(
+    r.assigned_shifts.find((a) => a.shift_id === "mon")?.driver_id,
+    "d_pref",
+  );
+  assert.ok(r.uncovered_shifts.some((u) => u.shift_id === "tue"));
+  assert.equal(r.summary_metrics.filled_shifts, 1);
+});
+
+test("R020 — driver with no preferred availability is not scheduled", () => {
+  const r = runEngine(
+    input({
+      shifts: [shift({ shift_id: "s1", date: "2026-05-25" })],
+      drivers: [driver({ driver_id: "d1" })],
+      settings: { preferred_availability_required: true },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 0);
+  assert.ok(uncoveredRule(r, "s1").includes("R020"));
+});

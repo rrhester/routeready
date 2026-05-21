@@ -8,7 +8,7 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-woc-dotfirst";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-baseline";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -23388,6 +23388,11 @@ function _refreshSfAdvancedGating() {
     const cb = document.querySelector(`#rr-sched-smartfill-rules-body [data-rr-sf-rule="${parentKey}"]`);
     adv.classList.toggle("is-on", !!(cb && cb.checked));
   });
+  // Baseline mode dims every rule below it — they have no effect when the
+  // engine is stripped down to preferred-availability-only scheduling.
+  const body = document.getElementById("rr-sched-smartfill-rules-body");
+  const baseline = document.querySelector('#rr-sched-smartfill-rules-body [data-rr-sf-rule="preferred_only"]');
+  if (body) body.classList.toggle("is-baseline", !!(baseline && baseline.checked));
 }
 // Public reader so autoAssignDriversForWeek can query the live SF
 // rule state without a DOM read.
@@ -23660,8 +23665,7 @@ document.addEventListener("change", (e) => {
   catch (_) { saved = {}; }
   saved[cb.getAttribute("data-rr-sf-rule")] = !!cb.checked;
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
-  // Refresh advanced sub-rows when the parent toggles (e.g.,
-  // consecutive_days governs the tiebreaker select beneath it).
+  // Refresh advanced sub-rows + baseline-mode dimming when a rule toggles.
   _refreshSfAdvancedGating();
 });
 // Persist the Smart Fill tiebreaker dropdown (nested under

@@ -96,6 +96,7 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "scheduling_method",
   "assignment_mode",
   "preferred_availability_priority",
+  "preferred_availability_required",
   "consecutive_working_days"
 ]);
 function bool(value, key, fallback) {
@@ -245,6 +246,11 @@ function validateSettings(raw) {
       r.preferred_availability_priority,
       "preferred_availability_priority",
       true
+    ),
+    preferred_availability_required: bool(
+      r.preferred_availability_required,
+      "preferred_availability_required",
+      false
     ),
     consecutive_working_days: bool(
       r.consecutive_working_days,
@@ -852,6 +858,29 @@ function checkWoc(shift, state, settings) {
   return null;
 }
 
+// src/rules/r017_preferred.ts
+function inPreferredWindow(shift, driver) {
+  if (driver.preferred_availability === null) return false;
+  return fitsAvailability(driver.preferred_availability, shift);
+}
+function preferredPoints(shift, driver, settings) {
+  if (!settings.preferred_availability_priority) return 0;
+  return inPreferredWindow(shift, driver) ? 10 : 0;
+}
+
+// src/rules/r020_preferred_required.ts
+function checkPreferredRequired(shift, driver, settings) {
+  if (!settings.preferred_availability_required) return null;
+  if (driver.preferred_availability === null) {
+    return { rule: "R020", message: "No preferred availability on file" };
+  }
+  if (inPreferredWindow(shift, driver)) return null;
+  return {
+    rule: "R020",
+    message: `${DOW_NAMES[shift.dow]} is not a preferred day`
+  };
+}
+
 // src/eligibility.ts
 var PASS = Object.freeze({
   eligible: true,
@@ -859,7 +888,7 @@ var PASS = Object.freeze({
 });
 function evaluateEligibility(shift, driver, state, ctx) {
   const s = ctx.settings;
-  const block = checkBlackout(shift, ctx.blackout) ?? checkStatus(driver, s) ?? checkLicense(shift, driver, s) ?? checkCertification(shift, driver, s) ?? checkPto(shift, driver, s) ?? checkAvailability(shift, driver, s) ?? checkSameDay(shift, state, s) ?? checkMaxDays(shift, state, ctx) ?? checkWeeklyCap(shift, driver, state, ctx) ?? checkWoc(shift, state, s) ?? checkMinRest(shift, state, s);
+  const block = checkBlackout(shift, ctx.blackout) ?? checkStatus(driver, s) ?? checkPreferredRequired(shift, driver, s) ?? checkLicense(shift, driver, s) ?? checkCertification(shift, driver, s) ?? checkPto(shift, driver, s) ?? checkAvailability(shift, driver, s) ?? checkSameDay(shift, state, s) ?? checkMaxDays(shift, state, ctx) ?? checkWeeklyCap(shift, driver, state, ctx) ?? checkWoc(shift, state, s) ?? checkMinRest(shift, state, s);
   if (block) return { eligible: false, block_reasons: [block] };
   return PASS;
 }
@@ -871,6 +900,7 @@ function collectBlocks(shift, driver, state, ctx) {
   };
   push(checkBlackout(shift, ctx.blackout));
   push(checkStatus(driver, s));
+  push(checkPreferredRequired(shift, driver, s));
   push(checkLicense(shift, driver, s));
   push(checkCertification(shift, driver, s));
   push(checkPto(shift, driver, s));
@@ -1130,16 +1160,6 @@ function attendancePoints(driver, settings) {
   if (!settings.attendance_scheduling) return 0;
   const mult = ATTENDANCE_WEIGHT[settings.attendance_weight];
   return (attendanceScore(driver) - 50) / 50 * 25 * mult;
-}
-
-// src/rules/r017_preferred.ts
-function inPreferredWindow(shift, driver) {
-  if (driver.preferred_availability === null) return false;
-  return fitsAvailability(driver.preferred_availability, shift);
-}
-function preferredPoints(shift, driver, settings) {
-  if (!settings.preferred_availability_priority) return 0;
-  return inPreferredWindow(shift, driver) ? 10 : 0;
 }
 
 // src/rules/r018_consecutive.ts
@@ -1454,7 +1474,8 @@ var HARD_CHECKS = [
   "R009",
   "R010",
   "R011",
-  "R019"
+  "R019",
+  "R020"
 ];
 function clock(min) {
   const m = (min % 1440 + 1440) % 1440;
@@ -1829,6 +1850,29 @@ function mapShift(raw) {
 }
 function buildSettings(payload) {
   const r = payload.rules ?? {};
+  if (r.preferred_only === true) {
+    return {
+      run_mode: "full_rebuild",
+      eligible_driver_status: "active_and_onboarding",
+      license_enforcement: false,
+      certification_enforcement: false,
+      pto_protection: false,
+      availability_enforcement: false,
+      max_days_enforcement: false,
+      weekly_hour_cap_enforcement: false,
+      pto_counts_toward_cap: false,
+      min_rest_enforcement: false,
+      woc_enforcement: false,
+      same_day_multi_shift: "block",
+      historical_pattern_protection: "off",
+      attendance_scheduling: false,
+      scheduling_method: "seniority",
+      assignment_mode: "rotational_fill",
+      preferred_availability_priority: false,
+      preferred_availability_required: true,
+      consecutive_working_days: false
+    };
+  }
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
     // Auto-schedule always performs a FULL REBUILD (SPEC Default Schedule
