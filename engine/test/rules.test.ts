@@ -135,6 +135,31 @@ test("R008 — weekly hour cap blocks once projected hours exceed cap", () => {
   assert.equal(r.summary_metrics.filled_shifts, 4);
 });
 
+test("R008 — weekly cap counts net (post-lunch) on-the-clock hours", () => {
+  // Five 10h shifts, cap 48. Gross would be 50h (only 4 fit); net of a
+  // 30-min lunch per shift it is 47.5h, so all five fit.
+  const dates = [
+    "2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28",
+  ];
+  const r = runEngine(
+    input({
+      shifts: dates.map((d, i) => shift({
+        shift_id: `s${i}`,
+        date: d,
+        start_time: `${d}T09:00`,
+        end_time: `${d}T19:00`,
+      })),
+      drivers: [driver({ driver_id: "d1" })],
+      settings: {
+        weekly_hour_cap: 48,
+        max_days_enforcement: false,
+        woc_enforcement: false,
+      },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 5);
+});
+
 test("R009 — minimum rest blocks a too-close second shift", () => {
   const r = runEngine(
     input({

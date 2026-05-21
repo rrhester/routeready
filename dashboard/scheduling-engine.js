@@ -890,18 +890,24 @@ function checkMaxDays(shift, state, ctx) {
 }
 
 // src/rules/r008_weekly_cap.ts
+var LUNCH_HOURS = 0.5;
 function checkWeeklyCap(shift, driver, state, ctx) {
   const s = ctx.settings;
   if (!s.weekly_hour_cap_enforcement) return null;
   const range = windowRange(s.weekly_hour_window, shift, ctx);
   if (!inRange(shift.date, range[0], range[1])) return null;
   const work = workHoursInWindow(state, range);
+  const shiftsInWindow = state.assigned.filter(
+    (a) => inRange(a.date, range[0], range[1])
+  ).length;
   const pto = s.pto_counts_toward_cap ? ptoHoursInWindow(driver, range, s) : 0;
-  const projected = work + pto + shift.duration_hours;
+  const netWork = Math.max(0, work - shiftsInWindow * LUNCH_HOURS);
+  const netShift = Math.max(0, shift.duration_hours - LUNCH_HOURS);
+  const projected = netWork + pto + netShift;
   if (projected > s.weekly_hour_cap) {
     return {
       rule: "R008",
-      message: `Would reach ${projected}h, over ${s.weekly_hour_cap}h weekly cap`
+      message: `Would reach ${Math.round(projected * 10) / 10}h on the clock, over ${s.weekly_hour_cap}h weekly cap`
     };
   }
   return null;
