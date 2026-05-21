@@ -26935,13 +26935,9 @@ async function fillShiftsFromPreviousWeek() {
       }
     }
 
-    let assigned = 0;
-    for (const a of assignments) {
-      _markLocalShiftMutation();
-      const { error } = await sb.rpc("assign_shift", { p_id: a.shiftId, p_driver_id: a.driverId });
-      if (!error) assigned += 1;
-      else console.warn("Fill Shifts assign_shift failed:", a.shiftId, error);
-    }
+    const wr = await _assignShiftsParallel(
+      assignments.map(a => ({ id: a.shiftId, driverId: a.driverId })));
+    const assigned = wr.assigned;
     const open = thisRegular.length - assigned;
     toast(
       `Filled ${assigned} shift${assigned === 1 ? "" : "s"} from last week` +
@@ -26960,6 +26956,34 @@ async function fillShiftsFromPreviousWeek() {
   }
 }
 window.fillShiftsFromPreviousWeek = fillShiftsFromPreviousWeek;
+
+// Persist a batch of { id, driverId } shift assignments. assign_shift
+// is one RPC per row; the old code awaited them strictly one-at-a-time,
+// so a full-week rebuild meant dozens of serial round-trips (the "auto
+// fill / fill shifts is slow" report). Each row is an independent
+// UPDATE by id with no cross-row contention, so we fire them in
+// bounded-concurrency waves — ~10x fewer wall-clock round-trips.
+async function _assignShiftsParallel(items, concurrency = 12) {
+  let assigned = 0, failed = 0, firstError = null;
+  for (let i = 0; i < items.length; i += concurrency) {
+    const slice = items.slice(i, i + concurrency);
+    const results = await Promise.all(slice.map(async (it) => {
+      _markLocalShiftMutation();
+      const { error } = await sb.rpc("assign_shift", { p_id: it.id, p_driver_id: it.driverId });
+      return { it, error };
+    }));
+    for (const { it, error } of results) {
+      if (error) {
+        failed += 1;
+        if (!firstError) firstError = error.message || "assign_shift failed";
+        console.warn("assign_shift failed:", it.id, "->", it.driverId, error);
+      } else {
+        assigned += 1;
+      }
+    }
+  }
+  return { assigned, failed, firstError };
+}
 
 async function autoFillScheduleWeek() {
   const dspId = window.RR?.dsp?.id;
@@ -27417,21 +27441,13 @@ async function autoAssignDriversForWeek() {
   // Availability Enhancement), and pattern_pass are all fresh engine
   // placements that need persisting — skipping "swap" here is what made
   // the Enhancement appear to fill fewer shifts.
-  let assigned = 0;
-  let failedWrites = 0;
-  let writeError = null;
-  for (const a of result.assigned_shifts) {
-    if (a.source === "locked" || a.source === "preserved") continue;
-    _markLocalShiftMutation();
-    const { error } = await sb.rpc("assign_shift", { p_id: a.shift_id, p_driver_id: a.driver_id });
-    if (error) {
-      failedWrites += 1;
-      if (!writeError) writeError = error.message || "assign_shift failed";
-      console.warn("assign_shift failed:", a.shift_id, "->", a.driver_id, error);
-    } else {
-      assigned += 1;
-    }
-  }
+  const toWrite = result.assigned_shifts
+    .filter(a => a.source !== "locked" && a.source !== "preserved")
+    .map(a => ({ id: a.shift_id, driverId: a.driver_id }));
+  const wr = await _assignShiftsParallel(toWrite);
+  const assigned = wr.assigned;
+  const failedWrites = wr.failed;
+  const writeError = wr.firstError;
 
   // Surface the engine's explanation output: why each shift is still open
   // and why each driver received no shifts. The engine records a reason
