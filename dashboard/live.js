@@ -27999,13 +27999,13 @@ async function renderScheduleWeek() {
   }
   let totalNeeded = 0, totalFilled = 0;
   for (const a of coverageByDate.values()) { totalNeeded += a.needed; totalFilled += a.filled; }
-  // Coverage % is measured against the ROUTE PLAN (OKAMI demand target
-  // routes). The plan is a stable denominator — adding or removing a
-  // shift never changes it, only `filled` moves. Falls back to the
-  // shift-row count for weeks with no plan on file.
-  let totalBaseTarget = 0;
-  for (const n of plannedByDate.values()) totalBaseTarget += n;
-  const coverageDenom = totalBaseTarget > 0 ? totalBaseTarget : totalNeeded;
+  // Coverage % is measured against the shifts on the board — which IS the
+  // canonical route plan (Route planning → Save writes the shifts table,
+  // see #530). The okami_demand table is non-canonical and can drift
+  // stale, so it must NOT drive this number — using it leaves the
+  // operator at "98%" with no shift to fill. totalNeeded already folds
+  // in any fully-unstaffed planned day, so a missing day still counts.
+  const coverageDenom = totalNeeded;
   const pct = coverageDenom ? Math.round(totalFilled / coverageDenom * 100) : 0;
 
   // Virtual open shifts: for each (date, station), needed − filled minus
@@ -28407,10 +28407,9 @@ async function renderScheduleWeek() {
       ? "Every branded non-grounded van stays under the 14-day rotation rule this week"
       : `Click for details · ${femRisks.length} branded van${femRisks.length === 1 ? "" : "s"} projected to cross 13+ days unused`;
     kpis.innerHTML =
-      pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} route plan`, false,
-        pct < 100   ? `${coverageDenom - totalFilled} of ${coverageDenom} planned route${coverageDenom === 1 ? "" : "s"} unstaffed`
-        : pct === 100 ? "Staffed to the route plan"
-        : `Staffed to the route plan + a ${pct - 100}% buffer`) +
+      pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, false,
+        pct < 100   ? `${coverageDenom - totalFilled} of ${coverageDenom} shift${coverageDenom === 1 ? "" : "s"} unstaffed`
+        : "Every shift on the board is staffed") +
       pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
       pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
       pill("rotation",   rotationDotRed ? msRed : navy, rotationLabel, rotationSub, femRisks.length > 0, rotationTitle);
