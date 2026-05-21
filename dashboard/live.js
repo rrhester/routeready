@@ -29528,14 +29528,12 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
   if (!dspId || !_schedStart) return [];
   const violations = [];
 
-  // Per-week settings (max-days + override flag).
+  // Per-week settings (max-days).
   let maxDays = 5;
-  let allowOverride = false;
   try {
     const { data: ws } = await sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart });
     if (ws) {
       maxDays = Math.max(0, Math.min(7, ws.max_days_per_week ?? 5));
-      allowOverride = !!ws.allow_availability_override;
     }
   } catch (_) {}
 
@@ -29609,8 +29607,9 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
     violations.push(`Driver already has ${datesThisWeek.size} shifts this week (cap: ${maxDays})`);
   }
 
-  // Availability check (skip if override is on)
-  if (!allowOverride) {
+  // Availability check — always enforced (the availability-override
+  // setting was removed from the product).
+  {
     const days = (driver.metadata?.availability?.days) || [];
     const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     const dt = new Date(shiftDate + "T12:00:00");
@@ -31027,6 +31026,18 @@ document.addEventListener("drop", async (e) => {
     return;
   }
 
+  // Manual assignment to a driver still has to surface hard-rule
+  // violations (availability, PTO, double-booking, etc.). The operator
+  // may override, but they must see the warning and confirm — same as
+  // dragging from the open-shifts pool.
+  if (toDriver && (toDriver !== fromDriver || toDate !== fromDate)) {
+    const violations = await _checkAssignViolations(shiftId, toDate, toDriver);
+    if (violations.length > 0) {
+      const msg = "Rule violations:\n\n• " + violations.join("\n• ") + "\n\nSchedule anyway?";
+      if (!confirm(msg)) { _dragShift = null; return; }
+    }
+  }
+
   // Optimistic UI: yank the chip out of the source and drop it into
   // the destination so the operator sees instant feedback. The
   // realtime callback will re-render and reconcile.
@@ -31050,7 +31061,11 @@ document.addEventListener("drop", async (e) => {
     if (typeof loadScheduleView === "function") loadScheduleView();
   } else {
     toast("Shift moved", "success");
-    // Realtime + radar refresh handles the visual reconciliation.
+    // Re-render the week so the KPI strip (Coverage / filled count)
+    // reflects the move. _markLocalShiftMutation above suppresses the
+    // redundant realtime echo, so this is the single authoritative
+    // repaint — without it the filled count stays stale after a drag.
+    if (typeof renderScheduleWeek === "function") renderScheduleWeek();
     if (typeof loadCoverageRadar === "function") loadCoverageRadar();
   }
   _dragShift = null;
