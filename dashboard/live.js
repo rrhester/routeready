@@ -42823,6 +42823,18 @@ function _renderSchedRequestsActive() {
 }
 window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
 
+// PTO report button — now a card-header action on the PTO panel.
+// Delegated so it survives panel re-renders.
+if (!window._rrPtoReportHandlerInstalled) {
+  window._rrPtoReportHandlerInstalled = true;
+  document.addEventListener("click", (e) => {
+    if (e.target.closest && e.target.closest("#rr-pto-report-btn")) {
+      e.preventDefault();
+      if (typeof openPtoReportModal === "function") openPtoReportModal();
+    }
+  });
+}
+
 // Requests sub-view KPI strip · paints into #rr-sched-kpis when the
 // operator is on the Requests tab. Mirrors the EXACT four KPIs from
 // the Drivers → Availability sub-tab (Least covered day / Full-time
@@ -43072,7 +43084,7 @@ document.addEventListener("click", (e) => {
 async function renderSchedAvailabilityRequestsInline() {
   const host = document.getElementById("rr-sched-avail-req-list");
   if (!host) return;
-  host.innerHTML = `<div class="rr-loading">Loading availability requests…</div>`;
+  host.innerHTML = `<div class="loader" style="margin:80px auto"></div>`;
   let res;
   try { res = await sb.rpc("availability_request_list"); }
   catch (e) { host.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(String((e && e.message) || e))}</div>`; return; }
@@ -43081,39 +43093,58 @@ async function renderSchedAvailabilityRequestsInline() {
     return;
   }
   const rows = Array.isArray(res.data) ? res.data : [];
-  if (!rows.length) {
-    host.innerHTML = `<div class="sched-today-empty">No availability change requests right now.</div>`;
-    return;
-  }
 
   const fmtDate = (s) => s ? new Date(s + (String(s).length === 10 ? "T12:00:00" : "")).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
-  const fmtStatus = (s) => {
-    if (s === "approved") return `<span class="sched-today-tag" style="color:var(--sch-green);background:var(--sch-green-soft)">Approved</span>`;
-    if (s === "denied")   return `<span class="sched-today-tag" style="color:var(--sch-red);background:var(--sch-red-soft)">Denied</span>`;
-    return `<span class="sched-today-tag" style="color:var(--sch-amber-dark);background:var(--sch-amber-soft)">Pending</span>`;
-  };
   const daysHtml = (days) => {
     const order = ["mon","tue","wed","thu","fri","sat","sun"];
     const set = new Set(Array.isArray(days) ? days.map(d => String(d).toLowerCase()) : []);
     return order.map(d => `<span class="sched-req-day${set.has(d) ? " on" : ""}">${d.slice(0,1).toUpperCase()}</span>`).join("");
   };
-  host.innerHTML = rows.map(r => {
+  // Mirror the PTO panel's row markup so the two sides read identically.
+  const rowHtml = (r) => {
     const name = r.driver_name || r.full_name || "—";
-    const initials = (name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
+    const station = r.station_code ? ` · ${escapeHtml(r.station_code)}` : "";
     const effective = r.effective_on ? `Effective ${fmtDate(r.effective_on)}` : "Effective when approved";
-    return `<div class="sched-today-row" style="grid-template-columns:18px 240px 1fr auto">
-      <span></span>
-      <div class="sched-today-driver">
-        <div class="avatar-sm">${escapeHtml(initials)}</div>
+    const st = r.status === "approved" ? ["status-pill-approved", "Approved"]
+             : r.status === "denied"   ? ["status-pill-denied", "Denied"]
+             : ["status-pill-pending", "Pending"];
+    return `<div class="to-row">
+      <div class="to-row-head">
         <div>
-          <div class="sched-today-driver-name">${escapeHtml(name)}</div>
-          <div class="sched-today-driver-meta">${escapeHtml(effective)}</div>
+          <div class="to-row-name">${escapeHtml(name)}${station}</div>
+          <div class="to-row-range">${escapeHtml(effective)}</div>
         </div>
+        <span class="status-pill ${st[0]}">${st[1]}</span>
       </div>
       <div class="sched-req-days">${daysHtml(r.requested_days || r.days || [])}</div>
-      ${fmtStatus(r.status)}
     </div>`;
-  }).join("");
+  };
+  const pending = rows.filter(r => r.status === "pending" || !r.status);
+  const decided = rows.filter(r => r.status && r.status !== "pending");
+  const pendingBody = pending.length
+    ? pending.map(rowHtml).join("")
+    : `<div class="rr-empty-inline">No pending requests.</div>`;
+  const decidedBody = decided.length
+    ? decided.map(rowHtml).join("")
+    : `<div class="rr-empty-inline">No decided requests yet.</div>`;
+
+  host.innerHTML = `
+    <div class="to-page">
+      <section class="to-card">
+        <header class="to-card-head">
+          <div class="to-card-head-title">Pending requests</div>
+          <div class="to-card-head-count">${pending.length} awaiting review</div>
+        </header>
+        ${pendingBody}
+      </section>
+      <section class="to-card">
+        <header class="to-card-head">
+          <div class="to-card-head-title">History</div>
+          <div class="to-card-head-count">${decided.length} decided</div>
+        </header>
+        ${decidedBody}
+      </section>
+    </div>`;
 }
 window._rrRenderSchedAvailabilityRequestsInline = renderSchedAvailabilityRequestsInline;
 
@@ -43195,12 +43226,6 @@ function _toRenderView(body) {
 
   body.innerHTML = `
     <div class="to-page">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:var(--s-3)">
-        <button type="button" class="btn btn-sm" id="rr-pto-report-btn" style="display:inline-flex;align-items:center;gap:6px">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          PTO report
-        </button>
-      </div>
       <section class="to-card">
         <header class="to-card-head">
           <div class="to-card-head-title">Pending requests</div>
@@ -43220,7 +43245,6 @@ function _toRenderView(body) {
   body.querySelectorAll("[data-rr-to-decide]").forEach((btn) => {
     btn.addEventListener("click", () => _toDecide(btn));
   });
-  body.querySelector("#rr-pto-report-btn")?.addEventListener("click", openPtoReportModal);
   // Decorate each pending row with a coverage verdict so the
   // dispatcher knows up-front whether approving forces a rule break.
   _toPaintCoverage(body).catch((e) => console.warn("coverage check:", e));
