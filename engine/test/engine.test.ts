@@ -129,6 +129,35 @@ test("low-attendance assigned driver raises a warning", () => {
   assert.equal(r.summary_metrics.attendance_risk_warnings_count, 1);
 });
 
+test("unscheduled_drivers explains a hard-blocked driver", () => {
+  const r = runEngine(
+    input({
+      shifts: [shift({ shift_id: "s1" })],
+      drivers: [
+        driver({ driver_id: "d1", license_expiration_date: "2020-01-01" }),
+      ],
+    }),
+  );
+  const u = r.unscheduled_drivers.find((x) => x.driver_id === "d1");
+  assert.ok(u);
+  assert.equal(u.eligible_somewhere, false);
+  assert.ok(u.block_reasons.some((b) => b.rule === "R003"));
+});
+
+test("unscheduled_drivers flags a starved-but-eligible driver", () => {
+  // Sequential fill, one shift, two drivers — the second is eligible but
+  // gets nothing because the first driver is filled first.
+  const r = runEngine(
+    input({
+      shifts: [shift({ shift_id: "s1" })],
+      drivers: [driver({ driver_id: "aaa" }), driver({ driver_id: "bbb" })],
+      settings: { assignment_mode: "sequential_fill" },
+    }),
+  );
+  assert.equal(r.unscheduled_drivers.length, 1);
+  assert.equal(r.unscheduled_drivers[0].eligible_somewhere, true);
+});
+
 test("settings validation rejects unknown keys", () => {
   assert.throws(
     () => validateSettings({ bogus_key: true } as never),

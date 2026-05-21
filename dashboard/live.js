@@ -8,7 +8,7 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-sameday";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-explain";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -26658,19 +26658,32 @@ async function autoFillScheduleWeek() {
   } else {
     // Now try to auto-assign drivers to the freshly-generated open shifts
     // based on each driver's availability metadata.
-    const { assigned, skippedExpired } = await autoAssignDriversForWeek();
+    const { assigned, diagnostics } = await autoAssignDriversForWeek();
     if (assigned > 0) {
       toast(`Schedule synced · ${assigned} shift${assigned === 1 ? "" : "s"} auto-assigned`, "success");
     } else {
       toast("Schedule synced with OKAMI plan", "success");
     }
-    // Surface drivers blocked by expired/missing license. Use alert so
-    // the operator actually sees it (toast vanishes too quick to act on).
-    if (skippedExpired && skippedExpired.length > 0) {
-      const lines = skippedExpired.map(s =>
-        `  • ${s.full_name} — expired ${new Date(s.expires_on + "T12:00:00").toLocaleDateString()}`
-      ).join("\n");
-      alert(`Auto-schedule skipped ${skippedExpired.length} driver${skippedExpired.length === 1 ? "" : "s"} with an expired driver's license:\n\n${lines}\n\nUpdate the expiration in the driver record → License tab to include them in future runs.`);
+    // Surface the engine's explanation: uncovered shifts + drivers who got
+    // no shifts, each with the reason. Use alert so the operator actually
+    // sees it (a toast vanishes too quick to act on).
+    if (diagnostics) {
+      const parts = [];
+      if (diagnostics.uncovered.length > 0) {
+        parts.push(
+          `${diagnostics.uncovered.length} shift${diagnostics.uncovered.length === 1 ? "" : "s"} could not be covered:\n` +
+          diagnostics.uncovered.map(s => "  • " + s).join("\n")
+        );
+      }
+      if (diagnostics.unscheduled.length > 0) {
+        parts.push(
+          `${diagnostics.unscheduled.length} driver${diagnostics.unscheduled.length === 1 ? "" : "s"} received no shifts:\n` +
+          diagnostics.unscheduled.map(s => "  • " + s).join("\n")
+        );
+      }
+      if (parts.length > 0) {
+        alert("Smart Fill results\n\n" + parts.join("\n\n"));
+      }
     }
   }
   await renderScheduleWeek();
@@ -26710,11 +26723,10 @@ async function autoAssignDriversForWeek() {
       && ["least_loaded","seniority"].includes(sfRules.tiebreaker)) {
     tiebreaker = sfRules.tiebreaker;
   }
-  // Rules consumed directly by this Supabase layer: dl_valid drives the
-  // expired-license notice; dot/xl_required are baked into each shift's
-  // route_type; service_types skips retired service types. Every other
-  // popover rule is forwarded to the engine via planScheduleWeek.
-  const sfDlValid      = sfRules.dl_valid      !== false;
+  // Rules consumed directly by this Supabase layer: dot/xl_required are
+  // baked into each shift's route_type; service_types skips retired
+  // service types. Every other popover rule — including dl_valid — is
+  // forwarded to the engine via planScheduleWeek.
   const sfDotRequired  = sfRules.dot_required  !== false;
   const sfXlRequired   = sfRules.xl_required   !== false;
   const sfServiceTypes = sfRules.service_types !== false;
@@ -26815,34 +26827,6 @@ async function autoAssignDriversForWeek() {
     const d = drivers.find(x => x.id === driverId);
     return (d?.metadata?.availability?.days) || [];
   };
-
-  // License rule: drivers.dl_expires_on must be on/after the SHIFT date.
-  // A driver whose DL expires Wednesday gets auto-assigned to Mon/Tue/Wed
-  // but blocked from Thu/Fri. No other document type (DOT, background
-  // check, etc.) blocks here — only the drivers license. Drivers without
-  // dl_expires_on aren't blocked (operator hasn't filled it in yet).
-  const todayIso = fmtIsoDate(new Date());
-  const driverLicenseOkForDate = (d, isoDate) => {
-    if (!d.dl_expires_on) return true;
-    return d.dl_expires_on >= isoDate;
-  };
-  // Pre-loop notification still uses today: "currently expired" drivers
-  // are the ones the operator should renew. A driver expiring mid-week
-  // surfaces as missing assignments for those days rather than a banner.
-  const driverLicenseOk = (d) => driverLicenseOkForDate(d, todayIso);
-
-  // Pre-collect drivers blocked by an expired license so we can notify
-  // the operator after the run.
-  const skippedExpired = [];
-  for (const d of drivers) {
-    if (sfDlValid && !driverLicenseOk(d)) {
-      skippedExpired.push({
-        id: d.id,
-        full_name: d.full_name,
-        expires_on: d.dl_expires_on,
-      });
-    }
-  }
 
   // Aggressive reset: unassign EVERY driver from EVERY shift so the
   // priority sort (regular → cushion) runs from a clean slate. Anything
@@ -26988,7 +26972,7 @@ async function autoAssignDriversForWeek() {
   } catch (e) {
     console.warn("scheduling engine failed:", e);
     toast("Auto-fill failed: " + ((e && e.message) || "engine error"), "warn");
-    return { assigned: 0, skippedExpired };
+    return { assigned: 0, diagnostics: null };
   }
 
   // Write back only the engine's NEW assignments. Locked rows (already
@@ -27000,7 +26984,22 @@ async function autoAssignDriversForWeek() {
     const { error } = await sb.rpc("assign_shift", { p_id: a.shift_id, p_driver_id: a.driver_id });
     if (!error) assigned += 1;
   }
-  return { assigned, skippedExpired };
+
+  // Surface the engine's explanation output: why each shift is still open
+  // and why each driver received no shifts. The engine records a reason
+  // for every skip; this turns it into an operator-facing summary.
+  const nameById = new Map(drivers.map(d => [d.id, d.full_name || d.id]));
+  const diagnostics = {
+    uncovered: (result.uncovered_shifts || []).map(u => u.summary),
+    unscheduled: (result.unscheduled_drivers || []).map(u => {
+      const name = nameById.get(u.driver_id) || u.driver_id;
+      const reason = u.eligible_somewhere
+        ? "eligible, but no shift was available (try turning on “Spread work evenly”)"
+        : ((u.block_reasons[0] && u.block_reasons[0].message) || "no eligible shift this week");
+      return `${name} — ${reason}`;
+    }),
+  };
+  return { assigned, diagnostics };
 }
 
 function renderScheduleGrid() { /* removed */ }

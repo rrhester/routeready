@@ -36,6 +36,7 @@ import { validate } from "./steps/step9_validate.ts";
 import {
   buildAssignmentExplanations,
   buildUncovered,
+  buildUnscheduledDrivers,
 } from "./steps/step10_explain.ts";
 import { inPreferredWindow } from "./rules/r017_preferred.ts";
 
@@ -193,6 +194,7 @@ export function runEngine(input: EngineInput): ScheduleResult {
     warnings,
   );
   const uncovered = buildUncovered(ctx, ws);
+  const unscheduledDrivers = buildUnscheduledDrivers(ctx, ws);
 
   // --- Assemble output ----------------------------------------------------
   const assigned: AssignedShiftOut[] = [];
@@ -292,6 +294,7 @@ export function runEngine(input: EngineInput): ScheduleResult {
       ),
       uncovered: uncoveredExplanations,
     },
+    unscheduled_drivers: unscheduledDrivers,
     summary_metrics: metrics,
     inputs_hash: inputsHash(input),
   };
