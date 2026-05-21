@@ -436,3 +436,39 @@ test("R006 — availability mode schedules within full availability", () => {
   );
   assert.ok(r.uncovered_shifts.some((u) => u.shift_id === "tue"));
 });
+
+// --- Max allowable days per week (0-7) -------------------------------------
+
+test("R007 — max_days caps a driver inside the preferred boundary", () => {
+  const shifts = [];
+  for (let i = 0; i < 7; i++) {
+    const date = `2026-05-${String(24 + i).padStart(2, "0")}`;
+    shifts.push(shift({ shift_id: `s${i}`, date }));
+  }
+  const allDays: Record<string, { start: string; end: string }[]> = {};
+  for (let d = 0; d < 7; d++) allDays[String(d)] = [{ start: "00:00", end: "48:00" }];
+  const r = runEngine(
+    input({
+      shifts,
+      drivers: [driver({ driver_id: "d1", preferred_availability: allDays })],
+      settings: {
+        preferred_availability_required: true,
+        max_days_enforcement: true,
+        max_days: 3,
+      },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 3);
+});
+
+test("R007 — max_days of 0 schedules nobody", () => {
+  const r = runEngine(
+    input({
+      shifts: [shift({ shift_id: "s1", date: "2026-05-25" })],
+      drivers: [driver({ driver_id: "d1" })],
+      settings: { max_days_enforcement: true, max_days: 0 },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 0);
+  assert.ok(uncoveredRule(r, "s1").includes("R007"));
+});

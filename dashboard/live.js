@@ -8,7 +8,7 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-boundary";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-maxdays";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -23009,7 +23009,8 @@ async function _saveScheduleSettings({ source = "drawer" } = {}) {
 
   const block = parseInt(document.getElementById("rr-set-block-hours")?.value, 10) || 10;
   const cushion = parseInt(document.getElementById("rr-set-cushion-pct")?.value, 10) || 0;
-  const maxDays = Math.max(1, Math.min(7, parseInt(document.getElementById("rr-set-max-days")?.value, 10) || 5));
+  const maxDaysRaw = parseInt(document.getElementById("rr-set-max-days")?.value, 10);
+  const maxDays = Math.max(0, Math.min(7, Number.isFinite(maxDaysRaw) ? maxDaysRaw : 5));
   const reportLead = Math.max(0, Math.min(120, parseInt(document.getElementById("rr-set-report-lead")?.value, 10) || 0));
   const allowOverride = !!document.getElementById("rr-set-availability-override")?.checked;
   const waves = Array.from(document.querySelectorAll("#rr-set-waves [data-rr-wave-time]"))
@@ -26752,7 +26753,7 @@ async function autoAssignDriversForWeek() {
   try {
     const { data: ws } = await sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart });
     if (ws) {
-      maxDays = Math.max(1, Math.min(7, ws.max_days_per_week ?? 5));
+      maxDays = Math.max(0, Math.min(7, ws.max_days_per_week ?? 5));
       allowOverride = !!ws.allow_availability_override;
       if (["seniority","fairness"].includes(ws.preference_tiebreaker)) tiebreaker = ws.preference_tiebreaker;
     }
@@ -29336,7 +29337,7 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
   try {
     const { data: ws } = await sb.rpc("scheduling_settings_for_week", { p_week_start: weekStartIso });
     if (ws) {
-      maxDays = Math.max(1, Math.min(7, ws.max_days_per_week ?? 5));
+      maxDays = Math.max(0, Math.min(7, ws.max_days_per_week ?? 5));
       allowOverride = !!ws.allow_availability_override;
     }
   } catch (_) {}
@@ -29514,7 +29515,7 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
   try {
     const { data: ws } = await sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart });
     if (ws) {
-      maxDays = Math.max(1, Math.min(7, ws.max_days_per_week ?? 5));
+      maxDays = Math.max(0, Math.min(7, ws.max_days_per_week ?? 5));
       allowOverride = !!ws.allow_availability_override;
     }
   } catch (_) {}
