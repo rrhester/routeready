@@ -188,7 +188,7 @@ test("adapter spread_evenly toggles rotational vs sequential fill", () => {
     basePayload({
       ...base,
       max_days: 7,
-      rules: { max_hours: false },
+      rules: { woc: false },
     }),
   );
   const evenCounts = even.driver_totals
@@ -201,7 +201,7 @@ test("adapter spread_evenly toggles rotational vs sequential fill", () => {
     basePayload({
       ...base,
       max_days: 7,
-      rules: { max_hours: false, spread_evenly: false },
+      rules: { woc: false, spread_evenly: false },
     }),
   );
   const seqCounts = seq.driver_totals

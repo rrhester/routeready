@@ -11989,6 +11989,21 @@ body.rr-cmdk-open{ overflow:hidden }
                        action keep their seniority order but rotate after
                        everyone else has been filled. -->
                   <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="attendance_penalty"> <span class="sf-rule-name"><strong>Attendance Penalty</strong> · drivers on a Final corrective action are filled last</span></label>
+                  <!-- WOC · Working Hours Compliance. One rule, two DSP-set
+                       limits: max consecutive days and max weekly hours.
+                       --manual-keep so it stays available under Manual
+                       scheduling too. -->
+                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline sched-smartfill-rule--manual-keep"><input type="checkbox" data-rr-sf-rule="woc" checked> <span class="sf-rule-name"><strong>WOC · Working Hours Compliance</strong> · cap consecutive days and weekly hours per driver</span></label>
+                  <div class="sched-smartfill-rule-advanced sched-smartfill-rule-advanced--manual-keep is-on" data-rr-sf-advanced-of="woc">
+                    <span class="sf-advanced-label">Max</span>
+                    <input class="form-input sf-advanced-select" id="rr-set-woc-max-days" type="number" min="1" max="7" step="1" value="6" autocomplete="off" aria-label="Maximum consecutive days a driver can be scheduled" style="max-width:64px"/>
+                    <span class="sf-advanced-label">consecutive days</span>
+                  </div>
+                  <div class="sched-smartfill-rule-advanced sched-smartfill-rule-advanced--manual-keep is-on" data-rr-sf-advanced-of="woc">
+                    <span class="sf-advanced-label">Max</span>
+                    <input class="form-input sf-advanced-select" id="rr-set-woc-max-hours" type="number" min="1" max="168" step="1" value="40" autocomplete="off" aria-label="Maximum hours a driver can be scheduled per week" style="max-width:64px"/>
+                    <span class="sf-advanced-label">hours per week</span>
+                  </div>
                 </div>
                 <!-- Smart Fill advanced settings -->
                 <div class="sched-smartfill-advanced">
@@ -27899,7 +27914,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-covsteps"></script>
+<script type="module" src="./live.js?v=20260521-woc"></script>
 
 </body>
 </html>

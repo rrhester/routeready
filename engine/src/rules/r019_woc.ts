@@ -1,7 +1,7 @@
-// R019 — Working Hours Compliance (WOC): 7th consecutive working day [HARD].
-// Six consecutive worked days are allowed; a 7th is blocked. Only assigned
-// shift days count toward the streak — PTO / approved days off are days
-// *off* and never extend a working streak.
+// R019 — Working Hours Compliance (WOC): consecutive working days [HARD].
+// The DSP sets the maximum consecutive working days; the day after that
+// run is blocked. Only assigned shift days count toward the streak —
+// PTO / approved days off are days *off* and never extend a streak.
 
 import type {
   BlockReason,
@@ -12,7 +12,7 @@ import type {
 import { addDays } from "../dates.ts";
 import { assignedDates } from "../runtime.ts";
 
-/** Maximum consecutive working days WOC permits. The 7th day is blocked. */
+/** Default maximum consecutive working days WOC permits. */
 export const WOC_MAX_CONSECUTIVE_DAYS = 6;
 
 export function checkWoc(
@@ -21,6 +21,7 @@ export function checkWoc(
   settings: Settings,
 ): BlockReason | null {
   if (!settings.woc_enforcement) return null;
+  const maxRun = settings.woc_max_consecutive_days;
 
   const dates = assignedDates(state);
   dates.add(shift.date);
@@ -38,10 +39,10 @@ export function checkWoc(
     cursor = addDays(cursor, 1);
   }
 
-  if (run > WOC_MAX_CONSECUTIVE_DAYS) {
+  if (run > maxRun) {
     return {
       rule: "R019",
-      message: `WOC: would be consecutive working day #${run} (7th day blocked)`,
+      message: `WOC: would be consecutive working day #${run} (max ${maxRun})`,
     };
   }
   return null;

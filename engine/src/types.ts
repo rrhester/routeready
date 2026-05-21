@@ -137,6 +137,7 @@ export interface RawSettings {
   min_rest_enforcement?: RawBool;
   min_rest_hours?: number;
   woc_enforcement?: RawBool;
+  woc_max_consecutive_days?: number;
   same_day_multi_shift?: SameDayPolicy;
   historical_pattern_protection?: PatternStrength;
   history_window_weeks?: 4 | 6 | 8;
@@ -193,6 +194,8 @@ export interface Settings {
   min_rest_enforcement: boolean;
   min_rest_hours: number;
   woc_enforcement: boolean;
+  /** WOC: maximum consecutive working days a driver may be scheduled (1-7). */
+  woc_max_consecutive_days: number;
   same_day_multi_shift: SameDayPolicy;
   historical_pattern_protection: PatternStrength;
   history_window_weeks: 4 | 6 | 8;

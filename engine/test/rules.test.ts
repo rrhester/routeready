@@ -317,6 +317,32 @@ test("R019 — six consecutive working days are allowed", () => {
   assert.equal(r.summary_metrics.filled_shifts, 6);
 });
 
+test("R019 — WOC honors a DSP-set max consecutive days", () => {
+  // Five consecutive shifts, limit set to 4: four fill, the 5th blocks.
+  const shifts = [];
+  for (let i = 0; i < 5; i++) {
+    const date = `2026-05-${String(24 + i).padStart(2, "0")}`;
+    shifts.push(shift({ shift_id: `s${i}`, date }));
+  }
+  const r = runEngine(
+    input({
+      shifts,
+      drivers: [driver({ driver_id: "d1" })],
+      settings: {
+        max_days_enforcement: false,
+        weekly_hour_cap_enforcement: false,
+        woc_enforcement: true,
+        woc_max_consecutive_days: 4,
+      },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 4);
+  assert.equal(r.summary_metrics.uncovered_shifts, 1);
+  assert.ok(
+    r.uncovered_shifts[0].top_block_reasons.some((b) => b.rule === "R019"),
+  );
+});
+
 test("R019 — disabled WOC allows a 7th consecutive day", () => {
   const shifts = [];
   for (let i = 0; i < 7; i++) {

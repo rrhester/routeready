@@ -58,8 +58,12 @@ export interface DashboardRules {
   preferred_days?: boolean;
   pto_block?: boolean;
   min_rest?: boolean;
-  max_hours?: boolean;
+  /** WOC (Working Hours Compliance) — caps consecutive days + weekly hours. */
   woc?: boolean;
+  /** WOC: maximum consecutive working days (1-7, default 6). */
+  woc_max_consecutive_days?: number;
+  /** WOC: maximum scheduled hours per week (1-168, default 40). */
+  woc_max_hours?: number;
   /** When true, Final-corrective-action drivers are scheduled last. */
   attendance_penalty?: boolean;
   /** Driver fill priority: "seniority" (default) or "random". */
@@ -204,6 +208,12 @@ interface LicenseFlags {
   protectionDays: number;
 }
 
+interface WocFlags {
+  on: boolean;
+  maxConsecutiveDays: number;
+  maxHours: number;
+}
+
 function boundaryModeSettings(
   boundary: "preferred" | "availability",
   maxDays: number,
@@ -211,6 +221,7 @@ function boundaryModeSettings(
   rotationBatch: number,
   enh: EnhancementFlags,
   license: LicenseFlags,
+  woc: WocFlags,
   attendancePenalty: boolean,
   schedulingMethod: "seniority" | "random",
   rotationStartDay: number,
@@ -229,10 +240,14 @@ function boundaryModeSettings(
     availability_required: boundary === "availability",
     max_days_enforcement: true,
     max_days: maxDays,
-    weekly_hour_cap_enforcement: false,
+    // WOC composes with the boundary modes — a single Working Hours
+    // Compliance rule capping consecutive days + weekly hours.
+    weekly_hour_cap_enforcement: woc.on,
+    weekly_hour_cap: woc.maxHours,
     pto_counts_toward_cap: false,
     min_rest_enforcement: false,
-    woc_enforcement: false,
+    woc_enforcement: woc.on,
+    woc_max_consecutive_days: woc.maxConsecutiveDays,
     same_day_multi_shift: "block",
     historical_pattern_protection: "off",
     attendance_scheduling: false,
@@ -272,6 +287,13 @@ function buildSettings(payload: PlanPayload): RawSettings {
     on: r.dl_valid !== false,
     protectionDays: Math.max(0, Math.min(365, Math.round(r.dl_protection_days ?? 0))),
   };
+  // WOC (Working Hours Compliance) — one rule, two DSP-set limits:
+  // max consecutive working days and max scheduled hours per week.
+  const woc: WocFlags = {
+    on: r.woc !== false,
+    maxConsecutiveDays: Math.max(1, Math.min(7, Math.round(r.woc_max_consecutive_days ?? 6))),
+    maxHours: Math.max(1, Math.min(168, Math.round(r.woc_max_hours ?? payload.weekly_hour_cap ?? 40))),
+  };
   // Attendance Penalty — Final-corrective-action drivers scheduled last.
   const attendancePenalty = r.attendance_penalty === true;
   // Who fills first — seniority (default) or a stable random order.
@@ -281,10 +303,10 @@ function buildSettings(payload: PlanPayload): RawSettings {
 
   // Boundary modes are mutually exclusive; preferred wins if both are set.
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty, schedulingMethod, rotationStartDay);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, woc, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty, schedulingMethod, rotationStartDay);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, woc, attendancePenalty, schedulingMethod, rotationStartDay);
   }
 
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
@@ -301,14 +323,16 @@ function buildSettings(payload: PlanPayload): RawSettings {
     availability_enforcement: r.availability !== false,
     max_days_enforcement: true,
     max_days: maxDays,
-    weekly_hour_cap_enforcement: r.max_hours !== false,
-    weekly_hour_cap: payload.weekly_hour_cap ?? 40,
-    // PTO / approved day off always counts toward the 40-hour cap (hard rule).
+    // WOC (Working Hours Compliance) governs the weekly-hours cap.
+    weekly_hour_cap_enforcement: woc.on,
+    weekly_hour_cap: woc.maxHours,
+    // PTO / approved day off always counts toward the weekly cap (hard rule).
     pto_counts_toward_cap: true,
     pto_default_hours: PTO_HOURS_PER_DAY,
     min_rest_enforcement: r.min_rest !== false,
-    // WOC — blocks a 7th consecutive working day.
-    woc_enforcement: r.woc !== false,
+    // WOC — also caps consecutive working days.
+    woc_enforcement: woc.on,
+    woc_max_consecutive_days: woc.maxConsecutiveDays,
     // A driver works at most one shift per day — a physical constraint,
     // never operator-configurable.
     same_day_multi_shift: "block",

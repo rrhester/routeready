@@ -92,6 +92,7 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "min_rest_enforcement",
   "min_rest_hours",
   "woc_enforcement",
+  "woc_max_consecutive_days",
   "same_day_multi_shift",
   "historical_pattern_protection",
   "history_window_weeks",
@@ -211,6 +212,13 @@ function validateSettings(raw) {
     min_rest_enforcement: bool(r.min_rest_enforcement, "min_rest_enforcement", true),
     min_rest_hours: num(r.min_rest_hours, "min_rest_hours", 10, 0, 48),
     woc_enforcement: bool(r.woc_enforcement, "woc_enforcement", true),
+    woc_max_consecutive_days: num(
+      r.woc_max_consecutive_days,
+      "woc_max_consecutive_days",
+      6,
+      1,
+      7
+    ),
     same_day_multi_shift: oneOf(
       r.same_day_multi_shift,
       "same_day_multi_shift",
@@ -883,9 +891,9 @@ function checkMinRest(shift, state, settings) {
 }
 
 // src/rules/r019_woc.ts
-var WOC_MAX_CONSECUTIVE_DAYS = 6;
 function checkWoc(shift, state, settings) {
   if (!settings.woc_enforcement) return null;
+  const maxRun = settings.woc_max_consecutive_days;
   const dates = assignedDates(state);
   dates.add(shift.date);
   let run = 1;
@@ -899,10 +907,10 @@ function checkWoc(shift, state, settings) {
     run += 1;
     cursor = addDays(cursor, 1);
   }
-  if (run > WOC_MAX_CONSECUTIVE_DAYS) {
+  if (run > maxRun) {
     return {
       rule: "R019",
-      message: `WOC: would be consecutive working day #${run} (7th day blocked)`
+      message: `WOC: would be consecutive working day #${run} (max ${maxRun})`
     };
   }
   return null;
@@ -2045,7 +2053,7 @@ function mapShift(raw) {
 function clampMaxDays(value) {
   return Math.max(0, Math.min(7, Math.round(value ?? 6)));
 }
-function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty, schedulingMethod, rotationStartDay) {
+function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh, license, woc, attendancePenalty, schedulingMethod, rotationStartDay) {
   return {
     run_mode: "full_rebuild",
     eligible_driver_status: "active_and_onboarding",
@@ -2060,10 +2068,14 @@ function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, 
     availability_required: boundary === "availability",
     max_days_enforcement: true,
     max_days: maxDays,
-    weekly_hour_cap_enforcement: false,
+    // WOC composes with the boundary modes — a single Working Hours
+    // Compliance rule capping consecutive days + weekly hours.
+    weekly_hour_cap_enforcement: woc.on,
+    weekly_hour_cap: woc.maxHours,
     pto_counts_toward_cap: false,
     min_rest_enforcement: false,
-    woc_enforcement: false,
+    woc_enforcement: woc.on,
+    woc_max_consecutive_days: woc.maxConsecutiveDays,
     same_day_multi_shift: "block",
     historical_pattern_protection: "off",
     attendance_scheduling: false,
@@ -2097,14 +2109,19 @@ function buildSettings(payload) {
     on: r.dl_valid !== false,
     protectionDays: Math.max(0, Math.min(365, Math.round(r.dl_protection_days ?? 0)))
   };
+  const woc = {
+    on: r.woc !== false,
+    maxConsecutiveDays: Math.max(1, Math.min(7, Math.round(r.woc_max_consecutive_days ?? 6))),
+    maxHours: Math.max(1, Math.min(168, Math.round(r.woc_max_hours ?? payload.weekly_hour_cap ?? 40)))
+  };
   const attendancePenalty = r.attendance_penalty === true;
   const schedulingMethod = r.fill_priority === "random" ? "random" : "seniority";
   const rotationStartDay = Math.max(0, Math.min(6, Math.round(r.rotation_start_day ?? 0)));
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty, schedulingMethod, rotationStartDay);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, woc, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty, schedulingMethod, rotationStartDay);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, woc, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
@@ -2119,14 +2136,16 @@ function buildSettings(payload) {
     availability_enforcement: r.availability !== false,
     max_days_enforcement: true,
     max_days: maxDays,
-    weekly_hour_cap_enforcement: r.max_hours !== false,
-    weekly_hour_cap: payload.weekly_hour_cap ?? 40,
-    // PTO / approved day off always counts toward the 40-hour cap (hard rule).
+    // WOC (Working Hours Compliance) governs the weekly-hours cap.
+    weekly_hour_cap_enforcement: woc.on,
+    weekly_hour_cap: woc.maxHours,
+    // PTO / approved day off always counts toward the weekly cap (hard rule).
     pto_counts_toward_cap: true,
     pto_default_hours: PTO_HOURS_PER_DAY,
     min_rest_enforcement: r.min_rest !== false,
-    // WOC — blocks a 7th consecutive working day.
-    woc_enforcement: r.woc !== false,
+    // WOC — also caps consecutive working days.
+    woc_enforcement: woc.on,
+    woc_max_consecutive_days: woc.maxConsecutiveDays,
     // A driver works at most one shift per day — a physical constraint,
     // never operator-configurable.
     same_day_multi_shift: "block",
