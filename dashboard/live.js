@@ -28416,6 +28416,23 @@ async function renderScheduleWeek() {
         : "Every shift on the board is staffed") +
       pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
       pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
+      (() => {
+        // Preferred % — of shifts assigned to drivers who have preferred
+        // days set, how many landed on one of those days.
+        const prefPct = prefDenom > 0 ? Math.round(prefHonored / prefDenom * 100) : 0;
+        return pill(
+          "preferred",
+          navy,
+          prefDenom > 0 ? `${prefPct}% Preferred` : "— Preferred",
+          prefDenom > 0
+            ? `${prefHonored} / ${prefDenom} shifts on a preferred day`
+            : "No drivers have preferred days set",
+          false,
+          prefDenom > 0
+            ? `${prefHonored} of ${prefDenom} shifts (drivers with preferred days set) landed on a preferred day`
+            : "Set drivers' preferred days to track this",
+        );
+      })() +
       pill("rotation",   rotationDotRed ? msRed : navy, rotationLabel, rotationSub, femRisks.length > 0, rotationTitle);
   }
   kpis.dataset.rrFemRisks    = JSON.stringify(femRisks);
