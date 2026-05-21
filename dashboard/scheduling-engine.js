@@ -1862,7 +1862,7 @@ function mapShift(raw) {
 function clampMaxDays(value) {
   return Math.max(0, Math.min(7, Math.round(value ?? 6)));
 }
-function boundaryModeSettings(boundary, maxDays) {
+function boundaryModeSettings(boundary, maxDays, assignmentMode) {
   return {
     run_mode: "full_rebuild",
     eligible_driver_status: "active_and_onboarding",
@@ -1881,7 +1881,7 @@ function boundaryModeSettings(boundary, maxDays) {
     historical_pattern_protection: "off",
     attendance_scheduling: false,
     scheduling_method: "seniority",
-    assignment_mode: "rotational_fill",
+    assignment_mode: assignmentMode,
     preferred_availability_priority: false,
     preferred_availability_required: boundary === "preferred",
     consecutive_working_days: false
@@ -1890,11 +1890,12 @@ function boundaryModeSettings(boundary, maxDays) {
 function buildSettings(payload) {
   const r = payload.rules ?? {};
   const maxDays = clampMaxDays(payload.max_days);
+  const assignmentMode = r.spread_evenly === false ? "sequential_fill" : "rotational_fill";
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays);
+    return boundaryModeSettings("availability", maxDays, assignmentMode);
   }
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
@@ -1922,7 +1923,7 @@ function buildSettings(payload) {
     historical_pattern_protection: "off",
     attendance_scheduling: false,
     scheduling_method: method,
-    assignment_mode: r.spread_evenly === false ? "sequential_fill" : "rotational_fill",
+    assignment_mode: assignmentMode,
     preferred_availability_priority: r.preferred_days !== false,
     consecutive_working_days: r.consecutive_days === true
   };

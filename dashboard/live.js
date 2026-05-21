@@ -8,7 +8,7 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-maxdays";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-fillorder";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -22828,6 +22828,13 @@ async function loadSchedulingSettings() {
   if (overrideEl) overrideEl.checked = !!s.allow_availability_override;
   const tbEl = document.getElementById("rr-set-pref-tiebreaker");
   if (tbEl) tbEl.value = ["least_loaded","seniority","fairness"].includes(s.preference_tiebreaker) ? s.preference_tiebreaker : "least_loaded";
+  // Fill order — rotational/sequential lives in the Smart Fill rules store
+  // (as spread_evenly), surfaced here in Targets → Advanced settings.
+  const foEl = document.getElementById("rr-set-fill-order");
+  if (foEl) {
+    const sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+    foEl.value = sf.spread_evenly === false ? "sequential" : "rotational";
+  }
   // Cache the effective settings so auto-assign reads the per-week values.
   window._rrEffectiveSettings = s;
   if (wavesEl) {
@@ -23679,6 +23686,18 @@ document.addEventListener("change", (e) => {
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
   // Refresh advanced sub-rows + boundary-mode dimming when a rule toggles.
   _refreshSfAdvancedGating();
+});
+// Fill order (Targets → Advanced settings) — rotational vs sequential.
+// Stored in the Smart Fill rules store as spread_evenly so the engine
+// adapter picks it up via autoAssignDriversForWeek with no extra plumbing.
+document.addEventListener("change", (e) => {
+  const sel = e.target;
+  if (!sel || sel.id !== "rr-set-fill-order") return;
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  saved.spread_evenly = sel.value !== "sequential";
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
 });
 // Persist the Smart Fill tiebreaker dropdown (nested under
 // consecutive_days rule).
