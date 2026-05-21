@@ -11995,8 +11995,10 @@ body.rr-cmdk-open{ overflow:hidden }
                   </div>
 
                   <!-- ── Enhancements ── optional post-passes that swap
-                       drivers after the schedule is built. -->
-                  <div class="sf-section">
+                       drivers after the schedule is built. --keep so the
+                       Driver Affinity rule (manual-keep) stays available
+                       under Manual scheduling. -->
+                  <div class="sf-section sf-section--keep">
                     <div class="sf-section-label">Enhancements</div>
                     <label class="sched-smartfill-rule sched-smartfill-rule--baseline" id="rr-sf-enh-row"><input type="checkbox" data-rr-sf-rule="preferred_enhancement"> <span class="sf-rule-name"><strong>Preferred Availability Enhancement</strong> · after the run, swap drivers onto their preferred days</span></label>
                     <label class="sched-smartfill-rule-advanced sf-enh-sub" data-rr-sf-advanced-of="preferred_enhancement">
@@ -12007,15 +12009,17 @@ body.rr-cmdk-open{ overflow:hidden }
                       <input type="checkbox" data-rr-sf-rule="preferred_enhancement_extra">
                       <span>Extra rotations — allow swaps that scatter days</span>
                     </label>
-                    <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="affinity_enhancement"> <span class="sf-rule-name"><strong>Driver Affinity Enhancement</strong> · after the run, swap drivers onto the weekdays they usually work</span></label>
-                    <div class="sched-smartfill-rule-advanced" data-rr-sf-advanced-of="affinity_enhancement">
+                    <label class="sched-smartfill-rule sched-smartfill-rule--baseline sched-smartfill-rule--manual-keep"><input type="checkbox" data-rr-sf-rule="affinity_enhancement"> <span class="sf-rule-name"><strong>Driver Affinity Enhancement</strong> · after the run, swap drivers onto the weekdays they usually work</span></label>
+                    <div class="sched-smartfill-rule-advanced sched-smartfill-rule-advanced--manual-keep" data-rr-sf-advanced-of="affinity_enhancement">
                       <span class="sf-advanced-label">Rolling period</span>
                       <input class="form-input sf-advanced-select" id="rr-set-affinity-weeks" type="number" min="1" max="26" step="1" value="4" autocomplete="off" aria-label="Affinity rolling period in weeks" style="max-width:64px"/>
                       <span class="sf-advanced-label">weeks</span>
                     </div>
-                    <div class="sched-smartfill-rule-advanced sf-affinity-order-row" data-rr-sf-advanced-of="affinity_enhancement">
-                      <span class="sf-advanced-label">Day priority</span>
-                      <div class="sf-affinity-dayorder" id="rr-set-affinity-day-order"></div>
+                    <div class="sched-smartfill-rule-advanced sched-smartfill-rule-advanced--manual-keep sf-affinity-order-row" data-rr-sf-advanced-of="affinity_enhancement">
+                      <details class="sf-affinity-disclosure">
+                        <summary>Day priority order</summary>
+                        <div class="sf-affinity-dayorder" id="rr-set-affinity-day-order"></div>
+                      </details>
                     </div>
                     <!-- Fifth-Day Fill · final pass that gives drivers who
                          opted into a 5th day one extra shift on still-open
@@ -14027,8 +14031,31 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-smartfill-rule-advanced.is-on{
             opacity:1;pointer-events:auto;
           }
-          /* Driver Affinity — day-priority reorder list. */
+          /* Driver Affinity — day-priority reorder list, collapsed
+             behind a disclosure so the (7-row) list only shows when
+             the operator opens it. */
           #view-schedule .sf-affinity-order-row{align-items:flex-start}
+          #view-schedule .sf-affinity-disclosure{flex:1 1 auto;min-width:0}
+          #view-schedule .sf-affinity-disclosure > summary{
+            list-style:none;cursor:pointer;user-select:none;
+            display:flex;align-items:center;gap:6px;
+            font-size:12px;color:#616161;padding:1px 0;
+          }
+          #view-schedule .sf-affinity-disclosure > summary::-webkit-details-marker{display:none}
+          #view-schedule .sf-affinity-disclosure > summary::before{
+            content:"";
+            width:0;height:0;flex:0 0 auto;
+            border-left:4px solid currentColor;
+            border-top:3.5px solid transparent;
+            border-bottom:3.5px solid transparent;
+            transition:transform 120ms ease;
+          }
+          #view-schedule .sf-affinity-disclosure[open] > summary::before{
+            transform:rotate(90deg);
+          }
+          #view-schedule .sf-affinity-disclosure > .sf-affinity-dayorder{
+            margin-top:6px;
+          }
           #view-schedule .sf-affinity-dayorder{
             display:flex;flex-direction:column;gap:3px;
             flex:1 1 auto;min-width:0;
