@@ -61,6 +61,12 @@ export interface DashboardRules {
   /** true (default) = rotational fill (even spread); false = sequential. */
   spread_evenly?: boolean;
   tiebreaker?: string;
+  /**
+   * Baseline mode — when true the engine ignores every other rule and
+   * assigns drivers only to shifts on their preferred days. Used to verify
+   * the preferred-availability path in isolation before layering rules on.
+   */
+  preferred_only?: boolean;
 }
 
 export interface PlanPayload {
@@ -157,6 +163,36 @@ function mapShift(raw: DashboardShift): ShiftInput {
 
 function buildSettings(payload: PlanPayload): RawSettings {
   const r = payload.rules ?? {};
+
+  // Baseline mode — strip the engine down to a single behavior: assign each
+  // driver only to shifts on one of their preferred days. Every other rule
+  // is disabled so the preferred-availability path can be verified in
+  // isolation. (R002 driver-status and R010 one-shift-per-day still apply —
+  // they are physical constraints, not configurable rules.)
+  if (r.preferred_only === true) {
+    return {
+      run_mode: "full_rebuild",
+      eligible_driver_status: "active_and_onboarding",
+      license_enforcement: false,
+      certification_enforcement: false,
+      pto_protection: false,
+      availability_enforcement: false,
+      max_days_enforcement: false,
+      weekly_hour_cap_enforcement: false,
+      pto_counts_toward_cap: false,
+      min_rest_enforcement: false,
+      woc_enforcement: false,
+      same_day_multi_shift: "block",
+      historical_pattern_protection: "off",
+      attendance_scheduling: false,
+      scheduling_method: "seniority",
+      assignment_mode: "rotational_fill",
+      preferred_availability_priority: false,
+      preferred_availability_required: true,
+      consecutive_working_days: false,
+    };
+  }
+
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
     // Auto-schedule always performs a FULL REBUILD (SPEC Default Schedule

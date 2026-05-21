@@ -11942,6 +11942,12 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="sched-smartfill-rules-popover" id="rr-sched-smartfill-rules-popover" role="dialog" aria-modal="false" aria-label="Smart Fill rules" hidden>
                 <div class="sched-smartfill-rules-head">Smart Fill rules</div>
                 <div class="sched-smartfill-rules-body" id="rr-sched-smartfill-rules-body">
+                  <!-- Baseline mode · when on, the engine ignores every
+                       rule below and assigns drivers only to shifts on
+                       their preferred days. Used to verify the
+                       preferred-availability path before layering rules
+                       back on one at a time. -->
+                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="preferred_only"> <span class="sf-rule-name"><strong>Baseline — schedule to preferred availability only</strong> · ignores every rule below</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name">Driver's license valid through the shift date</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="include_onboarding" checked> <span class="sf-rule-name">Include onboarding drivers (not just active)</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dot_required" checked> <span class="sf-rule-name">DOT certification for Step Van routes</span></label>
@@ -13899,6 +13905,18 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-smartfill-rule-advanced .sf-advanced-select{
             flex:1 1 auto;min-width:0;
             font-size:12px;padding:4px 8px;
+          }
+          /* Baseline-mode rule — sits above the rule list and, when on,
+             dims every rule below it (they have no effect in baseline). */
+          #view-schedule .sched-smartfill-rule--baseline{
+            border-bottom:1px solid rgba(0,0,0,.1);
+            margin-bottom:4px;padding-bottom:9px;
+          }
+          #view-schedule .sched-smartfill-rules-body.is-baseline
+            .sched-smartfill-rule:not(.sched-smartfill-rule--baseline),
+          #view-schedule .sched-smartfill-rules-body.is-baseline
+            .sched-smartfill-rule-advanced{
+            opacity:.38;pointer-events:none;
           }
 
           /* Settings split-button — main tile opens the full drawer,
