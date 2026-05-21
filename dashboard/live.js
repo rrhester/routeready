@@ -23404,6 +23404,11 @@ function _restoreSmartFillRules() {
   // Restore the license protection-window field.
   const dlEl = document.getElementById("rr-set-dl-protection-days");
   if (dlEl) dlEl.value = String(Math.max(0, Math.min(365, parseInt(saved.dl_protection_days, 10) || 0)));
+  // Restore the WOC limits (max consecutive days, max weekly hours).
+  const wocDaysEl = document.getElementById("rr-set-woc-max-days");
+  if (wocDaysEl) wocDaysEl.value = String(Math.max(1, Math.min(7, parseInt(saved.woc_max_consecutive_days, 10) || 6)));
+  const wocHoursEl = document.getElementById("rr-set-woc-max-hours");
+  if (wocHoursEl) wocHoursEl.value = String(Math.max(1, Math.min(168, parseInt(saved.woc_max_hours, 10) || 40)));
   _refreshSfAdvancedGating();
   _syncManualMode();
 }
@@ -23489,6 +23494,52 @@ window._rrLoadSfRules = function () {
   catch (_) { saved = {}; }
   return saved || {};
 };
+// WOC (Working Hours Compliance) config from the Smart Fill rules store —
+// a single rule capping consecutive scheduled days + weekly scheduled
+// hours per driver. Applies to Smart Fill (via the engine adapter) and
+// Manual scheduling (Fill Shifts + manual drag). Defaults: on, 6 days,
+// 40h — matching the engine adapter's defaults.
+function _rrSfWoc() {
+  let sf = {};
+  try { sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {}; }
+  catch (_) { sf = {}; }
+  return {
+    on: sf.woc !== false,
+    maxDays: Math.max(1, Math.min(7, parseInt(sf.woc_max_consecutive_days, 10) || 6)),
+    maxHours: Math.max(1, Math.min(168, parseInt(sf.woc_max_hours, 10) || 40)),
+  };
+}
+// Evaluate a set of shifts for one driver against the WOC limits.
+// Returns operator-facing violation strings (empty when compliant or
+// when WOC is off). Each shift needs date + (starts_at/ends_at or
+// block_hours). Used by the manual drag check + Fill Shifts.
+function _wocCheck(shifts, woc) {
+  const out = [];
+  if (!woc || !woc.on || !Array.isArray(shifts) || shifts.length === 0) return out;
+  const hrsOf = (sh) => (sh && sh.starts_at && sh.ends_at)
+    ? Math.max(0, (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000)
+    : (Number(sh && sh.block_hours) || 10);
+  const totalHrs = shifts.reduce((s, sh) => s + hrsOf(sh), 0);
+  if (totalHrs > woc.maxHours) {
+    out.push(`WOC: ${Math.round(totalHrs)}h scheduled this week (cap ${woc.maxHours}h)`);
+  }
+  const dates = [...new Set(shifts.map((sh) => sh.date).filter(Boolean))].sort();
+  let runLen = 0, maxRun = 0, prevIso = null;
+  for (const iso of dates) {
+    if (prevIso && Math.round(
+      (new Date(iso + "T12:00:00") - new Date(prevIso + "T12:00:00")) / 86400000) === 1) {
+      runLen += 1;
+    } else {
+      runLen = 1;
+    }
+    if (runLen > maxRun) maxRun = runLen;
+    prevIso = iso;
+  }
+  if (maxRun > woc.maxDays) {
+    out.push(`WOC: ${maxRun} consecutive days (cap ${woc.maxDays})`);
+  }
+  return out;
+}
 function _toggleSchedSmartFillRules(force) {
   const pop = document.getElementById("rr-sched-smartfill-rules-popover");
   const toggle = document.getElementById("rr-sched-smartfill-rules-toggle");
@@ -23796,7 +23847,7 @@ document.addEventListener("change", (e) => {
 // up via autoAssignDriversForWeek with no extra plumbing.
 document.addEventListener("change", (e) => {
   const sel = e.target;
-  const ADV_IDS = ["rr-set-fill-order", "rr-set-rotation-batch", "rr-set-dl-protection-days", "rr-set-fill-priority", "rr-set-rotation-start-day"];
+  const ADV_IDS = ["rr-set-fill-order", "rr-set-rotation-batch", "rr-set-dl-protection-days", "rr-set-fill-priority", "rr-set-rotation-start-day", "rr-set-woc-max-days", "rr-set-woc-max-hours"];
   if (!sel || !ADV_IDS.includes(sel.id)) return;
   let saved;
   try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
@@ -23809,6 +23860,16 @@ document.addEventListener("change", (e) => {
     saved.fill_priority = sel.value === "random" ? "random" : "seniority";
   } else if (sel.id === "rr-set-rotation-start-day") {
     saved.rotation_start_day = Math.max(0, Math.min(6, parseInt(sel.value, 10) || 0));
+  } else if (sel.id === "rr-set-woc-max-days") {
+    // WOC — max consecutive days a driver can be scheduled (1-7).
+    const v = Math.max(1, Math.min(7, parseInt(sel.value, 10) || 6));
+    saved.woc_max_consecutive_days = v;
+    sel.value = String(v);
+  } else if (sel.id === "rr-set-woc-max-hours") {
+    // WOC — max hours a driver can be scheduled per week (1-168).
+    const v = Math.max(1, Math.min(168, parseInt(sel.value, 10) || 40));
+    saved.woc_max_hours = v;
+    sel.value = String(v);
   } else {
     // License protection window — days before expiration to stop scheduling.
     const days = Math.max(0, Math.min(365, parseInt(sel.value, 10) || 0));
@@ -26835,7 +26896,7 @@ async function fillShiftsFromPreviousWeek() {
     } catch (_) { /* defaults */ }
 
     const [thisWk, lastWk, driversRes, ptoRes] = await Promise.all([
-      sb.from("shifts").select("id, date, driver_id, status, starts_at, shift_kind")
+      sb.from("shifts").select("id, date, driver_id, status, starts_at, ends_at, block_hours, shift_kind")
         .eq("dsp_id", dspId).gte("date", _schedStart).lte("date", weekEndIso),
       sb.from("shifts").select("id, date, driver_id, starts_at, shift_kind")
         .eq("dsp_id", dspId).gte("date", prevStart).lte("date", prevEnd)
@@ -26914,6 +26975,13 @@ async function fillShiftsFromPreviousWeek() {
       return dlWindow > 0 && daysTo <= dlWindow;
     };
 
+    // WOC (Working Hours Compliance) — Manual scheduling honors the same
+    // caps Smart Fill does: a carried-forward shift is skipped if it
+    // would put the driver over the consecutive-days or weekly-hours
+    // limit. Skipped shifts stay open for manual placement.
+    const woc = _rrSfWoc();
+    const driverShifts = new Map();
+
     const taken = new Set();
     const driverDate = new Set();
     const assignments = [];
@@ -26929,8 +26997,14 @@ async function fillShiftsFromPreviousWeek() {
         if (driverDate.has(driverId + ":" + shift.date)) continue;
         if ((ptoByDriver.get(driverId) || new Set()).has(shift.date)) continue;
         if (dlBlocks(driverId, shift.date)) continue;
+        if (woc.on) {
+          const prior = driverShifts.get(driverId) || [];
+          if (_wocCheck([...prior, shift], woc).length > 0) continue;
+        }
         taken.add(shift.id);
         driverDate.add(driverId + ":" + shift.date);
+        if (!driverShifts.has(driverId)) driverShifts.set(driverId, []);
+        driverShifts.get(driverId).push(shift);
         assignments.push({ shiftId: shift.id, driverId });
       }
     }
@@ -30346,14 +30420,46 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
   return violations;
 }
 
+// WOC-only validation for a proposed manual assignment. Used when
+// Manual scheduling is on: every other constraint is off, but the DSP
+// can keep WOC (Working Hours Compliance) enforced. Returns the
+// operator-facing violation strings (empty when compliant / WOC off).
+async function _wocAssignViolations(dspId, shiftId, driverId, shiftDate, candidateShiftOverride) {
+  const woc = _rrSfWoc();
+  if (!woc.on) return [];
+  const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
+  const candidateFetch = candidateShiftOverride
+    ? Promise.resolve({ data: candidateShiftOverride })
+    : (shiftId
+        ? sb.from("shifts").select("id, date, starts_at, ends_at, block_hours").eq("id", shiftId).single()
+        : Promise.resolve({ data: null }));
+  const [shiftsRes, candidateRes] = await Promise.all([
+    sb.from("shifts").select("id, date, status, starts_at, ends_at, block_hours")
+      .eq("dsp_id", dspId).eq("driver_id", driverId)
+      .gte("date", _schedStart).lte("date", weekEndIso),
+    candidateFetch,
+  ]);
+  let cand = candidateRes && candidateRes.data;
+  // Virtual chips / missing rows: synthesize a date-only candidate so
+  // the consecutive-days check still runs.
+  if (!cand && shiftDate) cand = { id: shiftId, date: shiftDate };
+  const existing = (shiftsRes.data || [])
+    .filter((sh) => sh.status === "scheduled" && String(sh.id) !== String(shiftId));
+  return _wocCheck([...existing, cand].filter(Boolean), woc);
+}
+
 async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShiftOverride) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId || !_schedStart) return [];
 
-  // Manual scheduling turns off all constraints — no warnings.
+  // Manual scheduling turns off all constraints — except WOC (Working
+  // Hours Compliance), which the DSP can keep enforced in Manual mode.
+  // So under Manual mode we skip every other check and run WOC only.
   try {
     const sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
-    if (sf && sf.manual_mode === true) return [];
+    if (sf && sf.manual_mode === true) {
+      return await _wocAssignViolations(dspId, shiftId, driverId, shiftDate, candidateShiftOverride);
+    }
   } catch (_) { /* ignore */ }
 
   // Engine-driven validation — runs the real scheduling engine with the
