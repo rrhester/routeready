@@ -27116,9 +27116,11 @@ async function autoAssignDriversForWeek() {
       shifts: engineShifts,
       pto: ptoFlat,
     };
-    // Stash the payload so the Preferred-% KPI drill-down can dry-run
-    // the engine with candidate settings (projected %) without writes.
+    // Stash the payload so the KPI drill-downs can dry-run the engine
+    // with candidate settings. Persisted to localStorage (keyed by week)
+    // so the drill-downs work across page reloads, not just in-session.
     window._rrLastSmartFillPayload = sfPayload;
+    try { localStorage.setItem("rr-sf-payload:" + _schedStart, JSON.stringify(sfPayload)); } catch (_) {}
     result = planScheduleWeek(sfPayload);
   } catch (e) {
     console.warn("scheduling engine failed:", e);
@@ -27746,6 +27748,20 @@ function _schedShiftChip(sh, extras) {
 
 function _schedDriverInitials(name) {
   return (name || "").split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+}
+
+// Resolve the Smart Fill payload for the visible week — the in-memory
+// stash, falling back to the localStorage copy so the KPI drill-downs
+// keep working across page reloads. Returns null when Smart Fill has
+// never been run for this week.
+function _getSfDrillPayload() {
+  const live = window._rrLastSmartFillPayload;
+  if (live && live.schedule_week_start === _schedStart) return live;
+  try {
+    const stored = JSON.parse(localStorage.getItem("rr-sf-payload:" + _schedStart) || "null");
+    if (stored && stored.schedule_week_start === _schedStart) return stored;
+  } catch (_) { /* ignore */ }
+  return null;
 }
 
 async function renderScheduleWeek() {
@@ -29278,7 +29294,7 @@ function bindSchedWeekNav() {
 
     const _openPrefModal = () => {
       document.getElementById("rr-pref-kpi-modal")?.remove();
-      const payload = window._rrLastSmartFillPayload;
+      const payload = _getSfDrillPayload();
       let bodyHtml, curLabel;
       if (!payload) {
         bodyHtml = `<p class="rr-pref-empty">Run Smart Fill once and RouteReady can preview how each setting would change the Preferred %.</p>`;
@@ -29469,7 +29485,7 @@ function bindSchedWeekNav() {
 
     const _openCovModal = () => {
       document.getElementById("rr-cov-kpi-modal")?.remove();
-      const payload = window._rrLastSmartFillPayload;
+      const payload = _getSfDrillPayload();
       let bodyHtml, curLabel;
       if (!payload) {
         bodyHtml = `<p class="rr-cov-empty">Run Smart Fill once and RouteReady can preview how each setting would change coverage.</p>`;
