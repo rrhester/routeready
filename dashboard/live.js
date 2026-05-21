@@ -30018,10 +30018,12 @@ function bindSchedWeekNav() {
           tradeoff: "Drivers are scheduled right up to their license expiration date.",
         });
       }
-      // Overtime — raise the WOC weekly hour cap so existing drivers can
-      // cover more shifts. Stepped so _openCovModal can recommend the
-      // smallest amount of OT that closes the gap. Only meaningful when
-      // WOC is enforced (otherwise there is no cap to raise).
+      // Overtime — let existing drivers cover more shifts by raising the
+      // WOC weekly hour cap. The days cap (Max allowable days) is lifted
+      // alongside it, otherwise the days cap stays the binding limit and
+      // raising hours alone changes nothing. The weekly hour cap then
+      // becomes the real limit, so each step reflects a genuine OT level.
+      // Only meaningful when WOC is enforced (there's a cap to raise).
       if (r.woc !== false) {
         const curHours = Math.max(1, Math.min(168,
           Math.round(r.woc_max_hours ?? payload.weekly_hour_cap ?? 40)));
@@ -30029,9 +30031,10 @@ function bindSchedWeekNav() {
           if (h <= curHours) continue;
           c.push({
             hours: h,
+            maxDays: 7,
             ruleDelta: { woc_max_hours: h },
-            title: `Raise the weekly hour cap to ${h}h (from ${curHours}h)`,
-            tradeoff: `Drivers work overtime — up to ${h}h on the clock. Every other rule (availability, consecutive days, max days, license) still applies; the only cost is OT hours.`,
+            title: `Allow overtime — up to ${h}h on the clock per week`,
+            tradeoff: `Drivers work overtime, up to ${h}h a week on any day they're available. WOC consecutive-days, availability and license rules still apply — no rule is violated, the only cost is OT hours.`,
           });
         }
       }
@@ -30079,8 +30082,10 @@ function bindSchedWeekNav() {
           const proj = _covOf(res);
           if (proj == null || baseCov == null || proj <= baseCov) continue;
           const rec = { ...cand, proj };
-          if (cand.maxDays != null) maxDaysRecs.push(rec);
-          else if (cand.hours != null) hoursRecs.push(rec);
+          // Check hours first — an overtime candidate carries both
+          // `hours` and `maxDays` (it lifts the days cap too).
+          if (cand.hours != null) hoursRecs.push(rec);
+          else if (cand.maxDays != null) maxDaysRecs.push(rec);
           else recs.push(rec);
         }
         // Collapse the max-days steps to the gentlest one that helps:
