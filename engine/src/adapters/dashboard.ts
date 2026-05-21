@@ -179,6 +179,7 @@ function clampMaxDays(value: number | undefined): number {
 function boundaryModeSettings(
   boundary: "preferred" | "availability",
   maxDays: number,
+  assignmentMode: "rotational_fill" | "sequential_fill",
 ): RawSettings {
   return {
     run_mode: "full_rebuild",
@@ -198,7 +199,7 @@ function boundaryModeSettings(
     historical_pattern_protection: "off",
     attendance_scheduling: false,
     scheduling_method: "seniority",
-    assignment_mode: "rotational_fill",
+    assignment_mode: assignmentMode,
     preferred_availability_priority: false,
     preferred_availability_required: boundary === "preferred",
     consecutive_working_days: false,
@@ -208,13 +209,16 @@ function boundaryModeSettings(
 function buildSettings(payload: PlanPayload): RawSettings {
   const r = payload.rules ?? {};
   const maxDays = clampMaxDays(payload.max_days);
+  // Fill order — rotational (spread evenly) unless explicitly sequential.
+  const assignmentMode =
+    r.spread_evenly === false ? "sequential_fill" : "rotational_fill";
 
   // Boundary modes are mutually exclusive; preferred wins if both are set.
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays);
+    return boundaryModeSettings("availability", maxDays, assignmentMode);
   }
 
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
@@ -244,8 +248,7 @@ function buildSettings(payload: PlanPayload): RawSettings {
     historical_pattern_protection: "off",
     attendance_scheduling: false,
     scheduling_method: method,
-    assignment_mode:
-      r.spread_evenly === false ? "sequential_fill" : "rotational_fill",
+    assignment_mode: assignmentMode,
     preferred_availability_priority: r.preferred_days !== false,
     consecutive_working_days: r.consecutive_days === true,
   };
