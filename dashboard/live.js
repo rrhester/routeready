@@ -13884,6 +13884,16 @@ function renderAvailabilityTab(body, d, record) {
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2)">${prefBoxes}</div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Days the driver most wants to work. Only days in their available set can be preferred.</div>
       </div>
+    </div>
+    <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
+      <label>Overtime</label>
+      <div>
+        <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);cursor:pointer;user-select:none">
+          <input type="checkbox" data-rr-avail-fifth ${avail.fifth_day_ok ? "checked" : ""}/>
+          <span style="font-weight:600">Open to a 5th day</span>
+        </label>
+        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Driver is willing to work a 5th day when coverage needs it. The coverage drill-down lists everyone who's opted in.</div>
+      </div>
     </div>`;
 }
 
@@ -19208,8 +19218,9 @@ document.addEventListener("click", async (e) => {
       .filter(el => el.checked)
       .map(el => el.dataset.rrAvailPref)
       .filter(k => days.includes(k));   // a preferred day must be in the available set
+    const fifthDayOk = !!document.querySelector("#rr-dd-drawer [data-rr-avail-fifth]")?.checked;
     const meta = _ddDriver.driver.metadata || {};
-    const availObj = { ...(meta.availability || {}), days, preferred_days: preferred };
+    const availObj = { ...(meta.availability || {}), days, preferred_days: preferred, fifth_day_ok: fifthDayOk };
     if (earliest) availObj.earliest_start = earliest; else delete availObj.earliest_start;
     const newMeta = { ...meta, availability: availObj };
     const { error } = await sb.from("drivers").update({ metadata: newMeta }).eq("id", driverId);
@@ -27615,6 +27626,7 @@ async function autoAssignDriversForWeek() {
         preferred_dows: preferredDowsOf(d),
         final_corrective_action: finalDrivers.has(d.id),
         weekday_affinity: affinityByDriver.get(d.id) || null,
+        fifth_day_ok: d.metadata?.availability?.fifth_day_ok === true,
       })),
       shifts: engineShifts,
       pto: ptoFlat,
@@ -30116,6 +30128,14 @@ function bindSchedWeekNav() {
         curLabel = baseCov == null
           ? "How coverage could improve"
           : `Currently <strong>${baseCov}%</strong> of shifts staffed`;
+        // Drivers who opted into a 5th day — surfaced on the overtime
+        // recommendation so the DSP knows exactly who to give it to.
+        const fifthDayVolunteers = (payload.drivers || [])
+          .filter((d) => d && d.fifth_day_ok)
+          .map((d) => d.full_name || d.id);
+        const otVolunteersHtml = fifthDayVolunteers.length > 0
+          ? `<div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Open to a 5th day</span>${escapeHtml(fifthDayVolunteers.join(", "))}</div>`
+          : `<div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Open to a 5th day</span>No drivers have opted in yet — they can opt in from their availability.</div>`;
         const recsHtml = recs.length === 0
           ? `<p class="rr-cov-empty">No setting change would raise coverage further — the remaining gap is a staffing shortfall, not a settings limit.</p>`
           : recs.map((r) => `
@@ -30124,6 +30144,7 @@ function bindSchedWeekNav() {
               <div class="rr-cov-rec-metric"><span class="rr-cov-metric-label">Coverage</span>` +
                 `<span>${baseCov}%<span class="rr-cov-arrow">→</span><strong>${r.proj}%</strong></span></div>
               <div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Trade-off</span>${escapeHtml(r.tradeoff)}</div>
+              ${r.hours != null ? otVolunteersHtml : ""}
               <button type="button" class="btn btn-primary btn-sm" data-rr-cov-accept='${escapeHtml(JSON.stringify({ ruleDelta: r.ruleDelta || {}, maxDays: r.maxDays != null ? r.maxDays : null }))}'>Accept &amp; re-run</button>
             </div>`).join("");
         bodyHtml = neededHtml + recsHtml;

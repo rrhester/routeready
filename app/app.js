@@ -6130,6 +6130,24 @@ async function renderAvailability() {
         : `<section class="avail-list" id="avail-pref-list">${prefRows}</section>`}
     </div>`;
 
+  // Overtime opt-in — would the driver take a 5th day when coverage is
+  // short. Persists immediately (a free preference, no approval needed).
+  const fifthDayOk = data?.fifth_day_ok === true;
+  const fifthDayBlock = `
+    <div style="margin-top:26px">
+      <div style="font-weight:700;font-size:var(--fs-lg)">Overtime</div>
+      <div style="font-size:var(--fs-sm);color:var(--text-muted);margin:4px 0 10px">If coverage is short, would you be willing to work a 5th day that week? Your dispatcher sees who's opted in.</div>
+      <section class="avail-list">
+        <label class="avail-day" for="avail-fifth">
+          <span class="avail-day-name">Open to a 5th day</span>
+          <span class="avail-toggle ${fifthDayOk ? "on" : ""}">
+            <input type="checkbox" id="avail-fifth" data-rr-fifth ${fifthDayOk ? "checked" : ""}/>
+            <span class="avail-toggle-track"><span class="avail-toggle-thumb"></span></span>
+          </span>
+        </label>
+      </section>
+    </div>`;
+
   main.innerHTML = `
     <div class="avail-page">
       ${bannerHtml ? `<div id="avail-banner-slot">${bannerHtml}</div>` : ""}
@@ -6141,6 +6159,7 @@ async function renderAvailability() {
       </button>
       <div class="avail-policy">${policyText}</div>
       ${prefBlock}
+      ${fifthDayBlock}
     </div>`;
 
   const listEl   = document.getElementById("avail-list");
@@ -6199,6 +6218,28 @@ async function renderAvailability() {
         return;
       }
       toast("Preferred days saved", "ok");
+    });
+  }
+
+  // 5th-day overtime opt-in — persists immediately on toggle.
+  const fifthEl = document.getElementById("avail-fifth");
+  if (fifthEl) {
+    fifthEl.addEventListener("change", async () => {
+      const want = fifthEl.checked;
+      fifthEl.closest(".avail-toggle").classList.toggle("on", want);
+      _haptic("select");
+      _inFlight++;
+      const { error: ferr } = await sb.rpc("driver_set_fifth_day_ok", {
+        p_token: session.token, p_ok: want,
+      });
+      _inFlight--;
+      if (ferr) {
+        fifthEl.checked = !want;
+        fifthEl.closest(".avail-toggle").classList.toggle("on", !want);
+        toast("Couldn't save: " + (ferr.message || "error"), "warn");
+        return;
+      }
+      toast(want ? "You're open to a 5th day" : "5th-day opt-in turned off", "ok");
     });
   }
 
