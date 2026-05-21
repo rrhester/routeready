@@ -39,6 +39,9 @@ const KNOWN_KEYS = new Set<keyof RawSettings>([
   "rotation_batch_size",
   "preferred_availability_priority",
   "preferred_availability_required",
+  "preferred_enhancement",
+  "preferred_enhancement_contiguous",
+  "preferred_enhancement_extra",
   "consecutive_working_days",
 ]);
 
@@ -215,6 +218,21 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
     preferred_availability_required: bool(
       r.preferred_availability_required,
       "preferred_availability_required",
+      false,
+    ),
+    preferred_enhancement: bool(
+      r.preferred_enhancement,
+      "preferred_enhancement",
+      false,
+    ),
+    preferred_enhancement_contiguous: bool(
+      r.preferred_enhancement_contiguous,
+      "preferred_enhancement_contiguous",
+      true,
+    ),
+    preferred_enhancement_extra: bool(
+      r.preferred_enhancement_extra,
+      "preferred_enhancement_extra",
       false,
     ),
     consecutive_working_days: bool(

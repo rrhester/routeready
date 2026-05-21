@@ -11954,6 +11954,19 @@ body.rr-cmdk-open{ overflow:hidden }
                     <span class="sf-rule-name">Max allowable days per week</span>
                     <input class="form-input sf-maxdays-input" id="rr-set-max-days" type="number" min="0" max="7" step="1" autocomplete="off" aria-label="Max allowable days per week"/>
                   </div>
+                  <!-- Preferred Availability Enhancement · post-pass that
+                       swaps drivers onto their preferred days. Disabled
+                       under "Auto Fill only Preferred Availability" (every
+                       shift is already on a preferred day there). -->
+                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline" id="rr-sf-enh-row"><input type="checkbox" data-rr-sf-rule="preferred_enhancement"> <span class="sf-rule-name"><strong>Preferred Availability Enhancement</strong> · after the run, swap drivers onto their preferred days</span></label>
+                  <label class="sched-smartfill-rule-advanced sf-enh-sub" data-rr-sf-advanced-of="preferred_enhancement">
+                    <input type="checkbox" data-rr-sf-rule="preferred_enhancement_contiguous" checked>
+                    <span>Keep each driver's days contiguous</span>
+                  </label>
+                  <label class="sched-smartfill-rule-advanced sf-enh-sub" data-rr-sf-advanced-of="preferred_enhancement">
+                    <input type="checkbox" data-rr-sf-rule="preferred_enhancement_extra">
+                    <span>Extra rotations — allow swaps that scatter days</span>
+                  </label>
                 </div>
                 <!-- Smart Fill advanced settings -->
                 <div class="sched-smartfill-advanced">
@@ -13879,13 +13892,22 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:1 1 auto;min-width:0;
             font-size:12px;padding:4px 8px;
           }
-          /* Boundary-mode rows + the Max-days field group at the top of
-             the list. A boundary mode dims every rule below this group
-             (they have no effect while a boundary mode is on). */
+          /* A boundary mode dims every rule that doesn't compose with it
+             (rules carrying --baseline, and their advanced sub-rows, stay
+             active). */
           #view-schedule .sched-smartfill-rules-body.is-baseline
-            .sched-smartfill-rule:not(.sched-smartfill-rule--baseline),
-          #view-schedule .sched-smartfill-rules-body.is-baseline
-            .sched-smartfill-rule-advanced{
+            .sched-smartfill-rule:not(.sched-smartfill-rule--baseline){
+            opacity:.38;pointer-events:none;
+          }
+          /* Preferred Availability Enhancement sub-options. */
+          #view-schedule .sf-enh-sub{cursor:pointer}
+          #view-schedule .sf-enh-sub input[type="checkbox"]{
+            width:14px;height:14px;cursor:pointer;accent-color:#0078d4;
+            margin:0;flex:0 0 auto;
+          }
+          #view-schedule .sf-enh-sub span{line-height:1.3}
+          /* Enhancement row disabled under the preferred-only boundary. */
+          #view-schedule .sched-smartfill-rule.is-disabled{
             opacity:.38;pointer-events:none;
           }
           /* Max-allowable-days field — a value input, not a toggle; closes
