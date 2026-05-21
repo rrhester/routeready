@@ -8313,167 +8313,231 @@ body.rr-cmdk-open{ overflow:hidden }
   color:inherit;
 }
 
-/* Requests page · LEFT = unified request stream, RIGHT = three
-   equally-sized reports. Microsoft Fluent tokens shared with the
-   schedule view; calm restraint, no gimmicks. */
+/* Requests page · ONE operational coordination workspace — a unified
+   request stream and an operational telemetry rail, joined as a
+   single quiet panel. Microsoft Fluent restraint: hairline structure,
+   typography-led hierarchy, low saturation, calm telemetry. */
+#sched-sub-requests{
+  --req-telemetry:#6E83A6;          /* calm slate-blue · capacity bars */
+  --req-below:#AD8A4F;              /* muted ochre · below staffing target */
+  --req-track:rgba(15,23,42,.055);  /* bar track */
+  --req-hairline:rgba(15,23,42,.05);
+  --req-hairline-faint:rgba(15,23,42,.032);
+}
+/* The split itself is the panel — left + right are regions of one
+   surface, divided by a single hairline. */
 #sched-sub-requests .sched-requests-split{
   display:grid;
-  grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
-  gap:var(--s-4);
+  grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);
+  gap:0;
   align-items:stretch;
+  background:var(--surface-elevated, #FCFDFE);
+  border:1px solid var(--req-hairline);
+  border-radius:8px;
+  overflow:hidden;
 }
 @media (max-width:1080px){
   #sched-sub-requests .sched-requests-split{grid-template-columns:1fr}
+  #sched-sub-requests .sched-requests-card{
+    border-right:0;border-bottom:1px solid var(--req-hairline);
+  }
 }
 #sched-sub-requests .sched-requests-card{
-  background:var(--surface-elevated, #FCFDFE);
-  border:1px solid var(--sch-line, rgba(15,23,42,.07));
-  border-radius:10px;
-  box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
+  background:transparent;border:0;border-radius:0;box-shadow:none;
+  border-right:1px solid var(--req-hairline);
   overflow:hidden;min-width:0;
   display:flex;flex-direction:column;
 }
 #sched-sub-requests .sched-requests-card-head{
   display:flex;align-items:center;gap:8px;
-  padding:13px 18px;
-  border-bottom:1px solid var(--sch-line, rgba(15,23,42,.07));
-  color:var(--sch-blue, #0F6CBD);
+  padding:12px 18px 11px;
+  border-bottom:1px solid var(--req-hairline-faint);
+  color:var(--text-subtle);
 }
 #sched-sub-requests .sched-requests-card-title{
-  font-size:13px;font-weight:600;color:var(--text);letter-spacing:.01em;
+  font-size:11px;font-weight:700;color:var(--text-subtle);
+  letter-spacing:.07em;text-transform:uppercase;
 }
-#sched-sub-requests .sched-requests-card-body{padding:12px 16px 14px;flex:1;min-width:0}
-/* Inside the panel card the request groups are flat sections, not
-   nested cards. */
+#sched-sub-requests .sched-requests-card-body{padding:4px 18px 14px;flex:1;min-width:0}
+
+/* Section eyebrows · Pending / History — quiet operational labels. */
+#sched-sub-requests .to-page{gap:10px}
 #sched-sub-requests .to-card{
   background:transparent;border:0;border-radius:0;box-shadow:none;overflow:visible;
 }
 #sched-sub-requests .to-card-head{
-  padding:8px 0 2px;background:transparent;border-bottom:0;
+  padding:13px 0 1px;background:transparent;border-bottom:0;
+  display:flex;align-items:baseline;justify-content:space-between;gap:8px;
 }
-#sched-sub-requests .to-card-head-title{font-size:12px}
-#sched-sub-requests .to-row{padding:var(--s-3) 0}
-#sched-sub-requests .to-row .sched-req-days{margin-top:8px}
-#sched-sub-requests .to-page{gap:var(--s-3)}
+#sched-sub-requests .to-card-head-title{
+  font-size:10px;font-weight:700;color:var(--text-subtle);
+  letter-spacing:.07em;text-transform:uppercase;
+}
+#sched-sub-requests .to-card-head-count{
+  font-size:10px;font-weight:600;color:var(--text-subtle);
+  letter-spacing:.02em;text-transform:none;
+}
 
-/* Request-type badge · one consistent chip for PTO / Unpaid /
-   Availability so the merged stream reads uniformly. */
+/* Request rows · Outlook-inbox rhythm — compressed, hairline-faint,
+   separated by tone + spacing rather than hard dividers. */
+#sched-sub-requests .to-row{
+  padding:8px;margin:0 -8px;
+  border-top:1px solid var(--req-hairline-faint);
+  border-radius:5px;
+  transition:background var(--t-fast);
+}
+#sched-sub-requests .to-row:first-child{border-top:0}
+#sched-sub-requests .to-row:hover{background:rgba(15,23,42,.025)}
+#sched-sub-requests .to-row .sched-req-days{margin-top:6px}
+#sched-sub-requests .to-row-name{font-size:12.5px;font-weight:600;line-height:1.3}
+#sched-sub-requests .to-row-range{font-size:11px;color:var(--text-subtle);margin-top:1px}
+
+/* State pills · restrained Microsoft treatment — a small tonal dot
+   and a quiet label, no filled chip. */
+#sched-sub-requests .status-pill{
+  background:transparent;border:0;padding:0;
+  gap:5px;font-size:10px;font-weight:600;letter-spacing:.04em;
+  color:var(--text-subtle);
+}
+#sched-sub-requests .status-pill::before{
+  content:"";width:5px;height:5px;border-radius:50%;
+  background:currentColor;flex:0 0 auto;
+}
+#sched-sub-requests .status-pill-pending{color:#9A7438}
+#sched-sub-requests .status-pill-approved{color:#4F7C61}
+#sched-sub-requests .status-pill-denied{color:#9F635B}
+#sched-sub-requests .status-pill-neutral{color:var(--text-subtle)}
+
+/* Request-type badge · one consistent low-saturation chip. */
 #sched-sub-requests .req-type-badge{
   display:inline-flex;align-items:center;
-  font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-  padding:2px 7px;border-radius:var(--r-lg, 10px);
-  margin-left:8px;vertical-align:middle;
+  font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+  padding:1px 6px;border-radius:4px;
+  margin-left:7px;vertical-align:middle;
 }
-#sched-sub-requests .req-type-badge.is-pto{
-  background:rgba(13,148,136,.12);color:#0F766E;
-}
-#sched-sub-requests .req-type-badge.is-unpaid{
-  background:var(--sch-surface-3, #EBEDF1);color:var(--text-muted);
-  border:1px solid var(--sch-line, rgba(15,23,42,.07));
-}
-#sched-sub-requests .req-type-badge.is-availability{
-  background:var(--sch-blue-soft, rgba(15,108,189,.08));color:var(--sch-blue-text, #0E4F86);
-}
+#sched-sub-requests .req-type-badge.is-pto{background:rgba(60,111,102,.12);color:#3C6F66}
+#sched-sub-requests .req-type-badge.is-unpaid{background:rgba(15,23,42,.05);color:var(--text-subtle)}
+#sched-sub-requests .req-type-badge.is-availability{background:rgba(74,101,128,.12);color:#4A6580}
 
-/* Right column · three equally-sized report cards. */
+/* Right rail · three reports as continuous sections of one panel. */
 #sched-sub-requests .sched-requests-reports{
-  display:flex;flex-direction:column;gap:var(--s-4);min-width:0;
+  display:flex;flex-direction:column;min-width:0;background:transparent;
 }
 #sched-sub-requests .sched-req-report{
-  flex:1 1 0;min-height:188px;
+  flex:1 1 0;min-height:0;
   display:flex;flex-direction:column;
-  background:var(--surface-elevated, #FCFDFE);
-  border:1px solid var(--sch-line, rgba(15,23,42,.07));
-  border-radius:10px;
-  box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
-  overflow:hidden;
+  background:transparent;border:0;border-radius:0;box-shadow:none;
+}
+#sched-sub-requests .sched-req-report + .sched-req-report{
+  border-top:1px solid var(--req-hairline-faint);
 }
 #sched-sub-requests .sched-req-report-head{
-  padding:11px 16px 10px;
-  border-bottom:1px solid var(--sch-line, rgba(15,23,42,.07));
+  padding:13px 18px 0;border-bottom:0;
 }
 #sched-sub-requests .sched-req-report-title{
-  display:block;font-size:13px;font-weight:600;color:var(--text);letter-spacing:.01em;
+  display:block;font-size:10px;font-weight:700;color:var(--text-subtle);
+  letter-spacing:.07em;text-transform:uppercase;
 }
 #sched-sub-requests .sched-req-report-sub{
-  display:block;font-size:11px;color:var(--text-subtle);margin-top:2px;
+  display:block;font-size:10.5px;color:var(--text-subtle);
+  margin-top:3px;letter-spacing:.01em;opacity:.85;
 }
 #sched-sub-requests .sched-req-report-body{
-  padding:12px 16px 14px;flex:1;
-  display:flex;flex-direction:column;justify-content:center;gap:7px;
+  padding:10px 18px 14px;flex:1;
+  display:flex;flex-direction:column;justify-content:center;gap:6px;
 }
-/* Bar rows · weekday / bucket label, track + fill, trailing count. */
+/* Capacity telemetry rows · weekday label, thin bar, trailing count. */
 #sched-sub-requests .req-rpt-row{
-  display:grid;grid-template-columns:42px 1fr 54px;
+  display:grid;grid-template-columns:32px 1fr 52px;
   gap:10px;align-items:center;
-  font-size:11px;color:var(--text);font-variant-numeric:tabular-nums;
+  font-size:10.5px;color:var(--text-muted);font-variant-numeric:tabular-nums;
 }
-#sched-sub-requests .req-rpt-row-lbl{font-weight:600;color:var(--text-muted)}
+#sched-sub-requests .req-rpt-row-lbl{
+  font-weight:600;color:var(--text-subtle);letter-spacing:.02em;
+}
 #sched-sub-requests .req-rpt-bar{
-  height:7px;background:var(--sch-surface-3, #EBEDF1);
-  border-radius:3px;overflow:hidden;
+  position:relative;height:5px;
+  background:var(--req-track);border-radius:2px;
 }
-#sched-sub-requests .req-rpt-bar > span{
-  display:block;height:100%;border-radius:3px;
-  background:var(--sch-blue, #0F6CBD);
+#sched-sub-requests .req-rpt-bar-fill{
+  position:absolute;left:0;top:0;bottom:0;
+  background:var(--req-telemetry);border-radius:2px;
 }
-#sched-sub-requests .req-rpt-bar > span.is-low{background:var(--sch-amber, #B45309)}
+#sched-sub-requests .req-rpt-bar-fill.is-below{background:var(--req-below)}
+#sched-sub-requests .req-rpt-threshold{
+  position:absolute;top:-2px;bottom:-2px;width:1px;
+  background:rgba(15,23,42,.30);
+}
 #sched-sub-requests .req-rpt-row-n{
-  text-align:right;font-weight:600;color:var(--text);
+  text-align:right;font-weight:600;color:var(--text-muted);
 }
-/* Sub-section within a report (e.g. availability vs actual). */
-#sched-sub-requests .req-rpt-sect + .req-rpt-sect{
-  margin-top:10px;padding-top:10px;
-  border-top:1px solid var(--sch-line-subtle, rgba(15,23,42,.04));
-}
+/* FT/PT sub-sections. */
+#sched-sub-requests .req-rpt-sect + .req-rpt-sect{margin-top:9px}
 #sched-sub-requests .req-rpt-sect-lbl{
-  font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--text-subtle);margin-bottom:6px;
+  font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-subtle);margin-bottom:5px;
 }
-/* Split bar · FT vs PT in one track. */
 #sched-sub-requests .req-rpt-split{
-  display:flex;height:9px;border-radius:3px;overflow:hidden;
-  background:var(--sch-surface-3, #EBEDF1);
+  display:flex;height:6px;border-radius:2px;overflow:hidden;
+  background:var(--req-track);
 }
 #sched-sub-requests .req-rpt-split > span{display:block;height:100%}
-#sched-sub-requests .req-rpt-split-ft{background:var(--sch-blue, #0F6CBD)}
-#sched-sub-requests .req-rpt-split-pt{background:var(--text-subtle, #94A3B8)}
+#sched-sub-requests .req-rpt-split-ft{background:var(--req-telemetry)}
+#sched-sub-requests .req-rpt-split-pt{background:rgba(15,23,42,.14)}
 #sched-sub-requests .req-rpt-split-legend{
-  display:flex;gap:14px;margin-top:6px;
-  font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;
+  display:flex;gap:14px;margin-top:5px;
+  font-size:10.5px;color:var(--text-subtle);font-variant-numeric:tabular-nums;
 }
-#sched-sub-requests .req-rpt-split-legend b{color:var(--text);font-weight:600}
+#sched-sub-requests .req-rpt-split-legend b{color:var(--text-muted);font-weight:600}
 #sched-sub-requests .req-rpt-legend-dot{
-  display:inline-block;width:7px;height:7px;border-radius:50%;
+  display:inline-block;width:6px;height:6px;border-radius:50%;
   margin-right:5px;vertical-align:middle;
 }
-/* Flexibility · headline metric + breakdown. */
-#sched-sub-requests .req-rpt-metric{
-  display:flex;align-items:baseline;gap:8px;
+#sched-sub-requests .req-rpt-legend-ft{background:var(--req-telemetry)}
+#sched-sub-requests .req-rpt-legend-pt{background:rgba(15,23,42,.20)}
+/* Operational insight · the FT/PT misalignment read-out. */
+#sched-sub-requests .req-rpt-insight{
+  margin-top:9px;padding-top:9px;
+  border-top:1px solid var(--req-hairline-faint);
+  font-size:11px;color:var(--text-muted);line-height:1.45;
+  display:flex;gap:8px;align-items:stretch;
 }
-#sched-sub-requests .req-rpt-metric-num{
-  font-size:30px;font-weight:700;line-height:1;
-  color:var(--sch-blue-text, #0E4F86);font-variant-numeric:tabular-nums;
-  letter-spacing:-.02em;
+#sched-sub-requests .req-rpt-insight::before{
+  content:"";flex:0 0 auto;width:2px;border-radius:1px;
+  background:var(--req-telemetry);opacity:.55;
 }
-#sched-sub-requests .req-rpt-metric-unit{
-  font-size:12px;font-weight:600;color:var(--text-muted);
+#sched-sub-requests .req-rpt-insight b{color:var(--text);font-weight:600}
+/* Reserve capacity · the headline elasticity number. */
+#sched-sub-requests .req-rpt-hero{
+  display:flex;align-items:baseline;gap:10px;
+}
+#sched-sub-requests .req-rpt-hero-num{
+  font-size:40px;font-weight:700;line-height:.95;
+  color:var(--sch-blue-text, #0E4F86);
+  font-variant-numeric:tabular-nums;letter-spacing:-.03em;
+}
+#sched-sub-requests .req-rpt-hero-unit{
+  font-size:11px;font-weight:600;color:var(--text-muted);
+}
+#sched-sub-requests .req-rpt-hero-lbl{
+  font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--text-subtle);margin-top:2px;
 }
 #sched-sub-requests .req-rpt-note{
-  font-size:11.5px;color:var(--text-muted);line-height:1.5;
+  font-size:10.5px;color:var(--text-subtle);line-height:1.5;
 }
-#sched-sub-requests .req-rpt-note b{color:var(--text);font-weight:600}
+#sched-sub-requests .req-rpt-note b{color:var(--text-muted);font-weight:600}
 #sched-sub-requests .req-rpt-names{
-  display:flex;flex-wrap:wrap;gap:5px;margin-top:2px;
+  display:flex;flex-wrap:wrap;gap:4px;margin-top:1px;
 }
 #sched-sub-requests .req-rpt-name{
   display:inline-flex;align-items:center;
-  font-size:11px;font-weight:500;color:var(--sch-amber-dark, #92400E);
-  background:var(--sch-amber-soft, rgba(180,83,9,.10));
-  padding:2px 8px;border-radius:var(--r-lg, 10px);
+  font-size:10px;font-weight:500;color:var(--text-muted);
+  background:rgba(15,23,42,.045);
+  padding:1px 7px;border-radius:4px;
 }
 #sched-sub-requests .req-rpt-empty{
-  font-size:11.5px;color:var(--text-subtle);font-style:italic;
+  font-size:10.5px;color:var(--text-subtle);font-style:italic;
 }
 /* ─────────────────────────────────────────────────────────────
    DVIC compare modal — lifted out of an innerHTML <style> block
@@ -28127,7 +28191,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-reqstream"></script>
+<script type="module" src="./live.js?v=20260521-reqfluent"></script>
 
 </body>
 </html>

@@ -43204,18 +43204,20 @@ async function _renderRequestsReports() {
     ? _schedStart
     : fmtIsoDate(startOfWeekMonday(new Date()));
 
-  const [drvRes, gridRes] = await Promise.allSettled([
+  const [drvRes, gridRes, okamiRes] = await Promise.allSettled([
     sb.from("drivers")
       .select("id, full_name, preferred_name, metadata")
       .eq("dsp_id", dspId)
       .in("status", ["active", "onboarding"]),
     sb.rpc("schedule_grid", { p_start: weekStart, p_weeks: 1 }),
+    sb.rpc("okami_grid", { p_start: weekStart, p_weeks: 1 }),
   ]);
   if (!document.getElementById("rr-sched-req-reports")) return;
 
   const drivers = (drvRes.status === "fulfilled" && Array.isArray(drvRes.value?.data)) ? drvRes.value.data : [];
   const grid = (gridRes.status === "fulfilled" && gridRes.value?.data) ? gridRes.value.data : { shifts: [] };
   const shifts = Array.isArray(grid.shifts) ? grid.shifts : [];
+  const okami = (okamiRes.status === "fulfilled" && Array.isArray(okamiRes.value?.data)) ? okamiRes.value.data : [];
 
   if (drivers.length === 0) {
     host.innerHTML = `<div class="sched-req-report"><div class="sched-req-report-body"><div class="req-rpt-empty">No active drivers yet.</div></div></div>`;
@@ -43241,35 +43243,57 @@ async function _renderRequestsReports() {
   const schedCountOf = (id) => (scheduledDays.get(id)?.size || 0);
 
   // ── Report 1 · Availability by day ──────────────────────────────
+  // Calm capacity telemetry: a thin supply bar with a threshold tick
+  // marking the day's staffing target (peak planned routes). A bar
+  // that falls short of its tick reads as "below target".
+  const JS_DOW = { 0:"sun", 1:"mon", 2:"tue", 3:"wed", 4:"thu", 5:"fri", 6:"sat" };
+  const demandByDow = Object.fromEntries(DOW.map(d => [d, 0]));
+  for (const cell of okami) {
+    if (!cell?.date) continue;
+    const dow = JS_DOW[new Date(cell.date + "T12:00:00").getDay()];
+    const routes = Number(cell.routes_planned ?? cell.routes ?? 0);
+    if (routes > demandByDow[dow]) demandByDow[dow] = routes;
+  }
   const supplyByDow = Object.fromEntries(DOW.map(d => [d, 0]));
   for (const d of drivers) for (const dow of availOf(d)) supplyByDow[dow] += 1;
   const total = drivers.length;
-  const minSupply = Math.min(...DOW.map(d => supplyByDow[d]));
   const r1Body = DOW.map(d => {
     const n = supplyByDow[d];
+    const need = demandByDow[d];
     const pct = total > 0 ? Math.round((n / total) * 100) : 0;
-    const low = n === minSupply ? " is-low" : "";
+    const below = need > 0 && n < need;
+    const tick = (need > 0 && total > 0)
+      ? `<div class="req-rpt-threshold" style="left:${Math.min(100, Math.round((need / total) * 100))}%"></div>`
+      : "";
     return `<div class="req-rpt-row">
       <span class="req-rpt-row-lbl">${DOW_LABEL[d]}</span>
-      <span class="req-rpt-bar"><span class="${low.trim()}" style="width:${pct}%"></span></span>
-      <span class="req-rpt-row-n">${n} · ${pct}%</span>
+      <span class="req-rpt-bar"><span class="req-rpt-bar-fill${below ? " is-below" : ""}" style="width:${pct}%"></span>${tick}</span>
+      <span class="req-rpt-row-n">${n}${need > 0 ? ` / ${need}` : ""}</span>
     </div>`;
   }).join("");
 
   // ── Report 2 · Full-time / part-time ────────────────────────────
-  // By availability: 4+ available days = FT.
+  // Exposes the misalignment between the availability model (what the
+  // workforce COULD do) and actual utilization (what it IS doing).
   let availFt = 0, availPt = 0;
   for (const d of drivers) {
     const n = availOf(d).length;
     if (n >= 4) availFt++;
     else if (n > 0) availPt++;
   }
-  // Actual: 4+ distinct scheduled days this week = FT.
   let actFt = 0, actPt = 0;
   for (const d of drivers) {
     const n = schedCountOf(d.id);
     if (n >= 4) actFt++;
     else if (n > 0) actPt++;
+  }
+  // Underutilized — full-time available but scheduled part-time this
+  // week (drivers with no shifts at all are excluded as the week may
+  // simply not be built yet).
+  let underutilized = 0;
+  for (const d of drivers) {
+    const sched = schedCountOf(d.id);
+    if (availOf(d).length >= 4 && sched >= 1 && sched < 4) underutilized++;
   }
   const splitSect = (label, ft, pt) => {
     const sum = ft + pt;
@@ -43282,39 +43306,42 @@ async function _renderRequestsReports() {
         <span class="req-rpt-split-pt" style="width:${ptPct}%"></span>
       </div>
       <div class="req-rpt-split-legend">
-        <span><span class="req-rpt-legend-dot" style="background:var(--sch-blue,#0F6CBD)"></span><b>${ft}</b> full-time</span>
-        <span><span class="req-rpt-legend-dot" style="background:var(--text-subtle,#94A3B8)"></span><b>${pt}</b> part-time</span>
+        <span><span class="req-rpt-legend-dot req-rpt-legend-ft"></span><b>${ft}</b> full-time</span>
+        <span><span class="req-rpt-legend-dot req-rpt-legend-pt"></span><b>${pt}</b> part-time</span>
       </div>
     </div>`;
   };
-  const r2Body = splitSect("By availability", availFt, availPt)
-               + splitSect("Actual · scheduled this week", actFt, actPt);
+  const insight = underutilized > 0
+    ? `<b>${underutilized}</b> driver${underutilized === 1 ? "" : "s"} available full-time but scheduled part-time — underutilized full-time capacity.`
+    : `Scheduled utilization is aligned with available full-time capacity.`;
+  const r2Body = splitSect("Availability model", availFt, availPt)
+               + splitSect("Scheduled this week", actFt, actPt)
+               + `<div class="req-rpt-insight"><span>${insight}</span></div>`;
 
-  // ── Report 3 · Flexibility ──────────────────────────────────────
-  // Unconditional +1 day per driver — the headline is simply how many
-  // extra shifts a full one-more-day push yields. Drivers already
+  // ── Report 3 · Reserve capacity ─────────────────────────────────
+  // Workforce elasticity — one extra day per driver. Drivers already
   // scheduled to the limit of their marked availability can't absorb
-  // that day without expanding availability — surface them as the
-  // DSP's call list.
+  // that day without expanding availability: the DSP's call list.
   const extraShifts = drivers.length;
   const needBump = [];
   for (const d of drivers) {
-    const avail = availOf(d).length;
-    const sched = schedCountOf(d.id);
-    // To work one more day they need an available day they aren't on.
-    if (avail <= sched) needBump.push(d.full_name || d.preferred_name || "Driver");
+    if (availOf(d).length <= schedCountOf(d.id)) {
+      needBump.push(d.full_name || d.preferred_name || "Driver");
+    }
   }
   const withinReach = drivers.length - needBump.length;
   const namesHtml = needBump.length
     ? `<div class="req-rpt-names">${needBump.map(n => `<span class="req-rpt-name">${escapeHtml(n)}</span>`).join("")}</div>`
-    : `<div class="req-rpt-empty">Everyone has room to pick up a day.</div>`;
+    : `<div class="req-rpt-empty">All drivers have room to pick up a day.</div>`;
   const r3Body = `
-    <div class="req-rpt-metric">
-      <span class="req-rpt-metric-num">+${extraShifts}</span>
-      <span class="req-rpt-metric-unit">shift${extraShifts === 1 ? "" : "s"} / week</span>
+    <div class="req-rpt-hero">
+      <div class="req-rpt-hero-num">+${extraShifts}</div>
+      <div>
+        <div class="req-rpt-hero-unit">shifts / week</div>
+        <div class="req-rpt-hero-lbl">reserve capacity</div>
+      </div>
     </div>
-    <div class="req-rpt-note">If every driver worked one day above their typical schedule, <b>${extraShifts}</b> more shift${extraShifts === 1 ? "" : "s"} could be covered each week.</div>
-    <div class="req-rpt-note"><b>${withinReach}</b> can pick up within their current availability · <b>${needBump.length}</b> would need an availability increase.</div>
+    <div class="req-rpt-note"><b>${withinReach}</b> within current availability · <b>${needBump.length}</b> need an availability increase</div>
     ${namesHtml}`;
 
   const report = (title, sub, body) => `
@@ -43327,9 +43354,9 @@ async function _renderRequestsReports() {
     </section>`;
 
   host.innerHTML =
-      report("Availability by day", `Active drivers available each day · ${total} total`, r1Body)
-    + report("Full-time / part-time", "4+ days = full-time", r2Body)
-    + report("Flexibility", "If every driver worked one extra day", r3Body);
+      report("Availability by day", "Drivers available vs staffing target", r1Body)
+    + report("Full-time / part-time", "Availability model vs actual utilization", r2Body)
+    + report("Reserve capacity", "Workforce elasticity · one extra day each", r3Body);
 }
 window._rrRenderRequestsReports = _renderRequestsReports;
 
