@@ -27989,13 +27989,13 @@ async function renderScheduleWeek() {
   }
   let totalNeeded = 0, totalFilled = 0;
   for (const a of coverageByDate.values()) { totalNeeded += a.needed; totalFilled += a.filled; }
-  // Coverage % is measured against the shifts that actually exist on the
-  // board: when every shift is staffed it reads 100%. totalNeeded already
-  // includes plan-only days that have no shift rows yet, so a fully
-  // unstaffed planned day still drags coverage down. A route the plan
-  // wants but has no shift created for it is a demand/shift-generation
-  // gap — it surfaces in the Open Shifts panel, not here.
-  const coverageDenom = totalNeeded;
+  // Coverage % is measured against the ROUTE PLAN (OKAMI demand target
+  // routes). The plan is a stable denominator — adding or removing a
+  // shift never changes it, only `filled` moves. Falls back to the
+  // shift-row count for weeks with no plan on file.
+  let totalBaseTarget = 0;
+  for (const n of plannedByDate.values()) totalBaseTarget += n;
+  const coverageDenom = totalBaseTarget > 0 ? totalBaseTarget : totalNeeded;
   const pct = coverageDenom ? Math.round(totalFilled / coverageDenom * 100) : 0;
 
   // Virtual open shifts: for each (date, station), needed − filled minus
@@ -28397,9 +28397,10 @@ async function renderScheduleWeek() {
       ? "Every branded non-grounded van stays under the 14-day rotation rule this week"
       : `Click for details · ${femRisks.length} branded van${femRisks.length === 1 ? "" : "s"} projected to cross 13+ days unused`;
     kpis.innerHTML =
-      pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts filled`, false,
-        pct < 100   ? `${coverageDenom - totalFilled} of ${coverageDenom} shift${coverageDenom === 1 ? "" : "s"} still unstaffed`
-        : "Every shift staffed") +
+      pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} route plan`, false,
+        pct < 100   ? `${coverageDenom - totalFilled} of ${coverageDenom} planned route${coverageDenom === 1 ? "" : "s"} unstaffed`
+        : pct === 100 ? "Staffed to the route plan"
+        : `Staffed to the route plan + a ${pct - 100}% buffer`) +
       pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
       pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
       pill("rotation",   rotationDotRed ? msRed : navy, rotationLabel, rotationSub, femRisks.length > 0, rotationTitle);
@@ -30992,27 +30993,62 @@ document.addEventListener("dragend", () => {
   if (_dragShift?.sourceEl) _dragShift.sourceEl.style.opacity = "";
   document.querySelectorAll('[data-rr-cell="driver-day"].rr-drag-over')
     .forEach((c) => c.classList.remove("rr-drag-over"));
+  document.querySelectorAll("aside.driver-pool.rr-pool-drop-active")
+    .forEach((p) => p.classList.remove("rr-pool-drop-active"));
   _dragShift = null;
 });
 
 document.addEventListener("dragover", (e) => {
   if (!_dragShift) return;
   const cell = e.target && e.target.closest && e.target.closest('[data-rr-cell="driver-day"]');
-  if (!cell) return;
+  // The open-shifts pool is a drop target too — dropping an assigned
+  // shift there unassigns it.
+  const pool = e.target && e.target.closest && e.target.closest("aside.driver-pool");
+  if (!cell && !pool) return;
   e.preventDefault();
   if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-  cell.classList.add("rr-drag-over");
+  if (cell) cell.classList.add("rr-drag-over");
+  if (pool && !cell && _dragShift.fromDriver) pool.classList.add("rr-pool-drop-active");
 });
 
 document.addEventListener("dragleave", (e) => {
   const cell = e.target && e.target.closest && e.target.closest('[data-rr-cell="driver-day"]');
   if (cell) cell.classList.remove("rr-drag-over");
+  const pool = e.target && e.target.closest && e.target.closest("aside.driver-pool");
+  if (pool) pool.classList.remove("rr-pool-drop-active");
 });
 
 document.addEventListener("drop", async (e) => {
   if (!_dragShift) return;
   const cell = e.target && e.target.closest && e.target.closest('[data-rr-cell="driver-day"]');
-  if (!cell) { _dragShift = null; return; }
+
+  // Drop on the open-shifts pool → unassign the shift (only meaningful
+  // for a shift dragged off a driver; an already-open shift no-ops).
+  if (!cell) {
+    const pool = e.target && e.target.closest && e.target.closest("aside.driver-pool");
+    if (pool && _dragShift.fromDriver) {
+      e.preventDefault();
+      pool.classList.remove("rr-pool-drop-active");
+      const { shiftId, sourceEl } = _dragShift;
+      _dragShift = null;
+      if (sourceEl) sourceEl.style.opacity = "";
+      if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) return;
+      _markLocalShiftMutation();
+      const { error } = await sb.from("shifts")
+        .update({ driver_id: null, updated_at: new Date().toISOString() })
+        .eq("id", shiftId);
+      if (error) {
+        toast("Couldn't unassign: " + (error.message || "unknown"), "warn");
+      } else {
+        toast("Shift moved to open shifts", "success");
+      }
+      if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+      if (typeof loadCoverageRadar === "function") loadCoverageRadar();
+      return;
+    }
+    _dragShift = null;
+    return;
+  }
   e.preventDefault();
   cell.classList.remove("rr-drag-over");
 
