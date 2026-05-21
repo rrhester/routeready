@@ -8,7 +8,7 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-fillorder";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-rotbatch";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -22834,6 +22834,12 @@ async function loadSchedulingSettings() {
   if (foEl) {
     const sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
     foEl.value = sf.spread_evenly === false ? "sequential" : "rotational";
+    const rbEl = document.getElementById("rr-set-rotation-batch");
+    if (rbEl) {
+      const rb = Math.max(1, Math.min(4, parseInt(sf.rotation_batch, 10) || 1));
+      rbEl.value = String(rb);
+    }
+    if (typeof _syncFillOrderUI === "function") _syncFillOrderUI();
   }
   // Cache the effective settings so auto-assign reads the per-week values.
   window._rrEffectiveSettings = s;
@@ -23386,6 +23392,13 @@ function _restoreSmartFillRules() {
   if (tbSel && typeof saved.tiebreaker === "string") tbSel.value = saved.tiebreaker;
   _refreshSfAdvancedGating();
 }
+// Fill-order UI sync — the rotational batch-size control only applies
+// in rotational mode, so it's hidden when Fill order is Sequential.
+function _syncFillOrderUI() {
+  const fo  = document.getElementById("rr-set-fill-order");
+  const row = document.getElementById("rr-sf-rotation-batch-row");
+  if (row) row.hidden = !!(fo && fo.value === "sequential");
+}
 // Toggle the visual gating on .sched-smartfill-rule-advanced rows
 // so an advanced sub-input only reads as enabled when its parent
 // checkbox is checked.
@@ -23687,17 +23700,22 @@ document.addEventListener("change", (e) => {
   // Refresh advanced sub-rows + boundary-mode dimming when a rule toggles.
   _refreshSfAdvancedGating();
 });
-// Fill order (Targets → Advanced settings) — rotational vs sequential.
-// Stored in the Smart Fill rules store as spread_evenly so the engine
-// adapter picks it up via autoAssignDriversForWeek with no extra plumbing.
+// Smart Fill advanced settings — Fill order + rotational batch size.
+// Stored in the Smart Fill rules store so the engine adapter picks them
+// up via autoAssignDriversForWeek with no extra plumbing.
 document.addEventListener("change", (e) => {
   const sel = e.target;
-  if (!sel || sel.id !== "rr-set-fill-order") return;
+  if (!sel || (sel.id !== "rr-set-fill-order" && sel.id !== "rr-set-rotation-batch")) return;
   let saved;
   try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
   catch (_) { saved = {}; }
-  saved.spread_evenly = sel.value !== "sequential";
+  if (sel.id === "rr-set-fill-order") {
+    saved.spread_evenly = sel.value !== "sequential";
+  } else {
+    saved.rotation_batch = Math.max(1, Math.min(4, parseInt(sel.value, 10) || 1));
+  }
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+  _syncFillOrderUI();
 });
 // Persist the Smart Fill tiebreaker dropdown (nested under
 // consecutive_days rule).

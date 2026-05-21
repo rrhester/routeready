@@ -472,3 +472,45 @@ test("R007 — max_days of 0 schedules nobody", () => {
   assert.equal(r.summary_metrics.filled_shifts, 0);
   assert.ok(uncoveredRule(r, "s1").includes("R007"));
 });
+
+// --- Rotational batch size -------------------------------------------------
+
+test("rotation_batch_size controls shifts per driver before rotating", () => {
+  // Four shifts on four consecutive dates, two equally-eligible drivers.
+  const mk = (batch: number) =>
+    runEngine(
+      input({
+        shifts: [
+          shift({ shift_id: "s1", date: "2026-05-24" }),
+          shift({ shift_id: "s2", date: "2026-05-25" }),
+          shift({ shift_id: "s3", date: "2026-05-26" }),
+          shift({ shift_id: "s4", date: "2026-05-27" }),
+        ],
+        drivers: [driver({ driver_id: "d1" }), driver({ driver_id: "d2" })],
+        settings: {
+          assignment_mode: "rotational_fill",
+          rotation_batch_size: batch,
+          max_days_enforcement: false,
+          weekly_hour_cap_enforcement: false,
+          woc_enforcement: false,
+          // Soft scoring off so the optimizer doesn't reshuffle — keeps
+          // the test focused on the rotation batch behavior.
+          consecutive_working_days: false,
+          historical_pattern_protection: "off",
+          attendance_scheduling: false,
+          preferred_availability_priority: false,
+        },
+      }),
+    );
+  const datesOf = (r: ReturnType<typeof runEngine>, id: string) =>
+    r.driver_totals.find((t) => t.driver_id === id)?.assigned_dates ?? [];
+
+  // Batch 1 — strict alternation: d1 gets dates 1 & 3.
+  const b1 = mk(1);
+  assert.deepEqual(datesOf(b1, "d1"), ["2026-05-24", "2026-05-26"]);
+
+  // Batch 2 — d1 claims the first two before d2's turn.
+  const b2 = mk(2);
+  assert.deepEqual(datesOf(b2, "d1"), ["2026-05-24", "2026-05-25"]);
+  assert.deepEqual(datesOf(b2, "d2"), ["2026-05-26", "2026-05-27"]);
+});

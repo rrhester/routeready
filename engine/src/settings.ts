@@ -36,6 +36,7 @@ const KNOWN_KEYS = new Set<keyof RawSettings>([
   "performance_scheduling",
   "scheduling_method",
   "assignment_mode",
+  "rotation_batch_size",
   "preferred_availability_priority",
   "preferred_availability_required",
   "consecutive_working_days",
@@ -205,6 +206,7 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
       ["sequential_fill", "rotational_fill"] as const,
       "rotational_fill",
     ),
+    rotation_batch_size: num(r.rotation_batch_size, "rotation_batch_size", 1, 1, 4),
     preferred_availability_priority: bool(
       r.preferred_availability_priority,
       "preferred_availability_priority",
