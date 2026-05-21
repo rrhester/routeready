@@ -23459,8 +23459,13 @@ function _syncManualMode() {
   if (body) body.classList.toggle("is-manual", manual);
   const btn = document.getElementById("rr-sched-smartfill-h");
   if (btn) {
-    btn.disabled = manual;
+    btn.disabled = false;
     btn.classList.toggle("sf-bolt-lit", !manual);
+    const label = btn.querySelector(".sf-btn-label");
+    if (label) label.textContent = manual ? "Fill Shifts" : "Smart Fill";
+    btn.title = manual
+      ? "Fill this week from last week's schedule"
+      : "Auto-staff this week from your rules + OKAMI demand";
   }
 }
 window._rrSyncManualMode = _syncManualMode;
@@ -24774,7 +24779,18 @@ document.addEventListener("click", (e) => {
   // operator saw every time they clicked the chevron.
   if (e.target.closest("#rr-sched-smartfill-h") && !e.target.closest("#rr-sched-smartfill-rules-toggle")) {
     e.preventDefault();
-    if (typeof openAiSchedule === "function") openAiSchedule();
+    // Manual scheduling: the button is "Fill Shifts" — carry forward
+    // last week's schedule rather than running the auto-fill engine.
+    let manual = false;
+    try {
+      const sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+      manual = !!(sf && sf.manual_mode === true);
+    } catch (_) { /* ignore */ }
+    if (manual) {
+      if (typeof fillShiftsFromPreviousWeek === "function") fillShiftsFromPreviousWeek();
+    } else if (typeof openAiSchedule === "function") {
+      openAiSchedule();
+    }
     return;
   }
   // Chevron split-toggle on the Assign Vans tile → open the
@@ -26757,6 +26773,157 @@ window.openAiSchedule = async function () {
     }
   }
 };
+
+// Manual mode "Fill Shifts" — carry last week's schedule forward onto
+// this week's open shifts: each driver works the same weekdays they
+// worked last week. Honors the driver-license rule (if enabled) and
+// PTO. New drivers (no last-week pattern) and drivers who left the
+// roster are skipped; any shift that can't be matched stays open.
+async function fillShiftsFromPreviousWeek() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { toast("DSP not loaded", "warn"); return; }
+  if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) return;
+
+  const btn = document.getElementById("rr-sched-smartfill-h");
+  if (btn && typeof _markTileBusy === "function") _markTileBusy(btn);
+  try {
+    const weekStart  = new Date(_schedStart + "T12:00:00");
+    const weekEndIso = fmtIsoDate(addDays(weekStart, 6));
+    const prevStart  = fmtIsoDate(addDays(weekStart, -7));
+    const prevEnd    = fmtIsoDate(addDays(weekStart, -1));
+
+    // Driver-license rule state from the Smart Fill rules store.
+    let dlOn = true, dlWindow = 0;
+    try {
+      const sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+      dlOn = sf.dl_valid !== false;
+      dlWindow = Math.max(0, Math.min(365, parseInt(sf.dl_protection_days, 10) || 0));
+    } catch (_) { /* defaults */ }
+
+    const [thisWk, lastWk, driversRes, ptoRes] = await Promise.all([
+      sb.from("shifts").select("id, date, driver_id, status, starts_at, shift_kind")
+        .eq("dsp_id", dspId).gte("date", _schedStart).lte("date", weekEndIso),
+      sb.from("shifts").select("id, date, driver_id, starts_at, shift_kind")
+        .eq("dsp_id", dspId).gte("date", prevStart).lte("date", prevEnd)
+        .not("driver_id", "is", null),
+      sb.from("drivers").select("id, status, dl_expires_on").eq("dsp_id", dspId),
+      sb.from("time_off_requests").select("driver_id, start_date, end_date")
+        .eq("dsp_id", dspId).eq("status", "approved")
+        .lte("start_date", weekEndIso).gte("end_date", _schedStart),
+    ]);
+    if (thisWk.error || lastWk.error) {
+      toast("Fill Shifts failed: " + ((thisWk.error || lastWk.error).message || "load error"), "warn");
+      return;
+    }
+
+    // Current roster — only active / onboarding drivers can be scheduled.
+    const roster = new Set((driversRes.data || [])
+      .filter(d => d.status === "active" || d.status === "onboarding")
+      .map(d => d.id));
+    const dlByDriver = new Map((driversRes.data || []).map(d => [d.id, d.dl_expires_on]));
+
+    // PTO dates per driver.
+    const ptoByDriver = new Map();
+    for (const t of (ptoRes.data || [])) {
+      let cur = new Date(t.start_date + "T12:00:00");
+      const end = new Date(t.end_date + "T12:00:00");
+      while (cur <= end) {
+        const iso = fmtIsoDate(cur);
+        if (!ptoByDriver.has(t.driver_id)) ptoByDriver.set(t.driver_id, new Set());
+        ptoByDriver.get(t.driver_id).add(iso);
+        cur = addDays(cur, 1);
+      }
+    }
+
+    const dowOf = (iso) => new Date(iso + "T12:00:00").getDay();
+    const startMin = (sh) => {
+      if (!sh.starts_at) return 0;
+      const d = new Date(sh.starts_at);
+      return isNaN(d.getTime()) ? 0 : d.getHours() * 60 + d.getMinutes();
+    };
+
+    // Last week's pattern: driver → Map(dow → start-minute). Regular
+    // shifts only; departed drivers (not on the current roster) dropped.
+    const lastPattern = new Map();
+    for (const sh of (lastWk.data || [])) {
+      if ((sh.shift_kind || "regular") !== "regular") continue;
+      if (!sh.driver_id || !roster.has(sh.driver_id)) continue;
+      const dow = dowOf(sh.date);
+      if (!lastPattern.has(sh.driver_id)) lastPattern.set(sh.driver_id, new Map());
+      const m = lastPattern.get(sh.driver_id);
+      if (!m.has(dow)) m.set(dow, startMin(sh));
+    }
+
+    // This week's regular shifts grouped by weekday.
+    const thisRegular = (thisWk.data || []).filter(sh => (sh.shift_kind || "regular") === "regular");
+    // Rebuild exactly — clear this week's current assignments first.
+    const assignedNow = thisRegular.filter(sh => sh.driver_id);
+    if (assignedNow.length > 0) {
+      _markLocalShiftMutation();
+      await sb.from("shifts").update({ driver_id: null }).in("id", assignedNow.map(s => s.id));
+    }
+    const openByDow = new Map();
+    for (const sh of thisRegular) {
+      const dow = dowOf(sh.date);
+      if (!openByDow.has(dow)) openByDow.set(dow, []);
+      openByDow.get(dow).push(sh);
+    }
+
+    // Driver-license block — expired, or inside the protection window.
+    const dlBlocks = (driverId, dateIso) => {
+      if (!dlOn) return false;
+      const exp = dlByDriver.get(driverId);
+      if (!exp) return false; // no DL on file → not blocked (matches the engine)
+      const daysTo = Math.round(
+        (new Date(exp + "T12:00:00") - new Date(dateIso + "T12:00:00")) / 86400000);
+      if (daysTo < 0) return true;
+      return dlWindow > 0 && daysTo <= dlWindow;
+    };
+
+    const taken = new Set();
+    const driverDate = new Set();
+    const assignments = [];
+    for (const driverId of [...lastPattern.keys()].sort()) {
+      for (const [dow, lastStart] of lastPattern.get(driverId).entries()) {
+        const candidates = (openByDow.get(dow) || []).filter(sh => !taken.has(sh.id));
+        if (candidates.length === 0) continue;
+        candidates.sort((a, b) =>
+          Math.abs(startMin(a) - lastStart) - Math.abs(startMin(b) - lastStart)
+          || startMin(a) - startMin(b)
+          || (a.id < b.id ? -1 : 1));
+        const shift = candidates[0];
+        if (driverDate.has(driverId + ":" + shift.date)) continue;
+        if ((ptoByDriver.get(driverId) || new Set()).has(shift.date)) continue;
+        if (dlBlocks(driverId, shift.date)) continue;
+        taken.add(shift.id);
+        driverDate.add(driverId + ":" + shift.date);
+        assignments.push({ shiftId: shift.id, driverId });
+      }
+    }
+
+    let assigned = 0;
+    for (const a of assignments) {
+      _markLocalShiftMutation();
+      const { error } = await sb.rpc("assign_shift", { p_id: a.shiftId, p_driver_id: a.driverId });
+      if (!error) assigned += 1;
+      else console.warn("Fill Shifts assign_shift failed:", a.shiftId, error);
+    }
+    const open = thisRegular.length - assigned;
+    toast(
+      `Filled ${assigned} shift${assigned === 1 ? "" : "s"} from last week` +
+      (open > 0 ? ` · ${open} left open for manual scheduling` : ""),
+      "success",
+    );
+    if (typeof renderScheduleWeek === "function") await renderScheduleWeek();
+  } catch (e) {
+    console.warn("fillShiftsFromPreviousWeek:", e);
+    toast("Fill Shifts failed: " + ((e && e.message) || "error"), "warn");
+  } finally {
+    if (btn && typeof _clearTileBusy === "function") _clearTileBusy(btn);
+  }
+}
+window.fillShiftsFromPreviousWeek = fillShiftsFromPreviousWeek;
 
 async function autoFillScheduleWeek() {
   const dspId = window.RR?.dsp?.id;

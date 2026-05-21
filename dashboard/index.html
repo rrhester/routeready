@@ -11930,7 +11930,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="sched-smartfill-split">
               <button class="sched-page-btn" id="rr-sched-smartfill-h" data-rr-tile="smartfill" draggable="true" type="button" title="Auto-staff this week from your rules + OKAMI demand">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                Smart Fill
+                <span class="sf-btn-label">Smart Fill</span>
               </button>
               <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-smartfill-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-smartfill-rules-popover" title="Smart Fill rules — toggle parts of the auto-staff logic on/off">
                 Rules
@@ -11975,8 +11975,8 @@ body.rr-cmdk-open{ overflow:hidden }
                   <!-- Driver's-license rule · skips a driver whose license
                        is expired (or expiring within the DSP's protection
                        window). The rest of the team fills normally. -->
-                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name"><strong>Driver's license must be valid</strong> · skip drivers with an expired license</span></label>
-                  <div class="sched-smartfill-rule-advanced is-on" data-rr-sf-advanced-of="dl_valid">
+                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline sched-smartfill-rule--manual-keep"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name"><strong>Driver's license must be valid</strong> · skip drivers with an expired license</span></label>
+                  <div class="sched-smartfill-rule-advanced sched-smartfill-rule-advanced--manual-keep is-on" data-rr-sf-advanced-of="dl_valid">
                     <span class="sf-advanced-label">Stop scheduling</span>
                     <input class="form-input sf-advanced-select" id="rr-set-dl-protection-days" type="number" min="0" max="365" step="1" value="0" autocomplete="off" aria-label="Days before license expiration to stop scheduling" style="max-width:64px"/>
                     <span class="sf-advanced-label">days before expiration</span>
@@ -13957,9 +13957,9 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-bottom:4px;padding-bottom:9px;
           }
           #view-schedule .sched-smartfill-rules-body.is-manual
-            .sched-smartfill-rule:not(.sched-smartfill-rule--manual),
+            .sched-smartfill-rule:not(.sched-smartfill-rule--manual):not(.sched-smartfill-rule--manual-keep),
           #view-schedule .sched-smartfill-rules-body.is-manual
-            .sched-smartfill-rule-advanced{
+            .sched-smartfill-rule-advanced:not(.sched-smartfill-rule-advanced--manual-keep){
             display:none;
           }
           #view-schedule .sched-smartfill-rules-body.is-manual
@@ -27878,7 +27878,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-manualfix"></script>
+<script type="module" src="./live.js?v=20260521-fillshifts"></script>
 
 </body>
 </html>
