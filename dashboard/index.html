@@ -11951,7 +11951,6 @@ body.rr-cmdk-open{ overflow:hidden }
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_days" checked> <span class="sf-rule-name">Boost drivers toward their preferred days</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="pto_block" checked> <span class="sf-rule-name">Approved PTO blocks auto-fill</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="min_rest" checked> <span class="sf-rule-name">Minimum 10h rest between a driver's shifts</span></label>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="same_day" checked> <span class="sf-rule-name">Block assigning a driver two shifts on the same day</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="service_types" checked> <span class="sf-rule-name">Only auto-fill active service types</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="max_hours" checked> <span class="sf-rule-name">Cap each driver at the weekly hour limit (40h)</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="pto_count_in_cap"> <span class="sf-rule-name">Count PTO hours toward the 40-hour cap (8h per PTO day)</span></label>
@@ -27758,7 +27757,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-fill"></script>
+<script type="module" src="./live.js?v=20260521-sameday"></script>
 
 </body>
 </html>
