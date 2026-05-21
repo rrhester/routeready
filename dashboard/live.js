@@ -26836,6 +26836,11 @@ async function autoAssignDriversForWeek() {
       if (["seniority","fairness"].includes(ws.preference_tiebreaker)) tiebreaker = ws.preference_tiebreaker;
     }
   } catch (_) { /* fall back to defaults */ }
+  // _rrMaxDaysOverride lets the Coverage drill-down preview a higher cap
+  // for one run without persisting it to the week's settings.
+  if (typeof window._rrMaxDaysOverride === "number") {
+    maxDays = Math.max(0, Math.min(7, Math.round(window._rrMaxDaysOverride)));
+  }
 
   // Smart Fill operator-toggleable rules (from the rules popover). The
   // full rule set is mapped onto engine settings by the dashboard
@@ -28451,9 +28456,8 @@ async function renderScheduleWeek() {
       ? "Every branded non-grounded van stays under the 14-day rotation rule this week"
       : `Click for details · ${femRisks.length} branded van${femRisks.length === 1 ? "" : "s"} projected to cross 13+ days unused`;
     kpis.innerHTML =
-      pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, false,
-        pct < 100   ? `${coverageDenom - totalFilled} of ${coverageDenom} shift${coverageDenom === 1 ? "" : "s"} unstaffed`
-        : "Every shift on the board is staffed") +
+      pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, true,
+        "Click to see settings that would raise coverage") +
       pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
       pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
       (() => {
@@ -29383,6 +29387,196 @@ function bindSchedWeekNav() {
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       const modal = document.getElementById("rr-pref-kpi-modal");
+      if (modal && !modal.dataset.rrBusy) modal.remove();
+    });
+  }
+
+  // ── KPI: clicking the Coverage pill opens a modal that dry-runs the
+  // engine with candidate settings, shows the projected coverage and
+  // trade-off for each, estimates how many more drivers would fully
+  // staff the week, and can re-run the schedule with a chosen change.
+  if (!window._rrCoverageKpiHandlerInstalled) {
+    window._rrCoverageKpiHandlerInstalled = true;
+
+    if (!document.getElementById("rr-cov-kpi-styles")) {
+      const st = document.createElement("style");
+      st.id = "rr-cov-kpi-styles";
+      st.textContent = `
+        .rr-cov-needed{border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);padding:13px 15px;margin-bottom:13px}
+        .rr-cov-needed-big{font-size:var(--fs-lg);font-weight:700;color:var(--text)}
+        .rr-cov-needed-sub{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5;margin-top:4px}
+        .rr-cov-rec{border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;margin-bottom:10px}
+        .rr-cov-rec:last-child{margin-bottom:0}
+        .rr-cov-rec-title{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+        .rr-cov-rec-metric{margin:6px 0 8px;display:flex;align-items:baseline;font-size:var(--fs-md);font-weight:700;color:var(--text)}
+        .rr-cov-metric-label{flex:0 0 76px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)}
+        .rr-cov-rec-metric strong{color:#0078d4}
+        .rr-cov-arrow{color:var(--text-subtle);font-weight:400;margin:0 6px}
+        .rr-cov-rec-trade{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.45;margin-bottom:10px}
+        .rr-cov-trade-label{font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;font-size:10px;margin-right:5px}
+        .rr-cov-empty{font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;margin:0}
+        .rr-cov-regen{padding:22px 4px;text-align:center}
+        .rr-cov-regen-bar{height:6px;border-radius:3px;background:var(--canvas);overflow:hidden;margin-bottom:13px}
+        .rr-cov-regen-bar span{display:block;height:100%;width:40%;border-radius:3px;background:#0078d4;animation:rrCovRegen 1.1s ease-in-out infinite}
+        @keyframes rrCovRegen{0%{margin-left:-40%}100%{margin-left:100%}}
+        .rr-cov-regen-label{font-size:var(--fs-sm);color:var(--text-muted)}`;
+      document.head.appendChild(st);
+    }
+
+    const _covOf = (res) => {
+      const sm = res && res.summary_metrics;
+      return sm && sm.total_shifts
+        ? Math.round((sm.filled_shifts / sm.total_shifts) * 100)
+        : null;
+    };
+    const _uncoveredOf = (res) => {
+      const sm = res && res.summary_metrics;
+      if (!sm) return null;
+      return Math.max(0, (sm.total_shifts || 0) - (sm.filled_shifts || 0) - (sm.closed_shifts || 0));
+    };
+
+    const _covCandidates = (payload) => {
+      const r = payload.rules || {};
+      const c = [];
+      if (r.preferred_only) {
+        c.push({
+          ruleDelta: { preferred_only: false, availability_only: true },
+          title: "Switch to Auto Fill Availability",
+          tradeoff: "Drivers can be placed on any day they're available, not only their preferred days.",
+        });
+      }
+      const curMax = Math.max(0, Math.min(7, Math.round(payload.max_days ?? 6)));
+      if (curMax < 7) {
+        c.push({
+          maxDays: 7,
+          title: `Raise max allowable days per week to 7 (from ${curMax})`,
+          tradeoff: "Drivers may work up to 7 days — watch fatigue and overtime.",
+        });
+      }
+      if ((r.dl_protection_days ?? 0) > 0) {
+        c.push({
+          ruleDelta: { dl_protection_days: 0 },
+          title: "Remove the license protection window",
+          tradeoff: "Drivers are scheduled right up to their license expiration date.",
+        });
+      }
+      return c;
+    };
+
+    const _openCovModal = () => {
+      document.getElementById("rr-cov-kpi-modal")?.remove();
+      const payload = window._rrLastSmartFillPayload;
+      let bodyHtml, curLabel;
+      if (!payload) {
+        bodyHtml = `<p class="rr-cov-empty">Run Smart Fill once and RouteReady can preview how each setting would change coverage.</p>`;
+        curLabel = "How coverage could improve";
+      } else {
+        let baseCov = null, baseUncov = null;
+        try {
+          const baseRes = planScheduleWeek({ ...payload, rules: { ...payload.rules } });
+          baseCov = _covOf(baseRes);
+          baseUncov = _uncoveredOf(baseRes);
+        } catch (err) { console.warn("coverage baseline dry-run:", err); }
+        const curMax = Math.max(1, Math.min(7, Math.round(payload.max_days ?? 6)));
+        let neededHtml = "";
+        if (baseUncov != null) {
+          if (baseUncov === 0) {
+            neededHtml = `<div class="rr-cov-needed"><div class="rr-cov-needed-big">Fully staffed</div>` +
+              `<div class="rr-cov-needed-sub">Every shift on the board is covered at your current settings — no additional drivers needed.</div></div>`;
+          } else {
+            const need = Math.ceil(baseUncov / curMax);
+            neededHtml = `<div class="rr-cov-needed"><div class="rr-cov-needed-big">~${need} more driver${need === 1 ? "" : "s"} needed</div>` +
+              `<div class="rr-cov-needed-sub">At your current settings, ${baseUncov} shift${baseUncov === 1 ? "" : "s"} can't be staffed. An estimated ${need} more full-availability driver${need === 1 ? "" : "s"} — each able to work up to ${curMax} day${curMax === 1 ? "" : "s"} a week — would close the gap.</div></div>`;
+          }
+        }
+        const recs = [];
+        for (const cand of _covCandidates(payload)) {
+          let res = null;
+          try {
+            res = planScheduleWeek({
+              ...payload,
+              max_days: cand.maxDays != null ? cand.maxDays : payload.max_days,
+              rules: { ...payload.rules, ...(cand.ruleDelta || {}) },
+            });
+          } catch (err) { console.warn("coverage dry-run:", err); }
+          const proj = _covOf(res);
+          if (proj == null || baseCov == null || proj <= baseCov) continue;
+          recs.push({ ...cand, proj });
+        }
+        curLabel = baseCov == null
+          ? "How coverage could improve"
+          : `Currently <strong>${baseCov}%</strong> of shifts staffed`;
+        const recsHtml = recs.length === 0
+          ? `<p class="rr-cov-empty">No setting change would raise coverage further — the remaining gap is a staffing shortfall, not a settings limit.</p>`
+          : recs.map((r) => `
+            <div class="rr-cov-rec">
+              <div class="rr-cov-rec-title">${escapeHtml(r.title)}</div>
+              <div class="rr-cov-rec-metric"><span class="rr-cov-metric-label">Coverage</span>` +
+                `<span>${baseCov}%<span class="rr-cov-arrow">→</span><strong>${r.proj}%</strong></span></div>
+              <div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Trade-off</span>${escapeHtml(r.tradeoff)}</div>
+              <button type="button" class="btn btn-primary btn-sm" data-rr-cov-accept='${escapeHtml(JSON.stringify({ ruleDelta: r.ruleDelta || {}, maxDays: r.maxDays != null ? r.maxDays : null }))}'>Accept &amp; re-run</button>
+            </div>`).join("");
+        bodyHtml = neededHtml + recsHtml;
+      }
+      const m = document.createElement("div");
+      m.id = "rr-cov-kpi-modal";
+      m.className = "modal-backdrop open";
+      m.innerHTML = `
+        <div id="rr-cov-kpi-card" class="modal-card" style="max-width:480px">
+          <div class="modal-head">
+            <div>
+              <p class="modal-title">Improve Coverage</p>
+              <p class="modal-sub">${curLabel}</p>
+            </div>
+            <button type="button" id="rr-cov-kpi-close" class="modal-close" aria-label="Close">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="modal-body" id="rr-cov-kpi-body">${bodyHtml}</div>
+        </div>`;
+      document.body.appendChild(m);
+    };
+
+    document.addEventListener("click", async (e) => {
+      const modal = document.getElementById("rr-cov-kpi-modal");
+      if (modal) {
+        if (e.target === modal || e.target.closest("#rr-cov-kpi-close")) {
+          if (!modal.dataset.rrBusy) modal.remove();
+          return;
+        }
+        const accept = e.target.closest("[data-rr-cov-accept]");
+        if (accept) {
+          if (modal.dataset.rrBusy) return;
+          modal.dataset.rrBusy = "1";
+          let pd = { ruleDelta: {}, maxDays: null };
+          try { pd = JSON.parse(accept.getAttribute("data-rr-cov-accept")); } catch {}
+          const body = document.getElementById("rr-cov-kpi-body");
+          if (body) body.innerHTML = `
+            <div class="rr-cov-regen">
+              <div class="rr-cov-regen-bar"><span></span></div>
+              <div class="rr-cov-regen-label">Regenerating the schedule with the new settings…</div>
+            </div>`;
+          // Run with the previewed settings only — saved settings untouched.
+          const baseRules = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+          window._rrSfRulesOverride = { ...baseRules, ...(pd.ruleDelta || {}) };
+          if (typeof pd.maxDays === "number") window._rrMaxDaysOverride = pd.maxDays;
+          try { await autoFillScheduleWeek(); }
+          catch (err) { console.warn("coverage re-run:", err); }
+          finally { delete window._rrSfRulesOverride; delete window._rrMaxDaysOverride; }
+          document.getElementById("rr-cov-kpi-modal")?.remove();
+          toast("Schedule re-run with the previewed settings · saved settings unchanged", "success");
+          return;
+        }
+        return;
+      }
+      const pillEl = e.target.closest('[data-rr-kpi="coverage"]');
+      if (!pillEl) return;
+      e.preventDefault();
+      _openCovModal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const modal = document.getElementById("rr-cov-kpi-modal");
       if (modal && !modal.dataset.rrBusy) modal.remove();
     });
   }
