@@ -62,6 +62,10 @@ export interface DashboardRules {
   woc?: boolean;
   /** When true, Final-corrective-action drivers are scheduled last. */
   attendance_penalty?: boolean;
+  /** Driver fill priority: "seniority" (default) or "random". */
+  fill_priority?: string;
+  /** Weekday (0=Sun..6=Sat) the shift-fill rotation starts on. */
+  rotation_start_day?: number;
   consecutive_days?: boolean;
   /** true (default) = rotational fill (even spread); false = sequential. */
   spread_evenly?: boolean;
@@ -208,6 +212,8 @@ function boundaryModeSettings(
   enh: EnhancementFlags,
   license: LicenseFlags,
   attendancePenalty: boolean,
+  schedulingMethod: "seniority" | "random",
+  rotationStartDay: number,
 ): RawSettings {
   return {
     run_mode: "full_rebuild",
@@ -231,7 +237,8 @@ function boundaryModeSettings(
     historical_pattern_protection: "off",
     attendance_scheduling: false,
     attendance_penalty: attendancePenalty,
-    scheduling_method: "seniority",
+    scheduling_method: schedulingMethod,
+    rotation_start_day: rotationStartDay,
     assignment_mode: assignmentMode,
     rotation_batch_size: rotationBatch,
     preferred_availability_priority: false,
@@ -267,13 +274,17 @@ function buildSettings(payload: PlanPayload): RawSettings {
   };
   // Attendance Penalty — Final-corrective-action drivers scheduled last.
   const attendancePenalty = r.attendance_penalty === true;
+  // Who fills first — seniority (default) or a stable random order.
+  const schedulingMethod = r.fill_priority === "random" ? "random" : "seniority";
+  // Which weekday the shift-fill rotation starts on (0=Sun..6=Sat).
+  const rotationStartDay = Math.max(0, Math.min(6, Math.round(r.rotation_start_day ?? 0)));
 
   // Boundary modes are mutually exclusive; preferred wins if both are set.
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty, schedulingMethod, rotationStartDay);
   }
 
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
@@ -304,9 +315,10 @@ function buildSettings(payload: PlanPayload): RawSettings {
     historical_pattern_protection: "off",
     attendance_scheduling: false,
     attendance_penalty: attendancePenalty,
-    scheduling_method: method,
+    scheduling_method: schedulingMethod === "random" ? "random" : method,
     assignment_mode: assignmentMode,
     rotation_batch_size: rotationBatch,
+    rotation_start_day: rotationStartDay,
     preferred_availability_priority: r.preferred_days !== false,
     preferred_enhancement: enh.on,
     preferred_enhancement_contiguous: enh.contiguous,

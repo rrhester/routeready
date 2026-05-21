@@ -49,18 +49,31 @@ export function bestShiftForDriver(
     if (!plan || !plan.open || !planInPhase(plan, phase)) continue;
 
     const { total } = computeScore(ctx, plan.shift, driver, state, methodRank);
-    if (best === null || isBetter(plan, total, best)) {
+    if (best === null || isBetter(plan, total, best, ctx.settings.rotation_start_day)) {
       best = { plan, score: total };
     }
   }
   return best;
 }
 
-// Sort key: score desc, date asc, start_time asc, shift_id asc.
-function isBetter(plan: ShiftPlan, score: number, best: Candidate): boolean {
+/** Days a shift's weekday sits after the configured rotation start day. */
+function rotationRank(dow: number, startDow: number): number {
+  return (dow - startDow + 7) % 7;
+}
+
+// Sort key: score desc, rotation-day asc, start_time asc, shift_id asc.
+function isBetter(
+  plan: ShiftPlan,
+  score: number,
+  best: Candidate,
+  startDow: number,
+): boolean {
   if (score !== best.score) return score > best.score;
   const a = plan.shift;
   const b = best.plan.shift;
+  const ra = rotationRank(a.dow, startDow);
+  const rb = rotationRank(b.dow, startDow);
+  if (ra !== rb) return ra < rb;
   if (a.date !== b.date) return a.date < b.date;
   if (a.start_ms !== b.start_ms) return a.start_ms < b.start_ms;
   return a.shift_id < b.shift_id;

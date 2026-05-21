@@ -28,6 +28,17 @@ interface FairKey {
   sinceLast: number;
 }
 
+/** Deterministic 32-bit string hash (FNV-1a) — used to seed the random
+ *  driver order so it's stable per week yet idempotent across re-runs. */
+function strHash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
 /** Order drivers for the main assignment pass per the configured method. */
 export function orderDrivers(
   ctx: EngineContext,
@@ -35,6 +46,15 @@ export function orderDrivers(
 ): NormalizedDriver[] {
   const method = ctx.settings.scheduling_method;
   const drivers = [...ctx.drivers];
+
+  // Random order — a hash of driver-id + week. Stable for a given week
+  // (re-runs are idempotent), arbitrary across weeks.
+  const randomKeys = new Map<string, number>();
+  if (method === "random") {
+    for (const d of drivers) {
+      randomKeys.set(d.driver_id, strHash(d.driver_id + ":" + ctx.scheduleWeek[0]));
+    }
+  }
 
   const fairKeys = new Map<string, FairKey>();
   if (method === "fair_rotation") {
@@ -97,6 +117,12 @@ export function orderDrivers(
         const bb = availabilityBreadth(b);
         if (ba !== bb) return bb - ba;
         return compareSeniority(a, b);
+      }
+      case "random": {
+        const ka = randomKeys.get(a.driver_id) ?? 0;
+        const kb = randomKeys.get(b.driver_id) ?? 0;
+        if (ka !== kb) return ka - kb;
+        return a.driver_id < b.driver_id ? -1 : 1;
       }
     }
   });

@@ -610,3 +610,47 @@ test("attendance penalty rotates Final-corrective drivers last", () => {
     "b_jr",
   );
 });
+
+// --- Random order + rotation start day -------------------------------------
+
+test("random scheduling method is deterministic per week", () => {
+  const mk = () =>
+    runEngine(
+      input({
+        shifts: [shift({ shift_id: "s1", date: "2026-05-25" })],
+        drivers: [
+          driver({ driver_id: "d1" }),
+          driver({ driver_id: "d2" }),
+          driver({ driver_id: "d3" }),
+        ],
+        settings: { scheduling_method: "random" },
+      }),
+    );
+  // Re-running the same week yields the identical assignment.
+  assert.equal(mk().assigned_shifts[0]?.driver_id, mk().assigned_shifts[0]?.driver_id);
+});
+
+test("rotation_start_day fills the chosen weekday first", () => {
+  // One driver, max_days 1: with the rotation starting on Saturday the
+  // driver's single shift lands on Saturday, not Sunday.
+  const shifts = [];
+  for (let i = 0; i < 7; i++) {
+    shifts.push(shift({ shift_id: `s${i}`, date: `2026-05-${String(24 + i).padStart(2, "0")}` }));
+  }
+  const r = runEngine(
+    input({
+      shifts,
+      drivers: [driver({ driver_id: "d1" })],
+      settings: {
+        max_days_enforcement: true,
+        max_days: 1,
+        weekly_hour_cap_enforcement: false,
+        woc_enforcement: false,
+        rotation_start_day: 6, // Saturday
+      },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 1);
+  // 2026-05-30 is the Saturday of this Sun-start week.
+  assert.equal(r.assigned_shifts[0]?.shift_id, "s6");
+});

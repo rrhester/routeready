@@ -102,6 +102,7 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "scheduling_method",
   "assignment_mode",
   "rotation_batch_size",
+  "rotation_start_day",
   "preferred_availability_priority",
   "preferred_availability_required",
   "preferred_enhancement",
@@ -249,7 +250,8 @@ function validateSettings(raw) {
         "full_time_priority",
         "availability_first",
         "alphabetical",
-        "attendance_priority"
+        "attendance_priority",
+        "random"
       ],
       "fair_rotation"
     ),
@@ -260,6 +262,7 @@ function validateSettings(raw) {
       "rotational_fill"
     ),
     rotation_batch_size: num(r.rotation_batch_size, "rotation_batch_size", 1, 1, 4),
+    rotation_start_day: num(r.rotation_start_day, "rotation_start_day", 0, 0, 6),
     preferred_availability_priority: bool(
       r.preferred_availability_priority,
       "preferred_availability_priority",
@@ -1060,9 +1063,23 @@ function availabilityBreadth(driver) {
   }
   return count;
 }
+function strHash(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
 function orderDrivers(ctx, states) {
   const method = ctx.settings.scheduling_method;
   const drivers = [...ctx.drivers];
+  const randomKeys = /* @__PURE__ */ new Map();
+  if (method === "random") {
+    for (const d of drivers) {
+      randomKeys.set(d.driver_id, strHash(d.driver_id + ":" + ctx.scheduleWeek[0]));
+    }
+  }
   const fairKeys = /* @__PURE__ */ new Map();
   if (method === "fair_rotation") {
     const weekStartDay = epochDay(ctx.scheduleWeek[0]);
@@ -1120,6 +1137,12 @@ function orderDrivers(ctx, states) {
         const bb = availabilityBreadth(b);
         if (ba !== bb) return bb - ba;
         return compareSeniority(a, b);
+      }
+      case "random": {
+        const ka = randomKeys.get(a.driver_id) ?? 0;
+        const kb = randomKeys.get(b.driver_id) ?? 0;
+        if (ka !== kb) return ka - kb;
+        return a.driver_id < b.driver_id ? -1 : 1;
       }
     }
   });
@@ -1275,16 +1298,22 @@ function bestShiftForDriver(ctx, ws, matrix, driver, methodRank, phase) {
     const plan = ws.planByShiftId.get(shiftId);
     if (!plan || !plan.open || !planInPhase(plan, phase)) continue;
     const { total } = computeScore(ctx, plan.shift, driver, state, methodRank);
-    if (best === null || isBetter(plan, total, best)) {
+    if (best === null || isBetter(plan, total, best, ctx.settings.rotation_start_day)) {
       best = { plan, score: total };
     }
   }
   return best;
 }
-function isBetter(plan, score, best) {
+function rotationRank(dow, startDow) {
+  return (dow - startDow + 7) % 7;
+}
+function isBetter(plan, score, best, startDow) {
   if (score !== best.score) return score > best.score;
   const a = plan.shift;
   const b = best.plan.shift;
+  const ra = rotationRank(a.dow, startDow);
+  const rb = rotationRank(b.dow, startDow);
+  if (ra !== rb) return ra < rb;
   if (a.date !== b.date) return a.date < b.date;
   if (a.start_ms !== b.start_ms) return a.start_ms < b.start_ms;
   return a.shift_id < b.shift_id;
@@ -2016,7 +2045,7 @@ function mapShift(raw) {
 function clampMaxDays(value) {
   return Math.max(0, Math.min(7, Math.round(value ?? 6)));
 }
-function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty) {
+function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty, schedulingMethod, rotationStartDay) {
   return {
     run_mode: "full_rebuild",
     eligible_driver_status: "active_and_onboarding",
@@ -2039,7 +2068,8 @@ function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, 
     historical_pattern_protection: "off",
     attendance_scheduling: false,
     attendance_penalty: attendancePenalty,
-    scheduling_method: "seniority",
+    scheduling_method: schedulingMethod,
+    rotation_start_day: rotationStartDay,
     assignment_mode: assignmentMode,
     rotation_batch_size: rotationBatch,
     preferred_availability_priority: false,
@@ -2068,11 +2098,13 @@ function buildSettings(payload) {
     protectionDays: Math.max(0, Math.min(365, Math.round(r.dl_protection_days ?? 0)))
   };
   const attendancePenalty = r.attendance_penalty === true;
+  const schedulingMethod = r.fill_priority === "random" ? "random" : "seniority";
+  const rotationStartDay = Math.max(0, Math.min(6, Math.round(r.rotation_start_day ?? 0)));
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
@@ -2101,9 +2133,10 @@ function buildSettings(payload) {
     historical_pattern_protection: "off",
     attendance_scheduling: false,
     attendance_penalty: attendancePenalty,
-    scheduling_method: method,
+    scheduling_method: schedulingMethod === "random" ? "random" : method,
     assignment_mode: assignmentMode,
     rotation_batch_size: rotationBatch,
+    rotation_start_day: rotationStartDay,
     preferred_availability_priority: r.preferred_days !== false,
     preferred_enhancement: enh.on,
     preferred_enhancement_contiguous: enh.contiguous,

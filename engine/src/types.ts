@@ -28,7 +28,8 @@ export type SchedulingMethod =
   | "full_time_priority"
   | "availability_first"
   | "alphabetical"
-  | "attendance_priority";
+  | "attendance_priority"
+  | "random";
 export type AssignmentMode = "sequential_fill" | "rotational_fill";
 
 export type AssignmentSource =
@@ -146,6 +147,7 @@ export interface RawSettings {
   scheduling_method?: SchedulingMethod;
   assignment_mode?: AssignmentMode;
   rotation_batch_size?: number;
+  rotation_start_day?: number;
   preferred_availability_priority?: RawBool;
   preferred_availability_required?: RawBool;
   preferred_enhancement?: RawBool;
@@ -203,6 +205,8 @@ export interface Settings {
   assignment_mode: AssignmentMode;
   /** Rotational fill: shifts assigned per driver before rotating (1-4). */
   rotation_batch_size: number;
+  /** Day-of-week (0=Sun..6=Sat) the shift-fill rotation starts on. */
+  rotation_start_day: number;
   preferred_availability_priority: boolean;
   preferred_availability_required: boolean;
   /** Preferred Availability Enhancement — post-pass preferred-day swaps. */
