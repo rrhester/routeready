@@ -24,3 +24,6 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm test
+      - run: npm run build:dashboard
+      - name: Verify dashboard bundle is up to date
+        run: git diff --exit-code ../dashboard/scheduling-engine.js
