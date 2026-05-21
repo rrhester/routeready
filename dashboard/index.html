@@ -11942,12 +11942,12 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="sched-smartfill-rules-popover" id="rr-sched-smartfill-rules-popover" role="dialog" aria-modal="false" aria-label="Smart Fill rules" hidden>
                 <div class="sched-smartfill-rules-head">Smart Fill rules</div>
                 <div class="sched-smartfill-rules-body" id="rr-sched-smartfill-rules-body">
-                  <!-- Baseline mode · when on, the engine ignores every
-                       rule below and assigns drivers only to shifts on
-                       their preferred days. Used to verify the
-                       preferred-availability path before layering rules
-                       back on one at a time. -->
-                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="preferred_only"> <span class="sf-rule-name"><strong>Baseline — schedule to preferred availability only</strong> · ignores every rule below</span></label>
+                  <!-- Boundary modes · pick ONE. When either is on, the
+                       engine ignores every rule below it and fills shifts
+                       using just that availability boundary. The two are
+                       mutually exclusive (checking one clears the other). -->
+                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="preferred_only"> <span class="sf-rule-name"><strong>Auto Fill only Preferred Availability</strong> · fills shifts using each driver's preferred days only</span></label>
+                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="availability_only"> <span class="sf-rule-name"><strong>Auto Fill Availability</strong> · fills shifts using each driver's full availability</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name">Driver's license valid through the shift date</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="include_onboarding" checked> <span class="sf-rule-name">Include onboarding drivers (not just active)</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dot_required" checked> <span class="sf-rule-name">DOT certification for Step Van routes</span></label>
