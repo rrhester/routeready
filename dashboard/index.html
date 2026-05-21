@@ -3613,7 +3613,7 @@ select.form-input{
 .cal-row-label-name{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.2}
 .cal-row-label-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;letter-spacing:.01em}
 .cal-cell{
-  border-right:1px solid var(--border);padding:6px;min-height:64px;
+  border-right:1px solid var(--sch-line);padding:6px;min-height:64px;
   display:flex;align-items:stretch;justify-content:center;
   cursor:pointer;transition:background var(--t-fast);
   position:relative;
@@ -3644,7 +3644,7 @@ select.form-input{
    a glance. */
 .shift-chip{
   flex:1;padding:7px 9px;border-radius:var(--r-md);
-  background:var(--accent-soft);border:1px solid var(--accent-border);
+  background:var(--sch-blue-soft);border:1px solid rgba(15,108,189,.20);
   display:flex;flex-direction:column;align-items:flex-start;justify-content:center;
   font-size:var(--fs-xs);line-height:1.25;
   transition:transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
@@ -3655,9 +3655,9 @@ select.form-input{
 }
 .cal-cell:hover .shift-chip{box-shadow:0 1px 2px rgba(15,23,42,.06)}
 .cal-cell:hover .shift-chip:not(.off):not(.timeoff):not(.open){
-  border-color:var(--accent);
+  border-color:rgba(15,108,189,.42);
 }
-.shift-chip-route{font-weight:600;color:var(--accent-text);font-variant-numeric:tabular-nums}
+.shift-chip-route{font-weight:600;color:var(--sch-blue-text);font-variant-numeric:tabular-nums}
 .shift-chip-time{color:var(--text-muted);font-size:var(--fs-xs);margin-top:2px;font-variant-numeric:tabular-nums;letter-spacing:.01em}
 /* Swap pending / planned time-off both read amber — "expected, note it",
    not red.  Swap stays dashed (in flux); time-off is a settled absence. */
