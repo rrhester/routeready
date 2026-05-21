@@ -19,6 +19,7 @@ import { checkSameDay } from "./rules/r010_same_day.ts";
 import { checkMaxDays } from "./rules/r007_max_days.ts";
 import { checkWeeklyCap } from "./rules/r008_weekly_cap.ts";
 import { checkMinRest } from "./rules/r009_min_rest.ts";
+import { checkWoc } from "./rules/r019_woc.ts";
 
 const PASS: EligibilityCell = Object.freeze({
   eligible: true,
@@ -42,6 +43,7 @@ export function evaluateEligibility(
     checkSameDay(shift, state, s) ??
     checkMaxDays(shift, state, ctx) ??
     checkWeeklyCap(shift, driver, state, ctx) ??
+    checkWoc(shift, state, s) ??
     checkMinRest(shift, state, s);
 
   if (block) return { eligible: false, block_reasons: [block] };
@@ -72,6 +74,7 @@ export function collectBlocks(
   push(checkSameDay(shift, state, s));
   push(checkMaxDays(shift, state, ctx));
   push(checkWeeklyCap(shift, driver, state, ctx));
+  push(checkWoc(shift, state, s));
   push(checkMinRest(shift, state, s));
   return reasons;
 }

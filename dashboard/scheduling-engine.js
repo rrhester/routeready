@@ -86,6 +86,7 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "pto_default_hours",
   "min_rest_enforcement",
   "min_rest_hours",
+  "woc_enforcement",
   "same_day_multi_shift",
   "historical_pattern_protection",
   "history_window_weeks",
@@ -191,6 +192,7 @@ function validateSettings(raw) {
     pto_default_hours: num(r.pto_default_hours, "pto_default_hours", 10, 0, 24),
     min_rest_enforcement: bool(r.min_rest_enforcement, "min_rest_enforcement", true),
     min_rest_hours: num(r.min_rest_hours, "min_rest_hours", 10, 0, 48),
+    woc_enforcement: bool(r.woc_enforcement, "woc_enforcement", true),
     same_day_multi_shift: oneOf(
       r.same_day_multi_shift,
       "same_day_multi_shift",
@@ -447,6 +449,9 @@ function fitsAvailability(av, shift) {
     if (start <= shift.start_min && end >= shift.end_min) return true;
   }
   return false;
+}
+function isDotRoute(shift) {
+  return shift.route_type === "step_van" || shift.route_type === "xl";
 }
 function compareSeniority(a, b) {
   if (a.hire_date !== b.hire_date) return a.hire_date < b.hire_date ? -1 : 1;
@@ -821,6 +826,32 @@ function checkMinRest(shift, state, settings) {
   return null;
 }
 
+// src/rules/r019_woc.ts
+var WOC_MAX_CONSECUTIVE_DAYS = 6;
+function checkWoc(shift, state, settings) {
+  if (!settings.woc_enforcement) return null;
+  const dates = assignedDates(state);
+  dates.add(shift.date);
+  let run = 1;
+  let cursor = addDays(shift.date, -1);
+  while (dates.has(cursor)) {
+    run += 1;
+    cursor = addDays(cursor, -1);
+  }
+  cursor = addDays(shift.date, 1);
+  while (dates.has(cursor)) {
+    run += 1;
+    cursor = addDays(cursor, 1);
+  }
+  if (run > WOC_MAX_CONSECUTIVE_DAYS) {
+    return {
+      rule: "R019",
+      message: `WOC: would be consecutive working day #${run} (7th day blocked)`
+    };
+  }
+  return null;
+}
+
 // src/eligibility.ts
 var PASS = Object.freeze({
   eligible: true,
@@ -828,7 +859,7 @@ var PASS = Object.freeze({
 });
 function evaluateEligibility(shift, driver, state, ctx) {
   const s = ctx.settings;
-  const block = checkBlackout(shift, ctx.blackout) ?? checkStatus(driver, s) ?? checkLicense(shift, driver, s) ?? checkCertification(shift, driver, s) ?? checkPto(shift, driver, s) ?? checkAvailability(shift, driver, s) ?? checkSameDay(shift, state, s) ?? checkMaxDays(shift, state, ctx) ?? checkWeeklyCap(shift, driver, state, ctx) ?? checkMinRest(shift, state, s);
+  const block = checkBlackout(shift, ctx.blackout) ?? checkStatus(driver, s) ?? checkLicense(shift, driver, s) ?? checkCertification(shift, driver, s) ?? checkPto(shift, driver, s) ?? checkAvailability(shift, driver, s) ?? checkSameDay(shift, state, s) ?? checkMaxDays(shift, state, ctx) ?? checkWeeklyCap(shift, driver, state, ctx) ?? checkWoc(shift, state, s) ?? checkMinRest(shift, state, s);
   if (block) return { eligible: false, block_reasons: [block] };
   return PASS;
 }
@@ -847,6 +878,7 @@ function collectBlocks(shift, driver, state, ctx) {
   push(checkSameDay(shift, state, s));
   push(checkMaxDays(shift, state, ctx));
   push(checkWeeklyCap(shift, driver, state, ctx));
+  push(checkWoc(shift, state, s));
   push(checkMinRest(shift, state, s));
   return reasons;
 }
@@ -1154,7 +1186,11 @@ function computeScore(ctx, shift, driver, state, methodRank) {
 }
 
 // src/steps/step6_assign.ts
-function bestShiftForDriver(ctx, ws, matrix, driver, methodRank) {
+function planInPhase(plan, phase) {
+  const dot = isDotRoute(plan.shift);
+  return phase === "dot" ? dot : !dot;
+}
+function bestShiftForDriver(ctx, ws, matrix, driver, methodRank, phase) {
   const state = ws.states.get(driver.driver_id);
   if (!state) return null;
   let best = null;
@@ -1162,7 +1198,7 @@ function bestShiftForDriver(ctx, ws, matrix, driver, methodRank) {
     const cell = row.get(driver.driver_id);
     if (!cell || !cell.eligible) continue;
     const plan = ws.planByShiftId.get(shiftId);
-    if (!plan || !plan.open) continue;
+    if (!plan || !plan.open || !planInPhase(plan, phase)) continue;
     const { total } = computeScore(ctx, plan.shift, driver, state, methodRank);
     if (best === null || isBetter(plan, total, best)) {
       best = { plan, score: total };
@@ -1178,13 +1214,13 @@ function isBetter(plan, score, best) {
   if (a.start_ms !== b.start_ms) return a.start_ms < b.start_ms;
   return a.shift_id < b.shift_id;
 }
-function runMainPass(ctx, ws, matrix) {
+function runPhase(ctx, ws, matrix, phase) {
   const order = orderDrivers(ctx, ws.states);
   const rankMap = /* @__PURE__ */ new Map();
   order.forEach((d, i) => rankMap.set(d.driver_id, i + 1));
   const assignOne = (driver) => {
     const rank = rankMap.get(driver.driver_id) ?? order.length;
-    const best = bestShiftForDriver(ctx, ws, matrix, driver, rank);
+    const best = bestShiftForDriver(ctx, ws, matrix, driver, rank, phase);
     if (!best) return false;
     applyAssignment(ws, best.plan, driver.driver_id, "auto_fill");
     matrix.delete(best.plan.shift.shift_id);
@@ -1205,6 +1241,10 @@ function runMainPass(ctx, ws, matrix) {
       }
     }
   }
+}
+function runMainPass(ctx, ws, matrix) {
+  runPhase(ctx, ws, matrix, "dot");
+  runPhase(ctx, ws, matrix, "standard");
 }
 
 // src/steps/step8_optimize.ts
@@ -1413,7 +1453,8 @@ var HARD_CHECKS = [
   "R008",
   "R009",
   "R010",
-  "R011"
+  "R011",
+  "R019"
 ];
 function clock(min) {
   const m = (min % 1440 + 1440) % 1440;
@@ -1731,7 +1772,7 @@ function runEngine(input) {
 }
 
 // src/adapters/dashboard.ts
-var PTO_HOURS_PER_DAY = 8;
+var PTO_HOURS_PER_DAY = 10;
 var ALL_DAY = [{ start: "00:00", end: "48:00" }];
 function splitName(full) {
   const parts = full.trim().split(/\s+/).filter(Boolean);
@@ -1790,7 +1831,9 @@ function buildSettings(payload) {
   const r = payload.rules ?? {};
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
-    run_mode: "fill_empty_only",
+    // Auto-schedule always performs a FULL REBUILD (SPEC Default Schedule
+    // Behavior); locked manual assignments are still preserved + validated.
+    run_mode: "full_rebuild",
     eligible_driver_status: r.include_onboarding !== false ? "active_and_onboarding" : "active_only",
     license_enforcement: r.dl_valid !== false,
     certification_enforcement: true,
@@ -1800,9 +1843,12 @@ function buildSettings(payload) {
     max_days: Math.max(1, Math.min(7, Math.round(payload.max_days || 6))),
     weekly_hour_cap_enforcement: r.max_hours !== false,
     weekly_hour_cap: payload.weekly_hour_cap ?? 40,
-    pto_counts_toward_cap: r.pto_count_in_cap === true,
+    // PTO / approved day off always counts toward the 40-hour cap (hard rule).
+    pto_counts_toward_cap: true,
     pto_default_hours: PTO_HOURS_PER_DAY,
     min_rest_enforcement: r.min_rest !== false,
+    // WOC — blocks a 7th consecutive working day.
+    woc_enforcement: r.woc !== false,
     // A driver works at most one shift per day — a physical constraint,
     // never operator-configurable.
     same_day_multi_shift: "block",

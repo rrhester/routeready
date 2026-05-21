@@ -8,7 +8,7 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-openshifts";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-woc-dotfirst";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -23133,7 +23133,9 @@ async function _navSettingsTriggerSave(inputEl) {
 document.addEventListener("input", (e) => {
   const input = e.target;
   if (!input || !input.id || !_NAV_SETTING_IDS.has(input.id)) return;
-  if (!input.closest("#rr-sched-quick-settings-popover")) return;
+  // rr-set-max-days now lives in the Smart Fill rules popover; the other
+  // nav settings stay in the Targets quick-settings popover.
+  if (!input.closest("#rr-sched-quick-settings-popover, #rr-sched-smartfill-rules-popover")) return;
   if (_navSettingsSaveTimer) clearTimeout(_navSettingsSaveTimer);
   _flashNavStatus("Editing…", "var(--text-subtle)");
   _navSettingsSaveTimer = setTimeout(() => {
@@ -23146,7 +23148,9 @@ document.addEventListener("change", (e) => {
   // triggering an `input` event in some browsers.
   const input = e.target;
   if (!input || !input.id || !_NAV_SETTING_IDS.has(input.id)) return;
-  if (!input.closest("#rr-sched-quick-settings-popover")) return;
+  // rr-set-max-days now lives in the Smart Fill rules popover; the other
+  // nav settings stay in the Targets quick-settings popover.
+  if (!input.closest("#rr-sched-quick-settings-popover, #rr-sched-smartfill-rules-popover")) return;
   if (_navSettingsSaveTimer) clearTimeout(_navSettingsSaveTimer);
   _navSettingsSaveTimer = null;
   _navSettingsTriggerSave(input);
@@ -26627,7 +26631,21 @@ async function autoFillScheduleWeek() {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { toast("DSP not loaded", "warn"); return; }
   if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
-  if (!_confirmLiveScheduleEdit()) return;
+
+  // Auto-schedule performs a FULL REBUILD of every eligible shift. When the
+  // week is finalized, warn before rebuilding and log the confirmed rebuild
+  // (SPEC · Default Schedule Behavior).
+  if (window._rrWeekFinalized) {
+    const ok = confirm(
+      "This schedule is finalized. Running auto-schedule will rebuild all " +
+      "eligible shifts and may replace current assignments. Do you want to " +
+      "continue?",
+    );
+    if (!ok) return;
+    console.info(
+      `[RouteReady] Finalized schedule rebuild confirmed · week ${_schedStart} · ${new Date().toISOString()}`,
+    );
+  }
 
   // Use generate_shifts_for_date instead of raw create_shift — this both
   // FILLS gaps and TRIMS excess, so the schedule mirrors OKAMI exactly

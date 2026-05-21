@@ -26,6 +26,7 @@ const KNOWN_KEYS = new Set<keyof RawSettings>([
   "pto_default_hours",
   "min_rest_enforcement",
   "min_rest_hours",
+  "woc_enforcement",
   "same_day_multi_shift",
   "historical_pattern_protection",
   "history_window_weeks",
@@ -148,6 +149,7 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
     pto_default_hours: num(r.pto_default_hours, "pto_default_hours", 10, 0, 24),
     min_rest_enforcement: bool(r.min_rest_enforcement, "min_rest_enforcement", true),
     min_rest_hours: num(r.min_rest_hours, "min_rest_hours", 10, 0, 48),
+    woc_enforcement: bool(r.woc_enforcement, "woc_enforcement", true),
     same_day_multi_shift: oneOf(
       r.same_day_multi_shift,
       "same_day_multi_shift",

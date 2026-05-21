@@ -64,8 +64,13 @@ is the rule reference the spec was delivered with.
 | Eligibility evaluator | `src/eligibility.ts` |
 | Idempotency hash | `src/hash.ts` |
 | Steps 1–10 | `src/steps/stepN_*.ts` |
-| Rules R002–R011 (hard) | `src/rules/r0NN_*.ts` |
+| Rules R002–R011, R019 (hard) | `src/rules/r0NN_*.ts` |
 | Rules R012/R013/R015/R017/R018 (score/order) | `src/rules/r0NN_*.ts` |
+
+R019 (WOC — Working Hours Compliance) is a hard rule: it blocks a driver's
+7th consecutive working day. The main assignment pass (Step 6) runs in two
+phases — DOT-required routes first, then standard routes — so DOT-certified
+drivers are never spent on a standard route while a DOT route is unfilled.
 | Dashboard adapter | `src/adapters/dashboard.ts` → `planScheduleWeek()` |
 | Browser bundle entry | `src/browser-entry.ts` |
 

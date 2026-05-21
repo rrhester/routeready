@@ -11947,13 +11947,23 @@ body.rr-cmdk-open{ overflow:hidden }
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dot_required" checked> <span class="sf-rule-name">DOT certification for Step Van routes</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="xl_required" checked> <span class="sf-rule-name">XL certification for Extra-Large routes</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="max_days" checked> <span class="sf-rule-name">Max days per week cap</span></label>
+                  <!-- Max days per week — the per-driver day cap. Moved here
+                       from the Targets rules popover so the value lives next
+                       to the rule that enforces it. Gated by the checkbox
+                       above; the input id is unchanged so the per-week
+                       settings load/save path keeps working. -->
+                  <div class="sched-smartfill-rule-advanced is-on" data-rr-sf-advanced-of="max_days">
+                    <span class="sf-advanced-label">Cap each driver at</span>
+                    <input class="form-input sf-advanced-select" id="rr-set-max-days" type="number" min="1" max="7" step="1" autocomplete="off" aria-label="Max days per week" style="max-width:72px"/>
+                    <span class="sf-advanced-label">days per week</span>
+                  </div>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="availability" checked> <span class="sf-rule-name">Driver's saved availability for this day-of-week</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_days" checked> <span class="sf-rule-name">Boost drivers toward their preferred days</span></label>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="pto_block" checked> <span class="sf-rule-name">Approved PTO blocks auto-fill</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="pto_block" checked> <span class="sf-rule-name">Approved PTO / approved day off blocks auto-fill</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="min_rest" checked> <span class="sf-rule-name">Minimum 10h rest between a driver's shifts</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="woc" checked> <span class="sf-rule-name">WOC — block a 7th consecutive working day</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="service_types" checked> <span class="sf-rule-name">Only auto-fill active service types</span></label>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="max_hours" checked> <span class="sf-rule-name">Cap each driver at the weekly hour limit (40h)</span></label>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="pto_count_in_cap"> <span class="sf-rule-name">Count PTO hours toward the 40-hour cap (8h per PTO day)</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="max_hours" checked> <span class="sf-rule-name">Cap each driver at 40 counted hours per week (PTO / approved day off counts as 10h)</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="consecutive_days"> <span class="sf-rule-name">Prefer consecutive working days (days off cluster back-to-back)</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="spread_evenly" checked> <span class="sf-rule-name">Spread work evenly across drivers (off = fill each driver to capacity before the next)</span></label>
                   <div class="sched-smartfill-rule-advanced is-on">
@@ -12066,14 +12076,9 @@ body.rr-cmdk-open{ overflow:hidden }
                       <span class="sched-quick-setting-unit">%</span>
                     </span>
                   </label>
-                  <label class="sched-quick-setting">
-                    <span class="sched-quick-setting-label">Max days per week</span>
-                    <span class="sched-quick-setting-help">Auto-assign cap per driver</span>
-                    <span class="sched-quick-setting-control">
-                      <input class="sched-quick-setting-input" id="rr-set-max-days" type="number" min="1" max="7" step="1" autocomplete="off"/>
-                      <span class="sched-quick-setting-unit">d</span>
-                    </span>
-                  </label>
+                  <!-- Max days per week moved to the Smart Fill rules
+                       popover (it gates an auto-fill rule, not a Targets
+                       demand-shaping value). -->
                   <label class="sched-quick-setting">
                     <span class="sched-quick-setting-label">Report time</span>
                     <span class="sched-quick-setting-help">Driver clock-in lead before the wave</span>
