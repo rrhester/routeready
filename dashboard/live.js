@@ -26810,7 +26810,12 @@ async function autoAssignDriversForWeek() {
   // full rule set is mapped onto engine settings by the dashboard
   // adapter (planScheduleWeek); this layer only resolves the per-run
   // tiebreaker override and the few rules it consumes directly.
-  const sfRules = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+  // _rrSfRulesOverride lets a caller (e.g. the Preferred-% drill-down)
+  // run this one schedule with different rules WITHOUT persisting them
+  // to the saved Smart Fill rule set.
+  const sfRules = window._rrSfRulesOverride
+    ? window._rrSfRulesOverride
+    : ((typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {});
   if (typeof sfRules.tiebreaker === "string"
       && ["least_loaded","seniority"].includes(sfRules.tiebreaker)) {
     tiebreaker = sfRules.tiebreaker;
@@ -29290,21 +29295,21 @@ function bindSchedWeekNav() {
           modal.dataset.rrBusy = "1";
           let delta = {};
           try { delta = JSON.parse(accept.getAttribute("data-rr-pref-accept")); } catch {}
-          let saved = {};
-          try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); } catch {}
-          Object.assign(saved, delta);
-          try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch {}
-          if (typeof _restoreSmartFillRules === "function") _restoreSmartFillRules();
           const body = document.getElementById("rr-pref-kpi-body");
           if (body) body.innerHTML = `
             <div class="rr-pref-regen">
               <div class="rr-pref-regen-bar"><span></span></div>
               <div class="rr-pref-regen-label">Regenerating the schedule with the new settings…</div>
             </div>`;
+          // Run this one schedule with the previewed settings, WITHOUT
+          // persisting them — the saved Smart Fill rules are untouched.
+          const baseRules = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+          window._rrSfRulesOverride = { ...baseRules, ...delta };
           try { await autoFillScheduleWeek(); }
           catch (err) { console.warn("preferred re-run:", err); }
+          finally { delete window._rrSfRulesOverride; }
           document.getElementById("rr-pref-kpi-modal")?.remove();
-          toast("Schedule re-run with updated preferred-day settings", "success");
+          toast("Schedule re-run with the previewed settings · saved rules unchanged", "success");
           return;
         }
         return; // other clicks while the modal is open are inert
