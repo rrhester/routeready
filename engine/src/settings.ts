@@ -16,6 +16,7 @@ const KNOWN_KEYS = new Set<keyof RawSettings>([
   "certification_enforcement",
   "pto_protection",
   "availability_enforcement",
+  "availability_required",
   "max_days_enforcement",
   "max_days",
   "max_days_window",
@@ -120,6 +121,11 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
     availability_enforcement: bool(
       r.availability_enforcement,
       "availability_enforcement",
+      false,
+    ),
+    availability_required: bool(
+      r.availability_required,
+      "availability_required",
       false,
     ),
     max_days_enforcement: bool(r.max_days_enforcement, "max_days_enforcement", true),

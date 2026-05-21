@@ -76,6 +76,7 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "certification_enforcement",
   "pto_protection",
   "availability_enforcement",
+  "availability_required",
   "max_days_enforcement",
   "max_days",
   "max_days_window",
@@ -163,6 +164,11 @@ function validateSettings(raw) {
     availability_enforcement: bool(
       r.availability_enforcement,
       "availability_enforcement",
+      false
+    ),
+    availability_required: bool(
+      r.availability_required,
+      "availability_required",
       false
     ),
     max_days_enforcement: bool(r.max_days_enforcement, "max_days_enforcement", true),
@@ -751,7 +757,12 @@ function checkPto(shift, driver, settings) {
 // src/rules/r006_availability.ts
 function checkAvailability(shift, driver, settings) {
   if (!settings.availability_enforcement) return null;
-  if (driver.saved_availability === null) return null;
+  if (driver.saved_availability === null) {
+    if (settings.availability_required) {
+      return { rule: "R006", message: "No availability on file" };
+    }
+    return null;
+  }
   if (fitsAvailability(driver.saved_availability, shift)) return null;
   return {
     rule: "R006",
@@ -1848,31 +1859,34 @@ function mapShift(raw) {
     is_locked: raw.is_locked === true
   };
 }
+function boundaryModeSettings(boundary) {
+  return {
+    run_mode: "full_rebuild",
+    eligible_driver_status: "active_and_onboarding",
+    license_enforcement: false,
+    certification_enforcement: false,
+    pto_protection: false,
+    availability_enforcement: boundary === "availability",
+    availability_required: boundary === "availability",
+    max_days_enforcement: false,
+    weekly_hour_cap_enforcement: false,
+    pto_counts_toward_cap: false,
+    min_rest_enforcement: false,
+    woc_enforcement: false,
+    same_day_multi_shift: "block",
+    historical_pattern_protection: "off",
+    attendance_scheduling: false,
+    scheduling_method: "seniority",
+    assignment_mode: "rotational_fill",
+    preferred_availability_priority: false,
+    preferred_availability_required: boundary === "preferred",
+    consecutive_working_days: false
+  };
+}
 function buildSettings(payload) {
   const r = payload.rules ?? {};
-  if (r.preferred_only === true) {
-    return {
-      run_mode: "full_rebuild",
-      eligible_driver_status: "active_and_onboarding",
-      license_enforcement: false,
-      certification_enforcement: false,
-      pto_protection: false,
-      availability_enforcement: false,
-      max_days_enforcement: false,
-      weekly_hour_cap_enforcement: false,
-      pto_counts_toward_cap: false,
-      min_rest_enforcement: false,
-      woc_enforcement: false,
-      same_day_multi_shift: "block",
-      historical_pattern_protection: "off",
-      attendance_scheduling: false,
-      scheduling_method: "seniority",
-      assignment_mode: "rotational_fill",
-      preferred_availability_priority: false,
-      preferred_availability_required: true,
-      consecutive_working_days: false
-    };
-  }
+  if (r.preferred_only === true) return boundaryModeSettings("preferred");
+  if (r.availability_only === true) return boundaryModeSettings("availability");
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
     // Auto-schedule always performs a FULL REBUILD (SPEC Default Schedule

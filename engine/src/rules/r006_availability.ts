@@ -15,8 +15,15 @@ export function checkAvailability(
   settings: Settings,
 ): BlockReason | null {
   if (!settings.availability_enforcement) return null;
-  // No saved availability at all = no constraint (missing data, not a block).
-  if (driver.saved_availability === null) return null;
+  if (driver.saved_availability === null) {
+    // No saved availability on file. Normally not a constraint (missing
+    // data, not a block) — but in availability-required mode the driver
+    // cannot be scheduled at all.
+    if (settings.availability_required) {
+      return { rule: "R006", message: "No availability on file" };
+    }
+    return null;
+  }
   if (fitsAvailability(driver.saved_availability, shift)) return null;
   return {
     rule: "R006",

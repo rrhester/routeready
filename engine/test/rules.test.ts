@@ -399,3 +399,40 @@ test("R020 — driver with no preferred availability is not scheduled", () => {
   assert.equal(r.summary_metrics.filled_shifts, 0);
   assert.ok(uncoveredRule(r, "s1").includes("R020"));
 });
+
+// --- R006 availability-required (Auto Fill Availability mode) ---------------
+
+test("R006 — availability-required blocks a driver with no availability", () => {
+  const r = runEngine(
+    input({
+      shifts: [shift({ shift_id: "s1", date: "2026-05-25" })],
+      drivers: [driver({ driver_id: "d1" })],
+      settings: { availability_enforcement: true, availability_required: true },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 0);
+  assert.ok(uncoveredRule(r, "s1").includes("R006"));
+});
+
+test("R006 — availability mode schedules within full availability", () => {
+  const r = runEngine(
+    input({
+      shifts: [
+        shift({ shift_id: "mon", date: "2026-05-25" }), // Monday
+        shift({ shift_id: "tue", date: "2026-05-26" }), // Tuesday
+      ],
+      drivers: [
+        driver({
+          driver_id: "d1",
+          saved_availability: { "1": [{ start: "00:00", end: "48:00" }] },
+        }),
+      ],
+      settings: { availability_enforcement: true, availability_required: true },
+    }),
+  );
+  assert.equal(
+    r.assigned_shifts.find((a) => a.shift_id === "mon")?.driver_id,
+    "d1",
+  );
+  assert.ok(r.uncovered_shifts.some((u) => u.shift_id === "tue"));
+});
