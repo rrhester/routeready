@@ -13012,12 +13012,12 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Schedule-local tokens (kept off :root so we don't bleed
              into other views). */
           #view-schedule{
-            --sch-blue:#2563EB;
-            --sch-blue-strong:#1D4ED8;
-            --sch-blue-soft:rgba(37,99,235,.08);
-            --sch-blue-softer:rgba(37,99,235,.05);
-            --sch-blue-tint:rgba(37,99,235,.035);
-            --sch-blue-text:#1E40AF;
+            --sch-blue:#0F6CBD;
+            --sch-blue-strong:#115EA3;
+            --sch-blue-soft:rgba(15,108,189,.08);
+            --sch-blue-softer:rgba(15,108,189,.05);
+            --sch-blue-tint:rgba(15,108,189,.035);
+            --sch-blue-text:#0E4F86;
             --sch-line:rgba(15,23,42,.07);
             --sch-line-strong:rgba(15,23,42,.10);
             --sch-line-subtle:rgba(15,23,42,.04);
@@ -13097,15 +13097,16 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:0 0 0 2px var(--sch-blue);
           }
 
-          /* Finalize — quiet primary, no shouting */
+          /* Finalize — the one strong primary action: a solid Fluent
+             brand-filled button. Every other tile stays a quiet ghost. */
           #view-schedule .sched-page-btn#rr-sched-finalize-h{
-            color:var(--sch-blue);
-            background:var(--sch-blue-soft);
+            color:#fff;
+            background:var(--sch-blue);
             border-color:transparent;
           }
-          #view-schedule .sched-page-btn#rr-sched-finalize-h svg{color:var(--sch-blue)}
+          #view-schedule .sched-page-btn#rr-sched-finalize-h svg{color:#fff}
           #view-schedule .sched-page-btn#rr-sched-finalize-h:hover{
-            background:var(--sch-blue);
+            background:var(--sch-blue-strong);
             color:#fff;
             border-color:transparent;
           }
@@ -13377,10 +13378,10 @@ body.rr-cmdk-open{ overflow:hidden }
             content:"";
             position:absolute;
             left:0;top:50%;
-            width:2px;height:36px;
-            margin-top:-18px;
-            background:rgba(15,23,42,.28);
-            border-radius:1px;
+            width:1px;height:22px;
+            margin-top:-11px;
+            background:rgba(15,23,42,.10);
+            border-radius:0;
           }
 
           /* Quiet, utility-grade default for every tile EXCEPT the
@@ -14605,12 +14606,12 @@ body.rr-cmdk-open{ overflow:hidden }
              Schedule design tokens are re-declared here so it renders
              identically wherever it is mounted. */
           #rr-sched-vans-chain-body{
-            --sch-blue:#2563EB;
-            --sch-blue-strong:#1D4ED8;
-            --sch-blue-soft:rgba(37,99,235,.08);
-            --sch-blue-softer:rgba(37,99,235,.05);
-            --sch-blue-tint:rgba(37,99,235,.035);
-            --sch-blue-text:#1E40AF;
+            --sch-blue:#0F6CBD;
+            --sch-blue-strong:#115EA3;
+            --sch-blue-soft:rgba(15,108,189,.08);
+            --sch-blue-softer:rgba(15,108,189,.05);
+            --sch-blue-tint:rgba(15,108,189,.035);
+            --sch-blue-text:#0E4F86;
             --sch-line:rgba(15,23,42,.07);
             --sch-line-strong:rgba(15,23,42,.10);
             --sch-line-subtle:rgba(15,23,42,.04);
@@ -16730,12 +16731,12 @@ body.rr-cmdk-open{ overflow:hidden }
                tokens are re-declared on the shell so it renders
                identically wherever it is mounted. */
             .rr-fc-shell{
-              --sch-blue:#2563EB;
-              --sch-blue-strong:#1D4ED8;
-              --sch-blue-soft:rgba(37,99,235,.08);
-              --sch-blue-softer:rgba(37,99,235,.05);
-              --sch-blue-tint:rgba(37,99,235,.035);
-              --sch-blue-text:#1E40AF;
+              --sch-blue:#0F6CBD;
+              --sch-blue-strong:#115EA3;
+              --sch-blue-soft:rgba(15,108,189,.08);
+              --sch-blue-softer:rgba(15,108,189,.05);
+              --sch-blue-tint:rgba(15,108,189,.035);
+              --sch-blue-text:#0E4F86;
               --sch-line:rgba(15,23,42,.07);
               --sch-line-subtle:rgba(15,23,42,.04);
               --sch-surface:#FFFFFF;
