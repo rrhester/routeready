@@ -27951,15 +27951,13 @@ async function renderScheduleWeek() {
   }
   let totalNeeded = 0, totalFilled = 0;
   for (const a of coverageByDate.values()) { totalNeeded += a.needed; totalFilled += a.filled; }
-  // Coverage % is measured against the base route targets (OKAMI
-  // demand) — NOT the padded shift-row count. Staffing exactly to
-  // the route plan reads as 100%; filling the cushion buffer on top
-  // pushes it past 100 (a fully-staffed 20% cushion → 120%).
-  let totalBaseTarget = 0;
-  for (const n of plannedByDate.values()) totalBaseTarget += n;
-  // Fall back to the shift-row count when no OKAMI demand is on file
-  // for the week, so the pill still renders something sane.
-  const coverageDenom = totalBaseTarget > 0 ? totalBaseTarget : totalNeeded;
+  // Coverage % is measured against the shifts that actually exist on the
+  // board: when every shift is staffed it reads 100%. totalNeeded already
+  // includes plan-only days that have no shift rows yet, so a fully
+  // unstaffed planned day still drags coverage down. A route the plan
+  // wants but has no shift created for it is a demand/shift-generation
+  // gap — it surfaces in the Open Shifts panel, not here.
+  const coverageDenom = totalNeeded;
   const pct = coverageDenom ? Math.round(totalFilled / coverageDenom * 100) : 0;
 
   // Virtual open shifts: for each (date, station), needed − filled minus
@@ -28361,10 +28359,9 @@ async function renderScheduleWeek() {
       ? "Every branded non-grounded van stays under the 14-day rotation rule this week"
       : `Click for details · ${femRisks.length} branded van${femRisks.length === 1 ? "" : "s"} projected to cross 13+ days unused`;
     kpis.innerHTML =
-      pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} route targets`, false,
-        pct < 100   ? `${coverageDenom - totalFilled} of ${coverageDenom} route target${coverageDenom === 1 ? "" : "s"} still unstaffed`
-        : pct === 100 ? "Staffed to the route plan"
-        : `Staffed to the route plan + a ${pct - 100}% buffer`) +
+      pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts filled`, false,
+        pct < 100   ? `${coverageDenom - totalFilled} of ${coverageDenom} shift${coverageDenom === 1 ? "" : "s"} still unstaffed`
+        : "Every shift staffed") +
       pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
       pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
       pill("rotation",   rotationDotRed ? msRed : navy, rotationLabel, rotationSub, femRisks.length > 0, rotationTitle);
