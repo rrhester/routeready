@@ -44,6 +44,9 @@ function fromEpochDay(n) {
 function addDays(date, n) {
   return fromEpochDay(epochDay(date) + n);
 }
+function daysBetween(a, b) {
+  return epochDay(b) - epochDay(a);
+}
 function dayOfWeek(date) {
   const [y, m, d] = date.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
@@ -73,6 +76,7 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "preserve_locked_assignments",
   "eligible_driver_status",
   "license_enforcement",
+  "license_protection_days",
   "certification_enforcement",
   "pto_protection",
   "availability_enforcement",
@@ -159,6 +163,7 @@ function validateSettings(raw) {
       "active_only"
     ),
     license_enforcement: bool(r.license_enforcement, "license_enforcement", true),
+    license_protection_days: num(r.license_protection_days, "license_protection_days", 0, 0, 365),
     certification_enforcement: bool(
       r.certification_enforcement,
       "certification_enforcement",
@@ -741,10 +746,18 @@ function checkLicense(shift, driver, settings) {
   if (driver.license_expiration_date === null) {
     return { rule: "R003", message: "License expiration date missing" };
   }
-  if (driver.license_expiration_date < shift.date) {
+  const daysToExpiry = daysBetween(shift.date, driver.license_expiration_date);
+  if (daysToExpiry < 0) {
     return {
       rule: "R003",
       message: `License expired ${driver.license_expiration_date}`
+    };
+  }
+  const window = settings.license_protection_days;
+  if (window > 0 && daysToExpiry <= window) {
+    return {
+      rule: "R003",
+      message: `License expires ${driver.license_expiration_date} \u2014 within the ${window}-day protection window`
     };
   }
   return null;
@@ -1991,11 +2004,15 @@ function mapShift(raw) {
 function clampMaxDays(value) {
   return Math.max(0, Math.min(7, Math.round(value ?? 6)));
 }
-function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh) {
+function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh, license) {
   return {
     run_mode: "full_rebuild",
     eligible_driver_status: "active_and_onboarding",
-    license_enforcement: false,
+    // The license rule composes with the boundary modes — a driver with
+    // an expired (or soon-to-expire) license is skipped, the rest of the
+    // team fills normally.
+    license_enforcement: license.on,
+    license_protection_days: license.protectionDays,
     certification_enforcement: false,
     pto_protection: false,
     availability_enforcement: boundary === "availability",
@@ -2033,11 +2050,15 @@ function buildSettings(payload) {
     contiguous: r.preferred_enhancement_contiguous !== false,
     extra: r.preferred_enhancement_extra === true
   };
+  const license = {
+    on: r.dl_valid !== false,
+    protectionDays: Math.max(0, Math.min(365, Math.round(r.dl_protection_days ?? 0)))
+  };
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license);
   }
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
@@ -2045,7 +2066,8 @@ function buildSettings(payload) {
     // Behavior); locked manual assignments are still preserved + validated.
     run_mode: "full_rebuild",
     eligible_driver_status: r.include_onboarding !== false ? "active_and_onboarding" : "active_only",
-    license_enforcement: r.dl_valid !== false,
+    license_enforcement: license.on,
+    license_protection_days: license.protectionDays,
     certification_enforcement: true,
     pto_protection: r.pto_block !== false,
     availability_enforcement: r.availability !== false,

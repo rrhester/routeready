@@ -11967,6 +11967,15 @@ body.rr-cmdk-open{ overflow:hidden }
                     <input type="checkbox" data-rr-sf-rule="preferred_enhancement_extra">
                     <span>Extra rotations — allow swaps that scatter days</span>
                   </label>
+                  <!-- Driver's-license rule · skips a driver whose license
+                       is expired (or expiring within the DSP's protection
+                       window). The rest of the team fills normally. -->
+                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name"><strong>Driver's license must be valid</strong> · skip drivers with an expired license</span></label>
+                  <div class="sched-smartfill-rule-advanced is-on" data-rr-sf-advanced-of="dl_valid">
+                    <span class="sf-advanced-label">Stop scheduling</span>
+                    <input class="form-input sf-advanced-select" id="rr-set-dl-protection-days" type="number" min="0" max="365" step="1" value="0" autocomplete="off" aria-label="Days before license expiration to stop scheduling" style="max-width:64px"/>
+                    <span class="sf-advanced-label">days before expiration</span>
+                  </div>
                 </div>
                 <!-- Smart Fill advanced settings -->
                 <div class="sched-smartfill-advanced">
@@ -27814,7 +27823,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-enhsub"></script>
+<script type="module" src="./live.js?v=20260521-dlrule"></script>
 
 </body>
 </html>

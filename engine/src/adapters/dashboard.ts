@@ -49,6 +49,8 @@ export interface DashboardPto {
 
 export interface DashboardRules {
   dl_valid?: boolean;
+  /** Block scheduling this many days before a license expires (0 = expired only). */
+  dl_protection_days?: number;
   include_onboarding?: boolean;
   availability?: boolean;
   preferred_days?: boolean;
@@ -188,17 +190,27 @@ interface EnhancementFlags {
   extra: boolean;
 }
 
+interface LicenseFlags {
+  on: boolean;
+  protectionDays: number;
+}
+
 function boundaryModeSettings(
   boundary: "preferred" | "availability",
   maxDays: number,
   assignmentMode: "rotational_fill" | "sequential_fill",
   rotationBatch: number,
   enh: EnhancementFlags,
+  license: LicenseFlags,
 ): RawSettings {
   return {
     run_mode: "full_rebuild",
     eligible_driver_status: "active_and_onboarding",
-    license_enforcement: false,
+    // The license rule composes with the boundary modes — a driver with
+    // an expired (or soon-to-expire) license is skipped, the rest of the
+    // team fills normally.
+    license_enforcement: license.on,
+    license_protection_days: license.protectionDays,
     certification_enforcement: false,
     pto_protection: false,
     availability_enforcement: boundary === "availability",
@@ -241,13 +253,18 @@ function buildSettings(payload: PlanPayload): RawSettings {
     contiguous: r.preferred_enhancement_contiguous !== false,
     extra: r.preferred_enhancement_extra === true,
   };
+  // Driver-license rule + DSP protection window.
+  const license: LicenseFlags = {
+    on: r.dl_valid !== false,
+    protectionDays: Math.max(0, Math.min(365, Math.round(r.dl_protection_days ?? 0))),
+  };
 
   // Boundary modes are mutually exclusive; preferred wins if both are set.
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license);
   }
 
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
@@ -257,7 +274,8 @@ function buildSettings(payload: PlanPayload): RawSettings {
     run_mode: "full_rebuild",
     eligible_driver_status:
       r.include_onboarding !== false ? "active_and_onboarding" : "active_only",
-    license_enforcement: r.dl_valid !== false,
+    license_enforcement: license.on,
+    license_protection_days: license.protectionDays,
     certification_enforcement: true,
     pto_protection: r.pto_block !== false,
     availability_enforcement: r.availability !== false,

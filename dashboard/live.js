@@ -23390,6 +23390,9 @@ function _restoreSmartFillRules() {
   // Restore the tiebreaker select nested under consecutive_days.
   const tbSel = document.querySelector("#rr-sched-smartfill-rules-body [data-rr-sf-tiebreaker]");
   if (tbSel && typeof saved.tiebreaker === "string") tbSel.value = saved.tiebreaker;
+  // Restore the license protection-window field.
+  const dlEl = document.getElementById("rr-set-dl-protection-days");
+  if (dlEl) dlEl.value = String(Math.max(0, Math.min(365, parseInt(saved.dl_protection_days, 10) || 0)));
   _refreshSfAdvancedGating();
 }
 // Fill-order UI sync — the rotational batch-size control only applies
@@ -23738,14 +23741,19 @@ document.addEventListener("change", (e) => {
 // up via autoAssignDriversForWeek with no extra plumbing.
 document.addEventListener("change", (e) => {
   const sel = e.target;
-  if (!sel || (sel.id !== "rr-set-fill-order" && sel.id !== "rr-set-rotation-batch")) return;
+  if (!sel || (sel.id !== "rr-set-fill-order" && sel.id !== "rr-set-rotation-batch" && sel.id !== "rr-set-dl-protection-days")) return;
   let saved;
   try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
   catch (_) { saved = {}; }
   if (sel.id === "rr-set-fill-order") {
     saved.spread_evenly = sel.value !== "sequential";
-  } else {
+  } else if (sel.id === "rr-set-rotation-batch") {
     saved.rotation_batch = Math.max(1, Math.min(4, parseInt(sel.value, 10) || 1));
+  } else {
+    // License protection window — days before expiration to stop scheduling.
+    const days = Math.max(0, Math.min(365, parseInt(sel.value, 10) || 0));
+    saved.dl_protection_days = days;
+    sel.value = String(days);
   }
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
   _syncFillOrderUI();
