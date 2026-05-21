@@ -30687,7 +30687,24 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
             }
             return { ...s };
           });
-          const res = planScheduleWeek({ ...payload, shifts });
+          // The stashed payload can be stale — the DSP may have changed
+          // max-days or the rule set since the last Smart Fill run.
+          // Pull both live so the check reflects the current settings.
+          let liveMaxDays = payload.max_days;
+          try {
+            const { data: ws } = await sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart });
+            if (ws && ws.max_days_per_week != null) {
+              liveMaxDays = Math.max(0, Math.min(7, ws.max_days_per_week));
+            }
+          } catch (_) { /* fall back to payload value */ }
+          const liveRules = (typeof window._rrLoadSfRules === "function")
+            ? window._rrLoadSfRules() : null;
+          const res = planScheduleWeek({
+            ...payload,
+            max_days: liveMaxDays,
+            rules: liveRules ? { ...(payload.rules || {}), ...liveRules } : payload.rules,
+            shifts,
+          });
           return (res.violations || [])
             .filter(v => String(v.shift_id) === String(shiftId))
             .map(v => v.message);
