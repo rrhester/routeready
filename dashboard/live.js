@@ -30673,10 +30673,20 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
       if (payload && Array.isArray(payload.shifts)) {
         const idx = payload.shifts.findIndex(s => String(s.id) === String(shiftId));
         if (idx >= 0) {
-          const shifts = payload.shifts.map((s, i) =>
-            i === idx
-              ? { ...s, assigned_driver_id: driverId, is_locked: true }
-              : { ...s });
+          // Lock the target shift onto this driver AND lock the driver's
+          // existing assignments. Without locking the existing ones the
+          // full-rebuild would redistribute them and keep the driver at
+          // the cap, so a cumulative breach (max days, weekly hours,
+          // consecutive days) would never surface.
+          const shifts = payload.shifts.map((s, i) => {
+            if (i === idx) {
+              return { ...s, assigned_driver_id: driverId, is_locked: true };
+            }
+            if (s.assigned_driver_id === driverId) {
+              return { ...s, is_locked: true };
+            }
+            return { ...s };
+          });
           const res = planScheduleWeek({ ...payload, shifts });
           return (res.violations || [])
             .filter(v => String(v.shift_id) === String(shiftId))
