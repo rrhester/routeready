@@ -28277,10 +28277,10 @@ function _schedShiftChip(sh, extras) {
     ? `${reportStr} – ${endStr}`
     : (reportStr || endStr || "");
   const startLine = range
-    ? `<div class="shift-chip-row"><span class="shift-chip-row-lbl">Start</span><span class="shift-chip-row-val">${range}</span></div>`
+    ? `<div class="shift-chip-primary">${range}</div>`
     : "";
   const waveLine = waveStr
-    ? `<div class="shift-chip-row"><span class="shift-chip-row-lbl">Wave</span><span class="shift-chip-row-val">${waveStr}</span></div>`
+    ? `<div class="shift-chip-secondary">Wave ${waveStr}</div>`
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';
@@ -29238,14 +29238,12 @@ async function renderScheduleWeek() {
       }
       const list = shiftsByDriverDate.get(`${d.id}|${iso}`) || [];
       const busy = list.length > 0;
-      // ★ = a day the driver flagged as preferred.  Green when they're
-      // actually scheduled that day, amber when they wanted it but aren't.
-      const star = isPref
-        ? `<span title="${busy ? "Scheduled on a preferred day" : "Driver prefers this day"}" style="position:absolute;top:1px;right:3px;font-size:9px;line-height:1;color:${busy ? "var(--green)" : "var(--amber)"}">★</span>`
-        : "";
-      const rel = isPref ? ' style="position:relative"' : "";
+      // Preferred-day signal — a faint whole-cell tint instead of a
+      // floating glyph. Met (scheduled on a preferred day) reads calm;
+      // wanted (preferred but unscheduled) reads as a gentle prompt.
+      const prefCls = isPref ? (busy ? " cal-cell--pref-met" : " cal-cell--pref-want") : "";
       if (!busy)
-        return `<div class="${cls}"${rel} ${data}>${star}<div class="shift-chip off">Off</div></div>`;
+        return `<div class="${cls}${prefCls}" ${data}><div class="shift-chip off">Off</div></div>`;
       const traineeName = traineeByTrainerDate.get(`${d.id}|${iso}`) || null;
       const chips = list.map(sh => {
         const key = sh.starts_at && sh.ends_at
@@ -29256,7 +29254,7 @@ async function renderScheduleWeek() {
         if (routine) extras.routine = true;
         return _schedShiftChip(sh, Object.keys(extras).length ? extras : null);
       }).join("");
-      return `<div class="${cls}"${rel} ${data}>${star}${chips}</div>`;
+      return `<div class="${cls}${prefCls}" ${data}>${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
       <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(hoursLabel)}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div></div>
