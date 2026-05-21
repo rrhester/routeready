@@ -29135,8 +29135,13 @@ async function renderScheduleWeek() {
     const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
     const station = d.station?.code || "—";
     const totalHours = hoursPerDriver.get(d.id) || 0;
+    // Each scheduled day includes an unpaid 30-min lunch. The Driver-
+    // column total subtracts 0.5h per shift so it reflects the hours
+    // the driver is actually on the clock. (Display only — hoursPerDriver
+    // itself stays gross for sorting / OT math elsewhere.)
+    const netHours = Math.max(0, totalHours - (shiftCountPerDriver.get(d.id) || 0) * 0.5);
     const hoursLabel = totalHours > 0
-      ? `${Math.round(totalHours * 10) / 10}h scheduled`
+      ? `${Math.round(netHours * 10) / 10}h scheduled`
       : "0h scheduled";
     // Expired-DL flag — passive visual cue next to the driver name so
     // the operator sees at a glance that scheduling will trigger a warning.
