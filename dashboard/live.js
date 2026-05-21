@@ -23391,6 +23391,13 @@ function _restoreSmartFillRules() {
     const k = cb.getAttribute("data-rr-sf-rule");
     if (Object.prototype.hasOwnProperty.call(saved, k)) cb.checked = !!saved[k];
   });
+  // Restore the scheduling-mode radios (Smart Fill vs Manual) — they
+  // carry data-rr-sf-mode, not data-rr-sf-rule, so the loop above skips
+  // them. State is the boolean `manual_mode`.
+  const modeManual = !!saved.manual_mode;
+  const modeRadio = document.querySelector(
+    `#rr-sched-smartfill-rules-body [data-rr-sf-mode="${modeManual ? "manual" : "smart"}"]`);
+  if (modeRadio) modeRadio.checked = true;
   // Restore the tiebreaker select nested under consecutive_days.
   const tbSel = document.querySelector("#rr-sched-smartfill-rules-body [data-rr-sf-tiebreaker]");
   if (tbSel && typeof saved.tiebreaker === "string") tbSel.value = saved.tiebreaker;
@@ -23767,6 +23774,20 @@ document.addEventListener("change", (e) => {
   }
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
   // Refresh advanced sub-rows + boundary-mode dimming when a rule toggles.
+  _refreshSfAdvancedGating();
+  _syncManualMode();
+});
+// Scheduling-mode chooser — Smart Fill vs Manual. Persists into the
+// same Smart Fill rules store as the boolean `manual_mode`, so every
+// reader (engine adapter, button router, _syncManualMode) is unchanged.
+document.addEventListener("change", (e) => {
+  const r = e.target && e.target.closest && e.target.closest('#rr-sched-smartfill-rules-body [data-rr-sf-mode]');
+  if (!r || !r.checked) return;
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  saved.manual_mode = r.getAttribute("data-rr-sf-mode") === "manual";
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
   _refreshSfAdvancedGating();
   _syncManualMode();
 });
@@ -26791,7 +26812,14 @@ async function fillShiftsFromPreviousWeek() {
   if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) return;
 
   const btn = document.getElementById("rr-sched-smartfill-h");
-  if (btn && typeof _markTileBusy === "function") _markTileBusy(btn);
+  const orig = btn ? btn.innerHTML : "";
+  if (btn) {
+    if (typeof _markTileBusy === "function") _markTileBusy(btn);
+    // Spinner swap so the DSP gets immediate feedback while the
+    // load + assign RPC chain runs. The label stays in a .sf-btn-label
+    // span so _syncManualMode can keep relabeling it.
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg><span class="sf-btn-label">Fill Shifts</span>`;
+  }
   try {
     const weekStart  = new Date(_schedStart + "T12:00:00");
     const weekEndIso = fmtIsoDate(addDays(weekStart, 6));
@@ -26925,7 +26953,10 @@ async function fillShiftsFromPreviousWeek() {
     console.warn("fillShiftsFromPreviousWeek:", e);
     toast("Fill Shifts failed: " + ((e && e.message) || "error"), "warn");
   } finally {
-    if (btn && typeof _clearTileBusy === "function") _clearTileBusy(btn);
+    if (btn) {
+      if (typeof _clearTileBusy === "function") _clearTileBusy(btn);
+      btn.innerHTML = orig;
+    }
   }
 }
 window.fillShiftsFromPreviousWeek = fillShiftsFromPreviousWeek;
