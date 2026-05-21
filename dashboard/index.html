@@ -12581,10 +12581,10 @@ body.rr-cmdk-open{ overflow:hidden }
             gap:0;
             margin:0 0 var(--s-4) 0;
             padding:10px 0;
-            background:#FFFFFF;
-            border:1px solid rgba(15,23,42,.08);
+            background:var(--surface-elevated);
+            border:1px solid rgba(15,23,42,.07);
             border-radius:10px;
-            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
             font-size:var(--fs-sm);
           }
           /* Rule violations · pops out as a flyover drawer, JS-
@@ -13075,9 +13075,15 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-line:rgba(15,23,42,.07);
             --sch-line-strong:rgba(15,23,42,.10);
             --sch-line-subtle:rgba(15,23,42,.04);
-            --sch-surface:#FFFFFF;
-            --sch-surface-2:#FAFBFC;
-            --sch-surface-3:#F3F4F6;
+            --sch-surface:#F8F9FB;
+            --sch-surface-2:#F2F3F6;
+            --sch-surface-3:#EBEDF1;
+            /* Priority 3 · no pure white. Override the global surface
+               tokens within the schedule view so cards/panels read as
+               layered off-white over the canvas, not stark #FFF. */
+            --surface:#F8F9FB;
+            --surface-secondary:#F2F3F6;
+            --surface-elevated:#FCFDFE;
             --sch-hover:rgba(15,23,42,.04);
             --sch-pressed:rgba(15,23,42,.06);
             --sch-amber-soft:rgba(180,83,9,.10);
@@ -13317,10 +13323,10 @@ body.rr-cmdk-open{ overflow:hidden }
             flex-wrap:nowrap;
             padding:11px 18px;
             margin-bottom:var(--s-4);
-            background:#FFFFFF;
-            border:1px solid rgba(15,23,42,.08);
+            background:var(--surface-elevated);
+            border:1px solid rgba(15,23,42,.07);
             border-radius:10px;
-            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
           }
           #view-schedule .sched-nav-heading .page-header-l{
             flex:0 0 auto;min-width:0;
@@ -14632,9 +14638,15 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-line:rgba(15,23,42,.07);
             --sch-line-strong:rgba(15,23,42,.10);
             --sch-line-subtle:rgba(15,23,42,.04);
-            --sch-surface:#FFFFFF;
-            --sch-surface-2:#FAFBFC;
-            --sch-surface-3:#F3F4F6;
+            --sch-surface:#F8F9FB;
+            --sch-surface-2:#F2F3F6;
+            --sch-surface-3:#EBEDF1;
+            /* Priority 3 · no pure white. Override the global surface
+               tokens within the schedule view so cards/panels read as
+               layered off-white over the canvas, not stark #FFF. */
+            --surface:#F8F9FB;
+            --surface-secondary:#F2F3F6;
+            --surface-elevated:#FCFDFE;
             --sch-hover:rgba(15,23,42,.04);
             --sch-pressed:rgba(15,23,42,.06);
             --sch-amber-soft:rgba(180,83,9,.10);
@@ -16719,8 +16731,12 @@ body.rr-cmdk-open{ overflow:hidden }
               --sch-blue-text:#0E4F86;
               --sch-line:rgba(15,23,42,.07);
               --sch-line-subtle:rgba(15,23,42,.04);
-              --sch-surface:#FFFFFF;
-              --sch-surface-2:#FAFBFC;
+              --sch-surface:#F8F9FB;
+              --sch-surface-2:#F2F3F6;
+              /* Priority 3 · no pure white (see #view-schedule block). */
+              --surface:#F8F9FB;
+              --surface-secondary:#F2F3F6;
+              --surface-elevated:#FCFDFE;
               --sch-hover:rgba(15,23,42,.04);
               --sch-pressed:rgba(15,23,42,.06);
               --sch-red:#B91C1C;
@@ -18477,10 +18493,10 @@ body.rr-cmdk-open{ overflow:hidden }
             gap:var(--s-3);flex-wrap:nowrap;
             padding:14px 18px;
             margin-bottom:var(--s-4);
-            background:#FFFFFF;
-            border:1px solid rgba(15,23,42,.08);
+            background:var(--surface-elevated);
+            border:1px solid rgba(15,23,42,.07);
             border-radius:10px;
-            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05);
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
           }
           #view-fleet .fl-ribbon-titlewrap{
             display:flex;align-items:center;gap:var(--s-3);min-width:0;
