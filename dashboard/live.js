@@ -22839,6 +22839,10 @@ async function loadSchedulingSettings() {
       const rb = Math.max(1, Math.min(4, parseInt(sf.rotation_batch, 10) || 1));
       rbEl.value = String(rb);
     }
+    const fpEl = document.getElementById("rr-set-fill-priority");
+    if (fpEl) fpEl.value = sf.fill_priority === "random" ? "random" : "seniority";
+    const rsEl = document.getElementById("rr-set-rotation-start-day");
+    if (rsEl) rsEl.value = String(Math.max(0, Math.min(6, parseInt(sf.rotation_start_day, 10) || 0)));
     if (typeof _syncFillOrderUI === "function") _syncFillOrderUI();
   }
   // Cache the effective settings so auto-assign reads the per-week values.
@@ -23741,7 +23745,8 @@ document.addEventListener("change", (e) => {
 // up via autoAssignDriversForWeek with no extra plumbing.
 document.addEventListener("change", (e) => {
   const sel = e.target;
-  if (!sel || (sel.id !== "rr-set-fill-order" && sel.id !== "rr-set-rotation-batch" && sel.id !== "rr-set-dl-protection-days")) return;
+  const ADV_IDS = ["rr-set-fill-order", "rr-set-rotation-batch", "rr-set-dl-protection-days", "rr-set-fill-priority", "rr-set-rotation-start-day"];
+  if (!sel || !ADV_IDS.includes(sel.id)) return;
   let saved;
   try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
   catch (_) { saved = {}; }
@@ -23749,6 +23754,10 @@ document.addEventListener("change", (e) => {
     saved.spread_evenly = sel.value !== "sequential";
   } else if (sel.id === "rr-set-rotation-batch") {
     saved.rotation_batch = Math.max(1, Math.min(4, parseInt(sel.value, 10) || 1));
+  } else if (sel.id === "rr-set-fill-priority") {
+    saved.fill_priority = sel.value === "random" ? "random" : "seniority";
+  } else if (sel.id === "rr-set-rotation-start-day") {
+    saved.rotation_start_day = Math.max(0, Math.min(6, parseInt(sel.value, 10) || 0));
   } else {
     // License protection window — days before expiration to stop scheduling.
     const days = Math.max(0, Math.min(365, parseInt(sel.value, 10) || 0));

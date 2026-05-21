@@ -39,6 +39,7 @@ const KNOWN_KEYS = new Set<keyof RawSettings>([
   "scheduling_method",
   "assignment_mode",
   "rotation_batch_size",
+  "rotation_start_day",
   "preferred_availability_priority",
   "preferred_availability_required",
   "preferred_enhancement",
@@ -204,6 +205,7 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
         "availability_first",
         "alphabetical",
         "attendance_priority",
+        "random",
       ] as const,
       "fair_rotation",
     ),
@@ -214,6 +216,7 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
       "rotational_fill",
     ),
     rotation_batch_size: num(r.rotation_batch_size, "rotation_batch_size", 1, 1, 4),
+    rotation_start_day: num(r.rotation_start_day, "rotation_start_day", 0, 0, 6),
     preferred_availability_priority: bool(
       r.preferred_availability_priority,
       "preferred_availability_priority",

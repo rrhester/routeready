@@ -12003,6 +12003,27 @@ body.rr-cmdk-open{ overflow:hidden }
                       <option value="4">4 shifts, then rotate</option>
                     </select>
                   </div>
+                  <!-- Who fills first · seniority or a stable random order. -->
+                  <div class="sched-smartfill-advanced-row">
+                    <span class="sf-advanced-field-label">Who fills first</span>
+                    <select class="form-input sf-advanced-field-select" id="rr-set-fill-priority">
+                      <option value="seniority">Seniority — most senior driver first</option>
+                      <option value="random">Random — shuffled (stable per week)</option>
+                    </select>
+                  </div>
+                  <!-- Which weekday the shift-fill rotation starts on. -->
+                  <div class="sched-smartfill-advanced-row">
+                    <span class="sf-advanced-field-label">Rotation starts on</span>
+                    <select class="form-input sf-advanced-field-select" id="rr-set-rotation-start-day">
+                      <option value="0">Sunday</option>
+                      <option value="1">Monday</option>
+                      <option value="2">Tuesday</option>
+                      <option value="3">Wednesday</option>
+                      <option value="4">Thursday</option>
+                      <option value="5">Friday</option>
+                      <option value="6">Saturday</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -27827,7 +27848,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-attnpenalty"></script>
+<script type="module" src="./live.js?v=20260521-fillpriority"></script>
 
 </body>
 </html>
