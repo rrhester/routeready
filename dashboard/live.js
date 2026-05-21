@@ -30018,6 +30018,23 @@ function bindSchedWeekNav() {
           tradeoff: "Drivers are scheduled right up to their license expiration date.",
         });
       }
+      // Overtime — raise the WOC weekly hour cap so existing drivers can
+      // cover more shifts. Stepped so _openCovModal can recommend the
+      // smallest amount of OT that closes the gap. Only meaningful when
+      // WOC is enforced (otherwise there is no cap to raise).
+      if (r.woc !== false) {
+        const curHours = Math.max(1, Math.min(168,
+          Math.round(r.woc_max_hours ?? payload.weekly_hour_cap ?? 40)));
+        for (const h of [45, 48, 50, 55, 60]) {
+          if (h <= curHours) continue;
+          c.push({
+            hours: h,
+            ruleDelta: { woc_max_hours: h },
+            title: `Raise the weekly hour cap to ${h}h (from ${curHours}h)`,
+            tradeoff: `Drivers work overtime — up to ${h}h on the clock. Every other rule (availability, consecutive days, max days, license) still applies; the only cost is OT hours.`,
+          });
+        }
+      }
       return c;
     };
 
@@ -30049,6 +30066,7 @@ function bindSchedWeekNav() {
         }
         const recs = [];
         const maxDaysRecs = [];
+        const hoursRecs = [];
         for (const cand of _covCandidates(payload)) {
           let res = null;
           try {
@@ -30062,6 +30080,7 @@ function bindSchedWeekNav() {
           if (proj == null || baseCov == null || proj <= baseCov) continue;
           const rec = { ...cand, proj };
           if (cand.maxDays != null) maxDaysRecs.push(rec);
+          else if (cand.hours != null) hoursRecs.push(rec);
           else recs.push(rec);
         }
         // Collapse the max-days steps to the gentlest one that helps:
@@ -30075,6 +30094,17 @@ function bindSchedWeekNav() {
           if (!pick) {
             const best = Math.max(...maxDaysRecs.map((r) => r.proj));
             pick = maxDaysRecs.find((r) => r.proj === best);
+          }
+          if (pick) recs.push(pick);
+        }
+        // Collapse the overtime steps the same way — recommend the
+        // smallest cap increase (least OT) that closes the gap.
+        if (hoursRecs.length > 0) {
+          hoursRecs.sort((a, b) => a.hours - b.hours);
+          let pick = hoursRecs.find((r) => r.proj >= 100);
+          if (!pick) {
+            const best = Math.max(...hoursRecs.map((r) => r.proj));
+            pick = hoursRecs.find((r) => r.proj === best);
           }
           if (pick) recs.push(pick);
         }
