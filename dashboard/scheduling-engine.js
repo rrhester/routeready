@@ -1505,10 +1505,12 @@ function buildUnscheduledDrivers(ctx, ws) {
         eligibleSomewhere = true;
         continue;
       }
-      const reason = cell.block_reasons[0];
-      const entry = byRule.get(reason.rule);
-      if (entry) entry.count += 1;
-      else byRule.set(reason.rule, { count: 1, message: reason.message });
+      if (plan.assignedDriverId === null) {
+        const reason = cell.block_reasons[0];
+        const entry = byRule.get(reason.rule);
+        if (entry) entry.count += 1;
+        else byRule.set(reason.rule, { count: 1, message: reason.message });
+      }
     }
     out.push({
       driver_id: driver.driver_id,

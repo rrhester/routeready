@@ -8,7 +8,7 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-explain";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-explain2";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -26653,22 +26653,27 @@ async function autoFillScheduleWeek() {
     toast("Sync failed: " + (failed[0].error?.message || "unknown error"), "warn");
     return;
   }
+  let summaryAlert = null;
   if (failed.length > 0) {
     toast(`Synced ${calls.length - failed.length} of ${calls.length} day-stations · ${failed.length} failed`, "warn");
   } else {
-    // Now try to auto-assign drivers to the freshly-generated open shifts
-    // based on each driver's availability metadata.
+    // Auto-assign drivers to the freshly-generated open shifts.
     const { assigned, diagnostics } = await autoAssignDriversForWeek();
     if (assigned > 0) {
       toast(`Schedule synced · ${assigned} shift${assigned === 1 ? "" : "s"} auto-assigned`, "success");
     } else {
       toast("Schedule synced with OKAMI plan", "success");
     }
-    // Surface the engine's explanation: uncovered shifts + drivers who got
-    // no shifts, each with the reason. Use alert so the operator actually
-    // sees it (a toast vanishes too quick to act on).
+    // Build the engine's explanation summary. Shown AFTER the grid
+    // re-renders below, so the operator reads it against a fresh board.
     if (diagnostics) {
       const parts = [];
+      if (diagnostics.failedWrites > 0) {
+        parts.push(
+          `⚠ ${diagnostics.failedWrites} assignment${diagnostics.failedWrites === 1 ? "" : "s"} could not be saved` +
+          (diagnostics.writeError ? `:\n  ${diagnostics.writeError}` : ".")
+        );
+      }
       if (diagnostics.uncovered.length > 0) {
         parts.push(
           `${diagnostics.uncovered.length} shift${diagnostics.uncovered.length === 1 ? "" : "s"} could not be covered:\n` +
@@ -26681,12 +26686,11 @@ async function autoFillScheduleWeek() {
           diagnostics.unscheduled.map(s => "  • " + s).join("\n")
         );
       }
-      if (parts.length > 0) {
-        alert("Smart Fill results\n\n" + parts.join("\n\n"));
-      }
+      if (parts.length > 0) summaryAlert = "Smart Fill results\n\n" + parts.join("\n\n");
     }
   }
   await renderScheduleWeek();
+  if (summaryAlert) alert(summaryAlert);
 }
 
 // Auto-assign drivers to open shifts in the current week based on each
@@ -26978,11 +26982,19 @@ async function autoAssignDriversForWeek() {
   // Write back only the engine's NEW assignments. Locked rows (already
   // assigned training / ride-along shifts) must not be re-written.
   let assigned = 0;
+  let failedWrites = 0;
+  let writeError = null;
   for (const a of result.assigned_shifts) {
     if (a.source !== "auto_fill") continue;
     _markLocalShiftMutation();
     const { error } = await sb.rpc("assign_shift", { p_id: a.shift_id, p_driver_id: a.driver_id });
-    if (!error) assigned += 1;
+    if (error) {
+      failedWrites += 1;
+      if (!writeError) writeError = error.message || "assign_shift failed";
+      console.warn("assign_shift failed:", a.shift_id, "->", a.driver_id, error);
+    } else {
+      assigned += 1;
+    }
   }
 
   // Surface the engine's explanation output: why each shift is still open
@@ -26990,12 +27002,23 @@ async function autoAssignDriversForWeek() {
   // for every skip; this turns it into an operator-facing summary.
   const nameById = new Map(drivers.map(d => [d.id, d.full_name || d.id]));
   const diagnostics = {
+    failedWrites,
+    writeError,
     uncovered: (result.uncovered_shifts || []).map(u => u.summary),
     unscheduled: (result.unscheduled_drivers || []).map(u => {
       const name = nameById.get(u.driver_id) || u.driver_id;
-      const reason = u.eligible_somewhere
-        ? "eligible, but no shift was available (try turning on “Spread work evenly”)"
-        : ((u.block_reasons[0] && u.block_reasons[0].message) || "no eligible shift this week");
+      const blocks = u.block_reasons || [];
+      let reason;
+      if (blocks.length > 0) {
+        // There were open shifts the driver could not take — say why.
+        reason = "blocked from the open shifts — " +
+          blocks.map(b => b.message).join("; ");
+      } else if (u.eligible_somewhere) {
+        reason = "eligible, but every shift was filled by another driver " +
+          "(turn on “Spread work evenly” to give everyone a turn)";
+      } else {
+        reason = "no eligible shift this week";
+      }
       return `${name} — ${reason}`;
     }),
   };

@@ -166,10 +166,15 @@ export function buildUnscheduledDrivers(
         eligibleSomewhere = true;
         continue;
       }
-      const reason = cell.block_reasons[0];
-      const entry = byRule.get(reason.rule);
-      if (entry) entry.count += 1;
-      else byRule.set(reason.rule, { count: 1, message: reason.message });
+      // Only aggregate reasons for shifts that ended up UNCOVERED — those
+      // are the shifts the driver could plausibly have filled. Being
+      // blocked from a shift another driver took is not informative.
+      if (plan.assignedDriverId === null) {
+        const reason = cell.block_reasons[0];
+        const entry = byRule.get(reason.rule);
+        if (entry) entry.count += 1;
+        else byRule.set(reason.rule, { count: 1, message: reason.message });
+      }
     }
 
     out.push({
