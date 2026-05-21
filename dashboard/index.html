@@ -11956,6 +11956,7 @@ body.rr-cmdk-open{ overflow:hidden }
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="max_hours" checked> <span class="sf-rule-name">Cap each driver at the weekly hour limit (40h)</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="pto_count_in_cap"> <span class="sf-rule-name">Count PTO hours toward the 40-hour cap (8h per PTO day)</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="consecutive_days"> <span class="sf-rule-name">Prefer consecutive working days (days off cluster back-to-back)</span></label>
+                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="spread_evenly" checked> <span class="sf-rule-name">Spread work evenly across drivers (off = fill each driver to capacity before the next)</span></label>
                   <div class="sched-smartfill-rule-advanced is-on">
                     <span class="sf-advanced-label">When multiple drivers qualify, prefer:</span>
                     <select class="form-input sf-advanced-select" data-rr-sf-tiebreaker>
@@ -27757,7 +27758,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-rules"></script>
+<script type="module" src="./live.js?v=20260521-fill"></script>
 
 </body>
 </html>
