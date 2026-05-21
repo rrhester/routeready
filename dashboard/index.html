@@ -12022,6 +12022,10 @@ body.rr-cmdk-open{ overflow:hidden }
                          routes, without breaking WOC or license. -->
                     <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="fifth_day_fill"> <span class="sf-rule-name"><strong>Fill an extra (5th) day</strong> · give opted-in drivers one more day on still-open shifts</span></label>
                     <label class="sched-smartfill-rule-advanced sf-enh-sub" data-rr-sf-advanced-of="fifth_day_fill">
+                      <input type="checkbox" data-rr-sf-rule="fifth_day_override_availability">
+                      <span>Allow a 5th day to override driver availability (WOC + license still apply)</span>
+                    </label>
+                    <label class="sched-smartfill-rule-advanced sf-enh-sub" data-rr-sf-advanced-of="fifth_day_fill">
                       <input type="checkbox" data-rr-sf-rule="fifth_day_notify">
                       <span>Message those drivers in the app that they got a 5th day</span>
                     </label>
@@ -28006,7 +28010,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-cov5th2"></script>
+<script type="module" src="./live.js?v=20260521-5thoverride"></script>
 
 </body>
 </html>

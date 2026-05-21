@@ -49,6 +49,7 @@ const KNOWN_KEYS = new Set<keyof RawSettings>([
   "affinity_enhancement",
   "affinity_day_order",
   "fifth_day_fill",
+  "fifth_day_override_availability",
   "consecutive_working_days",
 ]);
 
@@ -281,6 +282,11 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
     ),
     affinity_day_order: dayOrder(r.affinity_day_order),
     fifth_day_fill: bool(r.fifth_day_fill, "fifth_day_fill", false),
+    fifth_day_override_availability: bool(
+      r.fifth_day_override_availability,
+      "fifth_day_override_availability",
+      false,
+    ),
     consecutive_working_days: bool(
       r.consecutive_working_days,
       "consecutive_working_days",

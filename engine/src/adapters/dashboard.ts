@@ -91,6 +91,8 @@ export interface DashboardRules {
   /** Fifth-Day Fill — final pass layering an extra day onto open shifts
    *  for drivers who opted in. */
   fifth_day_fill?: boolean;
+  /** When the 5th-day pass runs, allow it to ignore driver availability. */
+  fifth_day_override_availability?: boolean;
   tiebreaker?: string;
   /**
    * Boundary mode "Auto Fill only Preferred Availability" — the engine
@@ -246,6 +248,7 @@ function boundaryModeSettings(
   woc: WocFlags,
   affinity: AffinityFlags,
   fifthDayFill: boolean,
+  fifthDayOverrideAvail: boolean,
   attendancePenalty: boolean,
   schedulingMethod: "seniority" | "random",
   rotationStartDay: number,
@@ -292,6 +295,7 @@ function boundaryModeSettings(
     affinity_enhancement: affinity.on,
     affinity_day_order: affinity.dayOrder,
     fifth_day_fill: fifthDayFill,
+    fifth_day_override_availability: fifthDayOverrideAvail,
     consecutive_working_days: false,
   };
 }
@@ -331,6 +335,7 @@ function buildSettings(payload: PlanPayload): RawSettings {
   // Fifth-Day Fill — final pass layering an extra day onto open shifts
   // for drivers who opted in.
   const fifthDayFill = r.fifth_day_fill === true;
+  const fifthDayOverrideAvail = r.fifth_day_override_availability === true;
   // Attendance Penalty — Final-corrective-action drivers scheduled last.
   const attendancePenalty = r.attendance_penalty === true;
   // Who fills first — seniority (default) or a stable random order.
@@ -340,10 +345,10 @@ function buildSettings(payload: PlanPayload): RawSettings {
 
   // Boundary modes are mutually exclusive; preferred wins if both are set.
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, fifthDayFill, attendancePenalty, schedulingMethod, rotationStartDay);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, fifthDayFill, fifthDayOverrideAvail, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, fifthDayFill, attendancePenalty, schedulingMethod, rotationStartDay);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, fifthDayFill, fifthDayOverrideAvail, attendancePenalty, schedulingMethod, rotationStartDay);
   }
 
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
@@ -387,6 +392,7 @@ function buildSettings(payload: PlanPayload): RawSettings {
     affinity_enhancement: affinity.on,
     affinity_day_order: affinity.dayOrder,
     fifth_day_fill: fifthDayFill,
+    fifth_day_override_availability: fifthDayOverrideAvail,
     consecutive_working_days: r.consecutive_days === true,
   };
 }
