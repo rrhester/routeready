@@ -26,6 +26,7 @@ const HARD_CHECKS = [
   "R009",
   "R010",
   "R011",
+  "R019",
 ];
 
 export interface UncoveredInfo {

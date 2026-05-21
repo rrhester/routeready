@@ -56,7 +56,7 @@ export interface DashboardRules {
   pto_block?: boolean;
   min_rest?: boolean;
   max_hours?: boolean;
-  pto_count_in_cap?: boolean;
+  woc?: boolean;
   consecutive_days?: boolean;
   /** true (default) = rotational fill (even spread); false = sequential. */
   spread_evenly?: boolean;
@@ -74,7 +74,8 @@ export interface PlanPayload {
   pto?: DashboardPto[];
 }
 
-const PTO_HOURS_PER_DAY = 8;
+// PTO / approved day off always counts as 10 hours toward the weekly cap.
+const PTO_HOURS_PER_DAY = 10;
 // A permissive window: a listed day-of-week means "available all day".
 const ALL_DAY: WeeklyAvailability[string] = [{ start: "00:00", end: "48:00" }];
 
@@ -158,7 +159,9 @@ function buildSettings(payload: PlanPayload): RawSettings {
   const r = payload.rules ?? {};
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
-    run_mode: "fill_empty_only",
+    // Auto-schedule always performs a FULL REBUILD (SPEC Default Schedule
+    // Behavior); locked manual assignments are still preserved + validated.
+    run_mode: "full_rebuild",
     eligible_driver_status:
       r.include_onboarding !== false ? "active_and_onboarding" : "active_only",
     license_enforcement: r.dl_valid !== false,
@@ -169,9 +172,12 @@ function buildSettings(payload: PlanPayload): RawSettings {
     max_days: Math.max(1, Math.min(7, Math.round(payload.max_days || 6))),
     weekly_hour_cap_enforcement: r.max_hours !== false,
     weekly_hour_cap: payload.weekly_hour_cap ?? 40,
-    pto_counts_toward_cap: r.pto_count_in_cap === true,
+    // PTO / approved day off always counts toward the 40-hour cap (hard rule).
+    pto_counts_toward_cap: true,
     pto_default_hours: PTO_HOURS_PER_DAY,
     min_rest_enforcement: r.min_rest !== false,
+    // WOC — blocks a 7th consecutive working day.
+    woc_enforcement: r.woc !== false,
     // A driver works at most one shift per day — a physical constraint,
     // never operator-configurable.
     same_day_multi_shift: "block",

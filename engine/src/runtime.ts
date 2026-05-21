@@ -106,6 +106,15 @@ export function fitsAvailability(
   return false;
 }
 
+/**
+ * True when a shift is a DOT-required route. DOT routes (Step Van, XL, and
+ * any future DOT-marked route) must be filled before DOT-certified drivers
+ * are spent on standard routes — see Step 6's two-phase fill order.
+ */
+export function isDotRoute(shift: NormalizedShift): boolean {
+  return shift.route_type === "step_van" || shift.route_type === "xl";
+}
+
 /** Seniority/alphabetical comparison: negative when `a` should rank first. */
 export function compareSeniority(
   a: NormalizedDriver,

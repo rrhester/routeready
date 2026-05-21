@@ -269,3 +269,92 @@ test("override_ack_by downgrades a locked violation to acknowledged", () => {
     "acknowledged",
   );
 });
+
+// --- R019 (WOC) + DOT-first route fill order -------------------------------
+
+test("R019 — WOC blocks a 7th consecutive working day", () => {
+  // Seven standard shifts, one per day across the schedule week. With only
+  // WOC enforced, exactly six get filled and the 7th is blocked.
+  const shifts = [];
+  for (let i = 0; i < 7; i++) {
+    const date = `2026-05-${String(24 + i).padStart(2, "0")}`;
+    shifts.push(shift({ shift_id: `s${i}`, date }));
+  }
+  const r = runEngine(
+    input({
+      shifts,
+      drivers: [driver({ driver_id: "d1" })],
+      settings: {
+        max_days_enforcement: false,
+        weekly_hour_cap_enforcement: false,
+        woc_enforcement: true,
+      },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 6);
+  assert.equal(r.summary_metrics.uncovered_shifts, 1);
+  const blocked = r.uncovered_shifts[0];
+  assert.ok(blocked.top_block_reasons.some((b) => b.rule === "R019"));
+});
+
+test("R019 — six consecutive working days are allowed", () => {
+  const shifts = [];
+  for (let i = 0; i < 6; i++) {
+    const date = `2026-05-${String(24 + i).padStart(2, "0")}`;
+    shifts.push(shift({ shift_id: `s${i}`, date }));
+  }
+  const r = runEngine(
+    input({
+      shifts,
+      drivers: [driver({ driver_id: "d1" })],
+      settings: {
+        max_days_enforcement: false,
+        weekly_hour_cap_enforcement: false,
+        woc_enforcement: true,
+      },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 6);
+});
+
+test("R019 — disabled WOC allows a 7th consecutive day", () => {
+  const shifts = [];
+  for (let i = 0; i < 7; i++) {
+    const date = `2026-05-${String(24 + i).padStart(2, "0")}`;
+    shifts.push(shift({ shift_id: `s${i}`, date }));
+  }
+  const r = runEngine(
+    input({
+      shifts,
+      drivers: [driver({ driver_id: "d1" })],
+      settings: {
+        max_days_enforcement: false,
+        weekly_hour_cap_enforcement: false,
+        woc_enforcement: false,
+      },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 7);
+});
+
+test("DOT-first — a DOT route is filled before a standard route", () => {
+  // One driver, two shifts on the same date: a DOT (step_van) route and a
+  // standard route. Same-day rule means the driver can take only one — the
+  // two-phase fill order must spend them on the DOT route.
+  const r = runEngine(
+    input({
+      shifts: [
+        shift({ shift_id: "s_std", date: "2026-05-25", route_type: "standard" }),
+        shift({ shift_id: "s_dot", date: "2026-05-25", route_type: "step_van" }),
+      ],
+      drivers: [driver({ driver_id: "d1", dot_certified: true })],
+    }),
+  );
+  const dot = r.assigned_shifts.find((a) => a.shift_id === "s_dot");
+  assert.ok(dot, "DOT route should be filled first");
+  assert.equal(dot.driver_id, "d1");
+  assert.ok(
+    r.uncovered_shifts.some((u) => u.shift_id === "s_std"),
+    "standard route should be left uncovered",
+  );
+});
