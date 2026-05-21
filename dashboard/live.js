@@ -30078,6 +30078,36 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
 async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShiftOverride) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId || !_schedStart) return [];
+
+  // Engine-driven validation — runs the real scheduling engine with the
+  // target shift locked to this driver and reports the hard-rule
+  // violations it flags. This keeps the manual-assign warning in sync
+  // with the DSP's current Smart Fill rules (license protection window,
+  // preferred-availability boundary, WOC, max-days, etc.) instead of a
+  // separate hand-rolled checklist. Falls through to the legacy checks
+  // for virtual chips or when no Smart Fill payload exists yet.
+  if (!candidateShiftOverride && shiftId && typeof planScheduleWeek === "function") {
+    try {
+      const payload = (typeof _getSfDrillPayload === "function") ? _getSfDrillPayload() : null;
+      if (payload && Array.isArray(payload.shifts)) {
+        const idx = payload.shifts.findIndex(s => String(s.id) === String(shiftId));
+        if (idx >= 0) {
+          const shifts = payload.shifts.map((s, i) =>
+            i === idx
+              ? { ...s, assigned_driver_id: driverId, is_locked: true }
+              : { ...s });
+          const res = planScheduleWeek({ ...payload, shifts });
+          return (res.violations || [])
+            .filter(v => String(v.shift_id) === String(shiftId))
+            .map(v => v.message);
+        }
+      }
+    } catch (e) {
+      console.warn("engine-driven assign check failed, using legacy checks:", e);
+    }
+  }
+
+  // ── Legacy fallback checks (virtual chips, or no Smart Fill run yet) ──
   const violations = [];
 
   // Per-week settings (max-days).
