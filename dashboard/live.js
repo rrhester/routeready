@@ -23427,6 +23427,16 @@ function _refreshSfAdvancedGating() {
     enhCb.disabled = disabled;
     if (enhRow) enhRow.classList.toggle("is-disabled", disabled);
   }
+  // Enhancement sub-options are only interactive while the Enhancement
+  // itself is checked; when it's off they're disabled and forced off.
+  const enhOn = isChecked("preferred_enhancement") && !isChecked("preferred_only");
+  document.querySelectorAll(
+    '#rr-sched-smartfill-rules-body [data-rr-sf-rule="preferred_enhancement_contiguous"],' +
+    '#rr-sched-smartfill-rules-body [data-rr-sf-rule="preferred_enhancement_extra"]',
+  ).forEach((sub) => {
+    sub.disabled = !enhOn;
+    if (!enhOn) sub.checked = false;
+  });
 }
 // Public reader so autoAssignDriversForWeek can query the live SF
 // rule state without a DOM read.
@@ -23705,6 +23715,19 @@ document.addEventListener("change", (e) => {
     const otherKey = key === "preferred_only" ? "availability_only" : "preferred_only";
     const other = document.querySelector(`#rr-sched-smartfill-rules-body [data-rr-sf-rule="${otherKey}"]`);
     if (other) { other.checked = false; saved[otherKey] = false; }
+  }
+  // Preferred Availability Enhancement governs its sub-options: enabling
+  // it defaults the contiguity-preserving sub on; disabling it clears
+  // both subs.
+  if (key === "preferred_enhancement") {
+    const contig = document.querySelector('#rr-sched-smartfill-rules-body [data-rr-sf-rule="preferred_enhancement_contiguous"]');
+    const extra  = document.querySelector('#rr-sched-smartfill-rules-body [data-rr-sf-rule="preferred_enhancement_extra"]');
+    if (cb.checked) {
+      if (contig) { contig.checked = true; saved.preferred_enhancement_contiguous = true; }
+    } else {
+      if (contig) { contig.checked = false; saved.preferred_enhancement_contiguous = false; }
+      if (extra)  { extra.checked  = false; saved.preferred_enhancement_extra = false; }
+    }
   }
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
   // Refresh advanced sub-rows + boundary-mode dimming when a rule toggles.
