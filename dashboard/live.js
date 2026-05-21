@@ -29171,9 +29171,12 @@ function bindSchedWeekNav() {
         .rr-pref-rec{border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;margin-bottom:10px}
         .rr-pref-rec:last-child{margin-bottom:0}
         .rr-pref-rec-title{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
-        .rr-pref-rec-proj{font-size:var(--fs-lg);font-weight:700;color:var(--text);margin:5px 0 7px;display:flex;align-items:center;gap:8px}
-        .rr-pref-rec-proj strong{color:#0078d4}
-        .rr-pref-arrow{color:var(--text-subtle);font-weight:400}
+        .rr-pref-rec-metrics{margin:6px 0 8px;display:flex;flex-direction:column;gap:3px}
+        .rr-pref-metric{display:flex;align-items:baseline;font-size:var(--fs-md);font-weight:700;color:var(--text)}
+        .rr-pref-metric-label{flex:0 0 76px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)}
+        .rr-pref-metric strong{color:#0078d4}
+        .rr-pref-metric strong.rr-pref-down{color:#D13438}
+        .rr-pref-arrow{color:var(--text-subtle);font-weight:400;margin:0 6px}
         .rr-pref-rec-trade{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.45;margin-bottom:10px}
         .rr-pref-trade-label{font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;font-size:10px;margin-right:5px}
         .rr-pref-empty{font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;margin:0}
@@ -29205,16 +29208,26 @@ function bindSchedWeekNav() {
     // current Smart Fill rule state.
     const _prefCandidates = (rules) => {
       const c = [];
+      // Contiguity-preserving enhancement — offered whenever it isn't on.
       if (!rules.preferred_enhancement) {
         c.push({
           delta: { preferred_enhancement: true, preferred_enhancement_contiguous: true },
           title: "Turn on Preferred Availability Enhancement",
           tradeoff: "Minimal — it only swaps two drivers when both land on a preferred day and both keep the same shift count.",
         });
-      } else if (!rules.preferred_enhancement_extra) {
+      }
+      // Extra rotations — offered whenever they aren't on, independent of
+      // the contiguity-preserving option (turns the Enhancement on too).
+      if (!(rules.preferred_enhancement && rules.preferred_enhancement_extra)) {
         c.push({
-          delta: { preferred_enhancement_extra: true },
-          title: "Add extra enhancement rotations",
+          delta: {
+            preferred_enhancement: true,
+            preferred_enhancement_contiguous: true,
+            preferred_enhancement_extra: true,
+          },
+          title: rules.preferred_enhancement
+            ? "Add extra enhancement rotations"
+            : "Turn on the Enhancement with extra rotations",
           tradeoff: "Some drivers' working days may become less contiguous (split day-blocks) to free up more preferred-day swaps.",
         });
       }
@@ -29236,9 +29249,19 @@ function bindSchedWeekNav() {
         bodyHtml = `<p class="rr-pref-empty">Run Smart Fill once and RouteReady can preview how each setting would change the Preferred %.</p>`;
         curLabel = "How preferred-day scheduling could improve";
       } else {
-        let baseline = null;
-        try { baseline = _prefPctOf(planScheduleWeek({ ...payload, rules: { ...payload.rules } }), payload); }
-        catch (err) { console.warn("pref baseline dry-run:", err); }
+        // Coverage % of a dry-run result (filled / total shifts).
+        const _covPctOf = (res) => {
+          const sm = res && res.summary_metrics;
+          return sm && sm.total_shifts
+            ? Math.round((sm.filled_shifts / sm.total_shifts) * 100)
+            : null;
+        };
+        let baseline = null, baseCov = null;
+        try {
+          const baseRes = planScheduleWeek({ ...payload, rules: { ...payload.rules } });
+          baseline = _prefPctOf(baseRes, payload);
+          baseCov = _covPctOf(baseRes);
+        } catch (err) { console.warn("pref baseline dry-run:", err); }
         const recs = [];
         for (const cand of _prefCandidates(payload.rules || {})) {
           let res = null;
@@ -29246,18 +29269,25 @@ function bindSchedWeekNav() {
           catch (err) { console.warn("pref dry-run:", err); }
           const proj = _prefPctOf(res, payload);
           if (proj == null || baseline == null || proj <= baseline) continue;
-          recs.push({ ...cand, proj });
+          recs.push({ ...cand, proj, projCov: _covPctOf(res) });
         }
         curLabel = baseline == null
           ? "How preferred-day scheduling could improve"
-          : `Currently <strong>${baseline}%</strong> of shifts land on a preferred day`;
+          : `Currently <strong>${baseline}%</strong> preferred${baseCov != null ? ` · <strong>${baseCov}%</strong> coverage` : ""}`;
         if (recs.length === 0) {
           bodyHtml = `<p class="rr-pref-empty">Your schedule is already as aligned to preferred days as these settings allow — nothing to change.</p>`;
         } else {
+          const metricRow = (label, from, to, down) =>
+            `<div class="rr-pref-metric"><span class="rr-pref-metric-label">${label}</span>` +
+            `<span>${from == null ? "—" : from + "%"}<span class="rr-pref-arrow">→</span>` +
+            `<strong class="${down ? "rr-pref-down" : ""}">${to == null ? "—" : to + "%"}</strong></span></div>`;
           bodyHtml = recs.map(r => `
             <div class="rr-pref-rec">
               <div class="rr-pref-rec-title">${escapeHtml(r.title)}</div>
-              <div class="rr-pref-rec-proj">${baseline}%<span class="rr-pref-arrow">→</span><strong>${r.proj}%</strong></div>
+              <div class="rr-pref-rec-metrics">
+                ${metricRow("Preferred", baseline, r.proj, false)}
+                ${metricRow("Coverage", baseCov, r.projCov, r.projCov != null && baseCov != null && r.projCov < baseCov)}
+              </div>
               <div class="rr-pref-rec-trade"><span class="rr-pref-trade-label">Trade-off</span>${escapeHtml(r.tradeoff)}</div>
               <button type="button" class="btn btn-primary btn-sm" data-rr-pref-accept='${escapeHtml(JSON.stringify(r.delta))}'>Accept &amp; re-run</button>
             </div>`).join("");
