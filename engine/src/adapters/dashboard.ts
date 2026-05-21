@@ -29,6 +29,8 @@ export interface DashboardDriver {
   available_dows?: number[] | null;
   /** Day-of-week indices the driver prefers; null/empty = none. */
   preferred_dows?: number[] | null;
+  /** True when the driver is on a Final corrective action. */
+  final_corrective_action?: boolean;
 }
 
 export interface DashboardShift {
@@ -58,6 +60,8 @@ export interface DashboardRules {
   min_rest?: boolean;
   max_hours?: boolean;
   woc?: boolean;
+  /** When true, Final-corrective-action drivers are scheduled last. */
+  attendance_penalty?: boolean;
   consecutive_days?: boolean;
   /** true (default) = rotational fill (even spread); false = sequential. */
   spread_evenly?: boolean;
@@ -148,6 +152,7 @@ function mapDriver(
       hours: PTO_HOURS_PER_DAY,
     })),
     attendance_score: null,
+    attendance_final: raw.final_corrective_action === true,
   };
 }
 
@@ -202,6 +207,7 @@ function boundaryModeSettings(
   rotationBatch: number,
   enh: EnhancementFlags,
   license: LicenseFlags,
+  attendancePenalty: boolean,
 ): RawSettings {
   return {
     run_mode: "full_rebuild",
@@ -224,6 +230,7 @@ function boundaryModeSettings(
     same_day_multi_shift: "block",
     historical_pattern_protection: "off",
     attendance_scheduling: false,
+    attendance_penalty: attendancePenalty,
     scheduling_method: "seniority",
     assignment_mode: assignmentMode,
     rotation_batch_size: rotationBatch,
@@ -258,13 +265,15 @@ function buildSettings(payload: PlanPayload): RawSettings {
     on: r.dl_valid !== false,
     protectionDays: Math.max(0, Math.min(365, Math.round(r.dl_protection_days ?? 0))),
   };
+  // Attendance Penalty — Final-corrective-action drivers scheduled last.
+  const attendancePenalty = r.attendance_penalty === true;
 
   // Boundary modes are mutually exclusive; preferred wins if both are set.
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty);
   }
 
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
@@ -294,6 +303,7 @@ function buildSettings(payload: PlanPayload): RawSettings {
     same_day_multi_shift: "block",
     historical_pattern_protection: "off",
     attendance_scheduling: false,
+    attendance_penalty: attendancePenalty,
     scheduling_method: method,
     assignment_mode: assignmentMode,
     rotation_batch_size: rotationBatch,

@@ -27097,6 +27097,48 @@ async function autoAssignDriversForWeek() {
 
   let result;
   try {
+    // Attendance Penalty input — which drivers are on a Final corrective
+    // action: an active Final coaching OR the attendance ladder's Final
+    // rung. Read-only; any failure falls back to "none penalized".
+    const finalDrivers = new Set();
+    try {
+      const evalP = (typeof _evalPolicy === "function") ? _evalPolicy() : null;
+      const decayDays = (evalP && evalP.decay_days) || 90;
+      const since = addDays(new Date(_schedStart + "T12:00:00"), -decayDays);
+      const sinceIso = fmtIsoDate(since);
+      const driverIds = drivers.map(d => d.id);
+      if (driverIds.length > 0) {
+        const [coachFinal, attHist] = await Promise.all([
+          sb.from("coachings").select("driver_id")
+            .eq("dsp_id", dspId).eq("severity", "final")
+            .is("archived_at", null)
+            .gte("occurred_at", since.toISOString())
+            .in("driver_id", driverIds),
+          sb.from("shifts").select("driver_id, status")
+            .eq("dsp_id", dspId).in("driver_id", driverIds)
+            .gte("date", sinceIso)
+            .in("status", ["called_off", "no_show", "late"]),
+        ]);
+        for (const c of (coachFinal?.data || [])) finalDrivers.add(c.driver_id);
+        if (evalP && evalP.enabled) {
+          const ptsC = Number(evalP.events?.callout?.points) || 0;
+          const ptsN = Number(evalP.events?.no_show?.points) || 0;
+          const ptsL = Number(evalP.events?.late?.points)    || 0;
+          const ptsByDriver = new Map();
+          for (const h of (attHist?.data || [])) {
+            const p = h.status === "called_off" ? ptsC : h.status === "no_show" ? ptsN : ptsL;
+            if (p > 0) ptsByDriver.set(h.driver_id, (ptsByDriver.get(h.driver_id) || 0) + p);
+          }
+          for (const [did, pts] of ptsByDriver) {
+            const rung = (typeof _evalLadderRung === "function") ? _evalLadderRung(evalP, pts) : null;
+            if (rung && (rung.severity === "final" || rung.severity === "termination")) {
+              finalDrivers.add(did);
+            }
+          }
+        }
+      }
+    } catch (e) { console.warn("attendance-penalty standing failed:", e); }
+
     const sfPayload = {
       schedule_week_start: _schedStart,
       max_days: maxDays,
@@ -27112,6 +27154,7 @@ async function autoAssignDriversForWeek() {
         xl_certified: d.xl_certified,
         available_dows: availableDowsOf(d),
         preferred_dows: preferredDowsOf(d),
+        final_corrective_action: finalDrivers.has(d.id),
       })),
       shifts: engineShifts,
       pto: ptoFlat,
