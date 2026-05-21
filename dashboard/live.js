@@ -27081,13 +27081,17 @@ async function autoAssignDriversForWeek() {
     return { assigned: 0, diagnostics: null };
   }
 
-  // Write back only the engine's NEW assignments. Locked rows (already
-  // assigned training / ride-along shifts) must not be re-written.
+  // Write back the engine's NEW assignments. Locked / preserved rows
+  // (already-assigned training, ride-along, etc.) keep their DB driver
+  // and must not be re-written. auto_fill, swap (optimizer / Preferred
+  // Availability Enhancement), and pattern_pass are all fresh engine
+  // placements that need persisting — skipping "swap" here is what made
+  // the Enhancement appear to fill fewer shifts.
   let assigned = 0;
   let failedWrites = 0;
   let writeError = null;
   for (const a of result.assigned_shifts) {
-    if (a.source !== "auto_fill") continue;
+    if (a.source === "locked" || a.source === "preserved") continue;
     _markLocalShiftMutation();
     const { error } = await sb.rpc("assign_shift", { p_id: a.shift_id, p_driver_id: a.driver_id });
     if (error) {
