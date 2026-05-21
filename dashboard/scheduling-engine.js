@@ -99,6 +99,9 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "rotation_batch_size",
   "preferred_availability_priority",
   "preferred_availability_required",
+  "preferred_enhancement",
+  "preferred_enhancement_contiguous",
+  "preferred_enhancement_extra",
   "consecutive_working_days"
 ]);
 function bool(value, key, fallback) {
@@ -258,6 +261,21 @@ function validateSettings(raw) {
     preferred_availability_required: bool(
       r.preferred_availability_required,
       "preferred_availability_required",
+      false
+    ),
+    preferred_enhancement: bool(
+      r.preferred_enhancement,
+      "preferred_enhancement",
+      false
+    ),
+    preferred_enhancement_contiguous: bool(
+      r.preferred_enhancement_contiguous,
+      "preferred_enhancement_contiguous",
+      true
+    ),
+    preferred_enhancement_extra: bool(
+      r.preferred_enhancement_extra,
+      "preferred_enhancement_extra",
       false
     ),
     consecutive_working_days: bool(
@@ -1366,6 +1384,110 @@ function applySwap(ws, swap) {
   );
 }
 
+// src/steps/step8b_preferred_enhancement.ts
+function runCount(dates) {
+  const sorted = [...new Set(dates)].sort();
+  if (sorted.length === 0) return 0;
+  let runs = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] !== addDays(sorted[i - 1], 1)) runs += 1;
+  }
+  return runs;
+}
+function stateWithout2(state, shiftId) {
+  return {
+    driver_id: state.driver_id,
+    assigned: state.assigned.filter((a) => a.shift_id !== shiftId)
+  };
+}
+function sortBySid(state) {
+  state.assigned.sort(
+    (a, b) => a.shift_id < b.shift_id ? -1 : a.shift_id > b.shift_id ? 1 : 0
+  );
+}
+function applySwap2(ws, planA, planB) {
+  const a = planA.assignedDriverId;
+  const b = planB.assignedDriverId;
+  const stateA = ws.states.get(a);
+  const stateB = ws.states.get(b);
+  if (!stateA || !stateB) return;
+  stateA.assigned = stateA.assigned.filter(
+    (x) => x.shift_id !== planA.shift.shift_id
+  );
+  stateB.assigned = stateB.assigned.filter(
+    (x) => x.shift_id !== planB.shift.shift_id
+  );
+  planA.assignedDriverId = b;
+  planA.source = "swap";
+  planB.assignedDriverId = a;
+  planB.source = "swap";
+  stateB.assigned.push(assignedRefOf(planA.shift, "swap"));
+  stateA.assigned.push(assignedRefOf(planB.shift, "swap"));
+  sortBySid(stateA);
+  sortBySid(stateB);
+}
+function onePass(ctx, ws, allowScatter) {
+  const order = orderDrivers(ctx, ws.states);
+  for (const a of order) {
+    const stateA = ws.states.get(a.driver_id);
+    if (!stateA) continue;
+    const aRefs = [...stateA.assigned].sort(
+      (x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : 0
+    );
+    for (const refA of aRefs) {
+      const planA = ws.planByShiftId.get(refA.shift_id);
+      if (!planA || planA.assignedDriverId !== a.driver_id) continue;
+      if (inPreferredWindow(planA.shift, a)) continue;
+      for (const b of order) {
+        if (b.driver_id === a.driver_id) continue;
+        const stateB = ws.states.get(b.driver_id);
+        if (!stateB) continue;
+        if (!inPreferredWindow(planA.shift, b)) continue;
+        const bRefs = [...stateB.assigned].sort(
+          (x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : 0
+        );
+        for (const refB of bRefs) {
+          if (refB.date === refA.date) continue;
+          const planB = ws.planByShiftId.get(refB.shift_id);
+          if (!planB || planB.assignedDriverId !== b.driver_id) continue;
+          if (inPreferredWindow(planB.shift, b)) continue;
+          if (!inPreferredWindow(planB.shift, a)) continue;
+          const baseA = stateWithout2(stateA, refA.shift_id);
+          const baseB = stateWithout2(stateB, refB.shift_id);
+          if (!evaluateEligibility(planB.shift, a, baseA, ctx).eligible) {
+            continue;
+          }
+          if (!evaluateEligibility(planA.shift, b, baseB, ctx).eligible) {
+            continue;
+          }
+          if (!allowScatter) {
+            const aBefore = stateA.assigned.map((x) => x.date);
+            const bBefore = stateB.assigned.map((x) => x.date);
+            const aAfter = aBefore.filter((d) => d !== refA.date).concat(refB.date);
+            const bAfter = bBefore.filter((d) => d !== refB.date).concat(refA.date);
+            if (runCount(aAfter) > runCount(aBefore)) continue;
+            if (runCount(bAfter) > runCount(bBefore)) continue;
+          }
+          applySwap2(ws, planA, planB);
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+function runPreferredEnhancement(ctx, ws) {
+  if (!ctx.settings.preferred_enhancement) return 0;
+  let swaps = 0;
+  if (ctx.settings.preferred_enhancement_contiguous) {
+    while (onePass(ctx, ws, false)) swaps += 1;
+  }
+  if (ctx.settings.preferred_enhancement_extra) {
+    while (onePass(ctx, ws, true)) swaps += 1;
+  }
+  return swaps;
+}
+
 // src/steps/step9_validate.ts
 function without(state, shiftId) {
   return {
@@ -1715,6 +1837,7 @@ function runEngine(input) {
   runPatternPass(ctx, ws, matrix);
   runMainPass(ctx, ws, matrix);
   const optimizationIterations = runOptimization(ctx, ws);
+  runPreferredEnhancement(ctx, ws);
   const { violations, warnings } = validate(ctx, ws);
   const assignmentExplanations = buildAssignmentExplanations(
     ctx,
@@ -1868,7 +1991,7 @@ function mapShift(raw) {
 function clampMaxDays(value) {
   return Math.max(0, Math.min(7, Math.round(value ?? 6)));
 }
-function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch) {
+function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh) {
   return {
     run_mode: "full_rebuild",
     eligible_driver_status: "active_and_onboarding",
@@ -1891,6 +2014,12 @@ function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch) 
     rotation_batch_size: rotationBatch,
     preferred_availability_priority: false,
     preferred_availability_required: boundary === "preferred",
+    // The enhancement is a no-op under the preferred-only boundary
+    // (every shift is already on a preferred day), so it's forced off
+    // there.
+    preferred_enhancement: boundary === "preferred" ? false : enh.on,
+    preferred_enhancement_contiguous: enh.contiguous,
+    preferred_enhancement_extra: enh.extra,
     consecutive_working_days: false
   };
 }
@@ -1899,11 +2028,16 @@ function buildSettings(payload) {
   const maxDays = clampMaxDays(payload.max_days);
   const assignmentMode = r.spread_evenly === false ? "sequential_fill" : "rotational_fill";
   const rotationBatch = Math.max(1, Math.min(4, Math.round(r.rotation_batch ?? 1)));
+  const enh = {
+    on: r.preferred_enhancement === true,
+    contiguous: r.preferred_enhancement_contiguous !== false,
+    extra: r.preferred_enhancement_extra === true
+  };
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh);
   }
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
@@ -1934,6 +2068,9 @@ function buildSettings(payload) {
     assignment_mode: assignmentMode,
     rotation_batch_size: rotationBatch,
     preferred_availability_priority: r.preferred_days !== false,
+    preferred_enhancement: enh.on,
+    preferred_enhancement_contiguous: enh.contiguous,
+    preferred_enhancement_extra: enh.extra,
     consecutive_working_days: r.consecutive_days === true
   };
 }

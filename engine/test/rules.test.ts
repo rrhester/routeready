@@ -514,3 +514,47 @@ test("rotation_batch_size controls shifts per driver before rotating", () => {
   assert.deepEqual(datesOf(b2, "d1"), ["2026-05-24", "2026-05-25"]);
   assert.deepEqual(datesOf(b2, "d2"), ["2026-05-26", "2026-05-27"]);
 });
+
+// --- Preferred Availability Enhancement ------------------------------------
+
+test("Preferred Availability Enhancement swaps both drivers onto preferred days", () => {
+  const mon: Record<string, { start: string; end: string }[]> = {
+    "1": [{ start: "00:00", end: "48:00" }],
+  };
+  const tue: Record<string, { start: string; end: string }[]> = {
+    "2": [{ start: "00:00", end: "48:00" }],
+  };
+  const base = {
+    shifts: [
+      shift({ shift_id: "sMon", date: "2026-05-25" }), // Monday
+      shift({ shift_id: "sTue", date: "2026-05-26" }), // Tuesday
+    ],
+    drivers: [
+      driver({ driver_id: "dA", preferred_availability: tue }),
+      driver({ driver_id: "dB", preferred_availability: mon }),
+    ],
+  };
+  const baseSettings = {
+    preferred_availability_priority: false,
+    consecutive_working_days: false,
+    historical_pattern_protection: "off" as const,
+    attendance_scheduling: false,
+    max_days_enforcement: false,
+    weekly_hour_cap_enforcement: false,
+    woc_enforcement: false,
+  };
+
+  // Without the enhancement the main pass puts each driver on the wrong day.
+  const off = runEngine(
+    input({ ...base, settings: { ...baseSettings, preferred_enhancement: false } }),
+  );
+  assert.equal(off.assigned_shifts.find((a) => a.shift_id === "sMon")?.driver_id, "dA");
+  assert.equal(off.assigned_shifts.find((a) => a.shift_id === "sTue")?.driver_id, "dB");
+
+  // With it on, the post-pass swaps them both onto their preferred day.
+  const on = runEngine(
+    input({ ...base, settings: { ...baseSettings, preferred_enhancement: true } }),
+  );
+  assert.equal(on.assigned_shifts.find((a) => a.shift_id === "sTue")?.driver_id, "dA");
+  assert.equal(on.assigned_shifts.find((a) => a.shift_id === "sMon")?.driver_id, "dB");
+});

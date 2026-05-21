@@ -8,7 +8,7 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-rotbatch";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-prefenh";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -23412,11 +23412,21 @@ function _refreshSfAdvancedGating() {
   // A boundary mode dims every rule below it — those rules have no effect
   // when the engine is stripped to a single availability boundary.
   const body = document.getElementById("rr-sched-smartfill-rules-body");
-  const anyBoundary = ["preferred_only", "availability_only"].some(k => {
+  const isChecked = (k) => {
     const cb = document.querySelector(`#rr-sched-smartfill-rules-body [data-rr-sf-rule="${k}"]`);
-    return cb && cb.checked;
-  });
+    return !!(cb && cb.checked);
+  };
+  const anyBoundary = isChecked("preferred_only") || isChecked("availability_only");
   if (body) body.classList.toggle("is-baseline", anyBoundary);
+  // Preferred Availability Enhancement is a no-op when the preferred-only
+  // boundary is on, so it's disabled while that mode is selected.
+  const enhCb  = document.querySelector('#rr-sched-smartfill-rules-body [data-rr-sf-rule="preferred_enhancement"]');
+  const enhRow = document.getElementById("rr-sf-enh-row");
+  if (enhCb) {
+    const disabled = isChecked("preferred_only");
+    enhCb.disabled = disabled;
+    if (enhRow) enhRow.classList.toggle("is-disabled", disabled);
+  }
 }
 // Public reader so autoAssignDriversForWeek can query the live SF
 // rule state without a DOM read.

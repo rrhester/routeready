@@ -61,6 +61,10 @@ export interface DashboardRules {
   spread_evenly?: boolean;
   /** Rotational fill: shifts per driver before rotating (1-4, default 1). */
   rotation_batch?: number;
+  /** Preferred Availability Enhancement — post-pass preferred-day swaps. */
+  preferred_enhancement?: boolean;
+  preferred_enhancement_contiguous?: boolean;
+  preferred_enhancement_extra?: boolean;
   tiebreaker?: string;
   /**
    * Boundary mode "Auto Fill only Preferred Availability" — the engine
@@ -178,11 +182,18 @@ function clampMaxDays(value: number | undefined): number {
 // boundary can be verified in isolation. (R002 driver-status and R010
 // one-shift-per-day still apply — they are physical constraints, not
 // configurable rules.)
+interface EnhancementFlags {
+  on: boolean;
+  contiguous: boolean;
+  extra: boolean;
+}
+
 function boundaryModeSettings(
   boundary: "preferred" | "availability",
   maxDays: number,
   assignmentMode: "rotational_fill" | "sequential_fill",
   rotationBatch: number,
+  enh: EnhancementFlags,
 ): RawSettings {
   return {
     run_mode: "full_rebuild",
@@ -206,6 +217,12 @@ function boundaryModeSettings(
     rotation_batch_size: rotationBatch,
     preferred_availability_priority: false,
     preferred_availability_required: boundary === "preferred",
+    // The enhancement is a no-op under the preferred-only boundary
+    // (every shift is already on a preferred day), so it's forced off
+    // there.
+    preferred_enhancement: boundary === "preferred" ? false : enh.on,
+    preferred_enhancement_contiguous: enh.contiguous,
+    preferred_enhancement_extra: enh.extra,
     consecutive_working_days: false,
   };
 }
@@ -218,13 +235,19 @@ function buildSettings(payload: PlanPayload): RawSettings {
     r.spread_evenly === false ? "sequential_fill" : "rotational_fill";
   // Rotational batch — shifts per driver before the cycle rotates (1-4).
   const rotationBatch = Math.max(1, Math.min(4, Math.round(r.rotation_batch ?? 1)));
+  // Preferred Availability Enhancement flags.
+  const enh: EnhancementFlags = {
+    on: r.preferred_enhancement === true,
+    contiguous: r.preferred_enhancement_contiguous !== false,
+    extra: r.preferred_enhancement_extra === true,
+  };
 
   // Boundary modes are mutually exclusive; preferred wins if both are set.
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh);
   }
 
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
@@ -257,6 +280,9 @@ function buildSettings(payload: PlanPayload): RawSettings {
     assignment_mode: assignmentMode,
     rotation_batch_size: rotationBatch,
     preferred_availability_priority: r.preferred_days !== false,
+    preferred_enhancement: enh.on,
+    preferred_enhancement_contiguous: enh.contiguous,
+    preferred_enhancement_extra: enh.extra,
     consecutive_working_days: r.consecutive_days === true,
   };
 }
