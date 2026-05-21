@@ -49,9 +49,13 @@ export interface DashboardPto {
 
 export interface DashboardRules {
   dl_valid?: boolean;
+  include_onboarding?: boolean;
   max_days?: boolean;
   availability?: boolean;
+  preferred_days?: boolean;
   pto_block?: boolean;
+  min_rest?: boolean;
+  same_day?: boolean;
   max_hours?: boolean;
   pto_count_in_cap?: boolean;
   consecutive_days?: boolean;
@@ -154,7 +158,8 @@ function buildSettings(payload: PlanPayload): RawSettings {
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
     run_mode: "fill_empty_only",
-    eligible_driver_status: "active_and_onboarding",
+    eligible_driver_status:
+      r.include_onboarding !== false ? "active_and_onboarding" : "active_only",
     license_enforcement: r.dl_valid !== false,
     certification_enforcement: true,
     pto_protection: r.pto_block !== false,
@@ -165,13 +170,13 @@ function buildSettings(payload: PlanPayload): RawSettings {
     weekly_hour_cap: payload.weekly_hour_cap ?? 40,
     pto_counts_toward_cap: r.pto_count_in_cap === true,
     pto_default_hours: PTO_HOURS_PER_DAY,
-    min_rest_enforcement: false,
-    same_day_multi_shift: "block",
+    min_rest_enforcement: r.min_rest !== false,
+    same_day_multi_shift: r.same_day === false ? "allow" : "block",
     historical_pattern_protection: "off",
     attendance_scheduling: false,
     scheduling_method: method,
     assignment_mode: "rotational_fill",
-    preferred_availability_priority: true,
+    preferred_availability_priority: r.preferred_days !== false,
     consecutive_working_days: r.consecutive_days === true,
   };
 }
