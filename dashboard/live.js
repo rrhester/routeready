@@ -29205,16 +29205,26 @@ function bindSchedWeekNav() {
     // current Smart Fill rule state.
     const _prefCandidates = (rules) => {
       const c = [];
+      // Contiguity-preserving enhancement — offered whenever it isn't on.
       if (!rules.preferred_enhancement) {
         c.push({
           delta: { preferred_enhancement: true, preferred_enhancement_contiguous: true },
           title: "Turn on Preferred Availability Enhancement",
           tradeoff: "Minimal — it only swaps two drivers when both land on a preferred day and both keep the same shift count.",
         });
-      } else if (!rules.preferred_enhancement_extra) {
+      }
+      // Extra rotations — offered whenever they aren't on, independent of
+      // the contiguity-preserving option (turns the Enhancement on too).
+      if (!(rules.preferred_enhancement && rules.preferred_enhancement_extra)) {
         c.push({
-          delta: { preferred_enhancement_extra: true },
-          title: "Add extra enhancement rotations",
+          delta: {
+            preferred_enhancement: true,
+            preferred_enhancement_contiguous: true,
+            preferred_enhancement_extra: true,
+          },
+          title: rules.preferred_enhancement
+            ? "Add extra enhancement rotations"
+            : "Turn on the Enhancement with extra rotations",
           tradeoff: "Some drivers' working days may become less contiguous (split day-blocks) to free up more preferred-day swaps.",
         });
       }
