@@ -33,6 +33,7 @@ import { runPatternPass } from "./steps/step5_pattern_pass.ts";
 import { runMainPass } from "./steps/step6_assign.ts";
 import { runOptimization } from "./steps/step8_optimize.ts";
 import { runPreferredEnhancement } from "./steps/step8b_preferred_enhancement.ts";
+import { runAffinityEnhancement } from "./steps/step8c_affinity_enhancement.ts";
 import { validate } from "./steps/step9_validate.ts";
 import {
   buildAssignmentExplanations,
@@ -188,6 +189,11 @@ export function runEngine(input: EngineInput): ScheduleResult {
   // Step 8b — Preferred Availability Enhancement (optional preferred-day
   // swap pass). No-op unless enabled in settings.
   runPreferredEnhancement(ctx, ws);
+
+  // Step 8c — Driver Affinity Enhancement (optional historical-pattern
+  // swap pass). Runs last so it sees the final schedule. No-op unless
+  // enabled in settings.
+  runAffinityEnhancement(ctx, ws);
 
   // Step 9 — final validation.
   const { violations, warnings } = validate(ctx, ws);

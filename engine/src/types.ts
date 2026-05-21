@@ -93,6 +93,9 @@ export interface DriverInput {
   attendance_events?: AttendanceEvent[];
   /** True when the driver is on a Final corrective action. */
   attendance_final?: boolean;
+  /** Per-weekday affinity (0-100), index 0=Sun..6=Sat — how often the
+   *  driver was scheduled on each weekday over the rolling period. */
+  weekday_affinity?: number[] | null;
 }
 
 /** A previously-assigned shift, used only by R012 (historical patterns). */
@@ -154,6 +157,8 @@ export interface RawSettings {
   preferred_enhancement?: RawBool;
   preferred_enhancement_contiguous?: RawBool;
   preferred_enhancement_extra?: RawBool;
+  affinity_enhancement?: RawBool;
+  affinity_day_order?: number[];
   consecutive_working_days?: RawBool;
 }
 
@@ -218,6 +223,12 @@ export interface Settings {
   preferred_enhancement_contiguous: boolean;
   /** Sub-option: also run extra rotations that may scatter day-blocks. */
   preferred_enhancement_extra: boolean;
+  /** Driver Affinity Enhancement — post-pass swapping drivers onto the
+   *  weekdays they have historically been scheduled on most. */
+  affinity_enhancement: boolean;
+  /** Weekday priority order (0=Sun..6=Sat) the affinity sweep follows;
+   *  earlier days are settled and locked before later days. */
+  affinity_day_order: number[];
   consecutive_working_days: boolean;
 }
 
@@ -261,7 +272,10 @@ export interface NormalizedDriver {
   attendance_events: AttendanceEvent[];
   /** True when the driver is on a Final corrective action. */
   attendance_final: boolean;
-  /** Stable alphabetical key: lowercased "last first". */
+  /** Per-weekday affinity (0-100), index 0=Sun..6=Sat - or null when
+   *  no rolling history is available for the driver. */
+  weekday_affinity: number[] | null;
+  /** Stable alphabetical key: lowercased "last first". */
   sort_key: string;
 }
 

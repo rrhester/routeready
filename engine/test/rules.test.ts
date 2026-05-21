@@ -585,6 +585,42 @@ test("Preferred Availability Enhancement swaps both drivers onto preferred days"
   assert.equal(on.assigned_shifts.find((a) => a.shift_id === "sMon")?.driver_id, "dB");
 });
 
+test("Driver Affinity Enhancement swaps drivers onto favored weekdays", () => {
+  const base = {
+    shifts: [
+      shift({ shift_id: "sMon", date: "2026-05-25" }), // Monday  (dow 1)
+      shift({ shift_id: "sTue", date: "2026-05-26" }), // Tuesday (dow 2)
+    ],
+    drivers: [
+      // dA favors Tuesday, dB favors Monday — the opposite of the
+      // natural fill order.
+      driver({ driver_id: "dA", weekday_affinity: [0, 0, 100, 0, 0, 0, 0] }),
+      driver({ driver_id: "dB", weekday_affinity: [0, 100, 0, 0, 0, 0, 0] }),
+    ],
+  };
+  const baseSettings = {
+    consecutive_working_days: false,
+    max_days_enforcement: false,
+    weekly_hour_cap_enforcement: false,
+    woc_enforcement: false,
+  };
+
+  // Without the enhancement the natural fill puts each driver on the
+  // wrong weekday.
+  const off = runEngine(
+    input({ ...base, settings: { ...baseSettings } }),
+  );
+  assert.equal(off.assigned_shifts.find((a) => a.shift_id === "sMon")?.driver_id, "dA");
+  assert.equal(off.assigned_shifts.find((a) => a.shift_id === "sTue")?.driver_id, "dB");
+
+  // With it on, the final post-pass swaps them onto their favored day.
+  const on = runEngine(
+    input({ ...base, settings: { ...baseSettings, affinity_enhancement: true } }),
+  );
+  assert.equal(on.assigned_shifts.find((a) => a.shift_id === "sTue")?.driver_id, "dA");
+  assert.equal(on.assigned_shifts.find((a) => a.shift_id === "sMon")?.driver_id, "dB");
+});
+
 // --- R003 license protection window ----------------------------------------
 
 test("R003 — protection window blocks a soon-to-expire driver, others fill", () => {

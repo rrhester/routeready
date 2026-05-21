@@ -109,8 +109,29 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "preferred_enhancement",
   "preferred_enhancement_contiguous",
   "preferred_enhancement_extra",
+  "affinity_enhancement",
+  "affinity_day_order",
   "consecutive_working_days"
 ]);
+function dayOrder(value) {
+  const def = [0, 1, 2, 3, 4, 5, 6];
+  if (value === void 0) return def;
+  if (!Array.isArray(value) || value.length !== 7) {
+    throw new EngineError(
+      `Setting "affinity_day_order" must be 7 weekday indices`
+    );
+  }
+  const seen = /* @__PURE__ */ new Set();
+  for (const v of value) {
+    if (!Number.isInteger(v) || v < 0 || v > 6 || seen.has(v)) {
+      throw new EngineError(
+        `Setting "affinity_day_order" must be a permutation of 0-6`
+      );
+    }
+    seen.add(v);
+  }
+  return [...value];
+}
 function bool(value, key, fallback) {
   if (value === void 0) return fallback;
   if (value === true || value === "on") return true;
@@ -296,6 +317,12 @@ function validateSettings(raw) {
       "preferred_enhancement_extra",
       false
     ),
+    affinity_enhancement: bool(
+      r.affinity_enhancement,
+      "affinity_enhancement",
+      false
+    ),
+    affinity_day_order: dayOrder(r.affinity_day_order),
     consecutive_working_days: bool(
       r.consecutive_working_days,
       "consecutive_working_days",
@@ -427,6 +454,19 @@ function normalizeDriver(raw) {
       ptoHours.set(rec.date, rec.hours);
     }
   }
+  let affinity = null;
+  if (raw.weekday_affinity !== void 0 && raw.weekday_affinity !== null) {
+    if (!Array.isArray(raw.weekday_affinity) || raw.weekday_affinity.length !== 7) {
+      throw new EngineError(`Invalid weekday_affinity in ${where}`);
+    }
+    affinity = raw.weekday_affinity.map((p) => {
+      const n = Number(p);
+      if (Number.isNaN(n) || n < 0 || n > 100) {
+        throw new EngineError(`Invalid weekday_affinity value in ${where}`);
+      }
+      return n;
+    });
+  }
   let score = null;
   if (raw.attendance_score !== void 0 && raw.attendance_score !== null) {
     if (typeof raw.attendance_score !== "number" || raw.attendance_score < 0 || raw.attendance_score > 100) {
@@ -454,6 +494,7 @@ function normalizeDriver(raw) {
     attendance_score: score,
     attendance_events: raw.attendance_events ?? [],
     attendance_final: raw.attendance_final === true,
+    weekday_affinity: affinity,
     sort_key: `${raw.last_name}\0${raw.first_name}`.toLowerCase()
   };
 }
@@ -1549,6 +1590,97 @@ function runPreferredEnhancement(ctx, ws) {
   return swaps;
 }
 
+// src/steps/step8c_affinity_enhancement.ts
+function affinityOf(driver, dow) {
+  const a = driver.weekday_affinity;
+  return a && a.length === 7 ? a[dow] : 0;
+}
+function stateWithout3(state, shiftId) {
+  return {
+    driver_id: state.driver_id,
+    assigned: state.assigned.filter((a) => a.shift_id !== shiftId)
+  };
+}
+function sortBySid2(state) {
+  state.assigned.sort(
+    (a, b) => a.shift_id < b.shift_id ? -1 : a.shift_id > b.shift_id ? 1 : 0
+  );
+}
+function applySwap3(ws, planA, planB) {
+  const a = planA.assignedDriverId;
+  const b = planB.assignedDriverId;
+  const stateA = ws.states.get(a);
+  const stateB = ws.states.get(b);
+  if (!stateA || !stateB) return;
+  stateA.assigned = stateA.assigned.filter(
+    (x) => x.shift_id !== planA.shift.shift_id
+  );
+  stateB.assigned = stateB.assigned.filter(
+    (x) => x.shift_id !== planB.shift.shift_id
+  );
+  planA.assignedDriverId = b;
+  planA.source = "swap";
+  planB.assignedDriverId = a;
+  planB.source = "swap";
+  stateB.assigned.push(assignedRefOf(planA.shift, "swap"));
+  stateA.assigned.push(assignedRefOf(planB.shift, "swap"));
+  sortBySid2(stateA);
+  sortBySid2(stateB);
+}
+function onePassForDay(ctx, ws, day, locked) {
+  const order = orderDrivers(ctx, ws.states);
+  const driverById = new Map(order.map((d) => [d.driver_id, d]));
+  for (const planA of ws.plans) {
+    if (planA.shift.dow !== day) continue;
+    if (!planA.assignedDriverId || locked.has(planA.shift.shift_id)) continue;
+    const a = driverById.get(planA.assignedDriverId);
+    const stateA = ws.states.get(planA.assignedDriverId);
+    if (!a || !stateA) continue;
+    let best = null;
+    for (const planB of ws.plans) {
+      if (planB.shift.dow === day) continue;
+      if (!planB.assignedDriverId || locked.has(planB.shift.shift_id)) continue;
+      if (planB.assignedDriverId === a.driver_id) continue;
+      const b = driverById.get(planB.assignedDriverId);
+      const stateB = ws.states.get(planB.assignedDriverId);
+      if (!b || !stateB) continue;
+      const dA = planA.shift.dow;
+      const dB = planB.shift.dow;
+      const before = affinityOf(a, dA) + affinityOf(b, dB);
+      const after = affinityOf(a, dB) + affinityOf(b, dA);
+      if (after <= before) continue;
+      if (affinityOf(b, dA) <= affinityOf(a, dA)) continue;
+      const baseA = stateWithout3(stateA, planA.shift.shift_id);
+      const baseB = stateWithout3(stateB, planB.shift.shift_id);
+      if (!evaluateEligibility(planB.shift, a, baseA, ctx).eligible) continue;
+      if (!evaluateEligibility(planA.shift, b, baseB, ctx).eligible) continue;
+      const gain = after - before;
+      if (best === null || gain > best.gain || gain === best.gain && planB.shift.shift_id < best.planB.shift.shift_id) {
+        best = { planB, gain };
+      }
+    }
+    if (best) {
+      applySwap3(ws, planA, best.planB);
+      return true;
+    }
+  }
+  return false;
+}
+function runAffinityEnhancement(ctx, ws) {
+  if (!ctx.settings.affinity_enhancement) return 0;
+  const locked = /* @__PURE__ */ new Set();
+  let swaps = 0;
+  for (const day of ctx.settings.affinity_day_order) {
+    while (onePassForDay(ctx, ws, day, locked)) swaps += 1;
+    for (const plan of ws.plans) {
+      if (plan.shift.dow === day && plan.assignedDriverId) {
+        locked.add(plan.shift.shift_id);
+      }
+    }
+  }
+  return swaps;
+}
+
 // src/steps/step9_validate.ts
 function without(state, shiftId) {
   return {
@@ -1899,6 +2031,7 @@ function runEngine(input) {
   runMainPass(ctx, ws, matrix);
   const optimizationIterations = runOptimization(ctx, ws);
   runPreferredEnhancement(ctx, ws);
+  runAffinityEnhancement(ctx, ws);
   const { violations, warnings } = validate(ctx, ws);
   const assignmentExplanations = buildAssignmentExplanations(
     ctx,
@@ -2033,7 +2166,8 @@ function mapDriver(raw, ptoByDriver) {
       hours: PTO_HOURS_PER_DAY
     })),
     attendance_score: null,
-    attendance_final: raw.final_corrective_action === true
+    attendance_final: raw.final_corrective_action === true,
+    weekday_affinity: Array.isArray(raw.weekday_affinity) && raw.weekday_affinity.length === 7 ? raw.weekday_affinity : null
   };
 }
 function mapShift(raw) {
@@ -2053,7 +2187,7 @@ function mapShift(raw) {
 function clampMaxDays(value) {
   return Math.max(0, Math.min(7, Math.round(value ?? 6)));
 }
-function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh, license, woc, attendancePenalty, schedulingMethod, rotationStartDay) {
+function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, attendancePenalty, schedulingMethod, rotationStartDay) {
   return {
     run_mode: "full_rebuild",
     eligible_driver_status: "active_and_onboarding",
@@ -2092,6 +2226,9 @@ function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, 
     preferred_enhancement: boundary === "preferred" ? false : enh.on,
     preferred_enhancement_contiguous: enh.contiguous,
     preferred_enhancement_extra: enh.extra,
+    // Driver Affinity Enhancement composes with both boundary modes.
+    affinity_enhancement: affinity.on,
+    affinity_day_order: affinity.dayOrder,
     consecutive_working_days: false
   };
 }
@@ -2114,14 +2251,18 @@ function buildSettings(payload) {
     maxConsecutiveDays: Math.max(1, Math.min(7, Math.round(r.woc_max_consecutive_days ?? 6))),
     maxHours: Math.max(1, Math.min(168, Math.round(r.woc_max_hours ?? payload.weekly_hour_cap ?? 40)))
   };
+  const affinity = {
+    on: r.affinity_enhancement === true,
+    dayOrder: Array.isArray(r.affinity_day_order) ? r.affinity_day_order : void 0
+  };
   const attendancePenalty = r.attendance_penalty === true;
   const schedulingMethod = r.fill_priority === "random" ? "random" : "seniority";
   const rotationStartDay = Math.max(0, Math.min(6, Math.round(r.rotation_start_day ?? 0)));
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, woc, attendancePenalty, schedulingMethod, rotationStartDay);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, woc, attendancePenalty, schedulingMethod, rotationStartDay);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
@@ -2160,6 +2301,8 @@ function buildSettings(payload) {
     preferred_enhancement: enh.on,
     preferred_enhancement_contiguous: enh.contiguous,
     preferred_enhancement_extra: enh.extra,
+    affinity_enhancement: affinity.on,
+    affinity_day_order: affinity.dayOrder,
     consecutive_working_days: r.consecutive_days === true
   };
 }

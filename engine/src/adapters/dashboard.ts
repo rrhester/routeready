@@ -31,6 +31,9 @@ export interface DashboardDriver {
   preferred_dows?: number[] | null;
   /** True when the driver is on a Final corrective action. */
   final_corrective_action?: boolean;
+  /** Per-weekday affinity (0-100), index 0=Sun..6=Sat — how often the
+   *  driver was scheduled on each weekday over the rolling period. */
+  weekday_affinity?: number[] | null;
 }
 
 export interface DashboardShift {
@@ -79,6 +82,10 @@ export interface DashboardRules {
   preferred_enhancement?: boolean;
   preferred_enhancement_contiguous?: boolean;
   preferred_enhancement_extra?: boolean;
+  /** Driver Affinity Enhancement — post-pass weekday-affinity swaps. */
+  affinity_enhancement?: boolean;
+  /** Weekday priority order (0=Sun..6=Sat) the affinity sweep follows. */
+  affinity_day_order?: number[];
   tiebreaker?: string;
   /**
    * Boundary mode "Auto Fill only Preferred Availability" — the engine
@@ -161,6 +168,10 @@ function mapDriver(
     })),
     attendance_score: null,
     attendance_final: raw.final_corrective_action === true,
+    weekday_affinity:
+      Array.isArray(raw.weekday_affinity) && raw.weekday_affinity.length === 7
+        ? raw.weekday_affinity
+        : null,
   };
 }
 
@@ -214,6 +225,11 @@ interface WocFlags {
   maxHours: number;
 }
 
+interface AffinityFlags {
+  on: boolean;
+  dayOrder: number[] | undefined;
+}
+
 function boundaryModeSettings(
   boundary: "preferred" | "availability",
   maxDays: number,
@@ -222,6 +238,7 @@ function boundaryModeSettings(
   enh: EnhancementFlags,
   license: LicenseFlags,
   woc: WocFlags,
+  affinity: AffinityFlags,
   attendancePenalty: boolean,
   schedulingMethod: "seniority" | "random",
   rotationStartDay: number,
@@ -264,6 +281,9 @@ function boundaryModeSettings(
     preferred_enhancement: boundary === "preferred" ? false : enh.on,
     preferred_enhancement_contiguous: enh.contiguous,
     preferred_enhancement_extra: enh.extra,
+    // Driver Affinity Enhancement composes with both boundary modes.
+    affinity_enhancement: affinity.on,
+    affinity_day_order: affinity.dayOrder,
     consecutive_working_days: false,
   };
 }
@@ -294,6 +314,12 @@ function buildSettings(payload: PlanPayload): RawSettings {
     maxConsecutiveDays: Math.max(1, Math.min(7, Math.round(r.woc_max_consecutive_days ?? 6))),
     maxHours: Math.max(1, Math.min(168, Math.round(r.woc_max_hours ?? payload.weekly_hour_cap ?? 40))),
   };
+  // Driver Affinity Enhancement — final post-pass swapping drivers onto
+  // their historically-favored weekdays, in the DSP's day-priority order.
+  const affinity: AffinityFlags = {
+    on: r.affinity_enhancement === true,
+    dayOrder: Array.isArray(r.affinity_day_order) ? r.affinity_day_order : undefined,
+  };
   // Attendance Penalty — Final-corrective-action drivers scheduled last.
   const attendancePenalty = r.attendance_penalty === true;
   // Who fills first — seniority (default) or a stable random order.
@@ -303,10 +329,10 @@ function buildSettings(payload: PlanPayload): RawSettings {
 
   // Boundary modes are mutually exclusive; preferred wins if both are set.
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, woc, attendancePenalty, schedulingMethod, rotationStartDay);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, woc, attendancePenalty, schedulingMethod, rotationStartDay);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, attendancePenalty, schedulingMethod, rotationStartDay);
   }
 
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
@@ -347,6 +373,8 @@ function buildSettings(payload: PlanPayload): RawSettings {
     preferred_enhancement: enh.on,
     preferred_enhancement_contiguous: enh.contiguous,
     preferred_enhancement_extra: enh.extra,
+    affinity_enhancement: affinity.on,
+    affinity_day_order: affinity.dayOrder,
     consecutive_working_days: r.consecutive_days === true,
   };
 }
