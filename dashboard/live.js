@@ -30066,17 +30066,9 @@ function bindSchedWeekNav() {
           tradeoff: "Drivers are scheduled right up to their license expiration date.",
         });
       }
-      // Overtime — re-run with the Fifth-Day Fill pass: drivers who
-      // opted into a 5th day each pick up one extra shift on a still-open
-      // route. WOC + license still gate it, so no rule is violated.
-      if (r.fifth_day_fill !== true) {
-        c.push({
-          fifthDay: true,
-          ruleDelta: { fifth_day_fill: true },
-          title: "Re-run with the 5th-day pass (overtime)",
-          tradeoff: "Drivers who opted into a 5th day each take one extra shift. WOC (consecutive days + weekly hours) and license rules still apply — only opted-in drivers, one extra day each.",
-        });
-      }
+      // The overtime / 5th-day pass is offered as a standing option in
+      // _openCovModal (not a dry-run-gated candidate), so it's not added
+      // to this list.
       return c;
     };
 
@@ -30140,26 +30132,57 @@ function bindSchedWeekNav() {
         curLabel = baseCov == null
           ? "How coverage could improve"
           : `Currently <strong>${baseCov}%</strong> of shifts staffed`;
-        // Drivers who opted into a 5th day — surfaced on the overtime
-        // recommendation so the DSP knows exactly who to give it to.
-        const fifthDayVolunteers = (payload.drivers || [])
-          .filter((d) => d && d.fifth_day_ok)
-          .map((d) => d.full_name || d.id);
-        const otVolunteersHtml = fifthDayVolunteers.length > 0
-          ? `<div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Open to a 5th day</span>${escapeHtml(fifthDayVolunteers.join(", "))}</div>`
-          : `<div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Open to a 5th day</span>No drivers have opted in yet — they can opt in from their availability.</div>`;
-        const recsHtml = recs.length === 0
-          ? `<p class="rr-cov-empty">No setting change would raise coverage further — the remaining gap is a staffing shortfall, not a settings limit.</p>`
-          : recs.map((r) => `
+        const recsHtml = recs.map((r) => `
             <div class="rr-cov-rec">
               <div class="rr-cov-rec-title">${escapeHtml(r.title)}</div>
               <div class="rr-cov-rec-metric"><span class="rr-cov-metric-label">Coverage</span>` +
                 `<span>${baseCov}%<span class="rr-cov-arrow">→</span><strong>${r.proj}%</strong></span></div>
               <div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Trade-off</span>${escapeHtml(r.tradeoff)}</div>
-              ${r.fifthDay ? otVolunteersHtml : ""}
               <button type="button" class="btn btn-primary btn-sm" data-rr-cov-accept='${escapeHtml(JSON.stringify({ ruleDelta: r.ruleDelta || {}, maxDays: r.maxDays != null ? r.maxDays : null }))}'>Accept &amp; re-run</button>
             </div>`).join("");
-        bodyHtml = neededHtml + recsHtml;
+
+        // ── Overtime · the 5th-day pass ──────────────────────────────
+        // Always offered while coverage is short. Overtime here means
+        // the Fifth-Day Fill pass: drivers who opted into a 5th day each
+        // pick up one open shift. The WOC weekly-hour cap is lifted with
+        // it (a 40h cap would otherwise block the 5th day) — that's a
+        // reconfiguration the DSP accepts, not a rule violation; WOC
+        // consecutive-days and license still hold.
+        let fifthDayHtml = "";
+        if (baseCov != null && baseCov < 100) {
+          const fifthVols = (payload.drivers || [])
+            .filter((d) => d && d.fifth_day_ok)
+            .map((d) => d.full_name || d.id);
+          const fifthDelta = { fifth_day_fill: true, woc_max_hours: 60 };
+          let fifthProj = null;
+          try {
+            const fres = planScheduleWeek({
+              ...payload,
+              rules: { ...payload.rules, ...fifthDelta },
+            });
+            fifthProj = _covOf(fres);
+          } catch (err) { console.warn("5th-day dry-run:", err); }
+          const projLine = (fifthProj != null && fifthProj > baseCov)
+            ? `<div class="rr-cov-rec-metric"><span class="rr-cov-metric-label">Coverage</span><span>${baseCov}%<span class="rr-cov-arrow">→</span><strong>${fifthProj}%</strong></span></div>`
+            : "";
+          const volLine = fifthVols.length > 0
+            ? `<div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Opted in</span>${escapeHtml(fifthVols.join(", "))}</div>`
+            : `<div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Opted in</span>No drivers have opted into a 5th day yet — they can opt in from their availability card or the driver app.</div>`;
+          fifthDayHtml = `
+            <div class="rr-cov-rec">
+              <div class="rr-cov-rec-title">Overtime · re-run with the 5th-day pass</div>
+              ${projLine}
+              <div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Trade-off</span>Each driver who opted into a 5th day picks up one open shift. WOC consecutive-days and license rules still apply — only opted-in drivers, one extra day each.</div>
+              ${volLine}
+              <button type="button" class="btn btn-primary btn-sm" data-rr-cov-accept='${escapeHtml(JSON.stringify({ ruleDelta: fifthDelta, maxDays: null }))}'>Run the 5th-day pass</button>
+            </div>`;
+        }
+        // The dead-end "staffing shortfall" line only shows when there
+        // is genuinely nothing to offer — not even the 5th-day pass.
+        const recsBlock = (recs.length === 0 && !fifthDayHtml)
+          ? `<p class="rr-cov-empty">No setting change would raise coverage further — the remaining gap is a staffing shortfall, not a settings limit.</p>`
+          : recsHtml;
+        bodyHtml = neededHtml + recsBlock + fifthDayHtml;
       }
       const m = document.createElement("div");
       m.id = "rr-cov-kpi-modal";
