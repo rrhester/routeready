@@ -1,0 +1,136 @@
+// Tests for the dashboard adapter (Supabase shapes -> EngineInput).
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { planScheduleWeek } from "../src/adapters/dashboard.ts";
+import type { PlanPayload } from "../src/adapters/dashboard.ts";
+
+function basePayload(over: Partial<PlanPayload> = {}): PlanPayload {
+  return {
+    schedule_week_start: "2026-05-24",
+    max_days: 5,
+    drivers: [],
+    shifts: [],
+    pto: [],
+    ...over,
+  };
+}
+
+const d = (id: string, over: Record<string, unknown> = {}) => ({
+  id,
+  full_name: `First ${id}`,
+  status: "active",
+  hire_date: "2021-01-01",
+  dl_expires_on: "2030-01-01",
+  dot_certified: true,
+  xl_certified: true,
+  available_dows: null,
+  preferred_dows: null,
+  ...over,
+});
+
+const s = (id: string, date: string, over: Record<string, unknown> = {}) => ({
+  id,
+  date,
+  starts_at: `${date}T09:00:00`,
+  ends_at: `${date}T19:00:00`,
+  route_type: "standard" as const,
+  ...over,
+});
+
+test("adapter assigns an open shift to an eligible driver", () => {
+  const r = planScheduleWeek(
+    basePayload({
+      drivers: [d("d1")],
+      shifts: [s("s1", "2026-05-25")],
+    }),
+  );
+  assert.equal(r.assigned_shifts.length, 1);
+  assert.equal(r.assigned_shifts[0].driver_id, "d1");
+});
+
+test("adapter expands PTO and blocks that date", () => {
+  const r = planScheduleWeek(
+    basePayload({
+      drivers: [d("d1")],
+      shifts: [s("s1", "2026-05-25")],
+      pto: [{ driver_id: "d1", date: "2026-05-25" }],
+    }),
+  );
+  assert.equal(r.assigned_shifts.length, 0);
+  assert.ok(
+    r.uncovered_shifts[0].top_block_reasons.some((b) => b.rule === "R005"),
+  );
+});
+
+test("adapter routes XL shifts to xl-certified drivers", () => {
+  const r = planScheduleWeek(
+    basePayload({
+      drivers: [
+        d("plain", { xl_certified: false }),
+        d("xl", { xl_certified: true }),
+      ],
+      shifts: [s("s1", "2026-05-25", { route_type: "xl" })],
+    }),
+  );
+  assert.equal(r.assigned_shifts[0]?.driver_id, "xl");
+});
+
+test("adapter filters out non-active/onboarding drivers", () => {
+  const r = planScheduleWeek(
+    basePayload({
+      drivers: [d("gone", { status: "terminated" })],
+      shifts: [s("s1", "2026-05-25")],
+    }),
+  );
+  assert.equal(r.assigned_shifts.length, 0);
+});
+
+test("adapter keeps a locked pre-assignment (fill_empty_only)", () => {
+  const r = planScheduleWeek(
+    basePayload({
+      drivers: [d("d1"), d("d2")],
+      shifts: [
+        s("locked", "2026-05-25", {
+          assigned_driver_id: "d1",
+          is_locked: true,
+        }),
+        s("open", "2026-05-26"),
+      ],
+    }),
+  );
+  assert.equal(
+    r.assigned_shifts.find((a) => a.shift_id === "locked")?.driver_id,
+    "d1",
+  );
+});
+
+test("adapter availability blocks an unavailable day-of-week", () => {
+  // 2026-05-25 is a Monday (dow 1); driver only works Tue-Fri.
+  const r = planScheduleWeek(
+    basePayload({
+      rules: { availability: true },
+      drivers: [d("d1", { available_dows: [2, 3, 4, 5] })],
+      shifts: [s("s1", "2026-05-25")],
+    }),
+  );
+  assert.equal(r.assigned_shifts.length, 0);
+  assert.ok(
+    r.uncovered_shifts[0].top_block_reasons.some((b) => b.rule === "R006"),
+  );
+});
+
+test("adapter run is idempotent", () => {
+  const mk = () =>
+    planScheduleWeek(
+      basePayload({
+        drivers: [d("d1"), d("d2"), d("d3")],
+        shifts: [
+          s("s1", "2026-05-25"),
+          s("s2", "2026-05-26"),
+          s("s3", "2026-05-27"),
+        ],
+      }),
+    );
+  assert.equal(JSON.stringify(mk().assigned_shifts), JSON.stringify(mk().assigned_shifts));
+});

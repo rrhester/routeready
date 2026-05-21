@@ -66,6 +66,23 @@ is the rule reference the spec was delivered with.
 | Steps 1–10 | `src/steps/stepN_*.ts` |
 | Rules R002–R011 (hard) | `src/rules/r0NN_*.ts` |
 | Rules R012/R013/R015/R017/R018 (score/order) | `src/rules/r0NN_*.ts` |
+| Dashboard adapter | `src/adapters/dashboard.ts` → `planScheduleWeek()` |
+| Browser bundle entry | `src/browser-entry.ts` |
+
+## 3a. Dashboard integration
+
+`dashboard/live.js` (the operator dashboard) drives the engine through
+the "Smart Fill" / Auto-fill-week button:
+
+1. `npm run build:dashboard` bundles `src/browser-entry.ts` (engine +
+   adapter, no Node dependencies) into `dashboard/scheduling-engine.js`.
+2. `live.js` imports `planScheduleWeek` from that bundle.
+3. `planScheduleWeek(payload)` maps Supabase-shaped rows (drivers,
+   shifts, service types, time-off, Smart Fill rule toggles) onto an
+   `EngineInput`, runs the engine, and returns the `ScheduleResult`.
+
+The bundle is committed; CI rebuilds it and fails if it drifts from
+source. Re-run `npm run build:dashboard` after any engine change.
 
 ## 4. Usage
 

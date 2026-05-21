@@ -8,6 +8,7 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-engine";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -26868,229 +26869,144 @@ async function autoAssignDriversForWeek() {
     }
   }
 
+  // ── Engine-driven assignment ────────────────────────────────────────
+  // The deterministic scheduling engine (see engine/, bundled to
+  // dashboard/scheduling-engine.js) owns eligibility + assignment. This
+  // layer only shapes Supabase rows into the engine's payload and writes
+  // the resulting assignments back via assign_shift.
   const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
-  // Per-driver: dates already booked (so we don't double-assign one
-  // driver to two shifts on the same day). Counts training + ride-along
-  // too so a trainee in class on Mon doesn't get auto-stuffed onto a
-  // route the same day.
-  const driverShiftDates = new Map();
-  for (const sh of allShiftsForDateLookup) {
-    if (!sh.driver_id) continue;
-    if (!driverShiftDates.has(sh.driver_id)) driverShiftDates.set(sh.driver_id, new Set());
-    driverShiftDates.get(sh.driver_id).add(sh.date);
+  // The week's ISO dates (datesIso above is block-scoped to the effAvail
+  // lookup, so recompute here).
+  const weekDates = [];
+  {
+    let cur = new Date(_schedStart + "T12:00:00");
+    const end = new Date(weekEndIso + "T12:00:00");
+    while (cur <= end) { weekDates.push(fmtIsoDate(cur)); cur = addDays(cur, 1); }
   }
 
-  // Hours-per-shift lookup so we can compute weekly-hours totals
-  // (used by the SF max_hours rule + pto_count_in_cap rule).
-  // Falls back to 10h when the row has no starts/ends pair.
-  const shiftHoursById = new Map();
-  for (const sh of allShiftsForDateLookup) {
-    let h = 10;
-    if (sh.starts_at && sh.ends_at) {
-      const calc = (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000;
-      if (calc > 0 && calc <= 24) h = calc;
+  // Available / preferred day-of-week indices per driver. availableDows
+  // is null only when the driver has no availability info at all (no
+  // effective-availability row and no metadata.days): null = no
+  // constraint; an explicit empty list means "no days available".
+  const availableDowsOf = (driver) => {
+    let hasData = false;
+    const dows = new Set();
+    for (const iso of weekDates) {
+      const eff = effAvail.get(`${driver.id}:${iso}`);
+      let codes = Array.isArray(eff) ? eff : null;
+      if (codes === null) {
+        const meta = driver.metadata?.availability?.days;
+        codes = Array.isArray(meta) ? meta : null;
+      }
+      if (codes === null) continue;
+      hasData = true;
+      const dow = new Date(iso + "T12:00:00").getDay();
+      if (codes.includes(DOW[dow])) dows.add(dow);
     }
-    shiftHoursById.set(sh.id, h);
-  }
+    return hasData ? Array.from(dows).sort((a, b) => a - b) : null;
+  };
+  const preferredDowsOf = (driver) => {
+    const pref = driver.metadata?.availability?.preferred_days;
+    if (!Array.isArray(pref) || pref.length === 0) return null;
+    return pref.map(c => DOW.indexOf(c)).filter(i => i >= 0);
+  };
 
-  // Pre-seed per-driver scheduled hours from existing assignments
-  // so the SF planner sees the running total before its first seat.
-  const seededHours = new Map();
+  // route_type per shift, from its service type. The DOT / XL cert
+  // checkboxes are baked in here: when a cert rule is unchecked the route
+  // is reported as standard so the engine won't gate on that cert.
+  const routeTypeOf = (sh) => {
+    const cert = serviceCerts.get(sh.service_type_id);
+    if (cert && cert.requires_xl && sfXlRequired) return "xl";
+    if (cert && cert.requires_dot && sfDotRequired) return "step_van";
+    return "standard";
+  };
+  const durationOf = (sh) => {
+    if (sh.starts_at && sh.ends_at) {
+      const h = (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000;
+      if (h > 0 && h <= 24) return h;
+    }
+    return null;
+  };
+
+  // Engine shift list:
+  //  - open regular shifts → fillable
+  //  - regular shifts that still have a driver (completed / called-off
+  //    rows the reset didn't clear) → locked, so they still count toward
+  //    that driver's days + hours
+  //  - non-regular shifts with a driver (training / ride-along) → locked
+  const engineShifts = [];
+  const pushShift = (sh, assignedDriverId, isLocked) => {
+    engineShifts.push({
+      id: sh.id, date: sh.date,
+      starts_at: sh.starts_at, ends_at: sh.ends_at,
+      duration_hours: durationOf(sh),
+      route_type: routeTypeOf(sh),
+      assigned_driver_id: assignedDriverId, is_locked: isLocked,
+    });
+  };
+  for (const sh of shifts) {
+    if (sh.driver_id) { pushShift(sh, sh.driver_id, true); continue; }
+    if (sh.status !== "scheduled") continue;
+    if (sfServiceTypes && sh.service_type_id
+        && !activeServiceTypeIds.has(sh.service_type_id)) continue;
+    pushShift(sh, null, false);
+  }
   for (const sh of allShiftsForDateLookup) {
-    if (!sh.driver_id) continue;
-    seededHours.set(sh.driver_id,
-      (seededHours.get(sh.driver_id) || 0) + (shiftHoursById.get(sh.id) || 10));
+    if ((sh.shift_kind || "regular") === "regular" || !sh.driver_id) continue;
+    pushShift(sh, sh.driver_id, true);
   }
 
-  // PTO map: driver_id -> Set<iso>.
-  const driverPtoDates = new Map();
+  // Approved time off → flat {driver_id, date} list within the week.
+  const ptoFlat = [];
   for (const t of pto) {
-    if (!driverPtoDates.has(t.driver_id)) driverPtoDates.set(t.driver_id, new Set());
     let cur = new Date(t.start_date + "T12:00:00");
     const end = new Date(t.end_date + "T12:00:00");
     while (cur <= end) {
-      driverPtoDates.get(t.driver_id).add(fmtIsoDate(cur));
+      const iso = fmtIsoDate(cur);
+      if (iso >= _schedStart && iso <= weekEndIso) {
+        ptoFlat.push({ driver_id: t.driver_id, date: iso });
+      }
       cur = addDays(cur, 1);
     }
   }
 
-  // Sort: date asc → regular shifts before cushion (extras) → starts_at asc.
-  // Default rule per the operator: fill non-cushion before EX shifts so the
-  // buffer only gets a driver after all the planned routes are covered.
-  const openShifts = shifts.filter(sh => !sh.driver_id && sh.status === "scheduled"
-      && (!sfServiceTypes || !sh.service_type_id || activeServiceTypeIds.has(sh.service_type_id)))
-    .sort((a, b) => {
-      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-      const ac = a.is_cushion ? 1 : 0;
-      const bc = b.is_cushion ? 1 : 0;
-      if (ac !== bc) return ac - bc;
-      return (a.starts_at || "").localeCompare(b.starts_at || "");
+  let result;
+  try {
+    result = planScheduleWeek({
+      schedule_week_start: _schedStart,
+      max_days: maxDays,
+      weekly_hour_cap: 40,
+      rules: { ...sfRules, tiebreaker },
+      drivers: drivers.map(d => ({
+        id: d.id,
+        full_name: d.full_name,
+        status: d.status,
+        hire_date: d.hire_date,
+        dl_expires_on: d.dl_expires_on,
+        dot_certified: d.dot_certified,
+        xl_certified: d.xl_certified,
+        available_dows: availableDowsOf(d),
+        preferred_dows: preferredDowsOf(d),
+      })),
+      shifts: engineShifts,
+      pto: ptoFlat,
     });
-
-  // ── Preferred days ──────────────────────────────────────────────────
-  // Each driver's preferred days (clamped to their available set), the
-  // lifetime "preference honored" counter for the 'fairness' tiebreaker.
-  const preferredOf = new Map();
-  const prefBase    = new Map();
-  for (const d of drivers) {
-    preferredOf.set(d.id, _preferredDaysOf(d));
-    prefBase.set(d.id, Number(d.metadata?.scheduling?.pref_honored) || 0);
+  } catch (e) {
+    console.warn("scheduling engine failed:", e);
+    toast("Auto-fill failed: " + ((e && e.message) || "engine error"), "warn");
+    return { assigned: 0, skippedExpired };
   }
 
-  // Smart Fill operator rules (max_hours + pto_count_in_cap):
-  // - max_hours: when on, the planner won't push a driver over 40
-  //   weekly hours of scheduled shifts.
-  // - pto_count_in_cap: when also on, PTO days (8h each) are added
-  //   to the running total before the cap check.
-  // Both come from the rules popover on the Smart Fill tile; sfRules
-  // is already loaded above for consecutive_days/tiebreaker.
-  const SF_HOURS_CAP = 40;
-  const sfMaxHoursOn   = sfRules.max_hours !== false; // default ON
-  const sfPtoInCap     = sfRules.pto_count_in_cap === true; // default OFF
-  const ptoHoursOf = (d) => (driverPtoDates.get(d.id)?.size || 0) * 8;
-
-  // Every hard gate except the day-of-week one (kept separate so the
-  // preference pass can restrict to "available AND prefers this day").
-  // Expired DL / missing cert / PTO / already-shifted-that-day / over the
-  // weekly cap / can't-start-that-early all block regardless of override.
-  const eligible = (d, sh, booked, bookedHours) => {
-    if (sfDlValid && !driverLicenseOkForDate(d, sh.date)) return false;
-    if (!driverHasCertsFor(d, sh.service_type_id)) return false;
-    if (sfPtoBlock && driverPtoDates.get(d.id)?.has(sh.date)) return false;
-    // Same-day double-book is never allowed — not a toggleable rule.
-    if (booked.get(d.id)?.has(sh.date)) return false;
-    if (sfMaxDaysOn && (booked.get(d.id)?.size || 0) >= maxDays) return false;
-    // earliest_start is part of the driver's saved availability, so it
-    // rides the same toggle as the day-of-week availability check.
-    const es = d.metadata?.availability?.earliest_start;
-    if (sfAvailability && es && _startsBeforeEarliest(_shiftStartHM(sh.starts_at), es)) return false;
-    // Weekly-hours cap (SF max_hours rule). Optional PTO inclusion
-    // per the pto_count_in_cap rule. Skip when caller didn't pass
-    // bookedHours (legacy code path) — fail-open keeps behavior
-    // identical for any unconverted caller.
-    if (sfMaxHoursOn && bookedHours) {
-      const scheduled = bookedHours.get(d.id) || 0;
-      const pto = sfPtoInCap ? ptoHoursOf(d) : 0;
-      const candH = shiftHoursById.get(sh.id) || 10;
-      if (scheduled + pto + candH > SF_HOURS_CAP) return false;
-    }
-    return true;
-  };
-  // availability rule: when off, ignore the driver's saved day-of-week
-  // availability entirely so every driver is a candidate every day.
-  const availableOn = (d, sh, dow) => !sfAvailability || driverDaysOn(d.id, sh.date).includes(dow);
-  const loadOf = (id, booked) => booked.get(id)?.size || 0;
-
-  // Winner among candidates per the DSP's configured tiebreaker; all modes
-  // fall back to least-loaded so a tie is still resolved deterministically.
-  // When the consecutive_days rule is on, an "adjacency bonus" prepends
-  // the score array so candidates whose existing bookings would extend
-  // a run (D-1 or D+1 already booked) sort ahead of candidates who
-  // would start a new island. Lower score = better.
-  const _dayMs = 86400000;
-  const adjacencyScore = (d, dateIso, booked) => {
-    if (!wantConsecutive) return 0;
-    const dates = booked.get(d.id);
-    if (!dates || dates.size === 0) return 0; // no bookings yet — no run to extend
-    const dt = new Date(dateIso + "T12:00:00").getTime();
-    const prev = fmtIsoDate(new Date(dt - _dayMs));
-    const next = fmtIsoDate(new Date(dt + _dayMs));
-    let bonus = 0;
-    if (dates.has(prev)) bonus -= 1;
-    if (dates.has(next)) bonus -= 1;
-    return bonus; // -2, -1, or 0 — lower is "more consecutive"
-  };
-  const pickWinner = (cands, booked, prefBumps, dateIso) => {
-    const score = (d) => {
-      const adj = adjacencyScore(d, dateIso || "", booked);
-      if (tiebreaker === "seniority") return [adj, d.hire_date || "9999-12-31", loadOf(d.id, booked)];
-      if (tiebreaker === "fairness")  return [adj, (prefBase.get(d.id) || 0) + (prefBumps.get(d.id) || 0), loadOf(d.id, booked)];
-      return [adj, loadOf(d.id, booked), 0];
-    };
-    let best = null, bestScore = null;
-    for (const d of cands) {
-      const s = score(d);
-      if (!best) { best = d; bestScore = s; continue; }
-      let cmp = 0;
-      for (let i = 0; i < s.length; i++) { if (s[i] < bestScore[i]) { cmp = -1; break; } if (s[i] > bestScore[i]) { cmp = 1; break; } }
-      if (cmp < 0) { best = d; bestScore = s; }
-    }
-    return best;
-  };
-
-  // Build an assignment plan (no DB writes). With usePreferences on, a
-  // first pass seats drivers on shifts that land on a day they prefer
-  // (per the tiebreaker), then a second pass fills the rest by
-  // least-loaded — with the availability-override fallback when allowed.
-  const buildPlan = (usePreferences) => {
-    const booked = new Map();
-    for (const [k, v] of driverShiftDates) booked.set(k, new Set(v));
-    // Running per-driver scheduled-hours total. Seeded from existing
-    // assignments so the planner respects the weekly cap from the
-    // start, then bumped by seat() as each shift is placed.
-    const bookedHours = new Map(seededHours);
-    const prefBumps = new Map();
-    const assignments = new Map();
-    const seat = (sh, d) => {
-      assignments.set(sh.id, d.id);
-      if (!booked.has(d.id)) booked.set(d.id, new Set());
-      booked.get(d.id).add(sh.date);
-      bookedHours.set(d.id, (bookedHours.get(d.id) || 0) + (shiftHoursById.get(sh.id) || 10));
-    };
-    if (usePreferences) {
-      for (const sh of openShifts) {
-        const dow = DOW[new Date(sh.date + "T12:00:00").getDay()];
-        const cands = drivers.filter(d => preferredOf.get(d.id)?.has(dow) && availableOn(d, sh, dow) && eligible(d, sh, booked, bookedHours));
-        if (cands.length === 0) continue;
-        const w = pickWinner(cands, booked, prefBumps, sh.date);
-        if (!w) continue;
-        seat(sh, w);
-        prefBumps.set(w.id, (prefBumps.get(w.id) || 0) + 1);
-      }
-    }
-    for (const sh of openShifts) {
-      if (assignments.has(sh.id)) continue;
-      const dow = DOW[new Date(sh.date + "T12:00:00").getDay()];
-      let cands = drivers.filter(d => availableOn(d, sh, dow) && eligible(d, sh, booked, bookedHours));
-      if (cands.length === 0 && allowOverride) cands = drivers.filter(d => eligible(d, sh, booked, bookedHours));
-      if (cands.length === 0) continue;
-      // Route through pickWinner so the consecutive_days adjacency
-      // bonus + the configured tiebreaker apply to this fallback
-      // pass too, not just the preference pass above.
-      const w = pickWinner(cands, booked, prefBumps, sh.date);
-      seat(sh, w || cands[0]);
-    }
-    return { assignments, prefBumps, covered: assignments.size };
-  };
-
-  // Honor preferences when it doesn't cost coverage: keep the
-  // preference-aware plan unless the preference-blind one covers strictly
-  // more shifts.
-  const planPref = buildPlan(true);
-  const planCov  = buildPlan(false);
-  const plan = planPref.covered >= planCov.covered ? planPref : planCov;
-
+  // Write back only the engine's NEW assignments. Locked rows (already
+  // assigned training / ride-along shifts) must not be re-written.
   let assigned = 0;
-  for (const [shiftId, driverId] of plan.assignments) {
+  for (const a of result.assigned_shifts) {
+    if (a.source !== "auto_fill") continue;
     _markLocalShiftMutation();
-    const { error } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: driverId });
+    const { error } = await sb.rpc("assign_shift", { p_id: a.shift_id, p_driver_id: a.driver_id });
     if (!error) assigned += 1;
   }
-
-  // Bump the lifetime "preference honored" counter for the fairness
-  // tiebreaker — only when the plan we shipped actually honored some.
-  if (plan === planPref && plan.prefBumps.size > 0) {
-    await Promise.all([...plan.prefBumps].map(([id, n]) => {
-      const d = drivers.find(x => x.id === id);
-      const meta = d?.metadata || {};
-      const sched = { ...(meta.scheduling || {}), pref_honored: (Number(meta.scheduling?.pref_honored) || 0) + n };
-      return sb.from("drivers").update({ metadata: { ...meta, scheduling: sched } }).eq("id", id)
-        .then(({ error }) => { if (error) console.warn("pref_honored bump:", error.message); })
-        .catch(e => console.warn("pref_honored bump:", e));
-    }));
-  }
-
   return { assigned, skippedExpired };
 }
 
