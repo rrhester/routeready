@@ -8,7 +8,7 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-engine";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-rules";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -26701,30 +26701,22 @@ async function autoAssignDriversForWeek() {
     }
   } catch (_) { /* fall back to defaults */ }
 
-  // Smart Fill operator-toggleable rules (from the R-badge popover).
-  // - consecutive_days: prefer extending an existing run so the
-  //   driver's days off cluster together.
-  // - tiebreaker (in this popover, default = "inherit"): per-rule
-  //   override of the per-week tiebreaker. Only applied when
-  //   consecutive_days is on.
+  // Smart Fill operator-toggleable rules (from the rules popover). The
+  // full rule set is mapped onto engine settings by the dashboard
+  // adapter (planScheduleWeek); this layer only resolves the per-run
+  // tiebreaker override and the few rules it consumes directly.
   const sfRules = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
-  const wantConsecutive = sfRules.consecutive_days === true;
-  if (wantConsecutive && typeof sfRules.tiebreaker === "string"
-      && ["least_loaded","seniority","fairness"].includes(sfRules.tiebreaker)) {
+  if (typeof sfRules.tiebreaker === "string"
+      && ["least_loaded","seniority"].includes(sfRules.tiebreaker)) {
     tiebreaker = sfRules.tiebreaker;
   }
-  // Each operator-toggleable eligibility rule. All ship checked, so an
-  // absent key (rule never touched) reads as ON; only an explicit
-  // uncheck (false) disables the gate. Unchecking a rule here actually
-  // removes that filter from the planner — previously most of these
-  // checkboxes were decorative and the gates were hard-coded.
+  // Rules consumed directly by this Supabase layer: dl_valid drives the
+  // expired-license notice; dot/xl_required are baked into each shift's
+  // route_type; service_types skips retired service types. Every other
+  // popover rule is forwarded to the engine via planScheduleWeek.
   const sfDlValid      = sfRules.dl_valid      !== false;
-  const sfStatusActive = sfRules.status_active !== false;
   const sfDotRequired  = sfRules.dot_required  !== false;
   const sfXlRequired   = sfRules.xl_required   !== false;
-  const sfMaxDaysOn    = sfRules.max_days      !== false;
-  const sfAvailability = sfRules.availability  !== false;
-  const sfPtoBlock     = sfRules.pto_block     !== false;
   const sfServiceTypes = sfRules.service_types !== false;
 
   // Pull drivers + their cert flags, the per-week shifts (with their
@@ -26757,11 +26749,12 @@ async function autoAssignDriversForWeek() {
     return { assigned: 0, skippedExpired: [] };
   }
 
-  // status_active rule: when on, restrict to active/onboarding drivers
-  // (matching the rule label). When unchecked, every driver row the DSP
-  // has is a candidate, whatever their status.
+  // Only active / onboarding drivers are auto-fill candidates. The
+  // include_onboarding rule (forwarded to the engine) decides whether
+  // onboarding drivers are actually eligible; terminated / inactive
+  // drivers are never auto-scheduled.
   const drivers = (driversRes.data || []).filter(d =>
-    !sfStatusActive || d.status === "active" || d.status === "onboarding");
+    d.status === "active" || d.status === "onboarding");
   const pto     = ptoRes.data     || [];
   // Map service_type_id → { requires_dot, requires_xl } so we can
   // gate driver eligibility per shift.

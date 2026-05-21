@@ -120,6 +120,64 @@ test("adapter availability blocks an unavailable day-of-week", () => {
   );
 });
 
+test("adapter include_onboarding=false blocks onboarding drivers", () => {
+  const base = {
+    drivers: [d("ob", { status: "onboarding" })],
+    shifts: [s("s1", "2026-05-25")],
+  };
+  assert.equal(
+    planScheduleWeek(basePayload(base)).assigned_shifts.length,
+    1,
+    "onboarding driver schedulable by default",
+  );
+  assert.equal(
+    planScheduleWeek(
+      basePayload({ ...base, rules: { include_onboarding: false } }),
+    ).assigned_shifts.length,
+    0,
+    "onboarding driver blocked when include_onboarding is off",
+  );
+});
+
+test("adapter same_day=false allows two shifts on one day", () => {
+  const base = {
+    drivers: [d("d1")],
+    shifts: [
+      s("a", "2026-05-25", { starts_at: "2026-05-25T06:00:00", ends_at: "2026-05-25T10:00:00" }),
+      s("b", "2026-05-25", { starts_at: "2026-05-25T14:00:00", ends_at: "2026-05-25T18:00:00" }),
+    ],
+  };
+  assert.equal(
+    planScheduleWeek(basePayload(base)).assigned_shifts.length,
+    1,
+    "same-day double-shift blocked by default",
+  );
+  assert.equal(
+    planScheduleWeek(
+      basePayload({ ...base, rules: { same_day: false, min_rest: false } }),
+    ).assigned_shifts.length,
+    2,
+    "both same-day shifts allowed when same_day is off",
+  );
+});
+
+test("adapter min_rest blocks a too-close next-day shift", () => {
+  const base = {
+    drivers: [d("d1")],
+    shifts: [
+      s("a", "2026-05-25", { starts_at: "2026-05-25T12:00:00", ends_at: "2026-05-25T23:00:00" }),
+      s("b", "2026-05-26", { starts_at: "2026-05-26T05:00:00", ends_at: "2026-05-26T15:00:00" }),
+    ],
+  };
+  // 6h gap < 10h: with min_rest on (default) only one shift fits.
+  assert.equal(planScheduleWeek(basePayload(base)).assigned_shifts.length, 1);
+  assert.equal(
+    planScheduleWeek(basePayload({ ...base, rules: { min_rest: false } }))
+      .assigned_shifts.length,
+    2,
+  );
+});
+
 test("adapter run is idempotent", () => {
   const mk = () =>
     planScheduleWeek(
