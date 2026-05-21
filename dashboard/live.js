@@ -29507,15 +29507,19 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
     const virtAttrs = sh.virtual
       ? ` data-rr-pool-virtual="1" data-rr-pool-station="${sh.station_id}" data-rr-pool-wave="${sh.wave_start}"`
       : "";
+    // Regular open shifts read as flat Outlook task-pane rows — no
+    // boxed border, just a hairline separator on an integrated
+    // surface. Virtual OKAMI gaps keep a dashed box so they stay
+    // visually distinct as "not a real shift yet".
     const styleEx = sh.virtual
-      ? `border-style:dashed;background:repeating-linear-gradient(45deg,var(--surface),var(--surface) 6px,var(--canvas) 6px,var(--canvas) 12px)`
-      : `background:var(--surface)`;
+      ? `border:1px dashed var(--sch-line-strong);border-radius:8px;background:repeating-linear-gradient(45deg,var(--surface),var(--surface) 6px,var(--canvas) 6px,var(--canvas) 12px);margin-bottom:4px`
+      : `border:0;border-bottom:1px solid var(--sch-line);border-radius:0;background:transparent`;
     const tooltip = sh.virtual
       ? "OKAMI gap · drag onto a driver to create + assign"
       : "Drag onto a driver to assign";
     return `<div class="rr-pool-shift" draggable="true"
         data-rr-pool-shift="${dragId}" data-rr-pool-shift-date="${sh.date}"${virtAttrs}
-        style="display:flex;align-items:center;gap:var(--s-2-5);padding:6px var(--s-2-5);border:1px solid var(--border);border-radius:8px;${styleEx};cursor:grab;margin-bottom:4px"
+        style="display:flex;align-items:center;gap:var(--s-2-5);padding:8px var(--s-2-5);${styleEx};cursor:grab"
         title="${tooltip}">
       <div style="flex:1;min-width:0">${headLine}</div>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--text-subtle);flex-shrink:0"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
@@ -29542,7 +29546,7 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
       byDay.get(sh.date).push(sh);
     }
     listHtml = Array.from(byDay.entries()).map(([d, list]) =>
-      `<div style="margin-bottom:10px"><div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:8px 0 6px">${dayLabel(d)} · ${list.length}</div>${list.map(sh => shiftItem(sh, { includeDay: false })).join("")}</div>`
+      `<div style="margin-bottom:10px"><div style="font-size:var(--fs-xs);font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin:10px 0 2px">${dayLabel(d)} · ${list.length}</div>${list.map(sh => shiftItem(sh, { includeDay: false })).join("")}</div>`
     ).join("");
   } else {
     listHtml = sorted.map(shiftItem).join("");
