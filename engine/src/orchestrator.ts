@@ -34,6 +34,7 @@ import { runMainPass } from "./steps/step6_assign.ts";
 import { runOptimization } from "./steps/step8_optimize.ts";
 import { runPreferredEnhancement } from "./steps/step8b_preferred_enhancement.ts";
 import { runAffinityEnhancement } from "./steps/step8c_affinity_enhancement.ts";
+import { runFifthDayFill } from "./steps/step8d_fifth_day_fill.ts";
 import { validate } from "./steps/step9_validate.ts";
 import {
   buildAssignmentExplanations,
@@ -197,6 +198,12 @@ export function runEngine(input: EngineInput): ScheduleResult {
 
   // Step 9 — final validation.
   const { violations, warnings } = validate(ctx, ws);
+
+  // Step 9b — Fifth-Day Fill. Runs AFTER validation: it intentionally
+  // takes opted-in drivers one day past the max-days cap, so validating
+  // it against that cap would be a false positive. The pass self-
+  // enforces WOC + license, so nothing real goes unchecked.
+  runFifthDayFill(ctx, ws);
 
   // Step 10 — explanations.
   const assignmentExplanations = buildAssignmentExplanations(
