@@ -14986,6 +14986,12 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--sch-blue-soft) !important;
             box-shadow:inset 0 0 0 2px var(--sch-blue);
           }
+          /* Open-shifts pool highlights when an assigned shift is dragged
+             over it — dropping there unassigns the shift. */
+          #view-schedule aside.driver-pool.rr-pool-drop-active{
+            box-shadow:inset 0 0 0 2px var(--sch-blue);
+            border-radius:var(--r-md);
+          }
           #view-schedule .cal-cell.empty-slot{
             background:repeating-linear-gradient(
               135deg,
