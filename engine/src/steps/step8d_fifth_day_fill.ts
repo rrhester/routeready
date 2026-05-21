@@ -21,10 +21,18 @@ export function runFifthDayFill(
   if (!ctx.settings.fifth_day_fill) return 0;
 
   // Eligibility with the max-days cap lifted; every other enabled rule
-  // still gates, so a 5th day can never violate WOC or license.
+  // still gates, so a 5th day can never violate WOC or license. When
+  // the DSP opts in, availability is relaxed too — a 5th day may land
+  // on any day (WOC + license still hold).
   const relaxedCtx: EngineContext = {
     ...ctx,
-    settings: { ...ctx.settings, max_days_enforcement: false },
+    settings: {
+      ...ctx.settings,
+      max_days_enforcement: false,
+      ...(ctx.settings.fifth_day_override_availability
+        ? { availability_enforcement: false, availability_required: false }
+        : {}),
+    },
   };
 
   const order = orderDrivers(ctx, ws.states);

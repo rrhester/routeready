@@ -683,6 +683,48 @@ test("Fifth-Day Fill layers an extra day for an opted-in driver", () => {
   assert.equal(noOptIn.summary_metrics.filled_shifts, 4);
 });
 
+test("Fifth-Day Fill — availability override places a 5th day off-availability", () => {
+  const dates = [
+    "2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28",
+  ];
+  const shifts = dates.map((d, i) => shift({ shift_id: `s${i}`, date: d }));
+  // Driver available Sun-Wed only; the 5th shift falls on Thursday.
+  const avail = {
+    "0": [{ start: "00:00", end: "48:00" }],
+    "1": [{ start: "00:00", end: "48:00" }],
+    "2": [{ start: "00:00", end: "48:00" }],
+    "3": [{ start: "00:00", end: "48:00" }],
+  };
+  const mk = () => driver({
+    driver_id: "d1", fifth_day_ok: true, saved_availability: avail,
+  });
+
+  // Override off: the Thursday shift is off-availability, stays open.
+  const off = runEngine(
+    input({
+      shifts,
+      drivers: [mk()],
+      settings: { max_days: 4, fifth_day_fill: true, availability_enforcement: true },
+    }),
+  );
+  assert.equal(off.summary_metrics.filled_shifts, 4);
+
+  // Override on: the 5th day lands despite availability.
+  const on = runEngine(
+    input({
+      shifts,
+      drivers: [mk()],
+      settings: {
+        max_days: 4,
+        fifth_day_fill: true,
+        availability_enforcement: true,
+        fifth_day_override_availability: true,
+      },
+    }),
+  );
+  assert.equal(on.summary_metrics.filled_shifts, 5);
+});
+
 // --- R003 license protection window ----------------------------------------
 
 test("R003 — protection window blocks a soon-to-expire driver, others fill", () => {

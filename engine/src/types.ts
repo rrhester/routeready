@@ -163,6 +163,7 @@ export interface RawSettings {
   affinity_enhancement?: RawBool;
   affinity_day_order?: number[];
   fifth_day_fill?: RawBool;
+  fifth_day_override_availability?: RawBool;
   consecutive_working_days?: RawBool;
 }
 
@@ -236,6 +237,9 @@ export interface Settings {
   /** Final pass: layer an extra (5th) day onto open shifts for drivers
    *  who opted in, without violating WOC or license rules. */
   fifth_day_fill: boolean;
+  /** When the 5th-day pass runs, also relax driver availability — a
+   *  5th day may land on any day (WOC + license still gate it). */
+  fifth_day_override_availability: boolean;
   consecutive_working_days: boolean;
 }
 
