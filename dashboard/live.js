@@ -8,7 +8,7 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-explain2";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20260521-openshifts";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -26680,6 +26680,13 @@ async function autoFillScheduleWeek() {
           diagnostics.uncovered.map(s => "  • " + s).join("\n")
         );
       }
+      if (diagnostics.skipped && diagnostics.skipped.length > 0) {
+        const total = diagnostics.skipped.reduce((n, s) => n + s.count, 0);
+        parts.push(
+          `${total} open shift${total === 1 ? "" : "s"} were not auto-filled:\n` +
+          diagnostics.skipped.map(s => `  • ${s.count} — ${s.reason}`).join("\n")
+        );
+      }
       if (diagnostics.unscheduled.length > 0) {
         parts.push(
           `${diagnostics.unscheduled.length} driver${diagnostics.unscheduled.length === 1 ? "" : "s"} received no shifts:\n` +
@@ -26926,11 +26933,25 @@ async function autoAssignDriversForWeek() {
       assigned_driver_id: assignedDriverId, is_locked: isLocked,
     });
   };
+  // An open shift is fillable unless its status is terminal (the work
+  // already happened/was cancelled) or it sits on a retired service
+  // type. Previously this required status === "scheduled", which
+  // silently dropped freshly-generated open shifts that carry a
+  // different status. Anything skipped is tracked so the results dialog
+  // can account for it — an open shift must never vanish from the summary.
+  const TERMINAL_STATUS = new Set(["completed", "no_show", "called_off", "cancelled"]);
+  const skippedOpen = [];
   for (const sh of shifts) {
     if (sh.driver_id) { pushShift(sh, sh.driver_id, true); continue; }
-    if (sh.status !== "scheduled") continue;
+    if (TERMINAL_STATUS.has(sh.status)) {
+      skippedOpen.push(`status “${sh.status}”`);
+      continue;
+    }
     if (sfServiceTypes && sh.service_type_id
-        && !activeServiceTypeIds.has(sh.service_type_id)) continue;
+        && !activeServiceTypeIds.has(sh.service_type_id)) {
+      skippedOpen.push("retired service type");
+      continue;
+    }
     pushShift(sh, null, false);
   }
   for (const sh of allShiftsForDateLookup) {
@@ -27001,9 +27022,14 @@ async function autoAssignDriversForWeek() {
   // and why each driver received no shifts. The engine records a reason
   // for every skip; this turns it into an operator-facing summary.
   const nameById = new Map(drivers.map(d => [d.id, d.full_name || d.id]));
+  const skippedByReason = new Map();
+  for (const r of skippedOpen) {
+    skippedByReason.set(r, (skippedByReason.get(r) || 0) + 1);
+  }
   const diagnostics = {
     failedWrites,
     writeError,
+    skipped: [...skippedByReason.entries()].map(([reason, count]) => ({ reason, count })),
     uncovered: (result.uncovered_shifts || []).map(u => u.summary),
     unscheduled: (result.unscheduled_drivers || []).map(u => {
       const name = nameById.get(u.driver_id) || u.driver_id;
