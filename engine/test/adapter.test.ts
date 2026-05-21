@@ -178,6 +178,43 @@ test("adapter min_rest blocks a too-close next-day shift", () => {
   );
 });
 
+test("adapter spread_evenly toggles rotational vs sequential fill", () => {
+  const base = {
+    drivers: [d("a-driver"), d("b-driver")],
+    shifts: [
+      s("s1", "2026-05-25"),
+      s("s2", "2026-05-26"),
+      s("s3", "2026-05-27"),
+      s("s4", "2026-05-28"),
+    ],
+  };
+  // Default (rotational): work spreads evenly, 2 shifts each.
+  const even = planScheduleWeek(
+    basePayload({
+      ...base,
+      max_days: 7,
+      rules: { max_days: false, max_hours: false },
+    }),
+  );
+  const evenCounts = even.driver_totals
+    .map((t) => t.assigned_shift_ids.length)
+    .sort();
+  assert.deepEqual(evenCounts, [2, 2]);
+
+  // Sequential: the first driver is filled to capacity before the next.
+  const seq = planScheduleWeek(
+    basePayload({
+      ...base,
+      max_days: 7,
+      rules: { max_days: false, max_hours: false, spread_evenly: false },
+    }),
+  );
+  const seqCounts = seq.driver_totals
+    .map((t) => t.assigned_shift_ids.length)
+    .sort();
+  assert.deepEqual(seqCounts, [0, 4]);
+});
+
 test("adapter run is idempotent", () => {
   const mk = () =>
     planScheduleWeek(

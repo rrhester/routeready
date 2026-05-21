@@ -59,6 +59,8 @@ export interface DashboardRules {
   max_hours?: boolean;
   pto_count_in_cap?: boolean;
   consecutive_days?: boolean;
+  /** true (default) = rotational fill (even spread); false = sequential. */
+  spread_evenly?: boolean;
   tiebreaker?: string;
 }
 
@@ -175,7 +177,8 @@ function buildSettings(payload: PlanPayload): RawSettings {
     historical_pattern_protection: "off",
     attendance_scheduling: false,
     scheduling_method: method,
-    assignment_mode: "rotational_fill",
+    assignment_mode:
+      r.spread_evenly === false ? "sequential_fill" : "rotational_fill",
     preferred_availability_priority: r.preferred_days !== false,
     consecutive_working_days: r.consecutive_days === true,
   };
