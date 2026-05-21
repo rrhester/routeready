@@ -13935,7 +13935,7 @@ body.rr-cmdk-open{ overflow:hidden }
              (rules carrying --baseline, and their advanced sub-rows, stay
              active). */
           #view-schedule .sched-smartfill-rules-body.is-baseline
-            .sched-smartfill-rule:not(.sched-smartfill-rule--baseline){
+            .sched-smartfill-rule:not(.sched-smartfill-rule--baseline):not(.sched-smartfill-rule--manual){
             opacity:.38;pointer-events:none;
           }
           /* Preferred Availability Enhancement sub-options. */
@@ -27878,7 +27878,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-manualmode"></script>
+<script type="module" src="./live.js?v=20260521-manualfix"></script>
 
 </body>
 </html>
