@@ -29717,22 +29717,19 @@ function bindSchedWeekNav() {
     }
   });
 
-  // ── KPI: clicking the Rule violations pill pops out a flyover
-  // drawer anchored to the pill — the same overlay behaviour as the
-  // Smart Fill / Targets "Rules ⌄" popovers, so the violations list
-  // floats over the schedule instead of pushing the grid down. The
-  // pill (or ×) toggles it; a click anywhere outside dismisses it.
+  // ── KPI: clicking the Rule violations pill opens a centered modal —
+  // the same card treatment as the Improve Coverage drill-down.
   if (!window._rrViolationsHandlerInstalled) {
   window._rrViolationsHandlerInstalled = true;
   document.addEventListener("click", (e) => {
-    const panel = document.getElementById("rr-sched-violations-panel");
-    // × closes the drawer.
-    if (e.target.closest("#rr-sched-violations-close")) { panel?.remove(); return; }
-    // Clicks inside the open drawer are inert.
-    if (panel && e.target.closest("#rr-sched-violations-panel")) return;
-    // Any other click while open — the pill itself or outside —
-    // dismisses it (flyover behaviour).
-    if (panel) { panel.remove(); return; }
+    const modal = document.getElementById("rr-sched-violations-modal");
+    if (modal) {
+      // Backdrop click or × closes it.
+      if (e.target === modal || e.target.closest("#rr-sched-violations-close")) {
+        modal.remove();
+      }
+      return;
+    }
     const pill = e.target.closest('[data-rr-kpi="violations"]');
     if (!pill) return;
     e.preventDefault();
@@ -29750,46 +29747,26 @@ function bindSchedWeekNav() {
               <div class="rr-sched-violations-note">${escapeHtml(x.note)}</div>
             </div>
           </div>`).join("");
-    const el = document.createElement("section");
-    el.id = "rr-sched-violations-panel";
-    el.className = "rr-sched-violations-panel";
-    el.setAttribute("role", "dialog");
-    el.setAttribute("aria-label", "Rule violations");
-    el.innerHTML = `
-      <header class="rr-sched-violations-head">
-        <div>
-          <div class="rr-sched-violations-eyebrow">Rule violations</div>
-          <div class="rr-sched-violations-count">${v.length} this week</div>
+    const m = document.createElement("div");
+    m.id = "rr-sched-violations-modal";
+    m.className = "modal-backdrop open";
+    m.innerHTML = `
+      <div class="modal-card" style="max-width:480px">
+        <div class="modal-head">
+          <div>
+            <p class="modal-title">Rule violations</p>
+            <p class="modal-sub">${v.length} ${v.length === 1 ? "violation" : "violations"} this week</p>
+          </div>
+          <button type="button" id="rr-sched-violations-close" class="modal-close" aria-label="Close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
-        <button type="button" id="rr-sched-violations-close" class="rr-sched-violations-close" aria-label="Close">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </header>
-      <div class="rr-sched-violations-list">${list}</div>`;
-    // Mount on the view root (a stable container that survives KPI
-    // strip rebuilds) and pin it just under the pill. position:fixed
-    // means viewport coords from getBoundingClientRect drop straight
-    // in — no offset-parent math, no ancestor clipping.
-    const host = document.getElementById("view-schedule") || document.body;
-    host.appendChild(el);
-    const place = () => {
-      const r = pill.getBoundingClientRect();
-      const w = el.offsetWidth || 440;
-      el.style.top  = (r.bottom + 6) + "px";
-      el.style.left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12)) + "px";
-    };
-    place();
-  });
-  // A scroll or resize dismisses the drawer rather than letting it
-  // drift away from the pill it's anchored to.
-  window.addEventListener("scroll", () => {
-    document.getElementById("rr-sched-violations-panel")?.remove();
-  }, true);
-  window.addEventListener("resize", () => {
-    document.getElementById("rr-sched-violations-panel")?.remove();
+        <div class="modal-body rr-sched-violations-list">${list}</div>
+      </div>`;
+    document.body.appendChild(m);
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") document.getElementById("rr-sched-violations-panel")?.remove();
+    if (e.key === "Escape") document.getElementById("rr-sched-violations-modal")?.remove();
   });
   }
 
@@ -30674,47 +30651,14 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
   return violations;
 }
 
-// WOC-only validation for a proposed manual assignment. Used when
-// Manual scheduling is on: every other constraint is off, but the DSP
-// can keep WOC (Working Hours Compliance) enforced. Returns the
-// operator-facing violation strings (empty when compliant / WOC off).
-async function _wocAssignViolations(dspId, shiftId, driverId, shiftDate, candidateShiftOverride) {
-  const woc = _rrSfWoc();
-  if (!woc.on) return [];
-  const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
-  const candidateFetch = candidateShiftOverride
-    ? Promise.resolve({ data: candidateShiftOverride })
-    : (shiftId
-        ? sb.from("shifts").select("id, date, starts_at, ends_at, block_hours").eq("id", shiftId).single()
-        : Promise.resolve({ data: null }));
-  const [shiftsRes, candidateRes] = await Promise.all([
-    sb.from("shifts").select("id, date, status, starts_at, ends_at, block_hours")
-      .eq("dsp_id", dspId).eq("driver_id", driverId)
-      .gte("date", _schedStart).lte("date", weekEndIso),
-    candidateFetch,
-  ]);
-  let cand = candidateRes && candidateRes.data;
-  // Virtual chips / missing rows: synthesize a date-only candidate so
-  // the consecutive-days check still runs.
-  if (!cand && shiftDate) cand = { id: shiftId, date: shiftDate };
-  const existing = (shiftsRes.data || [])
-    .filter((sh) => sh.status === "scheduled" && String(sh.id) !== String(shiftId));
-  return _wocCheck([...existing, cand].filter(Boolean), woc);
-}
-
 async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShiftOverride) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId || !_schedStart) return [];
 
-  // Manual scheduling turns off all constraints — except WOC (Working
-  // Hours Compliance), which the DSP can keep enforced in Manual mode.
-  // So under Manual mode we skip every other check and run WOC only.
-  try {
-    const sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
-    if (sf && sf.manual_mode === true) {
-      return await _wocAssignViolations(dspId, shiftId, driverId, shiftDate, candidateShiftOverride);
-    }
-  } catch (_) { /* ignore */ }
+  // Every manual assignment — including dragging a shift out of the
+  // Open Shifts tool — is checked for rule violations, in every
+  // scheduling mode. The engine-driven check below honors whichever
+  // rules the DSP has enabled, so a disabled rule won't false-flag.
 
   // Engine-driven validation — runs the real scheduling engine with the
   // target shift locked to this driver and reports the hard-rule
