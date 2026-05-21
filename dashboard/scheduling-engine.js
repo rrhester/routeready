@@ -1770,7 +1770,9 @@ function buildSettings(payload) {
     pto_counts_toward_cap: r.pto_count_in_cap === true,
     pto_default_hours: PTO_HOURS_PER_DAY,
     min_rest_enforcement: r.min_rest !== false,
-    same_day_multi_shift: r.same_day === false ? "allow" : "block",
+    // A driver works at most one shift per day — a physical constraint,
+    // never operator-configurable.
+    same_day_multi_shift: "block",
     historical_pattern_protection: "off",
     attendance_scheduling: false,
     scheduling_method: method,
