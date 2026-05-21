@@ -111,6 +111,7 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "preferred_enhancement_extra",
   "affinity_enhancement",
   "affinity_day_order",
+  "fifth_day_fill",
   "consecutive_working_days"
 ]);
 function dayOrder(value) {
@@ -323,6 +324,7 @@ function validateSettings(raw) {
       false
     ),
     affinity_day_order: dayOrder(r.affinity_day_order),
+    fifth_day_fill: bool(r.fifth_day_fill, "fifth_day_fill", false),
     consecutive_working_days: bool(
       r.consecutive_working_days,
       "consecutive_working_days",
@@ -495,6 +497,7 @@ function normalizeDriver(raw) {
     attendance_events: raw.attendance_events ?? [],
     attendance_final: raw.attendance_final === true,
     weekday_affinity: affinity,
+    fifth_day_ok: raw.fifth_day_ok === true,
     sort_key: `${raw.last_name}\0${raw.first_name}`.toLowerCase()
   };
 }
@@ -1687,6 +1690,37 @@ function runAffinityEnhancement(ctx, ws) {
   return swaps;
 }
 
+// src/steps/step8d_fifth_day_fill.ts
+function runFifthDayFill(ctx, ws) {
+  if (!ctx.settings.fifth_day_fill) return 0;
+  const relaxedCtx = {
+    ...ctx,
+    settings: { ...ctx.settings, max_days_enforcement: false }
+  };
+  const order = orderDrivers(ctx, ws.states);
+  const extraGiven = /* @__PURE__ */ new Set();
+  const openPlans = ws.plans.filter((p) => p.open).sort(
+    (a, b) => a.shift.date !== b.shift.date ? a.shift.date < b.shift.date ? -1 : 1 : a.shift.start_ms !== b.shift.start_ms ? a.shift.start_ms - b.shift.start_ms : a.shift.shift_id < b.shift.shift_id ? -1 : 1
+  );
+  let filled = 0;
+  for (const plan of openPlans) {
+    for (const driver of order) {
+      if (!driver.fifth_day_ok) continue;
+      if (extraGiven.has(driver.driver_id)) continue;
+      const state = ws.states.get(driver.driver_id);
+      if (!state) continue;
+      if (!evaluateEligibility(plan.shift, driver, state, relaxedCtx).eligible) {
+        continue;
+      }
+      applyAssignment(ws, plan, driver.driver_id, "fifth_day");
+      extraGiven.add(driver.driver_id);
+      filled += 1;
+      break;
+    }
+  }
+  return filled;
+}
+
 // src/steps/step9_validate.ts
 function without(state, shiftId) {
   return {
@@ -2039,6 +2073,7 @@ function runEngine(input) {
   runPreferredEnhancement(ctx, ws);
   runAffinityEnhancement(ctx, ws);
   const { violations, warnings } = validate(ctx, ws);
+  runFifthDayFill(ctx, ws);
   const assignmentExplanations = buildAssignmentExplanations(
     ctx,
     ws,
@@ -2173,7 +2208,8 @@ function mapDriver(raw, ptoByDriver) {
     })),
     attendance_score: null,
     attendance_final: raw.final_corrective_action === true,
-    weekday_affinity: Array.isArray(raw.weekday_affinity) && raw.weekday_affinity.length === 7 ? raw.weekday_affinity : null
+    weekday_affinity: Array.isArray(raw.weekday_affinity) && raw.weekday_affinity.length === 7 ? raw.weekday_affinity : null,
+    fifth_day_ok: raw.fifth_day_ok === true
   };
 }
 function mapShift(raw) {
@@ -2193,7 +2229,7 @@ function mapShift(raw) {
 function clampMaxDays(value) {
   return Math.max(0, Math.min(7, Math.round(value ?? 6)));
 }
-function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, attendancePenalty, schedulingMethod, rotationStartDay) {
+function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, fifthDayFill, attendancePenalty, schedulingMethod, rotationStartDay) {
   return {
     run_mode: "full_rebuild",
     eligible_driver_status: "active_and_onboarding",
@@ -2235,6 +2271,7 @@ function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, 
     // Driver Affinity Enhancement composes with both boundary modes.
     affinity_enhancement: affinity.on,
     affinity_day_order: affinity.dayOrder,
+    fifth_day_fill: fifthDayFill,
     consecutive_working_days: false
   };
 }
@@ -2261,14 +2298,15 @@ function buildSettings(payload) {
     on: r.affinity_enhancement === true,
     dayOrder: Array.isArray(r.affinity_day_order) ? r.affinity_day_order : void 0
   };
+  const fifthDayFill = r.fifth_day_fill === true;
   const attendancePenalty = r.attendance_penalty === true;
   const schedulingMethod = r.fill_priority === "random" ? "random" : "seniority";
   const rotationStartDay = Math.max(0, Math.min(6, Math.round(r.rotation_start_day ?? 0)));
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, attendancePenalty, schedulingMethod, rotationStartDay);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, fifthDayFill, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, attendancePenalty, schedulingMethod, rotationStartDay);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, fifthDayFill, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
@@ -2309,6 +2347,7 @@ function buildSettings(payload) {
     preferred_enhancement_extra: enh.extra,
     affinity_enhancement: affinity.on,
     affinity_day_order: affinity.dayOrder,
+    fifth_day_fill: fifthDayFill,
     consecutive_working_days: r.consecutive_days === true
   };
 }

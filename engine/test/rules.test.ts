@@ -646,6 +646,43 @@ test("Driver Affinity Enhancement swaps drivers onto favored weekdays", () => {
   assert.equal(on.assigned_shifts.find((a) => a.shift_id === "sMon")?.driver_id, "dB");
 });
 
+test("Fifth-Day Fill layers an extra day for an opted-in driver", () => {
+  const dates = [
+    "2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28",
+  ];
+  const shifts = dates.map((d, i) => shift({ shift_id: `s${i}`, date: d }));
+
+  // max_days = 4 caps the driver at four days.
+  const off = runEngine(
+    input({
+      shifts,
+      drivers: [driver({ driver_id: "d1", fifth_day_ok: true })],
+      settings: { max_days: 4 },
+    }),
+  );
+  assert.equal(off.summary_metrics.filled_shifts, 4);
+
+  // With the 5th-day pass on, the opted-in driver picks up the 5th.
+  const on = runEngine(
+    input({
+      shifts,
+      drivers: [driver({ driver_id: "d1", fifth_day_ok: true })],
+      settings: { max_days: 4, fifth_day_fill: true },
+    }),
+  );
+  assert.equal(on.summary_metrics.filled_shifts, 5);
+
+  // A driver who did NOT opt in stays capped at four.
+  const noOptIn = runEngine(
+    input({
+      shifts,
+      drivers: [driver({ driver_id: "d2" })],
+      settings: { max_days: 4, fifth_day_fill: true },
+    }),
+  );
+  assert.equal(noOptIn.summary_metrics.filled_shifts, 4);
+});
+
 // --- R003 license protection window ----------------------------------------
 
 test("R003 — protection window blocks a soon-to-expire driver, others fill", () => {

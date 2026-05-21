@@ -27657,6 +27657,40 @@ async function autoAssignDriversForWeek() {
   const failedWrites = wr.failed;
   const writeError = wr.firstError;
 
+  // 5th-day notifications — when the DSP opted in, message each driver
+  // who picked up an extra day via the Fifth-Day Fill pass. Deduped per
+  // week so re-running Smart Fill doesn't re-message anyone.
+  try {
+    if (sfRules.fifth_day_notify === true) {
+      const fifthDayDrivers = [...new Set(
+        (result.assigned_shifts || [])
+          .filter(a => a.source === "fifth_day")
+          .map(a => a.driver_id),
+      )];
+      if (fifthDayDrivers.length > 0) {
+        const notifyKey = "rr-5thday-notified:" + _schedStart;
+        let already = [];
+        try { already = JSON.parse(localStorage.getItem(notifyKey) || "[]"); } catch (_) {}
+        const alreadySet = new Set(already);
+        const toNotify = fifthDayDrivers.filter(id => id && !alreadySet.has(id));
+        for (const did of toNotify) {
+          try {
+            await sb.rpc("dispatch_chat_send", {
+              p_driver_id: did,
+              p_body: "Heads up — you've been scheduled a 5th day this week, in line with the availability you set. Thanks for the flexibility!",
+            });
+          } catch (e) { console.warn("5th-day notify failed:", did, e); }
+        }
+        try {
+          localStorage.setItem(notifyKey, JSON.stringify([...alreadySet, ...toNotify]));
+        } catch (_) {}
+        if (toNotify.length > 0) {
+          toast(`Messaged ${toNotify.length} driver${toNotify.length === 1 ? "" : "s"} about their 5th day`, "success");
+        }
+      }
+    }
+  } catch (e) { console.warn("5th-day notify:", e); }
+
   // Surface the engine's explanation output: why each shift is still open
   // and why each driver received no shifts. The engine records a reason
   // for every skip; this turns it into an operator-facing summary.
@@ -30032,25 +30066,16 @@ function bindSchedWeekNav() {
           tradeoff: "Drivers are scheduled right up to their license expiration date.",
         });
       }
-      // Overtime — let existing drivers cover more shifts by raising the
-      // WOC weekly hour cap. The days cap (Max allowable days) is lifted
-      // alongside it, otherwise the days cap stays the binding limit and
-      // raising hours alone changes nothing. The weekly hour cap then
-      // becomes the real limit, so each step reflects a genuine OT level.
-      // Only meaningful when WOC is enforced (there's a cap to raise).
-      if (r.woc !== false) {
-        const curHours = Math.max(1, Math.min(168,
-          Math.round(r.woc_max_hours ?? payload.weekly_hour_cap ?? 40)));
-        for (const h of [45, 48, 50, 55, 60]) {
-          if (h <= curHours) continue;
-          c.push({
-            hours: h,
-            maxDays: 7,
-            ruleDelta: { woc_max_hours: h },
-            title: `Allow overtime — up to ${h}h on the clock per week`,
-            tradeoff: `Drivers work overtime, up to ${h}h a week on any day they're available. WOC consecutive-days, availability and license rules still apply — no rule is violated, the only cost is OT hours.`,
-          });
-        }
+      // Overtime — re-run with the Fifth-Day Fill pass: drivers who
+      // opted into a 5th day each pick up one extra shift on a still-open
+      // route. WOC + license still gate it, so no rule is violated.
+      if (r.fifth_day_fill !== true) {
+        c.push({
+          fifthDay: true,
+          ruleDelta: { fifth_day_fill: true },
+          title: "Re-run with the 5th-day pass (overtime)",
+          tradeoff: "Drivers who opted into a 5th day each take one extra shift. WOC (consecutive days + weekly hours) and license rules still apply — only opted-in drivers, one extra day each.",
+        });
       }
       return c;
     };
@@ -30083,7 +30108,6 @@ function bindSchedWeekNav() {
         }
         const recs = [];
         const maxDaysRecs = [];
-        const hoursRecs = [];
         for (const cand of _covCandidates(payload)) {
           let res = null;
           try {
@@ -30096,10 +30120,7 @@ function bindSchedWeekNav() {
           const proj = _covOf(res);
           if (proj == null || baseCov == null || proj <= baseCov) continue;
           const rec = { ...cand, proj };
-          // Check hours first — an overtime candidate carries both
-          // `hours` and `maxDays` (it lifts the days cap too).
-          if (cand.hours != null) hoursRecs.push(rec);
-          else if (cand.maxDays != null) maxDaysRecs.push(rec);
+          if (cand.maxDays != null) maxDaysRecs.push(rec);
           else recs.push(rec);
         }
         // Collapse the max-days steps to the gentlest one that helps:
@@ -30113,17 +30134,6 @@ function bindSchedWeekNav() {
           if (!pick) {
             const best = Math.max(...maxDaysRecs.map((r) => r.proj));
             pick = maxDaysRecs.find((r) => r.proj === best);
-          }
-          if (pick) recs.push(pick);
-        }
-        // Collapse the overtime steps the same way — recommend the
-        // smallest cap increase (least OT) that closes the gap.
-        if (hoursRecs.length > 0) {
-          hoursRecs.sort((a, b) => a.hours - b.hours);
-          let pick = hoursRecs.find((r) => r.proj >= 100);
-          if (!pick) {
-            const best = Math.max(...hoursRecs.map((r) => r.proj));
-            pick = hoursRecs.find((r) => r.proj === best);
           }
           if (pick) recs.push(pick);
         }
@@ -30146,7 +30156,7 @@ function bindSchedWeekNav() {
               <div class="rr-cov-rec-metric"><span class="rr-cov-metric-label">Coverage</span>` +
                 `<span>${baseCov}%<span class="rr-cov-arrow">→</span><strong>${r.proj}%</strong></span></div>
               <div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Trade-off</span>${escapeHtml(r.tradeoff)}</div>
-              ${r.hours != null ? otVolunteersHtml : ""}
+              ${r.fifthDay ? otVolunteersHtml : ""}
               <button type="button" class="btn btn-primary btn-sm" data-rr-cov-accept='${escapeHtml(JSON.stringify({ ruleDelta: r.ruleDelta || {}, maxDays: r.maxDays != null ? r.maxDays : null }))}'>Accept &amp; re-run</button>
             </div>`).join("");
         bodyHtml = neededHtml + recsHtml;

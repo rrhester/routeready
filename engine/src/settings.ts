@@ -48,6 +48,7 @@ const KNOWN_KEYS = new Set<keyof RawSettings>([
   "preferred_enhancement_extra",
   "affinity_enhancement",
   "affinity_day_order",
+  "fifth_day_fill",
   "consecutive_working_days",
 ]);
 
@@ -279,6 +280,7 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
       false,
     ),
     affinity_day_order: dayOrder(r.affinity_day_order),
+    fifth_day_fill: bool(r.fifth_day_fill, "fifth_day_fill", false),
     consecutive_working_days: bool(
       r.consecutive_working_days,
       "consecutive_working_days",

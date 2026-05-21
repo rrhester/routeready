@@ -37,7 +37,8 @@ export type AssignmentSource =
   | "preserved"
   | "pattern_pass"
   | "auto_fill"
-  | "swap";
+  | "swap"
+  | "fifth_day";
 
 // ---------------------------------------------------------------------------
 // Raw inputs (as supplied by callers — loosely typed, normalized at entry)
@@ -96,6 +97,8 @@ export interface DriverInput {
   /** Per-weekday affinity (0-100), index 0=Sun..6=Sat — how often the
    *  driver was scheduled on each weekday over the rolling period. */
   weekday_affinity?: number[] | null;
+  /** Driver opted in to working an extra (5th) day when coverage needs it. */
+  fifth_day_ok?: boolean;
 }
 
 /** A previously-assigned shift, used only by R012 (historical patterns). */
@@ -159,6 +162,7 @@ export interface RawSettings {
   preferred_enhancement_extra?: RawBool;
   affinity_enhancement?: RawBool;
   affinity_day_order?: number[];
+  fifth_day_fill?: RawBool;
   consecutive_working_days?: RawBool;
 }
 
@@ -229,6 +233,9 @@ export interface Settings {
   /** Weekday priority order (0=Sun..6=Sat) the affinity sweep follows;
    *  earlier days are settled and locked before later days. */
   affinity_day_order: number[];
+  /** Final pass: layer an extra (5th) day onto open shifts for drivers
+   *  who opted in, without violating WOC or license rules. */
+  fifth_day_fill: boolean;
   consecutive_working_days: boolean;
 }
 
@@ -275,6 +282,8 @@ export interface NormalizedDriver {
   /** Per-weekday affinity (0-100), index 0=Sun..6=Sat - or null when
    *  no rolling history is available for the driver. */
   weekday_affinity: number[] | null;
+  /** Driver opted in to working an extra (5th) day when coverage needs it. */
+  fifth_day_ok: boolean;
   /** Stable alphabetical key: lowercased "last first". */
   sort_key: string;
 }
