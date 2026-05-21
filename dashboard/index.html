@@ -11955,6 +11955,17 @@ body.rr-cmdk-open{ overflow:hidden }
                     <input class="form-input sf-maxdays-input" id="rr-set-max-days" type="number" min="0" max="7" step="1" autocomplete="off" aria-label="Max allowable days per week"/>
                   </div>
                 </div>
+                <!-- Smart Fill advanced settings -->
+                <div class="sched-smartfill-advanced">
+                  <div class="sched-smartfill-advanced-head">Advanced settings</div>
+                  <div class="sched-smartfill-advanced-row">
+                    <span class="sf-advanced-field-label">Fill order</span>
+                    <select class="form-input sf-advanced-field-select" id="rr-set-fill-order">
+                      <option value="rotational">Rotational — spread evenly across drivers</option>
+                      <option value="sequential">Sequential — fill each driver to capacity first</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="sched-vans-rules-split">
@@ -12077,45 +12088,6 @@ body.rr-cmdk-open{ overflow:hidden }
                      the popover so it stays an "inline adjustment"
                      rather than a full-page sub-view. -->
                 <div class="sched-quick-advanced">
-                  <div class="rr-drawer-section">
-                    <div class="rr-drawer-form-row">
-                      <div>
-                        <div class="rr-drawer-form-label">Availability override</div>
-                        <div class="rr-drawer-form-help">Smart Fill ignores driver availability when no one matches a day. Use on tight weeks.</div>
-                      </div>
-                      <div class="rr-drawer-form-control">
-                        <label class="rr-toggle">
-                          <input type="checkbox" id="rr-set-availability-override"/>
-                          <span class="rr-toggle-track"><span class="rr-toggle-thumb"></span></span>
-                        </label>
-                      </div>
-                    </div>
-                    <div class="rr-drawer-form-row">
-                      <div>
-                        <div class="rr-drawer-form-label">Preferred-day tiebreaker</div>
-                        <div class="rr-drawer-form-help">When more drivers want a day than there are shifts on it, who gets it.</div>
-                      </div>
-                      <div class="rr-drawer-form-control">
-                        <select class="form-input" id="rr-set-pref-tiebreaker">
-                          <option value="least_loaded">Fewest shifts so far (default)</option>
-                          <option value="seniority">Most senior (hire date)</option>
-                          <option value="fairness">Least recently honored</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div class="rr-drawer-form-row">
-                      <div>
-                        <div class="rr-drawer-form-label">Fill order</div>
-                        <div class="rr-drawer-form-help">How Smart Fill distributes shifts across drivers.</div>
-                      </div>
-                      <div class="rr-drawer-form-control">
-                        <select class="form-input" id="rr-set-fill-order">
-                          <option value="rotational">Rotational — spread evenly across drivers</option>
-                          <option value="sequential">Sequential — fill each driver to capacity first</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
                   <div class="rr-drawer-section">
                     <div class="rr-drawer-section-head">
                       <div class="rr-drawer-section-title">Wave start times</div>
@@ -13915,6 +13887,26 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-smartfill-rule--field .sf-maxdays-input{
             flex:0 0 auto;width:58px;
             font-size:12px;padding:4px 6px;text-align:center;
+          }
+          /* Smart Fill advanced settings — a calm footer block below the
+             rule list (Fluent grouping). */
+          #view-schedule .sched-smartfill-advanced{
+            border-top:1px solid rgba(15,23,42,.08);
+            margin-top:4px;padding:10px 16px 4px;
+          }
+          #view-schedule .sched-smartfill-advanced-head{
+            font-size:11px;font-weight:600;
+            text-transform:uppercase;letter-spacing:.04em;
+            color:#616161;margin-bottom:7px;
+          }
+          #view-schedule .sched-smartfill-advanced-row{
+            display:flex;flex-direction:column;gap:4px;
+          }
+          #view-schedule .sched-smartfill-advanced-row .sf-advanced-field-label{
+            font-size:13px;color:#1f1f1f;
+          }
+          #view-schedule .sched-smartfill-advanced-row .sf-advanced-field-select{
+            font-size:13px;padding:5px 8px;width:100%;
           }
 
           /* Settings split-button — main tile opens the full drawer,
