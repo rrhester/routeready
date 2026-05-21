@@ -558,3 +558,31 @@ test("Preferred Availability Enhancement swaps both drivers onto preferred days"
   assert.equal(on.assigned_shifts.find((a) => a.shift_id === "sTue")?.driver_id, "dA");
   assert.equal(on.assigned_shifts.find((a) => a.shift_id === "sMon")?.driver_id, "dB");
 });
+
+// --- R003 license protection window ----------------------------------------
+
+test("R003 — protection window blocks a soon-to-expire driver, others fill", () => {
+  const r = runEngine(
+    input({
+      shifts: [shift({ shift_id: "s1", date: "2026-05-25" })],
+      drivers: [
+        driver({ driver_id: "a_soon", license_expiration_date: "2026-05-28" }),
+        driver({ driver_id: "b_ok", license_expiration_date: "2026-12-01" }),
+      ],
+      settings: { license_protection_days: 7 },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 1);
+  assert.equal(r.assigned_shifts[0]?.driver_id, "b_ok");
+});
+
+test("R003 — protection window of 0 only blocks once expired", () => {
+  const r = runEngine(
+    input({
+      shifts: [shift({ shift_id: "s1", date: "2026-05-25" })],
+      drivers: [driver({ driver_id: "d1", license_expiration_date: "2026-05-26" })],
+      settings: { license_protection_days: 0 },
+    }),
+  );
+  assert.equal(r.summary_metrics.filled_shifts, 1);
+});

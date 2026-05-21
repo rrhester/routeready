@@ -13,6 +13,7 @@ const KNOWN_KEYS = new Set<keyof RawSettings>([
   "preserve_locked_assignments",
   "eligible_driver_status",
   "license_enforcement",
+  "license_protection_days",
   "certification_enforcement",
   "pto_protection",
   "availability_enforcement",
@@ -116,6 +117,7 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
       "active_only",
     ),
     license_enforcement: bool(r.license_enforcement, "license_enforcement", true),
+    license_protection_days: num(r.license_protection_days, "license_protection_days", 0, 0, 365),
     certification_enforcement: bool(
       r.certification_enforcement,
       "certification_enforcement",
