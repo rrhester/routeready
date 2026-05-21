@@ -23602,7 +23602,10 @@ document.addEventListener("click", (e) => {
   catch (_) { saved = {}; }
   saved.affinity_day_order = ord;
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
-  _renderAffinityDayOrder();
+  // Defer the re-render: rebuilding the list now would detach the
+  // clicked button mid-event, and the popover's outside-click handler
+  // would then see a detached target and close the popover.
+  setTimeout(_renderAffinityDayOrder, 0);
 });
 // Per-driver weekday affinity (0-100 per weekday, index 0=Sun) over the
 // rolling period immediately before `weekStartIso`. A weekday counts at
