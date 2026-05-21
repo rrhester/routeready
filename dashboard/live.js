@@ -29767,11 +29767,16 @@ function bindSchedWeekNav() {
         });
       }
       const curMax = Math.max(0, Math.min(7, Math.round(payload.max_days ?? 6)));
-      if (curMax < 7) {
+      // One candidate per intermediate step (curMax+1 … 7) rather than a
+      // single jump straight to 7. _openCovModal collapses this family
+      // down to the gentlest step that actually closes the gap.
+      for (let m = curMax + 1; m <= 7; m++) {
         c.push({
-          maxDays: 7,
-          title: `Raise max allowable days per week to 7 (from ${curMax})`,
-          tradeoff: "Drivers may work up to 7 days — watch fatigue and overtime.",
+          maxDays: m,
+          title: `Raise max allowable days per week to ${m} (from ${curMax})`,
+          tradeoff: m >= 7
+            ? "Drivers may work up to 7 days — watch fatigue and overtime."
+            : `Drivers may work up to ${m} days a week — a modest increase from ${curMax}.`,
         });
       }
       if ((r.dl_protection_days ?? 0) > 0) {
@@ -29811,6 +29816,7 @@ function bindSchedWeekNav() {
           }
         }
         const recs = [];
+        const maxDaysRecs = [];
         for (const cand of _covCandidates(payload)) {
           let res = null;
           try {
@@ -29822,7 +29828,23 @@ function bindSchedWeekNav() {
           } catch (err) { console.warn("coverage dry-run:", err); }
           const proj = _covOf(res);
           if (proj == null || baseCov == null || proj <= baseCov) continue;
-          recs.push({ ...cand, proj });
+          const rec = { ...cand, proj };
+          if (cand.maxDays != null) maxDaysRecs.push(rec);
+          else recs.push(rec);
+        }
+        // Collapse the max-days steps to the gentlest one that helps:
+        // the smallest increase that reaches 100%, or — if none does —
+        // the smallest increase that achieves the best coverage. This
+        // keeps the drill-down from jumping straight to 7 days when a
+        // smaller bump would already close the gap.
+        if (maxDaysRecs.length > 0) {
+          maxDaysRecs.sort((a, b) => a.maxDays - b.maxDays);
+          let pick = maxDaysRecs.find((r) => r.proj >= 100);
+          if (!pick) {
+            const best = Math.max(...maxDaysRecs.map((r) => r.proj));
+            pick = maxDaysRecs.find((r) => r.proj === best);
+          }
+          if (pick) recs.push(pick);
         }
         curLabel = baseCov == null
           ? "How coverage could improve"
