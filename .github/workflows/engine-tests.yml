@@ -1,0 +1,26 @@
+name: engine-tests
+
+on:
+  pull_request:
+    paths:
+      - "engine/**"
+      - ".github/workflows/engine-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "engine/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm test
