@@ -100,6 +100,17 @@ export function orderDrivers(
       }
     }
   });
+
+  // Attendance Penalty — drivers on a Final corrective action keep their
+  // relative order but rotate after everyone else (stable partition).
+  if (ctx.settings.attendance_penalty) {
+    const normal: NormalizedDriver[] = [];
+    const penalized: NormalizedDriver[] = [];
+    for (const d of drivers) {
+      (d.attendance_final ? penalized : normal).push(d);
+    }
+    return [...normal, ...penalized];
+  }
   return drivers;
 }
 

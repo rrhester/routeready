@@ -90,6 +90,8 @@ export interface DriverInput {
   pto_records?: PtoRecord[];
   attendance_score?: number | null;
   attendance_events?: AttendanceEvent[];
+  /** True when the driver is on a Final corrective action. */
+  attendance_final?: boolean;
 }
 
 /** A previously-assigned shift, used only by R012 (historical patterns). */
@@ -138,6 +140,7 @@ export interface RawSettings {
   historical_pattern_protection?: PatternStrength;
   history_window_weeks?: 4 | 6 | 8;
   attendance_scheduling?: RawBool;
+  attendance_penalty?: RawBool;
   attendance_weight?: AttendanceWeight;
   performance_scheduling?: RawBool;
   scheduling_method?: SchedulingMethod;
@@ -192,6 +195,8 @@ export interface Settings {
   historical_pattern_protection: PatternStrength;
   history_window_weeks: 4 | 6 | 8;
   attendance_scheduling: boolean;
+  /** When true, drivers on a Final corrective action are ordered last. */
+  attendance_penalty: boolean;
   attendance_weight: AttendanceWeight;
   performance_scheduling: boolean;
   scheduling_method: SchedulingMethod;
@@ -247,6 +252,8 @@ export interface NormalizedDriver {
   pto_hours: Map<string, number>;
   attendance_score: number | null;
   attendance_events: AttendanceEvent[];
+  /** True when the driver is on a Final corrective action. */
+  attendance_final: boolean;
   /** Stable alphabetical key: lowercased "last first". */
   sort_key: string;
 }

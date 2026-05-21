@@ -96,6 +96,7 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "historical_pattern_protection",
   "history_window_weeks",
   "attendance_scheduling",
+  "attendance_penalty",
   "attendance_weight",
   "performance_scheduling",
   "scheduling_method",
@@ -227,6 +228,7 @@ function validateSettings(raw) {
       "attendance_scheduling",
       true
     ),
+    attendance_penalty: bool(r.attendance_penalty, "attendance_penalty", false),
     attendance_weight: oneOf(
       r.attendance_weight,
       "attendance_weight",
@@ -440,6 +442,7 @@ function normalizeDriver(raw) {
     pto_hours: ptoHours,
     attendance_score: score,
     attendance_events: raw.attendance_events ?? [],
+    attendance_final: raw.attendance_final === true,
     sort_key: `${raw.last_name}\0${raw.first_name}`.toLowerCase()
   };
 }
@@ -1120,6 +1123,14 @@ function orderDrivers(ctx, states) {
       }
     }
   });
+  if (ctx.settings.attendance_penalty) {
+    const normal = [];
+    const penalized = [];
+    for (const d of drivers) {
+      (d.attendance_final ? penalized : normal).push(d);
+    }
+    return [...normal, ...penalized];
+  }
   return drivers;
 }
 function methodPoints(rank, driverCount) {
@@ -1984,7 +1995,8 @@ function mapDriver(raw, ptoByDriver) {
       date,
       hours: PTO_HOURS_PER_DAY
     })),
-    attendance_score: null
+    attendance_score: null,
+    attendance_final: raw.final_corrective_action === true
   };
 }
 function mapShift(raw) {
@@ -2004,7 +2016,7 @@ function mapShift(raw) {
 function clampMaxDays(value) {
   return Math.max(0, Math.min(7, Math.round(value ?? 6)));
 }
-function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh, license) {
+function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty) {
   return {
     run_mode: "full_rebuild",
     eligible_driver_status: "active_and_onboarding",
@@ -2026,6 +2038,7 @@ function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch, 
     same_day_multi_shift: "block",
     historical_pattern_protection: "off",
     attendance_scheduling: false,
+    attendance_penalty: attendancePenalty,
     scheduling_method: "seniority",
     assignment_mode: assignmentMode,
     rotation_batch_size: rotationBatch,
@@ -2054,11 +2067,12 @@ function buildSettings(payload) {
     on: r.dl_valid !== false,
     protectionDays: Math.max(0, Math.min(365, Math.round(r.dl_protection_days ?? 0)))
   };
+  const attendancePenalty = r.attendance_penalty === true;
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, attendancePenalty);
   }
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
@@ -2086,6 +2100,7 @@ function buildSettings(payload) {
     same_day_multi_shift: "block",
     historical_pattern_protection: "off",
     attendance_scheduling: false,
+    attendance_penalty: attendancePenalty,
     scheduling_method: method,
     assignment_mode: assignmentMode,
     rotation_batch_size: rotationBatch,

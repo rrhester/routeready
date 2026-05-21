@@ -586,3 +586,27 @@ test("R003 — protection window of 0 only blocks once expired", () => {
   );
   assert.equal(r.summary_metrics.filled_shifts, 1);
 });
+
+// --- Attendance Penalty ----------------------------------------------------
+
+test("attendance penalty rotates Final-corrective drivers last", () => {
+  const base = {
+    shifts: [shift({ shift_id: "s1", date: "2026-05-25" })],
+    drivers: [
+      // a_sr is the more senior driver but on a Final corrective action.
+      driver({ driver_id: "a_sr", hire_date: "2019-01-01", attendance_final: true }),
+      driver({ driver_id: "b_jr", hire_date: "2023-01-01" }),
+    ],
+  };
+  // Without the penalty: seniority wins — a_sr takes the shift.
+  assert.equal(
+    runEngine(input(base)).assigned_shifts[0]?.driver_id,
+    "a_sr",
+  );
+  // With the penalty: a_sr rotates last, so b_jr takes the shift.
+  assert.equal(
+    runEngine(input({ ...base, settings: { attendance_penalty: true } }))
+      .assigned_shifts[0]?.driver_id,
+    "b_jr",
+  );
+});

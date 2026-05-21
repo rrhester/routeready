@@ -33,6 +33,7 @@ const KNOWN_KEYS = new Set<keyof RawSettings>([
   "historical_pattern_protection",
   "history_window_weeks",
   "attendance_scheduling",
+  "attendance_penalty",
   "attendance_weight",
   "performance_scheduling",
   "scheduling_method",
@@ -181,6 +182,7 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
       "attendance_scheduling",
       true,
     ),
+    attendance_penalty: bool(r.attendance_penalty, "attendance_penalty", false),
     attendance_weight: oneOf(
       r.attendance_weight,
       "attendance_weight",
