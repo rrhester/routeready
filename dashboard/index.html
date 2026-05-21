@@ -13114,30 +13114,32 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-page-btn{
             appearance:none;
             background:transparent;
-            border:1px solid transparent;
+            border:0;
             color:var(--text-muted);
             font-family:inherit;font-weight:500;
             font-size:var(--fs-sm);line-height:1.2;
             display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
-            gap:6px;
-            padding:8px 14px 7px;
-            min-width:64px;
+            gap:4px;
+            padding:6px 12px 5px;
+            min-width:58px;
             border-radius:var(--sch-radius);
             cursor:pointer;
             box-shadow:none;
             transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
           }
+          /* Unified Fluent icon — one stroke weight, one quiet
+             gray-blue. Operational state introduces colour, nothing
+             else. */
           #view-schedule .sched-page-btn svg{
-            width:22px;height:22px;flex-shrink:0;
-            color:var(--text-muted);stroke-width:1.5;
+            width:19px;height:19px;flex-shrink:0;
+            color:var(--text-subtle);stroke-width:1.6;
           }
           #view-schedule .sched-page-btn:hover{
-            background:var(--sch-hover);
+            background:rgba(0,0,0,.04);
             color:var(--text);
-            border-color:transparent;
             box-shadow:none;
           }
-          #view-schedule .sched-page-btn:hover svg{color:var(--sch-blue)}
+          #view-schedule .sched-page-btn:hover svg{color:var(--text-muted)}
           #view-schedule .sched-page-btn:focus-visible{
             outline:none;
             box-shadow:0 0 0 2px var(--sch-blue);
@@ -13148,7 +13150,9 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-page-btn#rr-sched-finalize-h{
             color:#fff;
             background:var(--sch-blue);
-            border-color:transparent;
+            border:0;
+            /* Slightly stronger elevation anchors workflow completion. */
+            box-shadow:0 1px 2px rgba(15,23,42,.10), 0 2px 6px rgba(15,108,189,.18);
           }
           #view-schedule .sched-page-btn#rr-sched-finalize-h svg{color:#fff}
           #view-schedule .sched-page-btn#rr-sched-finalize-h:hover{
@@ -13303,7 +13307,7 @@ body.rr-cmdk-open{ overflow:hidden }
             justify-content:space-between;
             gap:var(--s-3);
             flex-wrap:nowrap;
-            padding:14px 18px;
+            padding:11px 18px;
             margin-bottom:var(--s-4);
             background:#FFFFFF;
             border:1px solid rgba(15,23,42,.08);
@@ -13324,13 +13328,13 @@ body.rr-cmdk-open{ overflow:hidden }
                escape the strip — earlier overflow-x:auto clipped
                every dropdown that hung below the navigation row. */
             overflow:visible;
-            min-height:52px;
+            min-height:44px;
           }
           #view-schedule .sched-nav-heading-actions > .subnav,
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group > .subnav{
             margin-bottom:0;
             display:inline-flex !important;
-            align-items:center;gap:6px;
+            align-items:center;gap:8px;
             background:transparent;background-image:none;
             border:0;border-radius:0;padding:0;
             box-shadow:none;
@@ -13340,41 +13344,33 @@ body.rr-cmdk-open{ overflow:hidden }
             border-bottom:0;
           }
 
-          /* VIEWS + PLANNING groups · subtle vertical divider between
-             each group. Adds breathing room between Week/Today and
-             Staff/Templates/Requests so they read as separate cohorts.
-             First group has no divider. */
+          /* VIEWS + PLANNING groups · separated by spacing rhythm, not
+             a divider line — calm operational grouping. */
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group{
             display:inline-flex;align-items:center;
             flex:0 0 auto;
-            padding:0 var(--s-2);
+            padding:0;
           }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group{
-            margin-left:8px;padding-left:14px;
-            position:relative;
+            margin-left:32px;
           }
-          #view-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group::before{
-            content:"";
-            position:absolute;
-            left:0;top:50%;
-            width:1px;height:32px;
-            margin-top:-16px;
-            background:var(--sch-line-strong);
-            border-radius:0;
-          }
+          /* Ribbon view/planning controls — ghost buttons: no border,
+             transparent until a soft hover. */
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item{
             font-weight:500;
             color:var(--text-muted);
+            background:transparent;border:0;box-shadow:none;
+            padding:5px 9px;
           }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item:hover{
             color:var(--text);
-            background:rgba(15,23,42,.04);
+            background:rgba(0,0,0,.04);
           }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item.active{
             color:var(--sch-blue);font-weight:600;
           }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item svg{
-            color:var(--text-subtle);
+            color:var(--text-subtle);stroke-width:1.6;
           }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item.active svg{
             color:var(--sch-blue);
@@ -13400,8 +13396,9 @@ body.rr-cmdk-open{ overflow:hidden }
              Group order numbers reserve room between groups so cross-
              group drag-reorder still places items into a sensible
              slot. */
+          /* Within-group spacing — 8px rhythm. */
           #view-schedule .sched-ribbon-actions--grouped{
-            gap:6px;
+            gap:8px;
           }
           /* AUTOMATION · Smart Fill + Targets — quiet utility tone */
           #view-schedule .sched-ribbon-actions--grouped .sched-smartfill-split{order:10}
@@ -13412,22 +13409,10 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-ribbon-actions--grouped .sched-vans-rules-split{order:30}
           #view-schedule .sched-ribbon-actions--grouped .sched-kudos-split{order:31}
 
-          /* Divider before each new action-group's leading item. */
+          /* Between-group gap — spacing rhythm, no divider line. */
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h,
           #view-schedule .sched-ribbon-actions--grouped .sched-vans-rules-split{
-            margin-left:12px;
-            padding-left:14px;
-            position:relative;
-          }
-          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h::before,
-          #view-schedule .sched-ribbon-actions--grouped .sched-vans-rules-split::before{
-            content:"";
-            position:absolute;
-            left:0;top:50%;
-            width:1px;height:22px;
-            margin-top:-11px;
-            background:rgba(15,23,42,.10);
-            border-radius:0;
+            margin-left:32px;
           }
 
           /* Quiet, utility-grade default for every tile EXCEPT the
@@ -13440,13 +13425,13 @@ body.rr-cmdk-open{ overflow:hidden }
             font-weight:500;
           }
           #view-schedule .sched-ribbon-actions--grouped .sched-page-btn:hover{
-            background:rgba(15,23,42,.04);
+            background:rgba(0,0,0,.04);
           }
           #view-schedule .sched-ribbon-actions--grouped .sched-page-btn svg{
-            color:var(--text-subtle);
+            color:var(--text-subtle);stroke-width:1.6;
           }
           #view-schedule .sched-ribbon-actions--grouped .sched-page-btn:hover svg{
-            color:var(--text);
+            color:var(--text-muted);
           }
 
           /* Drop the colorful Assign-tile cargo/cab fill and Targets
@@ -13486,26 +13471,25 @@ body.rr-cmdk-open{ overflow:hidden }
             stroke:#C42B1C;
           }
 
-          /* WORKFLOW accent — calmer treatment per operator. Soft
-             blue tinted pill with blue ink (was full-saturation
-             white-on-blue). Still the only accent in the strip but
-             reads at peer-level intensity with the live-state
-             green pill. */
+          /* WORKFLOW · Finalize — the one filled primary action.
+             Solid Microsoft blue with a slightly stronger elevation,
+             anchoring workflow completion. Every other tile is a
+             quiet ghost. */
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h{
-            background:var(--sch-blue-soft, rgba(37,99,235,.10));
-            color:var(--sch-blue, #2563EB);
+            background:var(--sch-blue);
+            color:#fff;
             border-radius:6px;
-            padding:8px 14px;
+            padding:6px 14px 5px;
             font-weight:600;
-            box-shadow:inset 0 0 0 1px rgba(37,99,235,.20);
+            box-shadow:0 1px 2px rgba(15,23,42,.10), 0 2px 6px rgba(15,108,189,.18);
             transition:background var(--t-fast,150ms), box-shadow var(--t-fast,150ms);
           }
-          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h svg{color:var(--sch-blue, #2563EB)}
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h svg{color:#fff}
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h:hover{
-            background:rgba(37,99,235,.16);
-            box-shadow:inset 0 0 0 1px rgba(37,99,235,.32);
+            background:var(--sch-blue-strong);
+            box-shadow:0 1px 3px rgba(15,23,42,.14), 0 3px 8px rgba(15,108,189,.22);
           }
-          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h:hover svg{color:var(--sch-blue, #2563EB)}
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h:hover svg{color:#fff}
           /* When the week is live, swap to the calm green "Unfinalize"
              pill — still distinct, still the only accent tile. */
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h[data-rr-stage="live"]{
@@ -13529,18 +13513,13 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-ribbon-actions--grouped .sched-vans-rules-split .sched-page-btn svg{
             color:var(--text-subtle);
           }
-          /* Outlook-style group dividers — slightly stronger Fluent
-             line between each cluster (tabs ↔ commands ↔ week nav). */
-          #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions::before,
-          #view-schedule .sched-nav-heading-actions > .sched-week-nav::before{
-            content:"";
-            width:1px;
-            background:var(--sch-line-strong);
-            margin:8px var(--s-2);
-            align-self:stretch;
-            flex:0 0 auto;
-            display:block;
-            height:32px;align-self:center;
+          /* Group boundaries use spacing rhythm, not divider lines —
+             the command bar reads as one calm operational surface. */
+          #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions{
+            margin-left:32px;
+          }
+          #view-schedule .sched-nav-heading-actions > .sched-week-nav{
+            margin-left:32px;
           }
 
           /* Assign Vans tile · default state matches the strip.
@@ -15013,40 +14992,37 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;align-items:flex-end;justify-content:space-between;gap:var(--s-3);
           }
 
-          /* Bigger ribbon icons + equal-width Finalize/Unfinalize.
-             Icons bumped ~55% so the strip reads as a true Microsoft
-             ribbon; tiles widened to match. Finalize has a fixed
-             min-width so the strip doesn't reflow when the label
-             flips between "Finalize" and "Unfinalize". */
+          /* Compact ribbon density — Microsoft Teams / Azure command-
+             bar scale. Typography leads; the icon is a supporting
+             ~20px glyph rather than the dominant element. Finalize
+             keeps a fixed min-width so the strip doesn't reflow when
+             the label flips between "Finalize" and "Unfinalize". */
           #view-schedule .sched-nav-heading-actions .sched-page-btn{
-            padding:8px 12px 9px;min-width:80px;gap:6px;
+            padding:6px 10px 6px;min-width:62px;gap:4px;
           }
           #view-schedule .sched-nav-heading-actions .sched-page-btn svg{
-            width:32px;height:32px;
+            width:20px;height:20px;
           }
           #view-schedule .sched-nav-heading-actions .subnav-item{
-            padding:8px 12px 10px;min-width:80px;gap:6px;
+            padding:6px 10px 7px;min-width:62px;gap:4px;
           }
           #view-schedule .sched-nav-heading-actions .subnav-item svg{
-            width:32px;height:32px;
+            width:20px;height:20px;
           }
-          /* Finalize / Unfinalize ride the same fixed footprint so
-             toggling the label doesn't shift every tile to the left
-             of it. 96 px comfortably fits "Unfinalize" + 32 px icon. */
           #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-finalize-h{
-            min-width:96px;
+            min-width:84px;
           }
           @media (max-width:1280px){
             #view-schedule .sched-nav-heading-actions .sched-page-btn,
             #view-schedule .sched-nav-heading-actions .subnav-item{
-              font-size:11px;padding:6px 10px 7px;min-width:72px;
+              font-size:11px;padding:5px 8px 6px;min-width:56px;
             }
             #view-schedule .sched-nav-heading-actions .sched-page-btn#rr-sched-finalize-h{
-              min-width:88px;
+              min-width:76px;
             }
             #view-schedule .sched-nav-heading-actions .sched-page-btn svg,
             #view-schedule .sched-nav-heading-actions .subnav-item svg{
-              width:28px;height:28px;
+              width:18px;height:18px;
             }
           }
           #view-schedule .subnav-item{
@@ -16000,46 +15976,28 @@ body.rr-cmdk-open{ overflow:hidden }
              tabs already read as quiet subnav and are left as-is.
              ────────────────────────────────────────────────────── */
 
-          /* Automation commands · medium emphasis. The hairline
-             surface lifts them above the flat engagement command
-             without borrowing Finalize's filled treatment. */
+          /* Automation + engagement commands — quiet ghost tiles.
+             No border, transparent until a soft hover. Finalize is
+             the only filled command in the bar. */
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-smartfill-h,
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-vans-h,
-          #view-schedule .sched-ribbon-actions--grouped #rr-sched-okami-open-h{
-            background:var(--sch-surface-2);
-            border:1px solid var(--sch-line);
-            color:var(--text);
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-okami-open-h,
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-kudos-h{
+            background:transparent;
+            border:0;
+            color:var(--text-muted);
           }
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-smartfill-h:hover,
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-vans-h:hover,
-          #view-schedule .sched-ribbon-actions--grouped #rr-sched-okami-open-h:hover{
-            background:var(--sch-hover);
-            border-color:var(--sch-line-strong);
-            color:var(--text);
-          }
-
-          /* Engagement command (Kudos) · softest. Flat, no resting
-             surface, muted label — present but never dominant. It
-             still gets the shared command box so every toolbar
-             command reads as a uniformly framed control. */
-          #view-schedule .sched-ribbon-actions--grouped #rr-sched-kudos-h{
-            background:var(--sch-surface-2);
-            border:1px solid var(--sch-line);
-            color:var(--text-muted);
-          }
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-okami-open-h:hover,
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-kudos-h:hover{
-            background:var(--sch-hover);
+            background:rgba(0,0,0,.04);
             color:var(--text);
           }
 
-          /* Ribbon group divider · hairline, not a hard rule. The
-             prior 2px / .28-opacity bar read as a heavy separator;
-             a single low-contrast line is the calmer Fluent cue. */
+          /* Ribbon groups separated by spacing rhythm — no divider. */
           #view-schedule .sched-ribbon-group + .sched-ribbon-group::before{
-            width:1px;
-            height:24px;
-            margin-top:-12px;
-            background:var(--sch-line-strong);
+            display:none;
           }
 
           /* Invisible footer · the commands that carry a real
