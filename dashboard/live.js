@@ -27056,7 +27056,7 @@ async function autoAssignDriversForWeek() {
 
   let result;
   try {
-    result = planScheduleWeek({
+    const sfPayload = {
       schedule_week_start: _schedStart,
       max_days: maxDays,
       weekly_hour_cap: 40,
@@ -27074,7 +27074,11 @@ async function autoAssignDriversForWeek() {
       })),
       shifts: engineShifts,
       pto: ptoFlat,
-    });
+    };
+    // Stash the payload so the Preferred-% KPI drill-down can dry-run
+    // the engine with candidate settings (projected %) without writes.
+    window._rrLastSmartFillPayload = sfPayload;
+    result = planScheduleWeek(sfPayload);
   } catch (e) {
     console.warn("scheduling engine failed:", e);
     toast("Auto-fill failed: " + ((e && e.message) || "engine error"), "warn");
@@ -28427,10 +28431,8 @@ async function renderScheduleWeek() {
           prefDenom > 0
             ? `${prefHonored} / ${prefDenom} shifts on a preferred day`
             : "No drivers have preferred days set",
-          false,
-          prefDenom > 0
-            ? `${prefHonored} of ${prefDenom} shifts (drivers with preferred days set) landed on a preferred day`
-            : "Set drivers' preferred days to track this",
+          true,
+          "Click to see settings that would raise this",
         );
       })() +
       pill("rotation",   rotationDotRed ? msRed : navy, rotationLabel, rotationSub, femRisks.length > 0, rotationTitle);
@@ -29148,6 +29150,175 @@ function bindSchedWeekNav() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") document.getElementById("rr-sched-violations-panel")?.remove();
   });
+  }
+
+  // ── KPI: clicking the Preferred-% pill opens a modal that dry-runs
+  // the engine with candidate Smart Fill settings, shows the projected
+  // Preferred % and trade-off for each, and lets the DSP accept one —
+  // which updates the rules and re-runs the schedule.
+  if (!window._rrPreferredKpiHandlerInstalled) {
+    window._rrPreferredKpiHandlerInstalled = true;
+
+    if (!document.getElementById("rr-pref-kpi-styles")) {
+      const st = document.createElement("style");
+      st.id = "rr-pref-kpi-styles";
+      st.textContent = `
+        .rr-pref-rec{border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;margin-bottom:10px}
+        .rr-pref-rec:last-child{margin-bottom:0}
+        .rr-pref-rec-title{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+        .rr-pref-rec-proj{font-size:var(--fs-lg);font-weight:700;color:var(--text);margin:5px 0 7px;display:flex;align-items:center;gap:8px}
+        .rr-pref-rec-proj strong{color:#0078d4}
+        .rr-pref-arrow{color:var(--text-subtle);font-weight:400}
+        .rr-pref-rec-trade{font-size:var(--fs-xs);color:var(--text-muted);line-height:1.45;margin-bottom:10px}
+        .rr-pref-trade-label{font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;font-size:10px;margin-right:5px}
+        .rr-pref-empty{font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5;margin:0}
+        .rr-pref-regen{padding:22px 4px;text-align:center}
+        .rr-pref-regen-bar{height:6px;border-radius:3px;background:var(--canvas);overflow:hidden;margin-bottom:13px}
+        .rr-pref-regen-bar span{display:block;height:100%;width:40%;border-radius:3px;background:#0078d4;animation:rrPrefRegen 1.1s ease-in-out infinite}
+        @keyframes rrPrefRegen{0%{margin-left:-40%}100%{margin-left:100%}}
+        .rr-pref-regen-label{font-size:var(--fs-sm);color:var(--text-muted)}`;
+      document.head.appendChild(st);
+    }
+
+    // Preferred % of a ScheduleResult against the payload's driver prefs.
+    const _prefPctOf = (res, payload) => {
+      if (!res) return null;
+      const dateById = new Map((payload.shifts || []).map(s => [String(s.id), s.date]));
+      const prefById = new Map((payload.drivers || []).map(d => [String(d.id), d.preferred_dows]));
+      let honored = 0, denom = 0;
+      for (const a of (res.assigned_shifts || [])) {
+        const pref = prefById.get(String(a.driver_id));
+        if (!Array.isArray(pref) || pref.length === 0) continue;
+        denom += 1;
+        const date = dateById.get(String(a.shift_id));
+        if (date && pref.includes(new Date(date + "T12:00:00").getDay())) honored += 1;
+      }
+      return denom > 0 ? Math.round(honored / denom * 100) : null;
+    };
+
+    // Candidate setting changes that could raise Preferred %, given the
+    // current Smart Fill rule state.
+    const _prefCandidates = (rules) => {
+      const c = [];
+      if (!rules.preferred_enhancement) {
+        c.push({
+          delta: { preferred_enhancement: true, preferred_enhancement_contiguous: true },
+          title: "Turn on Preferred Availability Enhancement",
+          tradeoff: "Minimal — it only swaps two drivers when both land on a preferred day and both keep the same shift count.",
+        });
+      } else if (!rules.preferred_enhancement_extra) {
+        c.push({
+          delta: { preferred_enhancement_extra: true },
+          title: "Add extra enhancement rotations",
+          tradeoff: "Some drivers' working days may become less contiguous (split day-blocks) to free up more preferred-day swaps.",
+        });
+      }
+      if (!rules.preferred_only) {
+        c.push({
+          delta: { preferred_only: true, availability_only: false },
+          title: "Switch to “Auto Fill only Preferred Availability”",
+          tradeoff: "Coverage will drop — drivers with no preferred days, or fewer preferred days than open shifts, won't be fully scheduled.",
+        });
+      }
+      return c;
+    };
+
+    const _openPrefModal = () => {
+      document.getElementById("rr-pref-kpi-modal")?.remove();
+      const payload = window._rrLastSmartFillPayload;
+      let bodyHtml, curLabel;
+      if (!payload) {
+        bodyHtml = `<p class="rr-pref-empty">Run Smart Fill once and RouteReady can preview how each setting would change the Preferred %.</p>`;
+        curLabel = "How preferred-day scheduling could improve";
+      } else {
+        let baseline = null;
+        try { baseline = _prefPctOf(planScheduleWeek({ ...payload, rules: { ...payload.rules } }), payload); }
+        catch (err) { console.warn("pref baseline dry-run:", err); }
+        const recs = [];
+        for (const cand of _prefCandidates(payload.rules || {})) {
+          let res = null;
+          try { res = planScheduleWeek({ ...payload, rules: { ...payload.rules, ...cand.delta } }); }
+          catch (err) { console.warn("pref dry-run:", err); }
+          const proj = _prefPctOf(res, payload);
+          if (proj == null || baseline == null || proj <= baseline) continue;
+          recs.push({ ...cand, proj });
+        }
+        curLabel = baseline == null
+          ? "How preferred-day scheduling could improve"
+          : `Currently <strong>${baseline}%</strong> of shifts land on a preferred day`;
+        if (recs.length === 0) {
+          bodyHtml = `<p class="rr-pref-empty">Your schedule is already as aligned to preferred days as these settings allow — nothing to change.</p>`;
+        } else {
+          bodyHtml = recs.map(r => `
+            <div class="rr-pref-rec">
+              <div class="rr-pref-rec-title">${escapeHtml(r.title)}</div>
+              <div class="rr-pref-rec-proj">${baseline}%<span class="rr-pref-arrow">→</span><strong>${r.proj}%</strong></div>
+              <div class="rr-pref-rec-trade"><span class="rr-pref-trade-label">Trade-off</span>${escapeHtml(r.tradeoff)}</div>
+              <button type="button" class="btn btn-primary btn-sm" data-rr-pref-accept='${escapeHtml(JSON.stringify(r.delta))}'>Accept &amp; re-run</button>
+            </div>`).join("");
+        }
+      }
+      const m = document.createElement("div");
+      m.id = "rr-pref-kpi-modal";
+      m.className = "modal-backdrop open";
+      m.innerHTML = `
+        <div id="rr-pref-kpi-card" class="modal-card" style="max-width:480px">
+          <div class="modal-head">
+            <div>
+              <p class="modal-title">Improve Preferred %</p>
+              <p class="modal-sub">${curLabel}</p>
+            </div>
+            <button type="button" id="rr-pref-kpi-close" class="modal-close" aria-label="Close">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="modal-body" id="rr-pref-kpi-body">${bodyHtml}</div>
+        </div>`;
+      document.body.appendChild(m);
+    };
+
+    document.addEventListener("click", async (e) => {
+      const modal = document.getElementById("rr-pref-kpi-modal");
+      if (modal) {
+        if (e.target === modal || e.target.closest("#rr-pref-kpi-close")) {
+          if (!modal.dataset.rrBusy) modal.remove();
+          return;
+        }
+        const accept = e.target.closest("[data-rr-pref-accept]");
+        if (accept) {
+          if (modal.dataset.rrBusy) return;
+          modal.dataset.rrBusy = "1";
+          let delta = {};
+          try { delta = JSON.parse(accept.getAttribute("data-rr-pref-accept")); } catch {}
+          let saved = {};
+          try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); } catch {}
+          Object.assign(saved, delta);
+          try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch {}
+          if (typeof _restoreSmartFillRules === "function") _restoreSmartFillRules();
+          const body = document.getElementById("rr-pref-kpi-body");
+          if (body) body.innerHTML = `
+            <div class="rr-pref-regen">
+              <div class="rr-pref-regen-bar"><span></span></div>
+              <div class="rr-pref-regen-label">Regenerating the schedule with the new settings…</div>
+            </div>`;
+          try { await autoFillScheduleWeek(); }
+          catch (err) { console.warn("preferred re-run:", err); }
+          document.getElementById("rr-pref-kpi-modal")?.remove();
+          toast("Schedule re-run with updated preferred-day settings", "success");
+          return;
+        }
+        return; // other clicks while the modal is open are inert
+      }
+      const pillEl = e.target.closest('[data-rr-kpi="preferred"]');
+      if (!pillEl) return;
+      e.preventDefault();
+      _openPrefModal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      const modal = document.getElementById("rr-pref-kpi-modal");
+      if (modal && !modal.dataset.rrBusy) modal.remove();
+    });
   }
 
   // ── KPI: clicking the Fleet rotation pill jumps to the Van
