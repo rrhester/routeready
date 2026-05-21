@@ -42801,9 +42801,8 @@ let _toRows = [];
 // The Requests tab shows both request types side by side. Each panel
 // calls its own RPC + renderer; both populate on every render.
 function _renderSchedRequestsActive() {
-  const ptoPanel = document.getElementById("rr-sched-req-pto-panel");
-  const avPanel  = document.getElementById("rr-sched-req-avail-panel");
-  if (!ptoPanel || !avPanel) {
+  const stream = document.getElementById("rr-sched-req-stream");
+  if (!stream) {
     // Older callers still address only the legacy time-off body.
     if (document.getElementById("rr-time-off-body") && typeof loadTimeOffView === "function") {
       loadTimeOffView();
@@ -42811,12 +42810,12 @@ function _renderSchedRequestsActive() {
     _renderSchedRequestsKpis();
     return;
   }
-  // Split screen — both panels render at once (Availability left,
-  // PTO / Time off right).
-  try { renderSchedAvailabilityRequestsInline(); }
-  catch (e) { console.warn("renderSchedAvailabilityRequestsInline:", e); }
-  try { loadTimeOffView(); }
-  catch (e) { console.warn("loadTimeOffView:", e); }
+  // LEFT — one unified request stream (PTO + Unpaid + Availability).
+  try { renderSchedRequestStream(); }
+  catch (e) { console.warn("renderSchedRequestStream:", e); }
+  // RIGHT — three operational reports.
+  try { _renderRequestsReports(); }
+  catch (e) { console.warn("_renderRequestsReports:", e); }
   _renderSchedRequestsKpis();
 }
 window._rrRenderSchedRequestsActive = _renderSchedRequestsActive;
@@ -43079,72 +43078,260 @@ document.addEventListener("click", (e) => {
 // Availability page uses (availability_request_list) and renders a
 // simple decision-ready list. Bigger UX (KPIs + impact stats) stays
 // on the Drivers page; this is the schedule's at-a-glance triage.
-async function renderSchedAvailabilityRequestsInline() {
-  const host = document.getElementById("rr-sched-avail-req-list");
-  if (!host) return;
-  host.innerHTML = `<div class="loader" style="margin:80px auto"></div>`;
-  let res;
-  try { res = await sb.rpc("availability_request_list"); }
-  catch (e) { host.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(String((e && e.message) || e))}</div>`; return; }
-  if (res?.error) {
-    host.innerHTML = `<div style="padding:24px;color:var(--red);font-size:var(--fs-md)">${escapeHtml(res.error.message || String(res.error))}</div>`;
-    return;
-  }
-  const rows = Array.isArray(res.data) ? res.data : [];
+function _reqFmtDate(s) {
+  return s
+    ? new Date(s + (String(s).length === 10 ? "T12:00:00" : "")).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    : "";
+}
 
-  const fmtDate = (s) => s ? new Date(s + (String(s).length === 10 ? "T12:00:00" : "")).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
-  const daysHtml = (days) => {
-    const order = ["mon","tue","wed","thu","fri","sat","sun"];
-    const set = new Set(Array.isArray(days) ? days.map(d => String(d).toLowerCase()) : []);
-    return order.map(d => `<span class="sched-req-day${set.has(d) ? " on" : ""}">${d.slice(0,1).toUpperCase()}</span>`).join("");
-  };
-  // Mirror the PTO panel's row markup so the two sides read identically.
-  const rowHtml = (r) => {
-    const name = r.driver_name || r.full_name || "—";
-    const station = r.station_code ? ` · ${escapeHtml(r.station_code)}` : "";
-    const effective = r.effective_on ? `Effective ${fmtDate(r.effective_on)}` : "Effective when approved";
-    const st = r.status === "approved" ? ["status-pill-approved", "Approved"]
-             : r.status === "denied"   ? ["status-pill-denied", "Denied"]
-             : ["status-pill-pending", "Pending"];
-    return `<div class="to-row">
-      <div class="to-row-head">
-        <div>
-          <div class="to-row-name">${escapeHtml(name)}${station}</div>
-          <div class="to-row-range">${escapeHtml(effective)}</div>
-        </div>
-        <span class="status-pill ${st[0]}">${st[1]}</span>
+// Mon→Sun pill strip showing which days an availability request covers.
+function _reqDaysHtml(days) {
+  const order = ["mon","tue","wed","thu","fri","sat","sun"];
+  const set = new Set(Array.isArray(days) ? days.map(d => String(d).toLowerCase()) : []);
+  return order.map(d => `<span class="sched-req-day${set.has(d) ? " on" : ""}">${d.slice(0,1).toUpperCase()}</span>`).join("");
+}
+
+// One consistent type chip for the merged stream.
+function _reqTypeBadge(type) {
+  if (type === "pto")   return `<span class="req-type-badge is-pto">PTO · paid</span>`;
+  if (type === "unpaid") return `<span class="req-type-badge is-unpaid">Unpaid</span>`;
+  return `<span class="req-type-badge is-availability">Availability</span>`;
+}
+
+// Display-only row for an availability-change request inside the
+// merged stream (decisioning for these lives on Drivers → Availability).
+function _reqAvailRowHtml(r) {
+  const name = r.driver_name || r.full_name || "—";
+  const station = r.station_code ? ` · ${escapeHtml(r.station_code)}` : "";
+  const effective = r.effective_on ? `Effective ${_reqFmtDate(r.effective_on)}` : "Effective when approved";
+  const st = r.status === "approved" ? ["status-pill-approved", "Approved"]
+           : r.status === "denied"   ? ["status-pill-denied", "Denied"]
+           : ["status-pill-pending", "Pending"];
+  return `<div class="to-row">
+    <div class="to-row-head">
+      <div>
+        <div class="to-row-name">${escapeHtml(name)}${station}</div>
+        <div class="to-row-range">${escapeHtml(effective)}${_reqTypeBadge("availability")}</div>
       </div>
-      <div class="sched-req-days">${daysHtml(r.requested_days || r.days || [])}</div>
-    </div>`;
+      <span class="status-pill ${st[0]}">${st[1]}</span>
+    </div>
+    <div class="sched-req-days">${_reqDaysHtml(r.requested_days || r.days || [])}</div>
+  </div>`;
+}
+
+// LEFT column · one unified request stream. PTO, Unpaid time off and
+// Availability changes are pulled from their two RPCs, tagged with a
+// type, and merged into a single chronological queue (Pending first,
+// then History). PTO/Unpaid rows keep their decision controls + the
+// coverage verdict; Availability rows are display-only.
+async function renderSchedRequestStream() {
+  const host = document.getElementById("rr-sched-req-stream");
+  if (!host) return;
+  host.innerHTML = `<div class="loader" style="margin:60px auto"></div>`;
+
+  const [avRes, toRes] = await Promise.allSettled([
+    sb.rpc("availability_request_list"),
+    sb.rpc("dispatch_time_off_list"),
+  ]);
+  if (!document.getElementById("rr-sched-req-stream")) return;
+
+  const avRows = (avRes.status === "fulfilled" && Array.isArray(avRes.value?.data)) ? avRes.value.data : [];
+  const toRows = (toRes.status === "fulfilled" && Array.isArray(toRes.value?.data)) ? toRes.value.data : [];
+  _toRows = toRows;            // keep the global in sync for _toDecide + nav badge
+  _toRefreshNavBadge();
+
+  const items = [];
+  for (const r of avRows) {
+    items.push({ row: r, type: "availability", sortDate: r.effective_on || "9999-12-31" });
+  }
+  for (const r of toRows) {
+    items.push({ row: r, type: r.is_pto ? "pto" : "unpaid", sortDate: r.start_date || "9999-12-31" });
+  }
+
+  const isPending = (it) => it.row.status === "pending" || !it.row.status;
+  // Pending: soonest first (most urgent). History: most recent first.
+  const pending = items.filter(isPending)
+    .sort((a, b) => a.sortDate < b.sortDate ? -1 : a.sortDate > b.sortDate ? 1 : 0);
+  const decided = items.filter(it => !isPending(it))
+    .sort((a, b) => a.sortDate > b.sortDate ? -1 : a.sortDate < b.sortDate ? 1 : 0);
+
+  const rowHtml = (it) => {
+    if (it.type === "availability") return _reqAvailRowHtml(it.row);
+    return isPending(it) ? _toPendingRowHtml(it.row) : _toDecidedRowHtml(it.row);
   };
-  const pending = rows.filter(r => r.status === "pending" || !r.status);
-  const decided = rows.filter(r => r.status && r.status !== "pending");
-  const pendingBody = pending.length
-    ? pending.map(rowHtml).join("")
-    : `<div class="rr-empty-inline">No pending requests.</div>`;
-  const decidedBody = decided.length
-    ? decided.map(rowHtml).join("")
-    : `<div class="rr-empty-inline">No decided requests yet.</div>`;
 
   host.innerHTML = `
     <div class="to-page">
       <section class="to-card">
         <header class="to-card-head">
-          <div class="to-card-head-title">Pending requests</div>
+          <div class="to-card-head-title">Pending</div>
           <div class="to-card-head-count">${pending.length} awaiting review</div>
         </header>
-        ${pendingBody}
+        ${pending.length ? pending.map(rowHtml).join("") : `<div class="rr-empty-inline">No pending requests.</div>`}
       </section>
       <section class="to-card">
         <header class="to-card-head">
           <div class="to-card-head-title">History</div>
           <div class="to-card-head-count">${decided.length} decided</div>
         </header>
-        ${decidedBody}
+        ${decided.length ? decided.map(rowHtml).join("") : `<div class="rr-empty-inline">No decided requests yet.</div>`}
       </section>
     </div>`;
+
+  host.querySelectorAll("[data-rr-to-decide]").forEach((btn) => {
+    btn.addEventListener("click", () => _toDecide(btn));
+  });
+  _toPaintCoverage(host).catch((e) => console.warn("coverage check:", e));
 }
-window._rrRenderSchedAvailabilityRequestsInline = renderSchedAvailabilityRequestsInline;
+window._rrRenderSchedRequestStream = renderSchedRequestStream;
+
+// RIGHT column · three equally-sized operational reports.
+//   1 · Availability by day — active drivers available each weekday.
+//   2 · Full-time / part-time — by availability (4+ days = FT) AND
+//       actual, measured from this week's schedule.
+//   3 · Flexibility — if every driver worked one extra day, how many
+//       more shifts could be covered, and who is already scheduled to
+//       the limit of their availability (the DSP's call list).
+async function _renderRequestsReports() {
+  const host = document.getElementById("rr-sched-req-reports");
+  if (!host) return;
+  host.innerHTML = `<div class="loader" style="margin:60px auto"></div>`;
+
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { host.innerHTML = `<div class="rr-empty-inline" style="margin:24px">No DSP selected.</div>`; return; }
+
+  const weekStart = (typeof _schedStart === "string" && _schedStart)
+    ? _schedStart
+    : fmtIsoDate(startOfWeekMonday(new Date()));
+
+  const [drvRes, gridRes] = await Promise.allSettled([
+    sb.from("drivers")
+      .select("id, full_name, preferred_name, metadata")
+      .eq("dsp_id", dspId)
+      .in("status", ["active", "onboarding"]),
+    sb.rpc("schedule_grid", { p_start: weekStart, p_weeks: 1 }),
+  ]);
+  if (!document.getElementById("rr-sched-req-reports")) return;
+
+  const drivers = (drvRes.status === "fulfilled" && Array.isArray(drvRes.value?.data)) ? drvRes.value.data : [];
+  const grid = (gridRes.status === "fulfilled" && gridRes.value?.data) ? gridRes.value.data : { shifts: [] };
+  const shifts = Array.isArray(grid.shifts) ? grid.shifts : [];
+
+  if (drivers.length === 0) {
+    host.innerHTML = `<div class="sched-req-report"><div class="sched-req-report-body"><div class="req-rpt-empty">No active drivers yet.</div></div></div>`;
+    return;
+  }
+
+  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+  const DOW_LABEL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+
+  // Per-driver availability days.
+  const availOf = (d) => {
+    const days = d.metadata?.availability?.days;
+    return Array.isArray(days) ? days.filter(x => DOW.includes(x)) : [];
+  };
+
+  // Distinct days scheduled this week, per driver.
+  const scheduledDays = new Map(); // driver_id → Set(iso date)
+  for (const sh of shifts) {
+    if (!sh.driver_id || !sh.date) continue;
+    if (!scheduledDays.has(sh.driver_id)) scheduledDays.set(sh.driver_id, new Set());
+    scheduledDays.get(sh.driver_id).add(sh.date);
+  }
+  const schedCountOf = (id) => (scheduledDays.get(id)?.size || 0);
+
+  // ── Report 1 · Availability by day ──────────────────────────────
+  const supplyByDow = Object.fromEntries(DOW.map(d => [d, 0]));
+  for (const d of drivers) for (const dow of availOf(d)) supplyByDow[dow] += 1;
+  const total = drivers.length;
+  const minSupply = Math.min(...DOW.map(d => supplyByDow[d]));
+  const r1Body = DOW.map(d => {
+    const n = supplyByDow[d];
+    const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+    const low = n === minSupply ? " is-low" : "";
+    return `<div class="req-rpt-row">
+      <span class="req-rpt-row-lbl">${DOW_LABEL[d]}</span>
+      <span class="req-rpt-bar"><span class="${low.trim()}" style="width:${pct}%"></span></span>
+      <span class="req-rpt-row-n">${n} · ${pct}%</span>
+    </div>`;
+  }).join("");
+
+  // ── Report 2 · Full-time / part-time ────────────────────────────
+  // By availability: 4+ available days = FT.
+  let availFt = 0, availPt = 0;
+  for (const d of drivers) {
+    const n = availOf(d).length;
+    if (n >= 4) availFt++;
+    else if (n > 0) availPt++;
+  }
+  // Actual: 4+ distinct scheduled days this week = FT.
+  let actFt = 0, actPt = 0;
+  for (const d of drivers) {
+    const n = schedCountOf(d.id);
+    if (n >= 4) actFt++;
+    else if (n > 0) actPt++;
+  }
+  const splitSect = (label, ft, pt) => {
+    const sum = ft + pt;
+    const ftPct = sum > 0 ? Math.round((ft / sum) * 100) : 0;
+    const ptPct = sum > 0 ? 100 - ftPct : 0;
+    return `<div class="req-rpt-sect">
+      <div class="req-rpt-sect-lbl">${escapeHtml(label)}</div>
+      <div class="req-rpt-split">
+        <span class="req-rpt-split-ft" style="width:${ftPct}%"></span>
+        <span class="req-rpt-split-pt" style="width:${ptPct}%"></span>
+      </div>
+      <div class="req-rpt-split-legend">
+        <span><span class="req-rpt-legend-dot" style="background:var(--sch-blue,#0F6CBD)"></span><b>${ft}</b> full-time</span>
+        <span><span class="req-rpt-legend-dot" style="background:var(--text-subtle,#94A3B8)"></span><b>${pt}</b> part-time</span>
+      </div>
+    </div>`;
+  };
+  const r2Body = splitSect("By availability", availFt, availPt)
+               + splitSect("Actual · scheduled this week", actFt, actPt);
+
+  // ── Report 3 · Flexibility ──────────────────────────────────────
+  // Unconditional +1 day per driver — the headline is simply how many
+  // extra shifts a full one-more-day push yields. Drivers already
+  // scheduled to the limit of their marked availability can't absorb
+  // that day without expanding availability — surface them as the
+  // DSP's call list.
+  const extraShifts = drivers.length;
+  const needBump = [];
+  for (const d of drivers) {
+    const avail = availOf(d).length;
+    const sched = schedCountOf(d.id);
+    // To work one more day they need an available day they aren't on.
+    if (avail <= sched) needBump.push(d.full_name || d.preferred_name || "Driver");
+  }
+  const withinReach = drivers.length - needBump.length;
+  const namesHtml = needBump.length
+    ? `<div class="req-rpt-names">${needBump.map(n => `<span class="req-rpt-name">${escapeHtml(n)}</span>`).join("")}</div>`
+    : `<div class="req-rpt-empty">Everyone has room to pick up a day.</div>`;
+  const r3Body = `
+    <div class="req-rpt-metric">
+      <span class="req-rpt-metric-num">+${extraShifts}</span>
+      <span class="req-rpt-metric-unit">shift${extraShifts === 1 ? "" : "s"} / week</span>
+    </div>
+    <div class="req-rpt-note">If every driver worked one day above their typical schedule, <b>${extraShifts}</b> more shift${extraShifts === 1 ? "" : "s"} could be covered each week.</div>
+    <div class="req-rpt-note"><b>${withinReach}</b> can pick up within their current availability · <b>${needBump.length}</b> would need an availability increase.</div>
+    ${namesHtml}`;
+
+  const report = (title, sub, body) => `
+    <section class="sched-req-report">
+      <header class="sched-req-report-head">
+        <span class="sched-req-report-title">${escapeHtml(title)}</span>
+        <span class="sched-req-report-sub">${escapeHtml(sub)}</span>
+      </header>
+      <div class="sched-req-report-body">${body}</div>
+    </section>`;
+
+  host.innerHTML =
+      report("Availability by day", `Active drivers available each day · ${total} total`, r1Body)
+    + report("Full-time / part-time", "4+ days = full-time", r2Body)
+    + report("Flexibility", "If every driver worked one extra day", r3Body);
+}
+window._rrRenderRequestsReports = _renderRequestsReports;
 
 async function loadTimeOffView() {
   const body = document.getElementById("rr-time-off-body");
@@ -43376,9 +43563,7 @@ function _ptoReportCsv() {
 }
 
 function _toKindBadgeHtml(isPto) {
-  return isPto
-    ? `<span style="display:inline-flex;align-items:center;background:rgba(13,148,136,.12);color:#0F766E;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-lg);margin-left:8px">PTO · paid</span>`
-    : `<span style="display:inline-flex;align-items:center;background:var(--canvas);color:var(--text-muted);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-lg);border:1px solid var(--border);margin-left:8px">Unpaid</span>`;
+  return _reqTypeBadge(isPto ? "pto" : "unpaid");
 }
 
 function _toPendingRowHtml(r) {
@@ -43493,7 +43678,14 @@ async function _toDecide(btn) {
     return;
   }
   toast(approve ? "Request approved" : "Request denied", "success");
-  loadTimeOffView();
+  // Refresh whichever surface is mounted — the unified Requests stream
+  // (and its reports) or the legacy time-off body.
+  if (document.getElementById("rr-sched-req-stream")) {
+    renderSchedRequestStream();
+    _renderRequestsReports();
+  } else {
+    loadTimeOffView();
+  }
 }
 
 // Lightweight pending-count poll on dashboard entry so the sidebar
