@@ -23461,8 +23461,13 @@ function _syncManualMode() {
   if (btn) {
     btn.disabled = false;
     btn.classList.toggle("sf-bolt-lit", !manual);
-    const label = btn.querySelector(".sf-btn-label");
-    if (label) label.textContent = manual ? "Fill Shifts" : "Smart Fill";
+    // Rebuild the button contents rather than patching the existing
+    // .sf-btn-label span: openAiSchedule's spinner swap (and any other
+    // innerHTML write) can drop the span, after which a querySelector
+    // patch would silently no-op and the label would never relabel
+    // again. Rewriting the whole thing makes this idempotent.
+    const BOLT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+    btn.innerHTML = BOLT + '<span class="sf-btn-label">' + (manual ? "Fill Shifts" : "Smart Fill") + "</span>";
     btn.title = manual
       ? "Fill this week from last week's schedule"
       : "Auto-staff this week from your rules + OKAMI demand";
@@ -26760,7 +26765,7 @@ window.openAiSchedule = async function () {
   const orig = btn ? btn.innerHTML : "";
   if (btn) {
     _markTileBusy(btn);
-    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>Smart Fill`;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg><span class="sf-btn-label">Smart Fill</span>`;
   }
   try {
     // No toast — the spinning bolt icon is enough feedback per
