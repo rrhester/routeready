@@ -23409,6 +23409,10 @@ function _restoreSmartFillRules() {
   if (wocDaysEl) wocDaysEl.value = String(Math.max(1, Math.min(7, parseInt(saved.woc_max_consecutive_days, 10) || 6)));
   const wocHoursEl = document.getElementById("rr-set-woc-max-hours");
   if (wocHoursEl) wocHoursEl.value = String(Math.max(1, Math.min(168, parseInt(saved.woc_max_hours, 10) || 40)));
+  // Restore the Driver Affinity rolling-period field + day-priority list.
+  const affWeeksEl = document.getElementById("rr-set-affinity-weeks");
+  if (affWeeksEl) affWeeksEl.value = String(Math.max(1, Math.min(26, parseInt(saved.affinity_rolling_weeks, 10) || 4)));
+  _renderAffinityDayOrder();
   _refreshSfAdvancedGating();
   _syncManualMode();
 }
@@ -23537,6 +23541,102 @@ function _wocCheck(shifts, woc) {
   }
   if (maxRun > woc.maxDays) {
     out.push(`WOC: ${maxRun} consecutive days (cap ${woc.maxDays})`);
+  }
+  return out;
+}
+// ── Driver Affinity Enhancement helpers ─────────────────────────────
+// Affinity = how often a driver was scheduled on each weekday over a
+// rolling period (DSP-set, in weeks). The day-priority order tells the
+// engine which weekdays to settle first.
+const _AFFINITY_DAY_LBL = [
+  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+];
+/** The DSP's affinity day-priority order — a permutation of 0-6. */
+function _rrAffinityDayOrder() {
+  let sf = {};
+  try { sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {}; }
+  catch (_) { sf = {}; }
+  const ord = Array.isArray(sf.affinity_day_order) ? sf.affinity_day_order : null;
+  if (ord && ord.length === 7) {
+    const seen = new Set(ord.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6));
+    if (seen.size === 7) return ord.map((n) => n | 0);
+  }
+  return [0, 1, 2, 3, 4, 5, 6];
+}
+/** The DSP's affinity rolling-period length, in weeks (1-26, default 4). */
+function _rrAffinityWeeks() {
+  let sf = {};
+  try { sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {}; }
+  catch (_) { sf = {}; }
+  return Math.max(1, Math.min(26, parseInt(sf.affinity_rolling_weeks, 10) || 4));
+}
+/** Paint the reorderable day-priority list inside the rules popover. */
+function _renderAffinityDayOrder() {
+  const host = document.getElementById("rr-set-affinity-day-order");
+  if (!host) return;
+  const ord = _rrAffinityDayOrder();
+  host.innerHTML = ord.map((dow, i) => `
+    <div class="sf-affinity-day" data-dow="${dow}">
+      <span class="sf-day-rank">${i + 1}</span>
+      <span class="sf-day-name">${_AFFINITY_DAY_LBL[dow]}</span>
+      <button type="button" data-rr-affinity-move="up" ${i === 0 ? "disabled" : ""} aria-label="Higher priority">&#9650;</button>
+      <button type="button" data-rr-affinity-move="down" ${i === 6 ? "disabled" : ""} aria-label="Lower priority">&#9660;</button>
+    </div>`).join("");
+}
+// Reorder the day-priority list on ▲/▼ click; persist to the SF store.
+document.addEventListener("click", (e) => {
+  const btn = e.target && e.target.closest
+    && e.target.closest("#rr-set-affinity-day-order [data-rr-affinity-move]");
+  if (!btn) return;
+  e.preventDefault();
+  const row = btn.closest(".sf-affinity-day");
+  if (!row) return;
+  const dow = parseInt(row.getAttribute("data-dow"), 10);
+  const ord = _rrAffinityDayOrder();
+  const idx = ord.indexOf(dow);
+  const dest = btn.getAttribute("data-rr-affinity-move") === "up" ? idx - 1 : idx + 1;
+  if (idx < 0 || dest < 0 || dest > 6) return;
+  [ord[idx], ord[dest]] = [ord[dest], ord[idx]];
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  saved.affinity_day_order = ord;
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+  _renderAffinityDayOrder();
+});
+// Per-driver weekday affinity (0-100 per weekday, index 0=Sun) over the
+// rolling period immediately before `weekStartIso`. A weekday counts at
+// most once per week; affinity = weeks-scheduled / rolling-weeks.
+async function _rrComputeWeekdayAffinity(dspId, weekStartIso, rollingWeeks) {
+  const out = new Map();
+  if (!dspId || !weekStartIso) return out;
+  const N = Math.max(1, Math.min(26, parseInt(rollingWeeks, 10) || 4));
+  const wk = new Date(weekStartIso + "T12:00:00");
+  const histStart = fmtIsoDate(addDays(wk, -7 * N));
+  const histEnd = fmtIsoDate(addDays(wk, -1));
+  let data = null;
+  try {
+    const res = await sb.from("shifts")
+      .select("driver_id, date")
+      .eq("dsp_id", dspId)
+      .not("driver_id", "is", null)
+      .gte("date", histStart).lte("date", histEnd);
+    data = res.data;
+  } catch (_) { return out; }
+  if (!Array.isArray(data)) return out;
+  const byDriver = new Map();
+  for (const r of data) {
+    if (!r.driver_id || !r.date) continue;
+    let sets = byDriver.get(r.driver_id);
+    if (!sets) {
+      sets = [new Set(), new Set(), new Set(), new Set(), new Set(), new Set(), new Set()];
+      byDriver.set(r.driver_id, sets);
+    }
+    const dow = new Date(r.date + "T12:00:00").getDay();
+    sets[dow].add(r.date);
+  }
+  for (const [did, sets] of byDriver) {
+    out.set(did, sets.map((s) => Math.round(Math.min(N, s.size) / N * 100)));
   }
   return out;
 }
@@ -23847,7 +23947,7 @@ document.addEventListener("change", (e) => {
 // up via autoAssignDriversForWeek with no extra plumbing.
 document.addEventListener("change", (e) => {
   const sel = e.target;
-  const ADV_IDS = ["rr-set-fill-order", "rr-set-rotation-batch", "rr-set-dl-protection-days", "rr-set-fill-priority", "rr-set-rotation-start-day", "rr-set-woc-max-days", "rr-set-woc-max-hours"];
+  const ADV_IDS = ["rr-set-fill-order", "rr-set-rotation-batch", "rr-set-dl-protection-days", "rr-set-fill-priority", "rr-set-rotation-start-day", "rr-set-woc-max-days", "rr-set-woc-max-hours", "rr-set-affinity-weeks"];
   if (!sel || !ADV_IDS.includes(sel.id)) return;
   let saved;
   try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
@@ -23869,6 +23969,11 @@ document.addEventListener("change", (e) => {
     // WOC — max hours a driver can be scheduled per week (1-168).
     const v = Math.max(1, Math.min(168, parseInt(sel.value, 10) || 40));
     saved.woc_max_hours = v;
+    sel.value = String(v);
+  } else if (sel.id === "rr-set-affinity-weeks") {
+    // Driver Affinity — rolling-period length in weeks (1-26).
+    const v = Math.max(1, Math.min(26, parseInt(sel.value, 10) || 4));
+    saved.affinity_rolling_weeks = v;
     sel.value = String(v);
   } else {
     // License protection window — days before expiration to stop scheduling.
@@ -27477,6 +27582,13 @@ async function autoAssignDriversForWeek() {
       }
     } catch (e) { console.warn("attendance-penalty standing failed:", e); }
 
+    // Driver Affinity Enhancement — per-driver weekday affinity over the
+    // DSP's rolling period, used by the engine's final affinity swap pass.
+    let affinityByDriver = new Map();
+    try {
+      affinityByDriver = await _rrComputeWeekdayAffinity(dspId, _schedStart, _rrAffinityWeeks());
+    } catch (e) { console.warn("affinity compute failed:", e); }
+
     const sfPayload = {
       schedule_week_start: _schedStart,
       max_days: maxDays,
@@ -27493,6 +27605,7 @@ async function autoAssignDriversForWeek() {
         available_dows: availableDowsOf(d),
         preferred_dows: preferredDowsOf(d),
         final_corrective_action: finalDrivers.has(d.id),
+        weekday_affinity: affinityByDriver.get(d.id) || null,
       })),
       shifts: engineShifts,
       pto: ptoFlat,
@@ -28591,6 +28704,22 @@ async function renderScheduleWeek() {
     prefDenom += 1;
     if (pset.has(_dowKey(sh.date))) prefHonored += 1;
   }
+  // Driver Affinity %: across this week's assigned shifts, the average
+  // affinity each driver has for the weekday they were given — measured
+  // over the DSP's rolling period.
+  let affSum = 0, affDenom = 0;
+  try {
+    const _affMap = await _rrComputeWeekdayAffinity(dspId, _schedStart, _rrAffinityWeeks());
+    for (const sh of (grid.shifts || [])) {
+      if (!sh.driver_id || sh.status !== "scheduled") continue;
+      const arr = _affMap.get(sh.driver_id);
+      if (!arr) continue;
+      const dow = new Date(sh.date + "T12:00:00").getDay();
+      affDenom += 1;
+      affSum += arr[dow] || 0;
+    }
+  } catch (e) { console.warn("affinity KPI failed:", e); }
+
   // Drill-down detail for the Preferences KPI card: who's scheduled off a
   // preferred day this week, what days they got vs. what they wanted.
   const _DOW_ORD2 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -28864,6 +28993,21 @@ async function renderScheduleWeek() {
             : "No drivers have preferred days set",
           true,
           "Click to see settings that would raise this",
+        );
+      })() +
+      (() => {
+        // Driver Affinity % — average affinity drivers have for the
+        // weekdays they were assigned, over the DSP's rolling period.
+        const affPct = affDenom > 0 ? Math.round(affSum / affDenom) : 0;
+        return pill(
+          "affinity",
+          navy,
+          affDenom > 0 ? `${affPct}% Affinity` : "— Affinity",
+          affDenom > 0
+            ? `${affDenom} shift${affDenom === 1 ? "" : "s"} measured`
+            : "No driver scheduling history yet",
+          false,
+          "Average driver affinity for their assigned weekdays, over the rolling period",
         );
       })() +
       pill("rotation",   rotationDotRed ? msRed : navy, rotationLabel, rotationSub, femRisks.length > 0, rotationTitle);

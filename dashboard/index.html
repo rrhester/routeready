@@ -12004,6 +12004,21 @@ body.rr-cmdk-open{ overflow:hidden }
                     <input class="form-input sf-advanced-select" id="rr-set-woc-max-hours" type="number" min="1" max="168" step="1" value="40" autocomplete="off" aria-label="Maximum hours a driver can be scheduled per week" style="max-width:64px"/>
                     <span class="sf-advanced-label">hours per week</span>
                   </div>
+                  <!-- Driver Affinity Enhancement · final post-pass that
+                       swaps drivers onto the weekdays they have most
+                       often been scheduled (affinity) over a rolling
+                       period. --baseline so it composes with the Auto
+                       Fill boundary modes too. -->
+                  <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="affinity_enhancement"> <span class="sf-rule-name"><strong>Driver Affinity Enhancement</strong> · after the run, swap drivers onto the weekdays they usually work</span></label>
+                  <div class="sched-smartfill-rule-advanced" data-rr-sf-advanced-of="affinity_enhancement">
+                    <span class="sf-advanced-label">Rolling period</span>
+                    <input class="form-input sf-advanced-select" id="rr-set-affinity-weeks" type="number" min="1" max="26" step="1" value="4" autocomplete="off" aria-label="Affinity rolling period in weeks" style="max-width:64px"/>
+                    <span class="sf-advanced-label">weeks</span>
+                  </div>
+                  <div class="sched-smartfill-rule-advanced sf-affinity-order-row" data-rr-sf-advanced-of="affinity_enhancement">
+                    <span class="sf-advanced-label">Day priority</span>
+                    <div class="sf-affinity-dayorder" id="rr-set-affinity-day-order"></div>
+                  </div>
                 </div>
                 <!-- Smart Fill advanced settings -->
                 <div class="sched-smartfill-advanced">
@@ -13943,6 +13958,27 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-smartfill-rule-advanced.is-on{
             opacity:1;pointer-events:auto;
           }
+          /* Driver Affinity — day-priority reorder list. */
+          #view-schedule .sf-affinity-order-row{align-items:flex-start}
+          #view-schedule .sf-affinity-dayorder{
+            display:flex;flex-direction:column;gap:3px;
+            flex:1 1 auto;min-width:0;
+          }
+          #view-schedule .sf-affinity-day{
+            display:flex;align-items:center;gap:6px;
+            font-size:12px;padding:2px 6px;
+            background:rgba(15,23,42,.04);border-radius:4px;
+          }
+          #view-schedule .sf-affinity-day .sf-day-rank{
+            color:#999;width:14px;text-align:right;font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .sf-affinity-day .sf-day-name{flex:1 1 auto}
+          #view-schedule .sf-affinity-day button{
+            border:1px solid rgba(15,23,42,.18);background:#fff;
+            width:18px;height:18px;line-height:1;border-radius:3px;
+            cursor:pointer;font-size:10px;padding:0;color:#444;
+          }
+          #view-schedule .sf-affinity-day button:disabled{opacity:.3;cursor:default}
           #view-schedule .sched-smartfill-rule-advanced .sf-advanced-label{
             flex:0 0 auto;color:#666;
           }
@@ -27914,7 +27950,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-woc"></script>
+<script type="module" src="./live.js?v=20260521-affinity"></script>
 
 </body>
 </html>

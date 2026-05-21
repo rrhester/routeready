@@ -46,8 +46,31 @@ const KNOWN_KEYS = new Set<keyof RawSettings>([
   "preferred_enhancement",
   "preferred_enhancement_contiguous",
   "preferred_enhancement_extra",
+  "affinity_enhancement",
+  "affinity_day_order",
   "consecutive_working_days",
 ]);
+
+/** Validate the affinity-sweep weekday order: a permutation of 0-6. */
+function dayOrder(value: number[] | undefined): number[] {
+  const def = [0, 1, 2, 3, 4, 5, 6];
+  if (value === undefined) return def;
+  if (!Array.isArray(value) || value.length !== 7) {
+    throw new EngineError(
+      `Setting "affinity_day_order" must be 7 weekday indices`,
+    );
+  }
+  const seen = new Set<number>();
+  for (const v of value) {
+    if (!Number.isInteger(v) || v < 0 || v > 6 || seen.has(v)) {
+      throw new EngineError(
+        `Setting "affinity_day_order" must be a permutation of 0-6`,
+      );
+    }
+    seen.add(v);
+  }
+  return [...value];
+}
 
 function bool(value: RawBool | undefined, key: string, fallback: boolean): boolean {
   if (value === undefined) return fallback;
@@ -250,6 +273,12 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
       "preferred_enhancement_extra",
       false,
     ),
+    affinity_enhancement: bool(
+      r.affinity_enhancement,
+      "affinity_enhancement",
+      false,
+    ),
+    affinity_day_order: dayOrder(r.affinity_day_order),
     consecutive_working_days: bool(
       r.consecutive_working_days,
       "consecutive_working_days",
