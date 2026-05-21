@@ -23398,6 +23398,7 @@ function _restoreSmartFillRules() {
   const dlEl = document.getElementById("rr-set-dl-protection-days");
   if (dlEl) dlEl.value = String(Math.max(0, Math.min(365, parseInt(saved.dl_protection_days, 10) || 0)));
   _refreshSfAdvancedGating();
+  _syncManualMode();
 }
 // Fill-order UI sync — the rotational batch-size control only applies
 // in rotational mode, so it's hidden when Fill order is Sequential.
@@ -23445,6 +23446,24 @@ function _refreshSfAdvancedGating() {
     if (!enhOn) sub.checked = false;
   });
 }
+// Manual scheduling — when on, the rule box hides every auto-fill rule
+// and the Smart Fill button is disabled; the board is filled by hand.
+// The Smart Fill bolt is lit (amber) only while Smart Fill mode is on.
+function _syncManualMode() {
+  let manual = false;
+  try {
+    const sf = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}");
+    manual = !!(sf && sf.manual_mode === true);
+  } catch (_) { /* ignore */ }
+  const body = document.getElementById("rr-sched-smartfill-rules-body");
+  if (body) body.classList.toggle("is-manual", manual);
+  const btn = document.getElementById("rr-sched-smartfill-h");
+  if (btn) {
+    btn.disabled = manual;
+    btn.classList.toggle("sf-bolt-lit", !manual);
+  }
+}
+window._rrSyncManualMode = _syncManualMode;
 // Public reader so autoAssignDriversForWeek can query the live SF
 // rule state without a DOM read.
 window._rrLoadSfRules = function () {
@@ -23739,6 +23758,7 @@ document.addEventListener("change", (e) => {
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
   // Refresh advanced sub-rows + boundary-mode dimming when a rule toggles.
   _refreshSfAdvancedGating();
+  _syncManualMode();
 });
 // Smart Fill advanced settings — Fill order + rotational batch size.
 // Stored in the Smart Fill rules store so the engine adapter picks them
@@ -26710,6 +26730,14 @@ function _clearScheduleMockup() {
 // Override the mockup AI-schedule modal — replace with a real auto-fill that
 // creates open shifts wherever OKAMI demand exceeds current shift count.
 window.openAiSchedule = async function () {
+  // Manual scheduling — Smart Fill is off; the board is filled by hand.
+  try {
+    const sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+    if (sf && sf.manual_mode === true) {
+      toast("Manual scheduling is on — turn it off in Smart Fill rules to auto-fill", "warn");
+      return;
+    }
+  } catch (_) { /* ignore */ }
   // Lock the Smart Fill tile + show a progress toast so the
   // operator gets immediate feedback while the RPC chain runs.
   const btn = document.getElementById("rr-sched-smartfill-h");
@@ -27821,6 +27849,8 @@ async function renderScheduleWeek() {
   if (!sub) return;
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
+  // Keep the Smart Fill button / bolt in sync with Manual scheduling.
+  if (typeof _syncManualMode === "function") _syncManualMode();
 
   if (!_schedStart) _schedStart = fmtIsoDate(startOfWeekMonday(new Date()));
   const weekStart = new Date(_schedStart + "T12:00:00");
@@ -30078,6 +30108,12 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
 async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShiftOverride) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId || !_schedStart) return [];
+
+  // Manual scheduling turns off all constraints — no warnings.
+  try {
+    const sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+    if (sf && sf.manual_mode === true) return [];
+  } catch (_) { /* ignore */ }
 
   // Engine-driven validation — runs the real scheduling engine with the
   // target shift locked to this driver and reports the hard-rule

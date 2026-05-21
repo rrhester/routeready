@@ -11942,6 +11942,11 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="sched-smartfill-rules-popover" id="rr-sched-smartfill-rules-popover" role="dialog" aria-modal="false" aria-label="Smart Fill rules" hidden>
                 <div class="sched-smartfill-rules-head">Smart Fill rules</div>
                 <div class="sched-smartfill-rules-body" id="rr-sched-smartfill-rules-body">
+                  <!-- Manual scheduling · turns off Smart Fill + every
+                       rule. When on, the rules below are hidden and the
+                       Smart Fill button is disabled — the board is filled
+                       by hand. -->
+                  <label class="sched-smartfill-rule sched-smartfill-rule--manual"><input type="checkbox" data-rr-sf-rule="manual_mode"> <span class="sf-rule-name"><strong>Manual scheduling</strong> · turn off Smart Fill and all rules — fill the board by hand</span></label>
                   <!-- Boundary modes · pick ONE. Mutually exclusive
                        (checking one clears the other). More rules will be
                        layered in below over time. -->
@@ -13943,6 +13948,31 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Enhancement row disabled under the preferred-only boundary. */
           #view-schedule .sched-smartfill-rule.is-disabled{
             opacity:.38;pointer-events:none;
+          }
+          /* Manual scheduling toggle — sits above the rule list with a
+             divider. When on, every rule below it (and the advanced
+             settings block) is hidden. */
+          #view-schedule .sched-smartfill-rule--manual{
+            border-bottom:1px solid rgba(15,23,42,.1);
+            margin-bottom:4px;padding-bottom:9px;
+          }
+          #view-schedule .sched-smartfill-rules-body.is-manual
+            .sched-smartfill-rule:not(.sched-smartfill-rule--manual),
+          #view-schedule .sched-smartfill-rules-body.is-manual
+            .sched-smartfill-rule-advanced{
+            display:none;
+          }
+          #view-schedule .sched-smartfill-rules-body.is-manual
+            + .sched-smartfill-advanced{
+            display:none;
+          }
+          /* Smart Fill bolt — lit amber while Smart Fill mode is active;
+             plain (button colour) under Manual scheduling. */
+          #view-schedule #rr-sched-smartfill-h.sf-bolt-lit svg polygon{
+            fill:#FFB900;stroke:#FFB900;
+          }
+          #view-schedule #rr-sched-smartfill-h:disabled{
+            opacity:.5;cursor:not-allowed;
           }
           /* Max-allowable-days field — a value input, not a toggle; closes
              the boundary group with a divider. Never dimmed. */
@@ -27848,7 +27878,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-assigncheck"></script>
+<script type="module" src="./live.js?v=20260521-manualmode"></script>
 
 </body>
 </html>
