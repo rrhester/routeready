@@ -30142,18 +30142,19 @@ function bindSchedWeekNav() {
             </div>`).join("");
 
         // ── Overtime · the 5th-day pass ──────────────────────────────
-        // Always offered while coverage is short. Overtime here means
-        // the Fifth-Day Fill pass: drivers who opted into a 5th day each
-        // pick up one open shift. The WOC weekly-hour cap is lifted with
-        // it (a 40h cap would otherwise block the 5th day) — that's a
-        // reconfiguration the DSP accepts, not a rule violation; WOC
-        // consecutive-days and license still hold.
+        // Always offered while coverage is short. The Fifth-Day Fill
+        // pass gives drivers who opted into a 5th day one open shift
+        // each, with the DSP's approval (the button). It respects the
+        // DSP's own WOC settings — consecutive-days and weekly-hour cap.
         let fifthDayHtml = "";
         if (baseCov != null && baseCov < 100) {
           const fifthVols = (payload.drivers || [])
             .filter((d) => d && d.fifth_day_ok)
             .map((d) => d.full_name || d.id);
-          const fifthDelta = { fifth_day_fill: true, woc_max_hours: 60 };
+          // Just enable the pass — it respects the DSP's own WOC
+          // settings (consecutive-days + weekly-hour cap). A 5th day
+          // only lands where the DSP's configured WOC already allows it.
+          const fifthDelta = { fifth_day_fill: true };
           let fifthProj = null;
           try {
             const fres = planScheduleWeek({
