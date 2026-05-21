@@ -129,7 +129,7 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
       false,
     ),
     max_days_enforcement: bool(r.max_days_enforcement, "max_days_enforcement", true),
-    max_days: num(r.max_days, "max_days", 6, 1, 7),
+    max_days: num(r.max_days, "max_days", 6, 0, 7),
     max_days_window: oneOf(
       r.max_days_window,
       "max_days_window",

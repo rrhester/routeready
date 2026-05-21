@@ -50,7 +50,6 @@ export interface DashboardPto {
 export interface DashboardRules {
   dl_valid?: boolean;
   include_onboarding?: boolean;
-  max_days?: boolean;
   availability?: boolean;
   preferred_days?: boolean;
   pto_block?: boolean;
@@ -166,13 +165,20 @@ function mapShift(raw: DashboardShift): ShiftInput {
   };
 }
 
+/** Clamp the DSP-entered max-days value to the engine's 0-7 range. */
+function clampMaxDays(value: number | undefined): number {
+  return Math.max(0, Math.min(7, Math.round(value ?? 6)));
+}
+
 // A boundary mode strips the engine to a single behavior: assign each
-// driver only within one availability boundary. Every other rule is
-// disabled so that one boundary can be verified in isolation. (R002
-// driver-status and R010 one-shift-per-day still apply — they are physical
-// constraints, not configurable rules.)
+// driver only within one availability boundary, up to the DSP's max
+// allowable days per week. Every other rule is disabled so that one
+// boundary can be verified in isolation. (R002 driver-status and R010
+// one-shift-per-day still apply — they are physical constraints, not
+// configurable rules.)
 function boundaryModeSettings(
   boundary: "preferred" | "availability",
+  maxDays: number,
 ): RawSettings {
   return {
     run_mode: "full_rebuild",
@@ -182,7 +188,8 @@ function boundaryModeSettings(
     pto_protection: false,
     availability_enforcement: boundary === "availability",
     availability_required: boundary === "availability",
-    max_days_enforcement: false,
+    max_days_enforcement: true,
+    max_days: maxDays,
     weekly_hour_cap_enforcement: false,
     pto_counts_toward_cap: false,
     min_rest_enforcement: false,
@@ -200,10 +207,15 @@ function boundaryModeSettings(
 
 function buildSettings(payload: PlanPayload): RawSettings {
   const r = payload.rules ?? {};
+  const maxDays = clampMaxDays(payload.max_days);
 
   // Boundary modes are mutually exclusive; preferred wins if both are set.
-  if (r.preferred_only === true) return boundaryModeSettings("preferred");
-  if (r.availability_only === true) return boundaryModeSettings("availability");
+  if (r.preferred_only === true) {
+    return boundaryModeSettings("preferred", maxDays);
+  }
+  if (r.availability_only === true) {
+    return boundaryModeSettings("availability", maxDays);
+  }
 
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
@@ -216,8 +228,8 @@ function buildSettings(payload: PlanPayload): RawSettings {
     certification_enforcement: true,
     pto_protection: r.pto_block !== false,
     availability_enforcement: r.availability !== false,
-    max_days_enforcement: r.max_days !== false,
-    max_days: Math.max(1, Math.min(7, Math.round(payload.max_days || 6))),
+    max_days_enforcement: true,
+    max_days: maxDays,
     weekly_hour_cap_enforcement: r.max_hours !== false,
     weekly_hour_cap: payload.weekly_hour_cap ?? 40,
     // PTO / approved day off always counts toward the 40-hour cap (hard rule).

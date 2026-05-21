@@ -172,7 +172,7 @@ function validateSettings(raw) {
       false
     ),
     max_days_enforcement: bool(r.max_days_enforcement, "max_days_enforcement", true),
-    max_days: num(r.max_days, "max_days", 6, 1, 7),
+    max_days: num(r.max_days, "max_days", 6, 0, 7),
     max_days_window: oneOf(
       r.max_days_window,
       "max_days_window",
@@ -1859,7 +1859,10 @@ function mapShift(raw) {
     is_locked: raw.is_locked === true
   };
 }
-function boundaryModeSettings(boundary) {
+function clampMaxDays(value) {
+  return Math.max(0, Math.min(7, Math.round(value ?? 6)));
+}
+function boundaryModeSettings(boundary, maxDays) {
   return {
     run_mode: "full_rebuild",
     eligible_driver_status: "active_and_onboarding",
@@ -1868,7 +1871,8 @@ function boundaryModeSettings(boundary) {
     pto_protection: false,
     availability_enforcement: boundary === "availability",
     availability_required: boundary === "availability",
-    max_days_enforcement: false,
+    max_days_enforcement: true,
+    max_days: maxDays,
     weekly_hour_cap_enforcement: false,
     pto_counts_toward_cap: false,
     min_rest_enforcement: false,
@@ -1885,8 +1889,13 @@ function boundaryModeSettings(boundary) {
 }
 function buildSettings(payload) {
   const r = payload.rules ?? {};
-  if (r.preferred_only === true) return boundaryModeSettings("preferred");
-  if (r.availability_only === true) return boundaryModeSettings("availability");
+  const maxDays = clampMaxDays(payload.max_days);
+  if (r.preferred_only === true) {
+    return boundaryModeSettings("preferred", maxDays);
+  }
+  if (r.availability_only === true) {
+    return boundaryModeSettings("availability", maxDays);
+  }
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
     // Auto-schedule always performs a FULL REBUILD (SPEC Default Schedule
@@ -1897,8 +1906,8 @@ function buildSettings(payload) {
     certification_enforcement: true,
     pto_protection: r.pto_block !== false,
     availability_enforcement: r.availability !== false,
-    max_days_enforcement: r.max_days !== false,
-    max_days: Math.max(1, Math.min(7, Math.round(payload.max_days || 6))),
+    max_days_enforcement: true,
+    max_days: maxDays,
     weekly_hour_cap_enforcement: r.max_hours !== false,
     weekly_hour_cap: payload.weekly_hour_cap ?? 40,
     // PTO / approved day off always counts toward the 40-hour cap (hard rule).

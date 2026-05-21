@@ -11948,21 +11948,19 @@ body.rr-cmdk-open{ overflow:hidden }
                        mutually exclusive (checking one clears the other). -->
                   <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="preferred_only"> <span class="sf-rule-name"><strong>Auto Fill only Preferred Availability</strong> · fills shifts using each driver's preferred days only</span></label>
                   <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="availability_only"> <span class="sf-rule-name"><strong>Auto Fill Availability</strong> · fills shifts using each driver's full availability</span></label>
+                  <!-- Max allowable days per week — caps how many days a
+                       driver is scheduled. Applies inside whichever boundary
+                       mode is active (and in a normal run). 0 = never
+                       scheduled, 7 = no limit. The input id is unchanged so
+                       the per-week settings load/save path keeps working. -->
+                  <div class="sched-smartfill-rule sched-smartfill-rule--baseline sched-smartfill-rule--field">
+                    <span class="sf-rule-name">Max allowable days per week</span>
+                    <input class="form-input sf-maxdays-input" id="rr-set-max-days" type="number" min="0" max="7" step="1" autocomplete="off" aria-label="Max allowable days per week"/>
+                  </div>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name">Driver's license valid through the shift date</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="include_onboarding" checked> <span class="sf-rule-name">Include onboarding drivers (not just active)</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dot_required" checked> <span class="sf-rule-name">DOT certification for Step Van routes</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="xl_required" checked> <span class="sf-rule-name">XL certification for Extra-Large routes</span></label>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="max_days" checked> <span class="sf-rule-name">Max days per week cap</span></label>
-                  <!-- Max days per week — the per-driver day cap. Moved here
-                       from the Targets rules popover so the value lives next
-                       to the rule that enforces it. Gated by the checkbox
-                       above; the input id is unchanged so the per-week
-                       settings load/save path keeps working. -->
-                  <div class="sched-smartfill-rule-advanced is-on" data-rr-sf-advanced-of="max_days">
-                    <span class="sf-advanced-label">Cap each driver at</span>
-                    <input class="form-input sf-advanced-select" id="rr-set-max-days" type="number" min="1" max="7" step="1" autocomplete="off" aria-label="Max days per week" style="max-width:72px"/>
-                    <span class="sf-advanced-label">days per week</span>
-                  </div>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="availability" checked> <span class="sf-rule-name">Driver's saved availability for this day-of-week</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_days" checked> <span class="sf-rule-name">Boost drivers toward their preferred days</span></label>
                   <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="pto_block" checked> <span class="sf-rule-name">Approved PTO / approved day off blocks auto-fill</span></label>
@@ -13906,17 +13904,26 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:1 1 auto;min-width:0;
             font-size:12px;padding:4px 8px;
           }
-          /* Baseline-mode rule — sits above the rule list and, when on,
-             dims every rule below it (they have no effect in baseline). */
-          #view-schedule .sched-smartfill-rule--baseline{
-            border-bottom:1px solid rgba(0,0,0,.1);
-            margin-bottom:4px;padding-bottom:9px;
-          }
+          /* Boundary-mode rows + the Max-days field group at the top of
+             the list. A boundary mode dims every rule below this group
+             (they have no effect while a boundary mode is on). */
           #view-schedule .sched-smartfill-rules-body.is-baseline
             .sched-smartfill-rule:not(.sched-smartfill-rule--baseline),
           #view-schedule .sched-smartfill-rules-body.is-baseline
             .sched-smartfill-rule-advanced{
             opacity:.38;pointer-events:none;
+          }
+          /* Max-allowable-days field — a value input, not a toggle; closes
+             the boundary group with a divider. Never dimmed. */
+          #view-schedule .sched-smartfill-rule--field{
+            cursor:default;
+            border-bottom:1px solid rgba(0,0,0,.1);
+            margin-bottom:4px;padding-bottom:10px;
+          }
+          #view-schedule .sched-smartfill-rule--field:hover{background:none}
+          #view-schedule .sched-smartfill-rule--field .sf-maxdays-input{
+            flex:0 0 auto;width:58px;
+            font-size:12px;padding:4px 6px;text-align:center;
           }
 
           /* Settings split-button — main tile opens the full drawer,
