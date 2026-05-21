@@ -23520,12 +23520,18 @@ function _rrSfWoc() {
 function _wocCheck(shifts, woc) {
   const out = [];
   if (!woc || !woc.on || !Array.isArray(shifts) || shifts.length === 0) return out;
-  const hrsOf = (sh) => (sh && sh.starts_at && sh.ends_at)
-    ? Math.max(0, (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000)
-    : (Number(sh && sh.block_hours) || 10);
+  // Net of a 30-min unpaid lunch per shift — the cap is measured in
+  // on-the-clock hours, matching the engine's weekly cap and the
+  // Driver-column total.
+  const hrsOf = (sh) => {
+    const gross = (sh && sh.starts_at && sh.ends_at)
+      ? Math.max(0, (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000)
+      : (Number(sh && sh.block_hours) || 10);
+    return Math.max(0, gross - 0.5);
+  };
   const totalHrs = shifts.reduce((s, sh) => s + hrsOf(sh), 0);
   if (totalHrs > woc.maxHours) {
-    out.push(`WOC: ${Math.round(totalHrs)}h scheduled this week (cap ${woc.maxHours}h)`);
+    out.push(`WOC: ${Math.round(totalHrs * 10) / 10}h on the clock this week (cap ${woc.maxHours}h)`);
   }
   const dates = [...new Set(shifts.map((sh) => sh.date).filter(Boolean))].sort();
   let runLen = 0, maxRun = 0, prevIso = null;
