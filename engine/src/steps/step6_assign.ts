@@ -93,11 +93,17 @@ function runPhase(
       }
     }
   } else {
+    // Rotational fill — each driver claims up to `rotation_batch_size`
+    // shifts before the cycle rotates to the next driver, then repeats.
+    const batch = Math.max(1, ctx.settings.rotation_batch_size);
     let progress = true;
     while (progress) {
       progress = false;
       for (const driver of order) {
-        if (assignOne(driver)) progress = true;
+        for (let i = 0; i < batch; i++) {
+          if (assignOne(driver)) progress = true;
+          else break;
+        }
       }
     }
   }

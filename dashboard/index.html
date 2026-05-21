@@ -11965,6 +11965,18 @@ body.rr-cmdk-open{ overflow:hidden }
                       <option value="sequential">Sequential — fill each driver to capacity first</option>
                     </select>
                   </div>
+                  <!-- Rotational batch size · how many shifts each driver
+                       claims before the cycle rotates. Only relevant in
+                       rotational mode. -->
+                  <div class="sched-smartfill-advanced-row" id="rr-sf-rotation-batch-row">
+                    <span class="sf-advanced-field-label">Shifts per driver per round</span>
+                    <select class="form-input sf-advanced-field-select" id="rr-set-rotation-batch">
+                      <option value="1">1 shift, then rotate</option>
+                      <option value="2">2 shifts, then rotate</option>
+                      <option value="3">3 shifts, then rotate</option>
+                      <option value="4">4 shifts, then rotate</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
@@ -13908,6 +13920,10 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-smartfill-advanced-row .sf-advanced-field-select{
             font-size:13px;padding:5px 8px;width:100%;
           }
+          #view-schedule .sched-smartfill-advanced-row + .sched-smartfill-advanced-row{
+            margin-top:9px;
+          }
+          #view-schedule .sched-smartfill-advanced-row[hidden]{display:none}
 
           /* Settings split-button — main tile opens the full drawer,
              the small chevron in the bottom-right opens an inline

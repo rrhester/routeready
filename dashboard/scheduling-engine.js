@@ -96,6 +96,7 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "performance_scheduling",
   "scheduling_method",
   "assignment_mode",
+  "rotation_batch_size",
   "preferred_availability_priority",
   "preferred_availability_required",
   "consecutive_working_days"
@@ -248,6 +249,7 @@ function validateSettings(raw) {
       ["sequential_fill", "rotational_fill"],
       "rotational_fill"
     ),
+    rotation_batch_size: num(r.rotation_batch_size, "rotation_batch_size", 1, 1, 4),
     preferred_availability_priority: bool(
       r.preferred_availability_priority,
       "preferred_availability_priority",
@@ -1264,11 +1266,15 @@ function runPhase(ctx, ws, matrix, phase) {
       }
     }
   } else {
+    const batch = Math.max(1, ctx.settings.rotation_batch_size);
     let progress = true;
     while (progress) {
       progress = false;
       for (const driver of order) {
-        if (assignOne(driver)) progress = true;
+        for (let i = 0; i < batch; i++) {
+          if (assignOne(driver)) progress = true;
+          else break;
+        }
       }
     }
   }
@@ -1862,7 +1868,7 @@ function mapShift(raw) {
 function clampMaxDays(value) {
   return Math.max(0, Math.min(7, Math.round(value ?? 6)));
 }
-function boundaryModeSettings(boundary, maxDays, assignmentMode) {
+function boundaryModeSettings(boundary, maxDays, assignmentMode, rotationBatch) {
   return {
     run_mode: "full_rebuild",
     eligible_driver_status: "active_and_onboarding",
@@ -1882,6 +1888,7 @@ function boundaryModeSettings(boundary, maxDays, assignmentMode) {
     attendance_scheduling: false,
     scheduling_method: "seniority",
     assignment_mode: assignmentMode,
+    rotation_batch_size: rotationBatch,
     preferred_availability_priority: false,
     preferred_availability_required: boundary === "preferred",
     consecutive_working_days: false
@@ -1891,11 +1898,12 @@ function buildSettings(payload) {
   const r = payload.rules ?? {};
   const maxDays = clampMaxDays(payload.max_days);
   const assignmentMode = r.spread_evenly === false ? "sequential_fill" : "rotational_fill";
+  const rotationBatch = Math.max(1, Math.min(4, Math.round(r.rotation_batch ?? 1)));
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch);
   }
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
   return {
@@ -1924,6 +1932,7 @@ function buildSettings(payload) {
     attendance_scheduling: false,
     scheduling_method: method,
     assignment_mode: assignmentMode,
+    rotation_batch_size: rotationBatch,
     preferred_availability_priority: r.preferred_days !== false,
     consecutive_working_days: r.consecutive_days === true
   };

@@ -59,6 +59,8 @@ export interface DashboardRules {
   consecutive_days?: boolean;
   /** true (default) = rotational fill (even spread); false = sequential. */
   spread_evenly?: boolean;
+  /** Rotational fill: shifts per driver before rotating (1-4, default 1). */
+  rotation_batch?: number;
   tiebreaker?: string;
   /**
    * Boundary mode "Auto Fill only Preferred Availability" — the engine
@@ -180,6 +182,7 @@ function boundaryModeSettings(
   boundary: "preferred" | "availability",
   maxDays: number,
   assignmentMode: "rotational_fill" | "sequential_fill",
+  rotationBatch: number,
 ): RawSettings {
   return {
     run_mode: "full_rebuild",
@@ -200,6 +203,7 @@ function boundaryModeSettings(
     attendance_scheduling: false,
     scheduling_method: "seniority",
     assignment_mode: assignmentMode,
+    rotation_batch_size: rotationBatch,
     preferred_availability_priority: false,
     preferred_availability_required: boundary === "preferred",
     consecutive_working_days: false,
@@ -212,13 +216,15 @@ function buildSettings(payload: PlanPayload): RawSettings {
   // Fill order — rotational (spread evenly) unless explicitly sequential.
   const assignmentMode =
     r.spread_evenly === false ? "sequential_fill" : "rotational_fill";
+  // Rotational batch — shifts per driver before the cycle rotates (1-4).
+  const rotationBatch = Math.max(1, Math.min(4, Math.round(r.rotation_batch ?? 1)));
 
   // Boundary modes are mutually exclusive; preferred wins if both are set.
   if (r.preferred_only === true) {
-    return boundaryModeSettings("preferred", maxDays, assignmentMode);
+    return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch);
   }
   if (r.availability_only === true) {
-    return boundaryModeSettings("availability", maxDays, assignmentMode);
+    return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch);
   }
 
   const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
@@ -249,6 +255,7 @@ function buildSettings(payload: PlanPayload): RawSettings {
     attendance_scheduling: false,
     scheduling_method: method,
     assignment_mode: assignmentMode,
+    rotation_batch_size: rotationBatch,
     preferred_availability_priority: r.preferred_days !== false,
     consecutive_working_days: r.consecutive_days === true,
   };
