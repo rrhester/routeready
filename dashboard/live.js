@@ -29304,7 +29304,11 @@ function bindSchedWeekNav() {
           catch (err) { console.warn("pref dry-run:", err); }
           const proj = _prefPctOf(res, payload);
           if (proj == null || baseline == null || proj <= baseline) continue;
-          recs.push({ ...cand, proj, projCov: _covPctOf(res) });
+          // Don't offer a preferred-day gain that costs coverage — skip
+          // any recommendation that would drop coverage below 100%.
+          const projCov = _covPctOf(res);
+          if (projCov != null && baseCov != null && projCov < 100 && projCov < baseCov) continue;
+          recs.push({ ...cand, proj, projCov });
         }
         curLabel = baseline == null
           ? "How preferred-day scheduling could improve"
