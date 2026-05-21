@@ -1491,6 +1491,35 @@ function buildUncovered(ctx, ws) {
   }
   return out;
 }
+function buildUnscheduledDrivers(ctx, ws) {
+  const out = [];
+  for (const driver of ctx.drivers) {
+    const state = ws.states.get(driver.driver_id);
+    if (!state || state.assigned.length > 0) continue;
+    let eligibleSomewhere = false;
+    const byRule = /* @__PURE__ */ new Map();
+    for (const plan of ws.plans) {
+      if (plan.closed) continue;
+      const cell = evaluateEligibility(plan.shift, driver, state, ctx);
+      if (cell.eligible) {
+        eligibleSomewhere = true;
+        continue;
+      }
+      const reason = cell.block_reasons[0];
+      const entry = byRule.get(reason.rule);
+      if (entry) entry.count += 1;
+      else byRule.set(reason.rule, { count: 1, message: reason.message });
+    }
+    out.push({
+      driver_id: driver.driver_id,
+      eligible_somewhere: eligibleSomewhere,
+      block_reasons: [...byRule.entries()].map(([rule, v]) => ({ rule, count: v.count, message: v.message })).sort(
+        (a, b) => a.count !== b.count ? b.count - a.count : a.rule < b.rule ? -1 : 1
+      )
+    });
+  }
+  return out;
+}
 
 // src/orchestrator.ts
 function buildContext(input) {
@@ -1612,6 +1641,7 @@ function runEngine(input) {
     warnings
   );
   const uncovered = buildUncovered(ctx, ws);
+  const unscheduledDrivers = buildUnscheduledDrivers(ctx, ws);
   const assigned = [];
   let filled = 0;
   let closed = 0;
@@ -1692,6 +1722,7 @@ function runEngine(input) {
       ),
       uncovered: uncoveredExplanations
     },
+    unscheduled_drivers: unscheduledDrivers,
     summary_metrics: metrics,
     inputs_hash: inputsHash(input)
   };

@@ -5,6 +5,7 @@
 import type {
   AssignmentExplanation,
   BlockReasonAgg,
+  UnscheduledDriver,
   Warning,
 } from "../types.ts";
 import type { EngineContext } from "../runtime.ts";
@@ -137,6 +138,48 @@ export function buildUncovered(
       summary:
         `${dow} ${plan.shift.date} ${clock(plan.shift.start_min)} ` +
         `${plan.shift.route_type} route uncovered: ${detail}.`,
+    });
+  }
+  return out;
+}
+
+/**
+ * Per-driver "why didn't this driver get any shifts" diagnostics. Only
+ * drivers with zero assignments are listed. `eligible_somewhere` true means
+ * the driver was schedulable but every shift went to another driver.
+ */
+export function buildUnscheduledDrivers(
+  ctx: EngineContext,
+  ws: WorkingSchedule,
+): UnscheduledDriver[] {
+  const out: UnscheduledDriver[] = [];
+  for (const driver of ctx.drivers) {
+    const state = ws.states.get(driver.driver_id);
+    if (!state || state.assigned.length > 0) continue;
+
+    let eligibleSomewhere = false;
+    const byRule = new Map<string, { count: number; message: string }>();
+    for (const plan of ws.plans) {
+      if (plan.closed) continue;
+      const cell = evaluateEligibility(plan.shift, driver, state, ctx);
+      if (cell.eligible) {
+        eligibleSomewhere = true;
+        continue;
+      }
+      const reason = cell.block_reasons[0];
+      const entry = byRule.get(reason.rule);
+      if (entry) entry.count += 1;
+      else byRule.set(reason.rule, { count: 1, message: reason.message });
+    }
+
+    out.push({
+      driver_id: driver.driver_id,
+      eligible_somewhere: eligibleSomewhere,
+      block_reasons: [...byRule.entries()]
+        .map(([rule, v]) => ({ rule, count: v.count, message: v.message }))
+        .sort((a, b) =>
+          a.count !== b.count ? b.count - a.count : a.rule < b.rule ? -1 : 1,
+        ),
     });
   }
   return out;
