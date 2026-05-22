@@ -9133,6 +9133,10 @@ body.rr-cmdk-open{ overflow:hidden }
         Messages
         <span class="nav-badge">7</span>
       </button>
+      <button class="nav-item" data-view="email" data-c="messages" onclick="goto('email')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg></span>
+        Email
+      </button>
       <button class="nav-item" data-view="documents" data-c="forms" onclick="goto('documents')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></span>
         Documents
@@ -21744,6 +21748,139 @@ body.rr-cmdk-open{ overflow:hidden }
 
 
     <!-- ═══════════════════════════════════════════════════════════
+         EMAIL VIEW — mirrors the schedule page chrome (cmd-shell with
+         sheet tabs, a ribbon-style header card), but skips the KPI
+         strip and flips the layout: the open-shifts-sized aside sits
+         on the LEFT, the calendar-sized main panel on the RIGHT.
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="view" id="view-email">
+      <div class="page">
+        <style>
+          #view-email .em-cmd-shell{position:relative;display:block;margin-bottom:var(--s-4)}
+          #view-email .em-cmd-shell .em-header{margin-bottom:0}
+          #view-email .em-cmd-tabs{
+            display:inline-flex;gap:3px;
+            position:absolute;left:4px;bottom:100%;margin-bottom:-1px;
+          }
+          #view-email .em-cmd-tab{
+            appearance:none;background:transparent;cursor:pointer;font:inherit;
+            font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            color:var(--text-subtle);padding:6px 14px;
+            border:1px solid transparent;border-bottom:0;
+            border-radius:8px 8px 0 0;
+            transition:color var(--t-fast),background var(--t-fast);
+          }
+          #view-email .em-cmd-tab:hover:not(.active){color:var(--text-muted)}
+          #view-email .em-cmd-tab.active{
+            color:var(--sch-blue);background:var(--surface-elevated);
+            border-color:rgba(15,23,42,.07);
+          }
+          #view-email .em-cmd-tab:focus-visible{outline:none;color:var(--sch-blue)}
+          /* Header card · same chrome as the schedule's sched-nav-heading. */
+          #view-email .em-header{
+            display:flex;align-items:center;justify-content:flex-start;
+            gap:var(--s-3);flex-wrap:nowrap;
+            padding:11px 18px;
+            margin-bottom:var(--s-4);
+            background:var(--surface-elevated);
+            border:1px solid rgba(15,23,42,.07);
+            border-radius:10px;
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
+          }
+          #view-email .em-header .page-header-l{
+            flex:0 0 240px;min-width:0;
+            display:flex;align-items:center;gap:var(--s-3);
+          }
+          #view-email .em-header .page-icon{
+            width:36px;height:36px;flex:0 0 auto;
+            display:inline-flex;align-items:center;justify-content:center;
+            color:var(--sch-blue);
+            background:rgba(15,108,189,.10);border-radius:8px;
+          }
+          #view-email .em-header .page-icon svg{width:18px;height:18px}
+          #view-email .em-header .page-title{
+            font-size:22px;font-weight:600;letter-spacing:-.015em;
+            line-height:1.2;margin:0;
+          }
+          #view-email .em-header .page-sub{
+            font-size:var(--fs-sm);font-weight:500;
+            color:var(--text-subtle);margin:2px 0 0;
+          }
+          /* Layout · aside on the LEFT (open-shifts-sized), main on the
+             RIGHT (calendar-sized) — the opposite of the schedule. */
+          #view-email .em-grid{
+            display:grid;grid-template-columns:320px minmax(0,1fr);
+            gap:var(--s-3);align-items:start;
+          }
+          #view-email .em-aside{
+            position:sticky;top:80px;
+            display:flex;flex-direction:column;
+            background:var(--surface);
+            border:1px solid var(--sch-line,var(--border));
+            border-radius:10px;
+            box-shadow:0 1px 4px rgba(15,23,42,.04);
+            padding:18px;
+            min-height:calc(100vh - 200px);
+            max-height:calc(100vh - 120px);overflow-y:auto;
+          }
+          #view-email .em-main{
+            background:var(--surface);
+            border:1px solid var(--sch-line,var(--border));
+            border-radius:10px;
+            box-shadow:0 1px 4px rgba(15,23,42,.04);
+            padding:18px;
+            min-height:calc(100vh - 200px);
+          }
+          #view-email .em-placeholder{
+            display:flex;flex-direction:column;align-items:center;justify-content:center;
+            gap:8px;color:var(--text-subtle);font-size:var(--fs-md);
+            height:100%;min-height:300px;text-align:center;
+          }
+          #view-email .em-placeholder-label{
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
+            text-transform:uppercase;color:var(--text-subtle);
+          }
+          @media (max-width:1180px){
+            #view-email .em-grid{grid-template-columns:1fr}
+            #view-email .em-aside{position:static;max-height:none}
+          }
+        </style>
+        <div class="em-cmd-shell" id="rr-em-cmd">
+          <div class="em-cmd-tabs" role="tablist" aria-label="Command strip mode">
+            <button class="em-cmd-tab active" type="button" data-em-cmd-tab="email" role="tab" aria-selected="true">Email</button>
+            <button class="em-cmd-tab" type="button" data-em-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
+          </div>
+          <div class="em-header">
+            <div class="page-header-l">
+              <div class="page-icon" data-c="messages" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+              </div>
+              <div>
+                <h1 class="page-title">Email</h1>
+                <p class="page-sub">Inbox, drafts and outbound communication.</p>
+              </div>
+            </div>
+            <!-- KPI strip intentionally omitted per spec. -->
+          </div>
+        </div>
+        <div class="em-grid">
+          <aside class="em-aside" aria-label="Email folders / list">
+            <div class="em-placeholder">
+              <span class="em-placeholder-label">Folders / Messages</span>
+              <div>Placeholder · open-shifts-sized panel.</div>
+            </div>
+          </aside>
+          <section class="em-main" aria-label="Email content">
+            <div class="em-placeholder">
+              <span class="em-placeholder-label">Email content</span>
+              <div>Placeholder · calendar-sized panel.</div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
          PLATFORM ADMIN VIEW
          Cross-tenant DSP account management.  Only visible to users
          with role='platform_admin' (granted via 0124 migration's
@@ -25464,6 +25601,7 @@ John,Smith,555-0101,john@example.com</code>
       analytics: 'Analytics',
       okami: 'OKAMI',
       messages: 'Messages',
+      email: 'Email',
       workspaces: 'Workspaces',
       forms: 'Workspaces',
       checklists: 'Workspaces',
