@@ -9864,23 +9864,27 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-pipeline .pa-btn-advance.is-primary:hover{background:#115EA3;border-color:#115EA3}
           #view-pipeline .pa-btn-advance.is-primary .pa-adv-ico{color:#fff}
-          /* Decline — quiet ghost, reds only on hover. */
+          /* Decline — a defined Fluent danger button: red-tinted surface
+             + red glyph so the disposition action is unmistakable and
+             stands clear of the neutral contact icons. */
           #view-pipeline .pa-act-decline{
             display:inline-flex;align-items:center;justify-content:center;
             width:32px;height:32px;border-radius:4px;flex:0 0 auto;
-            background:transparent;border:1px solid transparent;color:#605E5C;
-            cursor:pointer;transition:background var(--t-fast),color var(--t-fast);
+            background:#FDF3F2;border:1px solid #EFC9C6;color:#C4281C;
+            cursor:pointer;transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
           }
-          #view-pipeline .pa-act-decline:hover{background:rgba(196,43,28,.10);color:#C4281C}
-          #view-pipeline .pa-act-decline:focus-visible{outline:none;border-color:#C4281C}
-          /* Contact icons — quiet ghost row beneath the actions. */
-          #view-pipeline .pa-act-contact{display:flex;align-items:center;gap:2px}
+          #view-pipeline .pa-act-decline:hover{background:#F8D7D4;border-color:#C4281C;color:#A4262C}
+          #view-pipeline .pa-act-decline:active{background:#F1C2BE}
+          #view-pipeline .pa-act-decline:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px #C4281C}
+          /* Contact icons — defined Fluent icon buttons, one row down. */
+          #view-pipeline .pa-act-contact{display:flex;align-items:center;gap:6px}
           #view-pipeline .pa-act-contact .pa-icon-btn{
-            background:transparent;border:0;box-shadow:none;
-            width:28px;height:28px;border-radius:4px;color:#8A8886;
-            transition:background var(--t-fast),color var(--t-fast);
+            background:#fff;border:1px solid #D1D1D1;box-shadow:none;
+            width:32px;height:32px;border-radius:4px;color:#424242;
+            transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
           }
-          #view-pipeline .pa-act-contact .pa-icon-btn:hover{background:#F3F2F1;color:#242424}
+          #view-pipeline .pa-act-contact .pa-icon-btn:hover{background:#F5F5F5;border-color:#C7C7C7;color:#201F1E}
+          #view-pipeline .pa-act-contact .pa-icon-btn:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px #0F6CBD}
           #view-pipeline .pa-act-contact .pa-icon-btn.is-disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
           @media (max-width:980px){
             #view-pipeline .pa-row-v3{grid-template-columns:1fr}
