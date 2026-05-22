@@ -40058,34 +40058,45 @@ async function _flRenderUtilization() {
     catch { return iso; }
   };
 
+  // Usage now comes from completed DVICs (vehicle_inspections.kind='dvic')
+  // — a van is "used" on a day only if a driver submitted a DVIC for it.
+  // driversByVan stores the inspector NAME directly (no driver-id lookup).
   const usageByVan   = new Map();  // vehId → Set<iso>
-  const driversByVan = new Map();  // vehId → Map<iso, driverId>
-  const driverName   = new Map();  // driverId → name
+  const driversByVan = new Map();  // vehId → Map<iso, inspector_name>
+  const driverName   = new Map();  // kept for legacy callers; unused for DVIC
+  const dvicLog      = new Map();  // vehId → Array<{ iso, inspected_at, inspector_name, result }>
   const serviceByVan = new Map();  // vehId → Map<iso, reason>
   const groundedSet  = new Set((_fleetRows || [])
     .filter(v => (v.operational_status || "operational") === "grounded")
     .map(v => v.id));
   try {
-    const dspId = window.RR?.dsp?.id;
-    const [usageRes, drvRes, evRes] = await Promise.all([
-      sb.from("vehicle_day_assignments")
-        .select("vehicle_id, date, driver_id")
-        .eq("dsp_id", dspId)
-        .gte("date", pastDates[0]).lte("date", todayIso),
-      sb.from("drivers").select("id, full_name, preferred_name").eq("dsp_id", dspId).limit(500),
+    const vehIds = (_fleetRows || []).map(v => v.id).filter(Boolean);
+    const startIso = pastDates[0] + "T00:00:00.000Z";
+    const endIso   = todayIso + "T23:59:59.999Z";
+    const [usageRes, evRes] = await Promise.all([
+      vehIds.length
+        ? sb.from("vehicle_inspections")
+            .select("vehicle_id, inspected_at, inspector_name, result, kind")
+            .in("vehicle_id", vehIds)
+            .eq("kind", "dvic")
+            .gte("inspected_at", startIso)
+            .lte("inspected_at", endIso)
+        : Promise.resolve({ data: [] }),
       sb.rpc("fleet_calendar_events_list", { p_from: futureDates[0], p_to: futureDates[FUTURE - 1] }),
     ]);
     for (const r of (usageRes?.data || [])) {
-      if (!r.vehicle_id || !r.date) continue;
+      if (!r.vehicle_id || !r.inspected_at) continue;
+      const iso = String(r.inspected_at).slice(0, 10);
       let s = usageByVan.get(r.vehicle_id);
       if (!s) { s = new Set(); usageByVan.set(r.vehicle_id, s); }
-      s.add(r.date);
+      s.add(iso);
+      const name = (r.inspector_name && r.inspector_name.trim()) || "Driver";
       let dm = driversByVan.get(r.vehicle_id);
       if (!dm) { dm = new Map(); driversByVan.set(r.vehicle_id, dm); }
-      if (r.driver_id) dm.set(r.date, r.driver_id);
-    }
-    for (const d of (drvRes?.data || [])) {
-      driverName.set(d.id, (d.preferred_name && d.preferred_name.trim()) || (d.full_name && d.full_name.trim()) || "Driver");
+      if (!dm.has(iso)) dm.set(iso, name);
+      let log = dvicLog.get(r.vehicle_id);
+      if (!log) { log = []; dvicLog.set(r.vehicle_id, log); }
+      log.push({ iso, inspected_at: r.inspected_at, inspector_name: name, result: r.result || "" });
     }
     for (const ev of (Array.isArray(evRes?.data) ? evRes.data : [])) {
       if (!ev.vehicle_id || !ev.event_date) continue;
@@ -40103,9 +40114,10 @@ async function _flRenderUtilization() {
     console.warn("fleet utilization data:", e);
   }
 
-  // Stash the usage data so the Van Details hover panel can list each
-  // route day + driver without re-querying.
-  window._flRotationData = { usageByVan, driversByVan, driverName };
+  // Stash the usage data so the Van Details hover panel + the
+  // Proof-of-Use report can list each DVIC day + driver without
+  // re-querying.
+  window._flRotationData = { usageByVan, driversByVan, driverName, dvicLog };
 
   cells.forEach(cell => {
     const vehId    = cell.getAttribute("data-rr-util-veh");
