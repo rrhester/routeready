@@ -1024,7 +1024,11 @@ function _pipeFitList() {
   const list = document.getElementById("pipe-applicants");
   if (!list || !list.offsetParent) return;
   const top = list.getBoundingClientRect().top;
-  list.style.maxHeight = Math.max(260, window.innerHeight - top - 24) + "px";
+  const h = Math.max(260, window.innerHeight - top - 24);
+  list.style.maxHeight = h + "px";
+  // Stretch the Indeed-sync rail down to the same viewport bottom.
+  const log = document.getElementById("rr-indeed-log");
+  if (log) log.style.height = h + "px";
 }
 window.addEventListener("resize", _pipeFitList);
 

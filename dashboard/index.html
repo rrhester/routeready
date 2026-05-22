@@ -10364,7 +10364,11 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);
             text-transform:uppercase;letter-spacing:.04em;
           }
-          #view-pipeline .rr-indeed-log-list{display:flex;flex-direction:column}
+          #view-pipeline .rr-indeed-log-list{
+            display:flex;flex-direction:column;
+            flex:1;min-height:0;overflow-y:auto;
+            scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;
+          }
           #view-pipeline .rr-indeed-log-row{
             display:flex;align-items:flex-start;gap:9px;padding:9px 4px;
           }
@@ -28975,7 +28979,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260522-schedscroll"></script>
+<script type="module" src="./live.js?v=20260522-indeedrail"></script>
 
 </body>
 </html>
