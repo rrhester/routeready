@@ -9393,15 +9393,6 @@ body.rr-cmdk-open{ overflow:hidden }
               <p class="page-sub" id="rr-pipeline-page-sub">Loading…</p>
             </div>
           </div>
-          <div class="page-actions">
-            <button class="btn" onclick="openBulkIngest()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Bulk ingest
-            </button>
-            <button class="btn btn-primary rr-add-applicant-btn" onclick="openAddApplicantModal()" title="Add applicant" aria-label="Add applicant">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
-            </button>
-          </div>
         </div>
 
         <!-- Pipeline sub-nav · subnav on left, window toggle on right —
@@ -10665,12 +10656,6 @@ body.rr-cmdk-open{ overflow:hidden }
         #obsub-pipeline #view-pipeline > .page{padding-left:0;padding-right:0}
         #obsub-pipeline #view-pipeline .page-header-l{display:none}
         #obsub-pipeline #view-pipeline .pipe-subnav-row > .subnav{display:none}
-        /* Add-applicant · compact icon button. */
-        #view-pipeline .rr-add-applicant-btn{
-          padding:0;width:34px;height:34px;
-          display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
-        }
-        #view-pipeline .rr-add-applicant-btn svg{width:17px;height:17px}
       </style>
       <div class="page">
         <div class="page-header sched-nav-heading">
@@ -10715,6 +10700,10 @@ body.rr-cmdk-open{ overflow:hidden }
                 <button class="subnav-item" draggable="true" data-rr-tile="ob-calendar" data-obsub="calendar" onclick="obSub('calendar')" title="Calendar">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.1" fill="currentColor" stroke="none"/></svg>
                   <span>Calendar</span>
+                </button>
+                <button class="subnav-item" draggable="true" data-rr-tile="ob-addapplicant" onclick="openAddApplicantModal()" title="Add a driver">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+                  <span>Add driver</span>
                 </button>
               </div>
             </div>
