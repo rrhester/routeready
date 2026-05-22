@@ -608,28 +608,72 @@ a{color:inherit;text-decoration:none}
 }
 .nav-badge{ display:none }
 
-/* Sidebar collapse · subtle bottom-edge button. Chevron flips
-   180° in collapsed state. No background by default; faint
-   hover state. */
-.sidebar-collapse-btn{
-  position:relative;
+/* Sidebar footer · subtle theme toggle + collapse button. */
+.sidebar-foot{
   margin-top:var(--s-3);
-  align-self:flex-end;
+  display:flex;align-items:center;justify-content:flex-end;gap:4px;
+}
+.sidebar.collapsed .sidebar-foot{justify-content:center;flex-direction:column;gap:6px}
+.sidebar-collapse-btn,
+.sidebar-theme-btn{
+  position:relative;
   display:inline-flex;align-items:center;justify-content:center;
   width:24px;height:24px;padding:0;border-radius:6px;
   background:transparent;border:0;cursor:pointer;
   color:rgba(255,255,255,.42);
   transition:background var(--t-fast),color var(--t-fast);
 }
-.sidebar-collapse-btn:hover,
-.sidebar-collapse-btn:focus-visible{
+.sidebar-collapse-btn:hover,.sidebar-collapse-btn:focus-visible,
+.sidebar-theme-btn:hover,.sidebar-theme-btn:focus-visible{
   background:rgba(255,255,255,.08);
   color:rgba(255,255,255,.82);
   outline:none;
 }
 .sidebar-collapse-btn svg{display:block;transition:transform var(--t-smooth)}
-.sidebar.collapsed .sidebar-collapse-btn{align-self:center}
+.sidebar-theme-btn svg{display:block}
 .sidebar.collapsed .sidebar-collapse-btn svg{transform:rotate(180deg)}
+
+/* ── Light sidebar theme (toggleable) ───────────────────────────
+   A calm Microsoft light nav rail — white surface, dark text,
+   category-colored icons. Toggled via the footer theme button;
+   the choice persists in localStorage (rr-sidebar-theme). */
+html.rr-sidebar-light .sidebar{
+  --sidebar-hover:rgba(15,23,42,.045);
+  --sidebar-active:rgba(0,120,212,.10);
+  --sidebar-divider:var(--border);
+  background:#FBFBFD;background-image:none;
+  color:var(--text);
+  border-right:1px solid var(--border);
+}
+html.rr-sidebar-light .sidebar .brand-name{color:var(--text)}
+html.rr-sidebar-light .sidebar .brand-name em{color:var(--text-subtle)}
+html.rr-sidebar-light .nav-item{color:var(--text-muted)}
+html.rr-sidebar-light .nav-item:hover{color:var(--text);background:var(--sidebar-hover)}
+html.rr-sidebar-light .nav-item:focus-visible{background:var(--sidebar-hover);color:var(--text);box-shadow:inset 0 0 0 1px rgba(0,120,212,.35)}
+html.rr-sidebar-light .sidebar .nav-item.active{
+  background:var(--sidebar-active);color:var(--text);
+  box-shadow:inset 3px 0 0 #0078D4;
+}
+html.rr-sidebar-light .nav-section-label{color:var(--text-subtle)}
+/* Category-colored icons — darkened to read on the light rail. */
+html.rr-sidebar-light .sidebar .nav-item[data-c]{--ni-fg:#64748B}
+html.rr-sidebar-light .nav-item[data-c="dashboard"]{--ni-fg:#2563EB}
+html.rr-sidebar-light .nav-item[data-c="pipeline"] {--ni-fg:#7C3AED}
+html.rr-sidebar-light .nav-item[data-c="drivers"]  {--ni-fg:#0D9488}
+html.rr-sidebar-light .nav-item[data-c="staffing"] {--ni-fg:#DB2777}
+html.rr-sidebar-light .nav-item[data-c="fleet"]    {--ni-fg:#D97706}
+html.rr-sidebar-light .nav-item[data-c="schedule"] {--ni-fg:#0284C7}
+html.rr-sidebar-light .nav-item[data-c="overtime"] {--ni-fg:#D97706}
+html.rr-sidebar-light .nav-item[data-c="messages"] {--ni-fg:#4F46E5}
+html.rr-sidebar-light .nav-item[data-c="forms"]    {--ni-fg:#9333EA}
+html.rr-sidebar-light .nav-item[data-c="finances"] {--ni-fg:#059669}
+html.rr-sidebar-light .nav-item.active svg{color:#0078D4}
+html.rr-sidebar-light .sidebar-collapse-btn,
+html.rr-sidebar-light .sidebar-theme-btn{color:var(--text-subtle)}
+html.rr-sidebar-light .sidebar-collapse-btn:hover,
+html.rr-sidebar-light .sidebar-theme-btn:hover{background:rgba(15,23,42,.05);color:var(--text)}
+/* The theme button's half-filled disc flips to mark the active mode. */
+html.rr-sidebar-light .sidebar-theme-btn svg{transform:scaleX(-1)}
 
 /* Collapsed rail · icon-only mode. Hide labels (the text node sits
    directly inside <button>, so we zero its font-size and reset on
@@ -8974,6 +9018,9 @@ body.rr-cmdk-open{ overflow:hidden }
         if (saved !== "0") {
           document.documentElement.classList.add("rr-sidebar-collapsed-boot");
         }
+        if (localStorage.getItem("rr-sidebar-theme") === "light") {
+          document.documentElement.classList.add("rr-sidebar-light");
+        }
       } catch (_) {}
     })();
   </script>
@@ -9048,9 +9095,14 @@ body.rr-cmdk-open{ overflow:hidden }
          and shrink the rail to icon-only width (Outlook Mail's
          compact rail). State persists in localStorage so the
          operator's preference sticks across reloads. -->
-    <button type="button" class="sidebar-collapse-btn" id="rr-sidebar-collapse" aria-label="Collapse sidebar" aria-pressed="false" title="Collapse sidebar">
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline class="rr-collapse-chev" points="15 18 9 12 15 6"/></svg>
-    </button>
+    <div class="sidebar-foot">
+      <button type="button" class="sidebar-theme-btn" id="rr-sidebar-theme" aria-label="Toggle sidebar theme" title="Switch sidebar theme">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button type="button" class="sidebar-collapse-btn" id="rr-sidebar-collapse" aria-label="Collapse sidebar" aria-pressed="false" title="Collapse sidebar">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline class="rr-collapse-chev" points="15 18 9 12 15 6"/></svg>
+      </button>
+    </div>
   </aside>
 
   <!-- ═══════════════════════════════════════════════════════════
@@ -28484,7 +28536,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260522-obhover"></script>
+<script type="module" src="./live.js?v=20260522-sidetheme"></script>
 
 </body>
 </html>
