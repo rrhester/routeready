@@ -3620,8 +3620,18 @@ function _obMxStylesOnce() {
     ".ob-matrix td.ob-mx-namecell{padding-left:18px;text-align:left;min-width:264px;position:sticky;left:0;background:var(--surface-elevated);z-index:1;box-shadow:8px 0 16px -18px rgba(15,23,42,.6)}" +
     ".ob-mx-namecell .avatar-sm{width:30px;height:30px;font-size:12px;flex:0 0 auto}" +
     ".ob-matrix td.ob-mx-statuscell{text-align:left}" +
-    ".ob-matrix tr:hover td{background:var(--sch-surface-2)}" +
-    ".ob-matrix tr:hover td.ob-mx-namecell{background:var(--sch-surface-2)}" +
+    ".ob-matrix tr:hover td{background:#F3F2F1}" +
+    ".ob-matrix tr:hover td.ob-mx-namecell{background:#F3F2F1}" +
+    ".ob-matrix tr:hover .ob-mx-name{color:#0078D4}" +
+    /* Trailing utility toolbar — condensed row actions, quiet until hover. */
+    ".ob-mx-toolcol{text-align:right;padding-right:16px}" +
+    ".ob-mx-toolcell{text-align:right;white-space:nowrap}" +
+    ".ob-mx-toolbar{display:inline-flex;align-items:center;gap:1px;opacity:.32;transition:opacity var(--t-fast)}" +
+    ".ob-matrix tr:hover .ob-mx-toolbar{opacity:1}" +
+    ".ob-tb-btn{position:relative;appearance:none;background:transparent;border:0;border-radius:4px;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;flex:0 0 auto;transition:color var(--t-fast),background var(--t-fast)}" +
+    ".ob-tb-btn:hover{color:#0078D4;background:#F3F2F1}" +
+    ".ob-tb-btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent-soft)}" +
+    ".ob-tb-btn.ob-tb-remove:hover{color:var(--red);background:var(--red-soft)}" +
     ".ob-mx-name{font-size:15px;font-weight:680;color:var(--text);cursor:pointer;letter-spacing:-.01em}" +
     ".ob-mx-name:hover{color:var(--accent-text)}" +
     ".ob-mx-meta{font-size:12px;color:var(--text-subtle);margin-top:3px;line-height:1.35}" +
@@ -4554,11 +4564,13 @@ async function loadOnboardingOps(opts) {
         </td>
         ${cells}
         <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "todo"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
-        <td><button type="button" class="ob-mx-action" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button></td>
-        <td><button type="button" class="ob-mx-action" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></button></td>
-        <td><button type="button" class="ob-mx-action onb-msg-btn${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? " has-unread" : ""}" data-rr-ob-msg="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? `Message this driver — ${_onbUnreadByDriver.get(d.id)} unread` : "Message this driver"}" aria-label="Message this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span class="onb-msg-dot" aria-hidden="true"></span></button></td>
-        <td><button type="button" class="dr-app-btn" data-rr-driver-app="${escapeHtml(d.id)}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
-        <td><button type="button" class="ob-mx-action ob-mx-remove" data-rr-ob-remove="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Remove from onboarding" aria-label="Remove this driver from onboarding"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button></td>
+        <td class="ob-mx-toolcell"><div class="ob-mx-toolbar">
+          <button type="button" class="ob-tb-btn" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></button>
+          <button type="button" class="ob-tb-btn" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></button>
+          <button type="button" class="ob-tb-btn onb-msg-btn${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? " has-unread" : ""}" data-rr-ob-msg="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? `Message this driver — ${_onbUnreadByDriver.get(d.id)} unread` : "Message this driver"}" aria-label="Message this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span class="onb-msg-dot" aria-hidden="true"></span></button>
+          <button type="button" class="ob-tb-btn" data-rr-driver-app="${escapeHtml(d.id)}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button>
+          <button type="button" class="ob-tb-btn ob-tb-remove" data-rr-ob-remove="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Remove from onboarding" aria-label="Remove this driver from onboarding"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
+        </div></td>
       </tr>`;
   };
 
@@ -4570,11 +4582,7 @@ async function loadOnboardingOps(opts) {
             <th class="ob-mx-namecol">Driver</th>
             ${stepHeaders}
             <th>Active</th>
-            <th>Send</th>
-            <th>Notes</th>
-            <th>Msg</th>
-            <th>App</th>
-            <th>Remove</th>
+            <th class="ob-mx-toolcol">Actions</th>
           </tr>
         </thead>
         <tbody>${enriched.map(matrixRow).join("")}</tbody>
