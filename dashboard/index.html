@@ -10481,11 +10481,41 @@ body.rr-cmdk-open{ overflow:hidden }
         }
         #view-onboarding-ops .onb-skel-card .rr-skel{display:block}
 
-        /* Command-bar header — the icon strip replaces the old tab
-           bar, mirroring the schedule page's command bar exactly. */
+        /* Microsoft Fluent design system — the exact token set the
+           schedule page uses, applied to the whole onboarding view so
+           every section reads as the same calm, layered, off-white
+           operational surface. */
         #view-onboarding-ops{
           --sch-blue:#0F6CBD;
+          --sch-blue-strong:#115EA3;
+          --sch-blue-soft:rgba(15,108,189,.08);
+          --sch-blue-softer:rgba(15,108,189,.05);
+          --sch-blue-tint:rgba(15,108,189,.035);
+          --sch-blue-text:#0E4F86;
+          --sch-line:rgba(15,23,42,.07);
+          --sch-line-strong:rgba(15,23,42,.10);
+          --sch-line-subtle:rgba(15,23,42,.04);
+          --sch-surface:#F8F9FB;
+          --sch-surface-2:#F2F3F6;
+          --sch-surface-3:#EBEDF1;
+          /* No pure white — layered off-white surfaces over the canvas. */
+          --surface:#F8F9FB;
+          --surface-secondary:#F2F3F6;
+          --surface-elevated:#FCFDFE;
+          --sch-hover:rgba(15,23,42,.04);
+          --sch-pressed:rgba(15,23,42,.06);
+          --sch-amber-soft:rgba(180,83,9,.10);
+          --sch-amber:#B45309;
+          --sch-amber-dark:#92400E;
+          --sch-green:#107C41;
+          --sch-green-soft:rgba(16,124,65,.10);
+          --sch-red:#B91C1C;
+          --sch-red-soft:rgba(185,28,28,.08);
           --sch-radius:6px;
+          --sch-radius-lg:8px;
+          /* Workspace bg sits cooler than the cards so they read as
+             bright elevated operational planes. */
+          background:#E9ECF1;
         }
         #view-onboarding-ops .page-header.sched-nav-heading{
           display:flex;align-items:center;justify-content:space-between;
@@ -28372,7 +28402,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260522-obreorder"></script>
+<script type="module" src="./live.js?v=20260522-obfluent"></script>
 
 </body>
 </html>
