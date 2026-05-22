@@ -3618,7 +3618,7 @@ function _obMxStylesOnce() {
     ".ob-matrix td{padding:15px 9px;border-top:1px solid var(--sch-line-subtle,var(--border-subtle));text-align:center;vertical-align:middle;background:var(--surface-elevated)}" +
     ".ob-matrix tbody tr:first-child td{border-top:0}" +
     ".ob-matrix td.ob-mx-namecell{padding-left:18px;text-align:left;min-width:264px;position:sticky;left:0;background:var(--surface-elevated);z-index:1;box-shadow:8px 0 16px -18px rgba(15,23,42,.6)}" +
-    ".ob-mx-namecell .avatar-sm{width:37px;height:37px;font-size:13px;flex:0 0 auto}" +
+    ".ob-mx-namecell .avatar-sm{width:30px;height:30px;font-size:12px;flex:0 0 auto}" +
     ".ob-matrix td.ob-mx-statuscell{text-align:left}" +
     ".ob-matrix tr:hover td{background:var(--sch-surface-2)}" +
     ".ob-matrix tr:hover td.ob-mx-namecell{background:var(--sch-surface-2)}" +
