@@ -478,6 +478,17 @@ function rrTitleCaseName(s) {
 // four inline icon buttons (phone, email, notes, more). Clicking each
 // icon opens a popover scoped to that task — there's no expand/detail
 // panel anymore.
+// Screening-video review state. There's no server-side "watched" flag,
+// so the operator's review state is tracked locally — just enough to
+// calm the loud "Review video" CTA once they've actually opened it.
+function _paVideoWatched(id) {
+  try { return localStorage.getItem("rr-pa-vid-" + id) === "1"; }
+  catch { return false; }
+}
+function _paMarkVideoWatched(id) {
+  try { localStorage.setItem("rr-pa-vid-" + id, "1"); } catch (_) {}
+}
+
 function renderApplicantCard(a) {
   const stage = a.pipeline_stage;
   const slug  = (a.full_name || "").toLowerCase().replace(/\s+/g, "-");
@@ -521,21 +532,38 @@ function renderApplicantCard(a) {
   else if (stage === "screened")     { ctaAction = "send_link";        ctaLabel = "Send booking link"; }
   else if (stage === "booking_pending") { ctaAction = "resend_link";   ctaLabel = "Resend booking link"; }
   else if (stage === "booking_scheduled") { ctaAction = "reschedule";  ctaLabel = "Reschedule"; }
-  // Use the canonical btn / btn-sm / btn-primary / btn-danger classes
-  // so the action buttons sit visually with the rest of the dashboard
-  // (button height, radius, focus ring, hover treatment) instead of
-  // looking like one-off styling.
-  const ctaBtn = ctaAction
-    ? `<button class="btn btn-sm btn-primary" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">
-         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+
+  // Screening video — the centrepiece of the screen-an-applicant flow.
+  // When a video exists it gets a loud Fluent-primary "Review video"
+  // button with a red unwatched dot; the advance button steps back to
+  // secondary so the operator's eye lands on the video first. Once the
+  // video is opened, the loud-primary state hands off to the advance
+  // button — the next thing to do.
+  const hasVideo       = !!a.video_url;
+  const videoWatched   = hasVideo && _paVideoWatched(a.id);
+  const advancePrimary = !hasVideo || videoWatched;
+
+  const playSvg = '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+  const videoBtn = hasVideo
+    ? `<button class="pa-btn-video${videoWatched ? " is-watched" : ""}" type="button" data-rr-action="play_video" data-applicant-id="${escapeHtml(a.id)}" data-video-url="${encodeURI(a.video_url)}" title="${videoWatched ? "Re-watch screening video" : "Review screening video"}" aria-label="${videoWatched ? "Re-watch screening video" : "Review screening video"}">
+         ${videoWatched ? "" : '<span class="pa-btn-video-dot" aria-hidden="true"></span>'}
+         ${playSvg}<span class="pa-btn-video-lbl">${videoWatched ? "Re-watch video" : "Review video"}</span>
+       </button>`
+    : "";
+
+  const advanceBtn = ctaAction
+    ? `<button class="pa-btn-advance${advancePrimary ? " is-primary" : ""}" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">
+         <svg class="pa-adv-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
          ${escapeHtml(ctaLabel)}
        </button>`
     : "";
-  // Decline / cancel · demoted to a quiet ghost icon in the action
-  // cluster — it only reads red on hover, never screams during the
-  // standard workflow.
+
+  // Decline / cancel · a quiet ghost ✕ that only reads red on hover.
   const declineAction = stage === "booking_scheduled" ? "cancel_interview" : "decline";
   const declineLabel  = stage === "booking_scheduled" ? "Cancel interview" : "Decline";
+  const declineBtn = `<button class="pa-act-decline" type="button" data-rr-action="${declineAction}" data-applicant-id="${escapeHtml(a.id)}" title="${escapeHtml(declineLabel)}" aria-label="${escapeHtml(declineLabel)}">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+    </button>`;
 
   // Timeline · a Fluent process rail — node over label over time,
   // thin connectors between. Completed steps read green, the current
@@ -575,11 +603,12 @@ function renderApplicantCard(a) {
         </div>
 
         <div class="pa-zone pa-zone-action">
-          ${ctaBtn ? `<div class="pa-action-primary">${ctaBtn}</div>` : ""}
-          <div class="pa-action-icons">
-            ${a.video_url ? `<button class="pa-icon-btn is-video" type="button" data-rr-action="play_video" data-applicant-id="${escapeHtml(a.id)}" data-video-url="${encodeURI(a.video_url)}" title="Watch screening video" aria-label="Watch screening video">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-            </button>` : ""}
+          <div class="pa-act-row">
+            ${videoBtn}
+            ${advanceBtn}
+            ${declineBtn}
+          </div>
+          <div class="pa-act-contact">
             <button class="pa-icon-btn${phoneDisabled}" type="button" data-rr-pa-pop="phone" title="${phoneTitle}" aria-label="Call">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
             </button>
@@ -588,9 +617,6 @@ function renderApplicantCard(a) {
             </button>
             <button class="pa-icon-btn" type="button" data-rr-pa-pop="notes" title="Notes" aria-label="Notes">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
-            </button>
-            <button class="pa-icon-btn pa-icon-decline" type="button" data-rr-action="${declineAction}" data-applicant-id="${escapeHtml(a.id)}" title="${escapeHtml(declineLabel)}" aria-label="${escapeHtml(declineLabel)}">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="6.2" y1="6.2" x2="17.8" y2="17.8"/></svg>
             </button>
           </div>
         </div>
@@ -1064,6 +1090,17 @@ async function handleAction(btn) {
     } else if (action === "play_video") {
       const url = btn.getAttribute("data-video-url");
       if (url) openVideoModal(url);
+      // Mark the video reviewed and calm the CTA in place — drop the
+      // unwatched dot, relabel, and hand the loud-primary state to the
+      // advance button. No refetch needed.
+      _paMarkVideoWatched(id);
+      if (btn.classList.contains("pa-btn-video")) {
+        btn.classList.add("is-watched");
+        btn.querySelector(".pa-btn-video-dot")?.remove();
+        const lbl = btn.querySelector(".pa-btn-video-lbl");
+        if (lbl) lbl.textContent = "Re-watch video";
+        card?.querySelector(".pa-btn-advance")?.classList.add("is-primary");
+      }
       btn.disabled = false;
       return;
     } else if (action === "email_thread") {

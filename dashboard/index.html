@@ -9747,17 +9747,13 @@ body.rr-cmdk-open{ overflow:hidden }
           .pa-icon-btn:hover{background:var(--canvas);color:var(--text)}
           .pa-icon-btn:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
           .pa-icon-btn.is-disabled{opacity:.45;cursor:not-allowed;pointer-events:none;box-shadow:none}
-          /* Video icon — accent-tinted so operators see at a glance that
-             the applicant has a screening video to watch. */
-          .pa-icon-btn.is-video{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
-          .pa-icon-btn.is-video:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 
           /* ── Applicant row · 3-zone Fluent workflow surface ─────────
              Identity | Process timeline | Action — separated by soft
              inset dividers, not boxed sections. */
           #view-pipeline .pa-row-v3{
             display:grid;
-            grid-template-columns:280px minmax(0,1fr) 220px;
+            grid-template-columns:260px minmax(0,1fr) minmax(336px,400px);
             gap:0;align-items:stretch;
           }
           #view-pipeline .pa-row-v3 .pa-zone{padding:16px 18px;min-width:0}
@@ -9811,23 +9807,81 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:1 1 auto;min-width:20px;height:1px;background:#E1DFDD;margin-top:10.5px;
           }
           #view-pipeline .pa-tl-empty{font-size:12px;color:#A19F9D}
-          /* C · Action zone — one primary, the rest ghost icons. */
+          /* C · Action zone — the screening workflow surface.
+             Top row: the loud "Review video" CTA, the advance button,
+             and a quiet decline. Bottom row: ghost contact icons. */
           #view-pipeline .pa-zone-action{
             display:flex;flex-direction:column;align-items:flex-end;
-            justify-content:center;gap:9px;
+            justify-content:center;gap:10px;
           }
-          #view-pipeline .pa-action-primary .btn{box-shadow:none}
-          #view-pipeline .pa-action-icons{display:flex;align-items:center;gap:1px}
-          #view-pipeline .pa-zone-action .pa-icon-btn{
+          #view-pipeline .pa-act-row{
+            display:flex;align-items:center;gap:8px;
+            flex-wrap:wrap;justify-content:flex-end;
+          }
+          /* Review video — Fluent primary; the screening centrepiece. */
+          #view-pipeline .pa-btn-video{
+            position:relative;
+            display:inline-flex;align-items:center;gap:7px;
+            height:32px;padding:0 14px;border-radius:4px;
+            font-family:inherit;font-size:13.5px;font-weight:600;
+            white-space:nowrap;cursor:pointer;
+            background:#0F6CBD;color:#fff;border:1px solid #0F6CBD;
+            box-shadow:0 1px 2px rgba(15,23,42,.12);
+            transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast);
+          }
+          #view-pipeline .pa-btn-video:hover{background:#115EA3;border-color:#115EA3}
+          #view-pipeline .pa-btn-video:active{background:#0E5390;border-color:#0E5390}
+          #view-pipeline .pa-btn-video:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px #0F6CBD}
+          #view-pipeline .pa-btn-video svg{flex:0 0 auto}
+          /* Unwatched marker — Fluent red dot, white-ringed. */
+          #view-pipeline .pa-btn-video-dot{
+            position:absolute;top:-5px;right:-5px;
+            width:12px;height:12px;border-radius:50%;
+            background:#D13438;border:2px solid #fff;
+            box-shadow:0 0 0 1px rgba(15,23,42,.06);
+          }
+          /* Reviewed — calm secondary, no dot. */
+          #view-pipeline .pa-btn-video.is-watched{
+            background:#fff;color:#0F6CBD;border-color:#D1D1D1;box-shadow:none;
+          }
+          #view-pipeline .pa-btn-video.is-watched:hover{background:#F5F9FD;border-color:#0F6CBD}
+          /* Advance — secondary by default; goes primary once no
+             unwatched video is competing for the operator's eye. */
+          #view-pipeline .pa-btn-advance{
+            display:inline-flex;align-items:center;gap:6px;
+            height:32px;padding:0 14px;border-radius:4px;
+            font-family:inherit;font-size:13.5px;font-weight:600;
+            white-space:nowrap;cursor:pointer;
+            background:#fff;color:#242424;border:1px solid #D1D1D1;
+            transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast);
+          }
+          #view-pipeline .pa-btn-advance:hover{background:#F5F5F5;border-color:#C7C7C7}
+          #view-pipeline .pa-btn-advance:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px #0F6CBD}
+          #view-pipeline .pa-btn-advance .pa-adv-ico{color:#0F6CBD;flex:0 0 auto}
+          #view-pipeline .pa-btn-advance.is-primary{
+            background:#0F6CBD;color:#fff;border-color:#0F6CBD;
+            box-shadow:0 1px 2px rgba(15,23,42,.12);
+          }
+          #view-pipeline .pa-btn-advance.is-primary:hover{background:#115EA3;border-color:#115EA3}
+          #view-pipeline .pa-btn-advance.is-primary .pa-adv-ico{color:#fff}
+          /* Decline — quiet ghost, reds only on hover. */
+          #view-pipeline .pa-act-decline{
+            display:inline-flex;align-items:center;justify-content:center;
+            width:32px;height:32px;border-radius:4px;flex:0 0 auto;
+            background:transparent;border:1px solid transparent;color:#605E5C;
+            cursor:pointer;transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-pipeline .pa-act-decline:hover{background:rgba(196,43,28,.10);color:#C4281C}
+          #view-pipeline .pa-act-decline:focus-visible{outline:none;border-color:#C4281C}
+          /* Contact icons — quiet ghost row beneath the actions. */
+          #view-pipeline .pa-act-contact{display:flex;align-items:center;gap:2px}
+          #view-pipeline .pa-act-contact .pa-icon-btn{
             background:transparent;border:0;box-shadow:none;
-            width:30px;height:30px;border-radius:4px;color:#605E5C;
+            width:28px;height:28px;border-radius:4px;color:#8A8886;
             transition:background var(--t-fast),color var(--t-fast);
           }
-          #view-pipeline .pa-zone-action .pa-icon-btn:hover{background:#F3F2F1;color:#201F1E}
-          #view-pipeline .pa-zone-action .pa-icon-btn.is-video{color:#0078D4}
-          #view-pipeline .pa-zone-action .pa-icon-btn.is-video:hover{background:var(--sch-blue-soft,rgba(0,120,212,.08));color:#0078D4}
-          #view-pipeline .pa-zone-action .pa-icon-btn.pa-icon-decline:hover{background:rgba(196,43,28,.10);color:#C4281C}
-          #view-pipeline .pa-zone-action .pa-icon-btn.is-disabled{opacity:.4;cursor:not-allowed}
+          #view-pipeline .pa-act-contact .pa-icon-btn:hover{background:#F3F2F1;color:#242424}
+          #view-pipeline .pa-act-contact .pa-icon-btn.is-disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
           @media (max-width:980px){
             #view-pipeline .pa-row-v3{grid-template-columns:1fr}
             #view-pipeline .pa-row-v3 .pa-zone-timeline{
@@ -9835,6 +9889,8 @@ body.rr-cmdk-open{ overflow:hidden }
               border-top:1px solid #F3F2F1;border-bottom:1px solid #F3F2F1;
             }
             #view-pipeline .pa-zone-action{align-items:flex-start}
+            #view-pipeline .pa-act-row{justify-content:flex-start}
+            #view-pipeline .pa-act-contact{justify-content:flex-start}
           }
 
           /* Popover surface shared by phone / notes / more icons. */
@@ -28662,7 +28718,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260522-pacard"></script>
+<script type="module" src="./live.js?v=20260522-pavideo"></script>
 
 </body>
 </html>
