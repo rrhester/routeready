@@ -43106,10 +43106,75 @@ function _reqTypeBadge(type) {
   return `<span class="req-type-badge is-availability">Availability</span>`;
 }
 
+// Availability-change impact strip · per-weekday before → after
+// supply for the days this request adds or drops, against the day's
+// staffing target — so the DSP sees the coverage effect of approving.
+function _avImpactStrip(r, ctx) {
+  if (!ctx) return "";
+  const DOW = ["mon","tue","wed","thu","fri","sat","sun"];
+  const LBL = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
+  const norm = (a) => new Set((Array.isArray(a) ? a : []).map(x => String(x).toLowerCase()));
+  const cur  = norm(r.current_days);
+  const next = norm(r.days || r.requested_days);
+  const supply = ctx.supplyByDow || {};
+  const demand = ctx.demandByDow || {};
+
+  const rows = [];
+  const belowDays = [];
+  for (const d of DOW) {
+    const inCur = cur.has(d), inNext = next.has(d);
+    if (inCur === inNext) continue;            // unchanged weekday
+    const before = supply[d] || 0;
+    const after  = inNext ? before + 1 : before - 1;   // add vs drop
+    const need   = demand[d] || 0;
+    const isDrop = inCur && !inNext;
+    const below  = isDrop && need > 0 && after < need;
+    if (below) belowDays.push(LBL[d]);
+    const tgt = need > 0 ? `<span class="to-cov-day-muted">· target ${need}</span>` : "";
+    rows.push(`<div class="to-cov-day">
+      <span class="to-cov-day-d">${LBL[d]}${isDrop ? " · drops" : " · adds"}</span>
+      <span class="to-cov-day-v"><span class="to-cov-now">${before}</span><span class="to-cov-arrow">→</span><span class="to-cov-after${below ? " is-drop" : ""}">${after} available</span>${tgt}</span>
+    </div>`);
+  }
+  if (rows.length === 0) {
+    return `<div class="to-row-coverage to-cov-empty"><div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">No change to which days this driver can work.</span></div></div>`;
+  }
+  let cls, msg;
+  if (belowDays.length) {
+    cls = "to-cov-rule";
+    msg = `Approving drops ${belowDays.join(", ")} below the staffing target.`;
+  } else {
+    cls = "to-cov-ok";
+    msg = "Every affected day stays at or above its staffing target.";
+  }
+  return `<div class="to-row-coverage ${cls}">
+    <div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">${escapeHtml(msg)}</span></div>
+    <div class="to-cov-days">${rows.join("")}</div>
+  </div>`;
+}
+
+// Fetch the per-weekday supply / demand context the availability
+// impact strips need (active-driver availability + planned routes).
+async function _buildAvailabilityImpactCtx() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || typeof _buildAvailImpactCtx !== "function") return null;
+  const weekStart = (typeof _schedStart === "string" && _schedStart)
+    ? _schedStart
+    : fmtIsoDate(startOfWeekMonday(new Date()));
+  const [drvRes, okamiRes] = await Promise.allSettled([
+    sb.from("drivers").select("id, metadata").eq("dsp_id", dspId).in("status", ["active", "onboarding"]),
+    sb.rpc("okami_grid", { p_start: weekStart, p_weeks: 1 }),
+  ]);
+  const drivers = (drvRes.status === "fulfilled" && Array.isArray(drvRes.value?.data)) ? drvRes.value.data : [];
+  const okami = (okamiRes.status === "fulfilled" && Array.isArray(okamiRes.value?.data)) ? okamiRes.value.data : [];
+  return _buildAvailImpactCtx(drivers, okami);
+}
+
 // Row for an availability-change request inside the merged stream.
 // Pending rows are decision-ready (approve / deny with an optional
-// note); decided rows are display-only.
-function _reqAvailRowHtml(r) {
+// note) and carry a per-weekday coverage-impact strip; decided rows
+// are display-only.
+function _reqAvailRowHtml(r, ctx) {
   const name = r.driver_name || r.full_name || "—";
   const station = r.station_code ? ` · ${escapeHtml(r.station_code)}` : "";
   const effective = r.effective_on ? `Effective ${_reqFmtDate(r.effective_on)}` : "Effective when approved";
@@ -43117,6 +43182,7 @@ function _reqAvailRowHtml(r) {
   const st = r.status === "approved" ? ["status-pill-approved", "Approved"]
            : r.status === "denied"   ? ["status-pill-denied", "Denied"]
            : ["status-pill-pending", "Pending"];
+  const impact = pending ? _avImpactStrip(r, ctx) : "";
   const actions = pending
     ? `<textarea class="form-input" data-rr-av-note="${escapeHtml(r.id)}" rows="2" placeholder="Optional note to send to the driver…" maxlength="500"></textarea>
        <div class="to-row-actions">
@@ -43133,6 +43199,7 @@ function _reqAvailRowHtml(r) {
       <span class="status-pill ${st[0]}">${st[1]}</span>
     </div>
     <div class="sched-req-days">${_reqDaysHtml(r.requested_days || r.days || [])}</div>
+    ${impact}
     ${actions}
   </div>`;
 }
@@ -43185,6 +43252,12 @@ async function renderSchedRequestStream() {
   _toRows = toRows;            // keep the global in sync for _toDecide + nav badge
   _toRefreshNavBadge();
 
+  // Per-weekday supply/demand for the availability-impact strips —
+  // only fetched when there's a pending availability request to show.
+  const hasPendingAvail = avRows.some(r => r.status === "pending" || !r.status);
+  const avCtx = hasPendingAvail ? await _buildAvailabilityImpactCtx() : null;
+  if (!document.getElementById("rr-sched-req-stream")) return;
+
   const items = [];
   for (const r of avRows) {
     items.push({ row: r, type: "availability", sortDate: r.effective_on || "9999-12-31" });
@@ -43211,7 +43284,7 @@ async function renderSchedRequestStream() {
     });
 
   const rowHtml = (it) => {
-    if (it.type === "availability") return _reqAvailRowHtml(it.row);
+    if (it.type === "availability") return _reqAvailRowHtml(it.row, avCtx);
     return isPending(it) ? _toPendingRowHtml(it.row) : _toDecidedRowHtml(it.row);
   };
 
