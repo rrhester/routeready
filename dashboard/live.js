@@ -43337,7 +43337,7 @@ async function _renderRequestsReports() {
     return `<div class="req-rpt-row">
       <span class="req-rpt-row-lbl">${DOW_LABEL[d]}</span>
       <span class="req-rpt-bar"><span class="req-rpt-bar-fill${below ? " is-below" : ""}" style="width:${pct}%"></span>${tick}</span>
-      <span class="req-rpt-row-n">${n}${deltaHtml}</span>
+      <span class="req-rpt-row-n"><b class="req-rpt-pct">${pct}%</b><span class="req-rpt-cnt">${n}/${total}</span>${deltaHtml}</span>
     </div>`;
   }).join("");
 
@@ -43430,7 +43430,7 @@ async function _renderRequestsReports() {
     </section>`;
 
   host.innerHTML =
-      report("Availability by day", "Drivers available vs staffing target", r1Body)
+      report("Availability by day", "Share of the team available vs staffing target", r1Body)
     + report("Full-time / part-time", "Availability model vs actual utilization", r2Body)
     + report("Reserve capacity", "Workforce elasticity · one extra day each", r3Body);
 }
@@ -43697,8 +43697,8 @@ function _toPendingRowHtml(r) {
 }
 
 // After each pending row renders, fetch its coverage check and
-// repaint the inline strip with a colored verdict so the
-// dispatcher can see whether approving would force a rule break.
+// repaint the inline strip with a verdict plus a per-day coverage
+// read-out, so the dispatcher sees the staffing impact of approving.
 async function _toPaintCoverage(host) {
   const slots = host ? host.querySelectorAll("[data-rr-to-coverage]") : [];
   for (const slot of slots) {
@@ -43709,7 +43709,7 @@ async function _toPaintCoverage(host) {
     catch (e) { res = { error: e }; }
     if (res?.error || !res?.data) {
       slot.classList.add("to-cov-unknown");
-      slot.querySelector(".to-row-coverage-text").textContent = "Coverage check unavailable";
+      slot.innerHTML = `<div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">Coverage check unavailable</span></div>`;
       continue;
     }
     const d = res.data;
@@ -43718,23 +43718,54 @@ async function _toPaintCoverage(host) {
     let cls, msg;
     if (d.status === "no_shifts") {
       cls = "to-cov-empty";
-      msg = "No shifts in this range — no coverage needed.";
+      msg = "Driver isn't scheduled in this range — approving doesn't reduce staffing.";
     } else if (d.status === "covered") {
       cls = "to-cov-ok";
       msg = total === 1
-        ? "Shift can be covered — another eligible driver is available."
-        : `All ${total} shifts can be covered — eligible drivers available.`;
+        ? "The freed shift can be covered by another eligible driver."
+        : `All ${total} freed shifts can be covered by eligible drivers.`;
     } else if (d.status === "rule_break") {
       const n = Number(d.rule_break || 0);
       cls = "to-cov-rule";
-      msg = `Would push someone over the ${cap}h weekly cap on ${n} shift${n === 1 ? "" : "s"} — approving means breaking the overtime rule.`;
+      msg = `Covering ${n} freed shift${n === 1 ? "" : "s"} would push someone past the ${cap}h weekly cap.`;
     } else {
       const n = Number(d.no_coverage || 0);
       cls = "to-cov-blocked";
-      msg = `${n} shift${n === 1 ? " has" : "s have"} no eligible drivers — coverage can't be filled by anyone right now.`;
+      msg = `${n} freed shift${n === 1 ? " has" : "s have"} no eligible driver — coverage can't be filled.`;
     }
     slot.classList.add(cls);
-    slot.querySelector(".to-row-coverage-text").textContent = msg;
+
+    // Per-day coverage telemetry — current staffing and, where the
+    // driver is scheduled, the level after the request is approved.
+    const days = Array.isArray(d.days) ? d.days : [];
+    const fmtD = (iso) => {
+      try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
+      catch { return iso; }
+    };
+    const dayRows = days.map((day) => {
+      const needed = Number(day.needed || 0);
+      const filled = Number(day.filled || 0);
+      const after  = Number(day.filled_after ?? filled);
+      const on     = !!day.driver_on;
+      let val;
+      if (needed === 0) {
+        val = `<span class="to-cov-day-muted">No routes scheduled</span>`;
+      } else {
+        const pct  = Math.round((filled / needed) * 100);
+        const pctA = Math.round((after  / needed) * 100);
+        const now  = `${filled}/${needed} · ${pct}%`;
+        if (on) {
+          val = `<span class="to-cov-now">${now}</span><span class="to-cov-arrow">→</span><span class="to-cov-after${pctA < pct ? " is-drop" : ""}">${after}/${needed} · ${pctA}%</span>`;
+        } else {
+          val = `<span class="to-cov-now">${now}</span><span class="to-cov-day-muted">· not scheduled</span>`;
+        }
+      }
+      return `<div class="to-cov-day"><span class="to-cov-day-d">${escapeHtml(fmtD(day.date))}</span><span class="to-cov-day-v">${val}</span></div>`;
+    }).join("");
+
+    slot.innerHTML = `
+      <div class="to-cov-head"><span class="to-row-coverage-dot"></span><span class="to-cov-verdict">${escapeHtml(msg)}</span></div>
+      ${dayRows ? `<div class="to-cov-days">${dayRows}</div>` : ""}`;
   }
 }
 
