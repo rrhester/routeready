@@ -927,6 +927,50 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .topbar-settings:hover svg{color:var(--accent-text)}
 .topbar-settings:active{transform:translateY(.5px)}
 .topbar-settings:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--accent-glow)}
+/* ── Undo control (topbar) ───────────────────────────────────────── */
+.hdr-undo-wrap{position:relative;display:flex;align-items:center}
+.hdr-undo{
+  display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;
+  border-radius:6px 0 0 6px;
+  background:var(--surface);border:1px solid var(--border-strong);border-right:0;
+  color:var(--text-muted);font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;
+  transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
+}
+.hdr-undo svg{flex:0 0 auto}
+.hdr-undo-caret{
+  display:inline-flex;align-items:center;justify-content:center;height:32px;width:24px;
+  border-radius:0 6px 6px 0;
+  background:var(--surface);border:1px solid var(--border-strong);
+  color:var(--text-subtle);cursor:pointer;
+  transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
+}
+.hdr-undo:hover:not(:disabled),
+.hdr-undo-caret:hover:not(:disabled){background:var(--surface-hover);color:var(--text)}
+.hdr-undo:disabled,.hdr-undo-caret:disabled{opacity:.5;cursor:not-allowed}
+.hdr-undo:focus-visible,.hdr-undo-caret:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--accent-glow)}
+.hdr-undo-menu{
+  position:absolute;top:calc(100% + 6px);left:0;z-index:60;
+  min-width:256px;padding:5px;
+  background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:8px;box-shadow:var(--shadow-pop);
+}
+.hdr-undo-menu[hidden]{display:none}
+.hdr-undo-head{
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--text-subtle);padding:6px 8px 5px;
+}
+.hdr-undo-item{
+  display:flex;align-items:baseline;gap:9px;width:100%;
+  padding:7px 8px;border:0;border-radius:5px;background:transparent;
+  font:inherit;font-size:var(--fs-sm);color:var(--text);cursor:pointer;text-align:left;
+}
+.hdr-undo-item:hover{background:var(--surface-hover)}
+.hdr-undo-item-ord{
+  font-size:var(--fs-xs);font-weight:700;color:var(--text-subtle);
+  flex:0 0 auto;min-width:32px;font-variant-numeric:tabular-nums;
+}
+.hdr-undo-item-lbl{flex:1;min-width:0}
+.hdr-undo-empty{padding:10px 8px;font-size:var(--fs-sm);color:var(--text-subtle)}
 .account{
   width:32px;height:32px;border-radius:50%;
   background:var(--accent);
@@ -9127,6 +9171,18 @@ body.rr-cmdk-open{ overflow:hidden }
       <button type="button" id="rr-hdr-refresh" class="hdr-refresh" title="Refresh dashboard (clears cached scripts)" aria-label="Refresh dashboard">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
       </button>
+      <!-- Undo · pops the last reversible action (5-deep). The caret
+           opens a history of recent actions. -->
+      <div class="hdr-undo-wrap">
+        <button type="button" id="rr-undo-btn" class="hdr-undo" disabled title="Nothing to undo" aria-label="Undo last action">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a6 6 0 0 1 0 12h-4"/></svg>
+          <span>Undo</span>
+        </button>
+        <button type="button" id="rr-undo-caret" class="hdr-undo-caret" disabled aria-label="Undo history" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="rr-undo-menu" class="hdr-undo-menu" hidden></div>
+      </div>
       <form id="rr-hdr-ask-form" class="hdr-ask" autocomplete="off">
         <span class="hdr-ask-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg>
@@ -28826,7 +28882,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260522-obpolish"></script>
+<script type="module" src="./live.js?v=20260522-undo"></script>
 
 </body>
 </html>

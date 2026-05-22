@@ -1208,6 +1208,86 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("#rr-sched-print-btn")) { e.preventDefault(); _schedPrint(); }
 });
 
+// ── Undo stack ─────────────────────────────────────────────────────
+// A small cross-app undo: each undoable action pushes { label, undo }
+// onto a 5-deep stack. The topbar Undo button pops the most recent
+// action; the caret opens a history of the last 5 so the DSP can roll
+// back several. Reversible state changes only — actions that send a
+// message (booking link, screening invite) can't be truly undone, so
+// they don't go on the stack.
+const _rrUndoStack = [];
+const _RR_UNDO_MAX = 5;
+
+function _rrPushUndo(entry) {
+  if (!entry || typeof entry.undo !== "function") return;
+  _rrUndoStack.push(entry);
+  while (_rrUndoStack.length > _RR_UNDO_MAX) _rrUndoStack.shift();
+  _rrRenderUndo();
+}
+
+function _rrRenderUndo() {
+  const btn   = document.getElementById("rr-undo-btn");
+  const caret = document.getElementById("rr-undo-caret");
+  const menu  = document.getElementById("rr-undo-menu");
+  if (!btn) return;
+  const n = _rrUndoStack.length;
+  btn.disabled = n === 0;
+  if (caret) caret.disabled = n === 0;
+  btn.title = n ? "Undo: " + _rrUndoStack[n - 1].label : "Nothing to undo";
+  if (menu) {
+    let rows = "";
+    for (let idx = n - 1; idx >= 0; idx--) {
+      const fromTop = n - 1 - idx;
+      rows += `<button type="button" class="hdr-undo-item" data-undo-to="${idx}">`
+            + `<span class="hdr-undo-item-ord">${fromTop === 0 ? "Last" : "−" + (fromTop + 1)}</span>`
+            + `<span class="hdr-undo-item-lbl">${escapeHtml(_rrUndoStack[idx].label)}</span></button>`;
+    }
+    menu.innerHTML = '<div class="hdr-undo-head">Recent actions</div>'
+      + (n ? rows : '<div class="hdr-undo-empty">Nothing to undo</div>');
+  }
+}
+
+async function _rrUndoOne() {
+  const entry = _rrUndoStack.pop();
+  if (!entry) return false;
+  _rrRenderUndo();
+  try {
+    await entry.undo();
+    toast("Undone · " + entry.label, "success");
+    return true;
+  } catch (err) {
+    _rrUndoStack.push(entry);
+    _rrRenderUndo();
+    toast("Undo failed: " + (err && err.message ? err.message : err), "warn");
+    return false;
+  }
+}
+
+async function _rrUndoTo(targetIndex) {
+  // Undo from the top of the stack down to (and including) targetIndex.
+  while (_rrUndoStack.length > targetIndex) {
+    const ok = await _rrUndoOne();
+    if (!ok) break;
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("rr-undo-menu");
+  if (e.target.closest("#rr-undo-btn"))   { _rrUndoOne(); return; }
+  const caret = e.target.closest("#rr-undo-caret");
+  if (caret) {
+    if (menu) { menu.hidden = !menu.hidden; caret.setAttribute("aria-expanded", menu.hidden ? "false" : "true"); }
+    return;
+  }
+  const item = e.target.closest(".hdr-undo-item");
+  if (item) {
+    if (menu) menu.hidden = true;
+    _rrUndoTo(parseInt(item.getAttribute("data-undo-to"), 10) || 0);
+    return;
+  }
+  if (menu && !menu.hidden && !e.target.closest("#rr-undo-menu")) menu.hidden = true;
+});
+
 // ─── Stage filter + view-switch hooks ──────────────────────────────────────
 
 function getActiveStage() {
@@ -31210,10 +31290,28 @@ async function assignShiftToDriverWithRules(shiftId, shiftDate, driverId, cell) 
     const msg = "Rule violations:\n\n• " + violations.join("\n• ") + "\n\nSchedule anyway?";
     if (!confirm(msg)) return;
   }
+  // Capture the shift's current driver so the assign can be undone.
+  let prevDriverId = null;
+  try {
+    const { data: prev } = await sb.from("shifts").select("driver_id").eq("id", shiftId).single();
+    prevDriverId = prev ? prev.driver_id : null;
+  } catch (_) {}
   _markLocalShiftMutation();
   const { error } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: driverId });
   if (error) { toast("Assign failed: " + error.message, "warn"); return; }
   toast(violations.length > 0 ? "Assigned (override)" : "Shift assigned", "success");
+  if (prevDriverId !== driverId) {
+    _rrPushUndo({
+      label: (prevDriverId ? "Shift reassigned" : "Shift assigned")
+             + (shiftDate ? " · " + shiftDate : ""),
+      undo: async () => {
+        _markLocalShiftMutation();
+        const { error: undoErr } = await sb.rpc("assign_shift", { p_id: shiftId, p_driver_id: prevDriverId });
+        if (undoErr) throw new Error(undoErr.message);
+        if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+      },
+    });
+  }
   renderScheduleWeek();
 }
 
