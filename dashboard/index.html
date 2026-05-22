@@ -11094,7 +11094,9 @@ body.rr-cmdk-open{ overflow:hidden }
         }
         /* Onboarding-steps blueprint editor · popover flyout. */
         #view-onboarding-ops .ob-rules-popover{
-          position:absolute;top:calc(100% + 6px);right:0;left:auto;z-index:60;
+          /* Anchored to the tab's left edge — the ribbon is left-aligned,
+             so the popover must open rightward to stay on screen. */
+          position:absolute;top:calc(100% + 6px);left:0;right:auto;z-index:60;
           width:620px;max-width:calc(100vw - 48px);
           max-height:calc(100vh - 200px);overflow-y:auto;
           background:var(--surface-elevated,#FCFDFE);
