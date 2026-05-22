@@ -24219,8 +24219,8 @@ function _updateFinalizeButton() {
       if (!pill) {
         pill = document.createElement("span");
         pill.id = "rr-sched-page-title-live";
-        pill.style.cssText = "display:inline-flex;align-items:center;gap:4px;background:var(--green);color:#fff;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:var(--r-pill);margin-left:10px;vertical-align:middle;line-height:1;position:relative;top:-3px";
-        pill.innerHTML = `<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Live`;
+        pill.style.cssText = "display:inline-flex;align-items:center;gap:5px;background:rgba(16,124,65,.10);color:#3F7E5C;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:var(--r-pill);margin-left:10px;vertical-align:middle;line-height:1.4;position:relative;top:-3px";
+        pill.innerHTML = `<span style="width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0"></span>Live`;
         pageTitle.appendChild(pill);
       }
     } else if (pill) {
@@ -43330,10 +43330,14 @@ async function _renderRequestsReports() {
     const tick = (need > 0 && total > 0)
       ? `<div class="req-rpt-threshold" style="left:${Math.min(100, Math.round((need / total) * 100))}%"></div>`
       : "";
+    // Operational delta against the staffing target.
+    const delta = need > 0 ? n - need : null;
+    const deltaHtml = delta === null ? ""
+      : `<span class="req-rpt-delta ${delta < 0 ? "is-under" : "is-over"}">${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${Math.abs(delta)}</span>`;
     return `<div class="req-rpt-row">
       <span class="req-rpt-row-lbl">${DOW_LABEL[d]}</span>
       <span class="req-rpt-bar"><span class="req-rpt-bar-fill${below ? " is-below" : ""}" style="width:${pct}%"></span>${tick}</span>
-      <span class="req-rpt-row-n">${n}${need > 0 ? ` / ${need}` : ""}</span>
+      <span class="req-rpt-row-n">${n}${deltaHtml}</span>
     </div>`;
   }).join("");
 
@@ -43395,9 +43399,15 @@ async function _renderRequestsReports() {
     }
   }
   const withinReach = drivers.length - needBump.length;
+  const reachRatio = drivers.length > 0 ? withinReach / drivers.length : 0;
+  const readiness = reachRatio >= 0.7
+    ? ["is-healthy", "Reserve capacity healthy"]
+    : reachRatio >= 0.4
+      ? ["is-moderate", "Surge readiness moderate"]
+      : ["is-low", "Availability increase required for additional elasticity"];
   const namesHtml = needBump.length
     ? `<div class="req-rpt-names">${needBump.map(n => `<span class="req-rpt-name">${escapeHtml(n)}</span>`).join("")}</div>`
-    : `<div class="req-rpt-empty">All drivers have room to pick up a day.</div>`;
+    : "";
   const r3Body = `
     <div class="req-rpt-hero">
       <div class="req-rpt-hero-num">+${extraShifts}</div>
@@ -43406,6 +43416,7 @@ async function _renderRequestsReports() {
         <div class="req-rpt-hero-lbl">reserve capacity</div>
       </div>
     </div>
+    <div class="req-rpt-status ${readiness[0]}"><span class="req-rpt-status-dot"></span>${escapeHtml(readiness[1])}</div>
     <div class="req-rpt-note"><b>${withinReach}</b> within current availability · <b>${needBump.length}</b> need an availability increase</div>
     ${namesHtml}`;
 

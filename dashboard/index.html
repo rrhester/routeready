@@ -8380,10 +8380,10 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Request rows · Outlook-inbox rhythm — compressed, hairline-faint,
    separated by tone + spacing rather than hard dividers. */
 #sched-sub-requests .to-row{
-  padding:9px 8px;margin:0 -8px;
+  padding:8px;margin:0 -8px;
   border-top:0;
   border-radius:5px;
-  transition:background var(--t-fast);
+  transition:background var(--t-fast), box-shadow var(--t-fast);
 }
 #sched-sub-requests .to-row:hover{background:rgba(15,23,42,.025)}
 /* A request just decided in this session — surfaced at the top of
@@ -8438,8 +8438,10 @@ body.rr-cmdk-open{ overflow:hidden }
   display:flex;flex-direction:column;
   background:transparent;border:0;border-radius:0;box-shadow:none;
 }
+/* Reports read as continuous telemetry — separation comes from the
+   eyebrow title and spacing, not a divider. */
 #sched-sub-requests .sched-req-report + .sched-req-report{
-  border-top:1px solid var(--req-hairline-faint);
+  border-top:0;
 }
 #sched-sub-requests .sched-req-report-head{
   padding:13px 18px 0;border-bottom:0;
@@ -8456,9 +8458,9 @@ body.rr-cmdk-open{ overflow:hidden }
   padding:10px 18px 14px;flex:1;
   display:flex;flex-direction:column;justify-content:center;gap:6px;
 }
-/* Capacity telemetry rows · weekday label, thin bar, trailing count. */
+/* Capacity telemetry rows · weekday label, thin bar, count + delta. */
 #sched-sub-requests .req-rpt-row{
-  display:grid;grid-template-columns:32px 1fr 52px;
+  display:grid;grid-template-columns:30px 1fr 58px;
   gap:10px;align-items:center;
   font-size:10.5px;color:var(--text-muted);font-variant-numeric:tabular-nums;
 }
@@ -8466,7 +8468,7 @@ body.rr-cmdk-open{ overflow:hidden }
   font-weight:600;color:var(--text-subtle);letter-spacing:.02em;
 }
 #sched-sub-requests .req-rpt-bar{
-  position:relative;height:5px;
+  position:relative;height:4px;
   background:var(--req-track);border-radius:2px;
 }
 #sched-sub-requests .req-rpt-bar-fill{
@@ -8476,11 +8478,16 @@ body.rr-cmdk-open{ overflow:hidden }
 #sched-sub-requests .req-rpt-bar-fill.is-below{background:var(--req-below)}
 #sched-sub-requests .req-rpt-threshold{
   position:absolute;top:-2px;bottom:-2px;width:1px;
-  background:rgba(15,23,42,.30);
+  background:rgba(15,23,42,.26);
 }
 #sched-sub-requests .req-rpt-row-n{
   text-align:right;font-weight:600;color:var(--text-muted);
 }
+#sched-sub-requests .req-rpt-delta{
+  font-size:9.5px;font-weight:600;margin-left:4px;
+}
+#sched-sub-requests .req-rpt-delta.is-over{color:#4F7C61}
+#sched-sub-requests .req-rpt-delta.is-under{color:var(--req-below, #AD8A4F)}
 /* FT/PT sub-sections. */
 #sched-sub-requests .req-rpt-sect + .req-rpt-sect{margin-top:9px}
 #sched-sub-requests .req-rpt-sect-lbl{
@@ -8533,6 +8540,18 @@ body.rr-cmdk-open{ overflow:hidden }
   font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
   color:var(--text-subtle);margin-top:2px;
 }
+/* Operational readiness read-out · a dot + a calm status sentence. */
+#sched-sub-requests .req-rpt-status{
+  display:flex;align-items:center;gap:6px;margin-top:2px;
+  font-size:11px;font-weight:600;color:var(--text-muted);
+}
+#sched-sub-requests .req-rpt-status-dot{
+  width:6px;height:6px;border-radius:50%;flex-shrink:0;
+  background:var(--text-subtle);
+}
+#sched-sub-requests .req-rpt-status.is-healthy .req-rpt-status-dot{background:#4F7C61}
+#sched-sub-requests .req-rpt-status.is-moderate .req-rpt-status-dot{background:#AD8A4F}
+#sched-sub-requests .req-rpt-status.is-low .req-rpt-status-dot{background:#9F635B}
 #sched-sub-requests .req-rpt-note{
   font-size:10.5px;color:var(--text-subtle);line-height:1.5;
 }
@@ -13292,8 +13311,9 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-radius:6px;
             --sch-radius-lg:8px;
             /* Workspace bg sits a touch cooler / darker than the
-               cards so they read as bright elevated surfaces. */
-            background:#EEF1F5;
+               cards so they read as bright elevated operational
+               planes — Azure-style atmospheric layering. */
+            background:#E9ECF1;
           }
 
           /* ── Page header / command band ──────────────────────────
@@ -13468,23 +13488,26 @@ body.rr-cmdk-open{ overflow:hidden }
              Single horizontal row of "dot · label · sub" inside one
              outlined container with thin vertical dividers — Microsoft
              365 admin pattern, no per-tile shadows. */
+          /* Operational status ribbon — a continuous telemetry strip,
+             not segmented widgets. Barely-perceptible dividers, calm
+             horizontal breathing, atmospheric depth. */
           #view-schedule #rr-sched-kpis.sched-kpi-pills{
             display:flex;flex-wrap:wrap;align-items:stretch;
             gap:0;
             margin:0 0 var(--s-4) 0;
-            background:var(--sch-surface);
-            border:1px solid var(--sch-line);
+            background:var(--surface-elevated, #FCFDFE);
+            border:1px solid var(--sch-line-subtle);
             border-radius:var(--sch-radius);
             padding:0;
-            box-shadow:none;
+            box-shadow:0 1px 4px rgba(15,23,42,.035);
             overflow:hidden;
           }
           #view-schedule .sched-kpi-pill{
             display:inline-flex;align-items:center;gap:10px;
             color:var(--text);font-weight:600;font-size:var(--fs-sm);
             font-variant-numeric:tabular-nums;
-            padding:10px 18px;
-            border-right:1px solid var(--sch-line-subtle);
+            padding:11px 24px;
+            border-right:1px solid rgba(15,23,42,.03);
             line-height:1.2;
             transition:background var(--t-fast);
           }
@@ -13494,7 +13517,7 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--sch-hover);color:var(--text);
           }
           #view-schedule .sched-kpi-dot{
-            width:8px;height:8px;border-radius:50%;flex-shrink:0;
+            width:7px;height:7px;border-radius:50%;flex-shrink:0;
           }
           #view-schedule .sched-kpi-text{
             display:inline-flex;flex-direction:column;line-height:1.15;gap:1px;
@@ -28202,7 +28225,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260522-fluent2"></script>
+<script type="module" src="./live.js?v=20260522-fluent2b"></script>
 
 </body>
 </html>
