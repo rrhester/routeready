@@ -3697,6 +3697,10 @@ function _obMxStylesOnce() {
     ".rr-addtype:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}" +
     ".rr-addtype-t{font-size:13px;font-weight:600;color:var(--text)}" +
     ".rr-addtype-b{font-size:11.5px;color:var(--text-subtle);margin-top:2px;line-height:1.4}" +
+    /* Remove-from-onboarding · disposition radio rows */
+    ".rr-ob-disp{display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--sch-line,var(--border));border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--text);transition:border-color .12s,background .12s}" +
+    ".rr-ob-disp:hover{border-color:var(--accent-border);background:var(--canvas)}" +
+    ".rr-ob-disp input{accent-color:var(--accent);margin:0;flex:0 0 auto}" +
     /* autosave state — quiet, never a button */
     "@keyframes ob-bld-spin{to{transform:rotate(360deg)}}";
   document.head.appendChild(s);
@@ -4814,21 +4818,67 @@ document.addEventListener("click", (e) => {
   e.preventDefault(); e.stopPropagation();
   openOnbNotesDrawer(b.getAttribute("data-rr-ob-notes"), b.getAttribute("data-name") || "");
 });
-// Remove a driver from the onboarding process — moves them to
-// inactive so they drop off the readiness board (not deleted; the
-// record can be reactivated from the Drivers page).
-document.addEventListener("click", async (e) => {
+// Remove a driver from onboarding — opens a small disposition picker,
+// then moves them to inactive with the chosen disposition recorded on
+// the driver record. Not deleted; reactivatable from the Drivers page.
+const _OB_DISPOSITIONS = [
+  { code: "failed_bg",    label: "Failed — Background check" },
+  { code: "failed_dt",    label: "Failed — Drug test" },
+  { code: "unresponsive", label: "Candidate — Unresponsive" },
+  { code: "declined",     label: "Candidate — Declined" },
+  { code: "other",        label: "Other" },
+];
+function _obRemovePicker(driverId, driverName) {
+  document.getElementById("rr-ob-remove-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-ob-remove-modal";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10004;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:60px 16px";
+  m.innerHTML = `
+    <div style="background:var(--surface-elevated,#FCFDFE);border:1px solid var(--sch-line,rgba(15,23,42,.10));border-radius:8px;max-width:380px;width:100%;box-shadow:0 12px 32px rgba(15,23,42,.16)">
+      <div style="padding:13px 16px 11px;border-bottom:1px solid var(--sch-line-subtle,rgba(15,23,42,.06))">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">Remove from onboarding</div>
+        <div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Why is ${escapeHtml(driverName)} being removed?</div>
+      </div>
+      <div style="padding:10px 14px;display:flex;flex-direction:column;gap:4px">
+        ${_OB_DISPOSITIONS.map((d, i) => `<label class="rr-ob-disp"><input type="radio" name="rr-ob-disp" value="${d.code}"${i === 0 ? " checked" : ""}><span>${escapeHtml(d.label)}</span></label>`).join("")}
+        <textarea class="form-input" id="rr-ob-disp-note" rows="2" maxlength="400" placeholder="Notes (required for Other)…" style="margin-top:6px;max-width:none"></textarea>
+      </div>
+      <div style="padding:10px 16px;border-top:1px solid var(--sch-line-subtle,rgba(15,23,42,.06));display:flex;justify-content:flex-end;gap:8px">
+        <button type="button" class="btn btn-sm" data-rr-ob-disp-cancel>Cancel</button>
+        <button type="button" class="btn btn-sm btn-danger" data-rr-ob-disp-ok>Remove</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", async (ev) => {
+    if (ev.target === m || ev.target.closest("[data-rr-ob-disp-cancel]")) { m.remove(); return; }
+    const okBtn = ev.target.closest("[data-rr-ob-disp-ok]");
+    if (!okBtn) return;
+    const code = m.querySelector('input[name="rr-ob-disp"]:checked')?.value || "other";
+    const label = (_OB_DISPOSITIONS.find(d => d.code === code) || {}).label || "Other";
+    const note = (m.querySelector("#rr-ob-disp-note")?.value || "").trim();
+    if (code === "other" && !note) { toast("Add a note for the Other reason.", "warn"); return; }
+    okBtn.disabled = true; okBtn.textContent = "Removing…";
+    // Merge the disposition into the driver's metadata so it isn't lost.
+    let metadata = {};
+    try {
+      const { data } = await sb.from("drivers").select("metadata").eq("id", driverId).maybeSingle();
+      if (data && data.metadata && typeof data.metadata === "object") metadata = data.metadata;
+    } catch (_) { /* fall back to empty */ }
+    metadata = Object.assign({}, metadata, {
+      onboarding_disposition: { code, label, note: note || null, at: new Date().toISOString() },
+    });
+    const { error } = await sb.from("drivers").update({ status: "inactive", metadata }).eq("id", driverId);
+    if (error) { okBtn.disabled = false; okBtn.textContent = "Remove"; toast("Couldn't remove: " + (error.message || ""), "warn"); return; }
+    m.remove();
+    toast(`${driverName} removed — ${label}`, "success");
+    if (typeof loadOnboardingOps === "function") loadOnboardingOps();
+  });
+}
+document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-rr-ob-remove]");
   if (!b) return;
   e.preventDefault(); e.stopPropagation();
-  const id = b.getAttribute("data-rr-ob-remove");
-  const name = b.getAttribute("data-name") || "this driver";
-  if (!confirm(`Remove ${name} from onboarding?\n\nThey'll be moved to inactive and drop off the readiness board. You can reactivate them later from the Drivers page.`)) return;
-  b.disabled = true;
-  const { error } = await sb.from("drivers").update({ status: "inactive" }).eq("id", id);
-  if (error) { b.disabled = false; toast("Couldn't remove: " + (error.message || ""), "warn"); return; }
-  toast(`${name} removed from onboarding`, "success");
-  if (typeof loadOnboardingOps === "function") loadOnboardingOps();
+  _obRemovePicker(b.getAttribute("data-rr-ob-remove"), b.getAttribute("data-name") || "this driver");
 });
 // Close: × button or backdrop click.
 document.addEventListener("click", (e) => {
