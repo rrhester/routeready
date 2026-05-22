@@ -19651,7 +19651,7 @@ body.rr-cmdk-open{ overflow:hidden }
             --flu-bg-selected:#EBF3FC;
             --flu-fg:#242424;
             --flu-fg-2:#605E5C;
-            --flu-radius:4px;
+            --flu-radius:10px;
             --flu-success-fg:#0E700E;  --flu-success-bg:#DFF6DD;  --flu-success-bd:#BDDFB6;
             --flu-danger-fg:#B10E1C;   --flu-danger-bg:#FDE7E9;   --flu-danger-bd:#F1BCC1;
             --flu-warning-fg:#7A5C00;  --flu-warning-bg:#FFF4CE;  --flu-warning-bd:#F2E2A8;
@@ -19685,7 +19685,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-opstat-btn,
           #view-fleet .fl-veh-thumb,
           #view-fleet .fl-roster-bar .fl-search input,
-          #view-fleet .fl-roster-bar select.fl-filter{border-radius:var(--flu-radius)}
+          #view-fleet .fl-roster-bar select.fl-filter{border-radius:4px}
 
           /* Status dropdown trigger — Fluent subtle button */
           #view-fleet .fl-opstat-btn:hover{background:var(--flu-bg-hover);border-color:var(--flu-stroke)}
@@ -20202,7 +20202,8 @@ body.rr-cmdk-open{ overflow:hidden }
             --flu-warning:   #D83B01;
             --flu-critical:  #A4262C;
             --flu-row-hover: #FAFAFA;
-            --flu-radius:    4px;
+            /* Card-surface radius matches the schedule page (10px). */
+            --flu-radius:    10px;
             color:var(--flu-text);
           }
 
@@ -20222,7 +20223,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-roster-bar select.fl-filter,
           #view-fleet .fl-rotation-bar select.fl-filter{
             background:var(--flu-surface);border:1px solid var(--flu-border);
-            border-radius:var(--flu-radius);height:30px;font-size:13px;
+            border-radius:4px;height:30px;font-size:13px;
             color:var(--flu-text);
           }
           #view-fleet .fl-roster-bar .fl-search input:focus,
