@@ -19720,7 +19720,8 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;align-items:center;
             justify-content:flex-start;
             gap:var(--s-3);flex-wrap:nowrap;
-            padding:14px 18px;
+            /* Match the schedule ribbon's outer padding. */
+            padding:11px 18px;
             margin-bottom:var(--s-4);
             background:var(--surface-elevated);
             border:1px solid rgba(15,23,42,.07);
@@ -19754,18 +19755,19 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-fleet .fl-ribbon-group{
             display:flex;align-items:center;gap:6px;flex-wrap:nowrap;
-            margin-bottom:23px;
-            padding:0 var(--s-2);
+            margin-bottom:0;
+            padding:0;
           }
+          /* Tile metrics match the schedule ribbon · same padding,
+             min-width, gap and icon size, so the two strips read as
+             one shared command surface. */
           #view-fleet .fl-ribbon-btn{
             position:relative;
             appearance:none;cursor:pointer;font:inherit;
             display:inline-flex;flex-direction:column;
-            align-items:center;justify-content:center;gap:5px;
-            min-width:72px;
-            padding:8px 16px 9px;
-            /* Ghost tiles — no box, just a soft hover — mirrors the
-               schedule icon strip. */
+            align-items:center;justify-content:center;gap:4px;
+            min-width:62px;
+            padding:6px 10px 7px;
             background:transparent;
             border:0;
             border-radius:6px;
@@ -19775,7 +19777,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-ribbon-btn:hover{
             background:rgba(15,23,42,.04);color:var(--text);
           }
-          #view-fleet .fl-ribbon-btn svg{width:32px;height:32px;stroke-width:1.6}
+          #view-fleet .fl-ribbon-btn svg{width:28px;height:28px;stroke-width:1.6}
           #view-fleet .fl-ribbon-btn span{font-size:var(--fs-sm);font-weight:500}
           /* Active view switcher — colored, not boxed (mirrors the
              schedule ribbon's active tab). */
