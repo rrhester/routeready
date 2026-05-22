@@ -42796,6 +42796,14 @@ document.addEventListener("click", async (e) => {
 // notification and the outcome shows up in their thread.
 
 let _toRows = [];
+// Request ids decided in this browser session, most-recent first —
+// drives the "your last action" surfacing at the top of History.
+let _reqRecentlyDecided = [];
+function _reqMarkDecided(id) {
+  if (id == null) return;
+  id = String(id);
+  _reqRecentlyDecided = [id, ..._reqRecentlyDecided.filter(x => x !== id)];
+}
 
 // ─── Schedule · Requests sub-view (PTO + Availability, split) ──────
 // The Requests tab shows both request types side by side. Each panel
@@ -43148,6 +43156,7 @@ async function _avDecide(btn) {
     return;
   }
   toast(approve ? "Availability approved" : "Availability denied", "success");
+  _reqMarkDecided(id);
   // Approving rewrites drivers.metadata.availability — refresh the
   // roster cache so the Drivers page doesn't show stale days.
   if (approve && typeof loadDriversRoster === "function") loadDriversRoster();
@@ -43185,11 +43194,21 @@ async function renderSchedRequestStream() {
   }
 
   const isPending = (it) => it.row.status === "pending" || !it.row.status;
-  // Pending: soonest first (most urgent). History: most recent first.
+  // Pending: soonest first (most urgent). History: anything decided in
+  // this session floats to the top (most-recent action first), then
+  // the rest by date.
   const pending = items.filter(isPending)
     .sort((a, b) => a.sortDate < b.sortDate ? -1 : a.sortDate > b.sortDate ? 1 : 0);
+  const recencyRank = (id) => {
+    const i = _reqRecentlyDecided.indexOf(String(id));
+    return i === -1 ? Infinity : i;
+  };
   const decided = items.filter(it => !isPending(it))
-    .sort((a, b) => a.sortDate > b.sortDate ? -1 : a.sortDate < b.sortDate ? 1 : 0);
+    .sort((a, b) => {
+      const ra = recencyRank(a.row.id), rb = recencyRank(b.row.id);
+      if (ra !== rb) return ra - rb;
+      return a.sortDate > b.sortDate ? -1 : a.sortDate < b.sortDate ? 1 : 0;
+    });
 
   const rowHtml = (it) => {
     if (it.type === "availability") return _reqAvailRowHtml(it.row);
@@ -43213,6 +43232,13 @@ async function renderSchedRequestStream() {
         ${decided.length ? decided.map(rowHtml).join("") : `<div class="rr-empty-inline">No decided requests yet.</div>`}
       </section>
     </div>`;
+
+  // Tint rows decided this session so the operator's last action is
+  // obvious at the top of History.
+  for (const id of _reqRecentlyDecided) {
+    const row = host.querySelector(`.to-row[data-rr-to-row="${CSS.escape(String(id))}"]`);
+    if (row) row.classList.add("req-row-fresh");
+  }
 
   host.querySelectorAll("[data-rr-to-decide]").forEach((btn) => {
     btn.addEventListener("click", () => _toDecide(btn));
@@ -43713,7 +43739,7 @@ function _toDecidedRowHtml(r) {
     ? `<div class="to-row-note-ro"><strong>Dispatcher note:</strong> ${escapeHtml(r.decision_notes)}</div>`
     : "";
   return `
-    <div class="to-row">
+    <div class="to-row" data-rr-to-row="${escapeHtml(r.id)}">
       <div class="to-row-head">
         <div>
           <div class="to-row-name">${escapeHtml(r.driver_name)}${stationBit}</div>
@@ -43744,6 +43770,7 @@ async function _toDecide(btn) {
     return;
   }
   toast(approve ? "Request approved" : "Request denied", "success");
+  _reqMarkDecided(id);
   // Refresh whichever surface is mounted — the unified Requests stream
   // (and its reports) or the legacy time-off body.
   if (document.getElementById("rr-sched-req-stream")) {

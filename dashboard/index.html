@@ -16,9 +16,6 @@
 <title>RouteReady — Dispatcher Dashboard</title>
 <link rel="icon" type="image/png" href="../app/Icon.png">
 <link rel="apple-touch-icon" href="../app/Icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ─────────────────────────────────────────────────────────────
    DESIGN TOKENS
@@ -219,7 +216,7 @@
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
-  font-family:'Inter',system-ui,-apple-system,sans-serif;
+  font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
   font-size:var(--fs-base);
   line-height:1.5;
   color:var(--text);
@@ -375,7 +372,7 @@ a{color:inherit;text-decoration:none}
 .rr-modal-eyebrow svg{width:12px;height:12px;stroke-width:2}
 .rr-modal-title{
   margin:var(--s-1) 0 0;
-  font-family:'Inter Tight','Inter',sans-serif;
+  font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
   font-size:var(--fs-lg);font-weight:700;color:var(--text);
   letter-spacing:-.01em;line-height:1.3;
 }
@@ -504,14 +501,14 @@ a{color:inherit;text-decoration:none}
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
-  /* Microsoft Fluent communicationBlue — Outlook / M365 brand
+  /* Microsoft Fluent communication blue — Outlook / M365 brand
      chrome. Subtle vertical gradient adds depth without reading
      as a marketing flourish. */
-  --sidebar:#0F6CBD;
-  --sidebar-grad:linear-gradient(180deg, #0F6CBD 0%, #0B5394 100%);
-  --sidebar-hover:rgba(255,255,255,.10);
-  --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.18) 0%, rgba(255,255,255,.04) 100%);
-  --sidebar-divider:rgba(255,255,255,.12);
+  --sidebar:#0078D4;
+  --sidebar-grad:linear-gradient(180deg, #0078D4 0%, #106EBE 100%);
+  --sidebar-hover:rgba(255,255,255,.09);
+  --sidebar-active:rgba(255,255,255,.12);
+  --sidebar-divider:rgba(255,255,255,.11);
 
   background:var(--sidebar);
   background-image:var(--sidebar-grad);
@@ -529,11 +526,11 @@ a{color:inherit;text-decoration:none}
   --ni-bg:rgba(255,255,255,.12);
   --ni-bg-strong:rgba(255,255,255,.22);
 }
+/* Active = location state, not a button — a calm tinted row with a
+   soft left-edge indicator, no ring. */
 .sidebar .nav-item.active{
   background:var(--sidebar-active);
-  box-shadow:
-    inset 3px 0 0 #fff,
-    inset 0 0 0 1px rgba(255,255,255,.18);
+  box-shadow:inset 3px 0 0 rgba(255,255,255,.88);
 }
 .sidebar .nav-item.active .nav-badge{color:var(--accent);background:#fff}
 .brand{
@@ -894,7 +891,7 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
    enterprise dashboards (Stripe, Linear) use between top hero
    and primary content. */
 .page-header{display:flex;justify-content:space-between;align-items:flex-end;gap:var(--s-4);padding-bottom:var(--s-4);margin-bottom:var(--s-5);border-bottom:1px solid var(--border)}
-.page-title{font-family:'Inter Tight','Inter',system-ui,-apple-system,sans-serif;font-size:22px;font-weight:600;letter-spacing:-.015em;line-height:1.2;color:var(--text);margin:0 0 var(--s-1) 0}
+.page-title{font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;font-size:22px;font-weight:600;letter-spacing:-.015em;line-height:1.2;color:var(--text);margin:0 0 var(--s-1) 0}
 /* Optional: gradient-accent wordmark for hero phrases. Apply with a
    <span class="grad"> inside .page-title to match the landing. */
 .page-title .grad{
@@ -1482,7 +1479,7 @@ button.card:focus-visible{
   color:inherit;line-height:1;
 }
 .tp-day-cell-num{
-  font-family:'Inter Tight','Inter',sans-serif;
+  font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
   font-size:18px;font-weight:600;line-height:1;
   font-variant-numeric:tabular-nums;letter-spacing:-.01em;
   color:var(--text);
@@ -1533,7 +1530,7 @@ button.card:focus-visible{
   border-bottom:1px solid var(--border-subtle);
 }
 .wx-temp{
-  font-family:'Inter Tight','Inter',system-ui,sans-serif;
+  font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
   font-size:40px;font-weight:700;line-height:1;letter-spacing:-.025em;
   color:var(--text);font-variant-numeric:tabular-nums;
 }
@@ -3771,7 +3768,7 @@ select.form-input{
   background:#fff;border-radius:32px;
   box-shadow:0 24px 48px rgba(0,0,0,.25),0 0 0 8px #1A1F2E,0 0 0 9px #2A3140;
   padding:var(--s-6) 16px;
-  font-family:'Inter',sans-serif;color:var(--text);
+  font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);
   display:flex;flex-direction:column;gap:var(--s-3);
   min-height:540px;position:relative;
 }
@@ -3835,7 +3832,7 @@ select.form-input{
 .dr-app-btn:hover{background:var(--surface-hover);color:var(--accent-text);border-color:var(--border)}
 .dr-app-btn svg{width:15px;height:15px;stroke-width:2}
 .dapp-modal{position:fixed;inset:0;z-index:10024;background:var(--overlay-soft);display:flex;align-items:center;justify-content:center;padding:var(--s-6)}
-.dapp-phone{position:relative;width:344px;max-width:92vw;height:min(728px,90vh);background:#fff;border-radius:42px;display:flex;flex-direction:column;overflow:hidden;font-family:'Inter',sans-serif;color:var(--text);box-shadow:0 30px 64px rgba(0,0,0,.32),0 0 0 10px #1C2230,0 0 0 11px #2A3140}
+.dapp-phone{position:relative;width:344px;max-width:92vw;height:min(728px,90vh);background:#fff;border-radius:42px;display:flex;flex-direction:column;overflow:hidden;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);box-shadow:0 30px 64px rgba(0,0,0,.32),0 0 0 10px #1C2230,0 0 0 11px #2A3140}
 .dapp-island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:104px;height:30px;background:#0C0F17;border-radius:var(--r-2xl);z-index:5}
 .dapp-statusbar{display:flex;align-items:center;justify-content:space-between;padding:15px 26px 0;font-size:12.5px;font-weight:600;color:var(--text);flex:0 0 auto;letter-spacing:.02em}
 .dapp-topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-2-5);padding:var(--s-3-5) 18px 12px;border-bottom:1px solid var(--border);flex:0 0 auto}
@@ -3961,7 +3958,7 @@ select.form-input{
 @keyframes modalUp{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
 .modal-head{padding:var(--s-4) var(--s-5) var(--s-3-5);border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3-5)}
 .modal-title{
-  font-family:'Inter Tight','Inter',sans-serif;
+  font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
   font-size:var(--fs-lg);font-weight:700;
   margin:0 0 var(--s-1) 0;letter-spacing:-.01em;line-height:1.3;color:var(--text);
 }
@@ -5233,7 +5230,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   position:fixed;inset:0;z-index:9999;
   display:none;align-items:flex-start;justify-content:center;
   padding-top:12vh;
-  font-family:'Inter',system-ui,sans-serif;
+  font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
 }
 .rr-cmdk.open{ display:flex }
 .rr-cmdk-backdrop{
@@ -5280,7 +5277,7 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   font-size:10px;font-weight:600;color:var(--text-subtle);
   background:var(--surface-hover);border:1px solid var(--border);
   padding:1px 6px;border-radius:var(--r-sm);
-  font-family:'Inter',system-ui,sans-serif;
+  font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
 }
 .rr-cmdk-list{
   flex:1;min-height:0;overflow-y:auto;
@@ -6405,7 +6402,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
 .forecast-svg{width:100%;height:200px;display:block}
 .forecast-grid line{stroke:var(--border);stroke-width:1}
-.forecast-axis text{font-size:var(--fs-xs);fill:var(--text-subtle);font-family:'Inter',sans-serif}
+.forecast-axis text{font-size:var(--fs-xs);fill:var(--text-subtle);font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
 .forecast-line{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .forecast-line.plan{stroke:var(--accent)}
 .forecast-line.roster{stroke:var(--text-muted)}
@@ -7768,7 +7765,7 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-cl-runner.open{transform:translateX(0)}
 .cl-rn-head{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:var(--s-3)}
 .cl-rn-head-inner{flex:1;min-width:0}
-.cl-rn-title{font-family:'Inter Tight','Inter',system-ui,sans-serif;font-size:18px;font-weight:700;letter-spacing:-.015em;color:var(--text);line-height:1.25;width:100%;background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:3px 6px;margin:-3px -6px;outline:none;transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast)}
+.cl-rn-title{font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;font-size:18px;font-weight:700;letter-spacing:-.015em;color:var(--text);line-height:1.25;width:100%;background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:3px 6px;margin:-3px -6px;outline:none;transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast)}
 .cl-rn-title:hover,.cl-rn-title:focus{background:var(--canvas);border-color:var(--border)}
 .cl-rn-title:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface)}
 .cl-rn-sub{display:flex;align-items:center;gap:var(--s-2-5);margin-top:6px;font-size:var(--fs-xs);color:var(--text-subtle);flex-wrap:wrap}
@@ -7860,7 +7857,7 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-cb-root .cb-back-btn:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border)}
 #rr-cb-root .cb-back-btn svg{width:14px;height:14px}
 #rr-cb-root .cb-edit-titlewrap{flex:1;min-width:240px}
-#rr-cb-root .cb-edit-title{display:block;width:100%;font:inherit;font-family:'Inter Tight','Inter',system-ui,sans-serif;font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.2;background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:var(--s-1) 8px;margin:-4px -8px;outline:none;transition:background var(--t-fast),border-color .12s}
+#rr-cb-root .cb-edit-title{display:block;width:100%;font:inherit;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.2;background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:var(--s-1) 8px;margin:-4px -8px;outline:none;transition:background var(--t-fast),border-color .12s}
 #rr-cb-root .cb-edit-title:hover,#rr-cb-root .cb-edit-title:focus{background:var(--surface);border-color:var(--border)}
 #rr-cb-root .cb-edit-title:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 #rr-cb-root .cb-edit-desc{display:block;width:100%;font:inherit;font-size:var(--fs-md);color:var(--text-subtle);background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:6px 8px;margin:6px -8px 0;outline:none;resize:none;transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast);line-height:1.5;min-height:24px}
@@ -7886,7 +7883,7 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-cb-root .cb-handle:hover{background:var(--surface-hover);color:var(--text);opacity:1}
 #rr-cb-root .cb-handle:active{cursor:grabbing}
 #rr-cb-root .cb-handle svg{width:14px;height:14px}
-#rr-cb-root .cb-section-label{flex:1;min-width:0;font:inherit;font-family:'Inter Tight','Inter',system-ui,sans-serif;font-size:var(--fs-lg);font-weight:600;color:var(--text);letter-spacing:-.01em;line-height:1.3;background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:var(--s-1) 8px;margin:-4px -8px;outline:none;transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast)}
+#rr-cb-root .cb-section-label{flex:1;min-width:0;font:inherit;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;font-size:var(--fs-lg);font-weight:600;color:var(--text);letter-spacing:-.01em;line-height:1.3;background:transparent;border:1px solid transparent;border-radius:var(--r-md);padding:var(--s-1) 8px;margin:-4px -8px;outline:none;transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast)}
 #rr-cb-root .cb-section-label:hover,#rr-cb-root .cb-section-label:focus{background:var(--canvas);border-color:var(--border)}
 #rr-cb-root .cb-section-label:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--surface)}
 #rr-cb-root .cb-section-actions{display:flex;gap:2px;opacity:0;transition:opacity var(--t-fast)}
@@ -8240,8 +8237,8 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 #sched-sub-time-off textarea.form-input:focus,
 #sched-sub-requests textarea.form-input:focus{
-  outline:none;border-color:var(--sch-blue, var(--accent));
-  box-shadow:0 0 0 1px var(--sch-blue, var(--accent));
+  outline:none;border-color:var(--req-accent, #0078D4);
+  box-shadow:0 0 0 1px var(--req-accent, #0078D4);
 }
 #sched-sub-time-off .to-row-actions,
 #sched-sub-requests .to-row-actions{
@@ -8318,6 +8315,7 @@ body.rr-cmdk-open{ overflow:hidden }
    single quiet panel. Microsoft Fluent restraint: hairline structure,
    typography-led hierarchy, low saturation, calm telemetry. */
 #sched-sub-requests{
+  --req-accent:#0078D4;             /* Microsoft Fluent communication blue */
   --req-telemetry:#6E83A6;          /* calm slate-blue · capacity bars */
   --req-below:#AD8A4F;              /* muted ochre · below staffing target */
   --req-track:rgba(15,23,42,.055);  /* bar track */
@@ -8340,7 +8338,7 @@ body.rr-cmdk-open{ overflow:hidden }
   background:var(--surface-elevated, #FCFDFE);
   border:1px solid var(--req-hairline);
   border-radius:8px;
-  box-shadow:none;
+  box-shadow:0 1px 4px rgba(15,23,42,.04);
   overflow:hidden;min-width:0;
   display:flex;flex-direction:column;
   max-height:calc(100vh - 250px);
@@ -8382,13 +8380,19 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Request rows · Outlook-inbox rhythm — compressed, hairline-faint,
    separated by tone + spacing rather than hard dividers. */
 #sched-sub-requests .to-row{
-  padding:8px;margin:0 -8px;
-  border-top:1px solid var(--req-hairline-faint);
+  padding:9px 8px;margin:0 -8px;
+  border-top:0;
   border-radius:5px;
   transition:background var(--t-fast);
 }
-#sched-sub-requests .to-row:first-child{border-top:0}
 #sched-sub-requests .to-row:hover{background:rgba(15,23,42,.025)}
+/* A request just decided in this session — surfaced at the top of
+   History with a calm tint so it reads as "your last action". */
+#sched-sub-requests .to-row.req-row-fresh{
+  background:rgba(0,120,212,.05);
+  box-shadow:inset 2px 0 0 rgba(0,120,212,.45);
+}
+#sched-sub-requests .to-row.req-row-fresh:hover{background:rgba(0,120,212,.07)}
 #sched-sub-requests .to-row .sched-req-days{margin-top:6px}
 #sched-sub-requests .to-row-name{font-size:12.5px;font-weight:600;line-height:1.3}
 #sched-sub-requests .to-row-range{font-size:11px;color:var(--text-subtle);margin-top:1px}
@@ -8426,6 +8430,7 @@ body.rr-cmdk-open{ overflow:hidden }
   background:var(--surface-elevated, #FCFDFE);
   border:1px solid var(--req-hairline);
   border-radius:8px;
+  box-shadow:0 1px 4px rgba(15,23,42,.04);
   overflow:hidden;
 }
 #sched-sub-requests .sched-req-report{
@@ -8870,7 +8875,7 @@ body.rr-cmdk-open{ overflow:hidden }
   #rr-boot-overlay .rr-boot-mark{
     width:46px;height:46px;border-radius:12px;background:#2563EB;color:#fff;
     display:flex;align-items:center;justify-content:center;
-    font-size:24px;font-weight:700;font-family:'Inter Tight','Inter',system-ui,sans-serif;
+    font-size:24px;font-weight:700;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
   }
   #rr-boot-overlay .rr-boot-spin{
     width:26px;height:26px;border-radius:50%;
@@ -14735,15 +14740,16 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-req-days{
             display:inline-flex;align-items:center;gap:4px;
           }
+          /* Day selectors · soft telemetry circles, not form inputs. */
           #view-schedule .sched-req-day{
             display:inline-flex;align-items:center;justify-content:center;
-            width:24px;height:24px;border-radius:50%;
-            font-size:11px;font-weight:600;color:var(--text-subtle);
-            background:var(--sch-surface-3);border:1px solid var(--sch-line);
+            width:22px;height:22px;border-radius:50%;
+            font-size:10.5px;font-weight:600;color:var(--text-subtle);
+            background:transparent;border:1px solid rgba(15,23,42,.08);
           }
           #view-schedule .sched-req-day.on{
-            background:var(--sch-blue-soft);color:var(--sch-blue-text);
-            border-color:var(--sch-blue);
+            background:rgba(0,120,212,.09);color:#1F5E8C;
+            border-color:rgba(0,120,212,.30);
           }
 
           /* ── Advanced settings · inline sub-view ─────────────────── */
@@ -14876,7 +14882,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #rr-sched-vans-chain-body .ws-crumb a:hover{background:var(--sch-hover);color:var(--text)}
           #rr-sched-vans-chain-body .ws-crumb a svg{flex:0 0 auto}
           #rr-sched-vans-chain-body .ws-crumb .sep{display:none}
-          #rr-sched-vans-chain-body .ws-board-name{display:inline-flex;align-items:center;gap:7px;font-family:'Inter Tight','Inter',system-ui,sans-serif;font-size:22px;font-weight:600;color:var(--text);letter-spacing:-.015em;line-height:1.2;margin-top:2px}
+          #rr-sched-vans-chain-body .ws-board-name{display:inline-flex;align-items:center;gap:7px;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;font-size:22px;font-weight:600;color:var(--text);letter-spacing:-.015em;line-height:1.2;margin-top:2px}
           #rr-sched-vans-chain-body .ws-board-name .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
           /* Microsoft Fluent surface for the van-chain editor: subtle
              elevation, calmer hairlines, more breathing room in every
@@ -17642,7 +17648,7 @@ body.rr-cmdk-open{ overflow:hidden }
             color:var(--text-subtle);line-height:1.2;
           }
           #view-overtime .ot-stat-value{
-            font-family:'Inter Tight','Inter',sans-serif;
+            font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
             font-size:22px;font-weight:700;color:var(--text);
             letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums;
           }
@@ -17712,7 +17718,7 @@ body.rr-cmdk-open{ overflow:hidden }
             color:var(--text-subtle);margin-bottom:5px;line-height:1.2;
           }
           #rr-ot-driver-drawer .ot-dd-summary-value{
-            font-family:'Inter Tight','Inter',sans-serif;font-size:18px;font-weight:700;
+            font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;font-size:18px;font-weight:700;
             color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1;
           }
 
@@ -19202,7 +19208,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-compliance .co-empty .ic svg{width:26px;height:26px}
           #view-compliance .co-empty h3{
-            margin:0 0 6px;font-family:'Inter Tight','Inter',sans-serif;
+            margin:0 0 6px;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
             font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.005em;
           }
           #view-compliance .co-empty p{margin:0 auto;max-width:520px;font-size:var(--fs-md);color:var(--text-muted)}
@@ -19233,7 +19239,7 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-text);
           }
           #view-compliance .co-fmcsa-t{
-            margin:3px 0 0;font-family:'Inter Tight','Inter',sans-serif;font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.005em;
+            margin:3px 0 0;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.005em;
           }
           #view-compliance .co-fmcsa-sub{
             margin:6px 0 0;font-size:var(--fs-sm);color:var(--text-muted);max-width:680px;line-height:1.5;
@@ -19369,7 +19375,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-workspaces .ws-crumb a:hover{color:var(--accent-text);background:var(--accent-soft)}
           #view-workspaces .ws-crumb a svg{flex:0 0 auto}
           #view-workspaces .ws-crumb .sep{display:none}
-          #view-workspaces .ws-board-name{display:inline-flex;align-items:center;gap:7px;font-family:'Inter Tight','Inter',system-ui,sans-serif;font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.15;min-width:0}
+          #view-workspaces .ws-board-name{display:inline-flex;align-items:center;gap:7px;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1.15;min-width:0}
           #view-workspaces .ws-board-name .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
           #view-workspaces .ws-icon-btn{appearance:none;background:transparent;border:1px solid transparent;border-radius:var(--r-md);color:var(--text-subtle);cursor:pointer;padding:5px;display:inline-flex;align-items:center;justify-content:center;transition:background var(--t-fast),color var(--t-fast),border-color .12s}
           #view-workspaces .ws-icon-btn:hover{background:var(--surface-hover);color:var(--text);border-color:var(--border)}
@@ -28196,7 +28202,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260521-reqapprove"></script>
+<script type="module" src="./live.js?v=20260522-fluent2"></script>
 
 </body>
 </html>
