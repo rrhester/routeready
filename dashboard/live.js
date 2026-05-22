@@ -43098,16 +43098,25 @@ function _reqTypeBadge(type) {
   return `<span class="req-type-badge is-availability">Availability</span>`;
 }
 
-// Display-only row for an availability-change request inside the
-// merged stream (decisioning for these lives on Drivers → Availability).
+// Row for an availability-change request inside the merged stream.
+// Pending rows are decision-ready (approve / deny with an optional
+// note); decided rows are display-only.
 function _reqAvailRowHtml(r) {
   const name = r.driver_name || r.full_name || "—";
   const station = r.station_code ? ` · ${escapeHtml(r.station_code)}` : "";
   const effective = r.effective_on ? `Effective ${_reqFmtDate(r.effective_on)}` : "Effective when approved";
+  const pending = r.status === "pending" || !r.status;
   const st = r.status === "approved" ? ["status-pill-approved", "Approved"]
            : r.status === "denied"   ? ["status-pill-denied", "Denied"]
            : ["status-pill-pending", "Pending"];
-  return `<div class="to-row">
+  const actions = pending
+    ? `<textarea class="form-input" data-rr-av-note="${escapeHtml(r.id)}" rows="2" placeholder="Optional note to send to the driver…" maxlength="500"></textarea>
+       <div class="to-row-actions">
+         <button type="button" class="btn btn-sm btn-danger" data-rr-av-decide="deny" data-rr-av-id="${escapeHtml(r.id)}">Deny</button>
+         <button type="button" class="btn btn-sm btn-primary" data-rr-av-decide="approve" data-rr-av-id="${escapeHtml(r.id)}">Approve</button>
+       </div>`
+    : "";
+  return `<div class="to-row" data-rr-to-row="${escapeHtml(r.id)}">
     <div class="to-row-head">
       <div>
         <div class="to-row-name">${escapeHtml(name)}${station}</div>
@@ -43116,7 +43125,34 @@ function _reqAvailRowHtml(r) {
       <span class="status-pill ${st[0]}">${st[1]}</span>
     </div>
     <div class="sched-req-days">${_reqDaysHtml(r.requested_days || r.days || [])}</div>
+    ${actions}
   </div>`;
+}
+
+// Decide an availability-change request from the unified stream.
+async function _avDecide(btn) {
+  const id = btn.getAttribute("data-rr-av-id");
+  const approve = btn.getAttribute("data-rr-av-decide") === "approve";
+  const noteEl = document.querySelector(`[data-rr-av-note="${CSS.escape(id)}"]`);
+  const note = noteEl ? noteEl.value.trim() : "";
+  if (!approve && !note) {
+    if (!confirm("Deny without a note? The driver will only see that it was denied.")) return;
+  }
+  btn.disabled = true; btn.textContent = approve ? "Approving…" : "Denying…";
+  const { error } = await sb.rpc("availability_request_decide", {
+    p_request_id: id, p_approve: approve, p_note: note || null,
+  });
+  if (error) {
+    btn.disabled = false; btn.textContent = approve ? "Approve" : "Deny";
+    toast(error.message || "Couldn't save decision", "warn");
+    return;
+  }
+  toast(approve ? "Availability approved" : "Availability denied", "success");
+  // Approving rewrites drivers.metadata.availability — refresh the
+  // roster cache so the Drivers page doesn't show stale days.
+  if (approve && typeof loadDriversRoster === "function") loadDriversRoster();
+  renderSchedRequestStream();
+  _renderRequestsReports();
 }
 
 // LEFT column · one unified request stream. PTO, Unpaid time off and
@@ -43180,6 +43216,9 @@ async function renderSchedRequestStream() {
 
   host.querySelectorAll("[data-rr-to-decide]").forEach((btn) => {
     btn.addEventListener("click", () => _toDecide(btn));
+  });
+  host.querySelectorAll("[data-rr-av-decide]").forEach((btn) => {
+    btn.addEventListener("click", () => _avDecide(btn));
   });
   _toPaintCoverage(host).catch((e) => console.warn("coverage check:", e));
 }
