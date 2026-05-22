@@ -10363,6 +10363,17 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);
             text-transform:uppercase;letter-spacing:.04em;
           }
+          #view-pipeline .rr-indeed-pull{
+            display:flex;align-items:center;justify-content:center;gap:7px;
+            width:100%;padding:8px 12px;border-radius:6px;
+            background:var(--accent);color:#fff;border:0;cursor:pointer;
+            font-family:inherit;font-size:var(--fs-sm);font-weight:600;
+            transition:filter var(--t-fast);
+          }
+          #view-pipeline .rr-indeed-pull:hover{filter:brightness(1.06)}
+          #view-pipeline .rr-indeed-pull:disabled{cursor:default;opacity:.72}
+          #view-pipeline .rr-indeed-pull svg{width:14px;height:14px}
+          #view-pipeline .rr-indeed-pull.is-loading svg{animation:rr-spin .65s linear infinite}
           #view-pipeline .rr-indeed-log-list{
             display:flex;flex-direction:column;
             flex:1;min-height:0;overflow-y:auto;
@@ -10763,6 +10774,10 @@ body.rr-cmdk-open{ overflow:hidden }
             <span>Indeed sync</span>
             <span>log</span>
           </div>
+          <button type="button" class="rr-indeed-pull" id="rr-indeed-pull-btn" onclick="rrPullFromIndeed(this)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Pull from Indeed</span>
+          </button>
           <div class="rr-indeed-log-list">
             <div class="rr-indeed-log-row">
               <span class="rr-indeed-log-dot"></span>
@@ -11110,10 +11125,55 @@ body.rr-cmdk-open{ overflow:hidden }
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 14.5 11 16.5 15.5 11.5"/></svg>
                   <span>Work auth</span>
                 </button>
-                <button class="subnav-item" draggable="true" data-rr-tile="ob-funnel" data-obsub="funnel" onclick="obSub('funnel')" title="Hiring funnel">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4.5h18l-7 8.5h-4z" fill="#A78BFA"/><path d="M14 13v6l-4 2.5v-8.5z" fill="#6D28D9"/></svg>
-                  <span>Funnel</span>
-                </button>
+                <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-funnel">
+                  <button class="subnav-item" data-obsub="funnel" onclick="obSub('funnel')" title="Hiring funnel">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4.5h18l-7 8.5h-4z" fill="#A78BFA"/><path d="M14 13v6l-4 2.5v-8.5z" fill="#6D28D9"/></svg>
+                    <span>Funnel</span>
+                  </button>
+                  <button type="button" class="ob-rules-foot" id="rr-funnel-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-funnel-rules-popover" title="Screening questions — what applicants answer before booking">
+                    Rules
+                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                  </button>
+                  <div class="ob-rules-popover" id="rr-funnel-rules-popover" role="dialog" aria-modal="false" aria-label="Screening questions" hidden>
+                    <div class="ob-rules-head">Screening questions</div>
+                    <div class="ob-rules-body">
+                      <p style="margin:0 0 12px;font-size:var(--fs-sm);color:var(--text-subtle)" id="rr-screening-sub">The questions an applicant answers before booking.</p>
+                      <div class="cal-edit-card" style="padding:var(--s-3-5) 18px">
+                        <div data-rr-questions></div>
+                        <div data-rr-questions-footer style="margin-top:14px">
+                          <button class="btn" data-rr-add-question>+ Add question</button>
+                        </div>
+                      </div>
+
+                      <div style="margin-top:var(--s-5);margin-bottom:var(--s-3)">
+                        <h3 style="margin:0;font-size:var(--fs-md);font-weight:600">Video screening</h3>
+                        <p style="margin:2px 0 0;font-size:var(--fs-sm);color:var(--text-subtle)">Optional 60-second intro video the applicant records after passing the question screen.</p>
+                      </div>
+                      <div class="cal-edit-card">
+                        <div class="cal-edit-section">
+                          <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-3)">
+                            <div>
+                              <div class="cal-edit-label" style="margin-bottom:0">Enable video screening</div>
+                              <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">When on, the screening page also asks the applicant to record a short intro.</div>
+                            </div>
+                            <button class="ref-toggle" id="rr-video-enabled-toggle" data-rr-video-toggle></button>
+                          </div>
+                        </div>
+                        <div class="cal-edit-section">
+                          <div class="cal-edit-label">Video prompt shown to the applicant</div>
+                          <textarea id="rr-video-prompt" class="cal-edit-input" style="min-height:64px;font-family:inherit" placeholder="In 60 seconds, tell us why you'd be a great fit for our team."></textarea>
+                        </div>
+                        <div class="cal-edit-section">
+                          <div class="cal-edit-label">Maximum recording length (seconds)</div>
+                          <input id="rr-video-max-seconds" type="number" min="15" max="180" step="15" class="cal-edit-input" style="max-width:120px" value="60" />
+                        </div>
+                        <div class="cal-edit-foot">
+                          <div class="cal-edit-status" id="rr-video-status"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <button class="subnav-item" draggable="true" data-rr-tile="ob-interview" data-obsub="interview" onclick="obSub('interview')" title="Interview Day">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15.5 13.5"/></svg>
                   <span>Interview Day</span>
@@ -11893,7 +11953,6 @@ body.rr-cmdk-open{ overflow:hidden }
           <nav class="settings-nav">
             <button class="settings-nav-item active" data-set="workspace" onclick="setSettingsSection(this)">Workspace</button>
             <button class="settings-nav-item" data-set="team" onclick="setSettingsSection(this)">Team</button>
-            <button class="settings-nav-item" data-set="screening-questions" onclick="setSettingsSection(this)">Screening questions</button>
             <button class="settings-nav-item" data-set="hiring-messages" onclick="setSettingsSection(this)">Hiring messages</button>
             <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Hiring referrals</button>
             <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
@@ -12426,52 +12485,6 @@ body.rr-cmdk-open{ overflow:hidden }
                 </form>
               </div>
             </div>
-            <!-- SCREENING QUESTIONS SECTION -->
-            <div class="settings-section hidden" data-set="screening-questions">
-              <div class="settings-section-head">
-                <h2 class="settings-section-title">Screening questions</h2>
-                <p class="settings-section-sub">The questions an applicant answers before booking, plus an optional 60-second intro-video step.</p>
-              </div>
-
-              <div class="u-mb-3">
-                <h3 style="margin:0;font-size:var(--fs-md);font-weight:600">Screening questions</h3>
-                <p style="margin:2px 0 0;font-size:var(--fs-sm);color:var(--text-subtle)" id="rr-screening-sub">The questions an applicant answers before booking.</p>
-              </div>
-              <div class="cal-edit-card" style="padding:var(--s-3-5) 18px">
-                <div data-rr-questions></div>
-                <div data-rr-questions-footer style="margin-top:14px">
-                  <button class="btn" data-rr-add-question>+ Add question</button>
-                </div>
-              </div>
-
-              <div style="margin-top:var(--s-5);margin-bottom:var(--s-3)">
-                <h3 style="margin:0;font-size:var(--fs-md);font-weight:600">Video screening</h3>
-                <p style="margin:2px 0 0;font-size:var(--fs-sm);color:var(--text-subtle)">Optional 60-second intro video the applicant records after passing the question screen.</p>
-              </div>
-              <div class="cal-edit-card">
-                <div class="cal-edit-section">
-                  <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-3)">
-                    <div>
-                      <div class="cal-edit-label" style="margin-bottom:0">Enable video screening</div>
-                      <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">When on, the screening page also asks the applicant to record a short intro.</div>
-                    </div>
-                    <button class="ref-toggle" id="rr-video-enabled-toggle" data-rr-video-toggle></button>
-                  </div>
-                </div>
-                <div class="cal-edit-section">
-                  <div class="cal-edit-label">Video prompt shown to the applicant</div>
-                  <textarea id="rr-video-prompt" class="cal-edit-input" style="min-height:64px;font-family:inherit" placeholder="In 60 seconds, tell us why you'd be a great fit for our team."></textarea>
-                </div>
-                <div class="cal-edit-section">
-                  <div class="cal-edit-label">Maximum recording length (seconds)</div>
-                  <input id="rr-video-max-seconds" type="number" min="15" max="180" step="15" class="cal-edit-input" style="max-width:120px" value="60" />
-                </div>
-                <div class="cal-edit-foot">
-                  <div class="cal-edit-status" id="rr-video-status"></div>
-                </div>
-              </div>
-            </div>
-
             <!-- HIRING MESSAGES SECTION -->
             <div class="settings-section hidden" data-set="hiring-messages">
               <div class="settings-section-head">
@@ -25926,7 +25939,6 @@ John,Smith,555-0101,john@example.com</code>
   const SETTINGS_SECTIONS = {
     workspace: { title:'Workspace', sub:'Basic information about your DSP.' },
     team: { title:'Team', sub:'Manage team members and roles.' },
-    'screening-questions': { title:'Screening questions', sub:'Questions an applicant answers before booking, plus optional video intro.' },
     'hiring-messages': { title:'Hiring messages', sub:'SMS + email templates applicants and drivers receive at every step.' },
     referrals: { title:'Hiring referrals', sub:'KPIs, leaderboard, auto-invite, milestone payouts.' },
     sms: { title:'SMS & messaging', sub:'Quiet hours, opt-out handling, default templates.' },

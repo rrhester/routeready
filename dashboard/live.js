@@ -4131,6 +4131,55 @@ document.addEventListener("click", (e) => {
   }
 });
 
+// Funnel "Rules" footer · opens the screening-questions editor as a
+// popover under the Funnel icon. Mirrors the Onboarding Rules footer.
+function _funnelToggleRules(force) {
+  const pop = document.getElementById("rr-funnel-rules-popover");
+  const toggle = document.getElementById("rr-funnel-rules-toggle");
+  if (!pop) return false;
+  const next = (typeof force === "boolean") ? force : pop.hidden;
+  pop.hidden = !next;
+  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  if (next && typeof loadScreeningQuestionsList === "function") loadScreeningQuestionsList();
+  return next;
+}
+window._rrToggleFunnelRules = _funnelToggleRules;
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest("#rr-funnel-rules-toggle")) {
+    e.preventDefault(); e.stopPropagation();
+    _funnelToggleRules();
+    return;
+  }
+  const pop = document.getElementById("rr-funnel-rules-popover");
+  if (pop && !pop.hidden
+      && !e.target.closest("#rr-funnel-rules-popover")
+      && !e.target.closest("#rr-funnel-rules-toggle")
+      // Clicks inside the add/edit-question modal must not close it.
+      && !e.target.closest("#rr-question-modal")) {
+    _funnelToggleRules(false);
+  }
+});
+
+// Any "Rules" popover (Onboarding, Funnel, Schedule) auto-closes when
+// the operator scrolls — the popover is anchored to a header tab, so a
+// scrolled-away popover would float disconnected from its trigger.
+(function () {
+  const SEL = '[id$="-rules-popover"], #rr-sched-quick-settings-popover';
+  document.addEventListener("scroll", (e) => {
+    const t = e.target;
+    // Ignore scrolling inside a popover (or the question editor modal) —
+    // only page/region scroll should dismiss the popovers.
+    if (t && t.closest && (t.closest(SEL) || t.closest("#rr-question-modal"))) return;
+    document.querySelectorAll(SEL).forEach((pop) => {
+      if (pop.hidden) return;
+      pop.hidden = true;
+      const toggle = document.querySelector('[aria-controls="' + pop.id + '"]');
+      if (toggle) toggle.setAttribute("aria-expanded", "false");
+    });
+  }, true);
+})();
+
 // ── Step → underlying per-driver field(s). Maps a blueprint step `key`
 // to the column that records its completion (until the
 // driver_onboarding_state cutover). Unknown keys have no mapping yet
@@ -8471,12 +8520,9 @@ document.addEventListener("click", (e) => {
   if (e.target.closest('.settings-nav-item[data-set="team"]')) {
     setTimeout(() => loadTeamMembers(), 0);
   }
-  // Screening / Messages / Referrals were moved here from the Pipeline
-  // subnav. Each section reuses the loader that previously fired on the
-  // pipeSub click — same DOM ids inside the section, no other changes.
-  if (e.target.closest('.settings-nav-item[data-set="screening-questions"]')) {
-    setTimeout(() => loadScreeningQuestionsList(), 0);
-  }
+  // Messages / Referrals were moved here from the Pipeline subnav. Each
+  // section reuses the loader that previously fired on the pipeSub click.
+  // (Screening questions now live in the Funnel → Rules popover.)
   if (e.target.closest('.settings-nav-item[data-set="hiring-messages"]')) {
     setTimeout(() => loadMessagesTab(), 0);
   }
@@ -13346,16 +13392,33 @@ async function loadCalBookingsList() {
 }
 
 
-// ─── Settings → Screening Questions ────────────────────────────────────────
+// ─── Funnel → Rules popover → Screening Questions ──────────────────────────
 //
-// The mockup has a static `.settings-section[data-set="screening"]` panel
-// with hardcoded `<div class="question-row">` rows. We replace the row
-// container with a live-rendered list backed by public.screening_questions
-// CRUD. Inline edit toggles between a read row and a tiny form.
+// The screening-questions editor lives in the "Rules" popover under the
+// Funnel icon. A live-rendered list backed by public.screening_questions
+// CRUD replaces the row container; inline edit opens a small modal.
+
+// Dummy "Pull from Indeed" button on the funnel's Indeed sync rail. The
+// real pull-and-merge integration isn't wired up yet — this just shows a
+// spinning state for a couple seconds so the control feels live.
+function rrPullFromIndeed(btn) {
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  btn.classList.add("is-loading");
+  const label = btn.querySelector("span");
+  const original = label ? label.textContent : "";
+  if (label) label.textContent = "Pulling…";
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.classList.remove("is-loading");
+    if (label) label.textContent = original;
+  }, 2200);
+}
+window.rrPullFromIndeed = rrPullFromIndeed;
 
 async function loadScreeningQuestionsList() {
-  // Lives in Settings → Screening questions. Use a global selector so we
-  // also catch the row container if the section markup ever moves again.
+  // Lives in the Funnel → Rules popover. Use a global selector so we also
+  // catch the row container if the section markup ever moves again.
   const container = document.querySelector("[data-rr-questions]");
   if (!container) return;
   // Also rehydrate the video settings card (same Settings section).
@@ -13531,8 +13594,8 @@ document.addEventListener("click", async (e) => {
   }
 }, true);
 
-// (Settings → Screening Questions was relocated to Pipeline → Screening.
-//  No setSettingsSection hook needed.)
+// (Screening Questions live in the Funnel → Rules popover — opened via
+//  _funnelToggleRules, which calls loadScreeningQuestionsList.)
 
 
 // ─── Video screening settings (Pipeline → Screening, lower card) ──────────
