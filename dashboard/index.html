@@ -10999,7 +10999,7 @@ body.rr-cmdk-open{ overflow:hidden }
           background:var(--canvas);
         }
         #view-onboarding-ops .page-header.sched-nav-heading{
-          display:flex;align-items:center;justify-content:space-between;
+          display:flex;align-items:center;justify-content:flex-start;
           gap:var(--s-3);flex-wrap:nowrap;
           padding:11px 18px;margin-bottom:var(--s-4);
           background:var(--surface-elevated, #FCFDFE);
@@ -11007,10 +11007,13 @@ body.rr-cmdk-open{ overflow:hidden }
           border-radius:10px;
           box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
         }
-        #view-onboarding-ops .sched-nav-heading .page-header-l{flex:0 0 auto;min-width:0}
+        /* Fixed-width title block · keeps the icon ribbon's first tile
+           at the same x as the schedule ribbon, so icons don't shift
+           when flipping between the two pages. */
+        #view-onboarding-ops .sched-nav-heading .page-header-l{flex:0 0 240px;min-width:0}
         #view-onboarding-ops .sched-nav-heading-actions{
-          display:flex;align-items:center;justify-content:flex-end;
-          flex-wrap:nowrap;gap:0;margin-left:auto;
+          display:flex;align-items:center;justify-content:flex-start;
+          flex-wrap:nowrap;gap:0;
           min-width:0;max-width:100%;overflow:visible;min-height:44px;
         }
         #view-onboarding-ops .sched-ribbon-group{
@@ -14377,7 +14380,7 @@ body.rr-cmdk-open{ overflow:hidden }
              pops cleanly against the cooler workspace below. */
           #view-schedule .sched-nav-heading{
             display:flex;align-items:center;
-            justify-content:space-between;
+            justify-content:flex-start;
             gap:var(--s-3);
             flex-wrap:nowrap;
             padding:11px 18px;
@@ -14387,8 +14390,10 @@ body.rr-cmdk-open{ overflow:hidden }
             border-radius:10px;
             box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
           }
+          /* Fixed-width title block · matches the onboarding ribbon so
+             the icon strip's first tile sits at the same x on both. */
           #view-schedule .sched-nav-heading .page-header-l{
-            flex:0 0 auto;min-width:0;
+            flex:0 0 240px;min-width:0;
           }
           /* ── Command-strip mode tabs ────────────────────────────────
              "Schedule" / "Print" sit on the far left, fixed above the
@@ -14454,11 +14459,10 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-nav-heading-actions{
             display:flex;align-items:center;
-            justify-content:flex-end;
+            justify-content:flex-start;
             flex-wrap:nowrap;
             gap:0;
-            margin-left:auto;
-            min-width:0;max-width:100%;
+            min-width:0;max-width:100%;flex:1 1 auto;
             /* overflow:visible so the quick-settings popover can
                escape the strip — earlier overflow-x:auto clipped
                every dropdown that hung below the navigation row. */
@@ -14654,7 +14658,7 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-left:32px;
           }
           #view-schedule .sched-nav-heading-actions > .sched-week-nav{
-            margin-left:32px;
+            margin-left:auto;
           }
 
           /* Assign Vans tile · default state matches the strip.
