@@ -11154,21 +11154,16 @@ body.rr-cmdk-open{ overflow:hidden }
                       border-radius:8px;
                       box-shadow:0 14px 32px rgba(0,0,0,.20),0 0 10px rgba(0,0,0,.12);
                     }
-                    /* Brand-blue Fluent header carrying the Microsoft four-square logo. */
+                    /* Brand-blue Fluent header. */
                     #view-onboarding-ops #rr-funnel-rules-popover .ob-rules-head{
-                      display:flex;align-items:center;gap:10px;
+                      display:flex;align-items:center;gap:9px;
                       background:linear-gradient(135deg,#0078D4,#005A9E);
                       color:#fff;font-family:inherit;
                       font-size:14px;font-weight:600;letter-spacing:.005em;
                       padding:13px 18px;border-bottom:0;
                     }
-                    #view-onboarding-ops #rr-funnel-rules-popover .ob-rules-head::before{
-                      content:"";width:18px;height:18px;flex:0 0 auto;
-                      background:
-                        linear-gradient(#F25022,#F25022) 0 0/8px 8px no-repeat,
-                        linear-gradient(#7FBA00,#7FBA00) 10px 0/8px 8px no-repeat,
-                        linear-gradient(#00A4EF,#00A4EF) 0 10px/8px 8px no-repeat,
-                        linear-gradient(#FFB900,#FFB900) 10px 10px/8px 8px no-repeat;
+                    #view-onboarding-ops #rr-funnel-rules-popover .ob-rules-head svg{
+                      width:16px;height:16px;flex:0 0 auto;
                     }
                     #view-onboarding-ops #rr-funnel-rules-popover .ob-rules-body{
                       background:rgba(248,249,250,.55);padding:16px 18px 18px;
@@ -11213,7 +11208,10 @@ body.rr-cmdk-open{ overflow:hidden }
                     }
                   </style>
                   <div class="ob-rules-popover" id="rr-funnel-rules-popover" role="dialog" aria-modal="false" aria-label="Screening questions" hidden>
-                    <div class="ob-rules-head">Screening questions</div>
+                    <div class="ob-rules-head">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 13l2 2 4-4"/></svg>
+                      Screening questions
+                    </div>
                     <div class="ob-rules-body">
                       <p style="margin:0 0 12px;font-size:var(--fs-sm);color:var(--text-subtle)" id="rr-screening-sub">The questions an applicant answers before booking.</p>
                       <div class="cal-edit-card" style="padding:var(--s-3-5) 18px">
