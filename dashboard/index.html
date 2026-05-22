@@ -660,6 +660,8 @@ html.rr-sidebar-light .sidebar .nav-item[data-c]{--ni-fg:#64748B}
 html.rr-sidebar-light .nav-item[data-c="dashboard"]{--ni-fg:#2563EB}
 html.rr-sidebar-light .nav-item[data-c="pipeline"] {--ni-fg:#7C3AED}
 html.rr-sidebar-light .nav-item[data-c="drivers"]  {--ni-fg:#0D9488}
+/* Drivers nav icon · Microsoft Fluent teal in the light sidebar. */
+html.rr-sidebar-light .nav-item[data-c="drivers"] .nav-icon{color:#038387}
 html.rr-sidebar-light .nav-item[data-c="staffing"] {--ni-fg:#DB2777}
 html.rr-sidebar-light .nav-item[data-c="fleet"]    {--ni-fg:#D97706}
 html.rr-sidebar-light .nav-item[data-c="schedule"] {--ni-fg:#0284C7}
@@ -9459,11 +9461,6 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="subnav-item" data-pipesub="interview" onclick="pipeSub('interview')">Interview Day</button>
             <button class="subnav-item" data-pipesub="calendar" onclick="pipeSub('calendar')">Calendar</button>
           </div>
-          <div id="hp-window-toggle-h" class="pipe-window-toggle" role="group" aria-label="Time window">
-            <button class="hp-window-btn" data-rr-window="7"    type="button">This week</button>
-            <button class="hp-window-btn" data-rr-window="28"   type="button">4 wk</button>
-            <button class="hp-window-btn" data-rr-window="3650" type="button">All time</button>
-          </div>
         </div>
 
         <!-- FUNNEL SUB-VIEW -->
@@ -9552,18 +9549,27 @@ body.rr-cmdk-open{ overflow:hidden }
             gap:var(--s-3);margin-bottom:var(--s-3);flex-wrap:wrap;
           }
           #view-pipeline .pipe-subnav-row > .subnav{margin-bottom:0}
+          /* The pipeline's own sub-nav row is retired — the onboarding
+             icon strip is the nav, and the time-window toggle now
+             rides quietly in the funnel filter row. */
+          #view-pipeline .pipe-subnav-row{display:none}
+          /* Compact, subtle Fluent segmented control. */
           #view-pipeline .pipe-window-toggle{
-            display:inline-flex;background:var(--surface);border:1px solid var(--border);
-            border-radius:var(--r-md);padding:3px;
-            font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+            display:inline-flex;background:var(--surface-secondary);
+            border:1px solid var(--sch-line,var(--border));
+            border-radius:5px;padding:2px;gap:2px;
           }
           #view-pipeline .pipe-window-toggle .hp-window-btn{
             appearance:none;background:transparent;border:0;font:inherit;cursor:pointer;
-            padding:5px 12px;border-radius:var(--r-sm);color:inherit;
+            padding:3px 10px;border-radius:3px;
+            font-size:11px;font-weight:600;color:var(--text-subtle);
             transition:background var(--t-fast),color var(--t-fast);
           }
-          #view-pipeline .pipe-window-toggle .hp-window-btn:hover:not(.active){color:var(--text);background:var(--canvas)}
-          #view-pipeline .pipe-window-toggle .hp-window-btn.active{background:var(--accent-soft);color:var(--accent-text)}
+          #view-pipeline .pipe-window-toggle .hp-window-btn:hover:not(.active){color:var(--text)}
+          #view-pipeline .pipe-window-toggle .hp-window-btn.active{
+            background:var(--surface-elevated);color:var(--text);
+            box-shadow:0 1px 2px rgba(15,23,42,.06);
+          }
         </style>
 
         <div class="hp-stats-banner">
@@ -9634,7 +9640,14 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="hp-stage-btn stage-tab" data-stage="booking_scheduled" onclick="filterPipelineStage(this)">Booking scheduled <span class="hp-stage-btn-count stage-tab-count">7</span></button>
             <button class="hp-stage-btn stage-tab" data-stage="hired" onclick="filterPipelineStage(this)">Hired <span class="hp-stage-btn-count stage-tab-count">0</span></button>
           </div>
-          <div class="hp-list-tools">Sort: Newest first</div>
+          <div class="hp-list-tools">
+            <div id="hp-window-toggle-h" class="pipe-window-toggle" role="group" aria-label="Time window">
+              <button class="hp-window-btn" data-rr-window="7"    type="button">Week</button>
+              <button class="hp-window-btn" data-rr-window="28"   type="button">4 wk</button>
+              <button class="hp-window-btn" data-rr-window="3650" type="button">All</button>
+            </div>
+            <span class="hp-sort">Newest first</span>
+          </div>
         </div>
 
         <!-- Applicant cards — single muted accent for stage; expandable detail -->
