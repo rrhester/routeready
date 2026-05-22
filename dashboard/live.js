@@ -3635,12 +3635,12 @@ function _obMxStylesOnce() {
     ".ob-mx-action{appearance:none;background:var(--surface-elevated);border:1px solid var(--sch-line,var(--border));border-radius:var(--sch-radius,6px);width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;transition:color var(--t-fast),border-color .12s,background .12s,transform .12s,box-shadow .12s;line-height:0}" +
     ".ob-mx-action:hover{color:var(--accent-text);border-color:var(--accent-border);background:var(--surface);transform:translateY(-1px);box-shadow:0 10px 18px -16px rgba(15,23,42,.65)}" +
     /* ── Onboarding builder ──────────────────────────────────── */
-    ".ob-bld-list{display:flex;flex-direction:column;gap:var(--s-2)}" +
-    ".ob-bld-card{display:flex;align-items:flex-start;gap:var(--s-3-5);background:var(--surface-elevated);border:1px solid var(--sch-line,var(--border));border-radius:var(--sch-radius-lg,8px);padding:var(--s-3-5) var(--s-4);transition:opacity var(--t-fast),border-color .12s}" +
+    ".ob-bld-list{display:flex;flex-direction:column;gap:6px}" +
+    ".ob-bld-card{display:flex;align-items:center;gap:10px;background:var(--surface-elevated);border:1px solid var(--sch-line,var(--border));border-radius:6px;padding:8px 12px;transition:opacity var(--t-fast),border-color .12s}" +
     ".ob-bld-card:hover{border-color:var(--border-strong)}" +
     ".ob-bld-card.disabled{opacity:.6}" +
     /* drag-to-reorder: grip handle + drag/drop affordances */
-    ".ob-bld-grip{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:24px;align-self:stretch;color:var(--text-subtle);cursor:grab;border-radius:var(--r-md);transition:color var(--t-fast),background .12s}" +
+    ".ob-bld-grip{flex:0 0 auto;display:flex;align-items:center;justify-content:center;width:18px;align-self:stretch;color:var(--text-subtle);cursor:grab;border-radius:var(--r-md);transition:color var(--t-fast),background .12s}" +
     ".ob-bld-grip:hover{color:var(--text-muted);background:var(--canvas)}" +
     ".ob-bld-grip:active{cursor:grabbing}" +
     ".ob-bld-grip svg{width:13px;height:auto;pointer-events:none}" +
@@ -3690,6 +3690,12 @@ function _obMxStylesOnce() {
     ".ob-bld-confirm-txt{font-size:var(--fs-sm);color:var(--text);line-height:1.4}" +
     ".ob-bld-confirm-txt strong{font-weight:700}" +
     ".ob-bld-confirm-actions{display:flex;gap:var(--s-2);margin-left:auto}" +
+    /* Add-a-step picker · compact Fluent option rows */
+    ".rr-addtype{text-align:left;border:1px solid var(--sch-line,var(--border));border-radius:6px;padding:9px 12px;cursor:pointer;background:var(--surface-elevated,#FCFDFE);transition:border-color .12s,background .12s}" +
+    ".rr-addtype:hover{border-color:var(--accent-border);background:var(--canvas)}" +
+    ".rr-addtype:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}" +
+    ".rr-addtype-t{font-size:13px;font-weight:600;color:var(--text)}" +
+    ".rr-addtype-b{font-size:11.5px;color:var(--text-subtle);margin-top:2px;line-height:1.4}" +
     /* autosave state — quiet, never a button */
     "@keyframes ob-bld-spin{to{transform:rotate(360deg)}}";
   document.head.appendChild(s);
@@ -4133,14 +4139,14 @@ function _obAttachDocPicker(stepIndex) {
 // "bg_check" / "drug_test", so picker-added core steps need to match
 // that contract, not get the auto-generated "custom_xxx" key).
 const _OB_ADD_TYPES = [
-  { type: "i9",              owner: "driver", coreKey: "i9",        title: "Form I-9",                 label: "Form I-9 (Section 1 + 2)",            blurb: "The dedicated, structured I-9 flow: driver fills Section 1 in their app (20+ fields), you complete Section 2 from Work authorization, the sealed PDF is generated automatically." },
-  { type: "background_check",owner: "dsp",    coreKey: "bg_check",  title: "Background check cleared", label: "Background check (compliance gate)",  blurb: "You record the result on the dashboard once the background check clears. Federally required for hire." },
-  { type: "drug_test",       owner: "dsp",    coreKey: "drug_test", title: "Drug test cleared",        label: "Drug test (compliance gate)",         blurb: "You record the result on the dashboard once the drug test clears. Federally required for hire." },
-  { type: "task",            owner: "dsp",    isGate: true,         title: "New compliance gate",      label: "Custom compliance gate",              blurb: "Any check you record from the dashboard that has to clear before a driver can finish onboarding (e.g. MVR review, DOT medical card, photo received). Blocking + required by default; rename it after adding." },
-  { type: "task",            owner: "dsp",    isTrainerPair: true,  title: "Trainer pairing",          label: "Trainer pairing (ride-along)",        blurb: "Pair the new driver with an experienced trainer for a ride-along. You mark it complete from the dashboard once the pairing wraps. Optional — skip if your DSP doesn't run pairings." },
-  { type: "document",        owner: "driver", title: "New document", label: "Document to sign or acknowledge", blurb: "Attach a PDF from your Documents workspace. Informational docs the driver opens and acknowledges; secure docs run the e-signature & compliance flow." },
-  { type: "acknowledgement", owner: "driver", title: "New acknowledgement", label: "Acknowledgement", blurb: "A short statement the driver reads and confirms — e.g. a policy or an expectation. No PDF." },
-  { type: "video",          owner: "driver", title: "New video", label: "Watch a video", blurb: "Link a training or orientation video; the driver watches it, then confirms they're done." },
+  { type: "i9",              owner: "driver", coreKey: "i9",        title: "Form I-9",                 label: "Form I-9",                   blurb: "Driver fills Section 1 in their app; you complete Section 2. Sealed PDF generated automatically." },
+  { type: "background_check",owner: "dsp",    coreKey: "bg_check",  title: "Background check cleared", label: "Background check",           blurb: "Record the result once the check clears. Required for hire." },
+  { type: "drug_test",       owner: "dsp",    coreKey: "drug_test", title: "Drug test cleared",        label: "Drug test",                  blurb: "Record the result once the test clears. Required for hire." },
+  { type: "task",            owner: "dsp",    isGate: true,         title: "New compliance gate",      label: "Custom compliance gate",     blurb: "Any dashboard-recorded check that must clear before onboarding finishes — MVR, DOT card, etc." },
+  { type: "task",            owner: "dsp",    isTrainerPair: true,  title: "Trainer pairing",          label: "Trainer pairing",            blurb: "Pair the driver with a trainer for a ride-along; mark it done from the dashboard." },
+  { type: "document",        owner: "driver", title: "New document", label: "Document",                 blurb: "Attach a PDF — informational docs are acknowledged, secure docs run e-signature." },
+  { type: "acknowledgement", owner: "driver", title: "New acknowledgement", label: "Acknowledgement",   blurb: "A short statement the driver reads and confirms. No PDF." },
+  { type: "video",          owner: "driver", title: "New video", label: "Watch a video",               blurb: "Link a video the driver watches, then confirms." },
 ];
 function _obAddStepPicker() {
   if (!_obBuilderSteps) return;
@@ -4149,12 +4155,12 @@ function _obAddStepPicker() {
   m.id = "rr-ob-addstep";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10003;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:48px 16px";
   m.innerHTML = `
-    <div style="background:var(--surface);border-radius:var(--r-xl);max-width:520px;width:100%;box-shadow:var(--shadow-lg)">
-      <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)"><div style="font-size:var(--fs-lg);font-weight:700;color:var(--text)">Add a step</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px">Pick a type — you can rename and configure it after.</div></div>
-      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-2-5)">
-        ${_OB_ADD_TYPES.map((t, idx) => `<button type="button" class="rr-addtype" data-picker-idx="${idx}" style="text-align:left;border:1.5px solid var(--border);border-radius:var(--r-xl);padding:var(--s-3-5) var(--s-4);cursor:pointer;background:var(--surface)"><div style="font-size:var(--fs-md);font-weight:700;color:var(--text)">${escapeHtml(t.label)}</div><div style="font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.45">${escapeHtml(t.blurb)}</div></button>`).join("")}
+    <div style="background:var(--surface-elevated,#FCFDFE);border:1px solid var(--sch-line,rgba(15,23,42,.10));border-radius:8px;max-width:460px;width:100%;box-shadow:0 12px 32px rgba(15,23,42,.16)">
+      <div style="padding:13px 16px 11px;border-bottom:1px solid var(--sch-line-subtle,rgba(15,23,42,.06))"><div style="font-size:13px;font-weight:600;color:var(--text)">Add a step</div><div style="font-size:11px;color:var(--text-subtle);margin-top:2px">Pick a type — rename and configure it after.</div></div>
+      <div style="padding:10px 14px;display:flex;flex-direction:column;gap:5px;max-height:60vh;overflow-y:auto">
+        ${_OB_ADD_TYPES.map((t, idx) => `<button type="button" class="rr-addtype" data-picker-idx="${idx}"><div class="rr-addtype-t">${escapeHtml(t.label)}</div><div class="rr-addtype-b">${escapeHtml(t.blurb)}</div></button>`).join("")}
       </div>
-      <div style="padding:var(--s-3-5) 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end"><button type="button" class="btn btn-sm" data-rr-add-close>Cancel</button></div>
+      <div style="padding:10px 16px;border-top:1px solid var(--sch-line-subtle,rgba(15,23,42,.06));display:flex;justify-content:flex-end"><button type="button" class="btn btn-sm" data-rr-add-close>Cancel</button></div>
     </div>`;
   document.body.appendChild(m);
   m.addEventListener("click", (e) => {
