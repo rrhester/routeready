@@ -10709,9 +10709,10 @@ body.rr-cmdk-open{ overflow:hidden }
           --sch-red-soft:rgba(185,28,28,.08);
           --sch-radius:6px;
           --sch-radius-lg:8px;
-          /* Workspace bg sits cooler than the cards so they read as
-             bright elevated operational planes. */
-          background:#E9ECF1;
+          /* Workspace bg matches the global --canvas so the content
+             area, sidebar, and header read as one continuous surface.
+             Cards still sit lighter, preserving the elevation. */
+          background:var(--canvas);
         }
         #view-onboarding-ops .page-header.sched-nav-heading{
           display:flex;align-items:center;justify-content:space-between;
@@ -13733,10 +13734,12 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-red-soft:rgba(185,28,28,.08);
             --sch-radius:6px;
             --sch-radius-lg:8px;
-            /* Workspace bg sits a touch cooler / darker than the
-               cards so they read as bright elevated operational
-               planes — Azure-style atmospheric layering. */
-            background:#E9ECF1;
+            /* Workspace bg matches the global --canvas so the schedule
+               content area, the sidebar, and the header read as one
+               continuous surface (no seam beside the icon rail). Cards
+               still sit a touch lighter than the canvas, so the
+               elevated-plane hierarchy is preserved. */
+            background:var(--canvas);
           }
 
           /* ── Page header / command band ──────────────────────────
