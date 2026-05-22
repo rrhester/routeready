@@ -21840,6 +21840,101 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
             text-transform:uppercase;color:var(--text-subtle);
           }
+
+          /* —— Folders panel ——————————————————————————————————— */
+          #view-email .em-aside-head{
+            display:flex;align-items:center;justify-content:space-between;
+            margin:-4px 0 10px;
+          }
+          #view-email .em-aside-title{
+            font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;
+            text-transform:uppercase;color:var(--text-subtle);
+          }
+          #view-email .em-new-folder-btn{
+            display:inline-flex;align-items:center;gap:5px;
+            background:transparent;border:0;cursor:pointer;font:inherit;
+            color:var(--sch-blue);font-size:var(--fs-xs);font-weight:600;
+            padding:4px 8px;border-radius:4px;
+          }
+          #view-email .em-new-folder-btn:hover{background:rgba(15,108,189,.08)}
+          #view-email .em-new-folder-form{
+            display:flex;align-items:center;gap:6px;margin:0 0 10px;
+          }
+          #view-email .em-new-folder-form[hidden]{display:none}
+          #view-email .em-new-folder-form input{
+            flex:1;min-width:0;height:30px;padding:0 8px;
+            font:inherit;font-size:13px;color:var(--text);
+            border:1px solid var(--border);border-radius:4px;background:#fff;
+          }
+          #view-email .em-new-folder-form input:focus{
+            outline:none;border-color:var(--sch-blue);
+            box-shadow:0 0 0 1px var(--sch-blue);
+          }
+          #view-email .em-new-folder-save,
+          #view-email .em-new-folder-cancel{
+            height:30px;padding:0 10px;border-radius:4px;
+            font:inherit;font-size:12px;font-weight:600;cursor:pointer;
+          }
+          #view-email .em-new-folder-save{
+            background:var(--sch-blue);color:#fff;border:1px solid var(--sch-blue);
+          }
+          #view-email .em-new-folder-cancel{
+            background:#fff;color:var(--text);border:1px solid var(--border);
+          }
+          /* Folder list. */
+          #view-email .em-folders{display:flex;flex-direction:column;gap:1px}
+          #view-email .em-folder{
+            display:flex;align-items:center;gap:10px;
+            padding:7px 10px;border:0;background:transparent;
+            cursor:pointer;font:inherit;text-align:left;
+            color:var(--text);font-size:13px;border-radius:4px;
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-email .em-folder:hover{background:rgba(15,23,42,.04)}
+          #view-email .em-folder.active{
+            background:rgba(15,108,189,.10);color:var(--sch-blue);font-weight:600;
+          }
+          #view-email .em-folder-icon{
+            width:16px;height:16px;flex:0 0 auto;color:var(--text-subtle);
+          }
+          #view-email .em-folder.active .em-folder-icon{color:var(--sch-blue)}
+          #view-email .em-folder-name{
+            flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-email .em-folder-count{
+            font-size:11px;font-weight:600;color:var(--text-subtle);
+            font-variant-numeric:tabular-nums;
+          }
+          #view-email .em-folder.active .em-folder-count{color:var(--sch-blue)}
+          #view-email .em-folder-delete{
+            display:none;background:transparent;border:0;cursor:pointer;
+            color:var(--text-subtle);padding:0;
+            width:18px;height:18px;border-radius:3px;
+            align-items:center;justify-content:center;
+          }
+          #view-email .em-folder:hover .em-folder-delete{display:inline-flex}
+          #view-email .em-folder-delete:hover{background:rgba(15,23,42,.08);color:var(--red,#C42B1C)}
+          #view-email .em-folder-section{
+            font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+            color:var(--text-subtle);padding:10px 10px 4px;margin-top:4px;
+            border-top:1px solid var(--border-subtle,rgba(15,23,42,.06));
+          }
+          #view-email .em-folder-section:first-child{border-top:0;margin-top:0;padding-top:2px}
+
+          /* —— Main pane header ——————————————————————————————————— */
+          #view-email .em-main-head{
+            display:flex;align-items:center;justify-content:space-between;
+            gap:10px;margin:-2px 0 12px;
+            padding-bottom:10px;border-bottom:1px solid var(--border);
+          }
+          #view-email .em-main-title{
+            font-size:16px;font-weight:600;color:var(--text);
+          }
+          #view-email .em-main-count{
+            font-size:var(--fs-xs);color:var(--text-subtle);
+            font-variant-numeric:tabular-nums;
+          }
+          #view-email .em-messages{min-height:300px}
           @media (max-width:1180px){
             #view-email .em-grid{grid-template-columns:1fr}
             #view-email .em-aside{position:static;max-height:none}
@@ -21864,16 +21959,32 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
         <div class="em-grid">
-          <aside class="em-aside" aria-label="Email folders / list">
-            <div class="em-placeholder">
-              <span class="em-placeholder-label">Folders / Messages</span>
-              <div>Placeholder · open-shifts-sized panel.</div>
+          <aside class="em-aside" aria-label="Email folders">
+            <div class="em-aside-head">
+              <span class="em-aside-title">Folders</span>
+              <button type="button" class="em-new-folder-btn" id="rr-em-new-folder" aria-label="Create folder" title="Create folder">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>New</span>
+              </button>
             </div>
+            <!-- Inline new-folder form · revealed by the + New button. -->
+            <form class="em-new-folder-form" id="rr-em-new-folder-form" hidden>
+              <input id="rr-em-new-folder-input" type="text" maxlength="40" placeholder="Folder name" autocomplete="off" />
+              <button type="submit" class="em-new-folder-save">Add</button>
+              <button type="button" class="em-new-folder-cancel" data-rr-em-new-folder-cancel>Cancel</button>
+            </form>
+            <nav class="em-folders" id="rr-em-folders" aria-label="Email folder list"></nav>
           </aside>
           <section class="em-main" aria-label="Email content">
-            <div class="em-placeholder">
-              <span class="em-placeholder-label">Email content</span>
-              <div>Placeholder · calendar-sized panel.</div>
+            <div class="em-main-head">
+              <span class="em-main-title" id="rr-em-main-title">Inbox</span>
+              <span class="em-main-count" id="rr-em-main-count"></span>
+            </div>
+            <div class="em-messages" id="rr-em-messages">
+              <div class="em-placeholder">
+                <span class="em-placeholder-label">No messages</span>
+                <div>Once email sync is wired up this folder's threads will land here.</div>
+              </div>
             </div>
           </section>
         </div>

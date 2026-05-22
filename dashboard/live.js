@@ -46818,3 +46818,186 @@ document.addEventListener("click", (e) => {
     start();
   }
 })();
+
+// ─── Email · folders panel ───────────────────────────────────────────
+// Folders persist client-side (localStorage) so a DSP can carve out
+// their own organisation without needing a server round-trip. Built-in
+// folders (Inbox / Drafts / Sent / Archive / Trash) can't be deleted;
+// custom folders show an inline × on hover. The right pane stays as a
+// "no messages yet" placeholder until real email sync is wired up.
+(function () {
+  const KEY = "rr-email-folders";
+  const BUILTINS = [
+    { id: "inbox",   name: "Inbox",   icon: "inbox"   },
+    { id: "drafts",  name: "Drafts",  icon: "drafts"  },
+    { id: "sent",    name: "Sent",    icon: "sent"    },
+    { id: "archive", name: "Archive", icon: "archive" },
+    { id: "trash",   name: "Trash",   icon: "trash"   },
+  ];
+  const ICONS = {
+    inbox:   `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`,
+    drafts:  `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+    sent:    `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
+    archive: `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`,
+    trash:   `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`,
+    folder:  `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+  };
+
+  let state = { custom: [], activeId: "inbox" };
+  function load() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEY) || "null");
+      if (saved && typeof saved === "object") {
+        state = {
+          custom:   Array.isArray(saved.custom) ? saved.custom : [],
+          activeId: typeof saved.activeId === "string" ? saved.activeId : "inbox",
+        };
+      }
+    } catch (_) {}
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {}
+  }
+  function allFolders() {
+    return BUILTINS.concat(state.custom.map(f => ({ id: f.id, name: f.name, icon: "folder", custom: true })));
+  }
+  function escapeHtmlLocal(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
+  function renderFolders() {
+    const host = document.getElementById("rr-em-folders");
+    if (!host) return;
+    if (!allFolders().some(f => f.id === state.activeId)) state.activeId = "inbox";
+    const builtinHtml = `<div class="em-folder-section">System</div>` + BUILTINS.map(folderHtml).join("");
+    const customHtml = state.custom.length
+      ? `<div class="em-folder-section">My folders</div>` + state.custom.map(f => folderHtml({ ...f, icon: "folder", custom: true })).join("")
+      : "";
+    host.innerHTML = builtinHtml + customHtml;
+    renderMain();
+  }
+  function folderHtml(f) {
+    const isActive = f.id === state.activeId;
+    return `<button type="button" class="em-folder${isActive ? " active" : ""}" data-em-folder="${escapeHtmlLocal(f.id)}" aria-pressed="${isActive ? "true" : "false"}">
+      ${ICONS[f.icon] || ICONS.folder}
+      <span class="em-folder-name">${escapeHtmlLocal(f.name)}</span>
+      <span class="em-folder-count" aria-hidden="true"></span>
+      ${f.custom ? `<span class="em-folder-delete" role="button" tabindex="0" data-em-folder-delete="${escapeHtmlLocal(f.id)}" aria-label="Delete folder" title="Delete folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>` : ""}
+    </button>`;
+  }
+  function renderMain() {
+    const title = document.getElementById("rr-em-main-title");
+    const count = document.getElementById("rr-em-main-count");
+    const messages = document.getElementById("rr-em-messages");
+    const f = allFolders().find(x => x.id === state.activeId);
+    if (title) title.textContent = f ? f.name : "Inbox";
+    if (count) count.textContent = "0 messages";
+    if (messages) {
+      messages.innerHTML = `<div class="em-placeholder">
+        <span class="em-placeholder-label">No messages</span>
+        <div>${f && f.custom ? "Drag messages here to organise them." : "Once email sync is wired up this folder's threads will land here."}</div>
+      </div>`;
+    }
+  }
+  function selectFolder(id) {
+    if (!allFolders().some(f => f.id === id)) return;
+    state.activeId = id;
+    save();
+    document.querySelectorAll("#rr-em-folders .em-folder").forEach((b) => {
+      const on = b.getAttribute("data-em-folder") === id;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    renderMain();
+  }
+  function makeId(name) {
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    let id = "custom-" + (slug || "folder");
+    let n = 2;
+    const taken = new Set(allFolders().map(f => f.id));
+    while (taken.has(id)) { id = "custom-" + (slug || "folder") + "-" + n; n++; }
+    return id;
+  }
+  function createFolder(name) {
+    const trimmed = String(name || "").trim();
+    if (!trimmed) return false;
+    if (state.custom.length >= 30) {
+      if (typeof toast === "function") toast("Too many folders (30 max)", "warn");
+      return false;
+    }
+    const folder = { id: makeId(trimmed), name: trimmed };
+    state.custom.push(folder);
+    state.activeId = folder.id;
+    save();
+    renderFolders();
+    if (typeof toast === "function") toast(`Folder "${trimmed}" added`, "success");
+    return true;
+  }
+  function deleteFolder(id) {
+    const idx = state.custom.findIndex(f => f.id === id);
+    if (idx < 0) return;
+    const name = state.custom[idx].name;
+    if (!confirm(`Delete folder "${name}"? Its messages will move to Inbox.`)) return;
+    state.custom.splice(idx, 1);
+    if (state.activeId === id) state.activeId = "inbox";
+    save();
+    renderFolders();
+    if (typeof toast === "function") toast(`Folder "${name}" deleted`, "warn");
+  }
+
+  // ── Event wiring ────────────────────────────────────────────────
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest) return;
+    // Delete (× on hover) takes precedence over the folder-button click.
+    const del = e.target.closest("[data-em-folder-delete]");
+    if (del) {
+      e.preventDefault(); e.stopPropagation();
+      deleteFolder(del.getAttribute("data-em-folder-delete"));
+      return;
+    }
+    const folder = e.target.closest("#rr-em-folders [data-em-folder]");
+    if (folder) {
+      e.preventDefault();
+      selectFolder(folder.getAttribute("data-em-folder"));
+      return;
+    }
+    if (e.target.closest("#rr-em-new-folder")) {
+      e.preventDefault();
+      const form = document.getElementById("rr-em-new-folder-form");
+      const inp  = document.getElementById("rr-em-new-folder-input");
+      if (!form) return;
+      const isHidden = form.hidden;
+      form.hidden = !isHidden;
+      if (isHidden) { inp.value = ""; inp.focus(); }
+      return;
+    }
+    if (e.target.closest("[data-rr-em-new-folder-cancel]")) {
+      e.preventDefault();
+      const form = document.getElementById("rr-em-new-folder-form");
+      if (form) form.hidden = true;
+      return;
+    }
+  });
+  document.addEventListener("submit", (e) => {
+    if (e.target && e.target.id === "rr-em-new-folder-form") {
+      e.preventDefault();
+      const inp = document.getElementById("rr-em-new-folder-input");
+      if (inp && createFolder(inp.value)) {
+        inp.value = "";
+        e.target.hidden = true;
+      }
+    }
+  });
+
+  // ── Boot · render whenever the email view becomes ready ─────────
+  function init() {
+    if (!document.getElementById("rr-em-folders")) return false;
+    load();
+    renderFolders();
+    return true;
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
