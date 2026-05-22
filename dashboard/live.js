@@ -39681,14 +39681,30 @@ function _flVorrSubText(vorr) {
 function _flOpenExecDrawer(kind) {
   const s = _fleetExecSummary;
   if (!s) return;
-  // Remove any prior instance.
-  document.getElementById("rr-fleet-exec-drawer")?.remove();
+  const host = document.getElementById("rr-fleet-exec-detail");
+  if (!host) return;
 
+  const markActive = (active) => {
+    document.querySelectorAll("#rr-fem-card, #rr-vorr-card").forEach(c => c.classList.remove("active"));
+    if (active) document.getElementById(active === "vorr" ? "rr-vorr-card" : "rr-fem-card")?.classList.add("active");
+  };
+  const closeInline = () => {
+    host.hidden = true; host.innerHTML = ""; host.dataset.rrKind = "";
+    markActive(null);
+    document.removeEventListener("keydown", onKey);
+  };
+  const onKey = (e) => { if (e.key === "Escape") closeInline(); };
+
+  // Toggle: clicking the same KPI card again closes the panel.
+  if (host.dataset.rrKind === kind && !host.hidden) { closeInline(); return; }
+
+  host.innerHTML = "";
+  host.dataset.rrKind = kind;
   const drawer = document.createElement("div");
   drawer.id = "rr-fleet-exec-drawer";
   drawer.className = "fl-exec-drawer";
-  drawer.setAttribute("role", "dialog");
-  drawer.setAttribute("aria-modal", "true");
+  drawer.setAttribute("role", "region");
+  drawer.setAttribute("aria-label", kind === "vorr" ? "Operational Readiness drill-down" : "Fleet Execution drill-down");
 
   const panel = document.createElement("div");
   panel.className = "fl-exec-panel";
@@ -39697,22 +39713,15 @@ function _flOpenExecDrawer(kind) {
     : _flExecVorrDrawerHtml(s.vorr || {});
 
   drawer.appendChild(panel);
-  document.body.appendChild(drawer);
-  document.body.style.overflow = "hidden";
-
-  const close = () => {
-    drawer.remove();
-    document.body.style.overflow = "";
-    document.removeEventListener("keydown", onKey);
-  };
-  const onKey = (e) => { if (e.key === "Escape") close(); };
+  host.appendChild(drawer);
+  host.hidden = false;
+  markActive(kind);
   document.addEventListener("keydown", onKey);
-  drawer.addEventListener("click", (e) => { if (e.target === drawer) close(); });
-  panel.querySelector("[data-rr-exec-close]")?.addEventListener("click", close);
+
+  panel.querySelector("[data-rr-exec-close]")?.addEventListener("click", closeInline);
   panel.querySelectorAll("[data-rr-exec-veh]").forEach((el) => {
     el.addEventListener("click", () => {
       const id = el.getAttribute("data-rr-exec-veh");
-      close();
       if (id && typeof openFleetDrawer === "function") openFleetDrawer(id);
     });
   });
@@ -40151,14 +40160,38 @@ window._flRenderUtilization = _flRenderUtilization;
 // A focused utilization view: Vehicle · VIN · Ownership + the 14-past /
 // today / 14-future readiness heatmap. Hovering a row fills the Van
 // Details panel with that van's recent route days + drivers.
+let _flRotationFilter = "all";
+function _flRotationApplyFilter(rows) {
+  const f = _flRotationFilter;
+  if (!f || f === "all") return rows;
+  if (f === "branded")     return rows.filter(v => v.is_branded !== false);
+  if (f === "non_branded") return rows.filter(v => v.is_branded === false);
+  return rows.filter(v => (v.ownership || "") === f);
+}
 function _flRenderVanRotation() {
   const tbody = document.getElementById("fl-rotation-tbody");
   if (!tbody) return;
+  // Sync the select with the current filter (the control may be late
+  // to render the first time).
+  const sel = document.getElementById("rr-rotation-type");
+  if (sel && sel.value !== _flRotationFilter) sel.value = _flRotationFilter;
   if (!_fleetRows || _fleetRows.length === 0) {
     tbody.innerHTML = `<tr><td colspan="4" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans yet.</td></tr>`;
+    const count = document.getElementById("rr-rotation-count");
+    if (count) count.textContent = "";
     return;
   }
-  tbody.innerHTML = _fleetRows.map((v) => {
+  const rows = _flRotationApplyFilter(_fleetRows);
+  const count = document.getElementById("rr-rotation-count");
+  if (count) {
+    const branded = rows.filter(v => v.is_branded !== false).length;
+    count.textContent = `${rows.length} of ${_fleetRows.length} vans · ${branded} branded`;
+  }
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current type filter.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((v) => {
     const yearModel = [v.year, v.make, v.model].filter(Boolean).join(" ") || "";
     const ownershipLine = `${_flOwnershipLabel(v.ownership)}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
     const vehSub = v.station_code || "";
@@ -40208,6 +40241,14 @@ document.addEventListener("mouseover", (e) => {
   const tr = e.target.closest("#fl-rotation-tbody tr[data-rr-rotation-row]");
   if (!tr) return;
   _flShowVanDetails(tr.getAttribute("data-rr-vehicle-id"), tr);
+});
+
+// Ownership / type filter on the Van Rotation page.
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.id === "rr-rotation-type") {
+    _flRotationFilter = e.target.value || "all";
+    _flRenderVanRotation();
+  }
 });
 
 // Save the RO code on blur or Enter.  Empty → leave alone (no destructive default).
