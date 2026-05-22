@@ -10736,9 +10736,14 @@ body.rr-cmdk-open{ overflow:hidden }
            covers its title, the icon strip replaces its text tabs;
            keep the action buttons and the time-window toggle. */
         #obsub-pipeline #view-pipeline{display:block;min-height:0}
-        #obsub-pipeline #view-pipeline > .page{padding-left:0;padding-right:0}
-        #obsub-pipeline #view-pipeline .page-header-l{display:none}
-        #obsub-pipeline #view-pipeline .pipe-subnav-row > .subnav{display:none}
+        /* The relocated pipeline's own page chrome is fully retired —
+           the onboarding header + icon strip replace it. Zeroing the
+           nested .page padding + hiding the empty header makes the KPI
+           strip sit directly under the command bar, exactly like the
+           schedule page. */
+        #obsub-pipeline #view-pipeline > .page{padding:0}
+        #obsub-pipeline #view-pipeline .page-header{display:none}
+        #obsub-pipeline #view-pipeline .pipe-subnav-row{display:none}
       </style>
       <div class="page">
         <div class="page-header sched-nav-heading">
