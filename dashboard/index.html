@@ -10335,6 +10335,56 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--border-strong);border-radius:4px;
           }
           #view-pipeline .pipe-applicants::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
+          /* ── Funnel two-column shell · applicant list + right rail ──
+             Mirrors the schedule's .builder-shell (1fr / 320px) so the
+             Indeed-sync card matches the "Open shifts" card exactly. */
+          #view-pipeline .pipe-shell{
+            display:grid;grid-template-columns:1fr 320px;
+            gap:var(--s-3);align-items:start;
+          }
+          @media (max-width:1180px){
+            #view-pipeline .pipe-shell{grid-template-columns:1fr}
+          }
+          #view-pipeline .rr-indeed-log{
+            background:var(--surface);
+            border:1px solid rgba(15,23,42,.07);
+            border-radius:8px;
+            padding:var(--s-4);
+            box-shadow:var(--shadow-sm);
+            display:flex;flex-direction:column;gap:var(--s-3);
+            position:sticky;top:80px;
+          }
+          #view-pipeline .rr-indeed-log-head{
+            display:flex;justify-content:space-between;align-items:center;
+            font-size:var(--fs-sm);font-weight:600;color:var(--text);
+            padding-bottom:var(--s-2);
+            border-bottom:1px solid rgba(15,23,42,.05);
+          }
+          #view-pipeline .rr-indeed-log-head > span:last-child{
+            font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);
+            text-transform:uppercase;letter-spacing:.04em;
+          }
+          #view-pipeline .rr-indeed-log-list{display:flex;flex-direction:column}
+          #view-pipeline .rr-indeed-log-row{
+            display:flex;align-items:flex-start;gap:9px;padding:9px 4px;
+          }
+          #view-pipeline .rr-indeed-log-row + .rr-indeed-log-row{
+            border-top:1px solid rgba(15,23,42,.04);
+          }
+          #view-pipeline .rr-indeed-log-dot{
+            width:7px;height:7px;border-radius:50%;background:var(--accent);
+            flex:0 0 auto;margin-top:5px;
+          }
+          #view-pipeline .rr-indeed-log-row-title{
+            font-size:var(--fs-sm);color:var(--text);line-height:1.35;
+          }
+          #view-pipeline .rr-indeed-log-row-time{
+            font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px;
+          }
+          #view-pipeline .rr-indeed-log-note{
+            font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;
+            padding-top:var(--s-2);border-top:1px solid rgba(15,23,42,.05);
+          }
           #view-pipeline .pa-card{
             border-color:var(--sch-line,var(--border));border-radius:6px;
             box-shadow:0 1px 3px rgba(15,23,42,.035);
@@ -10374,6 +10424,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
         </style>
 
+        <div class="pipe-shell">
         <div class="pipe-applicants" id="pipe-applicants">
 
           <!-- BOOKING SCHEDULED -->
@@ -10700,7 +10751,48 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="rr-empty-title">No applicants in this stage</div>
             <div class="rr-empty-sub">Try a different stage tab.</div>
           </div>
-        </div>
+        </div><!-- /pipe-applicants -->
+
+        <!-- Indeed sync log · right rail. Placeholder/dummy content
+             until the Indeed pull-and-merge integration is built. -->
+        <aside class="rr-indeed-log" id="rr-indeed-log" aria-label="Indeed sync log">
+          <div class="rr-indeed-log-head">
+            <span>Indeed sync</span>
+            <span>log</span>
+          </div>
+          <div class="rr-indeed-log-list">
+            <div class="rr-indeed-log-row">
+              <span class="rr-indeed-log-dot"></span>
+              <div>
+                <div class="rr-indeed-log-row-title">Pulled 3 new applicants from Indeed</div>
+                <div class="rr-indeed-log-row-time">Today · 9:02 AM</div>
+              </div>
+            </div>
+            <div class="rr-indeed-log-row">
+              <span class="rr-indeed-log-dot"></span>
+              <div>
+                <div class="rr-indeed-log-row-title">Merged 1 applicant · no new records</div>
+                <div class="rr-indeed-log-row-time">Today · 6:00 AM</div>
+              </div>
+            </div>
+            <div class="rr-indeed-log-row">
+              <span class="rr-indeed-log-dot"></span>
+              <div>
+                <div class="rr-indeed-log-row-title">Pulled 5 new applicants from Indeed</div>
+                <div class="rr-indeed-log-row-time">Yesterday · 9:01 AM</div>
+              </div>
+            </div>
+            <div class="rr-indeed-log-row">
+              <span class="rr-indeed-log-dot"></span>
+              <div>
+                <div class="rr-indeed-log-row-title">Pulled 2 new applicants from Indeed</div>
+                <div class="rr-indeed-log-row-time">Yesterday · 6:00 AM</div>
+              </div>
+            </div>
+          </div>
+          <div class="rr-indeed-log-note">Sample data — the Indeed pull-and-merge sync isn't wired up yet.</div>
+        </aside>
+        </div><!-- /pipe-shell -->
 
         </div><!-- /pipe-sub-funnel -->
 
