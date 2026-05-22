@@ -45565,6 +45565,12 @@ document.addEventListener("click", async (e) => {
     apply(next);
     try { localStorage.setItem(KEY, next ? "1" : "0"); } catch (_) {}
   });
+  // Sidebar theme toggle — light nav rail ↔ default blue rail.
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("#rr-sidebar-theme")) return;
+    const light = document.documentElement.classList.toggle("rr-sidebar-light");
+    try { localStorage.setItem("rr-sidebar-theme", light ? "light" : "dark"); } catch (_) {}
+  });
 })();
 
 // ── Schedule Recognition Layer · Kudos quick-send ──────────────────
