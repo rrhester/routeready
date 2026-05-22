@@ -4176,6 +4176,25 @@ document.addEventListener("click", (e) => {
       if (toggle) toggle.setAttribute("aria-expanded", "false");
     });
   }, true);
+
+  // …and auto-close the moment the pointer moves off the rules control.
+  // A popover stays open while the pointer is anywhere inside its wrapper
+  // (the tab tile / split — covering the tab, the toggle, the 6px gap and
+  // the popover itself); hovering anything outside that dismisses it.
+  document.addEventListener("mouseover", (e) => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest("#rr-question-modal, #rr-ob-addstep, #rr-ob-tplpick")) return;
+    document.querySelectorAll(SEL).forEach((pop) => {
+      if (pop.hidden) return;
+      const wrap = pop.parentElement;
+      const toggle = document.querySelector('[aria-controls="' + pop.id + '"]');
+      if (wrap && wrap.contains(t)) return;
+      if (toggle && toggle.contains(t)) return;
+      pop.hidden = true;
+      if (toggle) toggle.setAttribute("aria-expanded", "false");
+    });
+  });
 })();
 
 // ── Step → underlying per-driver field(s). Maps a blueprint step `key`
