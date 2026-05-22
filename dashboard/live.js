@@ -4224,7 +4224,7 @@ document.addEventListener("click", (e) => {
   document.addEventListener("mouseover", (e) => {
     const t = e.target;
     if (!t || !t.closest) return;
-    if (t.closest("#rr-question-modal, #rr-ob-addstep, #rr-ob-tplpick")) return;
+    if (t.closest("#rr-question-modal, #rr-ob-addstep, #rr-ob-tplpick, #rr-vans-rules-explainer-modal")) return;
     document.querySelectorAll(SEL).forEach((pop) => {
       if (pop.hidden) return;
       const wrap = pop.parentElement;
@@ -24267,7 +24267,9 @@ function _restoreSchedVanRules() {
   try { saved = JSON.parse(localStorage.getItem(_RR_VAN_RULES_KEY) || "{}"); }
   catch (_) { saved = {}; }
   if (!saved || typeof saved !== "object") return;
-  document.querySelectorAll("#rr-sched-vans-rules-body [data-rr-van-rule]").forEach(cb => {
+  // Restores every van-rule checkbox on the page — the schedule popover
+  // and the Fleet-assignment twin both carry [data-rr-van-rule] inputs.
+  document.querySelectorAll("[data-rr-van-rule]").forEach(cb => {
     const k = cb.getAttribute("data-rr-van-rule");
     if (Object.prototype.hasOwnProperty.call(saved, k)) cb.checked = !!saved[k];
   });
@@ -24286,6 +24288,28 @@ function _toggleSchedVanRules(force) {
   return next;
 }
 window._rrToggleSchedVanRules = _toggleSchedVanRules;
+
+// Twin of the van-rules popover, anchored under the Fleet page's
+// "Fleet assignment" ribbon tile. Shares the localStorage state with
+// the schedule popover, so editing either keeps both identical.
+function _toggleFleetVanRules(force) {
+  const pop = document.getElementById("rr-fleet-vans-rules-popover");
+  const toggle = document.getElementById("rr-fleet-vans-rules-toggle");
+  if (!pop) return false;
+  const next = (typeof force === "boolean") ? force : pop.hidden;
+  pop.hidden = !next;
+  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  if (next) _restoreSchedVanRules();
+  return next;
+}
+window._rrToggleFleetVanRules = _toggleFleetVanRules;
+document.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("#rr-fleet-vans-rules-toggle")) {
+    e.preventDefault();
+    e.stopPropagation();
+    _toggleFleetVanRules();
+  }
+});
 
 // Public reader so _assignVansForRange can query the live rule
 // state without a DOM read.
@@ -24589,15 +24613,20 @@ document.addEventListener("change", (e) => {
   saved.tiebreaker = sel.value;
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
 });
-// Persist a Van-rules checkbox change.
+// Persist a Van-rules checkbox change — and mirror it to the twin
+// popover so the schedule + Fleet-assignment boxes stay identical.
 document.addEventListener("change", (e) => {
-  const cb = e.target && e.target.closest && e.target.closest("#rr-sched-vans-rules-body [data-rr-van-rule]");
+  const cb = e.target && e.target.closest && e.target.closest("input[data-rr-van-rule]");
   if (!cb) return;
+  const key = cb.getAttribute("data-rr-van-rule");
   let saved;
   try { saved = JSON.parse(localStorage.getItem(_RR_VAN_RULES_KEY) || "{}"); }
   catch (_) { saved = {}; }
-  saved[cb.getAttribute("data-rr-van-rule")] = !!cb.checked;
+  saved[key] = !!cb.checked;
   try { localStorage.setItem(_RR_VAN_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+  document.querySelectorAll('input[data-rr-van-rule="' + key + '"]').forEach(other => {
+    if (other !== cb) other.checked = cb.checked;
+  });
 });
 // Outside click closes the popover.
 document.addEventListener("click", (e) => {
@@ -25601,7 +25630,7 @@ document.addEventListener("click", (e) => {
   // Info "i" icon inside the rules popover → opens a calm modal
   // with "what each rule does + examples + common combos." Stops
   // propagation so the popover stays open behind the modal.
-  if (e.target.closest("#rr-sched-vans-rules-info")) {
+  if (e.target.closest(".sched-vans-rules-info")) {
     e.preventDefault();
     e.stopPropagation();
     _openVanRulesExplainer();
