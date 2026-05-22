@@ -490,8 +490,6 @@ function renderApplicantCard(a) {
     stageLabel = `${STAGE_LABELS[stage]} · ${fmtDate(a.next_event_starts_at)}`;
   }
 
-  const relTime = a.created_at ? _relTimeShort(a.created_at) : "";
-
   // Score chip — only meaningful once the applicant has actually
   // completed screening. Before then a "score" reading is misleading
   // (a 0 looks like a hard-failure when it really means "no data").
@@ -502,23 +500,9 @@ function renderApplicantCard(a) {
   }
 
   const sourceMetaTxt = a.source ? `via ${rrTitleCaseName(a.source)}` : "Direct applicant";
-  const headerSubLine = [sourceMetaTxt, a.email].filter(Boolean).join(" · ");
 
-  // Activity timeline (inline). Empty applicants get a quiet placeholder.
-  const steps     = _activitySteps(a);
-  const stepsHtml = steps.length === 0
-    ? `<div style="color:var(--text-subtle);font-size:var(--fs-xs)">No activity yet</div>`
-    : steps.map((s, i) => {
-        const last = i === steps.length - 1;
-        return `<div class="pa-step ${s.current ? "is-current" : ""}">
-          <div class="pa-step-dot">${s.current ? "" : "<svg width=\"10\" height=\"10\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg>"}</div>
-          <div class="pa-step-text">
-            <div class="pa-step-title">${escapeHtml(s.label)}</div>
-            <div class="pa-step-time">${escapeHtml(_fmtAbsTouch(s.at))}</div>
-          </div>
-          ${!last ? `<svg class="pa-step-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>` : ""}
-        </div>`;
-      }).join("");
+  // Activity timeline. Empty applicants get a quiet placeholder.
+  const steps = _activitySteps(a);
 
   // Icon buttons. Phone/email are disabled (with title) when no contact
   // info is on file; notes is always available.
@@ -547,43 +531,56 @@ function renderApplicantCard(a) {
          ${escapeHtml(ctaLabel)}
        </button>`
     : "";
+  // Decline / cancel · demoted to a quiet ghost icon in the action
+  // cluster — it only reads red on hover, never screams during the
+  // standard workflow.
   const declineAction = stage === "booking_scheduled" ? "cancel_interview" : "decline";
   const declineLabel  = stage === "booking_scheduled" ? "Cancel interview" : "Decline";
-  // Prohibition sign (⊘) — universal "do not" symbol so the operator can
-  // identify the destructive action at a glance, paired with the
-  // canonical btn-danger treatment used elsewhere (red outline, fills
-  // red-soft on hover).
-  const declineBtn = `<button class="btn btn-sm btn-danger" type="button" data-rr-action="${declineAction}" data-applicant-id="${escapeHtml(a.id)}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-    ${escapeHtml(declineLabel)}
-  </button>`;
+
+  // Timeline · a Fluent process rail — node over label over time,
+  // thin connectors between. Completed steps read green, the current
+  // step reads blue (the focal point).
+  const tlCheck = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  const timelineHtml = steps.length === 0
+    ? `<div class="pa-tl-empty">No activity yet</div>`
+    : steps.map((s, i) => {
+        const cls = s.current ? "is-current" : "is-done";
+        const step = `<div class="pa-tl-step ${cls}">
+          <span class="pa-tl-node">${s.current ? '<span class="pa-tl-pulse"></span>' : tlCheck}</span>
+          <span class="pa-tl-label">${escapeHtml(s.label)}</span>
+          <span class="pa-tl-time">${escapeHtml(_fmtAbsTouch(s.at))}</span>
+        </div>`;
+        return step + (i < steps.length - 1 ? '<span class="pa-tl-conn"></span>' : '');
+      }).join("");
 
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
-      <div class="pa-row pa-row-v2">
-        <div class="pa-card-stage">
-          <span class="pa-stage-pill ${stage}">${escapeHtml(stageLabel)}</span>
-          ${relTime ? `<span class="pa-card-time">${escapeHtml(relTime)}</span>` : ""}
-        </div>
-        <div class="pa-card-body">
-          <div class="pa-card-header">
-            <div class="pa-card-avatar ${_tierClassFromScore(a.score)}">${escapeHtml(_initialsOf(name))}</div>
-            <div style="min-width:0">
-              <div class="pa-card-name">${escapeHtml(name)}</div>
-              <div class="pa-card-meta">${escapeHtml(headerSubLine)}</div>
+      <div class="pa-row pa-row-v3">
+
+        <div class="pa-zone pa-zone-identity">
+          <div class="pa-card-avatar ${_tierClassFromScore(a.score)}">${escapeHtml(_initialsOf(name))}</div>
+          <div class="pa-id-main">
+            <div class="pa-card-name">${escapeHtml(name)}</div>
+            <div class="pa-id-meta">${escapeHtml(sourceMetaTxt)}</div>
+            ${a.email ? `<div class="pa-id-email">${escapeHtml(a.email)}</div>` : ""}
+            <div class="pa-id-pills">
+              <span class="pa-stage-pill ${stage}">${escapeHtml(stageLabel)}</span>
+              ${scoreChip}
             </div>
           </div>
-          ${scoreChip ? `<div class="pa-card-tags">${scoreChip}</div>` : ""}
         </div>
-        <div class="pa-card-activity">
-          <div class="pa-steps">${stepsHtml}</div>
+
+        <div class="pa-zone pa-zone-timeline">
+          <div class="pa-steps">${timelineHtml}</div>
         </div>
-        <div class="pa-card-actions">
-          <div class="pa-card-icons">
+
+        <div class="pa-zone pa-zone-action">
+          ${ctaBtn ? `<div class="pa-action-primary">${ctaBtn}</div>` : ""}
+          <div class="pa-action-icons">
             ${a.video_url ? `<button class="pa-icon-btn is-video" type="button" data-rr-action="play_video" data-applicant-id="${escapeHtml(a.id)}" data-video-url="${encodeURI(a.video_url)}" title="Watch screening video" aria-label="Watch screening video">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
             </button>` : ""}
-            <button class="pa-icon-btn${phoneDisabled}" type="button" data-rr-pa-pop="phone" title="${phoneTitle}" aria-label="Phone">
+            <button class="pa-icon-btn${phoneDisabled}" type="button" data-rr-pa-pop="phone" title="${phoneTitle}" aria-label="Call">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
             </button>
             <button class="pa-icon-btn${emailDisabled}" type="button" data-rr-pa-pop="email" title="${emailTitle}" aria-label="Email">
@@ -592,12 +589,12 @@ function renderApplicantCard(a) {
             <button class="pa-icon-btn" type="button" data-rr-pa-pop="notes" title="Notes" aria-label="Notes">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
             </button>
-          </div>
-          <div class="pa-card-ctas">
-            ${ctaBtn}
-            ${declineBtn}
+            <button class="pa-icon-btn pa-icon-decline" type="button" data-rr-action="${declineAction}" data-applicant-id="${escapeHtml(a.id)}" title="${escapeHtml(declineLabel)}" aria-label="${escapeHtml(declineLabel)}">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="6.2" y1="6.2" x2="17.8" y2="17.8"/></svg>
+            </button>
           </div>
         </div>
+
       </div>
     </div>`;
 }
