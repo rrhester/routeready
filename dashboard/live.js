@@ -1024,7 +1024,9 @@ function _pipeFitList() {
   const list = document.getElementById("pipe-applicants");
   if (!list || !list.offsetParent) return;
   const top = list.getBoundingClientRect().top;
-  const h = Math.max(260, window.innerHeight - top - 24);
+  // -36 clears the .page bottom padding (--s-8, 32px) so the page
+  // itself never scrolls — only the list scrolls internally.
+  const h = Math.max(260, window.innerHeight - top - 36);
   list.style.maxHeight = h + "px";
   // Stretch the Indeed-sync rail down to the same viewport bottom.
   const log = document.getElementById("rr-indeed-log");
@@ -1039,9 +1041,21 @@ function _schedFitGrid() {
   const wrap = document.querySelector("#sched-sub-week .cal-wrap");
   if (!wrap || !wrap.offsetParent) return;
   const top = wrap.getBoundingClientRect().top;
-  wrap.style.maxHeight = Math.max(320, window.innerHeight - top - 20) + "px";
+  wrap.style.maxHeight = Math.max(320, window.innerHeight - top - 36) + "px";
 }
 window.addEventListener("resize", _schedFitGrid);
+
+// Re-fit the scrolling regions whenever the page settles — KPI strips,
+// banners and async content shift the grid's top after first paint,
+// which would otherwise leave the whole page scrollable.
+let _rrFitTimer = null;
+function _rrRefit() {
+  clearTimeout(_rrFitTimer);
+  _rrFitTimer = setTimeout(() => { _schedFitGrid(); _pipeFitList(); }, 60);
+}
+if (window.ResizeObserver) {
+  try { new ResizeObserver(_rrRefit).observe(document.body); } catch (_) {}
+}
 
 // ─── paAction override ─────────────────────────────────────────────────────
 //
