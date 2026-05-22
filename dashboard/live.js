@@ -39526,6 +39526,7 @@ window.fleetSub = function (sub) {
     if (typeof _mountAssignPortal === "function") _mountAssignPortal("fl-sub-assign");
     if (typeof renderSchedVanAssignmentsBoard === "function") renderSchedVanAssignmentsBoard();
   }
+  else if (sub === "rotation") _flRenderVanRotation();
 };
 
 // ─── Master loader (entry point from refreshActiveView) ──────────────
@@ -39545,6 +39546,7 @@ async function loadFleetView() {
     _mountAssignPortal("fl-sub-assign");
     if (typeof renderSchedVanAssignmentsBoard === "function") renderSchedVanAssignmentsBoard();
   }
+  if (_fleetSub === "rotation") _flRenderVanRotation();
   _flPaintTabCounts();
 }
 
@@ -39989,13 +39991,13 @@ function _flRenderRoster() {
   const rows = _flApplyRosterFilters(_fleetRows);
   if (rows.length === 0) {
     tbody.innerHTML = _fleetRows.length === 0
-      ? `<tr><td colspan="8"><div class="fl-empty">
+      ? `<tr><td colspan="7"><div class="fl-empty">
           <div class="ic">${_flVanIconSvg()}</div>
           <h3>No vans yet</h3>
           <p>Add your first van to start tracking service, inspections, and driver assignments.</p>
           <button class="btn btn-primary" data-rr-fleet-add-empty><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add van</button>
         </div></td></tr>`
-      : `<tr><td colspan="8" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current filters.</td></tr>`;
+      : `<tr><td colspan="7" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans match the current filters.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((v) => {
@@ -40014,23 +40016,21 @@ function _flRenderRoster() {
       <td>${_flDocCell(v)}</td>
       <td>${_flDriverReportsCell(v)}</td>
       <td>${_flRepairStatusCell(v)}</td>
-      <td class="fl-util-cell" data-rr-util-veh="${escapeHtml(v.id)}"><span class="rr-heatmap-loading">Loading…</span></td>
     </tr>`;
   }).join("");
-  _flRenderUtilization();
 }
 
 // Fill the Utilization / Readiness column · 14 past usage blocks, a
 // today marker, then 7 future readiness blocks. Async because it
 // needs van_day_assignments + the fleet calendar.
 async function _flRenderUtilization() {
-  const tbody = document.getElementById("fleet-tbody");
+  const tbody = document.getElementById("fl-rotation-tbody");
   if (!tbody) return;
   const cells = tbody.querySelectorAll("[data-rr-util-veh]");
   if (!cells.length) return;
 
   const todayIso = fmtIsoDate(new Date());
-  const PAST = 14, FUTURE = 7;
+  const PAST = 14, FUTURE = 14;
   const pastDates = [], futureDates = [];
   for (let i = PAST - 1; i >= 0; i--) {
     const d = new Date(todayIso + "T12:00:00"); d.setDate(d.getDate() - i);
@@ -40094,6 +40094,10 @@ async function _flRenderUtilization() {
     console.warn("fleet utilization data:", e);
   }
 
+  // Stash the usage data so the Van Details hover panel can list each
+  // route day + driver without re-querying.
+  window._flRotationData = { usageByVan, driversByVan, driverName };
+
   cells.forEach(cell => {
     const vehId    = cell.getAttribute("data-rr-util-veh");
     const usage    = usageByVan.get(vehId) || new Set();
@@ -40142,6 +40146,69 @@ async function _flRenderUtilization() {
   });
 }
 window._flRenderUtilization = _flRenderUtilization;
+
+// ─── Van Rotation page ───────────────────────────────────────────────
+// A focused utilization view: Vehicle · VIN · Ownership + the 14-past /
+// today / 14-future readiness heatmap. Hovering a row fills the Van
+// Details panel with that van's recent route days + drivers.
+function _flRenderVanRotation() {
+  const tbody = document.getElementById("fl-rotation-tbody");
+  if (!tbody) return;
+  if (!_fleetRows || _fleetRows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="padding:var(--s-8);text-align:center;color:var(--text-subtle);font-size:var(--fs-md)">No vans yet.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = _fleetRows.map((v) => {
+    const yearModel = [v.year, v.make, v.model].filter(Boolean).join(" ") || "";
+    const ownershipLine = `${_flOwnershipLabel(v.ownership)}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
+    const vehSub = v.station_code || "";
+    return `<tr data-rr-vehicle-id="${escapeHtml(v.id)}" data-rr-rotation-row>
+      <td><div style="display:flex;align-items:center;gap:var(--s-2-5)">${_flVehThumb(v)}<div>
+        <div class="cell-name">${escapeHtml(v.name)}</div>
+        ${vehSub ? `<div class="cell-name-sub">${escapeHtml(vehSub)}</div>` : ""}
+      </div></div></td>
+      <td>${v.vin ? `<span style="font-family:var(--ff-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:var(--fs-sm)">${escapeHtml(v.vin)}</span>` : `<span style="color:var(--text-subtle)">—</span>`}</td>
+      <td>${ownershipLine}</td>
+      <td class="fl-util-cell" data-rr-util-veh="${escapeHtml(v.id)}"><span class="rr-heatmap-loading">Loading…</span></td>
+    </tr>`;
+  }).join("");
+  _flRenderUtilization();
+}
+window._flRenderVanRotation = _flRenderVanRotation;
+
+function _flShowVanDetails(vehId, tr) {
+  const body = document.getElementById("fl-vandetails-body");
+  if (!body || !vehId) return;
+  document.querySelectorAll("#fl-rotation-tbody tr.is-detail-active")
+    .forEach((r) => r.classList.remove("is-detail-active"));
+  if (tr) tr.classList.add("is-detail-active");
+  const v = (_fleetRows || []).find((x) => x.id === vehId);
+  const data = window._flRotationData || {};
+  const usage = data.usageByVan && data.usageByVan.get(vehId);
+  const dmap = (data.driversByVan && data.driversByVan.get(vehId)) || new Map();
+  const dname = data.driverName || new Map();
+  const fmt = (iso) => {
+    try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
+    catch { return iso; }
+  };
+  const head = `<div class="fl-vd-veh">${escapeHtml(v ? v.name : "Van")}</div>`
+    + `<div class="fl-vd-sub">${escapeHtml((v && (v.vin || v.station_code)) || "Recent route history")}</div>`;
+  const dates = usage ? Array.from(usage).sort().reverse() : [];
+  const list = dates.length
+    ? dates.map((iso) => {
+        const drv = dmap.get(iso) ? (dname.get(dmap.get(iso)) || "Driver") : "Unassigned driver";
+        return `<div class="fl-vd-row"><span class="fl-vd-date">${escapeHtml(fmt(iso))}</span><span class="fl-vd-driver">${escapeHtml(drv)}</span></div>`;
+      }).join("")
+    : `<div class="fl-vd-none">No route days logged in the last 14 days.</div>`;
+  body.innerHTML = head + list;
+}
+
+document.addEventListener("mouseover", (e) => {
+  if (!e.target.closest) return;
+  const tr = e.target.closest("#fl-rotation-tbody tr[data-rr-rotation-row]");
+  if (!tr) return;
+  _flShowVanDetails(tr.getAttribute("data-rr-vehicle-id"), tr);
+});
 
 // Save the RO code on blur or Enter.  Empty → leave alone (no destructive default).
 async function _flSaveRoCode(input) {
