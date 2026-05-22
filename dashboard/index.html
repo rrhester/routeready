@@ -15920,6 +15920,56 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-fleet .fl-util-th,
           #view-fleet .fl-util-cell{min-width:332px}
+
+          /* ── Van Rotation page · roster + hover Van Details panel ── */
+          #view-fleet .fl-rotation-layout{
+            display:grid;grid-template-columns:minmax(0,1fr) 320px;
+            gap:var(--s-3);align-items:start;
+          }
+          #view-fleet .fl-rotation-main{min-width:0}
+          #view-fleet #fl-rotation-tbody tr[data-rr-rotation-row]{cursor:default}
+          #view-fleet #fl-rotation-tbody tr[data-rr-rotation-row]:hover{
+            background:rgba(15,108,189,.06);
+          }
+          #view-fleet #fl-rotation-tbody tr.is-detail-active{
+            background:rgba(15,108,189,.10);
+          }
+          #view-fleet .fl-vandetails{
+            position:sticky;top:80px;
+            background:var(--surface);
+            border:1px solid var(--sch-line,var(--border));
+            border-radius:8px;box-shadow:0 1px 4px rgba(15,23,42,.04);
+            overflow:hidden;
+          }
+          #view-fleet .fl-vandetails-head{
+            font-size:13px;font-weight:600;color:var(--text);
+            padding:12px 16px;border-bottom:1px solid rgba(15,23,42,.06);
+          }
+          #view-fleet .fl-vandetails-body{
+            padding:12px 16px 14px;max-height:62vh;overflow-y:auto;
+          }
+          #view-fleet .fl-vandetails-empty,
+          #view-fleet .fl-vd-none{
+            font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.5;
+          }
+          #view-fleet .fl-vd-veh{
+            font-size:var(--fs-md);font-weight:600;color:var(--text);margin-bottom:2px;
+          }
+          #view-fleet .fl-vd-sub{
+            font-size:var(--fs-xs);color:var(--text-subtle);margin-bottom:10px;
+          }
+          #view-fleet .fl-vd-row{
+            display:flex;align-items:baseline;justify-content:space-between;
+            gap:10px;padding:7px 0;font-size:var(--fs-sm);
+            border-top:1px solid rgba(15,23,42,.05);
+          }
+          #view-fleet .fl-vd-row:first-of-type{border-top:0}
+          #view-fleet .fl-vd-date{color:var(--text);font-weight:500;white-space:nowrap}
+          #view-fleet .fl-vd-driver{color:var(--text-subtle);text-align:right}
+          #view-fleet .rr-heatmap-hs.hs-future-14{width:152px}
+          @media (max-width:1100px){
+            #view-fleet .fl-rotation-layout{grid-template-columns:1fr}
+          }
           /* Rescue-recommendation sub-row · injected by
              _rrDecorateChainEditorRescues below each at-risk van
              row. Calm Outlook "inline detail" pattern — no chip
@@ -19322,7 +19372,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
             <div class="fl-ribbon-group">
-              <button type="button" class="fl-ribbon-btn" aria-label="Van rotation" title="Van rotation">
+              <button type="button" class="fl-ribbon-btn fl-ribbon-view" data-sub="rotation" onclick="fleetSub('rotation')" aria-label="Van rotation" title="Van rotation — utilization &amp; readiness">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 <span>Van Rotation</span>
               </button>
@@ -20014,21 +20064,17 @@ body.rr-cmdk-open{ overflow:hidden }
                 <th>Documents</th>
                 <th>Driver reports</th>
                 <th>Repair status</th>
-                <th class="fl-util-th">
-                  <div class="rr-heatmap-headtitle">Utilization / Readiness<span class="rr-heatmap-info" title="Past 14 days of van usage, a marker for today, then the next 7 days of scheduled readiness. Green = used · amber = scheduled service · red = grounded."><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span></div>
-                  <div class="rr-heatmap-headsub"><span class="rr-heatmap-hs hs-past">Past 14 days</span><span class="rr-heatmap-hs hs-today">TODAY</span><span class="rr-heatmap-hs hs-future">Next 7 days</span></div>
-                </th>
               </tr>
             </thead>
             <tbody id="fleet-tbody">
               <!-- Skeleton rows · painted before loadFleetRoster()
-                   replaces them.  Matches the 8-col table head rhythm
+                   replaces them.  Matches the 7-col table head rhythm
                    so the layout doesn't reflow when real vans arrive. -->
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:160px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:74%"></span></td><td><span class="rr-skel rr-skel-md" style="width:58%"></span></td><td><span class="rr-skel rr-skel-md" style="width:46%"></span></td><td><span class="rr-skel rr-skel-md" style="width:50%"></span></td><td><span class="rr-skel rr-skel-md" style="width:68%"></span></td></tr>
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:140px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:84%"></span></td><td><span class="rr-skel rr-skel-md" style="width:55%"></span></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td><td><span class="rr-skel rr-skel-md" style="width:42%"></span></td><td><span class="rr-skel rr-skel-md" style="width:46%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td></tr>
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:170px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:78%"></span></td><td><span class="rr-skel rr-skel-md" style="width:64%"></span></td><td><span class="rr-skel rr-skel-md" style="width:70%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:48%"></span></td><td><span class="rr-skel rr-skel-md" style="width:52%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td></tr>
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:130px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:82%"></span></td><td><span class="rr-skel rr-skel-md" style="width:58%"></span></td><td><span class="rr-skel rr-skel-md" style="width:76%"></span></td><td><span class="rr-skel rr-skel-md" style="width:56%"></span></td><td><span class="rr-skel rr-skel-md" style="width:40%"></span></td><td><span class="rr-skel rr-skel-md" style="width:48%"></span></td><td><span class="rr-skel rr-skel-md" style="width:64%"></span></td></tr>
-              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:150px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:44%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td><td><span class="rr-skel rr-skel-md" style="width:66%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:160px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:74%"></span></td><td><span class="rr-skel rr-skel-md" style="width:58%"></span></td><td><span class="rr-skel rr-skel-md" style="width:46%"></span></td><td><span class="rr-skel rr-skel-md" style="width:50%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:140px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:84%"></span></td><td><span class="rr-skel rr-skel-md" style="width:55%"></span></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td><td><span class="rr-skel rr-skel-md" style="width:42%"></span></td><td><span class="rr-skel rr-skel-md" style="width:46%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:170px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:78%"></span></td><td><span class="rr-skel rr-skel-md" style="width:64%"></span></td><td><span class="rr-skel rr-skel-md" style="width:70%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:48%"></span></td><td><span class="rr-skel rr-skel-md" style="width:52%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:130px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:82%"></span></td><td><span class="rr-skel rr-skel-md" style="width:58%"></span></td><td><span class="rr-skel rr-skel-md" style="width:76%"></span></td><td><span class="rr-skel rr-skel-md" style="width:56%"></span></td><td><span class="rr-skel rr-skel-md" style="width:40%"></span></td><td><span class="rr-skel rr-skel-md" style="width:48%"></span></td></tr>
+              <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:150px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:44%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td></tr>
             </tbody>
           </table>
         </div>
@@ -20086,6 +20132,38 @@ body.rr-cmdk-open{ overflow:hidden }
              here from #view-schedule by _mountAssignPortal() so both
              pages drive the exact same assignment portal. -->
         <div class="fl-sub" id="fl-sub-assign"></div>
+
+        <!-- VAN ROTATION sub-tab — utilization / readiness for every
+             van, with a hover-driven Van Details panel showing recent
+             route history. -->
+        <div class="fl-sub" id="fl-sub-rotation">
+          <div class="fl-rotation-layout">
+            <div class="table-wrap fl-rotation-main">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Vehicle</th>
+                    <th>VIN</th>
+                    <th>Ownership &amp; type</th>
+                    <th class="fl-util-th">
+                      <div class="rr-heatmap-headtitle">Utilization / Readiness<span class="rr-heatmap-info" title="Past 14 days of van usage, a marker for today, then the next 14 days of scheduled readiness. Green = used · amber = scheduled service · red = grounded."><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span></div>
+                      <div class="rr-heatmap-headsub"><span class="rr-heatmap-hs hs-past">Past 14 days</span><span class="rr-heatmap-hs hs-today">TODAY</span><span class="rr-heatmap-hs hs-future hs-future-14">Next 14 days</span></div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody id="fl-rotation-tbody">
+                  <tr><td colspan="4" style="padding:var(--s-8);text-align:center;color:var(--text-subtle)">Loading van rotation…</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <aside class="fl-vandetails" id="fl-vandetails" aria-label="Van details">
+              <div class="fl-vandetails-head">Van Details</div>
+              <div class="fl-vandetails-body" id="fl-vandetails-body">
+                <div class="fl-vandetails-empty">Hover over a van to see which days it ran a route and who drove it.</div>
+              </div>
+            </aside>
+          </div>
+        </div>
       </div>
     </div>
 
