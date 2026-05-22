@@ -234,6 +234,12 @@ body{
 }
 button{font-family:inherit;cursor:pointer}
 a{color:inherit;text-decoration:none}
+/* Operator preference · the pointer is always an arrow (text fields
+   keep the I-beam so typing still reads naturally). */
+*{cursor:default !important}
+input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+textarea,
+[contenteditable="true"]{cursor:text !important}
 
 /* Respect the OS-level "reduce motion" preference.  Enterprise
    accessibility staple: collapse all transitions / keyframes to
@@ -638,12 +644,12 @@ a{color:inherit;text-decoration:none}
    category-colored icons. Toggled via the footer theme button;
    the choice persists in localStorage (rr-sidebar-theme). */
 html.rr-sidebar-light .sidebar{
-  --sidebar-hover:rgba(15,23,42,.045);
+  --sidebar-hover:rgba(15,23,42,.05);
   --sidebar-active:rgba(0,120,212,.10);
-  --sidebar-divider:var(--border);
-  background:#FBFBFD;background-image:none;
+  --sidebar-divider:transparent;
+  background:var(--canvas);background-image:none;
   color:var(--text);
-  border-right:1px solid var(--border);
+  border-right:0;
 }
 html.rr-sidebar-light .sidebar .brand-name{color:var(--text)}
 html.rr-sidebar-light .sidebar .brand-name em{color:var(--text-subtle)}
@@ -783,9 +789,9 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   position:sticky;top:0;z-index:10;
   height:56px;
   display:flex;align-items:center;padding:0 var(--s-6);gap:var(--s-4);
-  background:var(--surface);
-  border-bottom:1px solid var(--border);
-  box-shadow:0 1px 0 rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.04);
+  background:var(--canvas);
+  border-bottom:0;
+  box-shadow:none;
 }
 .topbar::after{ display:none; }
 .topbar-title{font-size:var(--fs-base);font-weight:600;color:var(--text)}
@@ -933,7 +939,7 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .account:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 
 /* Page */
-.page{padding:var(--s-8) var(--s-8)}
+.page{padding:var(--s-8) var(--s-8) var(--s-8) var(--s-5)}
 /* Page header — align icon + text block on a shared center axis
    instead of bottom edge.  Bottom-edge alignment was making the
    icon's baseline drift visibly relative to the title.  --s-8 gap
@@ -9020,7 +9026,7 @@ body.rr-cmdk-open{ overflow:hidden }
         if (saved !== "0") {
           document.documentElement.classList.add("rr-sidebar-collapsed-boot");
         }
-        if (localStorage.getItem("rr-sidebar-theme") === "light") {
+        if (localStorage.getItem("rr-sidebar-theme") !== "dark") {
           document.documentElement.classList.add("rr-sidebar-light");
         }
       } catch (_) {}
