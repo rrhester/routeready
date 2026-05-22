@@ -3905,7 +3905,12 @@ document.addEventListener("click", (e) => {
   const pop = document.getElementById("rr-ob-rules-popover");
   if (pop && !pop.hidden
       && !e.target.closest("#rr-ob-rules-popover")
-      && !e.target.closest("#rr-ob-rules-toggle")) {
+      && !e.target.closest("#rr-ob-rules-toggle")
+      // Clicks inside a builder-spawned modal (add step / attach
+      // document) must not count as an outside click — the Rules
+      // popover stays open so the operator returns to it.
+      && !e.target.closest("#rr-ob-addstep")
+      && !e.target.closest("#rr-ob-tplpick")) {
     _obToggleRules(false);
   }
 });
