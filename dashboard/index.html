@@ -20030,6 +20030,211 @@ body.rr-cmdk-open{ overflow:hidden }
           .fl-exec-empty .ic svg{width:22px;height:22px}
           .fl-exec-empty h3{margin:0 0 4px;font-size:var(--fs-base);font-weight:700;color:var(--text)}
           .fl-exec-empty p{margin:0;font-size:var(--fs-md);max-width:380px;margin-inline:auto}
+
+          /* ═══════════════════════════════════════════════════════
+             FLUENT ENTERPRISE REFACTOR · Fleet page (phase 1)
+             Re-frames the Fleet page as a Microsoft-style operations
+             console — Dynamics 365 / Intune / Defender / Azure
+             admin tone. Calm, information-dense, 4px radii,
+             restrained typography, no glassmorphism, no oversized
+             cards, no playful gradients.
+             ═══════════════════════════════════════════════════════ */
+          #view-fleet{
+            --flu-bg:        #F3F2F1;
+            --flu-surface:   #FFFFFF;
+            --flu-border:    #E1DFDD;
+            --flu-text:      #323130;
+            --flu-text-2:    #605E5C;
+            --flu-accent:    #2563EB;
+            --flu-accent-bg: #EFF3FB;
+            --flu-green:     #107C10;
+            --flu-warning:   #D83B01;
+            --flu-critical:  #A4262C;
+            --flu-row-hover: #FAFAFA;
+            --flu-radius:    4px;
+            color:var(--flu-text);
+          }
+
+          /* —— Page card · the ribbon reads as a single command-bar
+             surface, not a floating shortcut tray. */
+          #view-fleet .fl-ribbon{
+            background:var(--flu-surface);
+            border:1px solid var(--flu-border);
+            border-radius:var(--flu-radius);
+            box-shadow:none;
+            padding:10px 16px;
+            margin-bottom:var(--s-3);
+            gap:var(--s-3);
+          }
+          #view-fleet .fl-ribbon .page-title{
+            font-size:20px;font-weight:600;color:var(--flu-text);
+            letter-spacing:0;line-height:1.2;
+          }
+          #view-fleet .fl-ribbon .page-sub{
+            font-size:13px;font-weight:400;color:var(--flu-text-2);
+            margin:2px 0 0;
+          }
+
+          /* —— Command bar tiles · horizontal (icon + label on one
+             row), 16px Fluent icons, 4px radius, tight padding. */
+          #view-fleet .fl-ribbon-actions{flex:1 1 auto}
+          #view-fleet .fl-ribbon-group{gap:2px}
+          /* Action group (the second .fl-ribbon-group: placeholders /
+             Add Vehicle) right-aligns — true Fluent command-bar split. */
+          #view-fleet .fl-ribbon-group + .fl-ribbon-group{margin-left:auto}
+          #view-fleet .fl-ribbon-btn{
+            flex-direction:row;align-items:center;justify-content:center;
+            gap:6px;min-width:0;height:32px;padding:0 10px;
+            border-radius:var(--flu-radius);
+            font-size:13px;font-weight:600;color:var(--flu-text-2);
+            background:transparent;border:0;
+          }
+          #view-fleet .fl-ribbon-btn svg{width:16px;height:16px;stroke-width:1.6}
+          #view-fleet .fl-ribbon-btn span{font-size:13px;font-weight:600}
+          #view-fleet .fl-ribbon-btn:hover{
+            background:#F5F5F5;color:var(--flu-text);
+          }
+          #view-fleet .fl-ribbon-view.active,
+          #view-fleet .fl-ribbon-view.active:hover{
+            background:transparent;color:var(--flu-accent);
+            box-shadow:inset 0 -2px 0 0 var(--flu-accent);
+          }
+          #view-fleet .fl-ribbon-view.active svg{color:var(--flu-accent)}
+          #view-fleet .fl-ribbon-count{
+            position:static;
+            min-width:18px;height:16px;padding:0 5px;
+            border-radius:8px;background:#EDEBE9;color:var(--flu-text-2);
+            font-size:11px;font-weight:600;
+          }
+          #view-fleet .fl-ribbon-view.active .fl-ribbon-count{
+            background:var(--flu-accent-bg);color:var(--flu-accent);
+          }
+
+          /* —— KPI strip · compact horizontal metrics, not pill cards.
+             Reads like an Intune device-summary row. */
+          #view-fleet .fl-kpi-pills{
+            display:flex;align-items:stretch;flex-wrap:nowrap;gap:0;
+            background:var(--flu-surface);
+            border:1px solid var(--flu-border);
+            border-radius:var(--flu-radius);
+            box-shadow:none;
+            margin:0 0 var(--s-3);padding:0;
+          }
+          #view-fleet .fl-kpi-pill{
+            flex:1 1 0;display:flex;align-items:center;gap:10px;
+            padding:10px 14px;border:0;
+            border-right:1px solid var(--flu-border);
+            background:transparent;border-radius:0;
+          }
+          #view-fleet .fl-kpi-pill:last-child{border-right:0}
+          #view-fleet .fl-kpi-pill:hover{background:var(--flu-row-hover);cursor:pointer}
+          #view-fleet .fl-kpi-pill.active{background:var(--flu-accent-bg)}
+          #view-fleet .fl-kpi-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+          #view-fleet .fl-kpi-text{display:flex;flex-direction:column;gap:1px;min-width:0}
+          #view-fleet .fl-kpi-line{display:flex;align-items:baseline;gap:6px;flex-wrap:nowrap}
+          #view-fleet .fl-kpi-value{
+            font-size:18px;font-weight:600;color:var(--flu-text);
+            font-variant-numeric:tabular-nums;
+          }
+          #view-fleet .fl-kpi-frac{font-size:12px;font-weight:500;color:var(--flu-text-2)}
+          #view-fleet .fl-kpi-name{
+            font-size:12px;font-weight:600;color:var(--flu-text-2);
+            letter-spacing:.01em;
+          }
+          #view-fleet .fl-kpi-sub{font-size:11px;color:var(--flu-text-2)}
+
+          /* —— Filter bar · tighter, square-cornered, neutral. */
+          #view-fleet .fl-roster-bar{
+            background:var(--flu-surface);
+            border:1px solid var(--flu-border);border-bottom:0;
+            border-radius:var(--flu-radius) var(--flu-radius) 0 0;
+            padding:8px 12px;gap:10px;
+          }
+          #view-fleet .fl-roster-bar .fl-search input,
+          #view-fleet .fl-roster-bar select.fl-filter,
+          #view-fleet .fl-rotation-bar select.fl-filter{
+            background:var(--flu-surface);border:1px solid var(--flu-border);
+            border-radius:var(--flu-radius);height:30px;font-size:13px;
+            color:var(--flu-text);
+          }
+          #view-fleet .fl-roster-bar .fl-search input:focus,
+          #view-fleet .fl-roster-bar select.fl-filter:focus,
+          #view-fleet .fl-rotation-bar select.fl-filter:focus{
+            outline:none;border-color:var(--flu-accent);
+            box-shadow:0 0 0 1px var(--flu-accent);
+          }
+          #view-fleet .fl-roster-bar select.fl-filter.is-set{
+            border-color:var(--flu-accent);background:var(--flu-accent-bg);
+            color:var(--flu-accent);
+          }
+          #view-fleet .fl-rotation-bar{
+            background:var(--flu-surface);
+            border:1px solid var(--flu-border);border-bottom:0;
+            border-radius:var(--flu-radius) var(--flu-radius) 0 0;
+          }
+
+          /* —— Roster table · denser, sticky thead, Fluent rhythm. */
+          #view-fleet .table-wrap{
+            background:var(--flu-surface);
+            border:1px solid var(--flu-border);
+            border-radius:0 0 var(--flu-radius) var(--flu-radius);
+            box-shadow:none;overflow:auto;
+          }
+          #view-fleet .table{
+            font-size:13px;color:var(--flu-text);
+            border-collapse:separate;border-spacing:0;
+          }
+          #view-fleet .table thead th{
+            position:sticky;top:0;z-index:1;
+            background:#FAFAFA;color:var(--flu-text-2);
+            font-size:12px;font-weight:600;letter-spacing:.01em;
+            padding:9px 12px;text-transform:none;
+            border-bottom:1px solid var(--flu-border);
+          }
+          #view-fleet .table tbody td{
+            padding:10px 12px;font-size:13px;color:var(--flu-text);
+            border-bottom:1px solid #F0EFEE;vertical-align:middle;
+          }
+          #view-fleet .table tbody tr:hover td{background:var(--flu-row-hover)}
+          #view-fleet .table tbody tr.is-selected td,
+          #view-fleet #fl-rotation-tbody tr.is-detail-active td{
+            background:var(--flu-accent-bg);
+          }
+          #view-fleet .cell-name{font-size:13px;font-weight:600;color:var(--flu-text)}
+          #view-fleet .cell-name-sub{font-size:12px;color:var(--flu-text-2);margin-top:1px}
+
+          /* —— Van Details aside · solid surface, 4px radius. */
+          #view-fleet .fl-vandetails{
+            background:var(--flu-surface);
+            border:1px solid var(--flu-border);border-radius:var(--flu-radius);
+            box-shadow:none;
+          }
+          #view-fleet .fl-vandetails-head{
+            background:#FAFAFA;color:var(--flu-text);
+            border-bottom:1px solid var(--flu-border);
+            font-size:13px;font-weight:600;letter-spacing:.01em;
+          }
+          #view-fleet .fl-vd-veh{font-size:13px;font-weight:600;color:var(--flu-text)}
+          #view-fleet .fl-vd-sub{font-size:11px;color:var(--flu-text-2)}
+
+          /* —— Fleet rules popover (Fleet-assignment twin) · drop the
+             acrylic / glassmorphism for an enterprise-flat surface. */
+          #view-fleet #rr-fleet-vans-rules-popover{
+            background:var(--flu-surface);
+            -webkit-backdrop-filter:none;backdrop-filter:none;
+            border:1px solid var(--flu-border);border-radius:var(--flu-radius);
+            box-shadow:0 4px 12px rgba(0,0,0,.12);
+          }
+          #view-fleet #rr-fleet-vans-rules-popover > .sched-vans-rules-head{
+            background:#FAFAFA;color:var(--flu-text);
+            border-bottom:1px solid var(--flu-border);
+            border-radius:var(--flu-radius) var(--flu-radius) 0 0;
+          }
+          #view-fleet #rr-fleet-vans-rules-popover > .sched-vans-rules-head *{color:var(--flu-text)}
+          #view-fleet #rr-fleet-vans-rules-popover .sched-smartfill-rules-body{
+            background:var(--flu-surface);
+            border-radius:0 0 var(--flu-radius) var(--flu-radius);
+          }
         </style>
 
         <!-- Fleet Execution KPI strip · FEM (Amazon's 14-day rolling
