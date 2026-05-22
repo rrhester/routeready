@@ -3844,9 +3844,7 @@ window.obSub = function (which) {
   const isPipe = which === "funnel" || which === "interview" || which === "calendar";
   show("obsub-overview",  which === "overview");
   show("obsub-workauth",  which === "workauth");
-  show("obsub-builder",   which === "builder");
   show("obsub-pipeline",  isPipe);
-  if (which === "builder") loadOnboardingBuilder();
   if (isPipe) {
     _obMountPipeline();
     if (typeof pipeSub === "function") pipeSub(which);
@@ -3856,6 +3854,35 @@ window.obSub = function (which) {
     }
   }
 };
+
+// Onboarding "Rules" footer · opens the onboarding-steps blueprint
+// editor (the former Builder page) as a popover under the Onboarding
+// icon. Same toggle pattern as the schedule rules popovers.
+function _obToggleRules(force) {
+  const pop = document.getElementById("rr-ob-rules-popover");
+  const toggle = document.getElementById("rr-ob-rules-toggle");
+  if (!pop) return false;
+  const next = (typeof force === "boolean") ? force : pop.hidden;
+  pop.hidden = !next;
+  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  if (next && typeof loadOnboardingBuilder === "function") loadOnboardingBuilder();
+  return next;
+}
+window._rrToggleObRules = _obToggleRules;
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest("#rr-ob-rules-toggle")) {
+    e.preventDefault(); e.stopPropagation();
+    _obToggleRules();
+    return;
+  }
+  const pop = document.getElementById("rr-ob-rules-popover");
+  if (pop && !pop.hidden
+      && !e.target.closest("#rr-ob-rules-popover")
+      && !e.target.closest("#rr-ob-rules-toggle")) {
+    _obToggleRules(false);
+  }
+});
 
 // ── Step → underlying per-driver field(s). Maps a blueprint step `key`
 // to the column that records its completion (until the
@@ -23461,6 +23488,9 @@ window.goto = function (view) {
   }, 100);
   window._rrRestoreOnboardingTileOrder = restore;
   document.addEventListener("dragstart", (e) => {
+    // Ignore drags that start inside the Rules popover (the builder
+    // has its own grip-drag reorder).
+    if (e.target.closest("#rr-ob-rules-popover")) return;
     const tile = e.target.closest(SEL);
     if (!tile) return;
     dragEl = tile;

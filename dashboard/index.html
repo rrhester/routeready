@@ -10617,6 +10617,48 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-onboarding-ops .sched-nav-heading .subnav-item svg{width:25px;height:25px}
         }
 
+        /* Onboarding tab wrapper — the icon tile, its Rules footer
+           link, and the onboarding-steps popover. */
+        #view-onboarding-ops .ob-tab-wrap{
+          position:relative;
+          display:inline-flex;flex-direction:column;align-items:center;
+        }
+        #view-onboarding-ops .ob-tab-wrap .subnav-item{padding-bottom:3px}
+        #view-onboarding-ops .ob-rules-foot{
+          display:inline-flex;align-items:center;justify-content:center;gap:4px;
+          margin:0 auto 6px;padding:3px 9px;border-radius:4px;
+          background:transparent;border:0;cursor:pointer;font-family:inherit;
+          font-size:11px;font-weight:500;letter-spacing:.01em;
+          color:var(--text-subtle);
+          transition:background var(--t-fast),color var(--t-fast);
+        }
+        #view-onboarding-ops .ob-rules-foot svg{width:9px;height:9px;display:block;stroke-width:2}
+        #view-onboarding-ops .ob-rules-foot:hover,
+        #view-onboarding-ops .ob-rules-foot:focus-visible{
+          color:var(--sch-blue);background:var(--sch-blue-softer);outline:none;
+        }
+        #view-onboarding-ops .ob-rules-foot[aria-expanded="true"]{
+          color:var(--sch-blue);background:var(--sch-blue-soft);
+        }
+        /* Onboarding-steps blueprint editor · popover flyout. */
+        #view-onboarding-ops .ob-rules-popover{
+          position:absolute;top:calc(100% + 6px);right:0;left:auto;z-index:60;
+          width:620px;max-width:calc(100vw - 48px);
+          max-height:calc(100vh - 200px);overflow-y:auto;
+          background:var(--surface-elevated,#FCFDFE);
+          border:1px solid var(--sch-line,rgba(15,23,42,.10));
+          border-radius:8px;
+          box-shadow:0 8px 24px rgba(15,23,42,.14);
+          text-align:left;
+        }
+        #view-onboarding-ops .ob-rules-popover[hidden]{display:none}
+        #view-onboarding-ops .ob-rules-head{
+          font-size:13px;font-weight:600;color:var(--text);
+          padding:12px 16px 10px;
+          border-bottom:1px solid var(--sch-line-subtle,rgba(15,23,42,.06));
+        }
+        #view-onboarding-ops .ob-rules-body{padding:12px 16px 14px}
+
         /* Relocated hiring-pipeline block — the onboarding header
            covers its title, the icon strip replaces its text tabs;
            keep the action buttons and the time-window toggle. */
@@ -10639,17 +10681,23 @@ body.rr-cmdk-open{ overflow:hidden }
           <div class="sched-nav-heading-actions">
             <div class="sched-ribbon-group">
               <div class="subnav" data-rr-tabbar="onboarding-ops">
-                <button class="subnav-item active" draggable="true" data-rr-tile="ob-overview" data-obsub="overview" onclick="obSub('overview')" title="Overview">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="11" rx="1.6" fill="#0F6CBD"/><rect x="14" y="3" width="7" height="6" rx="1.6" fill="#107C41"/><rect x="14" y="12" width="7" height="9" rx="1.6" fill="#B45309"/><rect x="3" y="17" width="8" height="4" rx="1.6" fill="#C4314B"/></svg>
-                  <span>Overview</span>
-                </button>
+                <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-overview">
+                  <button class="subnav-item active" data-obsub="overview" onclick="obSub('overview')" title="Onboarding">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+                    <span>Onboarding</span>
+                  </button>
+                  <button type="button" class="ob-rules-foot" id="rr-ob-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-ob-rules-popover" title="Onboarding steps — edit the onboarding blueprint">
+                    Rules
+                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                  </button>
+                  <div class="ob-rules-popover" id="rr-ob-rules-popover" role="dialog" aria-modal="false" aria-label="Onboarding steps" hidden>
+                    <div class="ob-rules-head">Onboarding steps</div>
+                    <div class="ob-rules-body" id="obsub-builder"><div class="rr-loading">Loading onboarding steps</div></div>
+                  </div>
+                </div>
                 <button class="subnav-item" draggable="true" data-rr-tile="ob-workauth" data-obsub="workauth" onclick="obSub('workauth')" title="Work authorization">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 14.5 11 16.5 15.5 11.5"/></svg>
                   <span>Work auth</span>
-                </button>
-                <button class="subnav-item" draggable="true" data-rr-tile="ob-builder" data-obsub="builder" onclick="obSub('builder')" title="Builder">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.6 5.6L3 18v3h3l6.1-6.1a4 4 0 0 0 5.6-5.6l-2.9 2.9-2.1-2.1 2.9-2.9z"/></svg>
-                  <span>Builder</span>
                 </button>
                 <button class="subnav-item" draggable="true" data-rr-tile="ob-funnel" data-obsub="funnel" onclick="obSub('funnel')" title="Hiring funnel">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5h18l-7 8.5v6l-4 2.5v-8.5z"/></svg>
@@ -10685,9 +10733,8 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        <div id="obsub-builder" style="display:none">
-          <div class="rr-loading">Loading onboarding builder</div>
-        </div>
+        <!-- Onboarding builder (#obsub-builder) now lives in the Rules
+             popover under the Onboarding icon, not as a sub-page. -->
 
         <!-- Hiring pipeline host — the whole #view-pipeline block is
              relocated here by _obMountPipeline() the first time a
@@ -28439,7 +28486,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260522-avsize"></script>
+<script type="module" src="./live.js?v=20260522-obrules"></script>
 
 </body>
 </html>
