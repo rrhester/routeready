@@ -46887,14 +46887,21 @@ document.addEventListener("click", (e) => {
   function renderMain() {
     const title = document.getElementById("rr-em-main-title");
     const count = document.getElementById("rr-em-main-count");
-    const messages = document.getElementById("rr-em-messages");
+    const inbox = document.getElementById("rr-em-inbox");
+    const preview = document.getElementById("rr-em-preview");
     const f = allFolders().find(x => x.id === state.activeId);
     if (title) title.textContent = f ? f.name : "Inbox";
     if (count) count.textContent = "0 messages";
-    if (messages) {
-      messages.innerHTML = `<div class="em-placeholder">
+    if (inbox) {
+      inbox.innerHTML = `<div class="em-placeholder">
         <span class="em-placeholder-label">No messages</span>
         <div>${f && f.custom ? "Drag messages here to organise them." : "Once email sync is wired up this folder's threads will land here."}</div>
+      </div>`;
+    }
+    if (preview) {
+      preview.innerHTML = `<div class="em-placeholder">
+        <span class="em-placeholder-label">No message selected</span>
+        <div>Pick a thread from the inbox to preview it here.</div>
       </div>`;
     }
   }
@@ -46988,11 +46995,79 @@ document.addEventListener("click", (e) => {
     }
   });
 
+  // ── Inbox / preview resizer ─────────────────────────────────────
+  const SPLIT_KEY  = "rr-email-split-w";
+  const MIN_W = 240;       // collapse-guard so neither pane vanishes
+  const DEFAULT_W = 360;
+  function setInboxWidth(px, persist) {
+    const split = document.getElementById("rr-em-split");
+    if (!split) return;
+    const maxW = Math.max(MIN_W, split.clientWidth - MIN_W - 6 /* resizer */ - 12);
+    const w = Math.max(MIN_W, Math.min(px, maxW));
+    split.style.setProperty("--em-inbox-w", w + "px");
+    if (persist) { try { localStorage.setItem(SPLIT_KEY, String(w)); } catch (_) {} }
+  }
+  function restoreInboxWidth() {
+    let saved = null;
+    try { saved = parseInt(localStorage.getItem(SPLIT_KEY) || "", 10); } catch (_) {}
+    setInboxWidth(Number.isFinite(saved) && saved > 0 ? saved : DEFAULT_W, false);
+  }
+  document.addEventListener("mousedown", (e) => {
+    if (!e.target.closest) return;
+    if (!e.target.closest("#rr-em-resizer")) return;
+    e.preventDefault();
+    const split = document.getElementById("rr-em-split");
+    const resizer = document.getElementById("rr-em-resizer");
+    if (!split || !resizer) return;
+    resizer.classList.add("is-dragging");
+    document.body.classList.add("em-resizing");
+    const rect = split.getBoundingClientRect();
+    const move = (ev) => {
+      const px = (ev.clientX || 0) - rect.left;
+      setInboxWidth(px, false);
+    };
+    const up = (ev) => {
+      const px = (ev.clientX || 0) - rect.left;
+      setInboxWidth(px, true);
+      resizer.classList.remove("is-dragging");
+      document.body.classList.remove("em-resizing");
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", up);
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+  });
+  // Double-click resets to the default.
+  document.addEventListener("dblclick", (e) => {
+    if (e.target.closest && e.target.closest("#rr-em-resizer")) {
+      setInboxWidth(DEFAULT_W, true);
+    }
+  });
+  // Keyboard nudge for accessibility (←/→ when the resizer is focused).
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    if (document.activeElement?.id !== "rr-em-resizer") return;
+    e.preventDefault();
+    const split = document.getElementById("rr-em-split");
+    if (!split) return;
+    const current = parseInt(getComputedStyle(split).getPropertyValue("--em-inbox-w") || "360", 10);
+    const step = e.shiftKey ? 32 : 12;
+    setInboxWidth(current + (e.key === "ArrowRight" ? step : -step), true);
+  });
+  // Re-clamp when the viewport resizes so the inbox can't drift off.
+  window.addEventListener("resize", () => {
+    const split = document.getElementById("rr-em-split");
+    if (!split) return;
+    const cur = parseInt(getComputedStyle(split).getPropertyValue("--em-inbox-w") || "360", 10);
+    setInboxWidth(cur, false);
+  });
+
   // ── Boot · render whenever the email view becomes ready ─────────
   function init() {
     if (!document.getElementById("rr-em-folders")) return false;
     load();
     renderFolders();
+    restoreInboxWidth();
     return true;
   }
   if (document.readyState === "loading") {
