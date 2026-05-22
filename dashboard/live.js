@@ -3852,6 +3852,21 @@ window.obSub = function (which) {
   show("obsub-overview",  which === "overview");
   show("obsub-workauth",  which === "workauth");
   show("obsub-pipeline",  isPipe);
+  // The page title + sub-line follow the active icon.
+  const _OB_META = {
+    overview:  { title: "Onboarding",         sub: "Every driver getting ready to drive — readiness at a glance." },
+    workauth:  { title: "Work authorization", sub: "Form I-9 and work authorization review." },
+    funnel:    { title: "Funnel",             sub: "Hiring pipeline." },
+    interview: { title: "Interview Day",      sub: "Interview-day scheduling." },
+    calendar:  { title: "Calendar",           sub: "Interview availability and bookings." },
+  };
+  const _m = _OB_META[which];
+  if (_m) {
+    const _t = document.getElementById("rr-onboardops-title");
+    if (_t) _t.textContent = _m.title;
+    const _s = document.getElementById("rr-onboardops-sub");
+    if (_s) _s.textContent = _m.sub;
+  }
   if (isPipe) {
     _obMountPipeline();
     if (typeof pipeSub === "function") pipeSub(which);
