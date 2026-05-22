@@ -19626,7 +19626,7 @@ body.rr-cmdk-open{ overflow:hidden }
              radius, shadow, and title-left / actions-right layout. ── */
           #view-fleet .fl-ribbon{
             display:flex;align-items:center;
-            justify-content:space-between;
+            justify-content:flex-start;
             gap:var(--s-3);flex-wrap:nowrap;
             padding:14px 18px;
             margin-bottom:var(--s-4);
@@ -19635,8 +19635,11 @@ body.rr-cmdk-open{ overflow:hidden }
             border-radius:10px;
             box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
           }
+          /* Fixed-width title block · keeps the icon strip's first tile
+             at the same x as the schedule / pipeline ribbons. */
           #view-fleet .fl-ribbon-titlewrap{
-            display:flex;align-items:center;gap:var(--s-3);min-width:0;
+            display:flex;align-items:center;gap:var(--s-3);
+            flex:0 0 240px;min-width:0;
           }
           #view-fleet .fl-ribbon .page-title{
             font-size:22px;font-weight:600;
@@ -19648,7 +19651,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-fleet .fl-ribbon-actions{
             display:flex;align-items:center;
-            justify-content:flex-end;
+            justify-content:flex-start;
             gap:0;flex-wrap:nowrap;min-width:0;
           }
           #view-fleet .fl-ribbon-tail{
