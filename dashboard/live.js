@@ -1041,7 +1041,12 @@ function _schedFitGrid() {
   const wrap = document.querySelector("#sched-sub-week .cal-wrap");
   if (!wrap || !wrap.offsetParent) return;
   const top = wrap.getBoundingClientRect().top;
-  wrap.style.maxHeight = Math.max(320, window.innerHeight - top - 36) + "px";
+  const h = Math.max(320, window.innerHeight - top - 36);
+  wrap.style.maxHeight = h + "px";
+  // The right rail (Open shifts) shares the row — cap it to the same
+  // height so it can't stretch the page taller than the viewport.
+  const rail = document.querySelector("#sched-sub-week .sched-right-rail");
+  if (rail) rail.style.maxHeight = h + "px";
 }
 window.addEventListener("resize", _schedFitGrid);
 
