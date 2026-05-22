@@ -8982,11 +8982,6 @@ body.rr-cmdk-open{ overflow:hidden }
     </div>
 
     <nav class="nav">
-      <button class="nav-item" data-view="pipeline" data-c="pipeline" onclick="goto('pipeline')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M9 18h6"/></svg></span>
-        Hiring Pipeline
-        <span class="nav-badge">12</span>
-      </button>
       <button class="nav-item" data-view="drivers" data-c="drivers" onclick="goto('drivers')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
         Drivers
@@ -10519,8 +10514,8 @@ body.rr-cmdk-open{ overflow:hidden }
            schedule ribbon's view tabs. */
         #view-onboarding-ops .sched-nav-heading .subnav-item{
           display:inline-flex;flex-direction:column;
-          align-items:center;justify-content:center;gap:4px;
-          padding:5px 9px;min-width:62px;
+          align-items:center;justify-content:center;gap:6px;
+          padding:8px 16px 9px;min-width:74px;
           font-size:var(--fs-sm);font-weight:500;
           color:var(--text-muted);
           background:transparent;border:0;border-radius:var(--sch-radius);
@@ -10550,6 +10545,14 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-onboarding-ops .sched-nav-heading .subnav-item svg{width:25px;height:25px}
         }
+
+        /* Relocated hiring-pipeline block — the onboarding header
+           covers its title, the icon strip replaces its text tabs;
+           keep the action buttons and the time-window toggle. */
+        #obsub-pipeline #view-pipeline{display:block;min-height:0}
+        #obsub-pipeline #view-pipeline > .page{padding-left:0;padding-right:0}
+        #obsub-pipeline #view-pipeline .page-header-l{display:none}
+        #obsub-pipeline #view-pipeline .pipe-subnav-row > .subnav{display:none}
       </style>
       <div class="page">
         <div class="page-header sched-nav-heading">
@@ -10577,6 +10580,18 @@ body.rr-cmdk-open{ overflow:hidden }
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.6 5.6L3 18v3h3l6.1-6.1a4 4 0 0 0 5.6-5.6l-2.9 2.9-2.1-2.1 2.9-2.9z"/></svg>
                   <span>Builder</span>
                 </button>
+                <button class="subnav-item" data-obsub="funnel" onclick="obSub('funnel')" title="Hiring funnel">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5h18l-7 8.5v6l-4 2.5v-8.5z"/></svg>
+                  <span>Funnel</span>
+                </button>
+                <button class="subnav-item" data-obsub="interview" onclick="obSub('interview')" title="Interview Day">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15.5 13.5"/></svg>
+                  <span>Interview Day</span>
+                </button>
+                <button class="subnav-item" data-obsub="calendar" onclick="obSub('calendar')" title="Calendar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.1" fill="currentColor" stroke="none"/></svg>
+                  <span>Calendar</span>
+                </button>
               </div>
             </div>
           </div>
@@ -10602,6 +10617,12 @@ body.rr-cmdk-open{ overflow:hidden }
         <div id="obsub-builder" style="display:none">
           <div class="rr-loading">Loading onboarding builder</div>
         </div>
+
+        <!-- Hiring pipeline host — the whole #view-pipeline block is
+             relocated here by _obMountPipeline() the first time a
+             pipeline icon is opened. The Funnel / Interview Day /
+             Calendar icons drive pipeSub() inside it. -->
+        <div id="obsub-pipeline" style="display:none"></div>
       </div>
     </div>
 
@@ -28342,7 +28363,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260522-avimpact"></script>
+<script type="module" src="./live.js?v=20260522-pipemove"></script>
 
 </body>
 </html>
