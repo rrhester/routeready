@@ -9522,34 +9522,46 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <div class="hp-stats-banner">
           <div class="hp-stat">
-            <div class="hp-stat-label">Contacted</div>
-            <div class="hp-stat-value"><span id="hp-contacted-pct">0</span>%</div>
-            <div class="hp-stat-trend">Sent a screening invite</div>
+            <span class="hp-stat-dot"></span>
+            <div class="hp-stat-text">
+              <div class="hp-stat-value"><span id="hp-contacted-pct">0</span>% Contacted</div>
+              <div class="hp-stat-trend">Sent a screening invite</div>
+            </div>
           </div>
           <div class="hp-stat">
-            <div class="hp-stat-label">Screening passed</div>
-            <div class="hp-stat-value"><span id="hp-passed-pct">0</span>%</div>
-            <div class="hp-stat-trend">Cleared screening + still active</div>
+            <span class="hp-stat-dot"></span>
+            <div class="hp-stat-text">
+              <div class="hp-stat-value"><span id="hp-passed-pct">0</span>% Screening passed</div>
+              <div class="hp-stat-trend">Cleared screening + still active</div>
+            </div>
           </div>
           <div class="hp-stat">
-            <div class="hp-stat-label">Booked rate</div>
-            <div class="hp-stat-value"><span id="hp-booked-pct">0</span>%</div>
-            <div class="hp-stat-trend" id="hp-booked-sub">Of those sent a booking link</div>
+            <span class="hp-stat-dot"></span>
+            <div class="hp-stat-text">
+              <div class="hp-stat-value"><span id="hp-booked-pct">0</span>% Booked rate</div>
+              <div class="hp-stat-trend" id="hp-booked-sub">Of those sent a booking link</div>
+            </div>
           </div>
           <div class="hp-stat">
-            <div class="hp-stat-label">Show rate</div>
-            <div class="hp-stat-value"><span id="hp-show-rate">75</span>%</div>
-            <div class="hp-stat-trend">Of those who booked</div>
+            <span class="hp-stat-dot"></span>
+            <div class="hp-stat-text">
+              <div class="hp-stat-value"><span id="hp-show-rate">75</span>% Show rate</div>
+              <div class="hp-stat-trend">Of those who booked</div>
+            </div>
           </div>
           <div class="hp-stat">
-            <div class="hp-stat-label">Hire rate</div>
-            <div class="hp-stat-value"><span id="hp-hire-rate">75</span>%</div>
-            <div class="hp-stat-trend">Of candidates who showed</div>
+            <span class="hp-stat-dot"></span>
+            <div class="hp-stat-text">
+              <div class="hp-stat-value"><span id="hp-hire-rate">75</span>% Hire rate</div>
+              <div class="hp-stat-trend">Of candidates who showed</div>
+            </div>
           </div>
           <div class="hp-stat">
-            <div class="hp-stat-label">End-to-end</div>
-            <div class="hp-stat-value"><span id="hp-e2e">0</span>%</div>
-            <div class="hp-stat-trend" id="hp-e2e-sub">Hired ÷ total applicants</div>
+            <span class="hp-stat-dot"></span>
+            <div class="hp-stat-text">
+              <div class="hp-stat-value"><span id="hp-e2e">0</span>% End-to-end</div>
+              <div class="hp-stat-trend" id="hp-e2e-sub">Hired ÷ total applicants</div>
+            </div>
           </div>
           <div class="hp-stats-progress"><div class="hp-stats-progress-fill" id="hp-stats-fill"></div></div>
         </div>
@@ -9957,20 +9969,40 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pipe-window-toggle .hp-window-btn.active{
             background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(15,23,42,.05);
           }
+          /* Funnel KPI strip — matches the schedule page's operational
+             status ribbon: one flat continuous strip, small text,
+             barely-perceptible dividers, a calm state dot per metric. */
           #view-pipeline .hp-stats-banner{
-            grid-template-columns:repeat(6,minmax(0,1fr));
+            display:flex;flex-wrap:wrap;align-items:stretch;
+            grid-template-columns:none;
             padding:0;margin-bottom:var(--s-4);
-            background:var(--surface);border:1px solid var(--border);
-            border-radius:8px;box-shadow:0 1px 4px rgba(15,23,42,.04);
+            background:var(--surface-elevated);
+            border:1px solid var(--sch-line-subtle,rgba(15,23,42,.04));
+            border-radius:6px;box-shadow:0 1px 4px rgba(15,23,42,.035);
+            overflow:hidden;
           }
-          #view-pipeline .hp-stat{padding:20px 18px;border-right:1px solid var(--border-subtle)}
-          #view-pipeline .hp-stat-label{
-            color:var(--text-subtle);font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;
+          #view-pipeline .hp-stat{
+            display:inline-flex;align-items:center;gap:10px;
+            padding:11px 24px;position:static;
+            border-right:1px solid rgba(15,23,42,.03);
           }
-          #view-pipeline .hp-stat-value{font-size:30px;font-weight:700;letter-spacing:-.05em}
-          #view-pipeline .hp-stat-trend{margin-top:8px;line-height:1.35;color:var(--text-muted)}
-          #view-pipeline .hp-stats-progress{height:2px;background:transparent}
-          #view-pipeline .hp-stats-progress-fill{background:var(--sch-blue)}
+          #view-pipeline .hp-stat:nth-last-child(2){border-right:0}
+          #view-pipeline .hp-stat-dot{
+            width:7px;height:7px;border-radius:50%;flex-shrink:0;
+            background:#1A1F47;
+          }
+          #view-pipeline .hp-stat-text{
+            display:inline-flex;flex-direction:column;line-height:1.15;gap:1px;
+          }
+          #view-pipeline .hp-stat-value{
+            font-size:var(--fs-sm);font-weight:600;color:var(--text);
+            letter-spacing:0;line-height:1.2;font-variant-numeric:tabular-nums;
+          }
+          #view-pipeline .hp-stat-trend{
+            font-size:var(--fs-xs);font-weight:400;color:var(--text-subtle);
+            margin-top:0;line-height:1.2;
+          }
+          #view-pipeline .hp-stats-progress{display:none}
           #view-pipeline .hp-list-head{
             align-items:flex-start;margin:var(--s-2) 0 var(--s-3);
           }
@@ -10608,7 +10640,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="sched-ribbon-group">
               <div class="subnav" data-rr-tabbar="onboarding-ops">
                 <button class="subnav-item active" draggable="true" data-rr-tile="ob-overview" data-obsub="overview" onclick="obSub('overview')" title="Overview">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1.5" fill="#F25022"/><rect x="13" y="3" width="8" height="8" rx="1.5" fill="#7FBA00"/><rect x="3" y="13" width="8" height="8" rx="1.5" fill="#00A4EF"/><rect x="13" y="13" width="8" height="8" rx="1.5" fill="#FFB900"/></svg>
                   <span>Overview</span>
                 </button>
                 <button class="subnav-item" draggable="true" data-rr-tile="ob-workauth" data-obsub="workauth" onclick="obSub('workauth')" title="Work authorization">
