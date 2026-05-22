@@ -12639,6 +12639,11 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </div>
 
+          <div class="sched-cmd" id="rr-sched-cmd">
+          <div class="sched-cmd-tabs" role="tablist" aria-label="Command strip mode">
+            <button class="sched-cmd-tab active" type="button" data-cmd-tab="schedule" role="tab" aria-selected="true">Schedule</button>
+            <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print</button>
+          </div>
           <div class="sched-nav-heading-actions sched-ribbon-grouped">
           <!-- VIEWS group · Week first, then Today. Quiet utility
                buttons with the same monoline calendar glyph family. -->
@@ -13029,10 +13034,20 @@ body.rr-cmdk-open{ overflow:hidden }
             </button>
           </div>
           </div><!-- /sched-nav-heading-actions -->
+          <div class="sched-print-strip">
+            <button class="sched-print-btn" type="button" id="rr-sched-print-btn" aria-label="Print the schedule">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Print schedule
+            </button>
+          </div>
+          </div><!-- /sched-cmd -->
         </div><!-- /page-header.sched-nav-heading -->
 
         <!-- KPI pill row · populated by renderScheduleWeek. -->
         <div id="rr-sched-kpis" class="sched-kpi-pills"></div>
+        <!-- Print-only mount · the Print tab clones the week grid +
+             heading here, then window.print() shows just this. -->
+        <div id="rr-sched-print-area" aria-hidden="true"></div>
         <!-- Quiet auto-rescue banner. Populated by
              _rrRenderAutoRescueBanner() after the auto-rescue
              trigger inside renderScheduleWeek finishes a run
@@ -14049,6 +14064,65 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-nav-heading .page-header-l{
             flex:0 0 auto;min-width:0;
+          }
+          /* ── Command-strip mode tabs ────────────────────────────────
+             "Schedule" shows the icon ribbon; "Print" swaps it for a
+             single left-justified print button. Tabs sit above the
+             strip, aligned to its left edge, and stay where the DSP
+             left them until they switch back. */
+          #view-schedule .sched-cmd{
+            display:flex;flex-direction:column;align-items:flex-start;
+            gap:5px;margin-left:auto;min-width:0;
+          }
+          #view-schedule .sched-cmd .sched-nav-heading-actions{margin-left:0}
+          #view-schedule .sched-cmd-tabs{display:inline-flex;gap:6px}
+          #view-schedule .sched-cmd-tab{
+            appearance:none;background:transparent;border:0;font:inherit;cursor:pointer;
+            font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+            color:var(--text-subtle);padding:2px 3px 4px;
+            border-bottom:2px solid transparent;
+            transition:color var(--t-fast),border-color var(--t-fast);
+          }
+          #view-schedule .sched-cmd-tab:hover:not(.active){color:var(--text-muted)}
+          #view-schedule .sched-cmd-tab.active{color:var(--sch-blue);border-bottom-color:var(--sch-blue)}
+          #view-schedule .sched-cmd-tab:focus-visible{outline:none;color:var(--sch-blue);border-bottom-color:var(--sch-blue)}
+          /* Print strip — replaces the icon ribbon in Print mode. */
+          #view-schedule .sched-print-strip{display:flex;align-items:center;min-height:44px}
+          #view-schedule .sched-cmd:not(.is-print) .sched-print-strip{display:none}
+          #view-schedule .sched-cmd.is-print .sched-nav-heading-actions{display:none}
+          #view-schedule .sched-print-btn{
+            display:inline-flex;align-items:center;gap:8px;
+            height:34px;padding:0 18px;border-radius:6px;
+            background:var(--sch-blue);color:#fff;border:1px solid var(--sch-blue);
+            font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;
+            box-shadow:0 1px 2px rgba(15,23,42,.12);
+            transition:background var(--t-fast),border-color var(--t-fast);
+          }
+          #view-schedule .sched-print-btn:hover{background:var(--sch-blue-strong,#115EA3);border-color:var(--sch-blue-strong,#115EA3)}
+          #view-schedule .sched-print-btn:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--sch-blue)}
+          #view-schedule .sched-print-btn svg{flex:0 0 auto}
+          /* ── Print · schedule grid only ─────────────────────────────
+             The print button sets html.rr-printing, clones the week
+             grid + a heading into #rr-sched-print-area, then prints. */
+          #rr-sched-print-area{display:none}
+          #rr-sched-print-area .rr-print-head{
+            font-size:15px;font-weight:700;color:#0F172A;margin:0 0 12px;
+          }
+          @media print{
+            @page{size:landscape;margin:10mm}
+            html.rr-printing .topbar,
+            html.rr-printing .sidebar{display:none !important}
+            html.rr-printing .app,
+            html.rr-printing .main{display:block !important}
+            html.rr-printing #view-schedule > .page > *:not(#rr-sched-print-area){display:none !important}
+            html.rr-printing #rr-sched-print-area{
+              display:block !important;
+              -webkit-print-color-adjust:exact;print-color-adjust:exact;
+            }
+            html.rr-printing #rr-sched-print-area .cal-wrap{
+              max-height:none !important;overflow:visible !important;
+              border-radius:0 !important;box-shadow:none !important;
+            }
           }
           #view-schedule .sched-nav-heading-actions{
             display:flex;align-items:center;
@@ -28736,7 +28810,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260522-pavideo"></script>
+<script type="module" src="./live.js?v=20260522-schedprint"></script>
 
 </body>
 </html>
