@@ -3634,6 +3634,7 @@ function _obMxStylesOnce() {
     ".ob-mxdot[disabled]{cursor:not-allowed;opacity:.5}" +
     ".ob-mx-action{appearance:none;background:var(--surface-elevated);border:1px solid var(--sch-line,var(--border));border-radius:var(--sch-radius,6px);width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;transition:color var(--t-fast),border-color .12s,background .12s,transform .12s,box-shadow .12s;line-height:0}" +
     ".ob-mx-action:hover{color:var(--accent-text);border-color:var(--accent-border);background:var(--surface);transform:translateY(-1px);box-shadow:0 10px 18px -16px rgba(15,23,42,.65)}" +
+    ".ob-mx-action.ob-mx-remove:hover{color:var(--red);border-color:rgba(225,29,72,.40);background:var(--red-soft)}" +
     /* ── Onboarding builder ──────────────────────────────────── */
     ".ob-bld-list{display:flex;flex-direction:column;gap:6px}" +
     ".ob-bld-card{display:flex;align-items:center;gap:10px;background:var(--surface-elevated);border:1px solid var(--sch-line,var(--border));border-radius:6px;padding:8px 12px;transition:opacity var(--t-fast),border-color .12s}" +
@@ -4533,6 +4534,7 @@ async function loadOnboardingOps(opts) {
         <td><button type="button" class="ob-mx-action" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></button></td>
         <td><button type="button" class="ob-mx-action onb-msg-btn${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? " has-unread" : ""}" data-rr-ob-msg="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? `Message this driver — ${_onbUnreadByDriver.get(d.id)} unread` : "Message this driver"}" aria-label="Message this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span class="onb-msg-dot" aria-hidden="true"></span></button></td>
         <td><button type="button" class="dr-app-btn" data-rr-driver-app="${escapeHtml(d.id)}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
+        <td><button type="button" class="ob-mx-action ob-mx-remove" data-rr-ob-remove="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Remove from onboarding" aria-label="Remove this driver from onboarding"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button></td>
       </tr>`;
   };
 
@@ -4548,6 +4550,7 @@ async function loadOnboardingOps(opts) {
             <th>Notes</th>
             <th>Msg</th>
             <th>App</th>
+            <th>Remove</th>
           </tr>
         </thead>
         <tbody>${enriched.map(matrixRow).join("")}</tbody>
@@ -4795,6 +4798,22 @@ document.addEventListener("click", (e) => {
   if (!b) return;
   e.preventDefault(); e.stopPropagation();
   openOnbNotesDrawer(b.getAttribute("data-rr-ob-notes"), b.getAttribute("data-name") || "");
+});
+// Remove a driver from the onboarding process — moves them to
+// inactive so they drop off the readiness board (not deleted; the
+// record can be reactivated from the Drivers page).
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-rr-ob-remove]");
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  const id = b.getAttribute("data-rr-ob-remove");
+  const name = b.getAttribute("data-name") || "this driver";
+  if (!confirm(`Remove ${name} from onboarding?\n\nThey'll be moved to inactive and drop off the readiness board. You can reactivate them later from the Drivers page.`)) return;
+  b.disabled = true;
+  const { error } = await sb.from("drivers").update({ status: "inactive" }).eq("id", id);
+  if (error) { b.disabled = false; toast("Couldn't remove: " + (error.message || ""), "warn"); return; }
+  toast(`${name} removed from onboarding`, "success");
+  if (typeof loadOnboardingOps === "function") loadOnboardingOps();
 });
 // Close: × button or backdrop click.
 document.addEventListener("click", (e) => {
