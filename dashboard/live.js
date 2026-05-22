@@ -3620,8 +3620,8 @@ function _obMxStylesOnce() {
     ".ob-matrix td.ob-mx-namecell{padding-left:18px;text-align:left;min-width:264px;position:sticky;left:0;background:var(--surface-elevated);z-index:1;box-shadow:8px 0 16px -18px rgba(15,23,42,.6)}" +
     ".ob-mx-namecell .avatar-sm{width:30px;height:30px;font-size:12px;flex:0 0 auto}" +
     ".ob-matrix td.ob-mx-statuscell{text-align:left}" +
-    ".ob-matrix tr:hover td{background:#F3F2F1}" +
-    ".ob-matrix tr:hover td.ob-mx-namecell{background:#F3F2F1}" +
+    ".ob-matrix tr:hover td{background:rgba(15,108,189,.06)}" +
+    ".ob-matrix tr:hover td.ob-mx-namecell{background:rgba(15,108,189,.06)}" +
     ".ob-matrix tr:hover .ob-mx-name{color:#0078D4}" +
     /* Trailing utility toolbar — condensed row actions, quiet until hover. */
     ".ob-mx-toolcol{text-align:right;padding-right:16px}" +
