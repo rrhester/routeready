@@ -841,10 +841,17 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .hdr-ask-icon{
   display:inline-flex;align-items:center;justify-content:center;
   width:26px;height:26px;border-radius:var(--r-md);flex:0 0 auto;
-  background:var(--accent-soft);
-  color:var(--accent-text);
+  /* AI vibe · vivid gradient badge with a slow ambient glow. */
+  background:linear-gradient(135deg,#6366F1 0%,#8B5CF6 48%,#EC4899 100%);
+  color:#fff;
+  animation:hdr-ask-glow 3.2s ease-in-out infinite;
 }
-.hdr-ask-icon svg{width:14px;height:14px;stroke-width:2}
+@keyframes hdr-ask-glow{
+  0%,100%{box-shadow:0 1px 4px rgba(139,92,246,.35),0 0 0 0 rgba(139,92,246,0)}
+  50%{box-shadow:0 1px 9px rgba(139,92,246,.55),0 0 0 4px rgba(139,92,246,.13)}
+}
+.hdr-ask:focus-within .hdr-ask-icon{animation-duration:1.6s}
+.hdr-ask-icon svg{width:14px;height:14px}
 .hdr-ask-input{
   flex:1;min-width:0;appearance:none;
   background:transparent;border:0;outline:0;
@@ -9185,7 +9192,7 @@ body.rr-cmdk-open{ overflow:hidden }
       </div>
       <form id="rr-hdr-ask-form" class="hdr-ask" autocomplete="off">
         <span class="hdr-ask-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/><path d="M19 3.5 19.9 5.9 22.3 6.8 19.9 7.7 19 10.1 18.1 7.7 15.7 6.8 18.1 5.9 19 3.5z" opacity=".75"/></svg>
         </span>
         <input id="rr-hdr-ask-input" class="hdr-ask-input" type="text" placeholder="Ask RouteReady · drivers, vans, schedules, compliance…" aria-label="Ask RouteReady">
         <button type="submit" id="rr-hdr-ask-submit" class="hdr-ask-submit">
@@ -14469,7 +14476,9 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;align-items:center;
             justify-content:flex-start;
             flex-wrap:nowrap;
-            gap:0;
+            /* Every ribbon icon shares one even 8px gap — no wider
+               between-group spacing. */
+            gap:8px;
             min-width:0;max-width:100%;flex:1 1 auto;
             /* overflow:visible so the quick-settings popover can
                escape the strip — earlier overflow-x:auto clipped
@@ -14499,7 +14508,7 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:0;
           }
           #view-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group{
-            margin-left:32px;
+            margin-left:0;
           }
           /* Ribbon view/planning controls — ghost buttons: no border,
              transparent until a soft hover. */
@@ -14556,10 +14565,10 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-ribbon-actions--grouped .sched-vans-rules-split{order:30}
           #view-schedule .sched-ribbon-actions--grouped .sched-kudos-split{order:31}
 
-          /* Between-group gap — spacing rhythm, no divider line. */
+          /* Even ribbon rhythm — no extra between-group spacing. */
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h,
           #view-schedule .sched-ribbon-actions--grouped .sched-vans-rules-split{
-            margin-left:32px;
+            margin-left:0;
           }
 
           /* Quiet, utility-grade default for every tile EXCEPT the
@@ -14663,7 +14672,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Group boundaries use spacing rhythm, not divider lines —
              the command bar reads as one calm operational surface. */
           #view-schedule .sched-nav-heading-actions > .sched-ribbon-actions{
-            margin-left:32px;
+            margin-left:0;
           }
           #view-schedule .sched-nav-heading-actions > .sched-week-nav{
             margin-left:auto;
@@ -19735,7 +19744,9 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-ribbon-actions{
             display:flex;align-items:center;
             justify-content:flex-start;
-            gap:0;flex-wrap:nowrap;min-width:0;
+            /* Every Fleet ribbon tile shares the same gap — no wider
+               between-group spacing. */
+            gap:6px;flex-wrap:nowrap;min-width:0;
           }
           #view-fleet .fl-ribbon-tail{
             display:flex;align-items:center;gap:8px;
@@ -19790,12 +19801,10 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Hairline divider between the view group and the action
              group, same cue as the schedule ribbon. */
           #view-fleet .fl-ribbon-group + .fl-ribbon-group{
-            margin-left:8px;padding-left:14px;position:relative;
+            margin-left:0;padding-left:0;position:static;
           }
           #view-fleet .fl-ribbon-group + .fl-ribbon-group::before{
-            content:"";position:absolute;left:0;top:50%;
-            width:1px;height:24px;margin-top:-12px;
-            background:rgba(15,23,42,.10);
+            content:none;
           }
 
           /* ── Fleet assignment · "Rules" footer + van-rules popover ──
