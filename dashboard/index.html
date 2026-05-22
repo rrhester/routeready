@@ -14141,10 +14141,11 @@ body.rr-cmdk-open{ overflow:hidden }
              ribbon for one print button styled like the strip's own
              icons; the ribbon items just go invisible so the card never
              changes size between the two modes. */
-          #view-schedule .sched-cmd-shell{display:block;margin-bottom:var(--s-4)}
+          #view-schedule .sched-cmd-shell{position:relative;display:block;margin-bottom:var(--s-4)}
           #view-schedule .sched-cmd-shell .sched-nav-heading{margin-bottom:0}
           #view-schedule .sched-cmd-tabs{
-            display:inline-flex;gap:3px;margin:0 0 -1px 4px;
+            display:inline-flex;gap:3px;
+            position:absolute;left:4px;bottom:100%;margin-bottom:-1px;
           }
           #view-schedule .sched-cmd-tab{
             appearance:none;background:transparent;cursor:pointer;font:inherit;
