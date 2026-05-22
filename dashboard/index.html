@@ -19774,7 +19774,9 @@ body.rr-cmdk-open{ overflow:hidden }
              ribbon card, exactly like the schedule's sheet tabs. */
           #view-fleet .fl-ribbon.fl-cmd-shell{position:relative}
           #view-fleet .fl-cmd-tabs{
-            position:absolute;left:14px;bottom:100%;margin-bottom:-1px;
+            /* Flush-left with the icon strip's left edge — matches the
+               schedule page's sheet-tab inset (4px). */
+            position:absolute;left:4px;bottom:100%;margin-bottom:-1px;
             display:inline-flex;gap:3px;
           }
           #view-fleet .fl-cmd-tab{
