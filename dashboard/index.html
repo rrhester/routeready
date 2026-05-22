@@ -10262,7 +10262,23 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;align-items:center;gap:12px;
           }
           #view-pipeline .hp-sort{font-size:11px;color:var(--text-subtle)}
-          #view-pipeline .pipe-applicants{gap:var(--s-2)}
+          /* Applicant list scrolls inside its own region so the page
+             header, KPI strip + stage tabs stay pinned while the DSP
+             works through dozens of applicants. max-height is measured
+             to the viewport by _pipeFitList(). */
+          #view-pipeline .pipe-applicants{
+            gap:var(--s-2);
+            overflow-y:auto;overflow-x:hidden;
+            padding-right:4px;
+            scrollbar-width:thin;
+            scrollbar-color:var(--border-strong) transparent;
+          }
+          #view-pipeline .pipe-applicants::-webkit-scrollbar{width:8px}
+          #view-pipeline .pipe-applicants::-webkit-scrollbar-track{background:transparent}
+          #view-pipeline .pipe-applicants::-webkit-scrollbar-thumb{
+            background:var(--border-strong);border-radius:4px;
+          }
+          #view-pipeline .pipe-applicants::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
           #view-pipeline .pa-card{
             border-color:var(--sch-line,var(--border));border-radius:6px;
             box-shadow:0 1px 3px rgba(15,23,42,.035);
@@ -28810,7 +28826,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260522-schedprint"></script>
+<script type="module" src="./live.js?v=20260522-obpolish"></script>
 
 </body>
 </html>

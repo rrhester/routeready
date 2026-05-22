@@ -1014,7 +1014,19 @@ async function loadPipeline(stage = "all") {
 
   list.innerHTML = (rows ?? []).map(renderApplicantCard).join("")
     || `<div class="rr-empty-inline">No applicants yet — share your apply link or add one manually.</div>`;
+  requestAnimationFrame(_pipeFitList);
 }
+
+// Size the applicant list so it scrolls within the viewport — the page
+// header, KPI strip and stage tabs above it stay put while the DSP
+// works down a long applicant queue.
+function _pipeFitList() {
+  const list = document.getElementById("pipe-applicants");
+  if (!list || !list.offsetParent) return;
+  const top = list.getBoundingClientRect().top;
+  list.style.maxHeight = Math.max(260, window.innerHeight - top - 24) + "px";
+}
+window.addEventListener("resize", _pipeFitList);
 
 // ─── paAction override ─────────────────────────────────────────────────────
 //
@@ -3690,7 +3702,7 @@ function _obMxStylesOnce() {
     ".ob-mx-head-chip::before{content:'';width:7px;height:7px;border-radius:var(--r-pill);background:var(--accent)}" +
     ".ob-mx-scroll{overflow-x:auto}" +
     ".ob-matrix{width:100%;min-width:1080px;border-collapse:separate;border-spacing:0;font-size:var(--fs-sm)}" +
-    ".ob-matrix th{font-size:11px;font-weight:760;letter-spacing:.055em;text-transform:uppercase;color:var(--text-subtle);padding:14px 9px;text-align:center;white-space:nowrap;background:var(--canvas);border-bottom:1px solid var(--border-subtle)}" +
+    ".ob-matrix th{font-size:11.5px;font-weight:680;letter-spacing:.01em;text-transform:lowercase;color:var(--text-muted);padding:14px 9px;text-align:center;white-space:nowrap;background:var(--canvas);border-bottom:1px solid var(--border-subtle)}" +
     ".ob-matrix th.ob-mx-namecol{text-align:left;padding-left:18px;position:sticky;left:0;background:var(--canvas);z-index:2;box-shadow:8px 0 16px -18px rgba(15,23,42,.6)}" +
     ".ob-matrix th.ob-mx-statuscol{text-align:left}" +
     ".ob-matrix td{padding:15px 9px;border-top:1px solid var(--sch-line-subtle,var(--border-subtle));text-align:center;vertical-align:middle;background:var(--surface-elevated)}" +
@@ -3710,10 +3722,12 @@ function _obMxStylesOnce() {
     ".ob-tb-btn:hover{color:#0078D4;background:#F3F2F1}" +
     ".ob-tb-btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent-soft)}" +
     ".ob-tb-btn.ob-tb-remove:hover{color:var(--red);background:var(--red-soft)}" +
+    /* Action glyphs sit a touch larger than the 17px stage dots. */
+    ".ob-tb-btn svg{width:20px;height:20px}" +
     ".ob-mx-name{font-size:15px;font-weight:680;color:var(--text);cursor:pointer;letter-spacing:-.01em}" +
     ".ob-mx-name:hover{color:var(--accent-text)}" +
     ".ob-mx-meta{font-size:12px;color:var(--text-subtle);margin-top:3px;line-height:1.35}" +
-    ".ob-mxdot{appearance:none;position:relative;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-elevated);border:1.5px solid var(--border-strong);width:17px;height:17px;border-radius:50%;cursor:pointer;padding:0;transition:background var(--t-fast),border-color .12s,transform .1s,box-shadow .12s}" +
+    ".ob-mxdot{appearance:none;position:relative;display:inline-flex;align-items:center;justify-content:center;background:var(--surface-elevated);border:1.75px solid var(--text-disabled);width:17px;height:17px;border-radius:50%;cursor:pointer;padding:0;transition:background var(--t-fast),border-color .12s,transform .1s,box-shadow .12s}" +
     ".ob-mxdot:hover{transform:scale(1.16);border-color:var(--accent-border);box-shadow:0 0 0 4px var(--accent-soft)}" +
     ".ob-mxdot.done{background:var(--green);border-color:var(--green);box-shadow:0 0 0 3px var(--green-soft)}" +
     ".ob-mxdot.done::after{content:'';display:block;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);margin-top:-2px}" +
