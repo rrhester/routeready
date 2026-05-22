@@ -15933,9 +15933,23 @@ body.rr-cmdk-open{ overflow:hidden }
           /* ── Van Rotation page · roster + hover Van Details panel ── */
           #view-fleet .fl-rotation-layout{
             display:grid;grid-template-columns:minmax(0,1fr) 320px;
-            gap:var(--s-3);align-items:start;
+            gap:var(--s-3);align-items:stretch;
           }
           #view-fleet .fl-rotation-main{min-width:0}
+          #view-fleet .fl-rotation-bar{
+            display:flex;align-items:center;gap:10px;
+            padding:10px 14px;background:var(--canvas);
+            border:1px solid var(--sch-line,var(--border));border-bottom:0;
+            border-radius:8px 8px 0 0;
+          }
+          #view-fleet .fl-rotation-bar-lbl{
+            font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;
+            text-transform:uppercase;color:var(--text-subtle);
+          }
+          #view-fleet .fl-rotation-bar-count{
+            font-size:var(--fs-xs);color:var(--text-subtle);margin-left:auto;
+            font-variant-numeric:tabular-nums;
+          }
           #view-fleet #fl-rotation-tbody tr[data-rr-rotation-row]{cursor:default}
           #view-fleet #fl-rotation-tbody tr[data-rr-rotation-row]:hover{
             background:rgba(15,108,189,.06);
@@ -15943,8 +15957,12 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet #fl-rotation-tbody tr.is-detail-active{
             background:rgba(15,108,189,.10);
           }
+          /* Van Details · stretches to the full length of the table so
+             the panel and the data read as one continuous surface. */
           #view-fleet .fl-vandetails{
-            position:sticky;top:80px;
+            position:sticky;top:80px;align-self:stretch;
+            display:flex;flex-direction:column;
+            max-height:calc(100vh - 120px);
             background:var(--surface);
             border:1px solid var(--sch-line,var(--border));
             border-radius:8px;box-shadow:0 1px 4px rgba(15,23,42,.04);
@@ -15953,9 +15971,10 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-vandetails-head{
             font-size:13px;font-weight:600;color:var(--text);
             padding:12px 16px;border-bottom:1px solid rgba(15,23,42,.06);
+            flex:0 0 auto;
           }
           #view-fleet .fl-vandetails-body{
-            padding:12px 16px 14px;max-height:62vh;overflow-y:auto;
+            padding:12px 16px 14px;flex:1 1 auto;min-height:0;overflow-y:auto;
           }
           #view-fleet .fl-vandetails-empty,
           #view-fleet .fl-vd-none{
@@ -19928,25 +19947,29 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Drill-down slide-over — reuses the Fleet drawer cosmetics
              (sticky head, body scroller) but stays self-contained so we
              don't fight existing van-drawer state. */
+          /* Inline FEM / VORR drill-down — expands beneath the KPI
+             cards (matches the dashboard's other KPI drill-downs).
+             The slide-over treatment was replaced with an in-page
+             panel so the drill-down stays in the operator's flow. */
           .fl-exec-drawer{
-            position:fixed;inset:0;background:var(--overlay);
-            z-index:9999;display:flex;justify-content:flex-end;
-            animation:flExecFade .14s ease-out;
+            display:block;background:transparent;
+            margin:var(--s-2) 0 var(--s-3);
           }
-          @keyframes flExecFade{from{opacity:0}to{opacity:1}}
           .fl-exec-panel{
-            width:760px;max-width:100%;background:var(--surface);
-            height:100%;overflow-y:auto;
-            border-left:1px solid var(--border);
-            display:flex;flex-direction:column;
-            animation:flExecSlide .22s cubic-bezier(.2,.6,.2,1);
+            width:100%;max-width:100%;
+            background:var(--surface);
+            border:1px solid var(--sch-line,var(--border));
+            border-radius:8px;
+            box-shadow:0 1px 4px rgba(15,23,42,.04);
+            overflow:visible;
+            animation:flExecExpand .18s ease-out;
           }
-          @keyframes flExecSlide{from{transform:translateX(28px);opacity:.4}to{transform:translateX(0);opacity:1}}
+          @keyframes flExecExpand{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
           .fl-exec-panel .head{
-            padding:var(--s-5) var(--s-6);
+            padding:var(--s-4) var(--s-5);
             border-bottom:1px solid var(--border-subtle);
             display:flex;align-items:flex-start;justify-content:space-between;
-            gap:var(--s-3);position:sticky;top:0;background:var(--surface);z-index:2;
+            gap:var(--s-3);background:var(--surface);
           }
           .fl-exec-panel .head h2{
             margin:0;font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;color:var(--text);
@@ -20036,6 +20059,10 @@ body.rr-cmdk-open{ overflow:hidden }
             </span>
           </div>
         </div>
+        <!-- Inline drill-down panel for the FEM / VORR KPI strip ·
+             expands beneath the cards, in line with the page (not a
+             side slide-over). -->
+        <div id="rr-fleet-exec-detail" hidden></div>
 
         <!-- MY VEHICLES sub-tab — roster -->
         <div class="fl-sub active" id="fl-sub-vehicles">
@@ -20150,6 +20177,22 @@ body.rr-cmdk-open{ overflow:hidden }
         <div class="fl-sub" id="fl-sub-rotation">
           <div class="fl-rotation-layout">
             <div class="table-wrap fl-rotation-main">
+              <!-- Ownership-type filter · only Amazon-branded vans count
+                   toward VORR / fleet rotation, but operators still want
+                   to track every type. -->
+              <div class="fl-rotation-bar">
+                <label class="fl-rotation-bar-lbl" for="rr-rotation-type">Type</label>
+                <select id="rr-rotation-type" class="fl-filter" aria-label="Filter by ownership / type">
+                  <option value="all">All vans</option>
+                  <option value="branded">Branded (counts for VORR)</option>
+                  <option value="non_branded">Non-branded</option>
+                  <option value="amazon_owned">Amazon-owned</option>
+                  <option value="dsp_owned">DSP-owned</option>
+                  <option value="rental">Rental</option>
+                  <option value="leased">Leased</option>
+                </select>
+                <span class="fl-rotation-bar-count" id="rr-rotation-count" aria-live="polite"></span>
+              </div>
               <table class="table">
                 <thead>
                   <tr>
