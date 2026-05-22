@@ -25452,6 +25452,29 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId) {
             <input type="time" id="rr-fc-f-end" class="form-input" value="${escapeHtml(ev.end_time || "")}" />
           </label>
         </div>
+        ${existing ? "" : `
+        <div style="display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--border);padding-top:var(--s-3-5);margin-top:var(--s-1)">
+          <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);font-weight:600;cursor:pointer">
+            <input type="checkbox" id="rr-fc-f-repeat-on" />
+            Repeat this event
+          </label>
+          <div id="rr-fc-f-repeat-wrap" style="display:none;gap:var(--s-3);flex-wrap:wrap">
+            <label style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px">
+              <span style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted)">Frequency</span>
+              <select id="rr-fc-f-repeat-freq" class="form-input">
+                <option value="daily">Daily</option>
+                <option value="weekly" selected>Weekly (same weekday)</option>
+                <option value="biweekly">Every 2 weeks</option>
+                <option value="monthly">Monthly (same date)</option>
+              </select>
+            </label>
+            <label style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:4px">
+              <span style="font-size:var(--fs-xs);font-weight:600;color:var(--text-muted)">Until</span>
+              <input type="date" id="rr-fc-f-repeat-until" class="form-input" />
+            </label>
+          </div>
+          <div id="rr-fc-f-repeat-hint" style="display:none;font-size:var(--fs-xs);color:var(--text-subtle)"></div>
+        </div>`}
         <label style="display:flex;flex-direction:column;gap:4px">
           <span style="font-size:var(--fs-sm);font-weight:600">Notes</span>
           <textarea id="rr-fc-f-notes" class="form-input" rows="3" maxlength="500" placeholder="Optional">${escapeHtml(ev.notes || "")}</textarea>
@@ -25475,6 +25498,63 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId) {
   const titleEl = m.querySelector("#rr-fc-f-title");
   titleEl.focus();
 
+  // ─── Recurrence wiring (new events only) ──────────────────────────
+  const repeatOn    = m.querySelector("#rr-fc-f-repeat-on");
+  const repeatWrap  = m.querySelector("#rr-fc-f-repeat-wrap");
+  const repeatFreq  = m.querySelector("#rr-fc-f-repeat-freq");
+  const repeatUntil = m.querySelector("#rr-fc-f-repeat-until");
+  const repeatHint  = m.querySelector("#rr-fc-f-repeat-hint");
+  const _fcRepeatDefault = (startIso) => {
+    if (!startIso) return "";
+    const d = new Date(startIso + "T12:00:00");
+    d.setMonth(d.getMonth() + 3);  // sensible default · ~3 months out
+    return d.toISOString().slice(0, 10);
+  };
+  function _fcExpandSeries(startIso, endIsoOpt, freq, untilIso) {
+    const out = [];
+    if (!startIso || !untilIso || untilIso < startIso) return out;
+    const start = new Date(startIso + "T12:00:00");
+    const until = new Date(untilIso + "T12:00:00");
+    const spanMs = endIsoOpt ? Math.max(0, new Date(endIsoOpt + "T12:00:00") - start) : 0;
+    const cur = new Date(start);
+    let guard = 0;
+    while (cur <= until && guard < 200) {
+      const date = cur.toISOString().slice(0, 10);
+      const endDate = spanMs > 0
+        ? new Date(cur.getTime() + spanMs).toISOString().slice(0, 10)
+        : null;
+      out.push({ date, endDate });
+      if (freq === "daily")         cur.setDate(cur.getDate() + 1);
+      else if (freq === "weekly")   cur.setDate(cur.getDate() + 7);
+      else if (freq === "biweekly") cur.setDate(cur.getDate() + 14);
+      else if (freq === "monthly")  cur.setMonth(cur.getMonth() + 1);
+      else break;
+      guard++;
+    }
+    return out;
+  }
+  function _fcUpdateRepeatHint() {
+    if (!repeatHint || !repeatOn) return;
+    if (!repeatOn.checked) { repeatHint.style.display = "none"; return; }
+    const startIso = m.querySelector("#rr-fc-f-date").value;
+    const endIso   = m.querySelector("#rr-fc-f-enddate").value || null;
+    const series   = _fcExpandSeries(startIso, endIso, repeatFreq.value, repeatUntil.value);
+    repeatHint.style.display = "block";
+    repeatHint.textContent = series.length
+      ? `${series.length} event${series.length === 1 ? "" : "s"} will be created.`
+      : "Pick a valid Until date to schedule the series.";
+  }
+  if (repeatOn) {
+    repeatOn.addEventListener("change", () => {
+      const on = repeatOn.checked;
+      repeatWrap.style.display = on ? "flex" : "none";
+      if (on && !repeatUntil.value) repeatUntil.value = _fcRepeatDefault(m.querySelector("#rr-fc-f-date").value);
+      _fcUpdateRepeatHint();
+    });
+    [repeatFreq, repeatUntil, m.querySelector("#rr-fc-f-date"), m.querySelector("#rr-fc-f-enddate")]
+      .forEach(el => el && el.addEventListener("change", _fcUpdateRepeatHint));
+  }
+
   m.querySelector("#rr-fc-save").addEventListener("click", async () => {
     const status = m.querySelector("#rr-fc-f-status");
     const title  = titleEl.value.trim();
@@ -25492,11 +25572,31 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId) {
     const saveBtn = m.querySelector("#rr-fc-save");
     saveBtn.disabled = true;
     try {
-      const { error } = await sb.rpc("fleet_calendar_event_upsert", {
-        p_id: ev.id, p_title: title, p_event_date: date, p_end_date: endDate,
-        p_vehicle_id: van, p_vendor_id: vendor, p_start_time: start, p_end_time: end, p_notes: notes,
-      });
-      if (error) throw error;
+      // Recurring series · fan out into N individual events. The
+      // first occurrence honours p_id (so editing-as-new doesn't
+      // happen); every subsequent occurrence is a fresh insert.
+      const repeating = !ev.id && repeatOn && repeatOn.checked;
+      if (repeating) {
+        const series = _fcExpandSeries(date, endDate, repeatFreq.value, repeatUntil.value);
+        if (!series.length) { status.textContent = "Pick a valid Until date for the series."; saveBtn.disabled = false; return; }
+        if (series.length > 60 && !confirm(`This will create ${series.length} calendar events. Continue?`)) {
+          saveBtn.disabled = false; return;
+        }
+        for (const occ of series) {
+          const { error } = await sb.rpc("fleet_calendar_event_upsert", {
+            p_id: null, p_title: title, p_event_date: occ.date, p_end_date: occ.endDate,
+            p_vehicle_id: van, p_vendor_id: vendor, p_start_time: start, p_end_time: end, p_notes: notes,
+          });
+          if (error) throw error;
+        }
+        toast(`Created ${series.length} recurring event${series.length === 1 ? "" : "s"}`, "success");
+      } else {
+        const { error } = await sb.rpc("fleet_calendar_event_upsert", {
+          p_id: ev.id, p_title: title, p_event_date: date, p_end_date: endDate,
+          p_vehicle_id: van, p_vendor_id: vendor, p_start_time: start, p_end_time: end, p_notes: notes,
+        });
+        if (error) throw error;
+      }
       close();
       _paintFleetCalendar();
     } catch (err) {
