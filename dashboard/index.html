@@ -20055,93 +20055,10 @@ body.rr-cmdk-open{ overflow:hidden }
             color:var(--flu-text);
           }
 
-          /* —— Page card · the ribbon reads as a single command-bar
-             surface, not a floating shortcut tray. */
-          #view-fleet .fl-ribbon{
-            background:var(--flu-surface);
-            border:1px solid var(--flu-border);
-            border-radius:var(--flu-radius);
-            box-shadow:none;
-            padding:10px 16px;
-            margin-bottom:var(--s-3);
-            gap:var(--s-3);
-          }
-          #view-fleet .fl-ribbon .page-title{
-            font-size:20px;font-weight:600;color:var(--flu-text);
-            letter-spacing:0;line-height:1.2;
-          }
-          #view-fleet .fl-ribbon .page-sub{
-            font-size:13px;font-weight:400;color:var(--flu-text-2);
-            margin:2px 0 0;
-          }
-
-          /* —— Command bar tiles · horizontal (icon + label on one
-             row), 16px Fluent icons, 4px radius, tight padding. */
-          #view-fleet .fl-ribbon-actions{flex:1 1 auto}
-          #view-fleet .fl-ribbon-group{gap:2px}
-          /* Action group (the second .fl-ribbon-group: placeholders /
-             Add Vehicle) right-aligns — true Fluent command-bar split. */
-          #view-fleet .fl-ribbon-group + .fl-ribbon-group{margin-left:auto}
-          #view-fleet .fl-ribbon-btn{
-            flex-direction:row;align-items:center;justify-content:center;
-            gap:6px;min-width:0;height:32px;padding:0 10px;
-            border-radius:var(--flu-radius);
-            font-size:13px;font-weight:600;color:var(--flu-text-2);
-            background:transparent;border:0;
-          }
-          #view-fleet .fl-ribbon-btn svg{width:16px;height:16px;stroke-width:1.6}
-          #view-fleet .fl-ribbon-btn span{font-size:13px;font-weight:600}
-          #view-fleet .fl-ribbon-btn:hover{
-            background:#F5F5F5;color:var(--flu-text);
-          }
-          #view-fleet .fl-ribbon-view.active,
-          #view-fleet .fl-ribbon-view.active:hover{
-            background:transparent;color:var(--flu-accent);
-            box-shadow:inset 0 -2px 0 0 var(--flu-accent);
-          }
-          #view-fleet .fl-ribbon-view.active svg{color:var(--flu-accent)}
-          #view-fleet .fl-ribbon-count{
-            position:static;
-            min-width:18px;height:16px;padding:0 5px;
-            border-radius:8px;background:#EDEBE9;color:var(--flu-text-2);
-            font-size:11px;font-weight:600;
-          }
-          #view-fleet .fl-ribbon-view.active .fl-ribbon-count{
-            background:var(--flu-accent-bg);color:var(--flu-accent);
-          }
-
-          /* —— KPI strip · compact horizontal metrics, not pill cards.
-             Reads like an Intune device-summary row. */
-          #view-fleet .fl-kpi-pills{
-            display:flex;align-items:stretch;flex-wrap:nowrap;gap:0;
-            background:var(--flu-surface);
-            border:1px solid var(--flu-border);
-            border-radius:var(--flu-radius);
-            box-shadow:none;
-            margin:0 0 var(--s-3);padding:0;
-          }
-          #view-fleet .fl-kpi-pill{
-            flex:1 1 0;display:flex;align-items:center;gap:10px;
-            padding:10px 14px;border:0;
-            border-right:1px solid var(--flu-border);
-            background:transparent;border-radius:0;
-          }
-          #view-fleet .fl-kpi-pill:last-child{border-right:0}
-          #view-fleet .fl-kpi-pill:hover{background:var(--flu-row-hover);cursor:pointer}
-          #view-fleet .fl-kpi-pill.active{background:var(--flu-accent-bg)}
-          #view-fleet .fl-kpi-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
-          #view-fleet .fl-kpi-text{display:flex;flex-direction:column;gap:1px;min-width:0}
-          #view-fleet .fl-kpi-line{display:flex;align-items:baseline;gap:6px;flex-wrap:nowrap}
-          #view-fleet .fl-kpi-value{
-            font-size:18px;font-weight:600;color:var(--flu-text);
-            font-variant-numeric:tabular-nums;
-          }
-          #view-fleet .fl-kpi-frac{font-size:12px;font-weight:500;color:var(--flu-text-2)}
-          #view-fleet .fl-kpi-name{
-            font-size:12px;font-weight:600;color:var(--flu-text-2);
-            letter-spacing:.01em;
-          }
-          #view-fleet .fl-kpi-sub{font-size:11px;color:var(--flu-text-2)}
+          /* Ribbon (icon strip) + KPI strip · intentionally retained
+             from the earlier "match the schedule" pass; the Fluent
+             refactor leaves both alone so they stay in lockstep with
+             the schedule page. */
 
           /* —— Filter bar · tighter, square-cornered, neutral. */
           #view-fleet .fl-roster-bar{
