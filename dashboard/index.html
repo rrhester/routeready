@@ -9871,7 +9871,9 @@ body.rr-cmdk-open{ overflow:hidden }
              and a quiet decline. Bottom row: ghost contact icons. */
           #view-pipeline .pa-zone-action{
             display:flex;flex-direction:column;align-items:stretch;
-            justify-content:center;gap:10px;
+            /* Top-anchored so the buttons hold a fixed position no
+               matter how tall the identity/timeline zones grow. */
+            justify-content:flex-start;gap:10px;
             /* Set apart as a blue workflow surface — matches the
                schedule shift-card blue, divided from the timeline. */
             background:rgba(15,108,189,.07);
@@ -10263,7 +10265,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .hp-stat{
             display:inline-flex;align-items:center;gap:10px;
             padding:11px 24px;position:static;
-            border-right:1px solid rgba(15,23,42,.03);
+            border-right:1px solid rgba(15,23,42,.08);
           }
           #view-pipeline .hp-stat:nth-last-child(2){border-right:0}
           #view-pipeline .hp-stat-dot{
@@ -10431,11 +10433,18 @@ body.rr-cmdk-open{ overflow:hidden }
             border-color:rgba(15,108,189,.30);box-shadow:0 2px 8px rgba(15,108,189,.08);
           }
           #view-pipeline .pa-row{padding:13px 16px;gap:var(--s-3)}
+          /* Stage badge · Fluent — a compact rectangle chip, one line. */
           #view-pipeline .pa-stage-pill{
-            padding:6px 10px;border-radius:var(--r-pill);background:var(--sch-surface-2);
+            padding:3px 8px;border-radius:4px;background:var(--sch-surface-2);
             color:var(--text-muted);border-color:var(--border-subtle);
+            font-size:11px;font-weight:600;letter-spacing:.01em;
+            white-space:nowrap;max-width:100%;
           }
-          #view-pipeline .pa-stage-pill.booking_scheduled{background:rgba(15,108,189,.08);color:var(--accent-text)}
+          #view-pipeline .pa-stage-pill.booking_scheduled{
+            background:rgba(15,108,189,.12);color:#0E4F86;
+            border-color:rgba(15,108,189,.22);
+          }
+          #view-pipeline .pa-stage-pill.booking_scheduled::before{background:#0F6CBD}
           #view-pipeline .pa-card-avatar{width:40px;height:40px;box-shadow:inset 0 1px 0 rgba(255,255,255,.28)}
           #view-pipeline .pa-card-name{font-size:15px;letter-spacing:-.01em}
           #view-pipeline .pa-card-meta{line-height:1.45;color:var(--text-muted)}
@@ -11136,7 +11145,7 @@ body.rr-cmdk-open{ overflow:hidden }
                     <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
                   <div class="ob-rules-popover" id="rr-ob-rules-popover" role="dialog" aria-modal="false" aria-label="Onboarding steps" hidden>
-                    <div class="ob-rules-head">Onboarding steps</div>
+                    <div class="ob-rules-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><polyline points="3.5 6 4.5 7 6.5 5"/><polyline points="3.5 12 4.5 13 6.5 11"/><polyline points="3.5 18 4.5 19 6.5 17"/></svg>Onboarding steps</div>
                     <div class="ob-rules-body" id="obsub-builder"><div class="rr-loading">Loading onboarding steps</div></div>
                   </div>
                 </div>
@@ -11154,9 +11163,17 @@ body.rr-cmdk-open{ overflow:hidden }
                     <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
                   <style>
-                    /* ───── Funnel "Rules" popover · full Microsoft Fluent dressing ───── */
-                    #view-onboarding-ops #rr-funnel-rules-popover{
-                      width:680px;
+                    /* ════ Unified "Rules" popover · Fluent dressing across the whole dashboard ════
+                       Every rules popover (Onboarding, Funnel, Smart Fill, Van
+                       assignment, This-week settings, Recognition) shares one
+                       acrylic shell + brand-blue header. Two-id selectors out-
+                       specify each popover's own view-scoped chrome rules. */
+                    #view-onboarding-ops #rr-ob-rules-popover,
+                    #view-onboarding-ops #rr-funnel-rules-popover,
+                    #view-schedule #rr-sched-smartfill-rules-popover,
+                    #view-schedule #rr-sched-vans-rules-popover,
+                    #view-schedule #rr-sched-quick-settings-popover,
+                    #view-schedule #rr-sched-milestone-rules-popover{
                       font-family:"Segoe UI","Segoe UI Web (West European)",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",sans-serif;
                       background:rgba(255,255,255,.82);
                       -webkit-backdrop-filter:blur(40px) saturate(170%);
@@ -11165,50 +11182,91 @@ body.rr-cmdk-open{ overflow:hidden }
                       border-radius:8px;
                       box-shadow:0 14px 32px rgba(0,0,0,.20),0 0 10px rgba(0,0,0,.12);
                     }
-                    /* Brand-blue Fluent header. */
-                    #view-onboarding-ops #rr-funnel-rules-popover .ob-rules-head{
+                    /* Brand-blue Fluent header — the first child of each popover. */
+                    #view-onboarding-ops #rr-ob-rules-popover > :first-child,
+                    #view-onboarding-ops #rr-funnel-rules-popover > :first-child,
+                    #view-schedule #rr-sched-smartfill-rules-popover > :first-child,
+                    #view-schedule #rr-sched-vans-rules-popover > :first-child,
+                    #view-schedule #rr-sched-quick-settings-popover > :first-child,
+                    #view-schedule #rr-sched-milestone-rules-popover > :first-child{
                       display:flex;align-items:center;gap:9px;
                       background:linear-gradient(135deg,#0078D4,#005A9E);
                       color:#fff;font-family:inherit;
                       font-size:14px;font-weight:600;letter-spacing:.005em;
-                      padding:13px 18px;border-bottom:0;
+                      padding:13px 18px;border:0;border-radius:8px 8px 0 0;
                     }
-                    #view-onboarding-ops #rr-funnel-rules-popover .ob-rules-head svg{
+                    #view-onboarding-ops #rr-ob-rules-popover > :first-child *,
+                    #view-onboarding-ops #rr-funnel-rules-popover > :first-child *,
+                    #view-schedule #rr-sched-smartfill-rules-popover > :first-child *,
+                    #view-schedule #rr-sched-vans-rules-popover > :first-child *,
+                    #view-schedule #rr-sched-quick-settings-popover > :first-child *,
+                    #view-schedule #rr-sched-milestone-rules-popover > :first-child *{
+                      color:#fff;
+                    }
+                    #view-onboarding-ops #rr-ob-rules-popover > :first-child > svg,
+                    #view-onboarding-ops #rr-funnel-rules-popover > :first-child > svg,
+                    #view-schedule #rr-sched-smartfill-rules-popover > :first-child > svg,
+                    #view-schedule #rr-sched-vans-rules-popover > :first-child > svg,
+                    #view-schedule #rr-sched-quick-settings-popover > :first-child > svg,
+                    #view-schedule #rr-sched-milestone-rules-popover > :first-child > svg{
                       width:16px;height:16px;flex:0 0 auto;
                     }
-                    #view-onboarding-ops #rr-funnel-rules-popover .ob-rules-body{
-                      background:rgba(248,249,250,.55);padding:16px 18px 18px;
+                    /* Push any head action control (close / info) to the right. */
+                    #view-onboarding-ops #rr-ob-rules-popover > :first-child button,
+                    #view-onboarding-ops #rr-funnel-rules-popover > :first-child button,
+                    #view-schedule #rr-sched-smartfill-rules-popover > :first-child button,
+                    #view-schedule #rr-sched-vans-rules-popover > :first-child button,
+                    #view-schedule #rr-sched-quick-settings-popover > :first-child button,
+                    #view-schedule #rr-sched-milestone-rules-popover > :first-child button{
+                      margin-left:auto;background:transparent;border:0;cursor:pointer;
                     }
-                    #view-onboarding-ops #rr-funnel-rules-popover h3{
-                      font-family:inherit;color:#242424;
+                    /* Light Fluent body surface — the last child of each popover. */
+                    #view-onboarding-ops #rr-ob-rules-popover > :last-child,
+                    #view-onboarding-ops #rr-funnel-rules-popover > :last-child,
+                    #view-schedule #rr-sched-smartfill-rules-popover > :last-child,
+                    #view-schedule #rr-sched-vans-rules-popover > :last-child,
+                    #view-schedule #rr-sched-quick-settings-popover > :last-child,
+                    #view-schedule #rr-sched-milestone-rules-popover > :last-child{
+                      background:rgba(248,249,250,.55);border-radius:0 0 8px 8px;
                     }
-                    #view-onboarding-ops #rr-funnel-rules-popover #rr-screening-sub{color:#605E5C}
-                    /* Fluent surface cards · proper Fluent depth-8 shadow. */
-                    #view-onboarding-ops #rr-funnel-rules-popover .cal-edit-card{
-                      background:#fff;border:1px solid #E1DFDD;border-radius:6px;
-                      box-shadow:0 1.6px 3.6px rgba(0,0,0,.10),0 0 2.9px rgba(0,0,0,.07);
-                    }
-                    /* All six question-row controls on one tidy Fluent line. */
-                    #view-onboarding-ops #rr-funnel-rules-popover .question-row{
-                      grid-template-columns:auto 1fr auto auto auto auto;
-                    }
-                    /* Fluent buttons. */
-                    #view-onboarding-ops #rr-funnel-rules-popover .btn{
+                    /* Fluent buttons inside any rules popover. */
+                    #view-onboarding-ops #rr-ob-rules-popover .btn,
+                    #view-onboarding-ops #rr-funnel-rules-popover .btn,
+                    #view-schedule #rr-sched-smartfill-rules-popover .btn,
+                    #view-schedule #rr-sched-vans-rules-popover .btn,
+                    #view-schedule #rr-sched-quick-settings-popover .btn,
+                    #view-schedule #rr-sched-milestone-rules-popover .btn{
                       font-family:inherit;border-radius:4px;font-weight:600;
                       background:#fff;border:1px solid #D1D1D1;color:#242424;
                       transition:background .1s,border-color .1s;
                     }
-                    #view-onboarding-ops #rr-funnel-rules-popover .btn:hover{
+                    #view-onboarding-ops #rr-ob-rules-popover .btn:hover,
+                    #view-onboarding-ops #rr-funnel-rules-popover .btn:hover,
+                    #view-schedule #rr-sched-smartfill-rules-popover .btn:hover,
+                    #view-schedule #rr-sched-vans-rules-popover .btn:hover,
+                    #view-schedule #rr-sched-quick-settings-popover .btn:hover,
+                    #view-schedule #rr-sched-milestone-rules-popover .btn:hover{
                       background:#F5F5F5;border-color:#C7C7C7;
                     }
-                    /* "+ Add question" → Fluent primary. */
+
+                    /* ── Funnel rules popover · screening-question specifics ── */
+                    #view-onboarding-ops #rr-funnel-rules-popover{width:680px}
+                    #view-onboarding-ops #rr-funnel-rules-popover .ob-rules-body{padding:16px 18px 18px}
+                    #view-onboarding-ops #rr-funnel-rules-popover h3{font-family:inherit;color:#242424}
+                    #view-onboarding-ops #rr-funnel-rules-popover #rr-screening-sub{color:#605E5C}
+                    #view-onboarding-ops #rr-funnel-rules-popover .cal-edit-card{
+                      background:#fff;border:1px solid #E1DFDD;border-radius:6px;
+                      box-shadow:0 1.6px 3.6px rgba(0,0,0,.10),0 0 2.9px rgba(0,0,0,.07);
+                    }
+                    #view-onboarding-ops #rr-funnel-rules-popover .question-row{
+                      grid-template-columns:auto 1fr auto auto auto auto;
+                    }
                     #view-onboarding-ops #rr-funnel-rules-popover [data-rr-add-question]{
                       background:#0078D4;border-color:#0078D4;color:#fff;
                     }
                     #view-onboarding-ops #rr-funnel-rules-popover [data-rr-add-question]:hover{
                       background:#106EBE;border-color:#106EBE;
                     }
-                    /* Fluent text fields · signature accent underline on focus. */
                     #view-onboarding-ops #rr-funnel-rules-popover .cal-edit-input{
                       font-family:inherit;border-radius:4px;
                       border:1px solid #D1D1D1;border-bottom-color:#616161;
@@ -12967,7 +13025,7 @@ body.rr-cmdk-open{ overflow:hidden }
                    the DSP can toggle which rules apply on the next
                    Smart Fill run. State persists in localStorage. -->
               <div class="sched-smartfill-rules-popover" id="rr-sched-smartfill-rules-popover" role="dialog" aria-modal="false" aria-label="Smart Fill rules" hidden>
-                <div class="sched-smartfill-rules-head">Smart Fill rules</div>
+                <div class="sched-smartfill-rules-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4.5 13.5H11l-1 8.5L19 10.5h-6.5L13 2z"/></svg>Smart Fill rules</div>
                 <div class="sched-smartfill-rules-body" id="rr-sched-smartfill-rules-body">
                   <!-- Fluent-style sections laid out across two columns so
                        the rule set reads wide rather than as a tall column.
@@ -13143,6 +13201,7 @@ body.rr-cmdk-open{ overflow:hidden }
                    start of every run. -->
               <div class="sched-vans-rules-popover" id="rr-sched-vans-rules-popover" role="dialog" aria-modal="false" aria-label="Van assignment rules" hidden>
                 <div class="sched-vans-rules-head">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="5" width="14" height="12" rx="1"/><path d="M15 9h4l3 3v5h-7z"/><circle cx="6" cy="18.5" r="2"/><circle cx="18" cy="18.5" r="2"/></svg>
                   <span class="sched-vans-rules-head-title">Van assignment rules</span>
                   <button type="button" class="sched-vans-rules-info" id="rr-sched-vans-rules-info"
                     aria-label="What each rule does"
@@ -13185,6 +13244,7 @@ body.rr-cmdk-open{ overflow:hidden }
                    Save button. -->
               <div class="sched-quick-settings-popover" id="rr-sched-quick-settings-popover" role="dialog" aria-modal="false" aria-label="Schedule quick settings" hidden>
                 <div class="sched-quick-settings-head">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
                   <span class="sched-quick-settings-title">This week's settings</span>
                   <button type="button" class="sched-quick-settings-close" id="rr-sched-quick-settings-close" aria-label="Close">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -13270,7 +13330,7 @@ body.rr-cmdk-open{ overflow:hidden }
                    State persists in localStorage; renderScheduleWeek
                    reads it through _rrLoadMilestoneRules(). -->
               <div class="sched-milestone-rules-popover" id="rr-sched-milestone-rules-popover" role="dialog" aria-modal="false" aria-label="Recognition rules" hidden>
-                <div class="sched-milestone-rules-head">Recognition rules</div>
+                <div class="sched-milestone-rules-head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="6"/><polyline points="8.5 13 7 22 12 19 17 22 15.5 13"/></svg>Recognition rules</div>
                 <div class="sched-milestone-rules-body">
                   <label class="sched-smartfill-rule">
                     <input type="checkbox" data-rr-milestone-rule="birthday" checked>
@@ -14287,7 +14347,7 @@ body.rr-cmdk-open{ overflow:hidden }
             color:var(--text);font-weight:600;font-size:var(--fs-sm);
             font-variant-numeric:tabular-nums;
             padding:11px 24px;
-            border-right:1px solid rgba(15,23,42,.03);
+            border-right:1px solid rgba(15,23,42,.08);
             line-height:1.2;
             transition:background var(--t-fast);
           }

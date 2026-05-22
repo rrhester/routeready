@@ -494,12 +494,10 @@ function renderApplicantCard(a) {
   const slug  = (a.full_name || "").toLowerCase().replace(/\s+/g, "-");
   const name  = rrTitleCaseName(a.full_name);
 
-  // Stage pill copy. For booking_scheduled, append the booked time so
-  // the operator can see when it is without opening anything.
+  // Stage pill copy · a compact one-word-ish badge. The booked time
+  // lives on the timeline ("Interview scheduled · …"), so the badge
+  // stays short and never wraps.
   let stageLabel = STAGE_LABELS[stage] ?? stage;
-  if (stage === "booking_scheduled" && a.next_event_starts_at) {
-    stageLabel = `${STAGE_LABELS[stage]} · ${fmtDate(a.next_event_starts_at)}`;
-  }
 
   // Score chip — only meaningful once the applicant has actually
   // completed screening. Before then a "score" reading is misleading
