@@ -1028,6 +1028,17 @@ function _pipeFitList() {
 }
 window.addEventListener("resize", _pipeFitList);
 
+// Size the schedule week grid so it scrolls within the viewport — the
+// command strip, KPI strip and the grid's own sticky column header all
+// stay put while the DSP scrolls the driver rows.
+function _schedFitGrid() {
+  const wrap = document.querySelector("#sched-sub-week .cal-wrap");
+  if (!wrap || !wrap.offsetParent) return;
+  const top = wrap.getBoundingClientRect().top;
+  wrap.style.maxHeight = Math.max(320, window.innerHeight - top - 20) + "px";
+}
+window.addEventListener("resize", _schedFitGrid);
+
 // ─── paAction override ─────────────────────────────────────────────────────
 //
 // The mockup wires onclick="paAction(this,'send_link','Marcus Hill')". We
@@ -29782,6 +29793,7 @@ async function renderScheduleWeek() {
   // PD rows removed — Open Shifts pool on the right covers the same need
   // without taking grid real estate. Coverage strip stays.
   wrap.insertAdjacentHTML("beforeend", driverRowsHtml + coverageStripHtml + emptyHtml);
+  requestAnimationFrame(_schedFitGrid);
 
   // Strip mockup-injected banners that reference fake RR_DRIVERS data.
   const lic = document.getElementById("sched-license-banner");
