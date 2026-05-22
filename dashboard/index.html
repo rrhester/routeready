@@ -12647,6 +12647,11 @@ body.rr-cmdk-open{ overflow:hidden }
              ribbon. Title sits on the left, the full icon cluster
              (nav tabs + commands + week nav) rides the same line,
              Outlook-style. Replaces the old two-row header. -->
+        <div class="sched-cmd-shell" id="rr-sched-cmd">
+        <div class="sched-cmd-tabs" role="tablist" aria-label="Command strip mode">
+          <button class="sched-cmd-tab active" type="button" data-cmd-tab="schedule" role="tab" aria-selected="true">Schedule</button>
+          <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print</button>
+        </div>
         <div class="page-header sched-nav-heading">
           <div class="page-header-l">
             <div>
@@ -12655,11 +12660,6 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </div>
 
-          <div class="sched-cmd" id="rr-sched-cmd">
-          <div class="sched-cmd-tabs" role="tablist" aria-label="Command strip mode">
-            <button class="sched-cmd-tab active" type="button" data-cmd-tab="schedule" role="tab" aria-selected="true">Schedule</button>
-            <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print</button>
-          </div>
           <div class="sched-nav-heading-actions sched-ribbon-grouped">
           <!-- VIEWS group · Week first, then Today. Quiet utility
                buttons with the same monoline calendar glyph family. -->
@@ -13049,15 +13049,13 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
           </div>
+          <button class="subnav-item sched-print-btn" type="button" id="rr-sched-print-btn" aria-label="Print the schedule">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            <span>Print schedule</span>
+          </button>
           </div><!-- /sched-nav-heading-actions -->
-          <div class="sched-print-strip">
-            <button class="sched-print-btn" type="button" id="rr-sched-print-btn" aria-label="Print the schedule">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-              Print schedule
-            </button>
-          </div>
-          </div><!-- /sched-cmd -->
         </div><!-- /page-header.sched-nav-heading -->
+        </div><!-- /sched-cmd-shell -->
 
         <!-- KPI pill row · populated by renderScheduleWeek. -->
         <div id="rr-sched-kpis" class="sched-kpi-pills"></div>
@@ -14082,41 +14080,43 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:0 0 auto;min-width:0;
           }
           /* ── Command-strip mode tabs ────────────────────────────────
-             "Schedule" shows the icon ribbon; "Print" swaps it for a
-             single left-justified print button. Tabs sit above the
-             strip, aligned to its left edge, and stay where the DSP
-             left them until they switch back. */
-          #view-schedule .sched-cmd{
-            display:flex;flex-direction:column;align-items:flex-start;
-            gap:5px;margin-left:auto;min-width:0;
+             "Schedule" / "Print" sit on the far left, fixed above the
+             command-strip card like sheet tabs. "Print" swaps the icon
+             ribbon for one print button styled like the strip's own
+             icons; the ribbon items just go invisible so the card never
+             changes size between the two modes. */
+          #view-schedule .sched-cmd-shell{display:block;margin-bottom:var(--s-4)}
+          #view-schedule .sched-cmd-shell .sched-nav-heading{margin-bottom:0}
+          #view-schedule .sched-cmd-tabs{
+            display:inline-flex;gap:3px;margin:0 0 -1px 4px;
           }
-          #view-schedule .sched-cmd .sched-nav-heading-actions{margin-left:0}
-          #view-schedule .sched-cmd-tabs{display:inline-flex;gap:6px}
           #view-schedule .sched-cmd-tab{
-            appearance:none;background:transparent;border:0;font:inherit;cursor:pointer;
-            font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
-            color:var(--text-subtle);padding:2px 3px 4px;
-            border-bottom:2px solid transparent;
-            transition:color var(--t-fast),border-color var(--t-fast);
+            appearance:none;background:transparent;cursor:pointer;font:inherit;
+            font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            color:var(--text-subtle);padding:6px 14px;
+            border:1px solid transparent;border-bottom:0;
+            border-radius:8px 8px 0 0;
+            transition:color var(--t-fast),background var(--t-fast);
           }
           #view-schedule .sched-cmd-tab:hover:not(.active){color:var(--text-muted)}
-          #view-schedule .sched-cmd-tab.active{color:var(--sch-blue);border-bottom-color:var(--sch-blue)}
-          #view-schedule .sched-cmd-tab:focus-visible{outline:none;color:var(--sch-blue);border-bottom-color:var(--sch-blue)}
-          /* Print strip — replaces the icon ribbon in Print mode. */
-          #view-schedule .sched-print-strip{display:flex;align-items:center;min-height:44px}
-          #view-schedule .sched-cmd:not(.is-print) .sched-print-strip{display:none}
-          #view-schedule .sched-cmd.is-print .sched-nav-heading-actions{display:none}
-          #view-schedule .sched-print-btn{
-            display:inline-flex;align-items:center;gap:8px;
-            height:34px;padding:0 18px;border-radius:6px;
-            background:var(--sch-blue);color:#fff;border:1px solid var(--sch-blue);
-            font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;
-            box-shadow:0 1px 2px rgba(15,23,42,.12);
-            transition:background var(--t-fast),border-color var(--t-fast);
+          #view-schedule .sched-cmd-tab.active{
+            color:var(--sch-blue);
+            background:var(--surface-elevated);
+            border-color:rgba(15,23,42,.07);
           }
-          #view-schedule .sched-print-btn:hover{background:var(--sch-blue-strong,#115EA3);border-color:var(--sch-blue-strong,#115EA3)}
-          #view-schedule .sched-print-btn:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--sch-blue)}
-          #view-schedule .sched-print-btn svg{flex:0 0 auto}
+          #view-schedule .sched-cmd-tab:focus-visible{outline:none;color:var(--sch-blue)}
+          /* Print mode · the ribbon's real items go invisible (holding
+             their exact size so the card never resizes) and the print
+             button overlays at the strip's left edge. */
+          #view-schedule .sched-cmd-shell:not(.is-print) .sched-print-btn{display:none}
+          #view-schedule .sched-cmd-shell.is-print .sched-nav-heading-actions{position:relative}
+          #view-schedule .sched-cmd-shell.is-print .sched-nav-heading-actions > :not(.sched-print-btn){
+            visibility:hidden;
+          }
+          #view-schedule .sched-cmd-shell.is-print .sched-print-btn{
+            display:inline-flex;visibility:visible;
+            position:absolute;left:0;top:50%;transform:translateY(-50%);
+          }
           /* ── Print · schedule grid only ─────────────────────────────
              The print button sets html.rr-printing, clones the week
              grid + a heading into #rr-sched-print-area, then prints. */
