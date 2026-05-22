@@ -9870,7 +9870,7 @@ body.rr-cmdk-open{ overflow:hidden }
              Top row: the loud "Review video" CTA, the advance button,
              and a quiet decline. Bottom row: ghost contact icons. */
           #view-pipeline .pa-zone-action{
-            display:flex;flex-direction:column;align-items:flex-end;
+            display:flex;flex-direction:column;align-items:stretch;
             justify-content:center;gap:10px;
             /* Set apart as a blue workflow surface — matches the
                schedule shift-card blue, divided from the timeline. */
@@ -9879,12 +9879,13 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-pipeline .pa-act-row{
             display:flex;align-items:center;gap:8px;
-            flex-wrap:wrap;justify-content:flex-end;
+            flex-wrap:nowrap;justify-content:flex-end;width:100%;
           }
           /* Review video — Fluent primary; the screening centrepiece. */
           #view-pipeline .pa-btn-video{
             position:relative;
-            display:inline-flex;align-items:center;gap:7px;
+            display:inline-flex;align-items:center;justify-content:center;gap:7px;
+            flex:1 1 0;min-width:0;
             height:32px;padding:0 14px;border-radius:4px;
             font-family:inherit;font-size:13.5px;font-weight:600;
             white-space:nowrap;cursor:pointer;
@@ -9911,7 +9912,8 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Advance — secondary by default; goes primary once no
              unwatched video is competing for the operator's eye. */
           #view-pipeline .pa-btn-advance{
-            display:inline-flex;align-items:center;gap:6px;
+            display:inline-flex;align-items:center;justify-content:center;gap:6px;
+            flex:1 1 0;min-width:0;
             height:32px;padding:0 14px;border-radius:4px;
             font-family:inherit;font-size:13.5px;font-weight:600;
             white-space:nowrap;cursor:pointer;
@@ -9940,9 +9942,10 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-act-decline:active{background:#F1C2BE}
           #view-pipeline .pa-act-decline:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px #C4281C}
           /* Contact icons — defined Fluent icon buttons, one row down. */
-          #view-pipeline .pa-act-contact{display:flex;align-items:center;gap:6px}
+          #view-pipeline .pa-act-contact{display:flex;align-items:center;gap:6px;width:100%}
           #view-pipeline .pa-act-contact .pa-icon-btn{
             background:#fff;border:1px solid #D1D1D1;box-shadow:none;
+            flex:1 1 0;min-width:0;
             width:32px;height:32px;border-radius:4px;color:#424242;
             transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
           }
@@ -10293,22 +10296,30 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .hp-list-head{
             align-items:center;margin:2px 0 var(--s-2);
           }
-          /* Stage filter · compact Fluent segmented control. */
+          /* Stage filter · quiet Fluent pivot tabs — no box chrome, so
+             the row reads as a light inline filter, not a toolbar. */
           #view-pipeline .hp-stages{
-            max-width:100%;overflow-x:auto;gap:1px;padding:2px;
-            background:var(--surface-secondary);border:1px solid var(--sch-line,var(--border));border-radius:5px;
+            max-width:100%;overflow-x:auto;gap:2px;padding:0;
+            background:transparent;border:0;border-radius:0;
             scrollbar-width:none;
           }
           #view-pipeline .hp-stages::-webkit-scrollbar{display:none}
           #view-pipeline .hp-stage-btn{
-            white-space:nowrap;padding:3px 8px;border-radius:4px;
-            font-size:11px;color:var(--text-muted);
-            transition:background var(--t-fast),color var(--t-fast),box-shadow var(--t-fast);
+            position:relative;
+            white-space:nowrap;padding:4px 9px 6px;border-radius:4px 4px 0 0;
+            font-size:12px;font-weight:500;color:var(--text-muted);
+            transition:background var(--t-fast),color var(--t-fast);
           }
-          #view-pipeline .hp-stage-btn:hover:not(.active){color:var(--text)}
+          #view-pipeline .hp-stage-btn:hover:not(.active){
+            color:var(--text);background:rgba(15,23,42,.035);
+          }
           #view-pipeline .hp-stage-btn.active{
-            background:var(--surface-elevated);color:var(--sch-blue);font-weight:600;
-            box-shadow:0 1px 2px rgba(15,23,42,.06);
+            background:transparent;color:var(--sch-blue);font-weight:600;box-shadow:none;
+          }
+          /* Fluent pivot underline on the active tab. */
+          #view-pipeline .hp-stage-btn.active::after{
+            content:"";position:absolute;left:9px;right:9px;bottom:0;
+            height:2px;border-radius:2px;background:var(--sch-blue);
           }
           #view-pipeline .hp-stage-btn-count{
             min-width:15px;height:14px;justify-content:center;
