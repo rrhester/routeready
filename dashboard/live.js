@@ -40263,6 +40263,266 @@ document.addEventListener("change", (e) => {
   }
 });
 
+// ─── Fleet · Print / Download command-tab ────────────────────────────
+// Sheet-tab pattern matching the schedule page: a "Fleet / Print/
+// Download" pair of tabs above the ribbon. When Print/Download is
+// active the ribbon contents go invisible and Print + Download +
+// Proof-of-Use buttons take their place at the strip's left edge.
+function _flCmdTab(mode) {
+  const cmd = document.getElementById("rr-fl-cmd");
+  if (!cmd) return;
+  cmd.classList.toggle("is-print", mode === "print");
+  cmd.querySelectorAll(".fl-cmd-tab").forEach((t) => {
+    const on = t.getAttribute("data-fl-cmd-tab") === mode;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+}
+window._flCmdTab = _flCmdTab;
+
+function _flActiveSub() {
+  return document.querySelector("#view-fleet .fl-sub.active");
+}
+function _flActiveSubLabel() {
+  return ({
+    "fl-sub-vehicles": "Fleet roster",
+    "fl-sub-issues":   "Open issues",
+    "fl-sub-calendar": "Fleet calendar",
+    "fl-sub-assign":   "Fleet assignment",
+    "fl-sub-rotation": "Van rotation",
+  })[_flActiveSub()?.id || ""] || "Fleet";
+}
+
+function _flPrintActive() {
+  const sub = _flActiveSub();
+  const area = document.getElementById("rr-fleet-print-area");
+  if (!sub || !area) { window.print(); return; }
+  area.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "rr-print-head";
+  head.textContent = `${_flActiveSubLabel()} — ${new Date().toLocaleString()}`;
+  area.appendChild(head);
+  area.appendChild(sub.cloneNode(true));
+  document.documentElement.classList.add("rr-printing");
+  window.addEventListener("afterprint", function _done() {
+    window.removeEventListener("afterprint", _done);
+    document.documentElement.classList.remove("rr-printing");
+    area.innerHTML = "";
+  });
+  window.print();
+}
+
+function _flDownloadActive() {
+  const sub = _flActiveSub();
+  if (!sub) { toast("Open a Fleet view first", "warn"); return; }
+  const table = sub.querySelector("table");
+  if (!table) { toast("Nothing to download in this view", "warn"); return; }
+  const clean = (el) => (el ? el.innerText : "")
+    .split("\n").map(s => s.trim()).filter(Boolean).join(" · ");
+  const rows = [];
+  table.querySelectorAll("thead tr").forEach((tr) => {
+    rows.push(Array.from(tr.querySelectorAll("th,td")).map(clean));
+  });
+  table.querySelectorAll("tbody tr").forEach((tr) => {
+    if (tr.classList.contains("fl-skel-row")) return;
+    const cells = Array.from(tr.querySelectorAll("td"));
+    if (!cells.length) return;
+    rows.push(cells.map(clean));
+  });
+  if (rows.length < 2) { toast("Nothing to download yet", "warn"); return; }
+  const csv = String.fromCharCode(0xFEFF)
+    + rows.map(r => r.map(_schedCsvField).join(",")).join("\r\n");
+  const slug = _flActiveSubLabel().toLowerCase().replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "") || "fleet";
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `routeready-${slug}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast(`${_flActiveSubLabel()} downloaded`, "success");
+}
+
+// ─── Proof-of-Use report ─────────────────────────────────────────────
+// DSPs use this to dispute scorecard violations: pick a van + a date
+// range, get every DVIC submitted in that window (timestamp, inspector,
+// result, mileage). Download as CSV or print — both produce something
+// the operator can email to a business coach.
+function _flOpenProofModal() {
+  document.getElementById("rr-fl-proof")?.remove();
+  const wrap = document.createElement("div");
+  wrap.id = "rr-fl-proof";
+  wrap.className = "rr-proof-modal";
+  wrap.setAttribute("role", "dialog");
+  wrap.setAttribute("aria-modal", "true");
+  wrap.setAttribute("aria-label", "Proof of Use report");
+
+  const today = new Date();
+  const back  = new Date(); back.setDate(back.getDate() - 13);
+  const isoOf = (d) => d.toISOString().slice(0, 10);
+  const vans  = (_fleetRows || []).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+
+  wrap.innerHTML = `
+    <div class="rr-proof-card" role="document">
+      <div class="rr-proof-head">
+        <div>
+          <h3>Proof of Use report</h3>
+          <div class="rr-proof-head-sub">A signed-DVIC log for one van across a date range — sized for a scorecard-dispute email.</div>
+        </div>
+        <button type="button" class="rr-proof-close" data-rr-proof-close aria-label="Close">×</button>
+      </div>
+      <div class="rr-proof-body">
+        <div class="rr-proof-bar">
+          <label>Van
+            <select id="rr-proof-veh">
+              ${vans.map(v => `<option value="${escapeHtml(v.id)}">${escapeHtml(v.name || v.id)}${v.vin ? ` · ${escapeHtml(v.vin)}` : ""}</option>`).join("")}
+            </select>
+          </label>
+          <label>From
+            <input id="rr-proof-from" type="date" value="${isoOf(back)}">
+          </label>
+          <label>To
+            <input id="rr-proof-to" type="date" value="${isoOf(today)}">
+          </label>
+          <button type="button" class="btn-primary" id="rr-proof-generate">Generate</button>
+        </div>
+        <div class="rr-proof-result" id="rr-proof-result">
+          <div class="rr-proof-empty">Pick a van and a date range, then hit Generate.</div>
+        </div>
+      </div>
+      <div class="rr-proof-foot">
+        <button type="button" class="btn" id="rr-proof-download" disabled>Download CSV</button>
+        <button type="button" class="btn" id="rr-proof-print" disabled>Print</button>
+        <button type="button" class="btn" data-rr-proof-close>Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+
+  const close = () => { wrap.remove(); };
+  wrap.addEventListener("click", (e) => { if (e.target === wrap) close(); });
+  wrap.querySelectorAll("[data-rr-proof-close]").forEach((b) => b.addEventListener("click", close));
+  document.addEventListener("keydown", function esc(e) {
+    if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc); }
+  });
+
+  let _last = null;  // { v, from, to, rows }
+  wrap.querySelector("#rr-proof-generate").addEventListener("click", async () => {
+    const vehId = wrap.querySelector("#rr-proof-veh").value;
+    const from  = wrap.querySelector("#rr-proof-from").value;
+    const to    = wrap.querySelector("#rr-proof-to").value;
+    const v = (_fleetRows || []).find(x => x.id === vehId);
+    const result = wrap.querySelector("#rr-proof-result");
+    if (!vehId || !from || !to) { result.innerHTML = `<div class="rr-proof-empty">Pick a van and a date range.</div>`; return; }
+    result.innerHTML = `<div class="rr-proof-empty">Loading…</div>`;
+    const { data, error } = await sb.from("vehicle_inspections")
+      .select("inspected_at, inspector_name, result, mileage, notes")
+      .eq("vehicle_id", vehId)
+      .eq("kind", "dvic")
+      .gte("inspected_at", from + "T00:00:00.000Z")
+      .lte("inspected_at", to + "T23:59:59.999Z")
+      .order("inspected_at", { ascending: true });
+    if (error) {
+      result.innerHTML = `<div class="rr-proof-empty">Couldn't load: ${escapeHtml(error.message)}</div>`;
+      return;
+    }
+    const rows = data || [];
+    const fmtD = (iso) => { try { return new Date(iso).toLocaleDateString(undefined, { weekday:"short", year:"numeric", month:"short", day:"numeric" }); } catch { return iso; } };
+    const fmtT = (iso) => { try { return new Date(iso).toLocaleTimeString(undefined, { hour:"numeric", minute:"2-digit" }); } catch { return ""; } };
+    const days = new Set(rows.map(r => String(r.inspected_at).slice(0, 10))).size;
+    const summary = `
+      <div class="rr-proof-summary">
+        <div><strong>${escapeHtml((v && v.name) || vehId)}</strong>${v && v.vin ? ` · ${escapeHtml(v.vin)}` : ""}</div>
+        <div>${rows.length} DVIC${rows.length === 1 ? "" : "s"} · ${days} day${days === 1 ? "" : "s"} in service · ${fmtD(from + "T12:00:00")} – ${fmtD(to + "T12:00:00")}</div>
+      </div>`;
+    const body = rows.length === 0
+      ? `<div class="rr-proof-empty">No DVICs were submitted for ${escapeHtml((v && v.name) || vehId)} in that window.</div>`
+      : `<table class="rr-proof-table">
+          <thead><tr><th>Date</th><th>Time</th><th>Driver</th><th>Result</th><th>Mileage</th><th>Notes</th></tr></thead>
+          <tbody>${rows.map(r => `<tr>
+            <td>${escapeHtml(fmtD(r.inspected_at))}</td>
+            <td>${escapeHtml(fmtT(r.inspected_at))}</td>
+            <td>${escapeHtml(r.inspector_name || "—")}</td>
+            <td>${escapeHtml((r.result || "").replace(/^./, c => c.toUpperCase()) || "—")}</td>
+            <td>${r.mileage == null ? "—" : escapeHtml(String(r.mileage))}</td>
+            <td>${escapeHtml(r.notes || "")}</td>
+          </tr>`).join("")}</tbody>
+        </table>`;
+    result.innerHTML = summary + body;
+    _last = { v, from, to, rows };
+    const hasRows = rows.length > 0;
+    wrap.querySelector("#rr-proof-download").disabled = !hasRows;
+    wrap.querySelector("#rr-proof-print").disabled = !hasRows;
+  });
+
+  wrap.querySelector("#rr-proof-download").addEventListener("click", () => {
+    if (!_last || !_last.rows.length) return;
+    const { v, from, to, rows } = _last;
+    const head = [
+      ["Proof of Use Report"],
+      [`Van: ${(v && v.name) || ""}${v && v.vin ? ` (VIN ${v.vin})` : ""}`],
+      [`Date range: ${from} to ${to}`],
+      [`Generated: ${new Date().toLocaleString()}`],
+      [],
+      ["Date", "Time", "Driver", "Result", "Mileage", "Notes"],
+    ];
+    const fmt = (iso) => { try { return new Date(iso); } catch { return null; } };
+    const body = rows.map(r => {
+      const d = fmt(r.inspected_at);
+      return [
+        d ? d.toLocaleDateString() : String(r.inspected_at).slice(0,10),
+        d ? d.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }) : "",
+        r.inspector_name || "",
+        (r.result || ""),
+        r.mileage == null ? "" : String(r.mileage),
+        r.notes || "",
+      ];
+    });
+    const all = head.concat(body);
+    const csv = String.fromCharCode(0xFEFF)
+      + all.map(r => r.map(_schedCsvField).join(",")).join("\r\n");
+    const slug = `proof-${(v && v.name ? v.name : "van").toLowerCase().replace(/[^\w]+/g,"-")}-${from}-${to}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${slug}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast("Proof report downloaded", "success");
+  });
+
+  wrap.querySelector("#rr-proof-print").addEventListener("click", () => {
+    if (!_last || !_last.rows.length) return;
+    const area = document.getElementById("rr-fleet-print-area");
+    if (!area) { window.print(); return; }
+    area.innerHTML = "";
+    const head = document.createElement("div");
+    head.className = "rr-print-head";
+    head.innerHTML = `Proof of Use — ${escapeHtml((_last.v && _last.v.name) || "")} · ${escapeHtml(_last.from)} → ${escapeHtml(_last.to)}`;
+    area.appendChild(head);
+    const result = wrap.querySelector("#rr-proof-result");
+    if (result) area.appendChild(result.cloneNode(true));
+    document.documentElement.classList.add("rr-printing");
+    window.addEventListener("afterprint", function _done() {
+      window.removeEventListener("afterprint", _done);
+      document.documentElement.classList.remove("rr-printing");
+      area.innerHTML = "";
+    });
+    window.print();
+  });
+}
+window._flOpenProofModal = _flOpenProofModal;
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  const tab = e.target.closest(".fl-cmd-tab");
+  if (tab) { e.preventDefault(); _flCmdTab(tab.getAttribute("data-fl-cmd-tab")); return; }
+  if (e.target.closest("#rr-fl-print-btn"))    { e.preventDefault(); _flPrintActive(); return; }
+  if (e.target.closest("#rr-fl-download-btn")) { e.preventDefault(); _flDownloadActive(); return; }
+  if (e.target.closest("#rr-fl-proof-btn"))    { e.preventDefault(); _flOpenProofModal(); }
+});
+
 // Save the RO code on blur or Enter.  Empty → leave alone (no destructive default).
 async function _flSaveRoCode(input) {
   const vid = input.getAttribute("data-rr-ro-code-vehicle");
