@@ -21935,6 +21935,64 @@ body.rr-cmdk-open{ overflow:hidden }
             font-variant-numeric:tabular-nums;
           }
           #view-email .em-messages{min-height:300px}
+
+          /* —— Inbox / preview split · draggable divider ——————————————
+             Two-column layout inside the main pane: scrollable inbox on
+             the left, message preview on the right, vertical resizer
+             between them. Width persists in localStorage. */
+          #view-email .em-main{display:flex;flex-direction:column;min-height:0}
+          #view-email .em-split{
+            display:grid;
+            grid-template-columns:var(--em-inbox-w,360px) 6px minmax(0,1fr);
+            flex:1 1 auto;min-height:0;
+          }
+          #view-email .em-inbox{
+            min-width:0;overflow-y:auto;
+            padding:0 12px 0 0;
+            max-height:calc(100vh - 260px);
+            scrollbar-width:thin;
+            scrollbar-color:var(--border-strong) transparent;
+          }
+          #view-email .em-inbox::-webkit-scrollbar{width:8px}
+          #view-email .em-inbox::-webkit-scrollbar-thumb{
+            background:var(--border-strong);border-radius:4px;
+          }
+          #view-email .em-resizer{
+            position:relative;cursor:col-resize;background:transparent;
+            user-select:none;
+          }
+          #view-email .em-resizer::before{
+            content:"";position:absolute;left:50%;top:0;bottom:0;
+            width:1px;background:var(--border);
+            transform:translateX(-50%);
+            transition:width var(--t-fast),background var(--t-fast);
+          }
+          #view-email .em-resizer:hover::before,
+          #view-email .em-resizer:focus-visible::before,
+          #view-email .em-resizer.is-dragging::before{
+            width:2px;background:var(--sch-blue);
+          }
+          #view-email .em-resizer:focus-visible{outline:none}
+          #view-email .em-resizer.is-dragging{
+            cursor:col-resize;
+          }
+          /* While dragging, the global cursor stays col-resize so a
+             quick mouse-out doesn't flicker back. */
+          body.em-resizing,
+          body.em-resizing *{cursor:col-resize !important;user-select:none}
+          #view-email .em-preview{
+            min-width:0;overflow-y:auto;
+            padding:0 0 0 12px;
+            max-height:calc(100vh - 260px);
+            scrollbar-width:thin;
+            scrollbar-color:var(--border-strong) transparent;
+          }
+          @media (max-width:980px){
+            #view-email .em-split{grid-template-columns:1fr}
+            #view-email .em-resizer,
+            #view-email .em-preview{display:none}
+            #view-email .em-inbox{padding-right:0;max-height:none}
+          }
           @media (max-width:1180px){
             #view-email .em-grid{grid-template-columns:1fr}
             #view-email .em-aside{position:static;max-height:none}
@@ -21980,10 +22038,22 @@ body.rr-cmdk-open{ overflow:hidden }
               <span class="em-main-title" id="rr-em-main-title">Inbox</span>
               <span class="em-main-count" id="rr-em-main-count"></span>
             </div>
-            <div class="em-messages" id="rr-em-messages">
-              <div class="em-placeholder">
-                <span class="em-placeholder-label">No messages</span>
-                <div>Once email sync is wired up this folder's threads will land here.</div>
+            <div class="em-split" id="rr-em-split">
+              <div class="em-inbox" id="rr-em-inbox" aria-label="Inbox list">
+                <div class="em-placeholder">
+                  <span class="em-placeholder-label">No messages</span>
+                  <div>Once email sync is wired up this folder's threads will land here.</div>
+                </div>
+              </div>
+              <div class="em-resizer" id="rr-em-resizer"
+                   role="separator" aria-orientation="vertical" tabindex="0"
+                   aria-label="Resize inbox panel"
+                   title="Drag to resize · double-click to reset"></div>
+              <div class="em-preview" id="rr-em-preview" aria-label="Email preview">
+                <div class="em-placeholder">
+                  <span class="em-placeholder-label">No message selected</span>
+                  <div>Pick a thread from the inbox to preview it here.</div>
+                </div>
               </div>
             </div>
           </section>
