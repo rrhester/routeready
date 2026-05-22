@@ -9001,11 +9001,6 @@ body.rr-cmdk-open{ overflow:hidden }
         Fleet
         <span class="nav-badge" style="background:var(--amber)">2</span>
       </button>
-      <button class="nav-item" data-view="compliance" data-c="compliance" onclick="goto('compliance')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.2"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><path d="M12 12 L19.6 7.5"/></svg></span>
-        Compliance
-        <span class="nav-badge" style="background:var(--red)">3</span>
-      </button>
       <button class="nav-item active" data-view="schedule" data-c="schedule" onclick="goto('schedule')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><line x1="3.5" y1="10" x2="20.5" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/><rect x="7" y="13" width="3" height="3" rx=".6" fill="currentColor" stroke="none"/></svg></span>
         Schedule
@@ -10490,9 +10485,74 @@ body.rr-cmdk-open{ overflow:hidden }
           display:flex;flex-direction:column;gap:var(--s-2-5);
         }
         #view-onboarding-ops .onb-skel-card .rr-skel{display:block}
+
+        /* Command-bar header — the icon strip replaces the old tab
+           bar, mirroring the schedule page's command bar exactly. */
+        #view-onboarding-ops{
+          --sch-blue:#0F6CBD;
+          --sch-radius:6px;
+        }
+        #view-onboarding-ops .page-header.sched-nav-heading{
+          display:flex;align-items:center;justify-content:space-between;
+          gap:var(--s-3);flex-wrap:nowrap;
+          padding:11px 18px;margin-bottom:var(--s-4);
+          background:var(--surface-elevated, #FCFDFE);
+          border:1px solid rgba(15,23,42,.07);
+          border-radius:10px;
+          box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
+        }
+        #view-onboarding-ops .sched-nav-heading .page-header-l{flex:0 0 auto;min-width:0}
+        #view-onboarding-ops .sched-nav-heading-actions{
+          display:flex;align-items:center;justify-content:flex-end;
+          flex-wrap:nowrap;gap:0;margin-left:auto;
+          min-width:0;max-width:100%;overflow:visible;min-height:44px;
+        }
+        #view-onboarding-ops .sched-ribbon-group{
+          display:inline-flex;align-items:center;flex:0 0 auto;padding:0;
+        }
+        #view-onboarding-ops .sched-ribbon-group > .subnav{
+          margin:0;display:inline-flex;align-items:center;gap:8px;
+          background:transparent;border:0;border-radius:0;padding:0;box-shadow:none;
+          flex:0 0 auto;align-self:center;width:auto;min-width:0;
+        }
+        /* Icon-over-label ghost tab — same size/behaviour as the
+           schedule ribbon's view tabs. */
+        #view-onboarding-ops .sched-nav-heading .subnav-item{
+          display:inline-flex;flex-direction:column;
+          align-items:center;justify-content:center;gap:4px;
+          padding:5px 9px;min-width:62px;
+          font-size:var(--fs-sm);font-weight:500;
+          color:var(--text-muted);
+          background:transparent;border:0;border-radius:var(--sch-radius);
+          box-shadow:none;letter-spacing:0;line-height:1.2;
+          cursor:pointer;position:relative;
+          transition:color var(--t-fast),background var(--t-fast);
+        }
+        #view-onboarding-ops .sched-nav-heading .subnav-item::after{display:none}
+        #view-onboarding-ops .sched-nav-heading .subnav-item span{white-space:nowrap}
+        #view-onboarding-ops .sched-nav-heading .subnav-item svg{
+          width:28px;height:28px;flex-shrink:0;
+          color:var(--text-subtle);stroke-width:1.6;
+          transition:color var(--t-fast);
+        }
+        #view-onboarding-ops .sched-nav-heading .subnav-item:hover{
+          color:var(--text);background:rgba(0,0,0,.04);
+        }
+        #view-onboarding-ops .sched-nav-heading .subnav-item.active{
+          color:var(--sch-blue);font-weight:600;
+        }
+        #view-onboarding-ops .sched-nav-heading .subnav-item.active svg{color:var(--sch-blue)}
+        #view-onboarding-ops .sched-nav-heading .subnav-item:focus,
+        #view-onboarding-ops .sched-nav-heading .subnav-item:focus-visible{outline:none}
+        @media (max-width:1280px){
+          #view-onboarding-ops .sched-nav-heading .subnav-item{
+            font-size:11px;padding:5px 8px 6px;min-width:56px;
+          }
+          #view-onboarding-ops .sched-nav-heading .subnav-item svg{width:25px;height:25px}
+        }
       </style>
       <div class="page">
-        <div class="page-header">
+        <div class="page-header sched-nav-heading">
           <div class="page-header-l">
             <div class="page-icon" data-c="drivers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="15.5 11 17.5 13 21.5 9"/></svg></div>
             <div>
@@ -10500,12 +10560,26 @@ body.rr-cmdk-open{ overflow:hidden }
               <p class="page-sub" id="rr-onboardops-sub">Every driver getting ready to drive — readiness at a glance.</p>
             </div>
           </div>
-        </div>
-
-        <div class="subnav">
-          <button class="subnav-item active" data-obsub="overview" onclick="obSub('overview')">Overview</button>
-          <button class="subnav-item" data-obsub="workauth" onclick="obSub('workauth')">Work authorization</button>
-          <button class="subnav-item" data-obsub="builder" onclick="obSub('builder')">Builder</button>
+          <!-- Icon command strip · replaces the old tab bar. Each
+               button switches to its own onboarding sub-page. -->
+          <div class="sched-nav-heading-actions">
+            <div class="sched-ribbon-group">
+              <div class="subnav" data-rr-tabbar="onboarding-ops">
+                <button class="subnav-item active" data-obsub="overview" onclick="obSub('overview')" title="Overview">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+                  <span>Overview</span>
+                </button>
+                <button class="subnav-item" data-obsub="workauth" onclick="obSub('workauth')" title="Work authorization">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 14.5 11 16.5 15.5 11.5"/></svg>
+                  <span>Work auth</span>
+                </button>
+                <button class="subnav-item" data-obsub="builder" onclick="obSub('builder')" title="Builder">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.6 5.6L3 18v3h3l6.1-6.1a4 4 0 0 0 5.6-5.6l-2.9 2.9-2.1-2.1 2.9-2.9z"/></svg>
+                  <span>Builder</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div id="obsub-overview">
