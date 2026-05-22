@@ -1234,10 +1234,50 @@ function _schedPrint() {
   window.print();
 }
 
+// Export the visible week schedule as a CSV (opens straight into Excel).
+// Scrapes the rendered grid so it captures exactly what's on screen.
+function _schedCsvField(v) {
+  const s = String(v == null ? "" : v);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function _schedDownloadSchedule() {
+  const wrap = document.querySelector("#sched-sub-week .cal-wrap");
+  if (!wrap) { toast("Open the week schedule first", "warn"); return; }
+  const clean = (el) => (el ? el.innerText : "")
+    .split("\n").map(s => s.trim()).filter(Boolean).join(" · ");
+  const rows = [];
+  const header = ["Driver", "Details"];
+  wrap.querySelectorAll(".cal-cell-head").forEach(h => header.push(clean(h)));
+  rows.push(header);
+  wrap.querySelectorAll(".cal-grid").forEach(g => {
+    const name = clean(g.querySelector(".cal-row-label-name"));
+    if (!name) return;
+    const row = [name, clean(g.querySelector(".cal-row-label-meta"))];
+    g.querySelectorAll(".cal-cell").forEach(c => row.push(clean(c)));
+    rows.push(row);
+  });
+  if (rows.length < 2) { toast("Nothing to download yet", "warn"); return; }
+  const bom = String.fromCharCode(0xFEFF);
+  const csv = bom + rows.map(r => r.map(_schedCsvField).join(",")).join("\r\n");
+  const week = ((document.getElementById("rr-sched-page-sub")?.textContent) || "schedule")
+    .trim().replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "schedule";
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `routeready-${week}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast("Schedule downloaded", "success");
+}
+
 document.addEventListener("click", (e) => {
   const tab = e.target.closest(".sched-cmd-tab");
   if (tab) { e.preventDefault(); _schedCmdTab(tab.getAttribute("data-cmd-tab")); return; }
-  if (e.target.closest("#rr-sched-print-btn")) { e.preventDefault(); _schedPrint(); }
+  if (e.target.closest("#rr-sched-print-btn")) { e.preventDefault(); _schedPrint(); return; }
+  if (e.target.closest("#rr-sched-download-btn")) { e.preventDefault(); _schedDownloadSchedule(); }
 });
 
 // ── Undo stack ─────────────────────────────────────────────────────

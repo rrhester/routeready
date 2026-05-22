@@ -12964,7 +12964,7 @@ body.rr-cmdk-open{ overflow:hidden }
         <div class="sched-cmd-shell" id="rr-sched-cmd">
         <div class="sched-cmd-tabs" role="tablist" aria-label="Command strip mode">
           <button class="sched-cmd-tab active" type="button" data-cmd-tab="schedule" role="tab" aria-selected="true">Schedule</button>
-          <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print</button>
+          <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
         </div>
         <div class="page-header sched-nav-heading">
           <div class="page-header-l">
@@ -13365,10 +13365,16 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
           </div>
-          <button class="subnav-item sched-print-btn" type="button" id="rr-sched-print-btn" aria-label="Print the schedule">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            <span>Print schedule</span>
-          </button>
+          <div class="sched-print-actions">
+            <button class="subnav-item sched-print-btn" type="button" id="rr-sched-print-btn" aria-label="Print the schedule">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              <span>Print schedule</span>
+            </button>
+            <button class="subnav-item sched-print-btn" type="button" id="rr-sched-download-btn" aria-label="Download the schedule as a spreadsheet">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Excel</span>
+            </button>
+          </div>
           </div><!-- /sched-nav-heading-actions -->
         </div><!-- /page-header.sched-nav-heading -->
         </div><!-- /sched-cmd-shell -->
@@ -14427,13 +14433,13 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Print mode · the ribbon's real items go invisible (holding
              their exact size so the card never resizes) and the print
              button overlays at the strip's left edge. */
-          #view-schedule .sched-cmd-shell:not(.is-print) .sched-print-btn{display:none}
+          #view-schedule .sched-cmd-shell:not(.is-print) .sched-print-actions{display:none}
           #view-schedule .sched-cmd-shell.is-print .sched-nav-heading-actions{position:relative}
-          #view-schedule .sched-cmd-shell.is-print .sched-nav-heading-actions > :not(.sched-print-btn){
+          #view-schedule .sched-cmd-shell.is-print .sched-nav-heading-actions > :not(.sched-print-actions){
             visibility:hidden;
           }
-          #view-schedule .sched-cmd-shell.is-print .sched-print-btn{
-            display:inline-flex;visibility:visible;
+          #view-schedule .sched-cmd-shell.is-print .sched-print-actions{
+            display:inline-flex;gap:8px;visibility:visible;
             position:absolute;left:0;top:50%;transform:translateY(-50%);
           }
           /* ── Print · schedule grid only ─────────────────────────────
@@ -19289,9 +19295,9 @@ body.rr-cmdk-open{ overflow:hidden }
               </button>
             </div>
             <div class="fl-ribbon-group">
-              <button type="button" class="fl-ribbon-btn" aria-label="Placeholder action">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
-                <span>—</span>
+              <button type="button" class="fl-ribbon-btn" aria-label="Van rotation" title="Van rotation">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <span>Van Rotation</span>
               </button>
               <button type="button" class="fl-ribbon-btn" aria-label="Placeholder action">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
@@ -19670,27 +19676,28 @@ body.rr-cmdk-open{ overflow:hidden }
             align-items:center;justify-content:center;gap:5px;
             min-width:72px;
             padding:8px 16px 9px;
-            background:#FAFBFC;
-            border:1px solid rgba(15,23,42,.07);
+            /* Ghost tiles — no box, just a soft hover — mirrors the
+               schedule icon strip. */
+            background:transparent;
+            border:0;
             border-radius:6px;
             color:var(--text-muted);
-            transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
+            transition:background var(--t-fast),color var(--t-fast);
           }
           #view-fleet .fl-ribbon-btn:hover{
             background:rgba(15,23,42,.04);color:var(--text);
-            border-color:rgba(15,23,42,.10);
           }
           #view-fleet .fl-ribbon-btn svg{width:32px;height:32px;stroke-width:1.6}
           #view-fleet .fl-ribbon-btn span{font-size:var(--fs-sm);font-weight:500}
-          /* Active view switcher — blue box, mirrors the schedule
-             ribbon's active tab. */
+          /* Active view switcher — colored, not boxed (mirrors the
+             schedule ribbon's active tab). */
           #view-fleet .fl-ribbon-view.active,
           #view-fleet .fl-ribbon-view.active:hover{
-            background:var(--accent-soft);
-            border-color:var(--accent);
-            color:var(--accent-text);
+            background:transparent;
+            color:var(--sch-blue);
           }
-          #view-fleet .fl-ribbon-view.active svg{color:var(--accent-text)}
+          #view-fleet .fl-ribbon-view.active svg{color:var(--sch-blue)}
+          #view-fleet .fl-ribbon-view.active span{font-weight:600}
           /* Count badge pinned to the button's top-right corner. */
           #view-fleet .fl-ribbon-count{
             position:absolute;top:4px;right:6px;
