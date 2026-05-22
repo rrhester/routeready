@@ -1136,6 +1136,13 @@ window.goto = function (view) {
   if (typeof _closeAttKpiDetail === "function")     _closeAttKpiDetail();
   if (typeof _closeAvailKpiDetail === "function")   _closeAvailKpiDetail();
   if (typeof _closeRosterKpiDetail === "function")  _closeRosterKpiDetail();
+  // The hiring pipeline (Funnel / Interview Day / Calendar) now lives
+  // inside the Onboarding page — redirect legacy entry points there.
+  let _pipeSub = null;
+  if (view === "pipeline" || view === "interview" || view === "calendar") {
+    _pipeSub = view === "pipeline" ? "funnel" : view;
+    view = "onboarding-ops";
+  }
   if (typeof _legacyGoto === "function") _legacyGoto(view);
   if (view === "pipeline")  loadPipeline(getActiveStage());
   if (view === "drivers")   {
@@ -1153,7 +1160,10 @@ window.goto = function (view) {
     if (inLink) inLink.classList.remove("is-on");
     loadDriversRoster(); refreshI9Badge();
   }
-  if (view === "onboarding-ops") loadOnboardingOps();
+  if (view === "onboarding-ops") {
+    if (_pipeSub) { loadOnboardingOps({ keepTab: true }); if (typeof window.obSub === "function") window.obSub(_pipeSub); }
+    else loadOnboardingOps();
+  }
   if (view === "checkin")   loadCheckinView();
   if (view === "dashboard") { loadTodayPlan(); _toFetchPendingCount(); }
   if (view === "messages")  loadDriverChatInbox();
@@ -3812,13 +3822,37 @@ document.addEventListener("click", (e) => {
 });
 
 // ── Onboarding command center (dedicated sidebar page) ───────────────
+// Relocates the whole hiring-pipeline view into the Onboarding page
+// the first time a pipeline icon is opened, so Funnel / Interview Day
+// / Calendar live as onboarding sub-pages. The pipeline keeps its own
+// `#view-pipeline`-scoped CSS (the id moves with the node) and pipeSub
+// still switches between the three.
+function _obMountPipeline() {
+  const host = document.getElementById("obsub-pipeline");
+  const pipe = document.getElementById("view-pipeline");
+  if (host && pipe && pipe.parentElement !== host) {
+    pipe.classList.remove("view", "active");  // no longer a top-level view
+    pipe.style.display = "";
+    host.appendChild(pipe);
+  }
+}
 window.obSub = function (which) {
   document.querySelectorAll("#view-onboarding-ops .subnav .subnav-item[data-obsub]").forEach(b => b.classList.toggle("active", b.getAttribute("data-obsub") === which));
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? "" : "none"; };
-  show("obsub-overview", which === "overview");
-  show("obsub-workauth", which === "workauth");
-  show("obsub-builder",  which === "builder");
+  const isPipe = which === "funnel" || which === "interview" || which === "calendar";
+  show("obsub-overview",  which === "overview");
+  show("obsub-workauth",  which === "workauth");
+  show("obsub-builder",   which === "builder");
+  show("obsub-pipeline",  isPipe);
   if (which === "builder") loadOnboardingBuilder();
+  if (isPipe) {
+    _obMountPipeline();
+    if (typeof pipeSub === "function") pipeSub(which);
+    if (which === "funnel") {
+      if (typeof loadPipeline === "function") loadPipeline(typeof getActiveStage === "function" ? getActiveStage() : "all");
+      if (typeof loadPipelineKpis === "function") loadPipelineKpis();
+    }
+  }
 };
 
 // ── Step → underlying per-driver field(s). Maps a blueprint step `key`
