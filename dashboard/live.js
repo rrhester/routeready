@@ -1152,6 +1152,50 @@ window.paAction = function (btn, action, _name) {
   return handleAction(btn);
 };
 
+// ── Schedule command strip · Schedule / Print mode tabs ────────────
+// The "Print" tab swaps the icon ribbon for a single left-justified
+// print button; the choice sticks until the DSP clicks back to
+// "Schedule". The print button clones the week grid + a heading into
+// a print-only mount and calls window.print() — only the schedule
+// (not the surrounding page chrome) ends up on the page / PDF.
+function _schedCmdTab(mode) {
+  const cmd = document.getElementById("rr-sched-cmd");
+  if (!cmd) return;
+  cmd.classList.toggle("is-print", mode === "print");
+  cmd.querySelectorAll(".sched-cmd-tab").forEach((t) => {
+    const on = t.getAttribute("data-cmd-tab") === mode;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+}
+
+function _schedPrint() {
+  const sub  = document.getElementById("sched-sub-week");
+  const grid = sub && sub.querySelector(".cal-wrap");
+  const area = document.getElementById("rr-sched-print-area");
+  if (!grid || !area) { window.print(); return; }
+  const subTxt = (document.getElementById("rr-sched-page-sub")?.textContent || "").trim();
+  area.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "rr-print-head";
+  head.textContent = subTxt ? "Schedule — " + subTxt : "Schedule";
+  area.appendChild(head);
+  area.appendChild(grid.cloneNode(true));
+  document.documentElement.classList.add("rr-printing");
+  window.addEventListener("afterprint", function _done() {
+    window.removeEventListener("afterprint", _done);
+    document.documentElement.classList.remove("rr-printing");
+    area.innerHTML = "";
+  });
+  window.print();
+}
+
+document.addEventListener("click", (e) => {
+  const tab = e.target.closest(".sched-cmd-tab");
+  if (tab) { e.preventDefault(); _schedCmdTab(tab.getAttribute("data-cmd-tab")); return; }
+  if (e.target.closest("#rr-sched-print-btn")) { e.preventDefault(); _schedPrint(); }
+});
+
 // ─── Stage filter + view-switch hooks ──────────────────────────────────────
 
 function getActiveStage() {
