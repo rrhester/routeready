@@ -10515,13 +10515,22 @@ body.rr-cmdk-open{ overflow:hidden }
         #view-onboarding-ops .sched-nav-heading .subnav-item{
           display:inline-flex;flex-direction:column;
           align-items:center;justify-content:center;gap:6px;
-          padding:8px 16px 9px;min-width:74px;
+          padding:8px 16px 20px;min-width:74px;
           font-size:var(--fs-sm);font-weight:500;
           color:var(--text-muted);
           background:transparent;border:0;border-radius:var(--sch-radius);
           box-shadow:none;letter-spacing:0;line-height:1.2;
-          cursor:pointer;position:relative;
+          cursor:grab;position:relative;
           transition:color var(--t-fast),background var(--t-fast);
+        }
+        #view-onboarding-ops .sched-nav-heading .subnav-item:active{cursor:grabbing}
+        /* Drag-to-reorder affordances. */
+        #view-onboarding-ops .sched-nav-heading .rr-tile-dragging{opacity:.45}
+        #view-onboarding-ops .sched-nav-heading .rr-tile-drop-before{
+          box-shadow:inset 3px 0 0 0 var(--sch-blue) !important;
+        }
+        #view-onboarding-ops .sched-nav-heading .rr-tile-drop-after{
+          box-shadow:inset -3px 0 0 0 var(--sch-blue) !important;
         }
         #view-onboarding-ops .sched-nav-heading .subnav-item::after{display:none}
         #view-onboarding-ops .sched-nav-heading .subnav-item span{white-space:nowrap}
@@ -10541,7 +10550,7 @@ body.rr-cmdk-open{ overflow:hidden }
         #view-onboarding-ops .sched-nav-heading .subnav-item:focus-visible{outline:none}
         @media (max-width:1280px){
           #view-onboarding-ops .sched-nav-heading .subnav-item{
-            font-size:11px;padding:5px 8px 6px;min-width:56px;
+            font-size:11px;padding:5px 8px 16px;min-width:56px;
           }
           #view-onboarding-ops .sched-nav-heading .subnav-item svg{width:25px;height:25px}
         }
@@ -10568,27 +10577,27 @@ body.rr-cmdk-open{ overflow:hidden }
           <div class="sched-nav-heading-actions">
             <div class="sched-ribbon-group">
               <div class="subnav" data-rr-tabbar="onboarding-ops">
-                <button class="subnav-item active" data-obsub="overview" onclick="obSub('overview')" title="Overview">
+                <button class="subnav-item active" draggable="true" data-rr-tile="ob-overview" data-obsub="overview" onclick="obSub('overview')" title="Overview">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
                   <span>Overview</span>
                 </button>
-                <button class="subnav-item" data-obsub="workauth" onclick="obSub('workauth')" title="Work authorization">
+                <button class="subnav-item" draggable="true" data-rr-tile="ob-workauth" data-obsub="workauth" onclick="obSub('workauth')" title="Work authorization">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 14.5 11 16.5 15.5 11.5"/></svg>
                   <span>Work auth</span>
                 </button>
-                <button class="subnav-item" data-obsub="builder" onclick="obSub('builder')" title="Builder">
+                <button class="subnav-item" draggable="true" data-rr-tile="ob-builder" data-obsub="builder" onclick="obSub('builder')" title="Builder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.6 5.6L3 18v3h3l6.1-6.1a4 4 0 0 0 5.6-5.6l-2.9 2.9-2.1-2.1 2.9-2.9z"/></svg>
                   <span>Builder</span>
                 </button>
-                <button class="subnav-item" data-obsub="funnel" onclick="obSub('funnel')" title="Hiring funnel">
+                <button class="subnav-item" draggable="true" data-rr-tile="ob-funnel" data-obsub="funnel" onclick="obSub('funnel')" title="Hiring funnel">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5h18l-7 8.5v6l-4 2.5v-8.5z"/></svg>
                   <span>Funnel</span>
                 </button>
-                <button class="subnav-item" data-obsub="interview" onclick="obSub('interview')" title="Interview Day">
+                <button class="subnav-item" draggable="true" data-rr-tile="ob-interview" data-obsub="interview" onclick="obSub('interview')" title="Interview Day">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15.5 13.5"/></svg>
                   <span>Interview Day</span>
                 </button>
-                <button class="subnav-item" data-obsub="calendar" onclick="obSub('calendar')" title="Calendar">
+                <button class="subnav-item" draggable="true" data-rr-tile="ob-calendar" data-obsub="calendar" onclick="obSub('calendar')" title="Calendar">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.1" fill="currentColor" stroke="none"/></svg>
                   <span>Calendar</span>
                 </button>
@@ -28363,7 +28372,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260522-pipemove"></script>
+<script type="module" src="./live.js?v=20260522-obreorder"></script>
 
 </body>
 </html>

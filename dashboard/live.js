@@ -23422,6 +23422,85 @@ window.goto = function (view) {
   document.addEventListener("dragend", () => { clearMarkers(); dragEl = null; });
 })();
 
+// ─── Drag-to-reorder for the Onboarding command-strip icons ────────
+// Mirrors the schedule tile reorder. Order persists per-DSP in
+// localStorage under its own key so it never collides with the
+// schedule strip.
+(function () {
+  let dragEl = null;
+  const SEL = "#view-onboarding-ops .sched-nav-heading [data-rr-tile][draggable='true']";
+  const KEY = "rr-onboarding-nav-order";
+  function clearMarkers() {
+    document.querySelectorAll("#view-onboarding-ops .rr-tile-drop-before, #view-onboarding-ops .rr-tile-drop-after, #view-onboarding-ops .rr-tile-dragging")
+      .forEach(el => el.classList.remove("rr-tile-drop-before", "rr-tile-drop-after", "rr-tile-dragging"));
+  }
+  function group() {
+    return document.querySelector('#view-onboarding-ops .subnav[data-rr-tabbar="onboarding-ops"]');
+  }
+  function persist() {
+    const g = group();
+    if (!g) return;
+    const ids = Array.from(g.children).filter(c => c.dataset && c.dataset.rrTile).map(c => c.dataset.rrTile);
+    try { localStorage.setItem(KEY, JSON.stringify(ids)); } catch (_) {}
+  }
+  function restore() {
+    const g = group();
+    if (!g) return;
+    let order;
+    try { order = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (_) { order = null; }
+    if (!Array.isArray(order) || !order.length) return;
+    const byId = new Map(Array.from(g.children).map(c => [c.dataset && c.dataset.rrTile, c]).filter(([k]) => k));
+    order.forEach(id => { const el = byId.get(id); if (el) g.appendChild(el); });
+  }
+  let tries = 0;
+  const t = setInterval(() => {
+    if (document.querySelector(SEL)) { restore(); clearInterval(t); }
+    if (++tries > 40) clearInterval(t);
+  }, 100);
+  window._rrRestoreOnboardingTileOrder = restore;
+  document.addEventListener("dragstart", (e) => {
+    const tile = e.target.closest(SEL);
+    if (!tile) return;
+    dragEl = tile;
+    tile.classList.add("rr-tile-dragging");
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", tile.dataset.rrTile || ""); } catch (_) {}
+    }
+  });
+  document.addEventListener("dragover", (e) => {
+    if (!dragEl) return;
+    const tile = e.target.closest(SEL);
+    if (!tile || tile === dragEl || tile.parentElement !== dragEl.parentElement) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    const rect = tile.getBoundingClientRect();
+    const before = (e.clientX - rect.left) < rect.width / 2;
+    tile.parentElement.querySelectorAll(".rr-tile-drop-before, .rr-tile-drop-after").forEach(el => {
+      if (el !== tile) el.classList.remove("rr-tile-drop-before", "rr-tile-drop-after");
+    });
+    tile.classList.toggle("rr-tile-drop-before", before);
+    tile.classList.toggle("rr-tile-drop-after", !before);
+  });
+  document.addEventListener("dragleave", (e) => {
+    const tile = e.target.closest(SEL);
+    if (tile) tile.classList.remove("rr-tile-drop-before", "rr-tile-drop-after");
+  });
+  document.addEventListener("drop", (e) => {
+    if (!dragEl) return;
+    const tile = e.target.closest(SEL);
+    if (!tile || tile === dragEl || tile.parentElement !== dragEl.parentElement) { clearMarkers(); dragEl = null; return; }
+    e.preventDefault();
+    const rect = tile.getBoundingClientRect();
+    const before = (e.clientX - rect.left) < rect.width / 2;
+    tile.parentNode.insertBefore(dragEl, before ? tile : tile.nextSibling);
+    persist();
+    clearMarkers();
+    dragEl = null;
+  });
+  document.addEventListener("dragend", () => { clearMarkers(); dragEl = null; });
+})();
+
 // Smart Fill rules popover · toggleable on/off per rule. State
 // lives in localStorage; the chevron itself just opens / closes
 // the dropdown. Restoring saved state on view show keeps the
