@@ -9622,6 +9622,14 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </div>
           <div class="hp-stats-progress"><div class="hp-stats-progress-fill" id="hp-stats-fill"></div></div>
+          <div class="hp-stats-window">
+            <span class="hp-stats-window-label">Window</span>
+            <div id="hp-window-toggle-h" class="pipe-window-toggle" role="group" aria-label="Time window">
+              <button class="hp-window-btn" data-rr-window="7"    type="button">Week</button>
+              <button class="hp-window-btn" data-rr-window="28"   type="button">4 wk</button>
+              <button class="hp-window-btn" data-rr-window="3650" type="button">All</button>
+            </div>
+          </div>
         </div>
 
 
@@ -9647,11 +9655,6 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="hp-stage-btn stage-tab" data-stage="hired" onclick="filterPipelineStage(this)">Hired <span class="hp-stage-btn-count stage-tab-count">0</span></button>
           </div>
           <div class="hp-list-tools">
-            <div id="hp-window-toggle-h" class="pipe-window-toggle" role="group" aria-label="Time window">
-              <button class="hp-window-btn" data-rr-window="7"    type="button">Week</button>
-              <button class="hp-window-btn" data-rr-window="28"   type="button">4 wk</button>
-              <button class="hp-window-btn" data-rr-window="3650" type="button">All</button>
-            </div>
             <span class="hp-sort">Newest first</span>
           </div>
         </div>
@@ -10213,6 +10216,17 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-top:0;line-height:1.2;
           }
           #view-pipeline .hp-stats-progress{display:none}
+          /* Time-window toggle — rides the far-right end of the KPI
+             strip, pushed there with margin-left:auto; the last metric's
+             hairline border serves as the divider. */
+          #view-pipeline .hp-stats-window{
+            display:inline-flex;align-items:center;gap:9px;
+            margin-left:auto;padding:11px 20px;
+          }
+          #view-pipeline .hp-stats-window-label{
+            font-size:11px;font-weight:600;letter-spacing:.04em;
+            text-transform:uppercase;color:var(--text-subtle);
+          }
           #view-pipeline .hp-list-head{
             align-items:flex-start;margin:var(--s-2) 0 var(--s-3);
           }
