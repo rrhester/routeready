@@ -2307,3 +2307,51 @@ body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-time {
   font-weight: 600 !important;
   margin-top: 4px !important;
 }
+
+/* ============================================================
+   Faux scrollbar · always visible regardless of OS/browser
+   ------------------------------------------------------------
+   Rendered by live.js into the parent of any container marked
+   with [data-rr-faux-attached]. The native scrollbar is hidden
+   so the faux is the only one the operator sees.
+   ============================================================ */
+
+.rr-faux-scrollbar {
+  position: absolute;
+  width: 14px;
+  background: #E1DFDD;
+  border-left: 1px solid #C8C6C4;
+  border-radius: 0 8px 8px 0;
+  z-index: 20;
+  pointer-events: auto;
+}
+.rr-faux-scrollbar-thumb {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 0;
+  background: #5A5A5A;
+  border-radius: 5px;
+  min-height: 40px;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.rr-faux-scrollbar-thumb:hover,
+.rr-faux-scrollbar-thumb:active {
+  background: #323130;
+}
+
+/* Hide the native scrollbar on faux-attached containers so the
+   custom track is the only thing the operator sees. Width 0 keeps
+   the gutter from doubling up; the faux overlays the right edge. */
+#view-schedule.rrx-schedule [data-rr-faux-attached] {
+  scrollbar-width: none !important;
+}
+#view-schedule.rrx-schedule [data-rr-faux-attached]::-webkit-scrollbar,
+#view-schedule.rrx-schedule [data-rr-faux-attached]::-webkit-scrollbar:vertical,
+#view-schedule.rrx-schedule [data-rr-faux-attached]::-webkit-scrollbar:horizontal {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent !important;
+}
