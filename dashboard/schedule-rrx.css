@@ -513,40 +513,49 @@
 /* ── Smartfill rules popover ───────────────────────────────── */
 
 #view-schedule.rrx-schedule .sched-smartfill-rules-popover {
-  background: var(--rr-bg-surface-1);
-  border: 1px solid var(--rr-border-primary);
-  border-radius: var(--rr-radius-large);
-  box-shadow: var(--rr-shadow-8);
-  /* Stay in viewport. Anchor center-under-button; let the
-     viewport-relative width cap shrink it on narrow screens. */
-  right: auto;
-  left: 50%;
-  transform: translateX(-50%);
-  min-width: min(720px, calc(100vw - var(--rr-space-400)));
-  max-width: calc(100vw - var(--rr-space-400));
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
+  background: var(--rr-bg-surface-1) !important;
+  border: 1px solid var(--rr-border-primary) !important;
+  border-radius: var(--rr-radius-large) !important;
+  box-shadow: var(--rr-shadow-8) !important;
+  /* Anchor to viewport (not button) so the popover is always
+     fully visible top-to-bottom regardless of button position or
+     viewport height. Center horizontally, 64px below the ribbon
+     so it never clips at top, 32px above the viewport floor so
+     bottom never clips. */
+  position: fixed !important;
+  top: 96px !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translateX(-50%) !important;
+  min-width: min(720px, calc(100vw - 80px)) !important;
+  max-width: calc(100vw - 80px) !important;
+  max-height: calc(100vh - 128px) !important;
+  overflow-y: auto !important;
+  margin: 0 !important;
 }
 
-/* Muted-blue header band */
+/* Muted-blue header band — !important so it can't lose to the
+   inline `#view-schedule .sched-smartfill-rules-head` defined
+   later in the document. */
 #view-schedule.rrx-schedule .sched-smartfill-rules-head {
-  font: var(--rr-font-body-strong);
-  color: var(--rr-brand-pressed);
-  background: var(--rr-brand-soft);
-  padding: var(--rr-space-120) var(--rr-space-160);
-  border-bottom: 1px solid rgba(0, 120, 212, 0.20);
-  display: flex;
-  align-items: center;
-  gap: var(--rr-space-80);
-  margin: 0;
-  border-top-left-radius: var(--rr-radius-large);
-  border-top-right-radius: var(--rr-radius-large);
+  font: var(--rr-font-body-strong) !important;
+  color: var(--rr-brand-pressed) !important;
+  background: var(--rr-brand-soft) !important;
+  padding: var(--rr-space-120) var(--rr-space-160) !important;
+  border-bottom: 1px solid rgba(0, 120, 212, 0.20) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--rr-space-80) !important;
+  margin: 0 !important;
+  border-top-left-radius: var(--rr-radius-large) !important;
+  border-top-right-radius: var(--rr-radius-large) !important;
 }
 
 #view-schedule.rrx-schedule .sched-smartfill-rules-head svg {
-  width: 14px;
-  height: 14px;
-  color: var(--rr-brand-pressed);
+  width: 14px !important;
+  height: 14px !important;
+  color: var(--rr-brand-pressed) !important;
 }
 
 #view-schedule.rrx-schedule .sched-smartfill-rules-body {
@@ -571,30 +580,34 @@
 /* ── Quick settings popover ─────────────────────────────────── */
 
 #view-schedule.rrx-schedule .sched-quick-settings-popover {
-  background: var(--rr-bg-surface-1);
-  border: 1px solid var(--rr-border-primary);
-  border-radius: var(--rr-radius-large);
-  box-shadow: var(--rr-shadow-8);
-  right: auto;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100vw - var(--rr-space-400));
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
+  background: var(--rr-bg-surface-1) !important;
+  border: 1px solid var(--rr-border-primary) !important;
+  border-radius: var(--rr-radius-large) !important;
+  box-shadow: var(--rr-shadow-8) !important;
+  position: fixed !important;
+  top: 96px !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translateX(-50%) !important;
+  max-width: calc(100vw - 80px) !important;
+  max-height: calc(100vh - 128px) !important;
+  overflow-y: auto !important;
+  margin: 0 !important;
 }
 
 #view-schedule.rrx-schedule .sched-quick-settings-head {
-  padding: var(--rr-space-120) var(--rr-space-160);
-  border-bottom: 1px solid rgba(0, 120, 212, 0.20);
-  background: var(--rr-brand-soft);
-  color: var(--rr-brand-pressed);
-  border-top-left-radius: var(--rr-radius-large);
-  border-top-right-radius: var(--rr-radius-large);
+  padding: var(--rr-space-120) var(--rr-space-160) !important;
+  border-bottom: 1px solid rgba(0, 120, 212, 0.20) !important;
+  background: var(--rr-brand-soft) !important;
+  color: var(--rr-brand-pressed) !important;
+  border-top-left-radius: var(--rr-radius-large) !important;
+  border-top-right-radius: var(--rr-radius-large) !important;
 }
 
 #view-schedule.rrx-schedule .sched-quick-settings-title {
-  font: var(--rr-font-body-strong);
-  color: var(--rr-brand-pressed);
+  font: var(--rr-font-body-strong) !important;
+  color: var(--rr-brand-pressed) !important;
 }
 
 #view-schedule.rrx-schedule .sched-quick-settings-body {
@@ -619,35 +632,39 @@
 /* ── Targets / Vans rules popover (split-tile sibling) ──────── */
 
 #view-schedule.rrx-schedule .sched-vans-rules-popover {
-  background: var(--rr-bg-surface-1);
-  border: 1px solid var(--rr-border-primary);
-  border-radius: var(--rr-radius-large);
-  box-shadow: var(--rr-shadow-8);
-  right: auto;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100vw - var(--rr-space-400));
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
+  background: var(--rr-bg-surface-1) !important;
+  border: 1px solid var(--rr-border-primary) !important;
+  border-radius: var(--rr-radius-large) !important;
+  box-shadow: var(--rr-shadow-8) !important;
+  position: fixed !important;
+  top: 96px !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translateX(-50%) !important;
+  max-width: calc(100vw - 80px) !important;
+  max-height: calc(100vh - 128px) !important;
+  overflow-y: auto !important;
+  margin: 0 !important;
 }
 
 #view-schedule.rrx-schedule .sched-vans-rules-head {
-  background: var(--rr-brand-soft);
-  color: var(--rr-brand-pressed);
-  padding: var(--rr-space-120) var(--rr-space-160);
-  border-bottom: 1px solid rgba(0, 120, 212, 0.20);
-  border-top-left-radius: var(--rr-radius-large);
-  border-top-right-radius: var(--rr-radius-large);
-  margin-bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--rr-space-80);
+  background: var(--rr-brand-soft) !important;
+  color: var(--rr-brand-pressed) !important;
+  padding: var(--rr-space-120) var(--rr-space-160) !important;
+  border-bottom: 1px solid rgba(0, 120, 212, 0.20) !important;
+  border-top-left-radius: var(--rr-radius-large) !important;
+  border-top-right-radius: var(--rr-radius-large) !important;
+  margin-bottom: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: var(--rr-space-80) !important;
 }
 
 #view-schedule.rrx-schedule .sched-vans-rules-head-title {
-  font: var(--rr-font-body-strong);
-  color: var(--rr-brand-pressed);
+  font: var(--rr-font-body-strong) !important;
+  color: var(--rr-brand-pressed) !important;
 }
 
 #view-schedule.rrx-schedule .sched-vans-rules-info {
@@ -664,29 +681,33 @@
 /* ── Milestone (Kudos) rules popover ────────────────────────── */
 
 #view-schedule.rrx-schedule .sched-milestone-rules-popover {
-  background: var(--rr-bg-surface-1);
-  border: 1px solid var(--rr-border-primary);
-  border-radius: var(--rr-radius-large);
-  box-shadow: var(--rr-shadow-8);
-  right: auto;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100vw - var(--rr-space-400));
-  max-height: calc(100vh - 120px);
-  overflow-y: auto;
+  background: var(--rr-bg-surface-1) !important;
+  border: 1px solid var(--rr-border-primary) !important;
+  border-radius: var(--rr-radius-large) !important;
+  box-shadow: var(--rr-shadow-8) !important;
+  position: fixed !important;
+  top: 96px !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translateX(-50%) !important;
+  max-width: calc(100vw - 80px) !important;
+  max-height: calc(100vh - 128px) !important;
+  overflow-y: auto !important;
+  margin: 0 !important;
 }
 
 #view-schedule.rrx-schedule .sched-milestone-rules-head {
-  background: var(--rr-brand-soft);
-  color: var(--rr-brand-pressed);
-  padding: var(--rr-space-120) var(--rr-space-160);
-  border-bottom: 1px solid rgba(0, 120, 212, 0.20);
-  border-top-left-radius: var(--rr-radius-large);
-  border-top-right-radius: var(--rr-radius-large);
-  margin-bottom: 0;
-  font: var(--rr-font-body-strong);
-  text-transform: none;
-  letter-spacing: 0;
+  background: var(--rr-brand-soft) !important;
+  color: var(--rr-brand-pressed) !important;
+  padding: var(--rr-space-120) var(--rr-space-160) !important;
+  border-bottom: 1px solid rgba(0, 120, 212, 0.20) !important;
+  border-top-left-radius: var(--rr-radius-large) !important;
+  border-top-right-radius: var(--rr-radius-large) !important;
+  margin-bottom: 0 !important;
+  font: var(--rr-font-body-strong) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
 }
 
 /* ── Draw day buttons (template editor) ─────────────────────── */
@@ -843,50 +864,158 @@
 
 #view-schedule.rrx-schedule .cal-wrap,
 #view-schedule.rrx-schedule .pool-openshifts,
-#view-schedule.rrx-schedule .driver-pool {
-  overflow-y: scroll;
-  scrollbar-gutter: stable;
-  /* Firefox uses scrollbar-width:auto for an always-visible
-     classic bar (thin makes Firefox use overlay-style on some
-     systems). */
-  scrollbar-width: auto;
-  scrollbar-color: var(--rr-border-primary) var(--rr-bg-surface-2);
+#view-schedule.rrx-schedule .driver-pool,
+#view-schedule.rrx-schedule .sched-smartfill-rules-popover,
+#view-schedule.rrx-schedule .sched-quick-settings-popover,
+#view-schedule.rrx-schedule .sched-vans-rules-popover,
+#view-schedule.rrx-schedule .sched-milestone-rules-popover {
+  overflow-y: scroll !important;
+  scrollbar-gutter: stable !important;
+  scrollbar-width: auto !important;
+  scrollbar-color: var(--rr-fg-disabled) var(--rr-bg-surface-2) !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar,
 #view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar,
-#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar {
-  -webkit-appearance: none;  /* macOS: defeat overlay auto-hide */
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  background: var(--rr-bg-surface-2);
+#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar,
+#view-schedule.rrx-schedule .sched-smartfill-rules-popover::-webkit-scrollbar,
+#view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar,
+#view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar,
+#view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar {
+  -webkit-appearance: none !important;  /* macOS: defeat overlay auto-hide */
+  appearance: none !important;
+  width: 12px !important;
+  height: 12px !important;
+  background: var(--rr-bg-surface-2) !important;
+  display: block !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-track,
 #view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar-track,
-#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-track {
-  background: var(--rr-bg-surface-2);
-  border-left: 1px solid var(--rr-border-secondary);
+#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-track,
+#view-schedule.rrx-schedule .sched-smartfill-rules-popover::-webkit-scrollbar-track,
+#view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-track,
+#view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-track,
+#view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-track {
+  background: var(--rr-bg-surface-2) !important;
+  border-left: 1px solid var(--rr-border-secondary) !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar-thumb,
-#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-thumb {
-  background: var(--rr-fg-disabled);
-  border: 2px solid var(--rr-bg-surface-2);
-  border-radius: var(--rr-radius-pill);
-  min-height: 36px;
+#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-thumb,
+#view-schedule.rrx-schedule .sched-smartfill-rules-popover::-webkit-scrollbar-thumb,
+#view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-thumb,
+#view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-thumb,
+#view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-thumb {
+  background: var(--rr-fg-secondary) !important;
+  border: 2px solid var(--rr-bg-surface-2) !important;
+  border-radius: var(--rr-radius-pill) !important;
+  min-height: 36px !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-thumb:hover,
 #view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar-thumb:hover,
-#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-thumb:hover {
-  background: var(--rr-fg-secondary);
+#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-thumb:hover,
+#view-schedule.rrx-schedule .sched-smartfill-rules-popover::-webkit-scrollbar-thumb:hover,
+#view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-thumb:hover,
+#view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-thumb:hover,
+#view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-thumb:hover {
+  background: var(--rr-fg-primary) !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-corner,
 #view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar-corner,
 #view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-corner {
-  background: var(--rr-bg-surface-2);
+  background: var(--rr-bg-surface-2) !important;
+}
+
+/* ============================================================
+   Ribbon: strip Van + Kudos custom colors and group dividers
+   ------------------------------------------------------------
+   The original CSS tinted the Van icon Microsoft critical-red
+   and the Kudos icon Microsoft warm-amber. Per UX, every
+   action tile should read monochrome — the operational color
+   lives in the data (status pills, KPIs), not the chrome.
+   Selector specificity (2,2,1) outranks the original's
+   (2,1,1) so this wins without !important.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped #rr-sched-vans-h svg {
+  color: var(--rr-fg-secondary) !important;
+}
+
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped #rr-sched-vans-h svg .rr-van-cargo,
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped #rr-sched-vans-h svg .rr-van-cab {
+  stroke: var(--rr-fg-secondary) !important;
+  color: var(--rr-fg-secondary) !important;
+}
+
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped #rr-sched-kudos-h svg {
+  color: var(--rr-fg-secondary) !important;
+}
+
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped #rr-sched-okami-open-h svg {
+  color: var(--rr-fg-secondary) !important;
+}
+
+/* Active-state colors stay brand for the subnav tab; only the
+   page actions are forced monochrome. */
+
+/* Visible hairline divider between ribbon groups (VIEWS /
+   PLANNING / ACTIONS) so the operator sees function clusters
+   at a glance. Outranks the inline rule at line 17260 that
+   explicitly hides the divider. */
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group::before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 1px !important;
+  height: 32px !important;
+  background: var(--rr-border-primary) !important;
+  margin: 0 var(--rr-space-100) !important;
+  align-self: center !important;
+}
+
+/* Extra gap so action tiles cluster visibly into the third
+   "ACTIONS" group rather than running into the planning group. */
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-actions--grouped {
+  margin-left: var(--rr-space-160) !important;
+  padding-left: var(--rr-space-160) !important;
+  border-left: 1px solid var(--rr-border-primary) !important;
+}
+
+/* ============================================================
+   Driver-column sort popover (.rr-tf-popover) — calmer active
+   ------------------------------------------------------------
+   The active option was rendered in full brand fill with white
+   text, reading as "dark blue header". Replace with the muted
+   brand-soft / brand-pressed pair used by other Schedule
+   selected states.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .rr-tf-popover {
+  background: var(--rr-bg-surface-1) !important;
+  border: 1px solid var(--rr-border-primary) !important;
+  border-radius: var(--rr-radius-medium) !important;
+  box-shadow: var(--rr-shadow-4) !important;
+}
+
+#view-schedule.rrx-schedule .rr-tf-popover button {
+  font: var(--rr-font-body) !important;
+  color: var(--rr-fg-primary) !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: var(--rr-radius-small) !important;
+  padding: var(--rr-space-60) var(--rr-space-100) !important;
+}
+
+#view-schedule.rrx-schedule .rr-tf-popover button:hover {
+  background: var(--rr-bg-hover) !important;
+  color: var(--rr-fg-primary) !important;
+}
+
+#view-schedule.rrx-schedule .rr-tf-popover button.active {
+  background: var(--rr-brand-soft) !important;
+  color: var(--rr-brand-pressed) !important;
+  font-weight: 600 !important;
 }

@@ -23,7 +23,7 @@
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
      `rrx-schedule` class on the view-schedule element. -->
-<link rel="stylesheet" href="schedule-rrx.css?v=1">
+<link rel="stylesheet" href="schedule-rrx.css?v=4">
 <style>
 /* ─────────────────────────────────────────────────────────────
    DESIGN TOKENS
@@ -13214,19 +13214,23 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
             <div class="sched-vans-rules-split">
               <button class="sched-page-btn sched-page-btn--split" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
-                <!-- Front-on delivery van · cargo box stacked above
-                     a stubby hood + bumper, with bright wheels at the
-                     base. Default state is a clean monoline outline;
-                     when vans are assigned the cargo + hood paint in
-                     their state colours (preserved cargo/cab classes). -->
-                <svg class="rr-van-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect class="rr-van-cargo" x="3" y="3.5" width="18" height="9" rx="1.6"/>
-                  <path class="rr-van-cab" d="M5.5 12.5h13l-.8 5h-11.4z"/>
-                  <circle cx="8" cy="18.5" r="1.6"/>
-                  <circle cx="16" cy="18.5" r="1.6"/>
-                  <line x1="6.5" y1="7.5" x2="17.5" y2="7.5"/>
-                  <line x1="11" y1="3.5" x2="11" y2="12.5"/>
-                  <line x1="13" y1="3.5" x2="13" y2="12.5"/>
+                <!-- Side-view delivery van · cargo box on the left,
+                     stubby cab on the right with windshield, two
+                     wheels along the base. The .rr-van-cargo /
+                     .rr-van-cab classes are preserved so the
+                     existing JS "assigned" state-color logic keeps
+                     working. -->
+                <svg class="rr-van-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <!-- Cargo box (left) -->
+                  <rect class="rr-van-cargo" x="2" y="7" width="13" height="10" rx="1.2"/>
+                  <!-- Cab (right): hood + windshield -->
+                  <path class="rr-van-cab" d="M15 10h4l3 3v4h-7z"/>
+                  <line x1="15.5" y1="10.5" x2="18.5" y2="10.5"/>
+                  <!-- Ground line under the body -->
+                  <line x1="2" y1="17" x2="22" y2="17"/>
+                  <!-- Wheels -->
+                  <circle cx="6.5" cy="18.5" r="1.6"/>
+                  <circle cx="17.5" cy="18.5" r="1.6"/>
                 </svg>
                 Assign
                 <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
