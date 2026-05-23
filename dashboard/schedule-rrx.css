@@ -38,12 +38,28 @@
   color: var(--rr-fg-primary);
 }
 
-#view-schedule.rrx-schedule .page {
-  padding: var(--rr-space-200);
+/* Opt out of the global .page default-scroll. Schedule keeps
+   the cmd-shell + KPI strip fixed at the top and lets each
+   active sub-view manage its own internal scroll. */
+#view-schedule.rrx-schedule > .page {
+  padding: var(--rr-space-200) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  scrollbar-gutter: auto !important;
 }
 
 #view-schedule.rrx-schedule .sched-subview {
   background: transparent;
+}
+
+/* The active sub-view fills whatever space is left after the
+   chrome (cmd-shell + KPI strip) and never scrolls itself. */
+#view-schedule.rrx-schedule .sched-subview[style*="block"],
+#view-schedule.rrx-schedule .sched-subview.active:not([style*="none"]) {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
 }
 
 /* ── Title block ────────────────────────────────────────────── */
@@ -274,6 +290,17 @@
   border-radius: 50%;
   background: var(--rr-danger);
   margin-left: var(--rr-space-40);
+}
+
+/* Week-view split wrapper — same column-flex pattern as
+   .sched-smartfill-split so the Week tile owns a "Rules ⌄"
+   footer underneath, matching the other action tiles. */
+#view-schedule.rrx-schedule .sched-week-split {
+  position: relative;
+  display: inline-flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  flex: 0 0 auto !important;
 }
 
 /* Smart Fill / Targets / Unassign / Kudos all wrap their main
@@ -1045,15 +1072,13 @@
 
 /* Scope to [style*="block"] so the lock only activates when the
    schedSub() JS has set display:block (i.e. the sub-view is the
-   active one). Without this guard, `display:flex !important`
-   overrides the inline `style="display:none"` that hides inactive
-   sub-views, causing Today + Calendar to render stacked on top of
-   Week view. */
+   active one). flex:1 from the parent .page chain (now globally
+   locked) gives the sub-view the remaining height after the
+   chrome — no hardcoded viewport math needed. */
 #view-schedule.rrx-schedule #sched-sub-today[style*="block"] {
   display: flex !important;
   flex-direction: column !important;
-  height: calc(100vh - 232px) !important;
-  min-height: 360px !important;
+  min-height: 0 !important;
   overflow: hidden !important;
   padding: 0 !important;
 }
@@ -1072,7 +1097,45 @@
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
+  gap: var(--rr-space-80) !important;  /* tighter — roster closer to KPI */
+}
+
+/* Tighten the main row gap too; the right rail rides alongside
+   the roster, no need for extra breathing room. */
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-mainrow,
+#view-schedule.rrx-schedule #sched-sub-today .tp-mainrow {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
   gap: var(--rr-space-120) !important;
+  align-items: stretch !important;
+}
+
+/* Roster card fills its grid cell, scrolls internally with a
+   sticky section head. */
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+/* Sticky section head — stays at top while the table scrolls. */
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster .rr-tp-section-head {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 2 !important;
+  flex: 0 0 auto !important;
+}
+
+/* The table sits beneath the head and is the actual scroll
+   surface. Wrap whatever sits there in a flex-1 min-height-0
+   overflow-y-scroll container. */
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster > :not(.rr-tp-section-head) {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 }
 
 /* Hide the oversized day-cell tile row inside Today. Keep the
@@ -1129,59 +1192,10 @@
   flex: 0 0 auto !important;
 }
 
-/* Roster card fills leftover height + scrolls internally. */
-#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster,
-#view-schedule.rrx-schedule #sched-sub-today .rr-tp-roster {
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-}
-
-/* Inner table scroll surface — the visible scrollable area. */
-#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster .rr-tp-roster-body,
-#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster .tp-roster-table-wrap,
-#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster > div,
-#view-schedule.rrx-schedule #sched-sub-today .rr-tp-roster > div {
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-/* Cover both the wrapper and the table itself — whichever is
-   the actual scroll node inside the roster card. */
-#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster,
-#view-schedule.rrx-schedule #sched-sub-today .rr-tp-roster {
-  overflow-y: scroll !important;
-  scrollbar-gutter: stable !important;
-  scrollbar-width: auto !important;
-  scrollbar-color: #8A8886 var(--rr-bg-surface-2) !important;
-}
-
-#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster::-webkit-scrollbar,
-#view-schedule.rrx-schedule #sched-sub-today .rr-tp-roster::-webkit-scrollbar {
-  -webkit-appearance: none !important;
-  appearance: none !important;
-  width: 12px !important;
-  height: 12px !important;
-  background: var(--rr-bg-surface-2) !important;
-  display: block !important;
-}
-
-#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster::-webkit-scrollbar-track,
-#view-schedule.rrx-schedule #sched-sub-today .rr-tp-roster::-webkit-scrollbar-track {
-  background: var(--rr-bg-surface-2) !important;
-  border-left: 1px solid var(--rr-border-secondary) !important;
-}
-
-#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster::-webkit-scrollbar-thumb,
-#view-schedule.rrx-schedule #sched-sub-today .rr-tp-roster::-webkit-scrollbar-thumb {
-  background: #8A8886 !important;
-  background-clip: padding-box !important;
-  border: 3px solid transparent !important;
-  border-radius: var(--rr-radius-pill) !important;
-  min-height: 48px !important;
-}
+/* Roster card + inner-scroll behavior now defined above (sticky
+   .rr-tp-section-head + inner scroll on any non-head child).
+   The global .app * scrollbar styling handles the visible
+   scrollbar; no per-element overrides needed here. */
 
 /* ============================================================
    Fleet calendar sub-view — page locked, two inner scrolls
@@ -1191,13 +1205,13 @@
    to the bottom of the viewport.
    ============================================================ */
 
-/* Same guard as Today: only activate the flex/lock layout when
-   the sub-view is the active one (schedSub() sets display:block). */
+/* Same as Today — let the global lock chain give us flex:1
+   sizing from above; we just lock our own overflow and stack
+   children. */
 #view-schedule.rrx-schedule #sched-sub-calendar[style*="block"] {
   display: flex !important;
   flex-direction: column !important;
-  height: calc(100vh - 232px) !important;
-  min-height: 360px !important;
+  min-height: 0 !important;
   overflow: hidden !important;
   padding: 0 !important;
 }
@@ -1212,64 +1226,24 @@
   align-items: stretch !important;
 }
 
-/* Calendar host scrolls; takes full available height. */
+/* Calendar host scrolls internally; takes full available
+   height. Scrollbar styling is handled globally via the
+   .app * ::-webkit-scrollbar rules in app/rr-system.css. */
 #view-schedule.rrx-schedule #sched-sub-calendar #rr-fleet-cal-host,
 #view-schedule.rrx-schedule #sched-sub-calendar .rr-fleet-cal {
   min-height: 0 !important;
   height: 100% !important;
-  overflow-y: scroll !important;
-  scrollbar-gutter: stable !important;
-  scrollbar-width: auto !important;
-  scrollbar-color: #8A8886 var(--rr-bg-surface-2) !important;
-}
-
-#view-schedule.rrx-schedule #sched-sub-calendar #rr-fleet-cal-host::-webkit-scrollbar,
-#view-schedule.rrx-schedule #sched-sub-calendar .rr-fleet-cal::-webkit-scrollbar {
-  -webkit-appearance: none !important;
-  appearance: none !important;
-  width: 12px !important;
-  background: var(--rr-bg-surface-2) !important;
-  display: block !important;
-}
-
-#view-schedule.rrx-schedule #sched-sub-calendar #rr-fleet-cal-host::-webkit-scrollbar-thumb,
-#view-schedule.rrx-schedule #sched-sub-calendar .rr-fleet-cal::-webkit-scrollbar-thumb {
-  background: #8A8886 !important;
-  background-clip: padding-box !important;
-  border: 3px solid transparent !important;
-  border-radius: var(--rr-radius-pill) !important;
-  min-height: 48px !important;
+  overflow-y: auto !important;
 }
 
 /* Service providers rail — fills full available height, scrolls
-   internally, never pushes the page. */
+   internally. */
 #view-schedule.rrx-schedule #sched-sub-calendar #rr-fc-providers,
 #view-schedule.rrx-schedule #sched-sub-calendar .rr-fc-rail-space {
   min-height: 0 !important;
   height: 100% !important;
-  overflow-y: scroll !important;
-  scrollbar-gutter: stable !important;
-  scrollbar-width: auto !important;
-  scrollbar-color: #8A8886 var(--rr-bg-surface-2) !important;
+  overflow-y: auto !important;
   background: var(--rr-bg-surface-1) !important;
   border: 1px solid var(--rr-border-primary) !important;
   border-radius: var(--rr-radius-medium) !important;
-}
-
-#view-schedule.rrx-schedule #sched-sub-calendar #rr-fc-providers::-webkit-scrollbar,
-#view-schedule.rrx-schedule #sched-sub-calendar .rr-fc-rail-space::-webkit-scrollbar {
-  -webkit-appearance: none !important;
-  appearance: none !important;
-  width: 12px !important;
-  background: var(--rr-bg-surface-2) !important;
-  display: block !important;
-}
-
-#view-schedule.rrx-schedule #sched-sub-calendar #rr-fc-providers::-webkit-scrollbar-thumb,
-#view-schedule.rrx-schedule #sched-sub-calendar .rr-fc-rail-space::-webkit-scrollbar-thumb {
-  background: #8A8886 !important;
-  background-clip: padding-box !important;
-  border: 3px solid transparent !important;
-  border-radius: var(--rr-radius-pill) !important;
-  min-height: 48px !important;
 }

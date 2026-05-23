@@ -1257,3 +1257,102 @@ textarea.rrx-input {
   outline-offset: 1px;
   border-radius: var(--rr-radius-medium);
 }
+
+/* ============================================================
+   GLOBAL PAGE LOCK + PERSISTENT SCROLLBARS
+   ------------------------------------------------------------
+   Operator contract: no page on the dashboard should scroll
+   the body. Each active .view fills the viewport; any
+   overflow happens inside an inner scroll container (.page,
+   a table wrapper, a panel) with a visible-at-rest scrollbar.
+
+   This block ships the foundation. Page-specific rebinds (eg
+   schedule-rrx.css, onboarding-rrx.css) override .page-level
+   scroll when they want the page chrome to stay fixed and
+   only an inner panel to scroll.
+   ============================================================ */
+
+html,
+body {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* .main is a grid child of .app; the grid cell is already
+   100vh tall. Just lock its overflow so children that exceed
+   it don't push past. .main is `display:flex; flex-direction:
+   column` from the legacy stylesheet — keep that. */
+.main {
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Every active view fills the remaining height under the
+   topbar and never scrolls itself. */
+.main > .view.active {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+/* .page is the default scroll container for every view. Pages
+   that want a fixed chrome + inner scroll (Schedule,
+   Onboarding) override this to `overflow: hidden` and put the
+   scroll on a child element. */
+.main > .view.active > .page {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  scrollbar-gutter: stable !important;
+}
+
+/* ============================================================
+   Persistent contrast scrollbars on every scrollable element
+   inside .app. Defeats macOS overlay auto-hide via
+   -webkit-appearance:none and forces a classic always-visible
+   bar at 12px with a solid mid-gray thumb that reads against
+   any surface in the app.
+   ============================================================ */
+
+.app *::-webkit-scrollbar {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 12px !important;
+  height: 12px !important;
+  background: var(--rr-bg-surface-2) !important;
+  display: block !important;
+}
+
+.app *::-webkit-scrollbar-track {
+  background: var(--rr-bg-surface-2) !important;
+  border-left: 1px solid var(--rr-border-secondary) !important;
+}
+
+.app *::-webkit-scrollbar-thumb {
+  background: #8A8886 !important;
+  background-clip: padding-box !important;
+  border: 3px solid transparent !important;
+  border-radius: var(--rr-radius-pill) !important;
+  min-height: 48px !important;
+}
+
+.app *::-webkit-scrollbar-thumb:hover {
+  background: var(--rr-fg-secondary) !important;
+}
+
+.app *::-webkit-scrollbar-corner {
+  background: var(--rr-bg-surface-2) !important;
+}
+
+/* Firefox: classic non-overlay scrollbar, same contrast. */
+.app * {
+  scrollbar-width: auto;
+  scrollbar-color: #8A8886 var(--rr-bg-surface-2);
+}

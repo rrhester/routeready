@@ -18,16 +18,16 @@
 <link rel="apple-touch-icon" href="../app/Icon.png">
 <!-- RouteReady Fluent 2 design system foundation (additive).
      Tokens: --rr-*. Primitives: .rrx-* (see app/rr-system.css). -->
-<link rel="stylesheet" href="../app/rr-system.css?v=1">
+<link rel="stylesheet" href="../app/rr-system.css?v=2">
 <!-- Schedule page — Fluent 2 visual rebind (reference migration).
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
      `rrx-schedule` class on the view-schedule element. -->
-<link rel="stylesheet" href="schedule-rrx.css?v=6">
+<link rel="stylesheet" href="schedule-rrx.css?v=7">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
-<link rel="stylesheet" href="onboarding-rrx.css?v=1">
+<link rel="stylesheet" href="onboarding-rrx.css?v=2">
 <style>
 /* ─────────────────────────────────────────────────────────────
    DESIGN TOKENS
@@ -13024,10 +13024,26 @@ body.rr-cmdk-open{ overflow:hidden }
                buttons with the same monoline calendar glyph family. -->
           <div class="sched-ribbon-group" data-group="views">
             <div class="subnav sched-ribbon-subnav" data-rr-tabbar="schedule-views">
-              <button class="subnav-item active" data-sub="week" data-rr-tile="week" onclick="schedSub('week')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                <span>Week view</span>
-              </button>
+              <div class="sched-week-split" data-rr-tile="week">
+                <button class="subnav-item active" data-sub="week" data-rr-tile="week" onclick="schedSub('week')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  <span>Week view</span>
+                </button>
+                <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-week-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-week-rules-popover" title="Week view display rules">
+                  Rules
+                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                </button>
+                <div class="sched-vans-rules-popover" id="rr-sched-week-rules-popover" role="dialog" aria-modal="false" aria-label="Week view display rules" hidden>
+                  <div class="sched-vans-rules-head">
+                    <span class="sched-vans-rules-head-title">Week view display</span>
+                  </div>
+                  <div class="sched-smartfill-rules-body">
+                    <div style="font:14px/20px var(--rr-font-family, 'Segoe UI'); color:var(--rr-fg-secondary, #605E5C)">
+                      Display rules for the week grid live here. Sort the driver column from the icon in the upper right of the grid.
+                    </div>
+                  </div>
+                </div>
+              </div>
               <button class="subnav-item" data-sub="today" data-rr-tile="today" onclick="schedSub('today')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15" r="2.2" fill="currentColor"/></svg>
                 <span>Today view</span>
