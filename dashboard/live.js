@@ -4105,6 +4105,17 @@ function _obMountPipeline() {
     host.appendChild(pipe);
   }
 }
+function _obMountDocuments() {
+  // Same pattern as _obMountPipeline — move the entire
+  // #view-documents node into #obsub-documents on first open.
+  const host = document.getElementById("obsub-documents");
+  const docs = document.getElementById("view-documents");
+  if (host && docs && docs.parentElement !== host) {
+    docs.classList.remove("view", "active");
+    docs.style.display = "";
+    host.appendChild(docs);
+  }
+}
 window.obSub = function (which) {
   document.querySelectorAll("#view-onboarding-ops .subnav .subnav-item[data-obsub]").forEach(b => b.classList.toggle("active", b.getAttribute("data-obsub") === which));
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? "" : "none"; };
@@ -4112,6 +4123,7 @@ window.obSub = function (which) {
   show("obsub-overview",  which === "overview");
   show("obsub-workauth",  which === "workauth");
   show("obsub-pipeline",  isPipe);
+  show("obsub-documents", which === "documents");
   // The page title + sub-line follow the active icon.
   const _OB_META = {
     overview:  { title: "Onboarding",         sub: "Every driver getting ready to drive — readiness at a glance." },
@@ -4119,6 +4131,7 @@ window.obSub = function (which) {
     funnel:    { title: "Funnel",             sub: "Hiring pipeline." },
     interview: { title: "Interview Day",      sub: "Interview-day scheduling." },
     calendar:  { title: "Calendar",           sub: "Interview availability and bookings." },
+    documents: { title: "Documents",          sub: "Driver documents and forms." },
   };
   const _m = _OB_META[which];
   if (_m) {
@@ -4133,6 +4146,12 @@ window.obSub = function (which) {
     if (which === "funnel") {
       if (typeof loadPipeline === "function") loadPipeline(typeof getActiveStage === "function" ? getActiveStage() : "all");
       if (typeof loadPipelineKpis === "function") loadPipelineKpis();
+    }
+  }
+  if (which === "documents") {
+    _obMountDocuments();
+    if (typeof loadDocumentsView === "function") {
+      try { loadDocumentsView(); } catch (e) { console.warn("loadDocumentsView:", e); }
     }
   }
 };
@@ -36382,6 +36401,15 @@ document.addEventListener("change", (e) => {
 {
   const _origGotoDocs = window.goto;
   window.goto = function (view) {
+    // Documents is now mounted inside the Onboarding view via
+    // _obMountDocuments — there is no top-level #view-documents
+    // anymore. Redirect goto('documents') to onboarding-ops +
+    // obSub('documents') so legacy callers keep working.
+    if (view === "documents") {
+      if (typeof _origGotoDocs === "function") _origGotoDocs("onboarding-ops");
+      setTimeout(() => { if (typeof window.obSub === "function") window.obSub("documents"); }, 0);
+      return;
+    }
     if (typeof _origGotoDocs === "function") _origGotoDocs(view);
     if (view === "documents") loadDocumentsView();
   };
