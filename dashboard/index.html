@@ -23,7 +23,7 @@
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
      `rrx-schedule` class on the view-schedule element. -->
-<link rel="stylesheet" href="schedule-rrx.css?v=20">
+<link rel="stylesheet" href="schedule-rrx.css?v=21">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -13053,10 +13053,10 @@ body.rr-cmdk-open{ overflow:hidden }
              (nav tabs + commands + week nav) rides the same line,
              Outlook-style. Replaces the old two-row header. -->
         <div class="sched-cmd-shell" id="rr-sched-cmd">
-        <div class="sched-cmd-tabs" role="tablist" aria-label="Command strip mode">
-          <button class="sched-cmd-tab active" type="button" data-cmd-tab="schedule" role="tab" aria-selected="true">Schedule</button>
-          <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
-        </div>
+        <!-- cmd-tabs (Schedule / Print/Download) relocated to the
+             top-right of the V2 strip. The `_schedCmdTab` handler
+             still toggles `.is-print` on this #rr-sched-cmd shell,
+             so the existing print flow keeps working. -->
         <div class="page-header sched-nav-heading">
           <!-- Title block moved to the far left of the V2 strip below.
                The original .page-header-l slot is kept empty so the
@@ -13465,16 +13465,11 @@ body.rr-cmdk-open{ overflow:hidden }
                of the V2 icon strip below. IDs preserved so all JS
                handlers (rr-sched-week-prev / -today / -next /
                -range / -range-label) keep working. -->
-          <div class="sched-print-actions">
-            <button class="subnav-item sched-print-btn" type="button" id="rr-sched-print-btn" aria-label="Print the schedule">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-              <span>Print schedule</span>
-            </button>
-            <button class="subnav-item sched-print-btn" type="button" id="rr-sched-download-btn" aria-label="Download the schedule as a spreadsheet">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              <span>Download Excel</span>
-            </button>
-          </div>
+          <!-- Print actions (Print schedule, Download Excel) relocated
+               to the V2 strip below. IDs preserved so the existing
+               click handlers (_schedPrint, _schedDownloadSchedule) keep
+               working. -->
+          <div class="sched-print-actions" aria-hidden="true" style="display:none"></div>
           </div><!-- /sched-nav-heading-actions -->
         </div><!-- /page-header.sched-nav-heading -->
         </div><!-- /sched-cmd-shell -->
@@ -13486,7 +13481,32 @@ body.rr-cmdk-open{ overflow:hidden }
              both side-by-side and decide which sticks. Every tile
              is `pointer-events: none` so clicks don't fire.
              ─────────────────────────────────────────────────────── -->
-        <div class="sched-v2-strip" role="toolbar" aria-label="V2 icon strip (visual preview, not wired)">
+        <div class="sched-v2-strip" role="toolbar" aria-label="Schedule ribbon">
+          <!-- Schedule / Print/Download tabs — moved from the old
+               cmd-shell to the top-right of this strip. The
+               `_schedCmdTab` JS handler still toggles `.is-print`
+               on #rr-sched-cmd so the existing print flow runs
+               unchanged. -->
+          <div class="sched-cmd-tabs sched-v2-cmd-tabs" role="tablist" aria-label="Command strip mode">
+            <button class="sched-cmd-tab active" type="button" data-cmd-tab="schedule" role="tab" aria-selected="true">Schedule</button>
+            <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
+          </div>
+
+          <!-- Print actions · shown only when Print/Download tab is
+               active (driven by `.sched-cmd-shell.is-print` ancestor
+               class via sibling CSS selectors below). IDs preserved
+               so _schedPrint + _schedDownloadSchedule keep working. -->
+          <div class="sched-v2-print-actions" aria-label="Print actions">
+            <button class="sched-print-btn" type="button" id="rr-sched-print-btn" aria-label="Print the schedule">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              <span>Print schedule</span>
+            </button>
+            <button class="sched-print-btn" type="button" id="rr-sched-download-btn" aria-label="Download the schedule as a spreadsheet">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Excel</span>
+            </button>
+          </div>
+
           <!-- Title block · relocated from the legacy sched-nav-heading.
                Same h1.page-title + p.page-sub structure with the
                #rr-sched-page-sub id preserved so the JS that writes

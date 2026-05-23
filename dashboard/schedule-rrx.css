@@ -1796,3 +1796,125 @@
     animation: none;
   }
 }
+
+/* ============================================================
+   V2 strip — hairline divider before Week view
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="week"]) {
+  margin-left: var(--rr-space-160) !important;
+  padding-left: var(--rr-space-160) !important;
+  border-left: 1px solid #C8C6C4 !important;
+}
+
+/* ============================================================
+   V2 strip — cmd-tabs (Schedule / Print/Download) at top-right
+   ------------------------------------------------------------
+   Strip is position:relative so the tabs anchor to its top-
+   right edge. Tabs sit ABOVE the strip's top border as sheet
+   tabs.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-v2-strip {
+  position: relative;
+}
+
+#view-schedule.rrx-schedule .sched-v2-cmd-tabs {
+  position: absolute !important;
+  top: -28px !important;
+  right: var(--rr-space-80) !important;
+  left: auto !important;
+  bottom: auto !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  gap: 2px !important;
+  z-index: 2;
+}
+
+#view-schedule.rrx-schedule .sched-v2-cmd-tabs .sched-cmd-tab {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  font: var(--rr-font-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rr-fg-secondary);
+  padding: var(--rr-space-60) var(--rr-space-120);
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
+  transition:
+    color var(--rr-motion-fast),
+    background var(--rr-motion-fast),
+    border-color var(--rr-motion-fast);
+}
+
+#view-schedule.rrx-schedule .sched-v2-cmd-tabs .sched-cmd-tab:hover:not(.active) {
+  color: var(--rr-fg-primary);
+  background: var(--rr-bg-hover);
+}
+
+#view-schedule.rrx-schedule .sched-v2-cmd-tabs .sched-cmd-tab.active {
+  color: var(--rr-brand-primary);
+  background: var(--rr-bg-surface-1);
+  border-color: var(--rr-border-primary);
+}
+
+/* ============================================================
+   V2 strip — print mode swap
+   ------------------------------------------------------------
+   When `.sched-cmd-shell.is-print` is set on #rr-sched-cmd
+   (toggled by _schedCmdTab), hide V2 tiles + title + week
+   navigator and show the relocated print actions inside the
+   strip. Sibling-combinator CSS, no JS change required.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-print-actions {
+  display: none;
+}
+
+#view-schedule.rrx-schedule .sched-cmd-shell.is-print ~ .sched-v2-strip .sched-v2-print-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+#view-schedule.rrx-schedule .sched-cmd-shell.is-print ~ .sched-v2-strip .sched-v2-split,
+#view-schedule.rrx-schedule .sched-cmd-shell.is-print ~ .sched-v2-strip .sched-v2-title,
+#view-schedule.rrx-schedule .sched-cmd-shell.is-print ~ .sched-v2-strip > #rr-sched-week-nav {
+  display: none !important;
+}
+
+#view-schedule.rrx-schedule .sched-v2-print-actions .sched-print-btn {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 62px;
+  padding: 6px 10px 7px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--rr-radius-medium);
+  color: var(--rr-fg-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background var(--rr-motion-fast), color var(--rr-motion-fast);
+}
+
+#view-schedule.rrx-schedule .sched-v2-print-actions .sched-print-btn:hover {
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .sched-v2-print-actions .sched-print-btn svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.6;
+  flex: 0 0 auto;
+}
