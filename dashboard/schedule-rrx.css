@@ -2258,54 +2258,111 @@ body.rr-sched-focus #view-schedule.rrx-schedule {
   padding: 8px 12px !important;
 }
 
-/* ── Compact rows · ~25% reduction ──────────────────────────── */
-body.rr-sched-compact #view-schedule.rrx-schedule .cal-cell {
-  padding: 7px !important;
-  min-height: 58px !important;
+/* ── Focus mode · grid + open-shifts fill the viewport ────────
+   With the chrome hidden, let the grid and the open-shifts panel
+   stretch into all available height so the operator sees more
+   rows at once (e.g. 10 drivers instead of 6). */
+body.rr-sched-focus #view-schedule.rrx-schedule .page {
+  height: 100% !important;
+  overflow: hidden !important;
 }
-body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label {
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
+body.rr-sched-focus #view-schedule.rrx-schedule .sched-subview,
+body.rr-sched-focus #view-schedule.rrx-schedule #sched-sub-week {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
 }
-body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
-  width: 28px !important;
-  height: 28px !important;
-  font-size: 11px !important;
+body.rr-sched-focus #view-schedule.rrx-schedule .builder-shell {
+  height: 100% !important;
+  align-items: stretch !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
 }
-body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label-name {
-  font-size: 12.5px !important;
+body.rr-sched-focus #view-schedule.rrx-schedule .cal-wrap {
+  max-height: none !important;
+  height: 100% !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
 }
-body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label-meta {
-  font-size: 10.5px !important;
+body.rr-sched-focus #view-schedule.rrx-schedule .sched-right-rail {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
 }
-body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip {
-  padding: 4px 6px !important;
-  line-height: 1.15 !important;
+body.rr-sched-focus #view-schedule.rrx-schedule .pool-openshifts-foot {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin-top: 0 !important;
 }
-body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-route {
-  font-size: 11.5px !important;
-}
-body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-time {
-  font-size: 10px !important;
+body.rr-sched-focus #view-schedule.rrx-schedule .pool-openshifts-body {
+  max-height: none !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
 }
 
-/* ── Header shade · slightly darker for contrast ──────────────
-   #F2F3F6 → #E5E8ED. Applies to the Driver header cell and the
-   day-of-week cells, leaving .today's blue tint intact. */
+/* ── Compact rows · much shorter rectangles ───────────────────
+   Aggressive height reduction so the operator can see many more
+   drivers on screen at once. Cells become slim rectangles and
+   shift chips compress to a single line. */
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-cell {
+  padding: 3px 6px !important;
+  min-height: 34px !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label {
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+  min-height: 34px !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
+  width: 24px !important;
+  height: 24px !important;
+  font-size: 10px !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label-name {
+  font-size: 12px !important;
+  line-height: 1.1 !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label-meta {
+  font-size: 10px !important;
+  line-height: 1.05 !important;
+  margin-top: 0 !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip {
+  padding: 2px 5px !important;
+  line-height: 1.05 !important;
+  min-height: 0 !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-route {
+  font-size: 11px !important;
+  line-height: 1.05 !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-time {
+  font-size: 9.5px !important;
+  line-height: 1.05 !important;
+}
+
+/* ── Header shade · very subtle, just a step darker than canvas
+   Canvas is #EEF1F5. Bump to #EAEDF0 — a true gray that's only
+   one or two shades darker, with no blue cast. Driver header cell
+   + every day cell except .today (which keeps its blue tint). */
 #view-schedule.rrx-schedule .cal-grid.head,
 #view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:not(.today),
 #view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:first-child {
-  background: #E5E8ED !important;
+  background: #EAEDF0 !important;
 }
 
-/* ── Day-coverage count · ~50% larger ─────────────────────────
-   The "filled/needed" line under each day number (e.g. 6/7,
-   7/7) was 10px — bump to 15px and bold the weight slightly so
-   it scans clearly from a few feet away. */
+/* ── Day-coverage count · -25% from previous 15px ─────────────
+   15px → 11px so the "6/7" line is readable without dominating
+   the date number above it. */
 #view-schedule.rrx-schedule .cal-cell-head .day-coverage {
-  font-size: 15px !important;
+  font-size: 11px !important;
   font-weight: 600 !important;
-  margin-top: 4px !important;
+  margin-top: 3px !important;
 }
 
 /* ============================================================
@@ -2318,27 +2375,27 @@ body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-time {
 
 .rr-faux-scrollbar {
   position: absolute;
-  width: 14px;
-  background: #E1DFDD;
-  border-left: 1px solid #C8C6C4;
-  border-radius: 0 8px 8px 0;
+  width: 9px;
+  background: #F3F2F1;
+  border-left: 1px solid #E1DFDD;
+  border-radius: 0 6px 6px 0;
   z-index: 20;
   pointer-events: auto;
 }
 .rr-faux-scrollbar-thumb {
   position: absolute;
-  left: 2px;
-  right: 2px;
+  left: 1px;
+  right: 1px;
   top: 0;
-  background: #5A5A5A;
-  border-radius: 5px;
-  min-height: 40px;
+  background: #C8C6C4;
+  border-radius: 4px;
+  min-height: 36px;
   cursor: pointer;
   transition: background 120ms;
 }
 .rr-faux-scrollbar-thumb:hover,
 .rr-faux-scrollbar-thumb:active {
-  background: #323130;
+  background: #A19F9D;
 }
 
 /* Hide the native scrollbar on faux-attached containers so the
