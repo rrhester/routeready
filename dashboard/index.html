@@ -21806,10 +21806,12 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-sm);font-weight:500;
             color:var(--text-subtle);margin:2px 0 0;
           }
-          /* Action ribbon · icon tiles matching the schedule strip. */
+          /* Action ribbon · icon tiles matching the schedule strip.
+             Left-anchored so the first icon sits flush with the icon
+             strips on the schedule / fleet / pipeline pages. */
           #view-email .em-actions{
             display:flex;align-items:center;gap:8px;
-            margin-left:auto;flex-wrap:nowrap;min-width:0;
+            flex-wrap:nowrap;min-width:0;
           }
           #view-email .em-action{
             appearance:none;cursor:pointer;font:inherit;
