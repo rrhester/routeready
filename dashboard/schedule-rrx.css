@@ -114,6 +114,32 @@
   flex-direction: column !important;
 }
 
+/* Defensive: the print actions strip (Print schedule, Download
+   Excel, Landscape/Portrait toggle) MUST be hidden whenever the
+   cmd-shell isn't in print mode. The legacy rule does this
+   already, but bumping it with !important so nothing — including
+   my own orient-toggle styling — can override it and leak the
+   print controls onto the regular Schedule tab. */
+#view-schedule.rrx-schedule .sched-cmd-shell:not(.is-print) .sched-print-actions,
+#view-schedule.rrx-schedule .sched-cmd-shell:not(.is-print) .sched-print-actions * {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Same guard for Fleet's print actions. */
+#view-fleet .fl-cmd-shell:not(.is-print) .fl-print-actions,
+#view-fleet .fl-cmd-shell:not(.is-print) .fl-print-actions * {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Same guard for Onboarding's print actions. */
+#view-onboarding-ops.rrx-onboarding .ob-cmd-shell:not(.is-print) ~ .ob-print-actions,
+#view-onboarding-ops.rrx-onboarding .ob-cmd-shell:not(.is-print) ~ .ob-print-actions * {
+  display: none !important;
+  visibility: hidden !important;
+}
+
 #view-schedule.rrx-schedule .sched-cmd-tabs {
   display: inline-flex;
   align-self: flex-start;

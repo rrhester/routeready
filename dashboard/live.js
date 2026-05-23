@@ -25747,7 +25747,7 @@ function _activateSchedSub(sub) {
 // before window.print() and remove it after. The selected orientation
 // per print target (schedule / onboarding) is mirrored on
 // `data-rr-print-orient` of the active toggle button.
-const _rrPrintOrient = { schedule: "landscape", onboarding: "portrait" };
+const _rrPrintOrient = { schedule: "landscape", onboarding: "portrait", fleet: "landscape" };
 
 function _rrSetPrintOrient(target, orient) {
   if (orient !== "landscape" && orient !== "portrait") return;
@@ -40710,11 +40710,13 @@ function _flPrintActive() {
   head.textContent = `${_flActiveSubLabel()} — ${new Date().toLocaleString()}`;
   area.appendChild(head);
   area.appendChild(sub.cloneNode(true));
+  if (typeof _rrApplyPrintOrient === "function") _rrApplyPrintOrient("fleet");
   document.documentElement.classList.add("rr-printing");
   window.addEventListener("afterprint", function _done() {
     window.removeEventListener("afterprint", _done);
     document.documentElement.classList.remove("rr-printing");
     area.innerHTML = "";
+    if (typeof _rrClearPrintOrient === "function") _rrClearPrintOrient();
   });
   window.print();
 }
@@ -40910,11 +40912,13 @@ function _flOpenProofModal() {
     area.appendChild(head);
     const result = wrap.querySelector("#rr-proof-result");
     if (result) area.appendChild(result.cloneNode(true));
+    if (typeof _rrApplyPrintOrient === "function") _rrApplyPrintOrient("fleet");
     document.documentElement.classList.add("rr-printing");
     window.addEventListener("afterprint", function _done() {
       window.removeEventListener("afterprint", _done);
       document.documentElement.classList.remove("rr-printing");
       area.innerHTML = "";
+      if (typeof _rrClearPrintOrient === "function") _rrClearPrintOrient();
     });
     window.print();
   });
