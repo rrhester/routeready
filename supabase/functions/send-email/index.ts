@@ -5,7 +5,7 @@
 //   RESEND_API_KEY
 //   RESEND_FROM_EMAIL          e.g. "RouteReady <hello@gorouteready.com>"
 //   RESEND_REPLY_TO            (optional)
-import { serviceClient, jsonResponse, badRequest, requireServiceKey } from "../_shared/supabase.ts";
+import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
 
 interface Attachment { name?: string; url: string; content_type?: string; size?: number }
 interface QueuedRow {
@@ -56,11 +56,14 @@ function brandedFrom(
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
-  // Function is deployed with --no-verify-jwt (post-key-rotation: the
-  // gateway no longer accepts the legacy JWT that the drain cron sends,
-  // and the new sb_secret_… keys aren't JWTs at all). Bearer-gate it
-  // ourselves against the service role key.
-  const gate = requireServiceKey(req); if (gate) return gate;
+  // No in-function auth gate. The function only DRAINS queued rows
+  // out of email_messages — it never accepts a recipient or body from
+  // the request payload, so an unauthenticated caller can at worst
+  // cause the queue to drain (which is the intended behavior anyway).
+  // Rows themselves are RLS-gated on insert by the original DSP user.
+  // Deployed with --no-verify-jwt so the post-key-rotation gateway
+  // (which doesn't accept the legacy JWT in the drain cron headers)
+  // doesn't 401 before the function runs.
 
   const apiKey = Deno.env.get("RESEND_API_KEY");
   const from   = Deno.env.get("RESEND_FROM_EMAIL");
