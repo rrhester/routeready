@@ -46983,6 +46983,17 @@ document.addEventListener("click", (e) => {
       if (form) form.hidden = true;
       return;
     }
+    // Document AI sparkle · one-shot spin on click. Real Google
+    // Document AI wiring slots in here when the integration lands.
+    const ai = e.target.closest('#view-email .em-action[data-em-act="ai"]');
+    if (ai) {
+      e.preventDefault();
+      ai.classList.remove("is-spinning");
+      void ai.offsetWidth;  // force restart of the CSS animation
+      ai.classList.add("is-spinning");
+      setTimeout(() => ai.classList.remove("is-spinning"), 950);
+      return;
+    }
   });
   document.addEventListener("submit", (e) => {
     if (e.target && e.target.id === "rr-em-new-folder-form") {

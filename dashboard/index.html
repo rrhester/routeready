@@ -21848,6 +21848,30 @@ body.rr-cmdk-open{ overflow:hidden }
             outline:none;background:rgba(15,23,42,.04);color:var(--text);
             box-shadow:0 0 0 2px rgba(15,108,189,.30);
           }
+          /* Document AI · vibrant gradient tile with an ambient glow.
+             Click triggers a one-shot spin on the sparkle icon. */
+          #view-email .em-action.em-action-ai{
+            position:relative;color:#fff;
+            background:linear-gradient(135deg,#6366F1 0%,#8B5CF6 48%,#EC4899 100%);
+            box-shadow:0 1px 4px rgba(139,92,246,.35);
+            animation:hdr-ask-glow 3.2s ease-in-out infinite;
+          }
+          #view-email .em-action.em-action-ai span{color:#fff;font-weight:600}
+          #view-email .em-action.em-action-ai:hover{
+            color:#fff;filter:brightness(1.06);
+          }
+          #view-email .em-action.em-action-ai:focus-visible{
+            outline:none;
+            box-shadow:0 0 0 2px #fff,0 0 0 4px #8B5CF6;
+          }
+          #view-email .em-action.em-action-ai svg{transform-origin:50% 50%}
+          #view-email .em-action.em-action-ai.is-spinning svg{
+            animation:em-ai-spin .9s cubic-bezier(.2,.7,.2,1);
+          }
+          @keyframes em-ai-spin{
+            from{transform:rotate(0)}
+            to{transform:rotate(360deg)}
+          }
           @media (max-width:980px){
             #view-email .em-actions{display:none}
           }
@@ -22093,6 +22117,13 @@ body.rr-cmdk-open{ overflow:hidden }
                   <span>Forward</span>
                 </button>
               </div>
+              <!-- Document AI · Google Document AI hook. Vibrant
+                   gradient + ambient glow; the sparkle spins once on
+                   click while the request fires. -->
+              <button type="button" class="em-action em-action-ai" data-em-act="ai" aria-label="Run Document AI on this thread" title="Run Document AI">
+                <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M12 2 14.4 8.6 21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4L12 2z"/><path d="M19 3.5 19.9 5.9 22.3 6.8 19.9 7.7 19 10.1 18.1 7.7 15.7 6.8 18.1 5.9 19 3.5z" opacity=".75"/></svg>
+                <span>Document AI</span>
+              </button>
             </div>
           </div>
         </div>
