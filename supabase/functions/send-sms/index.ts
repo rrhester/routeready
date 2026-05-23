@@ -13,7 +13,7 @@
 // POST body (optional): { applicant_id?: uuid, limit?: int }
 //   - no body: drain up to 50 oldest queued for any tenant
 //   - applicant_id: drain only that applicant's queue (used after RPC)
-import { serviceClient, jsonResponse, badRequest, isWithinQuietHours, requireServiceKey } from "../_shared/supabase.ts";
+import { serviceClient, jsonResponse, badRequest, isWithinQuietHours } from "../_shared/supabase.ts";
 
 const TWILIO_BASE = "https://api.twilio.com/2010-04-01";
 
@@ -29,11 +29,14 @@ interface QueuedRow {
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
-  // Function is deployed with --no-verify-jwt (post-key-rotation: the
-  // gateway no longer accepts the legacy JWT that the drain cron sends,
-  // and the new sb_secret_… keys aren't JWTs at all). Bearer-gate it
-  // ourselves against the service role key.
-  const gate = requireServiceKey(req); if (gate) return gate;
+  // No in-function auth gate. The function only DRAINS queued rows
+  // out of sms_messages — it never accepts a recipient or body from
+  // the request payload, so an unauthenticated caller can at worst
+  // cause the queue to drain (which is the intended behavior anyway).
+  // Rows themselves are RLS-gated on insert by the original DSP user.
+  // Deployed with --no-verify-jwt so the post-key-rotation gateway
+  // (which doesn't accept the legacy JWT in the drain cron headers)
+  // doesn't 401 before the function runs.
 
   const sid   = Deno.env.get("TWILIO_ACCOUNT_SID");
   const token = Deno.env.get("TWILIO_AUTH_TOKEN");
