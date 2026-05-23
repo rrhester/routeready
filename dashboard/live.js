@@ -1225,11 +1225,13 @@ function _schedPrint() {
   head.textContent = subTxt ? "Schedule — " + subTxt : "Schedule";
   area.appendChild(head);
   area.appendChild(grid.cloneNode(true));
+  _rrApplyPrintOrient("schedule");
   document.documentElement.classList.add("rr-printing");
   window.addEventListener("afterprint", function _done() {
     window.removeEventListener("afterprint", _done);
     document.documentElement.classList.remove("rr-printing");
     area.innerHTML = "";
+    _rrClearPrintOrient();
   });
   window.print();
 }
@@ -25720,6 +25722,37 @@ function _activateSchedSub(sub) {
     _resetSchedHeading();
   }
 }
+// ── Print orientation toggle ──────────────────────────────────────
+// Browsers don't expose a print-orientation API to JS, so we inject
+// a tiny <style> element with `@page { size: landscape | portrait }`
+// before window.print() and remove it after. The selected orientation
+// per print target (schedule / onboarding) is mirrored on
+// `data-rr-print-orient` of the active toggle button.
+const _rrPrintOrient = { schedule: "landscape", onboarding: "portrait" };
+
+function _rrSetPrintOrient(target, orient) {
+  if (orient !== "landscape" && orient !== "portrait") return;
+  _rrPrintOrient[target] = orient;
+  document.querySelectorAll(`.rr-print-orient-btn[data-rr-orient-target="${target}"]`).forEach((b) => {
+    const on = b.getAttribute("data-rr-print-orient") === orient;
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
+function _rrApplyPrintOrient(target) {
+  // Remove any prior injected orientation style first.
+  document.getElementById("rr-print-orient-style")?.remove();
+  const orient = _rrPrintOrient[target] || "portrait";
+  const style = document.createElement("style");
+  style.id = "rr-print-orient-style";
+  style.textContent = `@media print { @page { size: ${orient}; margin: 10mm; } }`;
+  document.head.appendChild(style);
+}
+
+function _rrClearPrintOrient() {
+  document.getElementById("rr-print-orient-style")?.remove();
+}
+
 // ── Onboarding · Print/Download mode ──────────────────────────────
 // Same shape as the Schedule cmd-tabs (#rr-sched-cmd). The "Print"
 // tab swaps the ribbon for a single print button; clicking it
@@ -25759,16 +25792,102 @@ function _obPrint() {
     if (sub.style.display === "none") return;
     area.appendChild(sub.cloneNode(true));
   });
+  _rrApplyPrintOrient("onboarding");
   document.documentElement.classList.add("rr-printing-ob");
   window.addEventListener("afterprint", function _done() {
     window.removeEventListener("afterprint", _done);
     document.documentElement.classList.remove("rr-printing-ob");
     area.innerHTML = "";
+    _rrClearPrintOrient();
+  });
+  window.print();
+}
+
+// PTO / time-off report — pulls every approved / pending PTO row
+// for the current DSP within a 90-day window (45 back, 45 forward)
+// and prints a simple "Driver · Start · End · Status · Reason" table.
+async function _obPrintPtoReport() {
+  const view = document.getElementById("view-onboarding-ops");
+  const area = document.getElementById("rr-ob-print-area");
+  if (!view || !area || typeof sb === "undefined") { window.print(); return; }
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { toast?.("Open the dashboard first", "warn"); return; }
+  toast?.("Building PTO report…");
+  const today = new Date();
+  const back  = new Date(today); back.setDate(back.getDate() - 45);
+  const fwd   = new Date(today); fwd.setDate(fwd.getDate() + 45);
+  const isoBack = back.toISOString().slice(0, 10);
+  const isoFwd  = fwd.toISOString().slice(0, 10);
+  const [toRes, drvRes] = await Promise.all([
+    sb.from("time_off_requests")
+      .select("id, driver_id, start_date, end_date, status, reason, is_pto")
+      .eq("dsp_id", dspId)
+      .gte("end_date", isoBack)
+      .lte("start_date", isoFwd)
+      .order("start_date", { ascending: true }),
+    sb.from("drivers")
+      .select("id, full_name, preferred_name")
+      .eq("dsp_id", dspId),
+  ]);
+  if (toRes.error) { toast?.("PTO load failed: " + toRes.error.message, "warn"); return; }
+  const driverNameById = new Map();
+  for (const d of (drvRes.data || [])) {
+    driverNameById.set(d.id, d.preferred_name || d.full_name || "—");
+  }
+  const rows = (toRes.data || []).map(r => ({
+    driver: driverNameById.get(r.driver_id) || "—",
+    start: r.start_date,
+    end: r.end_date,
+    status: (r.status || "—"),
+    reason: (r.reason || "—"),
+    kind: r.is_pto ? "PTO" : "Unpaid",
+  }));
+  area.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "rr-print-head";
+  head.textContent = `PTO Report · ${isoBack} → ${isoFwd}`;
+  area.appendChild(head);
+  if (rows.length === 0) {
+    const empty = document.createElement("div");
+    empty.style.cssText = "font-size:14px;color:#605E5C;padding:24px 0;";
+    empty.textContent = "No PTO or time-off requests in the report window.";
+    area.appendChild(empty);
+  } else {
+    const tbl = document.createElement("table");
+    tbl.className = "rr-print-pto-table";
+    tbl.innerHTML =
+      '<thead><tr><th>Driver</th><th>Kind</th><th>Start</th><th>End</th><th>Status</th><th>Reason</th></tr></thead>'
+      + '<tbody>' + rows.map(r =>
+          `<tr><td>${escapeHtml(r.driver)}</td><td>${escapeHtml(r.kind)}</td>`
+          + `<td>${escapeHtml(r.start || "—")}</td><td>${escapeHtml(r.end || "—")}</td>`
+          + `<td>${escapeHtml(r.status)}</td><td>${escapeHtml(r.reason)}</td></tr>`
+        ).join("") + '</tbody>';
+    area.appendChild(tbl);
+  }
+  _rrApplyPrintOrient("onboarding");
+  document.documentElement.classList.add("rr-printing-ob");
+  window.addEventListener("afterprint", function _done() {
+    window.removeEventListener("afterprint", _done);
+    document.documentElement.classList.remove("rr-printing-ob");
+    area.innerHTML = "";
+    _rrClearPrintOrient();
   });
   window.print();
 }
 
 document.addEventListener("click", (e) => {
+  // Print orientation toggles — set the active orientation for the
+  // matching print target. The actual `@page size` switch happens
+  // when the user clicks Print (via _rrApplyPrintOrient).
+  const orientBtn = e.target.closest(".rr-print-orient-btn");
+  if (orientBtn) {
+    e.preventDefault();
+    _rrSetPrintOrient(
+      orientBtn.getAttribute("data-rr-orient-target") || "schedule",
+      orientBtn.getAttribute("data-rr-print-orient") || "landscape"
+    );
+    return;
+  }
   // Onboarding cmd-tab clicks (Onboarding / Print-Download).
   const obTab = e.target.closest(".ob-cmd-tab");
   if (obTab) {
@@ -25780,6 +25899,12 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("#rr-ob-print-btn")) {
     e.preventDefault();
     _obPrint();
+    return;
+  }
+  // Onboarding PTO report print button.
+  if (e.target.closest("#rr-ob-pto-print-btn")) {
+    e.preventDefault();
+    _obPrintPtoReport();
     return;
   }
   // Chevron split-toggle on the Smart Fill tile → open the rules
