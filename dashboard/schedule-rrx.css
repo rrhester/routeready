@@ -1510,3 +1510,38 @@
 #view-schedule.rrx-schedule .sched-ribbon-actions--grouped > #rr-sched-finalize-h {
   margin-bottom: 26px !important;
 }
+
+/* ============================================================
+   Per-icon vertical nudge — kills the last of the snake
+   ------------------------------------------------------------
+   Every icon's SVG box is now at the same Y, but the visible
+   content INSIDE each viewBox sits at slightly different y
+   coordinates (icon designers laid them out independently):
+
+     - Calendar icons (Week / Today / Fleet / Targets): content
+       top at viewBox y=2 (header lines)
+     - Kudos star: y=2 (star point)
+     - Unassign van: y=2 (after the SVG path shift in this PR)
+     - Staff (people) + Finalize (checked circle): y=3 (head /
+       circle top)
+     - Requests inbox: y=4 (top arcs of inbox path)
+
+   At 28px render size that's 1–2px of visible drift per icon.
+   Compensate with `position: relative; top: -Npx` on the
+   offending icons so every visible top lands at the same place.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-nav-heading-actions .subnav-item[data-sub="staff"] svg {
+  position: relative !important;
+  top: -1px !important;
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading-actions .subnav-item[data-sub="requests"] svg {
+  position: relative !important;
+  top: -2px !important;
+}
+
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped > #rr-sched-finalize-h svg {
+  position: relative !important;
+  top: -1px !important;
+}

@@ -23,7 +23,7 @@
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
      `rrx-schedule` class on the view-schedule element. -->
-<link rel="stylesheet" href="schedule-rrx.css?v=14">
+<link rel="stylesheet" href="schedule-rrx.css?v=15">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -13285,18 +13285,22 @@ body.rr-cmdk-open{ overflow:hidden }
                      wheels along the base. The .rr-van-cargo /
                      .rr-van-cab classes are preserved so the
                      existing JS "assigned" state-color logic keeps
-                     working. -->
+                     working.
+                     Content shifted up 5px from its original
+                     position so the visible top aligns with the
+                     other ribbon icons (calendar / star / checkbox
+                     etc. all start at viewBox y=2). -->
                 <svg class="rr-van-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <!-- Cargo box (left) -->
-                  <rect class="rr-van-cargo" x="2" y="7" width="13" height="10" rx="1.2"/>
+                  <rect class="rr-van-cargo" x="2" y="2" width="13" height="10" rx="1.2"/>
                   <!-- Cab (right): hood + windshield -->
-                  <path class="rr-van-cab" d="M15 10h4l3 3v4h-7z"/>
-                  <line x1="15.5" y1="10.5" x2="18.5" y2="10.5"/>
+                  <path class="rr-van-cab" d="M15 5h4l3 3v4h-7z"/>
+                  <line x1="15.5" y1="5.5" x2="18.5" y2="5.5"/>
                   <!-- Ground line under the body -->
-                  <line x1="2" y1="17" x2="22" y2="17"/>
+                  <line x1="2" y1="12" x2="22" y2="12"/>
                   <!-- Wheels -->
-                  <circle cx="6.5" cy="18.5" r="1.6"/>
-                  <circle cx="17.5" cy="18.5" r="1.6"/>
+                  <circle cx="6.5" cy="13.5" r="1.6"/>
+                  <circle cx="17.5" cy="13.5" r="1.6"/>
                 </svg>
                 Assign
                 <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
