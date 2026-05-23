@@ -1281,14 +1281,14 @@ document.addEventListener("click", (e) => {
 });
 
 // ── Undo stack ─────────────────────────────────────────────────────
-// A small cross-app undo: each undoable action pushes { label, undo }
-// onto a 5-deep stack. The topbar Undo button pops the most recent
-// action; the caret opens a history of the last 5 so the DSP can roll
-// back several. Reversible state changes only — actions that send a
-// message (booking link, screening invite) can't be truly undone, so
-// they don't go on the stack.
+// A cross-app undo: each undoable action pushes { label, undo } onto
+// a 30-deep stack. The topbar Undo button pops the most recent
+// action; the caret opens a history of the last 30 so the DSP can
+// roll back many changes. Reversible state changes only — actions
+// that send a message (booking link, screening invite) can't be
+// truly undone, so they don't go on the stack.
 const _rrUndoStack = [];
-const _RR_UNDO_MAX = 5;
+const _RR_UNDO_MAX = 30;
 
 function _rrPushUndo(entry) {
   if (!entry || typeof entry.undo !== "function") return;
@@ -25720,7 +25720,68 @@ function _activateSchedSub(sub) {
     _resetSchedHeading();
   }
 }
+// ── Onboarding · Print/Download mode ──────────────────────────────
+// Same shape as the Schedule cmd-tabs (#rr-sched-cmd). The "Print"
+// tab swaps the ribbon for a single print button; clicking it
+// clones the readiness matrix into a print-only mount and runs
+// window.print(). Sticking the choice in the cmd-shell class so
+// CSS can hide/show the right elements.
+function _obCmdTab(mode) {
+  const cmd = document.getElementById("rr-ob-cmd");
+  if (!cmd) return;
+  cmd.classList.toggle("is-print", mode === "print");
+  cmd.querySelectorAll(".ob-cmd-tab").forEach((t) => {
+    const on = t.getAttribute("data-ob-cmd-tab") === mode;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const printActions = document.getElementById("rr-ob-print-actions");
+  if (printActions) {
+    if (mode === "print") printActions.removeAttribute("hidden");
+    else printActions.setAttribute("hidden", "");
+  }
+}
+
+function _obPrint() {
+  // Clone every visible onboarding sub-page (overview, workauth,
+  // pipeline etc) into the print mount so the browser prints the
+  // active board content rather than the surrounding chrome.
+  const view = document.getElementById("view-onboarding-ops");
+  const area = document.getElementById("rr-ob-print-area");
+  if (!view || !area) { window.print(); return; }
+  area.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "rr-print-head";
+  const titleEl = document.getElementById("rr-onboardops-title");
+  head.textContent = (titleEl && titleEl.textContent ? titleEl.textContent.trim() : "Onboarding");
+  area.appendChild(head);
+  view.querySelectorAll('.page > div[id^="obsub-"]').forEach((sub) => {
+    if (sub.style.display === "none") return;
+    area.appendChild(sub.cloneNode(true));
+  });
+  document.documentElement.classList.add("rr-printing-ob");
+  window.addEventListener("afterprint", function _done() {
+    window.removeEventListener("afterprint", _done);
+    document.documentElement.classList.remove("rr-printing-ob");
+    area.innerHTML = "";
+  });
+  window.print();
+}
+
 document.addEventListener("click", (e) => {
+  // Onboarding cmd-tab clicks (Onboarding / Print-Download).
+  const obTab = e.target.closest(".ob-cmd-tab");
+  if (obTab) {
+    e.preventDefault();
+    _obCmdTab(obTab.getAttribute("data-ob-cmd-tab") || "ops");
+    return;
+  }
+  // Onboarding print button → run the print flow.
+  if (e.target.closest("#rr-ob-print-btn")) {
+    e.preventDefault();
+    _obPrint();
+    return;
+  }
   // Chevron split-toggle on the Smart Fill tile → open the rules
   // popover. Sits on top of the main tile click so the chevron
   // wins when targeted.
