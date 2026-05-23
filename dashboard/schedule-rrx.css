@@ -2008,24 +2008,49 @@
 }
 
 /* ============================================================
-   Rules functions migrated to V2 strip
+   Old icon strip retired · V2 takes its place
    ------------------------------------------------------------
-   Hide the legacy "Rules ⌄" buttons in the top icon strip. The
-   functionality has migrated: clicking any V2 footer re-parents
-   its popover into the V2 split (via _RR_V2_POPOVER_ID in
-   live.js) then forwards to the (still-in-DOM-but-hidden)
-   legacy button so the existing show/hide JS runs unchanged.
+   Per operator direction, the entire legacy .sched-nav-heading
+   inside #rr-sched-cmd is now visually hidden. The cmd-shell
+   wrapper stays in DOM so:
+     - the sibling-combinator print-mode selector
+       `.sched-cmd-shell.is-print ~ .sched-v2-strip` continues
+       to work,
+     - V2 click forwarding can still .click() the legacy
+       buttons (still in DOM, just not rendered),
+     - the V2 strip moves up to occupy the position the old
+       strip used to hold.
    ============================================================ */
 
+#view-schedule.rrx-schedule .sched-cmd-shell > .sched-nav-heading {
+  display: none !important;
+}
+
+/* Belt-and-suspenders — also hide the legacy Rules ⌄ buttons.
+   Already covered by the parent hide above but kept explicit
+   in case the cmd-shell is ever re-shown. */
 #view-schedule.rrx-schedule .sched-cmd-shell .sched-page-btn-rules-foot {
   display: none !important;
 }
 
-/* The reserved 23px bottom margin on the legacy action group +
-   Finalize tile was reserving space below the now-hidden
-   Rules ⌄ footers. Collapse it so the top strip's height
-   shrinks to match its actual content. */
-#view-schedule.rrx-schedule .sched-cmd-shell .sched-nav-heading-actions .sched-ribbon-group,
-#view-schedule.rrx-schedule .sched-cmd-shell .sched-ribbon-actions--grouped #rr-sched-finalize-h {
-  margin-bottom: 0 !important;
+/* ============================================================
+   V2 strip · hairline divider after Kudos / before week-nav
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-v2-strip > #rr-sched-week-nav {
+  border-left: 1px solid #C8C6C4 !important;
+  padding-left: var(--rr-space-160) !important;
+}
+
+/* ============================================================
+   Draft / Live status pill · same width regardless of label
+   ------------------------------------------------------------
+   "Draft" (5 chars) and "Live" (4 chars) rendered at different
+   widths; explicit min-width + centered label so the pill is
+   visually identical in either state.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-v2-status-pill {
+  min-width: 80px;
+  justify-content: center;
 }
