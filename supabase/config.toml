@@ -89,5 +89,15 @@ verify_jwt = false
 [functions.send-sms]
 verify_jwt = false
 
+# Inbound email webhook · Cloudflare Email Worker POSTs here with a
+# raw EMAIL_INBOUND_SECRET bearer (not a JWT). Must stay verify_jwt
+# off — otherwise the gateway 401s every Worker call before the
+# function's own bearer check (index.ts:190) can run, and no inbound
+# row lands. Without this entry, the CLI re-applies the project
+# default (verify_jwt = true) on every CI deploy and silently breaks
+# inbound mail.
+[functions.webhook-email-inbound]
+verify_jwt = false
+
 [analytics]
 enabled = false
