@@ -977,13 +977,20 @@
 
 /* Same border-left treatment everywhere: VIEWS | PLANNING |
    ACTIONS, plus before Kudos so the recognition tile reads
-   as its own cluster. */
+   as its own cluster. Belt-and-suspenders: explicit width /
+   style / color on the left side, and zero the other sides
+   so no inherited shorthand can blank them out. */
 #view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group,
 #view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-actions--grouped,
 #view-schedule.rrx-schedule .sched-ribbon-actions--grouped .sched-kudos-split {
   margin-left: var(--rr-space-160) !important;
   padding-left: var(--rr-space-160) !important;
-  border-left: 1px solid var(--rr-border-primary) !important;
+  border-top: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-left-width: 1px !important;
+  border-left-style: solid !important;
+  border-left-color: #C8C6C4 !important;  /* one step darker than --rr-border-primary so the line reads at a glance */
 }
 
 /* ============================================================
@@ -1036,7 +1043,13 @@
      internally with a visible scrollbar.
    ============================================================ */
 
-#view-schedule.rrx-schedule #sched-sub-today {
+/* Scope to [style*="block"] so the lock only activates when the
+   schedSub() JS has set display:block (i.e. the sub-view is the
+   active one). Without this guard, `display:flex !important`
+   overrides the inline `style="display:none"` that hides inactive
+   sub-views, causing Today + Calendar to render stacked on top of
+   Week view. */
+#view-schedule.rrx-schedule #sched-sub-today[style*="block"] {
   display: flex !important;
   flex-direction: column !important;
   height: calc(100vh - 232px) !important;
@@ -1178,7 +1191,9 @@
    to the bottom of the viewport.
    ============================================================ */
 
-#view-schedule.rrx-schedule #sched-sub-calendar {
+/* Same guard as Today: only activate the flex/lock layout when
+   the sub-view is the active one (schedSub() sets display:block). */
+#view-schedule.rrx-schedule #sched-sub-calendar[style*="block"] {
   display: flex !important;
   flex-direction: column !important;
   height: calc(100vh - 232px) !important;
