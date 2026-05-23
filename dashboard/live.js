@@ -46895,21 +46895,20 @@ document.addEventListener("click", (e) => {
   }
 })();
 
-// ─── Email · folders panel ───────────────────────────────────────────
-// Folders persist client-side (localStorage) so a DSP can carve out
-// their own organisation without needing a server round-trip. Built-in
-// folders (Inbox / Drafts / Sent / Archive / Trash) can't be deleted;
-// custom folders show an inline × on hover. The right pane stays as a
-// "no messages yet" placeholder until real email sync is wired up.
+// ─── Email · Fleet Bridge ────────────────────────────────────────────
+// Folders live in public.fb_folders (system + custom per DSP) and
+// messages live in public.email_messages with folder_id pointing at the
+// right folder. The inbound webhook (webhook-email-inbound) routes
+// vendor mail to the DSP's Inbox folder; replies to outbound applicant
+// emails keep folder_id NULL and continue to render in the applicant
+// thread modal instead.
+//
+// The active folder is remembered in localStorage so the dashboard
+// re-opens to whichever folder the operator last used. Everything else
+// (folder list, message list, preview) comes from Supabase with a
+// realtime subscription on email_messages for the active folder.
 (function () {
-  const KEY = "rr-email-folders";
-  const BUILTINS = [
-    { id: "inbox",   name: "Inbox",   icon: "inbox"   },
-    { id: "drafts",  name: "Drafts",  icon: "drafts"  },
-    { id: "sent",    name: "Sent",    icon: "sent"    },
-    { id: "archive", name: "Archive", icon: "archive" },
-    { id: "trash",   name: "Trash",   icon: "trash"   },
-  ];
+  const ACTIVE_KEY = "rr-em-active-folder";
   const ICONS = {
     inbox:   `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`,
     drafts:  `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
@@ -46919,112 +46918,289 @@ document.addEventListener("click", (e) => {
     folder:  `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
   };
 
-  let state = { custom: [], activeId: "inbox" };
-  function load() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(KEY) || "null");
-      if (saved && typeof saved === "object") {
-        state = {
-          custom:   Array.isArray(saved.custom) ? saved.custom : [],
-          activeId: typeof saved.activeId === "string" ? saved.activeId : "inbox",
-        };
-      }
-    } catch (_) {}
-  }
-  function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {}
-  }
-  function allFolders() {
-    return BUILTINS.concat(state.custom.map(f => ({ id: f.id, name: f.name, icon: "folder", custom: true })));
-  }
+  const state = {
+    folders:         [],   // [{ id, name, kind, position }]
+    activeFolderId:  null,
+    messages:        [],   // [{ id, from_email, to_email, subject, body_text, body_html, direction, status, created_at }]
+    activeMessageId: null,
+    booted:          false,
+  };
+  let inboxChannel = null;
+
   function escapeHtmlLocal(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
   }
+  function iconFor(kind) { return ICONS[kind] || ICONS.folder; }
+
+  function currentDspId() {
+    return window.RR?.user?.dsp_id || null;
+  }
+
+  // ── Data loaders ────────────────────────────────────────────────
+  async function loadFolders() {
+    const { data, error } = await sb.from("fb_folders")
+      .select("id, name, kind, position")
+      .order("position", { ascending: true })
+      .order("name",     { ascending: true });
+    if (error) { console.error("fb_folders load failed:", error); state.folders = []; return; }
+    state.folders = data || [];
+    // Pick the active folder: last-remembered if still valid, else
+    // the Inbox kind, else the first folder we have.
+    let remembered = null;
+    try { remembered = localStorage.getItem(ACTIVE_KEY); } catch (_) {}
+    if (remembered && state.folders.some(f => f.id === remembered)) {
+      state.activeFolderId = remembered;
+    } else {
+      const inbox = state.folders.find(f => f.kind === "inbox");
+      state.activeFolderId = (inbox || state.folders[0])?.id || null;
+    }
+  }
+
+  async function loadMessages() {
+    if (!state.activeFolderId) { state.messages = []; return; }
+    const { data, error } = await sb.from("email_messages")
+      .select("id, from_email, to_email, subject, body_text, body_html, direction, status, created_at")
+      .eq("folder_id", state.activeFolderId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) { console.error("email_messages load failed:", error); state.messages = []; return; }
+    state.messages = data || [];
+    // If the previously-selected message is no longer in the list (folder
+    // switch, deletion, etc.), clear the preview.
+    if (state.activeMessageId && !state.messages.some(m => m.id === state.activeMessageId)) {
+      state.activeMessageId = null;
+    }
+  }
+
+  function subscribeRealtime() {
+    if (inboxChannel) {
+      try { sb.removeChannel(inboxChannel); } catch (_) {}
+      inboxChannel = null;
+    }
+    if (!state.activeFolderId) return;
+    inboxChannel = sb.channel("rr-fb-inbox-" + state.activeFolderId)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "email_messages",
+          filter: "folder_id=eq." + state.activeFolderId },
+        async () => {
+          await loadMessages();
+          renderInbox();
+          renderPreview();
+        })
+      .subscribe();
+  }
+
+  // ── Rendering ───────────────────────────────────────────────────
   function renderFolders() {
     const host = document.getElementById("rr-em-folders");
     if (!host) return;
-    if (!allFolders().some(f => f.id === state.activeId)) state.activeId = "inbox";
-    const builtinHtml = `<div class="em-folder-section">System</div>` + BUILTINS.map(folderHtml).join("");
-    const customHtml = state.custom.length
-      ? `<div class="em-folder-section">My folders</div>` + state.custom.map(f => folderHtml({ ...f, icon: "folder", custom: true })).join("")
+    if (!state.folders.length) {
+      host.innerHTML = `<div class="em-folder-empty" style="padding:var(--s-3) var(--s-4);color:var(--text-subtle);font-size:var(--fs-xs)">Loading folders…</div>`;
+      return;
+    }
+    const builtins = state.folders.filter(f => f.kind !== "custom");
+    const custom   = state.folders.filter(f => f.kind === "custom");
+    const builtinHtml = builtins.length
+      ? `<div class="em-folder-section">System</div>` + builtins.map(folderHtml).join("")
+      : "";
+    const customHtml = custom.length
+      ? `<div class="em-folder-section">My folders</div>` + custom.map(folderHtml).join("")
       : "";
     host.innerHTML = builtinHtml + customHtml;
-    renderMain();
   }
   function folderHtml(f) {
-    const isActive = f.id === state.activeId;
+    const isActive = f.id === state.activeFolderId;
+    const isCustom = f.kind === "custom";
     return `<button type="button" class="em-folder${isActive ? " active" : ""}" data-em-folder="${escapeHtmlLocal(f.id)}" aria-pressed="${isActive ? "true" : "false"}">
-      ${ICONS[f.icon] || ICONS.folder}
+      ${iconFor(f.kind)}
       <span class="em-folder-name">${escapeHtmlLocal(f.name)}</span>
       <span class="em-folder-count" aria-hidden="true"></span>
-      ${f.custom ? `<span class="em-folder-delete" role="button" tabindex="0" data-em-folder-delete="${escapeHtmlLocal(f.id)}" aria-label="Delete folder" title="Delete folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>` : ""}
+      ${isCustom ? `<span class="em-folder-delete" role="button" tabindex="0" data-em-folder-delete="${escapeHtmlLocal(f.id)}" aria-label="Delete folder" title="Delete folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>` : ""}
     </button>`;
   }
-  function renderMain() {
+
+  function renderHeader() {
     const title = document.getElementById("rr-em-main-title");
     const count = document.getElementById("rr-em-main-count");
-    const inbox = document.getElementById("rr-em-inbox");
-    const preview = document.getElementById("rr-em-preview");
-    const f = allFolders().find(x => x.id === state.activeId);
+    const f = state.folders.find(x => x.id === state.activeFolderId);
     if (title) title.textContent = f ? f.name : "Inbox";
-    if (count) count.textContent = "0 messages";
-    if (inbox) {
+    if (count) {
+      const n = state.messages.length;
+      count.textContent = n === 1 ? "1 message" : `${n} messages`;
+    }
+  }
+
+  function renderInbox() {
+    renderHeader();
+    const inbox = document.getElementById("rr-em-inbox");
+    if (!inbox) return;
+    if (!state.messages.length) {
+      const f = state.folders.find(x => x.id === state.activeFolderId);
       inbox.innerHTML = `<div class="em-placeholder">
         <span class="em-placeholder-label">No messages</span>
-        <div>${f && f.custom ? "Drag messages here to organise them." : "Once email sync is wired up this folder's threads will land here."}</div>
+        <div>${f && f.kind === "custom" ? "Drag messages here to organise them." : "This folder is empty."}</div>
       </div>`;
+      return;
     }
-    if (preview) {
+    inbox.innerHTML = state.messages.map(messageRowHtml).join("");
+  }
+
+  function messageRowHtml(m) {
+    const isActive  = m.id === state.activeMessageId;
+    const isInbound = m.direction === "inbound";
+    const who = (isInbound ? m.from_email : m.to_email) || "(unknown)";
+    const subject = m.subject || "(no subject)";
+    const snippet = (m.body_text || "").replace(/\s+/g, " ").slice(0, 110);
+    const when = m.created_at ? formatRelative(new Date(m.created_at)) : "";
+    return `<button type="button" class="em-msg-row${isActive ? " active" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}">
+      <div class="em-msg-row-line1">
+        <span class="em-msg-who">${escapeHtmlLocal(who)}</span>
+        <span class="em-msg-when">${escapeHtmlLocal(when)}</span>
+      </div>
+      <div class="em-msg-subject">${escapeHtmlLocal(subject)}</div>
+      ${snippet ? `<div class="em-msg-snippet">${escapeHtmlLocal(snippet)}</div>` : ""}
+    </button>`;
+  }
+
+  function formatRelative(d) {
+    const diff = Date.now() - d.getTime();
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return "just now";
+    if (min < 60) return `${min}m`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h`;
+    const day = Math.floor(hr / 24);
+    if (day < 7) return `${day}d`;
+    return d.toLocaleDateString();
+  }
+
+  function renderPreview() {
+    const preview = document.getElementById("rr-em-preview");
+    if (!preview) return;
+    if (!state.activeMessageId) {
       preview.innerHTML = `<div class="em-placeholder">
         <span class="em-placeholder-label">No message selected</span>
         <div>Pick a thread from the inbox to preview it here.</div>
       </div>`;
+      return;
     }
+    const m = state.messages.find(x => x.id === state.activeMessageId);
+    if (!m) {
+      preview.innerHTML = `<div class="em-placeholder"><span class="em-placeholder-label">Message not found</span></div>`;
+      return;
+    }
+    const when = m.created_at ? new Date(m.created_at).toLocaleString() : "";
+    const isInbound = m.direction === "inbound";
+    // Plaintext rendering only — body_html is intentionally not injected
+    // to avoid remote-content / tracking-pixel shenanigans in the
+    // operator dashboard. If body_text is empty, fall back to a short
+    // note rather than an empty pane.
+    const body = (m.body_text || "").replace(/\s+$/g, "");
+    preview.innerHTML = `
+      <div class="em-preview-header">
+        <div class="em-preview-subject">${escapeHtmlLocal(m.subject || "(no subject)")}</div>
+        <div class="em-preview-meta">
+          <div><strong>From:</strong> ${escapeHtmlLocal(m.from_email || "—")}</div>
+          <div><strong>To:</strong> ${escapeHtmlLocal(m.to_email || "—")}</div>
+          <div><strong>${isInbound ? "Received" : "Sent"}:</strong> ${escapeHtmlLocal(when)}</div>
+        </div>
+      </div>
+      <div class="em-preview-body">${body ? escapeHtmlLocal(body).replace(/\n/g, "<br>") : `<em style="color:var(--text-subtle)">(no text body — message may have arrived as HTML only)</em>`}</div>
+    `;
   }
-  function selectFolder(id) {
-    if (!allFolders().some(f => f.id === id)) return;
-    state.activeId = id;
-    save();
-    document.querySelectorAll("#rr-em-folders .em-folder").forEach((b) => {
-      const on = b.getAttribute("data-em-folder") === id;
-      b.classList.toggle("active", on);
-      b.setAttribute("aria-pressed", on ? "true" : "false");
+
+  // ── State mutators ──────────────────────────────────────────────
+  async function selectFolder(id) {
+    if (!state.folders.some(f => f.id === id)) return;
+    state.activeFolderId = id;
+    state.activeMessageId = null;
+    try { localStorage.setItem(ACTIVE_KEY, id); } catch (_) {}
+    renderFolders();
+    renderHeader();
+    // Paint a transient "loading" state in the inbox while we fetch.
+    const inbox = document.getElementById("rr-em-inbox");
+    if (inbox) inbox.innerHTML = `<div class="em-placeholder"><span class="em-placeholder-label">Loading…</span></div>`;
+    renderPreview();
+    await loadMessages();
+    renderInbox();
+    renderPreview();
+    subscribeRealtime();
+  }
+
+  function selectMessage(id) {
+    state.activeMessageId = id;
+    document.querySelectorAll("#rr-em-inbox .em-msg-row").forEach(row => {
+      row.classList.toggle("active", row.getAttribute("data-em-msg") === id);
     });
-    renderMain();
+    renderPreview();
   }
-  function makeId(name) {
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-    let id = "custom-" + (slug || "folder");
-    let n = 2;
-    const taken = new Set(allFolders().map(f => f.id));
-    while (taken.has(id)) { id = "custom-" + (slug || "folder") + "-" + n; n++; }
-    return id;
-  }
-  function createFolder(name) {
+
+  async function createFolder(name) {
     const trimmed = String(name || "").trim();
     if (!trimmed) return false;
-    if (state.custom.length >= 30) {
+    if (state.folders.filter(f => f.kind === "custom").length >= 30) {
       if (typeof toast === "function") toast("Too many folders (30 max)", "warn");
       return false;
     }
-    const folder = { id: makeId(trimmed), name: trimmed };
-    state.custom.push(folder);
-    state.activeId = folder.id;
-    save();
+    const dsp_id = currentDspId();
+    if (!dsp_id) {
+      if (typeof toast === "function") toast("Couldn't determine your DSP — please reload", "warn");
+      return false;
+    }
+    const { data, error } = await sb.from("fb_folders").insert({
+      dsp_id, name: trimmed, kind: "custom", position: 100,
+    }).select("id, name, kind, position").single();
+    if (error) {
+      if (typeof toast === "function") toast("Couldn't create folder: " + error.message, "warn");
+      return false;
+    }
+    state.folders.push(data);
+    state.activeFolderId = data.id;
+    state.activeMessageId = null;
+    try { localStorage.setItem(ACTIVE_KEY, data.id); } catch (_) {}
     renderFolders();
+    await loadMessages();
+    renderInbox();
+    renderPreview();
+    subscribeRealtime();
     if (typeof toast === "function") toast(`Folder "${trimmed}" added`, "success");
     return true;
   }
-  function deleteFolder(id) {
-    const idx = state.custom.findIndex(f => f.id === id);
-    if (idx < 0) return;
-    const name = state.custom[idx].name;
-    if (!confirm(`Delete folder "${name}"? Its messages will move to Inbox.`)) return;
-    state.custom.splice(idx, 1);
-    if (state.activeId === id) state.activeId = "inbox";
-    save();
+
+  async function deleteFolder(id) {
+    const f = state.folders.find(x => x.id === id);
+    if (!f || f.kind !== "custom") return;
+    if (!confirm(`Delete folder "${f.name}"? Its messages will move to Inbox.`)) return;
+    // Reparent messages to Inbox before removing the folder so nothing
+    // gets orphaned. On-delete-set-null on email_messages.folder_id would
+    // strand them outside any folder view, which is worse than moving
+    // them somewhere visible.
+    const inbox = state.folders.find(x => x.kind === "inbox");
+    if (inbox) {
+      const { error: moveErr } = await sb.from("email_messages")
+        .update({ folder_id: inbox.id }).eq("folder_id", id);
+      if (moveErr) {
+        if (typeof toast === "function") toast("Couldn't move messages: " + moveErr.message, "warn");
+        return;
+      }
+    }
+    const { error } = await sb.from("fb_folders").delete().eq("id", id);
+    if (error) {
+      if (typeof toast === "function") toast("Couldn't delete folder: " + error.message, "warn");
+      return;
+    }
+    state.folders = state.folders.filter(x => x.id !== id);
+    if (state.activeFolderId === id) {
+      state.activeFolderId = inbox?.id || state.folders[0]?.id || null;
+      state.activeMessageId = null;
+      try { if (state.activeFolderId) localStorage.setItem(ACTIVE_KEY, state.activeFolderId); } catch (_) {}
+    }
     renderFolders();
-    if (typeof toast === "function") toast(`Folder "${name}" deleted`, "warn");
+    await loadMessages();
+    renderInbox();
+    renderPreview();
+    subscribeRealtime();
+    if (typeof toast === "function") toast(`Folder "${f.name}" deleted`, "warn");
   }
 
   // ── Event wiring ────────────────────────────────────────────────
@@ -47041,6 +47217,12 @@ document.addEventListener("click", (e) => {
     if (folder) {
       e.preventDefault();
       selectFolder(folder.getAttribute("data-em-folder"));
+      return;
+    }
+    const msg = e.target.closest("#rr-em-inbox [data-em-msg]");
+    if (msg) {
+      e.preventDefault();
+      selectMessage(msg.getAttribute("data-em-msg"));
       return;
     }
     if (e.target.closest("#rr-em-new-folder")) {
@@ -47091,9 +47273,10 @@ document.addEventListener("click", (e) => {
     if (e.target && e.target.id === "rr-em-new-folder-form") {
       e.preventDefault();
       const inp = document.getElementById("rr-em-new-folder-input");
-      if (inp && createFolder(inp.value)) {
-        inp.value = "";
-        e.target.hidden = true;
+      if (inp) {
+        createFolder(inp.value).then(ok => {
+          if (ok) { inp.value = ""; e.target.hidden = true; }
+        });
       }
     }
   });
@@ -47160,11 +47343,20 @@ document.addEventListener("click", (e) => {
   });
 
   // ── Boot · render whenever the email view becomes ready ─────────
-  function init() {
+  async function init() {
     if (!document.getElementById("rr-em-folders")) return false;
-    load();
-    renderFolders();
+    if (state.booted) return true;
+    state.booted = true;
     restoreInboxWidth();
+    renderFolders();   // shows "Loading folders…" while the query runs
+    renderInbox();
+    renderPreview();
+    await loadFolders();
+    renderFolders();
+    await loadMessages();
+    renderInbox();
+    renderPreview();
+    subscribeRealtime();
     return true;
   }
   if (document.readyState === "loading") {
