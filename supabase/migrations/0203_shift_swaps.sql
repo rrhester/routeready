@@ -455,6 +455,12 @@ grant execute on function public.driver_swap_respond(text, uuid, boolean) to ano
 
 
 -- ── 8. updated_at trigger ─────────────────────────────────────────────
+-- Idempotent guard: drop-if-exists then create. Without this, every CI
+-- replay of this migration since 0203 was first applied has failed
+-- with SQLSTATE 42710 ("trigger already exists"), and that single line
+-- has been blocking the entire deploy pipeline (no migrations push, no
+-- functions deploy) for weeks.
+drop trigger if exists trg_shift_swaps_updated_at on public.shift_swap_requests;
 create trigger trg_shift_swaps_updated_at
   before update on public.shift_swap_requests
   for each row execute function private.set_updated_at();
