@@ -434,3 +434,140 @@
   font: var(--rr-font-body);
   color: var(--rr-fg-secondary);
 }
+
+/* ============================================================
+   Command tabs (Onboarding / Print-Download) — matches the
+   Schedule cmd-tabs pattern visually. Sits above the page
+   header as sheet-style tabs.
+   ============================================================ */
+
+#view-onboarding-ops.rrx-onboarding .ob-cmd-shell {
+  position: relative;
+  display: block;
+  margin: 0;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-cmd-tabs {
+  display: inline-flex;
+  gap: 2px;
+  position: absolute;
+  left: var(--rr-space-40);
+  bottom: 100%;
+  margin-bottom: -1px;
+  z-index: 1;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-cmd-tab {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  font: var(--rr-font-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rr-fg-secondary);
+  padding: var(--rr-space-60) var(--rr-space-120);
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
+  transition:
+    color var(--rr-motion-fast),
+    background var(--rr-motion-fast),
+    border-color var(--rr-motion-fast);
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-cmd-tab:hover:not(.active) {
+  color: var(--rr-fg-primary);
+  background: var(--rr-bg-hover);
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-cmd-tab.active {
+  color: var(--rr-brand-primary);
+  background: var(--rr-bg-surface-1);
+  border-color: var(--rr-border-primary);
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-cmd-tab:focus-visible {
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: 1px;
+  color: var(--rr-brand-primary);
+}
+
+/* When the Print tab is active, hide the ribbon icons and show
+   the print button instead (the print button overlays at the
+   strip's left edge, matching the Schedule pattern). */
+#view-onboarding-ops.rrx-onboarding .ob-cmd-shell.is-print .sched-nav-heading-actions {
+  visibility: hidden !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-print-actions {
+  position: absolute;
+  left: var(--rr-space-200);
+  top: var(--rr-space-200);
+  display: inline-flex;
+  align-items: center;
+  z-index: 2;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-cmd-shell:not(.is-print) ~ .ob-print-actions {
+  display: none !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-print-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-80);
+  height: 36px;
+  padding: 0 var(--rr-space-160);
+  background: var(--rr-brand-primary);
+  border: 1px solid var(--rr-brand-primary);
+  border-radius: var(--rr-radius-medium);
+  color: #FFFFFF;
+  font: var(--rr-font-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--rr-motion-fast), border-color var(--rr-motion-fast);
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-print-btn:hover {
+  background: var(--rr-brand-hover);
+  border-color: var(--rr-brand-hover);
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-print-btn svg {
+  width: 18px;
+  height: 18px;
+  color: #FFFFFF;
+}
+
+/* Print-only mount — invisible until window.print() runs. */
+#rr-ob-print-area {
+  display: none;
+}
+
+#rr-ob-print-area .rr-print-head {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0 0 16px;
+}
+
+@media print {
+  @page { size: portrait; margin: 12mm; }
+  html.rr-printing-ob .topbar,
+  html.rr-printing-ob .sidebar { display: none !important; }
+  html.rr-printing-ob .app,
+  html.rr-printing-ob .main { display: block !important; }
+  html.rr-printing-ob #view-onboarding-ops > .page > *:not(#rr-ob-print-area) {
+    display: none !important;
+  }
+  html.rr-printing-ob #rr-ob-print-area {
+    display: block !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  html.rr-printing-ob #rr-ob-print-area .onb-skel-grid,
+  html.rr-printing-ob #rr-ob-print-area .card {
+    break-inside: avoid;
+  }
+}

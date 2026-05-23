@@ -27,7 +27,7 @@
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
-<link rel="stylesheet" href="onboarding-rrx.css?v=3">
+<link rel="stylesheet" href="onboarding-rrx.css?v=4">
 <style>
 /* ─────────────────────────────────────────────────────────────
    DESIGN TOKENS
@@ -969,9 +969,13 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .hdr-undo:focus-visible,.hdr-undo-caret:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--accent-glow)}
 .hdr-undo-menu{
   position:absolute;top:calc(100% + 6px);left:0;z-index:60;
-  min-width:256px;padding:5px;
+  min-width:280px;max-width:360px;padding:5px;
   background:var(--surface);border:1px solid var(--border-strong);
   border-radius:8px;box-shadow:var(--shadow-pop);
+  /* With up to 30 entries the menu can get tall — cap it to the
+     viewport and let it scroll internally. */
+  max-height:calc(100vh - 120px);
+  overflow-y:auto;
 }
 .hdr-undo-menu[hidden]{display:none}
 .hdr-undo-head{
@@ -11150,6 +11154,13 @@ body.rr-cmdk-open{ overflow:hidden }
         #obsub-pipeline #view-pipeline .pipe-subnav-row{display:none}
       </style>
       <div class="page">
+        <!-- Command shell · Onboarding / Print-Download mode tabs
+             above the header, matching the Schedule page pattern. -->
+        <div class="ob-cmd-shell" id="rr-ob-cmd">
+        <div class="ob-cmd-tabs" role="tablist" aria-label="Command strip mode">
+          <button class="ob-cmd-tab active" type="button" data-ob-cmd-tab="ops" role="tab" aria-selected="true">Onboarding</button>
+          <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
+        </div>
         <div class="page-header sched-nav-heading">
           <div class="page-header-l">
             <div class="page-icon" data-c="drivers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="15.5 11 17.5 13 21.5 9"/></svg></div>
@@ -11362,7 +11373,20 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
           </div>
+        </div><!-- /page-header.sched-nav-heading -->
+        </div><!-- /ob-cmd-shell -->
+
+        <!-- Print mode · single Print button shown only when the
+             Print/Download tab is active. Clones the readiness
+             matrix into #rr-ob-print-area on click and runs
+             window.print(). -->
+        <div class="ob-print-actions" id="rr-ob-print-actions" hidden>
+          <button type="button" class="ob-print-btn" id="rr-ob-print-btn" title="Print or download the readiness matrix">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            <span>Print this page</span>
+          </button>
         </div>
+        <div id="rr-ob-print-area" aria-hidden="true"></div>
 
         <div id="obsub-overview">
           <!-- Skeleton readiness matrix — 4 cohort cards stacked.
