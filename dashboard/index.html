@@ -23,7 +23,7 @@
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
      `rrx-schedule` class on the view-schedule element. -->
-<link rel="stylesheet" href="schedule-rrx.css?v=26">
+<link rel="stylesheet" href="schedule-rrx.css?v=27">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -17656,9 +17656,22 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="cal-grid head">
               <div class="cal-cell-head" style="display:flex;align-items:center;gap:6px;position:relative">
                 <span>Driver</span>
+                <button class="rr-tf-icon" id="rr-sched-focus-toggle" type="button"
+                        title="Focus mode — hide chrome, expand schedule + open shifts"
+                        aria-label="Focus mode" aria-pressed="false"
+                        style="position:relative;top:0;right:0;margin-left:auto">
+                  <svg class="ic-focus-on" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 3 3 3 3 9"/><polyline points="15 3 21 3 21 9"/><polyline points="21 15 21 21 15 21"/><polyline points="3 15 3 21 9 21"/></svg>
+                  <svg class="ic-focus-off" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="3 9 9 9 9 3"/><polyline points="21 9 15 9 15 3"/><polyline points="15 21 15 15 21 15"/><polyline points="3 15 9 15 9 21"/></svg>
+                </button>
+                <button class="rr-tf-icon" id="rr-sched-compact-toggle" type="button"
+                        title="Compact rows — shrink row height to see more drivers"
+                        aria-label="Compact rows" aria-pressed="false"
+                        style="position:relative;top:0;right:0">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="15" x2="20" y2="15"/></svg>
+                </button>
                 <button class="rr-tf-icon" id="rr-sched-driver-sort-toggle" type="button"
                         title="Sort drivers" aria-label="Sort drivers"
-                        style="position:relative;top:0;right:0;margin-left:auto">
+                        style="position:relative;top:0;right:0">
                   <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="13" y2="6"/><line x1="3" y1="12" x2="11" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 8 21 12 17 16"/><line x1="14" y1="12" x2="21" y2="12"/></svg>
                 </button>
               </div>

@@ -2148,3 +2148,99 @@
     animation: none !important;
   }
 }
+
+/* ============================================================
+   Driver-column tools · Focus + Compact toggles
+   ------------------------------------------------------------
+   Two subtle Fluent-style icons sit next to the existing driver
+   sort icon in the "Driver" header cell:
+     · Focus  — hides page chrome; only the grid + open-shifts
+                panel remain. Toggle again to restore.
+     · Compact — shrinks row height by ~25% so the operator can
+                 see more drivers at once.
+   ============================================================ */
+
+body.rr-sched-focus #rr-sched-focus-toggle .ic-focus-on { display: none !important; }
+body.rr-sched-focus #rr-sched-focus-toggle .ic-focus-off { display: inline !important; }
+
+#view-schedule.rrx-schedule #rr-sched-focus-toggle[aria-pressed="true"],
+#view-schedule.rrx-schedule #rr-sched-compact-toggle[aria-pressed="true"] {
+  background: var(--rr-brand-soft, rgba(15, 108, 189, 0.10));
+  color: var(--rr-brand-pressed, #0E4F86);
+}
+
+/* ── Focus mode ────────────────────────────────────────────── */
+body.rr-sched-focus .sidebar,
+body.rr-sched-focus .topbar {
+  display: none !important;
+}
+body.rr-sched-focus .app {
+  grid-template-columns: 1fr !important;
+}
+
+body.rr-sched-focus #view-schedule .sched-cmd,
+body.rr-sched-focus #view-schedule #rr-sched-cmd,
+body.rr-sched-focus #view-schedule .sched-v2-strip,
+body.rr-sched-focus #view-schedule .sched-kpi-pills,
+body.rr-sched-focus #view-schedule #rr-sched-kpis,
+body.rr-sched-focus #view-schedule .sched-fem-banner,
+body.rr-sched-focus #view-schedule .sched-recap-link-wrap,
+body.rr-sched-focus #view-schedule .sched-page-header,
+body.rr-sched-focus #view-schedule .sched-nav-heading,
+body.rr-sched-focus #view-schedule .sched-week-nav,
+body.rr-sched-focus #view-schedule .coverage-strip {
+  display: none !important;
+}
+
+body.rr-sched-focus #view-schedule .driver-pool > :not(.pool-openshifts-foot) {
+  display: none !important;
+}
+body.rr-sched-focus #view-schedule .driver-pool {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+body.rr-sched-focus #view-schedule.rrx-schedule {
+  padding: 8px 12px !important;
+}
+
+/* ── Compact rows · ~25% reduction ──────────────────────────── */
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-cell {
+  padding: 7px !important;
+  min-height: 58px !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 11px !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label-name {
+  font-size: 12.5px !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label-meta {
+  font-size: 10.5px !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip {
+  padding: 4px 6px !important;
+  line-height: 1.15 !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-route {
+  font-size: 11.5px !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-time {
+  font-size: 10px !important;
+}
+
+/* ── Header shade · slightly darker for contrast ──────────────
+   #F2F3F6 → #E5E8ED. Applies to the Driver header cell and the
+   day-of-week cells, leaving .today's blue tint intact. */
+#view-schedule.rrx-schedule .cal-grid.head,
+#view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:not(.today),
+#view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:first-child {
+  background: #E5E8ED !important;
+}

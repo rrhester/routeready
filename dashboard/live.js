@@ -22567,6 +22567,36 @@ document.addEventListener("click", (e) => {
     if (typeof renderScheduleWeek === "function") renderScheduleWeek();
     return;
   }
+  // Focus mode — hide page chrome so the grid + open-shifts fill the screen.
+  const focusBtn = e.target.closest("#rr-sched-focus-toggle");
+  if (focusBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const on = !document.body.classList.contains("rr-sched-focus");
+    document.body.classList.toggle("rr-sched-focus", on);
+    focusBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    return;
+  }
+  // Compact rows — ~25% shorter rows so more drivers fit on screen.
+  const compactBtn = e.target.closest("#rr-sched-compact-toggle");
+  if (compactBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const on = !document.body.classList.contains("rr-sched-compact");
+    document.body.classList.toggle("rr-sched-compact", on);
+    compactBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    return;
+  }
+});
+
+// Escape exits focus mode — operator safety net so a stuck class
+// never traps the page chrome.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.body.classList.contains("rr-sched-focus")) {
+    document.body.classList.remove("rr-sched-focus");
+    const btn = document.getElementById("rr-sched-focus-toggle");
+    if (btn) btn.setAttribute("aria-pressed", "false");
+  }
 });
 let _okamiStart = null;
 let _schedStart = null;
