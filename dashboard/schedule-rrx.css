@@ -1371,3 +1371,66 @@
   border: 1px solid var(--rr-border-primary) !important;
   border-radius: var(--rr-radius-medium) !important;
 }
+
+/* ============================================================
+   Ribbon icon-baseline lock (root-cause fix)
+   ------------------------------------------------------------
+   Diagnosis: legacy inline <style> blocks in dashboard/index.html
+   win the padding-top cascade at certain selectors, producing
+   inconsistent vertical alignment across tile types:
+
+     - Bare subnav-items (Today / Fleet / Staff / Requests)
+       and the Week-view wrapped subnav-item:
+         5px padding-top (inline rule ~line 14620 wins source-order
+         tie against the link CSS).
+     - Bare Finalize sched-page-btn:
+         6px padding-top (inline ID-on-ID rule ~line 14735, spec
+         (2,2,0), wins outright).
+     - Wrapped action sched-page-btns (Smart Fill / Targets /
+       Unassign / Kudos):
+         8px padding-top (link CSS rule wins because no inline
+         rule of equal specificity targets them).
+
+   Visible result: icons sit at row-top + 5px (subnav), + 6px
+   (Finalize), or + 8px (wrapped actions). The user identifies
+   the +8px position (Kudos / Smart Fill / Targets) as correct.
+
+   Fix: normalize every tile to the +8px position. Forces
+   align-items / align-self / padding-top / justify-content
+   with !important so the cascade is locked regardless of which
+   parent or inline rule fires. Appended to end of file so
+   source-order tiebreakers also favor this block.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-nav-heading-actions,
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group,
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group > .subnav,
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped {
+  align-items: flex-start !important;
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-week-split,
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-smartfill-split,
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-settings-split,
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-vans-rules-split,
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-kudos-split,
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group > .subnav > .subnav-item,
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group .sched-week-split > .subnav-item,
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped > .sched-page-btn,
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped > #rr-sched-finalize-h,
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped .sched-smartfill-split > .sched-page-btn,
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped .sched-settings-split > .sched-page-btn,
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped .sched-vans-rules-split > .sched-page-btn,
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped .sched-kudos-split > .sched-page-btn {
+  align-self: flex-start !important;
+  padding-top: 8px !important;
+  margin-top: 0 !important;
+}
+
+/* Lock the icon to the very top of its tile — kills any
+   leftover shift from justify-content:center inside the
+   column-flex buttons. */
+#view-schedule.rrx-schedule .sched-nav-heading-actions .subnav-item,
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped .sched-page-btn {
+  justify-content: flex-start !important;
+}
