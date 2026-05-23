@@ -46995,6 +46995,22 @@ document.addEventListener("click", (e) => {
       return;
     }
   });
+
+  // Smart Fill (Schedule ribbon) · same visual one-shot spin as the
+  // Document AI sparkle. We don't preventDefault — the existing
+  // auto-staff click handler still fires; this only attaches the
+  // .is-spinning class for the icon animation.
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest) return;
+    const sf = e.target.closest("#rr-sched-smartfill-h");
+    if (!sf) return;
+    // The rules footer is a separate button — ignore its bubbling.
+    if (e.target.closest("#rr-sched-smartfill-rules-toggle")) return;
+    sf.classList.remove("is-spinning");
+    void sf.offsetWidth;
+    sf.classList.add("is-spinning");
+    setTimeout(() => sf.classList.remove("is-spinning"), 950);
+  });
   document.addEventListener("submit", (e) => {
     if (e.target && e.target.id === "rr-em-new-folder-form") {
       e.preventDefault();
