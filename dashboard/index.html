@@ -22183,13 +22183,24 @@ body.rr-cmdk-open{ overflow:hidden }
           /* —— Message list rows (inbox) ——————————————————————————— */
           #view-email .em-msg-row{
             display:flex;flex-direction:column;gap:2px;
-            padding:10px 12px;border:0;background:transparent;
+            padding:10px 36px 10px 12px;
+            border:0;background:transparent;
             cursor:pointer;font:inherit;text-align:left;
             color:var(--text);border-radius:6px;
             border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));
             transition:background var(--t-fast);
             width:100%;
+            position:relative;
           }
+          #view-email .em-msg-delete{
+            position:absolute;right:8px;top:50%;transform:translateY(-50%);
+            display:none;background:transparent;border:0;cursor:pointer;
+            width:24px;height:24px;border-radius:4px;
+            color:var(--text-subtle);
+            align-items:center;justify-content:center;
+          }
+          #view-email .em-msg-row:hover .em-msg-delete{display:inline-flex}
+          #view-email .em-msg-delete:hover{background:rgba(15,23,42,.08);color:var(--red,#C42B1C)}
           #view-email .em-msg-row:hover{background:rgba(15,23,42,.04)}
           #view-email .em-msg-row.active{background:rgba(15,108,189,.10)}
           #view-email .em-msg-row-line1{

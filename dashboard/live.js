@@ -47059,6 +47059,7 @@ document.addEventListener("click", (e) => {
       </div>
       <div class="em-msg-subject">${escapeHtmlLocal(subject)}</div>
       ${snippet ? `<div class="em-msg-snippet">${escapeHtmlLocal(snippet)}</div>` : ""}
+      <span class="em-msg-delete" role="button" tabindex="-1" data-em-msg-delete="${escapeHtmlLocal(m.id)}" aria-label="Move to trash" title="Move to trash" draggable="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></span>
     </button>`;
   }
 
@@ -47432,6 +47433,16 @@ document.addEventListener("click", (e) => {
     if (folder) {
       e.preventDefault();
       selectFolder(folder.getAttribute("data-em-folder"));
+      return;
+    }
+    // Hover-trash icon on a message row — must run before the row
+    // select handler so the click doesn't also select the message.
+    const delMsg = e.target.closest("[data-em-msg-delete]");
+    if (delMsg) {
+      e.preventDefault(); e.stopPropagation();
+      const trash = state.folders.find(f => f.kind === "trash");
+      if (trash) moveMessageToFolderId(delMsg.getAttribute("data-em-msg-delete"), trash.id);
+      else if (typeof toast === "function") toast("No trash folder configured", "warn");
       return;
     }
     const msg = e.target.closest("#rr-em-inbox [data-em-msg]");
