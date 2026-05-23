@@ -59,15 +59,20 @@ create index if not exists checklist_items_section_idx
 
 
 -- ── 2. updated_at triggers ────────────────────────────────────────────
+-- Idempotent: drop-if-exists before create so CI replays don't fail
+-- with SQLSTATE 42710. See PR #1571 for full context.
 
+drop trigger if exists trg_checklist_templates_updated_at on public.checklist_templates;
 create trigger trg_checklist_templates_updated_at
   before update on public.checklist_templates
   for each row execute function private.set_updated_at();
 
+drop trigger if exists trg_checklist_sections_updated_at on public.checklist_template_sections;
 create trigger trg_checklist_sections_updated_at
   before update on public.checklist_template_sections
   for each row execute function private.set_updated_at();
 
+drop trigger if exists trg_checklist_items_updated_at on public.checklist_template_items;
 create trigger trg_checklist_items_updated_at
   before update on public.checklist_template_items
   for each row execute function private.set_updated_at();
