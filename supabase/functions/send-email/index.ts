@@ -10,7 +10,8 @@ import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts"
 interface Attachment { name?: string; url: string; content_type?: string; size?: number }
 interface QueuedRow {
   id: string; dsp_id: string; applicant_id: string | null; folder_id: string | null;
-  to_email: string; subject: string; body_text: string | null; body_html: string | null;
+  to_email: string; cc_emails: string[] | null;
+  subject: string; body_text: string | null; body_html: string | null;
   attachments: Attachment[] | null;
 }
 
@@ -80,7 +81,7 @@ Deno.serve(async (req) => {
   const limit = Math.min(payload?.limit ?? 50, 200);
 
   let q = supa.from("email_messages")
-    .select("id, dsp_id, applicant_id, folder_id, to_email, subject, body_text, body_html, attachments")
+    .select("id, dsp_id, applicant_id, folder_id, to_email, cc_emails, subject, body_text, body_html, attachments")
     .eq("status", "queued")
     .order("created_at", { ascending: true })
     .limit(limit);
@@ -142,6 +143,9 @@ Deno.serve(async (req) => {
     const body: Record<string, unknown> = {
       from: fromHeader, to: [row.to_email], subject: row.subject,
     };
+    if (Array.isArray(row.cc_emails) && row.cc_emails.length > 0) {
+      body.cc = row.cc_emails;
+    }
     if (row.body_html) body.html = row.body_html;
     else body.text = row.body_text ?? "";
     if (effectiveReplyTo) body.reply_to = effectiveReplyTo;
