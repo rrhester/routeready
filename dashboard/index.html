@@ -21806,6 +21806,51 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-sm);font-weight:500;
             color:var(--text-subtle);margin:2px 0 0;
           }
+          /* Action ribbon · icon tiles matching the schedule strip. */
+          #view-email .em-actions{
+            display:flex;align-items:center;gap:8px;
+            margin-left:auto;flex-wrap:nowrap;min-width:0;
+          }
+          #view-email .em-action{
+            appearance:none;cursor:pointer;font:inherit;
+            display:inline-flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:4px;
+            min-width:62px;padding:6px 10px 7px;
+            background:transparent;border:0;border-radius:6px;
+            color:var(--text-muted);
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-email .em-action svg{width:28px;height:28px;stroke-width:1.6}
+          #view-email .em-action span{font-size:var(--fs-sm);font-weight:500}
+          #view-email .em-action:hover{background:rgba(15,23,42,.04);color:var(--text)}
+          #view-email .em-action:focus-visible{
+            outline:none;background:rgba(15,23,42,.04);color:var(--text);
+            box-shadow:0 0 0 2px rgba(15,108,189,.30);
+          }
+          /* Stacked Reply / Reply All / Forward · three compact rows in
+             a single tile. Visually grouped with a soft divider line. */
+          #view-email .em-action-stack{
+            display:flex;flex-direction:column;gap:1px;
+            margin-left:2px;padding-left:10px;
+            border-left:1px solid var(--border-subtle,rgba(15,23,42,.06));
+          }
+          #view-email .em-action-stack-btn{
+            appearance:none;cursor:pointer;font:inherit;
+            display:inline-flex;align-items:center;gap:8px;
+            padding:4px 8px;min-width:110px;
+            background:transparent;border:0;border-radius:4px;
+            color:var(--text-muted);font-size:12px;font-weight:500;
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-email .em-action-stack-btn svg{width:14px;height:14px;flex:0 0 auto;stroke-width:1.7}
+          #view-email .em-action-stack-btn:hover{background:rgba(15,23,42,.04);color:var(--text)}
+          #view-email .em-action-stack-btn:focus-visible{
+            outline:none;background:rgba(15,23,42,.04);color:var(--text);
+            box-shadow:0 0 0 2px rgba(15,108,189,.30);
+          }
+          @media (max-width:980px){
+            #view-email .em-actions{display:none}
+          }
           /* Layout · aside on the LEFT (open-shifts-sized), main on the
              RIGHT (calendar-sized) — the opposite of the schedule. */
           #view-email .em-grid{
@@ -22018,7 +22063,37 @@ body.rr-cmdk-open{ overflow:hidden }
                 <p class="page-sub">Inbox, drafts and outbound communication.</p>
               </div>
             </div>
-            <!-- KPI strip intentionally omitted per spec. -->
+            <!-- Action ribbon · icon-over-label tiles matching the
+                 schedule's icon strip. Reply / Reply All / Forward
+                 share a vertical stack tile. -->
+            <div class="em-actions" role="group" aria-label="Email actions">
+              <button type="button" class="em-action" data-em-act="new" aria-label="New email" title="New email">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h11l5 5v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><line x1="11" y1="12" x2="17" y2="12"/><line x1="14" y1="9" x2="14" y2="15"/></svg>
+                <span>New Email</span>
+              </button>
+              <button type="button" class="em-action" data-em-act="delete" aria-label="Delete" title="Delete">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                <span>Delete</span>
+              </button>
+              <button type="button" class="em-action" data-em-act="archive" aria-label="Archive" title="Archive">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                <span>Archive</span>
+              </button>
+              <div class="em-action-stack" role="group" aria-label="Reply actions">
+                <button type="button" class="em-action-stack-btn" data-em-act="reply" aria-label="Reply" title="Reply">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+                  <span>Reply</span>
+                </button>
+                <button type="button" class="em-action-stack-btn" data-em-act="reply-all" aria-label="Reply all" title="Reply all">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 17 2 12 7 7"/><polyline points="12 17 7 12 12 7"/><path d="M22 18v-2a4 4 0 0 0-4-4H7"/></svg>
+                  <span>Reply All</span>
+                </button>
+                <button type="button" class="em-action-stack-btn" data-em-act="forward" aria-label="Forward" title="Forward">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>
+                  <span>Forward</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="em-grid">
