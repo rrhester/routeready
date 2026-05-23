@@ -207,15 +207,27 @@ Deno.serve(async (req) => {
 
   const supa = serviceClient();
 
-  // 1. Match recipient local-part → DSP (slugified name or short_code —
-  // both are how send-email derives the From/Reply-To local part).
+  // 1. Match recipient local-part → DSP. Primary path: O(1) lookup
+  // against the stored dsps.slug (migration 0318). Fallback path
+  // remains for the brief window before that backfill (or if the
+  // column is missing): slugify name + short_code at request time.
   const slug = localPart(toEmail);
-  const { data: dsps } = await supa.from("dsps").select("id, name, short_code");
-  const dsp = (dsps ?? []).find((d) => {
-    const nameSlug = d.name ? slugifyDspName(d.name as string) : "";
-    const codeSlug = d.short_code ? (d.short_code as string).toLowerCase() : "";
-    return slug === nameSlug || slug === codeSlug;
-  });
+  let dsp: { id: string; name: string | null; short_code: string | null } | undefined;
+  {
+    const { data } = await supa.from("dsps")
+      .select("id, name, short_code")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (data) dsp = data as typeof dsp;
+  }
+  if (!dsp) {
+    const { data: dsps } = await supa.from("dsps").select("id, name, short_code");
+    dsp = (dsps ?? []).find((d) => {
+      const nameSlug = d.name ? slugifyDspName(d.name as string) : "";
+      const codeSlug = d.short_code ? (d.short_code as string).toLowerCase() : "";
+      return slug === nameSlug || slug === codeSlug;
+    }) as typeof dsp;
+  }
   if (!dsp) {
     return jsonResponse({ ok: true, ignored: "unknown_recipient_slug", slug });
   }
@@ -256,16 +268,28 @@ Deno.serve(async (req) => {
   }
   if (!bodyText && bodyHtml) bodyText = htmlToText(bodyHtml);
 
-  // 4. Idempotency — a re-delivered message id is a no-op, but backfill
-  // the applicant and/or body if the stored row is missing them.
+  // 4. Fleet Bridge routing · vendor mail (no applicant match) lands
+  // in the DSP's Fleet Bridge Inbox folder so it shows up in the
+  // Fleet Bridge view. Applicant-matched mail keeps folder_id = NULL
+  // so it stays in the applicant thread (unchanged behavior).
+  let folderId: string | null = null;
+  if (applicantId == null) {
+    const { data: inbox } = await supa.from("fb_folders")
+      .select("id").eq("dsp_id", dsp.id).eq("kind", "inbox").maybeSingle();
+    folderId = (inbox?.id as string | null) ?? null;
+  }
+
+  // 5. Idempotency — a re-delivered message id is a no-op, but backfill
+  // the applicant, folder, and/or body if the stored row is missing them.
   if (messageId) {
     const { data: existing } = await supa.from("email_messages")
-      .select("id, applicant_id, body_text, body_html")
+      .select("id, applicant_id, folder_id, body_text, body_html")
       .eq("provider", "inbound").eq("provider_message_id", messageId).limit(1);
     if (existing && existing.length > 0) {
       const row = existing[0];
       const patch: Record<string, unknown> = {};
       if (row.applicant_id == null && applicantId != null) patch.applicant_id = applicantId;
+      if (row.folder_id == null && folderId != null && applicantId == null) patch.folder_id = folderId;
       if (row.body_text == null && row.body_html == null && (bodyText || bodyHtml)) {
         patch.body_text = bodyText;
         patch.body_html = bodyHtml;
@@ -278,6 +302,7 @@ Deno.serve(async (req) => {
   await supa.from("email_messages").insert({
     dsp_id: dsp.id,
     applicant_id: applicantId,
+    folder_id: folderId,
     direction: "inbound",
     status: "received",
     to_email: toEmail,
@@ -289,5 +314,5 @@ Deno.serve(async (req) => {
     provider_message_id: messageId,
   });
 
-  return jsonResponse({ ok: true, applicant_id: applicantId });
+  return jsonResponse({ ok: true, applicant_id: applicantId, folder_id: folderId });
 });
