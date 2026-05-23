@@ -47037,12 +47037,6 @@ document.addEventListener("click", (e) => {
     document.addEventListener("mousemove", move);
     document.addEventListener("mouseup", up);
   });
-  // Double-click resets to the default.
-  document.addEventListener("dblclick", (e) => {
-    if (e.target.closest && e.target.closest("#rr-em-resizer")) {
-      setInboxWidth(DEFAULT_W, true);
-    }
-  });
   // Keyboard nudge for accessibility (←/→ when the resizer is focused).
   document.addEventListener("keydown", (e) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;

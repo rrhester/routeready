@@ -21810,7 +21810,7 @@ body.rr-cmdk-open{ overflow:hidden }
              RIGHT (calendar-sized) — the opposite of the schedule. */
           #view-email .em-grid{
             display:grid;grid-template-columns:320px minmax(0,1fr);
-            gap:var(--s-3);align-items:start;
+            gap:var(--s-3);align-items:stretch;
           }
           #view-email .em-aside{
             position:sticky;top:80px;
@@ -21820,8 +21820,10 @@ body.rr-cmdk-open{ overflow:hidden }
             border-radius:10px;
             box-shadow:0 1px 4px rgba(15,23,42,.04);
             padding:18px;
-            min-height:calc(100vh - 200px);
-            max-height:calc(100vh - 120px);overflow-y:auto;
+            /* Fills from the panel's top all the way to the bottom of
+               the viewport · no truncated space below. */
+            height:calc(100vh - 120px);min-height:0;
+            overflow-y:auto;
           }
           #view-email .em-main{
             background:var(--surface);
@@ -21829,7 +21831,8 @@ body.rr-cmdk-open{ overflow:hidden }
             border-radius:10px;
             box-shadow:0 1px 4px rgba(15,23,42,.04);
             padding:18px;
-            min-height:calc(100vh - 200px);
+            display:flex;flex-direction:column;
+            height:calc(100vh - 120px);min-height:0;
           }
           #view-email .em-placeholder{
             display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -21947,9 +21950,10 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:1 1 auto;min-height:0;
           }
           #view-email .em-inbox{
-            min-width:0;overflow-y:auto;
+            min-width:0;min-height:0;overflow-y:auto;
             padding:0 12px 0 0;
-            max-height:calc(100vh - 260px);
+            /* No max-height — the inbox fills the grid row, which is
+               sized by em-split (the full main-panel height). */
             scrollbar-width:thin;
             scrollbar-color:var(--border-strong) transparent;
           }
@@ -21981,9 +21985,8 @@ body.rr-cmdk-open{ overflow:hidden }
           body.em-resizing,
           body.em-resizing *{cursor:col-resize !important;user-select:none}
           #view-email .em-preview{
-            min-width:0;overflow-y:auto;
+            min-width:0;min-height:0;overflow-y:auto;
             padding:0 0 0 12px;
-            max-height:calc(100vh - 260px);
             scrollbar-width:thin;
             scrollbar-color:var(--border-strong) transparent;
           }
@@ -21991,7 +21994,9 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-email .em-split{grid-template-columns:1fr}
             #view-email .em-resizer,
             #view-email .em-preview{display:none}
-            #view-email .em-inbox{padding-right:0;max-height:none}
+            #view-email .em-inbox{padding-right:0}
+            #view-email .em-aside,
+            #view-email .em-main{position:static;height:auto;min-height:calc(100vh - 200px)}
           }
           @media (max-width:1180px){
             #view-email .em-grid{grid-template-columns:1fr}
@@ -22048,7 +22053,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="em-resizer" id="rr-em-resizer"
                    role="separator" aria-orientation="vertical" tabindex="0"
                    aria-label="Resize inbox panel"
-                   title="Drag to resize · double-click to reset"></div>
+                   title="Drag to resize"></div>
               <div class="em-preview" id="rr-em-preview" aria-label="Email preview">
                 <div class="em-placeholder">
                   <span class="em-placeholder-label">No message selected</span>
