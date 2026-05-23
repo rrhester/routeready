@@ -47337,13 +47337,50 @@ document.addEventListener("click", (e) => {
     const m = document.createElement("div");
     m.id = "rr-em-composer";
     m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+    const FONTS = ["Calibri","Arial","Helvetica","Times New Roman","Georgia","Verdana","Tahoma","Trebuchet MS","Courier New","Cambria"];
+    const fontOpts = FONTS.map(f => `<option value="${f}" style="font-family:'${f}'">${f}</option>`).join("");
     m.innerHTML = `
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:95vw;height:90vh;max-width:1400px;display:flex;flex-direction:column;overflow:hidden">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
           <div style="font-size:var(--fs-lg);font-weight:600">${escapeHtmlLocal(titles[mode] || "New email")}</div>
           <button class="btn btn-sm" type="button" data-rr-composer-close>Close</button>
         </div>
-        <div style="display:flex;flex-direction:column;padding:var(--s-3) var(--s-5) var(--s-3) var(--s-5);gap:var(--s-2);border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06))">
+        <!-- Formatting toolbar · single-row Outlook-style ribbon. -->
+        <div class="em-composer-toolbar">
+          <div class="emct-group">
+            <select id="rr-em-composer-font" class="emct-font" title="Font">${fontOpts}</select>
+            <input id="rr-em-composer-fontsize" type="number" min="8" max="28" step="1" value="11" class="emct-size" title="Font size (8–28)">
+          </div>
+          <div class="emct-divider" aria-hidden="true"></div>
+          <div class="emct-group">
+            <button type="button" class="emct-btn emct-b" data-fmt="bold" title="Bold (Ctrl+B)" aria-label="Bold">B</button>
+            <button type="button" class="emct-btn emct-i" data-fmt="italic" title="Italic (Ctrl+I)" aria-label="Italic">I</button>
+            <button type="button" class="emct-btn emct-u" data-fmt="underline" title="Underline (Ctrl+U)" aria-label="Underline">U</button>
+          </div>
+          <div class="emct-divider" aria-hidden="true"></div>
+          <div class="emct-group">
+            <label class="emct-color" title="Highlight color">
+              <span class="emct-color-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M10.5 1.5l4 4-7 7H4.5v-3l6-8z"/></svg></span>
+              <input type="color" id="rr-em-composer-highlight" value="#ffff00" aria-label="Highlight color">
+              <span class="emct-color-swatch" id="rr-em-composer-highlight-sw" style="background:#ffff00"></span>
+            </label>
+            <label class="emct-color" title="Font color">
+              <span class="emct-color-icon emct-color-A" aria-hidden="true">A</span>
+              <input type="color" id="rr-em-composer-color" value="#c42b1c" aria-label="Font color">
+              <span class="emct-color-swatch" id="rr-em-composer-color-sw" style="background:#c42b1c"></span>
+            </label>
+          </div>
+          <div class="emct-divider" aria-hidden="true"></div>
+          <div class="emct-group">
+            <button type="button" class="emct-btn emct-paperclip" id="rr-em-composer-attach" title="Attach files" aria-label="Attach files">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <input type="file" id="rr-em-composer-file" multiple style="display:none" aria-hidden="true">
+          </div>
+        </div>
+        <!-- Attachment chip list, populated when files are picked. -->
+        <div id="rr-em-composer-attachments" class="em-composer-chips" hidden></div>
+        <div style="display:flex;flex-direction:column;padding:var(--s-3) var(--s-5);gap:var(--s-2);border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06))">
           <div style="display:flex;align-items:center;gap:var(--s-3)">
             <label style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
               <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;min-width:48px">To</span>
@@ -47361,10 +47398,12 @@ document.addEventListener("click", (e) => {
           </label>
         </div>
         <div style="flex:1;min-height:0;display:flex;padding:var(--s-3) var(--s-5) var(--s-4) var(--s-5)">
-          <textarea id="rr-em-composer-body" placeholder="Type your message… (Cmd/Ctrl+Enter to send)" style="flex:1;width:100%;padding:14px;border:1px solid var(--border);border-radius:6px;font:inherit;font-size:14px;line-height:1.55;resize:none;box-sizing:border-box">${escapeHtmlLocal(body)}</textarea>
+          <div id="rr-em-composer-body" contenteditable="true" data-placeholder="Type your message… (Cmd/Ctrl+Enter to send)" style="flex:1;width:100%;padding:14px;border:1px solid var(--border);border-radius:6px;font-family:Calibri,Arial,sans-serif;font-size:14px;line-height:1.55;overflow-y:auto;outline:none;background:#fff;color:var(--text);box-sizing:border-box">${body || ""}</div>
         </div>
       </div>`;
     document.body.appendChild(m);
+    // Reset per-modal attachment state.
+    composerAttachments = [];
     // Click outside the inner card closes the modal.
     m.addEventListener("click", (e) => { if (e.target === m) closeComposer(); });
     // Escape closes; Cmd/Ctrl+Enter sends.
@@ -47372,16 +47411,126 @@ document.addEventListener("click", (e) => {
       if (e.key === "Escape") { e.preventDefault(); closeComposer(); }
       else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendComposerDraft(); }
     });
+
+    // ── Toolbar wiring ─────────────────────────────────────────────
+    const editor = document.getElementById("rr-em-composer-body");
+    const fontSel = document.getElementById("rr-em-composer-font");
+    const sizeInp = document.getElementById("rr-em-composer-fontsize");
+    const hiInp   = document.getElementById("rr-em-composer-highlight");
+    const colInp  = document.getElementById("rr-em-composer-color");
+    const hiSw    = document.getElementById("rr-em-composer-highlight-sw");
+    const colSw   = document.getElementById("rr-em-composer-color-sw");
+    const fileInp = document.getElementById("rr-em-composer-file");
+    const attachBtn = document.getElementById("rr-em-composer-attach");
+
+    // B / I / U buttons → execCommand. Keep focus on the editor so the
+    // selection doesn't collapse when the toolbar button is clicked.
+    m.querySelectorAll("[data-fmt]").forEach(btn => {
+      btn.addEventListener("mousedown", (e) => e.preventDefault()); // keep selection
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        editor.focus();
+        document.execCommand(btn.getAttribute("data-fmt"), false, null);
+      });
+    });
+
+    // Font dropdown · execCommand("fontName")
+    if (fontSel) {
+      fontSel.addEventListener("change", () => {
+        editor.focus();
+        document.execCommand("fontName", false, fontSel.value);
+      });
+    }
+
+    // Font size 8-28 · execCommand only supports sizes 1-7, so we apply
+    // size=7 then rewrite the resulting <font size="7"> nodes to use
+    // an explicit pixel size via inline style.
+    if (sizeInp) {
+      sizeInp.addEventListener("change", () => {
+        const px = Math.max(8, Math.min(28, parseInt(sizeInp.value, 10) || 11));
+        editor.focus();
+        document.execCommand("fontSize", false, "7");
+        editor.querySelectorAll('font[size="7"]').forEach(el => {
+          el.removeAttribute("size");
+          el.style.fontSize = px + "px";
+        });
+      });
+    }
+
+    // Highlight + font color pickers. The swatch under each icon mirrors
+    // the currently-picked color, matching the Office look.
+    if (hiInp) {
+      hiInp.addEventListener("input", () => { if (hiSw) hiSw.style.background = hiInp.value; });
+      hiInp.addEventListener("change", () => {
+        editor.focus();
+        document.execCommand("hiliteColor", false, hiInp.value);
+      });
+    }
+    if (colInp) {
+      colInp.addEventListener("input", () => { if (colSw) colSw.style.background = colInp.value; });
+      colInp.addEventListener("change", () => {
+        editor.focus();
+        document.execCommand("foreColor", false, colInp.value);
+      });
+    }
+
+    // Paperclip → file picker → upload to fleet-bridge-attachments.
+    if (attachBtn && fileInp) {
+      attachBtn.addEventListener("click", (e) => { e.preventDefault(); fileInp.click(); });
+      fileInp.addEventListener("change", async (e) => {
+        const files = Array.from(e.target.files || []);
+        e.target.value = ""; // allow re-picking the same file later
+        const dsp_id = currentDspId();
+        if (!dsp_id) { if (typeof toast === "function") toast("No DSP context", "warn"); return; }
+        for (const file of files) {
+          const safe = file.name.replace(/[^a-zA-Z0-9._-]+/g, "_");
+          const path = `${dsp_id}/${Date.now()}-${safe}`;
+          const { error: upErr } = await sb.storage.from("fleet-bridge-attachments")
+            .upload(path, file, { contentType: file.type || "application/octet-stream" });
+          if (upErr) { if (typeof toast === "function") toast("Upload failed: " + upErr.message, "warn"); continue; }
+          // 7-day signed URL; Resend fetches the file at send time so
+          // we don't need a permanent public URL.
+          const { data: signed, error: signErr } = await sb.storage
+            .from("fleet-bridge-attachments")
+            .createSignedUrl(path, 7 * 24 * 60 * 60);
+          if (signErr || !signed?.signedUrl) {
+            if (typeof toast === "function") toast("Couldn't sign attachment URL", "warn");
+            continue;
+          }
+          composerAttachments.push({
+            name: file.name,
+            url: signed.signedUrl,
+            content_type: file.type || null,
+            size: file.size,
+            storage_path: path,
+          });
+        }
+        renderComposerChips();
+      });
+    }
+
     // Focus the most useful field for this mode.
     const focusEl = mode === "new"
       ? document.getElementById("rr-em-composer-to")
-      : document.getElementById("rr-em-composer-body");
-    if (focusEl) {
-      focusEl.focus();
-      // For reply/forward, drop the caret at the very top so the user
-      // types above the quoted block.
-      if (focusEl.tagName === "TEXTAREA") focusEl.setSelectionRange(0, 0);
-    }
+      : editor;
+    if (focusEl) focusEl.focus();
+  }
+
+  // Per-session state for the open composer's attachments.
+  let composerAttachments = [];
+
+  function renderComposerChips() {
+    const host = document.getElementById("rr-em-composer-attachments");
+    if (!host) return;
+    if (composerAttachments.length === 0) { host.hidden = true; host.innerHTML = ""; return; }
+    host.hidden = false;
+    host.innerHTML = composerAttachments.map((a, i) => {
+      const kb = a.size != null ? Math.max(1, Math.round(a.size / 1024)) + " KB" : "";
+      return `<span class="em-composer-chip">
+        ${escapeHtmlLocal(a.name)}${kb ? ` · <span style="color:var(--text-subtle)">${kb}</span>` : ""}
+        <button type="button" class="em-composer-chip-x" data-rr-chip-remove="${i}" aria-label="Remove">×</button>
+      </span>`;
+    }).join("");
   }
 
   function closeComposer() {
@@ -47398,13 +47547,17 @@ document.addEventListener("click", (e) => {
     if (!toInp || !subjectInp || !bodyInp) return;
     const to      = toInp.value.trim();
     const subject = subjectInp.value.trim();
-    const body    = bodyInp.value;
+    // The body is now a contenteditable div — read both the rendered
+    // HTML (for Resend) and the plaintext fallback (so the inbox list
+    // and snippet can show something sensible without injecting HTML).
+    const bodyHtml = bodyInp.innerHTML || "";
+    const bodyText = (bodyInp.innerText || bodyInp.textContent || "").trim();
     // CC is comma- or semicolon-separated; trim each entry, drop blanks.
     const cc      = (ccInp?.value || "")
       .split(/[,;]/).map(s => s.trim()).filter(Boolean);
     if (!to)      { if (typeof toast === "function") toast("To is required", "warn"); toInp.focus(); return; }
     if (!subject) { if (typeof toast === "function") toast("Subject is required", "warn"); subjectInp.focus(); return; }
-    if (!body.trim() && !confirm("Send with empty body?")) return;
+    if (!bodyText && !confirm("Send with empty body?")) return;
     const dsp_id = currentDspId();
     if (!dsp_id) { if (typeof toast === "function") toast("Couldn't determine DSP — please reload", "warn"); return; }
     const sent = state.folders.find(f => f.kind === "sent");
@@ -47416,12 +47569,18 @@ document.addEventListener("click", (e) => {
       status:     "queued",
       to_email:   to,
       subject:    subject,
-      body_text:  body,
+      body_text:  bodyText,
+      body_html:  bodyHtml,
     };
     // Only set cc_emails if the operator typed something — column may be
     // missing on projects that haven't applied migration 0319 yet, in
     // which case omitting the field lets the insert still succeed.
     if (cc.length > 0) insertRow.cc_emails = cc;
+    if (composerAttachments.length > 0) {
+      insertRow.attachments = composerAttachments.map(a => ({
+        name: a.name, url: a.url, content_type: a.content_type, size: a.size,
+      }));
+    }
     const { error } = await sb.from("email_messages").insert(insertRow);
     if (error) {
       if (typeof toast === "function") toast("Send failed: " + error.message, "warn");
@@ -47539,6 +47698,16 @@ document.addEventListener("click", (e) => {
     if (e.target.closest("#rr-em-composer-send")) {
       e.preventDefault();
       sendComposerDraft();
+      return;
+    }
+    const chipX = e.target.closest("[data-rr-chip-remove]");
+    if (chipX) {
+      e.preventDefault();
+      const i = parseInt(chipX.getAttribute("data-rr-chip-remove"), 10);
+      if (Number.isFinite(i)) {
+        composerAttachments.splice(i, 1);
+        renderComposerChips();
+      }
       return;
     }
     // Message popout buttons (Reply / Reply All / Forward / Close).
