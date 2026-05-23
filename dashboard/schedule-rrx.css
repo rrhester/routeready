@@ -908,10 +908,11 @@
 #view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-thumb {
-  background: var(--rr-fg-secondary) !important;
-  border: 2px solid var(--rr-bg-surface-2) !important;
+  background: #8A8886 !important;  /* solid mid-gray — visible on white */
+  background-clip: padding-box !important;
+  border: 3px solid transparent !important;
   border-radius: var(--rr-radius-pill) !important;
-  min-height: 36px !important;
+  min-height: 48px !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-thumb:hover,
@@ -962,23 +963,24 @@
 /* Active-state colors stay brand for the subnav tab; only the
    page actions are forced monochrome. */
 
-/* Visible hairline divider between ribbon groups (VIEWS /
-   PLANNING / ACTIONS) so the operator sees function clusters
-   at a glance. Outranks the inline rule at line 17260 that
-   explicitly hides the divider. */
+/* Visible hairline dividers between ribbon clusters. The
+   ACTIONS group's left border was the visual the user signed
+   off on as "perfect"; the other inter-group dividers need to
+   match that exact treatment (left-border + matching padding),
+   not the ::before fake-divider used previously which rendered
+   slightly different. */
+
+/* Drop the old ::before fake-divider in case it was applied. */
 #view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group::before {
-  content: "" !important;
-  display: inline-block !important;
-  width: 1px !important;
-  height: 32px !important;
-  background: var(--rr-border-primary) !important;
-  margin: 0 var(--rr-space-100) !important;
-  align-self: center !important;
+  display: none !important;
 }
 
-/* Extra gap so action tiles cluster visibly into the third
-   "ACTIONS" group rather than running into the planning group. */
-#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-actions--grouped {
+/* Same border-left treatment everywhere: VIEWS | PLANNING |
+   ACTIONS, plus before Kudos so the recognition tile reads
+   as its own cluster. */
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group,
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-actions--grouped,
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped .sched-kudos-split {
   margin-left: var(--rr-space-160) !important;
   padding-left: var(--rr-space-160) !important;
   border-left: 1px solid var(--rr-border-primary) !important;
@@ -1018,4 +1020,241 @@
   background: var(--rr-brand-soft) !important;
   color: var(--rr-brand-pressed) !important;
   font-weight: 600 !important;
+}
+
+/* ============================================================
+   Today sub-view — page locked, roster scrolls
+   ------------------------------------------------------------
+   - Cap the sub-view to the viewport so it can't push the page
+     scroll past the ribbon + KPI strip above.
+   - Hide the oversized .tp-daystrip-cells day buttons (per UX).
+     Keep prev/today/next arrows; restyle them as a compact day
+     navigator at the top of the sub-view.
+   - Hide the duplicate .tp-kpis strip inside the shell — the
+     top #rr-sched-kpis already mirrors the same data.
+   - Make the roster card fill the leftover height and scroll
+     internally with a visible scrollbar.
+   ============================================================ */
+
+#view-schedule.rrx-schedule #sched-sub-today {
+  display: flex !important;
+  flex-direction: column !important;
+  height: calc(100vh - 232px) !important;
+  min-height: 360px !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-today #rr-sched-today-plan-host {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-today #rr-today-plan-shell {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  gap: var(--rr-space-120) !important;
+}
+
+/* Hide the oversized day-cell tile row inside Today. Keep the
+   prev/next arrows + "Today" button (they're siblings of the
+   cells inside .tp-daystrip). */
+#view-schedule.rrx-schedule #sched-sub-today .tp-daystrip-cells {
+  display: none !important;
+}
+
+/* Compact day-nav pill: prev | Today | next. */
+#view-schedule.rrx-schedule #sched-sub-today .tp-daystrip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: var(--rr-space-40) !important;
+  width: auto !important;
+  align-self: flex-end !important;
+  padding: var(--rr-space-40) !important;
+  background: var(--rr-bg-surface-1) !important;
+  border: 1px solid var(--rr-border-primary) !important;
+  border-radius: var(--rr-radius-medium) !important;
+  box-shadow: none !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-today .tp-daystrip-arrow {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: var(--rr-radius-medium) !important;
+  color: var(--rr-fg-secondary) !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-today .tp-daystrip-arrow:hover {
+  background: var(--rr-bg-hover) !important;
+  color: var(--rr-fg-primary) !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-today .tp-daystrip-today {
+  background: var(--rr-brand-soft) !important;
+  color: var(--rr-brand-pressed) !important;
+  padding: var(--rr-space-40) var(--rr-space-120) !important;
+  border-radius: var(--rr-radius-medium) !important;
+  font: var(--rr-font-caption) !important;
+  font-weight: 600 !important;
+}
+
+/* Hide the duplicate .tp-kpis inside the Today shell — the top
+   #rr-sched-kpis strip already shows the same Today data via
+   the mirror in _renderSchedTodayKpisMirror. */
+#view-schedule.rrx-schedule #sched-sub-today .tp-kpis {
+  display: none !important;
+}
+
+/* Today's meta line stays compact. */
+#view-schedule.rrx-schedule #sched-sub-today .tp-day-meta {
+  flex: 0 0 auto !important;
+}
+
+/* Roster card fills leftover height + scrolls internally. */
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster,
+#view-schedule.rrx-schedule #sched-sub-today .rr-tp-roster {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+/* Inner table scroll surface — the visible scrollable area. */
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster .rr-tp-roster-body,
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster .tp-roster-table-wrap,
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster > div,
+#view-schedule.rrx-schedule #sched-sub-today .rr-tp-roster > div {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Cover both the wrapper and the table itself — whichever is
+   the actual scroll node inside the roster card. */
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster,
+#view-schedule.rrx-schedule #sched-sub-today .rr-tp-roster {
+  overflow-y: scroll !important;
+  scrollbar-gutter: stable !important;
+  scrollbar-width: auto !important;
+  scrollbar-color: #8A8886 var(--rr-bg-surface-2) !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster::-webkit-scrollbar,
+#view-schedule.rrx-schedule #sched-sub-today .rr-tp-roster::-webkit-scrollbar {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 12px !important;
+  height: 12px !important;
+  background: var(--rr-bg-surface-2) !important;
+  display: block !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster::-webkit-scrollbar-track,
+#view-schedule.rrx-schedule #sched-sub-today .rr-tp-roster::-webkit-scrollbar-track {
+  background: var(--rr-bg-surface-2) !important;
+  border-left: 1px solid var(--rr-border-secondary) !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-roster::-webkit-scrollbar-thumb,
+#view-schedule.rrx-schedule #sched-sub-today .rr-tp-roster::-webkit-scrollbar-thumb {
+  background: #8A8886 !important;
+  background-clip: padding-box !important;
+  border: 3px solid transparent !important;
+  border-radius: var(--rr-radius-pill) !important;
+  min-height: 48px !important;
+}
+
+/* ============================================================
+   Fleet calendar sub-view — page locked, two inner scrolls
+   ------------------------------------------------------------
+   The calendar grid and the service providers rail each get
+   their own scrollable region. The providers card stretches
+   to the bottom of the viewport.
+   ============================================================ */
+
+#view-schedule.rrx-schedule #sched-sub-calendar {
+  display: flex !important;
+  flex-direction: column !important;
+  height: calc(100vh - 232px) !important;
+  min-height: 360px !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-calendar .rr-fc-shell {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-columns: 1fr 320px !important;
+  gap: var(--rr-space-160) !important;
+  overflow: hidden !important;
+  align-items: stretch !important;
+}
+
+/* Calendar host scrolls; takes full available height. */
+#view-schedule.rrx-schedule #sched-sub-calendar #rr-fleet-cal-host,
+#view-schedule.rrx-schedule #sched-sub-calendar .rr-fleet-cal {
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow-y: scroll !important;
+  scrollbar-gutter: stable !important;
+  scrollbar-width: auto !important;
+  scrollbar-color: #8A8886 var(--rr-bg-surface-2) !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-calendar #rr-fleet-cal-host::-webkit-scrollbar,
+#view-schedule.rrx-schedule #sched-sub-calendar .rr-fleet-cal::-webkit-scrollbar {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 12px !important;
+  background: var(--rr-bg-surface-2) !important;
+  display: block !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-calendar #rr-fleet-cal-host::-webkit-scrollbar-thumb,
+#view-schedule.rrx-schedule #sched-sub-calendar .rr-fleet-cal::-webkit-scrollbar-thumb {
+  background: #8A8886 !important;
+  background-clip: padding-box !important;
+  border: 3px solid transparent !important;
+  border-radius: var(--rr-radius-pill) !important;
+  min-height: 48px !important;
+}
+
+/* Service providers rail — fills full available height, scrolls
+   internally, never pushes the page. */
+#view-schedule.rrx-schedule #sched-sub-calendar #rr-fc-providers,
+#view-schedule.rrx-schedule #sched-sub-calendar .rr-fc-rail-space {
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow-y: scroll !important;
+  scrollbar-gutter: stable !important;
+  scrollbar-width: auto !important;
+  scrollbar-color: #8A8886 var(--rr-bg-surface-2) !important;
+  background: var(--rr-bg-surface-1) !important;
+  border: 1px solid var(--rr-border-primary) !important;
+  border-radius: var(--rr-radius-medium) !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-calendar #rr-fc-providers::-webkit-scrollbar,
+#view-schedule.rrx-schedule #sched-sub-calendar .rr-fc-rail-space::-webkit-scrollbar {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 12px !important;
+  background: var(--rr-bg-surface-2) !important;
+  display: block !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-calendar #rr-fc-providers::-webkit-scrollbar-thumb,
+#view-schedule.rrx-schedule #sched-sub-calendar .rr-fc-rail-space::-webkit-scrollbar-thumb {
+  background: #8A8886 !important;
+  background-clip: padding-box !important;
+  border: 3px solid transparent !important;
+  border-radius: var(--rr-radius-pill) !important;
+  min-height: 48px !important;
 }
