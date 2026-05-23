@@ -566,6 +566,32 @@
   color: #FFFFFF;
 }
 
+/* Ghost variant for secondary print buttons (e.g. PTO report)
+   so the primary "Print this page" button stays the only filled
+   CTA on the bar. */
+#view-onboarding-ops.rrx-onboarding .ob-print-btn--ghost {
+  background: var(--rr-bg-surface-1) !important;
+  border-color: var(--rr-border-primary) !important;
+  color: var(--rr-fg-primary) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-print-btn--ghost:hover {
+  background: var(--rr-bg-hover) !important;
+  border-color: var(--rr-fg-secondary) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-print-btn--ghost svg {
+  color: var(--rr-fg-secondary) !important;
+}
+
+/* Print actions strip lays out the primary + secondary buttons
+   and the orientation toggle on one row. */
+#view-onboarding-ops.rrx-onboarding .ob-print-actions {
+  flex-direction: row !important;
+  gap: var(--rr-space-120) !important;
+  align-items: center !important;
+}
+
 /* Print-only mount — invisible until window.print() runs. */
 #rr-ob-print-area {
   display: none;

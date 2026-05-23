@@ -1356,3 +1356,81 @@ body {
   scrollbar-width: auto;
   scrollbar-color: #5A5A5A #E1DFDD;
 }
+
+/* ============================================================
+   Print orientation toggle (.rr-print-orient) — shared by every
+   page's Print/Download tab.
+   ============================================================ */
+
+.rr-print-orient {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--rr-bg-surface-2);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  padding: 2px;
+  align-self: center;
+}
+
+.rr-print-orient-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-60);
+  height: 28px;
+  padding: 0 var(--rr-space-100);
+  font: var(--rr-font-caption);
+  font-weight: 600;
+  color: var(--rr-fg-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--rr-radius-small);
+  cursor: pointer;
+  transition: background var(--rr-motion-fast), color var(--rr-motion-fast);
+}
+
+.rr-print-orient-btn:hover {
+  color: var(--rr-fg-primary);
+}
+
+.rr-print-orient-btn[aria-pressed="true"] {
+  background: var(--rr-bg-surface-1);
+  color: var(--rr-fg-primary);
+  box-shadow: var(--rr-shadow-2);
+}
+
+.rr-print-orient-btn svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+/* Print-table styling used by the PTO report and any future
+   tabular print mounts. */
+#rr-ob-print-area .rr-print-pto-table,
+#rr-sched-print-area .rr-print-pto-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  font: 12px/16px var(--rr-font-family);
+}
+
+#rr-ob-print-area .rr-print-pto-table th,
+#rr-sched-print-area .rr-print-pto-table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 12px;
+  border-bottom: 2px solid #323130;
+  background: #FAFAFA;
+  color: #323130;
+}
+
+#rr-ob-print-area .rr-print-pto-table td,
+#rr-sched-print-area .rr-print-pto-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #E1DFDD;
+  color: #323130;
+  vertical-align: top;
+}
