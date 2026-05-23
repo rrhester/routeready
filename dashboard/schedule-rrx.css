@@ -2006,3 +2006,26 @@
   aspect-ratio: 1 / 1 !important;
   min-height: 0 !important;
 }
+
+/* ============================================================
+   Rules functions migrated to V2 strip
+   ------------------------------------------------------------
+   Hide the legacy "Rules ⌄" buttons in the top icon strip. The
+   functionality has migrated: clicking any V2 footer re-parents
+   its popover into the V2 split (via _RR_V2_POPOVER_ID in
+   live.js) then forwards to the (still-in-DOM-but-hidden)
+   legacy button so the existing show/hide JS runs unchanged.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-cmd-shell .sched-page-btn-rules-foot {
+  display: none !important;
+}
+
+/* The reserved 23px bottom margin on the legacy action group +
+   Finalize tile was reserving space below the now-hidden
+   Rules ⌄ footers. Collapse it so the top strip's height
+   shrinks to match its actual content. */
+#view-schedule.rrx-schedule .sched-cmd-shell .sched-nav-heading-actions .sched-ribbon-group,
+#view-schedule.rrx-schedule .sched-cmd-shell .sched-ribbon-actions--grouped #rr-sched-finalize-h {
+  margin-bottom: 0 !important;
+}
