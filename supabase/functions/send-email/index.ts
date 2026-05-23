@@ -9,7 +9,7 @@ import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts"
 
 interface Attachment { name?: string; url: string; content_type?: string; size?: number }
 interface QueuedRow {
-  id: string; dsp_id: string; applicant_id: string | null;
+  id: string; dsp_id: string; applicant_id: string | null; folder_id: string | null;
   to_email: string; subject: string; body_text: string | null; body_html: string | null;
   attachments: Attachment[] | null;
 }
@@ -17,12 +17,13 @@ interface QueuedRow {
 // Rebuild the Resend "From" header so:
 //   • The display name = the per-DSP name from gear icon → Workspace
 //     settings (e.g. "Acme Logistics").
-//   • The local-part of the address = a slug derived from the DSP name
-//     (or the short_code if the name slugifies to nothing). The domain
-//     comes from RESEND_FROM_EMAIL.
+//   • The local-part of the address = the stored, globally-unique
+//     dsps.slug (migration 0318). Two DSPs whose names slugify the same
+//     way now disambiguate via the trailing -2/-3 suffix that
+//     private.dsp_unique_slug() assigned at provision time. If the
+//     slug column happens to be empty (pre-backfill row), we fall back
+//     to the legacy in-memory slugify so outbound mail still ships.
 // Recipient sees:  "Acme Logistics <acme-logistics@gorouteready.com>"
-// instead of the platform brand. Resend authenticates DKIM/SPF at the
-// domain level so any local-part on a verified domain ships fine.
 function slugifyLocalPart(s: string): string {
   return s.toLowerCase()
     .normalize("NFKD").replace(/[̀-ͯ]/g, "") // strip combining accents
@@ -34,6 +35,7 @@ function brandedFrom(
   envFrom: string,
   dspName: string | null | undefined,
   dspShortCode: string | null | undefined,
+  dspSlug?: string | null,
 ): string {
   if (!dspName) return envFrom;
   const m = envFrom.match(/<([^>]+)>/);
@@ -41,7 +43,8 @@ function brandedFrom(
   const atIdx = addr.indexOf("@");
   if (atIdx <= 0) return envFrom; // malformed env var — bail to default
 
-  const slug = slugifyLocalPart(dspName)
+  const slug = (dspSlug && dspSlug.trim())
+    || slugifyLocalPart(dspName)
     || (dspShortCode ? dspShortCode.toLowerCase() : "");
   const localPart = slug || addr.slice(0, atIdx);
   const domain = addr.slice(atIdx + 1);
@@ -69,7 +72,7 @@ Deno.serve(async (req) => {
   const limit = Math.min(payload?.limit ?? 50, 200);
 
   let q = supa.from("email_messages")
-    .select("id, dsp_id, applicant_id, to_email, subject, body_text, body_html, attachments")
+    .select("id, dsp_id, applicant_id, folder_id, to_email, subject, body_text, body_html, attachments")
     .eq("status", "queued")
     .order("created_at", { ascending: true })
     .limit(limit);
@@ -79,13 +82,13 @@ Deno.serve(async (req) => {
   if (error) return badRequest(error.message, 500);
   if (!rows || rows.length === 0) return jsonResponse({ sent: 0 });
 
-  // Look up DSP names + short codes + reply-to email for every dsp_id
-  // in this batch in one round-trip.
+  // Look up DSP names + short codes + slug + reply-to email for every
+  // dsp_id in this batch in one round-trip.
   const dspIds = Array.from(new Set(rows.map((r) => r.dsp_id).filter(Boolean)));
-  const dspById = new Map<string, { name: string | null; short_code: string | null; replyTo: string | null }>();
+  const dspById = new Map<string, { name: string | null; short_code: string | null; slug: string | null; replyTo: string | null }>();
   if (dspIds.length > 0) {
     const { data: dspRows } = await supa.from("dsps")
-      .select("id, name, short_code, metadata").in("id", dspIds);
+      .select("id, name, short_code, slug, metadata").in("id", dspIds);
     for (const d of dspRows ?? []) {
       if (d?.id) {
         const meta = (d.metadata as Record<string, unknown> | null) ?? {};
@@ -93,6 +96,7 @@ Deno.serve(async (req) => {
         dspById.set(d.id as string, {
           name: (d.name as string) ?? null,
           short_code: (d.short_code as string) ?? null,
+          slug: (d.slug as string | null) ?? null,
           replyTo: rt || null,
         });
       }
@@ -104,20 +108,27 @@ Deno.serve(async (req) => {
     await supa.from("email_messages").update({ status: "sending" }).eq("id", row.id);
 
     const dsp = dspById.get(row.dsp_id);
-    const fromHeader = brandedFrom(from, dsp?.name ?? null, dsp?.short_code ?? null);
+    const fromHeader = brandedFrom(from, dsp?.name ?? null, dsp?.short_code ?? null, dsp?.slug ?? null);
     // Reply-To resolution:
+    //   • Fleet Bridge (row.folder_id is set) → leave Reply-To empty;
+    //     vendor replies go straight to the From address, which is
+    //     <dsp.slug>@gorouteready.com — already the inbound domain.
     //   • Applicant-attributed mail + EMAIL_INBOUND_DOMAIN set →
     //     <dsp-slug>@<inbound-domain>, reusing the From local-part so
     //     webhook-email-inbound can match the reply back to this DSP
     //     (then to the applicant) and append it to the email thread.
     //   • Otherwise → the per-DSP reply-to, else the server-wide
     //     RESEND_REPLY_TO env var.
-    let effectiveReplyTo: string | null = dsp?.replyTo || replyTo || null;
-    if (row.applicant_id && inboundDomain) {
+    let effectiveReplyTo: string | null = null;
+    if (row.folder_id) {
+      effectiveReplyTo = null;
+    } else if (row.applicant_id && inboundDomain) {
       const m = fromHeader.match(/<([^>]+)>/);
       const fromAddr = (m ? m[1] : fromHeader).trim();
       const at = fromAddr.indexOf("@");
       if (at > 0) effectiveReplyTo = `${fromAddr.slice(0, at)}@${inboundDomain}`;
+    } else {
+      effectiveReplyTo = dsp?.replyTo || replyTo || null;
     }
 
     const body: Record<string, unknown> = {
