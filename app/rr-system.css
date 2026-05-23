@@ -1,0 +1,1259 @@
+/* ============================================================
+   RouteReady Enterprise Design System
+   Microsoft Fluent 2 — Operational Software Implementation
+   ------------------------------------------------------------
+   This file is the canonical foundation for the enterprise UI
+   refactor described in the RouteReady design contract:
+
+     - --rr-*  tokens   (typography, spacing, radius, color,
+                         elevation, motion) per spec
+     - .rrx-*  classes  (Fluent 2 system primitives that map
+                         1:1 to the RR* component list in the
+                         contract: RRPageShell, RRCommandBar,
+                         RRSidebar, RRSidebarItem, RRPanel,
+                         RRTable, RRDataGrid, RRButton,
+                         RRIconButton, RRInput, RRSearchBox,
+                         RRSection, RRCard, RRStatusChip,
+                         RRModal, RRDrawer, RRToolbar,
+                         RRFilterBar, RRKPI, RREmptyState,
+                         RRLoadingSkeleton, RRToast)
+
+   Why the .rrx- prefix instead of .rr-?
+     The existing codebase already owns ~500 .rr-* CSS classes
+     and ~1,900 rr-* identifiers in JS, including .rr-drawer.
+     The .rrx- ("rr eXtended" / next-gen) namespace lets new
+     primitives ship today without risk of clobbering live
+     selectors or breaking JS that targets legacy classes.
+     Pages migrate one at a time by swapping .rr-* for .rrx-*.
+
+   This file is additive. Loading it does not change the visual
+   appearance of pages that don't reference .rrx-* classes.
+   ============================================================ */
+
+:root {
+  /* ─── TYPOGRAPHY ─────────────────────────────────────────── */
+  --rr-font-family:
+    'Segoe UI Variable',
+    'Segoe UI',
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+
+  --rr-font-caption:       400 12px/16px var(--rr-font-family);
+  --rr-font-body:          400 14px/20px var(--rr-font-family);
+  --rr-font-body-strong:   600 14px/20px var(--rr-font-family);
+  --rr-font-subtitle:      600 20px/28px var(--rr-font-family);
+  --rr-font-title:         600 28px/36px var(--rr-font-family);
+  --rr-font-table-header:  600 12px/16px var(--rr-font-family);
+
+  /* ─── SPACING (Fluent 2 scale) ───────────────────────────── */
+  --rr-space-0:   0px;
+  --rr-space-20:  2px;
+  --rr-space-40:  4px;
+  --rr-space-60:  6px;
+  --rr-space-80:  8px;
+  --rr-space-100: 10px;
+  --rr-space-120: 12px;
+  --rr-space-160: 16px;
+  --rr-space-200: 20px;
+  --rr-space-240: 24px;
+  --rr-space-280: 28px;
+  --rr-space-320: 32px;
+  --rr-space-360: 36px;
+  --rr-space-400: 40px;
+  --rr-space-480: 48px;
+  --rr-space-560: 56px;
+  --rr-space-640: 64px;
+
+  /* ─── RADIUS ─────────────────────────────────────────────── */
+  --rr-radius-none:   0px;
+  --rr-radius-small:  2px;
+  --rr-radius-medium: 4px;
+  --rr-radius-large:  8px;
+  --rr-radius-pill:   9999px;
+
+  /* ─── COLORS ─────────────────────────────────────────────── */
+  --rr-bg-canvas:     #F3F2F1;
+  --rr-bg-surface-1:  #FFFFFF;
+  --rr-bg-surface-2:  #FAF9F8;
+  --rr-bg-hover:      #F5F5F5;
+  --rr-bg-selected:   #E5F1FB;
+
+  --rr-fg-primary:    #323130;
+  --rr-fg-secondary:  #605E5C;
+  --rr-fg-disabled:   #A19F9D;
+
+  --rr-border-primary:   #E1DFDD;
+  --rr-border-secondary: #EDEBE9;
+  --rr-border-input:     #8A8886;
+
+  --rr-brand-primary: #0078D4;
+  --rr-brand-hover:   #106EBE;
+  --rr-brand-pressed: #005A9E;
+
+  --rr-success: #107C41;
+  --rr-warning: #FFB900;
+  --rr-danger:  #D13438;
+
+  /* Soft semantic fills for chips / inline status */
+  --rr-success-soft: rgba(16,124,65,.10);
+  --rr-warning-soft: rgba(255,185,0,.16);
+  --rr-danger-soft:  rgba(209,52,56,.10);
+  --rr-brand-soft:   rgba(0,120,212,.10);
+  --rr-neutral-soft: rgba(50,49,48,.06);
+
+  /* ─── ELEVATION ──────────────────────────────────────────── */
+  --rr-shadow-2: 0 1px 2px rgba(0,0,0,.08);
+  --rr-shadow-4: 0 2px 8px rgba(0,0,0,.12);
+  --rr-shadow-8: 0 4px 16px rgba(0,0,0,.14);
+
+  /* ─── MOTION ─────────────────────────────────────────────── */
+  --rr-motion-fast:     120ms ease-out;
+  --rr-motion-standard: 180ms ease-out;
+}
+
+/* ============================================================
+   GLOBAL BASELINE (scoped — only applies inside .rrx-root)
+   ------------------------------------------------------------
+   Adding the .rrx-root class to a page's outermost element opts
+   that page into the Fluent 2 baseline without affecting the
+   rest of the app. This lets pages migrate one at a time.
+   ============================================================ */
+
+.rrx-root,
+.rrx-root * {
+  box-sizing: border-box;
+}
+
+.rrx-root {
+  font: var(--rr-font-body);
+  color: var(--rr-fg-primary);
+  background: var(--rr-bg-canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================
+   RRPageShell — application root layout
+   ============================================================ */
+
+.rrx-page-shell {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--rr-bg-canvas);
+}
+
+.rrx-page-shell__main {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.rrx-page-shell__workspace {
+  overflow: auto;
+  padding: var(--rr-space-200);
+  display: flex;
+  flex-direction: column;
+  gap: var(--rr-space-240);
+}
+
+/* Optional persistent detail pane (RRPanel host) */
+.rrx-page-shell--with-panel .rrx-page-shell__main {
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto 1fr;
+}
+
+.rrx-page-shell--with-panel .rrx-page-shell__workspace { grid-column: 1; }
+.rrx-page-shell--with-panel .rrx-page-shell__panel    { grid-column: 2; grid-row: 1 / span 2; }
+
+/* ============================================================
+   RRSidebar / RRSidebarItem
+   ============================================================ */
+
+.rrx-sidebar {
+  width: 240px;
+  background: #F7F7F7;
+  border-right: 1px solid var(--rr-border-primary);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width var(--rr-motion-standard);
+}
+
+.rrx-sidebar--collapsed { width: 48px; }
+
+.rrx-sidebar__header {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--rr-space-120);
+  border-bottom: 1px solid var(--rr-border-primary);
+  flex: 0 0 auto;
+}
+
+.rrx-sidebar__nav {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--rr-space-80) var(--rr-space-40);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rrx-sidebar__footer {
+  border-top: 1px solid var(--rr-border-primary);
+  padding: var(--rr-space-80) var(--rr-space-40);
+  flex: 0 0 auto;
+}
+
+.rrx-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-120);
+  height: 36px;
+  padding: 0 var(--rr-space-120);
+  border-radius: var(--rr-radius-medium);
+  color: var(--rr-fg-primary);
+  text-decoration: none;
+  font: var(--rr-font-body);
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background-color var(--rr-motion-fast);
+}
+
+.rrx-sidebar-item__icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--rr-fg-secondary);
+}
+
+.rrx-sidebar-item__label {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rrx-sidebar-item:hover { background: var(--rr-bg-hover); }
+.rrx-sidebar-item:focus-visible {
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: -2px;
+}
+
+.rrx-sidebar-item--active {
+  background: var(--rr-bg-selected);
+  color: var(--rr-brand-pressed);
+}
+.rrx-sidebar-item--active .rrx-sidebar-item__icon { color: var(--rr-brand-primary); }
+
+/* Collapsed icon-only state */
+.rrx-sidebar--collapsed .rrx-sidebar-item { justify-content: center; padding: 0; }
+.rrx-sidebar--collapsed .rrx-sidebar-item__label { display: none; }
+
+/* ============================================================
+   RRCommandBar
+   ============================================================ */
+
+.rrx-command-bar {
+  height: 48px;
+  background: var(--rr-bg-surface-1);
+  border-bottom: 1px solid var(--rr-border-secondary);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--rr-space-160);
+  gap: var(--rr-space-120);
+  flex: 0 0 auto;
+}
+
+.rrx-command-bar__left,
+.rrx-command-bar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-80);
+  min-width: 0;
+}
+
+.rrx-command-bar__left { flex: 1 1 auto; }
+.rrx-command-bar__right { flex: 0 0 auto; }
+
+.rrx-command-bar__title {
+  font: var(--rr-font-body-strong);
+  color: var(--rr-fg-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rrx-command-bar__context {
+  font: var(--rr-font-caption);
+  color: var(--rr-fg-secondary);
+}
+
+.rrx-command-bar__divider {
+  width: 1px;
+  height: 20px;
+  background: var(--rr-border-secondary);
+  margin: 0 var(--rr-space-40);
+  flex: 0 0 auto;
+}
+
+/* ============================================================
+   RRToolbar — secondary action row (under the command bar
+   or within a section). Same visual grammar, lighter.
+   ============================================================ */
+
+.rrx-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-80);
+  padding: var(--rr-space-80) 0;
+  min-height: 40px;
+}
+
+.rrx-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-40);
+}
+
+.rrx-toolbar__spacer { flex: 1 1 auto; }
+
+/* ============================================================
+   RRButton
+   ============================================================ */
+
+.rrx-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--rr-space-80);
+  height: 32px;
+  padding: 0 var(--rr-space-120);
+  border-radius: var(--rr-radius-medium);
+  border: 1px solid transparent;
+  font: var(--rr-font-body-strong);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--rr-fg-primary);
+  transition:
+    background-color var(--rr-motion-fast),
+    border-color var(--rr-motion-fast),
+    color var(--rr-motion-fast);
+}
+
+.rrx-btn:focus-visible {
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: 1px;
+}
+
+.rrx-btn:disabled,
+.rrx-btn[aria-disabled="true"] {
+  color: var(--rr-fg-disabled);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Variants */
+.rrx-btn--primary {
+  background: var(--rr-brand-primary);
+  color: #FFFFFF;
+}
+.rrx-btn--primary:hover    { background: var(--rr-brand-hover); }
+.rrx-btn--primary:active   { background: var(--rr-brand-pressed); }
+.rrx-btn--primary:disabled { background: var(--rr-bg-hover); color: var(--rr-fg-disabled); }
+
+.rrx-btn--default {
+  background: var(--rr-bg-surface-1);
+  border-color: var(--rr-border-primary);
+  color: var(--rr-fg-primary);
+}
+.rrx-btn--default:hover  { background: var(--rr-bg-hover); }
+.rrx-btn--default:active { background: var(--rr-bg-surface-2); }
+
+.rrx-btn--subtle {
+  background: transparent;
+  color: var(--rr-fg-primary);
+}
+.rrx-btn--subtle:hover  { background: var(--rr-bg-hover); }
+.rrx-btn--subtle:active { background: var(--rr-bg-surface-2); }
+
+.rrx-btn--danger {
+  background: var(--rr-danger);
+  color: #FFFFFF;
+}
+.rrx-btn--danger:hover  { background: #B92B2F; }
+.rrx-btn--danger:active { background: #A52529; }
+
+.rrx-btn--ghost {
+  background: transparent;
+  border-color: var(--rr-border-primary);
+  color: var(--rr-fg-secondary);
+}
+.rrx-btn--ghost:hover  { background: var(--rr-bg-hover); color: var(--rr-fg-primary); }
+
+/* Sizes */
+.rrx-btn--sm { height: 28px; padding: 0 var(--rr-space-100); font: var(--rr-font-caption); }
+.rrx-btn--lg { height: 40px; padding: 0 var(--rr-space-160); }
+
+/* ============================================================
+   RRIconButton — square button for toolbars, sidebars, panels
+   ============================================================ */
+
+.rrx-icon-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--rr-radius-medium);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--rr-fg-secondary);
+  cursor: pointer;
+  transition: background-color var(--rr-motion-fast), color var(--rr-motion-fast);
+}
+.rrx-icon-btn:hover { background: var(--rr-bg-hover); color: var(--rr-fg-primary); }
+.rrx-icon-btn:active { background: var(--rr-bg-surface-2); }
+.rrx-icon-btn:focus-visible {
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: 1px;
+}
+.rrx-icon-btn:disabled,
+.rrx-icon-btn[aria-disabled="true"] {
+  color: var(--rr-fg-disabled);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.rrx-icon-btn--sm { width: 28px; height: 28px; }
+.rrx-icon-btn--lg { width: 36px; height: 36px; }
+
+/* ============================================================
+   RRInput
+   ============================================================ */
+
+.rrx-input {
+  height: 32px;
+  width: 100%;
+  padding: 0 var(--rr-space-120);
+  border: 1px solid var(--rr-border-input);
+  border-radius: var(--rr-radius-medium);
+  background: var(--rr-bg-surface-1);
+  color: var(--rr-fg-primary);
+  font: var(--rr-font-body);
+  transition: border-color var(--rr-motion-fast), box-shadow var(--rr-motion-fast);
+}
+
+.rrx-input::placeholder { color: var(--rr-fg-disabled); }
+
+.rrx-input:hover { border-color: var(--rr-fg-secondary); }
+
+.rrx-input:focus,
+.rrx-input:focus-visible {
+  outline: none;
+  border-color: var(--rr-brand-primary);
+  box-shadow: inset 0 0 0 1px var(--rr-brand-primary);
+}
+
+.rrx-input:disabled {
+  background: var(--rr-bg-surface-2);
+  color: var(--rr-fg-disabled);
+  cursor: not-allowed;
+}
+
+.rrx-input--invalid,
+.rrx-input[aria-invalid="true"] {
+  border-color: var(--rr-danger);
+}
+.rrx-input--invalid:focus,
+.rrx-input[aria-invalid="true"]:focus {
+  box-shadow: inset 0 0 0 1px var(--rr-danger);
+}
+
+textarea.rrx-input {
+  height: auto;
+  min-height: 64px;
+  padding: var(--rr-space-80) var(--rr-space-120);
+  resize: vertical;
+}
+
+.rrx-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rr-space-80);
+}
+
+.rrx-field__label {
+  font: var(--rr-font-table-header);
+  color: var(--rr-fg-primary);
+}
+
+.rrx-field__help {
+  font: var(--rr-font-caption);
+  color: var(--rr-fg-secondary);
+}
+
+.rrx-field__error {
+  font: var(--rr-font-caption);
+  color: var(--rr-danger);
+}
+
+.rrx-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rr-space-160);
+}
+
+/* ============================================================
+   RRSearchBox
+   ============================================================ */
+
+.rrx-search-box {
+  position: relative;
+  width: 240px;
+  height: 32px;
+}
+
+.rrx-search-box__input {
+  height: 32px;
+  width: 100%;
+  padding: 0 var(--rr-space-120) 0 32px;
+  border: 1px solid var(--rr-border-input);
+  border-radius: var(--rr-radius-medium);
+  background: var(--rr-bg-surface-1);
+  color: var(--rr-fg-primary);
+  font: var(--rr-font-body);
+  transition: border-color var(--rr-motion-fast), box-shadow var(--rr-motion-fast);
+}
+
+.rrx-search-box__input::placeholder { color: var(--rr-fg-disabled); }
+
+.rrx-search-box__input:focus,
+.rrx-search-box__input:focus-visible {
+  outline: none;
+  border-color: var(--rr-brand-primary);
+  box-shadow: inset 0 0 0 1px var(--rr-brand-primary);
+}
+
+.rrx-search-box__icon {
+  position: absolute;
+  top: 50%;
+  left: var(--rr-space-100);
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--rr-fg-secondary);
+  pointer-events: none;
+}
+
+.rrx-search-box__clear {
+  position: absolute;
+  top: 50%;
+  right: var(--rr-space-40);
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  border-radius: var(--rr-radius-medium);
+  color: var(--rr-fg-secondary);
+  cursor: pointer;
+}
+.rrx-search-box__clear:hover { background: var(--rr-bg-hover); color: var(--rr-fg-primary); }
+
+/* ============================================================
+   RRSection — titled content region
+   ============================================================ */
+
+.rrx-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rr-space-160);
+}
+
+.rrx-section__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--rr-space-160);
+}
+
+.rrx-section__title {
+  font: var(--rr-font-subtitle);
+  color: var(--rr-fg-primary);
+  margin: 0;
+}
+
+.rrx-section__subtitle {
+  font: var(--rr-font-caption);
+  color: var(--rr-fg-secondary);
+}
+
+.rrx-section__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-80);
+}
+
+/* ============================================================
+   RRCard
+   ============================================================ */
+
+.rrx-card {
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  padding: var(--rr-space-160);
+  display: flex;
+  flex-direction: column;
+  gap: var(--rr-space-120);
+}
+
+.rrx-card--flat   { box-shadow: none; }
+.rrx-card--raised { box-shadow: var(--rr-shadow-2); }
+
+.rrx-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--rr-space-120);
+}
+
+.rrx-card__title {
+  font: var(--rr-font-body-strong);
+  color: var(--rr-fg-primary);
+}
+
+.rrx-card__subtitle {
+  font: var(--rr-font-caption);
+  color: var(--rr-fg-secondary);
+}
+
+.rrx-card__body { font: var(--rr-font-body); color: var(--rr-fg-primary); }
+
+.rrx-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--rr-space-80);
+  padding-top: var(--rr-space-80);
+  border-top: 1px solid var(--rr-border-secondary);
+}
+
+/* ============================================================
+   RRTable / RRDataGrid
+   ============================================================ */
+
+.rrx-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  overflow: hidden;
+  font: var(--rr-font-body);
+}
+
+.rrx-table thead th {
+  height: 36px;
+  padding: 0 var(--rr-space-120);
+  background: var(--rr-bg-surface-2);
+  border-bottom: 1px solid var(--rr-border-secondary);
+  text-align: left;
+  font: var(--rr-font-table-header);
+  color: var(--rr-fg-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.rrx-table tbody td {
+  height: 40px;
+  padding: 0 var(--rr-space-120);
+  border-bottom: 1px solid var(--rr-border-secondary);
+  color: var(--rr-fg-primary);
+  vertical-align: middle;
+}
+
+.rrx-table tbody tr:last-child td { border-bottom: 0; }
+
+.rrx-table tbody tr {
+  transition: background-color var(--rr-motion-fast);
+}
+.rrx-table tbody tr:hover { background: #F8F8F8; }
+
+.rrx-table tbody tr.is-selected,
+.rrx-table tbody tr[aria-selected="true"] {
+  background: var(--rr-bg-selected);
+}
+
+.rrx-table--dense tbody td { height: 32px; }
+
+/* Cell helpers */
+.rrx-table__num   { text-align: right; font-variant-numeric: tabular-nums; }
+.rrx-table__muted { color: var(--rr-fg-secondary); }
+
+/* Row actions visible only on hover / focus / selection */
+.rrx-table .rrx-row-actions {
+  opacity: 0;
+  transition: opacity var(--rr-motion-fast);
+  display: inline-flex;
+  gap: var(--rr-space-40);
+}
+.rrx-table tbody tr:hover .rrx-row-actions,
+.rrx-table tbody tr:focus-within .rrx-row-actions,
+.rrx-table tbody tr.is-selected .rrx-row-actions,
+.rrx-table tbody tr[aria-selected="true"] .rrx-row-actions {
+  opacity: 1;
+}
+
+/* DataGrid wrapper — scrolling with sticky header */
+.rrx-data-grid {
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  background: var(--rr-bg-surface-1);
+  overflow: auto;
+  max-height: 100%;
+}
+.rrx-data-grid .rrx-table { border: 0; border-radius: 0; }
+
+/* ============================================================
+   RRStatusChip
+   ============================================================ */
+
+.rrx-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-60);
+  height: 20px;
+  padding: 0 var(--rr-space-80);
+  border-radius: var(--rr-radius-pill);
+  font: var(--rr-font-caption);
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--rr-neutral-soft);
+  color: var(--rr-fg-primary);
+  border: 1px solid transparent;
+}
+
+.rrx-status-chip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.rrx-status-chip--success { background: var(--rr-success-soft); color: var(--rr-success); }
+.rrx-status-chip--warning { background: var(--rr-warning-soft); color: #8A6A00; }
+.rrx-status-chip--danger  { background: var(--rr-danger-soft);  color: var(--rr-danger); }
+.rrx-status-chip--brand   { background: var(--rr-brand-soft);   color: var(--rr-brand-pressed); }
+.rrx-status-chip--neutral { background: var(--rr-neutral-soft); color: var(--rr-fg-secondary); }
+
+/* ============================================================
+   RRModal
+   ============================================================ */
+
+.rrx-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--rr-motion-standard);
+}
+.rrx-modal-backdrop.is-open { opacity: 1; pointer-events: auto; }
+
+.rrx-modal {
+  background: var(--rr-bg-surface-1);
+  border-radius: var(--rr-radius-large);
+  box-shadow: var(--rr-shadow-8);
+  width: 100%;
+  max-width: 480px;
+  max-height: calc(100vh - var(--rr-space-480));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateY(8px);
+  transition: transform var(--rr-motion-standard);
+}
+.rrx-modal-backdrop.is-open .rrx-modal { transform: translateY(0); }
+
+.rrx-modal--lg { max-width: 720px; }
+.rrx-modal--xl { max-width: 960px; }
+
+.rrx-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--rr-space-160) var(--rr-space-200);
+  border-bottom: 1px solid var(--rr-border-secondary);
+  flex: 0 0 auto;
+}
+
+.rrx-modal__title {
+  font: var(--rr-font-subtitle);
+  color: var(--rr-fg-primary);
+  margin: 0;
+}
+
+.rrx-modal__body {
+  padding: var(--rr-space-200);
+  overflow-y: auto;
+  flex: 1 1 auto;
+  font: var(--rr-font-body);
+}
+
+.rrx-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--rr-space-80);
+  padding: var(--rr-space-120) var(--rr-space-200);
+  border-top: 1px solid var(--rr-border-secondary);
+  flex: 0 0 auto;
+}
+
+/* ============================================================
+   RRDrawer — persistent or transient side panel
+   (named .rrx-side-drawer to avoid the legacy .rr-drawer)
+   ============================================================ */
+
+.rrx-side-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  max-width: 90vw;
+  background: var(--rr-bg-surface-1);
+  border-left: 1px solid var(--rr-border-primary);
+  box-shadow: var(--rr-shadow-4);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform var(--rr-motion-standard);
+  z-index: 900;
+}
+.rrx-side-drawer.is-open { transform: translateX(0); }
+
+.rrx-side-drawer--sm { width: 360px; }
+.rrx-side-drawer--lg { width: 480px; }
+
+.rrx-side-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--rr-space-160) var(--rr-space-200);
+  border-bottom: 1px solid var(--rr-border-secondary);
+  flex: 0 0 auto;
+}
+
+.rrx-side-drawer__title {
+  font: var(--rr-font-subtitle);
+  color: var(--rr-fg-primary);
+  margin: 0;
+}
+
+.rrx-side-drawer__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--rr-space-200);
+}
+
+.rrx-side-drawer__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--rr-space-80);
+  padding: var(--rr-space-120) var(--rr-space-200);
+  border-top: 1px solid var(--rr-border-secondary);
+  flex: 0 0 auto;
+}
+
+/* ============================================================
+   RRPanel — persistent right-rail detail view (preferred over
+   modal for record viewing per the contract)
+   ============================================================ */
+
+.rrx-panel {
+  width: 420px;
+  min-width: 360px;
+  max-width: 480px;
+  background: var(--rr-bg-surface-1);
+  border-left: 1px solid var(--rr-border-primary);
+  box-shadow: var(--rr-shadow-4);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.rrx-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--rr-space-120);
+  padding: var(--rr-space-160) var(--rr-space-200);
+  border-bottom: 1px solid var(--rr-border-secondary);
+  flex: 0 0 auto;
+}
+
+.rrx-panel__title {
+  font: var(--rr-font-subtitle);
+  color: var(--rr-fg-primary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rrx-panel__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--rr-space-200);
+  display: flex;
+  flex-direction: column;
+  gap: var(--rr-space-200);
+}
+
+.rrx-panel__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--rr-space-80);
+  padding: var(--rr-space-120) var(--rr-space-200);
+  border-top: 1px solid var(--rr-border-secondary);
+  flex: 0 0 auto;
+}
+
+/* ============================================================
+   RRFilterBar
+   ============================================================ */
+
+.rrx-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--rr-space-80);
+  padding: var(--rr-space-80) 0;
+}
+
+.rrx-filter-bar__group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-40);
+}
+
+.rrx-filter-bar__label {
+  font: var(--rr-font-caption);
+  color: var(--rr-fg-secondary);
+}
+
+/* Segmented control */
+.rrx-segmented {
+  display: inline-flex;
+  background: var(--rr-bg-surface-2);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  padding: 2px;
+  gap: 2px;
+}
+
+.rrx-segmented__item {
+  height: 28px;
+  padding: 0 var(--rr-space-100);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: var(--rr-font-caption);
+  font-weight: 600;
+  color: var(--rr-fg-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: var(--rr-radius-small);
+  cursor: pointer;
+  transition: background-color var(--rr-motion-fast), color var(--rr-motion-fast);
+}
+.rrx-segmented__item:hover { color: var(--rr-fg-primary); }
+
+.rrx-segmented__item--active,
+.rrx-segmented__item[aria-pressed="true"] {
+  background: var(--rr-bg-surface-1);
+  color: var(--rr-fg-primary);
+  box-shadow: var(--rr-shadow-2);
+}
+
+/* Filter chip */
+.rrx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-40);
+  height: 28px;
+  padding: 0 var(--rr-space-100);
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-pill);
+  font: var(--rr-font-caption);
+  font-weight: 600;
+  color: var(--rr-fg-primary);
+  cursor: pointer;
+  transition: background-color var(--rr-motion-fast), border-color var(--rr-motion-fast);
+}
+.rrx-chip:hover { background: var(--rr-bg-hover); }
+.rrx-chip--active,
+.rrx-chip[aria-pressed="true"] {
+  background: var(--rr-brand-soft);
+  border-color: var(--rr-brand-primary);
+  color: var(--rr-brand-pressed);
+}
+.rrx-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+}
+.rrx-chip__remove:hover { background: var(--rr-neutral-soft); }
+
+/* ============================================================
+   RRKPI
+   ============================================================ */
+
+.rrx-kpi {
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  padding: var(--rr-space-160);
+  display: flex;
+  flex-direction: column;
+  gap: var(--rr-space-60);
+  min-width: 0;
+}
+
+.rrx-kpi__label {
+  font: var(--rr-font-caption);
+  color: var(--rr-fg-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rrx-kpi__value {
+  font: var(--rr-font-title);
+  color: var(--rr-fg-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.rrx-kpi__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-40);
+  font: var(--rr-font-caption);
+  font-weight: 600;
+}
+
+.rrx-kpi__delta--up   { color: var(--rr-success); }
+.rrx-kpi__delta--down { color: var(--rr-danger); }
+.rrx-kpi__delta--flat { color: var(--rr-fg-secondary); }
+
+.rrx-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--rr-space-160);
+}
+
+/* ============================================================
+   RREmptyState
+   ============================================================ */
+
+.rrx-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--rr-space-480) var(--rr-space-240);
+  gap: var(--rr-space-120);
+  color: var(--rr-fg-secondary);
+}
+
+.rrx-empty-state__icon {
+  width: 48px;
+  height: 48px;
+  color: var(--rr-fg-disabled);
+}
+
+.rrx-empty-state__title {
+  font: var(--rr-font-body-strong);
+  color: var(--rr-fg-primary);
+}
+
+.rrx-empty-state__body {
+  font: var(--rr-font-body);
+  color: var(--rr-fg-secondary);
+  max-width: 420px;
+}
+
+.rrx-empty-state__actions {
+  display: flex;
+  gap: var(--rr-space-80);
+  margin-top: var(--rr-space-80);
+}
+
+/* ============================================================
+   RRLoadingSkeleton
+   ============================================================ */
+
+@keyframes rrx-skeleton-shimmer {
+  0%   { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+.rrx-skeleton {
+  display: block;
+  width: 100%;
+  height: 12px;
+  border-radius: var(--rr-radius-small);
+  background:
+    linear-gradient(90deg,
+      var(--rr-bg-surface-2) 0%,
+      var(--rr-bg-hover) 50%,
+      var(--rr-bg-surface-2) 100%);
+  background-size: 200px 100%;
+  background-repeat: no-repeat;
+  animation: rrx-skeleton-shimmer 1.4s linear infinite;
+}
+
+.rrx-skeleton--text  { height: 12px; }
+.rrx-skeleton--title { height: 20px; }
+.rrx-skeleton--block { height: 64px; border-radius: var(--rr-radius-medium); }
+.rrx-skeleton--circle { width: 32px; height: 32px; border-radius: 50%; }
+.rrx-skeleton--row    { height: 40px; border-radius: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rrx-skeleton { animation: none; }
+}
+
+/* ============================================================
+   RRToast
+   ============================================================ */
+
+.rrx-toast-region {
+  position: fixed;
+  bottom: var(--rr-space-200);
+  right: var(--rr-space-200);
+  display: flex;
+  flex-direction: column;
+  gap: var(--rr-space-80);
+  z-index: 1100;
+  pointer-events: none;
+}
+
+.rrx-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--rr-space-120);
+  min-width: 280px;
+  max-width: 420px;
+  padding: var(--rr-space-120) var(--rr-space-160);
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  box-shadow: var(--rr-shadow-4);
+  pointer-events: auto;
+  font: var(--rr-font-body);
+  color: var(--rr-fg-primary);
+}
+
+.rrx-toast--success { border-left: 3px solid var(--rr-success); }
+.rrx-toast--warning { border-left: 3px solid var(--rr-warning); }
+.rrx-toast--danger  { border-left: 3px solid var(--rr-danger); }
+.rrx-toast--brand   { border-left: 3px solid var(--rr-brand-primary); }
+
+.rrx-toast__icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.rrx-toast__body { flex: 1 1 auto; min-width: 0; }
+
+.rrx-toast__title {
+  font: var(--rr-font-body-strong);
+  color: var(--rr-fg-primary);
+  margin-bottom: 2px;
+}
+
+.rrx-toast__message {
+  font: var(--rr-font-body);
+  color: var(--rr-fg-secondary);
+}
+
+.rrx-toast__close {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--rr-radius-medium);
+  color: var(--rr-fg-secondary);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.rrx-toast__close:hover { background: var(--rr-bg-hover); color: var(--rr-fg-primary); }
+
+/* ============================================================
+   Utility: visually hidden (for accessible labels)
+   ============================================================ */
+
+.rrx-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ============================================================
+   Focus ring helper — use .rrx-focusable on any interactive
+   custom element to get the contract-compliant focus ring.
+   ============================================================ */
+
+.rrx-focusable:focus-visible {
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: 1px;
+  border-radius: var(--rr-radius-medium);
+}
