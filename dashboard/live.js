@@ -47052,7 +47052,7 @@ document.addEventListener("click", (e) => {
     const subject = m.subject || "(no subject)";
     const snippet = (m.body_text || "").replace(/\s+/g, " ").slice(0, 110);
     const when = m.created_at ? formatRelative(new Date(m.created_at)) : "";
-    return `<button type="button" class="em-msg-row${isActive ? " active" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}">
+    return `<button type="button" class="em-msg-row${isActive ? " active" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}" draggable="true">
       <div class="em-msg-row-line1">
         <span class="em-msg-who">${escapeHtmlLocal(who)}</span>
         <span class="em-msg-when">${escapeHtmlLocal(when)}</span>
@@ -47133,6 +47133,51 @@ document.addEventListener("click", (e) => {
       row.classList.toggle("active", row.getAttribute("data-em-msg") === id);
     });
     renderPreview();
+  }
+
+  // Double-click a message row → open it in its own pop-out window
+  // (Outlook-style). Single-click still works as a preview.
+  function openMessagePopout(id) {
+    const m = state.messages.find(x => x.id === id);
+    if (!m) return;
+    closeMessagePopout();
+    const when = m.created_at ? new Date(m.created_at).toLocaleString() : "";
+    const isInbound = m.direction === "inbound";
+    const body = (m.body_text || "").replace(/\s+$/g, "");
+    const el = document.createElement("div");
+    el.id = "rr-em-popout";
+    el.dataset.msgId = m.id;
+    el.tabIndex = -1;
+    el.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+    el.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:880px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);gap:var(--s-3)">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:var(--fs-lg);font-weight:600;line-height:1.3">${escapeHtmlLocal(m.subject || "(no subject)")}</div>
+          </div>
+          <div style="display:flex;gap:var(--s-2);flex:0 0 auto">
+            <button class="btn btn-sm" type="button" data-rr-popout-reply>Reply</button>
+            <button class="btn btn-sm" type="button" data-rr-popout-replyall>Reply All</button>
+            <button class="btn btn-sm" type="button" data-rr-popout-forward>Forward</button>
+            <button class="btn btn-sm" type="button" data-rr-popout-close>Close</button>
+          </div>
+        </div>
+        <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));font-size:var(--fs-sm);color:var(--text-subtle);display:flex;flex-direction:column;gap:4px">
+          <div><strong style="color:var(--text);min-width:62px;display:inline-block">From:</strong> ${escapeHtmlLocal(m.from_email || "—")}</div>
+          <div><strong style="color:var(--text);min-width:62px;display:inline-block">To:</strong> ${escapeHtmlLocal(m.to_email || "—")}</div>
+          <div><strong style="color:var(--text);min-width:62px;display:inline-block">${isInbound ? "Received" : "Sent"}:</strong> ${escapeHtmlLocal(when)}</div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:var(--s-4) var(--s-5);font-size:14px;line-height:1.55;color:var(--text);word-wrap:break-word">${body ? escapeHtmlLocal(body).replace(/\n/g, "<br>") : `<em style="color:var(--text-subtle)">(no text body)</em>`}</div>
+      </div>`;
+    document.body.appendChild(el);
+    el.addEventListener("click", (e) => { if (e.target === el) closeMessagePopout(); });
+    el.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); closeMessagePopout(); } });
+    el.focus();
+  }
+
+  function closeMessagePopout() {
+    const el = document.getElementById("rr-em-popout");
+    if (el) el.remove();
   }
 
   async function createFolder(name) {
@@ -47325,6 +47370,29 @@ document.addEventListener("click", (e) => {
     // If we're on a different folder, no UI change is needed.
   }
 
+  // ── Move arbitrary message to a folder by id (drag-and-drop) ───
+  async function moveMessageToFolderId(messageId, folderId) {
+    if (!messageId || !folderId) return;
+    const target = state.folders.find(f => f.id === folderId);
+    if (!target) return;
+    const { error } = await sb.from("email_messages")
+      .update({ folder_id: folderId })
+      .eq("id", messageId);
+    if (error) {
+      if (typeof toast === "function") toast("Couldn't move message: " + error.message, "warn");
+      return;
+    }
+    if (typeof toast === "function") toast(`Moved to ${target.name}`, "success");
+    // If the moved message was selected, clear the preview (it's no
+    // longer in the current folder view).
+    if (state.activeMessageId === messageId) {
+      state.activeMessageId = null;
+    }
+    await loadMessages();
+    renderInbox();
+    renderPreview();
+  }
+
   // ── Delete / archive (move selected to that kind's folder) ──────
   async function moveSelectedToKind(kind) {
     if (!state.activeMessageId) {
@@ -47399,6 +47467,27 @@ document.addEventListener("click", (e) => {
       sendComposerDraft();
       return;
     }
+    // Message popout buttons (Reply / Reply All / Forward / Close).
+    if (e.target.closest("[data-rr-popout-close]")) {
+      e.preventDefault();
+      closeMessagePopout();
+      return;
+    }
+    {
+      const popoutAction = e.target.closest("[data-rr-popout-reply], [data-rr-popout-replyall], [data-rr-popout-forward]");
+      if (popoutAction) {
+        e.preventDefault();
+        const popout = document.getElementById("rr-em-popout");
+        const msgId = popout?.dataset.msgId;
+        const original = state.messages.find(x => x.id === msgId);
+        closeMessagePopout();
+        const mode = popoutAction.hasAttribute("data-rr-popout-reply")     ? "reply"
+                   : popoutAction.hasAttribute("data-rr-popout-replyall") ? "reply-all"
+                   :                                                        "forward";
+        openComposer({ mode, original });
+        return;
+      }
+    }
     // Action ribbon (New / Delete / Archive / Reply / Reply All / Forward / AI).
     const act = e.target.closest('#view-email [data-em-act]');
     if (act) {
@@ -47443,6 +47532,52 @@ document.addEventListener("click", (e) => {
     void sf.offsetWidth;
     sf.classList.add("is-spinning");
     setTimeout(() => sf.classList.remove("is-spinning"), 950);
+  });
+
+  // Double-click a message row → pop it out into its own window.
+  document.addEventListener("dblclick", (e) => {
+    if (!e.target.closest) return;
+    const row = e.target.closest("#rr-em-inbox [data-em-msg]");
+    if (!row) return;
+    e.preventDefault();
+    openMessagePopout(row.getAttribute("data-em-msg"));
+  });
+
+  // Drag-and-drop: drag a message row onto a folder button to move it.
+  document.addEventListener("dragstart", (e) => {
+    const row = e.target.closest && e.target.closest("#rr-em-inbox [data-em-msg]");
+    if (!row) return;
+    const id = row.getAttribute("data-em-msg");
+    e.dataTransfer.setData("application/x-rr-msg-id", id);
+    e.dataTransfer.setData("text/plain", id); // fallback for some browsers
+    e.dataTransfer.effectAllowed = "move";
+    row.classList.add("is-dragging");
+  });
+  document.addEventListener("dragend", (e) => {
+    const row = e.target.closest && e.target.closest("#rr-em-inbox [data-em-msg]");
+    if (row) row.classList.remove("is-dragging");
+    document.querySelectorAll("#rr-em-folders .em-folder.drop-target").forEach(el => el.classList.remove("drop-target"));
+  });
+  document.addEventListener("dragover", (e) => {
+    const folder = e.target.closest && e.target.closest("#rr-em-folders [data-em-folder]");
+    if (!folder) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    folder.classList.add("drop-target");
+  });
+  document.addEventListener("dragleave", (e) => {
+    const folder = e.target.closest && e.target.closest("#rr-em-folders [data-em-folder]");
+    if (!folder) return;
+    folder.classList.remove("drop-target");
+  });
+  document.addEventListener("drop", (e) => {
+    const folder = e.target.closest && e.target.closest("#rr-em-folders [data-em-folder]");
+    if (!folder) return;
+    e.preventDefault();
+    folder.classList.remove("drop-target");
+    const msgId = e.dataTransfer.getData("application/x-rr-msg-id") || e.dataTransfer.getData("text/plain");
+    const folderId = folder.getAttribute("data-em-folder");
+    if (msgId && folderId) moveMessageToFolderId(msgId, folderId);
   });
   document.addEventListener("submit", (e) => {
     if (e.target && e.target.id === "rr-em-new-folder-form") {
