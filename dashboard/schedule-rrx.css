@@ -103,15 +103,26 @@
   padding-right: var(--rr-space-160);
 }
 
-/* ── Command mode tabs (Schedule / Print) ───────────────────── */
+/* ── Command mode tabs (Schedule / Print) ─────────────────────
+   Inline at the top of the cmd-shell, not position:absolute,
+   so they can't be clipped by the global .page overflow:hidden.
+   The cmd-shell is a flex-column container with the tabs as
+   first child + the nav-heading as second. */
+
+#view-schedule.rrx-schedule .sched-cmd-shell {
+  display: flex !important;
+  flex-direction: column !important;
+}
 
 #view-schedule.rrx-schedule .sched-cmd-tabs {
   display: inline-flex;
+  align-self: flex-start;
   gap: 2px;
-  position: absolute;
-  left: var(--rr-space-40);
-  bottom: 100%;
-  margin-bottom: -1px;
+  position: static !important;
+  left: auto !important;
+  bottom: auto !important;
+  margin: 0 0 -1px var(--rr-space-40) !important;
+  padding: 0;
 }
 
 #view-schedule.rrx-schedule .sched-cmd-tab {
