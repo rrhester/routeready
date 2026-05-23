@@ -37,4 +37,20 @@ contextBridge.exposeInMainWorld("rr", {
     /** Recent download history (up to 20 entries). */
     listHistory: () => ipcRenderer.invoke("reports:listHistory"),
   },
+  scheduler: {
+    /** List all scheduled download jobs. */
+    list: () => ipcRenderer.invoke("scheduler:list"),
+    /** Upsert a job (omit id to create, include id to update). */
+    saveJob: (job) => ipcRenderer.invoke("scheduler:saveJob", job),
+    /** Delete a job by id. */
+    deleteJob: (id) => ipcRenderer.invoke("scheduler:deleteJob", { id }),
+    /** Fire a job immediately, regardless of its nextRunAt. */
+    runNow: (id) => ipcRenderer.invoke("scheduler:runNow", { id }),
+    /** Subscribe to job-updated events from the main process. */
+    onJobUpdated: (cb) => {
+      const handler = (_evt, payload) => cb(payload);
+      ipcRenderer.on("scheduler:jobUpdated", handler);
+      return () => ipcRenderer.removeListener("scheduler:jobUpdated", handler);
+    },
+  },
 });

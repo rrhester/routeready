@@ -107,8 +107,10 @@ const userDataDir = () => app.getPath("userData");
 const sessionFile = () => path.join(userDataDir(), "portal-session.enc");
 const historyFile = () => path.join(userDataDir(), "download-history.json");
 const configFile = () => path.join(userDataDir(), "config.json");
+const schedulerFile = () => path.join(userDataDir(), "scheduler.json");
 const defaultDownloadDir = () => app.getPath("downloads");
 const HISTORY_LIMIT = 20;
+const SCHEDULER_TICK_MS = 30000;
 
 // Default Portal URL. Operator can override per-install via the
 // "Portal URL" input in section 1 — useful for testing against any
@@ -173,6 +175,8 @@ app.whenReady().then(() => {
   // before the operator clicks anything.  Failures here aren't fatal —
   // the launch path will surface a dialog if it actually breaks.
   resolveChromiumExecutable();
+  ensureSchedulerSeeded();
+  startSchedulerLoop();
   createWindow();
 });
 
@@ -379,8 +383,7 @@ ipcMain.handle("reports:openInFolder", async (_evt, { filePath } = {}) => {
   return { ok: true };
 });
 
-ipcMain.handle("reports:download", async (_evt, args = {}) => {
-  const { url, clickSelector, downloadDir, timeoutMs = 60000 } = args;
+async function performDownload({ url, clickSelector, downloadDir, timeoutMs = 60000, source = "manual" } = {}) {
   if (!url || typeof url !== "string") {
     return { ok: false, error: "missing_url", message: "Give me a URL to fetch." };
   }
@@ -423,6 +426,7 @@ ipcMain.handle("reports:download", async (_evt, args = {}) => {
       filePath: savePath,
       suggestedName: suggested,
       size: stat.size,
+      source,
     };
     appendHistory(entry);
     return { ok: true, ...entry };
@@ -433,9 +437,205 @@ ipcMain.handle("reports:download", async (_evt, args = {}) => {
       url,
       clickSelector: clickSelector || null,
       error: msg,
+      source,
     });
     return { ok: false, error: "download_failed", message: msg };
   } finally {
     try { await page.close(); } catch {}
   }
+}
+
+ipcMain.handle("reports:download", async (_evt, args = {}) => {
+  return performDownload({ ...args, source: "manual" });
+});
+
+// ─── Scheduler ──────────────────────────────────────────────────────
+// Persistent list of named download jobs. Each tick (30s) we walk
+// the list and fire any enabled job whose `nextRunAt` has elapsed,
+// reusing the same headless flow as a manual download. Skips silently
+// when no portal session is persisted (would just bounce to login).
+
+function readScheduler() {
+  try {
+    const raw = fs.readFileSync(schedulerFile(), "utf8");
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return { jobs: [] };
+    return { jobs: Array.isArray(parsed.jobs) ? parsed.jobs : [] };
+  } catch {
+    return { jobs: [] };
+  }
+}
+
+function writeScheduler(state) {
+  try {
+    fs.writeFileSync(schedulerFile(), JSON.stringify(state, null, 2));
+  } catch (e) {
+    logLine("scheduler write failed:", String(e));
+  }
+}
+
+function ensureSchedulerSeeded() {
+  const s = readScheduler();
+  if (s.jobs.length > 0) return s;
+  // First-run seed: one disabled Indeed Applicants CSV job so the
+  // operator sees the feature exists. They flip it on after pointing
+  // the click selector at Indeed's actual Export button.
+  const seed = {
+    id: "indeed-applicants",
+    name: "Indeed — Applicants CSV",
+    url: "https://employers.indeed.com/candidates",
+    clickSelector: "",
+    downloadDir: "",
+    intervalMinutes: 60,
+    enabled: false,
+    createdAt: new Date().toISOString(),
+    lastRunAt: null,
+    lastResult: null,
+    lastError: null,
+    lastFilePath: null,
+    nextRunAt: null,
+  };
+  writeScheduler({ jobs: [seed] });
+  return readScheduler();
+}
+
+let schedulerTimer = null;
+const schedulerRunning = new Set();
+
+function emitJobUpdated(jobId) {
+  try { mainWindow?.webContents.send("scheduler:jobUpdated", { jobId }); } catch {}
+}
+
+async function runSchedulerJob(jobId, { manual = false } = {}) {
+  if (schedulerRunning.has(jobId)) return { ok: false, error: "already_running" };
+  const state = readScheduler();
+  const job = state.jobs.find((j) => j.id === jobId);
+  if (!job) return { ok: false, error: "no_job" };
+  schedulerRunning.add(jobId);
+  logLine("scheduler: running", jobId, "manual=", manual, "url=", job.url);
+  try {
+    const r = await performDownload({
+      url: job.url,
+      clickSelector: job.clickSelector,
+      downloadDir: job.downloadDir,
+      source: manual ? "scheduler-manual" : "scheduler",
+    });
+    const now = new Date();
+    const nextRunAt = job.intervalMinutes > 0
+      ? new Date(now.getTime() + job.intervalMinutes * 60000).toISOString()
+      : null;
+    const next = readScheduler();
+    const i = next.jobs.findIndex((j) => j.id === jobId);
+    if (i >= 0) {
+      next.jobs[i] = {
+        ...next.jobs[i],
+        lastRunAt: now.toISOString(),
+        lastResult: r.ok ? "ok" : "error",
+        lastError: r.ok ? null : (r.message || r.error || "failed"),
+        lastFilePath: r.ok ? r.filePath : null,
+        nextRunAt,
+      };
+      writeScheduler(next);
+    }
+    emitJobUpdated(jobId);
+    return r;
+  } finally {
+    schedulerRunning.delete(jobId);
+  }
+}
+
+async function tickScheduler() {
+  const { jobs } = readScheduler();
+  const now = Date.now();
+  for (const job of jobs) {
+    if (!job.enabled) continue;
+    if (schedulerRunning.has(job.id)) continue;
+    if (!job.intervalMinutes || job.intervalMinutes <= 0) continue;
+    if (!job.url) continue;
+    const due = !job.nextRunAt || new Date(job.nextRunAt).getTime() <= now;
+    if (!due) continue;
+    // Without a portal session every job would bounce to login — skip
+    // and pick it up on the next tick once the operator signs in.
+    if (!readSession()) {
+      logLine("scheduler: skip", job.id, "(no portal session)");
+      continue;
+    }
+    runSchedulerJob(job.id).catch((e) => {
+      logLine("scheduler: job", job.id, "threw:", String(e));
+    });
+  }
+}
+
+function startSchedulerLoop() {
+  if (schedulerTimer) return;
+  schedulerTimer = setInterval(tickScheduler, SCHEDULER_TICK_MS);
+  // Short delay before the first tick so the renderer's "no session"
+  // probe has a chance to settle on the right state first.
+  setTimeout(tickScheduler, 5000);
+}
+
+ipcMain.handle("scheduler:list", async () => {
+  const s = ensureSchedulerSeeded();
+  return { ok: true, jobs: s.jobs };
+});
+
+ipcMain.handle("scheduler:saveJob", async (_evt, patch = {}) => {
+  const s = readScheduler();
+  const idx = patch.id ? s.jobs.findIndex((j) => j.id === patch.id) : -1;
+  if (idx < 0) {
+    const id = patch.id || `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const intervalMinutes = Number(patch.intervalMinutes) || 60;
+    s.jobs.push({
+      id,
+      name: (patch.name || "Untitled job").trim(),
+      url: (patch.url || "").trim(),
+      clickSelector: (patch.clickSelector || "").trim(),
+      downloadDir: (patch.downloadDir || "").trim(),
+      intervalMinutes,
+      enabled: !!patch.enabled,
+      createdAt: new Date().toISOString(),
+      lastRunAt: null,
+      lastResult: null,
+      lastError: null,
+      lastFilePath: null,
+      nextRunAt: patch.enabled
+        ? new Date(Date.now() + intervalMinutes * 60000).toISOString()
+        : null,
+    });
+  } else {
+    const prev = s.jobs[idx];
+    const intervalMinutes = patch.intervalMinutes != null
+      ? Number(patch.intervalMinutes) || prev.intervalMinutes
+      : prev.intervalMinutes;
+    const enabled = patch.enabled != null ? !!patch.enabled : prev.enabled;
+    // Re-arm the next-run window when flipping a disabled job on so
+    // it doesn't fire instantly the moment the toggle moves.
+    let nextRunAt = prev.nextRunAt;
+    if (enabled && !prev.enabled) {
+      nextRunAt = new Date(Date.now() + intervalMinutes * 60000).toISOString();
+    }
+    s.jobs[idx] = {
+      ...prev,
+      name: patch.name != null ? String(patch.name).trim() : prev.name,
+      url: patch.url != null ? String(patch.url).trim() : prev.url,
+      clickSelector: patch.clickSelector != null ? String(patch.clickSelector).trim() : prev.clickSelector,
+      downloadDir: patch.downloadDir != null ? String(patch.downloadDir).trim() : prev.downloadDir,
+      intervalMinutes,
+      enabled,
+      nextRunAt: enabled ? nextRunAt : null,
+    };
+  }
+  writeScheduler(s);
+  return { ok: true, jobs: s.jobs };
+});
+
+ipcMain.handle("scheduler:deleteJob", async (_evt, { id } = {}) => {
+  const s = readScheduler();
+  s.jobs = s.jobs.filter((j) => j.id !== id);
+  writeScheduler(s);
+  return { ok: true, jobs: s.jobs };
+});
+
+ipcMain.handle("scheduler:runNow", async (_evt, { id } = {}) => {
+  return runSchedulerJob(id, { manual: true });
 });

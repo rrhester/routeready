@@ -144,18 +144,21 @@ chmod +x RouteReady\ Desktop-*.AppImage
   the app navigates with the saved session and saves the file. Works on
   any benign target for shake-down before pointing it at Amazon.
 - Per-download history (last 20) with "show in folder" reveal.
+- **Scheduled downloads** — named jobs (URL + optional click selector +
+  save folder + interval) fire on their own, unattended, reusing the
+  saved portal session in a headless browser. Indeed Applicants CSV is
+  seeded as a disabled job on first run — point the click selector at
+  Indeed's Export button, set an interval, flip it on. Jobs skip silently
+  while no portal session is saved; loop resumes after sign-in.
 
 ## What's next
 
-- **Pre-baked Amazon report shortcuts** — replace the freeform URL with a
-  picker of named reports (Route Plan, Driver Performance, Cycle 1 pick
-  sheets…) each carrying its own URL + selector.
+- **Pre-baked Amazon report shortcuts** — same scheduler infra, named
+  report presets (Route Plan, Driver Performance, Cycle 1 pick sheets…).
 - **Driver assignment write-back** — POST RouteReady's planned assignments
   to MIDWAY.
 - **Supabase upload** — ship the downloaded report into RouteReady storage
   + parse rows into Postgres.
-- **Scheduled background sync** — `node-cron` style scheduler in the main
-  process, configurable from settings.
 - **Supabase auth** — link the Electron client to a RouteReady DSP account
   via magic-link or device code flow.
 - **Auto-update** — `electron-updater` + a release pipeline (probably
