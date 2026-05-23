@@ -22521,9 +22521,10 @@ document.addEventListener("click", (e) => {
     if (existing) { existing.remove(); return; }
     document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
     const opts = [
-      { v: "alpha", l: "A – Z" },
-      { v: "wave",  l: "By wave" },
-      { v: "hours", l: "By hours" },
+      { v: "alpha",  l: "A – Z" },
+      { v: "tenure", l: "By tenure" },
+      { v: "wave",   l: "By wave" },
+      { v: "hours",  l: "By hours" },
     ];
     const pop = document.createElement("div");
     pop.className = "rr-tf-popover";
@@ -29296,6 +29297,15 @@ async function renderScheduleWeek() {
       if (ah !== bh) return bh - ah; // descending
       return _alphaKey(a).localeCompare(_alphaKey(b));
     });
+  } else if (_schedDriverSort === "tenure") {
+    // Longest tenure first — earliest hire_date wins. Drivers
+    // without a hire_date sort to the end.
+    drivers.sort((a, b) => {
+      const at = a.hire_date ? new Date(a.hire_date).getTime() : Infinity;
+      const bt = b.hire_date ? new Date(b.hire_date).getTime() : Infinity;
+      if (at !== bt) return at - bt;
+      return _alphaKey(a).localeCompare(_alphaKey(b));
+    });
   }
 
   // Index PTO by driver.
@@ -29724,7 +29734,12 @@ async function renderScheduleWeek() {
     kpis.classList.add("sched-kpi-pills");
     const pill = (key, color, label, sub, clickable, title) => {
       const cl = clickable ? ' data-clickable="true"' : "";
-      const tt = title ? ` title="${title}"` : "";
+      // Title attribute intentionally omitted — the native browser
+      // tooltip on hover was reading as an unwanted "info toast"
+      // over the KPI strip. The explanatory text is still available
+      // to screen readers via the clickable detail modal.
+      void title;
+      const tt = "";
       // Always render the sub line (blank → spacer) so every KPI cell
       // is the same two-line height.
       const subHtml = `<span class="sched-kpi-sub">${sub || "&nbsp;"}</span>`;
