@@ -25787,6 +25787,17 @@ const _RR_V2_FORWARD = {
 // short spin so the operator sees a confirmation animation.
 let _rrV2VansLabel = "Unassign";
 
+// Mapping V2 data-rr-v2 → its Rules popover id. Used to re-parent
+// the popover into the V2 split on click so it anchors beneath
+// the V2 footer instead of the (now hidden) legacy footer.
+const _RR_V2_POPOVER_ID = {
+  week:      "rr-sched-week-rules-popover",
+  smartfill: "rr-sched-smartfill-rules-popover",
+  targets:   "rr-sched-quick-settings-popover",
+  unassign:  "rr-sched-vans-rules-popover",
+  kudos:     "rr-sched-milestone-rules-popover",
+};
+
 document.addEventListener("click", (e) => {
   const v2Split = e.target.closest(".sched-v2-split");
   if (v2Split) {
@@ -25796,6 +25807,16 @@ document.addEventListener("click", (e) => {
       const keyHost = v2Split.querySelector("[data-rr-v2]");
       const key = keyHost && keyHost.dataset ? keyHost.dataset.rrV2 : null;
       const sel = isFooter ? _RR_V2_FORWARD.rules[key] : _RR_V2_FORWARD.tile[key];
+
+      // Rules-footer click — relocate the popover into the V2
+      // split so it anchors here, then forward to the (hidden)
+      // legacy toggle to run the existing open/close logic.
+      if (isFooter && key && _RR_V2_POPOVER_ID[key]) {
+        const popover = document.getElementById(_RR_V2_POPOVER_ID[key]);
+        if (popover && popover.parentElement !== v2Split) {
+          v2Split.appendChild(popover);
+        }
+      }
 
       // Smart Fill — kick a one-shot AI-vibe spin on the V2 icon
       // before forwarding the click. The original Smart Fill
