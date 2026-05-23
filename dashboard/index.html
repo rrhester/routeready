@@ -22157,18 +22157,20 @@ body.rr-cmdk-open{ overflow:hidden }
              between them. Width persists in localStorage. */
           #view-email .em-main{display:flex;flex-direction:column;min-height:0}
           #view-email .em-split{
-            display:grid;
-            grid-template-columns:var(--em-inbox-w,360px) 6px minmax(0,1fr);
-            /* Constrain the grid row so children with overflow:auto
-               can scroll independently instead of stretching the row
-               (which pushes the whole page to scroll). */
-            grid-template-rows:minmax(0, 1fr);
-            flex:1 1 auto;min-height:0;
+            /* Bulletproof scrollable inbox: em-split is a positioning
+               context, and em-inbox / em-resizer / em-preview are
+               absolutely positioned children that share its exact
+               height. This sidesteps the flex/grid min-height
+               propagation that was leaving em-inbox content-sized
+               (so overflow:scroll had nothing to scroll). */
+            position:relative;
+            flex:1 1 0;min-height:0;min-width:0;
           }
           #view-email .em-inbox{
-            min-width:0;min-height:0;overflow-y:scroll;
+            position:absolute;top:0;bottom:0;left:0;
+            width:var(--em-inbox-w,360px);
+            min-width:0;overflow-y:scroll;
             padding:0 12px 0 0;
-            height:100%;
           }
           #view-email .em-inbox::-webkit-scrollbar{width:12px}
           #view-email .em-inbox::-webkit-scrollbar-thumb{
@@ -22182,8 +22184,10 @@ body.rr-cmdk-open{ overflow:hidden }
             background:transparent;
           }
           #view-email .em-resizer{
-            position:relative;cursor:col-resize;background:transparent;
-            user-select:none;
+            position:absolute;top:0;bottom:0;
+            left:var(--em-inbox-w,360px);width:6px;
+            cursor:col-resize;background:transparent;user-select:none;
+            z-index:2;
           }
           #view-email .em-resizer::before{
             content:"";position:absolute;left:50%;top:0;bottom:0;
@@ -22205,7 +22209,9 @@ body.rr-cmdk-open{ overflow:hidden }
           body.em-resizing,
           body.em-resizing *{cursor:col-resize !important;user-select:none}
           #view-email .em-preview{
-            min-width:0;min-height:0;overflow-y:auto;
+            position:absolute;top:0;bottom:0;right:0;
+            left:calc(var(--em-inbox-w,360px) + 6px);
+            min-width:0;overflow-y:auto;
             padding:0 0 0 12px;
             scrollbar-width:thin;
             scrollbar-color:var(--border-strong) transparent;
@@ -22400,20 +22406,23 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-base);font-weight:600;color:var(--text);
             padding:0 12px 0 4px;margin-right:auto;
           }
-          .em-composer-send-ibtn{
-            background:#0078d4;color:#fff;
-          }
-          .em-composer-send-ibtn:hover{background:#106ebe;color:#fff}
           .em-popout-ibtn{
             display:inline-flex;flex-direction:column;align-items:center;
-            justify-content:center;gap:2px;
-            padding:6px 12px;border:0;background:transparent;cursor:pointer;
-            font:inherit;font-size:11px;color:var(--text);border-radius:4px;
-            min-width:60px;
+            justify-content:center;gap:4px;
+            min-width:62px;padding:6px 10px 7px;border:0;background:transparent;cursor:pointer;
+            font:inherit;font-size:var(--fs-sm);font-weight:500;color:var(--text-muted);border-radius:6px;
+            transition:background var(--t-fast),color var(--t-fast);
           }
-          .em-popout-ibtn:hover{background:rgba(0,120,212,.08);color:#0078d4}
-          .em-popout-ibtn svg{display:block}
-          .em-popout-ibtn-close{margin-left:auto;min-width:36px;padding:6px 8px}
+          .em-popout-ibtn:hover{background:rgba(15,23,42,.04);color:var(--text)}
+          /* Match the home-page action-strip icons (em-action svg): 28×28,
+             stroke 1.6 — overrides the inline width/height attributes
+             on the SVG markup. */
+          .em-popout-ibtn svg{display:block;width:28px;height:28px;stroke-width:1.6}
+          /* Microsoft-blue Send button — declared AFTER .em-popout-ibtn
+             so the brand color wins over the neutral default. */
+          .em-popout-ibtn.em-composer-send-ibtn{background:#0078d4;color:#fff}
+          .em-popout-ibtn.em-composer-send-ibtn:hover{background:#106ebe;color:#fff}
+          .em-popout-ibtn-close{margin-left:auto;min-width:42px;padding:6px 10px}
           .em-popout-ibtn-close span{display:none}
           .em-popout-move-wrap{position:relative}
           .em-popout-move-menu{
