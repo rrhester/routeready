@@ -1,0 +1,723 @@
+/* ============================================================
+   Schedule page — Fluent 2 visual rebind (reference migration)
+   ------------------------------------------------------------
+   Re-skins the existing .sched-* chrome on the Schedule view
+   using --rr-* tokens defined in app/rr-system.css. Zero DOM
+   changes; every click handler, popover, and JS selector keeps
+   working untouched.
+
+   Scoping: every rule is anchored to `#view-schedule.rrx-schedule`
+   so it can only apply when the view-schedule element carries the
+   opt-in class, and so the rules outrank the existing inline
+   `#view-schedule .sched-*` declarations (specificity 1,2,1 vs
+   1,1,1) without needing `!important`.
+
+   This is the **reference page** for the Fluent 2 migration — the
+   pattern other pages will follow when they opt in:
+     1. Add `rrx-<page>` to the view container
+     2. Ship a `<page>-rrx.css` that rebinds chrome to --rr-* tokens
+
+   Only the page chrome is rebound here:
+     - command shell + mode tabs
+     - title block + subtitle
+     - navigation ribbon (groups + subnav tabs)
+     - page action buttons + icon buttons
+     - week nav, toolbar dividers, status pills
+     - subview workspace baseline
+
+   The shift grid + popover internals are intentionally not
+   touched in this pass — they're large enough to be their own
+   follow-up.
+   ============================================================ */
+
+/* ── Workspace baseline ─────────────────────────────────────── */
+
+#view-schedule.rrx-schedule {
+  background: var(--rr-bg-canvas);
+  font-family: var(--rr-font-family);
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .page {
+  padding: var(--rr-space-200);
+}
+
+#view-schedule.rrx-schedule .sched-subview {
+  background: transparent;
+}
+
+/* ── Title block ────────────────────────────────────────────── */
+
+#view-schedule.rrx-schedule .sched-nav-heading .page-title {
+  font: var(--rr-font-title);
+  color: var(--rr-fg-primary);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading .page-sub {
+  font: var(--rr-font-caption);
+  color: var(--rr-fg-secondary);
+  margin: 2px 0 0;
+}
+
+/* ── Command shell: flatten the floating card into a calm,
+       structured command surface. ──────────────────────────── */
+
+#view-schedule.rrx-schedule .sched-cmd-shell {
+  margin-bottom: var(--rr-space-200);
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-120);
+  padding: var(--rr-space-80) var(--rr-space-160);
+  margin: 0;
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  box-shadow: none;
+  min-height: 48px;
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading .page-header-l {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding-right: var(--rr-space-160);
+}
+
+/* ── Command mode tabs (Schedule / Print) ───────────────────── */
+
+#view-schedule.rrx-schedule .sched-cmd-tabs {
+  display: inline-flex;
+  gap: 2px;
+  position: absolute;
+  left: var(--rr-space-40);
+  bottom: 100%;
+  margin-bottom: -1px;
+}
+
+#view-schedule.rrx-schedule .sched-cmd-tab {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  font: var(--rr-font-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rr-fg-secondary);
+  padding: var(--rr-space-60) var(--rr-space-120);
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
+  transition:
+    color var(--rr-motion-fast),
+    background var(--rr-motion-fast),
+    border-color var(--rr-motion-fast);
+}
+
+#view-schedule.rrx-schedule .sched-cmd-tab:hover:not(.active) {
+  color: var(--rr-fg-primary);
+  background: var(--rr-bg-hover);
+}
+
+#view-schedule.rrx-schedule .sched-cmd-tab.active {
+  color: var(--rr-brand-primary);
+  background: var(--rr-bg-surface-1);
+  border-color: var(--rr-border-primary);
+}
+
+#view-schedule.rrx-schedule .sched-cmd-tab:focus-visible {
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: 1px;
+  color: var(--rr-brand-primary);
+}
+
+/* ── Ribbon actions row (right side of the command bar) ─────── */
+
+#view-schedule.rrx-schedule .sched-nav-heading-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: var(--rr-space-80);
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 auto;
+  overflow: visible;
+  min-height: 36px;
+}
+
+#view-schedule.rrx-schedule .sched-ribbon-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-40);
+}
+
+/* Hairline divider between ribbon groups */
+#view-schedule.rrx-schedule .sched-ribbon-group + .sched-ribbon-group::before {
+  content: "";
+  display: inline-block;
+  width: 1px;
+  height: 20px;
+  background: var(--rr-border-secondary);
+  margin-right: var(--rr-space-40);
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading-actions > .subnav,
+#view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group > .subnav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-40);
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+}
+
+/* ── Subnav tabs (Week / Today / Calendar / Staff / Requests) ── */
+
+#view-schedule.rrx-schedule .sched-nav-heading .subnav-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-80);
+  height: 32px;
+  padding: 0 var(--rr-space-120);
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--rr-radius-medium);
+  color: var(--rr-fg-secondary);
+  font: var(--rr-font-body);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--rr-motion-fast),
+    background var(--rr-motion-fast);
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading .subnav-item svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: currentColor;
+  stroke-width: 1.6;
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading .subnav-item span {
+  white-space: nowrap;
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading .subnav-item:hover {
+  color: var(--rr-fg-primary);
+  background: var(--rr-bg-hover);
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading .subnav-item.active {
+  color: var(--rr-brand-pressed);
+  background: var(--rr-bg-selected);
+  font-weight: 600;
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading .subnav-item.active svg {
+  color: var(--rr-brand-primary);
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading .subnav-item:focus-visible {
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: 1px;
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading .subnav-item::after {
+  display: none;
+}
+
+/* Indicator dots (today / requests) */
+#view-schedule.rrx-schedule .sched-today-indicator,
+#view-schedule.rrx-schedule .sched-requests-indicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rr-danger);
+  margin-left: var(--rr-space-40);
+}
+
+/* ── Page action buttons (Smart Fill, Finalize, Unassign, Kudos…) ── */
+
+#view-schedule.rrx-schedule .sched-page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-80);
+  height: 32px;
+  padding: 0 var(--rr-space-120);
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  font: var(--rr-font-body);
+  font-weight: 600;
+  color: var(--rr-fg-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--rr-motion-fast),
+    border-color var(--rr-motion-fast),
+    color var(--rr-motion-fast);
+}
+
+#view-schedule.rrx-schedule .sched-page-btn svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  color: var(--rr-fg-secondary);
+  stroke-width: 1.8;
+}
+
+#view-schedule.rrx-schedule .sched-page-btn:hover {
+  background: var(--rr-bg-hover);
+  border-color: var(--rr-fg-secondary);
+}
+
+#view-schedule.rrx-schedule .sched-page-btn:hover svg {
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .sched-page-btn:active {
+  background: var(--rr-bg-surface-2);
+}
+
+#view-schedule.rrx-schedule .sched-page-btn:focus-visible {
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: 1px;
+}
+
+/* Finalize — the single primary CTA on the page */
+#view-schedule.rrx-schedule .sched-page-btn#rr-sched-finalize-h:not([data-rr-stage="live"]) {
+  background: var(--rr-brand-primary);
+  border-color: var(--rr-brand-primary);
+  color: #FFFFFF;
+}
+
+#view-schedule.rrx-schedule .sched-page-btn#rr-sched-finalize-h:not([data-rr-stage="live"]) svg {
+  color: #FFFFFF;
+}
+
+#view-schedule.rrx-schedule .sched-page-btn#rr-sched-finalize-h:not([data-rr-stage="live"]):hover {
+  background: var(--rr-brand-hover);
+  border-color: var(--rr-brand-hover);
+  color: #FFFFFF;
+}
+
+#view-schedule.rrx-schedule .sched-page-btn#rr-sched-finalize-h:not([data-rr-stage="live"]):hover svg {
+  color: #FFFFFF;
+}
+
+#view-schedule.rrx-schedule .sched-page-btn#rr-sched-finalize-h[data-rr-stage="live"] {
+  background: var(--rr-success-soft);
+  border-color: var(--rr-success);
+  color: var(--rr-success);
+}
+
+#view-schedule.rrx-schedule .sched-page-btn#rr-sched-finalize-h[data-rr-stage="live"] svg {
+  color: var(--rr-success);
+}
+
+/* Split button — the Smart Fill + Rules pair */
+#view-schedule.rrx-schedule .sched-smartfill-split {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  overflow: hidden;
+  background: var(--rr-bg-surface-1);
+}
+
+#view-schedule.rrx-schedule .sched-smartfill-split .sched-page-btn {
+  border: 0;
+  border-radius: 0;
+  height: 32px;
+}
+
+#view-schedule.rrx-schedule .sched-page-btn-rules-foot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-40);
+  height: 32px;
+  padding: 0 var(--rr-space-100);
+  background: var(--rr-bg-surface-1);
+  border: 0;
+  border-left: 1px solid var(--rr-border-primary);
+  font: var(--rr-font-caption);
+  font-weight: 600;
+  color: var(--rr-fg-secondary);
+  cursor: pointer;
+  transition: background var(--rr-motion-fast), color var(--rr-motion-fast);
+}
+
+#view-schedule.rrx-schedule .sched-page-btn-rules-foot:hover {
+  background: var(--rr-bg-hover);
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .sched-page-btn-rules-foot svg {
+  width: 10px;
+  height: 10px;
+  color: currentColor;
+}
+
+#view-schedule.rrx-schedule .sched-page-btn-rules-foot[aria-expanded="true"] {
+  background: var(--rr-bg-selected);
+  color: var(--rr-brand-pressed);
+}
+
+/* Page button OKAMI / split variants — match base button by default */
+#view-schedule.rrx-schedule .sched-page-btn--okami,
+#view-schedule.rrx-schedule .sched-page-btn--split {
+  /* inherits base; no overrides needed beyond the variants above */
+}
+
+/* ── Tool buttons (compact icon-only) ───────────────────────── */
+
+#view-schedule.rrx-schedule .sched-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--rr-space-80);
+  height: 32px;
+  min-width: 32px;
+  padding: 0 var(--rr-space-100);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--rr-radius-medium);
+  color: var(--rr-fg-secondary);
+  font: var(--rr-font-body);
+  cursor: pointer;
+  transition: background var(--rr-motion-fast), color var(--rr-motion-fast);
+}
+
+#view-schedule.rrx-schedule .sched-tool-btn:hover {
+  background: var(--rr-bg-hover);
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .sched-tool-btn svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+#view-schedule.rrx-schedule .sched-tool-btn:focus-visible {
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: 1px;
+}
+
+/* ── Week nav (arrows + label + sub-label) ──────────────────── */
+
+#view-schedule.rrx-schedule .sched-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-120);
+  padding: var(--rr-space-80) 0;
+}
+
+#view-schedule.rrx-schedule .sched-week-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-80);
+}
+
+#view-schedule.rrx-schedule .sched-week-arrow {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  color: var(--rr-fg-secondary);
+  cursor: pointer;
+  transition: background var(--rr-motion-fast), color var(--rr-motion-fast), border-color var(--rr-motion-fast);
+}
+
+#view-schedule.rrx-schedule .sched-week-arrow:hover {
+  background: var(--rr-bg-hover);
+  color: var(--rr-fg-primary);
+  border-color: var(--rr-fg-secondary);
+}
+
+#view-schedule.rrx-schedule .sched-week-arrow svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+#view-schedule.rrx-schedule .sched-week-arrow:focus-visible {
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: 1px;
+}
+
+#view-schedule.rrx-schedule .sched-week-label {
+  font: var(--rr-font-body-strong);
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .sched-week-sub {
+  font: var(--rr-font-caption);
+  color: var(--rr-fg-secondary);
+  margin-top: 0;
+}
+
+/* ── Toolbar rail / cluster / divider — flatten ──────────────── */
+
+#view-schedule.rrx-schedule .sched-toolbar-rail {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-80);
+  padding: var(--rr-space-40) 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+#view-schedule.rrx-schedule .sched-toolbar-cluster {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-40);
+}
+
+#view-schedule.rrx-schedule .sched-toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--rr-border-secondary);
+  margin: 0 var(--rr-space-40);
+  border: 0;
+}
+
+/* ── Week tabs (smaller pill row, under the main toolbar) ──── */
+
+#view-schedule.rrx-schedule .sched-week-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 var(--rr-space-100);
+  background: transparent;
+  border: 0;
+  border-radius: var(--rr-radius-medium);
+  color: var(--rr-fg-secondary);
+  font: var(--rr-font-caption);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--rr-motion-fast), color var(--rr-motion-fast);
+}
+
+#view-schedule.rrx-schedule .sched-week-tab:hover {
+  background: var(--rr-bg-hover);
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .sched-week-tab.active {
+  background: var(--rr-bg-selected);
+  color: var(--rr-brand-pressed);
+}
+
+#view-schedule.rrx-schedule .sched-week-tab.active:hover {
+  background: var(--rr-bg-selected);
+}
+
+/* ── Status pill (Draft / Live / etc) ───────────────────────── */
+
+#view-schedule.rrx-schedule .sched-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-60);
+  height: 20px;
+  padding: 0 var(--rr-space-80);
+  background: var(--rr-neutral-soft);
+  color: var(--rr-fg-secondary);
+  border: 0;
+  border-radius: var(--rr-radius-pill);
+  font: var(--rr-font-caption);
+  font-weight: 600;
+}
+
+#view-schedule.rrx-schedule .sched-status-pill .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+#view-schedule.rrx-schedule .sched-status-pill.draft {
+  background: var(--rr-warning-soft);
+  color: #8A6A00;
+}
+
+#view-schedule.rrx-schedule .sched-status-pill.live {
+  background: var(--rr-success-soft);
+  color: var(--rr-success);
+}
+
+/* ── Requests cards (drilldown panels) — Fluent card look ──── */
+
+#view-schedule.rrx-schedule .sched-requests-card {
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  padding: var(--rr-space-160);
+  box-shadow: none;
+}
+
+#view-schedule.rrx-schedule .sched-requests-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--rr-space-120);
+  margin-bottom: var(--rr-space-120);
+}
+
+#view-schedule.rrx-schedule .sched-requests-card-title {
+  font: var(--rr-font-body-strong);
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .sched-requests-card-body {
+  font: var(--rr-font-body);
+  color: var(--rr-fg-primary);
+}
+
+/* ── Smartfill rules popover — keep functional, just calm it ── */
+
+#view-schedule.rrx-schedule .sched-smartfill-rules-popover {
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-large);
+  box-shadow: var(--rr-shadow-8);
+}
+
+#view-schedule.rrx-schedule .sched-smartfill-rules-head {
+  font: var(--rr-font-body-strong);
+  color: var(--rr-fg-primary);
+  padding: var(--rr-space-120) var(--rr-space-160);
+  border-bottom: 1px solid var(--rr-border-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-80);
+}
+
+#view-schedule.rrx-schedule .sched-smartfill-rules-head svg {
+  width: 14px;
+  height: 14px;
+  color: var(--rr-brand-primary);
+}
+
+#view-schedule.rrx-schedule .sched-smartfill-rules-body {
+  padding: var(--rr-space-160);
+  font: var(--rr-font-body);
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .sched-smartfill-advanced {
+  border-top: 1px solid var(--rr-border-secondary);
+  padding: var(--rr-space-120) var(--rr-space-160);
+}
+
+#view-schedule.rrx-schedule .sched-smartfill-advanced-head {
+  font: var(--rr-font-table-header);
+  color: var(--rr-fg-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--rr-space-80);
+}
+
+/* ── Quick settings popover — same calm treatment ──────────── */
+
+#view-schedule.rrx-schedule .sched-quick-settings-popover {
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-large);
+  box-shadow: var(--rr-shadow-8);
+}
+
+#view-schedule.rrx-schedule .sched-quick-settings-head {
+  padding: var(--rr-space-120) var(--rr-space-160);
+  border-bottom: 1px solid var(--rr-border-secondary);
+}
+
+#view-schedule.rrx-schedule .sched-quick-settings-title {
+  font: var(--rr-font-body-strong);
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .sched-quick-settings-body {
+  padding: var(--rr-space-160);
+}
+
+#view-schedule.rrx-schedule .sched-quick-settings-foot {
+  padding: var(--rr-space-120) var(--rr-space-160);
+  border-top: 1px solid var(--rr-border-secondary);
+}
+
+#view-schedule.rrx-schedule .sched-quick-setting-label {
+  font: var(--rr-font-body-strong);
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .sched-quick-setting-help {
+  font: var(--rr-font-caption);
+  color: var(--rr-fg-secondary);
+}
+
+/* ── Draw day buttons (template editor) ─────────────────────── */
+
+#view-schedule.rrx-schedule .sched-draw-day-row {
+  display: flex;
+  gap: var(--rr-space-40);
+}
+
+#view-schedule.rrx-schedule .sched-draw-day {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  color: var(--rr-fg-secondary);
+  font: var(--rr-font-caption);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--rr-motion-fast), border-color var(--rr-motion-fast), color var(--rr-motion-fast);
+}
+
+#view-schedule.rrx-schedule .sched-draw-day:hover {
+  background: var(--rr-bg-hover);
+  border-color: var(--rr-fg-secondary);
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .sched-draw-day:focus-visible {
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: 1px;
+}
+
+#view-schedule.rrx-schedule .sched-draw-day.on {
+  background: var(--rr-brand-primary);
+  border-color: var(--rr-brand-primary);
+  color: #FFFFFF;
+}
+
+#view-schedule.rrx-schedule .sched-draw-day-letter {
+  display: block;
+  font: var(--rr-font-caption);
+  font-weight: 600;
+}
