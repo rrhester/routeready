@@ -497,29 +497,56 @@
   color: var(--rr-fg-primary);
 }
 
-/* ── Smartfill rules popover — keep functional, just calm it ── */
+/* ── Rules / settings popovers (Smart Fill rules, Targets/Vans
+       rules, Quick Settings, Milestone rules) ────────────────────
+   Two things to fix together:
+   1. The Smart Fill popover (`min-width:860px`, `right:0`
+      anchor) routinely overflowed the viewport when the Smart
+      Fill button wasn't near the right edge of the page. Center
+      it under its button and constrain to viewport bounds.
+   2. The headers used a bright Microsoft-blue accent that read
+      as "too bright" against the rest of the calm chrome.
+      Replace with a muted-blue tinted band (brand-soft fill +
+      brand-pressed text) so the header is unmistakably a Rules
+      header without yelling.                                     */
+
+/* ── Smartfill rules popover ───────────────────────────────── */
 
 #view-schedule.rrx-schedule .sched-smartfill-rules-popover {
   background: var(--rr-bg-surface-1);
   border: 1px solid var(--rr-border-primary);
   border-radius: var(--rr-radius-large);
   box-shadow: var(--rr-shadow-8);
+  /* Stay in viewport. Anchor center-under-button; let the
+     viewport-relative width cap shrink it on narrow screens. */
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: min(720px, calc(100vw - var(--rr-space-400)));
+  max-width: calc(100vw - var(--rr-space-400));
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
 }
 
+/* Muted-blue header band */
 #view-schedule.rrx-schedule .sched-smartfill-rules-head {
   font: var(--rr-font-body-strong);
-  color: var(--rr-fg-primary);
+  color: var(--rr-brand-pressed);
+  background: var(--rr-brand-soft);
   padding: var(--rr-space-120) var(--rr-space-160);
-  border-bottom: 1px solid var(--rr-border-secondary);
+  border-bottom: 1px solid rgba(0, 120, 212, 0.20);
   display: flex;
   align-items: center;
   gap: var(--rr-space-80);
+  margin: 0;
+  border-top-left-radius: var(--rr-radius-large);
+  border-top-right-radius: var(--rr-radius-large);
 }
 
 #view-schedule.rrx-schedule .sched-smartfill-rules-head svg {
   width: 14px;
   height: 14px;
-  color: var(--rr-brand-primary);
+  color: var(--rr-brand-pressed);
 }
 
 #view-schedule.rrx-schedule .sched-smartfill-rules-body {
@@ -541,23 +568,33 @@
   margin-bottom: var(--rr-space-80);
 }
 
-/* ── Quick settings popover — same calm treatment ──────────── */
+/* ── Quick settings popover ─────────────────────────────────── */
 
 #view-schedule.rrx-schedule .sched-quick-settings-popover {
   background: var(--rr-bg-surface-1);
   border: 1px solid var(--rr-border-primary);
   border-radius: var(--rr-radius-large);
   box-shadow: var(--rr-shadow-8);
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - var(--rr-space-400));
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
 }
 
 #view-schedule.rrx-schedule .sched-quick-settings-head {
   padding: var(--rr-space-120) var(--rr-space-160);
-  border-bottom: 1px solid var(--rr-border-secondary);
+  border-bottom: 1px solid rgba(0, 120, 212, 0.20);
+  background: var(--rr-brand-soft);
+  color: var(--rr-brand-pressed);
+  border-top-left-radius: var(--rr-radius-large);
+  border-top-right-radius: var(--rr-radius-large);
 }
 
 #view-schedule.rrx-schedule .sched-quick-settings-title {
   font: var(--rr-font-body-strong);
-  color: var(--rr-fg-primary);
+  color: var(--rr-brand-pressed);
 }
 
 #view-schedule.rrx-schedule .sched-quick-settings-body {
@@ -577,6 +614,79 @@
 #view-schedule.rrx-schedule .sched-quick-setting-help {
   font: var(--rr-font-caption);
   color: var(--rr-fg-secondary);
+}
+
+/* ── Targets / Vans rules popover (split-tile sibling) ──────── */
+
+#view-schedule.rrx-schedule .sched-vans-rules-popover {
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-large);
+  box-shadow: var(--rr-shadow-8);
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - var(--rr-space-400));
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+#view-schedule.rrx-schedule .sched-vans-rules-head {
+  background: var(--rr-brand-soft);
+  color: var(--rr-brand-pressed);
+  padding: var(--rr-space-120) var(--rr-space-160);
+  border-bottom: 1px solid rgba(0, 120, 212, 0.20);
+  border-top-left-radius: var(--rr-radius-large);
+  border-top-right-radius: var(--rr-radius-large);
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--rr-space-80);
+}
+
+#view-schedule.rrx-schedule .sched-vans-rules-head-title {
+  font: var(--rr-font-body-strong);
+  color: var(--rr-brand-pressed);
+}
+
+#view-schedule.rrx-schedule .sched-vans-rules-info {
+  color: var(--rr-brand-pressed);
+}
+
+#view-schedule.rrx-schedule .sched-vans-rules-info:hover,
+#view-schedule.rrx-schedule .sched-vans-rules-info:focus-visible {
+  background: rgba(0, 120, 212, 0.12);
+  color: var(--rr-brand-primary);
+  outline: none;
+}
+
+/* ── Milestone (Kudos) rules popover ────────────────────────── */
+
+#view-schedule.rrx-schedule .sched-milestone-rules-popover {
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-large);
+  box-shadow: var(--rr-shadow-8);
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - var(--rr-space-400));
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+#view-schedule.rrx-schedule .sched-milestone-rules-head {
+  background: var(--rr-brand-soft);
+  color: var(--rr-brand-pressed);
+  padding: var(--rr-space-120) var(--rr-space-160);
+  border-bottom: 1px solid rgba(0, 120, 212, 0.20);
+  border-top-left-radius: var(--rr-radius-large);
+  border-top-right-radius: var(--rr-radius-large);
+  margin-bottom: 0;
+  font: var(--rr-font-body-strong);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 /* ── Draw day buttons (template editor) ─────────────────────── */
@@ -639,12 +749,17 @@
    across every sub-tab.
    ============================================================ */
 
-#view-schedule.rrx-schedule .tp-kpis {
+/* Both KPI strips share one container chrome (flex, no gap,
+   pills separated by their own right-border). Identical
+   padding/min-height/border so Today / Fleet calendar /
+   Requests / Week all read at the same height. */
+#view-schedule.rrx-schedule .tp-kpis,
+#view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--rr-space-200);
-  padding: var(--rr-space-100) var(--rr-space-160);
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
   background: var(--rr-bg-surface-1);
   border: 1px solid var(--rr-border-primary);
   border-radius: var(--rr-radius-medium);
@@ -652,53 +767,78 @@
   font: var(--rr-font-body);
   min-height: 46px;
   margin: 0 0 var(--rr-space-160);
+  overflow: hidden;
 }
 
-/* Match the Week-view ribbon pill typography so individual KPIs
-   line up visually between the two layouts. */
+/* Every KPI pill (Week-view `.sched-kpi-pill`, Today-view
+   `.tp-kpi-pill`) renders as the same Outlook-style cell:
+   11/24 padding, hairline right-border, tabular numbers, dot
+   + label + optional sub. */
+#view-schedule.rrx-schedule .sched-kpi-pill,
+#view-schedule.rrx-schedule .tp-kpi-pill,
 #view-schedule.rrx-schedule .tp-kpis .tp-kpi-pill {
   display: inline-flex;
   align-items: center;
-  gap: var(--rr-space-80);
+  gap: var(--rr-space-100);
+  padding: var(--rr-space-120) var(--rr-space-240);
+  border-right: 1px solid var(--rr-border-secondary);
   font: var(--rr-font-body);
   font-weight: 600;
   color: var(--rr-fg-primary);
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  min-height: 46px;
 }
 
-#view-schedule.rrx-schedule .tp-kpis .tp-kpi-dot {
-  width: 9px;
-  height: 9px;
+#view-schedule.rrx-schedule .sched-kpi-pill:last-child,
+#view-schedule.rrx-schedule .tp-kpi-pill:last-child,
+#view-schedule.rrx-schedule .tp-kpis .tp-kpi-pill:last-child {
+  border-right: 0;
+}
+
+#view-schedule.rrx-schedule .sched-kpi-dot,
+#view-schedule.rrx-schedule .tp-kpi-dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-#view-schedule.rrx-schedule .tp-kpis .tp-kpi-sub {
+#view-schedule.rrx-schedule .sched-kpi-text,
+#view-schedule.rrx-schedule .tp-kpi-text {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.15;
+  gap: 1px;
+}
+
+#view-schedule.rrx-schedule .sched-kpi-sub,
+#view-schedule.rrx-schedule .tp-kpi-sub {
   font: var(--rr-font-caption);
   font-weight: 500;
   color: var(--rr-fg-secondary);
-  margin-top: 2px;
-}
-
-/* Same treatment for the Week-view's pill strip so both look
-   identical: spacing, surface, hairline border, weight. The
-   original .sched-kpi-pills rule (line 13679 inline) already
-   sets surface + border-radius; just normalize spacing here. */
-#view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills {
-  padding: var(--rr-space-100) var(--rr-space-160);
-  border-radius: var(--rr-radius-medium);
-  box-shadow: none;
-  min-height: 46px;
+  letter-spacing: 0;
+  text-transform: none;
+  margin-top: 0;
 }
 
 /* ============================================================
    Persistent scrollbars on the schedule grid + the open-shifts
-   tray. Default browser behavior fades scrollbars in/out as the
-   pointer moves — the operator loses orientation about where
-   they are in the week / which open shifts are still off-screen.
-   Forcing `overflow-y:scroll` always reserves space (no layout
-   shift), and a styled webkit thumb keeps the bar visible at
-   rest on Chromium / Safari.
+   tray + driver pool. Default browser behavior fades scrollbars
+   in/out as the pointer moves (and macOS uses an overlay
+   scrollbar that fully hides at rest) — the operator loses
+   orientation about how much is off-screen.
+
+   Three things keep the bar visible at rest:
+     1. `overflow-y: scroll` always reserves the scroll gutter
+        (no layout shift when content shrinks).
+     2. `scrollbar-gutter: stable` ensures the gutter is part of
+        the box even before content overflows.
+     3. `::-webkit-scrollbar { -webkit-appearance: none }`
+        REPLACES the macOS overlay scrollbar with a classic,
+        always-visible scrollbar. Without this, the styled
+        ::-webkit-scrollbar-thumb below is invisible at rest on
+        macOS Safari/Chrome regardless of width.
    ============================================================ */
 
 #view-schedule.rrx-schedule .cal-wrap,
@@ -706,14 +846,20 @@
 #view-schedule.rrx-schedule .driver-pool {
   overflow-y: scroll;
   scrollbar-gutter: stable;
-  scrollbar-width: thin;
+  /* Firefox uses scrollbar-width:auto for an always-visible
+     classic bar (thin makes Firefox use overlay-style on some
+     systems). */
+  scrollbar-width: auto;
   scrollbar-color: var(--rr-border-primary) var(--rr-bg-surface-2);
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar,
 #view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar,
 #view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar {
-  width: 10px;
+  -webkit-appearance: none;  /* macOS: defeat overlay auto-hide */
+  appearance: none;
+  width: 12px;
+  height: 12px;
   background: var(--rr-bg-surface-2);
 }
 
@@ -721,12 +867,13 @@
 #view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar-track,
 #view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-track {
   background: var(--rr-bg-surface-2);
+  border-left: 1px solid var(--rr-border-secondary);
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-thumb {
-  background: var(--rr-border-primary);
+  background: var(--rr-fg-disabled);
   border: 2px solid var(--rr-bg-surface-2);
   border-radius: var(--rr-radius-pill);
   min-height: 36px;
@@ -736,4 +883,10 @@
 #view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar-thumb:hover,
 #view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-thumb:hover {
   background: var(--rr-fg-secondary);
+}
+
+#view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-corner,
+#view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar-corner,
+#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-corner {
+  background: var(--rr-bg-surface-2);
 }
