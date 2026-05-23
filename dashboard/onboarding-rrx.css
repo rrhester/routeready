@@ -36,8 +36,23 @@
   color: var(--rr-fg-primary);
 }
 
-#view-onboarding-ops.rrx-onboarding .page {
-  padding: var(--rr-space-200);
+/* Opt out of the global .page default-scroll. Onboarding keeps
+   the command bar fixed at the top and lets the active sub-page
+   below it scroll. */
+#view-onboarding-ops.rrx-onboarding > .page {
+  padding: var(--rr-space-200) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+/* Everything below the command bar that isn't the header itself
+   becomes the scroll container — fills the remaining height. */
+#view-onboarding-ops.rrx-onboarding > .page > :not(.page-header):not(.sched-nav-heading):not(style):not(script) {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
 }
 
 /* ── Title block ────────────────────────────────────────────── */
@@ -238,6 +253,17 @@
   border: 0 !important;
   padding: 0 !important;
   margin: 0 !important;
+}
+
+/* Baseline-align tiles that DON'T have a Rules footer (Work
+   auth, Interview Day, Calendar, Add applicant) with the ones
+   that DO (Onboarding, Funnel). The Rules footer adds ~22px
+   below the tile, so plain tiles get an equivalent bottom
+   margin reserved. Targets every direct child of the subnav
+   that isn't an ob-tab-wrap (which already includes its own
+   footer height). */
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav > .subnav-item {
+  margin-bottom: 22px !important;
 }
 
 /* ── Rules footer link under each tile (.ob-rules-foot) ─────── */
