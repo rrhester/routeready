@@ -22090,6 +22090,16 @@ body.rr-cmdk-open{ overflow:hidden }
             font-variant-numeric:tabular-nums;
           }
           #view-email .em-folder.active .em-folder-count{color:var(--sch-blue)}
+          /* Pill badge when there are unread/new messages. */
+          #view-email .em-folder-count.has-new{
+            background:var(--sch-blue);color:#fff;
+            border-radius:9px;padding:1px 7px;min-width:18px;
+            font-size:10px;line-height:1.4;text-align:center;
+            display:inline-block;
+          }
+          #view-email .em-folder.active .em-folder-count.has-new{
+            background:#fff;color:var(--sch-blue);
+          }
           #view-email .em-folder-delete{
             display:none;background:transparent;border:0;cursor:pointer;
             color:var(--text-subtle);padding:0;
