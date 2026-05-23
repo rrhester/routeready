@@ -25741,22 +25741,15 @@ function _activateSchedSub(sub) {
     _resetSchedHeading();
   }
 }
-// ── Print orientation toggle ──────────────────────────────────────
-// Browsers don't expose a print-orientation API to JS, so we inject
-// a tiny <style> element with `@page { size: landscape | portrait }`
-// before window.print() and remove it after. The selected orientation
-// per print target (schedule / onboarding) is mirrored on
-// `data-rr-print-orient` of the active toggle button.
+// ── Print orientation defaults ────────────────────────────────────
+// Each print target gets a sensible DEFAULT page orientation,
+// injected as a `@media print { @page { size: X } }` style right
+// before window.print() and removed in afterprint. Chrome's native
+// print dialog still lets the operator override the orientation
+// via its More-settings panel — we just pick a smart starting
+// orientation per page so the preview opens at the right shape
+// (wide grids = landscape, tall lists = portrait).
 const _rrPrintOrient = { schedule: "landscape", onboarding: "portrait", fleet: "landscape" };
-
-function _rrSetPrintOrient(target, orient) {
-  if (orient !== "landscape" && orient !== "portrait") return;
-  _rrPrintOrient[target] = orient;
-  document.querySelectorAll(`.rr-print-orient-btn[data-rr-orient-target="${target}"]`).forEach((b) => {
-    const on = b.getAttribute("data-rr-print-orient") === orient;
-    b.setAttribute("aria-pressed", on ? "true" : "false");
-  });
-}
 
 function _rrApplyPrintOrient(target) {
   // Remove any prior injected orientation style first.
@@ -25895,18 +25888,6 @@ async function _obPrintPtoReport() {
 }
 
 document.addEventListener("click", (e) => {
-  // Print orientation toggles — set the active orientation for the
-  // matching print target. The actual `@page size` switch happens
-  // when the user clicks Print (via _rrApplyPrintOrient).
-  const orientBtn = e.target.closest(".rr-print-orient-btn");
-  if (orientBtn) {
-    e.preventDefault();
-    _rrSetPrintOrient(
-      orientBtn.getAttribute("data-rr-orient-target") || "schedule",
-      orientBtn.getAttribute("data-rr-print-orient") || "landscape"
-    );
-    return;
-  }
   // Onboarding cmd-tab clicks (Onboarding / Print-Download).
   const obTab = e.target.closest(".ob-cmd-tab");
   if (obTab) {
