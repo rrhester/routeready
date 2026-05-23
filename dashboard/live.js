@@ -1204,9 +1204,12 @@ window.paAction = function (btn, action, _name) {
 // (not the surrounding page chrome) ends up on the page / PDF.
 function _schedCmdTab(mode) {
   const cmd = document.getElementById("rr-sched-cmd");
-  if (!cmd) return;
-  cmd.classList.toggle("is-print", mode === "print");
-  cmd.querySelectorAll(".sched-cmd-tab").forEach((t) => {
+  if (cmd) cmd.classList.toggle("is-print", mode === "print");
+  // The tabs themselves moved out of #rr-sched-cmd to the V2 strip
+  // in PR #1621, so the .active class must be toggled document-wide
+  // (and on any legacy tabs still in the DOM in case both copies
+  // are ever rendered).
+  document.querySelectorAll(".sched-cmd-tab").forEach((t) => {
     const on = t.getAttribute("data-cmd-tab") === mode;
     t.classList.toggle("active", on);
     t.setAttribute("aria-selected", on ? "true" : "false");

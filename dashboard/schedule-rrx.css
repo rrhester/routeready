@@ -33,7 +33,11 @@
 /* ── Workspace baseline ─────────────────────────────────────── */
 
 #view-schedule.rrx-schedule {
-  background: var(--rr-bg-canvas);
+  /* Match the Overtime page's background — Overtime inherits the
+     legacy `--canvas` token (#EEF1F5, cool blue-gray). Schedule
+     was sitting on `--rr-bg-canvas` (#F3F2F1, warm gray). Switch
+     to the legacy token so both pages share one ground tone. */
+  background: var(--canvas, #EEF1F5);
   font-family: var(--rr-font-family);
   color: var(--rr-fg-primary);
 }
@@ -2053,4 +2057,94 @@
 #view-schedule.rrx-schedule .sched-v2-status-pill {
   min-width: 80px;
   justify-content: center;
+}
+
+/* ============================================================
+   Shift chips · more vibrant fill
+   ------------------------------------------------------------
+   Default chip was brand-soft (#0078D4 @ 10% / 20% border) —
+   too pale against the now-cooler page background. Bumping to
+   ~16% fill, ~35% border, darker route text.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: rgba(0, 120, 212, 0.16) !important;
+  border-color: rgba(0, 120, 212, 0.36) !important;
+  color: var(--rr-fg-primary) !important;
+}
+
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
+  color: #0E4F86 !important;
+  font-weight: 700 !important;
+}
+
+/* On hover, lift saturation further so the chip reads as
+   actively focused. */
+#view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: rgba(0, 120, 212, 0.22) !important;
+  border-color: rgba(0, 120, 212, 0.50) !important;
+}
+
+/* ============================================================
+   Open shifts box · more defined outline on each unfilled row
+   ------------------------------------------------------------
+   The .open-shift rows in the open shifts panel currently use
+   a 1px pale border + 3px red left bar. Bump the outer border
+   to 1.5px in a darker tone so each unassigned row reads as
+   clearly bordered.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .pool-openshifts .open-shift,
+#view-schedule.rrx-schedule .open-shift {
+  border: 1.5px solid #C8C6C4 !important;
+  border-left-width: 3px !important;
+  border-left-color: var(--rr-danger) !important;
+  box-shadow: var(--rr-shadow-2);
+}
+
+#view-schedule.rrx-schedule .pool-openshifts .open-shift:hover,
+#view-schedule.rrx-schedule .open-shift:hover {
+  border-color: #8A8886 !important;
+  border-left-color: var(--rr-danger) !important;
+  box-shadow: var(--rr-shadow-4);
+}
+
+/* Also bump the open-shift CHIPS in the calendar grid for the
+   same "more defined" treatment. */
+#view-schedule.rrx-schedule .shift-chip.open {
+  border-width: 1.5px !important;
+  border-style: dashed !important;
+  border-color: #8A8886 !important;
+  color: var(--rr-fg-primary) !important;
+}
+
+#view-schedule.rrx-schedule .cal-cell:hover .shift-chip.open {
+  border-color: var(--rr-brand-primary) !important;
+  background: var(--rr-brand-soft) !important;
+  color: var(--rr-brand-pressed) !important;
+}
+
+/* ============================================================
+   Smart Fill bolt · more visible spin
+   ------------------------------------------------------------
+   The existing 0.9s rotate is correct but subtle. Add a slight
+   scale pulse and bump to two rotations so the bolt clearly
+   "engages" on click.
+   ============================================================ */
+
+@keyframes rr-v2-spin-pulse {
+  0%   { transform: rotate(0deg)   scale(1);    }
+  50%  { transform: rotate(360deg) scale(1.18); }
+  100% { transform: rotate(720deg) scale(1);    }
+}
+
+#view-schedule.rrx-schedule .sched-v2-tile.is-v2-spin svg {
+  animation: rr-v2-spin-pulse 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) !important;
+  transform-origin: 50% 50% !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #view-schedule.rrx-schedule .sched-v2-tile.is-v2-spin svg {
+    animation: none !important;
+  }
 }
