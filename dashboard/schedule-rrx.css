@@ -1055,6 +1055,45 @@
   background: #323130 !important;
 }
 
+/* macOS Chrome can still fade the thumb to invisible when idle
+   even with -webkit-appearance: none. Force every visibility
+   property on the thumb in every pseudo-state so it cannot fade. */
+#view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-thumb,
+#view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-thumb:vertical,
+#view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-thumb:horizontal,
+#view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-thumb:active,
+#view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-thumb:window-inactive,
+#view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar-thumb,
+#view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar-thumb:vertical,
+#view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar-thumb:active,
+#view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar-thumb:window-inactive,
+#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-thumb,
+#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-thumb:vertical,
+#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-thumb:active,
+#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-thumb:window-inactive {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+/* Same lock on the track + the scrollbar container itself, so the
+   reserved gutter never collapses to overlay mode. */
+#view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar:vertical,
+#view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar:horizontal,
+#view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar:vertical,
+#view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar:vertical {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 14px !important;
+  height: 14px !important;
+  background: #E1DFDD !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-corner,
 #view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar-corner,
 #view-schedule.rrx-schedule .pool-openshifts-foot::-webkit-scrollbar-corner,
