@@ -22307,6 +22307,126 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:12px;color:var(--text-subtle);
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
           }
+          /* Unread row · bold sender + blue rail on the left. */
+          #view-email .em-msg-row.unread .em-msg-who{font-weight:700;color:var(--text)}
+          #view-email .em-msg-row.unread::before{
+            content:"";position:absolute;left:2px;top:10px;bottom:10px;
+            width:3px;background:#0078d4;border-radius:2px;
+          }
+          /* Inbox toolbar · sticky row with All/Unread tabs + sort. */
+          #view-email .em-inbox-toolbar{
+            position:sticky;top:0;z-index:2;background:var(--surface);
+            display:flex;align-items:center;justify-content:space-between;
+            gap:8px;padding:4px 6px 8px 6px;
+            border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));
+          }
+          #view-email .em-inbox-tabs{display:flex;gap:2px}
+          #view-email .em-inbox-tab{
+            padding:5px 10px;border:0;background:transparent;
+            border-radius:4px;font:inherit;font-size:13px;font-weight:500;
+            color:var(--text-subtle);cursor:pointer;
+            display:inline-flex;align-items:center;gap:6px;
+          }
+          #view-email .em-inbox-tab:hover{background:rgba(15,23,42,.04);color:var(--text)}
+          #view-email .em-inbox-tab.active{background:rgba(0,120,212,.10);color:#0078d4}
+          #view-email .em-tab-count{
+            background:#0078d4;color:#fff;font-size:10px;
+            padding:1px 6px;border-radius:9px;min-width:18px;
+            text-align:center;line-height:1.4;font-weight:600;
+          }
+          #view-email .em-inbox-sort{
+            display:inline-flex;align-items:center;gap:5px;
+            padding:5px 8px;border:0;background:transparent;
+            border-radius:4px;font:inherit;font-size:12px;
+            color:var(--text-subtle);cursor:pointer;
+          }
+          #view-email .em-inbox-sort:hover{background:rgba(15,23,42,.04);color:var(--text)}
+          /* Date-bucket ribbon · sticky group header. */
+          #view-email .em-msg-group{display:flex;flex-direction:column}
+          #view-email .em-msg-group-header{
+            position:sticky;top:36px;z-index:1;
+            display:flex;align-items:center;gap:6px;width:100%;
+            padding:6px 10px;border:0;cursor:pointer;
+            background:rgba(15,23,42,.035);color:var(--text-subtle);
+            font:inherit;font-size:11px;font-weight:600;
+            letter-spacing:.04em;text-transform:uppercase;
+            border-top:1px solid var(--border-subtle,rgba(15,23,42,.06));
+            border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));
+            text-align:left;
+          }
+          #view-email .em-msg-group-header:hover{background:rgba(15,23,42,.06);color:var(--text)}
+          #view-email .em-msg-group-chevron{transition:transform 120ms ease;color:var(--text-subtle)}
+          #view-email .em-msg-group:not(.collapsed) .em-msg-group-chevron{transform:rotate(90deg)}
+          #view-email .em-msg-group-label{flex:1}
+          #view-email .em-msg-group-count{
+            background:rgba(15,23,42,.06);color:var(--text-subtle);
+            font-size:10px;font-weight:500;padding:1px 7px;border-radius:9px;
+            letter-spacing:0;text-transform:none;
+          }
+          /* Always-visible scrollbar for the inbox list. */
+          #view-email .em-inbox{overflow-y:scroll}
+          /* Folder · "+" icon on hover for adding a sub-folder. */
+          #view-email .em-folder-add{
+            display:none;background:transparent;border:0;cursor:pointer;
+            color:var(--text-subtle);padding:0;
+            width:18px;height:18px;border-radius:3px;
+            align-items:center;justify-content:center;margin-left:auto;
+          }
+          #view-email .em-folder:hover .em-folder-add{display:inline-flex}
+          #view-email .em-folder-add:hover{background:rgba(15,23,42,.08);color:#0078d4}
+          /* Pop-out email icon-strip. */
+          .em-popout-card{
+            background:var(--canvas);border:1px solid var(--border);
+            border-radius:var(--r-xl);width:95vw;height:90vh;max-width:1400px;
+            display:flex;flex-direction:column;overflow:hidden;
+          }
+          .em-popout-iconbar{
+            display:flex;align-items:center;gap:2px;padding:6px 10px;
+            background:var(--surface);border-bottom:1px solid var(--border);
+          }
+          .em-popout-ibtn{
+            display:inline-flex;flex-direction:column;align-items:center;
+            justify-content:center;gap:2px;
+            padding:6px 12px;border:0;background:transparent;cursor:pointer;
+            font:inherit;font-size:11px;color:var(--text);border-radius:4px;
+            min-width:60px;
+          }
+          .em-popout-ibtn:hover{background:rgba(0,120,212,.08);color:#0078d4}
+          .em-popout-ibtn svg{display:block}
+          .em-popout-ibtn-close{margin-left:auto;min-width:36px;padding:6px 8px}
+          .em-popout-ibtn-close span{display:none}
+          .em-popout-move-wrap{position:relative}
+          .em-popout-move-menu{
+            position:absolute;top:100%;left:0;margin-top:4px;
+            background:var(--surface);border:1px solid var(--border);
+            border-radius:6px;box-shadow:0 4px 16px rgba(15,23,42,.15);
+            padding:4px;min-width:220px;max-height:320px;overflow-y:auto;
+            z-index:10;display:flex;flex-direction:column;gap:1px;
+          }
+          .em-popout-move-item{
+            display:flex;align-items:center;gap:8px;
+            padding:7px 10px;border:0;background:transparent;cursor:pointer;
+            font:inherit;font-size:13px;color:var(--text);border-radius:4px;
+            text-align:left;width:100%;
+          }
+          .em-popout-move-item:hover{background:rgba(0,120,212,.08);color:#0078d4}
+          .em-popout-move-item svg{width:14px;height:14px;flex:0 0 auto}
+          .em-popout-move-empty{padding:8px 12px;color:var(--text-subtle);font-size:12px}
+          .em-popout-subject{
+            padding:14px 20px 6px;font-size:18px;font-weight:600;line-height:1.3;
+            color:var(--text);
+          }
+          .em-popout-meta{
+            padding:0 20px 14px;font-size:13px;color:var(--text-subtle);
+            display:flex;flex-direction:column;gap:3px;
+            border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));
+          }
+          .em-popout-meta strong{color:var(--text);min-width:62px;display:inline-block;font-weight:600}
+          .em-popout-body{
+            flex:1;overflow-y:auto;padding:18px 20px;
+            font-size:14px;line-height:1.55;color:var(--text);
+            word-wrap:break-word;background:#fff;
+          }
           /* —— Message preview pane ———————————————————————————————— */
           #view-email .em-preview-header{
             padding:0 6px 14px;
