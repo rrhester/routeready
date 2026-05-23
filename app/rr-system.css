@@ -1321,26 +1321,46 @@ body {
    against any surface in the app.
    ============================================================ */
 
-.app *::-webkit-scrollbar {
+.app *::-webkit-scrollbar,
+.app *::-webkit-scrollbar:vertical,
+.app *::-webkit-scrollbar:horizontal {
   -webkit-appearance: none !important;
   appearance: none !important;
   width: 14px !important;
   height: 14px !important;
   background: #E1DFDD !important;  /* visibly darker than surface */
   display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
-.app *::-webkit-scrollbar-track {
+.app *::-webkit-scrollbar-track,
+.app *::-webkit-scrollbar-track:vertical {
   background: #E1DFDD !important;
   border-left: 1px solid #C8C6C4 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
-.app *::-webkit-scrollbar-thumb {
+/* Thumb — locked visible in every pseudo-state so macOS Chrome
+   can't fade it to overlay mode when idle. The :window-inactive
+   state is the one that the auto-hide animation targets; we
+   override it to stay fully opaque. */
+.app *::-webkit-scrollbar-thumb,
+.app *::-webkit-scrollbar-thumb:vertical,
+.app *::-webkit-scrollbar-thumb:horizontal,
+.app *::-webkit-scrollbar-thumb:active,
+.app *::-webkit-scrollbar-thumb:window-inactive {
+  -webkit-appearance: none !important;
+  appearance: none !important;
   background: #5A5A5A !important;  /* dark — unmistakable against the track */
   background-clip: padding-box !important;
   border: 3px solid #E1DFDD !important;
   border-radius: var(--rr-radius-pill) !important;
   min-height: 56px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  transition: none !important;
 }
 
 .app *::-webkit-scrollbar-thumb:hover {
