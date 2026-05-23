@@ -23,7 +23,7 @@
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
      `rrx-schedule` class on the view-schedule element. -->
-<link rel="stylesheet" href="schedule-rrx.css?v=9">
+<link rel="stylesheet" href="schedule-rrx.css?v=10">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -19649,6 +19649,16 @@ body.rr-cmdk-open{ overflow:hidden }
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/><polyline points="9 9 11 9"/></svg>
                 <span>Proof of Use</span>
               </button>
+              <div class="rr-print-orient" role="group" aria-label="Page orientation">
+                <button type="button" class="rr-print-orient-btn" data-rr-print-orient="landscape" data-rr-orient-target="fleet" aria-pressed="true" title="Landscape orientation">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="1.5"/></svg>
+                  Landscape
+                </button>
+                <button type="button" class="rr-print-orient-btn" data-rr-print-orient="portrait" data-rr-orient-target="fleet" aria-pressed="false" title="Portrait orientation">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="1.5"/></svg>
+                  Portrait
+                </button>
+              </div>
             </div>
           </div>
         </div>
