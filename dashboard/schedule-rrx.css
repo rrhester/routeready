@@ -145,7 +145,9 @@
   max-width: 100%;
   flex: 1 1 auto;
   overflow: visible;
-  min-height: 36px;
+  /* No min-height — items with a "Rules ⌄" footer (Smart Fill,
+     Targets, Unassign, Kudos) need the action row to flow with
+     content height; a fixed min-height squeezes them. */
 }
 
 #view-schedule.rrx-schedule .sched-ribbon-group {
@@ -203,8 +205,8 @@
 }
 
 #view-schedule.rrx-schedule .sched-nav-heading .subnav-item svg {
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
   flex: 0 0 auto;
   color: currentColor;
   stroke-width: 1.6;
@@ -272,11 +274,11 @@
 }
 
 #view-schedule.rrx-schedule .sched-page-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 22px;
+  height: 22px;
   flex: 0 0 auto;
   color: var(--rr-fg-secondary);
-  stroke-width: 1.8;
+  stroke-width: 1.6;
 }
 
 #view-schedule.rrx-schedule .sched-page-btn:hover {
@@ -328,53 +330,14 @@
   color: var(--rr-success);
 }
 
-/* Split button — the Smart Fill + Rules pair */
-#view-schedule.rrx-schedule .sched-smartfill-split {
-  display: inline-flex;
-  align-items: stretch;
-  border: 1px solid var(--rr-border-primary);
-  border-radius: var(--rr-radius-medium);
-  overflow: hidden;
-  background: var(--rr-bg-surface-1);
-}
-
-#view-schedule.rrx-schedule .sched-smartfill-split .sched-page-btn {
-  border: 0;
-  border-radius: 0;
-  height: 32px;
-}
-
-#view-schedule.rrx-schedule .sched-page-btn-rules-foot {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--rr-space-40);
-  height: 32px;
-  padding: 0 var(--rr-space-100);
-  background: var(--rr-bg-surface-1);
-  border: 0;
-  border-left: 1px solid var(--rr-border-primary);
-  font: var(--rr-font-caption);
-  font-weight: 600;
-  color: var(--rr-fg-secondary);
-  cursor: pointer;
-  transition: background var(--rr-motion-fast), color var(--rr-motion-fast);
-}
-
-#view-schedule.rrx-schedule .sched-page-btn-rules-foot:hover {
-  background: var(--rr-bg-hover);
-  color: var(--rr-fg-primary);
-}
-
-#view-schedule.rrx-schedule .sched-page-btn-rules-foot svg {
-  width: 10px;
-  height: 10px;
-  color: currentColor;
-}
-
-#view-schedule.rrx-schedule .sched-page-btn-rules-foot[aria-expanded="true"] {
-  background: var(--rr-bg-selected);
-  color: var(--rr-brand-pressed);
-}
+/* Smart Fill / Targets / Unassign / Kudos all wrap their main
+   action button in a `.sched-smartfill-split` / `.sched-vans-rules-split`
+   that stacks a "Rules ⌄" footer underneath the button — Outlook
+   Quick Steps pattern. The original CSS sets `flex-direction:column`
+   on those splits. We intentionally do NOT re-style the split
+   wrapper or `.sched-page-btn-rules-foot` here so the original
+   vertical-stack layout (and Smart Fill's vibrant gradient + glow
+   on `#rr-sched-smartfill-h`) keeps working untouched. */
 
 /* Page button OKAMI / split variants — match base button by default */
 #view-schedule.rrx-schedule .sched-page-btn--okami,
@@ -407,8 +370,8 @@
 }
 
 #view-schedule.rrx-schedule .sched-tool-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   flex: 0 0 auto;
 }
 
