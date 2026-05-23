@@ -9135,7 +9135,7 @@ body.rr-cmdk-open{ overflow:hidden }
       </button>
       <button class="nav-item" data-view="email" data-c="messages" onclick="goto('email')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg></span>
-        Email
+        Fleet Bridge
       </button>
       <button class="nav-item" data-view="documents" data-c="forms" onclick="goto('documents')">
         <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></span>
@@ -12139,6 +12139,28 @@ body.rr-cmdk-open{ overflow:hidden }
                   <button class="btn btn-sm btn-primary" id="rr-set-dsp-name-save" type="button">Save</button>
                 </div>
               </div>
+              <!-- Fleet Bridge address · auto-generated from the DSP
+                   name. The DSP enters their Gmail below; messages
+                   sent to <slug>@routeready.com forward there. -->
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Fleet Bridge address</div>
+                  <div class="form-help">Generated from your DSP name. Messages sent here forward to your linked Gmail.</div>
+                </div>
+                <div style="display:flex;gap:var(--s-2);align-items:center">
+                  <input class="form-input" id="rr-set-fb-email" value="" readonly style="flex:1;background:var(--canvas);font-family:ui-monospace,SFMono-Regular,Menlo,monospace"/>
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Linked Gmail</div>
+                  <div class="form-help">Your business Gmail account. Mail sent to your Fleet Bridge address forwards here.</div>
+                </div>
+                <div style="display:flex;gap:var(--s-2);align-items:center">
+                  <input class="form-input" id="rr-set-fb-gmail" type="email" placeholder="you@gmail.com" value="" style="flex:1"/>
+                  <button class="btn btn-sm btn-primary" id="rr-set-fb-gmail-save" type="button">Save</button>
+                </div>
+              </div>
               <div class="form-row">
                 <div>
                   <div class="form-label">Reply email</div>
@@ -13189,17 +13211,14 @@ body.rr-cmdk-open{ overflow:hidden }
                      clean monoline outline; when vans are assigned
                      for the week the cargo box fills with dark
                      blue and the cab fills with brand red. -->
-                <svg class="rr-van-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <!-- Cargo box (left, larger) -->
-                  <rect class="rr-van-cargo" x="2" y="4.5" width="13" height="12" rx="1"/>
-                  <!-- Cab (right) · flat top then sloped windshield -->
-                  <path class="rr-van-cab" d="M15 8 h4.4 l2.6 3.2 v5.3 h-7z"/>
+                <svg class="rr-van-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <!-- Cargo box (left, larger) — tightened proportions. -->
+                  <rect class="rr-van-cargo" x="2" y="6" width="11" height="9" rx="1.4"/>
+                  <!-- Cab (right) · flat top then sloped windshield. -->
+                  <path class="rr-van-cab" d="M13 9 h4.4 l2.6 3 v3 h-7z"/>
                   <!-- Wheels -->
-                  <circle cx="6.5"  cy="18" r="2"/>
-                  <circle cx="17.6" cy="18" r="2"/>
-                  <!-- Wheel hubs -->
-                  <circle class="rr-van-hub" cx="6.5"  cy="18" r=".6" fill="currentColor" stroke="none"/>
-                  <circle class="rr-van-hub" cx="17.6" cy="18" r=".6" fill="currentColor" stroke="none"/>
+                  <circle cx="6.2" cy="16.8" r="1.7"/>
+                  <circle cx="16.8" cy="16.8" r="1.7"/>
                 </svg>
                 Assign
                 <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
@@ -13326,7 +13345,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
             <button class="sched-page-btn" id="rr-sched-finalize-h" data-rr-tile="finalize" draggable="true" type="button" title="Push this week's schedule to drivers">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
               Finalize
             </button>
             <!-- Kudos · opens the Send Kudos modal (live.js). Below
@@ -13334,7 +13353,7 @@ body.rr-cmdk-open{ overflow:hidden }
                  which milestone banners appear on the schedule. -->
             <div class="sched-kudos-split">
               <button class="sched-page-btn" id="rr-sched-kudos-h" data-rr-tile="kudos" draggable="true" type="button" title="Kudos">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 4H7v6a5 5 0 0 0 10 0V4z"/><path d="M7 6H4v2a3 3 0 0 0 3 3"/><path d="M17 6h3v2a3 3 0 0 1-3 3"/><line x1="12" y1="15" x2="12" y2="18"/><path d="M8 21h8l-1-3H9z"/></svg>
                 Kudos
               </button>
               <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-milestone-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-milestone-rules-popover" title="Recognition rules · toggle birthday + anniversary banners">
@@ -22150,7 +22169,7 @@ body.rr-cmdk-open{ overflow:hidden }
         </style>
         <div class="em-cmd-shell" id="rr-em-cmd">
           <div class="em-cmd-tabs" role="tablist" aria-label="Command strip mode">
-            <button class="em-cmd-tab active" type="button" data-em-cmd-tab="email" role="tab" aria-selected="true">Email</button>
+            <button class="em-cmd-tab active" type="button" data-em-cmd-tab="email" role="tab" aria-selected="true">Fleet Bridge</button>
             <button class="em-cmd-tab" type="button" data-em-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
           </div>
           <div class="em-header">
@@ -22159,8 +22178,8 @@ body.rr-cmdk-open{ overflow:hidden }
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
               </div>
               <div>
-                <h1 class="page-title">Email</h1>
-                <p class="page-sub">Inbox, drafts and outbound communication.</p>
+                <h1 class="page-title">Fleet Bridge</h1>
+                <p class="page-sub">DSP-to-Amazon email · inbox, drafts and outbound communication.</p>
               </div>
             </div>
             <!-- Action ribbon · icon-over-label tiles matching the
@@ -25969,7 +25988,7 @@ John,Smith,555-0101,john@example.com</code>
       analytics: 'Analytics',
       okami: 'OKAMI',
       messages: 'Messages',
-      email: 'Email',
+      email: 'Fleet Bridge',
       workspaces: 'Workspaces',
       forms: 'Workspaces',
       checklists: 'Workspaces',
