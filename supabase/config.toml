@@ -78,5 +78,16 @@ enabled = true
 policy = "oneshot"
 inspector_port = 8083
 
+# Server-to-server functions called by pg_cron + triggers with the
+# service role key in a bearer header. Gateway JWT verification is off
+# (the new sb_secret_… keys are not JWTs and 401 at the gateway when
+# verify_jwt = true); the functions themselves bearer-check via
+# requireServiceKey() in supabase/functions/_shared/supabase.ts.
+[functions.send-email]
+verify_jwt = false
+
+[functions.send-sms]
+verify_jwt = false
+
 [analytics]
 enabled = false
