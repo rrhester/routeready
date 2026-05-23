@@ -22001,6 +22001,12 @@ body.rr-cmdk-open{ overflow:hidden }
              RIGHT (calendar-sized) — the opposite of the schedule. */
           #view-email .em-grid{
             display:grid;grid-template-columns:240px minmax(0,1fr);
+            /* Constrain the single grid row to the available flex space
+               (minus em-cmd-shell). Without this, the row is content-sized,
+               em-split stretches past the viewport, and the inbox's
+               overflow-y:scroll has nothing to scroll because its
+               container is already as tall as its content. */
+            grid-template-rows:minmax(0,1fr);
             gap:var(--s-3);align-items:stretch;
             flex:1 1 auto;min-height:0;
           }
