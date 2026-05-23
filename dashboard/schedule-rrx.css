@@ -2248,10 +2248,18 @@ body.rr-sched-focus #view-schedule .coverage-strip {
 body.rr-sched-focus #view-schedule .driver-pool > :not(.pool-openshifts-foot) {
   display: none !important;
 }
-body.rr-sched-focus #view-schedule .driver-pool {
+/* Make the driver-pool a flex column so the open-shifts panel
+   can stretch to fill the entire right rail height. Cancel the
+   internal scroll so the body itself takes the overflow. */
+body.rr-sched-focus #view-schedule.rrx-schedule .driver-pool {
   padding: 0 !important;
   border: 0 !important;
   background: transparent !important;
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 body.rr-sched-focus #view-schedule.rrx-schedule {
