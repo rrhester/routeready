@@ -21996,6 +21996,16 @@ body.rr-cmdk-open{ overflow:hidden }
             height:calc(100vh - var(--topbar-h, 64px));
             min-height:0;overflow:hidden;
           }
+          /* The view's .page wrapper sits between #view-email and the
+             em-cmd-shell / em-grid children. Without this rule it's
+             a plain block with auto height, so em-grid (flex:1 1 auto)
+             has no flex parent and shrinks to its content — leaving
+             empty space below the cards down to the viewport bottom. */
+          #view-email > .page{
+            display:flex;flex-direction:column;
+            flex:1 1 auto;min-height:0;
+            height:100%;
+          }
           #view-email .em-cmd-shell{flex:0 0 auto}
           /* Layout · aside on the LEFT (open-shifts-sized), main on the
              RIGHT (calendar-sized) — the opposite of the schedule. */
