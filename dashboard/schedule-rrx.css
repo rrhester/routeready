@@ -2266,13 +2266,23 @@ body.rr-sched-focus #view-schedule.rrx-schedule .page {
   height: 100% !important;
   overflow: hidden !important;
 }
-body.rr-sched-focus #view-schedule.rrx-schedule .sched-subview,
-body.rr-sched-focus #view-schedule.rrx-schedule #sched-sub-week {
+/* Only the ACTIVE week sub-view should stretch. Inactive
+   sub-views (Smart Fill rules, Templates, Requests, etc.)
+   must stay hidden — they're controlled by inline display:none
+   or a missing .active class. Targeting just #sched-sub-week
+   ensures we don't reveal hidden siblings. */
+body.rr-sched-focus #view-schedule.rrx-schedule #sched-sub-week.sched-subview {
   height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
   flex: 1 1 auto !important;
   min-height: 0 !important;
+}
+/* Keep every other sub-view hidden even when the body has
+   .rr-sched-focus — belt-and-suspenders against any sibling
+   that lost its inline display:none. */
+body.rr-sched-focus #view-schedule.rrx-schedule .sched-subview:not(#sched-sub-week):not(.active) {
+  display: none !important;
 }
 body.rr-sched-focus #view-schedule.rrx-schedule .builder-shell {
   height: 100% !important;
