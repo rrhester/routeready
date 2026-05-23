@@ -1564,16 +1564,26 @@
 
 #view-schedule.rrx-schedule .sched-v2-strip {
   display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  align-items: center;   /* matches Fleet's vertical alignment */
+  flex-wrap: nowrap;     /* matches Fleet — single row, no wrap */
   gap: 8px;
-  padding: 10px 16px;
+  /* Exact match for #view-fleet .fl-ribbon dimensions:
+     11px 18px padding, no min-height (content-sized). */
+  padding: 11px 18px;
   margin: 0 0 var(--rr-space-160) 0;
   background: var(--rr-bg-surface-1);
   border: 1px solid var(--rr-border-primary);
   border-radius: var(--rr-radius-medium);
   box-shadow: none;
-  min-height: 56px;
+}
+
+/* Relocated week navigator · push to the far right of the V2
+   strip via margin-left:auto. The legacy .sched-week-nav
+   styling for the buttons themselves continues to apply. */
+#view-schedule.rrx-schedule .sched-v2-strip > #rr-sched-week-nav {
+  margin-left: auto;
+  flex: 0 0 auto;
+  align-self: center;
 }
 
 #view-schedule.rrx-schedule .sched-v2-tile {
