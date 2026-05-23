@@ -42,14 +42,16 @@ jobs:
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
       - name: Push migrations
-        # --include-all forces every migration on disk to re-apply
-        # remotely even if it's already in supabase_migrations. That
-        # causes any non-idempotent migration (unguarded create trigger,
-        # unguarded create policy, etc.) to fail with SQLSTATE 42710 on
-        # the next deploy, blocking the entire workflow — and silently
-        # taking the function-deploy steps with it. Without the flag,
-        # only migrations missing from the remote's tracking table get
-        # pushed, which is the normal CI behavior.
+        # NB: the operator applies migrations by hand via the Supabase
+        # SQL editor (see CLAUDE.md) — `supabase_migrations.schema_migrations`
+        # is therefore chronically out of sync with what's actually in
+        # the live DB, and `supabase db push` keeps re-attempting the
+        # same already-applied migrations, hitting various idempotency
+        # errors at random points. We attempt the push for forward
+        # compatibility (if anyone ever re-syncs the tracking table)
+        # but never let a failure here block the function deploys
+        # below, which are the actual reason this workflow exists.
+        continue-on-error: true
         run: supabase db push
 
       - name: Deploy edge functions (JWT-gated, end-user callable)
