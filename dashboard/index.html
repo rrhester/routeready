@@ -24,6 +24,10 @@
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
      `rrx-schedule` class on the view-schedule element. -->
 <link rel="stylesheet" href="schedule-rrx.css?v=6">
+<!-- Onboarding page — Fluent 2 visual rebind.
+     Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
+     using --rr-* tokens. Same pattern as schedule-rrx.css. -->
+<link rel="stylesheet" href="onboarding-rrx.css?v=1">
 <style>
 /* ─────────────────────────────────────────────────────────────
    DESIGN TOKENS
@@ -10966,7 +10970,7 @@ body.rr-cmdk-open{ overflow:hidden }
          ONBOARDING (OPERATIONS) VIEW — readiness command center.
          Populated by loadOnboardingOps() in live.js.
          ═══════════════════════════════════════════════════════════ -->
-    <div class="view" id="view-onboarding-ops">
+    <div class="view rrx-onboarding" id="view-onboarding-ops">
       <style>
         /* Skeleton cohort cards painted while loadOnboardingOps()
            assembles the readiness matrix.  Stack four placeholders
