@@ -138,7 +138,7 @@
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions > .subnav,
 #view-onboarding-ops.rrx-onboarding .sched-ribbon-group > .subnav {
   display: inline-flex !important;
-  align-items: center !important;
+  align-items: flex-start !important;  /* same baseline for all tiles */
   gap: var(--rr-space-40) !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -149,6 +149,14 @@
   flex: 0 0 auto !important;
   width: auto !important;
   min-width: 0 !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions {
+  align-items: flex-start !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-header-l {
+  align-self: center !important;
 }
 
 /* Inter-group divider — same border-left treatment as Schedule,
@@ -314,25 +322,25 @@
   border: 1px solid var(--rr-border-primary) !important;
   border-radius: var(--rr-radius-large) !important;
   box-shadow: var(--rr-shadow-8) !important;
-  /* Anchor to viewport — same fix as Schedule's rules popovers,
-     so the popover is always fully visible top-to-bottom. */
-  position: fixed !important;
-  top: 96px !important;
-  left: 50% !important;
+  /* Anchor to the trigger tile (Onboarding sits at the LEFT,
+     Funnel a few tiles in). Open below + extend right; the
+     viewport-relative max-width keeps it on screen. */
+  position: absolute !important;
+  top: calc(100% + 8px) !important;
+  left: 0 !important;
   right: auto !important;
   bottom: auto !important;
-  transform: translateX(-50%) !important;
-  min-width: min(620px, calc(100vw - 80px)) !important;
-  max-width: calc(100vw - 80px) !important;
-  max-height: calc(100vh - 128px) !important;
-  overflow-y: scroll !important;
+  transform: none !important;
+  min-width: min(620px, calc(100vw - 96px)) !important;
+  max-width: calc(100vw - 96px) !important;
+  max-height: calc(100vh - 200px) !important;
+  overflow-y: auto !important;
   margin: 0 !important;
   z-index: 60 !important;
 
   /* Defeat the legacy backdrop-filter / translucent treatment
      that the global "unified rules popover" block (around line
-     11195+ in dashboard/index.html) applies to this id. We want
-     a clean, calm Fluent surface like the Schedule popovers. */
+     11195+ in dashboard/index.html) applies to this id. */
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
