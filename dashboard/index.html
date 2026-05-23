@@ -536,13 +536,14 @@ textarea,
   --ni-bg:rgba(255,255,255,.12);
   --ni-bg-strong:rgba(255,255,255,.22);
 }
-/* Active = location state, not a button — a calm tinted row with a
-   soft left-edge indicator, no ring. */
+/* Active = location state, with a calm Microsoft-blue left rail.
+   See the Fluent enterprise polish block below — the deeper rules
+   there cover background, icon variant swap, and label weight. */
 .sidebar .nav-item.active{
-  background:var(--sidebar-active);
-  box-shadow:inset 3px 0 0 rgba(255,255,255,.88);
+  background:rgba(255,255,255,.08);
+  box-shadow:inset 3px 0 0 #2899F5;
 }
-.sidebar .nav-item.active .nav-badge{color:var(--accent);background:#fff}
+.sidebar .nav-item.active .nav-badge{color:#fff;background:rgba(40,153,245,.95)}
 .brand{
   position:relative;
   display:flex;align-items:center;gap:var(--s-2-5);
@@ -558,61 +559,62 @@ textarea,
 .brand-name{font-weight:600;font-size:var(--fs-base);letter-spacing:-.005em;color:var(--text-inverse)}
 .brand-name em{font-style:normal;font-weight:400;color:var(--text-inverse-muted)}
 
-.nav{display:flex;flex-direction:column;gap:3px;flex:1;min-height:0;overflow-y:auto}
+/* ── Sidebar nav · Fluent enterprise polish ─────────────────────
+   Pixel-snapped Microsoft Fluent System Icons (20px), Outlook-style
+   hover surfaces, calm enterprise active state with a left rail in
+   Microsoft blue. Icons swap from outline (.ni-r) to filled (.ni-f)
+   on .active. */
+.nav{display:flex;flex-direction:column;gap:1px;flex:1;min-height:0;overflow-y:auto}
 .nav-item{
   position:relative;
-  display:flex;align-items:center;gap:var(--s-3);
-  padding:8px var(--s-3);border-radius:var(--r-md);
-  color:rgba(226,232,240,.72);
-  font-size:var(--fs-sm);font-weight:500;letter-spacing:0;
+  display:flex;align-items:center;gap:12px;
+  padding:7px 10px;border-radius:4px;
+  color:rgba(226,232,240,.78);
+  font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+  font-size:13px;font-weight:400;letter-spacing:-0.005em;
   cursor:pointer;
-  transition:background var(--t-smooth), color var(--t-smooth);
+  transition:background 80ms ease, color 80ms ease;
   border:none;background:transparent;text-align:left;width:100%;
 }
 .nav-item:hover{
-  background:var(--sidebar-hover);
-  color:var(--text-inverse);
+  background:rgba(255,255,255,.06);
+  color:#fff;
 }
-.nav-item:focus-visible{outline:none;background:var(--sidebar-hover);color:var(--text-inverse);box-shadow:inset 0 0 0 1px rgba(96,165,250,.35)}
-/* Active state — calm dimensional treatment with a bright accent
-   rail on the left.  Background stays close to the sidebar so the
-   row doesn't compete with the icon, and the rail + tinted icon
-   tile together carry the "which page" signal.  No trailing dot —
-   the rail is enough, and a dot would fight any nav-badge that
-   shares the right edge. */
+.nav-item:focus-visible{
+  outline:none;background:rgba(255,255,255,.06);color:#fff;
+  box-shadow:inset 0 0 0 1.5px #0078d4;
+}
+/* Active state · Microsoft-blue left rail + soft tile + filled icon.
+   Restrained enterprise treatment — no gradient, no glow. */
 .nav-item.active{
-  /* Tint the active row in the item's category colour so the rail,
-     background, and ring all match the icon.  --ni-fg / --ni-bg-strong
-     come from the [data-c="..."] block lower in this file; if missing,
-     we fall back to the blue accent. */
-  background:linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 12%, transparent) 0%,
-    color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 3%,  transparent) 100%
-  );
-  color:var(--text-inverse);font-weight:600;
-  box-shadow:
-    inset 3px 0 0 var(--ni-fg, var(--blue-bright)),
-    inset 0 0 0 1px color-mix(in srgb, var(--ni-fg, var(--blue-bright)) 18%, transparent);
+  background:rgba(255,255,255,.08);
+  color:#fff;font-weight:600;
+  box-shadow:inset 3px 0 0 #2899F5;
 }
 .nav-item.active .nav-badge{
-  color:var(--ni-fg, var(--blue-bright));background:#fff;
+  color:#fff;background:rgba(40,153,245,.95);
 }
-.nav-item.active svg{stroke-width:2}
-.nav-item.active .nav-icon{
-  background:var(--ni-bg-strong, rgba(255,255,255,.20));
-  color:var(--ni-fg, #fff);
+.nav-item.active .nav-icon{color:#ffffff}
+/* SVG rendering · 20px pixel-snapped, geometricPrecision so the
+   icons feel crisp on hi-DPI and at the base scale. shape-rendering
+   prevents the fuzzy/anti-aliased open-source-icon look. */
+.nav-icon{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:0 0 24px}
+.nav-icon .ni-svg{
+  display:block;width:20px;height:20px;
+  shape-rendering:geometricPrecision;
+  transform:translateZ(0);
 }
-/* Icon strokes — calm operational weight; no glow / drop-shadow.
-   Sized for the Outlook icon-forward rail: 26 px monoline glyphs
-   sit in a transparent container so the icon reads as the primary
-   signal, with a quieter label next to it (instead of a tinted
-   tile competing with the glyph). */
-.nav-item svg{
-  width:30px;height:30px;flex-shrink:0;stroke-width:1.8;
-  transition:color var(--t-smooth);
-}
-.nav-badge{ display:none }
+/* Regular / filled variant toggle. Outlines show by default, filled
+   on .active. */
+.nav-item .ni-f{display:none}
+.nav-item.active .ni-r{display:none}
+.nav-item.active .ni-f{display:inline}
+/* Color: use neutral Fluent-ish gray for inactive (slightly cooler
+   than the label text), pure white when active. The per-category
+   --ni-fg from [data-c=...] still drives the rail accent below. */
+.nav-item .nav-icon{color:rgba(255,255,255,.78)}
+.nav-item:hover .nav-icon{color:#fff}
+.nav-badge{display:none}
 
 /* Sidebar footer · subtle theme toggle + collapse button. */
 .sidebar-foot{
@@ -726,19 +728,13 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* Every glyph is bottom-aligned inside a fixed-height box, so all
    icons share one footer baseline and read as level with each
    other regardless of how their viewBox content sits. */
+/* (Old 37px tile block neutralized — the Fluent enterprise polish
+   block above owns sizing/coloring now. Keeping the selector here
+   only to absorb any --ni-fg/--ni-bg-strong inheritance without
+   re-introducing the old tile dimensions.) */
 .nav-icon{
-  display:inline-flex;align-items:flex-end;justify-content:center;
-  width:37px;height:37px;border-radius:var(--r-md);flex-shrink:0;
   background:transparent;
-  color:var(--ni-fg, var(--text-inverse));
-  transition:background var(--t-smooth), color var(--t-smooth);
-}
-/* Active icon: lean on the category's `--ni-bg-strong` (defined per
-   data-c below) + keep the category foreground colour so the icon
-   reads as itself, not as a generic white tile. */
-.nav-item.active .nav-icon{
-  background:var(--ni-bg-strong, rgba(255,255,255,.20));
-  color:var(--ni-fg, #fff);
+  transition:color 80ms ease;
 }
 
 /* Calibrated category palette · 10-15% less saturated than the
@@ -9092,53 +9088,152 @@ body.rr-cmdk-open{ overflow:hidden }
     </div>
 
     <nav class="nav">
+      <!-- Fluent System Icons · regular for inactive, filled for active.
+           Single SVG per item with both variants; CSS toggles visibility
+           on .nav-item.active. 20×20 viewBox, pixel-snapped, 1.5 stroke. -->
       <button class="nav-item" data-view="drivers" data-c="drivers" onclick="goto('drivers')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span class="nav-icon"><svg class="ni-svg" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <g class="ni-r" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="7.5" cy="6" r="2.5"/>
+            <path d="M2.5 15.5c0-2.21 2.24-4 5-4s5 1.79 5 4"/>
+            <circle cx="13.5" cy="7.5" r="2"/>
+            <path d="M12.5 11.6c.32-.06.66-.1 1-.1 1.93 0 3.5 1.34 3.5 3"/>
+          </g>
+          <g class="ni-f" fill="currentColor">
+            <circle cx="7.5" cy="6" r="2.75"/>
+            <path d="M7.5 11.5c-2.76 0-5 1.57-5 4 0 .28.22.5.5.5h9c.28 0 .5-.22.5-.5 0-2.43-2.24-4-5-4z"/>
+            <circle cx="13.5" cy="7.5" r="2.25"/>
+            <path d="M13.5 12c-.46 0-.9.05-1.31.16.51.8.81 1.74.81 2.79v.55h4.5c.28 0 .5-.21.5-.49 0-1.7-1.79-3.01-4.5-3.01z"/>
+          </g>
+        </svg></span>
         Drivers
         <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
       <button class="nav-item" data-view="onboarding-ops" data-c="drivers" onclick="goto('onboarding-ops')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="15.5 11 17.5 13 21.5 9"/></svg></span>
+        <span class="nav-icon"><svg class="ni-svg" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <g class="ni-r" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="6" r="2.75"/>
+            <path d="M3 15c0-2.21 2.24-4 5-4 1.06 0 2.04.26 2.88.72"/>
+            <path d="M13 12.5l1.5 1.5 3-3"/>
+          </g>
+          <g class="ni-f" fill="currentColor">
+            <circle cx="8" cy="6" r="3"/>
+            <path d="M8 11c-2.76 0-5 1.57-5 4 0 .28.22.5.5.5h7.34a4 4 0 0 1 1.34-4.93C11.21 11.18 9.69 11 8 11z"/>
+            <path d="M14.5 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm-1.85-3.85a.5.5 0 1 1 .7-.7l.65.64 1.65-1.64a.5.5 0 1 1 .7.7l-2 2a.5.5 0 0 1-.7 0l-1-1z"/>
+          </g>
+        </svg></span>
         Onboarding
       </button>
       <button class="nav-item" data-view="fleet" data-c="fleet" onclick="goto('fleet')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></span>
+        <span class="nav-icon"><svg class="ni-svg" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <g class="ni-r" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12.5h14M4 12.5l1.4-3.7A2 2 0 0 1 7.27 7.5h5.46a2 2 0 0 1 1.87 1.3l1.4 3.7M3.5 12.5v2.5M16.5 12.5v2.5"/>
+            <circle cx="6" cy="13.5" r="1.25"/>
+            <circle cx="14" cy="13.5" r="1.25"/>
+          </g>
+          <g class="ni-f" fill="currentColor">
+            <path d="M5.4 8.8A2.5 2.5 0 0 1 7.77 7h4.46a2.5 2.5 0 0 1 2.37 1.8l1.18 3.95c.07.23.11.47.11.71V14.5a.5.5 0 0 1-.5.5h-.55a2 2 0 0 1-3.9 0H8.55a2 2 0 0 1-3.9 0H4.1a.5.5 0 0 1-.5-.5v-1.04c0-.24.04-.48.11-.71L5.4 8.8zM6 14.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+          </g>
+        </svg></span>
         Fleet
         <span class="nav-badge" style="background:var(--amber)">2</span>
       </button>
       <button class="nav-item active" data-view="schedule" data-c="schedule" onclick="goto('schedule')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><line x1="3.5" y1="10" x2="20.5" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/><rect x="7" y="13" width="3" height="3" rx=".6" fill="currentColor" stroke="none"/></svg></span>
+        <span class="nav-icon"><svg class="ni-svg" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <g class="ni-r" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4.5" width="14" height="13" rx="2"/>
+            <path d="M3 8.5h14M7 3v3M13 3v3"/>
+            <rect x="6" y="11" width="3" height="3" rx=".5" fill="currentColor" stroke="none"/>
+          </g>
+          <g class="ni-f" fill="currentColor">
+            <path d="M6.75 2.25a.75.75 0 0 0-.75.75v.5H5A2.5 2.5 0 0 0 2.5 6v9A2.5 2.5 0 0 0 5 17.5h10A2.5 2.5 0 0 0 17.5 15V6A2.5 2.5 0 0 0 15 3.5h-1V3a.75.75 0 0 0-1.5 0v.5h-5V3a.75.75 0 0 0-.75-.75zM16 9H4v6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9zM6.5 11A.5.5 0 0 0 6 11.5v2c0 .28.22.5.5.5h2a.5.5 0 0 0 .5-.5v-2a.5.5 0 0 0-.5-.5h-2z"/>
+          </g>
+        </svg></span>
         Schedule
         <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
       <button class="nav-item" data-view="overtime" data-c="overtime" onclick="goto('overtime')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 15 15"/><path d="M9 2h6"/><path d="M5 5l1.5 1.5"/><path d="M19 5l-1.5 1.5"/></svg></span>
+        <span class="nav-icon"><svg class="ni-svg" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <g class="ni-r" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="10" cy="11" r="6"/>
+            <path d="M10 7.5V11l2.25 1.25"/>
+          </g>
+          <g class="ni-f" fill="currentColor">
+            <path d="M10 4.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zm.75 3.25v3.04l1.85 1.07a.75.75 0 1 1-.75 1.3l-2.22-1.29A.75.75 0 0 1 9.25 11V7.75a.75.75 0 0 1 1.5 0z"/>
+          </g>
+        </svg></span>
         Overtime
       </button>
-      <!-- Workspaces page is hidden from the sidebar but stays in
-           the DOM so the Schedule view's Van Assignments flow can
-           reuse loadWorkspacesView / _wsRenderVehicles internally.
-           A separate "Workflows" nav-item below routes to the
-           Forms + Checklists subtabs. -->
       <button class="nav-item" data-view="workspaces" data-c="forms" onclick="goto('workspaces')" style="display:none" aria-hidden="true">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+        <span class="nav-icon"><svg class="ni-svg" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <g class="ni-r" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="6" height="6" rx="1.5"/>
+            <rect x="11" y="3" width="6" height="6" rx="1.5"/>
+            <rect x="3" y="11" width="6" height="6" rx="1.5"/>
+            <rect x="11" y="11" width="6" height="6" rx="1.5"/>
+          </g>
+          <g class="ni-f" fill="currentColor">
+            <rect x="3" y="3" width="6.5" height="6.5" rx="1.5"/>
+            <rect x="10.5" y="3" width="6.5" height="6.5" rx="1.5"/>
+            <rect x="3" y="10.5" width="6.5" height="6.5" rx="1.5"/>
+            <rect x="10.5" y="10.5" width="6.5" height="6.5" rx="1.5"/>
+          </g>
+        </svg></span>
         Workspaces
       </button>
       <button class="nav-item" data-view="forms" data-c="forms" onclick="goto('forms')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></span>
+        <span class="nav-icon"><svg class="ni-svg" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <g class="ni-r" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4.5A2 2 0 0 1 6 2.5h5.5L16 7v8.5A2 2 0 0 1 14 17.5H6a2 2 0 0 1-2-2v-11z"/>
+            <path d="M11.5 2.5V7H16"/>
+            <path d="M7 11h6M7 13.5h6"/>
+          </g>
+          <g class="ni-f" fill="currentColor">
+            <path d="M4 4.5A2 2 0 0 1 6 2.5h5v3.75A1.75 1.75 0 0 0 12.75 8H16v7.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11zM7 11a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5H7zm0 2.25a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5H7z"/>
+            <path d="M12.5 2.79V6.25c0 .14.11.25.25.25h3.46L12.5 2.79z"/>
+          </g>
+        </svg></span>
         Workflows
       </button>
       <button class="nav-item" data-view="messages" data-c="messages" onclick="goto('messages')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <span class="nav-icon"><svg class="ni-svg" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <g class="ni-r" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 5.5A2 2 0 0 1 6 3.5h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H8.5l-3.2 2.7a.5.5 0 0 1-.8-.4v-2.3A2 2 0 0 1 4 11.5v-6z"/>
+          </g>
+          <g class="ni-f" fill="currentColor">
+            <path d="M3.5 5.5A2.5 2.5 0 0 1 6 3h8a2.5 2.5 0 0 1 2.5 2.5v6A2.5 2.5 0 0 1 14 14h-5.4l-2.95 2.36A.5.5 0 0 1 5 16V14a2.5 2.5 0 0 1-1.5-2.29V5.5z"/>
+          </g>
+        </svg></span>
         Messages
         <span class="nav-badge">7</span>
       </button>
       <button class="nav-item" data-view="email" data-c="messages" onclick="goto('email')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg></span>
+        <span class="nav-icon"><svg class="ni-svg" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <g class="ni-r" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2.5" y="5" width="15" height="10" rx="2"/>
+            <path d="M3 6l7 5 7-5"/>
+          </g>
+          <g class="ni-f" fill="currentColor">
+            <path d="M2.5 6.6V14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V6.6l-7.18 5.13a.75.75 0 0 1-.87 0L2.5 6.6z"/>
+            <path d="M17.39 5.34A2 2 0 0 0 15.5 4h-11a2 2 0 0 0-1.89 1.34L10 10.32l7.39-4.98z"/>
+          </g>
+        </svg></span>
         Fleet Bridge
       </button>
       <button class="nav-item" data-view="documents" data-c="forms" onclick="goto('documents')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></span>
+        <span class="nav-icon"><svg class="ni-svg" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <g class="ni-r" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4.5A2 2 0 0 1 6 2.5h5.5L16 7v8.5A2 2 0 0 1 14 17.5H6a2 2 0 0 1-2-2v-11z"/>
+            <path d="M11.5 2.5V7H16"/>
+            <circle cx="7.5" cy="11" r=".4" fill="currentColor"/>
+            <circle cx="7.5" cy="13.5" r=".4" fill="currentColor"/>
+            <path d="M9.5 11H13M9.5 13.5H13"/>
+          </g>
+          <g class="ni-f" fill="currentColor">
+            <path d="M4 4.5A2 2 0 0 1 6 2.5h5v3.75A1.75 1.75 0 0 0 12.75 8H16v7.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11zM7.5 10.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm2 .25a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5h-3.5zM7.5 13a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm2 .25a.75.75 0 0 0 0 1.5h3.5a.75.75 0 0 0 0-1.5h-3.5z"/>
+            <path d="M12.5 2.79V6.25c0 .14.11.25.25.25h3.46L12.5 2.79z"/>
+          </g>
+        </svg></span>
         Documents
       </button>
 
@@ -9149,7 +9244,15 @@ body.rr-cmdk-open{ overflow:hidden }
               data-rr-platform-admin-only="1"
               style="display:none;margin-top:auto"
               onclick="goto('admin')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></span>
+        <span class="nav-icon"><svg class="ni-svg" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+          <g class="ni-r" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 2.5l6 2.25v4.5c0 3.5-2.5 6.75-6 8.25-3.5-1.5-6-4.75-6-8.25v-4.5L10 2.5z"/>
+            <path d="M7.5 10l1.75 1.75L13 8.25"/>
+          </g>
+          <g class="ni-f" fill="currentColor">
+            <path d="M10 2.05a.75.75 0 0 0-.27.05L3.98 4.25a.75.75 0 0 0-.48.7v4.3c0 3.84 2.73 7.33 6.5 8.93.27.12.6.12.87 0 3.77-1.6 6.5-5.09 6.5-8.93v-4.3a.75.75 0 0 0-.48-.7L10.27 2.1A.75.75 0 0 0 10 2.05zm3.53 6.73l-4.25 4.25a.75.75 0 0 1-1.06 0l-2-2a.75.75 0 1 1 1.06-1.06l1.47 1.47 3.72-3.72a.75.75 0 1 1 1.06 1.06z"/>
+          </g>
+        </svg></span>
         Admin
       </button>
     </nav>
