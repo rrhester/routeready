@@ -48081,6 +48081,20 @@ document.addEventListener("click", (e) => {
     const w = Math.max(MIN_W, Math.min(px, maxW));
     split.style.setProperty("--em-inbox-w", w + "px");
     if (persist) { try { localStorage.setItem(SPLIT_KEY, String(w)); } catch (_) {} }
+    return w;
+  }
+  function currentInboxWidth() {
+    const split = document.getElementById("rr-em-split");
+    if (!split) return null;
+    const v = parseInt(split.style.getPropertyValue("--em-inbox-w") || "", 10);
+    if (Number.isFinite(v) && v > 0) return v;
+    const cs = parseInt(getComputedStyle(split).getPropertyValue("--em-inbox-w") || "", 10);
+    return Number.isFinite(cs) && cs > 0 ? cs : null;
+  }
+  function persistInboxWidth() {
+    const w = currentInboxWidth();
+    if (w == null) return;
+    try { localStorage.setItem(SPLIT_KEY, String(w)); } catch (_) {}
   }
   function restoreInboxWidth() {
     let saved = null;
@@ -48102,8 +48116,11 @@ document.addEventListener("click", (e) => {
       setInboxWidth(px, false);
     };
     const up = (ev) => {
-      const px = (ev.clientX || 0) - rect.left;
-      setInboxWidth(px, true);
+      // Persist whatever width is currently applied — not a recomputed
+      // mouseup position, which can disagree with the last mousemove if
+      // the pointer left the viewport.
+      if (Number.isFinite(ev.clientX)) setInboxWidth(ev.clientX - rect.left, false);
+      persistInboxWidth();
       resizer.classList.remove("is-dragging");
       document.body.classList.remove("em-resizing");
       document.removeEventListener("mousemove", move);
@@ -48129,6 +48146,13 @@ document.addEventListener("click", (e) => {
     if (!split) return;
     const cur = parseInt(getComputedStyle(split).getPropertyValue("--em-inbox-w") || "360", 10);
     setInboxWidth(cur, false);
+  });
+  // Final safety-net: persist on tab close / view switch / refresh in
+  // case mouseup never fired (mid-drag tab close, dropped pointer event).
+  window.addEventListener("beforeunload", persistInboxWidth);
+  window.addEventListener("pagehide",     persistInboxWidth);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") persistInboxWidth();
   });
 
   // ── Boot · render whenever the email view becomes ready ─────────
