@@ -1357,53 +1357,6 @@ body {
   scrollbar-color: #5A5A5A #E1DFDD;
 }
 
-/* ============================================================
-   Print orientation toggle (.rr-print-orient) — shared by every
-   page's Print/Download tab.
-   ============================================================ */
-
-.rr-print-orient {
-  display: inline-flex;
-  gap: 2px;
-  background: var(--rr-bg-surface-2);
-  border: 1px solid var(--rr-border-primary);
-  border-radius: var(--rr-radius-medium);
-  padding: 2px;
-  align-self: center;
-}
-
-.rr-print-orient-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--rr-space-60);
-  height: 28px;
-  padding: 0 var(--rr-space-100);
-  font: var(--rr-font-caption);
-  font-weight: 600;
-  color: var(--rr-fg-secondary);
-  background: transparent;
-  border: 0;
-  border-radius: var(--rr-radius-small);
-  cursor: pointer;
-  transition: background var(--rr-motion-fast), color var(--rr-motion-fast);
-}
-
-.rr-print-orient-btn:hover {
-  color: var(--rr-fg-primary);
-}
-
-.rr-print-orient-btn[aria-pressed="true"] {
-  background: var(--rr-bg-surface-1);
-  color: var(--rr-fg-primary);
-  box-shadow: var(--rr-shadow-2);
-}
-
-.rr-print-orient-btn svg {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 auto;
-}
-
 /* Print-table styling used by the PTO report and any future
    tabular print mounts. */
 #rr-ob-print-area .rr-print-pto-table,
