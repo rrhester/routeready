@@ -47312,7 +47312,7 @@ document.addEventListener("click", (e) => {
 
   function openComposer({ mode = "new", original = null } = {}) {
     closeComposer();
-    let to = "", subject = "", body = "";
+    let to = "", cc = "", subject = "", body = "";
     const needs = (mode === "reply" || mode === "reply-all" || mode === "forward");
     if (needs && !original) {
       if (typeof toast === "function") toast("Pick a message first", "warn");
@@ -47323,6 +47323,11 @@ document.addEventListener("click", (e) => {
       const s = original.subject || "";
       subject = s ? (/^re:/i.test(s) ? s : "Re: " + s) : "";
       body = quoteOriginal(original);
+      // Reply All: carry over original Cc (and other To addresses if any)
+      // so the whole thread stays on the conversation.
+      if (mode === "reply-all" && Array.isArray(original.cc_emails) && original.cc_emails.length > 0) {
+        cc = original.cc_emails.join(", ");
+      }
     } else if (mode === "forward") {
       const s = original.subject || "";
       subject = s ? (/^fwd?:/i.test(s) ? s : "Fwd: " + s) : "";
@@ -47338,23 +47343,25 @@ document.addEventListener("click", (e) => {
           <div style="font-size:var(--fs-lg);font-weight:600">${escapeHtmlLocal(titles[mode] || "New email")}</div>
           <button class="btn btn-sm" type="button" data-rr-composer-close>Close</button>
         </div>
-        <div style="flex:1;overflow-y:auto;padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3)">
-          <label style="display:flex;flex-direction:column;gap:4px">
-            <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600">To</span>
-            <input id="rr-em-composer-to" type="email" required value="${escapeHtmlLocal(to)}" placeholder="vendor@example.com" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box">
+        <div style="display:flex;flex-direction:column;padding:var(--s-3) var(--s-5) var(--s-3) var(--s-5);gap:var(--s-2);border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06))">
+          <div style="display:flex;align-items:center;gap:var(--s-3)">
+            <label style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+              <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;min-width:48px">To</span>
+              <input id="rr-em-composer-to" type="email" required value="${escapeHtmlLocal(to)}" placeholder="vendor@example.com" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box">
+            </label>
+            <button id="rr-em-composer-send" type="button" class="rr-msft-blue" style="background:#0078D4;color:#fff;border:0;border-radius:6px;padding:8px 22px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;flex:0 0 auto">Send</button>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;min-width:48px">Cc</span>
+            <input id="rr-em-composer-cc" type="text" value="${escapeHtmlLocal(cc)}" placeholder="comma-separated, optional" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box">
           </label>
-          <label style="display:flex;flex-direction:column;gap:4px">
-            <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600">Subject</span>
-            <input id="rr-em-composer-subject" type="text" required value="${escapeHtmlLocal(subject)}" placeholder="" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box">
-          </label>
-          <label style="display:flex;flex-direction:column;gap:4px;flex:1">
-            <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600">Message</span>
-            <textarea id="rr-em-composer-body" rows="12" placeholder="Type your message… (Cmd/Ctrl+Enter to send)" style="padding:10px;border:1px solid var(--border);border-radius:6px;font:inherit;resize:vertical;min-height:240px;box-sizing:border-box">${escapeHtmlLocal(body)}</textarea>
+          <label style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600;min-width:48px">Subject</span>
+            <input id="rr-em-composer-subject" type="text" required value="${escapeHtmlLocal(subject)}" placeholder="" style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box">
           </label>
         </div>
-        <div style="border-top:1px solid var(--border);padding:var(--s-3-5) var(--s-5);background:var(--surface);display:flex;justify-content:flex-end;gap:var(--s-2)">
-          <button class="btn btn-sm" type="button" data-rr-composer-close>Cancel</button>
-          <button class="btn btn-primary" id="rr-em-composer-send" type="button">Send</button>
+        <div style="flex:1;min-height:0;display:flex;padding:var(--s-3) var(--s-5) var(--s-4) var(--s-5)">
+          <textarea id="rr-em-composer-body" placeholder="Type your message… (Cmd/Ctrl+Enter to send)" style="flex:1;width:100%;padding:14px;border:1px solid var(--border);border-radius:6px;font:inherit;font-size:14px;line-height:1.55;resize:none;box-sizing:border-box">${escapeHtmlLocal(body)}</textarea>
         </div>
       </div>`;
     document.body.appendChild(m);
@@ -47384,6 +47391,7 @@ document.addEventListener("click", (e) => {
 
   async function sendComposerDraft() {
     const toInp      = document.getElementById("rr-em-composer-to");
+    const ccInp      = document.getElementById("rr-em-composer-cc");
     const subjectInp = document.getElementById("rr-em-composer-subject");
     const bodyInp    = document.getElementById("rr-em-composer-body");
     const sendBtn    = document.getElementById("rr-em-composer-send");
@@ -47391,6 +47399,9 @@ document.addEventListener("click", (e) => {
     const to      = toInp.value.trim();
     const subject = subjectInp.value.trim();
     const body    = bodyInp.value;
+    // CC is comma- or semicolon-separated; trim each entry, drop blanks.
+    const cc      = (ccInp?.value || "")
+      .split(/[,;]/).map(s => s.trim()).filter(Boolean);
     if (!to)      { if (typeof toast === "function") toast("To is required", "warn"); toInp.focus(); return; }
     if (!subject) { if (typeof toast === "function") toast("Subject is required", "warn"); subjectInp.focus(); return; }
     if (!body.trim() && !confirm("Send with empty body?")) return;
@@ -47398,7 +47409,7 @@ document.addEventListener("click", (e) => {
     if (!dsp_id) { if (typeof toast === "function") toast("Couldn't determine DSP — please reload", "warn"); return; }
     const sent = state.folders.find(f => f.kind === "sent");
     if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = "Sending…"; }
-    const { error } = await sb.from("email_messages").insert({
+    const insertRow = {
       dsp_id,
       folder_id:  sent?.id || null,
       direction:  "outbound",
@@ -47406,7 +47417,12 @@ document.addEventListener("click", (e) => {
       to_email:   to,
       subject:    subject,
       body_text:  body,
-    });
+    };
+    // Only set cc_emails if the operator typed something — column may be
+    // missing on projects that haven't applied migration 0319 yet, in
+    // which case omitting the field lets the insert still succeed.
+    if (cc.length > 0) insertRow.cc_emails = cc;
+    const { error } = await sb.from("email_messages").insert(insertRow);
     if (error) {
       if (typeof toast === "function") toast("Send failed: " + error.message, "warn");
       if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = "Send"; }
