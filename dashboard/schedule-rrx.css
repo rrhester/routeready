@@ -1586,9 +1586,14 @@
    strip via margin-left:auto. The legacy .sched-week-nav
    styling for the buttons themselves continues to apply. */
 #view-schedule.rrx-schedule .sched-v2-strip > #rr-sched-week-nav {
-  margin-left: auto;
-  flex: 0 0 auto;
-  align-self: center;
+  /* `order: 100` puts the nav AFTER every ordered tile (1-10).
+     Without it the nav inherits order:0 and renders BEFORE the
+     ordered tiles, even though margin-left:auto tries to push
+     it right within the same order group. */
+  order: 100 !important;
+  margin-left: auto !important;
+  flex: 0 0 auto !important;
+  align-self: center !important;
 }
 
 #view-schedule.rrx-schedule .sched-v2-tile {
