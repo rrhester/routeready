@@ -1664,3 +1664,72 @@
   stroke-linecap: butt;
   stroke-linejoin: miter;
 }
+
+/* ============================================================
+   V2 strip — title (far left) + tile order + hairline dividers
+   ------------------------------------------------------------
+   Operator-requested layout:
+
+     [Schedule title + sub]  Week · Today · Staff  |  Requests
+       |  Targets · Smart Fill · Finalize  |  Calendar · Unassign
+       |  Kudos                                  [week navigator]
+
+   Implementation:
+     - Title sits flex-first via `order: -1`.
+     - Week navigator stays flex-last via `margin-left: auto`.
+     - Each split wrapper gets `order: N` so the visual order
+       matches the operator's spec, regardless of DOM order.
+     - Hairline dividers are border-left on the group-start
+       tiles (Requests, Targets, Calendar, Kudos) using
+       `#C8C6C4` — the same colour the legacy ribbon dividers
+       use elsewhere in this file.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-v2-title {
+  order: -1;
+  flex: 0 0 auto;
+  align-self: center;
+  margin-right: var(--rr-space-160);
+  padding-right: var(--rr-space-120);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+#view-schedule.rrx-schedule .sched-v2-title .page-title {
+  font: var(--rr-font-subtitle);
+  color: var(--rr-fg-primary);
+  margin: 0;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+#view-schedule.rrx-schedule .sched-v2-title .page-sub {
+  font: var(--rr-font-caption);
+  color: var(--rr-fg-secondary);
+  margin: 2px 0 0;
+  white-space: nowrap;
+}
+
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="week"])      { order: 1; }
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="today"])     { order: 2; }
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="staff"])     { order: 3; }
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="requests"])  { order: 4; }
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="targets"])   { order: 5; }
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) { order: 6; }
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"])  { order: 7; }
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="calendar"])  { order: 8; }
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="unassign"])  { order: 9; }
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="kudos"])     { order: 10; }
+
+/* Hairline dividers — left border on the tile that starts each
+   new functional group. */
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="requests"]),
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="targets"]),
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="calendar"]),
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="kudos"]) {
+  margin-left: var(--rr-space-160) !important;
+  padding-left: var(--rr-space-160) !important;
+  border-left: 1px solid #C8C6C4 !important;
+}

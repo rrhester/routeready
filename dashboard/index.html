@@ -23,7 +23,7 @@
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
      `rrx-schedule` class on the view-schedule element. -->
-<link rel="stylesheet" href="schedule-rrx.css?v=18">
+<link rel="stylesheet" href="schedule-rrx.css?v=19">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -13058,12 +13058,11 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
         </div>
         <div class="page-header sched-nav-heading">
-          <div class="page-header-l">
-            <div>
-              <h1 class="page-title">Schedule</h1>
-              <p class="page-sub" id="rr-sched-page-sub"></p>
-            </div>
-          </div>
+          <!-- Title block moved to the far left of the V2 strip below.
+               The original .page-header-l slot is kept empty so the
+               existing flex layout doesn't collapse the ribbon to the
+               left edge. -->
+          <div class="page-header-l" aria-hidden="true"></div>
 
           <div class="sched-nav-heading-actions sched-ribbon-grouped">
           <!-- VIEWS group · Week first, then Today. Quiet utility
@@ -13488,6 +13487,14 @@ body.rr-cmdk-open{ overflow:hidden }
              is `pointer-events: none` so clicks don't fire.
              ─────────────────────────────────────────────────────── -->
         <div class="sched-v2-strip" role="toolbar" aria-label="V2 icon strip (visual preview, not wired)">
+          <!-- Title block · relocated from the legacy sched-nav-heading.
+               Same h1.page-title + p.page-sub structure with the
+               #rr-sched-page-sub id preserved so the JS that writes
+               the "Week of …" subtitle keeps working untouched. -->
+          <div class="sched-v2-title">
+            <h1 class="page-title">Schedule</h1>
+            <p class="page-sub" id="rr-sched-page-sub"></p>
+          </div>
           <div class="sched-v2-split">
             <button type="button" class="sched-v2-tile" data-rr-v2="week" tabindex="-1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true">
