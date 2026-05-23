@@ -28893,10 +28893,37 @@ async function openShiftEditModal(shiftId) {
 
     if (e.target.closest("[data-rr-shift-edit-remove]")) {
       if (!confirm("Remove this shift?")) return;
+      // Snapshot the full row before deleting so the action can be undone.
+      let snapshot = null;
+      try {
+        const { data: snap } = await sb.from("shifts").select("*").eq("id", shiftId).single();
+        snapshot = snap || null;
+      } catch (_) {}
       _markLocalShiftMutation();
       const { error: delErr } = await sb.from("shifts").delete().eq("id", shiftId);
       if (delErr) { toast("Delete failed: " + delErr.message, "warn"); return; }
       toast("Shift removed", "success");
+      if (snapshot && typeof _rrPushUndo === "function") {
+        _rrPushUndo({
+          label: `Shift removed${snapshot.date ? " · " + snapshot.date : ""}`,
+          undo: async () => {
+            // Re-create the deleted row via create_shift to keep any
+            // server-side side effects (audit log etc.) consistent.
+            _markLocalShiftMutation();
+            const payload = {
+              date:       snapshot.date,
+              station_id: snapshot.station_id,
+              driver_id:  snapshot.driver_id,
+              starts_at:  snapshot.starts_at,
+              ends_at:    snapshot.ends_at,
+              source:     "undo",
+            };
+            const { error: undoErr } = await sb.rpc("create_shift", { p_payload: payload });
+            if (undoErr) throw new Error(undoErr.message);
+            if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+          },
+        });
+      }
       close();
       renderScheduleWeek();
       return;
@@ -32101,9 +32128,27 @@ document.addEventListener("click", async (e) => {
     e.preventDefault(); e.stopImmediatePropagation();
     const id = dec.getAttribute("data-rr-time-off-decide");
     const d  = dec.getAttribute("data-decision");
+    // Capture pre-state so the decision can be undone (revert
+    // status back to whatever it was — usually "pending").
+    let prevStatus = "pending";
+    try {
+      const { data: prev } = await sb.from("time_off_requests").select("status").eq("id", id).single();
+      if (prev?.status) prevStatus = prev.status;
+    } catch (_) {}
     const { error } = await sb.rpc("decide_time_off", { p_id: id, p_decision: d, p_notes: null });
     if (error) { toast("Update failed: " + error.message, "warn"); return; }
     toast(`Marked ${d}d`, "success");
+    if (prevStatus !== d && typeof _rrPushUndo === "function") {
+      _rrPushUndo({
+        label: `Time off ${d === "approve" ? "approved" : "denied"}`,
+        undo: async () => {
+          const { error: undoErr } = await sb.from("time_off_requests")
+            .update({ status: prevStatus }).eq("id", id);
+          if (undoErr) throw new Error(undoErr.message);
+          if (typeof loadTimeOffList === "function") loadTimeOffList();
+        },
+      });
+    }
     loadTimeOffList();
   }
 }, true);
@@ -45270,6 +45315,12 @@ async function _toDecide(btn) {
     if (!confirm("Deny without a reason? The driver will only see that it was denied.")) return;
   }
   btn.disabled = true; btn.textContent = approve ? "Approving…" : "Denying…";
+  // Capture pre-state for undo.
+  let prevStatus = "pending";
+  try {
+    const { data: prev } = await sb.from("time_off_requests").select("status").eq("id", id).single();
+    if (prev?.status) prevStatus = prev.status;
+  } catch (_) {}
   const { error } = await sb.rpc("dispatch_time_off_decide", {
     p_id: id, p_approve: approve, p_notes: notes || null,
   });
@@ -45279,6 +45330,22 @@ async function _toDecide(btn) {
     return;
   }
   toast(approve ? "Request approved" : "Request denied", "success");
+  if (prevStatus !== (approve ? "approved" : "denied") && typeof _rrPushUndo === "function") {
+    _rrPushUndo({
+      label: approve ? "Time off approved" : "Time off denied",
+      undo: async () => {
+        const { error: undoErr } = await sb.from("time_off_requests")
+          .update({ status: prevStatus }).eq("id", id);
+        if (undoErr) throw new Error(undoErr.message);
+        if (document.getElementById("rr-sched-req-stream") && typeof renderSchedRequestStream === "function") {
+          renderSchedRequestStream();
+          if (typeof _renderRequestsReports === "function") _renderRequestsReports();
+        } else if (typeof loadTimeOffView === "function") {
+          loadTimeOffView();
+        }
+      },
+    });
+  }
   _reqMarkDecided(id);
   // Refresh whichever surface is mounted — the unified Requests stream
   // (and its reports) or the legacy time-off body.
