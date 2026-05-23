@@ -1822,8 +1822,8 @@
 #view-schedule.rrx-schedule .sched-v2-cmd-tabs {
   position: absolute !important;
   top: -28px !important;
-  right: var(--rr-space-80) !important;
-  left: auto !important;
+  left: var(--rr-space-80) !important;  /* far LEFT of the V2 strip */
+  right: auto !important;
   bottom: auto !important;
   margin: 0 !important;
   display: inline-flex !important;
@@ -1917,4 +1917,87 @@
   height: 28px;
   stroke-width: 1.6;
   flex: 0 0 auto;
+}
+
+/* ============================================================
+   Unassign · AI gradient (matches Smart Fill)
+   ------------------------------------------------------------
+   Per operator direction — Unassign is the second "intelligent"
+   tile (assign/unassign uses the chain-rule logic) and now
+   shares the same indigo→pink resting gradient as Smart Fill.
+   The on-click spin + label flip from PR #1620 is unchanged.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="unassign"]) .sched-v2-tile {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.10), rgba(236, 72, 153, 0.10));
+  color: #5B21B6;
+}
+
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="unassign"]) .sched-v2-tile:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(236, 72, 153, 0.18));
+  color: #4C1D95;
+}
+
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="unassign"]) .sched-v2-tile svg {
+  color: #6366F1;
+}
+
+/* ============================================================
+   Draft / Live status pill next to the Schedule title
+   ------------------------------------------------------------
+   Two visible states, toggled by the Finalize button click.
+   Default "Draft" (amber); becomes "Live" (green w/ check) once
+   the operator finalizes the week, flips back to "Draft" on
+   the next Finalize click.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-v2-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rr-space-40);
+  height: 22px;
+  padding: 0 var(--rr-space-100);
+  border-radius: var(--rr-radius-pill);
+  font: var(--rr-font-caption);
+  font-weight: 600;
+  margin-left: var(--rr-space-80);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+#view-schedule.rrx-schedule .sched-v2-status-pill[data-state="draft"] {
+  background: var(--rr-warning-soft);
+  color: #8A6A00;
+  border: 1px solid rgba(255, 185, 0, 0.30);
+}
+
+#view-schedule.rrx-schedule .sched-v2-status-pill[data-state="live"] {
+  background: var(--rr-success-soft);
+  color: var(--rr-success);
+  border: 1px solid rgba(16, 124, 65, 0.30);
+}
+
+#view-schedule.rrx-schedule .sched-v2-status-pill .sched-v2-status-check {
+  display: none;
+  width: 12px;
+  height: 12px;
+}
+
+#view-schedule.rrx-schedule .sched-v2-status-pill[data-state="live"] .sched-v2-status-check {
+  display: inline-block;
+}
+
+/* ============================================================
+   Calendar grid · square cells (per operator direction)
+   ------------------------------------------------------------
+   Each day cell renders as a square: width is already fluid
+   (column = 1fr), height matches via aspect-ratio.
+   Applies only inside #view-schedule.rrx-schedule so other
+   pages that mount the calendar (Fleet calendar) keep their
+   own height rules.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .cal-cell:not(.cal-row-label) {
+  aspect-ratio: 1 / 1 !important;
+  min-height: 0 !important;
 }
