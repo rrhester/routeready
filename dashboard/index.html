@@ -12139,6 +12139,28 @@ body.rr-cmdk-open{ overflow:hidden }
                   <button class="btn btn-sm btn-primary" id="rr-set-dsp-name-save" type="button">Save</button>
                 </div>
               </div>
+              <!-- Fleet Bridge address · auto-generated from the DSP
+                   name. The DSP enters their Gmail below; messages
+                   sent to <slug>@routeready.com forward there. -->
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Fleet Bridge address</div>
+                  <div class="form-help">Generated from your DSP name. Messages sent here forward to your linked Gmail.</div>
+                </div>
+                <div style="display:flex;gap:var(--s-2);align-items:center">
+                  <input class="form-input" id="rr-set-fb-email" value="" readonly style="flex:1;background:var(--canvas);font-family:ui-monospace,SFMono-Regular,Menlo,monospace"/>
+                </div>
+              </div>
+              <div class="form-row">
+                <div>
+                  <div class="form-label">Linked Gmail</div>
+                  <div class="form-help">Your business Gmail account. Mail sent to your Fleet Bridge address forwards here.</div>
+                </div>
+                <div style="display:flex;gap:var(--s-2);align-items:center">
+                  <input class="form-input" id="rr-set-fb-gmail" type="email" placeholder="you@gmail.com" value="" style="flex:1"/>
+                  <button class="btn btn-sm btn-primary" id="rr-set-fb-gmail-save" type="button">Save</button>
+                </div>
+              </div>
               <div class="form-row">
                 <div>
                   <div class="form-label">Reply email</div>
