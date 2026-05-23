@@ -47203,6 +47203,153 @@ document.addEventListener("click", (e) => {
     if (typeof toast === "function") toast(`Folder "${f.name}" deleted`, "warn");
   }
 
+  // ── Composer (new / reply / reply-all / forward) ────────────────
+  // Inserts a queued outbound row into email_messages. The send-email
+  // edge function (cron-driven) drains queued rows and ships them via
+  // Resend; folder_id is set to the DSP's Sent folder so the message
+  // appears there immediately for the operator.
+  function quoteOriginal(m) {
+    if (!m) return "";
+    const when = m.created_at ? new Date(m.created_at).toLocaleString() : "";
+    const from = m.from_email || "(unknown)";
+    const text = (m.body_text || "").replace(/\s+$/g, "");
+    const quoted = text.split("\n").map(l => "> " + l).join("\n");
+    return `\n\nOn ${when}, ${from} wrote:\n${quoted}`;
+  }
+
+  function openComposer({ mode = "new", original = null } = {}) {
+    closeComposer();
+    let to = "", subject = "", body = "";
+    const needs = (mode === "reply" || mode === "reply-all" || mode === "forward");
+    if (needs && !original) {
+      if (typeof toast === "function") toast("Pick a message first", "warn");
+      return;
+    }
+    if (mode === "reply" || mode === "reply-all") {
+      to = original.from_email || "";
+      const s = original.subject || "";
+      subject = s ? (/^re:/i.test(s) ? s : "Re: " + s) : "";
+      body = quoteOriginal(original);
+    } else if (mode === "forward") {
+      const s = original.subject || "";
+      subject = s ? (/^fwd?:/i.test(s) ? s : "Fwd: " + s) : "";
+      body = quoteOriginal(original);
+    }
+    const titles = { "new": "New email", "reply": "Reply", "reply-all": "Reply all", "forward": "Forward" };
+    const m = document.createElement("div");
+    m.id = "rr-em-composer";
+    m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+    m.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:720px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
+          <div style="font-size:var(--fs-lg);font-weight:600">${escapeHtmlLocal(titles[mode] || "New email")}</div>
+          <button class="btn btn-sm" type="button" data-rr-composer-close>Close</button>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3)">
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600">To</span>
+            <input id="rr-em-composer-to" type="email" required value="${escapeHtmlLocal(to)}" placeholder="vendor@example.com" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600">Subject</span>
+            <input id="rr-em-composer-subject" type="text" required value="${escapeHtmlLocal(subject)}" placeholder="" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:4px;flex:1">
+            <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600">Message</span>
+            <textarea id="rr-em-composer-body" rows="12" placeholder="Type your message… (Cmd/Ctrl+Enter to send)" style="padding:10px;border:1px solid var(--border);border-radius:6px;font:inherit;resize:vertical;min-height:240px;box-sizing:border-box">${escapeHtmlLocal(body)}</textarea>
+          </label>
+        </div>
+        <div style="border-top:1px solid var(--border);padding:var(--s-3-5) var(--s-5);background:var(--surface);display:flex;justify-content:flex-end;gap:var(--s-2)">
+          <button class="btn btn-sm" type="button" data-rr-composer-close>Cancel</button>
+          <button class="btn btn-primary" id="rr-em-composer-send" type="button">Send</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    // Click outside the inner card closes the modal.
+    m.addEventListener("click", (e) => { if (e.target === m) closeComposer(); });
+    // Escape closes; Cmd/Ctrl+Enter sends.
+    m.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.preventDefault(); closeComposer(); }
+      else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendComposerDraft(); }
+    });
+    // Focus the most useful field for this mode.
+    const focusEl = mode === "new"
+      ? document.getElementById("rr-em-composer-to")
+      : document.getElementById("rr-em-composer-body");
+    if (focusEl) {
+      focusEl.focus();
+      // For reply/forward, drop the caret at the very top so the user
+      // types above the quoted block.
+      if (focusEl.tagName === "TEXTAREA") focusEl.setSelectionRange(0, 0);
+    }
+  }
+
+  function closeComposer() {
+    const m = document.getElementById("rr-em-composer");
+    if (m) m.remove();
+  }
+
+  async function sendComposerDraft() {
+    const toInp      = document.getElementById("rr-em-composer-to");
+    const subjectInp = document.getElementById("rr-em-composer-subject");
+    const bodyInp    = document.getElementById("rr-em-composer-body");
+    const sendBtn    = document.getElementById("rr-em-composer-send");
+    if (!toInp || !subjectInp || !bodyInp) return;
+    const to      = toInp.value.trim();
+    const subject = subjectInp.value.trim();
+    const body    = bodyInp.value;
+    if (!to)      { if (typeof toast === "function") toast("To is required", "warn"); toInp.focus(); return; }
+    if (!subject) { if (typeof toast === "function") toast("Subject is required", "warn"); subjectInp.focus(); return; }
+    if (!body.trim() && !confirm("Send with empty body?")) return;
+    const dsp_id = currentDspId();
+    if (!dsp_id) { if (typeof toast === "function") toast("Couldn't determine DSP — please reload", "warn"); return; }
+    const sent = state.folders.find(f => f.kind === "sent");
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = "Sending…"; }
+    const { error } = await sb.from("email_messages").insert({
+      dsp_id,
+      folder_id:  sent?.id || null,
+      direction:  "outbound",
+      status:     "queued",
+      to_email:   to,
+      subject:    subject,
+      body_text:  body,
+    });
+    if (error) {
+      if (typeof toast === "function") toast("Send failed: " + error.message, "warn");
+      if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = "Send"; }
+      return;
+    }
+    if (typeof toast === "function") toast("Message queued · will ship within the minute", "success");
+    closeComposer();
+    // If we're on the Sent folder, the realtime subscription will refresh.
+    // If we're on a different folder, no UI change is needed.
+  }
+
+  // ── Delete / archive (move selected to that kind's folder) ──────
+  async function moveSelectedToKind(kind) {
+    if (!state.activeMessageId) {
+      if (typeof toast === "function") toast("Pick a message first", "warn");
+      return;
+    }
+    const target = state.folders.find(f => f.kind === kind);
+    if (!target) {
+      if (typeof toast === "function") toast(`No ${kind} folder found`, "warn");
+      return;
+    }
+    const { error } = await sb.from("email_messages")
+      .update({ folder_id: target.id })
+      .eq("id", state.activeMessageId);
+    if (error) {
+      if (typeof toast === "function") toast("Couldn't move message: " + error.message, "warn");
+      return;
+    }
+    if (typeof toast === "function") toast(`Moved to ${target.name}`, "success");
+    state.activeMessageId = null;
+    await loadMessages();
+    renderInbox();
+    renderPreview();
+  }
+
   // ── Event wiring ────────────────────────────────────────────────
   document.addEventListener("click", (e) => {
     if (!e.target.closest) return;
@@ -47241,16 +47388,44 @@ document.addEventListener("click", (e) => {
       if (form) form.hidden = true;
       return;
     }
-    // Document AI sparkle · one-shot spin on click. Real Google
-    // Document AI wiring slots in here when the integration lands.
-    const ai = e.target.closest('#view-email .em-action[data-em-act="ai"]');
-    if (ai) {
+    // Composer close (X / Cancel / outside-click handled inside the modal).
+    if (e.target.closest("[data-rr-composer-close]")) {
       e.preventDefault();
-      ai.classList.remove("is-spinning");
-      void ai.offsetWidth;  // force restart of the CSS animation
-      ai.classList.add("is-spinning");
-      setTimeout(() => ai.classList.remove("is-spinning"), 950);
+      closeComposer();
       return;
+    }
+    if (e.target.closest("#rr-em-composer-send")) {
+      e.preventDefault();
+      sendComposerDraft();
+      return;
+    }
+    // Action ribbon (New / Delete / Archive / Reply / Reply All / Forward / AI).
+    const act = e.target.closest('#view-email [data-em-act]');
+    if (act) {
+      const action = act.getAttribute("data-em-act");
+      if (action === "new") {
+        e.preventDefault();
+        openComposer({ mode: "new" });
+        return;
+      }
+      if (action === "reply" || action === "reply-all" || action === "forward") {
+        e.preventDefault();
+        const original = state.messages.find(x => x.id === state.activeMessageId);
+        openComposer({ mode: action, original });
+        return;
+      }
+      if (action === "delete")  { e.preventDefault(); moveSelectedToKind("trash");   return; }
+      if (action === "archive") { e.preventDefault(); moveSelectedToKind("archive"); return; }
+      // Document AI sparkle · one-shot spin on click. Real Google
+      // Document AI wiring slots in here when the integration lands.
+      if (action === "ai") {
+        e.preventDefault();
+        act.classList.remove("is-spinning");
+        void act.offsetWidth;  // force restart of the CSS animation
+        act.classList.add("is-spinning");
+        setTimeout(() => act.classList.remove("is-spinning"), 950);
+        return;
+      }
     }
   });
 
