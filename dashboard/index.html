@@ -22211,6 +22211,73 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-email .em-msg-row:hover .em-msg-delete{display:inline-flex}
           #view-email .em-msg-delete:hover{background:rgba(15,23,42,.08);color:var(--red,#C42B1C)}
+          /* —— Composer formatting toolbar (Outlook-style ribbon) ——— */
+          .em-composer-toolbar{
+            margin:8px 8px 0 8px;padding:6px 10px;
+            border:1px solid var(--border);border-radius:6px;
+            background:#fafbfc;
+            display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+            font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;
+            flex:0 0 auto;
+          }
+          .em-composer-toolbar .emct-group{display:flex;align-items:center;gap:4px}
+          .em-composer-toolbar .emct-divider{width:1px;height:22px;background:var(--border);margin:0 2px}
+          .em-composer-toolbar .emct-font{
+            padding:4px 8px;border:1px solid transparent;border-radius:3px;
+            font:inherit;font-size:13px;background:transparent;cursor:pointer;min-width:130px;
+          }
+          .em-composer-toolbar .emct-font:hover{border-color:#c1c5cb;background:#fff}
+          .em-composer-toolbar .emct-font:focus{outline:none;border-color:#0078d4;background:#fff}
+          .em-composer-toolbar .emct-size{
+            width:48px;padding:4px 6px;border:1px solid transparent;border-radius:3px;
+            font:inherit;font-size:13px;background:transparent;text-align:center;
+          }
+          .em-composer-toolbar .emct-size:hover{border-color:#c1c5cb;background:#fff}
+          .em-composer-toolbar .emct-size:focus{outline:none;border-color:#0078d4;background:#fff}
+          .em-composer-toolbar .emct-btn{
+            width:28px;height:28px;border:1px solid transparent;border-radius:3px;
+            background:transparent;cursor:pointer;font:inherit;font-size:14px;color:var(--text);
+            display:inline-flex;align-items:center;justify-content:center;
+          }
+          .em-composer-toolbar .emct-btn:hover{background:#eef3f9;border-color:#cfd8e3}
+          .em-composer-toolbar .emct-btn:active,
+          .em-composer-toolbar .emct-btn.is-active{background:#c7e0f4;border-color:#0078d4}
+          .em-composer-toolbar .emct-b{font-weight:700}
+          .em-composer-toolbar .emct-i{font-style:italic;font-family:'Times New Roman',serif}
+          .em-composer-toolbar .emct-u{text-decoration:underline}
+          .em-composer-toolbar .emct-color{
+            position:relative;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+            width:34px;height:30px;border:1px solid transparent;border-radius:3px;cursor:pointer;padding:2px;
+          }
+          .em-composer-toolbar .emct-color:hover{background:#eef3f9;border-color:#cfd8e3}
+          .em-composer-toolbar .emct-color input[type=color]{
+            position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:0;padding:0;
+          }
+          .em-composer-toolbar .emct-color .emct-color-icon{
+            color:var(--text);font-size:13px;line-height:1;font-weight:600;
+            display:inline-flex;align-items:center;pointer-events:none;
+          }
+          .em-composer-toolbar .emct-color .emct-color-A{font-size:14px}
+          .em-composer-toolbar .emct-color .emct-color-swatch{
+            display:block;width:18px;height:3px;border-radius:1px;margin-top:3px;pointer-events:none;
+          }
+          .em-composer-toolbar .emct-paperclip svg{display:block}
+          .em-composer-chips{display:flex;flex-wrap:wrap;gap:6px;padding:6px var(--s-5) 0 var(--s-5)}
+          .em-composer-chip{
+            display:inline-flex;align-items:center;gap:6px;padding:4px 8px;
+            background:#eef3f9;border:1px solid #cfd8e3;border-radius:14px;
+            font-size:12px;color:var(--text);
+            font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;
+          }
+          .em-composer-chip-x{
+            display:inline-flex;align-items:center;justify-content:center;
+            width:16px;height:16px;border-radius:50%;border:0;background:transparent;cursor:pointer;
+            color:var(--text-subtle);font-size:14px;line-height:1;padding:0;
+          }
+          .em-composer-chip-x:hover{background:#d6e3f3;color:var(--red,#C42B1C)}
+          #rr-em-composer-body[contenteditable=true]:empty::before{
+            content:attr(data-placeholder);color:var(--text-subtle);pointer-events:none;
+          }
           #view-email .em-msg-row:hover{background:rgba(15,23,42,.04)}
           #view-email .em-msg-row.active{background:rgba(15,108,189,.10)}
           #view-email .em-msg-row-line1{
