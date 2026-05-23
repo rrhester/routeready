@@ -25824,6 +25824,20 @@ document.addEventListener("click", (e) => {
         }
       }
 
+      // Finalize — toggle the Draft / Live status pill next to the
+      // Schedule title. The forwarded click still runs the existing
+      // finalize / live workflow on #rr-sched-finalize-h.
+      if (isTile && key === "finalize") {
+        const pill = document.getElementById("rr-sched-v2-status");
+        if (pill) {
+          const now = pill.getAttribute("data-state");
+          const next = now === "live" ? "draft" : "live";
+          pill.setAttribute("data-state", next);
+          const lbl = pill.querySelector(".sched-v2-status-label");
+          if (lbl) lbl.textContent = next === "live" ? "Live" : "Draft";
+        }
+      }
+
       if (sel) {
         const target = document.querySelector(sel);
         if (target) {
