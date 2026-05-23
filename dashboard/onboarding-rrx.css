@@ -592,6 +592,32 @@
   align-items: center !important;
 }
 
+/* ============================================================
+   Documents · mounted into #obsub-documents
+   ------------------------------------------------------------
+   When #view-documents is relocated here (via _obMountDocuments),
+   it brings its own .page > .page-header > "Documents" header
+   inside. The Onboarding command bar already shows "Documents"
+   as the title, so the inner header is redundant — hide it and
+   neutralize the inner .page padding so the documents content
+   sits flush in the sub-page container.
+   ============================================================ */
+
+#view-onboarding-ops.rrx-onboarding #obsub-documents #view-documents > .page > .page-header {
+  display: none !important;
+}
+
+#view-onboarding-ops.rrx-onboarding #obsub-documents #view-documents {
+  display: block !important;  /* defeat the legacy `.view { display:none }` rule */
+  min-height: 0 !important;
+}
+
+#view-onboarding-ops.rrx-onboarding #obsub-documents #view-documents > .page {
+  padding: 0 !important;
+  display: block !important;  /* don't inherit the page flex lock */
+  overflow: visible !important;
+}
+
 /* Print-only mount — invisible until window.print() runs. */
 #rr-ob-print-area {
   display: none;
