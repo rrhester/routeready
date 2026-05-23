@@ -25863,7 +25863,13 @@ document.addEventListener("click", (e) => {
         const target = document.querySelector(sel);
         if (target) {
           e.preventDefault();
-          e.stopPropagation();
+          // stopImmediatePropagation — NOT stopPropagation. Other
+          // document-level listeners registered LATER in live.js
+          // (e.g. the milestone rules close-on-outside at ~29282)
+          // would otherwise fire for the SAME original click event
+          // and close the popover the synthesized .click() just
+          // opened.
+          e.stopImmediatePropagation();
           target.click();
           return;
         }
