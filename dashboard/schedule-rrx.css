@@ -2305,10 +2305,19 @@ body.rr-sched-focus #view-schedule.rrx-schedule .cal-wrap {
   min-height: 0 !important;
 }
 body.rr-sched-focus #view-schedule.rrx-schedule .sched-right-rail {
+  /* The default `position:sticky; top:80px; max-height:calc(100vh - 100px)`
+     leaves the rail offset below the (now-hidden) topbar and capped
+     short of the viewport. Cancel both so the rail tracks the grid's
+     full height. */
+  position: static !important;
+  top: auto !important;
+  max-height: none !important;
   height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
   min-height: 0 !important;
+  overflow: hidden !important;
+  gap: 0 !important;
 }
 body.rr-sched-focus #view-schedule.rrx-schedule .pool-openshifts-foot {
   flex: 1 1 auto !important;
