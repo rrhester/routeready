@@ -48639,3 +48639,134 @@ document.addEventListener("click", (e) => {
     init();
   }
 })();
+
+// ────────────────────────────────────────────────────────────────
+// FAUX SCROLLBAR · JS-driven always-visible scrollbar
+// ────────────────────────────────────────────────────────────────
+// CSS-only persistent scrollbars don't survive every browser/OS
+// combo (Chrome's overlay-scrollbar flag, Windows "always show
+// scrollbars" off, etc). This module renders a custom-drawn
+// scrollbar that's pinned to the right edge of a scroll container
+// and ALWAYS visible. The native scrollbar is hidden via
+// scrollbar-width:none + ::-webkit-scrollbar{display:none} when
+// the faux is attached.
+//
+// Targets: schedule grid (.cal-wrap), open-shifts panel
+// (.pool-openshifts-body), and driver pool (.driver-pool).
+(function () {
+  function attachFauxScrollbar(scrollEl) {
+    if (!scrollEl || scrollEl.dataset.rrFauxAttached) return;
+    scrollEl.dataset.rrFauxAttached = "1";
+
+    const anchor = scrollEl.parentElement;
+    if (!anchor) return;
+    const anchorPos = getComputedStyle(anchor).position;
+    if (anchorPos === "static") anchor.style.position = "relative";
+
+    const track = document.createElement("div");
+    track.className = "rr-faux-scrollbar";
+    const thumb = document.createElement("div");
+    thumb.className = "rr-faux-scrollbar-thumb";
+    track.appendChild(thumb);
+    anchor.appendChild(track);
+
+    function update() {
+      const sh = scrollEl.scrollHeight;
+      const ch = scrollEl.clientHeight;
+      const st = scrollEl.scrollTop;
+      const r = scrollEl.getBoundingClientRect();
+      const pr = anchor.getBoundingClientRect();
+      track.style.top = (r.top - pr.top) + "px";
+      track.style.height = r.height + "px";
+      track.style.right = (pr.right - r.right) + "px";
+      if (sh <= ch + 1) {
+        // No overflow — show full-height track but no thumb.
+        thumb.style.display = "none";
+        return;
+      }
+      thumb.style.display = "block";
+      const ratio = ch / sh;
+      const thumbH = Math.max(40, Math.floor(ch * ratio));
+      const maxScroll = sh - ch;
+      const maxThumbTop = ch - thumbH;
+      const thumbTop = maxScroll > 0 ? (st / maxScroll) * maxThumbTop : 0;
+      thumb.style.height = thumbH + "px";
+      thumb.style.transform = "translateY(" + thumbTop + "px)";
+    }
+
+    scrollEl.addEventListener("scroll", update, { passive: true });
+
+    let dragging = false;
+    let dy0 = 0;
+    let st0 = 0;
+    thumb.addEventListener("mousedown", (e) => {
+      dragging = true;
+      dy0 = e.clientY;
+      st0 = scrollEl.scrollTop;
+      document.body.style.userSelect = "none";
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!dragging) return;
+      const sh = scrollEl.scrollHeight;
+      const ch = scrollEl.clientHeight;
+      const dy = e.clientY - dy0;
+      const maxScroll = sh - ch;
+      const thumbH = thumb.offsetHeight;
+      const denom = Math.max(1, ch - thumbH);
+      const ratio = maxScroll / denom;
+      scrollEl.scrollTop = st0 + dy * ratio;
+    });
+    document.addEventListener("mouseup", () => {
+      if (dragging) document.body.style.userSelect = "";
+      dragging = false;
+    });
+
+    // Click on the track outside the thumb pages the scroll.
+    track.addEventListener("mousedown", (e) => {
+      if (e.target === thumb) return;
+      const rect = track.getBoundingClientRect();
+      const clickY = e.clientY - rect.top;
+      const thumbTop = thumb.getBoundingClientRect().top - rect.top;
+      const dir = clickY < thumbTop ? -1 : 1;
+      scrollEl.scrollTop += dir * scrollEl.clientHeight * 0.9;
+    });
+
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(update);
+      ro.observe(scrollEl);
+      const mo = new MutationObserver(update);
+      mo.observe(scrollEl, { childList: true, subtree: true });
+    }
+    window.addEventListener("resize", update, { passive: true });
+    update();
+  }
+
+  function setupFauxScrollbars() {
+    const sel =
+      "#view-schedule.rrx-schedule .cal-wrap, " +
+      "#view-schedule.rrx-schedule .pool-openshifts-body, " +
+      "#view-schedule.rrx-schedule .driver-pool";
+    document.querySelectorAll(sel).forEach(attachFauxScrollbar);
+  }
+
+  // Run on DOMContentLoaded, after a small initial settle delay
+  // (the schedule view paints async), and on any click that might
+  // navigate into the schedule view.
+  function kick() {
+    setupFauxScrollbars();
+    setTimeout(setupFauxScrollbars, 300);
+    setTimeout(setupFauxScrollbars, 1200);
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", kick);
+  } else {
+    kick();
+  }
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("[data-sub='schedule'], [data-v='schedule'], .sched-cmd-tab, .sched-v2-tile")) return;
+    setTimeout(setupFauxScrollbars, 150);
+    setTimeout(setupFauxScrollbars, 600);
+  });
+})();
