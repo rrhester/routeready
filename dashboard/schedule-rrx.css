@@ -185,7 +185,11 @@
 #view-schedule.rrx-schedule .sched-nav-heading-actions > .subnav,
 #view-schedule.rrx-schedule .sched-nav-heading-actions .sched-ribbon-group > .subnav {
   display: inline-flex;
-  align-items: center;
+  /* flex-start so every tile shares the same TOP baseline.
+     Tiles with a Rules footer (Week view) extend further down
+     but their ICON sits at the same y as the icons in tiles
+     without a footer (Today view, Fleet calendar). */
+  align-items: flex-start;
   gap: var(--rr-space-40);
   margin: 0;
   padding: 0;
@@ -196,6 +200,27 @@
   flex: 0 0 auto;
   width: auto;
   min-width: 0;
+}
+
+/* Same align-start treatment for the page-actions row (Smart
+   Fill + footer, Targets + footer, etc) so every action icon
+   sits at the same top baseline regardless of footer. */
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped {
+  align-items: flex-start !important;
+}
+
+/* The outer command-bar row centers groups vertically; switch
+   to flex-start so the group itself (which may contain
+   different-height tiles) anchors to the top. */
+#view-schedule.rrx-schedule .sched-nav-heading-actions {
+  align-items: flex-start !important;
+}
+
+/* Title block on the left stays vertically centered in the
+   command bar; reset its own align-self so the change above
+   doesn't push the title to the top. */
+#view-schedule.rrx-schedule .sched-nav-heading .page-header-l {
+  align-self: center !important;
 }
 
 /* ── Ribbon tiles (Week / Today / Calendar / Staff / Requests
@@ -544,22 +569,22 @@
   border: 1px solid var(--rr-border-primary) !important;
   border-radius: var(--rr-radius-large) !important;
   box-shadow: var(--rr-shadow-8) !important;
-  /* Anchor to viewport (not button) so the popover is always
-     fully visible top-to-bottom regardless of button position or
-     viewport height. Center horizontally, 64px below the ribbon
-     so it never clips at top, 32px above the viewport floor so
-     bottom never clips. */
-  position: fixed !important;
-  top: 96px !important;
-  left: 50% !important;
-  right: auto !important;
+  /* Anchor to the trigger (sched-smartfill-split is position:
+     relative) so the popover opens directly beneath it. Smart
+     Fill sits mid-right of the ribbon — anchor the right edge
+     and extend leftward so the wide popover stays on screen. */
+  position: absolute !important;
+  top: calc(100% + 8px) !important;
+  right: 0 !important;
+  left: auto !important;
   bottom: auto !important;
-  transform: translateX(-50%) !important;
-  min-width: min(720px, calc(100vw - 80px)) !important;
-  max-width: calc(100vw - 80px) !important;
-  max-height: calc(100vh - 128px) !important;
+  transform: none !important;
+  min-width: min(720px, calc(100vw - 96px)) !important;
+  max-width: calc(100vw - 96px) !important;
+  max-height: calc(100vh - 200px) !important;
   overflow-y: auto !important;
   margin: 0 !important;
+  z-index: 60 !important;
 }
 
 /* Muted-blue header band — !important so it can't lose to the
@@ -611,16 +636,19 @@
   border: 1px solid var(--rr-border-primary) !important;
   border-radius: var(--rr-radius-large) !important;
   box-shadow: var(--rr-shadow-8) !important;
-  position: fixed !important;
-  top: 96px !important;
-  left: 50% !important;
-  right: auto !important;
+  /* Anchor to trigger (Targets/Settings tile sits mid-right). */
+  position: absolute !important;
+  top: calc(100% + 8px) !important;
+  right: 0 !important;
+  left: auto !important;
   bottom: auto !important;
-  transform: translateX(-50%) !important;
-  max-width: calc(100vw - 80px) !important;
-  max-height: calc(100vh - 128px) !important;
+  transform: none !important;
+  min-width: min(420px, calc(100vw - 96px)) !important;
+  max-width: calc(100vw - 96px) !important;
+  max-height: calc(100vh - 200px) !important;
   overflow-y: auto !important;
   margin: 0 !important;
+  z-index: 60 !important;
 }
 
 #view-schedule.rrx-schedule .sched-quick-settings-head {
@@ -663,16 +691,31 @@
   border: 1px solid var(--rr-border-primary) !important;
   border-radius: var(--rr-radius-large) !important;
   box-shadow: var(--rr-shadow-8) !important;
-  position: fixed !important;
-  top: 96px !important;
-  left: 50% !important;
-  right: auto !important;
+  position: absolute !important;
+  top: calc(100% + 8px) !important;
+  right: 0 !important;
+  left: auto !important;
   bottom: auto !important;
-  transform: translateX(-50%) !important;
-  max-width: calc(100vw - 80px) !important;
-  max-height: calc(100vh - 128px) !important;
+  transform: none !important;
+  min-width: min(480px, calc(100vw - 96px)) !important;
+  max-width: calc(100vw - 96px) !important;
+  max-height: calc(100vh - 200px) !important;
   overflow-y: auto !important;
   margin: 0 !important;
+  z-index: 60 !important;
+}
+
+/* Week-view rules popover — Week tile sits at the LEFT of the
+   ribbon, so anchor by the left edge and extend rightward. */
+#view-schedule.rrx-schedule #rr-sched-week-rules-popover {
+  position: absolute !important;
+  top: calc(100% + 8px) !important;
+  left: 0 !important;
+  right: auto !important;
+  transform: none !important;
+  min-width: 280px !important;
+  max-width: calc(100vw - 96px) !important;
+  max-height: calc(100vh - 200px) !important;
 }
 
 #view-schedule.rrx-schedule .sched-vans-rules-head {
@@ -712,16 +755,20 @@
   border: 1px solid var(--rr-border-primary) !important;
   border-radius: var(--rr-radius-large) !important;
   box-shadow: var(--rr-shadow-8) !important;
-  position: fixed !important;
-  top: 96px !important;
-  left: 50% !important;
-  right: auto !important;
+  /* Kudos sits at the RIGHT end of the ribbon — anchor right
+     edge, extend leftward, so it stays on screen. */
+  position: absolute !important;
+  top: calc(100% + 8px) !important;
+  right: 0 !important;
+  left: auto !important;
   bottom: auto !important;
-  transform: translateX(-50%) !important;
-  max-width: calc(100vw - 80px) !important;
-  max-height: calc(100vh - 128px) !important;
+  transform: none !important;
+  min-width: min(420px, calc(100vw - 96px)) !important;
+  max-width: calc(100vw - 96px) !important;
+  max-height: calc(100vh - 200px) !important;
   overflow-y: auto !important;
   margin: 0 !important;
+  z-index: 60 !important;
 }
 
 #view-schedule.rrx-schedule .sched-milestone-rules-head {
@@ -800,7 +847,9 @@
 /* Both KPI strips share one container chrome (flex, no gap,
    pills separated by their own right-border). Identical
    padding/min-height/border so Today / Fleet calendar /
-   Requests / Week all read at the same height. */
+   Requests / Week all read at the same height. Bottom margin
+   kept tight (8px) so the content beneath sits close to the
+   KPI strip. */
 #view-schedule.rrx-schedule .tp-kpis,
 #view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills {
   display: flex;
@@ -814,7 +863,7 @@
   box-shadow: none;
   font: var(--rr-font-body);
   min-height: 46px;
-  margin: 0 0 var(--rr-space-160);
+  margin: 0 0 var(--rr-space-80);
   overflow: hidden;
 }
 
@@ -1097,7 +1146,13 @@
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
-  gap: var(--rr-space-80) !important;  /* tighter — roster closer to KPI */
+  gap: 0 !important;  /* roster sits directly under the KPI strip */
+}
+
+/* Hide the ridealong-alerts div when it has no content so it
+   doesn't add a stray gap above the roster. */
+#view-schedule.rrx-schedule #sched-sub-today #rr-tp-ridealong-alerts:empty {
+  display: none !important;
 }
 
 /* Tighten the main row gap too; the right rail rides alongside
@@ -1214,6 +1269,38 @@
   min-height: 0 !important;
   overflow: hidden !important;
   padding: 0 !important;
+}
+
+/* Requests sub-view — fills available height, scrolls internally
+   so the long requests / time-off lists have a visible scrollbar. */
+#view-schedule.rrx-schedule #sched-sub-requests[style*="block"] {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-requests[style*="block"] > * {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+
+/* Staff sub-view — same treatment so the staff roster scrolls
+   inside the page instead of pushing it. */
+#view-schedule.rrx-schedule #sched-sub-staff[style*="block"] {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+#view-schedule.rrx-schedule #sched-sub-staff[style*="block"] > * {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
 }
 
 #view-schedule.rrx-schedule #sched-sub-calendar .rr-fc-shell {

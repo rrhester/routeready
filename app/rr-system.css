@@ -1317,42 +1317,42 @@ body {
    Persistent contrast scrollbars on every scrollable element
    inside .app. Defeats macOS overlay auto-hide via
    -webkit-appearance:none and forces a classic always-visible
-   bar at 12px with a solid mid-gray thumb that reads against
-   any surface in the app.
+   bar at 14px with a solid dark-gray thumb that's unmistakable
+   against any surface in the app.
    ============================================================ */
 
 .app *::-webkit-scrollbar {
   -webkit-appearance: none !important;
   appearance: none !important;
-  width: 12px !important;
-  height: 12px !important;
-  background: var(--rr-bg-surface-2) !important;
+  width: 14px !important;
+  height: 14px !important;
+  background: #E1DFDD !important;  /* visibly darker than surface */
   display: block !important;
 }
 
 .app *::-webkit-scrollbar-track {
-  background: var(--rr-bg-surface-2) !important;
-  border-left: 1px solid var(--rr-border-secondary) !important;
+  background: #E1DFDD !important;
+  border-left: 1px solid #C8C6C4 !important;
 }
 
 .app *::-webkit-scrollbar-thumb {
-  background: #8A8886 !important;
+  background: #5A5A5A !important;  /* dark — unmistakable against the track */
   background-clip: padding-box !important;
-  border: 3px solid transparent !important;
+  border: 3px solid #E1DFDD !important;
   border-radius: var(--rr-radius-pill) !important;
-  min-height: 48px !important;
+  min-height: 56px !important;
 }
 
 .app *::-webkit-scrollbar-thumb:hover {
-  background: var(--rr-fg-secondary) !important;
+  background: #323130 !important;
 }
 
 .app *::-webkit-scrollbar-corner {
-  background: var(--rr-bg-surface-2) !important;
+  background: #E1DFDD !important;
 }
 
 /* Firefox: classic non-overlay scrollbar, same contrast. */
 .app * {
   scrollbar-width: auto;
-  scrollbar-color: #8A8886 var(--rr-bg-surface-2);
+  scrollbar-color: #5A5A5A #E1DFDD;
 }
