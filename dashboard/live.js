@@ -46919,13 +46919,47 @@ document.addEventListener("click", (e) => {
   };
 
   const state = {
-    folders:         [],   // [{ id, name, kind, position }]
+    folders:         [],   // [{ id, name, kind, position, parent_id }]
     activeFolderId:  null,
     messages:        [],   // [{ id, from_email, to_email, subject, body_text, body_html, direction, status, created_at }]
     activeMessageId: null,
     folderCounts:    {},   // { folderId: count of NEW messages since last visit }
+    inboxFilter:     "all",   // "all" | "unread"
+    inboxSort:       "desc",  // "desc" | "asc"
+    collapsedGroups: new Set(),
+    readMessages:    new Set(),
     booted:          false,
   };
+
+  // Persisted inbox prefs — read state, sort order, active filter,
+  // and which date-bucket headers the operator has collapsed.
+  const READ_KEY      = "rr-em-read";
+  const SORT_KEY      = "rr-em-sort";
+  const FILTER_KEY    = "rr-em-filter";
+  const COLLAPSED_KEY = "rr-em-collapsed-groups";
+  function loadInboxPrefs() {
+    try {
+      const r = JSON.parse(localStorage.getItem(READ_KEY) || "[]");
+      state.readMessages = new Set(Array.isArray(r) ? r : []);
+    } catch (_) {}
+    try {
+      const s = localStorage.getItem(SORT_KEY);
+      if (s === "asc" || s === "desc") state.inboxSort = s;
+    } catch (_) {}
+    try {
+      const f = localStorage.getItem(FILTER_KEY);
+      if (f === "all" || f === "unread") state.inboxFilter = f;
+    } catch (_) {}
+    try {
+      const c = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || "[]");
+      state.collapsedGroups = new Set(Array.isArray(c) ? c : []);
+    } catch (_) {}
+  }
+  function saveRead()      { try { localStorage.setItem(READ_KEY,      JSON.stringify([...state.readMessages].slice(-5000))); } catch (_) {} }
+  function saveSort()      { try { localStorage.setItem(SORT_KEY,      state.inboxSort); } catch (_) {} }
+  function saveFilter()    { try { localStorage.setItem(FILTER_KEY,    state.inboxFilter); } catch (_) {} }
+  function saveCollapsed() { try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...state.collapsedGroups])); } catch (_) {} }
+  function markRead(id)    { if (!state.readMessages.has(id)) { state.readMessages.add(id); saveRead(); } }
   let inboxChannel = null;
 
   // Folder "new mail" tracking: we don't have an is_read column on
@@ -46960,7 +46994,7 @@ document.addEventListener("click", (e) => {
   // ── Data loaders ────────────────────────────────────────────────
   async function loadFolders() {
     const { data, error } = await sb.from("fb_folders")
-      .select("id, name, kind, position")
+      .select("id, name, kind, position, parent_id")
       .order("position", { ascending: true })
       .order("name",     { ascending: true });
     if (error) { console.error("fb_folders load failed:", error); state.folders = []; return; }
@@ -47040,25 +47074,50 @@ document.addEventListener("click", (e) => {
       host.innerHTML = `<div class="em-folder-empty" style="padding:var(--s-3) var(--s-4);color:var(--text-subtle);font-size:var(--fs-xs)">Loading folders…</div>`;
       return;
     }
-    const builtins = state.folders.filter(f => f.kind !== "custom");
-    const custom   = state.folders.filter(f => f.kind === "custom");
-    const builtinHtml = builtins.length
-      ? `<div class="em-folder-section">System</div>` + builtins.map(folderHtml).join("")
-      : "";
-    const customHtml = custom.length
-      ? `<div class="em-folder-section">My folders</div>` + custom.map(folderHtml).join("")
-      : "";
-    host.innerHTML = builtinHtml + customHtml;
+    // Index folders by parent_id so we can render the tree recursively.
+    const childrenByParent = new Map();
+    for (const f of state.folders) {
+      const key = f.parent_id || null;
+      if (!childrenByParent.has(key)) childrenByParent.set(key, []);
+      childrenByParent.get(key).push(f);
+    }
+    const renderBranch = (parentId, depth) => {
+      const kids = childrenByParent.get(parentId) || [];
+      return kids.map(f => {
+        const childHtml = renderBranch(f.id, depth + 1);
+        return folderHtml(f, depth) + childHtml;
+      }).join("");
+    };
+    const builtins = (childrenByParent.get(null) || []).filter(f => f.kind !== "custom");
+    const customTops = (childrenByParent.get(null) || []).filter(f => f.kind === "custom");
+    let html = "";
+    if (builtins.length) {
+      html += `<div class="em-folder-section">System</div>`;
+      for (const f of builtins) {
+        html += folderHtml(f, 0);
+        html += renderBranch(f.id, 1);
+      }
+    }
+    if (customTops.length) {
+      html += `<div class="em-folder-section">My folders</div>`;
+      for (const f of customTops) {
+        html += folderHtml(f, 0);
+        html += renderBranch(f.id, 1);
+      }
+    }
+    host.innerHTML = html;
   }
-  function folderHtml(f) {
+  function folderHtml(f, depth = 0) {
     const isActive = f.id === state.activeFolderId;
     const isCustom = f.kind === "custom";
     const newCount = state.folderCounts[f.id] || 0;
     const countDisplay = newCount > 0 ? (newCount > 99 ? "99+" : String(newCount)) : "";
-    return `<button type="button" class="em-folder${isActive ? " active" : ""}" data-em-folder="${escapeHtmlLocal(f.id)}" aria-pressed="${isActive ? "true" : "false"}">
+    const indent = depth > 0 ? ` style="padding-left:${10 + depth * 14}px"` : "";
+    return `<button type="button" class="em-folder${isActive ? " active" : ""}" data-em-folder="${escapeHtmlLocal(f.id)}" aria-pressed="${isActive ? "true" : "false"}"${indent}>
       ${iconFor(f.kind)}
       <span class="em-folder-name">${escapeHtmlLocal(f.name)}</span>
       <span class="em-folder-count${newCount > 0 ? " has-new" : ""}" aria-hidden="true">${countDisplay}</span>
+      <span class="em-folder-add" role="button" tabindex="0" data-em-folder-add-child="${escapeHtmlLocal(f.id)}" aria-label="Add subfolder" title="Add subfolder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
       ${isCustom ? `<span class="em-folder-delete" role="button" tabindex="0" data-em-folder-delete="${escapeHtmlLocal(f.id)}" aria-label="Delete folder" title="Delete folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>` : ""}
     </button>`;
   }
@@ -47074,29 +47133,101 @@ document.addEventListener("click", (e) => {
     }
   }
 
+  // Group a message into a date bucket for the inbox ribbons.
+  function dateBucket(d) {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const msg = new Date(d);
+    const startOfMsg = new Date(msg.getFullYear(), msg.getMonth(), msg.getDate()).getTime();
+    const days = Math.floor((startOfToday - startOfMsg) / 86400000);
+    if (days === 0) return { key: "today",       label: "Today" };
+    if (days === 1) return { key: "yesterday",   label: "Yesterday" };
+    if (days <  7)  return { key: "this-week",   label: "Earlier this week" };
+    if (days < 30)  return { key: "this-month",  label: "Earlier this month" };
+    if (days < 365) return { key: "this-year",   label: "Earlier this year" };
+    return                  { key: "older",      label: "Older" };
+  }
+
   function renderInbox() {
     renderHeader();
     const inbox = document.getElementById("rr-em-inbox");
     if (!inbox) return;
-    if (!state.messages.length) {
+
+    // Filter by All / Unread tab.
+    let messages = state.messages.slice();
+    if (state.inboxFilter === "unread") {
+      messages = messages.filter(m => !state.readMessages.has(m.id));
+    }
+    // Sort by date.
+    messages.sort((a, b) => {
+      const av = new Date(a.created_at).getTime();
+      const bv = new Date(b.created_at).getTime();
+      return state.inboxSort === "asc" ? av - bv : bv - av;
+    });
+
+    const unreadCount = state.messages.filter(m => !state.readMessages.has(m.id)).length;
+    const sortLabel = state.inboxSort === "desc" ? "Newest" : "Oldest";
+    const sortIcon = state.inboxSort === "desc"
+      ? `<svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M3 5l5 6 5-6z"/></svg>`
+      : `<svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M3 11l5-6 5 6z"/></svg>`;
+    const toolbarHtml = `<div class="em-inbox-toolbar">
+      <div class="em-inbox-tabs" role="tablist">
+        <button type="button" class="em-inbox-tab${state.inboxFilter === "all" ? " active" : ""}" data-em-inbox-filter="all" role="tab" aria-selected="${state.inboxFilter === "all"}">All</button>
+        <button type="button" class="em-inbox-tab${state.inboxFilter === "unread" ? " active" : ""}" data-em-inbox-filter="unread" role="tab" aria-selected="${state.inboxFilter === "unread"}">Unread${unreadCount > 0 ? ` <span class="em-tab-count">${unreadCount > 99 ? "99+" : unreadCount}</span>` : ""}</button>
+      </div>
+      <button type="button" class="em-inbox-sort" data-em-inbox-sort title="Toggle sort order">${sortLabel} ${sortIcon}</button>
+    </div>`;
+
+    if (messages.length === 0) {
       const f = state.folders.find(x => x.id === state.activeFolderId);
-      inbox.innerHTML = `<div class="em-placeholder">
-        <span class="em-placeholder-label">No messages</span>
-        <div>${f && f.kind === "custom" ? "Drag messages here to organise them." : "This folder is empty."}</div>
+      const empty = state.inboxFilter === "unread"
+        ? "All caught up — no unread messages."
+        : (f && f.kind === "custom" ? "Drag messages here to organise them." : "This folder is empty.");
+      inbox.innerHTML = toolbarHtml + `<div class="em-placeholder">
+        <span class="em-placeholder-label">${state.inboxFilter === "unread" ? "Nothing unread" : "No messages"}</span>
+        <div>${empty}</div>
       </div>`;
       return;
     }
-    inbox.innerHTML = state.messages.map(messageRowHtml).join("");
+
+    // Group by date bucket while preserving sort order.
+    const groups = [];
+    const seen = new Map();
+    for (const m of messages) {
+      const b = dateBucket(m.created_at);
+      if (!seen.has(b.key)) {
+        const g = { key: b.key, label: b.label, messages: [] };
+        seen.set(b.key, g);
+        groups.push(g);
+      }
+      seen.get(b.key).messages.push(m);
+    }
+
+    const groupsHtml = groups.map(g => {
+      const collapsed = state.collapsedGroups.has(g.key);
+      const body = collapsed ? "" : g.messages.map(messageRowHtml).join("");
+      return `<div class="em-msg-group${collapsed ? " collapsed" : ""}">
+        <button type="button" class="em-msg-group-header" data-em-group-toggle="${escapeHtmlLocal(g.key)}" aria-expanded="${!collapsed}">
+          <svg class="em-msg-group-chevron" viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M5 4l5 4-5 4z"/></svg>
+          <span class="em-msg-group-label">${escapeHtmlLocal(g.label)}</span>
+          <span class="em-msg-group-count">${g.messages.length}</span>
+        </button>
+        <div class="em-msg-group-body">${body}</div>
+      </div>`;
+    }).join("");
+
+    inbox.innerHTML = toolbarHtml + groupsHtml;
   }
 
   function messageRowHtml(m) {
     const isActive  = m.id === state.activeMessageId;
+    const isUnread  = !state.readMessages.has(m.id);
     const isInbound = m.direction === "inbound";
     const who = (isInbound ? m.from_email : m.to_email) || "(unknown)";
     const subject = m.subject || "(no subject)";
     const snippet = (m.body_text || "").replace(/\s+/g, " ").slice(0, 110);
     const when = m.created_at ? formatRelative(new Date(m.created_at)) : "";
-    return `<button type="button" class="em-msg-row${isActive ? " active" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}" draggable="true">
+    return `<button type="button" class="em-msg-row${isActive ? " active" : ""}${isUnread ? " unread" : ""}" data-em-msg="${escapeHtmlLocal(m.id)}" draggable="true">
       <div class="em-msg-row-line1">
         <span class="em-msg-who">${escapeHtmlLocal(who)}</span>
         <span class="em-msg-when">${escapeHtmlLocal(when)}</span>
@@ -47176,46 +47307,66 @@ document.addEventListener("click", (e) => {
   }
 
   function selectMessage(id) {
+    const wasUnread = !state.readMessages.has(id);
     state.activeMessageId = id;
-    document.querySelectorAll("#rr-em-inbox .em-msg-row").forEach(row => {
-      row.classList.toggle("active", row.getAttribute("data-em-msg") === id);
-    });
+    markRead(id);
+    if (wasUnread) {
+      // Unread → read transition: re-render so the row's bold + blue
+      // rail clear, and the All/Unread tab counter ticks down.
+      renderInbox();
+    } else {
+      document.querySelectorAll("#rr-em-inbox .em-msg-row").forEach(row => {
+        row.classList.toggle("active", row.getAttribute("data-em-msg") === id);
+      });
+    }
     renderPreview();
   }
 
   // Double-click a message row → open it in its own pop-out window
-  // (Outlook-style). Single-click still works as a preview.
+  // (Outlook-style). Single-click still works as a preview. Marks the
+  // message read so the All/Unread tab counter ticks down.
   function openMessagePopout(id) {
     const m = state.messages.find(x => x.id === id);
     if (!m) return;
     closeMessagePopout();
+    markRead(m.id);
+    renderInbox();
     const when = m.created_at ? new Date(m.created_at).toLocaleString() : "";
     const isInbound = m.direction === "inbound";
     const body = (m.body_text || "").replace(/\s+$/g, "");
+    // Icon strip: Delete / Reply / Reply All / Forward / Move-to-folder
+    // / Close. Move opens a popover listing every folder; click a
+    // folder name to relocate the message and close the popout.
+    const moveTargets = state.folders
+      .filter(f => f.id !== state.activeFolderId)
+      .map(f => `<button type="button" class="em-popout-move-item" data-rr-popout-move-target="${escapeHtmlLocal(f.id)}">${iconFor(f.kind)}<span>${escapeHtmlLocal(f.name)}</span></button>`)
+      .join("");
+    const iconBar = `<div class="em-popout-iconbar">
+      <button type="button" class="em-popout-ibtn" data-rr-popout-delete title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg><span>Delete</span></button>
+      <button type="button" class="em-popout-ibtn" data-rr-popout-reply title="Reply" aria-label="Reply"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg><span>Reply</span></button>
+      <button type="button" class="em-popout-ibtn" data-rr-popout-replyall title="Reply all" aria-label="Reply all"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 17 2 12 7 7"/><polyline points="12 17 7 12 12 7"/><path d="M22 18v-2a4 4 0 0 0-4-4H7"/></svg><span>Reply All</span></button>
+      <button type="button" class="em-popout-ibtn" data-rr-popout-forward title="Forward" aria-label="Forward"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg><span>Forward</span></button>
+      <div class="em-popout-move-wrap">
+        <button type="button" class="em-popout-ibtn" data-rr-popout-move title="Move to folder" aria-label="Move to folder" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M14 12l3 3-3 3M17 15H9"/></svg><span>Move</span></button>
+        <div class="em-popout-move-menu" hidden role="menu">${moveTargets || `<div class="em-popout-move-empty">No other folders</div>`}</div>
+      </div>
+      <button type="button" class="em-popout-ibtn em-popout-ibtn-close" data-rr-popout-close title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>`;
     const el = document.createElement("div");
     el.id = "rr-em-popout";
     el.dataset.msgId = m.id;
     el.tabIndex = -1;
     el.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     el.innerHTML = `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:95vw;height:90vh;max-width:1400px;display:flex;flex-direction:column;overflow:hidden">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);gap:var(--s-3)">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:var(--fs-lg);font-weight:600;line-height:1.3">${escapeHtmlLocal(m.subject || "(no subject)")}</div>
-          </div>
-          <div style="display:flex;gap:var(--s-2);flex:0 0 auto">
-            <button class="btn btn-sm" type="button" data-rr-popout-reply>Reply</button>
-            <button class="btn btn-sm" type="button" data-rr-popout-replyall>Reply All</button>
-            <button class="btn btn-sm" type="button" data-rr-popout-forward>Forward</button>
-            <button class="btn btn-sm" type="button" data-rr-popout-close>Close</button>
-          </div>
+      <div class="em-popout-card">
+        ${iconBar}
+        <div class="em-popout-subject">${escapeHtmlLocal(m.subject || "(no subject)")}</div>
+        <div class="em-popout-meta">
+          <div><strong>From:</strong> ${escapeHtmlLocal(m.from_email || "—")}</div>
+          <div><strong>To:</strong> ${escapeHtmlLocal(m.to_email || "—")}</div>
+          <div><strong>${isInbound ? "Received" : "Sent"}:</strong> ${escapeHtmlLocal(when)}</div>
         </div>
-        <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));font-size:var(--fs-sm);color:var(--text-subtle);display:flex;flex-direction:column;gap:4px">
-          <div><strong style="color:var(--text);min-width:62px;display:inline-block">From:</strong> ${escapeHtmlLocal(m.from_email || "—")}</div>
-          <div><strong style="color:var(--text);min-width:62px;display:inline-block">To:</strong> ${escapeHtmlLocal(m.to_email || "—")}</div>
-          <div><strong style="color:var(--text);min-width:62px;display:inline-block">${isInbound ? "Received" : "Sent"}:</strong> ${escapeHtmlLocal(when)}</div>
-        </div>
-        <div style="flex:1;overflow-y:auto;padding:var(--s-4) var(--s-5);font-size:14px;line-height:1.55;color:var(--text);word-wrap:break-word">${body ? escapeHtmlLocal(body).replace(/\n/g, "<br>") : `<em style="color:var(--text-subtle)">(no text body)</em>`}</div>
+        <div class="em-popout-body">${body ? escapeHtmlLocal(body).replace(/\n/g, "<br>") : `<em style="color:var(--text-subtle)">(no text body)</em>`}</div>
       </div>`;
     document.body.appendChild(el);
     el.addEventListener("click", (e) => { if (e.target === el) closeMessagePopout(); });
@@ -47228,11 +47379,11 @@ document.addEventListener("click", (e) => {
     if (el) el.remove();
   }
 
-  async function createFolder(name) {
+  async function createFolder(name, parentId = null) {
     const trimmed = String(name || "").trim();
     if (!trimmed) return false;
-    if (state.folders.filter(f => f.kind === "custom").length >= 30) {
-      if (typeof toast === "function") toast("Too many folders (30 max)", "warn");
+    if (state.folders.filter(f => f.kind === "custom").length >= 60) {
+      if (typeof toast === "function") toast("Too many folders (60 max)", "warn");
       return false;
     }
     const dsp_id = currentDspId();
@@ -47240,9 +47391,10 @@ document.addEventListener("click", (e) => {
       if (typeof toast === "function") toast("Couldn't determine your DSP — please reload", "warn");
       return false;
     }
-    const { data, error } = await sb.from("fb_folders").insert({
-      dsp_id, name: trimmed, kind: "custom", position: 100,
-    }).select("id, name, kind, position").single();
+    const row = { dsp_id, name: trimmed, kind: "custom", position: 100 };
+    if (parentId) row.parent_id = parentId;
+    const { data, error } = await sb.from("fb_folders").insert(row)
+      .select("id, name, kind, position, parent_id").single();
     if (error) {
       if (typeof toast === "function") toast("Couldn't create folder: " + error.message, "warn");
       return false;
@@ -47710,11 +47862,87 @@ document.addEventListener("click", (e) => {
       }
       return;
     }
-    // Message popout buttons (Reply / Reply All / Forward / Close).
+    // Inbox toolbar: All / Unread tabs.
+    {
+      const tab = e.target.closest("[data-em-inbox-filter]");
+      if (tab) {
+        e.preventDefault();
+        state.inboxFilter = tab.getAttribute("data-em-inbox-filter") === "unread" ? "unread" : "all";
+        saveFilter();
+        renderInbox();
+        return;
+      }
+    }
+    // Inbox toolbar: sort toggle.
+    if (e.target.closest("[data-em-inbox-sort]")) {
+      e.preventDefault();
+      state.inboxSort = state.inboxSort === "desc" ? "asc" : "desc";
+      saveSort();
+      renderInbox();
+      return;
+    }
+    // Date-bucket ribbon collapse toggle.
+    {
+      const grp = e.target.closest("[data-em-group-toggle]");
+      if (grp) {
+        e.preventDefault();
+        const k = grp.getAttribute("data-em-group-toggle");
+        if (state.collapsedGroups.has(k)) state.collapsedGroups.delete(k);
+        else state.collapsedGroups.add(k);
+        saveCollapsed();
+        renderInbox();
+        return;
+      }
+    }
+    // Add sub-folder button (per-folder + icon on hover).
+    {
+      const addChild = e.target.closest("[data-em-folder-add-child]");
+      if (addChild) {
+        e.preventDefault(); e.stopPropagation();
+        const parentId = addChild.getAttribute("data-em-folder-add-child");
+        const name = prompt("Sub-folder name?");
+        if (name && name.trim()) createFolder(name, parentId);
+        return;
+      }
+    }
+    // Message popout buttons.
     if (e.target.closest("[data-rr-popout-close]")) {
       e.preventDefault();
       closeMessagePopout();
       return;
+    }
+    if (e.target.closest("[data-rr-popout-delete]")) {
+      e.preventDefault();
+      const popout = document.getElementById("rr-em-popout");
+      const msgId = popout?.dataset.msgId;
+      const trash = state.folders.find(f => f.kind === "trash");
+      if (msgId && trash) moveMessageToFolderId(msgId, trash.id);
+      closeMessagePopout();
+      return;
+    }
+    if (e.target.closest("[data-rr-popout-move]")) {
+      e.preventDefault();
+      const popout = document.getElementById("rr-em-popout");
+      const menu = popout?.querySelector(".em-popout-move-menu");
+      const btn  = popout?.querySelector("[data-rr-popout-move]");
+      if (menu && btn) {
+        const open = !menu.hidden;
+        menu.hidden = open;
+        btn.setAttribute("aria-expanded", String(!open));
+      }
+      return;
+    }
+    {
+      const moveTarget = e.target.closest("[data-rr-popout-move-target]");
+      if (moveTarget) {
+        e.preventDefault();
+        const popout = document.getElementById("rr-em-popout");
+        const msgId = popout?.dataset.msgId;
+        const folderId = moveTarget.getAttribute("data-rr-popout-move-target");
+        if (msgId && folderId) moveMessageToFolderId(msgId, folderId);
+        closeMessagePopout();
+        return;
+      }
     }
     {
       const popoutAction = e.target.closest("[data-rr-popout-reply], [data-rr-popout-replyall], [data-rr-popout-forward]");
@@ -47900,6 +48128,7 @@ document.addEventListener("click", (e) => {
     if (!document.getElementById("rr-em-folders")) return false;
     if (state.booted) return true;
     state.booted = true;
+    loadInboxPrefs();
     restoreInboxWidth();
     renderFolders();   // shows "Loading folders…" while the query runs
     renderInbox();
