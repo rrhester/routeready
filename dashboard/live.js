@@ -7261,7 +7261,6 @@ function _prefillWeatherInputs() {
   const fbGmailEl = document.getElementById("rr-set-fb-gmail");
   if (fbEmailEl) fbEmailEl.value = _fbEmailFromName(window.RR?.dsp?.name);
   if (fbGmailEl) { try { fbGmailEl.value = localStorage.getItem("rr-fb-gmail") || ""; } catch (_) {} }
-  _fbPaintHeaderSub();
   // Business address — fetch fresh (it isn't always in window.RR.dsp).
   const addrEl = document.getElementById("rr-set-dsp-address");
   if (addrEl && window.RR?.dsp?.id) {
@@ -7285,10 +7284,9 @@ document.addEventListener("click", async (e) => {
     if (error) throw error;
     window.RR.dsp.name = next;
     _paintWorkspaceChip();
-    // Refresh the Fleet Bridge address slot + header sub-line.
+    // Refresh the Fleet Bridge address slot in Settings.
     const fbEmailEl = document.getElementById("rr-set-fb-email");
     if (fbEmailEl) fbEmailEl.value = _fbEmailFromName(next);
-    _fbPaintHeaderSub();
     toast("DSP name saved", "success");
   } catch (err) {
     console.error("dsp name save:", err);
@@ -7310,20 +7308,6 @@ function _fbEmailFromName(name) {
 function _fbLinkedGmail() {
   try { return localStorage.getItem("rr-fb-gmail") || ""; } catch (_) { return ""; }
 }
-function _fbPaintHeaderSub() {
-  const sub = document.querySelector("#view-email .em-header .page-sub");
-  if (!sub) return;
-  const email = _fbEmailFromName(window.RR?.dsp?.name);
-  const gmail = _fbLinkedGmail();
-  if (!email) {
-    sub.textContent = "DSP-to-Amazon email · inbox, drafts and outbound communication.";
-    return;
-  }
-  sub.textContent = gmail
-    ? `Connected as ${email} · forwards to ${gmail}`
-    : `Connected as ${email} · link a Gmail in Settings → Workspace to enable forwarding`;
-}
-window._fbPaintHeaderSub = _fbPaintHeaderSub;
 
 // Live-update the read-only Fleet Bridge address as the operator
 // edits the DSP name (before they hit Save).
@@ -7345,22 +7329,8 @@ document.addEventListener("click", (e) => {
     return;
   }
   try { localStorage.setItem("rr-fb-gmail", value); } catch (_) {}
-  _fbPaintHeaderSub();
   toast(value ? "Linked Gmail saved" : "Linked Gmail cleared", "success");
 });
-
-// Repaint the Fleet Bridge header sub when the operator opens that page.
-(function () {
-  const _origGoto = window.goto;
-  if (typeof _origGoto === "function" && !_origGoto._wrappedForFb) {
-    window.goto = function (v) {
-      const r = _origGoto.apply(this, arguments);
-      if (v === "email") setTimeout(_fbPaintHeaderSub, 0);
-      return r;
-    };
-    window.goto._wrappedForFb = true;
-  }
-})();
 
 // Save station code → dsps.short_code, then refresh sidebar chip.
 document.addEventListener("click", async (e) => {
