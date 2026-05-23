@@ -13206,19 +13206,19 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
             <div class="sched-vans-rules-split">
               <button class="sched-page-btn sched-page-btn--split" id="rr-sched-vans-h" data-rr-tile="vans" draggable="true" type="button" title="Auto-assign vans for this week using the standing primary / backup chain" aria-label="Assign vans">
-                <!-- Side-view box truck. Sized to match the
-                     Targets calendar icon. Default state is a
-                     clean monoline outline; when vans are assigned
-                     for the week the cargo box fills with dark
-                     blue and the cab fills with brand red. -->
+                <!-- Front-on delivery van · cargo box stacked above
+                     a stubby hood + bumper, with bright wheels at the
+                     base. Default state is a clean monoline outline;
+                     when vans are assigned the cargo + hood paint in
+                     their state colours (preserved cargo/cab classes). -->
                 <svg class="rr-van-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <!-- Cargo box (left, larger) — tightened proportions. -->
-                  <rect class="rr-van-cargo" x="2" y="6" width="11" height="9" rx="1.4"/>
-                  <!-- Cab (right) · flat top then sloped windshield. -->
-                  <path class="rr-van-cab" d="M13 9 h4.4 l2.6 3 v3 h-7z"/>
-                  <!-- Wheels -->
-                  <circle cx="6.2" cy="16.8" r="1.7"/>
-                  <circle cx="16.8" cy="16.8" r="1.7"/>
+                  <rect class="rr-van-cargo" x="3" y="3.5" width="18" height="9" rx="1.6"/>
+                  <path class="rr-van-cab" d="M5.5 12.5h13l-.8 5h-11.4z"/>
+                  <circle cx="8" cy="18.5" r="1.6"/>
+                  <circle cx="16" cy="18.5" r="1.6"/>
+                  <line x1="6.5" y1="7.5" x2="17.5" y2="7.5"/>
+                  <line x1="11" y1="3.5" x2="11" y2="12.5"/>
+                  <line x1="13" y1="3.5" x2="13" y2="12.5"/>
                 </svg>
                 Assign
                 <span class="sched-page-btn-split-toggle" id="rr-sched-vans-chain-toggle" role="button" tabindex="0" aria-haspopup="true" aria-controls="sched-sub-vans-chain" title="Open the van / driver chain editor">
@@ -13345,7 +13345,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
             <button class="sched-page-btn" id="rr-sched-finalize-h" data-rr-tile="finalize" draggable="true" type="button" title="Push this week's schedule to drivers">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="7.5 12.5 11 16 16.5 9"/></svg>
               Finalize
             </button>
             <!-- Kudos · opens the Send Kudos modal (live.js). Below
@@ -13353,7 +13353,7 @@ body.rr-cmdk-open{ overflow:hidden }
                  which milestone banners appear on the schedule. -->
             <div class="sched-kudos-split">
               <button class="sched-page-btn" id="rr-sched-kudos-h" data-rr-tile="kudos" draggable="true" type="button" title="Kudos">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 4H7v6a5 5 0 0 0 10 0V4z"/><path d="M7 6H4v2a3 3 0 0 0 3 3"/><path d="M17 6h3v2a3 3 0 0 1-3 3"/><line x1="12" y1="15" x2="12" y2="18"/><path d="M8 21h8l-1-3H9z"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2.5 14.95 8.5 21.5 9.5 16.75 14.05 17.9 20.5 12 17.5 6.1 20.5 7.25 14.05 2.5 9.5 9.05 8.5"/></svg>
                 Kudos
               </button>
               <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-milestone-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-milestone-rules-popover" title="Recognition rules · toggle birthday + anniversary banners">
@@ -17316,8 +17316,25 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-kudos-h svg{
             color:#D83B01;
           }
-          /* Finalize stays the existing filled Microsoft-blue treatment;
-             its CSS lower in the file keeps the brand blue. */
+          /* Finalize · drop the filled-blue treatment so it doesn't
+             compete with the vibrant Smart Fill tile. Ghost monochrome
+             like the other action tiles. */
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h{
+            background:transparent !important;
+            box-shadow:none !important;
+            color:var(--text-muted) !important;
+            border:0 !important;
+          }
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h svg{
+            color:#605E5C !important;
+          }
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h:hover{
+            background:rgba(0,0,0,.04) !important;
+            color:var(--text) !important;
+          }
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h:hover svg{
+            color:#323130 !important;
+          }
 
           /* — Smart Fill · EXCELLENT. Vibrant gradient + ambient glow.
              Spin one full turn on click (the existing auto-staff click
