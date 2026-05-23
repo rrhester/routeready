@@ -1,0 +1,402 @@
+/* ============================================================
+   Onboarding page — Fluent 2 visual rebind
+   ------------------------------------------------------------
+   Same migration pattern as the Schedule rebind. Re-skins the
+   existing chrome on #view-onboarding-ops using --rr-* tokens
+   defined in app/rr-system.css.
+
+   Scoping: every rule is anchored to
+     `#view-onboarding-ops.rrx-onboarding ...`
+   so the rules can only apply when the view-onboarding-ops
+   element carries the opt-in class, and so they outrank the
+   existing inline `#view-onboarding-ops ...` declarations
+   (specificity 1,2,X vs 1,1,X) without needing !important
+   for non-conflicting rules. The bits that have to fight an
+   inline `!important` or a same-specificity inline rule use
+   `!important` themselves — same pragmatic pattern as
+   schedule-rrx.css.
+
+   This file covers the chrome only:
+     - workspace baseline
+     - title block + subtitle
+     - command bar (sched-nav-heading)
+     - ribbon tiles (subnav-item with the same Fleet Bridge
+       vertical-tile, 28px icon treatment)
+     - Rules footer link under each tile (.ob-rules-foot)
+     - Rules popover (.ob-rules-popover) — viewport-fixed, with
+       muted-blue header, persistent scrollbar
+     - Inter-group hairlines
+   ============================================================ */
+
+/* ── Workspace baseline ─────────────────────────────────────── */
+
+#view-onboarding-ops.rrx-onboarding {
+  background: var(--rr-bg-canvas);
+  font-family: var(--rr-font-family);
+  color: var(--rr-fg-primary);
+}
+
+#view-onboarding-ops.rrx-onboarding .page {
+  padding: var(--rr-space-200);
+}
+
+/* ── Title block ────────────────────────────────────────────── */
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-title {
+  font: var(--rr-font-title);
+  color: var(--rr-fg-primary);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-sub {
+  font: var(--rr-font-caption);
+  color: var(--rr-fg-secondary);
+  margin: 2px 0 0;
+}
+
+/* Page-icon badge (the small drivers-with-check SVG to the
+   left of the title) — calm Fluent square instead of a heavy
+   tinted card. */
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-icon {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--rr-brand-primary);
+  background: var(--rr-brand-soft);
+  border-radius: var(--rr-radius-medium);
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.8;
+}
+
+/* ── Command bar ────────────────────────────────────────────── */
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading {
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--rr-space-120) !important;
+  padding: var(--rr-space-100) var(--rr-space-160) !important;
+  margin: 0 0 var(--rr-space-200) !important;
+  background: var(--rr-bg-surface-1) !important;
+  border: 1px solid var(--rr-border-primary) !important;
+  border-radius: var(--rr-radius-medium) !important;
+  box-shadow: none !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-header-l {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  padding-right: var(--rr-space-160) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--rr-space-120) !important;
+}
+
+/* ── Ribbon actions row ─────────────────────────────────────── */
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: var(--rr-space-80) !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  flex: 1 1 auto !important;
+  overflow: visible !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-ribbon-group {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: var(--rr-space-40) !important;
+  flex: 0 0 auto !important;
+  padding: 0 !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions > .subnav,
+#view-onboarding-ops.rrx-onboarding .sched-ribbon-group > .subnav {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: var(--rr-space-40) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+}
+
+/* Inter-group divider — same border-left treatment as Schedule,
+   matching the one the operator signed off on. */
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group {
+  margin-left: var(--rr-space-160) !important;
+  padding-left: var(--rr-space-160) !important;
+  border-top: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-left-width: 1px !important;
+  border-left-style: solid !important;
+  border-left-color: #C8C6C4 !important;
+}
+
+/* Kill any legacy ::before fake-divider. */
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group::before {
+  display: none !important;
+}
+
+/* ── Ribbon tiles (subnav-item) — Fleet Bridge vertical tile,
+       28px icon, transparent at rest, brand-soft active. ───── */
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item,
+#view-onboarding-ops.rrx-onboarding .ob-tab-wrap > .subnav-item {
+  display: inline-flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: var(--rr-space-40) !important;
+  height: auto !important;
+  min-width: 62px !important;
+  padding: var(--rr-space-80) var(--rr-space-120) 9px !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: var(--rr-radius-medium) !important;
+  color: var(--rr-fg-secondary) !important;
+  font-family: var(--rr-font-family) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  letter-spacing: 0 !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+  transition:
+    color var(--rr-motion-fast),
+    background var(--rr-motion-fast) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item svg,
+#view-onboarding-ops.rrx-onboarding .ob-tab-wrap > .subnav-item svg {
+  width: 28px !important;
+  height: 28px !important;
+  flex: 0 0 auto !important;
+  color: var(--rr-fg-secondary) !important;
+  stroke-width: 1.6 !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item span {
+  white-space: nowrap !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:hover {
+  color: var(--rr-fg-primary) !important;
+  background: var(--rr-bg-hover) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:hover svg {
+  color: var(--rr-fg-primary) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active {
+  color: var(--rr-brand-pressed) !important;
+  background: var(--rr-bg-selected) !important;
+  font-weight: 600 !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active svg {
+  color: var(--rr-brand-primary) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:focus-visible {
+  outline: 2px solid var(--rr-brand-primary) !important;
+  outline-offset: 1px !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item::after {
+  display: none !important;
+}
+
+/* ob-tab-wrap is the column-flex wrapper that lets a tile own a
+   Rules footer underneath. Keep its vertical stack but neutralize
+   any background / border so the tile itself owns appearance. */
+#view-onboarding-ops.rrx-onboarding .ob-tab-wrap {
+  position: relative;
+  display: inline-flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  flex: 0 0 auto !important;
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* ── Rules footer link under each tile (.ob-rules-foot) ─────── */
+
+#view-onboarding-ops.rrx-onboarding .ob-rules-foot {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: var(--rr-space-40) !important;
+  margin: var(--rr-space-40) auto 0 !important;
+  padding: 3px var(--rr-space-80) !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: var(--rr-radius-small) !important;
+  cursor: pointer !important;
+  font-family: var(--rr-font-family) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.01em !important;
+  color: var(--rr-fg-secondary) !important;
+  transition:
+    background var(--rr-motion-fast),
+    color var(--rr-motion-fast) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-rules-foot:hover,
+#view-onboarding-ops.rrx-onboarding .ob-rules-foot:focus-visible {
+  color: var(--rr-brand-pressed) !important;
+  background: var(--rr-brand-soft) !important;
+  outline: none !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-rules-foot[aria-expanded="true"] {
+  color: var(--rr-brand-pressed) !important;
+  background: var(--rr-brand-soft) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-rules-foot svg {
+  width: 10px !important;
+  height: 10px !important;
+  color: currentColor !important;
+}
+
+/* ── Rules popover (.ob-rules-popover) ──────────────────────── */
+
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover {
+  background: var(--rr-bg-surface-1) !important;
+  border: 1px solid var(--rr-border-primary) !important;
+  border-radius: var(--rr-radius-large) !important;
+  box-shadow: var(--rr-shadow-8) !important;
+  /* Anchor to viewport — same fix as Schedule's rules popovers,
+     so the popover is always fully visible top-to-bottom. */
+  position: fixed !important;
+  top: 96px !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translateX(-50%) !important;
+  min-width: min(620px, calc(100vw - 80px)) !important;
+  max-width: calc(100vw - 80px) !important;
+  max-height: calc(100vh - 128px) !important;
+  overflow-y: scroll !important;
+  margin: 0 !important;
+  z-index: 60 !important;
+
+  /* Defeat the legacy backdrop-filter / translucent treatment
+     that the global "unified rules popover" block (around line
+     11195+ in dashboard/index.html) applies to this id. We want
+     a clean, calm Fluent surface like the Schedule popovers. */
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Muted-blue header band — replaces the bright Microsoft-blue
+   gradient header the unified rules-popover block applies. */
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > .ob-rules-head,
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > :first-child {
+  background: var(--rr-brand-soft) !important;
+  background-image: none !important;
+  color: var(--rr-brand-pressed) !important;
+  padding: var(--rr-space-120) var(--rr-space-160) !important;
+  border: 0 !important;
+  border-bottom: 1px solid rgba(0, 120, 212, 0.20) !important;
+  border-top-left-radius: var(--rr-radius-large) !important;
+  border-top-right-radius: var(--rr-radius-large) !important;
+  margin: 0 !important;
+  font: var(--rr-font-body-strong) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--rr-space-80) !important;
+  letter-spacing: 0 !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > .ob-rules-head *,
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > :first-child * {
+  color: var(--rr-brand-pressed) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > .ob-rules-head > svg,
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > :first-child > svg {
+  width: 16px !important;
+  height: 16px !important;
+  flex: 0 0 auto !important;
+  color: var(--rr-brand-pressed) !important;
+}
+
+/* Body / last child — calm white surface, not the
+   translucent legacy fill. */
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > .ob-rules-body,
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover > :last-child {
+  background: var(--rr-bg-surface-1) !important;
+  padding: var(--rr-space-160) !important;
+  border-bottom-left-radius: var(--rr-radius-large) !important;
+  border-bottom-right-radius: var(--rr-radius-large) !important;
+  font: var(--rr-font-body) !important;
+  color: var(--rr-fg-primary) !important;
+}
+
+/* Persistent scrollbar on the popover internal scroll. */
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover {
+  scrollbar-gutter: stable !important;
+  scrollbar-width: auto !important;
+  scrollbar-color: #8A8886 var(--rr-bg-surface-2) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover::-webkit-scrollbar {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 12px !important;
+  background: var(--rr-bg-surface-2) !important;
+  display: block !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover::-webkit-scrollbar-track {
+  background: var(--rr-bg-surface-2) !important;
+  border-left: 1px solid var(--rr-border-secondary) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-rules-popover::-webkit-scrollbar-thumb {
+  background: #8A8886 !important;
+  background-clip: padding-box !important;
+  border: 3px solid transparent !important;
+  border-radius: var(--rr-radius-pill) !important;
+  min-height: 48px !important;
+}
+
+/* ── Cards inside the onboarding workspace ──────────────────── */
+
+#view-onboarding-ops.rrx-onboarding .card,
+#view-onboarding-ops.rrx-onboarding .onb-skel-card {
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  box-shadow: none;
+}
+
+/* ── Loading state ──────────────────────────────────────────── */
+
+#view-onboarding-ops.rrx-onboarding .rr-loading {
+  font: var(--rr-font-body);
+  color: var(--rr-fg-secondary);
+}
