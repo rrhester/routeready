@@ -17252,6 +17252,80 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-ribbon-actions--grouped #rr-sched-finalize-h{
             margin-bottom:23px;
           }
+
+          /* ════════════════════════════════════════════════════════
+             Schedule ribbon refresh · professional polish
+             Mostly Fluent-grey monochrome tiles (clean and quiet) with
+             five icons tinted in the Microsoft palette, plus one
+             "excellent" Smart Fill tile rendered as a vibrant gradient
+             (the schedule's Document-AI moment). Rules footers stay
+             untouched.
+             ════════════════════════════════════════════════════════ */
+
+          /* All ribbon icons default to the Fluent secondary-text grey
+             so the page reads as calm Microsoft chrome. */
+          #view-schedule .sched-nav-heading-actions .subnav-item svg,
+          #view-schedule .sched-ribbon-actions--grouped .sched-page-btn svg{
+            color:#605E5C;
+          }
+          /* Active view tab uses the Microsoft brand blue. */
+          #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item.active{
+            color:#0078D4;
+          }
+          #view-schedule .sched-nav-heading-actions .sched-ribbon-group .subnav-item.active svg{
+            color:#0078D4;
+          }
+
+          /* — Five Microsoft-palette accents (the "colored" icons). — */
+          /* Fleet calendar · Microsoft brand blue */
+          #view-schedule .sched-nav-heading-actions .subnav-item[data-rr-tile="calendar"] svg{
+            color:#0078D4;
+          }
+          /* Targets · Microsoft green (#107C10) */
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-okami-open-h svg{
+            color:#107C10;
+          }
+          /* Unassign vans · Microsoft critical (#A4262C) */
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-vans-h svg{
+            color:#A4262C;
+          }
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-vans-h svg .rr-van-cargo,
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-vans-h svg .rr-van-cab{
+            stroke:#A4262C;
+          }
+          /* Kudos · Microsoft warm amber (#D83B01) */
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-kudos-h svg{
+            color:#D83B01;
+          }
+          /* Finalize stays the existing filled Microsoft-blue treatment;
+             its CSS lower in the file keeps the brand blue. */
+
+          /* — Smart Fill · EXCELLENT. Vibrant gradient + ambient glow.
+             Spin one full turn on click (the existing auto-staff click
+             handler still fires; the spin is purely visual via the
+             .is-spinning class added by JS). */
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-smartfill-h{
+            background:linear-gradient(135deg,#6366F1 0%,#8B5CF6 48%,#EC4899 100%) !important;
+            color:#fff !important;
+            border:0 !important;
+            box-shadow:0 1px 4px rgba(139,92,246,.35) !important;
+            border-radius:6px !important;
+            animation:hdr-ask-glow 3.2s ease-in-out infinite;
+          }
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-smartfill-h:hover{
+            color:#fff !important;background:linear-gradient(135deg,#6366F1 0%,#8B5CF6 48%,#EC4899 100%) !important;
+            filter:brightness(1.06);
+          }
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-smartfill-h svg,
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-smartfill-h .sf-btn-label{
+            color:#fff !important;
+          }
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-smartfill-h svg{
+            transform-origin:50% 50%;
+          }
+          #view-schedule .sched-ribbon-actions--grouped #rr-sched-smartfill-h.is-spinning svg{
+            animation:em-ai-spin .9s cubic-bezier(.2,.7,.2,1);
+          }
         </style>
 
           <!-- Hidden offset-tabs strip — week selection moved to the
