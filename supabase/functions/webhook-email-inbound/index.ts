@@ -268,12 +268,15 @@ Deno.serve(async (req) => {
   }
   if (!bodyText && bodyHtml) bodyText = htmlToText(bodyHtml);
 
-  // 4. Fleet Bridge routing · vendor mail (no applicant match) lands
-  // in the DSP's Fleet Bridge Inbox folder so it shows up in the
-  // Fleet Bridge view. Applicant-matched mail keeps folder_id = NULL
-  // so it stays in the applicant thread (unchanged behavior).
+  // 4. Fleet Bridge routing · ALL inbound mail also lands in the
+  // DSP's Fleet Bridge Inbox folder so the operator sees the full
+  // conversation stream there. Applicant-matched mail keeps
+  // applicant_id set too, so it ALSO shows up in the applicant
+  // thread — the two views render the same row from different
+  // filters (folder_id for Fleet Bridge, applicant_id for the
+  // applicant pipeline thread modal).
   let folderId: string | null = null;
-  if (applicantId == null) {
+  {
     const { data: inbox } = await supa.from("fb_folders")
       .select("id").eq("dsp_id", dsp.id).eq("kind", "inbox").maybeSingle();
     folderId = (inbox?.id as string | null) ?? null;
@@ -289,7 +292,7 @@ Deno.serve(async (req) => {
       const row = existing[0];
       const patch: Record<string, unknown> = {};
       if (row.applicant_id == null && applicantId != null) patch.applicant_id = applicantId;
-      if (row.folder_id == null && folderId != null && applicantId == null) patch.folder_id = folderId;
+      if (row.folder_id == null && folderId != null) patch.folder_id = folderId;
       if (row.body_text == null && row.body_html == null && (bodyText || bodyHtml)) {
         patch.body_text = bodyText;
         patch.body_html = bodyHtml;
