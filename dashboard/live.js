@@ -46923,9 +46923,30 @@ document.addEventListener("click", (e) => {
     activeFolderId:  null,
     messages:        [],   // [{ id, from_email, to_email, subject, body_text, body_html, direction, status, created_at }]
     activeMessageId: null,
+    folderCounts:    {},   // { folderId: count of NEW messages since last visit }
     booted:          false,
   };
   let inboxChannel = null;
+
+  // Folder "new mail" tracking: we don't have an is_read column on
+  // email_messages, so we approximate "new" as "received after the
+  // operator last opened this folder" via per-folder timestamps in
+  // localStorage. selectFolder() bumps the active folder's timestamp,
+  // which clears its badge.
+  const LASTVIEW_KEY = "rr-em-folder-last-viewed";
+  function getFolderLastViewed(folderId) {
+    try {
+      const map = JSON.parse(localStorage.getItem(LASTVIEW_KEY) || "{}");
+      return typeof map[folderId] === "string" ? map[folderId] : null;
+    } catch { return null; }
+  }
+  function setFolderLastViewed(folderId, when = new Date()) {
+    try {
+      const map = JSON.parse(localStorage.getItem(LASTVIEW_KEY) || "{}");
+      map[folderId] = when.toISOString();
+      localStorage.setItem(LASTVIEW_KEY, JSON.stringify(map));
+    } catch (_) {}
+  }
 
   function escapeHtmlLocal(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
@@ -46972,6 +46993,25 @@ document.addEventListener("click", (e) => {
     }
   }
 
+  // Count "new since last visit" messages per folder so the folder
+  // list can show an unread-style badge. One HEAD-mode query per folder
+  // (Supabase doesn't expose group-by counts through the JS client).
+  // Cheap because there are at most ~10 folders per DSP.
+  async function loadFolderCounts() {
+    const out = {};
+    for (const folder of state.folders) {
+      const lastViewed = getFolderLastViewed(folder.id);
+      let q = sb.from("email_messages")
+        .select("*", { count: "exact", head: true })
+        .eq("folder_id", folder.id);
+      if (lastViewed) q = q.gt("created_at", lastViewed);
+      const { count, error } = await q;
+      if (error) { out[folder.id] = 0; continue; }
+      out[folder.id] = count ?? 0;
+    }
+    state.folderCounts = out;
+  }
+
   function subscribeRealtime() {
     if (inboxChannel) {
       try { sb.removeChannel(inboxChannel); } catch (_) {}
@@ -46984,6 +47024,8 @@ document.addEventListener("click", (e) => {
           filter: "folder_id=eq." + state.activeFolderId },
         async () => {
           await loadMessages();
+          await loadFolderCounts();
+          renderFolders();
           renderInbox();
           renderPreview();
         })
@@ -47011,10 +47053,12 @@ document.addEventListener("click", (e) => {
   function folderHtml(f) {
     const isActive = f.id === state.activeFolderId;
     const isCustom = f.kind === "custom";
+    const newCount = state.folderCounts[f.id] || 0;
+    const countDisplay = newCount > 0 ? (newCount > 99 ? "99+" : String(newCount)) : "";
     return `<button type="button" class="em-folder${isActive ? " active" : ""}" data-em-folder="${escapeHtmlLocal(f.id)}" aria-pressed="${isActive ? "true" : "false"}">
       ${iconFor(f.kind)}
       <span class="em-folder-name">${escapeHtmlLocal(f.name)}</span>
-      <span class="em-folder-count" aria-hidden="true"></span>
+      <span class="em-folder-count${newCount > 0 ? " has-new" : ""}" aria-hidden="true">${countDisplay}</span>
       ${isCustom ? `<span class="em-folder-delete" role="button" tabindex="0" data-em-folder-delete="${escapeHtmlLocal(f.id)}" aria-label="Delete folder" title="Delete folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>` : ""}
     </button>`;
   }
@@ -47116,6 +47160,9 @@ document.addEventListener("click", (e) => {
     state.activeFolderId = id;
     state.activeMessageId = null;
     try { localStorage.setItem(ACTIVE_KEY, id); } catch (_) {}
+    // Mark this folder as viewed so its "new mail" badge clears.
+    setFolderLastViewed(id);
+    state.folderCounts[id] = 0;
     renderFolders();
     renderHeader();
     // Paint a transient "loading" state in the inbox while we fetch.
@@ -47151,7 +47198,7 @@ document.addEventListener("click", (e) => {
     el.tabIndex = -1;
     el.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     el.innerHTML = `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:880px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:95vw;height:90vh;max-width:1400px;display:flex;flex-direction:column;overflow:hidden">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);gap:var(--s-3)">
           <div style="flex:1;min-width:0">
             <div style="font-size:var(--fs-lg);font-weight:600;line-height:1.3">${escapeHtmlLocal(m.subject || "(no subject)")}</div>
@@ -47286,7 +47333,7 @@ document.addEventListener("click", (e) => {
     m.id = "rr-em-composer";
     m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
     m.innerHTML = `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:720px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:95vw;height:90vh;max-width:1400px;display:flex;flex-direction:column;overflow:hidden">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
           <div style="font-size:var(--fs-lg);font-weight:600">${escapeHtmlLocal(titles[mode] || "New email")}</div>
           <button class="btn btn-sm" type="button" data-rr-composer-close>Close</button>
@@ -47673,6 +47720,11 @@ document.addEventListener("click", (e) => {
     renderInbox();
     renderPreview();
     await loadFolders();
+    // Treat the active folder as viewed on boot so the inbox doesn't
+    // immediately show its full count as "new"; other folders still
+    // show their accumulated badge.
+    if (state.activeFolderId) setFolderLastViewed(state.activeFolderId);
+    await loadFolderCounts();
     renderFolders();
     await loadMessages();
     renderInbox();
