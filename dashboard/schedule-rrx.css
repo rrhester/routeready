@@ -979,8 +979,17 @@
         macOS Safari/Chrome regardless of width.
    ============================================================ */
 
+/* The open-shifts list lives in `.pool-openshifts-body` (the
+   earlier selector `.pool-openshifts` matches no element).
+   Constrain its height so it actually overflows, and force the
+   scroll gutter so the bar is reserved even when empty. */
+#view-schedule.rrx-schedule .pool-openshifts-body {
+  max-height: 240px !important;
+}
+
 #view-schedule.rrx-schedule .cal-wrap,
-#view-schedule.rrx-schedule .pool-openshifts,
+#view-schedule.rrx-schedule .pool-openshifts-body,
+#view-schedule.rrx-schedule .pool-openshifts-foot,
 #view-schedule.rrx-schedule .driver-pool,
 #view-schedule.rrx-schedule .sched-smartfill-rules-popover,
 #view-schedule.rrx-schedule .sched-quick-settings-popover,
@@ -989,11 +998,12 @@
   overflow-y: scroll !important;
   scrollbar-gutter: stable !important;
   scrollbar-width: auto !important;
-  scrollbar-color: var(--rr-fg-disabled) var(--rr-bg-surface-2) !important;
+  scrollbar-color: #5A5A5A #E1DFDD !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar,
-#view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar,
+#view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar,
+#view-schedule.rrx-schedule .pool-openshifts-foot::-webkit-scrollbar,
 #view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar,
 #view-schedule.rrx-schedule .sched-smartfill-rules-popover::-webkit-scrollbar,
 #view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar,
@@ -1001,51 +1011,55 @@
 #view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar {
   -webkit-appearance: none !important;  /* macOS: defeat overlay auto-hide */
   appearance: none !important;
-  width: 12px !important;
-  height: 12px !important;
-  background: var(--rr-bg-surface-2) !important;
+  width: 14px !important;
+  height: 14px !important;
+  background: #E1DFDD !important;
   display: block !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-track,
-#view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar-track,
+#view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar-track,
+#view-schedule.rrx-schedule .pool-openshifts-foot::-webkit-scrollbar-track,
 #view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-track,
 #view-schedule.rrx-schedule .sched-smartfill-rules-popover::-webkit-scrollbar-track,
 #view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-track,
 #view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-track,
 #view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-track {
-  background: var(--rr-bg-surface-2) !important;
-  border-left: 1px solid var(--rr-border-secondary) !important;
+  background: #E1DFDD !important;
+  border-left: 1px solid #C8C6C4 !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-thumb,
-#view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar-thumb,
+#view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar-thumb,
+#view-schedule.rrx-schedule .pool-openshifts-foot::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .sched-smartfill-rules-popover::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-thumb,
 #view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-thumb {
-  background: #8A8886 !important;  /* solid mid-gray — visible on white */
+  background: #5A5A5A !important;  /* dark — unmistakable against the light track */
   background-clip: padding-box !important;
-  border: 3px solid transparent !important;
+  border: 3px solid #E1DFDD !important;
   border-radius: var(--rr-radius-pill) !important;
-  min-height: 48px !important;
+  min-height: 56px !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-thumb:hover,
-#view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar-thumb:hover,
+#view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar-thumb:hover,
+#view-schedule.rrx-schedule .pool-openshifts-foot::-webkit-scrollbar-thumb:hover,
 #view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-thumb:hover,
 #view-schedule.rrx-schedule .sched-smartfill-rules-popover::-webkit-scrollbar-thumb:hover,
 #view-schedule.rrx-schedule .sched-quick-settings-popover::-webkit-scrollbar-thumb:hover,
 #view-schedule.rrx-schedule .sched-vans-rules-popover::-webkit-scrollbar-thumb:hover,
 #view-schedule.rrx-schedule .sched-milestone-rules-popover::-webkit-scrollbar-thumb:hover {
-  background: var(--rr-fg-primary) !important;
+  background: #323130 !important;
 }
 
 #view-schedule.rrx-schedule .cal-wrap::-webkit-scrollbar-corner,
-#view-schedule.rrx-schedule .pool-openshifts::-webkit-scrollbar-corner,
+#view-schedule.rrx-schedule .pool-openshifts-body::-webkit-scrollbar-corner,
+#view-schedule.rrx-schedule .pool-openshifts-foot::-webkit-scrollbar-corner,
 #view-schedule.rrx-schedule .driver-pool::-webkit-scrollbar-corner {
-  background: var(--rr-bg-surface-2) !important;
+  background: #E1DFDD !important;
 }
 
 /* ============================================================
@@ -2243,4 +2257,14 @@ body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-time {
 #view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:not(.today),
 #view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:first-child {
   background: #E5E8ED !important;
+}
+
+/* ── Day-coverage count · ~50% larger ─────────────────────────
+   The "filled/needed" line under each day number (e.g. 6/7,
+   7/7) was 10px — bump to 15px and bold the weight slightly so
+   it scans clearly from a few feet away. */
+#view-schedule.rrx-schedule .cal-cell-head .day-coverage {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  margin-top: 4px !important;
 }
