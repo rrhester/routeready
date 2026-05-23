@@ -1482,3 +1482,31 @@
   font-size: 13px !important;
   font-weight: 500 !important;
 }
+
+/* ============================================================
+   Reserved Rules-footer slot on bare tiles
+   ------------------------------------------------------------
+   User direction: every icon box has a footer slot reserved
+   beneath it. Tiles with a real "Rules ⌄" link fill the slot;
+   bare tiles get an equivalent EMPTY space so the box itself
+   (the icon area / hover-highlight area) lands at the same
+   place in the strip on every tile.
+
+   The wrapped tiles already do this — Week view's
+   .sched-week-split, Smart Fill's .sched-smartfill-split,
+   Targets' .sched-settings-split, Unassign's
+   .sched-vans-rules-split, and Kudos' .sched-kudos-split each
+   wrap their button + a real Rules footer in a column-flex
+   container. The footer adds ~26px to the wrapper's height.
+
+   Bare tiles (Today view, Fleet calendar, Staff, Requests in
+   the subnav rows + Finalize as a bare page-btn) get a
+   matching 26px reserved beneath their button via margin-
+   bottom, so total occupied height matches the wrapped tiles
+   pixel-for-pixel.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-nav-heading-actions .subnav > .subnav-item,
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped > #rr-sched-finalize-h {
+  margin-bottom: 26px !important;
+}
