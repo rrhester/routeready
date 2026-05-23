@@ -44,7 +44,7 @@ jobs:
       - name: Push migrations
         run: supabase db push --include-all
 
-      - name: Deploy edge functions (JWT-gated)
+      - name: Deploy edge functions (JWT-gated, end-user callable)
         # Track per-function deploy outcomes.  The original simple `for`
         # loop would silently swallow individual function failures
         # because the loop's exit code is its last command's, not the
@@ -53,10 +53,16 @@ jobs:
         # workflow but the function was actually never updated).
         # Now we capture every failure + force the step (and the run)
         # to fail if any function couldn't deploy.
+        #
+        # send-email + send-sms moved to the --no-verify-jwt loop below.
+        # After Supabase rotated this project to the new sb_secret_…
+        # keys, the gateway stopped accepting the legacy JWT that the
+        # drain cron + private.fire_message_send trigger pass through;
+        # gating those two in-function via requireServiceKey() instead.
         run: |
           set +e
           failed=()
-          for fn in send-sms send-email send-driver-push cal-availability invite-team-member admin-delete-dsp; do
+          for fn in send-driver-push cal-availability invite-team-member admin-delete-dsp; do
             echo "▶ deploying $fn (auth required)"
             if ! supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"; then
               echo "::error::deploy failed for $fn"
@@ -68,11 +74,16 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy edge functions (public webhooks)
+      - name: Deploy edge functions (no-verify-jwt; bearer-gated in code)
+        # Functions in this loop either accept signed-webhook payloads
+        # (Twilio / Cal.com / Resend Svix), or are called server-to-server
+        # by triggers + crons that present the service role key in a
+        # bearer header. The functions check the bearer themselves via
+        # requireServiceKey() — see supabase/functions/_shared/supabase.ts.
         run: |
           set +e
           failed=()
-          for fn in webhook-twilio webhook-cal webhook-apply webhook-email-inbound upload-applicant-video upload-driver-photo driver-document-fetch document-verify; do
+          for fn in send-email send-sms webhook-twilio webhook-cal webhook-apply webhook-email-inbound upload-applicant-video upload-driver-photo driver-document-fetch document-verify; do
             echo "▶ deploying $fn (no jwt)"
             if ! supabase functions deploy "$fn" --no-verify-jwt --project-ref "$SUPABASE_PROJECT_REF"; then
               echo "::error::deploy failed for $fn"
