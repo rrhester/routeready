@@ -22160,14 +22160,20 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:1 1 auto;min-height:0;
           }
           #view-email .em-inbox{
-            min-width:0;min-height:0;overflow-y:auto;
+            min-width:0;min-height:0;overflow-y:scroll;
             padding:0 12px 0 0;
-            scrollbar-width:thin;
-            scrollbar-color:var(--border-strong) transparent;
+            height:100%;
           }
-          #view-email .em-inbox::-webkit-scrollbar{width:8px}
+          #view-email .em-inbox::-webkit-scrollbar{width:12px}
           #view-email .em-inbox::-webkit-scrollbar-thumb{
-            background:var(--border-strong);border-radius:4px;
+            background:var(--border-strong,#c1c5cb);border-radius:6px;
+            border:2px solid var(--surface);
+          }
+          #view-email .em-inbox::-webkit-scrollbar-thumb:hover{
+            background:#9aa3ad;
+          }
+          #view-email .em-inbox::-webkit-scrollbar-track{
+            background:transparent;
           }
           #view-email .em-resizer{
             position:relative;cursor:col-resize;background:transparent;
@@ -22384,6 +22390,14 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;align-items:center;gap:2px;padding:6px 10px;
             background:var(--surface);border-bottom:1px solid var(--border);
           }
+          .em-popout-title{
+            font-size:var(--fs-base);font-weight:600;color:var(--text);
+            padding:0 12px 0 4px;margin-right:auto;
+          }
+          .em-composer-send-ibtn{
+            background:#0078d4;color:#fff;
+          }
+          .em-composer-send-ibtn:hover{background:#106ebe;color:#fff}
           .em-popout-ibtn{
             display:inline-flex;flex-direction:column;align-items:center;
             justify-content:center;gap:2px;
@@ -22397,12 +22411,14 @@ body.rr-cmdk-open{ overflow:hidden }
           .em-popout-ibtn-close span{display:none}
           .em-popout-move-wrap{position:relative}
           .em-popout-move-menu{
-            position:absolute;top:100%;left:0;margin-top:4px;
+            position:absolute;top:calc(100% + 4px);left:0;
             background:var(--surface);border:1px solid var(--border);
-            border-radius:6px;box-shadow:0 4px 16px rgba(15,23,42,.15);
-            padding:4px;min-width:220px;max-height:320px;overflow-y:auto;
-            z-index:10;display:flex;flex-direction:column;gap:1px;
+            border-radius:6px;box-shadow:0 8px 24px rgba(15,23,42,.18);
+            padding:4px;min-width:240px;max-height:360px;overflow-y:auto;
+            z-index:100;display:flex;flex-direction:column;gap:1px;
           }
+          .em-popout-card{overflow:visible}
+          .em-popout-iconbar{position:relative;z-index:2}
           .em-popout-move-item{
             display:flex;align-items:center;gap:8px;
             padding:7px 10px;border:0;background:transparent;cursor:pointer;

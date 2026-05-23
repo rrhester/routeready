@@ -47492,10 +47492,13 @@ document.addEventListener("click", (e) => {
     const FONTS = ["Calibri","Arial","Helvetica","Times New Roman","Georgia","Verdana","Tahoma","Trebuchet MS","Courier New","Cambria"];
     const fontOpts = FONTS.map(f => `<option value="${f}" style="font-family:'${f}'">${f}</option>`).join("");
     m.innerHTML = `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:95vw;height:90vh;max-width:1400px;display:flex;flex-direction:column;overflow:hidden">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
-          <div style="font-size:var(--fs-lg);font-weight:600">${escapeHtmlLocal(titles[mode] || "New email")}</div>
-          <button class="btn btn-sm" type="button" data-rr-composer-close>Close</button>
+      <div class="em-composer-card" style="background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-xl);width:95vw;height:90vh;max-width:1400px;display:flex;flex-direction:column;overflow:hidden">
+        <div class="em-popout-iconbar">
+          <div class="em-popout-title">${escapeHtmlLocal(titles[mode] || "New email")}</div>
+          <button type="button" class="em-popout-ibtn em-composer-send-ibtn" id="rr-em-composer-send-top" title="Send (Ctrl/Cmd+Enter)" aria-label="Send"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg><span>Send</span></button>
+          <button type="button" class="em-popout-ibtn" id="rr-em-composer-attach-top" title="Attach" aria-label="Attach files"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg><span>Attach</span></button>
+          <button type="button" class="em-popout-ibtn" data-rr-composer-close title="Discard" aria-label="Discard"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg><span>Discard</span></button>
+          <button type="button" class="em-popout-ibtn em-popout-ibtn-close" data-rr-composer-close title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <!-- Formatting toolbar · single-row Outlook-style ribbon. -->
         <div class="em-composer-toolbar">
@@ -47847,9 +47850,14 @@ document.addEventListener("click", (e) => {
       closeComposer();
       return;
     }
-    if (e.target.closest("#rr-em-composer-send")) {
+    if (e.target.closest("#rr-em-composer-send, #rr-em-composer-send-top")) {
       e.preventDefault();
       sendComposerDraft();
+      return;
+    }
+    if (e.target.closest("#rr-em-composer-attach-top")) {
+      e.preventDefault();
+      document.getElementById("rr-em-composer-file")?.click();
       return;
     }
     const chipX = e.target.closest("[data-rr-chip-remove]");
