@@ -48077,8 +48077,20 @@ document.addEventListener("click", (e) => {
   function setInboxWidth(px, persist) {
     const split = document.getElementById("rr-em-split");
     if (!split) return;
-    const maxW = Math.max(MIN_W, split.clientWidth - MIN_W - 6 /* resizer */ - 12);
-    const w = Math.max(MIN_W, Math.min(px, maxW));
+    // When the email view is hidden (page loaded on a different tab,
+    // restore happens before the user navigates to Fleet Bridge),
+    // split.clientWidth is 0 and a max-clamp would collapse every
+    // restored value to MIN_W. In that case skip the upper clamp and
+    // just enforce the floor — the next mousemove / resize event will
+    // re-clamp once the container has a real width.
+    const containerW = split.clientWidth;
+    let w;
+    if (containerW > 0) {
+      const maxW = Math.max(MIN_W, containerW - MIN_W - 6 /* resizer */ - 12);
+      w = Math.max(MIN_W, Math.min(px, maxW));
+    } else {
+      w = Math.max(MIN_W, px);
+    }
     split.style.setProperty("--em-inbox-w", w + "px");
     if (persist) { try { localStorage.setItem(SPLIT_KEY, String(w)); } catch (_) {} }
     return w;
