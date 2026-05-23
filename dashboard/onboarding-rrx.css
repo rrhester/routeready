@@ -37,22 +37,40 @@
 }
 
 /* Opt out of the global .page default-scroll. Onboarding keeps
-   the command bar fixed at the top and lets the active sub-page
-   below it scroll. */
+   the command shell (tabs + header) fixed at the top, the
+   active onboarding sub-page (#obsub-overview / -workauth /
+   -pipeline) gets the remaining height + internal scroll, and
+   every other direct child of .page (print-area mount, print
+   actions strip, sidecars) sticks to its natural size. */
 #view-onboarding-ops.rrx-onboarding > .page {
   padding: var(--rr-space-200) !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
   min-height: 0 !important;
+  gap: var(--rr-space-80) !important;
 }
 
-/* Everything below the command bar that isn't the header itself
-   becomes the scroll container — fills the remaining height. */
-#view-onboarding-ops.rrx-onboarding > .page > :not(.page-header):not(.sched-nav-heading):not(style):not(script) {
+/* Command shell sticks to natural height — header + tab strip
+   above it. No flex-grow so it doesn't steal vertical space. */
+#view-onboarding-ops.rrx-onboarding > .page > .ob-cmd-shell {
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+}
+
+/* Onboarding sub-pages (the readiness board, work-auth queue,
+   pipeline mount) fill the leftover space and scroll inside. */
+#view-onboarding-ops.rrx-onboarding > .page > [id^="obsub-"] {
   flex: 1 1 auto !important;
   min-height: 0 !important;
   overflow-y: auto !important;
+}
+
+/* Print-only siblings stay tiny when not in use; flex:0 so they
+   never claim leftover space. */
+#view-onboarding-ops.rrx-onboarding > .page > .ob-print-actions,
+#view-onboarding-ops.rrx-onboarding > .page > #rr-ob-print-area {
+  flex: 0 0 auto !important;
 }
 
 /* ── Title block ────────────────────────────────────────────── */
@@ -443,17 +461,25 @@
 
 #view-onboarding-ops.rrx-onboarding .ob-cmd-shell {
   position: relative;
-  display: block;
+  display: flex;
+  flex-direction: column;
   margin: 0;
+  /* Tabs sit ABOVE the header inside this column. Adding small
+     bottom gap so the header doesn't kiss the tab strip. */
+  gap: 0;
 }
 
+/* Tab strip is the first child of cmd-shell and sits inline
+   above the page-header. Switched from position:absolute (which
+   was getting clipped by the global .page { overflow:hidden })
+   to a normal inline flex row. */
 #view-onboarding-ops.rrx-onboarding .ob-cmd-tabs {
+  position: static;
   display: inline-flex;
+  align-self: flex-start;
   gap: 2px;
-  position: absolute;
-  left: var(--rr-space-40);
-  bottom: 100%;
-  margin-bottom: -1px;
+  margin: 0 0 -1px var(--rr-space-40);
+  padding: 0;
   z-index: 1;
 }
 
