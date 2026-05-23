@@ -1575,6 +1575,11 @@
   border: 1px solid var(--rr-border-primary);
   border-radius: var(--rr-radius-medium);
   box-shadow: none;
+  /* Stretch the strip to the full page width so margin-left:auto
+     on the week navigator pushes it to the FAR right of the
+     page, not just the right edge of the tile cluster. */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Relocated week navigator · push to the far right of the V2
@@ -1588,8 +1593,9 @@
 
 #view-schedule.rrx-schedule .sched-v2-tile {
   appearance: none;
-  cursor: default;
-  pointer-events: none;  /* non-wired preview */
+  cursor: pointer;
+  /* V2 tiles are now wired — clicks forward to the original
+     top-strip elements via the _RR_V2_FORWARD map in live.js. */
   font: inherit;
   display: inline-flex;
   flex-direction: column;
@@ -1638,8 +1644,9 @@
 
 #view-schedule.rrx-schedule .sched-v2-rules-foot {
   appearance: none;
-  cursor: default;
-  pointer-events: none;  /* non-wired preview, matches the tile */
+  cursor: pointer;
+  /* Rules footer is now wired — clicks forward to the original
+     Rules popover toggles via the _RR_V2_FORWARD map. */
   font: inherit;
   display: inline-flex;
   align-items: center;
@@ -1732,4 +1739,60 @@
   margin-left: var(--rr-space-160) !important;
   padding-left: var(--rr-space-160) !important;
   border-left: 1px solid #C8C6C4 !important;
+}
+
+/* ============================================================
+   V2 strip — interactive states
+   ------------------------------------------------------------
+   Hover, focus, and click animations on the wired V2 tiles.
+   - Plain hover bg matches Fleet Bridge's calm hover.
+   - Smart Fill keeps a permanent subtle AI glow.
+   - `.is-v2-spin` triggers a 900ms one-shot spin used by both
+     Smart Fill (on every click — AI vibe) and Unassign (between
+     the Unassign ↔ Assign label flip).
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-v2-tile:hover,
+#view-schedule.rrx-schedule .sched-v2-rules-foot:hover {
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--rr-fg-primary);
+}
+
+#view-schedule.rrx-schedule .sched-v2-tile:focus-visible {
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: 1px;
+}
+
+/* Smart Fill — subtle resting AI glow so the tile reads as
+   special before any click. */
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.10), rgba(236, 72, 153, 0.10));
+  color: #5B21B6;
+}
+
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(236, 72, 153, 0.18));
+  color: #4C1D95;
+}
+
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile svg {
+  color: #6366F1;
+}
+
+/* ── Spin animation (Smart Fill + Unassign click feedback) ── */
+
+@keyframes rr-v2-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+#view-schedule.rrx-schedule .sched-v2-tile.is-v2-spin svg {
+  animation: rr-v2-spin 0.9s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transform-origin: 50% 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #view-schedule.rrx-schedule .sched-v2-tile.is-v2-spin svg {
+    animation: none;
+  }
 }

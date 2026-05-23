@@ -25751,6 +25751,92 @@ function _activateSchedSub(sub) {
 // (wide grids = landscape, tall lists = portrait).
 const _rrPrintOrient = { schedule: "landscape", onboarding: "portrait", fleet: "landscape" };
 
+// ── V2 icon strip · forward clicks to the existing top-strip ─────
+// Every V2 tile carries `data-rr-v2="X"` and lives inside a
+// .sched-v2-split together with its Rules footer. Clicking either
+// forwards to the original top-ribbon element so the existing
+// wiring (schedSub, openAiSchedule, _toggleSchedSmartFillRules,
+// the kudos modal, etc.) keeps running unchanged — no logic
+// duplicated.
+const _RR_V2_FORWARD = {
+  tile: {
+    week:      '.subnav-item[data-sub="week"]',
+    today:     '.subnav-item[data-sub="today"]',
+    calendar:  '.subnav-item[data-sub="calendar"]',
+    staff:     '.subnav-item[data-sub="staff"]',
+    requests:  '.subnav-item[data-sub="requests"]',
+    smartfill: '#rr-sched-smartfill-h',
+    targets:   '#rr-sched-okami-open-h',
+    finalize:  '#rr-sched-finalize-h',
+    unassign:  '#rr-sched-vans-h',
+    kudos:     '#rr-sched-kudos-h',
+  },
+  rules: {
+    week:      '#rr-sched-week-rules-toggle',
+    smartfill: '#rr-sched-smartfill-rules-toggle',
+    targets:   '#rr-sched-settings-toggle',
+    unassign:  '#rr-sched-vans-rules-toggle',
+    kudos:     '#rr-sched-milestone-rules-toggle',
+  },
+};
+
+// Unassign / Assign visual toggle state. Local-only state — the
+// real toggle (re-running auto-assign vs unassigning vans) lives
+// on the original #rr-sched-vans-h click handler. This just
+// flips the V2 label between "Unassign" and "Assign" with a
+// short spin so the operator sees a confirmation animation.
+let _rrV2VansLabel = "Unassign";
+
+document.addEventListener("click", (e) => {
+  const v2Split = e.target.closest(".sched-v2-split");
+  if (v2Split) {
+    const isFooter = !!e.target.closest(".sched-v2-rules-foot");
+    const isTile   = !isFooter && !!e.target.closest(".sched-v2-tile");
+    if (isFooter || isTile) {
+      const keyHost = v2Split.querySelector("[data-rr-v2]");
+      const key = keyHost && keyHost.dataset ? keyHost.dataset.rrV2 : null;
+      const sel = isFooter ? _RR_V2_FORWARD.rules[key] : _RR_V2_FORWARD.tile[key];
+
+      // Smart Fill — kick a one-shot AI-vibe spin on the V2 icon
+      // before forwarding the click. The original Smart Fill
+      // already runs its own spin via #rr-sched-smartfill-h.is-spinning,
+      // but the V2 tile is a separate element so we mirror the
+      // animation on it.
+      if (isTile && key === "smartfill") {
+        const v2Tile = v2Split.querySelector(".sched-v2-tile");
+        if (v2Tile) {
+          v2Tile.classList.add("is-v2-spin");
+          setTimeout(() => v2Tile.classList.remove("is-v2-spin"), 900);
+        }
+      }
+
+      // Unassign / Assign — spin the V2 icon then flip the label.
+      if (isTile && key === "unassign") {
+        const v2Tile = v2Split.querySelector(".sched-v2-tile");
+        const labelSpan = v2Tile && v2Tile.querySelector("span");
+        if (v2Tile) {
+          v2Tile.classList.add("is-v2-spin");
+          setTimeout(() => {
+            v2Tile.classList.remove("is-v2-spin");
+            _rrV2VansLabel = (_rrV2VansLabel === "Unassign") ? "Assign" : "Unassign";
+            if (labelSpan) labelSpan.textContent = _rrV2VansLabel;
+          }, 900);
+        }
+      }
+
+      if (sel) {
+        const target = document.querySelector(sel);
+        if (target) {
+          e.preventDefault();
+          e.stopPropagation();
+          target.click();
+          return;
+        }
+      }
+    }
+  }
+});
+
 function _rrApplyPrintOrient(target) {
   // Remove any prior injected orientation style first.
   document.getElementById("rr-print-orient-style")?.remove();
