@@ -1428,50 +1428,57 @@
 }
 
 /* ============================================================
-   Ribbon icon-baseline lock v2 — fixed tile height + centered
-   content
+   Ribbon icon-baseline lock v3 — mirror Fleet Bridge's .em-action
    ------------------------------------------------------------
-   The user reports the icons still don't read as level despite
-   the padding-top:8px normalization above. Switching from
-   "icon at fixed offset from tile top" to "tile at fixed
-   height, icon vertically centered in tile" — that way every
-   tile renders as the SAME shape, the icons land at the SAME
-   absolute Y, and any 1–2px height drift from label wrapping,
-   line-height, or pseudo-elements becomes irrelevant.
+   User confirms Fleet Bridge's icon strip is correctly aligned.
+   Fleet Bridge uses CONTENT-BASED height (no fixed height, no
+   min-height) with `padding: 6px 10px 7px` and `gap: 4px` — every
+   tile reaches the same natural height because every tile has
+   the same content (icon + label). Top-aligned in the parent
+   flex, every icon lands at the same Y.
 
-   Smart Fill (#rr-sched-smartfill-h) is excluded per the
-   user's explicit instruction — its vibrant gradient tile is
-   visually correct as-is, don't touch.
-
-   The "Targets" tile is the user-identified reference; this
-   block matches every other tile to its tile height + icon
-   centering.
+   My previous "height: 56px" attempt was tighter than natural
+   and was fighting content sizing. Replacing it with a literal
+   copy of Fleet Bridge's `.em-action` styling applied to every
+   Schedule ribbon tile — bare and wrapped alike. Smart Fill
+   (#rr-sched-smartfill-h) explicitly excluded per user direction.
    ============================================================ */
 
 #view-schedule.rrx-schedule .sched-nav-heading-actions .subnav-item,
 #view-schedule.rrx-schedule .sched-ribbon-actions--grouped .sched-page-btn:not(#rr-sched-smartfill-h) {
+  appearance: none !important;
+  cursor: pointer !important;
+  font: inherit !important;
   display: inline-flex !important;
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  /* Fixed tile height — same for bare and wrapped tiles so the
-     icon's vertical center lines up across the whole ribbon. */
-  height: 56px !important;
-  min-height: 56px !important;
-  padding: 6px 12px !important;
   gap: 4px !important;
-  /* Reset any padding-top normalization from the block above —
-     justify-content:center owns vertical placement now. */
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-  margin-top: 0 !important;
+  min-width: 62px !important;
+  padding: 6px 10px 7px !important;
+  /* No fixed height — let content size the tile like Fleet
+     Bridge does. */
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  color: var(--rr-fg-secondary) !important;
+  transition: background var(--rr-motion-fast), color var(--rr-motion-fast) !important;
 }
 
-/* Icons rendered at a uniform 28px so optical weights match. */
 #view-schedule.rrx-schedule .sched-nav-heading-actions .subnav-item svg,
 #view-schedule.rrx-schedule .sched-ribbon-actions--grouped .sched-page-btn:not(#rr-sched-smartfill-h) svg {
   width: 28px !important;
   height: 28px !important;
+  stroke-width: 1.6 !important;
   margin: 0 !important;
   flex: 0 0 auto !important;
+}
+
+#view-schedule.rrx-schedule .sched-nav-heading-actions .subnav-item span,
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped .sched-page-btn:not(#rr-sched-smartfill-h) span {
+  font-size: 13px !important;
+  font-weight: 500 !important;
 }
