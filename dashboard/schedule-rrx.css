@@ -1545,3 +1545,72 @@
   position: relative !important;
   top: -1px !important;
 }
+
+/* ============================================================
+   V2 icon strip · sharp-edged Fluent placeholders
+   ------------------------------------------------------------
+   A second visual strip beneath the existing ribbon for the
+   operator to evaluate a sharper icon style. Same dimensions
+   as the Onboarding ribbon (and the Schedule's own
+   sched-nav-heading) — flat surface, hairline border, 4px
+   radius. Every tile is `pointer-events: none` so clicks
+   don't fire on the (un-wired) placeholders.
+
+   Icons use stroke-linecap:butt + stroke-linejoin:miter for
+   sharp geometric edges (no rounded line caps or joins),
+   stroke-width 1.6, viewBox 24×24, rendered at 28×28 to match
+   the rest of the chrome.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-v2-strip {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 16px;
+  margin: 0 0 var(--rr-space-160) 0;
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  box-shadow: none;
+  min-height: 56px;
+}
+
+#view-schedule.rrx-schedule .sched-v2-tile {
+  appearance: none;
+  cursor: default;
+  pointer-events: none;  /* non-wired preview */
+  font: inherit;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 62px;
+  padding: 6px 10px 7px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--rr-radius-medium);
+  color: var(--rr-fg-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+#view-schedule.rrx-schedule .sched-v2-tile svg {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  color: var(--rr-fg-secondary);
+  stroke-width: 1.6;
+  /* Sharp edges — defeat any global stroke-linecap/join rules
+     that might soften corners on these icons. */
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+}
+
+#view-schedule.rrx-schedule .sched-v2-tile span {
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
