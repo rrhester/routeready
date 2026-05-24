@@ -13884,7 +13884,6 @@ body.rr-cmdk-open{ overflow:hidden }
                unchanged. -->
           <div class="sched-cmd-tabs sched-v2-cmd-tabs" role="tablist" aria-label="Command strip mode">
             <button class="sched-cmd-tab active" type="button" data-cmd-tab="schedule" role="tab" aria-selected="true">Schedule</button>
-            <button class="sched-cmd-tab" type="button" data-cmd-tab="insights" role="tab" aria-selected="false">Insights</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
           </div>
 
@@ -14495,9 +14494,9 @@ body.rr-cmdk-open{ overflow:hidden }
              carries the signal; the status dot is a quiet marker, not
              a competing accent. Hairline dividers between cells. */
           #view-schedule .sched-kpi-pill{
-            display:flex;align-items:center;gap:10px;
+            display:flex;align-items:center;gap:6px;
             min-width:0;
-            padding:3px 18px;
+            padding:2px 10px;
             border-left:1px solid rgba(15,23,42,.06);
             color:var(--text);font-weight:600;
             font-variant-numeric:tabular-nums;
@@ -14511,7 +14510,7 @@ body.rr-cmdk-open{ overflow:hidden }
             width:6px;height:6px;border-radius:50%;flex-shrink:0;
           }
           #view-schedule .sched-kpi-text{
-            display:flex;flex-direction:column;line-height:1.2;min-width:0;
+            display:flex;flex-direction:column;line-height:1.15;min-width:0;
           }
           #view-schedule .sched-kpi-val{
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -14524,7 +14523,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-kpi-sub{
             font-size:var(--fs-xs);font-weight:400;
             color:var(--text-subtle);
-            margin-top:2px;
+            margin-top:1px;
             white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
           }
           /* Auto-rescue banner · one line below the KPI strip
@@ -19066,31 +19065,30 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule #sched-sub-targets .rr-tgt-13w{
               background:#FFFFFF;
               border:1px solid rgba(15,23,42,.08);
-              border-radius:22px;
+              border-radius:16px;
               box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 28px rgba(15,23,42,.07);
-              padding:var(--s-4) var(--s-4) var(--s-3);
-              margin-bottom:var(--s-4);
+              padding:10px 14px 8px;
+              margin-bottom:var(--s-3);
               overflow:hidden;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w-head{
               display:flex;align-items:center;justify-content:space-between;
-              gap:var(--s-3);flex-wrap:wrap;
-              margin:0 0 var(--s-3) 0;
+              gap:var(--s-2);flex-wrap:wrap;
+              margin:0 0 6px 0;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w-title{
               display:flex;align-items:baseline;gap:var(--s-2);
-              font-size:var(--fs-lg);font-weight:700;color:var(--text);
+              font-size:var(--fs-base);font-weight:700;color:var(--text);
               letter-spacing:-.005em;line-height:1.2;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w-badge{
-              font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);
+              font-size:10px;font-weight:500;color:var(--text-subtle);
               background:var(--canvas);border:1px solid var(--border);
-              padding:3px 8px;border-radius:var(--r-md);
+              padding:2px 6px;border-radius:var(--r-md);
               letter-spacing:0;text-transform:none;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w-sub{
-              font-size:var(--fs-sm);color:var(--text-subtle);
-              margin:2px 0 0;line-height:1.45;
+              display:none;
             }
             /* Soften the moved OKAMI table to match the schedule's
                white-card surfaces — remove the wrap's own border + bg
@@ -19102,13 +19100,66 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table{
               background:transparent;
             }
+            /* Compact density · the strategic 13-week table has to fit
+               all 13 weeks above the daily editor without scrolling on
+               a standard 1080-tall laptop, so each row trims to the
+               minimum line-height that still keeps the route input
+               + status pill readable. Scoped to the Targets host so
+               the standalone #view-okami page keeps its airier layout. */
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table thead th{
               background:var(--surface-secondary,#F2F3F6);
               border-bottom:1px solid rgba(15,23,42,.07);
               color:var(--text-muted);font-weight:600;
+              padding:4px 8px;font-size:11px;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody td{
               border-bottom:1px solid rgba(15,23,42,.05);
+              padding:3px 8px;font-size:var(--fs-sm);line-height:1.25;
+              vertical-align:middle;
+            }
+            /* Week label · keep the W## visible but inline the dates
+               on the same line so each row only takes one text line. */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-week-label{
+              font-size:var(--fs-sm);font-weight:700;display:inline-block;
+              vertical-align:middle;margin-right:6px;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-week-dates{
+              font-size:11px;color:var(--text-subtle);display:inline-block;
+              vertical-align:middle;margin:0;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-week-tag{
+              font-size:9px;padding:1px 4px;margin-top:0;margin-left:4px;
+              vertical-align:middle;
+            }
+            /* Route input · shrink to two-digit footprint and lose the
+               default chunky height. */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-route-input{
+              width:46px;padding:2px 4px;font-size:var(--fs-sm);
+              text-align:center;border-radius:4px;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-calc{
+              font-size:var(--fs-sm);line-height:1.2;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-calc-sub{
+              font-size:10px;color:var(--text-subtle);margin-top:0;line-height:1.2;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-gap{
+              font-size:var(--fs-sm);font-weight:700;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .strategy-pills{
+              gap:2px;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .strategy-pill{
+              font-size:10px;padding:1px 5px;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-status-pill{
+              font-size:10px;padding:2px 6px;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-expand-btn{
+              padding:0 2px;margin-right:2px;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-expand-btn svg{
+              width:11px;height:11px;
             }
             #view-schedule #sched-sub-targets .rr-tgt-13w-empty{
               padding:var(--s-3) 0;font-size:var(--fs-sm);color:var(--text-subtle);
