@@ -130,14 +130,31 @@
   visibility: hidden !important;
 }
 
-/* Insights tab — leave the icon ribbon visually blank so the panel
-   below feels like its own surface. The cmd-shell stays in the
-   layout (preserves spacing + the tab strip above it) but every
-   ribbon group / action button inside it is hidden. */
+/* Insights tab — empty padded strip (no icons), same height as the
+   Schedule + Print/Download tabs so flipping between them doesn't
+   make the page jump. The cmd-shell stays in the layout; only the
+   ribbon content disappears.
+
+   Strong selector — match both the body-level marker class and the
+   shell-level one. Hides every ribbon group, the actions wrapper,
+   AND the .page-header-l title slot so nothing inside the heading
+   paints pixels. */
+#view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-ribbon-grouped,
 #view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-ribbon-group,
 #view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-ribbon-actions,
-#view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-print-actions {
+#view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-print-actions,
+body.rr-sched-insights #view-schedule.rrx-schedule .sched-ribbon-grouped,
+body.rr-sched-insights #view-schedule.rrx-schedule .sched-ribbon-group,
+body.rr-sched-insights #view-schedule.rrx-schedule .sched-ribbon-actions,
+body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   display: none !important;
+  visibility: hidden !important;
+}
+/* Keep the strip itself at the same height as the other tabs so the
+   tab switch doesn't make the page header jump. Mirrors the rough
+   height of the Print/Download tab's action row. */
+#view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-nav-heading {
+  min-height: 64px !important;
 }
 
 /* Same guard for Fleet's print actions. */
