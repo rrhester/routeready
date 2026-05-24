@@ -162,6 +162,19 @@ els.login.addEventListener("click", async () => {
   }
 });
 
+// Main process auto-saves the session once it detects a successful
+// post-login navigation (or the operator closes the headed window).
+// We flip the UI to "Session saved" immediately so the operator
+// doesn't have to know to click "I'm signed in" — the original UX
+// gap that the brother running this for the first time hit.
+window.rr.portal.onAutoSaved((payload) => {
+  log(`Session auto-saved (${payload.cookieCount} cookies${payload.encrypted ? ", encrypted" : ", plaintext"}, ${payload.trigger}).`, "ok");
+  setStatus("Session saved", "ok");
+  if (els.welcome) els.welcome.hidden = true;
+  els.confirmLogin.disabled = true;
+  refreshSessionStatus();
+});
+
 els.confirmLogin.addEventListener("click", async () => {
   els.confirmLogin.disabled = true;
   log("Capturing session…");

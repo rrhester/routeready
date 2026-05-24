@@ -24,6 +24,14 @@ contextBridge.exposeInMainWorld("rr", {
     /** Headless probe: load the portal home and report whether the
      * cached session is still valid. */
     probe: (opts) => ipcRenderer.invoke("portal:probe", opts),
+    /** Subscribe to the auto-save event fired by main when the headed
+     * login window navigates past the auth wall (or closes). Lets the
+     * renderer flip the status pill without an operator click. */
+    onAutoSaved: (cb) => {
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on("portal:autoSaved", handler);
+      return () => ipcRenderer.removeListener("portal:autoSaved", handler);
+    },
   },
   reports: {
     /** Download a file from `url`. If `clickSelector` is given, we
