@@ -1500,10 +1500,317 @@ function _schedDownloadSchedule() {
 
 document.addEventListener("click", (e) => {
   const tab = e.target.closest(".sched-cmd-tab");
-  if (tab) { e.preventDefault(); _schedCmdTab(tab.getAttribute("data-cmd-tab")); return; }
+  if (tab) {
+    e.preventDefault();
+    const mode = tab.getAttribute("data-cmd-tab");
+    _schedCmdTab(mode);
+    // Leaving the Intelligence ribbon · close any open intel view
+    // so the operator returns to the normal schedule surfaces.
+    if (mode !== "intelligence") _rrIntelHide();
+    return;
+  }
   if (e.target.closest("#rr-sched-print-btn")) { e.preventDefault(); _schedPrint(); return; }
-  if (e.target.closest("#rr-sched-download-btn")) { e.preventDefault(); _schedDownloadSchedule(); }
+  if (e.target.closest("#rr-sched-download-btn")) { e.preventDefault(); _schedDownloadSchedule(); return; }
+  // Intelligence ribbon · clicking a tile shows / toggles its view.
+  const intelTile = e.target.closest("[data-rr-intel]");
+  if (intelTile) {
+    e.preventDefault();
+    const name = intelTile.getAttribute("data-rr-intel");
+    _rrIntelToggle(name);
+    return;
+  }
+  // Close button inside an intel view.
+  if (e.target.closest("[data-rr-intel-close]")) {
+    e.preventDefault();
+    _rrIntelHide();
+    return;
+  }
 });
+
+// ─── Intelligence views · routing + renderers ──────────────────────
+// Activated by the 5 Intelligence-ribbon tiles. Each view writes its
+// HTML into a single host (#rr-intel-host) and swaps the active
+// .sched-subview out so the operator sees the analysis full-width
+// under the schedule's KPI strip. The schedule's command strip and
+// KPI strip stay put — only the content area below them is owned by
+// the active intel view. Clicking the Schedule tab restores the
+// previously-active sub-view.
+let _rrIntelActiveName = null;
+let _rrIntelPriorSubview = null;
+
+function _rrIntelToggle(name) {
+  if (_rrIntelActiveName === name) { _rrIntelHide(); return; }
+  _rrIntelShow(name);
+}
+
+function _rrIntelShow(name) {
+  const host = document.getElementById("rr-intel-host");
+  const view = document.getElementById("rr-intel-view-" + name);
+  if (!host || !view) return;
+  // Remember which sched-subview was visible so we can restore it.
+  if (!_rrIntelActiveName) {
+    const active = document.querySelector("#view-schedule .sched-subview:not([style*='display:none'])");
+    _rrIntelPriorSubview = active?.id || null;
+  }
+  // Hide every sched-subview while the intel view is up.
+  document.querySelectorAll("#view-schedule .sched-subview").forEach((s) => { s.style.display = "none"; });
+  // Hide every other intel view; show this one.
+  document.querySelectorAll(".rr-intel-view").forEach((v) => { v.hidden = (v !== view); });
+  host.hidden = false;
+  // Tile active-state mirrors the active view.
+  document.querySelectorAll(".sched-v2-intel-tile").forEach((t) => {
+    t.classList.toggle("is-active", t.getAttribute("data-rr-intel") === name);
+  });
+  _rrIntelActiveName = name;
+  // Dispatch to the named renderer.
+  const renderer = _RR_INTEL_RENDERERS[name];
+  if (typeof renderer === "function") {
+    try { renderer(view); } catch (e) { console.warn("intel render", name, e); }
+  } else {
+    view.innerHTML = `<div class="rr-intel-empty">Coming soon · ${name.replace(/-/g, " ")}</div>`;
+  }
+}
+
+function _rrIntelHide() {
+  const host = document.getElementById("rr-intel-host");
+  if (host) host.hidden = true;
+  document.querySelectorAll(".rr-intel-view").forEach((v) => { v.hidden = true; });
+  document.querySelectorAll(".sched-v2-intel-tile").forEach((t) => t.classList.remove("is-active"));
+  // Restore the sched-subview that was visible before we took over.
+  if (_rrIntelPriorSubview) {
+    const prior = document.getElementById(_rrIntelPriorSubview);
+    if (prior) prior.style.display = "";
+  } else {
+    // No prior recorded — default to whatever the data-sub button
+    // says is active in the schedule's sub-nav.
+    const activeBtn = document.querySelector("#view-schedule .subnav-item.active[data-sub]");
+    const sub = activeBtn?.getAttribute("data-sub") || "week";
+    const target = document.getElementById("sched-sub-" + sub);
+    if (target) target.style.display = "";
+  }
+  _rrIntelActiveName = null;
+  _rrIntelPriorSubview = null;
+}
+
+// ── Risk forecast · summarizes the OKAMI 13-week table as a calm,
+//    Microsoft-style coverage analysis. Reads what's already in the
+//    DOM (#okami-tbody, populated by renderOkamiLive or the hard-
+//    coded seed); we don't issue new RPCs so the view opens instantly
+//    and the analysis matches whatever the operator just saw on the
+//    13-week planner.
+function _rrReadOkamiWeeks() {
+  // Each non-detail <tr> = one week. Cells:
+  //   col 0: Week label + dates (+ tags)
+  //   col 1: Routes (max) — operator input
+  //   col 2: Drivers needed (.plan-calc)
+  //   col 3: Available (.plan-calc)
+  //   col 4: Gap (.plan-gap.{ok|warn|bad})
+  //   col 5: Strategy pills
+  //   col 6: Hire by
+  //   col 7: Status pill (.plan-status-pill.{ok|warn|bad})
+  const rows = document.querySelectorAll("#okami-tbody > tr:not(.okami-detail)");
+  const weeks = [];
+  rows.forEach((row, idx) => {
+    const label = (row.querySelector(".plan-week-label")?.textContent || "").trim();
+    const dates = (row.querySelector(".plan-week-dates")?.textContent || "").trim();
+    const cells = row.querySelectorAll("td");
+    const needed = _rrToInt(cells[2]?.querySelector(".plan-calc")?.textContent);
+    const avail  = _rrToInt(cells[3]?.querySelector(".plan-calc")?.textContent);
+    const gapEl  = cells[4]?.querySelector(".plan-gap");
+    const gap    = _rrToInt(gapEl?.textContent);
+    const gapKind = gapEl?.classList.contains("bad") ? "bad"
+                  : gapEl?.classList.contains("warn") ? "warn"
+                  : "ok";
+    const statusEl = cells[7]?.querySelector(".plan-status-pill");
+    const statusText = (statusEl?.textContent || "").trim();
+    const statusKind = statusEl?.classList.contains("bad") ? "risk"
+                     : statusEl?.classList.contains("warn") ? "tight"
+                     : "ok";
+    const hireBy = (cells[6]?.querySelector(".plan-calc")?.textContent || "").trim();
+    weeks.push({ idx, label, dates, needed, avail, gap, gapKind, statusText, statusKind, hireBy });
+  });
+  return weeks;
+}
+
+function _rrToInt(text) {
+  if (text == null) return 0;
+  // Handles "−7" (figure dash), "-9", "+10", "85", "—", etc.
+  const cleaned = String(text).replace(/[−–—]/g, "-").replace(/[^\d-]/g, "");
+  const n = parseInt(cleaned, 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function _rrIntelRenderRiskForecast(view) {
+  const weeks = _rrReadOkamiWeeks();
+  if (!weeks.length) {
+    view.innerHTML = `
+      <header class="rr-intel-view-head">
+        <div class="rr-intel-view-head-l">
+          <p class="rr-intel-view-eyebrow">Intelligence · Risk forecast</p>
+          <h2 class="rr-intel-view-title">Risk forecast</h2>
+          <p class="rr-intel-view-sub">Smart Fill projections of coverage across your 13-week plan.</p>
+        </div>
+        <button type="button" class="rr-intel-view-close" data-rr-intel-close title="Close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </header>
+      <div class="rr-intel-empty">No 13-week plan data yet. Visit Schedule → Targets to load it, then come back.</div>`;
+    return;
+  }
+
+  const thisWeek = weeks[0];
+  const next4 = weeks.slice(0, 4);
+  const horizonNeeded = next4.reduce((a, w) => a + w.needed, 0);
+  const horizonAvail  = next4.reduce((a, w) => a + w.avail,  0);
+  const horizonGap    = next4.reduce((a, w) => a + Math.max(0, -w.gap), 0); // total open across 4 wks
+  const coveragePct = thisWeek.needed > 0
+    ? Math.min(100, Math.round((thisWeek.avail / thisWeek.needed) * 100))
+    : 100;
+
+  // Trend across the next 4 weeks · improving / steady / declining.
+  let trendLabel = "Steady";
+  let trendDetail = "Coverage holds across the next 4 weeks";
+  if (next4.length >= 2) {
+    const startCov = next4[0].needed > 0 ? next4[0].avail / next4[0].needed : 1;
+    const endCov   = next4[next4.length - 1].needed > 0
+      ? next4[next4.length - 1].avail / next4[next4.length - 1].needed : 1;
+    const delta = endCov - startCov;
+    if (delta > 0.05)      { trendLabel = "Improving"; trendDetail = "Coverage strengthens over the next 4 weeks"; }
+    else if (delta < -0.05){ trendLabel = "Declining"; trendDetail = "Coverage erodes over the next 4 weeks"; }
+  }
+
+  // Next break = first upcoming week with statusKind 'risk' (critical),
+  // then 'tight'. Headline severity comes from the worst week we find.
+  const nextRisk  = weeks.find((w) => w.statusKind === "risk");
+  const nextTight = weeks.find((w) => w.statusKind === "tight");
+  const nextBreak = nextRisk || nextTight || null;
+  const overallKind = nextRisk ? "risk" : (nextTight ? "tight" : "ok");
+  const overallLabel = nextRisk ? "At risk" : (nextTight ? "Tight" : "On track");
+
+  // Narrative · plain, calm sentences. No alarm color in the prose;
+  // status carries that signal via the pill + bars.
+  let narrative;
+  if (!nextBreak) {
+    narrative = `Coverage holds across your full 13-week horizon. The 4-week look-ahead shows
+      <strong>${horizonAvail.toLocaleString()}</strong> drivers available against
+      <strong>${horizonNeeded.toLocaleString()}</strong> needed — no week falls below the cushion.
+      Hire-by dates from the planner stay quiet through this window.`;
+  } else {
+    const breakKind = nextBreak.statusKind === "risk" ? "critical" : "tight";
+    const breakShort = Math.max(0, -nextBreak.gap);
+    const idx = nextBreak.idx;
+    const lead = idx === 0 ? "this week" : `in ${idx} week${idx === 1 ? "" : "s"}`;
+    narrative = `Your next ${breakKind} window is <strong>${escapeHtml(nextBreak.label)}</strong>
+      (${escapeHtml(nextBreak.dates)}) — ${lead}. The planner sees
+      <strong>${nextBreak.needed.toLocaleString()}</strong> drivers needed against
+      <strong>${nextBreak.avail.toLocaleString()}</strong> available, leaving
+      <strong>${breakShort.toLocaleString()}</strong> open. ${nextBreak.hireBy && nextBreak.hireBy !== "—"
+        ? `Hire-by date in the 13-week plan: <strong>${escapeHtml(nextBreak.hireBy)}</strong>.`
+        : `The planner flags this as <em>${escapeHtml(nextBreak.statusText)}</em> — review the strategy on the Targets page.`}`;
+  }
+
+  // 13-week strip · one bar per week. Height encodes drivers needed
+  // (relative to the peak) so peak weeks visually stand out; color
+  // encodes status (ok / tight / risk).
+  const maxNeeded = Math.max(1, ...weeks.map((w) => w.needed));
+  const stripHtml = weeks.map((w) => {
+    const heightPx = 14 + Math.round((w.needed / maxNeeded) * 46); // 14–60px
+    const isCurrent = w.idx === 0;
+    const titleAttr = `${w.label} · ${w.dates} · ${w.needed} needed / ${w.avail} avail · ${w.statusText || "On track"}`;
+    return `<div class="rr-intel-strip-bar${isCurrent ? " is-current" : ""}" title="${escapeHtml(titleAttr)}">
+      <div class="rr-intel-strip-fill ${w.statusKind}" style="height:${heightPx}px"></div>
+      <div class="rr-intel-strip-label">${escapeHtml(w.label)}</div>
+    </div>`;
+  }).join("");
+
+  // Detail fact card · only when there's a next break to talk about.
+  const detailHtml = nextBreak ? `
+    <div class="rr-intel-detail">
+      <div class="rr-intel-detail-narrative">${narrative}</div>
+      <aside class="rr-intel-detail-facts">
+        <div class="rr-intel-detail-fact"><span>Week</span><span>${escapeHtml(nextBreak.label)}</span></div>
+        <div class="rr-intel-detail-fact"><span>Dates</span><span>${escapeHtml(nextBreak.dates)}</span></div>
+        <div class="rr-intel-detail-fact"><span>Needed</span><span>${nextBreak.needed.toLocaleString()}</span></div>
+        <div class="rr-intel-detail-fact"><span>Available</span><span>${nextBreak.avail.toLocaleString()}</span></div>
+        <div class="rr-intel-detail-fact"><span>Open</span><span>${Math.max(0, -nextBreak.gap).toLocaleString()}</span></div>
+        ${nextBreak.hireBy && nextBreak.hireBy !== "—"
+          ? `<div class="rr-intel-detail-fact"><span>Hire by</span><span>${escapeHtml(nextBreak.hireBy)}</span></div>`
+          : ""}
+        <div class="rr-intel-detail-fact"><span>Status</span><span>${escapeHtml(nextBreak.statusText)}</span></div>
+      </aside>
+    </div>
+  ` : `
+    <div class="rr-intel-detail">
+      <div class="rr-intel-detail-narrative">${narrative}</div>
+      <aside class="rr-intel-detail-facts">
+        <div class="rr-intel-detail-fact"><span>This week needed</span><span>${thisWeek.needed.toLocaleString()}</span></div>
+        <div class="rr-intel-detail-fact"><span>Available</span><span>${thisWeek.avail.toLocaleString()}</span></div>
+        <div class="rr-intel-detail-fact"><span>Coverage</span><span>${coveragePct}%</span></div>
+        <div class="rr-intel-detail-fact"><span>4-wk trend</span><span>${escapeHtml(trendLabel)}</span></div>
+      </aside>
+    </div>
+  `;
+
+  view.innerHTML = `
+    <header class="rr-intel-view-head">
+      <div class="rr-intel-view-head-l">
+        <p class="rr-intel-view-eyebrow">Intelligence · Risk forecast</p>
+        <h2 class="rr-intel-view-title">
+          Risk forecast
+          <span class="rr-intel-headline-pill ${overallKind}"><span class="dot"></span>${overallLabel}</span>
+        </h2>
+        <p class="rr-intel-view-sub">Smart Fill projections of coverage across your 13-week plan. Numbers come straight from your live OKAMI grid — no separate forecast queue.</p>
+      </div>
+      <button type="button" class="rr-intel-view-close" data-rr-intel-close title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <div class="rr-intel-kpis">
+      <div class="rr-intel-kpi">
+        <div class="rr-intel-kpi-label">Coverage · this week</div>
+        <div class="rr-intel-kpi-val ${coveragePct < 90 ? "is-warn" : ""}">${coveragePct}<span style="font-size:13px;font-weight:500;color:var(--text-subtle)">%</span></div>
+        <div class="rr-intel-kpi-sub">${thisWeek.avail.toLocaleString()} of ${thisWeek.needed.toLocaleString()} drivers</div>
+      </div>
+      <div class="rr-intel-kpi">
+        <div class="rr-intel-kpi-label">4-week trend</div>
+        <div class="rr-intel-kpi-val">${trendLabel}</div>
+        <div class="rr-intel-kpi-sub">${trendDetail}</div>
+      </div>
+      <div class="rr-intel-kpi">
+        <div class="rr-intel-kpi-label">Open over 4 weeks</div>
+        <div class="rr-intel-kpi-val ${horizonGap > 0 ? "is-warn" : ""}">${horizonGap.toLocaleString()}</div>
+        <div class="rr-intel-kpi-sub">Drivers short, summed</div>
+      </div>
+      <div class="rr-intel-kpi">
+        <div class="rr-intel-kpi-label">Next break</div>
+        <div class="rr-intel-kpi-val ${overallKind === "risk" ? "is-risk" : (overallKind === "tight" ? "is-warn" : "")}">${nextBreak ? escapeHtml(nextBreak.label) : "None"}</div>
+        <div class="rr-intel-kpi-sub">${nextBreak ? escapeHtml(nextBreak.dates) + " · " + (nextBreak.idx === 0 ? "this week" : "in " + nextBreak.idx + " wk" + (nextBreak.idx === 1 ? "" : "s")) : "Clear horizon"}</div>
+      </div>
+    </div>
+
+    <div class="rr-intel-strip-section">
+      <div class="rr-intel-section-head">
+        <h3 class="rr-intel-section-title">13-week risk strip</h3>
+        <span class="rr-intel-section-aside">Bar height = drivers needed · color = coverage status</span>
+      </div>
+      <div class="rr-intel-strip" role="list" aria-label="13-week risk bars">${stripHtml}</div>
+    </div>
+
+    ${detailHtml}
+
+    <footer class="rr-intel-foot">
+      <span class="rr-intel-foot-bullet"><span class="dot"></span>Reads from the live 13-week plan — no separate refresh needed.</span>
+      <span>Want a deeper analysis? Run the solver against the next 4 weeks from Targets → Smart Fill.</span>
+    </footer>
+  `;
+}
+
+const _RR_INTEL_RENDERERS = {
+  "risk-forecast": _rrIntelRenderRiskForecast,
+  // 4 other intel views land in follow-up PRs:
+  //   compliance-watch, hiring-pulse, peak-days, what-if
+};
 
 // ── Undo stack ─────────────────────────────────────────────────────
 // A cross-app undo: each undoable action pushes { label, undo } onto
