@@ -1204,7 +1204,11 @@ window.paAction = function (btn, action, _name) {
 // (not the surrounding page chrome) ends up on the page / PDF.
 function _schedCmdTab(mode) {
   const cmd = document.getElementById("rr-sched-cmd");
-  if (cmd) cmd.classList.toggle("is-print", mode === "print");
+  if (cmd) {
+    cmd.classList.toggle("is-print",    mode === "print");
+    cmd.classList.toggle("is-insights", mode === "insights");
+  }
+  document.body.classList.toggle("rr-sched-insights", mode === "insights");
   // The tabs themselves moved out of #rr-sched-cmd to the V2 strip
   // in PR #1621, so the .active class must be toggled document-wide
   // (and on any legacy tabs still in the DOM in case both copies
@@ -1214,7 +1218,42 @@ function _schedCmdTab(mode) {
     t.classList.toggle("active", on);
     t.setAttribute("aria-selected", on ? "true" : "false");
   });
+  // Render the Insights view on first activation; reveal the existing
+  // node on subsequent clicks.
+  if (mode === "insights" && typeof _renderSchedInsights === "function") {
+    _renderSchedInsights();
+  }
 }
+
+// Placeholder Insights tab. Stub for now — drops a panel above the
+// week grid that's only visible when the Insights tab is active;
+// future work fills it with week-over-week analytics, surprise-shifts,
+// projection breakdowns, etc.
+function _renderSchedInsights() {
+  const host = document.getElementById("sched-sub-week");
+  if (!host) return;
+  let panel = document.getElementById("rr-sched-insights-panel");
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.id = "rr-sched-insights-panel";
+    panel.className = "sched-insights-panel";
+    panel.style.cssText = "padding:24px;border:1px solid var(--sch-line, #e5e7eb);border-radius:12px;background:var(--sch-surface, #fff);margin:12px 0;text-align:center;color:var(--text-subtle, #6b7280);font-size:13px;line-height:1.5";
+    panel.innerHTML = "<strong style='display:block;color:var(--text,#111);font-size:15px;margin-bottom:6px'>Insights</strong>Coming soon — week-over-week analytics, coverage trends, and projection breakdowns.";
+    host.prepend(panel);
+  }
+  // The body.rr-sched-insights class governs visibility (CSS below).
+}
+// Inject the Insights panel's show/hide rule once on script load.
+(function _rrInjectInsightsCss() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById("rr-sched-insights-css")) return;
+  const css = document.createElement("style");
+  css.id = "rr-sched-insights-css";
+  css.textContent =
+    "#rr-sched-insights-panel{display:none}" +
+    "body.rr-sched-insights #rr-sched-insights-panel{display:block}";
+  document.head?.appendChild(css);
+})();
 
 function _schedPrint() {
   const sub  = document.getElementById("sched-sub-week");
@@ -24731,10 +24770,22 @@ document.addEventListener("change", (e) => {
     const extra  = document.querySelector('#rr-sched-smartfill-rules-body [data-rr-sf-rule="preferred_enhancement_extra"]');
     if (cb.checked) {
       if (contig) { contig.checked = true; saved.preferred_enhancement_contiguous = true; }
+      if (extra)  { extra.checked  = false; saved.preferred_enhancement_extra = false; }
     } else {
       if (contig) { contig.checked = false; saved.preferred_enhancement_contiguous = false; }
       if (extra)  { extra.checked  = false; saved.preferred_enhancement_extra = false; }
     }
+  }
+  // The two Preferred Enhancement sub-options are mutually exclusive —
+  // "contiguous" keeps a driver's days as one block, "extra rotations"
+  // deliberately scatters them. Picking one clears the other.
+  if (cb.checked
+      && (key === "preferred_enhancement_contiguous" || key === "preferred_enhancement_extra")) {
+    const otherSub = key === "preferred_enhancement_contiguous"
+      ? "preferred_enhancement_extra"
+      : "preferred_enhancement_contiguous";
+    const otherEl = document.querySelector(`#rr-sched-smartfill-rules-body [data-rr-sf-rule="${otherSub}"]`);
+    if (otherEl) { otherEl.checked = false; saved[otherSub] = false; }
   }
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
   // Refresh advanced sub-rows + boundary-mode dimming when a rule toggles.
@@ -34196,8 +34247,14 @@ document.addEventListener("drop", async (e) => {
     return;
   }
 
-  // Confirm finalized-week edits the same way the modal does.
-  if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) {
+  // Confirm finalized-week edits the same way the modal does — but
+  // skip the prompt when the drag started from the open-shifts pool.
+  // Adding an open shift to a driver is the operator's normal flow,
+  // not a "change of mind" worth confirming, so the warning was
+  // reported as noise. Cell-to-cell moves still confirm.
+  if (_dragShift.fromDriver
+      && typeof _confirmLiveScheduleEdit === "function"
+      && !_confirmLiveScheduleEdit()) {
     _dragShift = null;
     return;
   }
