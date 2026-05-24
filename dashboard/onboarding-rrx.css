@@ -264,12 +264,16 @@
   justify-content: center !important;
   gap: var(--rr-space-40) !important;
   height: auto !important;
-  min-width: 62px !important;
+  /* Operator wants tiles with more square features (referenced
+     Schedule strip image). Bumped min-width 62 → 76 so the tile
+     reads more squarely, and dropped radius 4 → 2 so the rest /
+     hover surface has crisper Fluent corners. */
+  min-width: 76px !important;
   padding: var(--rr-space-80) var(--rr-space-120) 9px !important;
   margin: 0 !important;
   background: transparent !important;
   border: 0 !important;
-  border-radius: var(--rr-radius-medium) !important;
+  border-radius: 2px !important;
   color: var(--rr-fg-secondary) !important;
   font-family: var(--rr-font-family) !important;
   font-size: 13px !important;
@@ -285,8 +289,10 @@
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item svg,
 #view-onboarding-ops.rrx-onboarding .ob-tab-wrap > .subnav-item svg {
-  width: 28px !important;
-  height: 28px !important;
+  /* Match Schedule strip icon size exactly (Schedule uses 20×20
+     per the inline rule at index.html:16800). */
+  width: 20px !important;
+  height: 20px !important;
   flex: 0 0 auto !important;
   color: var(--rr-fg-secondary) !important;
   stroke-width: 1.6 !important;
