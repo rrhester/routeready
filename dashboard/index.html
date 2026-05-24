@@ -1614,14 +1614,26 @@ button.card:focus-visible{
 .tp-day-cell.is-active{background:var(--accent-soft);color:var(--accent-text)}
 .tp-day-cell.is-active .tp-day-cell-num{color:var(--accent-text)}
 .tp-day-cell.is-active.is-today .tp-day-cell-num::after{background:var(--accent-text)}
+/* Operator wanted the TODAY pill to blend into the roster header
+   (which is the linear-gradient(180deg, var(--surface), var(--canvas))
+   strip just above the table) but stay visible. Solid brand-blue
+   pill was too loud; now it sits at a soft 8% brand-blue tint at
+   rest with the dark brand-blue text on top — reads as a quiet
+   chip on the gradient instead of a stand-out button. Pushed
+   right with `margin-left:auto` so the strip's middle column
+   shrinks toward it and the TODAY pill anchors to the far right
+   edge of the strip. */
 .tp-daystrip-today{
-  appearance:none;background:transparent;border:0;cursor:pointer;font:inherit;
+  appearance:none;border:0;cursor:pointer;font:inherit;
   font-size:var(--fs-xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;
-  color:var(--accent-text);padding:0 var(--s-3);border-radius:var(--r-md);
+  background:rgba(0,120,212,0.08);
+  color:var(--accent-pressed,#005A9E);
+  padding:0 var(--s-3);border-radius:var(--r-md);
   display:inline-flex;align-items:center;gap:6px;
+  margin-left:auto;
   transition:background var(--t-fast),color var(--t-fast);
 }
-.tp-daystrip-today:hover{background:var(--accent-soft)}
+.tp-daystrip-today:hover{background:rgba(0,120,212,0.16);color:var(--accent-pressed,#005A9E)}
 .tp-daystrip-today:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 .tp-daystrip-today.is-on-today{color:var(--text-subtle);cursor:default;pointer-events:none}
 .tp-daystrip-today svg{width:13px;height:13px}
