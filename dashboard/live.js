@@ -4228,23 +4228,46 @@ document.addEventListener("click", (e) => {
 // scrolled-away popover would float disconnected from its trigger.
 (function () {
   const SEL = '[id$="-rules-popover"], #rr-sched-quick-settings-popover';
-  document.addEventListener("scroll", (e) => {
-    const t = e.target;
-    // Ignore scrolling inside a popover (or the question editor modal) —
-    // only page/region scroll should dismiss the popovers.
-    if (t && t.closest && (t.closest(SEL) || t.closest("#rr-question-modal"))) return;
-    document.querySelectorAll(SEL).forEach((pop) => {
+
+  // Per-popover pending-close timer so we can cancel when the pointer
+  // re-enters the wrapper before the delay fires. Operator asked for
+  // a 1-second grace window to prevent misfires — hovering off the
+  // popover on the way back to it shouldn't close it.
+  const _pending = new Map();
+  const CLOSE_DELAY_MS = 1000;
+  function scheduleClose(pop) {
+    if (!pop || pop.hidden) return;
+    const prev = _pending.get(pop.id);
+    if (prev) clearTimeout(prev);
+    const tid = setTimeout(() => {
+      _pending.delete(pop.id);
       if (pop.hidden) return;
       pop.hidden = true;
       const toggle = document.querySelector('[aria-controls="' + pop.id + '"]');
       if (toggle) toggle.setAttribute("aria-expanded", "false");
-    });
+    }, CLOSE_DELAY_MS);
+    _pending.set(pop.id, tid);
+  }
+  function cancelClose(popId) {
+    const prev = _pending.get(popId);
+    if (prev) { clearTimeout(prev); _pending.delete(popId); }
+  }
+
+  document.addEventListener("scroll", (e) => {
+    const t = e.target;
+    // Ignore scrolling inside a popover (or the question editor modal) —
+    // only page/region scroll should dismiss the popovers. Route the
+    // close through scheduleClose so behavior is consistent — the
+    // operator can scroll back up and the popover stays put.
+    if (t && t.closest && (t.closest(SEL) || t.closest("#rr-question-modal"))) return;
+    document.querySelectorAll(SEL).forEach(scheduleClose);
   }, true);
 
-  // …and auto-close the moment the pointer moves off the rules control.
-  // A popover stays open while the pointer is anywhere inside its wrapper
-  // (the tab tile / split — covering the tab, the toggle, the 6px gap and
-  // the popover itself); hovering anything outside that dismisses it.
+  // Auto-close the moment the pointer moves off the rules control,
+  // but with the 1-second grace window. A popover stays open while
+  // the pointer is anywhere inside its wrapper, the popover itself,
+  // or its toggle. Moving outside schedules a delayed close; moving
+  // back in cancels it — that's the anti-misfire guarantee.
   document.addEventListener("mouseover", (e) => {
     const t = e.target;
     if (!t || !t.closest) return;
@@ -4253,10 +4276,11 @@ document.addEventListener("click", (e) => {
       if (pop.hidden) return;
       const wrap = pop.parentElement;
       const toggle = document.querySelector('[aria-controls="' + pop.id + '"]');
-      if (wrap && wrap.contains(t)) return;
-      if (toggle && toggle.contains(t)) return;
-      pop.hidden = true;
-      if (toggle) toggle.setAttribute("aria-expanded", "false");
+      if ((wrap && wrap.contains(t)) || (toggle && toggle.contains(t)) || pop.contains(t)) {
+        cancelClose(pop.id);
+        return;
+      }
+      scheduleClose(pop);
     });
   });
 })();
