@@ -678,3 +678,156 @@
     break-inside: avoid;
   }
 }
+
+/* ============================================================
+   SUB-PAGE PARITY  ·  operator wants every onboarding sub-page
+   (Funnel, Documents, Interview Day, Calendar, Work auth) to
+   read as the same surface family as the Schedule page.
+
+   The pipeline view (Funnel + Interview Day + Calendar) and the
+   documents view get RELOCATED into #obsub-pipeline / -documents
+   when their tile is clicked — they bring their own legacy
+   chrome (`--surface`, `--canvas`, `--border`, `--r-lg`) with
+   them. The Schedule page uses the Fluent 2 `--rr-*` token
+   system. This block re-skins anything that lands inside an
+   onboarding sub-page host so it adopts the same look without
+   touching the pipeline / documents source markup.
+
+   Scoping: every rule below is anchored to
+     `#view-onboarding-ops.rrx-onboarding [sub-host] ...`
+   so it only fires while the markup is mounted under
+   onboarding. The pipeline and documents views still render
+   normally from their own routes.
+   ============================================================ */
+
+/* Make the hosted view containers behave like a Schedule
+   surface: same canvas color, same Segoe UI family, no scroll
+   chrome on the outer container. */
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline,
+#view-onboarding-ops.rrx-onboarding #obsub-documents,
+#view-onboarding-ops.rrx-onboarding #obsub-workauth,
+#view-onboarding-ops.rrx-onboarding #obsub-overview {
+  font-family: var(--rr-font-family) !important;
+  color: var(--rr-fg-primary) !important;
+  background: transparent !important;
+}
+
+/* The pipeline + documents relocated views still own their own
+   .view → .page → .page-header structure. Their .page-header is
+   already hidden (display:none) in the existing inline rules at
+   the top of the file. Make the wrapper transparent so the
+   onboarding canvas shows through. */
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline #view-pipeline,
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline #view-pipeline > .page,
+#view-onboarding-ops.rrx-onboarding #obsub-documents #view-documents,
+#view-onboarding-ops.rrx-onboarding #obsub-documents #view-documents > .page {
+  background: transparent !important;
+  font-family: var(--rr-font-family) !important;
+}
+
+/* Re-skin every inner card surface that lands inside an
+   onboarding sub-page so they pick up the Schedule treatment:
+   white surface, hairline border using --rr-border-secondary,
+   sharp Fluent radius (4px) instead of the legacy 12px pillow,
+   no drop shadow at rest. Limited to elements that the legacy
+   pipeline / documents views actually render. */
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline .hp-stats-banner,
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline .hp-week-cell,
+#view-onboarding-ops.rrx-onboarding #obsub-documents .docs-card,
+#view-onboarding-ops.rrx-onboarding #obsub-documents .doc-row,
+#view-onboarding-ops.rrx-onboarding #obsub-workauth .i9-card,
+#view-onboarding-ops.rrx-onboarding #obsub-workauth .rr-i9-row,
+#view-onboarding-ops.rrx-onboarding .ob-mx-wrap {
+  background: var(--rr-bg-card, #FFFFFF) !important;
+  border: 1px solid var(--rr-border-secondary, #E1DFDD) !important;
+  border-radius: var(--rr-radius-medium, 4px) !important;
+  box-shadow: none !important;
+  font-family: var(--rr-font-family) !important;
+}
+
+/* Typography hierarchy inside sub-pages — line every heading +
+   body label up with Schedule's. Numerics stay tabular for the
+   KPI banner so vertical lines align. */
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline h1,
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline h2,
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline h3,
+#view-onboarding-ops.rrx-onboarding #obsub-documents h1,
+#view-onboarding-ops.rrx-onboarding #obsub-documents h2,
+#view-onboarding-ops.rrx-onboarding #obsub-documents h3,
+#view-onboarding-ops.rrx-onboarding #obsub-workauth h1,
+#view-onboarding-ops.rrx-onboarding #obsub-workauth h2,
+#view-onboarding-ops.rrx-onboarding #obsub-workauth h3,
+#view-onboarding-ops.rrx-onboarding .ob-mx-head-title {
+  font-family: var(--rr-font-family) !important;
+  font-weight: 600 !important;
+  color: var(--rr-fg-primary, #242424) !important;
+  letter-spacing: -.005em !important;
+}
+
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline .hp-stat-label,
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline .hp-stat-trend,
+#view-onboarding-ops.rrx-onboarding .ob-mx-head-sub,
+#view-onboarding-ops.rrx-onboarding #obsub-workauth .rr-i9-sub,
+#view-onboarding-ops.rrx-onboarding #obsub-documents .docs-meta {
+  font-family: var(--rr-font-family) !important;
+  color: var(--rr-fg-secondary, #605E5C) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline .hp-stat-value {
+  font-family: var(--rr-font-family) !important;
+  color: var(--rr-fg-primary, #242424) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* The KPI banner's progress strip at the bottom uses
+   --accent → --green; swap to Schedule's brand blue so it
+   reads as part of the same surface family. */
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline .hp-stats-progress-fill {
+  background: linear-gradient(90deg, var(--rr-brand-primary, #0078D4), var(--rr-brand-pressed, #005A9E)) !important;
+}
+
+/* Subtler card hover on hosted rows so the page doesn't feel
+   "clickier" than the Schedule grid does. */
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline .hp-week-cell:hover,
+#view-onboarding-ops.rrx-onboarding #obsub-documents .doc-row:hover,
+#view-onboarding-ops.rrx-onboarding #obsub-workauth .rr-i9-row:hover {
+  background: var(--rr-bg-card-hover, #FAFAFA) !important;
+  border-color: var(--rr-border-primary, #C8C6C4) !important;
+}
+
+/* Buttons inside hosted sub-pages — Fluent neutral by default,
+   brand-primary when carrying `.btn-primary` or `data-primary`.
+   Same look as Schedule's quick-action buttons. */
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline .btn,
+#view-onboarding-ops.rrx-onboarding #obsub-documents .btn,
+#view-onboarding-ops.rrx-onboarding #obsub-workauth .btn {
+  font-family: var(--rr-font-family) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  padding: 6px 12px !important;
+  border-radius: var(--rr-radius-medium, 4px) !important;
+  background: var(--rr-bg-card, #FFFFFF) !important;
+  border: 1px solid var(--rr-border-primary, #C8C6C4) !important;
+  color: var(--rr-fg-primary, #242424) !important;
+  box-shadow: none !important;
+  transition: background .1s, border-color .1s !important;
+}
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline .btn:hover,
+#view-onboarding-ops.rrx-onboarding #obsub-documents .btn:hover,
+#view-onboarding-ops.rrx-onboarding #obsub-workauth .btn:hover {
+  background: var(--rr-bg-card-hover, #F5F5F5) !important;
+  border-color: var(--rr-border-primary-hover, #B3B0AD) !important;
+}
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline .btn.btn-primary,
+#view-onboarding-ops.rrx-onboarding #obsub-documents .btn.btn-primary,
+#view-onboarding-ops.rrx-onboarding #obsub-workauth .btn.btn-primary {
+  background: var(--rr-brand-primary, #0078D4) !important;
+  border-color: var(--rr-brand-primary, #0078D4) !important;
+  color: #fff !important;
+}
+#view-onboarding-ops.rrx-onboarding #obsub-pipeline .btn.btn-primary:hover,
+#view-onboarding-ops.rrx-onboarding #obsub-documents .btn.btn-primary:hover,
+#view-onboarding-ops.rrx-onboarding #obsub-workauth .btn.btn-primary:hover {
+  background: var(--rr-brand-hover, #106EBE) !important;
+  border-color: var(--rr-brand-hover, #106EBE) !important;
+}
