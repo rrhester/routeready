@@ -24641,9 +24641,53 @@ window.closeOkamiOverlay = closeOkamiOverlay;
 // sidebar view, so it doesn't sit on top of an unrelated screen.
 const _origGotoForOkamiOverlay = window.goto;
 window.goto = function (view) {
+  // Pull the OKAMI 13-week table back into #view-okami before any
+  // okami / schedule navigation — both surfaces need it home.
+  if (view === "okami") _rrReturnOkami13WeekHome();
   if (typeof _origGotoForOkamiOverlay === "function") _origGotoForOkamiOverlay(view);
   if (view !== "schedule" && view !== "okami") closeOkamiOverlay();
 };
+
+// ─── OKAMI 13-week table · shared between #view-okami and the
+//     Schedule → Targets sub-view. Operators wanted the strategic
+//     13-week view back on the Targets page; instead of cloning the
+//     table (and its bindings) we move the live `.plan-table-wrap`
+//     between the two surfaces so there's a single source of truth.
+//     Edits to route inputs, daily-detail expands, recalcOkami() all
+//     keep working because the DOM is identical — only its parent
+//     changes.
+function _rrReturnOkami13WeekHome() {
+  const okami = document.getElementById("view-okami");
+  if (!okami) return;
+  const wrap = document.querySelector(".plan-table-wrap");
+  if (!wrap) return;
+  // Already home if its parent is the .page inside #view-okami.
+  if (okami.contains(wrap)) return;
+  const homeAnchor = okami.querySelector(".page");
+  if (homeAnchor) homeAnchor.appendChild(wrap);
+}
+function _rrMoveOkami13WeekToTargets() {
+  const host = document.getElementById("rr-sched-targets-13week-host");
+  if (!host) return;
+  const wrap = document.querySelector(".plan-table-wrap");
+  if (!wrap) return;
+  if (host.contains(wrap)) return;
+  host.innerHTML = "";
+  host.appendChild(wrap);
+}
+window._rrReturnOkami13WeekHome      = _rrReturnOkami13WeekHome;
+window._rrMoveOkami13WeekToTargets   = _rrMoveOkami13WeekToTargets;
+
+// Ensure the OKAMI 13-week table is back inside #view-okami before
+// the overlay shows — the overlay CSS hides everything except
+// #okami-detail-0 inside #view-okami, so the table must live there.
+const _origOpenOkamiOverlay = window.openOkamiOverlay;
+if (typeof _origOpenOkamiOverlay === "function") {
+  window.openOkamiOverlay = async function (...args) {
+    _rrReturnOkami13WeekHome();
+    return _origOpenOkamiOverlay.apply(this, args);
+  };
+}
 
 // ─── Drag-to-reorder for the schedule's navigation tiles ───────────
 // Both the action-strip command tiles (Smart Fill / Route planning /
@@ -26122,6 +26166,28 @@ window.schedSub = function (sub) {
     if (typeof renderScheduleTargetsSubView === "function") {
       renderScheduleTargetsSubView();
     }
+    // Move the live OKAMI 13-week table into the Targets host so the
+    // operator gets the strategic view alongside the daily editor.
+    // Defer one tick so the sub-view is laid out before the move.
+    setTimeout(() => {
+      _rrMoveOkami13WeekToTargets();
+      // Refresh the 13-week table against live data so the numbers
+      // reflect the actual DSP's drivers / route grid, not the
+      // hard-coded seed values in the markup. Anchored to the
+      // schedule's currently-viewed week via _renderOkamiLiveImpl's
+      // _rrOkamiAnchorOverride hook.
+      if (typeof _schedStart === "string" && _schedStart) {
+        window._rrOkamiAnchorOverride = _schedStart;
+      }
+      if (typeof renderOkamiLive === "function") {
+        try { renderOkamiLive(); } catch (e) { console.warn("Targets · 13-week load:", e); }
+      }
+    }, 0);
+  } else {
+    // Leaving Targets — put the 13-week table back in #view-okami so
+    // the standalone OKAMI page + the Route-planning overlay can use
+    // it next time the operator opens either one.
+    _rrReturnOkami13WeekHome();
   }
   // Restore the default "Schedule / Week of ..." title block when
   // leaving Today view — renderSchedTodayView overwrites it.

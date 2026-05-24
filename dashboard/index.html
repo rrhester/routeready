@@ -14060,6 +14060,47 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <!-- KPI pill row · populated by renderScheduleWeek. -->
         <div id="rr-sched-kpis" class="sched-kpi-pills"></div>
+        <!-- Targets KPI strip · swapped in when the Targets sub-view
+             is active. Same dimensions + position as #rr-sched-kpis;
+             the Targets rules (Block / Cushion / Report time) become
+             individual KPI pills with inline number inputs. -->
+        <div id="rr-sched-targets-kpis" class="sched-kpi-pills" role="group" aria-label="Targets rules" style="display:none">
+          <div class="rr-tgt-kpi">
+            <div class="rr-tgt-kpi-text">
+              <div class="rr-tgt-kpi-label">Block</div>
+              <div class="rr-tgt-kpi-val">
+                <input class="rr-tgt-kpi-input" id="rr-sched-targets-block-hours" type="number" min="1" max="14" step="1" autocomplete="off" aria-label="Block hours"/>
+                <span class="rr-tgt-kpi-unit">h</span>
+              </div>
+            </div>
+          </div>
+          <div class="rr-tgt-kpi">
+            <div class="rr-tgt-kpi-text">
+              <div class="rr-tgt-kpi-label">Cushion</div>
+              <div class="rr-tgt-kpi-val">
+                <input class="rr-tgt-kpi-input" id="rr-sched-targets-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off" aria-label="Cushion percent"/>
+                <span class="rr-tgt-kpi-unit">%</span>
+              </div>
+            </div>
+          </div>
+          <div class="rr-tgt-kpi">
+            <div class="rr-tgt-kpi-text">
+              <div class="rr-tgt-kpi-label">Report time</div>
+              <div class="rr-tgt-kpi-val">
+                <input class="rr-tgt-kpi-input" id="rr-sched-targets-report-lead" type="number" min="0" max="120" step="5" autocomplete="off" aria-label="Report time minutes"/>
+                <span class="rr-tgt-kpi-unit">min</span>
+              </div>
+            </div>
+          </div>
+          <div class="rr-tgt-kpi">
+            <div class="rr-tgt-kpi-text">
+              <div class="rr-tgt-kpi-label">Status</div>
+              <div class="rr-tgt-kpi-val">
+                <span class="rr-tgt-kpi-status" id="rr-sched-targets-rules-status" aria-live="polite">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
         <!-- Print-only mount · the Print tab clones the week grid +
              heading here, then window.print() shows just this. -->
         <div id="rr-sched-print-area" aria-hidden="true"></div>
@@ -14316,8 +14357,12 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Page-header → KPI strip rhythm is now handled by the
              tightened global .page-header margin-bottom. */
 
-          /* KPI pill row · pure-white enclosed card. */
-          #view-schedule #rr-sched-kpis.sched-kpi-pills{
+          /* KPI pill row · pure-white enclosed card. The Targets
+             sub-view swaps the schedule's KPI strip for its own
+             #rr-sched-targets-kpis strip (Block / Cushion / Report
+             time) so the two share the exact same size + position. */
+          #view-schedule #rr-sched-kpis.sched-kpi-pills,
+          #view-schedule #rr-sched-targets-kpis.sched-kpi-pills{
             display:grid;
             grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
             align-items:stretch;
@@ -14329,6 +14374,51 @@ body.rr-cmdk-open{ overflow:hidden }
             border-radius:10px;
             box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
             font-size:var(--fs-sm);
+          }
+          /* Targets KPI pills — Block / Cushion / Report time. Each
+             cell is a labeled input, sized to match the schedule's
+             coverage pill so the strip's height matches exactly. */
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi{
+            display:flex;align-items:center;gap:10px;
+            padding:3px 18px;
+            border-left:1px solid rgba(15,23,42,.06);
+            color:var(--text);font-weight:600;
+            font-variant-numeric:tabular-nums;
+            min-width:0;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi:first-child{border-left:0}
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-text{
+            display:flex;flex-direction:column;line-height:1.2;min-width:0;flex:1;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-label{
+            font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+            text-transform:uppercase;letter-spacing:.04em;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-val{
+            display:flex;align-items:baseline;gap:4px;margin-top:2px;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-input{
+            font:inherit;font-size:var(--fs-base);font-weight:700;
+            color:var(--text);
+            background:transparent;border:0;padding:0;margin:0;
+            width:54px;text-align:left;
+            font-variant-numeric:tabular-nums;
+            -moz-appearance:textfield;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-input::-webkit-outer-spin-button,
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-input::-webkit-inner-spin-button{
+            -webkit-appearance:none;margin:0;
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-input:focus{
+            outline:0;color:var(--accent-text);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-unit{
+            font-size:var(--fs-sm);font-weight:500;color:var(--text-subtle);
+          }
+          #view-schedule #rr-sched-targets-kpis .rr-tgt-kpi-status{
+            font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);
+            font-variant-numeric:tabular-nums;
           }
           /* Rule violations · pops out as a flyover drawer, JS-
              anchored just under the Violations KPI pill. It's
@@ -18966,26 +19056,82 @@ body.rr-cmdk-open{ overflow:hidden }
               text-align:right;font-size:var(--fs-xs);color:var(--text-subtle);
               margin:0 0 var(--s-2) 0;
             }
+            /* 13-week OKAMI planner · embedded above the daily editor.
+               Wraps the OKAMI table that lives in #view-okami; on
+               schedSub('targets') the live table is moved here at
+               runtime so there's a single source of truth. Visual
+               treatment matches the schedule page's "driver-app vibe"
+               — soft white surface, rounded corners, gentle elevation,
+               hairline borders — instead of OKAMI's flatter chrome. */
+            #view-schedule #sched-sub-targets .rr-tgt-13w{
+              background:#FFFFFF;
+              border:1px solid rgba(15,23,42,.08);
+              border-radius:22px;
+              box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 28px rgba(15,23,42,.07);
+              padding:var(--s-4) var(--s-4) var(--s-3);
+              margin-bottom:var(--s-4);
+              overflow:hidden;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w-head{
+              display:flex;align-items:center;justify-content:space-between;
+              gap:var(--s-3);flex-wrap:wrap;
+              margin:0 0 var(--s-3) 0;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w-title{
+              display:flex;align-items:baseline;gap:var(--s-2);
+              font-size:var(--fs-lg);font-weight:700;color:var(--text);
+              letter-spacing:-.005em;line-height:1.2;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w-badge{
+              font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);
+              background:var(--canvas);border:1px solid var(--border);
+              padding:3px 8px;border-radius:var(--r-md);
+              letter-spacing:0;text-transform:none;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w-sub{
+              font-size:var(--fs-sm);color:var(--text-subtle);
+              margin:2px 0 0;line-height:1.45;
+            }
+            /* Soften the moved OKAMI table to match the schedule's
+               white-card surfaces — remove the wrap's own border + bg
+               since the .rr-tgt-13w shell now provides them. */
+            #view-schedule #sched-sub-targets .rr-tgt-13w .plan-table-wrap{
+              border:0;background:transparent;padding:0;border-radius:0;
+              box-shadow:none;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table{
+              background:transparent;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table thead th{
+              background:var(--surface-secondary,#F2F3F6);
+              border-bottom:1px solid rgba(15,23,42,.07);
+              color:var(--text-muted);font-weight:600;
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w .okami-table tbody td{
+              border-bottom:1px solid rgba(15,23,42,.05);
+            }
+            #view-schedule #sched-sub-targets .rr-tgt-13w-empty{
+              padding:var(--s-3) 0;font-size:var(--fs-sm);color:var(--text-subtle);
+            }
           </style>
-          <div id="rr-sched-targets-rules" style="margin:0 0 var(--s-3) 0;display:flex;align-items:center;gap:var(--s-4);flex-wrap:wrap;font-size:var(--fs-sm);color:var(--text-muted)">
-            <span style="font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle)">Targets rules ·</span>
-            <label style="display:inline-flex;align-items:center;gap:6px">
-              <span>Block</span>
-              <input class="form-input form-input-sm" id="rr-sched-targets-block-hours" type="number" min="1" max="14" step="1" autocomplete="off" style="width:64px;text-align:right"/>
-              <span style="color:var(--text-subtle);font-size:var(--fs-xs)">h</span>
-            </label>
-            <label style="display:inline-flex;align-items:center;gap:6px">
-              <span>Cushion</span>
-              <input class="form-input form-input-sm" id="rr-sched-targets-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off" style="width:64px;text-align:right"/>
-              <span style="color:var(--text-subtle);font-size:var(--fs-xs)">%</span>
-            </label>
-            <label style="display:inline-flex;align-items:center;gap:6px">
-              <span>Report time</span>
-              <input class="form-input form-input-sm" id="rr-sched-targets-report-lead" type="number" min="0" max="120" step="5" autocomplete="off" style="width:72px;text-align:right"/>
-              <span style="color:var(--text-subtle);font-size:var(--fs-xs)">min</span>
-            </label>
-            <span id="rr-sched-targets-rules-status" aria-live="polite" style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums"></span>
-          </div>
+          <!-- 13-week OKAMI planner host · the live OKAMI table is
+               moved here at runtime by _rrMoveOkami13Week() on entry
+               and returned to #view-okami on exit. -->
+          <section class="rr-tgt-13w" id="rr-sched-targets-13week" aria-label="13-week route planner">
+            <div class="rr-tgt-13w-head">
+              <div>
+                <div class="rr-tgt-13w-title">
+                  Route planner
+                  <span class="rr-tgt-13w-badge" title="Amazon's term for the 13-week DSP route plan horizon">13-week plan</span>
+                </div>
+                <p class="rr-tgt-13w-sub">Routes vs. staffing vs. risk · drawn from your real history. Edit any week to recalc downstream coverage.</p>
+              </div>
+            </div>
+            <div id="rr-sched-targets-13week-host">
+              <div class="rr-tgt-13w-empty">Loading 13-week plan…</div>
+            </div>
+          </section>
+
           <div class="rr-targets-shell">
             <div id="sched-sub-targets-daily">
               <div class="rr-loading">Loading route targets…</div>
@@ -27025,6 +27171,17 @@ John,Smith,555-0101,john@example.com</code>
     document.querySelectorAll('.sched-subview').forEach(function(v){ v.style.display = 'none'; });
     var panel = document.getElementById('sched-sub-' + sub);
     if (panel) panel.style.display = 'block';
+    // Targets sub-view swaps the schedule KPI strip for its own
+    // Block / Cushion / Report-time KPI strip (same size + spot).
+    var kpisSched   = document.getElementById('rr-sched-kpis');
+    var kpisTargets = document.getElementById('rr-sched-targets-kpis');
+    if (sub === 'targets'){
+      if (kpisSched)   kpisSched.style.display   = 'none';
+      if (kpisTargets) kpisTargets.style.display = '';
+    } else {
+      if (kpisSched)   kpisSched.style.display   = '';
+      if (kpisTargets) kpisTargets.style.display = 'none';
+    }
   }
 
   // ─── DRIVERS SUB-NAV ───────────────────────────────────────
