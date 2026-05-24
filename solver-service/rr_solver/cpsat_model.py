@@ -94,6 +94,18 @@ def _is_eligible(
     return True
 
 
+def _is_van_type_compatible(route_type: str, van_type: str) -> bool:
+    """Whether a van of `van_type` can run a `route_type` shift.
+    Pulled out of _van_for_driver so the CP-SAT van decision variables
+    (Step 5c) and the heuristic locked-row pinning use the same rules."""
+    if route_type == "edv":
+        return van_type == "edv"
+    if route_type == "step_van":
+        return van_type == "step_van"
+    # standard / xl shifts take any non-EDV van (EDVs reserved for EDV routes).
+    return van_type != "edv"
+
+
 def _van_for_driver(
     driver_id: str,
     route_type: str,
@@ -102,13 +114,12 @@ def _van_for_driver(
     van_used_dates: dict[str, set[str]],
     shift_date: str,
 ) -> Optional[str]:
-    """Heuristic van pick — honors pairings + type match + one-per-date.
-    Step 5c lifts this into the CP-SAT model as decision variables."""
+    """Heuristic van pick for LOCKED shifts (which aren't in the
+    CP-SAT model). Step 5c handles open-shift vans as first-class
+    decision variables; this helper stays for the locked-row path."""
     for p in pairings_by_driver.get(driver_id, []):
         vt = van_types.get(p.van_id, "standard")
-        if route_type == "edv" and vt != "edv":
-            continue
-        if route_type == "step_van" and vt != "step_van":
+        if not _is_van_type_compatible(route_type, vt):
             continue
         if shift_date in van_used_dates.get(p.van_id, set()):
             continue
@@ -340,6 +351,91 @@ def solve(req: SolveRequest) -> SolveResponse:
                 if (d.id, s.id) in assign:
                     objective_terms.append(-W_ATT * assign[(d.id, s.id)])
 
+    # ── 5c. Van decision variables ────────────────────────────────────
+    # Vans become first-class assignments alongside drivers. The model
+    # decides which van goes to which open shift jointly with which
+    # driver, which:
+    #   • Maximizes the number of shifts that get a van (globally vs
+    #     greedy-per-shift like the heuristic).
+    #   • Honors van_pairings via a continuity bonus (pair_match AND).
+    #   • Prevents van double-booking per date.
+    #
+    # Locked shifts get their van via the heuristic _van_for_driver
+    # below (in the result-reading section). Slots those consume are
+    # pre-subtracted here so the CP-SAT model doesn't try to schedule
+    # the same (van, date) twice.
+    pre_consumed_van_dates: dict[str, set[str]] = defaultdict(set)
+    locked_van_assignment: dict[str, Optional[str]] = {}  # locked shift_id → van_id
+    # Compute heuristic van picks for locked shifts here, ONCE, so both
+    # this pre-subtraction step and the result-reading step agree.
+    _van_used_for_locked: dict[str, set[str]] = defaultdict(set)
+    for ls in locked_shifts:
+        if not ls.assigned_driver_id:
+            continue
+        vid = _van_for_driver(
+            ls.assigned_driver_id, ls.route_type,
+            pairings_by_driver, van_types, _van_used_for_locked, ls.date,
+        )
+        locked_van_assignment[ls.id] = vid
+        if vid:
+            _van_used_for_locked[vid].add(ls.date)
+            pre_consumed_van_dates[vid].add(ls.date)
+
+    # van_assign[v, s] for each open shift × type-compatible van whose
+    # date isn't already consumed by a locked row.
+    van_assign: dict[tuple[str, str], cp_model.IntVar] = {}
+    vans_per_shift: dict[str, list[str]] = defaultdict(list)
+    shifts_per_van_date: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for s in open_shifts:
+        for v in req.vans:
+            if v.status != "active":
+                continue
+            if not _is_van_type_compatible(s.route_type, van_types.get(v.id, "standard")):
+                continue
+            if s.date in pre_consumed_van_dates.get(v.id, set()):
+                continue
+            key = (v.id, s.id)
+            var = model.NewBoolVar(f"van_{v.id}_{s.id}")
+            van_assign[key] = var
+            vans_per_shift[s.id].append(v.id)
+            shifts_per_van_date[(v.id, s.date)].append(s.id)
+
+    # At most one van per shift.
+    for s_id, vids in vans_per_shift.items():
+        model.Add(sum(van_assign[(v, s_id)] for v in vids) <= 1)
+
+    # Van can only be assigned to a covered shift.
+    # van_total[s] ≤ 1 - uncovered[s].
+    for s in open_shifts:
+        vids = vans_per_shift.get(s.id, [])
+        if vids:
+            model.Add(sum(van_assign[(v, s.id)] for v in vids) <= 1 - uncovered[s.id])
+
+    # No van double-book per date (open-shift side; locked already pre-consumed).
+    for (v_id, _date), sids in shifts_per_van_date.items():
+        model.Add(sum(van_assign[(v_id, s_id)] for s_id in sids) <= 1)
+
+    # Continuity bonus: when van_pairing (d, v) exists AND both d takes
+    # shift s AND v takes shift s, add a positive objective term.
+    W_VAN_CONT = int(weights.get("van_continuity", 10))
+    for vp in req.van_pairings:
+        if vp.van_id not in van_types:
+            continue
+        for s in open_shifts:
+            if (vp.driver_id, s.id) not in assign:
+                continue
+            if (vp.van_id, s.id) not in van_assign:
+                continue
+            # pair_match = assign[d, s] AND van_assign[v, s]
+            pm = model.NewBoolVar(f"pm_{vp.driver_id}_{vp.van_id}_{s.id}")
+            a = assign[(vp.driver_id, s.id)]
+            va = van_assign[(vp.van_id, s.id)]
+            model.Add(pm <= a)
+            model.Add(pm <= va)
+            model.Add(pm >= a + va - 1)
+            objective_terms.append(W_VAN_CONT * pm)
+
+
     # ── 6. Ad-hoc constraints (Step 5.5) ──────────────────────────────
     # Operator-authored rules compiled into CP-SAT additions. Soft rules
     # contribute slack-penalty terms; hard rules add direct constraints.
@@ -372,21 +468,21 @@ def solve(req: SolveRequest) -> SolveResponse:
     driver_shifts_count: dict[str, int] = defaultdict(int)
     van_used_dates: dict[str, set[str]] = defaultdict(set)
 
-    # Locked / preserved come back unchanged with van pinning.
+    # Locked / preserved come back unchanged. Van pinning was already
+    # computed up-front (in the 5c block above) so the CP-SAT solver
+    # could pre-subtract those (van, date) slots from its decision
+    # space — re-use that mapping here for consistency.
     for ls in locked_shifts:
         if not ls.assigned_driver_id:
             continue
-        van_id = _van_for_driver(
-            ls.assigned_driver_id, ls.route_type,
-            pairings_by_driver, van_types, van_used_dates, ls.date,
-        )
-        if van_id:
-            van_used_dates[van_id].add(ls.date)
+        v_id = locked_van_assignment.get(ls.id)
+        if v_id:
+            van_used_dates[v_id].add(ls.date)
         driver_shifts_count[ls.assigned_driver_id] += 1
         assigned_out.append(AssignedShift(
             shift_id=ls.id,
             driver_id=ls.assigned_driver_id,
-            van_id=van_id,
+            van_id=v_id,
             source="locked",
             summary=f"Locked / preserved row for {ls.assigned_driver_id}.",
         ))
@@ -414,10 +510,15 @@ def solve(req: SolveRequest) -> SolveResponse:
                     summary=f"Solver returned no assignment for shift {s.id}; status={status_name}.",
                 ))
                 continue
-            van_id = _van_for_driver(
-                picked, s.route_type, pairings_by_driver,
-                van_types, van_used_dates, s.date,
-            )
+            # Van read from the CP-SAT model (Step 5c). The solver
+            # already prevented double-booking + cert-mismatch + locked-
+            # date collisions; just pick whichever van_assign[v, s] the
+            # solver set true (at most one by constraint).
+            van_id: Optional[str] = None
+            for v_id in vans_per_shift.get(s.id, []):
+                if solver.BooleanValue(van_assign[(v_id, s.id)]):
+                    van_id = v_id
+                    break
             if van_id:
                 van_used_dates[van_id].add(s.date)
             driver_shifts_count[picked] += 1
