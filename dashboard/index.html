@@ -12558,26 +12558,17 @@ body.rr-cmdk-open{ overflow:hidden }
                   <button class="btn btn-sm btn-primary" id="rr-set-dsp-name-save" type="button">Save</button>
                 </div>
               </div>
-              <!-- Fleet Bridge address · auto-generated from the DSP
-                   name. The DSP enters their Gmail below; messages
-                   sent to <slug>@routeready.com forward there. -->
+              <!-- Team email · the DSP's unique Fleet Bridge address.
+                   Derived from the Station code: <short_code>@mail
+                   .gorouteready.com. Share with vendors; inbound mail
+                   lands in Fleet Bridge → Inbox. -->
               <div class="form-row">
                 <div>
-                  <div class="form-label">Fleet Bridge address</div>
-                  <div class="form-help">Generated from your DSP name. Messages sent here forward to your linked Gmail.</div>
+                  <div class="form-label">Team email</div>
+                  <div class="form-help">Your DSP's unique address. Share with vendors — inbound mail lands in Fleet Bridge → Inbox. Outbound mail you send from Fleet Bridge goes out from this address.</div>
                 </div>
                 <div style="display:flex;gap:var(--s-2);align-items:center">
                   <input class="form-input" id="rr-set-fb-email" value="" readonly style="flex:1;background:var(--canvas);font-family:ui-monospace,SFMono-Regular,Menlo,monospace"/>
-                </div>
-              </div>
-              <div class="form-row">
-                <div>
-                  <div class="form-label">Linked Gmail</div>
-                  <div class="form-help">Your business Gmail account. Mail sent to your Fleet Bridge address forwards here.</div>
-                </div>
-                <div style="display:flex;gap:var(--s-2);align-items:center">
-                  <input class="form-input" id="rr-set-fb-gmail" type="email" placeholder="you@gmail.com" value="" style="flex:1"/>
-                  <button class="btn btn-sm btn-primary" id="rr-set-fb-gmail-save" type="button">Save</button>
                 </div>
               </div>
               <div class="form-row">
@@ -23325,6 +23316,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
               <div>
                 <h1 class="page-title">Fleet Bridge</h1>
+                <p class="page-sub" id="rr-fb-team-email" title="Your DSP's team email. Outbound from this address; inbound here lands in Inbox."></p>
               </div>
             </div>
             <!-- Action ribbon · icon-over-label tiles matching the

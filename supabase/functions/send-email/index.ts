@@ -37,6 +37,7 @@ function brandedFrom(
   dspName: string | null | undefined,
   dspShortCode: string | null | undefined,
   dspSlug?: string | null,
+  options?: { preferShortCode?: boolean; preferDomain?: string | null },
 ): string {
   if (!dspName) return envFrom;
   const m = envFrom.match(/<([^>]+)>/);
@@ -44,11 +45,23 @@ function brandedFrom(
   const atIdx = addr.indexOf("@");
   if (atIdx <= 0) return envFrom; // malformed env var — bail to default
 
-  const slug = (dspSlug && dspSlug.trim())
-    || slugifyLocalPart(dspName)
-    || (dspShortCode ? dspShortCode.toLowerCase() : "");
-  const localPart = slug || addr.slice(0, atIdx);
-  const domain = addr.slice(atIdx + 1);
+  // Local-part selection:
+  //   • Fleet Bridge mail (preferShortCode=true) uses the operator's
+  //     short_code so vendors see e.g. ozrk@mail.gorouteready.com —
+  //     the "team email" surfaced in DSP settings.
+  //   • Applicant mail keeps the original slug-from-name behavior so
+  //     historical reply-to addresses + threading stay valid.
+  let localPart: string;
+  if (options?.preferShortCode && dspShortCode && dspShortCode.trim()) {
+    localPart = dspShortCode.trim().toLowerCase();
+  } else {
+    const slug = (dspSlug && dspSlug.trim())
+      || slugifyLocalPart(dspName)
+      || (dspShortCode ? dspShortCode.toLowerCase() : "");
+    localPart = slug || addr.slice(0, atIdx);
+  }
+  const domain = (options?.preferDomain && options.preferDomain.trim())
+    || addr.slice(atIdx + 1);
 
   // Quote the display name if it contains special chars per RFC 5322.
   const safe = /[",<>@]/.test(dspName) ? `"${dspName.replace(/"/g, '\\"')}"` : dspName;
@@ -117,7 +130,22 @@ Deno.serve(async (req) => {
     await supa.from("email_messages").update({ status: "sending" }).eq("id", row.id);
 
     const dsp = dspById.get(row.dsp_id);
-    const fromHeader = brandedFrom(from, dsp?.name ?? null, dsp?.short_code ?? null, dsp?.slug ?? null);
+    // Fleet Bridge mail (row.folder_id set) is the operator-to-vendor
+    // channel; the From local-part is the DSP's short_code and the
+    // domain is the inbound subdomain (mail.gorouteready.com) so
+    // vendors see the same team-email address that's surfaced in DSP
+    // settings, and replies route through webhook-email-inbound back
+    // to the same DSP. Applicant mail keeps the legacy slug-based
+    // From so historical reply threading still works.
+    const fromHeader = brandedFrom(
+      from,
+      dsp?.name ?? null,
+      dsp?.short_code ?? null,
+      dsp?.slug ?? null,
+      row.folder_id
+        ? { preferShortCode: true, preferDomain: inboundDomain || null }
+        : undefined,
+    );
     // Reply-To resolution:
     //   • Fleet Bridge (row.folder_id is set) → leave Reply-To empty;
     //     vendor replies go straight to the From address, which is

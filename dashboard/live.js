@@ -250,6 +250,13 @@ function _paintWorkspaceChip() {
   // brand the operator pays for); the operator's DSP name lives in
   // the workspace chip below it.
   document.title = `${name} · Dispatcher`;
+  // Surface the DSP's team email under the Fleet Bridge view title
+  // so operators always see what address vendors will see on their
+  // outbound mail. Computed from short_code → mail.gorouteready.com.
+  const fbSub = document.getElementById("rr-fb-team-email");
+  if (fbSub && typeof _fbEmailFromCode === "function") {
+    fbSub.textContent = _fbEmailFromCode(code);
+  }
 }
 _paintWorkspaceChip();
 
@@ -7662,11 +7669,9 @@ function _prefillWeatherInputs() {
   if (nameEl) nameEl.value = window.RR?.dsp?.name        || "";
   if (codeEl) codeEl.value = window.RR?.dsp?.short_code  || "";
   if (replyEl) replyEl.value = window.RR?.dsp?.metadata?.reply_to_email || "";
-  // Fleet Bridge · auto-generated email + linked Gmail.
+  // Fleet Bridge · team email derived from the DSP's short_code.
   const fbEmailEl = document.getElementById("rr-set-fb-email");
-  const fbGmailEl = document.getElementById("rr-set-fb-gmail");
-  if (fbEmailEl) fbEmailEl.value = _fbEmailFromName(window.RR?.dsp?.name);
-  if (fbGmailEl) { try { fbGmailEl.value = localStorage.getItem("rr-fb-gmail") || ""; } catch (_) {} }
+  if (fbEmailEl) fbEmailEl.value = _fbEmailFromCode(window.RR?.dsp?.short_code);
   // Business address — fetch fresh (it isn't always in window.RR.dsp).
   const addrEl = document.getElementById("rr-set-dsp-address");
   if (addrEl && window.RR?.dsp?.id) {
@@ -7690,9 +7695,6 @@ document.addEventListener("click", async (e) => {
     if (error) throw error;
     window.RR.dsp.name = next;
     _paintWorkspaceChip();
-    // Refresh the Fleet Bridge address slot in Settings.
-    const fbEmailEl = document.getElementById("rr-set-fb-email");
-    if (fbEmailEl) fbEmailEl.value = _fbEmailFromName(next);
     toast("DSP name saved", "success");
   } catch (err) {
     console.error("dsp name save:", err);
@@ -7700,42 +7702,34 @@ document.addEventListener("click", async (e) => {
   }
 });
 
-// ─── Fleet Bridge · auto-generated email + linked Gmail ─────────────
-// The DSP doesn't choose a Fleet Bridge address — it's derived from
-// the first word of their DSP name (e.g. "Ozark DSP" → ozark@route
-// ready.com). The Gmail they enter below is the forwarding target the
-// real provisioning hook will use when it lands; for now it persists
-// in localStorage and feeds the Fleet Bridge page header.
-function _fbEmailFromName(name) {
-  const first = String(name || "").trim().split(/\s+/)[0] || "";
-  const slug  = first.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return slug ? `${slug}@routeready.com` : "";
+// ─── Fleet Bridge · team email derived from the DSP's short_code ─────
+// Every DSP gets `<short_code>@mail.gorouteready.com` at signup. The
+// short_code (set in Settings → Station code) is the DSP's identity
+// across the platform; using it as the email local-part means the
+// address operators share with vendors stays stable even if the DSP
+// name changes. Inbound mail to this address routes through
+// webhook-email-inbound which already matches on lower(short_code) as
+// a fallback for slug lookups.
+const RR_FB_EMAIL_DOMAIN = "mail.gorouteready.com";
+function _fbEmailFromCode(code) {
+  const local = String(code || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+  return local ? `${local}@${RR_FB_EMAIL_DOMAIN}` : "";
 }
-function _fbLinkedGmail() {
-  try { return localStorage.getItem("rr-fb-gmail") || ""; } catch (_) { return ""; }
+window._fbEmailFromCode = _fbEmailFromCode;
+// Back-compat shim · earlier code paths may still reference the
+// name-based derivation. Keep the symbol exported as a forward to
+// the short-code derivation, since the DSP record carries both.
+function _fbEmailFromName(_name) {
+  return _fbEmailFromCode(window.RR?.dsp?.short_code);
 }
 
-// Live-update the read-only Fleet Bridge address as the operator
-// edits the DSP name (before they hit Save).
+// Live-update the read-only team email as the operator edits the
+// Station code (before they hit Save).
 document.addEventListener("input", (e) => {
-  if (e.target && e.target.id === "rr-set-dsp-name") {
+  if (e.target && e.target.id === "rr-set-dsp-code") {
     const fbEmailEl = document.getElementById("rr-set-fb-email");
-    if (fbEmailEl) fbEmailEl.value = _fbEmailFromName(e.target.value);
+    if (fbEmailEl) fbEmailEl.value = _fbEmailFromCode(e.target.value);
   }
-});
-
-// Persist the linked-Gmail value.
-document.addEventListener("click", (e) => {
-  if (!e.target.closest || !e.target.closest("#rr-set-fb-gmail-save")) return;
-  e.preventDefault();
-  const input = document.getElementById("rr-set-fb-gmail");
-  const value = String(input?.value || "").trim();
-  if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-    toast("That doesn't look like a valid email address", "warn");
-    return;
-  }
-  try { localStorage.setItem("rr-fb-gmail", value); } catch (_) {}
-  toast(value ? "Linked Gmail saved" : "Linked Gmail cleared", "success");
 });
 
 // Save station code → dsps.short_code, then refresh sidebar chip.
@@ -7752,6 +7746,10 @@ document.addEventListener("click", async (e) => {
     if (error) throw error;
     window.RR.dsp.short_code = next;
     _paintWorkspaceChip();
+    // Team email is derived from short_code; refresh the read-only
+    // Fleet Bridge slot so it matches what's now persisted.
+    const fbEmailEl = document.getElementById("rr-set-fb-email");
+    if (fbEmailEl) fbEmailEl.value = _fbEmailFromCode(next);
     toast("Station code saved", "success");
   } catch (err) {
     console.error("station code save:", err);
