@@ -31,7 +31,10 @@
 /* ── Workspace baseline ─────────────────────────────────────── */
 
 #view-onboarding-ops.rrx-onboarding {
-  background: var(--rr-bg-canvas);
+  /* Match the Schedule page's canvas exactly — cool blue-gray
+     instead of the warm gray we had before. Same fallback hex
+     the Schedule page resolves to. */
+  background: var(--canvas, #EEF1F5);
   font-family: var(--rr-font-family);
   color: var(--rr-fg-primary);
 }
@@ -190,9 +193,35 @@
   border-left-color: #C8C6C4 !important;
 }
 
+/* Title-to-first-group divider — hairline between the "Onboarding"
+   page title block and the first ribbon group (Funnel), matching the
+   inter-group hairline. The first ribbon group has no preceding
+   .sched-ribbon-group sibling, so we paint the left border on it
+   directly. */
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions .sched-ribbon-group:first-child {
+  margin-left: var(--rr-space-160) !important;
+  padding-left: var(--rr-space-160) !important;
+  border-left: 1px solid #C8C6C4 !important;
+}
+
 /* Kill any legacy ::before fake-divider. */
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group::before {
   display: none !important;
+}
+
+/* Stub Rules footer — same visual weight as a wired Rules button so
+   the operator gets a consistent footer under every tile per the
+   spec, but slightly de-emphasised because clicking does nothing
+   yet. The tooltip carries the "coming soon" affordance; the cursor
+   stays as the default pointer so it doesn't promise interactivity. */
+#view-onboarding-ops.rrx-onboarding .ob-rules-foot[data-rr-rules-stub] {
+  opacity: .72;
+  cursor: default;
+}
+#view-onboarding-ops.rrx-onboarding .ob-rules-foot[data-rr-rules-stub]:hover,
+#view-onboarding-ops.rrx-onboarding .ob-rules-foot[data-rr-rules-stub]:focus-visible {
+  background: transparent !important;
+  color: var(--rr-fg-tertiary, #605E5C) !important;
 }
 
 /* ── Ribbon tiles (subnav-item) — Fleet Bridge vertical tile,
