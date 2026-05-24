@@ -2255,8 +2255,26 @@ body.rr-sched-focus .sidebar,
 body.rr-sched-focus .topbar {
   display: none !important;
 }
+/* For height:100% to cascade down the focus-mode tree, every
+   ancestor needs a *definite* height. .app defaults to min-height
+   only, so the open-shifts panel's height:100% resolves to "auto"
+   and the panel collapses to its content. Pin html/body/app/page
+   to the full viewport in focus mode. */
+html:has(body.rr-sched-focus),
+body.rr-sched-focus {
+  height: 100vh !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
 body.rr-sched-focus .app {
   grid-template-columns: 1fr !important;
+  height: 100vh !important;
+  min-height: 0 !important;
+}
+body.rr-sched-focus #view-schedule {
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 body.rr-sched-focus #view-schedule .sched-cmd,
