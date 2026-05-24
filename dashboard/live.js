@@ -31527,13 +31527,9 @@ function bindSchedWeekNav() {
       // to offer here: it gives just opted-in drivers one extra
       // shift each, still inside the DSP's WOC consecutive-days +
       // weekly-hour caps.
-      if ((r.dl_protection_days ?? 0) > 0) {
-        c.push({
-          ruleDelta: { dl_protection_days: 0 },
-          title: "Remove the license protection window",
-          tradeoff: "Drivers are scheduled right up to their license expiration date.",
-        });
-      }
+      // Removing the license-protection window is never offered as a
+      // candidate — operator preference (license expiration is a hard
+      // rule we don't ask them to trade off against coverage).
       // The overtime / 5th-day pass is offered as a standing option in
       // _openCovModal (not a dry-run-gated candidate), so it's not added
       // to this list.
