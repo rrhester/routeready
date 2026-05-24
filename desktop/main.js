@@ -274,9 +274,79 @@ ipcMain.handle("portal:login", async (_evt, { portalUrl } = {}) => {
     });
     const page = await portalContext.newPage();
     const url = portalUrl || effectivePortalUrl();
+
+    // Auto-save the session the moment the operator finishes signing
+    // in — eliminates the "I'm signed in" button click that
+    // non-technical users (the original report: the operator's
+    // brother) routinely missed. Two triggers, whichever fires first:
+    //   1. The headed page navigates to a URL that's clearly post-
+    //      auth (host matches the portal, path is not a login path).
+    //      We wait 2s after the transition so trailing cookies from
+    //      the auth handshake make it into storageState.
+    //   2. The operator closes the headed Chromium window. That's a
+    //      strong "I'm done" signal even if we missed the URL
+    //      transition (e.g. they cancelled and reopened).
+    let autoSaved = false;
+    const saveOnce = async (trigger) => {
+      if (autoSaved || !portalContext) return;
+      try {
+        const state = await portalContext.storageState();
+        const json = JSON.stringify(state);
+        const { encrypted } = writeSession(json);
+        autoSaved = true;
+        logLine("portal:login auto-saved", trigger, "cookies=", (state.cookies || []).length, "encrypted=", encrypted);
+        try {
+          mainWindow?.webContents.send("portal:autoSaved", {
+            trigger,
+            cookieCount: (state.cookies || []).length,
+            encrypted,
+            url: page.isClosed() ? "(window closed)" : page.url(),
+          });
+        } catch {}
+      } catch (e) {
+        logLine("portal:login auto-save failed:", String(e));
+      }
+    };
+
+    const isLoginUrl = (u) => /sign[-_]?in|signup|ap\/signin|login|auth|account\/?login|accounts\.|verify|2fa|otp|challenge/i.test(u || "");
+    const hostMatch = (u) => {
+      try {
+        const a = new URL(u).host.replace(/^www\./, "");
+        const b = new URL(url).host.replace(/^www\./, "");
+        // Permissive — Indeed bounces between employers.indeed.com,
+        // secure.indeed.com, accounts.indeed.com etc. during login;
+        // we want to match anything on the same registered domain.
+        const aRoot = a.split(".").slice(-2).join(".");
+        const bRoot = b.split(".").slice(-2).join(".");
+        return aRoot === bRoot;
+      } catch { return false; }
+    };
+
+    let settleTimer = null;
+    page.on("framenavigated", (frame) => {
+      if (autoSaved) return;
+      if (frame !== page.mainFrame()) return;
+      const u = frame.url();
+      if (!u || u === "about:blank") return;
+      if (isLoginUrl(u)) return;
+      if (!hostMatch(u)) return;
+      if (settleTimer) clearTimeout(settleTimer);
+      // 2s settle window — auth flows often set a flurry of cookies
+      // in the seconds after the redirect; we want them all captured.
+      settleTimer = setTimeout(() => { saveOnce("post-login navigation"); }, 2000);
+    });
+    page.on("close", () => {
+      if (autoSaved) return;
+      // Fallback — operator closed the window. We try once even if
+      // they never made it through login; if they really didn't,
+      // storageState will just be empty cookies and the probe will
+      // catch it.
+      saveOnce("window closed");
+    });
+
     await page.goto(url);
     logLine("portal:login opened", url);
-    return { ok: true, message: "Login window open. Sign in, then click 'I'm signed in' here." };
+    return { ok: true, message: "Sign-in window open. Once you finish signing in, we'll save the session automatically — no extra click needed." };
   } catch (err) {
     const msg = String(err && err.message || err);
     logLine("portal:login FAILED:", msg);
