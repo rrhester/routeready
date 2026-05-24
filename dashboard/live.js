@@ -29540,7 +29540,7 @@ function _schedShiftChip(sh, extras) {
     const titleText = isClass
       ? "Class training — station-based onboarding day, not route coverage"
       : `Road training${sh.trainer_name ? " with " + escapeHtml(sh.trainer_name) : ""} — riding along, not route coverage`;
-    return `<div class="shift-chip" data-rr-shift-id="${sh.id}" style="background:${bg};border-color:${bg};color:${fg};cursor:default" title="${titleText}"><div class="shift-chip-route">${label}</div>${sub ? `<div class="shift-chip-time">${sub}</div>` : ""}</div>`;
+    return `<div class="shift-chip" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" style="background:${bg};border-color:${bg};color:${fg};cursor:default" title="${titleText}"><div class="shift-chip-route">${label}</div>${sub ? `<div class="shift-chip-time">${sub}</div>` : ""}</div>`;
   }
   // The DB stores starts_at = wave_time − report_lead (driver clock-in)
   // and ends_at = starts_at + block_hours (driver clock-out). The chip
@@ -29604,7 +29604,7 @@ function _schedShiftChip(sh, extras) {
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';
-  return `<div class="shift-chip${routineCls}" draggable="true" data-rr-shift-id="${sh.id}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove">${eyebrowRoute}${startLine}${waveLine}</div>`;
+  return `<div class="shift-chip${routineCls}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove">${eyebrowRoute}${startLine}${waveLine}</div>`;
 }
 
 function _schedDriverInitials(name) {
