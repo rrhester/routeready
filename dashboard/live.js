@@ -24471,6 +24471,97 @@ function _restoreSmartFillRules() {
   _renderAffinityDayOrder();
   _refreshSfAdvancedGating();
   _syncManualMode();
+  // Custom (ad-hoc) rules list — best-effort; safe to no-op if the
+  // schema isn't deployed yet.
+  try { _rrLoadAdHocConstraintsList(); } catch (_) { /* non-fatal */ }
+}
+
+// ─── Ad-hoc constraints list (Optimization Engine · Step 3.5) ─────
+// Reads current_ad_hoc_constraints (DSP-scoped view from migration
+// 0326) and renders compact rows in the Smart Fill rules popover's
+// "Custom rules" section. v1 is read-only — the template picker /
+// authoring form / per-rule actions ship with the compiler in step 5.5.
+async function _rrLoadAdHocConstraintsList() {
+  const list = document.getElementById("rr-sf-adhoc-list");
+  const count = document.getElementById("rr-sf-adhoc-count");
+  if (!list) return;
+  let rows;
+  try {
+    const res = await sb.from("current_ad_hoc_constraints")
+      .select("id, name, description, kind, hardness, weight, state, effective_from, effective_until")
+      .order("created_at", { ascending: false });
+    rows = res.data;
+    if (res.error) throw res.error;
+  } catch (e) {
+    list.innerHTML = `<div class="sf-adhoc-empty" style="font-size:12px;color:var(--text-subtle);padding:8px 0">Custom rules unavailable (${escapeHtml(e?.message || "RPC error")}).</div>`;
+    if (count) count.textContent = "0";
+    return;
+  }
+  const items = Array.isArray(rows) ? rows : [];
+  const active = items.filter(r => r.state === "active").length;
+  if (count) count.textContent = String(active);
+
+  if (items.length === 0) {
+    list.innerHTML = `
+      <div class="sf-adhoc-empty">
+        <div class="sf-adhoc-empty-title">No custom rules yet</div>
+        <div class="sf-adhoc-empty-sub">Encode DSP-specific rules here once and Smart Fill will honor them on every solve. Authoring lands in a follow-up.</div>
+      </div>`;
+    _rrInjectAdHocCss();
+    return;
+  }
+
+  list.innerHTML = items.map(r => {
+    const stateBadge = `<span class="sf-adhoc-state sf-adhoc-state-${escapeHtml(r.state)}">${escapeHtml(r.state)}</span>`;
+    const hardness = `<span class="sf-adhoc-hardness sf-adhoc-hardness-${escapeHtml(r.hardness)}">${escapeHtml(r.hardness)}${r.weight != null ? ` · ${r.weight}` : ""}</span>`;
+    return `
+      <div class="sf-adhoc-row" data-rr-adhoc-id="${escapeHtml(r.id)}">
+        <div class="sf-adhoc-row-main">
+          <div class="sf-adhoc-row-name">${escapeHtml(r.name)}</div>
+          ${r.description ? `<div class="sf-adhoc-row-desc">${escapeHtml(r.description)}</div>` : ""}
+        </div>
+        <div class="sf-adhoc-row-meta">${hardness}${stateBadge}</div>
+      </div>
+    `;
+  }).join("");
+  _rrInjectAdHocCss();
+}
+function _rrInjectAdHocCss() {
+  if (typeof document === "undefined" || !document.head) return;
+  if (document.getElementById("rr-adhoc-css")) return;
+  const css = document.createElement("style");
+  css.id = "rr-adhoc-css";
+  css.textContent = `
+    .sf-adhoc-list { display:flex; flex-direction:column; gap:4px; }
+    .sf-adhoc-empty { padding:14px 12px; border:1px dashed var(--border, #e5e7eb);
+                      border-radius:8px; background:var(--canvas, #f9fafb); }
+    .sf-adhoc-empty-title { font:600 13px/1.3 var(--rr-font-family,'Segoe UI');
+                            color:var(--text, #111); margin-bottom:4px; }
+    .sf-adhoc-empty-sub { font:12px/1.4 var(--rr-font-family,'Segoe UI');
+                          color:var(--text-subtle, #6b7280); }
+    .sf-adhoc-row { display:flex; align-items:flex-start; gap:10px;
+                    padding:8px 10px; border:1px solid var(--border, #e5e7eb);
+                    border-radius:6px; background:var(--surface, #fff); }
+    .sf-adhoc-row-main { flex:1; min-width:0; }
+    .sf-adhoc-row-name { font:600 13px/1.3 var(--rr-font-family,'Segoe UI');
+                         color:var(--text, #111); }
+    .sf-adhoc-row-desc { font:12px/1.4 var(--rr-font-family,'Segoe UI');
+                         color:var(--text-subtle, #6b7280); margin-top:2px; }
+    .sf-adhoc-row-meta { display:flex; flex-direction:column; align-items:flex-end;
+                         gap:4px; flex:0 0 auto; }
+    .sf-adhoc-state, .sf-adhoc-hardness {
+      font:600 10px/1 var(--rr-font-family,'Segoe UI');
+      padding:3px 6px; border-radius:10px; letter-spacing:.02em;
+      text-transform:uppercase;
+    }
+    .sf-adhoc-state-active { background:rgba(34,197,94,.12); color:#15803d; }
+    .sf-adhoc-state-draft  { background:rgba(148,163,184,.18); color:#475569; }
+    .sf-adhoc-state-paused { background:rgba(245,158,11,.15); color:#b45309; }
+    .sf-adhoc-state-expired { background:rgba(148,163,184,.18); color:#64748b; }
+    .sf-adhoc-hardness-hard { background:rgba(220,38,38,.10); color:#b91c1c; }
+    .sf-adhoc-hardness-soft { background:rgba(99,102,241,.12); color:#4338ca; }
+  `;
+  document.head.appendChild(css);
 }
 // Fill-order UI sync — the rotational batch-size control only applies
 // in rotational mode, so it's hidden when Fill order is Sequential.
