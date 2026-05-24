@@ -2535,6 +2535,31 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
 }
 
 /* ============================================================
+   5TH-DAY PASS MARKER · small badge on chips that were created
+   via the 5th-day pass overtime flow. Operator wanted a visible
+   marker so they can see which shifts on the schedule came from
+   that opt-in extra-day pass vs the regular auto-fill.
+
+   Implementation: 8px square in the top-right corner, lavender
+   accent matching Smart Fill's brand color. CSS pseudo so we
+   don't have to inject extra DOM. */
+#view-schedule.rrx-schedule .shift-chip-fifth-day {
+  position: relative;
+}
+#view-schedule.rrx-schedule .shift-chip-fifth-day::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #A78BFA;
+  box-shadow: 0 0 0 1.5px #FFFFFF;
+  pointer-events: none;
+}
+
+/* ============================================================
    DENSITY-PICKER POPOVERS · streamlined Fluent treatment
    ------------------------------------------------------------
    Operator: "The weekly view rules look poor. Redo the layout so

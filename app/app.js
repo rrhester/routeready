@@ -1685,6 +1685,7 @@ async function renderSchedule() {
   _coverOfferTeardown();
   _pickupListTeardown();
   _swapInboxTeardown();
+  _shiftConfirmTeardown();
 
   try {
     const session = readSession();
@@ -1790,6 +1791,7 @@ async function renderSchedule() {
 
     _clearSkel();
     main.innerHTML = `
+      <div id="rr-shift-confirm-slot"></div>
       <div id="rr-cover-offer-slot"></div>
       <div id="rr-swap-incoming-slot"></div>
       ${todayShifts.length ? `
@@ -1802,10 +1804,12 @@ async function renderSchedule() {
       ` : !todayShifts.length ? `<div class="empty-state">No upcoming shifts.</div>` : ""}
       <div id="rr-pickup-slot"></div>`;
 
-    // Pinned Cover-offer card at the top — fetched separately so a
-    // failure here never blocks the schedule render. Pickup + swap
-    // sections are also fetched in the background; each hides itself
-    // when empty.
+    // Pinned cards at the top — Cover offers, swap incoming, AND
+    // any pending 5th-day-pass shift offers waiting on the driver's
+    // confirm/decline. Each fetches separately so a single failure
+    // never blocks the rest of the render. Cards self-hide when
+    // empty so they take up zero space the rest of the time.
+    _shiftConfirmStart(session.token);
     _coverOfferStart(session.token);
     _pickupListStart(session.token);
     _swapInboxStart(session.token);
@@ -1824,7 +1828,90 @@ async function renderSchedule() {
 // surfaces as an Accept / Pass card pinned above the schedule list.
 // We poll driver_offer_list while the schedule view is active (drivers
 // don't have a Supabase auth.uid so postgres_changes won't deliver
-// shift_offers to them; a 15 s poll is plenty for this UX).
+// ─── 5th-day pass · pending shift confirmation requests ─────────
+// Operator runs the 5th-day overtime pass with "Send for
+// confirmation" mode → the dashboard files a shift_confirmation_
+// requests row per proposed assignment. Driver app fetches the
+// pending ones here and surfaces Accept/Decline cards above the
+// regular schedule. On Accept the migration's RPC creates the
+// actual shifts row; the next schedule refresh shows it.
+let _shiftConfirmTimer = null;
+function _shiftConfirmTeardown() {
+  if (_shiftConfirmTimer) { clearInterval(_shiftConfirmTimer); _shiftConfirmTimer = null; }
+}
+function _shiftConfirmStart(token) {
+  _shiftConfirmTeardown();
+  const tick = async () => {
+    const slot = document.getElementById("rr-shift-confirm-slot");
+    if (!slot) { _shiftConfirmTeardown(); return; }
+    try {
+      const { data, error } = await sb.rpc("driver_pending_shift_confirmations", { p_token: token });
+      if (error) { _shiftConfirmTeardown(); return; }
+      const reqs = Array.isArray(data?.requests) ? data.requests : [];
+      if (reqs.length === 0) { slot.innerHTML = ""; return; }
+      slot.innerHTML = `
+        <div class="section-title">Shift offers · please confirm</div>
+        ${reqs.map((r) => {
+          const sh = r.proposed_shift || {};
+          const dateLabel = sh.date
+            ? new Date(sh.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+            : "";
+          const timeLabel = (sh.starts_at && sh.ends_at)
+            ? `${new Date(sh.starts_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} – ${new Date(sh.ends_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+            : "";
+          const expiresHrs = Math.max(1, Math.round((new Date(r.expires_at).getTime() - Date.now()) / 3600000));
+          return `
+            <div class="shift-card shift-card-confirm" data-rr-confirm-id="${escapeHtml(r.id)}">
+              <div class="shift-card-body">
+                <div class="shift-card-line shift-card-title">Extra shift offered</div>
+                <div class="shift-card-line shift-card-sub">${escapeHtml(dateLabel)}${timeLabel ? ` · ${escapeHtml(timeLabel)}` : ""}${sh.route_code ? ` · ${escapeHtml(sh.route_code)}` : ""}</div>
+                <div class="shift-card-line shift-card-meta">Confirm within ${expiresHrs} hour${expiresHrs === 1 ? "" : "s"} or this offer expires.</div>
+                <div class="shift-card-confirm-actions">
+                  <button type="button" class="btn btn-primary btn-sm" data-rr-confirm-accept="${escapeHtml(r.id)}">Accept</button>
+                  <button type="button" class="btn btn-ghost btn-sm" data-rr-confirm-decline="${escapeHtml(r.id)}">Decline</button>
+                </div>
+              </div>
+            </div>`;
+        }).join("")}`;
+    } catch (err) { /* swallow — try again next tick */ }
+  };
+  tick();
+  _shiftConfirmTimer = setInterval(tick, 30000);
+}
+
+// Delegated handler — Accept / Decline buttons on the confirm cards.
+// Installed once at module load.
+document.addEventListener("click", async (e) => {
+  const accept = e.target.closest("[data-rr-confirm-accept]");
+  const decline = e.target.closest("[data-rr-confirm-decline]");
+  if (!accept && !decline) return;
+  e.preventDefault();
+  const session = readSession();
+  if (!session?.token) return;
+  const id = (accept || decline).getAttribute(accept ? "data-rr-confirm-accept" : "data-rr-confirm-decline");
+  const decision = accept ? "accept" : "decline";
+  const btn = accept || decline;
+  btn.disabled = true;
+  try {
+    const { error } = await sb.rpc("driver_respond_to_shift_confirmation", {
+      p_token: session.token,
+      p_request_id: id,
+      p_decision: decision,
+    });
+    if (error) { toast(error.message || "Couldn't update offer", "warn"); btn.disabled = false; return; }
+    toast(decision === "accept" ? "Shift added to your schedule" : "Offer declined", decision === "accept" ? "success" : "info");
+    // Refresh confirmation list AND main schedule so the new
+    // shift (if accepted) shows up immediately.
+    if (typeof renderSchedule === "function") renderSchedule();
+    else { const card = document.querySelector(`[data-rr-confirm-id="${id}"]`); if (card) card.remove(); }
+  } catch (err) {
+    console.warn("respond to shift offer:", err);
+    toast("Couldn't update offer · try again", "warn");
+    btn.disabled = false;
+  }
+});
+
+// ─── Cover-offer pinned card ──────────────────────────────────
 let _coverOfferTimer = null;
 let _coverOfferKnown = null;   // last fetched offer (cached for re-paint)
 function _coverOfferTeardown() {
