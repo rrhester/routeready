@@ -127,8 +127,21 @@
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-header-l {
+  /* Lock the title block to a fixed width so the icon strip stays
+     pinned to the same x-position across every sub-view. Without
+     this lock, the strip shifts horizontally every time the operator
+     switches tabs because the title text changes length
+     ("Onboarding" → "Funnel" → "Work authorization" → …) and
+     .page-header-l auto-sizes to its content.
+
+     280px comfortably fits the longest current title
+     ("Work authorization" at 28px Segoe UI) + the existing 16px
+     right-padding, so the icon strip starts at the same column the
+     Work-auth view lands it in — which the operator picked as the
+     anchor point. min-width (not width) so any future longer title
+     can still grow the block without overflowing. */
   flex: 0 0 auto !important;
-  min-width: 0 !important;
+  min-width: 280px !important;
   padding-right: var(--rr-space-160) !important;
   display: flex !important;
   align-items: center !important;
