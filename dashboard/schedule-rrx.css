@@ -1662,12 +1662,13 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   box-shadow: none;
   /* Lock the strip's height to the Schedule-tab natural size so
      the Intelligence + Print/Download tabs never make it jump.
-     Standard tile column ≈ 61px tile (28px svg + ~16px label +
-     padding) + ~26px Rules foot + 22px strip padding ≈ 109px.
-     Round up to 110px to absorb any rendering nudge. Whichever
+     Standard tile column ≈ 66px tile (33px svg + ~16px label +
+     padding) + ~26px Rules foot + 22px strip padding ≈ 114px.
+     Round up to 115px to absorb any rendering nudge. Whichever
      command tab is active, the strip stays this tall; visual
-     parity across all three. */
-  min-height: 110px;
+     parity across all three. (svg size grew 28→33 per the
+     operator-requested +18% icon bump.) */
+  min-height: 115px;
   /* Stretch the strip to the full page width so margin-left:auto
      on the week navigator pushes it to the FAR right of the
      page, not just the right edge of the tile cluster. */
@@ -1712,8 +1713,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 #view-schedule.rrx-schedule .sched-v2-tile svg {
-  width: 28px;
-  height: 28px;
+  /* 28px × 1.18 ≈ 33px — operator-requested 18% bump across every
+     command-strip tile (Schedule + Intelligence + Print/Download
+     all scale together, since the intel + print SVG sizes mirror
+     this one). The strip's min-height is grown in lockstep below. */
+  width: 33px;
+  height: 33px;
   flex: 0 0 auto;
   color: var(--rr-fg-secondary);
   stroke-width: 1.6;
@@ -2031,8 +2036,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 #view-schedule.rrx-schedule .sched-v2-print-actions .sched-print-btn svg {
-  width: 28px;
-  height: 28px;
+  /* +18% to match the standard tile (28 → 33). */
+  width: 33px;
+  height: 33px;
   stroke-width: 1.6;
   flex: 0 0 auto;
 }
