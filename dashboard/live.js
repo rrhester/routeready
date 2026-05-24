@@ -29610,7 +29610,7 @@ function _schedShiftChip(sh, extras) {
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';
-  return `<div class="shift-chip${routineCls}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" style="${baseStyle}cursor:grab" title="Drag to move · click to edit start / end time, or remove">${eyebrowRoute}${startLine}${waveLine}</div>`;
+  return `<div class="shift-chip${routineCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" style="${baseStyle}cursor:grab" title="${sh.source === "fifth_day_pass" ? "Filled via the 5th-day pass · " : ""}Drag to move · click to edit start / end time, or remove">${eyebrowRoute}${startLine}${waveLine}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -31555,14 +31555,53 @@ function bindSchedWeekNav() {
           const volLine = fifthVols.length > 0
             ? `<div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Opted in</span>${escapeHtml(fifthVols.join(", "))}</div>`
             : `<div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Opted in</span>No drivers have opted into a 5th day yet — they can opt in from their availability card or the driver app.</div>`;
+          // Two mutually-exclusive notify/confirm modes per operator
+          // ask. Both modes are optional; if neither is checked, the
+          // pass runs as before (silent direct assignment). The two
+          // radio-style checkboxes are wired by the change handler
+          // installed once below — when one toggles on, the other
+          // clears, so they can't both be checked.
+          const fifthAcceptPayload = JSON.stringify({
+            ruleDelta: fifthDelta,
+            maxDays: null,
+            // Marker so the accept-handler can switch on the operator's
+            // notification preference at click time.
+            fifthDayPassMode: true,
+          });
           fifthDayHtml = `
-            <div class="rr-cov-rec">
+            <div class="rr-cov-rec rr-cov-fifth-card">
               <div class="rr-cov-rec-title">Overtime · re-run with the 5th-day pass</div>
               ${projLine}
               <div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Trade-off</span>Each driver who opted into a 5th day picks up one open shift. WOC consecutive-days and license rules still apply — only opted-in drivers, one extra day each.</div>
               ${volLine}
-              <button type="button" class="btn btn-primary btn-sm" data-rr-cov-accept='${escapeHtml(JSON.stringify({ ruleDelta: fifthDelta, maxDays: null }))}'>Run the 5th-day pass</button>
-            </div>`;
+              <div class="rr-cov-fifth-modes" role="group" aria-label="Driver communication">
+                <label class="rr-cov-fifth-mode">
+                  <input type="checkbox" data-rr-fifth-mode="notify" />
+                  <span class="rr-cov-fifth-mode-body">
+                    <span class="rr-cov-fifth-mode-title">Notify drivers</span>
+                    <span class="rr-cov-fifth-mode-sub">Each assigned driver gets a message that they've been scheduled for the extra shift.</span>
+                  </span>
+                </label>
+                <label class="rr-cov-fifth-mode">
+                  <input type="checkbox" data-rr-fifth-mode="confirm" />
+                  <span class="rr-cov-fifth-mode-body">
+                    <span class="rr-cov-fifth-mode-title">Send for confirmation</span>
+                    <span class="rr-cov-fifth-mode-sub">Each assigned driver gets a confirmation request via Messages. If they confirm within 3 days the shift is added to the schedule automatically; otherwise it doesn't land.</span>
+                  </span>
+                </label>
+              </div>
+              <button type="button" class="btn btn-primary btn-sm" data-rr-cov-accept='${escapeHtml(fifthAcceptPayload)}'>Run the 5th-day pass</button>
+            </div>
+            <style>
+              .rr-cov-fifth-modes{display:flex;flex-direction:column;gap:6px;margin:10px 0 12px}
+              .rr-cov-fifth-mode{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid #E1DFDD;border-radius:4px;background:#FFFFFF;cursor:pointer;transition:border-color .12s, background .12s}
+              .rr-cov-fifth-mode:hover{border-color:#C8C6C4;background:#FAFAFA}
+              .rr-cov-fifth-mode:has(input:checked){border-color:#0078D4;background:rgba(0,120,212,.04)}
+              .rr-cov-fifth-mode input[type="checkbox"]{margin:3px 0 0;flex:0 0 auto;accent-color:#0078D4}
+              .rr-cov-fifth-mode-body{display:flex;flex-direction:column;gap:2px;min-width:0}
+              .rr-cov-fifth-mode-title{font-size:13px;font-weight:600;color:#242424}
+              .rr-cov-fifth-mode-sub{font-size:12px;color:#605E5C;line-height:1.4}
+            </style>`;
         }
         // The dead-end "staffing shortfall" line only shows when there
         // is genuinely nothing to offer — not even the 5th-day pass.
@@ -31603,22 +31642,135 @@ function bindSchedWeekNav() {
           modal.dataset.rrBusy = "1";
           let pd = { ruleDelta: {}, maxDays: null };
           try { pd = JSON.parse(accept.getAttribute("data-rr-cov-accept")); } catch {}
+
+          // Operator's 5th-day pass notify/confirm mode — read whichever
+          // (mutually exclusive) checkbox is checked at click time. Only
+          // relevant for the 5th-day pass card; other candidates leave
+          // both unchecked and the regular re-run runs.
+          let fifthMode = "none";
+          if (pd.fifthDayPassMode) {
+            const notifyEl = modal.querySelector('input[data-rr-fifth-mode="notify"]');
+            const confirmEl = modal.querySelector('input[data-rr-fifth-mode="confirm"]');
+            if (confirmEl && confirmEl.checked) fifthMode = "confirm";
+            else if (notifyEl && notifyEl.checked) fifthMode = "notify";
+          }
+
           const body = document.getElementById("rr-cov-kpi-body");
           if (body) body.innerHTML = `
             <div class="rr-cov-regen">
               <div class="rr-cov-regen-bar"><span></span></div>
-              <div class="rr-cov-regen-label">Regenerating the schedule with the new settings…</div>
+              <div class="rr-cov-regen-label">${fifthMode === "confirm" ? "Sending confirmation requests…" : "Regenerating the schedule with the new settings…"}</div>
             </div>`;
-          // Run with the previewed settings only — saved settings untouched.
-          const baseRules = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
-          window._rrSfRulesOverride = { ...baseRules, ...(pd.ruleDelta || {}) };
+
+          if (fifthMode === "confirm") {
+            // Don't write shifts directly — instead, run the engine
+            // as a dry-run to discover which assignments the 5th-day
+            // pass WOULD make, then file each one as a
+            // shift_confirmation_request. Driver app surfaces the
+            // pending offers; their Accept creates the actual shift.
+            try {
+              const payload = _getSfDrillPayload();
+              if (!payload) { toast("Run Smart Fill first so the 5th-day pass has a payload to dry-run.", "warn"); }
+              else {
+                const baseRules = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+                const sim = planScheduleWeek({
+                  ...payload,
+                  rules: { ...baseRules, ...payload.rules, ...(pd.ruleDelta || {}) },
+                });
+                const baselineRes = planScheduleWeek({
+                  ...payload,
+                  rules: { ...baseRules, ...payload.rules },
+                });
+                const baselineKeys = new Set((baselineRes?.assigned_shifts || [])
+                  .map(a => a.shift_id + "|" + a.driver_id));
+                const newAssignments = (sim.assigned_shifts || []).filter(a =>
+                  a && a.driver_id && !baselineKeys.has(a.shift_id + "|" + a.driver_id));
+                const shiftById = new Map((payload.shifts || []).map(s => [s.id, s]));
+                let sent = 0, failed = 0;
+                for (const a of newAssignments) {
+                  const sh = shiftById.get(a.shift_id);
+                  if (!sh) { failed += 1; continue; }
+                  const proposed = {
+                    station_id: sh.station_id || payload.station_id || null,
+                    date: sh.date,
+                    starts_at: sh.starts_at,
+                    ends_at: sh.ends_at,
+                    route_code: sh.route_code || null,
+                    shift_kind: "regular",
+                  };
+                  const { error } = await sb.rpc("create_shift_confirmation_request", {
+                    p_payload: { driver_id: a.driver_id, proposed_shift: proposed },
+                  });
+                  if (error) { console.warn("create_shift_confirmation_request:", error); failed += 1; }
+                  else sent += 1;
+                }
+                if (sent > 0) {
+                  toast(`Sent ${sent} confirmation request${sent === 1 ? "" : "s"} · drivers have 3 days to accept`, "success");
+                } else if (failed > 0) {
+                  toast(`Couldn't send confirmation requests (${failed} failed)`, "warn");
+                } else {
+                  toast("No new 5th-day shifts to offer — nothing changed.", "warn");
+                }
+              }
+            } catch (err) {
+              console.warn("5th-day confirm flow:", err);
+              toast("Confirmation flow failed: " + (err?.message || String(err)), "warn");
+            } finally {
+              document.getElementById("rr-cov-kpi-modal")?.remove();
+            }
+            return;
+          }
+
+          // Otherwise: regular re-run (writes shifts directly).
+          const baseRules2 = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+          window._rrSfRulesOverride = { ...baseRules2, ...(pd.ruleDelta || {}) };
           if (typeof pd.maxDays === "number") window._rrMaxDaysOverride = pd.maxDays;
+          let postRunAssignments = null;
+          if (fifthMode === "notify" && pd.fifthDayPassMode) {
+            // Snapshot the engine's would-be NEW assignments BEFORE the
+            // actual run so we can notify the right drivers afterward.
+            try {
+              const payload = _getSfDrillPayload();
+              if (payload) {
+                const baselineRes = planScheduleWeek({ ...payload, rules: { ...baseRules2, ...payload.rules } });
+                const sim = planScheduleWeek({ ...payload, rules: { ...baseRules2, ...payload.rules, ...(pd.ruleDelta || {}) } });
+                const baselineKeys = new Set((baselineRes?.assigned_shifts || []).map(a => a.shift_id + "|" + a.driver_id));
+                postRunAssignments = (sim.assigned_shifts || []).filter(a => a && a.driver_id && !baselineKeys.has(a.shift_id + "|" + a.driver_id));
+              }
+            } catch (err) { console.warn("notify-mode snapshot:", err); }
+          }
           try { await autoFillScheduleWeek(); }
           catch (err) { console.warn("coverage re-run:", err); }
           finally { delete window._rrSfRulesOverride; delete window._rrMaxDaysOverride; }
+
+          if (fifthMode === "notify" && postRunAssignments && postRunAssignments.length > 0) {
+            const dspId = window.RR?.dsp?.id;
+            let sent = 0;
+            for (const a of postRunAssignments) {
+              try {
+                await sb.from("driver_messages").insert({
+                  driver_id: a.driver_id,
+                  dsp_id: dspId,
+                  sender_kind: "dispatch",
+                  body: "You've been scheduled for an extra (5th-day) shift this week — check the app for the details.",
+                });
+                sent += 1;
+              } catch (err) { console.warn("notify driver_messages insert:", err); }
+            }
+            toast(`Schedule re-run · ${sent} driver${sent === 1 ? "" : "s"} notified`, "success");
+          } else {
+            toast("Schedule re-run with the previewed settings · saved settings unchanged", "success");
+          }
           document.getElementById("rr-cov-kpi-modal")?.remove();
-          toast("Schedule re-run with the previewed settings · saved settings unchanged", "success");
           return;
+        }
+        // Mutex for the 5th-day notify/confirm checkboxes — clicking
+        // one clears the other so they can't both be on at once.
+        const fifthMode = e.target.closest('input[data-rr-fifth-mode]');
+        if (fifthMode && fifthMode.checked) {
+          modal.querySelectorAll('input[data-rr-fifth-mode]').forEach((el) => {
+            if (el !== fifthMode) el.checked = false;
+          });
         }
         return;
       }
