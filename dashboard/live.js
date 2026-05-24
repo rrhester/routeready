@@ -29071,10 +29071,47 @@ function _rrShowSmartFillDetails(text) {
     status.textContent = ok ? "✓ copied" : "Copy failed — select the text and ⌘C / Ctrl+C";
     setTimeout(() => { status.textContent = ""; }, 2500);
   };
+  // AI explainer button — calls the explain-optimization-run edge
+  // function with the last run's id (captured in step 2) + the
+  // 'summary' question kind. Result renders inline above the
+  // diagnostic textarea so the operator gets a plain-English readout
+  // without leaving the modal.
+  const explainBtn = document.createElement("button");
+  explainBtn.textContent = "Explain in plain English";
+  explainBtn.style.cssText = "padding:8px 14px;border:1px solid #c4b5fd;background:linear-gradient(135deg,#EDE9FE 0%,#FCE7F3 100%);color:#5B21B6;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600";
+  const explainOut = document.createElement("div");
+  explainOut.style.cssText = "padding:0 20px 12px;font-size:13px;line-height:1.5;color:#1f2937;white-space:pre-wrap;border-bottom:1px solid #e5e7eb;display:none;background:linear-gradient(135deg,rgba(237,233,254,.3) 0%,rgba(252,231,243,.3) 100%)";
+  explainBtn.onclick = async () => {
+    const runId = window._rrLastOptimizationRunId;
+    if (!runId) {
+      explainOut.style.display = "block";
+      explainOut.textContent = "No optimization run id available — try clicking Smart Fill once more.";
+      return;
+    }
+    explainBtn.disabled = true;
+    explainBtn.textContent = "Asking Claude…";
+    explainOut.style.display = "block";
+    explainOut.style.padding = "12px 20px";
+    explainOut.textContent = "…";
+    try {
+      const { data, error } = await sb.functions.invoke("explain-optimization-run", {
+        body: { run_id: runId, question_kind: "summary" },
+      });
+      if (error) throw error;
+      explainOut.textContent = data?.answer || "(empty response)";
+    } catch (e) {
+      explainOut.textContent = "Couldn't generate explanation: " + ((e && e.message) || e);
+    } finally {
+      explainBtn.disabled = false;
+      explainBtn.textContent = "Explain in plain English";
+    }
+  };
   footer.appendChild(status);
+  footer.appendChild(explainBtn);
   footer.appendChild(copyBtn);
   footer.appendChild(closeBtn);
   card.appendChild(header);
+  card.appendChild(explainOut);
   card.appendChild(ta);
   card.appendChild(footer);
   backdrop.appendChild(card);
