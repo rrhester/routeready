@@ -1022,7 +1022,12 @@
    that already powers the Schedule grid. */
 #view-onboarding-ops.rrx-onboarding .ob-matrix tbody tr:hover td,
 #view-onboarding-ops.rrx-onboarding .ob-matrix tbody tr:hover td.ob-mx-namecell {
-  background: var(--rr-bg-card-hover, #FAFAFA) !important;
+  /* Operator: row hover on the onboarding matrix should match the
+     Schedule grid's row hover exactly — the same soft brand-blue
+     scan band Outlook-style rows use. Schedule paints this via
+     `--sch-blue-softer: rgba(15,108,189,.05)`; using the literal so
+     we don't depend on the schedule view's CSS var being in scope. */
+  background: rgba(15,108,189,.05) !important;
 }
 #view-onboarding-ops.rrx-onboarding .ob-matrix tbody tr:hover .ob-mx-name {
   color: var(--rr-brand-primary, #0078D4) !important;
