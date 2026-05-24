@@ -31281,16 +31281,60 @@ function bindSchedWeekNav() {
             if (baseCov == null) baseCov = _covPctOf(baseRes);
           } catch (err) { console.warn("pref baseline dry-run:", err); }
         }
+
+        // Strip-style PROJECTION helpers — operator caught the same
+        // discrepancy on projections that bit us on baselines: the
+        // engine's _prefPctOf / _covPctOf include onboarding-driver
+        // assignments and over-promise. After Accept & re-run, the
+        // strip shows lower numbers than the drill-down promised.
+        // Mirror the strip's math (active-drivers only) when reading
+        // the engine result for projections.
+        const _activeIdsPref = new Set(
+          (payload.drivers || []).filter(d => d && d.status === "active").map(d => d.id)
+        );
+        const _prefDowsByDriver = new Map(
+          (payload.drivers || []).map(d => [d.id, Array.isArray(d.preferred_dows) ? d.preferred_dows : []])
+        );
+        const _dateByShift = new Map(
+          (payload.shifts || []).map(s => [String(s.id), s.date])
+        );
+        const _projectStripPrefPct = (res) => {
+          if (!res) return null;
+          let honored = 0, denom = 0;
+          for (const a of (res.assigned_shifts || [])) {
+            if (!a || !_activeIdsPref.has(a.driver_id)) continue;
+            const dows = _prefDowsByDriver.get(a.driver_id);
+            if (!dows || dows.length === 0) continue;
+            denom += 1;
+            const date = _dateByShift.get(String(a.shift_id));
+            if (date && dows.includes(new Date(date + "T12:00:00").getDay())) honored += 1;
+          }
+          return denom > 0 ? Math.round(honored / denom * 100) : null;
+        };
+        const _projectStripCovPct = (res) => {
+          if (!res) return null;
+          const need = (liveCov && liveCov.weekStart === payload.schedule_week_start)
+            ? (liveCov.needed || 0) : null;
+          if (!need) return _covPctOf(res); // fallback
+          let filled = 0;
+          for (const a of (res.assigned_shifts || [])) {
+            if (a && _activeIdsPref.has(a.driver_id)) filled += 1;
+          }
+          return Math.round(filled / need * 100);
+        };
+
         const recs = [];
         for (const cand of _prefCandidates(payload.rules || {})) {
           let res = null;
           try { res = planScheduleWeek({ ...payload, rules: { ...payload.rules, ...cand.delta } }); }
           catch (err) { console.warn("pref dry-run:", err); }
-          const proj = _prefPctOf(res, payload);
+          // Project the STRIP's pref pct, not the engine's (active-
+          // drivers only, matches what the strip shows after Accept).
+          const proj = _projectStripPrefPct(res);
           if (proj == null || baseline == null || proj <= baseline) continue;
           // Don't offer a preferred-day gain that costs coverage — skip
           // any recommendation that would drop coverage below 100%.
-          const projCov = _covPctOf(res);
+          const projCov = _projectStripCovPct(res);
           if (projCov != null && baseCov != null && projCov < 100 && projCov < baseCov) continue;
           recs.push({ ...cand, proj, projCov });
         }
