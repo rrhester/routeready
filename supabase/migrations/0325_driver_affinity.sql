@@ -101,12 +101,12 @@ begin
   -- complete week. Stop counting as soon as the pattern changes.
   -- "Pattern" = the sorted distinct DOWs worked that week.
   with weeks as (
-    select w as offset,
+    select w as wk_offset,
            v_today - (((w + 1) * 7))::integer as week_start
       from generate_series(0, p_window_weeks - 1) as w
   ),
   per_week as (
-    select wk.offset,
+    select wk.wk_offset,
            coalesce(
              (select array_agg(distinct extract(dow from s.date)::integer order by 1)
                 from public.shifts s
@@ -118,12 +118,12 @@ begin
            ) as pattern
       from weeks wk
   ),
-  base as (select pattern from per_week where offset = 0),
+  base as (select pattern from per_week where wk_offset = 0),
   diffs as (
-    select min(p.offset) as first_diff
+    select min(p.wk_offset) as first_diff
       from per_week p
      cross join base b
-     where p.offset > 0
+     where p.wk_offset > 0
        and p.pattern is distinct from b.pattern
   )
   select coalesce((select first_diff from diffs), p_window_weeks)
