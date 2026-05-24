@@ -1237,11 +1237,179 @@ function _renderSchedInsights() {
     panel = document.createElement("div");
     panel.id = "rr-sched-insights-panel";
     panel.className = "sched-insights-panel";
-    panel.style.cssText = "padding:24px;border:1px solid var(--sch-line, #e5e7eb);border-radius:12px;background:var(--sch-surface, #fff);margin:12px 0;text-align:center;color:var(--text-subtle, #6b7280);font-size:13px;line-height:1.5";
-    panel.innerHTML = "<strong style='display:block;color:var(--text,#111);font-size:15px;margin-bottom:6px'>Insights</strong>Coming soon — week-over-week analytics, coverage trends, and projection breakdowns.";
     host.prepend(panel);
   }
-  // The body.rr-sched-insights class governs visibility (CSS below).
+  // (Re)render the contents every time the tab is activated so the
+  // latest run + a fresh AI explanation are reachable.
+  _rrPaintInsightsPanel(panel);
+}
+
+// Insights tab body — fetches the latest optimization_run for the
+// current DSP/week and shows its metrics + an "Explain in plain
+// English" button that calls the explain-optimization-run edge
+// function. Cached explanations come back instantly.
+async function _rrPaintInsightsPanel(panel) {
+  panel.innerHTML = `
+    <div class="rr-insights-card">
+      <div class="rr-insights-card-head">
+        <span class="rr-insights-card-title">Latest Smart Fill run</span>
+        <span class="rr-insights-card-meta" id="rr-insights-run-meta">Loading…</span>
+      </div>
+      <div class="rr-insights-metrics" id="rr-insights-metrics"></div>
+      <div class="rr-insights-explain">
+        <button type="button" class="rr-insights-explain-btn" id="rr-insights-explain-btn" disabled>
+          Explain in plain English
+        </button>
+        <div class="rr-insights-explain-out" id="rr-insights-explain-out"></div>
+      </div>
+    </div>
+  `;
+  _rrInjectInsightsPanelCss();
+
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) {
+    document.getElementById("rr-insights-run-meta").textContent = "DSP not loaded.";
+    return;
+  }
+
+  // Pull the most recent OK run for the visible week (fall back to most
+  // recent overall if none for this week).
+  const weekStart = _schedStart || null;
+  let q = sb.from("optimization_runs")
+    .select("id, week_start, trigger_kind, status, metrics, enqueued_at, finished_at")
+    .eq("dsp_id", dspId)
+    .order("enqueued_at", { ascending: false })
+    .limit(1);
+  if (weekStart) q = q.eq("week_start", weekStart);
+  let { data: rows } = await q;
+  if (!rows || rows.length === 0) {
+    // Try without week filter for the fallback.
+    const fb = await sb.from("optimization_runs")
+      .select("id, week_start, trigger_kind, status, metrics, enqueued_at, finished_at")
+      .eq("dsp_id", dspId)
+      .order("enqueued_at", { ascending: false })
+      .limit(1);
+    rows = fb.data || [];
+  }
+  if (!rows || rows.length === 0) {
+    document.getElementById("rr-insights-run-meta").textContent =
+      "No Smart Fill runs yet — click Smart Fill on the Schedule tab to generate one.";
+    return;
+  }
+  const run = rows[0];
+  const m = run.metrics || {};
+  const date = new Date(run.enqueued_at).toLocaleString();
+  document.getElementById("rr-insights-run-meta").textContent =
+    `Week ${run.week_start} · ${run.trigger_kind} · ${run.status} · ${date}`;
+  const fmt = (n) => (n == null ? "—" : n);
+  document.getElementById("rr-insights-metrics").innerHTML = `
+    <div class="rr-insights-metric"><div class="v">${fmt(m.coverage_pct)}%</div><div class="l">Coverage</div></div>
+    <div class="rr-insights-metric"><div class="v">${fmt(m.assigned)}</div><div class="l">Assigned</div></div>
+    <div class="rr-insights-metric"><div class="v">${fmt(m.uncovered)}</div><div class="l">Uncovered</div></div>
+    <div class="rr-insights-metric"><div class="v">${fmt(m.unscheduled_drivers)}</div><div class="l">Drivers off</div></div>
+    <div class="rr-insights-metric"><div class="v">${fmt(m.total_shifts)}</div><div class="l">Total shifts</div></div>
+  `;
+  const btn = document.getElementById("rr-insights-explain-btn");
+  const out = document.getElementById("rr-insights-explain-out");
+  btn.disabled = false;
+  btn.dataset.runId = run.id;
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = "Asking Claude…";
+    out.style.display = "block";
+    out.textContent = "…";
+    try {
+      const { data, error } = await sb.functions.invoke("explain-optimization-run", {
+        body: { run_id: run.id, question_kind: "summary" },
+      });
+      if (error) throw error;
+      out.textContent = data?.answer || "(empty response)";
+    } catch (e) {
+      out.textContent = "Couldn't generate explanation: " + ((e && e.message) || e) +
+        "\n\nDid you deploy the edge function?\n  supabase functions deploy explain-optimization-run --project-ref doiwrhkirgblcvuskhno";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Explain in plain English";
+    }
+  };
+}
+function _rrInjectInsightsPanelCss() {
+  if (typeof document === "undefined" || !document.head) return;
+  if (document.getElementById("rr-insights-panel-css")) return;
+  const css = document.createElement("style");
+  css.id = "rr-insights-panel-css";
+  css.textContent = `
+    #rr-sched-insights-panel { padding: 0; border: 0; background: transparent; }
+    .rr-insights-card {
+      background: var(--sch-surface, #fff);
+      border: 1px solid var(--sch-line, #e5e7eb);
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin: 12px 0;
+    }
+    .rr-insights-card-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 14px; gap: 12px;
+    }
+    .rr-insights-card-title {
+      font: 600 14px/1.2 var(--rr-font-family, 'Segoe UI');
+      color: var(--text, #111);
+    }
+    .rr-insights-card-meta {
+      font: 12px/1.4 var(--rr-font-family, 'Segoe UI');
+      color: var(--text-subtle, #6b7280);
+    }
+    .rr-insights-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .rr-insights-metric {
+      background: var(--canvas, #f9fafb);
+      border-radius: 8px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+    .rr-insights-metric .v {
+      font: 600 18px/1 var(--rr-font-family, 'Segoe UI');
+      color: var(--text, #111);
+      font-variant-numeric: tabular-nums;
+    }
+    .rr-insights-metric .l {
+      font: 11px/1.2 var(--rr-font-family, 'Segoe UI');
+      color: var(--text-subtle, #6b7280);
+      margin-top: 4px;
+      letter-spacing: .02em;
+    }
+    .rr-insights-explain {
+      border-top: 1px solid var(--sch-line, #e5e7eb);
+      padding-top: 14px;
+    }
+    .rr-insights-explain-btn {
+      padding: 10px 18px;
+      border: 1px solid #c4b5fd;
+      background: linear-gradient(135deg, #EDE9FE 0%, #FCE7F3 100%);
+      color: #5B21B6;
+      border-radius: 8px;
+      font: 600 13px/1.2 var(--rr-font-family, 'Segoe UI');
+      cursor: pointer;
+    }
+    .rr-insights-explain-btn:disabled {
+      opacity: .6; cursor: progress;
+    }
+    .rr-insights-explain-out {
+      display: none;
+      margin-top: 12px;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, rgba(237,233,254,.3) 0%, rgba(252,231,243,.3) 100%);
+      border-radius: 8px;
+      font: 13px/1.55 var(--rr-font-family, 'Segoe UI');
+      color: #1f2937;
+      white-space: pre-wrap;
+    }
+  `;
+  document.head.appendChild(css);
 }
 // Inject the Insights panel's show/hide rule once on script load.
 (function _rrInjectInsightsCss() {
