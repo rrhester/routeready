@@ -3873,20 +3873,20 @@ function _obMxStylesOnce() {
     /* Trailing utility toolbar — condensed row actions, quiet until hover. */
     ".ob-mx-toolcol{text-align:right;padding-right:16px}" +
     ".ob-mx-toolcell{text-align:right;white-space:nowrap}" +
-    /* Operator wanted the action buttons to read like the Fluent
-       icon-with-label tiles in their reference screenshot — bigger
-       icon, label underneath, soft Fluent border, calm hover. Full
-       opacity by default (no opacity-fade-in on row-hover) because
-       the labels need to be readable at rest, not just when hovered. */
-    ".ob-mx-toolbar{display:inline-flex;align-items:stretch;gap:4px}" +
-    ".ob-tb-btn{position:relative;appearance:none;background:#FFFFFF;border:1px solid #E1DFDD;border-radius:4px;width:54px;min-height:50px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 4px;color:#605E5C;cursor:pointer;flex:0 0 auto;font:600 10.5px/1 var(--rr-font-family, 'Segoe UI'); text-align:center;transition:color var(--t-fast),background var(--t-fast),border-color var(--t-fast)}" +
-    ".ob-tb-btn:hover{color:#0078D4;background:#F3F9FD;border-color:#C7E0F4}" +
+    /* Operator reverted on the labels + box treatment — wants icon-
+       only buttons with no border, no background, no label. Hover
+       gets a quiet brand-color tint, that's it. Larger glyphs
+       (22×22) carried over from the bordered version so the icons
+       still read as sharp clear shapes. */
+    ".ob-mx-toolbar{display:inline-flex;align-items:center;gap:2px}" +
+    ".ob-tb-btn{position:relative;appearance:none;background:transparent;border:0;border-radius:4px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted);cursor:pointer;flex:0 0 auto;transition:color var(--t-fast),background var(--t-fast)}" +
+    ".ob-tb-btn:hover{color:#0078D4;background:#F3F2F1}" +
     ".ob-tb-btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent-soft)}" +
-    ".ob-tb-btn.ob-tb-remove{color:#605E5C}" +
-    ".ob-tb-btn.ob-tb-remove:hover{color:var(--red);background:var(--red-soft);border-color:rgba(225,29,72,.40)}" +
-    /* Action glyphs match the bigger button — 22px now (was 20). */
+    ".ob-tb-btn.ob-tb-remove:hover{color:var(--red);background:var(--red-soft)}" +
     ".ob-tb-btn svg{width:22px;height:22px}" +
-    ".ob-tb-btn-label{display:block;letter-spacing:.005em;color:inherit;white-space:nowrap}" +
+    /* Label spans hidden (kept in markup as aria fallback so screen
+       readers still get the action name). */
+    ".ob-tb-btn-label{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}" +
     ".ob-mx-name{font-size:15px;font-weight:680;color:var(--text);cursor:pointer;letter-spacing:-.01em}" +
     ".ob-mx-name:hover{color:var(--accent-text)}" +
     ".ob-mx-meta{font-size:12px;color:var(--text-subtle);margin-top:3px;line-height:1.35}" +
