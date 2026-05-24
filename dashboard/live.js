@@ -28796,6 +28796,153 @@ function _clearScheduleMockup() {
 
 // Override the mockup AI-schedule modal — replace with a real auto-fill that
 // creates open shifts wherever OKAMI demand exceeds current shift count.
+// ─── Auto-recalc banner (Optimization Engine · Step 10) ──────────
+// Subscribes to optimization_recalc_queue inserts via Realtime and
+// surfaces a banner when a row arrives for the currently-visible
+// week. Click → re-run Smart Fill. Dismiss → mark the row resolved.
+//
+// Banner state is per-page-load (not persisted). Rows we've already
+// shown live in _rrShownRecalcRows; new ones append. Banner clears
+// when all pending rows are dismissed or applied.
+const _rrShownRecalcRows = new Map();   // id → row
+let _rrRecalcChannel = null;
+
+async function _rrInitRecalcWatch() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  if (_rrRecalcChannel) {
+    try { await sb.removeChannel(_rrRecalcChannel); } catch (_) {}
+    _rrRecalcChannel = null;
+  }
+  // Backfill any pending rows on the visible week (covers page reload).
+  try {
+    const { data: rows } = await sb.from("optimization_recalc_queue")
+      .select("id, week_start, trigger_kind, shift_id, driver_id, payload, created_at, state")
+      .eq("state", "pending")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    for (const r of (rows || [])) _rrShownRecalcRows.set(r.id, r);
+    _rrPaintRecalcBanner();
+  } catch (e) { console.warn("recalc backfill:", e); }
+
+  // Live subscription — every new pending insert in our DSP triggers
+  // a banner repaint. RLS keeps us scoped to our DSP automatically.
+  _rrRecalcChannel = sb.channel("rr-recalc-" + dspId)
+    .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "optimization_recalc_queue" },
+        (msg) => {
+          const r = msg?.new;
+          if (!r || r.state !== "pending") return;
+          _rrShownRecalcRows.set(r.id, r);
+          _rrPaintRecalcBanner();
+        })
+    .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "optimization_recalc_queue" },
+        (msg) => {
+          const r = msg?.new;
+          if (!r) return;
+          if (r.state === "pending") {
+            _rrShownRecalcRows.set(r.id, r);
+          } else {
+            _rrShownRecalcRows.delete(r.id);
+          }
+          _rrPaintRecalcBanner();
+        })
+    .subscribe();
+}
+
+function _rrPaintRecalcBanner() {
+  const host = document.getElementById("view-schedule");
+  if (!host) return;
+  let banner = document.getElementById("rr-recalc-banner");
+  // Only show rows for the visible week to keep the banner relevant.
+  const wk = _schedStart;
+  const visible = [..._rrShownRecalcRows.values()].filter(r =>
+    !wk || r.week_start === wk
+  );
+  if (visible.length === 0) {
+    if (banner) banner.remove();
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "rr-recalc-banner";
+    banner.style.cssText = [
+      "position:sticky","top:0","z-index:90","margin:0 0 12px",
+      "padding:14px 18px","border-radius:8px",
+      "background:linear-gradient(135deg,#FEF3C7 0%,#FDE68A 100%)",
+      "border:1px solid #F59E0B",
+      "display:flex","align-items:center","gap:14px",
+      "font:13px/1.4 var(--rr-font-family,'Segoe UI')","color:#78350F",
+      "box-shadow:0 2px 8px rgba(245,158,11,.18)",
+    ].join(";");
+    host.prepend(banner);
+  }
+  const head = visible[0];
+  const dateStr = head.payload?.shift_date || head.week_start;
+  const kindLabel = head.trigger_kind === "shift_called_off"
+    ? "Driver called off" : head.trigger_kind === "shift_no_show"
+    ? "Driver no-showed" : head.trigger_kind.replace(/_/g, " ");
+  const more = visible.length > 1 ? ` (+${visible.length - 1} more)` : "";
+  banner.innerHTML = `
+    <span style="font-size:18px;line-height:1">⚠</span>
+    <span style="flex:1">
+      <strong>${escapeHtml(kindLabel)}</strong> on ${escapeHtml(dateStr)}${escapeHtml(more)}
+      &middot; Smart Fill can re-staff the open shifts.
+    </span>
+    <button type="button" id="rr-recalc-rerun"
+      style="padding:6px 12px;border:1px solid #B45309;background:#fff;color:#78350F;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px">
+      Re-run Smart Fill
+    </button>
+    <button type="button" id="rr-recalc-dismiss"
+      style="padding:6px 12px;border:1px solid transparent;background:transparent;color:#78350F;border-radius:6px;cursor:pointer;font-size:12px">
+      Dismiss
+    </button>
+  `;
+  banner.querySelector("#rr-recalc-rerun").onclick = async () => {
+    // Mark all visible rows as 'applied' (the operator's action will
+    // re-staff them via Smart Fill). Then trigger Smart Fill.
+    await _rrResolveRecalcRows(visible.map(r => r.id), "applied", "auto-rerun from banner");
+    if (typeof openAiSchedule === "function") openAiSchedule();
+  };
+  banner.querySelector("#rr-recalc-dismiss").onclick = async () => {
+    await _rrResolveRecalcRows(visible.map(r => r.id), "dismissed", "operator dismissed");
+  };
+}
+
+async function _rrResolveRecalcRows(ids, state, note) {
+  for (const id of ids) {
+    try {
+      await sb.rpc("resolve_recalc_queue_row",
+                   { p_id: id, p_state: state, p_note: note });
+    } catch (e) { console.warn("resolve_recalc_queue_row:", e); }
+    _rrShownRecalcRows.delete(id);
+  }
+  _rrPaintRecalcBanner();
+}
+
+// Kick off the watcher when the schedule view becomes visible. Best
+// effort — silently does nothing if Realtime isn't enabled or the
+// table doesn't exist yet (forward-compat with envs that haven't
+// run migration 0328).
+(function _rrRecalcWatchHook() {
+  if (typeof document === "undefined") return;
+  const tryInit = () => {
+    if (document.getElementById("view-schedule")?.classList.contains("active")) {
+      _rrInitRecalcWatch();
+    }
+  };
+  document.addEventListener("DOMContentLoaded", tryInit);
+  // Also re-init on view changes — the goto() handler doesn't expose
+  // a hook, so poll on a short interval the first 30 seconds.
+  let tries = 0;
+  const iv = setInterval(() => {
+    tries++;
+    if (tries > 30) { clearInterval(iv); return; }
+    tryInit();
+  }, 1000);
+})();
+
 window.openAiSchedule = async function () {
   // Manual scheduling — Smart Fill is off; the board is filled by hand.
   try {
