@@ -31482,10 +31482,25 @@ function bindSchedWeekNav() {
         };
         const curMax = Math.max(1, Math.min(7, Math.round(payload.max_days ?? 6)));
         let neededHtml = "";
+        // Three message states now (operator caught a confusing case
+        // where the strip showed 80% but the drill-down said "Fully
+        // staffed"):
+        //   1. Strip says 0 unstaffed  AND engine.uncovered=0 → fully staffed.
+        //   2. Engine.uncovered > 0                            → "N can't be staffed · ~K drivers needed".
+        //   3. Engine.uncovered = 0 BUT strip has unstaffed    → all open shifts assigned, but some go to
+        //      shifts (the new third case)                       drivers who aren't active yet (onboarding /
+        //                                                        inactive). They'll fill when those drivers
+        //                                                        activate, no new hire needed.
+        const stripUnstaffed = (live && live.weekStart === payload.schedule_week_start)
+          ? Math.max(0, (live.needed || 0) - (live.filled || 0))
+          : null;
         if (baseUncov != null) {
-          if (baseUncov === 0) {
+          if (baseUncov === 0 && (stripUnstaffed == null || stripUnstaffed === 0)) {
             neededHtml = `<div class="rr-cov-needed"><div class="rr-cov-needed-big">Fully staffed</div>` +
               `<div class="rr-cov-needed-sub">Every shift on the board is covered at your current settings — no additional drivers needed.</div></div>`;
+          } else if (baseUncov === 0 && stripUnstaffed > 0) {
+            neededHtml = `<div class="rr-cov-needed"><div class="rr-cov-needed-big">${stripUnstaffed} shift${stripUnstaffed === 1 ? "" : "s"} pending driver activation</div>` +
+              `<div class="rr-cov-needed-sub">Every open shift is assigned. ${stripUnstaffed} shift${stripUnstaffed === 1 ? " is" : "s are"} held by driver${stripUnstaffed === 1 ? "" : "s"} who aren't active yet (onboarding or inactive) — they'll count as staffed on the strip once those drivers go active. No new hires needed.</div></div>`;
           } else {
             const need = Math.ceil(baseUncov / curMax);
             neededHtml = `<div class="rr-cov-needed"><div class="rr-cov-needed-big">~${need} more driver${need === 1 ? "" : "s"} needed</div>` +
