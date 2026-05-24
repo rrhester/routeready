@@ -2533,3 +2533,83 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
   display: none !important;
   background: transparent !important;
 }
+
+/* ============================================================
+   DENSITY-PICKER POPOVERS · streamlined Fluent treatment
+   ------------------------------------------------------------
+   Operator: "The weekly view rules look poor. Redo the layout so
+   it is more streamlined and Microsoft feeling."
+
+   The base inline <style> block at index.html:11212 paints every
+   Rules popover with a heavy brand-blue gradient header
+   (linear-gradient(135deg,#0078D4,#005A9E)) that overwhelms the
+   small density picker. Real Fluent popovers are quiet — white
+   surface, hairline border, soft shadow, no color band header.
+
+   These overrides scope tightly to the THREE density popovers
+   (Week / Today / Cal), leaving the other Schedule rules popovers
+   (Smart Fill / Van / Targets / Milestone) on the existing
+   gradient treatment because their content density justifies a
+   heavier visual frame.
+   ============================================================ */
+
+#view-schedule.rrx-schedule #rr-sched-week-rules-popover,
+#view-schedule.rrx-schedule #rr-sched-today-rules-popover,
+#view-schedule.rrx-schedule #rr-sched-cal-rules-popover {
+  /* Reset the inline acrylic / blur and use a clean Fluent card. */
+  background: #FFFFFF !important;
+  border: 1px solid #E1DFDD !important;
+  border-radius: 4px !important;
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.14),
+    0 0 2px rgba(0, 0, 0, 0.12) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  padding: 0 !important;
+  min-width: 320px !important;
+  max-width: 380px !important;
+}
+
+/* Head — small, neutral, no color band. Just a hairline beneath
+   the title so it reads as a distinct row but doesn't shout. */
+#view-schedule.rrx-schedule #rr-sched-week-rules-popover > :first-child,
+#view-schedule.rrx-schedule #rr-sched-today-rules-popover > :first-child,
+#view-schedule.rrx-schedule #rr-sched-cal-rules-popover > :first-child {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  background: transparent !important;
+  color: #242424 !important;
+  font: 600 14px/20px var(--rr-font-family, 'Segoe UI') !important;
+  letter-spacing: -.005em !important;
+  padding: 14px 16px 10px !important;
+  border: 0 !important;
+  border-radius: 4px 4px 0 0 !important;
+}
+#view-schedule.rrx-schedule #rr-sched-week-rules-popover > :first-child *,
+#view-schedule.rrx-schedule #rr-sched-today-rules-popover > :first-child *,
+#view-schedule.rrx-schedule #rr-sched-cal-rules-popover > :first-child * {
+  color: #242424 !important;
+}
+
+/* Body — quiet surface, no card-on-card translucent fill. */
+#view-schedule.rrx-schedule #rr-sched-week-rules-popover > :last-child,
+#view-schedule.rrx-schedule #rr-sched-today-rules-popover > :last-child,
+#view-schedule.rrx-schedule #rr-sched-cal-rules-popover > :last-child {
+  background: transparent !important;
+  padding: 0 16px 16px !important;
+  border-top: 1px solid #F3F2F1 !important;
+}
+
+/* Density radio rows — tighten padding so the picker fits in the
+   smaller popover footprint. */
+#view-schedule.rrx-schedule #rr-sched-week-rules-popover .rr-sched-density-opt,
+#view-schedule.rrx-schedule #rr-sched-today-rules-popover .rr-sched-density-opt,
+#view-schedule.rrx-schedule #rr-sched-cal-rules-popover .rr-sched-density-opt {
+  padding: 8px 10px !important;
+}
+#view-schedule.rrx-schedule #rr-sched-week-rules-popover .rr-sched-density-fset,
+#view-schedule.rrx-schedule #rr-sched-today-rules-popover .rr-sched-density-fset,
+#view-schedule.rrx-schedule #rr-sched-cal-rules-popover .rr-sched-density-fset {
+  margin-top: 10px !important;
+}
