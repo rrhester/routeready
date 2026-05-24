@@ -2291,9 +2291,12 @@ body.rr-sched-focus #view-schedule .coverage-strip {
   display: none !important;
 }
 
-body.rr-sched-focus #view-schedule .driver-pool > :not(.pool-openshifts-foot) {
-  display: none !important;
-}
+/* Previously this rule hid every child of .driver-pool except
+   .pool-openshifts-foot — but that selector matches nothing in the
+   real DOM, so it was hiding the entire Open Shifts panel content
+   in focus mode, leaving the rail visibly empty. The driver-pool
+   aside already renders only the open-shifts content (header, list,
+   PTO summary), so don't hide anything inside it. */
 /* Make the driver-pool a flex column so the open-shifts panel
    can stretch to fill the entire right rail height. Cancel the
    internal scroll so the body itself takes the overflow. */
