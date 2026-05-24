@@ -15958,12 +15958,25 @@ body.rr-cmdk-open{ overflow:hidden }
             margin:1px 0 0;flex:0 0 auto;
           }
           #view-schedule .sf-mode-opt .sf-rule-name{flex:1;line-height:1.3}
-          #view-schedule .sched-smartfill-rules-body.is-manual
-            .sched-smartfill-rule:not(.sched-smartfill-rule--manual):not(.sched-smartfill-rule--manual-keep),
-          #view-schedule .sched-smartfill-rules-body.is-manual
-            .sched-smartfill-rule-advanced:not(.sched-smartfill-rule-advanced--manual-keep){
+          /* Manual mode: hide every zone EXCEPT the Master mode-switch
+             radios. Everything else (cert gates, vans, engine tuning,
+             custom rules) is solver-only and irrelevant when Smart Fill
+             is off. Operator must always be able to flip back. */
+          #view-schedule .sched-smartfill-rules-body.is-manual .sf-zone-sep,
+          #view-schedule .sched-smartfill-rules-body.is-manual .sf-zone--hard,
+          #view-schedule .sched-smartfill-rules-body.is-manual .sf-zone--vans,
+          #view-schedule .sched-smartfill-rules-body.is-manual .sf-zone--engine,
+          #view-schedule .sched-smartfill-rules-body.is-manual #rr-sf-adhoc-disclosure{
             display:none;
           }
+          #view-schedule .sched-smartfill-rules-body.is-manual
+            .sf-zone--master .sched-smartfill-rule:not(.sched-smartfill-mode){
+            display:none;
+          }
+          #view-schedule .sched-smartfill-rules-body.is-manual .sf-engine-group-label{
+            display:none;
+          }
+          /* Legacy selector kept for old .sched-smartfill-advanced sibling */
           #view-schedule .sched-smartfill-rules-body.is-manual
             + .sched-smartfill-advanced{
             display:none;
