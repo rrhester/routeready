@@ -30425,6 +30425,28 @@ async function renderScheduleWeek() {
       pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
       pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
       (() => {
+        // FT/PT Ratio — drivers with ≥4 scheduled shifts this week count
+        // as full-time, 1-3 shifts as part-time. Drivers with no shifts
+        // are excluded from the ratio entirely.
+        let ftCount = 0, ptCount = 0;
+        for (const d of drivers) {
+          const n = shiftCountPerDriver.get(d.id) || 0;
+          if (n >= 4) ftCount += 1;
+          else if (n >= 1) ptCount += 1;
+        }
+        const totalScheduled = ftCount + ptCount;
+        return pill(
+          "ftpt",
+          navy,
+          totalScheduled > 0 ? `${ftCount} / ${ptCount} FT/PT` : "— FT/PT",
+          "",
+          false,
+          totalScheduled > 0
+            ? `${ftCount} full-time · ${ptCount} part-time (of ${totalScheduled} scheduled)`
+            : "No drivers scheduled this week",
+        );
+      })() +
+      (() => {
         // Preferred % — of shifts assigned to drivers who have preferred
         // days set, how many landed on one of those days.
         const prefPct = prefDenom > 0 ? Math.round(prefHonored / prefDenom * 100) : 0;
