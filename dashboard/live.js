@@ -28964,7 +28964,10 @@ async function autoFillScheduleWeek() {
           diagnostics.unscheduled.map(s => "  • " + s).join("\n")
         );
       }
-      summaryAlert = "Smart Fill results\n\n" + parts.join("\n\n");
+      summaryAlert =
+        (_rrWhatIfOptions ? "Smart Fill results · SIMULATION (live schedule not changed)\n\n"
+                          : "Smart Fill results\n\n")
+        + parts.join("\n\n");
     }
   }
   await renderScheduleWeek();
@@ -29200,6 +29203,112 @@ function _rrOptBuildMetrics(result, engineShifts, writeStats) {
   };
 }
 
+// What-if state. Set by the "What if…" modal, read by
+// autoAssignDriversForWeek to filter drivers + skip shift writes.
+// Cleared automatically after each simulation.
+let _rrWhatIfOptions = null;
+
+// ─── What-if simulation modal (Optimization Engine · Step 4) ─────
+// Operator picks one or more drivers to mark "called off" for the
+// simulation; runs Smart Fill with those drivers filtered out;
+// reports the resulting coverage without touching the live shifts
+// table. Run is captured in optimization_runs with
+// trigger_kind='what_if' so it shows up in the audit trail
+// distinguishable from manual runs.
+async function _rrOpenWhatIfModal() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { toast("DSP not loaded", "warn"); return; }
+  if (!_schedStart) { toast("Pick a week first", "warn"); return; }
+
+  // Pull the visible-week roster. Use the same filter the engine
+  // uses (active or activated onboarding) so the picker matches.
+  const { data: drivers, error } = await sb.from("drivers")
+    .select("id, full_name, first_name, last_name, preferred_name, status")
+    .eq("dsp_id", dspId)
+    .in("status", ["active", "onboarding"])
+    .order("full_name");
+  if (error) { toast("Couldn't load roster: " + error.message, "warn"); return; }
+
+  document.getElementById("rr-whatif-backdrop")?.remove();
+  const backdrop = document.createElement("div");
+  backdrop.id = "rr-whatif-backdrop";
+  backdrop.setAttribute("role", "dialog");
+  backdrop.setAttribute("aria-modal", "true");
+  backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:99998;display:flex;align-items:center;justify-content:center;padding:24px";
+
+  const card = document.createElement("div");
+  card.style.cssText = "background:#fff;border-radius:12px;max-width:520px;width:100%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+
+  const driverRows = (drivers || []).map(d => {
+    const name = d.preferred_name || d.full_name
+      || [d.first_name, d.last_name].filter(Boolean).join(" ")
+      || "Driver";
+    return `<label style="display:flex;align-items:center;gap:10px;padding:8px 4px;cursor:pointer;font-size:13px"><input type="checkbox" data-rr-whatif-driver="${escapeHtml(d.id)}"/> <span>${escapeHtml(name)}</span></label>`;
+  }).join("");
+
+  card.innerHTML = `
+    <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;font-weight:600;font-size:15px">What if…</div>
+    <div style="padding:14px 20px;font-size:13px;line-height:1.5;color:#374151">
+      Pick drivers to mark <strong>called off</strong> for this simulation. Smart Fill will run with everyone else; the live schedule isn't touched.
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:0 20px 16px;border-bottom:1px solid #e5e7eb">
+      ${driverRows || "<div style=\"color:#6b7280;font-size:13px;padding:8px 0\">No eligible drivers.</div>"}
+    </div>
+    <div style="padding:12px 20px;display:flex;gap:8px;justify-content:flex-end">
+      <button type="button" data-rr-whatif-cancel style="padding:8px 16px;border:1px solid #d1d5db;background:#fff;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Cancel</button>
+      <button type="button" data-rr-whatif-run style="padding:8px 16px;border:none;background:#2563eb;color:#fff;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Run simulation</button>
+    </div>
+  `;
+
+  const dismiss = () => backdrop.remove();
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) dismiss();
+    if (e.target.closest("[data-rr-whatif-cancel]")) dismiss();
+    if (e.target.closest("[data-rr-whatif-run]")) {
+      const ids = Array.from(card.querySelectorAll("[data-rr-whatif-driver]:checked"))
+        .map(cb => cb.getAttribute("data-rr-whatif-driver"));
+      dismiss();
+      _rrRunWhatIfSimulation(ids);
+    }
+  });
+  backdrop.appendChild(card);
+  document.body.appendChild(backdrop);
+}
+
+async function _rrRunWhatIfSimulation(unavailableDriverIds) {
+  const ids = Array.isArray(unavailableDriverIds) ? unavailableDriverIds : [];
+  _rrWhatIfOptions = {
+    unavailableDriverIds: new Set(ids),
+  };
+  toast(`Running simulation (${ids.length} driver${ids.length === 1 ? "" : "s"} marked off)…`);
+  try {
+    // Reuse the same engine path; the global hooks above
+    // (driver filter, write-skip, audit trigger_kind) handle the
+    // "what-if" semantics. autoAssignDriversForWeek's call to
+    // renderScheduleWeek WILL refresh the grid — but since we
+    // skipped the writes, the grid will paint the unchanged live
+    // schedule, so visual state stays consistent.
+    if (typeof autoAssignDriversForWeek === "function") {
+      await autoAssignDriversForWeek();
+    } else {
+      toast("Smart Fill engine not available", "warn");
+    }
+  } catch (e) {
+    console.warn("what-if simulation:", e);
+    toast("Simulation failed: " + ((e && e.message) || "engine error"), "warn");
+  } finally {
+    _rrWhatIfOptions = null;
+  }
+}
+
+// Wire the "What if…" header button. Single-fire delegated listener.
+document.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("#rr-sched-whatif-toggle")) {
+    e.preventDefault();
+    _rrOpenWhatIfModal();
+  }
+});
+
 // Auto-assign drivers to open shifts in the current week based on each
 // driver's metadata.availability.days (mon/tue/wed/...). Skips drivers who
 // are on approved PTO that day or already have a shift on that date.
@@ -29304,7 +29413,13 @@ async function autoAssignDriversForWeek() {
   //   • status='active' → always schedulable
   //   • status='onboarding' → only if a materialized pairing exists
   //   • anything else (inactive / terminated) → never
+  // What-if override: also drop drivers the operator marked as
+  // unavailable for this simulation.
+  const _whatIfDropIds = _rrWhatIfOptions?.unavailableDriverIds instanceof Set
+    ? _rrWhatIfOptions.unavailableDriverIds
+    : null;
   const drivers = (driversRes.data || []).filter(d => {
+    if (_whatIfDropIds && _whatIfDropIds.has(d.id)) return false;
     if (d.status === "active") return true;
     if (d.status === "onboarding") return activatedTrainees.has(d.id);
     return false;
@@ -29603,7 +29718,7 @@ async function autoAssignDriversForWeek() {
       const inputHash = await _rrOptHashInput(sfPayload);
       const { data: runId, error: enqErr } = await sb.rpc("enqueue_optimization_run", {
         p_week_start:     _schedStart,
-        p_trigger_kind:   "manual",
+        p_trigger_kind:   _rrWhatIfOptions ? "what_if" : "manual",
         p_input_hash:     inputHash,
         p_solver_version: "heuristic-v1",
         p_time_budget_ms: 8000,
@@ -29647,7 +29762,12 @@ async function autoAssignDriversForWeek() {
   const toWrite = result.assigned_shifts
     .filter(a => a.source !== "locked" && a.source !== "preserved")
     .map(a => ({ id: a.shift_id, driverId: a.driver_id }));
-  const wr = await _assignShiftsParallel(toWrite);
+  // What-if mode never writes back to the shifts table. Synthesize a
+  // wr.assigned == toWrite.length, failed == 0 so downstream code
+  // (metrics, diagnostics) keeps working unchanged.
+  const wr = _rrWhatIfOptions
+    ? { assigned: toWrite.length, failed: 0, firstError: null }
+    : await _assignShiftsParallel(toWrite);
   const assigned = wr.assigned;
   const failedWrites = wr.failed;
   const writeError = wr.firstError;

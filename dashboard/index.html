@@ -13481,6 +13481,14 @@ body.rr-cmdk-open{ overflow:hidden }
                 Rules
                 <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
               </button>
+              <!-- What-if simulation · runs Smart Fill with overrides
+                   (drivers marked unavailable, etc.) and never writes
+                   back to the shifts table. Powered by the audit spine
+                   (trigger_kind='what_if'). -->
+              <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-whatif-toggle" title="Simulate a Smart Fill run with overrides — never writes to the live schedule">
+                What if…
+                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/><line x1="6" y1="3.5" x2="6" y2="6.5"/><line x1="6" y1="8" x2="6" y2="8.5"/></svg>
+              </button>
               <!-- Smart Fill rules popover · checkboxes per rule so
                    the DSP can toggle which rules apply on the next
                    Smart Fill run. State persists in localStorage. -->
