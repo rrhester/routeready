@@ -29936,7 +29936,45 @@ async function autoAssignDriversForWeek() {
         window._rrLastOptimizationRunId = runId;
       }
     } catch (e) { console.warn("optimization audit · enqueue:", e); }
-    result = planScheduleWeek(sfPayload);
+    // Router: if "Use CP-SAT solver" is on, route through the
+    // dispatch-optimization-run edge function (which forwards to the
+    // Python solver service). Otherwise use the in-browser heuristic.
+    // Falls back to the heuristic on any dispatcher error so a misbehaving
+    // solver can't strand the operator.
+    const _useCpsat = !!(sfRules && sfRules.use_cpsat_solver);
+    if (_useCpsat) {
+      try {
+        const dispatchStart = Date.now();
+        const { data: cpsatResult, error: cpsatErr } = await sb.functions.invoke(
+          "dispatch-optimization-run",
+          { body: { payload: sfPayload } },
+        );
+        if (cpsatErr) throw cpsatErr;
+        if (cpsatResult && (cpsatResult.status === "ok" ||
+                            cpsatResult.status === "infeasible")) {
+          result = cpsatResult;
+          // Tag the run audit row with the CP-SAT solver version so the
+          // audit log distinguishes heuristic vs CP-SAT runs.
+          try {
+            if (window._rrLastOptimizationRunId && cpsatResult.solver_version) {
+              await sb.from("optimization_runs")
+                .update({ solver_version: cpsatResult.solver_version })
+                .eq("id", window._rrLastOptimizationRunId);
+            }
+          } catch (_) { /* audit best-effort */ }
+          console.info("[Smart Fill] CP-SAT result in", Date.now() - dispatchStart, "ms");
+        } else {
+          throw new Error("CP-SAT returned non-ok status: " +
+                          (cpsatResult?.status || "unknown"));
+        }
+      } catch (e) {
+        console.warn("CP-SAT dispatch failed, falling back to heuristic:", e);
+        toast("Solver service unreachable — using local engine", "warn");
+        result = planScheduleWeek(sfPayload);
+      }
+    } else {
+      result = planScheduleWeek(sfPayload);
+    }
   } catch (e) {
     console.warn("scheduling engine failed:", e);
     toast("Auto-fill failed: " + ((e && e.message) || "engine error"), "warn");
