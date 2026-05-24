@@ -28609,18 +28609,91 @@ async function autoFillScheduleWeek() {
       console.log(summaryAlert);
       console.log("payload (window._rrLastSmartFillPayload):", window._rrLastSmartFillPayload);
       console.groupEnd();
-      let copied = false;
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(summaryAlert);
-          copied = true;
-        }
-      } catch (_) { /* clipboard may be blocked; popup still shown below */ }
-      alert(summaryAlert + (copied ? "\n\n(copied to clipboard)" : ""));
+      _rrShowSmartFillDetails(summaryAlert);
     } else {
       console.info("[Smart Fill] completed — no skipped shifts / unscheduled drivers reported.");
     }
   } catch (_) { /* visibility-only, never throw */ }
+}
+
+// Native alert() doesn't allow text selection in most browsers — switch
+// to a real modal with a focused, pre-selected textarea + a Copy button
+// so the diagnostic text can be grabbed and pasted into a support thread.
+function _rrShowSmartFillDetails(text) {
+  // Reuse an existing modal if one is already open from a previous run.
+  let backdrop = document.getElementById("rr-sf-details-backdrop");
+  if (backdrop) backdrop.remove();
+  backdrop = document.createElement("div");
+  backdrop.id = "rr-sf-details-backdrop";
+  backdrop.setAttribute("role", "dialog");
+  backdrop.setAttribute("aria-modal", "true");
+  backdrop.style.cssText = [
+    "position:fixed", "inset:0", "background:rgba(0,0,0,0.45)",
+    "z-index:99999", "display:flex", "align-items:center", "justify-content:center",
+    "padding:24px",
+  ].join(";");
+  const card = document.createElement("div");
+  card.style.cssText = [
+    "background:#fff", "border-radius:12px", "max-width:760px", "width:100%",
+    "max-height:80vh", "display:flex", "flex-direction:column",
+    "box-shadow:0 20px 60px rgba(0,0,0,0.3)", "overflow:hidden",
+    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
+  ].join(";");
+  const header = document.createElement("div");
+  header.style.cssText = "padding:16px 20px;border-bottom:1px solid #e5e7eb;font-weight:600;font-size:15px";
+  header.textContent = "Smart Fill diagnostics";
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.readOnly = true;
+  ta.style.cssText = [
+    "flex:1", "border:none", "padding:16px 20px", "font-family:ui-monospace,SFMono-Regular,Consolas,monospace",
+    "font-size:12.5px", "line-height:1.5", "resize:none", "outline:none", "background:#fafafa",
+    "white-space:pre",
+  ].join(";");
+  const footer = document.createElement("div");
+  footer.style.cssText = "padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end;align-items:center";
+  const status = document.createElement("span");
+  status.style.cssText = "color:#6b7280;font-size:12px;margin-right:auto";
+  const copyBtn = document.createElement("button");
+  copyBtn.textContent = "Copy";
+  copyBtn.style.cssText = "padding:8px 16px;border:1px solid #d1d5db;background:#fff;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500";
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "Close";
+  closeBtn.style.cssText = "padding:8px 16px;border:none;background:#2563eb;color:#fff;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500";
+  const dismiss = () => backdrop.remove();
+  closeBtn.onclick = dismiss;
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) dismiss(); });
+  document.addEventListener("keydown", function onKey(e) {
+    if (e.key === "Escape" && document.body.contains(backdrop)) {
+      dismiss();
+      document.removeEventListener("keydown", onKey);
+    }
+  });
+  copyBtn.onclick = async () => {
+    let ok = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch (_) { /* fall through to execCommand */ }
+    if (!ok) {
+      ta.select();
+      try { ok = document.execCommand("copy"); } catch (_) { ok = false; }
+    }
+    status.textContent = ok ? "✓ copied" : "Copy failed — select the text and ⌘C / Ctrl+C";
+    setTimeout(() => { status.textContent = ""; }, 2500);
+  };
+  footer.appendChild(status);
+  footer.appendChild(copyBtn);
+  footer.appendChild(closeBtn);
+  card.appendChild(header);
+  card.appendChild(ta);
+  card.appendChild(footer);
+  backdrop.appendChild(card);
+  document.body.appendChild(backdrop);
+  // Focus + auto-select so users can ⌘A / ⌘C immediately.
+  setTimeout(() => { ta.focus(); ta.select(); }, 0);
 }
 
 // Auto-assign drivers to open shifts in the current week based on each
