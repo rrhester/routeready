@@ -11480,6 +11480,12 @@ body.rr-cmdk-open{ overflow:hidden }
         </div><!-- /page-header.sched-nav-heading -->
         </div><!-- /ob-cmd-shell -->
 
+        <!-- KPI strip · identical to the schedule's #rr-sched-kpis
+             strip. Reuses .sched-kpi-pills + .sched-kpi-pill so the
+             scoped Schedule CSS picks it up unchanged — same height
+             (46px), same border, same spacing below the icon strip. -->
+        <div id="rr-ob-kpis" class="sched-kpi-pills" role="status" aria-label="Onboarding KPIs"></div>
+
         <!-- Print mode · shown only when the Print/Download tab is
              active. Clones the readiness matrix into
              #rr-ob-print-area on click and runs window.print() for
