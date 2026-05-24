@@ -29720,8 +29720,9 @@ async function autoAssignDriversForWeek() {
   // and any approved PTO inside the week.
   const [driversRes, ptoRes, shiftsRes, svcRes, pairRes] = await Promise.all([
     sb.from("drivers")
-      .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, status")
+      .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, status, role")
       .eq("dsp_id", dspId)
+      .eq("role", "driver")
       .order("full_name"),
     sb.from("time_off_requests")
       .select("driver_id, start_date, end_date, is_pto")
