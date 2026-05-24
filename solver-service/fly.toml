@@ -1,0 +1,38 @@
+# Fly.io app config for the RouteReady solver service.
+# Region defaults to iad (US East) — change to match your Supabase project's
+# region to minimize round-trip latency on solve calls.
+
+app = "rr-solver"
+primary_region = "iad"
+kill_signal = "SIGINT"
+kill_timeout = "30s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0       # scales to zero when idle
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 8
+    hard_limit = 16
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "4s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-2x"          # 2 vCPU / 2 GB; ~$10/mo at typical usage
+  memory = "2gb"
