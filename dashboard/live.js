@@ -26141,19 +26141,33 @@ document.addEventListener("click", (e) => {
     _toggleSchedSmartFillRules();
     return;
   }
-  // Week-view Rules footer → toggle its small placeholder popover.
-  if (e.target.closest("#rr-sched-week-rules-toggle")) {
+  // Density-picker Rules footer (Week / Today / Fleet calendar) →
+  // each tile has its own popover; the body is the same Standard /
+  // Compact / Ultra-compact radio group from #1642. Single handler
+  // walks the three known {toggle, popover} pairs so we don't have
+  // to duplicate the open/close logic per tile.
+  const RR_SCHED_DENSITY_TOGGLES = [
+    ["rr-sched-week-rules-toggle",  "rr-sched-week-rules-popover"],
+    ["rr-sched-today-rules-toggle", "rr-sched-today-rules-popover"],
+    ["rr-sched-cal-rules-toggle",   "rr-sched-cal-rules-popover"],
+  ];
+  const _hitDensityToggle = RR_SCHED_DENSITY_TOGGLES.find(
+    (p) => e.target.closest("#" + p[0])
+  );
+  if (_hitDensityToggle) {
     e.preventDefault();
     e.stopPropagation();
-    const btn = document.getElementById("rr-sched-week-rules-toggle");
-    const pop = document.getElementById("rr-sched-week-rules-popover");
+    const [btnId, popId] = _hitDensityToggle;
+    const btn = document.getElementById(btnId);
+    const pop = document.getElementById(popId);
     if (!btn || !pop) return;
     const isOpen = !pop.hasAttribute("hidden");
-    // Close any other rules popovers first so only one is visible.
+    // Close any other rules popover (density siblings + other
+    // schedule rules popovers) so only one is visible at a time.
     document.querySelectorAll(".sched-smartfill-rules-popover, .sched-vans-rules-popover, .sched-quick-settings-popover, .sched-milestone-rules-popover")
       .forEach(p => { if (p !== pop) p.setAttribute("hidden", ""); });
-    document.querySelectorAll('[aria-controls="rr-sched-smartfill-rules-popover"], [aria-controls="rr-sched-vans-rules-popover"], [aria-controls="rr-sched-settings-popover"], [aria-controls="rr-sched-quick-settings-popover"], [aria-controls="rr-sched-milestone-rules-popover"]')
-      .forEach(b => b.setAttribute("aria-expanded", "false"));
+    document.querySelectorAll('[aria-controls="rr-sched-smartfill-rules-popover"], [aria-controls="rr-sched-vans-rules-popover"], [aria-controls="rr-sched-settings-popover"], [aria-controls="rr-sched-quick-settings-popover"], [aria-controls="rr-sched-milestone-rules-popover"], [aria-controls="rr-sched-week-rules-popover"], [aria-controls="rr-sched-today-rules-popover"], [aria-controls="rr-sched-cal-rules-popover"]')
+      .forEach(b => { if (b.id !== btnId) b.setAttribute("aria-expanded", "false"); });
     if (isOpen) {
       pop.setAttribute("hidden", "");
       btn.setAttribute("aria-expanded", "false");
@@ -26163,15 +26177,17 @@ document.addEventListener("click", (e) => {
     }
     return;
   }
-  // Click outside the Week rules popover closes it.
-  if (!e.target.closest("#rr-sched-week-rules-popover")
-      && !e.target.closest("#rr-sched-week-rules-toggle")) {
-    const wpop = document.getElementById("rr-sched-week-rules-popover");
-    const wbtn = document.getElementById("rr-sched-week-rules-toggle");
-    if (wpop && !wpop.hasAttribute("hidden")) {
-      wpop.setAttribute("hidden", "");
-      if (wbtn) wbtn.setAttribute("aria-expanded", "false");
-    }
+  // Click outside any density popover closes whichever is open.
+  if (!RR_SCHED_DENSITY_TOGGLES.some((p) =>
+        e.target.closest("#" + p[0]) || e.target.closest("#" + p[1]))) {
+    RR_SCHED_DENSITY_TOGGLES.forEach(([btnId, popId]) => {
+      const wpop = document.getElementById(popId);
+      const wbtn = document.getElementById(btnId);
+      if (wpop && !wpop.hasAttribute("hidden")) {
+        wpop.setAttribute("hidden", "");
+        if (wbtn) wbtn.setAttribute("aria-expanded", "false");
+      }
+    });
   }
   // Main Smart Fill tile (anywhere outside the chevron) → run
   // auto-staff. We route the click through here instead of an

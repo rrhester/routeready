@@ -13230,15 +13230,93 @@ body.rr-cmdk-open{ overflow:hidden }
                   </div>
                 </div>
               </div>
-              <button class="subnav-item" data-sub="today" data-rr-tile="today" onclick="schedSub('today')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15" r="2.2" fill="currentColor"/></svg>
-                <span>Today view</span>
-                <span class="sched-today-indicator" id="rr-sched-today-att-badge" style="display:none" aria-label="Attendance tasks need attention" title="Attendance tasks need attention"></span>
-              </button>
-              <button class="subnav-item" data-sub="calendar" data-rr-tile="calendar" onclick="schedSub('calendar')" title="Fleet calendar — schedule events per van">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.1" fill="currentColor" stroke="none"/></svg>
-                <span>Fleet calendar</span>
-              </button>
+              <div class="sched-week-split" data-rr-tile="today">
+                <button class="subnav-item" data-sub="today" data-rr-tile="today" onclick="schedSub('today')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15" r="2.2" fill="currentColor"/></svg>
+                  <span>Today view</span>
+                  <span class="sched-today-indicator" id="rr-sched-today-att-badge" style="display:none" aria-label="Attendance tasks need attention" title="Attendance tasks need attention"></span>
+                </button>
+                <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-today-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-today-rules-popover" title="Today view display rules">
+                  Rules
+                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                </button>
+                <div class="sched-vans-rules-popover" id="rr-sched-today-rules-popover" role="dialog" aria-modal="false" aria-label="Today view display rules" hidden>
+                  <div class="sched-vans-rules-head">
+                    <span class="sched-vans-rules-head-title">Today view display</span>
+                  </div>
+                  <div class="sched-smartfill-rules-body">
+                    <fieldset class="rr-sched-density-fset" role="radiogroup" aria-label="Grid density">
+                      <legend style="font:600 13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Grid density</legend>
+                      <p style="font:13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Same density choice as the Week view — flipping it here also affects Week and Fleet calendar.</p>
+
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-density" value="standard" />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">Standard</span>
+                          <span class="rr-sched-density-opt-sub">Square cells. Fewest drivers per screen, fullest shift-chip detail.</span>
+                        </span>
+                      </label>
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-density" value="compact" />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">Compact</span>
+                          <span class="rr-sched-density-opt-sub">Rectangular cells, ~25% shorter. ~50% more drivers visible at once.</span>
+                        </span>
+                      </label>
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-density" value="ultra" />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">Ultra-compact</span>
+                          <span class="rr-sched-density-opt-sub">Slimmest rows. Maximum drivers per screen for a planning-week overview.</span>
+                        </span>
+                      </label>
+                    </fieldset>
+                  </div>
+                </div>
+              </div>
+              <div class="sched-week-split" data-rr-tile="calendar">
+                <button class="subnav-item" data-sub="calendar" data-rr-tile="calendar" onclick="schedSub('calendar')" title="Fleet calendar — schedule events per van">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.1" fill="currentColor" stroke="none"/></svg>
+                  <span>Fleet calendar</span>
+                </button>
+                <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-cal-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-cal-rules-popover" title="Fleet calendar display rules">
+                  Rules
+                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                </button>
+                <div class="sched-vans-rules-popover" id="rr-sched-cal-rules-popover" role="dialog" aria-modal="false" aria-label="Fleet calendar display rules" hidden>
+                  <div class="sched-vans-rules-head">
+                    <span class="sched-vans-rules-head-title">Fleet calendar display</span>
+                  </div>
+                  <div class="sched-smartfill-rules-body">
+                    <fieldset class="rr-sched-density-fset" role="radiogroup" aria-label="Grid density">
+                      <legend style="font:600 13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Grid density</legend>
+                      <p style="font:13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Same density choice as the Week view — flipping it here also affects Week and Today.</p>
+
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-density" value="standard" />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">Standard</span>
+                          <span class="rr-sched-density-opt-sub">Square cells. Fewest drivers per screen, fullest shift-chip detail.</span>
+                        </span>
+                      </label>
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-density" value="compact" />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">Compact</span>
+                          <span class="rr-sched-density-opt-sub">Rectangular cells, ~25% shorter. ~50% more drivers visible at once.</span>
+                        </span>
+                      </label>
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-density" value="ultra" />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">Ultra-compact</span>
+                          <span class="rr-sched-density-opt-sub">Slimmest rows. Maximum drivers per screen for a planning-week overview.</span>
+                        </span>
+                      </label>
+                    </fieldset>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <!-- PLANNING group · Staff, Templates, Requests. -->
