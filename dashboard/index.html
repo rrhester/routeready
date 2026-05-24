@@ -11593,6 +11593,188 @@ body.rr-cmdk-open{ overflow:hidden }
               min-height: 240px;
             }
           }
+
+          /* ── Documents inside the Overview right column ────────────
+             The Documents view was designed as a full-width page; when
+             _obMountDocuments moves it into #ob-docs-mount (a half-
+             width grid cell) the buttons + trust strip end up clipped.
+             These rules let the section breathe inside the narrower
+             column without redoing the underlying markup. Scoped tight
+             to #ob-docs-mount so the standalone #view-documents page
+             (if it ever surfaces again) is untouched. */
+          #view-onboarding-ops #ob-docs-mount {
+            min-width: 0;
+            overflow: hidden;
+            background: var(--surface, #fff);
+            border: 1px solid var(--border, #e5e7eb);
+            border-radius: 12px;
+            padding: 18px 18px 16px;
+          }
+          #view-onboarding-ops #ob-docs-mount #view-documents,
+          #view-onboarding-ops #ob-docs-mount #view-documents > .page {
+            display: block;
+            width: 100%;
+            min-width: 0;
+            padding: 0;
+            margin: 0;
+            background: transparent;
+            box-shadow: none;
+          }
+          /* Header · drop the page-icon, calm the title, let the Upload
+             button sit at the right without the description pinching
+             the row. Allows the row to wrap to two lines on narrow
+             columns instead of overflowing. */
+          #view-onboarding-ops #ob-docs-mount .page-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 0 0 10px;
+            padding: 0;
+            border: 0;
+            flex-wrap: wrap;
+          }
+          #view-onboarding-ops #ob-docs-mount .page-icon {
+            display: none;
+          }
+          #view-onboarding-ops #ob-docs-mount .page-header-l {
+            flex: 1 1 220px;
+            min-width: 0;
+          }
+          #view-onboarding-ops #ob-docs-mount .page-title {
+            font-size: 18px;
+            line-height: 1.25;
+            margin: 0;
+          }
+          #view-onboarding-ops #ob-docs-mount .page-sub {
+            font-size: var(--fs-xs);
+            line-height: 1.45;
+            margin: 4px 0 0;
+            max-width: none;
+          }
+          #view-onboarding-ops #ob-docs-mount .page-actions {
+            flex: 0 0 auto;
+          }
+          #view-onboarding-ops #ob-docs-mount .page-actions .btn {
+            padding: 5px 10px;
+            font-size: var(--fs-sm);
+          }
+
+          /* Trust strip · quieter, wraps naturally inside the column. */
+          #view-onboarding-ops #ob-docs-mount .docs-trust-strip {
+            margin: 8px 0 12px;
+            padding: 6px 0;
+            gap: 4px 8px;
+            font-size: 10px;
+            letter-spacing: 0;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-trust-sep {
+            display: none;
+          }
+
+          /* Subnav · scrollable on overflow so the three tabs always
+             reach the right edge cleanly. */
+          #view-onboarding-ops #ob-docs-mount #docs-subnav {
+            margin: 0 0 12px;
+            gap: 4px;
+            overflow-x: auto;
+            scrollbar-width: thin;
+          }
+          #view-onboarding-ops #ob-docs-mount #docs-subnav .subnav-item {
+            font-size: var(--fs-sm);
+            padding: 5px 10px;
+          }
+
+          /* Section bar · titled list header (Document library, etc.). */
+          #view-onboarding-ops #ob-docs-mount .docs-section-bar {
+            flex-wrap: wrap;
+            gap: 4px 12px;
+            margin: 0 0 8px;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-section-bar h2 {
+            font-size: var(--fs-sm);
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-counts {
+            font-size: 10px;
+            gap: 4px 10px;
+          }
+
+          /* Template / library card · the original layout puts the
+             actions at flex:0 0 auto on the same row as the meta,
+             which clips at this width. Let the action group wrap to
+             its own line on narrow columns so every button stays
+             fully visible. */
+          #view-onboarding-ops #ob-docs-mount .docs-template-card {
+            flex-wrap: wrap;
+            padding: 12px 14px;
+            gap: 10px;
+            border-radius: 10px;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-template-card > div[style*="flex:1"] {
+            flex: 1 1 calc(100% - 60px) !important;
+            min-width: 0;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-template-card > div[style*="flex:0 0 auto"] {
+            flex: 1 1 100% !important;
+            justify-content: flex-end;
+            margin-top: 2px;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-card-title {
+            font-size: var(--fs-sm);
+            line-height: 1.35;
+            white-space: normal;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-meta-row {
+            gap: 4px 8px;
+            margin-top: 4px;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-mono-chip {
+            font-size: 10px;
+            padding: 1px 6px;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-mono-chip .lbl {
+            font-size: 9px;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-meta-dim {
+            font-size: 10px;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-tier {
+            font-size: 9px;
+            padding: 1px 6px;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-doc-tile {
+            width: 32px;
+            height: 40px;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-doc-tile svg {
+            width: 14px;
+            height: 14px;
+          }
+          #view-onboarding-ops #ob-docs-mount .btn-sm {
+            font-size: var(--fs-xs);
+            padding: 4px 9px;
+          }
+
+          /* Records table · scrollable on overflow instead of stretching
+             the card past the column. */
+          #view-onboarding-ops #ob-docs-mount .docs-table-wrap {
+            overflow-x: auto;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-table {
+            font-size: var(--fs-sm);
+            min-width: 480px;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-table thead th {
+            padding: 8px 10px;
+            font-size: 9px;
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-table td {
+            padding: 8px 10px;
+            font-size: var(--fs-sm);
+          }
+          #view-onboarding-ops #ob-docs-mount .docs-list {
+            gap: 6px;
+          }
         </style>
 
         <div id="obsub-workauth" style="display:none">
