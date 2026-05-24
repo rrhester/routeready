@@ -1214,6 +1214,12 @@ function _schedCmdTab(mode) {
   if (cmd) {
     cmd.classList.toggle("is-print",    mode === "print");
     cmd.classList.toggle("is-insights", mode === "insights");
+    // Intelligence mode · swaps the icon stripe for 5 forecast tiles.
+    // Page contents below the stripe stay exactly as the operator
+    // left them on the Schedule tab; only the ribbon swaps. Real
+    // wiring lands in a follow-up (risk forecast / compliance watch
+    // / hiring pulse / peak days / what-if).
+    cmd.classList.toggle("is-intel",    mode === "intelligence");
   }
   document.body.classList.toggle("rr-sched-insights", mode === "insights");
   // The tabs themselves moved out of #rr-sched-cmd to the V2 strip

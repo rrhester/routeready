@@ -14057,6 +14057,7 @@ body.rr-cmdk-open{ overflow:hidden }
                unchanged. -->
           <div class="sched-cmd-tabs sched-v2-cmd-tabs" role="tablist" aria-label="Command strip mode">
             <button class="sched-cmd-tab active" type="button" data-cmd-tab="schedule" role="tab" aria-selected="true">Schedule</button>
+            <button class="sched-cmd-tab" type="button" data-cmd-tab="intelligence" role="tab" aria-selected="false">Intelligence</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
           </div>
 
@@ -14073,6 +14074,72 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download Excel</span>
             </button>
+          </div>
+
+          <!-- Intelligence actions · shown only when the Intelligence
+               tab is active (driven by `.sched-cmd-shell.is-intel`
+               ancestor class via sibling CSS selectors below). Five
+               placeholder intel/forecast tiles — wiring lands in a
+               follow-up; today the tiles render and accept click but
+               do not change page state (the page contents under the
+               ribbon stay exactly as they were on the Schedule tab).
+               Each tile carries data-rr-intel so the future click
+               handler can dispatch by name without re-matching the
+               DOM structure. -->
+          <div class="sched-v2-intel-actions" aria-label="Intelligence actions">
+            <span class="sched-v2-intel-label">Intelligence</span>
+            <div class="sched-v2-intel-tiles">
+              <button type="button" class="sched-v2-intel-tile" data-rr-intel="risk-forecast" title="Risk forecast · which weeks will break before they break">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="3 17 9 11 13 15 21 7"/>
+                  <polyline points="14 7 21 7 21 14"/>
+                  <circle cx="9" cy="11" r="1.2" fill="currentColor" stroke="none"/>
+                  <circle cx="13" cy="15" r="1.2" fill="currentColor" stroke="none"/>
+                </svg>
+                <span>Risk forecast</span>
+              </button>
+              <button type="button" class="sched-v2-intel-tile" data-rr-intel="compliance-watch" title="Compliance watch · DOT / DL / cert expirations rolling forward">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                  <line x1="12" y1="10" x2="12" y2="12"/>
+                  <line x1="12" y1="12" x2="13.5" y2="13.5"/>
+                </svg>
+                <span>Compliance watch</span>
+              </button>
+              <button type="button" class="sched-v2-intel-tile" data-rr-intel="hiring-pulse" title="Hiring pulse · pipeline velocity vs. hire-by dates">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  <polyline points="18 4 22 4 22 8"/>
+                  <line x1="22" y1="4" x2="18.5" y2="7.5"/>
+                </svg>
+                <span>Hiring pulse</span>
+              </button>
+              <button type="button" class="sched-v2-intel-tile" data-rr-intel="peak-days" title="Peak days · HVE / Prime / seasonal spikes on the horizon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="18" rx="1"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <polyline points="13 13 9 18 12 18 10 22 14 17 11 17 14 13"/>
+                </svg>
+                <span>Peak days</span>
+              </button>
+              <button type="button" class="sched-v2-intel-tile" data-rr-intel="what-if" title="What-if · run the solver against a scenario before you commit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="6" y1="3" x2="6" y2="13"/>
+                  <circle cx="6" cy="17" r="2"/>
+                  <circle cx="18" cy="6" r="2"/>
+                  <circle cx="18" cy="18" r="2"/>
+                  <path d="M6 13c0-4 6-4 6-7v-2"/>
+                  <path d="M18 8v8"/>
+                </svg>
+                <span>What-if</span>
+              </button>
+            </div>
           </div>
 
           <!-- Title block · relocated from the legacy sched-nav-heading.
@@ -15382,6 +15449,48 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-cmd-shell.is-print .sched-print-actions{
             display:inline-flex;gap:8px;visibility:visible;
             position:absolute;left:0;top:50%;transform:translateY(-50%);
+          }
+          /* Intelligence mode · visual treatment for the intel ribbon.
+             The display-toggle CSS (hide tiles / title / week nav,
+             show intel ribbon) lives in schedule-rrx.css alongside
+             the matching `is-print` rules so both tabs share one
+             pattern. The strip's min-height (also in -rrx.css) keeps
+             the bar at the Schedule-tab natural size so the page
+             never jumps when the operator flips tabs. */
+          #view-schedule .sched-v2-intel-label{
+            font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+            color:var(--sch-blue);
+            padding-right:14px;
+            border-right:1px solid rgba(15,23,42,.10);
+          }
+          #view-schedule .sched-v2-intel-tiles{
+            display:flex;align-items:center;gap:8px;flex-wrap:nowrap;
+          }
+          /* Intel tile = same column shape as the standard sched-v2-tile
+             (icon + label) so the row height matches whatever the
+             Schedule-tab tiles render at. The Rules-foot height delta
+             is absorbed by the strip's min-height — see schedule-rrx
+             .css `.sched-v2-strip { min-height }`. */
+          #view-schedule .sched-v2-intel-tile{
+            appearance:none;cursor:pointer;font:inherit;
+            display:inline-flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:4px;
+            min-width:62px;padding:6px 10px 7px;
+            background:transparent;border:0;border-radius:6px;
+            color:var(--text-muted);
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-schedule .sched-v2-intel-tile svg{width:33px;height:33px;stroke-width:1.6}
+          #view-schedule .sched-v2-intel-tile span{
+            font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;
+            white-space:nowrap;
+          }
+          #view-schedule .sched-v2-intel-tile:hover{
+            background:rgba(15,23,42,.04);color:var(--text);
+          }
+          #view-schedule .sched-v2-intel-tile:focus-visible{
+            outline:none;background:rgba(15,23,42,.04);color:var(--text);
+            box-shadow:0 0 0 2px rgba(15,108,189,.30);
           }
           /* ── Print · schedule grid only ─────────────────────────────
              The print button sets html.rr-printing, clones the week
