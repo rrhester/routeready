@@ -30087,8 +30087,13 @@ async function renderScheduleWeek() {
   let driversInOtMissingRate = 0;
   let driversWithHoursMissingRate = 0;
   for (const d of drivers) {
-    const hrs = hoursPerDriver.get(d.id) || 0;
-    if (hrs <= 0) continue;
+    const gross = hoursPerDriver.get(d.id) || 0;
+    if (gross <= 0) continue;
+    // Subtract the same 0.5h/shift unpaid lunch the driver-row "Nh
+    // scheduled" sub-label uses, so the OT pill matches what the
+    // operator reads on each driver row (otherwise four 10.5h shifts
+    // display as "40h scheduled" but bill as 42h for OT).
+    const hrs      = Math.max(0, gross - (shiftCountPerDriver.get(d.id) || 0) * 0.5);
     const ot       = Math.max(0, hrs - 40);
     const regular  = Math.min(hrs, 40);
     const rate     = Number(d.metadata?.pay?.hourly_rate) || 0;
