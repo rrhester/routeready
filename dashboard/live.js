@@ -24637,6 +24637,13 @@ function _restoreSmartFillRules() {
   const affWeeksEl = document.getElementById("rr-set-affinity-weeks");
   if (affWeeksEl) affWeeksEl.value = String(Math.max(1, Math.min(26, parseInt(saved.affinity_rolling_weeks, 10) || 4)));
   _renderAffinityDayOrder();
+  // Restore Zone 3 (Vans) checkboxes. All four default to true (handled
+  // by _RR_SF_VANS_DEFAULTS); type_match + skip_inactive are display-only
+  // (the solver enforces them unconditionally) so they stay disabled-and-
+  // checked regardless of the saved value. prefer_paired reads from the
+  // shared dataSources.van_pairings field so the Zone 3 box and the
+  // Advanced > Use van pairings box are two views of the same state.
+  _restoreSfVans(saved);
   // Restore the Advanced engine controls (priority sliders, data-source
   // toggles, compute-budget selects). All defaults are encoded inline so
   // a brand-new install lands on the same numbers the solver already uses.
@@ -24647,6 +24654,73 @@ function _restoreSmartFillRules() {
   // schema isn't deployed yet.
   try { _rrLoadAdHocConstraintsList(); } catch (_) { /* non-fatal */ }
 }
+
+// ─── Zone 3 · Vans (sfRules.vans) ─────────────────────────────────────
+// Four nested booleans, all default true. type_match + skip_inactive are
+// display-only — the solver enforces them as hard rules regardless of
+// the saved value, so the checkboxes render disabled-and-checked.
+// prefer_paired is a synced twin of dataSources.van_pairings: the Zone 3
+// checkbox writes the shared field and Advanced > Use van pairings reads
+// from the same place, so changing either updates both.
+const _RR_SF_VANS_DEFAULTS = Object.freeze({
+  assign: true, prefer_paired: true, type_match: true, skip_inactive: true,
+});
+function _rrSfVansRead(saved) {
+  const v = (saved && saved.vans && typeof saved.vans === "object") ? saved.vans : {};
+  const ds = (saved && saved.dataSources && typeof saved.dataSources === "object") ? saved.dataSources : {};
+  return {
+    assign:        v.assign        !== false,
+    // prefer_paired follows dataSources.van_pairings (shared field).
+    prefer_paired: ds.van_pairings !== false,
+    type_match:    true,
+    skip_inactive: true,
+  };
+}
+function _restoreSfVans(saved) {
+  const vals = _rrSfVansRead(saved);
+  document.querySelectorAll("#rr-sched-smartfill-rules-body [data-rr-sf-vans]").forEach((el) => {
+    const k = el.getAttribute("data-rr-sf-vans");
+    el.checked = !!vals[k];
+    if (k === "type_match" || k === "skip_inactive") el.disabled = true;
+  });
+}
+// Persist a Zone 3 van checkbox change. The two display-only boxes
+// (type_match, skip_inactive) are no-ops — disabled in the DOM, but
+// guard here too. prefer_paired writes the shared dataSources.van_pairings
+// field AND mirrors to the Advanced > Use van pairings checkbox so both
+// stay in sync.
+document.addEventListener("change", (e) => {
+  const el = e.target && e.target.closest && e.target.closest(
+    "#rr-sched-smartfill-rules-body [data-rr-sf-vans]");
+  if (!el) return;
+  const key = el.getAttribute("data-rr-sf-vans");
+  if (key === "type_match" || key === "skip_inactive") {
+    el.checked = true;
+    return;
+  }
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  if (key === "prefer_paired") {
+    if (!saved.dataSources || typeof saved.dataSources !== "object") saved.dataSources = {};
+    saved.dataSources.van_pairings = !!el.checked;
+    const twin = document.querySelector('#rr-sched-smartfill-rules-body [data-rr-sf-ds="van_pairings"]');
+    if (twin) twin.checked = !!el.checked;
+  } else {
+    if (!saved.vans || typeof saved.vans !== "object") saved.vans = {};
+    saved.vans[key] = !!el.checked;
+  }
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+});
+// Mirror the Advanced > Use van pairings checkbox back to Zone 3 so the
+// two views stay in sync no matter which one the operator clicks.
+document.addEventListener("change", (e) => {
+  const el = e.target && e.target.closest && e.target.closest(
+    '#rr-sched-smartfill-rules-body [data-rr-sf-ds="van_pairings"]');
+  if (!el) return;
+  const twin = document.querySelector('#rr-sched-smartfill-rules-body [data-rr-sf-vans="prefer_paired"]');
+  if (twin) twin.checked = !!el.checked;
+});
 
 // ─── Advanced engine controls (priorities / data sources / budget) ─────
 // Defaults table — picked so that "Default" (slider=3, all data sources
@@ -30251,6 +30325,10 @@ async function autoAssignDriversForWeek() {
     const _sfHourCapAdv = Number.isFinite(sfRules.weeklyHourCap)   ? sfRules.weeklyHourCap   : null;
     const _maxDaysOut    = _sfMaxDaysAdv != null ? _sfMaxDaysAdv : maxDays;
     const _weeklyHourOut = _sfHourCapAdv != null ? _sfHourCapAdv : 40;
+    // Zone 3 · Vans → rules.assign_vans (default true). The solver skips
+    // van assignment entirely when false. Tiebreaker is no longer emitted
+    // (superseded by the Fairness slider in Advanced engine controls).
+    const _sfVansAssign = !(sfRules && sfRules.vans && sfRules.vans.assign === false);
     const sfPayload = {
       schedule_week_start: _schedStart,
       max_days: _maxDaysOut,
@@ -30258,8 +30336,8 @@ async function autoAssignDriversForWeek() {
       time_budget_ms: _sfSolveTime,
       rules: {
         ...sfRules,
-        tiebreaker,
         ..._sfUseFlags,
+        assign_vans: _sfVansAssign,
         affinity_weeks: _sfAffWeeks,
         weights: _sfWeights,
       },
