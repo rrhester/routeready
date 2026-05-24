@@ -11361,18 +11361,11 @@ body.rr-cmdk-open{ overflow:hidden }
                     </div>
                   </div>
                 </div>
-                <!-- Documents · relocated from the sidebar. Click
-                     mounts #view-documents into #obsub-documents below. -->
-                <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-documents">
-                  <button class="subnav-item" data-obsub="documents" onclick="obSub('documents')" title="Documents">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
-                    <span>Documents</span>
-                  </button>
-                  <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Documents rules — coming soon">
-                    Rules
-                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-                  </button>
-                </div>
+                <!-- Documents subnav tab removed — #view-documents
+                     now mounts into the Overview tab's right-side
+                     placeholder card instead. See _obMountDocuments
+                     in live.js. -->
+
                 <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-interview">
                   <button class="subnav-item" data-obsub="interview" onclick="obSub('interview')" title="Interview Day">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15.5 13.5"/></svg>
@@ -11497,10 +11490,12 @@ body.rr-cmdk-open{ overflow:hidden }
                 <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:32%"></span><span class="rr-skel rr-skel-sm" style="width:80%"></span><span class="rr-skel rr-skel-sm" style="width:64%"></span></div>
               </div>
             </div>
-            <div class="ob-overview-right ob-placeholder-card" aria-label="Placeholder">
-              <div class="ob-placeholder-inner">
-                <div class="ob-placeholder-title">Placeholder</div>
-                <div class="ob-placeholder-sub">Items will be moved into this card shortly.</div>
+            <!-- #view-documents is mounted into this card by
+                 _obMountDocuments() on Overview activation. -->
+            <div id="ob-docs-mount" class="ob-overview-right ob-placeholder-card" aria-label="Documents">
+              <div class="ob-placeholder-inner ob-docs-loading">
+                <div class="ob-placeholder-title">Documents</div>
+                <div class="ob-placeholder-sub">Loading…</div>
               </div>
             </div>
           </div>
@@ -11559,11 +11554,10 @@ body.rr-cmdk-open{ overflow:hidden }
              Calendar icons drive pipeSub() inside it. -->
         <div id="obsub-pipeline" style="display:none"></div>
 
-        <!-- Documents host — same pattern as the pipeline. The whole
-             #view-documents block is relocated here by
-             _obMountDocuments() the first time the Documents icon
-             is opened. -->
-        <div id="obsub-documents" style="display:none"></div>
+        <!-- Documents now mounts into #ob-docs-mount inside the
+             Overview tab's right column (see _obMountDocuments).
+             The old #obsub-documents host is removed. -->
+
       </div>
     </div>
 
