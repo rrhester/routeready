@@ -31046,7 +31046,7 @@ function bindSchedWeekNav() {
         toast(stationId ? "" : "Driver has no station — assign one in the Drivers page", "warn");
         return;
       }
-      openAddShiftModal(date, stationId, driverId);
+      openAddShiftModal(date, stationId, driverId, cell);
     }
   });
 
@@ -32273,15 +32273,32 @@ async function materializeVirtualShiftToDriver(payload, driverId, cell) {
   renderScheduleWeek();
 }
 
-function openAddShiftModal(date, stationId, prefDriverId) {
+function openAddShiftModal(date, stationId, prefDriverId, anchorEl) {
   let m = document.getElementById("rr-shift-modal");
   if (m) m.remove();
   m = document.createElement("div");
   m.id = "rr-shift-modal";
-  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10000;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  // Operator wanted this to feel like part of the schedule — not a
+  // full-screen modal with the background blurred out. Render as an
+  // anchored popover floating over the cell the operator clicked.
+  // Wrapper is a transparent click-trap (no overlay tint) that
+  // closes on outside-click. Inner card sits at a fixed position
+  // computed from the cell's bounding rect.
+  m.style.cssText = "position:fixed;inset:0;background:transparent;z-index:10000;pointer-events:auto";
+  // Compute anchor position. Default to viewport-centered if no
+  // anchor was passed (manual API caller).
+  let anchorTop = 100, anchorLeft = 100;
+  if (anchorEl && anchorEl.getBoundingClientRect) {
+    const rect = anchorEl.getBoundingClientRect();
+    // Popover width ~ 380px (smaller than the old 440px). Try to
+    // anchor at the cell's bottom-left. Clamp inside viewport.
+    const W = 380, H = 480;
+    anchorLeft = Math.max(8, Math.min(window.innerWidth - W - 8, rect.left));
+    anchorTop  = Math.max(8, Math.min(window.innerHeight - H - 8, rect.bottom + 6));
+  }
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:440px;width:100%">
-      <h3 style="margin:0 0 14px;font-size:var(--fs-lg);font-weight:600">Add shift</h3>
+    <div style="position:absolute;top:${anchorTop}px;left:${anchorLeft}px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:18px;width:380px;box-shadow:0 8px 16px rgba(0,0,0,0.14),0 0 2px rgba(0,0,0,0.12)">
+      <h3 style="margin:0 0 14px;font-size:var(--fs-md);font-weight:600">Add shift</h3>
       <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Date</label>
       <input type="date" id="rr-sh-date" class="form-input" style="width:100%;margin-bottom:10px" value="${date}"/>
       <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Driver (optional · leave blank for open shift)</label>
