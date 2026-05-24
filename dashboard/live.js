@@ -13925,6 +13925,21 @@ function rrPullFromIndeed(btn) {
 }
 window.rrPullFromIndeed = rrPullFromIndeed;
 
+function rrPullFromAmazon(btn) {
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  btn.classList.add("is-loading");
+  const label = btn.querySelector("span");
+  const original = label ? label.textContent : "";
+  if (label) label.textContent = "Pulling…";
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.classList.remove("is-loading");
+    if (label) label.textContent = original;
+  }, 2200);
+}
+window.rrPullFromAmazon = rrPullFromAmazon;
+
 async function loadScreeningQuestionsList() {
   // Lives in the Funnel → Rules popover. Use a global selector so we also
   // catch the row container if the section markup ever moves again.
