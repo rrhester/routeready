@@ -34196,8 +34196,14 @@ document.addEventListener("drop", async (e) => {
     return;
   }
 
-  // Confirm finalized-week edits the same way the modal does.
-  if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) {
+  // Confirm finalized-week edits the same way the modal does — but
+  // skip the prompt when the drag started from the open-shifts pool.
+  // Adding an open shift to a driver is the operator's normal flow,
+  // not a "change of mind" worth confirming, so the warning was
+  // reported as noise. Cell-to-cell moves still confirm.
+  if (_dragShift.fromDriver
+      && typeof _confirmLiveScheduleEdit === "function"
+      && !_confirmLiveScheduleEdit()) {
     _dragShift = null;
     return;
   }
