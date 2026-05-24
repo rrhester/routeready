@@ -11196,8 +11196,20 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="sched-ribbon-group" data-group="sourcing">
               <div class="subnav" data-rr-tabbar="onboarding-ops">
                 <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-funnel">
-                  <button class="subnav-item" data-obsub="funnel" onclick="obSub('funnel')" title="Hiring funnel">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M3 4h18l-7 8.5v6.5l-4 2v-8.5z"/></svg>
+                  <button class="subnav-item ob-funnel-tab" data-obsub="funnel" onclick="obSub('funnel')" title="Hiring funnel">
+                    <!-- Microsoft-purple funnel · linear gradient from a
+                         lighter top (#A78BFA) to a darker bottom (#5B21B6).
+                         Applied as both stroke AND fill so the silhouette
+                         reads as a solid purple funnel. -->
+                    <svg viewBox="0 0 24 24" fill="url(#rr-ob-funnel-gradient)" stroke="url(#rr-ob-funnel-gradient)" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">
+                      <defs>
+                        <linearGradient id="rr-ob-funnel-gradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#A78BFA"/>
+                          <stop offset="100%" stop-color="#5B21B6"/>
+                        </linearGradient>
+                      </defs>
+                      <path d="M3 4h18l-7 8.5v6.5l-4 2v-8.5z"/>
+                    </svg>
                     <span>Funnel</span>
                   </button>
                   <button type="button" class="ob-rules-foot" id="rr-funnel-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-funnel-rules-popover" title="Screening questions — what applicants answer before booking">
@@ -11499,7 +11511,114 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
           </div>
+
+          <!-- Applicant placeholder strip — sits at the bottom of the
+               Overview tab. Renders one card per onboarding-status
+               driver via _renderOnboardingApplicantStrip(); the
+               remaining slots stay as dashed-border empty placeholders
+               so the page doesn't read as empty when nobody's actively
+               in onboarding. -->
+          <div id="ob-applicant-strip" class="ob-applicant-strip" aria-label="Applicants in onboarding">
+            <div class="ob-applicant-strip-head">Applicants in onboarding</div>
+            <div class="ob-applicant-strip-row" id="ob-applicant-strip-row">
+              <!-- N slots; index 0..N-1. _renderOnboardingApplicantStrip
+                   fills them from the front. -->
+              <div class="ob-applicant-card ob-applicant-empty"><div class="ob-applicant-empty-circle"></div><div class="ob-applicant-empty-line"></div></div>
+              <div class="ob-applicant-card ob-applicant-empty"><div class="ob-applicant-empty-circle"></div><div class="ob-applicant-empty-line"></div></div>
+              <div class="ob-applicant-card ob-applicant-empty"><div class="ob-applicant-empty-circle"></div><div class="ob-applicant-empty-line"></div></div>
+              <div class="ob-applicant-card ob-applicant-empty"><div class="ob-applicant-empty-circle"></div><div class="ob-applicant-empty-line"></div></div>
+              <div class="ob-applicant-card ob-applicant-empty"><div class="ob-applicant-empty-circle"></div><div class="ob-applicant-empty-line"></div></div>
+              <div class="ob-applicant-card ob-applicant-empty"><div class="ob-applicant-empty-circle"></div><div class="ob-applicant-empty-line"></div></div>
+            </div>
+          </div>
         </div>
+
+        <style>
+          /* Applicant placeholder strip — fixed-grid row of slots.
+             Each slot is either an empty dashed-border placeholder or
+             a populated applicant card (added at runtime by the
+             render fn in live.js). */
+          #view-onboarding-ops .ob-applicant-strip {
+            margin-top: 16px;
+          }
+          #view-onboarding-ops .ob-applicant-strip-head {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text, #111);
+            margin-bottom: 8px;
+            letter-spacing: 0.01em;
+          }
+          #view-onboarding-ops .ob-applicant-strip-row {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 12px;
+          }
+          @media (max-width: 1180px) {
+            #view-onboarding-ops .ob-applicant-strip-row {
+              grid-template-columns: repeat(3, 1fr);
+            }
+          }
+          @media (max-width: 720px) {
+            #view-onboarding-ops .ob-applicant-strip-row {
+              grid-template-columns: repeat(2, 1fr);
+            }
+          }
+          #view-onboarding-ops .ob-applicant-card {
+            background: var(--surface, #fff);
+            border-radius: 10px;
+            padding: 14px;
+            min-height: 96px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+          }
+          #view-onboarding-ops .ob-applicant-empty {
+            border: 1px dashed var(--border-strong, #d1d5db);
+          }
+          #view-onboarding-ops .ob-applicant-filled {
+            border: 1px solid var(--border, #e5e7eb);
+          }
+          #view-onboarding-ops .ob-applicant-empty-circle {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 1.5px dashed var(--border-strong, #d1d5db);
+            background: transparent;
+          }
+          #view-onboarding-ops .ob-applicant-empty-line {
+            width: 60%;
+            height: 8px;
+            background: var(--canvas, #f3f4f6);
+            border-radius: 4px;
+          }
+          #view-onboarding-ops .ob-applicant-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--accent-soft, #ede9fe);
+            color: #5B21B6;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 12px;
+          }
+          #view-onboarding-ops .ob-applicant-name {
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--text, #111);
+            text-align: center;
+            line-height: 1.25;
+          }
+          #view-onboarding-ops .ob-applicant-step {
+            font-size: 11px;
+            color: var(--text-subtle, #6b7280);
+            text-align: center;
+            line-height: 1.2;
+          }
+        </style>
         <style>
           /* Onboarding overview · placeholder card shell. Matches the
              rough proportions of the readiness matrix on its left so

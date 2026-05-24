@@ -4166,6 +4166,55 @@ function _obMountDocuments() {
     host.appendChild(docs);
   }
 }
+
+// Bottom-of-page applicant strip — one card per status='onboarding'
+// driver, filled left-to-right. Unfilled slots stay as dashed-border
+// placeholders so the page reads as a defined surface even when nobody
+// is actively onboarding. Total slot count is the larger of SLOT_MIN
+// and the number of onboarding drivers.
+const _OB_STRIP_SLOTS = 6;
+async function _renderOnboardingApplicantStrip() {
+  const row = document.getElementById("ob-applicant-strip-row");
+  if (!row) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return;
+  const { data, error } = await sb.from("drivers")
+    .select("id, full_name, first_name, last_name, preferred_name, status, hire_date, training_date")
+    .eq("dsp_id", dspId)
+    .eq("status", "onboarding")
+    .order("hire_date", { ascending: false, nullsFirst: false });
+  if (error) { console.warn("applicant strip:", error); return; }
+  const applicants = data || [];
+  const slotCount = Math.max(_OB_STRIP_SLOTS, applicants.length);
+  const cards = [];
+  for (let i = 0; i < slotCount; i++) {
+    const a = applicants[i];
+    if (a) {
+      const display = a.preferred_name || a.full_name
+        || [a.first_name, a.last_name].filter(Boolean).join(" ")
+        || "Applicant";
+      const initials = (display.match(/\b\w/g) || []).slice(0, 2).join("").toUpperCase() || "?";
+      const stepLabel = a.training_date
+        ? `Training ${new Date(a.training_date + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+        : "Onboarding";
+      cards.push(
+        `<div class="ob-applicant-card ob-applicant-filled" data-rr-driver-id="${escapeHtml(a.id)}">` +
+          `<span class="ob-applicant-avatar">${escapeHtml(initials)}</span>` +
+          `<span class="ob-applicant-name">${escapeHtml(display)}</span>` +
+          `<span class="ob-applicant-step">${escapeHtml(stepLabel)}</span>` +
+        `</div>`
+      );
+    } else {
+      cards.push(
+        `<div class="ob-applicant-card ob-applicant-empty">` +
+          `<div class="ob-applicant-empty-circle"></div>` +
+          `<div class="ob-applicant-empty-line"></div>` +
+        `</div>`
+      );
+    }
+  }
+  row.innerHTML = cards.join("");
+}
 window.obSub = function (which) {
   document.querySelectorAll("#view-onboarding-ops .subnav .subnav-item[data-obsub]").forEach(b => b.classList.toggle("active", b.getAttribute("data-obsub") === which));
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? "" : "none"; };
@@ -4821,6 +4870,10 @@ async function loadOnboardingOps(opts) {
   if (typeof loadDocumentsView === "function") {
     try { loadDocumentsView(); } catch (e) { console.warn("loadDocumentsView:", e); }
   }
+  // Applicant placeholder strip at the bottom of the Overview tab —
+  // populated from the same drivers fetch used by the cohort matrix.
+  // Best-effort: any error just leaves the empty placeholders showing.
+  try { _renderOnboardingApplicantStrip(); } catch (_) { /* non-fatal */ }
   if (!(opts && opts.keepTab) && typeof obSub === "function") obSub("overview");
   _i9DashStylesOnce();
   body.innerHTML = _i9QueueSkeleton();
