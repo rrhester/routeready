@@ -23,7 +23,7 @@
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
      `rrx-schedule` class on the view-schedule element. -->
-<link rel="stylesheet" href="schedule-rrx.css?v=34">
+<link rel="stylesheet" href="schedule-rrx.css?v=35">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -13132,9 +13132,101 @@ body.rr-cmdk-open{ overflow:hidden }
                     <span class="sched-vans-rules-head-title">Week view display</span>
                   </div>
                   <div class="sched-smartfill-rules-body">
-                    <div style="font:14px/20px var(--rr-font-family, 'Segoe UI'); color:var(--rr-fg-secondary, #605E5C)">
-                      Display rules for the week grid live here. Sort the driver column from the icon in the upper right of the grid.
-                    </div>
+                    <!-- Grid density picker · three named options. Toggles
+                         `body.rr-sched-compact` / `body.rr-sched-ultra-compact`
+                         so the rest of the grid CSS (already wired for
+                         compact) picks up the right cell sizing without us
+                         having to re-render anything. Persisted in
+                         localStorage('rr-sched-density') so the choice
+                         survives reloads. Inline <script> runs once on
+                         first parse to hydrate from storage. -->
+                    <fieldset class="rr-sched-density-fset" role="radiogroup" aria-label="Grid density">
+                      <legend style="font:600 13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Grid density</legend>
+                      <p style="font:13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Pick how many drivers' weekly schedules you want on screen at once. Sort the driver column from the icon in the upper right of the grid.</p>
+
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-density" value="standard" checked />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">Standard</span>
+                          <span class="rr-sched-density-opt-sub">Square cells. Fewest drivers per screen, fullest shift-chip detail.</span>
+                        </span>
+                      </label>
+
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-density" value="compact" />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">Compact</span>
+                          <span class="rr-sched-density-opt-sub">Rectangular cells, ~25% shorter. ~50% more drivers visible at once; shift chips stay readable.</span>
+                        </span>
+                      </label>
+
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-density" value="ultra" />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">Ultra-compact</span>
+                          <span class="rr-sched-density-opt-sub">Slimmest rows. Maximum drivers per screen for a planning-week overview.</span>
+                        </span>
+                      </label>
+                    </fieldset>
+
+                    <style>
+                      /* Density picker — Fluent radio rows. Match the
+                         visual rhythm of the other Rules popovers. */
+                      .rr-sched-density-fset{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:6px}
+                      .rr-sched-density-opt{
+                        display:flex;align-items:flex-start;gap:10px;
+                        padding:10px 12px;border:1px solid #E1DFDD;border-radius:4px;
+                        background:#FFFFFF;cursor:pointer;
+                        font-family:var(--rr-font-family, 'Segoe UI');
+                        transition:border-color .12s, background .12s;
+                      }
+                      .rr-sched-density-opt:hover{border-color:#C8C6C4;background:#FAFAFA}
+                      .rr-sched-density-opt input[type="radio"]{margin:3px 0 0 0;flex:0 0 auto;accent-color:#0078D4}
+                      .rr-sched-density-opt input[type="radio"]:checked + .rr-sched-density-opt-body .rr-sched-density-opt-title{color:#0078D4}
+                      .rr-sched-density-opt:has(input:checked){border-color:#0078D4;background:rgba(0,120,212,.04)}
+                      .rr-sched-density-opt-body{display:flex;flex-direction:column;gap:2px;min-width:0}
+                      .rr-sched-density-opt-title{font-size:13px;font-weight:600;color:#242424;letter-spacing:-.005em}
+                      .rr-sched-density-opt-sub{font-size:12px;color:#605E5C;line-height:1.4}
+                    </style>
+
+                    <script>
+                      (function () {
+                        if (window.__rrSchedDensityWired) return;
+                        window.__rrSchedDensityWired = true;
+                        var KEY = "rr-sched-density";
+                        function apply(mode) {
+                          var b = document.body.classList;
+                          b.remove("rr-sched-compact");
+                          b.remove("rr-sched-ultra-compact");
+                          if (mode === "compact") b.add("rr-sched-compact");
+                          else if (mode === "ultra") b.add("rr-sched-ultra-compact");
+                          // Mirror to the existing binary toggle's
+                          // aria-pressed so the icon-strip button still
+                          // reflects the right state when density is set
+                          // from the popover.
+                          var btn = document.getElementById("rr-sched-compact-toggle");
+                          if (btn) btn.setAttribute("aria-pressed", (mode === "compact" || mode === "ultra") ? "true" : "false");
+                        }
+                        function syncRadios(mode) {
+                          var ins = document.querySelectorAll('input[name="rr-sched-density"]');
+                          for (var i = 0; i < ins.length; i++) ins[i].checked = (ins[i].value === mode);
+                        }
+                        var stored = null;
+                        try { stored = localStorage.getItem(KEY); } catch (e) {}
+                        if (stored !== "standard" && stored !== "compact" && stored !== "ultra") stored = "standard";
+                        apply(stored);
+                        setTimeout(function () { syncRadios(stored); }, 0);
+                        document.addEventListener("change", function (e) {
+                          var t = e.target;
+                          if (!t || t.name !== "rr-sched-density") return;
+                          var v = t.value;
+                          if (v !== "standard" && v !== "compact" && v !== "ultra") return;
+                          try { localStorage.setItem(KEY, v); } catch (er) {}
+                          apply(v);
+                          syncRadios(v);
+                        });
+                      })();
+                    </script>
                   </div>
                 </div>
               </div>
