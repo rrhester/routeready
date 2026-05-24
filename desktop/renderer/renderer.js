@@ -622,6 +622,12 @@ scEls.list.addEventListener("click", async (evt) => {
       } else {
         log(`Recorder failed: ${r.message || r.error || "unknown error"}`, "error");
       }
+    } catch (err) {
+      // Catch the IPC promise rejection that the previous version
+      // dropped on the floor — without this, the operator sees no
+      // log line at all when the recorder throws and has no idea
+      // why nothing happened.
+      log(`Recorder threw: ${err && err.message || err}`, "error");
     } finally {
       t.disabled = false;
     }
