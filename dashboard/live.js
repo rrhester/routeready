@@ -13925,21 +13925,6 @@ function rrPullFromIndeed(btn) {
 }
 window.rrPullFromIndeed = rrPullFromIndeed;
 
-function rrPullFromAmazon(btn) {
-  if (!btn || btn.disabled) return;
-  btn.disabled = true;
-  btn.classList.add("is-loading");
-  const label = btn.querySelector("span");
-  const original = label ? label.textContent : "";
-  if (label) label.textContent = "Pulling…";
-  setTimeout(() => {
-    btn.disabled = false;
-    btn.classList.remove("is-loading");
-    if (label) label.textContent = original;
-  }, 2200);
-}
-window.rrPullFromAmazon = rrPullFromAmazon;
-
 async function loadScreeningQuestionsList() {
   // Lives in the Funnel → Rules popover. Use a global selector so we also
   // catch the row container if the section markup ever moves again.
@@ -23632,31 +23617,23 @@ window.okamiRenderDailyPanel = renderOkamiDailyPanel;
 // inputs carry data-rr-okami-daily and the document-level
 // delegation handles saves regardless of which surface they live in.
 async function renderScheduleTargetsSubView() {
-  const host = document.getElementById("sched-sub-targets-daily");
-  if (!host) return;
-  // Anchor the daily panel to the schedule's currently-viewed week
-  // so the operator sees the targets for the week they're editing.
-  // _renderOkamiDailyPanelImpl reads _okamiStart for its date math;
-  // setting it directly here (instead of going through
-  // renderOkamiLive's heavier per-render fetch) keeps the sub-view
-  // fast and avoids touching the OKAMI table at all.
+  // Anchor OKAMI on the schedule's currently-viewed week so the
+  // 13-week table (moved into this sub-view at runtime) shows the
+  // right horizon and the Block / Cushion / Report-time KPI inputs
+  // line up with the same week.
   if (typeof _schedStart === "string" && _schedStart) {
     _okamiStart = _schedStart;
   } else if (!_okamiStart) {
-    // Schedule hasn't picked a week yet (edge case). Fall back to
-    // the current calendar Monday so the panel still renders.
     _okamiStart = fmtIsoDate(startOfWeekMonday(new Date()));
   }
-  // Ensure the save-input delegation is wired so edits in the
-  // sub-view persist even if the operator never opens the OKAMI
-  // page in this session.
+  // The standalone daily editor used to live in
+  // #sched-sub-targets-daily; operators asked us to drop it now that
+  // the 13-week planner is on this page (every week's daily detail
+  // is reachable via the row-expand button in the table itself).
+  // Save-input delegation still binds in case they open a row.
   _bindOkamiDailyInputDelegation();
-  // Render the week-0 panel into the sub-view's host (the renderer
-  // pulls okami_grid + scheduling_settings + service types itself).
-  await _renderOkamiDailyPanelImpl(0, "sched-sub-targets-daily");
-  // Populate the Block / Cushion / Report-time inputs at the top
-  // of the sub-view from the per-week RPC. Reuses the same
-  // loadSchedulingSettings path that powers the popover + OKAMI.
+  // Populate the Block / Cushion / Report-time KPI strip inputs
+  // from the per-week RPC. Same loader the popover + OKAMI page use.
   if (typeof loadSchedulingSettings === "function") {
     try { loadSchedulingSettings(); } catch (e) { console.warn("Targets sub-view settings:", e); }
   }
