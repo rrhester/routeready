@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
-"""Stress-test the live solver.
+"""Real-world stress test of the live solver.
 
-Default: 8 sequential weekly solves with the same 100 drivers, mimicking
-how an operator actually uses Smart Fill (one week at a time). After
-each week, the engine's actual assignments roll forward as the next
-week's affinity input so the second week onwards can favour stable
-patterns the way it would on the live dashboard.
+Simulates a DSP under realistic operational pressure across N weeks:
+  * Attrition — ~5%/wk of active drivers terminate (compounds to ~20%/mo).
+  * PTO       — ~5%/wk of remaining drivers take 1–2 days off.
+  * Availability drift — ~10%/wk of drivers swap one of their dows.
+  * Demand swing — daily shift count jitters ±10% off a base value.
+  * Affinity rollforward — previous week's assignments inform the
+    next week's weekday_affinity[] input so the engine can favour
+    stable patterns the way it would on the live dashboard.
 
-Reports per-week timing + coverage + EDV fill + load spread, then a
-summary across all 8 weeks.
+Defaults match the operator's brief: 50 routes/day ±10%, 110 drivers,
+8 weeks, EDV/XL cert mix.
 
 Usage:
   cd ~/routeready/solver-service
-  python3 stress_test.py            # default: 100 drivers x 8 weeks
-  python3 stress_test.py 50 4       # custom: 50 drivers x 4 weeks
+  python3 stress_test.py
+  python3 stress_test.py --drivers 110 --routes 50 --weeks 8
+  python3 stress_test.py --attrition 0.05 --pto 0.05 --budget 60000
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import random
@@ -30,15 +35,15 @@ SOLVER_TOKEN = os.environ.get(
     "RR_SOLVER_TOKEN",
     "e7e08851cdc4a26cb5d032437949eb3515c39584aff07943dbff388ed7968167",
 )
-FIRST_WEEK_START = date(2026, 6, 1)  # Monday
-DOW_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+FIRST_WEEK_START = date(2026, 6, 1)
 
 random.seed(42)
 
 
-def build_drivers(num_drivers: int) -> list[dict]:
-    """The roster stays constant across all weeks — same drivers, same
-    base availability + cert mix."""
+# ── Roster construction ────────────────────────────────────────────────
+
+
+def build_roster(num_drivers: int) -> list[dict]:
     drivers = []
     for i in range(num_drivers):
         is_ft = i < int(num_drivers * 0.7)
@@ -52,99 +57,101 @@ def build_drivers(num_drivers: int) -> list[dict]:
             "edv_certified": random.random() < 0.45,
             "dot_certified": True,
             "xl_certified":  random.random() < 0.7,
+            "_is_ft": is_ft,
         })
     return drivers
 
 
-def build_payload(
-    drivers: list[dict],
-    week_start: date,
-    shifts_per_day: int = 70,
-    affinity_by_driver: dict[str, list[int]] | None = None,
-):
+# ── Weekly pre-solve dynamics ──────────────────────────────────────────
+
+
+def apply_attrition(roster: list[dict], rate: float) -> tuple[list[dict], list[str]]:
+    if not roster:
+        return roster, []
+    n_drop = max(1, int(round(len(roster) * rate)))
+    n_drop = min(n_drop, len(roster) - 1)  # always keep at least 1
+    leaving = random.sample(roster, n_drop)
+    leaving_ids = {d["id"] for d in leaving}
+    kept = [d for d in roster if d["id"] not in leaving_ids]
+    return kept, sorted(leaving_ids)
+
+
+def drift_availability(roster: list[dict], rate: float) -> list[str]:
+    """For ~rate of drivers, swap one available dow for one currently
+    not available. Mirrors a driver telling the DSP 'I can do Wed now
+    but not Sat.' Returns ids of changed drivers."""
+    if not roster:
+        return []
+    n_change = max(1, int(round(len(roster) * rate)))
+    n_change = min(n_change, len(roster))
+    changed = random.sample(roster, n_change)
+    for d in changed:
+        avail_set = set(d.get("available_dows") or [])
+        if len(avail_set) >= 7 or not avail_set:
+            continue
+        not_avail = set(range(1, 7)) - avail_set
+        if not not_avail:
+            continue
+        out_dow = random.choice(sorted(avail_set))
+        in_dow  = random.choice(sorted(not_avail))
+        avail_set.discard(out_dow)
+        avail_set.add(in_dow)
+        d["available_dows"] = sorted(avail_set)
+    return [d["id"] for d in changed]
+
+
+def generate_pto(roster: list[dict], week_start: date, rate: float) -> list[dict]:
+    if not roster:
+        return []
+    n_pto = max(1, int(round(len(roster) * rate)))
+    n_pto = min(n_pto, len(roster))
+    requesters = random.sample(roster, n_pto)
+    pto: list[dict] = []
+    for d in requesters:
+        n_days = random.choice([1, 1, 2])  # most take 1 day, some 2
+        start = random.randint(0, 6)
+        for j in range(n_days):
+            if start + j > 6:
+                break
+            pto.append({
+                "driver_id": d["id"],
+                "date": (week_start + timedelta(days=start + j)).isoformat(),
+            })
+    return pto
+
+
+def generate_shifts(week_start: date, base_per_day: int, jitter: float) -> list[dict]:
     shifts = []
     for day_offset in range(7):
         d = week_start + timedelta(days=day_offset)
-        for j in range(shifts_per_day):
-            route = "edv" if random.random() < 0.20 else "standard"
+        n = max(0, int(round(base_per_day * (1 + random.uniform(-jitter, jitter)))))
+        for j in range(n):
             shifts.append({
                 "id": f"s_{d.isoformat()}_{j}",
                 "date": d.isoformat(),
-                "route_type": route,
+                "route_type": "edv" if random.random() < 0.20 else "standard",
             })
+    return shifts
 
-    pto = []
-    for d in random.sample(drivers, max(3, len(drivers) // 16)):
-        start_offset = random.choice([0, 2, 4])
-        for day in range(2):  # 2 consecutive PTO days
-            pto.append({
-                "driver_id": d["id"],
-                "date": (week_start + timedelta(days=start_offset + day)).isoformat(),
-            })
 
-    # Inject rolling-forward affinity so the engine can favour stable
-    # weekday patterns from prior weeks.
-    drivers_with_aff = []
-    for d in drivers:
-        d2 = dict(d)
-        if affinity_by_driver and d["id"] in affinity_by_driver:
-            # 0-100 affinity score per dow (0..6, Sun..Sat).
-            d2["weekday_affinity"] = affinity_by_driver[d["id"]]
-        drivers_with_aff.append(d2)
-
-    return {
-        "schedule_week_start": week_start.isoformat(),
-        "max_days": 5,
-        "weekly_hour_cap": 40,
-        "time_budget_ms": 20000,
-        "solver_seed": 0,
-        "rules": {
-            "weights": {
-                "coverage": 10000,
-                "fairness": 2,
-                "ot_risk": 5,
-                "affinity": 1,
-                "van_continuity": 10,
-                "preferred_days": 5,
-                "attendance": 100,
-            },
-            "use_pto": True,
-            "use_affinity": True,
-            "use_van_pairings": True,
-            "use_attendance": True,
-            "use_fifth_day_optin": True,
-            "use_ad_hoc_rules": True,
-        },
-        "drivers": drivers_with_aff,
-        "shifts": shifts,
-        "vans": [],
-        "van_pairings": [],
-        "pto": pto,
-        "ad_hoc_constraints": [],
-    }
+# ── Affinity rollforward ───────────────────────────────────────────────
 
 
 def affinity_from_assignments(
-    drivers: list[dict],
+    roster: list[dict],
     assigned_shifts: list[dict],
     shifts: list[dict],
     prior_affinity: dict[str, list[int]] | None = None,
     decay: float = 0.6,
 ) -> dict[str, list[int]]:
-    """Build a Sun..Sat (length-7) affinity array per driver from the
-    week's assignments. Each dow that the driver worked gets a bump;
-    decayed previous-week values are blended in so the signal is
-    cumulative, not one-week noise."""
     shift_dow = {s["id"]: date.fromisoformat(s["date"]).isoweekday() % 7
-                 for s in shifts}  # Sun=0..Sat=6
-    out: dict[str, list[int]] = {}
-    for d in drivers:
-        out[d["id"]] = [0] * 7
+                 for s in shifts}
+    out: dict[str, list[int]] = {d["id"]: [0] * 7 for d in roster}
     for a in assigned_shifts:
         did = a["driver_id"]
         sid = a["shift_id"]
         if did in out and sid in shift_dow:
-            out[did][shift_dow[sid]] += 40   # one week worked = +40 on that dow
+            out[did][shift_dow[sid]] += 40
     if prior_affinity:
         for did, prev in prior_affinity.items():
             if did in out:
@@ -153,116 +160,166 @@ def affinity_from_assignments(
     return out
 
 
-def post(payload: dict) -> dict:
+# ── Payload + request ──────────────────────────────────────────────────
+
+
+def build_payload(
+    roster: list[dict],
+    week_start: date,
+    shifts: list[dict],
+    pto: list[dict],
+    affinity_by_driver: dict[str, list[int]] | None,
+    time_budget_ms: int,
+) -> dict:
+    drivers_out = []
+    for d in roster:
+        d2 = {k: v for k, v in d.items() if not k.startswith("_")}
+        if affinity_by_driver and d["id"] in affinity_by_driver:
+            d2["weekday_affinity"] = affinity_by_driver[d["id"]]
+        drivers_out.append(d2)
+    return {
+        "schedule_week_start": week_start.isoformat(),
+        "max_days": 5,
+        "weekly_hour_cap": 40,
+        "time_budget_ms": time_budget_ms,
+        "solver_seed": 0,
+        "rules": {
+            "weights": {
+                "coverage": 10000, "fairness": 2, "ot_risk": 5,
+                "affinity": 1, "van_continuity": 10,
+                "preferred_days": 5, "attendance": 100,
+            },
+            "use_pto": True, "use_affinity": True,
+            "use_van_pairings": True, "use_attendance": True,
+            "use_fifth_day_optin": True, "use_ad_hoc_rules": True,
+        },
+        "drivers": drivers_out,
+        "shifts": shifts,
+        "vans": [], "van_pairings": [],
+        "pto": pto,
+        "ad_hoc_constraints": [],
+    }
+
+
+def post(payload: dict) -> tuple[dict, float]:
     body = json.dumps(payload).encode()
     req = urllib.request.Request(
         f"{SOLVER_URL.rstrip('/')}/solve",
-        data=body,
-        method="POST",
+        data=body, method="POST",
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {SOLVER_TOKEN}",
         },
     )
     started = time.perf_counter()
-    with urllib.request.urlopen(req, timeout=120) as resp:
+    with urllib.request.urlopen(req, timeout=240) as resp:
         result = json.loads(resp.read().decode())
     return result, (time.perf_counter() - started) * 1000
 
 
-def week_row(week_num: int, payload: dict, result: dict, wall_ms: float) -> dict:
-    """Returns a dict of per-week metrics + prints a one-line summary."""
-    drivers = payload["drivers"]
-    shifts  = payload["shifts"]
-    assigned = result.get("assigned_shifts", [])
-    uncovered = result.get("uncovered_shifts", [])
-
-    by_driver: dict[str, int] = {}
-    for a in assigned:
-        by_driver[a["driver_id"]] = by_driver.get(a["driver_id"], 0) + 1
-
-    edv_shifts = [s for s in shifts if s["route_type"] == "edv"]
-    edv_assigned = [a for a in assigned if any(
-        s["id"] == a["shift_id"] and s["route_type"] == "edv" for s in shifts
-    )]
-
-    cov_pct = 100.0 * len(assigned) / len(shifts) if shifts else 0
-    drivers_used = len(by_driver)
-    avg_per = sum(by_driver.values()) / drivers_used if drivers_used else 0
-    max_per = max(by_driver.values()) if by_driver else 0
-
-    print(f"  Wk {week_num}  {payload['schedule_week_start']}  "
-          f"|  {len(assigned):>4}/{len(shifts)} ({cov_pct:5.1f}%)  "
-          f"|  EDV {len(edv_assigned):>3}/{len(edv_shifts):<3}  "
-          f"|  drivers {drivers_used:>3}/{len(drivers):<3}  "
-          f"|  per-drv avg {avg_per:4.2f} max {max_per}  "
-          f"|  {result.get('elapsed_ms', '?'):>5} ms")
-
-    return {
-        "week": week_num,
-        "week_start": payload["schedule_week_start"],
-        "shifts": len(shifts),
-        "assigned": len(assigned),
-        "coverage_pct": cov_pct,
-        "uncovered": len(uncovered),
-        "edv_total": len(edv_shifts),
-        "edv_assigned": len(edv_assigned),
-        "drivers_used": drivers_used,
-        "max_per_driver": max_per,
-        "elapsed_ms": result.get("elapsed_ms"),
-        "wall_ms": wall_ms,
-    }
+# ── Main loop ──────────────────────────────────────────────────────────
 
 
 def main() -> int:
-    num_drivers = int(sys.argv[1]) if len(sys.argv) > 1 else 100
-    num_weeks   = int(sys.argv[2]) if len(sys.argv) > 2 else 8
+    p = argparse.ArgumentParser()
+    p.add_argument("--drivers", type=int, default=110, help="starting roster size")
+    p.add_argument("--routes",  type=int, default=50,  help="base shifts/day")
+    p.add_argument("--weeks",   type=int, default=8,   help="number of weeks")
+    p.add_argument("--jitter",  type=float, default=0.10, help="daily route-count variability")
+    p.add_argument("--attrition", type=float, default=0.05, help="weekly attrition rate")
+    p.add_argument("--pto",     type=float, default=0.05, help="weekly PTO request rate")
+    p.add_argument("--avail_drift", type=float, default=0.10, help="weekly availability-change rate")
+    p.add_argument("--budget",  type=int, default=30000, help="solver time budget ms")
+    args = p.parse_args()
 
-    drivers = build_drivers(num_drivers)
-    print(f"Stress test  ·  {num_drivers} drivers  ·  {num_weeks} sequential weeks "
-          f"·  solver {SOLVER_URL}")
-    print(f"  drivers: 70% FT (6 avail dows), 30% PT (4 avail dows), "
-          f"~45% EDV-cert, ~70% XL-cert")
+    roster = build_roster(args.drivers)
+    initial_count = len(roster)
+    print(f"Stress test  ·  solver {SOLVER_URL}")
+    print(f"  start roster   : {initial_count} drivers (70% FT, 30% PT, ~45% EDV-cert)")
+    print(f"  base demand    : {args.routes} routes/day ±{int(args.jitter*100)}%")
+    print(f"  weekly churn   : attrition {args.attrition*100:.0f}%, "
+          f"PTO {args.pto*100:.0f}%, avail-drift {args.avail_drift*100:.0f}%")
+    print(f"  solve budget   : {args.budget} ms / week")
     print()
-    header = ("  Week  Start         |  Covered           "
-              "|  EDV         |  Drivers used  "
-              "|  Load                  |  Solve time")
+    header = ("  Wk  Start         |  Roster  Term  PTO  Avail-chg  "
+              "|  Shifts  Covered            "
+              "|  EDV          |  Per-drv  |  Solver ms")
     print(header)
     print("  " + "-" * (len(header) - 2))
 
     rows: list[dict] = []
-    affinity_by_driver: dict[str, list[int]] | None = None
+    affinity: dict[str, list[int]] | None = None
 
-    for wk in range(num_weeks):
+    for wk in range(args.weeks):
         week_start = FIRST_WEEK_START + timedelta(weeks=wk)
-        payload = build_payload(drivers, week_start, affinity_by_driver=affinity_by_driver)
+        # Apply weekly dynamics BEFORE the solve.
+        if wk > 0:  # week 1 starts at full roster
+            roster, terminated = apply_attrition(roster, args.attrition)
+        else:
+            terminated = []
+        avail_changed = drift_availability(roster, args.avail_drift)
+        pto = generate_pto(roster, week_start, args.pto)
+        shifts = generate_shifts(week_start, args.routes, args.jitter)
+
+        payload = build_payload(
+            roster, week_start, shifts, pto, affinity, args.budget,
+        )
         try:
             result, wall_ms = post(payload)
         except Exception as e:
             print(f"  Wk {wk + 1}  REQUEST FAILED: {e}", file=sys.stderr)
             return 1
-        rows.append(week_row(wk + 1, payload, result, wall_ms))
-        # Roll affinity forward into next week.
-        affinity_by_driver = affinity_from_assignments(
-            drivers,
-            result.get("assigned_shifts", []),
-            payload["shifts"],
-            prior_affinity=affinity_by_driver,
-        )
+
+        assigned = result.get("assigned_shifts", [])
+        metrics = result.get("metrics") or {}
+        solver_ms = metrics.get("solver_wall_ms")
+        cov_pct = 100.0 * len(assigned) / len(shifts) if shifts else 0
+        edv_total = sum(1 for s in shifts if s["route_type"] == "edv")
+        edv_filled = sum(1 for a in assigned if any(
+            s["id"] == a["shift_id"] and s["route_type"] == "edv" for s in shifts
+        ))
+        load = {}
+        for a in assigned:
+            load[a["driver_id"]] = load.get(a["driver_id"], 0) + 1
+        avg_per = sum(load.values()) / len(load) if load else 0
+        max_per = max(load.values()) if load else 0
+
+        print(f"  {wk+1:<2}  {week_start}  |  {len(roster):>5}  "
+              f"{len(terminated):>4}  {len(set(p['driver_id'] for p in pto)):>3}  "
+              f"{len(avail_changed):>9}  "
+              f"|  {len(shifts):>5}  {len(assigned):>4}/{len(shifts)} ({cov_pct:5.1f}%)  "
+              f"|  {edv_filled:>3}/{edv_total:<3}      "
+              f"|  avg {avg_per:4.2f} max {max_per}  "
+              f"|  {solver_ms or '?':>6}  (wall {wall_ms:.0f})")
+
+        rows.append({
+            "week": wk + 1, "roster": len(roster), "shifts": len(shifts),
+            "assigned": len(assigned), "coverage_pct": cov_pct,
+            "edv_filled": edv_filled, "edv_total": edv_total,
+            "solver_ms": solver_ms or 0, "wall_ms": wall_ms,
+        })
+
+        affinity = affinity_from_assignments(roster, assigned, shifts, prior_affinity=affinity)
 
     print()
     print("  " + "=" * 70)
     total_shifts = sum(r["shifts"] for r in rows)
     total_assigned = sum(r["assigned"] for r in rows)
-    total_elapsed = sum((r["elapsed_ms"] or 0) for r in rows)
-    total_wall = sum(r["wall_ms"] for r in rows)
     avg_cov = sum(r["coverage_pct"] for r in rows) / len(rows)
-    print(f"  TOTAL  {len(rows)} weeks  ·  {total_assigned}/{total_shifts} "
-          f"shifts staffed  ·  {avg_cov:.1f}% avg coverage")
-    print(f"  Solver time total: {total_elapsed/1000:.1f}s  ·  wall total: "
-          f"{total_wall/1000:.1f}s")
-    print(f"  Solver time avg/wk: {total_elapsed/len(rows):.0f} ms  ·  "
-          f"wall avg/wk: {total_wall/len(rows):.0f} ms")
+    print(f"  TOTAL  {len(rows)} weeks  ·  roster {initial_count} → {len(roster)} "
+          f"(–{initial_count - len(roster)}, –{100*(initial_count-len(roster))/initial_count:.0f}%)")
+    print(f"         shifts {total_assigned}/{total_shifts}  ·  avg coverage {avg_cov:.1f}%")
+    total_wall = sum(r["wall_ms"] for r in rows)
+    total_solver = sum(r["solver_ms"] for r in rows)
+    print(f"         solver time total {total_solver/1000:.1f}s  ·  wall total {total_wall/1000:.1f}s")
+    print(f"         avg/wk: solver {total_solver/len(rows):.0f} ms, wall {total_wall/len(rows):.0f} ms")
+    # Coverage trend
+    first_half_cov = sum(r["coverage_pct"] for r in rows[:len(rows)//2]) / max(1, len(rows)//2)
+    second_half_cov = sum(r["coverage_pct"] for r in rows[len(rows)//2:]) / max(1, len(rows) - len(rows)//2)
+    delta = second_half_cov - first_half_cov
+    trend = "stable" if abs(delta) < 1 else ("improving" if delta > 0 else "declining")
+    print(f"         coverage trend: {first_half_cov:.1f}% → {second_half_cov:.1f}% "
+          f"({trend}, {delta:+.1f}pp)")
     print("  " + "=" * 70)
     return 0
 
