@@ -1942,7 +1942,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--rr-fg-secondary);
+  /* All three tabs (Schedule / Intelligence / Print/Download) read
+     in the same brand blue regardless of active state — operator
+     asked for the words to look identical in format + color across
+     tabs. The active state is signaled by the white background +
+     border below, not by a color shift on the label. */
+  color: var(--rr-brand-primary);
   padding: var(--rr-space-60) var(--rr-space-120);
   border: 1px solid transparent;
   border-bottom: 0;
@@ -1954,7 +1959,6 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 #view-schedule.rrx-schedule .sched-v2-cmd-tabs .sched-cmd-tab:hover:not(.active) {
-  color: var(--rr-fg-primary);
   background: var(--rr-bg-hover);
 }
 
