@@ -28752,7 +28752,7 @@ async function autoAssignDriversForWeek() {
   // service_type_id so we can check cert requirements), the active
   // service types (which carry requires_dot / requires_xl), and any
   // approved PTO inside the week.
-  const [driversRes, ptoRes, shiftsRes, svcRes] = await Promise.all([
+  const [driversRes, ptoRes, shiftsRes, svcRes, pairRes] = await Promise.all([
     sb.from("drivers")
       .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified, status")
       .eq("dsp_id", dspId)
@@ -28771,6 +28771,15 @@ async function autoAssignDriversForWeek() {
     sb.from("service_types")
       .select("id, code, label, requires_dot, requires_xl, active")
       .eq("dsp_id", dspId),
+    // Pre-activation orientation trainees — drivers with a training
+    // pairing that hasn't been materialized yet (still proposed or stuck
+    // in needs_repair). These drivers exist with status='onboarding' but
+    // can't actually take regular shifts — Smart Fill used to assign
+    // them and the assignments would silently disappear from the board.
+    sb.from("training_pairings")
+      .select("trainee_id, status")
+      .eq("dsp_id", dspId)
+      .in("status", ["proposed", "needs_repair"]),
   ]);
 
   if (driversRes.error || shiftsRes.error) {
@@ -28778,12 +28787,23 @@ async function autoAssignDriversForWeek() {
     return { assigned: 0, skippedExpired: [] };
   }
 
-  // Only active / onboarding drivers are auto-fill candidates. The
-  // include_onboarding rule (forwarded to the engine) decides whether
-  // onboarding drivers are actually eligible; terminated / inactive
-  // drivers are never auto-scheduled.
-  const drivers = (driversRes.data || []).filter(d =>
-    d.status === "active" || d.status === "onboarding");
+  // Drivers in active orientation can't take regular shifts — exclude
+  // them up front so the engine doesn't try to schedule them.
+  const orientationTrainees = new Set(
+    (pairRes?.data || []).map(p => p.trainee_id).filter(Boolean)
+  );
+
+  // Only active / onboarding drivers are auto-fill candidates, AND
+  // onboarding drivers in active orientation (proposed/needs_repair
+  // pairing) are dropped. The include_onboarding rule (forwarded to the
+  // engine) decides whether the remaining onboarding drivers are
+  // actually eligible; terminated / inactive drivers are never
+  // auto-scheduled.
+  const drivers = (driversRes.data || []).filter(d => {
+    if (d.status !== "active" && d.status !== "onboarding") return false;
+    if (orientationTrainees.has(d.id)) return false;
+    return true;
+  });
   const pto     = ptoRes.data     || [];
   // Map service_type_id → { requires_dot, requires_xl } so we can
   // gate driver eligibility per shift.
