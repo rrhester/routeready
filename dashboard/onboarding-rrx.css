@@ -78,17 +78,26 @@
 
 /* ── Title block ────────────────────────────────────────────── */
 
+/* Operator wants the "Onboarding" header to match the "Schedule"
+   header on the Schedule page exactly (font, weight, color,
+   margins). Schedule uses --rr-font-subtitle (600 20px/28px Segoe
+   UI) for its h1, not --rr-font-title (600 28px/36px) — so the
+   page-title here drops a step. Subtitle stays --rr-font-caption
+   which already matches. Mirrors the rule at
+   schedule-rrx.css:1769–1782. */
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-title {
-  font: var(--rr-font-title);
-  color: var(--rr-fg-primary);
-  margin: 0;
-  letter-spacing: -0.01em;
+  font: var(--rr-font-subtitle) !important;
+  color: var(--rr-fg-primary) !important;
+  margin: 0 !important;
+  letter-spacing: -0.01em !important;
+  white-space: nowrap !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-sub {
-  font: var(--rr-font-caption);
-  color: var(--rr-fg-secondary);
-  margin: 2px 0 0;
+  font: var(--rr-font-caption) !important;
+  color: var(--rr-fg-secondary) !important;
+  margin: 2px 0 0 !important;
+  white-space: nowrap !important;
 }
 
 /* Page-icon badge (the small drivers-with-check SVG to the
