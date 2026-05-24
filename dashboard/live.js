@@ -23139,6 +23139,13 @@ let _schedStart = null;
 async function loadOkamiView() {
   await renderOkamiLive();
   bindOkamiHandlers();
+  // The OKAMI page hosts a mirror of the schedule's quick-settings
+  // popover inputs (Block / Cushion / Report time). Re-populate them
+  // from the per-week scheduling-settings RPC every time the operator
+  // lands on the page so the toolbar reflects the current week-anchor.
+  if (typeof loadSchedulingSettings === "function") {
+    try { loadSchedulingSettings(); } catch (e) { console.warn("OKAMI targets-rules load:", e); }
+  }
 }
 
 // ─── OKAMI · 13-week list (live render + save) ─────────────────────────────
@@ -23927,6 +23934,19 @@ async function loadSchedulingSettings() {
   if (maxDaysEl) maxDaysEl.value = s.max_days_per_week ?? 5;
   if (leadEl)    leadEl.value    = s.report_lead_minutes ?? 0;
 
+  // Mirror the same per-week values into the OKAMI page's embedded
+  // Targets-rules toolbar. Both surfaces read from the same RPC
+  // (scheduling_settings_for_week) and write through the same save
+  // path (_saveScheduleSettings), so the OKAMI page just gets a
+  // second pair of inputs bound to the same backing storage. Skip if
+  // the OKAMI page isn't rendered yet.
+  const okBlockEl = document.getElementById("rr-okami-set-block-hours");
+  const okCushEl  = document.getElementById("rr-okami-set-cushion-pct");
+  const okLeadEl  = document.getElementById("rr-okami-set-report-lead");
+  if (okBlockEl) okBlockEl.value = s.default_block_hours ?? 10;
+  if (okCushEl)  okCushEl.value  = s.cushion_pct ?? 10;
+  if (okLeadEl)  okLeadEl.value  = s.report_lead_minutes ?? 0;
+
   // Read-only attendance rate label next to the cushion field. Operator
   // looks at it and decides their own cushion %. No click handler, no
   // mutation of any other element — kept deliberately minimal after the
@@ -24296,6 +24316,9 @@ document.addEventListener("input", (e) => {
   // rr-set-max-days now lives in the Smart Fill rules popover; the other
   // nav settings stay in the Targets quick-settings popover.
   if (!input.closest("#rr-sched-quick-settings-popover, #rr-sched-smartfill-rules-popover")) return;
+  // Mirror the popover input into the OKAMI page's twin so both
+  // surfaces stay live-in-sync when the operator has them both open.
+  _rrMirrorPopoverToOkami(input.id);
   if (_navSettingsSaveTimer) clearTimeout(_navSettingsSaveTimer);
   _flashNavStatus("Editing…", "var(--text-subtle)");
   _navSettingsSaveTimer = setTimeout(() => {
@@ -24311,9 +24334,96 @@ document.addEventListener("change", (e) => {
   // rr-set-max-days now lives in the Smart Fill rules popover; the other
   // nav settings stay in the Targets quick-settings popover.
   if (!input.closest("#rr-sched-quick-settings-popover, #rr-sched-smartfill-rules-popover")) return;
+  _rrMirrorPopoverToOkami(input.id);
   if (_navSettingsSaveTimer) clearTimeout(_navSettingsSaveTimer);
   _navSettingsSaveTimer = null;
   _navSettingsTriggerSave(input);
+});
+
+// ─── OKAMI page · embedded Targets-rules toolbar ─────────────────
+// The OKAMI page hosts a second copy of the schedule's quick-settings
+// popover inputs (Block / Cushion / Report time) directly under the
+// page title. Same backing storage (scheduling_settings_for_week RPC),
+// same save path (_saveScheduleSettings({ source: "nav" })). The
+// popover stays as a quick-edit shortcut from the schedule view; this
+// is the surfaced version for operators who navigated all the way into
+// route planning. The two-way mirror keeps both DOM trees consistent
+// so a value typed on either surface shows up on the other on next
+// open (and live, if both are visible at once).
+const _RR_OKAMI_SETTINGS_PAIRS = [
+  ["rr-okami-set-block-hours",  "rr-set-block-hours"],
+  ["rr-okami-set-cushion-pct",  "rr-set-cushion-pct"],
+  ["rr-okami-set-report-lead",  "rr-set-report-lead"],
+];
+const _RR_OKAMI_SETTING_IDS = new Set(_RR_OKAMI_SETTINGS_PAIRS.map(p => p[0]));
+const _RR_OKAMI_TO_POPOVER = new Map(_RR_OKAMI_SETTINGS_PAIRS);
+const _RR_POPOVER_TO_OKAMI = new Map(_RR_OKAMI_SETTINGS_PAIRS.map(p => [p[1], p[0]]));
+
+function _rrMirrorPopoverToOkami(popId) {
+  const okId = _RR_POPOVER_TO_OKAMI.get(popId);
+  if (!okId) return;
+  const src = document.getElementById(popId);
+  const dst = document.getElementById(okId);
+  if (src && dst && dst.value !== src.value) dst.value = src.value;
+}
+function _rrMirrorOkamiToPopover(okId) {
+  const popId = _RR_OKAMI_TO_POPOVER.get(okId);
+  if (!popId) return;
+  const src = document.getElementById(okId);
+  const dst = document.getElementById(popId);
+  // The popover input is the canonical read source for
+  // _saveScheduleSettings — keep it authoritative while the operator
+  // is editing the OKAMI-page twin.
+  if (src && dst && dst.value !== src.value) dst.value = src.value;
+}
+
+let _okamiSettingsSaveTimer = null;
+function _flashOkamiTargetsStatus(msg, color) {
+  const el = document.getElementById("rr-okami-targets-rules-status");
+  if (!el) return;
+  el.style.color = color || "var(--text-subtle)";
+  el.textContent = msg;
+}
+async function _okamiSettingsTriggerSave(inputEl) {
+  if (inputEl) inputEl.dataset.rrSaving = "1";
+  _flashOkamiTargetsStatus("Saving…", "var(--text-subtle)");
+  const res = await _saveScheduleSettings({ source: "nav" });
+  if (inputEl) {
+    delete inputEl.dataset.rrSaving;
+    if (res?.ok) {
+      inputEl.dataset.rrSaved = "1";
+      setTimeout(() => { delete inputEl.dataset.rrSaved; }, 1400);
+    } else {
+      inputEl.dataset.rrError = "1";
+      setTimeout(() => { delete inputEl.dataset.rrError; }, 2200);
+    }
+  }
+  if (res?.ok) {
+    _flashOkamiTargetsStatus("Saved", "var(--green)");
+    setTimeout(() => { _flashOkamiTargetsStatus("", ""); }, 1800);
+  } else {
+    _flashOkamiTargetsStatus(res?.error || "Save failed", "var(--red)");
+    setTimeout(() => { _flashOkamiTargetsStatus("", ""); }, 3000);
+  }
+}
+document.addEventListener("input", (e) => {
+  const input = e.target;
+  if (!input || !input.id || !_RR_OKAMI_SETTING_IDS.has(input.id)) return;
+  _rrMirrorOkamiToPopover(input.id);
+  if (_okamiSettingsSaveTimer) clearTimeout(_okamiSettingsSaveTimer);
+  _flashOkamiTargetsStatus("Editing…", "var(--text-subtle)");
+  _okamiSettingsSaveTimer = setTimeout(() => {
+    _okamiSettingsSaveTimer = null;
+    _okamiSettingsTriggerSave(input);
+  }, 800);
+});
+document.addEventListener("change", (e) => {
+  const input = e.target;
+  if (!input || !input.id || !_RR_OKAMI_SETTING_IDS.has(input.id)) return;
+  _rrMirrorOkamiToPopover(input.id);
+  if (_okamiSettingsSaveTimer) clearTimeout(_okamiSettingsSaveTimer);
+  _okamiSettingsSaveTimer = null;
+  _okamiSettingsTriggerSave(input);
 });
 // Escape closes the quick-settings popover.
 document.addEventListener("keydown", (e) => {
@@ -25750,7 +25860,31 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("#rr-sched-okami-open, #rr-sched-okami-open-h")
       && !e.target.closest("#rr-sched-settings-toggle")) {
     e.preventDefault();
-    openOkamiOverlay();
+    // Targets icon now navigates fully to the OKAMI view (same path the
+    // operator would take via the sidebar/goto router) instead of
+    // overlaying OKAMI on top of the schedule. Anchor override keeps
+    // the OKAMI view focused on the schedule's current week, and the
+    // week-0 daily-detail panel auto-expands so the operator lands on
+    // the same content the old overlay surfaced. openOkamiOverlay()
+    // stays on `window` for any caller that still relies on it.
+    if (typeof _schedStart === "string" && _schedStart) {
+      window._rrOkamiAnchorOverride = _schedStart;
+    }
+    if (typeof window.goto === "function") {
+      window.goto("okami");
+    }
+    // goto('okami') triggers loadOkamiView via the view-switch hooks;
+    // wait a beat, then auto-expand week-0's daily-detail panel like
+    // the overlay used to.
+    setTimeout(() => {
+      if (typeof window.okamiToggleDaily !== "function") return;
+      const detail = document.getElementById("okami-detail-0");
+      if (detail && !detail.classList.contains("open")) {
+        window.okamiToggleDaily(0);
+      } else if (typeof window.renderOkamiDailyPanel === "function") {
+        window.renderOkamiDailyPanel(0);
+      }
+    }, 120);
     return;
   }
   if (e.target.id === "rr-okami-backdrop") {
