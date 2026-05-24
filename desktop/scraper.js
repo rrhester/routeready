@@ -364,9 +364,23 @@ async function beginRecording(id) {
   let navError = null;
   try {
     await page.goto(recipe.startUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+    DEPS.logLine("scraper: recorder navigated to", page.url());
   } catch (e) {
     navError = String(e?.message || e);
     DEPS.logLine("scraper: recorder goto failed:", navError);
+  }
+
+  // Belt-and-suspenders: also evaluate the picker on the loaded page.
+  // addInitScript SHOULD have already injected on document creation, but
+  // when the operator reports "page loaded, no pink toolbar," the only
+  // remaining failure mode is the init script didn't take. A second
+  // evaluate() runs against the document we can see, no race. The
+  // picker's own __rr_recorder_active guard makes this idempotent.
+  try {
+    await page.evaluate(buildPickerScript());
+    DEPS.logLine("scraper: recorder picker re-injected via evaluate()");
+  } catch (e) {
+    DEPS.logLine("scraper: re-inject evaluate threw:", String(e?.message || e));
   }
 
   // Race against the page being closed (operator just hit the X).
@@ -595,7 +609,20 @@ function init(deps) {
   });
   ipcMain.handle("scraper:save", async (_e, patch) => saveRecipe(patch));
   ipcMain.handle("scraper:delete", async (_e, { id }) => deleteRecipe(id));
-  ipcMain.handle("scraper:record", async (_e, { id }) => beginRecording(id));
+  ipcMain.handle("scraper:record", async (_e, { id }) => {
+    // Wrap so any uncaught throw from beginRecording (Chromium launch
+    // failure, addInitScript failure, etc.) returns as a structured
+    // result instead of an unhandled IPC rejection — otherwise the
+    // renderer just sees a thrown error with no message in the
+    // activity log and the operator has no idea what went wrong.
+    try {
+      return await beginRecording(id);
+    } catch (e) {
+      const msg = String(e?.message || e);
+      DEPS.logLine("scraper:record threw:", msg, e?.stack || "");
+      return { ok: false, error: "record_threw", message: msg };
+    }
+  });
   ipcMain.handle("scraper:runNow", async (_e, { id }) => {
     if (running.has(id)) return { ok: false, error: "already_running" };
     running.add(id);
