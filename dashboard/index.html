@@ -14356,6 +14356,19 @@ body.rr-cmdk-open{ overflow:hidden }
         </div>
         <a href="#" role="button" class="rr-text-link" id="rr-sched-kpis-toggle" aria-pressed="true" style="display:none">Insights</a>
 
+        <!-- INTELLIGENCE VIEWS · activated when a tile in the
+             Intelligence ribbon is clicked. Each tile's
+             data-rr-intel value matches the suffix of the view's
+             id (e.g. data-rr-intel="risk-forecast" →
+             #rr-intel-view-risk-forecast). When an intel view is
+             visible, the active .sched-subview is hidden and the
+             schedule's KPI strip stays in place (the intel view
+             owns its own header). Click the Schedule tab to
+             restore the normal schedule surfaces. -->
+        <section class="rr-intel-host" id="rr-intel-host" aria-live="polite" hidden>
+          <article class="rr-intel-view" id="rr-intel-view-risk-forecast" data-rr-intel-view="risk-forecast" hidden></article>
+        </section>
+
         <!-- WEEK VIEW SUB-VIEW -->
         <div class="sched-subview active" id="sched-sub-week">
 
@@ -15491,6 +15504,207 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-v2-intel-tile:focus-visible{
             outline:none;background:rgba(15,23,42,.04);color:var(--text);
             box-shadow:0 0 0 2px rgba(15,108,189,.30);
+          }
+          /* Active intel tile · subtle ring + brand color when its
+             view is being shown. Same affordance as the schedule
+             tab's "active" treatment, scaled to the smaller tile. */
+          #view-schedule .sched-v2-intel-tile.is-active{
+            color:var(--sch-blue,#0F6CBD);
+            background:rgba(15,108,189,.08);
+          }
+
+          /* ── Intelligence views · calm Microsoft-style analysis
+             surfaces. Same chrome rules as the schedule's .cal-wrap
+             (white surface, 16-22px radius, hairline border, gentle
+             elevation, no aggressive color). Each view owns its own
+             header + sections; the schedule's KPI strip + ribbon
+             stay above. */
+          #view-schedule .rr-intel-host{
+            display:block;margin-bottom:var(--s-4);
+          }
+          #view-schedule .rr-intel-view{
+            background:#FFFFFF;
+            border:1px solid rgba(15,23,42,.08);
+            border-radius:16px;
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 10px 28px rgba(15,23,42,.06);
+            overflow:hidden;
+          }
+          #view-schedule .rr-intel-view-head{
+            display:flex;align-items:flex-start;justify-content:space-between;
+            gap:var(--s-3);
+            padding:18px 22px 14px;
+            border-bottom:1px solid rgba(15,23,42,.05);
+          }
+          #view-schedule .rr-intel-view-head-l{flex:1;min-width:0}
+          #view-schedule .rr-intel-view-eyebrow{
+            font-size:10px;font-weight:700;letter-spacing:.08em;
+            text-transform:uppercase;color:var(--text-subtle);
+            margin:0 0 4px;
+          }
+          #view-schedule .rr-intel-view-title{
+            display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+            margin:0;font-size:18px;font-weight:600;color:var(--text);
+            letter-spacing:-.01em;line-height:1.2;
+          }
+          #view-schedule .rr-intel-view-sub{
+            margin:4px 0 0;font-size:var(--fs-sm);color:var(--text-muted);
+            line-height:1.5;max-width:64ch;
+          }
+          #view-schedule .rr-intel-headline-pill{
+            display:inline-flex;align-items:center;gap:6px;
+            font-size:11px;font-weight:600;letter-spacing:.02em;
+            padding:3px 9px;border-radius:var(--r-pill,999px);
+            border:1px solid transparent;
+          }
+          #view-schedule .rr-intel-headline-pill .dot{
+            width:6px;height:6px;border-radius:50%;flex-shrink:0;
+          }
+          #view-schedule .rr-intel-headline-pill.ok{
+            background:rgba(16,124,65,.10);color:#15803d;border-color:rgba(16,124,65,.18);
+          }
+          #view-schedule .rr-intel-headline-pill.ok .dot{background:#22A26F}
+          #view-schedule .rr-intel-headline-pill.tight{
+            background:rgba(245,158,11,.10);color:#B45309;border-color:rgba(245,158,11,.20);
+          }
+          #view-schedule .rr-intel-headline-pill.tight .dot{background:#D97706}
+          #view-schedule .rr-intel-headline-pill.risk{
+            background:rgba(196,43,28,.08);color:#B91C1C;border-color:rgba(196,43,28,.18);
+          }
+          #view-schedule .rr-intel-headline-pill.risk .dot{background:#C42B1C}
+          #view-schedule .rr-intel-view-close{
+            appearance:none;background:transparent;border:0;cursor:pointer;
+            padding:6px;margin:-6px;border-radius:6px;
+            color:var(--text-muted);line-height:0;
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-schedule .rr-intel-view-close:hover{
+            background:rgba(15,23,42,.06);color:var(--text);
+          }
+          #view-schedule .rr-intel-view-close svg{width:16px;height:16px;stroke-width:2}
+
+          /* KPI strip · same shape as the schedule's KPI pills so the
+             two read as one product. Four pills, hairline dividers. */
+          #view-schedule .rr-intel-kpis{
+            display:grid;grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));
+            border-bottom:1px solid rgba(15,23,42,.05);
+          }
+          #view-schedule .rr-intel-kpi{
+            display:flex;flex-direction:column;gap:2px;
+            padding:14px 22px;
+            border-left:1px solid rgba(15,23,42,.05);
+            min-width:0;
+          }
+          #view-schedule .rr-intel-kpi:first-child{border-left:0}
+          #view-schedule .rr-intel-kpi-label{
+            font-size:10px;font-weight:600;letter-spacing:.06em;
+            text-transform:uppercase;color:var(--text-subtle);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-schedule .rr-intel-kpi-val{
+            font-size:20px;font-weight:600;color:var(--text);
+            font-variant-numeric:tabular-nums;line-height:1.2;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-schedule .rr-intel-kpi-sub{
+            font-size:var(--fs-xs);color:var(--text-subtle);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-schedule .rr-intel-kpi-val.is-warn{color:#B45309}
+          #view-schedule .rr-intel-kpi-val.is-risk{color:#B91C1C}
+
+          /* 13-week risk strip · one bar per week, color-coded by
+             severity, with the week label below. Hovering surfaces a
+             tooltip-style readout in the strip footer. */
+          #view-schedule .rr-intel-strip-section{
+            padding:18px 22px;border-bottom:1px solid rgba(15,23,42,.05);
+          }
+          #view-schedule .rr-intel-section-head{
+            display:flex;align-items:baseline;justify-content:space-between;
+            gap:var(--s-3);margin:0 0 10px;
+          }
+          #view-schedule .rr-intel-section-title{
+            margin:0;font-size:var(--fs-sm);font-weight:600;color:var(--text);
+            letter-spacing:.01em;
+          }
+          #view-schedule .rr-intel-section-aside{
+            font-size:var(--fs-xs);color:var(--text-subtle);
+          }
+          #view-schedule .rr-intel-strip{
+            display:grid;grid-auto-flow:column;grid-auto-columns:minmax(34px, 1fr);
+            gap:6px;align-items:end;
+          }
+          #view-schedule .rr-intel-strip-bar{
+            display:flex;flex-direction:column;align-items:center;gap:6px;
+            cursor:default;
+          }
+          #view-schedule .rr-intel-strip-fill{
+            width:100%;border-radius:4px;min-height:14px;
+            transition:filter var(--t-fast);
+          }
+          #view-schedule .rr-intel-strip-bar:hover .rr-intel-strip-fill{filter:brightness(.93)}
+          #view-schedule .rr-intel-strip-fill.ok   {background:rgba(34,162,111,.28); border:1px solid rgba(34,162,111,.45)}
+          #view-schedule .rr-intel-strip-fill.tight{background:rgba(217,119,6,.28);  border:1px solid rgba(217,119,6,.45)}
+          #view-schedule .rr-intel-strip-fill.risk {background:rgba(196,43,28,.24);  border:1px solid rgba(196,43,28,.45)}
+          #view-schedule .rr-intel-strip-label{
+            font-size:10px;font-weight:600;color:var(--text-muted);
+            font-variant-numeric:tabular-nums;
+          }
+          #view-schedule .rr-intel-strip-bar.is-current .rr-intel-strip-label{
+            color:var(--sch-blue,#0F6CBD);
+          }
+
+          /* "Next break" detail card · the headline narrative. Two
+             columns on wide screens (left: situation; right: facts),
+             stacks below 720px. */
+          #view-schedule .rr-intel-detail{
+            padding:18px 22px;border-bottom:1px solid rgba(15,23,42,.05);
+            display:grid;grid-template-columns:1fr 280px;gap:24px;
+            align-items:start;
+          }
+          @media (max-width:760px){
+            #view-schedule .rr-intel-detail{grid-template-columns:1fr}
+          }
+          #view-schedule .rr-intel-detail-narrative{
+            font-size:var(--fs-md);color:var(--text);line-height:1.6;
+            max-width:62ch;
+          }
+          #view-schedule .rr-intel-detail-narrative strong{
+            color:var(--text);font-weight:600;
+          }
+          #view-schedule .rr-intel-detail-facts{
+            background:var(--canvas,#F8F9FB);
+            border:1px solid rgba(15,23,42,.06);
+            border-radius:10px;padding:14px 16px;
+            display:flex;flex-direction:column;gap:10px;
+          }
+          #view-schedule .rr-intel-detail-fact{
+            display:flex;justify-content:space-between;align-items:baseline;
+            font-size:var(--fs-sm);color:var(--text);gap:10px;
+          }
+          #view-schedule .rr-intel-detail-fact > span:first-child{
+            color:var(--text-subtle);font-size:var(--fs-xs);font-weight:600;
+            letter-spacing:.04em;text-transform:uppercase;
+          }
+          #view-schedule .rr-intel-detail-fact > span:last-child{
+            font-weight:600;font-variant-numeric:tabular-nums;text-align:right;
+          }
+
+          /* Footer · quiet reassurance + "What this looks at" link. */
+          #view-schedule .rr-intel-foot{
+            padding:14px 22px;
+            display:flex;align-items:center;justify-content:space-between;
+            gap:var(--s-3);flex-wrap:wrap;
+            font-size:var(--fs-xs);color:var(--text-subtle);
+          }
+          #view-schedule .rr-intel-foot-bullet{
+            display:inline-flex;align-items:center;gap:6px;
+          }
+          #view-schedule .rr-intel-foot-bullet .dot{
+            width:5px;height:5px;border-radius:50%;background:#22A26F;
+          }
+          #view-schedule .rr-intel-empty{
+            padding:32px 22px;text-align:center;color:var(--text-subtle);
+            font-size:var(--fs-sm);
           }
           /* ── Print · schedule grid only ─────────────────────────────
              The print button sets html.rr-printing, clones the week
