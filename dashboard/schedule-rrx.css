@@ -2335,10 +2335,19 @@ body.rr-sched-focus #view-schedule.rrx-schedule .pool-openshifts-body {
 /* ── Compact rows · much shorter rectangles ───────────────────
    Aggressive height reduction so the operator can see many more
    drivers on screen at once. Cells become slim rectangles and
-   shift chips compress to a single line. */
-body.rr-sched-compact #view-schedule.rrx-schedule .cal-cell {
-  padding: 3px 6px !important;
+   shift chips compress to a single line.
+
+   Same aspect-ratio:auto override as Ultra-compact — the base
+   `.cal-cell:not(.cal-row-label) { aspect-ratio: 1/1 !important }`
+   would otherwise keep the cell square at its column width and
+   `min-height` would do nothing visible. That was the original bug
+   in the Compact mode (the operator reported "Compact didn't change
+   anything"). */
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-cell:not(.cal-row-label) {
+  aspect-ratio: auto !important;
   min-height: 34px !important;
+  height: 34px !important;
+  padding: 3px 6px !important;
 }
 body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label {
   padding-top: 3px !important;
@@ -2417,17 +2426,40 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip {
   min-height: 0 !important;
   border-radius: 3px !important;
 }
-body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-route {
-  font-size: 10px !important;
-  line-height: 1 !important;
-  font-weight: 600 !important;
-}
-body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-time {
-  /* Time pill gets hidden in ultra-compact — the route code alone
-     fits in 24px row; time would push the chip past it. Operator
-     can hover for the tooltip with full times. */
+/* Ultra-compact intent: show ONLY wave times. Hide everything else
+   inside a chip — route codes, secondary lines, eyebrows, badges —
+   so a 24px row reads as a clean horizontal strip of times.
+   Operator can hover for the tooltip with the full chip detail. */
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-route,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-route-code,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-secondary,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-rpt,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-van-tag,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip .badge-st,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip .badge-trainee {
   display: none !important;
 }
+/* The remaining time elements (.shift-chip-time legacy + the
+   start/end range in .shift-chip-primary + .shift-chip-wave on
+   today view) collapse to a single readable line. */
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-time,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-primary,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-wave {
+  display: inline-block !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* Hide the birthday / anniversary milestone banner rows entirely
+   in ultra-compact — they're decorative recognition surfaces that
+   compete with the operator's bird's-eye planning view at this
+   density. They reappear on Standard / Compact. */
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-milestone {
+  display: none !important;
+}
+
 /* Day-coverage pill in the header row also tightens up so the
    thead doesn't tower over the body rows at this density. */
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-coverage {

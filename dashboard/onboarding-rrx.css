@@ -893,7 +893,7 @@
   position: sticky !important;
   top: 0 !important;
   z-index: 3 !important;
-  background: var(--rr-bg-surface-2, #EAEDF0) !important;
+  background: #EAEDF0 !important;
   color: var(--rr-fg-secondary, #605E5C) !important;
   font-family: var(--rr-font-family) !important;
   font-weight: 600 !important;
@@ -911,7 +911,7 @@
   top: 0 !important;
   left: 0 !important;
   z-index: 4 !important;
-  background: var(--rr-bg-surface-2, #EAEDF0) !important;
+  background: #EAEDF0 !important;
   box-shadow:
     1px 0 0 var(--rr-border-secondary, #E1DFDD),
     0 1px 0 var(--rr-border-secondary, #E1DFDD),
