@@ -27,7 +27,7 @@
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
-<link rel="stylesheet" href="onboarding-rrx.css?v=20">
+<link rel="stylesheet" href="onboarding-rrx.css?v=21">
 <style>
 /* ─────────────────────────────────────────────────────────────
    DESIGN TOKENS
@@ -11092,10 +11092,11 @@ body.rr-cmdk-open{ overflow:hidden }
         #view-onboarding-ops .sched-nav-heading .subnav-item::after{display:none}
         #view-onboarding-ops .sched-nav-heading .subnav-item span{white-space:nowrap}
         #view-onboarding-ops .sched-nav-heading .subnav-item svg{
-          /* Matches Schedule strip icon size exactly — Schedule uses
-             20×20 via the inline rule at index.html:16800 (the
-             28×28 in schedule-rrx.css is overridden by it). */
-          width:20px;height:20px;flex-shrink:0;
+          /* Matches Schedule strip icon size exactly. Schedule's
+             actual rendered icon size is 28×28 — the more-specific
+             rule at index.html:16775 overrides the 20×20 rule at
+             :16809. */
+          width:28px;height:28px;flex-shrink:0;
           color:var(--text-subtle);stroke-width:1.6;
           transition:color var(--t-fast);
         }
@@ -11112,7 +11113,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-onboarding-ops .sched-nav-heading .subnav-item{
             font-size:11px;padding:5px 8px 16px;min-width:56px;
           }
-          #view-onboarding-ops .sched-nav-heading .subnav-item svg{width:18px;height:18px}
+          #view-onboarding-ops .sched-nav-heading .subnav-item svg{width:24px;height:24px}
         }
 
         /* Onboarding tab wrapper — the icon tile, its Rules footer
