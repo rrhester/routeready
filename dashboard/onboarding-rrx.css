@@ -604,20 +604,16 @@
   color: var(--rr-brand-primary);
 }
 
-/* When the Print tab is active, hide the ribbon icons and show
-   the print button instead (the print button overlays at the
-   strip's left edge, matching the Schedule pattern). */
-#view-onboarding-ops.rrx-onboarding .ob-cmd-shell.is-print .sched-nav-heading-actions {
-  visibility: hidden !important;
-}
-
+/* When the Print tab is active, just show the print buttons
+   inline below the strip — operator caught the previous behavior
+   of an absolute-positioned blue print button overlaying the
+   top-left corner and said it shouldn't happen. Keep the ribbon
+   icons visible so the operator can still navigate. */
 #view-onboarding-ops.rrx-onboarding .ob-print-actions {
-  position: absolute;
-  left: var(--rr-space-200);
-  top: var(--rr-space-200);
   display: inline-flex;
   align-items: center;
-  z-index: 2;
+  gap: var(--rr-space-80);
+  margin-top: var(--rr-space-80);
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-cmd-shell:not(.is-print) ~ .ob-print-actions {
