@@ -2373,6 +2373,68 @@ body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-time {
   line-height: 1.05 !important;
 }
 
+/* ── Ultra-compact rows · slimmest rectangles ─────────────────
+   Operator-picked density. Goes a step further than rr-sched-compact:
+   24px row height, no avatar (just initials), single-line chips
+   with abbreviated time. Trades chip detail for ~2× the drivers
+   visible per screen — for planning-week overview, not daily
+   dispatch.
+
+   aspect-ratio override has to win against the base
+   `.cal-cell:not(.cal-row-label) { aspect-ratio: 1/1 !important }`
+   so we explicitly set `aspect-ratio: auto`. Without that the cell
+   wants to stay square and the min-height has no effect. */
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell:not(.cal-row-label) {
+  aspect-ratio: auto !important;
+  min-height: 24px !important;
+  height: 24px !important;
+  padding: 1px 4px !important;
+}
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label {
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+  min-height: 24px !important;
+  height: 24px !important;
+}
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
+  width: 18px !important;
+  height: 18px !important;
+  font-size: 8.5px !important;
+}
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label-name {
+  font-size: 11px !important;
+  line-height: 1.05 !important;
+  font-weight: 600 !important;
+}
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label-meta {
+  /* Hide the secondary meta line entirely at this density — the
+     row is too short for a two-line label to read. */
+  display: none !important;
+}
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip {
+  padding: 1px 4px !important;
+  line-height: 1 !important;
+  min-height: 0 !important;
+  border-radius: 3px !important;
+}
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-route {
+  font-size: 10px !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+}
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-time {
+  /* Time pill gets hidden in ultra-compact — the route code alone
+     fits in 24px row; time would push the chip past it. Operator
+     can hover for the tooltip with full times. */
+  display: none !important;
+}
+/* Day-coverage pill in the header row also tightens up so the
+   thead doesn't tower over the body rows at this density. */
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-coverage {
+  font-size: 9.5px !important;
+  padding: 1px 5px !important;
+}
+
 /* ── Header shade · very subtle, just a step darker than canvas
    Canvas is #EEF1F5. Bump to #EAEDF0 — a true gray that's only
    one or two shades darker, with no blue cast. Driver header cell
