@@ -29972,6 +29972,14 @@ async function renderScheduleWeek() {
     needed: totalNeeded,
     weekStart: _schedStart,
   };
+  // Stash the strip's Preferred metrics too so the Improve
+  // Preferred drill-down can match — same pattern as the
+  // _rrLiveSchedCoverage stash above. Operator caught a
+  // discrepancy where the strip showed "61% Preferred · 22/36"
+  // but the drill-down said "Currently 57% preferred" because
+  // the drill-down was rebuilding from an engine dry-run that
+  // counts onboarding-driver assignments. Populated AFTER the
+  // pref totals are computed at line ~30111.
 
   // Virtual open shifts: for each (date, station), needed − filled minus
   // any real unassigned shift rows already in the DB. Filled here only
@@ -30116,6 +30124,18 @@ async function renderScheduleWeek() {
     prefDenom += 1;
     if (pset.has(_dowKey(sh.date))) prefHonored += 1;
   }
+  // Stash the strip's preferred metrics so the Improve Preferred
+  // drill-down's baseline reads the same numbers the operator
+  // sees on the strip — fixes the discrepancy where the strip
+  // said "61% Preferred · 22/36" while the drill-down said
+  // "Currently 57% preferred". Same pattern + scope as
+  // _rrLiveSchedCoverage above.
+  window._rrLiveSchedPreferred = {
+    pct: prefDenom > 0 ? Math.round(prefHonored / prefDenom * 100) : null,
+    honored: prefHonored,
+    denom: prefDenom,
+    weekStart: _schedStart,
+  };
   // Driver Affinity %: across this week's assigned shifts, the average
   // affinity each driver has for the weekday they were given — measured
   // over the DSP's rolling period.
@@ -31232,12 +31252,35 @@ function bindSchedWeekNav() {
           const denom = (sm.total_shifts || 0) - (sm.closed_shifts || 0);
           return denom > 0 ? Math.round((sm.filled_shifts / denom) * 100) : null;
         };
+        // Baselines come from the live KPI strip (operator-visible
+        // truth), not the engine dry-run — same pattern + same
+        // reason as the Improve Coverage drill-down. The strip
+        // counts only ACTIVE-driver assignments in its
+        // honored/denom totals; the engine's _prefPctOf includes
+        // onboarding-driver assignments and reads a different
+        // numerator, so the two drifted apart (strip 61% · drill-
+        // down 57% in the operator's screenshot).
         let baseline = null, baseCov = null;
-        try {
-          const baseRes = planScheduleWeek({ ...payload, rules: { ...payload.rules } });
-          baseline = _prefPctOf(baseRes, payload);
-          baseCov = _covPctOf(baseRes);
-        } catch (err) { console.warn("pref baseline dry-run:", err); }
+        const livePref = window._rrLiveSchedPreferred;
+        const liveCov  = window._rrLiveSchedCoverage;
+        if (livePref && livePref.weekStart === payload.schedule_week_start) {
+          baseline = livePref.pct;
+        }
+        if (liveCov && liveCov.weekStart === payload.schedule_week_start) {
+          baseCov = liveCov.pct;
+        }
+        // Fallback to engine dry-run only if either strip stash is
+        // missing (e.g. drill-down opened before renderScheduleWeek
+        // finished). The engine is still used for the
+        // PROJECTIONS — those have to come from a dry-run because
+        // the strip can't predict what a rule change would do.
+        if (baseline == null || baseCov == null) {
+          try {
+            const baseRes = planScheduleWeek({ ...payload, rules: { ...payload.rules } });
+            if (baseline == null) baseline = _prefPctOf(baseRes, payload);
+            if (baseCov == null) baseCov = _covPctOf(baseRes);
+          } catch (err) { console.warn("pref baseline dry-run:", err); }
+        }
         const recs = [];
         for (const cand of _prefCandidates(payload.rules || {})) {
           let res = null;
