@@ -99,5 +99,16 @@ verify_jwt = false
 [functions.webhook-email-inbound]
 verify_jwt = false
 
+# Workforce Optimization Engine functions. Both do their own JWT check
+# internally (auth.getUser + app_users role gate); gateway verify_jwt
+# must stay off so the browser CORS preflight gets a 2xx response. With
+# verify_jwt = true the gateway 401s the OPTIONS request and the
+# browser blocks the POST with a CORS error.
+[functions.dispatch-optimization-run]
+verify_jwt = false
+
+[functions.explain-optimization-run]
+verify_jwt = false
+
 [analytics]
 enabled = false
