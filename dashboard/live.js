@@ -28905,6 +28905,126 @@ function _rrShowSmartFillDetails(text) {
   setTimeout(() => { ta.focus(); ta.select(); }, 0);
 }
 
+// ─── Optimization audit helpers (Workforce Optimization Engine · Step 2) ───
+// Best-effort wiring: every Smart Fill run is captured into the
+// optimization_runs / optimization_decisions tables created in
+// migration 0324. Audit calls are wrapped in try/catch — a write
+// failure never blocks the operator's Smart Fill.
+
+// Stable SHA-256 over a canonical JSON snapshot of the engine inputs.
+// Used as input_hash for idempotency + result caching.
+async function _rrOptHashInput(sfPayload) {
+  try {
+    // Pick a deterministic subset: anything that, if changed, should
+    // invalidate the result. Driver/shift IDs sort-canonical; rules + max
+    // serialized with sorted keys.
+    const sortedKeys = (obj) => {
+      if (obj === null || typeof obj !== "object" || Array.isArray(obj)) return obj;
+      return Object.keys(obj).sort().reduce((acc, k) => { acc[k] = sortedKeys(obj[k]); return acc; }, {});
+    };
+    const snap = {
+      week_start: sfPayload.schedule_week_start,
+      max_days: sfPayload.max_days,
+      weekly_hour_cap: sfPayload.weekly_hour_cap,
+      rules: sortedKeys(sfPayload.rules || {}),
+      drivers: (sfPayload.drivers || []).map(d => ({
+        id: d.id,
+        available_dows: d.available_dows,
+        preferred_dows: d.preferred_dows,
+        dl_expires_on: d.dl_expires_on,
+        dot_certified: d.dot_certified,
+        xl_certified:  d.xl_certified,
+        edv_certified: d.edv_certified,
+        fifth_day_ok:  d.fifth_day_ok,
+        final_corrective_action: d.final_corrective_action,
+      })).sort((a, b) => (a.id < b.id ? -1 : 1)),
+      shifts: (sfPayload.shifts || []).map(s => ({
+        id: s.id, date: s.date, route_type: s.route_type,
+        is_locked: s.is_locked, assigned_driver_id: s.assigned_driver_id,
+      })).sort((a, b) => (a.id < b.id ? -1 : 1)),
+      pto: (sfPayload.pto || []).slice().sort((a, b) =>
+        (a.driver_id + a.date).localeCompare(b.driver_id + b.date)),
+    };
+    const txt = JSON.stringify(snap);
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(txt));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  } catch (e) {
+    console.warn("_rrOptHashInput failed:", e);
+    return "hash-unavailable-" + Date.now();
+  }
+}
+
+// Map a `result.assigned_shifts[i].source` to the decisions.decision enum.
+const _RR_OPT_SOURCE_DECISION = {
+  auto_fill:    "assigned",
+  swap:         "swap",
+  pattern_pass: "pattern_pass",
+  fifth_day:    "fifth_day",
+  locked:       "locked",
+  preserved:    "preserved",
+};
+function _rrOptSourceToDecision(src) {
+  return _RR_OPT_SOURCE_DECISION[src] || "assigned";
+}
+
+// Build the decisions[] payload for record_optimization_result from the
+// heuristic engine's output. One row per shift the engine touched.
+function _rrOptBuildDecisions(result, engineShifts) {
+  const decisions = [];
+  // Assignments + locked/preserved rows.
+  for (const a of (result.assigned_shifts || [])) {
+    decisions.push({
+      shift_id: a.shift_id,
+      driver_id: a.driver_id,
+      decision: _rrOptSourceToDecision(a.source),
+      total_score: a.total_score ?? null,
+      score_components: a.score_components || null,
+      binding_constraints: [],
+      alternatives: null,
+      reason_code: a.source || null,
+      reason_message: a.summary || null,
+    });
+  }
+  // Uncovered shifts the engine couldn't fill.
+  for (const u of (result.uncovered_shifts || [])) {
+    decisions.push({
+      shift_id: u.shift_id,
+      driver_id: null,
+      decision: "uncovered",
+      total_score: null,
+      score_components: null,
+      binding_constraints: (u.top_block_reasons || []).map(r => r.rule),
+      alternatives: null,
+      reason_code: "uncovered",
+      reason_message: u.summary || null,
+    });
+  }
+  return decisions;
+}
+
+// Compute compact metrics for the run. Powers the run-detail drawer
+// later; for now just stored alongside the result.
+function _rrOptBuildMetrics(result, engineShifts, writeStats) {
+  const openShifts = (engineShifts || []).filter(s => !s.is_locked).length;
+  const assigned = (result.assigned_shifts || [])
+    .filter(a => a.source !== "locked" && a.source !== "preserved").length;
+  const uncovered = (result.uncovered_shifts || []).length;
+  const unscheduled = (result.unscheduled_drivers || []).length;
+  const totalShifts = openShifts + (engineShifts || []).filter(s => s.is_locked).length;
+  return {
+    coverage_pct: totalShifts > 0
+      ? Math.round((((engineShifts || []).filter(s => s.is_locked).length + assigned) / totalShifts) * 10000) / 100
+      : null,
+    total_shifts: totalShifts,
+    open_shifts: openShifts,
+    assigned,
+    uncovered,
+    unscheduled_drivers: unscheduled,
+    failed_writes: writeStats?.failed ?? 0,
+    write_error: writeStats?.firstError || null,
+  };
+}
+
 // Auto-assign drivers to open shifts in the current week based on each
 // driver's metadata.availability.days (mon/tue/wed/...). Skips drivers who
 // are on approved PTO that day or already have a shift on that date.
@@ -29302,10 +29422,44 @@ async function autoAssignDriversForWeek() {
     // so the drill-downs work across page reloads, not just in-session.
     window._rrLastSmartFillPayload = sfPayload;
     try { localStorage.setItem("rr-sf-payload:" + _schedStart, JSON.stringify(sfPayload)); } catch (_) {}
+    // Audit: enqueue this run before the engine fires. Best-effort —
+    // wrapped so an audit failure never blocks Smart Fill.
+    try {
+      const inputHash = await _rrOptHashInput(sfPayload);
+      const { data: runId, error: enqErr } = await sb.rpc("enqueue_optimization_run", {
+        p_week_start:     _schedStart,
+        p_trigger_kind:   "manual",
+        p_input_hash:     inputHash,
+        p_solver_version: "heuristic-v1",
+        p_time_budget_ms: 8000,
+        p_solver_seed:    0,
+        p_payload:        sfPayload,
+      });
+      if (enqErr) {
+        console.warn("enqueue_optimization_run failed:", enqErr);
+      } else {
+        window._rrLastOptimizationRunId = runId;
+      }
+    } catch (e) { console.warn("optimization audit · enqueue:", e); }
     result = planScheduleWeek(sfPayload);
   } catch (e) {
     console.warn("scheduling engine failed:", e);
     toast("Auto-fill failed: " + ((e && e.message) || "engine error"), "warn");
+    // Audit: mark the enqueued run as 'error' so the audit log stays
+    // consistent. Best-effort.
+    try {
+      const runId = window._rrLastOptimizationRunId;
+      if (runId) {
+        await sb.rpc("record_optimization_result", {
+          p_run_id:    runId,
+          p_status:    "error",
+          p_result:    null,
+          p_metrics:   null,
+          p_decisions: [],
+          p_error:     (e && e.message) || "engine error",
+        });
+      }
+    } catch (_) { /* audit failure → swallow */ }
     return { assigned: 0, diagnostics: null };
   }
 
@@ -29459,6 +29613,25 @@ async function autoAssignDriversForWeek() {
       return `${name} [avail: ${avail}] — ${reason}`;
     }),
   };
+  // Audit: record the final result. Best-effort — wrapped so an audit
+  // failure never disrupts the operator's flow. Decision rows + metrics
+  // make this run fully queryable post-hoc.
+  try {
+    const runId = window._rrLastOptimizationRunId;
+    if (runId) {
+      const decisions = _rrOptBuildDecisions(result, engineShifts);
+      const metrics   = _rrOptBuildMetrics(result, engineShifts, wr);
+      const { error: recErr } = await sb.rpc("record_optimization_result", {
+        p_run_id:    runId,
+        p_status:    "ok",
+        p_result:    result,
+        p_metrics:   metrics,
+        p_decisions: decisions,
+        p_error:     null,
+      });
+      if (recErr) console.warn("record_optimization_result failed:", recErr);
+    }
+  } catch (e) { console.warn("optimization audit · record:", e); }
   return { assigned, diagnostics };
 }
 
