@@ -25234,6 +25234,16 @@ function _toggleSchedSmartFillRules(force) {
 }
 window._rrToggleSchedSmartFillRules = _toggleSchedSmartFillRules;
 
+// Refresh derived rule visibility (incl. the standalone Assign Vans
+// button) on initial load, not just when the popover is opened — the
+// engine-hides-vans logic needs to fire before the operator even
+// touches the rules card.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => _refreshSfAdvancedGating(), { once: true });
+} else {
+  _refreshSfAdvancedGating();
+}
+
 // ── Van assignment rules · same pattern as Smart Fill rules ──
 // Operator toggles which parts of the van auto-assign logic to
 // apply on the next run. State persists in localStorage; the
