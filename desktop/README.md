@@ -144,18 +144,32 @@ chmod +x RouteReady\ Desktop-*.AppImage
   the app navigates with the saved session and saves the file. Works on
   any benign target for shake-down before pointing it at Amazon.
 - Per-download history (last 20) with "show in folder" reveal.
+- **Scheduled downloads** — named jobs (URL + optional click selector +
+  save folder + interval) fire on their own, unattended, reusing the
+  saved portal session in a headless browser. Indeed Applicants CSV is
+  seeded as a disabled job on first run — point the click selector at
+  Indeed's Export button, set an interval, flip it on. Jobs skip silently
+  while no portal session is saved; loop resumes after sign-in.
+- **Record-and-replay scrapers** (`scraper.js`) — when a portal has no
+  usable Export button (Indeed gates CSV export behind paid plans), the
+  app can scrape the candidate list DOM instead. Operator hits **Record**
+  → a headed Chromium opens with a pink toolbar overlay → walks them
+  through clicking the elements to scrape (row, name, email, phone,
+  reveal buttons, close panel) → the resulting CSS selectors save as a
+  recipe JSON file in `<userData>/recipes/`. Scheduled runs replay the
+  recipe headlessly, walking each row, clicking reveal buttons,
+  scraping into a deduped CSV. **When the portal changes layout the
+  operator hits Re-record — no app reinstall, no waiting on a build.**
+  Seeded with an empty `Indeed — New applicants` recipe on first run.
 
 ## What's next
 
-- **Pre-baked Amazon report shortcuts** — replace the freeform URL with a
-  picker of named reports (Route Plan, Driver Performance, Cycle 1 pick
-  sheets…) each carrying its own URL + selector.
+- **Pre-baked Amazon report shortcuts** — same scheduler infra, named
+  report presets (Route Plan, Driver Performance, Cycle 1 pick sheets…).
 - **Driver assignment write-back** — POST RouteReady's planned assignments
   to MIDWAY.
 - **Supabase upload** — ship the downloaded report into RouteReady storage
   + parse rows into Postgres.
-- **Scheduled background sync** — `node-cron` style scheduler in the main
-  process, configurable from settings.
 - **Supabase auth** — link the Electron client to a RouteReady DSP account
   via magic-link or device code flow.
 - **Auto-update** — `electron-updater` + a release pipeline (probably

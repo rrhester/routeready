@@ -37,4 +37,42 @@ contextBridge.exposeInMainWorld("rr", {
     /** Recent download history (up to 20 entries). */
     listHistory: () => ipcRenderer.invoke("reports:listHistory"),
   },
+  scraper: {
+    /** List every recipe stored on disk. */
+    list: () => ipcRenderer.invoke("scraper:list"),
+    /** Read a single recipe (with selectors). */
+    get: (id) => ipcRenderer.invoke("scraper:get", { id }),
+    /** Upsert a recipe (name / startUrl / interval / enabled / downloadDir / selectors). */
+    save: (patch) => ipcRenderer.invoke("scraper:save", patch),
+    /** Delete a recipe and its seen-set. */
+    delete: (id) => ipcRenderer.invoke("scraper:delete", { id }),
+    /** Launch the headed recorder; resolves once the operator finishes or cancels. */
+    record: (id) => ipcRenderer.invoke("scraper:record", { id }),
+    /** Fire the recipe now (headless), regardless of schedule. */
+    runNow: (id) => ipcRenderer.invoke("scraper:runNow", { id }),
+    /** Wipe the dedupe set so the next run re-emits everything visible. */
+    resetSeen: (id) => ipcRenderer.invoke("scraper:resetSeen", { id }),
+    /** Subscribe to recipe-updated events from the main process. */
+    onRecipeUpdated: (cb) => {
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on("scraper:recipeUpdated", handler);
+      return () => ipcRenderer.removeListener("scraper:recipeUpdated", handler);
+    },
+  },
+  scheduler: {
+    /** List all scheduled download jobs. */
+    list: () => ipcRenderer.invoke("scheduler:list"),
+    /** Upsert a job (omit id to create, include id to update). */
+    saveJob: (job) => ipcRenderer.invoke("scheduler:saveJob", job),
+    /** Delete a job by id. */
+    deleteJob: (id) => ipcRenderer.invoke("scheduler:deleteJob", { id }),
+    /** Fire a job immediately, regardless of its nextRunAt. */
+    runNow: (id) => ipcRenderer.invoke("scheduler:runNow", { id }),
+    /** Subscribe to job-updated events from the main process. */
+    onJobUpdated: (cb) => {
+      const handler = (_evt, payload) => cb(payload);
+      ipcRenderer.on("scheduler:jobUpdated", handler);
+      return () => ipcRenderer.removeListener("scheduler:jobUpdated", handler);
+    },
+  },
 });

@@ -236,8 +236,439 @@ els.download.addEventListener("click", async () => {
   }
 });
 
+// ─── Scheduled downloads ────────────────────────────────────────────
+
+const schedEls = {
+  list: $("#sched-list"),
+  addBtn: $("#btn-job-add"),
+  editor: $("#job-editor"),
+  title: $("#job-editor-title"),
+  name: $("#job-name"),
+  url: $("#job-url"),
+  selector: $("#job-selector"),
+  dir: $("#job-dir"),
+  pickDir: $("#btn-job-pick-dir"),
+  clearDir: $("#btn-job-clear-dir"),
+  interval: $("#job-interval"),
+  enabled: $("#job-enabled"),
+  save: $("#btn-job-save"),
+  cancel: $("#btn-job-cancel"),
+};
+
+// id of the job currently being edited; null when adding a new one.
+let editingJobId = null;
+
+function relTime(iso) {
+  if (!iso) return "—";
+  const t = new Date(iso).getTime();
+  const diff = t - Date.now();
+  const abs = Math.abs(diff);
+  const mins = Math.round(abs / 60000);
+  if (mins < 1) return diff < 0 ? "just now" : "in <1 min";
+  if (mins < 60) return diff < 0 ? `${mins} min ago` : `in ${mins} min`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 48) return diff < 0 ? `${hrs} hr ago` : `in ${hrs} hr`;
+  const days = Math.round(hrs / 24);
+  return diff < 0 ? `${days} d ago` : `in ${days} d`;
+}
+
+function jobStatusPill(job) {
+  if (!job.enabled) return `<span class="pill pill-off">Paused</span>`;
+  if (job.lastResult === "error") return `<span class="pill pill-err">Last run failed</span>`;
+  if (job.lastResult === "ok") return `<span class="pill pill-ok">Last run ok</span>`;
+  return `<span class="pill pill-warm">Armed</span>`;
+}
+
+function renderJobs(jobs) {
+  if (!jobs || jobs.length === 0) {
+    schedEls.list.innerHTML = '<li class="empty">No scheduled jobs yet. Add one to fire downloads unattended.</li>';
+    return;
+  }
+  schedEls.list.innerHTML = jobs.map((job) => {
+    const lastRun = job.lastRunAt ? `${relTime(job.lastRunAt)}` : "never";
+    const nextRun = job.enabled && job.nextRunAt ? relTime(job.nextRunAt) : "—";
+    const interval = `${job.intervalMinutes || 0} min`;
+    const errLine = job.lastResult === "error" && job.lastError
+      ? `<div class="job-err">${escapeHtml(job.lastError)}</div>`
+      : "";
+    return `
+      <li class="job" data-job-id="${escapeHtml(job.id)}">
+        <div class="job-head">
+          <div class="job-title">
+            <span class="job-name">${escapeHtml(job.name || "(unnamed)")}</span>
+            ${jobStatusPill(job)}
+          </div>
+          <div class="job-actions">
+            <button class="btn btn-sm" data-job-run="${escapeHtml(job.id)}">Run now</button>
+            <button class="btn btn-sm" data-job-edit="${escapeHtml(job.id)}">Edit</button>
+            <button class="btn btn-sm btn-ghost" data-job-delete="${escapeHtml(job.id)}">Delete</button>
+          </div>
+        </div>
+        <div class="job-meta">
+          <span title="${escapeHtml(job.url)}">${escapeHtml(job.url || "(no URL)")}</span>
+        </div>
+        <div class="job-meta job-meta-grid">
+          <span>Every <strong>${escapeHtml(interval)}</strong></span>
+          <span>Last run: <strong>${escapeHtml(lastRun)}</strong></span>
+          <span>Next run: <strong>${escapeHtml(nextRun)}</strong></span>
+        </div>
+        ${errLine}
+      </li>`;
+  }).join("");
+}
+
+async function refreshJobs() {
+  const r = await window.rr.scheduler.list();
+  renderJobs(r.jobs || []);
+}
+
+function openJobEditor(job) {
+  editingJobId = job ? job.id : null;
+  schedEls.title.textContent = job ? `Edit · ${job.name || "(unnamed)"}` : "New scheduled job";
+  schedEls.name.value = job?.name || "";
+  schedEls.url.value = job?.url || "";
+  schedEls.selector.value = job?.clickSelector || "";
+  schedEls.dir.value = job?.downloadDir || "";
+  schedEls.interval.value = job?.intervalMinutes || 60;
+  schedEls.enabled.checked = !!job?.enabled;
+  schedEls.editor.hidden = false;
+  schedEls.editor.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function closeJobEditor() {
+  editingJobId = null;
+  schedEls.editor.hidden = true;
+}
+
+schedEls.addBtn.addEventListener("click", () => openJobEditor(null));
+schedEls.cancel.addEventListener("click", closeJobEditor);
+
+schedEls.pickDir.addEventListener("click", async () => {
+  const r = await window.rr.reports.pickDownloadDir();
+  if (r.ok) schedEls.dir.value = r.dir;
+});
+
+schedEls.clearDir.addEventListener("click", () => {
+  schedEls.dir.value = "";
+});
+
+schedEls.save.addEventListener("click", async () => {
+  const patch = {
+    id: editingJobId || undefined,
+    name: schedEls.name.value.trim(),
+    url: schedEls.url.value.trim(),
+    clickSelector: schedEls.selector.value.trim(),
+    downloadDir: schedEls.dir.value.trim(),
+    intervalMinutes: Number(schedEls.interval.value) || 60,
+    enabled: schedEls.enabled.checked,
+  };
+  if (!patch.name) { log("Job needs a name.", "error"); return; }
+  if (!patch.url) { log("Job needs a URL.", "error"); return; }
+  if (patch.intervalMinutes < 5) {
+    log("Minimum interval is 5 minutes.", "error");
+    return;
+  }
+  schedEls.save.disabled = true;
+  try {
+    const r = await window.rr.scheduler.saveJob(patch);
+    if (r.ok) {
+      log(`Saved scheduled job: ${patch.name}`, "ok");
+      renderJobs(r.jobs);
+      closeJobEditor();
+    }
+  } finally {
+    schedEls.save.disabled = false;
+  }
+});
+
+schedEls.list.addEventListener("click", async (evt) => {
+  const t = evt.target.closest("button[data-job-run], button[data-job-edit], button[data-job-delete]");
+  if (!t) return;
+  const runId = t.getAttribute("data-job-run");
+  const editId = t.getAttribute("data-job-edit");
+  const delId = t.getAttribute("data-job-delete");
+
+  if (runId) {
+    t.disabled = true;
+    log(`Running scheduled job…`);
+    try {
+      const r = await window.rr.scheduler.runNow(runId);
+      if (r && r.ok) {
+        log(`Job ran: saved ${r.suggestedName} (${formatSize(r.size)}).`, "ok");
+      } else {
+        log(`Job failed: ${r?.message || r?.error || "unknown error"}`, "error");
+      }
+      await refreshJobs();
+      await refreshHistory();
+    } finally {
+      t.disabled = false;
+    }
+    return;
+  }
+
+  if (editId) {
+    const r = await window.rr.scheduler.list();
+    const job = (r.jobs || []).find((j) => j.id === editId);
+    if (job) openJobEditor(job);
+    return;
+  }
+
+  if (delId) {
+    if (!confirm("Delete this scheduled job? Running downloads won't be affected.")) return;
+    const r = await window.rr.scheduler.deleteJob(delId);
+    if (r.ok) {
+      log("Scheduled job deleted.", "ok");
+      renderJobs(r.jobs);
+    }
+  }
+});
+
+// Main process pushes us an update after every automatic run so the
+// "last run" / "next run" labels stay live without us polling.
+window.rr.scheduler.onJobUpdated(() => {
+  refreshJobs();
+  refreshHistory();
+});
+
+// ─── Scrapers (record-and-replay) ───────────────────────────────────
+
+const scEls = {
+  list: $("#scraper-list"),
+  addBtn: $("#btn-sc-add"),
+  edit: $("#scraper-edit"),
+  title: $("#scraper-edit-title"),
+  name: $("#sc-name"),
+  url: $("#sc-url"),
+  dir: $("#sc-dir"),
+  pickDir: $("#btn-sc-pick-dir"),
+  clearDir: $("#btn-sc-clear-dir"),
+  interval: $("#sc-interval"),
+  enabled: $("#sc-enabled"),
+  preview: $("#sc-selectors-preview"),
+  save: $("#btn-sc-save"),
+  cancel: $("#btn-sc-cancel"),
+};
+
+let editingRecipeId = null;
+
+function recipeStatusPill(r) {
+  if (!r.enabled) return `<span class="pill pill-off">Paused</span>`;
+  if (r.lastResult === "error") return `<span class="pill pill-err">Last run failed</span>`;
+  if (r.lastResult === "partial") return `<span class="pill pill-warm">Partial</span>`;
+  if (r.lastResult === "ok") return `<span class="pill pill-ok">Last run ok</span>`;
+  return `<span class="pill pill-warm">Armed</span>`;
+}
+
+function recipeReady(r) {
+  const s = r.selectors || {};
+  return !!(s.rowSelector && s.rowOpenSelector && s.nameSelector && s.emailSelector);
+}
+
+function renderRecipes(recipes) {
+  if (!recipes || recipes.length === 0) {
+    scEls.list.innerHTML = '<li class="empty">No scrapers yet. Add one and hit Record to teach it the click path.</li>';
+    return;
+  }
+  scEls.list.innerHTML = recipes.map((r) => {
+    const ready = recipeReady(r);
+    const lastRun = r.lastRunAt ? relTime(r.lastRunAt) : "never";
+    const nextRun = r.enabled && r.nextRunAt ? relTime(r.nextRunAt) : "—";
+    const interval = `${r.intervalMinutes || 0} min`;
+    const counts = r.lastCount != null
+      ? `${r.lastNewCount || 0} new / ${r.lastCount} scraped`
+      : "—";
+    const errLine = r.lastResult === "error" && r.lastError
+      ? `<div class="job-err">${escapeHtml(r.lastError)}</div>`
+      : "";
+    const readyLine = ready
+      ? ""
+      : `<div class="job-warn">No recipe yet — hit Record to teach it the click path.</div>`;
+    return `
+      <li class="job" data-recipe-id="${escapeHtml(r.id)}">
+        <div class="job-head">
+          <div class="job-title">
+            <span class="job-name">${escapeHtml(r.name || "(unnamed)")}</span>
+            ${recipeStatusPill(r)}
+          </div>
+          <div class="job-actions">
+            <button class="btn btn-sm btn-primary" data-recipe-record="${escapeHtml(r.id)}">${ready ? "Re-record" : "Record"}</button>
+            <button class="btn btn-sm" data-recipe-run="${escapeHtml(r.id)}" ${ready ? "" : "disabled"}>Run now</button>
+            <button class="btn btn-sm" data-recipe-edit="${escapeHtml(r.id)}">Edit</button>
+            <button class="btn btn-sm btn-ghost" data-recipe-delete="${escapeHtml(r.id)}">Delete</button>
+          </div>
+        </div>
+        <div class="job-meta">
+          <span title="${escapeHtml(r.startUrl || "")}">${escapeHtml(r.startUrl || "(no URL)")}</span>
+        </div>
+        <div class="job-meta job-meta-grid">
+          <span>Every <strong>${escapeHtml(interval)}</strong></span>
+          <span>Last run: <strong>${escapeHtml(lastRun)}</strong></span>
+          <span>Next run: <strong>${escapeHtml(nextRun)}</strong></span>
+          <span>Result: <strong>${escapeHtml(counts)}</strong></span>
+        </div>
+        ${readyLine}
+        ${errLine}
+      </li>`;
+  }).join("");
+}
+
+async function refreshRecipes() {
+  const r = await window.rr.scraper.list();
+  renderRecipes(r.recipes || []);
+}
+
+function renderSelectorPreview(selectors) {
+  const s = selectors || {};
+  const rows = [
+    ["Row", s.rowSelector],
+    ["Row open", s.rowOpenSelector],
+    ["Reveal email", s.revealEmailSelector],
+    ["Reveal phone", s.revealPhoneSelector],
+    ["Name", s.nameSelector],
+    ["Email", s.emailSelector],
+    ["Phone", s.phoneSelector],
+    ["Close", s.closePanelSelector],
+  ];
+  const lines = rows.map(([label, sel]) => {
+    if (!sel) return `<div class="sel-row sel-empty">${escapeHtml(label)}: <em>not set</em></div>`;
+    return `<div class="sel-row"><strong>${escapeHtml(label)}:</strong> <code>${escapeHtml(sel)}</code></div>`;
+  });
+  scEls.preview.innerHTML = `<div class="sel-head">Captured selectors</div>${lines.join("")}`;
+}
+
+function openRecipeEditor(recipe) {
+  editingRecipeId = recipe ? recipe.id : null;
+  scEls.title.textContent = recipe ? `Edit · ${recipe.name || "(unnamed)"}` : "New scraper";
+  scEls.name.value = recipe?.name || "";
+  scEls.url.value = recipe?.startUrl || "";
+  scEls.dir.value = recipe?.downloadDir || "";
+  scEls.interval.value = recipe?.intervalMinutes || 60;
+  scEls.enabled.checked = !!recipe?.enabled;
+  renderSelectorPreview(recipe?.selectors);
+  scEls.edit.hidden = false;
+  scEls.edit.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function closeRecipeEditor() {
+  editingRecipeId = null;
+  scEls.edit.hidden = true;
+}
+
+scEls.addBtn.addEventListener("click", () => {
+  // New scraper — we still need an id; reuse a slug derived from the
+  // name on save, defaulting to a generated id if name is empty.
+  openRecipeEditor(null);
+});
+scEls.cancel.addEventListener("click", closeRecipeEditor);
+
+scEls.pickDir.addEventListener("click", async () => {
+  const r = await window.rr.reports.pickDownloadDir();
+  if (r.ok) scEls.dir.value = r.dir;
+});
+scEls.clearDir.addEventListener("click", () => { scEls.dir.value = ""; });
+
+scEls.save.addEventListener("click", async () => {
+  const name = scEls.name.value.trim();
+  const startUrl = scEls.url.value.trim();
+  if (!name) { log("Scraper needs a name.", "error"); return; }
+  if (!startUrl) { log("Scraper needs a start URL.", "error"); return; }
+  const interval = Number(scEls.interval.value) || 60;
+  if (interval < 5) { log("Minimum interval is 5 minutes.", "error"); return; }
+  const id = editingRecipeId || slugifyId(name);
+  scEls.save.disabled = true;
+  try {
+    const r = await window.rr.scraper.save({
+      id,
+      name,
+      startUrl,
+      downloadDir: scEls.dir.value.trim(),
+      intervalMinutes: interval,
+      enabled: scEls.enabled.checked,
+    });
+    if (r.ok) {
+      log(`Saved scraper: ${name}`, "ok");
+      closeRecipeEditor();
+      await refreshRecipes();
+    }
+  } finally {
+    scEls.save.disabled = false;
+  }
+});
+
+function slugifyId(s) {
+  const base = String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return `${base || "scraper"}-${Date.now().toString(36)}`;
+}
+
+scEls.list.addEventListener("click", async (evt) => {
+  const t = evt.target.closest("button[data-recipe-record], button[data-recipe-run], button[data-recipe-edit], button[data-recipe-delete]");
+  if (!t) return;
+  const recId =
+    t.getAttribute("data-recipe-record") ||
+    t.getAttribute("data-recipe-run") ||
+    t.getAttribute("data-recipe-edit") ||
+    t.getAttribute("data-recipe-delete");
+
+  if (t.hasAttribute("data-recipe-record")) {
+    t.disabled = true;
+    log("Opening the recorder… sign in to the portal first if you haven't.");
+    try {
+      const r = await window.rr.scraper.record(recId);
+      if (r.ok) {
+        log(`Recipe captured for ${recId}.`, "ok");
+        await refreshRecipes();
+      } else if (r.cancelled) {
+        log("Recording cancelled.");
+      } else {
+        log(`Recorder failed: ${r.message || r.error || "unknown error"}`, "error");
+      }
+    } finally {
+      t.disabled = false;
+    }
+    return;
+  }
+
+  if (t.hasAttribute("data-recipe-run")) {
+    t.disabled = true;
+    log("Running scraper headlessly…");
+    try {
+      const r = await window.rr.scraper.runNow(recId);
+      if (r && r.ok) {
+        log(`Scrape ok: ${r.newCount} new / ${r.total} scraped → ${r.csvPath}`, "ok");
+      } else {
+        log(`Scrape failed: ${r?.message || r?.error || "unknown"}`, "error");
+      }
+      await refreshRecipes();
+      await refreshHistory();
+    } finally {
+      t.disabled = false;
+    }
+    return;
+  }
+
+  if (t.hasAttribute("data-recipe-edit")) {
+    const r = await window.rr.scraper.get(recId);
+    if (r.ok) openRecipeEditor(r.recipe);
+    return;
+  }
+
+  if (t.hasAttribute("data-recipe-delete")) {
+    if (!confirm("Delete this scraper and its recipe? The CSVs it already wrote stay on disk.")) return;
+    await window.rr.scraper.delete(recId);
+    log("Scraper deleted.", "ok");
+    await refreshRecipes();
+  }
+});
+
+window.rr.scraper.onRecipeUpdated(() => {
+  refreshRecipes();
+  refreshHistory();
+});
+
 // Initial state
 loadConfig();
 refreshSessionStatus();
 refreshHistory();
+refreshJobs();
+refreshRecipes();
 log("Ready.");
