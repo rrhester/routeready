@@ -3886,13 +3886,17 @@ function _obMxStylesOnce() {
   s.id = "rr-ob-mx-styles";
   s.textContent =
     /* ── Onboarding matrix — the page itself ─────────────────── */
-    ".ob-mx-wrap{background:var(--surface-elevated);border:1px solid var(--sch-line,var(--border));border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(15,23,42,.04)}" +
+    ".ob-mx-wrap{background:var(--surface-elevated);border:1px solid var(--sch-line,var(--border));border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(15,23,42,.04);display:flex;flex-direction:column;height:calc(100vh - 200px);min-height:480px}" +
     ".ob-mx-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);padding:16px 18px 14px;border-bottom:1px solid var(--sch-line,var(--border-subtle));background:transparent}" +
     ".ob-mx-head-title{font-size:var(--fs-lg);font-weight:760;letter-spacing:-.02em;color:var(--text)}" +
     ".ob-mx-head-sub{margin-top:3px;font-size:var(--fs-sm);color:var(--text-subtle);line-height:1.45}" +
     ".ob-mx-head-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-pill);background:var(--canvas);color:var(--text-subtle);font-size:var(--fs-xs);font-weight:680;white-space:nowrap}" +
     ".ob-mx-head-chip::before{content:'';width:7px;height:7px;border-radius:var(--r-pill);background:var(--accent)}" +
-    ".ob-mx-scroll{overflow-x:auto}" +
+    ".ob-mx-scroll{overflow-x:auto;overflow-y:auto;flex:1 1 auto;min-height:0;scrollbar-width:thin;scrollbar-color:var(--border-strong,#d1d5db) transparent}" +
+    ".ob-mx-scroll::-webkit-scrollbar{width:8px;height:8px}" +
+    ".ob-mx-scroll::-webkit-scrollbar-track{background:transparent}" +
+    ".ob-mx-scroll::-webkit-scrollbar-thumb{background:var(--border-strong,#d1d5db);border-radius:var(--r-sm,4px)}" +
+    ".ob-mx-scroll::-webkit-scrollbar-thumb:hover{background:var(--text-subtle,#6b7280)}" +
     ".ob-matrix{width:100%;min-width:1080px;border-collapse:separate;border-spacing:0;font-size:var(--fs-sm)}" +
     ".ob-matrix th{font-size:11.5px;font-weight:680;letter-spacing:.01em;text-transform:lowercase;color:var(--text-muted);padding:14px 9px;text-align:center;white-space:nowrap;background:var(--canvas);border-bottom:1px solid var(--border-subtle)}" +
     ".ob-matrix th.ob-mx-namecol{text-align:left;padding-left:18px;position:sticky;left:0;background:var(--canvas);z-index:2;box-shadow:8px 0 16px -18px rgba(15,23,42,.6)}" +
@@ -4186,13 +4190,21 @@ function _fillObMatrixSkeletonRows(body) {
     `</td>`;
   const middleCells = Array.from({ length: Math.max(0, headerCells.length - 2) }, () => stepRing).join("");
   const skeletonRow = `<tr class="ob-sk-tr" aria-hidden="true">${nameCell}${middleCells}${actionsCell}</tr>`;
-  // How many rows fit below the existing real rows?
-  const tableRect = table.getBoundingClientRect();
-  const viewportBottom = window.innerHeight;
-  const remainingPx = Math.max(0, viewportBottom - tableRect.bottom - 24);
-  // Real rows average ~70px tall (avatar + sub line).  Use 70 as the
-  // estimate; the loop adds rows until remainingPx is consumed.
+  // How many rows fit below the existing real rows? Measure against
+  // the scroll container (.ob-mx-scroll) so the rows we add fill the
+  // visible scroll viewport, not the full page below it.
+  const scroll = body.querySelector(".ob-mx-scroll");
+  const thead = table.querySelector("thead");
   const ROW_PX = 70;
+  let remainingPx = 0;
+  if (scroll) {
+    const headPx = thead ? thead.getBoundingClientRect().height : 0;
+    const realBodyPx = (tbody.getBoundingClientRect().height) || 0;
+    remainingPx = Math.max(0, scroll.clientHeight - headPx - realBodyPx - 8);
+  } else {
+    const tableRect = table.getBoundingClientRect();
+    remainingPx = Math.max(0, window.innerHeight - tableRect.bottom - 24);
+  }
   const rowsToAdd = Math.max(0, Math.floor(remainingPx / ROW_PX));
   if (rowsToAdd === 0) return;
   tbody.insertAdjacentHTML("beforeend", skeletonRow.repeat(rowsToAdd));
