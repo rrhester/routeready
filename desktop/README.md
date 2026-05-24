@@ -150,6 +150,17 @@ chmod +x RouteReady\ Desktop-*.AppImage
   seeded as a disabled job on first run — point the click selector at
   Indeed's Export button, set an interval, flip it on. Jobs skip silently
   while no portal session is saved; loop resumes after sign-in.
+- **Record-and-replay scrapers** (`scraper.js`) — when a portal has no
+  usable Export button (Indeed gates CSV export behind paid plans), the
+  app can scrape the candidate list DOM instead. Operator hits **Record**
+  → a headed Chromium opens with a pink toolbar overlay → walks them
+  through clicking the elements to scrape (row, name, email, phone,
+  reveal buttons, close panel) → the resulting CSS selectors save as a
+  recipe JSON file in `<userData>/recipes/`. Scheduled runs replay the
+  recipe headlessly, walking each row, clicking reveal buttons,
+  scraping into a deduped CSV. **When the portal changes layout the
+  operator hits Re-record — no app reinstall, no waiting on a build.**
+  Seeded with an empty `Indeed — New applicants` recipe on first run.
 
 ## What's next
 

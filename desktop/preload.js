@@ -37,6 +37,28 @@ contextBridge.exposeInMainWorld("rr", {
     /** Recent download history (up to 20 entries). */
     listHistory: () => ipcRenderer.invoke("reports:listHistory"),
   },
+  scraper: {
+    /** List every recipe stored on disk. */
+    list: () => ipcRenderer.invoke("scraper:list"),
+    /** Read a single recipe (with selectors). */
+    get: (id) => ipcRenderer.invoke("scraper:get", { id }),
+    /** Upsert a recipe (name / startUrl / interval / enabled / downloadDir / selectors). */
+    save: (patch) => ipcRenderer.invoke("scraper:save", patch),
+    /** Delete a recipe and its seen-set. */
+    delete: (id) => ipcRenderer.invoke("scraper:delete", { id }),
+    /** Launch the headed recorder; resolves once the operator finishes or cancels. */
+    record: (id) => ipcRenderer.invoke("scraper:record", { id }),
+    /** Fire the recipe now (headless), regardless of schedule. */
+    runNow: (id) => ipcRenderer.invoke("scraper:runNow", { id }),
+    /** Wipe the dedupe set so the next run re-emits everything visible. */
+    resetSeen: (id) => ipcRenderer.invoke("scraper:resetSeen", { id }),
+    /** Subscribe to recipe-updated events from the main process. */
+    onRecipeUpdated: (cb) => {
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on("scraper:recipeUpdated", handler);
+      return () => ipcRenderer.removeListener("scraper:recipeUpdated", handler);
+    },
+  },
   scheduler: {
     /** List all scheduled download jobs. */
     list: () => ipcRenderer.invoke("scheduler:list"),

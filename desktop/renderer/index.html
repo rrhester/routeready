@@ -158,6 +158,58 @@
       </div>
     </section>
 
+    <section class="card" id="card-scrapers">
+      <h2>5 · Scrape applicants from the portal</h2>
+      <p class="muted">
+        Walks the candidate list, opens each row, clicks reveal buttons,
+        scrapes name / email / phone into a CSV. The first time you set
+        one up, hit <strong>Record</strong> — a real browser window opens
+        and a pink toolbar walks you through clicking each thing you want
+        scraped. We save those picks as a recipe; runs replay them. When
+        Indeed shuffles their layout, hit Record again — no app reinstall.
+      </p>
+      <ul id="scraper-list" class="jobs"><li class="empty">Loading scrapers…</li></ul>
+
+      <div class="job-editor" id="scraper-edit" hidden>
+        <h3 id="scraper-edit-title">Edit scraper</h3>
+        <div class="form">
+          <label class="field">
+            <span>Name</span>
+            <input id="sc-name" type="text" placeholder="e.g. Indeed — New applicants" />
+          </label>
+          <label class="field">
+            <span>Start URL <em>(the page where the applicant list lives)</em></span>
+            <input id="sc-url" type="url" placeholder="https://employers.indeed.com/candidates" />
+          </label>
+          <label class="field">
+            <span>Save CSVs to <em>(blank = OS Downloads folder)</em></span>
+            <div class="row inline">
+              <input id="sc-dir" type="text" readonly placeholder="(OS Downloads folder)" />
+              <button id="btn-sc-pick-dir" class="btn" type="button">Pick folder</button>
+              <button id="btn-sc-clear-dir" class="btn btn-ghost" type="button">Clear</button>
+            </div>
+          </label>
+          <label class="field">
+            <span>Interval (minutes)</span>
+            <input id="sc-interval" type="number" min="5" step="5" value="60" />
+          </label>
+          <label class="field field-row">
+            <input id="sc-enabled" type="checkbox" />
+            <span>Enabled — fire automatically on the interval</span>
+          </label>
+          <div class="sel-preview" id="sc-selectors-preview"></div>
+        </div>
+        <div class="row">
+          <button id="btn-sc-save" class="btn btn-primary" type="button">Save</button>
+          <button id="btn-sc-cancel" class="btn btn-ghost" type="button">Cancel</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="btn-sc-add" class="btn" type="button">+ New scraper</button>
+      </div>
+    </section>
+
     <section class="card log">
       <h2>Activity</h2>
       <pre id="log"></pre>

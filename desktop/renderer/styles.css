@@ -540,6 +540,58 @@ main {
   font-size: 13px;
 }
 
+.job-warn {
+  font-size: 11.5px;
+  color: var(--amber);
+  background: var(--amber-soft);
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.sel-preview {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.sel-head {
+  font-weight: 600;
+  color: var(--text-subtle);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 6px;
+}
+
+.sel-row {
+  padding: 3px 0;
+  border-bottom: 1px dashed transparent;
+  word-break: break-all;
+}
+
+.sel-row strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sel-row code {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.sel-empty em {
+  color: var(--text-subtle);
+  font-style: italic;
+}
+
 .log pre {
   margin: 0;
   font-family: 'SF Mono', Menlo, Consolas, monospace;

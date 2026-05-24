@@ -26,6 +26,7 @@ const fs = require("node:fs");
 // filesystem so they can actually exec. Must be set BEFORE requiring playwright.
 process.env.PLAYWRIGHT_BROWSERS_PATH = "0";
 const { chromium } = require("playwright");
+const scraper = require("./scraper");
 
 // ─── Diagnostic logging ─────────────────────────────────────────────
 // Writes a line to <userData>/desktop.log every time we touch Playwright
@@ -177,6 +178,16 @@ app.whenReady().then(() => {
   resolveChromiumExecutable();
   ensureSchedulerSeeded();
   startSchedulerLoop();
+  scraper.init({
+    userDataDir,
+    defaultDownloadDir,
+    logLine,
+    launchChromium,
+    tearDownPortal,
+    readSession,
+    appendHistory,
+    getMainWindow: () => mainWindow,
+  });
   createWindow();
 });
 
