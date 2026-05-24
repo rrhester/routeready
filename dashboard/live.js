@@ -4698,8 +4698,12 @@ const _HELP_CONTENT = {
     </ul>
     <p>Every change saves automatically and reaches new and in-progress drivers.</p>` },
 };
-function _helpBar(key) {
-  return `<div class="rr-help-row" style="display:flex;justify-content:flex-end;align-items:center"><button type="button" class="rr-help-btn" data-rr-help="${escapeHtml(key)}" aria-label="How this page works">Help</button></div>`;
+function _helpBar(_key) {
+  // Operator asked for the small "Help" affordance in each onboarding
+  // sub-tab's top-right to go away — the rest of the chrome already
+  // makes the page legible without it. Kept the function so existing
+  // call sites still compile; it just no-ops to an empty string now.
+  return "";
 }
 function _openHelpPopup(key) {
   const c = _HELP_CONTENT[key]; if (!c) return;
