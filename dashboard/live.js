@@ -23601,16 +23601,62 @@ async function recommendOkamiCushion(dspId) {
   };
 }
 
-async function renderOkamiDailyPanel(weekIdx) {
-  return _renderOkamiDailyPanelImpl(weekIdx);
+async function renderOkamiDailyPanel(weekIdx, targetContainerId) {
+  return _renderOkamiDailyPanelImpl(weekIdx, targetContainerId);
 }
 // Attach to window at module load so the mockup stub in index.html can
 // always find it, regardless of whether OKAMI has been bound yet.
 window.renderOkamiDailyPanel = renderOkamiDailyPanel;
 window.okamiRenderDailyPanel = renderOkamiDailyPanel;
 
-async function _renderOkamiDailyPanelImpl(weekIdx) {
-  const container = document.getElementById(`okami-detail-content-${weekIdx}`);
+// ─── Schedule · Targets sub-view (in-page OKAMI daily editor) ─────
+// Hosts the same per-week route-planning panel the OKAMI page shows,
+// but rendered INTO the schedule page's #sched-sub-targets container
+// so operators stay on the schedule (same URL, same chrome) while
+// they edit per-day route targets. Save path is shared — the daily
+// inputs carry data-rr-okami-daily and the document-level
+// delegation handles saves regardless of which surface they live in.
+async function renderScheduleTargetsSubView() {
+  const host = document.getElementById("sched-sub-targets-daily");
+  if (!host) return;
+  // Anchor the daily panel to the schedule's currently-viewed week
+  // so the operator sees the targets for the week they're editing.
+  // _renderOkamiDailyPanelImpl reads _okamiStart for its date math;
+  // setting it directly here (instead of going through
+  // renderOkamiLive's heavier per-render fetch) keeps the sub-view
+  // fast and avoids touching the OKAMI table at all.
+  if (typeof _schedStart === "string" && _schedStart) {
+    _okamiStart = _schedStart;
+  } else if (!_okamiStart) {
+    // Schedule hasn't picked a week yet (edge case). Fall back to
+    // the current calendar Monday so the panel still renders.
+    _okamiStart = fmtIsoDate(startOfWeekMonday(new Date()));
+  }
+  // Ensure the save-input delegation is wired so edits in the
+  // sub-view persist even if the operator never opens the OKAMI
+  // page in this session.
+  _bindOkamiDailyInputDelegation();
+  // Render the week-0 panel into the sub-view's host (the renderer
+  // pulls okami_grid + scheduling_settings + service types itself).
+  await _renderOkamiDailyPanelImpl(0, "sched-sub-targets-daily");
+  // Populate the Block / Cushion / Report-time inputs at the top
+  // of the sub-view from the per-week RPC. Reuses the same
+  // loadSchedulingSettings path that powers the popover + OKAMI.
+  if (typeof loadSchedulingSettings === "function") {
+    try { loadSchedulingSettings(); } catch (e) { console.warn("Targets sub-view settings:", e); }
+  }
+}
+window.renderScheduleTargetsSubView = renderScheduleTargetsSubView;
+
+async function _renderOkamiDailyPanelImpl(weekIdx, targetContainerId) {
+  // The daily-detail panel renders into `okami-detail-content-${weekIdx}`
+  // on the OKAMI page by default. The schedule's Targets sub-view
+  // hosts a SECOND surface for the same panel — passing
+  // `targetContainerId` redirects the render into that host (e.g.
+  // "sched-sub-targets-daily") so both surfaces share one renderer
+  // and one save path.
+  const containerId = targetContainerId || `okami-detail-content-${weekIdx}`;
+  const container = document.getElementById(containerId);
   if (!container) return;
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
@@ -23728,13 +23774,15 @@ async function _renderOkamiDailyPanelImpl(weekIdx) {
   bindOkamiDailyDelegation();
 }
 
-function bindOkamiDailyDelegation() {
-  if (_okamiDailyDelegated) return;
-  _okamiDailyDelegated = true;
-  const tbody = document.getElementById("okami-tbody");
-  if (!tbody) return;
-
-  tbody.addEventListener("input", (e) => {
+// Document-level input delegation for daily-target inputs binds ONCE
+// at module load — doesn't depend on the OKAMI table being mounted.
+// That way the Targets sub-view's inputs save correctly even on a
+// session where the operator never opens the standalone OKAMI page.
+let _okamiDailyInputBound = false;
+function _bindOkamiDailyInputDelegation() {
+  if (_okamiDailyInputBound) return;
+  _okamiDailyInputBound = true;
+  document.addEventListener("input", (e) => {
     const inp = e.target.closest("input[data-rr-okami-daily]");
     if (!inp) return;
     const weekIdx = parseInt(inp.dataset.rrOkamiDaily, 10);
@@ -23773,6 +23821,22 @@ function bindOkamiDailyDelegation() {
     _okamiDailySaveTimers.set(key, { timeoutId, args });
   });
 
+}
+
+function bindOkamiDailyDelegation() {
+  // Daily-input save delegation is document-level and bound exactly
+  // once at first call — covers both the OKAMI page and the
+  // Targets sub-view in one go.
+  _bindOkamiDailyInputDelegation();
+
+  if (_okamiDailyDelegated) return;
+  const tbody = document.getElementById("okami-tbody");
+  if (!tbody) return;
+  _okamiDailyDelegated = true;
+
+  // Cushion + recommendation handlers stay scoped to the OKAMI
+  // table — the Targets sub-view intentionally doesn't expose the
+  // cushion control (planning panel only).
   tbody.addEventListener("change", async (e) => {
     const cushionInp = e.target.closest("input[data-rr-okami-cushion-pct]");
     if (cushionInp) {
@@ -23946,6 +24010,17 @@ async function loadSchedulingSettings() {
   if (okBlockEl) okBlockEl.value = s.default_block_hours ?? 10;
   if (okCushEl)  okCushEl.value  = s.cushion_pct ?? 10;
   if (okLeadEl)  okLeadEl.value  = s.report_lead_minutes ?? 0;
+
+  // Same mirror for the schedule's Targets sub-view (third surface).
+  // Popover ↔ OKAMI page ↔ Targets sub-view all share scheduling-
+  // settings_for_week as backing storage and stay live-in-sync via
+  // _rrMirrorPopoverToOkami / _rrMirrorOkamiToPopover.
+  const tgBlockEl = document.getElementById("rr-sched-targets-block-hours");
+  const tgCushEl  = document.getElementById("rr-sched-targets-cushion-pct");
+  const tgLeadEl  = document.getElementById("rr-sched-targets-report-lead");
+  if (tgBlockEl) tgBlockEl.value = s.default_block_hours ?? 10;
+  if (tgCushEl)  tgCushEl.value  = s.cushion_pct ?? 10;
+  if (tgLeadEl)  tgLeadEl.value  = s.report_lead_minutes ?? 0;
 
   // Read-only attendance rate label next to the cushion field. Operator
   // looks at it and decides their own cushion %. No click handler, no
@@ -24340,49 +24415,66 @@ document.addEventListener("change", (e) => {
   _navSettingsTriggerSave(input);
 });
 
-// ─── OKAMI page · embedded Targets-rules toolbar ─────────────────
-// The OKAMI page hosts a second copy of the schedule's quick-settings
-// popover inputs (Block / Cushion / Report time) directly under the
-// page title. Same backing storage (scheduling_settings_for_week RPC),
-// same save path (_saveScheduleSettings({ source: "nav" })). The
-// popover stays as a quick-edit shortcut from the schedule view; this
-// is the surfaced version for operators who navigated all the way into
-// route planning. The two-way mirror keeps both DOM trees consistent
-// so a value typed on either surface shows up on the other on next
-// open (and live, if both are visible at once).
-const _RR_OKAMI_SETTINGS_PAIRS = [
-  ["rr-okami-set-block-hours",  "rr-set-block-hours"],
-  ["rr-okami-set-cushion-pct",  "rr-set-cushion-pct"],
-  ["rr-okami-set-report-lead",  "rr-set-report-lead"],
+// ─── Targets-rules toolbar · three-surface mirror ─────────────────
+// The Block / Cushion / Report-time inputs live on THREE surfaces now:
+//   1. #rr-sched-quick-settings-popover  · the schedule ribbon shortcut
+//   2. OKAMI page header  · rr-okami-set-*
+//   3. Schedule's Targets sub-view  · rr-sched-targets-*
+// All three read from scheduling_settings_for_week (per-week) and
+// write through _saveScheduleSettings({ source: "nav" }), so they
+// share one backing row. Each surface keeps its own input IDs (no
+// DOM collisions) and the mirror keeps every twin in lock-step with
+// whichever one the operator is editing. The popover input remains
+// the canonical read source for _saveScheduleSettings so its value
+// must stay authoritative whenever a twin changes.
+const _RR_SETTING_TRIPLES = [
+  // [popover, okami page, targets sub-view]
+  ["rr-set-block-hours",  "rr-okami-set-block-hours",  "rr-sched-targets-block-hours"],
+  ["rr-set-cushion-pct",  "rr-okami-set-cushion-pct",  "rr-sched-targets-cushion-pct"],
+  ["rr-set-report-lead",  "rr-okami-set-report-lead",  "rr-sched-targets-report-lead"],
 ];
-const _RR_OKAMI_SETTING_IDS = new Set(_RR_OKAMI_SETTINGS_PAIRS.map(p => p[0]));
-const _RR_OKAMI_TO_POPOVER = new Map(_RR_OKAMI_SETTINGS_PAIRS);
-const _RR_POPOVER_TO_OKAMI = new Map(_RR_OKAMI_SETTINGS_PAIRS.map(p => [p[1], p[0]]));
+const _RR_OKAMI_SETTING_IDS = new Set(_RR_SETTING_TRIPLES.map(t => t[1]));
+const _RR_TARGETS_SUB_SETTING_IDS = new Set(_RR_SETTING_TRIPLES.map(t => t[2]));
+// id → [pop, okami, targetsSub] lookup so any input change can find
+// its two twins by triple-membership in one pass.
+const _RR_SETTING_TRIPLE_BY_ID = new Map();
+for (const triple of _RR_SETTING_TRIPLES) {
+  for (const id of triple) _RR_SETTING_TRIPLE_BY_ID.set(id, triple);
+}
 
-function _rrMirrorPopoverToOkami(popId) {
-  const okId = _RR_POPOVER_TO_OKAMI.get(popId);
-  if (!okId) return;
-  const src = document.getElementById(popId);
-  const dst = document.getElementById(okId);
-  if (src && dst && dst.value !== src.value) dst.value = src.value;
+// Push a freshly-edited input's value into both of its twins so all
+// three surfaces stay live-in-sync regardless of which one the
+// operator was typing into. Safe to call when twins aren't mounted
+// (e.g. OKAMI page never opened this session) — missing nodes are
+// just skipped.
+function _rrMirrorSettingTriple(sourceId) {
+  const triple = _RR_SETTING_TRIPLE_BY_ID.get(sourceId);
+  if (!triple) return;
+  const src = document.getElementById(sourceId);
+  if (!src) return;
+  for (const id of triple) {
+    if (id === sourceId) continue;
+    const dst = document.getElementById(id);
+    if (dst && dst.value !== src.value) dst.value = src.value;
+  }
 }
-function _rrMirrorOkamiToPopover(okId) {
-  const popId = _RR_OKAMI_TO_POPOVER.get(okId);
-  if (!popId) return;
-  const src = document.getElementById(okId);
-  const dst = document.getElementById(popId);
-  // The popover input is the canonical read source for
-  // _saveScheduleSettings — keep it authoritative while the operator
-  // is editing the OKAMI-page twin.
-  if (src && dst && dst.value !== src.value) dst.value = src.value;
-}
+// Back-compat aliases · earlier code paths reference the two-way
+// helpers by name. Each one forwards into the new three-surface
+// mirror so existing callers keep working without change.
+function _rrMirrorPopoverToOkami(popId) { _rrMirrorSettingTriple(popId); }
+function _rrMirrorOkamiToPopover(okId)  { _rrMirrorSettingTriple(okId); }
 
 let _okamiSettingsSaveTimer = null;
 function _flashOkamiTargetsStatus(msg, color) {
-  const el = document.getElementById("rr-okami-targets-rules-status");
-  if (!el) return;
-  el.style.color = color || "var(--text-subtle)";
-  el.textContent = msg;
+  // Write the same status into both the OKAMI page toolbar and the
+  // schedule's Targets sub-view toolbar so whichever one the
+  // operator is looking at sees the Editing… / Saved feedback.
+  for (const id of ["rr-okami-targets-rules-status", "rr-sched-targets-rules-status"]) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.style.color = color || "var(--text-subtle)";
+    el.textContent = msg;
+  }
 }
 async function _okamiSettingsTriggerSave(inputEl) {
   if (inputEl) inputEl.dataset.rrSaving = "1";
@@ -24406,10 +24498,15 @@ async function _okamiSettingsTriggerSave(inputEl) {
     setTimeout(() => { _flashOkamiTargetsStatus("", ""); }, 3000);
   }
 }
+// Edit listener for the OKAMI page + Targets sub-view twins of the
+// popover settings. Mirrors back to the popover (canonical) +
+// triggers the same save path as the popover would.
 document.addEventListener("input", (e) => {
   const input = e.target;
-  if (!input || !input.id || !_RR_OKAMI_SETTING_IDS.has(input.id)) return;
-  _rrMirrorOkamiToPopover(input.id);
+  if (!input || !input.id) return;
+  if (!_RR_OKAMI_SETTING_IDS.has(input.id)
+      && !_RR_TARGETS_SUB_SETTING_IDS.has(input.id)) return;
+  _rrMirrorSettingTriple(input.id);
   if (_okamiSettingsSaveTimer) clearTimeout(_okamiSettingsSaveTimer);
   _flashOkamiTargetsStatus("Editing…", "var(--text-subtle)");
   _okamiSettingsSaveTimer = setTimeout(() => {
@@ -24419,8 +24516,10 @@ document.addEventListener("input", (e) => {
 });
 document.addEventListener("change", (e) => {
   const input = e.target;
-  if (!input || !input.id || !_RR_OKAMI_SETTING_IDS.has(input.id)) return;
-  _rrMirrorOkamiToPopover(input.id);
+  if (!input || !input.id) return;
+  if (!_RR_OKAMI_SETTING_IDS.has(input.id)
+      && !_RR_TARGETS_SUB_SETTING_IDS.has(input.id)) return;
+  _rrMirrorSettingTriple(input.id);
   if (_okamiSettingsSaveTimer) clearTimeout(_okamiSettingsSaveTimer);
   _okamiSettingsSaveTimer = null;
   _okamiSettingsTriggerSave(input);
@@ -25860,31 +25959,15 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("#rr-sched-okami-open, #rr-sched-okami-open-h")
       && !e.target.closest("#rr-sched-settings-toggle")) {
     e.preventDefault();
-    // Targets icon now navigates fully to the OKAMI view (same path the
-    // operator would take via the sidebar/goto router) instead of
-    // overlaying OKAMI on top of the schedule. Anchor override keeps
-    // the OKAMI view focused on the schedule's current week, and the
-    // week-0 daily-detail panel auto-expands so the operator lands on
-    // the same content the old overlay surfaced. openOkamiOverlay()
-    // stays on `window` for any caller that still relies on it.
-    if (typeof _schedStart === "string" && _schedStart) {
-      window._rrOkamiAnchorOverride = _schedStart;
+    // Targets icon opens the Targets sub-view INSIDE the schedule
+    // page — same pattern as Week view / Today view. Operators stay
+    // on the schedule (same URL, same chrome) and the sub-view area
+    // swaps to the per-week route-planning editor. The standalone
+    // OKAMI 13-week page (#view-okami) is still reachable via the
+    // sidebar; this entry point is the per-week, in-context one.
+    if (typeof window.schedSub === "function") {
+      window.schedSub("targets");
     }
-    if (typeof window.goto === "function") {
-      window.goto("okami");
-    }
-    // goto('okami') triggers loadOkamiView via the view-switch hooks;
-    // wait a beat, then auto-expand week-0's daily-detail panel like
-    // the overlay used to.
-    setTimeout(() => {
-      if (typeof window.okamiToggleDaily !== "function") return;
-      const detail = document.getElementById("okami-detail-0");
-      if (detail && !detail.classList.contains("open")) {
-        window.okamiToggleDaily(0);
-      } else if (typeof window.renderOkamiDailyPanel === "function") {
-        window.renderOkamiDailyPanel(0);
-      }
-    }, 120);
     return;
   }
   if (e.target.id === "rr-okami-backdrop") {
@@ -26017,6 +26100,14 @@ window.schedSub = function (sub) {
     if (typeof _mountFleetCalendar === "function") _mountFleetCalendar("sched-sub-calendar");
     if (typeof renderFleetCalendar === "function") renderFleetCalendar();
   }
+  // Targets sub-view · render the per-week OKAMI daily editor INTO
+  // the schedule page (same renderer the OKAMI page uses; same
+  // save path). Operators stay on the schedule, sub-view area swaps.
+  if (sub === "targets") {
+    if (typeof renderScheduleTargetsSubView === "function") {
+      renderScheduleTargetsSubView();
+    }
+  }
   // Restore the default "Schedule / Week of ..." title block when
   // leaving Today view — renderSchedTodayView overwrites it.
   if (sub !== "today") _resetSchedHeading();
@@ -26029,13 +26120,18 @@ window.schedSub = function (sub) {
   // KPI strip ownership per sub-view:
   //   today    → mirrored from the Today shell (_renderTpMeta)
   //   requests → painted by _renderSchedRequestsKpis
+  //   targets  → blank (planning view, no staffing KPIs)
   //   other    → renderScheduleWeek repaints weekly KPIs
   // Close any Requests drill-down when leaving the Requests tab.
   if (sub !== "requests") {
     const dd = document.getElementById("rr-sched-req-drilldown");
     if (dd) { dd.hidden = true; dd.innerHTML = ""; dd.dataset.rrOpenKpi = ""; }
   }
-  if (sub !== "today" && sub !== "requests" && sub !== "calendar") {
+  if (sub === "targets") {
+    // Planning view — explicitly clear the KPI strip; no auto-repaint.
+    const kpisHost = document.getElementById("rr-sched-kpis");
+    if (kpisHost) kpisHost.innerHTML = "";
+  } else if (sub !== "today" && sub !== "requests" && sub !== "calendar") {
     const kpisHost = document.getElementById("rr-sched-kpis");
     if (kpisHost) kpisHost.innerHTML = "";
     if (typeof renderScheduleWeek === "function") {

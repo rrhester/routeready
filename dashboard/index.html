@@ -13404,6 +13404,15 @@ body.rr-cmdk-open{ overflow:hidden }
                   </div>
                 </div>
               </div>
+              <!-- Targets sub-tab · per-week route-planning editor,
+                   same pattern as Week view / Today view. The
+                   ribbon's Targets icon (#rr-sched-okami-open-h)
+                   ALSO triggers schedSub('targets') so both entry
+                   points land on this sub-view. -->
+              <button class="subnav-item" data-sub="targets" data-rr-tile="targets" onclick="schedSub('targets')" title="Per-week route targets · plan daily route count by wave + service type">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 16 11 19 16 14"/></svg>
+                <span>Targets</span>
+              </button>
               <div class="sched-week-split" data-rr-tile="calendar">
                 <button class="subnav-item" data-sub="calendar" data-rr-tile="calendar" onclick="schedSub('calendar')" title="Fleet calendar — schedule events per van">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.1" fill="currentColor" stroke="none"/></svg>
@@ -18876,6 +18885,40 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="rr-loading">Loading today's plan…</div>
           </div>
         </div><!-- /sched-sub-today -->
+
+        <!-- TARGETS · in-page per-week route-planning editor. Hosts
+             the same OKAMI daily-detail panel that #view-okami shows
+             for week-0, rendered here so the operator stays on the
+             schedule page. Three Block / Cushion / Report-time
+             inputs at the top mirror the schedule's quick-settings
+             popover + the OKAMI page's embedded toolbar (all three
+             surfaces share scheduling_settings_for_week). Body
+             populated by renderScheduleTargetsSubView() in live.js
+             on schedSub('targets'). -->
+        <div class="sched-subview" id="sched-sub-targets" style="display:none">
+          <div id="rr-sched-targets-rules" style="margin:0 0 var(--s-3) 0;display:flex;align-items:center;gap:var(--s-4);flex-wrap:wrap;font-size:var(--fs-sm);color:var(--text-muted)">
+            <span style="font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle)">Targets rules ·</span>
+            <label style="display:inline-flex;align-items:center;gap:6px">
+              <span>Block</span>
+              <input class="form-input form-input-sm" id="rr-sched-targets-block-hours" type="number" min="1" max="14" step="1" autocomplete="off" style="width:64px;text-align:right"/>
+              <span style="color:var(--text-subtle);font-size:var(--fs-xs)">h</span>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px">
+              <span>Cushion</span>
+              <input class="form-input form-input-sm" id="rr-sched-targets-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off" style="width:64px;text-align:right"/>
+              <span style="color:var(--text-subtle);font-size:var(--fs-xs)">%</span>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px">
+              <span>Report time</span>
+              <input class="form-input form-input-sm" id="rr-sched-targets-report-lead" type="number" min="0" max="120" step="5" autocomplete="off" style="width:72px;text-align:right"/>
+              <span style="color:var(--text-subtle);font-size:var(--fs-xs)">min</span>
+            </label>
+            <span id="rr-sched-targets-rules-status" aria-live="polite" style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums"></span>
+          </div>
+          <div id="sched-sub-targets-daily">
+            <div class="rr-loading">Loading route targets…</div>
+          </div>
+        </div><!-- /sched-sub-targets -->
 
         <!-- VAN ASSIGNMENTS · auto-assign result view. The action-
              strip Assign Vans tile triggers today_roster_auto_assign
@@ -26856,9 +26899,11 @@ John,Smith,555-0101,john@example.com</code>
   // ─── SCHEDULE SUB-NAV ───────────────────────────────────────
   function schedSub(sub){
     document.querySelectorAll('#view-schedule .subnav-item').forEach(function(b){ b.classList.remove('active'); });
-    document.querySelector('#view-schedule .subnav-item[data-sub="' + sub + '"]').classList.add('active');
+    var tab = document.querySelector('#view-schedule .subnav-item[data-sub="' + sub + '"]');
+    if (tab) tab.classList.add('active');
     document.querySelectorAll('.sched-subview').forEach(function(v){ v.style.display = 'none'; });
-    document.getElementById('sched-sub-' + sub).style.display = 'block';
+    var panel = document.getElementById('sched-sub-' + sub);
+    if (panel) panel.style.display = 'block';
   }
 
   // ─── DRIVERS SUB-NAV ───────────────────────────────────────
