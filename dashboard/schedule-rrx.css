@@ -130,6 +130,16 @@
   visibility: hidden !important;
 }
 
+/* Insights tab — leave the icon ribbon visually blank so the panel
+   below feels like its own surface. The cmd-shell stays in the
+   layout (preserves spacing + the tab strip above it) but every
+   ribbon group / action button inside it is hidden. */
+#view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-ribbon-group,
+#view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-ribbon-actions,
+#view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-print-actions {
+  display: none !important;
+}
+
 /* Same guard for Fleet's print actions. */
 #view-fleet .fl-cmd-shell:not(.is-print) .fl-print-actions,
 #view-fleet .fl-cmd-shell:not(.is-print) .fl-print-actions * {
