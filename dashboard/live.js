@@ -4216,8 +4216,12 @@ function _fillObMatrixSkeletonRows(body) {
   const css = document.createElement("style");
   css.id = "rr-ob-sk-css";
   css.textContent = `
+    /* Skeleton rows highlight on hover just like real applicant rows
+       (.ob-matrix tr:hover td uses the same brand-blue tint). They
+       stay non-interactive — cursor stays default and no click
+       handler is attached. */
     #view-onboarding-ops .ob-matrix .ob-sk-tr td {
-      pointer-events: none;
+      cursor: default;
     }
     #view-onboarding-ops .ob-sk-row {
       display: flex; align-items: center; gap: 12px;
