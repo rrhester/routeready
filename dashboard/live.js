@@ -28569,12 +28569,27 @@ async function autoFillScheduleWeek() {
   }
   await renderScheduleWeek();
   // Operator: "When you hit smart fill — I don't want the pop-up
-  // giving you details to appear." The diagnostics summary
-  // (assignment failures, uncovered shifts, unscheduled drivers)
-  // still gets built above so it can be surfaced elsewhere later
-  // (e.g., a side panel or log), but the blocking alert() popup is
-  // gone. Toast at line 28531/28533 still confirms the run.
-  void summaryAlert;
+  // giving you details to appear." The blocking alert() is gone, but
+  // the diagnostics still get surfaced two non-blocking ways so an
+  // operator (or me) can audit why shifts/drivers were left out:
+  //   1. Console group — opens in DevTools, includes the payload so
+  //      the engine can be replayed offline.
+  //   2. window._rrLastSmartFillDiagnostics — programmatic access for
+  //      drill-downs / tests / live debugging.
+  try {
+    window._rrLastSmartFillDiagnostics = {
+      summary: summaryAlert || "(no skips reported)",
+      payload: window._rrLastSmartFillPayload || null,
+    };
+    if (summaryAlert) {
+      console.groupCollapsed("[Smart Fill] " + (summaryAlert.split("\n", 1)[0] || "diagnostics"));
+      console.log(summaryAlert);
+      console.log("payload (window._rrLastSmartFillPayload):", window._rrLastSmartFillPayload);
+      console.groupEnd();
+    } else {
+      console.info("[Smart Fill] completed — no skipped shifts / unscheduled drivers reported.");
+    }
+  } catch (_) { /* visibility-only, never throw */ }
 }
 
 // Auto-assign drivers to open shifts in the current week based on each
