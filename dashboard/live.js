@@ -28543,13 +28543,25 @@ async function autoFillScheduleWeek() {
       parts.push(
         `Engine assigned ${diagnostics.engineAssignedCount}, ` +
         `wrote ${diagnostics.writtenCount}, ` +
-        `still open in engine's view: ${diagnostics.engineSawOpenCount}, ` +
+        `engine's uncovered count: ${diagnostics.engineUncoveredCount}, ` +
         `still open after write: ${diagnostics.stillOpenAfterWrite.length}.`
       );
       if (diagnostics.stillOpenAfterWrite.length > 0) {
         parts.push(
           `Open shifts after write:\n` +
           diagnostics.stillOpenAfterWrite.map(s => "  • " + s).join("\n")
+        );
+      }
+      if (diagnostics.sameDayDoublebooks && diagnostics.sameDayDoublebooks.length > 0) {
+        parts.push(
+          `⚠ Engine produced ${diagnostics.sameDayDoublebooks.length} same-day double-book(s) — the second write is silently dropped by assign_shift:\n` +
+          diagnostics.sameDayDoublebooks.map(s => "  • " + s).join("\n")
+        );
+      }
+      if (diagnostics.engineAssignsByDriver && diagnostics.engineAssignsByDriver.length > 0) {
+        parts.push(
+          `Engine's assignments by driver (compare to board to spot silent write failures):\n` +
+          diagnostics.engineAssignsByDriver.join("\n")
         );
       }
       if (diagnostics.failedWrites > 0) {
@@ -29045,20 +29057,16 @@ async function autoAssignDriversForWeek() {
   }
   // For triangulating "engine thinks all shifts filled but 2 remain open in
   // the grid": list every regular shift that ended up unassigned after the
-  // write pass, alongside what the engine itself reported as uncovered.
-  // If these two lists disagree, the engine assigned someone to a shift
-  // that didn't actually get written (or didn't see the shift at all).
+  // write pass. If the engine's own uncovered_shifts list is empty but
+  // stillOpenAfterWrite isn't, the engine assigned someone to a shift that
+  // didn't actually get written (most likely the same driver got two
+  // assignments on the same date, and the second one silently no-ops).
   const assignedShiftIds = new Set((result.assigned_shifts || []).map(a => a.shift_id));
   const writtenShiftIds = new Set(toWrite.map(t => t.id));
-  // Drop any IDs that failed to write.
-  // Note: _assignShiftsParallel doesn't return the failed IDs, only counts.
-  // For now, take the engine's assigned set minus locked/preserved and
-  // assume the failures are evenly distributed; the count is enough to
-  // detect the mismatch.
   const stillOpen = engineShifts
     .filter(es => !es.is_locked && !assignedShiftIds.has(es.id))
     .map(es => `${es.date} ${es.starts_at ? new Date(es.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : ""}`.trim());
-  const engineSawOpenCount = engineShifts.filter(es => !es.is_locked && es.assigned_driver_id === null).length;
+  const engineUncoveredCount = (result.uncovered_shifts || []).length;
   const engineAssignedCount = (result.assigned_shifts || []).filter(a => a.source !== "locked" && a.source !== "preserved").length;
 
   // DOW (0=Sun..6=Sat) name lookup for human-readable availability.
@@ -29069,26 +29077,69 @@ async function autoAssignDriversForWeek() {
   const sfPayloadForDiag = window._rrLastSmartFillPayload || { drivers: [] };
   const driverPayloadById = new Map((sfPayloadForDiag.drivers || []).map(d => [d.id, d]));
 
+  // What did the engine actually assign to each driver? Count fresh
+  // placements (locked / preserved are pre-existing). If a driver shows
+  // up here with N shifts but the board shows fewer, writes are being
+  // silently dropped — that's the engine-vs-DB mismatch.
+  const engineAssignsByDriver = new Map();
+  const engineDatesByDriver = new Map();
+  for (const a of (result.assigned_shifts || [])) {
+    if (a.source === "locked" || a.source === "preserved") continue;
+    engineAssignsByDriver.set(a.driver_id, (engineAssignsByDriver.get(a.driver_id) || 0) + 1);
+    const sh = engineShifts.find(e => e.id === a.shift_id);
+    const date = sh?.date || "?";
+    if (!engineDatesByDriver.has(a.driver_id)) engineDatesByDriver.set(a.driver_id, []);
+    engineDatesByDriver.get(a.driver_id).push(date);
+  }
+  // Detect same-driver / same-date duplicates from the engine — these are
+  // exactly the assignments the assign_shift RPC will silently drop.
+  const sameDayDoublebooks = [];
+  for (const [did, dates] of engineDatesByDriver) {
+    const seen = new Set();
+    for (const d of dates) {
+      if (seen.has(d)) sameDayDoublebooks.push(`${nameById.get(did) || did} → ${d} (already assigned to this driver)`);
+      seen.add(d);
+    }
+  }
+  const engineAssignsLines = [...engineAssignsByDriver.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([did, n]) => `  • ${nameById.get(did) || did}: ${n} (${(engineDatesByDriver.get(did) || []).sort().join(", ")})`);
+
+  // Which days are still open after the writes? Used to point out when a
+  // driver with matching availability was somehow not assigned.
+  const openShiftDows = new Set(
+    engineShifts.filter(es => !es.is_locked && !assignedShiftIds.has(es.id))
+      .map(es => new Date(es.date + "T12:00:00").getDay())
+  );
+
   const diagnostics = {
     failedWrites,
     writeError,
     engineAssignedCount,
-    engineSawOpenCount,
+    engineUncoveredCount,
     writtenCount: writtenShiftIds.size,
     stillOpenAfterWrite: stillOpen,
+    engineAssignsByDriver: engineAssignsLines,
+    sameDayDoublebooks,
     skipped: [...skippedByReason.entries()].map(([reason, count]) => ({ reason, count })),
     uncovered: (result.uncovered_shifts || []).map(u => u.summary),
     unscheduled: (result.unscheduled_drivers || []).map(u => {
       const name = nameById.get(u.driver_id) || u.driver_id;
       const blocks = u.block_reasons || [];
       const dp = driverPayloadById.get(u.driver_id);
-      const avail = Array.isArray(dp?.available_dows) && dp.available_dows.length > 0
-        ? dp.available_dows.map(i => DOW_LBL[i]).join("/")
-        : (dp?.available_dows === null ? "(no availability set)" : "(none)");
+      const availDows = Array.isArray(dp?.available_dows) ? dp.available_dows : null;
+      const avail = availDows && availDows.length > 0
+        ? availDows.map(i => DOW_LBL[i]).join("/")
+        : (availDows === null ? "(no availability set)" : "(none)");
+      const matchOpen = availDows ? availDows.filter(d => openShiftDows.has(d)).map(d => DOW_LBL[d]) : [];
       let reason;
       if (blocks.length > 0) {
         reason = "blocked from the open shifts — " +
           blocks.map(b => b.message).join("; ");
+      } else if (matchOpen.length > 0) {
+        // This is the bug case: driver IS available on a day with an open
+        // shift, but the engine didn't assign them. Surface it loudly.
+        reason = `⚠ available on ${matchOpen.join("/")} which has open shifts — engine still skipped them (BUG)`;
       } else if (u.eligible_somewhere) {
         reason = "eligible, but every shift was filled by another driver " +
           "(turn on “Spread work evenly” to give everyone a turn)";
