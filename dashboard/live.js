@@ -24711,6 +24711,7 @@ document.addEventListener("change", (e) => {
     saved.vans[key] = !!el.checked;
   }
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+  _refreshSfAdvancedGating();
 });
 // Mirror the Advanced > Use van pairings checkbox back to Zone 3 so the
 // two views stay in sync no matter which one the operator clicks.
@@ -25015,6 +25016,22 @@ function _refreshSfAdvancedGating() {
     sub.disabled = !enhOn;
     if (!enhOn) sub.checked = false;
   });
+  // Standalone "Assign vans" toolbar button is redundant when CP-SAT is
+  // on AND "Assign vans during Smart Fill" is on (engine handles vans
+  // as a first-class decision inside the solve). Hide it in that case;
+  // surface it again when the operator turns either off or works in
+  // Manual mode, since then a separate vans-only pass is the only way
+  // to fill van columns.
+  const vansBtnGroup = document.querySelector(".sched-vans-rules-split");
+  if (vansBtnGroup) {
+    const cpsatOn = isChecked("use_cpsat_solver");
+    const vansCb = document.querySelector('#rr-sched-smartfill-rules-body [data-rr-sf-vans="assign"]');
+    const vansInSmartFill = !vansCb || vansCb.checked;
+    const manualMode = !!(body && body.classList.contains("is-manual"));
+    const redundant = cpsatOn && vansInSmartFill && !manualMode;
+    vansBtnGroup.classList.toggle("is-hidden-by-engine", redundant);
+    vansBtnGroup.style.display = redundant ? "none" : "";
+  }
 }
 // Manual scheduling — when on, the rule box hides every auto-fill rule
 // and the Smart Fill button is disabled; the board is filled by hand.
@@ -25042,6 +25059,7 @@ function _syncManualMode() {
       ? "Fill this week from last week's schedule"
       : "Auto-staff this week from your rules + OKAMI demand";
   }
+  _refreshSfAdvancedGating();
 }
 window._rrSyncManualMode = _syncManualMode;
 // Public reader so autoAssignDriversForWeek can query the live SF
