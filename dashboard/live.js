@@ -17690,6 +17690,15 @@ async function renderLicenseTab(body, d) {
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:6px">Required for Electric Delivery Vehicles. Smart Fill blocks EDV routes unless this is on.</div>
         </div>
       </div>
+      <div class="dd-row" style="align-items:flex-start" data-rr-affinity-row="${escapeHtml(d.id)}">
+        <label>Weekday pattern</label>
+        <div>
+          <div class="rr-affinity-block" data-rr-affinity-mount="${escapeHtml(d.id)}">
+            <div class="rr-affinity-loading" style="font-size:var(--fs-xs);color:var(--text-subtle)">Loading…</div>
+          </div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:6px">How often this driver worked each weekday over the rolling window. Smart Fill leans on this to keep drivers on their usual days.</div>
+        </div>
+      </div>
       <div class="dd-row" style="align-items:flex-start">
         <label>Driver trainer</label>
         <div>
@@ -17699,7 +17708,82 @@ async function renderLicenseTab(body, d) {
       </div>
       ${certsHint}
     </div>`;
+  // Populate the affinity block now that the row is in the DOM. Best-effort.
+  try { _rrLoadAffinityForDriver(d.id); } catch (_) { /* non-fatal */ }
 }
+
+// ─── Driver affinity (Optimization Engine · Step 3) ───────────────────
+// Reads driver_affinity (precomputed nightly + on shift writes) and
+// renders the bar chart inside [data-rr-affinity-mount="<driver_id>"].
+// Falls back to "no signal yet" copy when the row hasn't been computed
+// (brand-new driver, just-imported DSP, etc.).
+const _RR_DOW_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+async function _rrLoadAffinityForDriver(driverId) {
+  if (!driverId) return;
+  const mount = document.querySelector(`[data-rr-affinity-mount="${driverId}"]`);
+  if (!mount) return;
+  const { data, error } = await sb.from("driver_affinity")
+    .select("dow_affinity, dow_start_min, pattern_runlen, sample_size, window_weeks, computed_at")
+    .eq("driver_id", driverId)
+    .maybeSingle();
+  if (error) {
+    mount.innerHTML = `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">Couldn't load weekday pattern.</div>`;
+    return;
+  }
+  if (!data || !Array.isArray(data.dow_affinity) || data.sample_size === 0) {
+    mount.innerHTML = `<div style="font-size:var(--fs-xs);color:var(--text-subtle)">No weekday history yet — needs a few weeks of scheduled shifts.</div>`;
+    return;
+  }
+  const bars = data.dow_affinity.map((pct, i) => {
+    const label = _RR_DOW_LABELS[i];
+    const v = Math.max(0, Math.min(100, pct | 0));
+    return `
+      <div class="rr-aff-col" title="${label}: worked ${v}% of the last ${data.window_weeks} weeks">
+        <div class="rr-aff-bar"><div class="rr-aff-bar-fill" style="height:${v}%"></div></div>
+        <div class="rr-aff-pct">${v}%</div>
+        <div class="rr-aff-day">${label}</div>
+      </div>`;
+  }).join("");
+  const pattern = data.pattern_runlen >= 2
+    ? `Same days for ${data.pattern_runlen} weeks running`
+    : "Pattern hasn't stabilized";
+  mount.innerHTML = `
+    <div class="rr-aff-row">${bars}</div>
+    <div class="rr-aff-meta">${pattern} · ${data.sample_size} shifts in ${data.window_weeks}w window</div>
+  `;
+}
+// One-shot CSS injection. Runs at script parse but defers DOM access
+// until the first call so it's safe even if the head isn't ready yet.
+(function _rrInjectAffinityCssOnce() {
+  const inject = () => {
+    if (!document || !document.head) return;
+    if (document.getElementById("rr-affinity-css")) return;
+    const css = document.createElement("style");
+    css.id = "rr-affinity-css";
+    css.textContent = `
+      .rr-aff-row { display:flex; gap:6px; align-items:flex-end; }
+      .rr-aff-col { display:flex; flex-direction:column; align-items:center;
+                    gap:4px; flex:1; }
+      .rr-aff-bar { width:100%; height:48px; background:var(--canvas,#f3f4f6);
+                    border-radius:3px; display:flex; align-items:flex-end;
+                    overflow:hidden; }
+      .rr-aff-bar-fill { width:100%;
+                         background:linear-gradient(180deg,#3B82F6 0%,#1E40AF 100%);
+                         transition:height 200ms ease; }
+      .rr-aff-pct { font:600 10px/1 var(--rr-font-family,'Segoe UI');
+                    color:var(--text,#111); font-variant-numeric: tabular-nums; }
+      .rr-aff-day { font:500 10px/1 var(--rr-font-family,'Segoe UI');
+                    color:var(--text-subtle,#6b7280); letter-spacing:.02em; }
+      .rr-aff-meta { font-size:11px; color:var(--text-subtle,#6b7280); margin-top:8px; }
+    `;
+    document.head.appendChild(css);
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", inject, { once: true });
+  } else {
+    inject();
+  }
+})();
 
 // ─── Driver drawer · Attendance tab ───────────────────────────────────
 //
