@@ -127,25 +127,41 @@
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-header-l {
-  /* Lock the title block to a fixed width so the icon strip stays
-     pinned to the same x-position across every sub-view. Without
-     this lock, the strip shifts horizontally every time the operator
-     switches tabs because the title text changes length
-     ("Onboarding" → "Funnel" → "Work authorization" → …) and
-     .page-header-l auto-sizes to its content.
+  /* HARD-LOCK the title block to a fixed width so the icon strip
+     never shifts when the operator flips between sub-views. The
+     previous min-width:280px was too small — "Work authorization"
+     (28px Segoe UI) + the longer subtitle
+     ("Form I-9 and work authorization review.") at 14px exceeded
+     280px and grew the block, which shoved the icon strip rightward.
 
-     280px comfortably fits the longest current title
-     ("Work authorization" at 28px Segoe UI) + the existing 16px
-     right-padding, so the icon strip starts at the same column the
-     Work-auth view lands it in — which the operator picked as the
-     anchor point. min-width (not width) so any future longer title
-     can still grow the block without overflowing. */
-  flex: 0 0 auto !important;
-  min-width: 280px !important;
+     Switching to a hard `width: 320px` + `flex-basis` lock so the
+     block ALWAYS measures 320px regardless of which sub-view's
+     title is showing. Title/subtitle long enough to overflow get
+     clipped with ellipsis (text-overflow handled below). The
+     operator picked the Work-authorization layout as the anchor;
+     320px comfortably fits its subtitle. */
+  flex: 0 0 320px !important;
+  width: 320px !important;
+  max-width: 320px !important;
   padding-right: var(--rr-space-160) !important;
   display: flex !important;
   align-items: center !important;
   gap: var(--rr-space-120) !important;
+  overflow: hidden !important;
+}
+
+/* Title + subtitle truncate cleanly if a future title goes past
+   the 320px lock instead of wrapping to two lines and pushing the
+   strip vertically. */
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-header-l > div {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-title,
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-sub {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 
 /* ── Ribbon actions row ─────────────────────────────────────── */
@@ -1135,4 +1151,35 @@ body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn {
 body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
   width: 16px !important;
   height: 16px !important;
+}
+
+/* ── Matrix vertical column dividers ────────────────────────
+   Operator: "there there be lines between each stage of the
+   on boarding so it look like the Calendar grid on the schedule
+   page."
+
+   The Schedule grid paints hairlines between every day-cell.
+   The readiness matrix already has horizontal hairlines (border-
+   top on td). Add a matching vertical hairline on every cell so
+   the grid reads as a true 2D grid instead of horizontal rows
+   with a sticky left column. */
+
+#view-onboarding-ops.rrx-onboarding .ob-matrix th,
+#view-onboarding-ops.rrx-onboarding .ob-matrix td {
+  border-right: 1px solid var(--rr-border-secondary, #E1DFDD) !important;
+}
+/* Last column in each row gets no trailing edge — the wrap's own
+   right border closes it off. */
+#view-onboarding-ops.rrx-onboarding .ob-matrix th:last-child,
+#view-onboarding-ops.rrx-onboarding .ob-matrix td:last-child {
+  border-right: 0 !important;
+}
+/* Sticky driver-name column needs its right edge restored as a
+   foreground shadow because border-right gets covered by the
+   sticky column's own positioning shadow. Already handled in PR
+   #1640's box-shadow trick; this just makes sure the regular
+   hairline doesn't double up against it. */
+#view-onboarding-ops.rrx-onboarding .ob-matrix th.ob-mx-namecol,
+#view-onboarding-ops.rrx-onboarding .ob-matrix td.ob-mx-namecell {
+  border-right: 0 !important;
 }
