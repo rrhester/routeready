@@ -2343,6 +2343,19 @@ body.rr-sched-focus #view-schedule.rrx-schedule .builder-shell {
   align-items: stretch !important;
   flex: 1 1 auto !important;
   min-height: 0 !important;
+  /* Belt-and-suspenders: re-assert the two-column grid in focus
+     mode and override the <1180px media query collapse so the
+     right rail (open-shifts panel) doesn't disappear when the
+     viewport happens to be just below that breakpoint after the
+     sidebar is hidden. */
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 320px !important;
+}
+body.rr-sched-focus #view-schedule.rrx-schedule .sched-right-rail {
+  /* Width has to be definite or the column collapses when
+     min-content of the calendar grid exceeds the 1fr column. */
+  width: 320px !important;
+  min-width: 320px !important;
 }
 body.rr-sched-focus #view-schedule.rrx-schedule .cal-wrap {
   max-height: none !important;
