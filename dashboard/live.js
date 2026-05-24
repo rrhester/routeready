@@ -4916,7 +4916,7 @@ async function loadOnboardingOps(opts) {
 
   const stepHeaders = stepCols.map(s => `<th title="${escapeHtml(s.title)}">${escapeHtml(s.map.head)}</th>`).join("");
   body.innerHTML = enriched.length
-    ? `${_helpBar("overview")}<div class="ob-mx-wrap"><div class="ob-mx-head"><div><div class="ob-mx-head-title">Readiness board</div><div class="ob-mx-head-sub">Sorted by what needs attention first. Click any dot to update a step.</div></div><div class="ob-mx-head-right"><div class="ob-mx-head-chip">${readyCount} ready</div><button type="button" id="rr-ob-focus-toggle" class="ob-mx-focus-btn" aria-pressed="false" title="Focus mode — hide the rest of the chrome and stretch the readiness board to the full viewport. Press Esc to exit." aria-label="Toggle focus mode"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="ic-focus-on"><polyline points="4 9 4 4 9 4"/><polyline points="15 4 20 4 20 9"/><polyline points="20 15 20 20 15 20"/><polyline points="9 20 4 20 4 15"/></svg><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="ic-focus-off" style="display:none"><polyline points="9 4 4 4 4 9"/><polyline points="20 9 20 4 15 4"/><polyline points="15 20 20 20 20 15"/><polyline points="4 15 4 20 9 20"/></svg><span class="ob-mx-focus-label">Focus</span></button></div></div><div class="ob-mx-scroll"><table class="ob-matrix">
+    ? `${_helpBar("overview")}<div class="ob-mx-wrap"><div class="ob-mx-head"><div><div class="ob-mx-head-title">Readiness board</div><div class="ob-mx-head-sub">Sorted by what needs attention first. Click any dot to update a step.</div></div><div class="ob-mx-head-right"><div class="ob-mx-head-chip">${readyCount} ready</div><button type="button" id="rr-ob-compact-toggle" class="ob-mx-focus-btn" aria-pressed="false" title="Compact rows — shrink row height so more drivers fit on screen." aria-label="Toggle compact rows"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg><span>Compact</span></button><button type="button" id="rr-ob-focus-toggle" class="ob-mx-focus-btn" aria-pressed="false" title="Focus mode — hide the rest of the chrome and stretch the readiness board to the full viewport. Press Esc to exit." aria-label="Toggle focus mode"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="ic-focus-on"><polyline points="4 9 4 4 9 4"/><polyline points="15 4 20 4 20 9"/><polyline points="20 15 20 20 15 20"/><polyline points="9 20 4 20 4 15"/></svg><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="ic-focus-off" style="display:none"><polyline points="9 4 4 4 4 9"/><polyline points="20 9 20 4 15 4"/><polyline points="15 20 20 20 20 15"/><polyline points="4 15 4 20 9 20"/></svg><span class="ob-mx-focus-label">Focus</span></button></div></div><div class="ob-mx-scroll"><table class="ob-matrix">
         <thead>
           <tr>
             <th class="ob-mx-namecol">Driver</th>
@@ -22622,6 +22622,47 @@ document.addEventListener("click", (e) => {
   document.body.classList.toggle("rr-ob-focus", on);
   t.setAttribute("aria-pressed", on ? "true" : "false");
 });
+
+// Onboarding readiness-board compact toggle. Same delegated pattern
+// as focus mode so it survives matrix re-renders. Persisted in
+// localStorage('rr-ob-density') so the choice survives reloads —
+// matches the schedule density picker's persistence model.
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("#rr-ob-compact-toggle");
+  if (!t) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const on = !document.body.classList.contains("rr-ob-compact");
+  document.body.classList.toggle("rr-ob-compact", on);
+  t.setAttribute("aria-pressed", on ? "true" : "false");
+  try { localStorage.setItem("rr-ob-density", on ? "compact" : "standard"); } catch (er) {}
+});
+
+// Rehydrate compact state from localStorage on page load, then
+// after every matrix re-render (the new button starts at
+// aria-pressed="false" so we have to flip it back).
+(function () {
+  function applyObDensity() {
+    let mode = null;
+    try { mode = localStorage.getItem("rr-ob-density"); } catch (er) {}
+    const on = mode === "compact";
+    document.body.classList.toggle("rr-ob-compact", on);
+    const btn = document.getElementById("rr-ob-compact-toggle");
+    if (btn) btn.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", applyObDensity);
+  } else {
+    applyObDensity();
+  }
+  // Re-apply when the operator navigates to onboarding (the matrix
+  // re-renders and the toggle button is replaced).
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("[data-obsub='overview'], [data-v='onboarding-ops']")) return;
+    setTimeout(applyObDensity, 150);
+    setTimeout(applyObDensity, 600);
+  });
+})();
 let _okamiStart = null;
 let _schedStart = null;
 

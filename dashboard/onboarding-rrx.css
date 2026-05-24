@@ -1076,3 +1076,51 @@ body.rr-ob-focus #view-onboarding-ops.rrx-onboarding .ob-mx-wrap {
   border-top: 0 !important;
   height: 100% !important;
 }
+
+/* ── Compact rows on the readiness matrix ───────────────────
+   Mirrors Schedule's rr-sched-compact: shorter rows + smaller
+   avatars + tighter text so the operator can see ~50% more
+   drivers without scrolling. Pressed-state styling on the
+   button comes from the existing .ob-mx-focus-btn[aria-pressed]
+   rule. */
+
+body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-matrix td {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-matrix th {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-mx-namecell {
+  min-width: 220px !important;
+}
+body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-mx-namecell .avatar-sm {
+  width: 24px !important;
+  height: 24px !important;
+  font-size: 10px !important;
+}
+body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-mx-name {
+  font-size: 13px !important;
+  line-height: 1.15 !important;
+}
+body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-mx-meta {
+  font-size: 11px !important;
+  line-height: 1.15 !important;
+  margin-top: 1px !important;
+}
+/* Step dots shrink a touch so cells can pack tighter without the
+   dots running into the cell edges. */
+body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-mxdot {
+  width: 15px !important;
+  height: 15px !important;
+}
+/* Toolbar buttons (message / app preview / remove) compress too. */
+body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn {
+  width: 24px !important;
+  height: 24px !important;
+}
+body.rr-ob-compact #view-onboarding-ops.rrx-onboarding .ob-tb-btn svg {
+  width: 16px !important;
+  height: 16px !important;
+}
