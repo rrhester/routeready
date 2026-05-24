@@ -2382,6 +2382,30 @@ body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-time {
   line-height: 1.05 !important;
 }
 
+/* ── Compact + Ultra-compact · empty-card chips ───────────────
+   Operator request: at both densities, schedule cards should carry
+   NO data — just the color bar so the grid reads as a heat map of
+   coverage at a glance. Hides every child of .shift-chip and any
+   floating decoration (van tag, eyebrow, badges). The chip itself
+   stays so its background color still paints the cell.
+
+   Hover to inspect a specific shift via the existing chip click /
+   drag handlers; the title attribute was already removed in #1689. */
+body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip > *,
+body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-van,
+body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-fifth-day::after,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip > *,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-van,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-fifth-day::after {
+  display: none !important;
+}
+body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip {
+  padding: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
 /* ── Ultra-compact rows · slimmest rectangles ─────────────────
    Operator-picked density. Goes a step further than rr-sched-compact:
    24px row height, no avatar (just initials), single-line chips
