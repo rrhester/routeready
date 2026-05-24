@@ -13649,6 +13649,114 @@ body.rr-cmdk-open{ overflow:hidden }
                     </select>
                   </div>
                 </div>
+                <!-- ── Advanced engine controls ─────────────────────────
+                     A collapsible expander at the bottom of the Smart
+                     Fill rules popover. Lets advanced operators dial
+                     the solver's objective weights, toggle data
+                     sources, and tune the compute budget without
+                     touching the everyday rule toggles above. -->
+                <details class="sched-smartfill-engine" id="rr-sf-engine-expander">
+                  <summary class="sched-smartfill-engine-head">
+                    <svg class="sf-engine-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
+                    <span>Advanced engine controls</span>
+                  </summary>
+                  <div class="sched-smartfill-engine-body">
+                    <!-- Group A: priority sliders (1–5, 3 = current behaviour) -->
+                    <div class="sf-engine-group">
+                      <div class="sf-engine-group-label">Priorities</div>
+                      <div class="sf-engine-priorities" id="rr-sf-engine-priorities">
+                        <div class="sf-engine-prio-row">
+                          <label for="rr-sf-prio-coverage" class="sf-engine-prio-name">Coverage</label>
+                          <input id="rr-sf-prio-coverage" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="coverage" class="sf-engine-prio-slider" aria-label="Coverage priority"/>
+                          <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
+                        </div>
+                        <div class="sf-engine-prio-row">
+                          <label for="rr-sf-prio-fairness" class="sf-engine-prio-name">Fairness</label>
+                          <input id="rr-sf-prio-fairness" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="fairness" class="sf-engine-prio-slider" aria-label="Fairness priority"/>
+                          <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
+                        </div>
+                        <div class="sf-engine-prio-row">
+                          <label for="rr-sf-prio-ot_avoidance" class="sf-engine-prio-name">Overtime avoidance</label>
+                          <input id="rr-sf-prio-ot_avoidance" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="ot_avoidance" class="sf-engine-prio-slider" aria-label="Overtime avoidance priority"/>
+                          <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
+                        </div>
+                        <div class="sf-engine-prio-row">
+                          <label for="rr-sf-prio-stability" class="sf-engine-prio-name">Schedule stability</label>
+                          <input id="rr-sf-prio-stability" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="stability" class="sf-engine-prio-slider" aria-label="Schedule stability priority"/>
+                          <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
+                        </div>
+                        <div class="sf-engine-prio-row">
+                          <label for="rr-sf-prio-van_continuity" class="sf-engine-prio-name">Van continuity</label>
+                          <input id="rr-sf-prio-van_continuity" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="van_continuity" class="sf-engine-prio-slider" aria-label="Van continuity priority"/>
+                          <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
+                        </div>
+                        <div class="sf-engine-prio-row">
+                          <label for="rr-sf-prio-preferred_days" class="sf-engine-prio-name">Preferred days</label>
+                          <input id="rr-sf-prio-preferred_days" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="preferred_days" class="sf-engine-prio-slider" aria-label="Preferred days priority"/>
+                          <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
+                        </div>
+                        <div class="sf-engine-prio-row">
+                          <label for="rr-sf-prio-attendance_penalty" class="sf-engine-prio-name">Attendance penalty</label>
+                          <input id="rr-sf-prio-attendance_penalty" type="range" min="1" max="5" step="1" value="3" data-rr-sf-prio="attendance_penalty" class="sf-engine-prio-slider" aria-label="Attendance penalty priority"/>
+                          <div class="sf-engine-prio-ticks"><span>Ignore</span><span>Default</span><span>Insist</span></div>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- Group B: data sources (all on by default) -->
+                    <div class="sf-engine-group">
+                      <div class="sf-engine-group-label">Data sources</div>
+                      <div class="sf-engine-datasources">
+                        <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="pto" checked> <span>Use approved PTO</span></label>
+                        <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="affinity" checked> <span>Use affinity history (last N weeks)</span></label>
+                        <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="van_pairings" checked> <span>Use van pairings</span></label>
+                        <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="attendance" checked> <span>Use attendance score</span></label>
+                        <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="fifth_day_optin" checked> <span>Use 5th-day opt-in flags</span></label>
+                        <label class="sf-engine-ds"><input type="checkbox" data-rr-sf-ds="ad_hoc_rules" checked> <span>Use ad-hoc custom rules</span></label>
+                      </div>
+                    </div>
+                    <!-- Group C: compute budget -->
+                    <div class="sf-engine-group">
+                      <div class="sf-engine-group-label">Compute budget</div>
+                      <div class="sf-engine-budget">
+                        <div class="sf-engine-budget-row">
+                          <span class="sf-engine-budget-label">Solve time</span>
+                          <select class="form-input sf-engine-budget-select" id="rr-sf-solve-time" data-rr-sf-budget="solveTimeMs">
+                            <option value="3000">Quick (3s)</option>
+                            <option value="8000" selected>Normal (8s)</option>
+                            <option value="30000">Thorough (30s)</option>
+                          </select>
+                        </div>
+                        <div class="sf-engine-budget-row">
+                          <span class="sf-engine-budget-label">Affinity history window</span>
+                          <select class="form-input sf-engine-budget-select" id="rr-sf-affinity-weeks" data-rr-sf-budget="affinityWeeks">
+                            <option value="2">2 weeks</option>
+                            <option value="4" selected>4 weeks</option>
+                            <option value="8">8 weeks</option>
+                          </select>
+                        </div>
+                        <div class="sf-engine-budget-row">
+                          <span class="sf-engine-budget-label">Max days per week</span>
+                          <select class="form-input sf-engine-budget-select" id="rr-sf-max-days-override" data-rr-sf-budget="maxDaysOverride">
+                            <option value="5" selected>5 days</option>
+                            <option value="6">6 days</option>
+                            <option value="7">7 days</option>
+                          </select>
+                        </div>
+                        <div class="sf-engine-budget-row">
+                          <span class="sf-engine-budget-label">Weekly hour cap</span>
+                          <select class="form-input sf-engine-budget-select" id="rr-sf-weekly-hour-cap" data-rr-sf-budget="weeklyHourCap">
+                            <option value="40" selected>40 hours</option>
+                            <option value="45">45 hours</option>
+                            <option value="50">50 hours</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="sf-engine-foot">
+                      <button type="button" class="sf-engine-reset" id="rr-sf-engine-reset">Reset to defaults</button>
+                    </div>
+                  </div>
+                </details>
               </div>
             </div>
             <div class="sched-vans-rules-split">
@@ -16004,6 +16112,121 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-top:0;
           }
           #view-schedule .sched-smartfill-advanced-row[hidden]{display:none}
+
+          /* Advanced engine controls — bottom-of-popover expander with
+             priority sliders, data-source toggles, compute budget. Uses
+             a native <details> for keyboard-friendly expand/collapse;
+             chevron rotates 90deg on open. */
+          #view-schedule .sched-smartfill-engine{
+            border-top:1px solid rgba(15,23,42,.08);
+            margin-top:4px;padding:0;
+            font-family:inherit;
+          }
+          #view-schedule .sched-smartfill-engine[open]{
+            background:rgba(15,23,42,.015);
+          }
+          #view-schedule .sched-smartfill-engine-head{
+            list-style:none;cursor:pointer;user-select:none;
+            display:flex;align-items:center;gap:8px;
+            padding:10px 16px;
+            font-size:11px;font-weight:600;
+            text-transform:uppercase;letter-spacing:.04em;
+            color:#616161;
+          }
+          #view-schedule .sched-smartfill-engine-head::-webkit-details-marker{display:none}
+          #view-schedule .sched-smartfill-engine .sf-engine-chev{
+            width:10px;height:10px;flex:0 0 auto;
+            color:#616161;
+            transition:transform 120ms ease;
+          }
+          #view-schedule .sched-smartfill-engine[open] .sf-engine-chev{
+            transform:rotate(90deg);
+          }
+          #view-schedule .sched-smartfill-engine-body{
+            padding:4px 16px 12px;
+            display:flex;flex-direction:column;gap:14px;
+          }
+          #view-schedule .sf-engine-group{
+            display:flex;flex-direction:column;gap:8px;
+          }
+          #view-schedule .sf-engine-group-label{
+            font-size:11px;font-weight:600;
+            text-transform:uppercase;letter-spacing:.04em;
+            color:#616161;
+          }
+          /* Priority sliders — grid: name | slider | tick labels. */
+          #view-schedule .sf-engine-priorities{
+            display:flex;flex-direction:column;gap:6px;
+          }
+          #view-schedule .sf-engine-prio-row{
+            display:grid;
+            grid-template-columns:140px 1fr 140px;
+            align-items:center;gap:10px;
+            font-size:13px;color:#1f1f1f;
+          }
+          #view-schedule .sf-engine-prio-name{
+            font-size:13px;color:#1f1f1f;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-schedule .sf-engine-prio-slider{
+            width:100%;accent-color:#0078d4;cursor:pointer;
+            margin:0;
+          }
+          #view-schedule .sf-engine-prio-ticks{
+            display:flex;justify-content:space-between;
+            font-size:10px;color:#888;line-height:1;
+          }
+          /* Data sources — two-column checkbox grid. */
+          #view-schedule .sf-engine-datasources{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:4px 16px;
+          }
+          #view-schedule .sf-engine-ds{
+            display:flex;align-items:center;gap:8px;
+            font-size:13px;color:#1f1f1f;
+            cursor:pointer;padding:4px 0;
+          }
+          #view-schedule .sf-engine-ds input[type="checkbox"]{
+            width:15px;height:15px;cursor:pointer;accent-color:#0078d4;
+            margin:0;flex:0 0 auto;
+          }
+          /* Compute budget — two-column row layout (label / select). */
+          #view-schedule .sf-engine-budget{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:8px 20px;
+          }
+          #view-schedule .sf-engine-budget-row{
+            display:flex;flex-direction:column;gap:4px;
+            min-width:0;
+          }
+          #view-schedule .sf-engine-budget-row .sf-engine-budget-label{
+            font-size:13px;color:#1f1f1f;
+          }
+          #view-schedule .sf-engine-budget-row .sf-engine-budget-select{
+            font-size:13px;padding:5px 8px;width:100%;
+          }
+          #view-schedule .sf-engine-foot{
+            display:flex;justify-content:flex-end;
+            padding-top:2px;
+          }
+          #view-schedule .sf-engine-reset{
+            background:transparent;border:0;cursor:pointer;
+            font-family:inherit;font-size:12px;color:#0078d4;
+            padding:4px 6px;border-radius:4px;
+            transition:background 80ms linear;
+          }
+          #view-schedule .sf-engine-reset:hover{
+            background:rgba(0,120,212,.08);
+            text-decoration:underline;
+          }
+          /* Manual mode hides the advanced engine controls too — they're
+             solver-only and have no effect when Smart Fill is off. */
+          #view-schedule .sched-smartfill-rules-body.is-manual
+            ~ .sched-smartfill-engine{
+            display:none;
+          }
 
           /* Settings split-button — main tile opens the full drawer,
              the small chevron in the bottom-right opens an inline

@@ -132,21 +132,34 @@ def solve(req: SolveRequest) -> SolveResponse:
     stub so the wire format and downstream audit pipeline are unchanged."""
     started_at = time.perf_counter()
 
-    # ── Inputs ────────────────────────────────────────────────────────
-    pto_dates_by_driver: dict[str, set[str]] = defaultdict(set)
-    for p in req.pto:
-        pto_dates_by_driver[p.driver_id].add(p.date)
-
-    van_types: dict[str, str] = {v.id: v.vehicle_type for v in req.vans if v.status == "active"}
-    pairings_by_driver: dict[str, list[VanPairingIn]] = defaultdict(list)
-    for vp in req.van_pairings:
-        if vp.van_id in van_types:
-            pairings_by_driver[vp.driver_id].append(vp)
-
+    # Rules + data-source toggles. All toggles default True so callers
+    # that don't set them get the existing behavior. The dashboard's
+    # Smart Fill "Advanced engine controls" expander surfaces these as
+    # per-DSP switches so operators can A/B which signals are wired in.
     rules = req.rules or {}
+    use_pto             = bool(rules.get("use_pto", True))
+    use_affinity        = bool(rules.get("use_affinity", True))
+    use_van_pairings    = bool(rules.get("use_van_pairings", True))
+    use_attendance      = bool(rules.get("use_attendance", True))
+    use_fifth_day_optin = bool(rules.get("use_fifth_day_optin", True))
+    use_ad_hoc_rules    = bool(rules.get("use_ad_hoc_rules", True))
+
     max_days = int(req.max_days or 5)
     woc_on = bool(rules.get("woc", True))
     woc_max_consec = int(rules.get("woc_max_consecutive_days") or DEFAULT_WOC_MAX_CONSECUTIVE_DAYS)
+
+    # ── Inputs ────────────────────────────────────────────────────────
+    pto_dates_by_driver: dict[str, set[str]] = defaultdict(set)
+    if use_pto:
+        for p in req.pto:
+            pto_dates_by_driver[p.driver_id].add(p.date)
+
+    van_types: dict[str, str] = {v.id: v.vehicle_type for v in req.vans if v.status == "active"}
+    pairings_by_driver: dict[str, list[VanPairingIn]] = defaultdict(list)
+    if use_van_pairings:
+        for vp in req.van_pairings:
+            if vp.van_id in van_types:
+                pairings_by_driver[vp.driver_id].append(vp)
 
     # Driver + shift indexes; pre-filter eligible (d, s) pairs.
     open_shifts: list[ShiftIn] = [s for s in req.shifts if not s.is_locked]
@@ -217,7 +230,9 @@ def solve(req: SolveRequest) -> SolveResponse:
         if ls.assigned_driver_id:
             locked_on_days[ls.assigned_driver_id].add(ls.date)
 
-    # Max days per week.
+    # Max days per week. Drivers who've opted in to a 5th day get a
+    # +1 cap bump when use_fifth_day_optin is on (the dashboard's
+    # default). With the toggle off, every driver respects max_days.
     for d in req.drivers:
         prebaked = len(locked_on_days.get(d.id, set()))
         flex = [
@@ -225,8 +240,11 @@ def solve(req: SolveRequest) -> SolveResponse:
             for (did, date_iso) in on_day
             if did == d.id
         ]
+        cap = max_days
+        if use_fifth_day_optin and getattr(d, "fifth_day_ok", False):
+            cap = max_days + 1
         if flex:
-            model.Add(sum(flex) <= max(0, max_days - prebaked))
+            model.Add(sum(flex) <= max(0, cap - prebaked))
 
     # WOC max consecutive days. For each driver, slide a window of size
     # (woc_max_consec + 1) over the week dates and require the count
@@ -267,6 +285,7 @@ def solve(req: SolveRequest) -> SolveResponse:
     W_OT   = int(weights.get("ot_risk",    5))       # per OT hour
     W_FAIR = int(weights.get("fairness",   2))       # per max-hour-of-roster
     W_ATT  = int(weights.get("attendance", 100))     # per shift to a final-corrective driver
+    W_PREF = int(weights.get("preferred_days", 5))   # per assignment landing on the driver's preferred DOW
 
     objective_terms: list = []
 
@@ -277,16 +296,32 @@ def solve(req: SolveRequest) -> SolveResponse:
     # 2. Affinity — bonus per assignment where the driver historically
     # works that DOW. weekday_affinity is 7 ints in [0, 100] from the
     # driver_affinity table (precomputed nightly; see migration 0325).
-    affinity_by_driver: dict[str, list[int]] = {}
+    if use_affinity:
+        affinity_by_driver: dict[str, list[int]] = {}
+        for d in req.drivers:
+            if isinstance(d.weekday_affinity, list) and len(d.weekday_affinity) == 7:
+                affinity_by_driver[d.id] = [int(x or 0) for x in d.weekday_affinity]
+        for s in open_shifts:
+            sdow = _dow(s.date)
+            for did in eligible_drivers_per_shift.get(s.id, []):
+                score = affinity_by_driver.get(did, [0]*7)[sdow]
+                if score > 0:
+                    objective_terms.append(W_AFF * score * assign[(did, s.id)])
+
+    # 2b. Preferred days — bonus per assignment landing on a DOW the
+    # driver has flagged as preferred (driver.preferred_dows, same
+    # Sun=0..Sat=6 convention as available_dows). Soft signal: drivers
+    # still get scheduled outside their preferences when coverage needs
+    # them, but the solver picks preferred days when there's a tie.
+    preferred_by_driver: dict[str, set[int]] = {}
     for d in req.drivers:
-        if isinstance(d.weekday_affinity, list) and len(d.weekday_affinity) == 7:
-            affinity_by_driver[d.id] = [int(x or 0) for x in d.weekday_affinity]
+        if isinstance(d.preferred_dows, list) and d.preferred_dows:
+            preferred_by_driver[d.id] = {int(x) for x in d.preferred_dows}
     for s in open_shifts:
         sdow = _dow(s.date)
         for did in eligible_drivers_per_shift.get(s.id, []):
-            score = affinity_by_driver.get(did, [0]*7)[sdow]
-            if score > 0:
-                objective_terms.append(W_AFF * score * assign[(did, s.id)])
+            if sdow in preferred_by_driver.get(did, set()):
+                objective_terms.append(W_PREF * assign[(did, s.id)])
 
     # 3. Per-driver hours + OT penalty. Shift durations in whole hours
     # (CP-SAT performs better with smaller integer ranges; sub-hour
@@ -345,11 +380,99 @@ def solve(req: SolveRequest) -> SolveResponse:
     # 5. Attendance-risk penalty — final-corrective drivers carry a
     # negative weight per assignment. The solver still picks them when
     # coverage demands, but prefers safer drivers when there's a choice.
-    for d in req.drivers:
-        if d.final_corrective_action:
+    if use_attendance:
+        for d in req.drivers:
+            if d.final_corrective_action:
+                for s in open_shifts:
+                    if (d.id, s.id) in assign:
+                        objective_terms.append(-W_ATT * assign[(d.id, s.id)])
+
+    # ── 5c. Van decision variables ────────────────────────────────────
+    # Vans become first-class assignments alongside drivers. The model
+    # decides which van goes to which open shift jointly with which
+    # driver, which:
+    #   • Maximizes the number of shifts that get a van (globally vs
+    #     greedy-per-shift like the heuristic).
+    #   • Honors van_pairings via a continuity bonus (pair_match AND).
+    #   • Prevents van double-booking per date.
+    #
+    # Locked shifts get their van via the heuristic _van_for_driver
+    # below (in the result-reading section). Slots those consume are
+    # pre-subtracted here so the CP-SAT model doesn't try to schedule
+    # the same (van, date) twice.
+    pre_consumed_van_dates: dict[str, set[str]] = defaultdict(set)
+    locked_van_assignment: dict[str, Optional[str]] = {}  # locked shift_id → van_id
+    # Compute heuristic van picks for locked shifts here, ONCE, so both
+    # this pre-subtraction step and the result-reading step agree.
+    _van_used_for_locked: dict[str, set[str]] = defaultdict(set)
+    if use_van_pairings:
+        for ls in locked_shifts:
+            if not ls.assigned_driver_id:
+                continue
+            vid = _van_for_driver(
+                ls.assigned_driver_id, ls.route_type,
+                pairings_by_driver, van_types, _van_used_for_locked, ls.date,
+            )
+            locked_van_assignment[ls.id] = vid
+            if vid:
+                _van_used_for_locked[vid].add(ls.date)
+                pre_consumed_van_dates[vid].add(ls.date)
+
+    # van_assign[v, s] for each open shift × type-compatible van whose
+    # date isn't already consumed by a locked row.
+    van_assign: dict[tuple[str, str], cp_model.IntVar] = {}
+    vans_per_shift: dict[str, list[str]] = defaultdict(list)
+    shifts_per_van_date: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for s in open_shifts:
+        for v in req.vans:
+            if v.status != "active":
+                continue
+            if not _is_van_type_compatible(s.route_type, van_types.get(v.id, "standard")):
+                continue
+            if s.date in pre_consumed_van_dates.get(v.id, set()):
+                continue
+            key = (v.id, s.id)
+            var = model.NewBoolVar(f"van_{v.id}_{s.id}")
+            van_assign[key] = var
+            vans_per_shift[s.id].append(v.id)
+            shifts_per_van_date[(v.id, s.date)].append(s.id)
+
+    # At most one van per shift.
+    for s_id, vids in vans_per_shift.items():
+        model.Add(sum(van_assign[(v, s_id)] for v in vids) <= 1)
+
+    # Van can only be assigned to a covered shift.
+    # van_total[s] ≤ 1 - uncovered[s].
+    for s in open_shifts:
+        vids = vans_per_shift.get(s.id, [])
+        if vids:
+            model.Add(sum(van_assign[(v, s.id)] for v in vids) <= 1 - uncovered[s.id])
+
+    # No van double-book per date (open-shift side; locked already pre-consumed).
+    for (v_id, _date), sids in shifts_per_van_date.items():
+        model.Add(sum(van_assign[(v_id, s_id)] for s_id in sids) <= 1)
+
+    # Continuity bonus: when van_pairing (d, v) exists AND both d takes
+    # shift s AND v takes shift s, add a positive objective term.
+    W_VAN_CONT = int(weights.get("van_continuity", 10))
+    if use_van_pairings:
+        for vp in req.van_pairings:
+            if vp.van_id not in van_types:
+                continue
             for s in open_shifts:
-                if (d.id, s.id) in assign:
-                    objective_terms.append(-W_ATT * assign[(d.id, s.id)])
+                if (vp.driver_id, s.id) not in assign:
+                    continue
+                if (vp.van_id, s.id) not in van_assign:
+                    continue
+                # pair_match = assign[d, s] AND van_assign[v, s]
+                pm = model.NewBoolVar(f"pm_{vp.driver_id}_{vp.van_id}_{s.id}")
+                a = assign[(vp.driver_id, s.id)]
+                va = van_assign[(vp.van_id, s.id)]
+                model.Add(pm <= a)
+                model.Add(pm <= va)
+                model.Add(pm >= a + va - 1)
+                objective_terms.append(W_VAN_CONT * pm)
+
 
     # ── 5c. Van decision variables ────────────────────────────────────
     # Vans become first-class assignments alongside drivers. The model
@@ -439,7 +562,7 @@ def solve(req: SolveRequest) -> SolveResponse:
     # ── 6. Ad-hoc constraints (Step 5.5) ──────────────────────────────
     # Operator-authored rules compiled into CP-SAT additions. Soft rules
     # contribute slack-penalty terms; hard rules add direct constraints.
-    if req.ad_hoc_constraints:
+    if use_ad_hoc_rules and req.ad_hoc_constraints:
         from .ad_hoc import AdHocContext, compile_ad_hoc
         ah_ctx = AdHocContext(
             assign=assign,

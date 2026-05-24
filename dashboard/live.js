@@ -24637,12 +24637,177 @@ function _restoreSmartFillRules() {
   const affWeeksEl = document.getElementById("rr-set-affinity-weeks");
   if (affWeeksEl) affWeeksEl.value = String(Math.max(1, Math.min(26, parseInt(saved.affinity_rolling_weeks, 10) || 4)));
   _renderAffinityDayOrder();
+  // Restore the Advanced engine controls (priority sliders, data-source
+  // toggles, compute-budget selects). All defaults are encoded inline so
+  // a brand-new install lands on the same numbers the solver already uses.
+  _restoreSfEngineControls(saved);
   _refreshSfAdvancedGating();
   _syncManualMode();
   // Custom (ad-hoc) rules list — best-effort; safe to no-op if the
   // schema isn't deployed yet.
   try { _rrLoadAdHocConstraintsList(); } catch (_) { /* non-fatal */ }
 }
+
+// ─── Advanced engine controls (priorities / data sources / budget) ─────
+// Defaults table — picked so that "Default" (slider=3, all data sources
+// on, Normal budget, 4-week affinity, 5 max-days, 40h cap) reproduces
+// the solver's current behaviour with no change.
+const _RR_SF_ENGINE_DEFAULTS = Object.freeze({
+  priorities: Object.freeze({
+    coverage: 3, fairness: 3, ot_avoidance: 3, stability: 3,
+    van_continuity: 3, preferred_days: 3, attendance_penalty: 3,
+  }),
+  dataSources: Object.freeze({
+    pto: true, affinity: true, van_pairings: true,
+    attendance: true, fifth_day_optin: true, ad_hoc_rules: true,
+  }),
+  solveTimeMs:     8000,
+  affinityWeeks:   4,
+  maxDaysOverride: 5,
+  weeklyHourCap:   40,
+});
+// Default weight constants — must match cpsat_model.py defaults so a
+// slider left at 3 ("Default") multiplies by 1.0 and produces the
+// solver's existing numbers (no behaviour change).
+const _RR_SF_ENGINE_WEIGHT_DEFAULTS = Object.freeze({
+  coverage:       10000,
+  fairness:       2,
+  ot_risk:        5,
+  affinity:       1,
+  van_continuity: 10,
+  preferred_days: 5,
+  attendance:     100,
+});
+// 1–5 slider → multiplier on the default weight.
+const _RR_SF_ENGINE_PRIO_MULTIPLIER = Object.freeze({
+  1: 0.25, 2: 0.5, 3: 1.0, 4: 2.0, 5: 4.0,
+});
+// Slider name → solver weight key.
+const _RR_SF_ENGINE_PRIO_TO_WEIGHT = Object.freeze({
+  coverage:           "coverage",
+  fairness:           "fairness",
+  ot_avoidance:       "ot_risk",
+  stability:          "affinity",
+  van_continuity:     "van_continuity",
+  preferred_days:     "preferred_days",
+  attendance_penalty: "attendance",
+});
+/** Read a clamped priority value (1–5) from sfRules, defaulting to 3. */
+function _rrClampPrio(v) {
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n)) return 3;
+  return Math.max(1, Math.min(5, n));
+}
+/** Paint the Advanced engine controls from the saved sfRules blob. */
+function _restoreSfEngineControls(saved) {
+  if (!saved || typeof saved !== "object") saved = {};
+  const prios = (saved.priorities && typeof saved.priorities === "object")
+    ? saved.priorities : {};
+  document.querySelectorAll("#rr-sched-smartfill-rules-body [data-rr-sf-prio]").forEach((el) => {
+    const k = el.getAttribute("data-rr-sf-prio");
+    const v = _rrClampPrio(prios[k] ?? _RR_SF_ENGINE_DEFAULTS.priorities[k]);
+    el.value = String(v);
+  });
+  const ds = (saved.dataSources && typeof saved.dataSources === "object")
+    ? saved.dataSources : {};
+  document.querySelectorAll("#rr-sched-smartfill-rules-body [data-rr-sf-ds]").forEach((el) => {
+    const k = el.getAttribute("data-rr-sf-ds");
+    const def = _RR_SF_ENGINE_DEFAULTS.dataSources[k];
+    el.checked = Object.prototype.hasOwnProperty.call(ds, k) ? !!ds[k] : def;
+  });
+  const setSel = (id, savedVal, def) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const v = savedVal != null ? String(savedVal) : String(def);
+    const ok = Array.from(el.options).some(o => o.value === v);
+    el.value = ok ? v : String(def);
+  };
+  setSel("rr-sf-solve-time",         saved.solveTimeMs,     _RR_SF_ENGINE_DEFAULTS.solveTimeMs);
+  setSel("rr-sf-affinity-weeks",     saved.affinityWeeks,   _RR_SF_ENGINE_DEFAULTS.affinityWeeks);
+  setSel("rr-sf-max-days-override",  saved.maxDaysOverride, _RR_SF_ENGINE_DEFAULTS.maxDaysOverride);
+  setSel("rr-sf-weekly-hour-cap",    saved.weeklyHourCap,   _RR_SF_ENGINE_DEFAULTS.weeklyHourCap);
+}
+/**
+ * Build the solver `weights` object from the saved 1–5 priority sliders.
+ * Multiplies each default weight by the slider's multiplier so a slider
+ * at 3 (Default) produces the unchanged solver number.
+ */
+window._rrSfEngineWeights = function (sfRules) {
+  const prios = (sfRules && sfRules.priorities && typeof sfRules.priorities === "object")
+    ? sfRules.priorities : {};
+  const weights = {};
+  for (const [prioKey, wKey] of Object.entries(_RR_SF_ENGINE_PRIO_TO_WEIGHT)) {
+    const v = _rrClampPrio(prios[prioKey] ?? _RR_SF_ENGINE_DEFAULTS.priorities[prioKey]);
+    const mult = _RR_SF_ENGINE_PRIO_MULTIPLIER[v] ?? 1.0;
+    weights[wKey] = _RR_SF_ENGINE_WEIGHT_DEFAULTS[wKey] * mult;
+  }
+  return weights;
+};
+// Persist a priority-slider change — slider values live in
+// sfRules.priorities so they ride along with the rest of the popover
+// state. No solver-side translation here; the payload builder does that.
+document.addEventListener("input", (e) => {
+  const el = e.target && e.target.closest && e.target.closest(
+    "#rr-sched-smartfill-rules-body [data-rr-sf-prio]");
+  if (!el) return;
+  const key = el.getAttribute("data-rr-sf-prio");
+  const v = _rrClampPrio(el.value);
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  if (!saved.priorities || typeof saved.priorities !== "object") saved.priorities = {};
+  saved.priorities[key] = v;
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+});
+// Persist a data-source checkbox change. Booleans nested under
+// sfRules.dataSources to avoid colliding with the existing top-level
+// rule keys (e.g. attendance_penalty).
+document.addEventListener("change", (e) => {
+  const el = e.target && e.target.closest && e.target.closest(
+    "#rr-sched-smartfill-rules-body [data-rr-sf-ds]");
+  if (!el) return;
+  const key = el.getAttribute("data-rr-sf-ds");
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  if (!saved.dataSources || typeof saved.dataSources !== "object") saved.dataSources = {};
+  saved.dataSources[key] = !!el.checked;
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+});
+// Persist a compute-budget select change. Each select carries
+// data-rr-sf-budget identifying the sfRules field to update.
+document.addEventListener("change", (e) => {
+  const el = e.target && e.target.closest && e.target.closest(
+    "#rr-sched-smartfill-rules-body [data-rr-sf-budget]");
+  if (!el) return;
+  const key = el.getAttribute("data-rr-sf-budget");
+  const n = parseInt(el.value, 10);
+  if (!Number.isFinite(n)) return;
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  saved[key] = n;
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+});
+// "Reset to defaults" — wipes every Advanced engine field from the
+// saved sfRules blob and repaints the controls. Touches only the
+// advanced-engine fields; the rest of the popover state is left alone.
+document.addEventListener("click", (e) => {
+  const btn = e.target && e.target.closest && e.target.closest("#rr-sf-engine-reset");
+  if (!btn) return;
+  e.preventDefault();
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  delete saved.priorities;
+  delete saved.dataSources;
+  delete saved.solveTimeMs;
+  delete saved.affinityWeeks;
+  delete saved.maxDaysOverride;
+  delete saved.weeklyHourCap;
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+  _restoreSfEngineControls(saved);
+});
 
 // ─── Ad-hoc constraints list (Optimization Engine · Step 3.5) ─────
 // Reads current_ad_hoc_constraints (DSP-scoped view from migration
@@ -30060,11 +30225,44 @@ async function autoAssignDriversForWeek() {
       console.warn("ad_hoc_constraints fetch failed:", e);
     }
 
+    // Advanced engine controls — translate the popover's slider /
+    // checkbox / select state into the shapes the solver expects.
+    // Priorities → weights (1–5 maps to a multiplier on each default).
+    // Data sources → use_* booleans on rules.
+    // Compute budget → top-level time_budget_ms, plus max_days /
+    // weekly_hour_cap overrides. affinityWeeks is stashed on rules
+    // (the loader query lives elsewhere) for the solver / future
+    // refactor to pick up; we do NOT re-query affinity here.
+    const _sfWeights = (typeof window._rrSfEngineWeights === "function")
+      ? window._rrSfEngineWeights(sfRules) : undefined;
+    const _sfDS = (sfRules && sfRules.dataSources && typeof sfRules.dataSources === "object")
+      ? sfRules.dataSources : {};
+    const _sfUseFlags = {
+      use_pto:            _sfDS.pto            !== false,
+      use_affinity:       _sfDS.affinity       !== false,
+      use_van_pairings:   _sfDS.van_pairings   !== false,
+      use_attendance:     _sfDS.attendance     !== false,
+      use_fifth_day_optin:_sfDS.fifth_day_optin!== false,
+      use_ad_hoc_rules:   _sfDS.ad_hoc_rules   !== false,
+    };
+    const _sfSolveTime  = Number.isFinite(sfRules.solveTimeMs) ? sfRules.solveTimeMs : 8000;
+    const _sfAffWeeks   = Number.isFinite(sfRules.affinityWeeks) ? sfRules.affinityWeeks : 4;
+    const _sfMaxDaysAdv = Number.isFinite(sfRules.maxDaysOverride) ? sfRules.maxDaysOverride : null;
+    const _sfHourCapAdv = Number.isFinite(sfRules.weeklyHourCap)   ? sfRules.weeklyHourCap   : null;
+    const _maxDaysOut    = _sfMaxDaysAdv != null ? _sfMaxDaysAdv : maxDays;
+    const _weeklyHourOut = _sfHourCapAdv != null ? _sfHourCapAdv : 40;
     const sfPayload = {
       schedule_week_start: _schedStart,
-      max_days: maxDays,
-      weekly_hour_cap: 40,
-      rules: { ...sfRules, tiebreaker },
+      max_days: _maxDaysOut,
+      weekly_hour_cap: _weeklyHourOut,
+      time_budget_ms: _sfSolveTime,
+      rules: {
+        ...sfRules,
+        tiebreaker,
+        ..._sfUseFlags,
+        affinity_weeks: _sfAffWeeks,
+        weights: _sfWeights,
+      },
       drivers: drivers.map(d => ({
         id: d.id,
         full_name: d.full_name,
@@ -30098,7 +30296,7 @@ async function autoAssignDriversForWeek() {
         p_trigger_kind:   _rrWhatIfOptions ? "what_if" : "manual",
         p_input_hash:     inputHash,
         p_solver_version: "heuristic-v1",
-        p_time_budget_ms: 8000,
+        p_time_budget_ms: sfPayload.time_budget_ms || 8000,
         p_solver_seed:    0,
         p_payload:        sfPayload,
       });
