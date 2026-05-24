@@ -4149,6 +4149,106 @@ function _obMountPipeline() {
     host.appendChild(pipe);
   }
 }
+// Skeleton row injector for the readiness matrix — appends ghost rows
+// after the real applicants until the table reaches the bottom of the
+// viewport. Adding a real onboarding driver next time the matrix
+// re-renders will just shift one of these out of the way.
+function _fillObMatrixSkeletonRows(body) {
+  if (!body) return;
+  const table = body.querySelector(".ob-matrix");
+  const tbody = table && table.querySelector("tbody");
+  if (!table || !tbody) return;
+  const headerCells = table.querySelectorAll("thead th");
+  if (!headerCells.length) return;
+  // Skeleton "cell" markers per column. The first column is Driver
+  // (avatar + name + sub), the last is Actions (icon row); everything
+  // in between is a centered ring.
+  const stepRing = `<td><span class="ob-sk-ring" aria-hidden="true"></span></td>`;
+  const nameCell =
+    `<td class="ob-mx-namecell">` +
+      `<div class="ob-sk-row">` +
+        `<span class="ob-sk-avatar"></span>` +
+        `<div class="ob-sk-text">` +
+          `<span class="ob-sk-line ob-sk-line-name"></span>` +
+          `<span class="ob-sk-line ob-sk-line-sub"></span>` +
+        `</div>` +
+      `</div>` +
+    `</td>`;
+  const actionsCell =
+    `<td>` +
+      `<div class="ob-sk-actions">` +
+        `<span class="ob-sk-icon"></span>` +
+        `<span class="ob-sk-icon"></span>` +
+        `<span class="ob-sk-icon"></span>` +
+        `<span class="ob-sk-icon"></span>` +
+        `<span class="ob-sk-icon"></span>` +
+      `</div>` +
+    `</td>`;
+  const middleCells = Array.from({ length: Math.max(0, headerCells.length - 2) }, () => stepRing).join("");
+  const skeletonRow = `<tr class="ob-sk-tr" aria-hidden="true">${nameCell}${middleCells}${actionsCell}</tr>`;
+  // How many rows fit below the existing real rows?
+  const tableRect = table.getBoundingClientRect();
+  const viewportBottom = window.innerHeight;
+  const remainingPx = Math.max(0, viewportBottom - tableRect.bottom - 24);
+  // Real rows average ~70px tall (avatar + sub line).  Use 70 as the
+  // estimate; the loop adds rows until remainingPx is consumed.
+  const ROW_PX = 70;
+  const rowsToAdd = Math.max(0, Math.floor(remainingPx / ROW_PX));
+  if (rowsToAdd === 0) return;
+  tbody.insertAdjacentHTML("beforeend", skeletonRow.repeat(rowsToAdd));
+}
+// Inject the skeleton-row styles once on script load. Cheap, idempotent.
+(function _rrInjectObSkeletonCss() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById("rr-ob-sk-css")) return;
+  const css = document.createElement("style");
+  css.id = "rr-ob-sk-css";
+  css.textContent = `
+    #view-onboarding-ops .ob-matrix .ob-sk-tr td {
+      pointer-events: none;
+    }
+    #view-onboarding-ops .ob-sk-row {
+      display: flex; align-items: center; gap: 12px;
+    }
+    #view-onboarding-ops .ob-sk-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--canvas, #f3f4f6);
+      display: inline-block;
+    }
+    #view-onboarding-ops .ob-sk-text {
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    #view-onboarding-ops .ob-sk-line {
+      display: inline-block;
+      background: var(--canvas, #f3f4f6);
+      border-radius: 4px;
+      height: 9px;
+    }
+    #view-onboarding-ops .ob-sk-line-name { width: 120px; }
+    #view-onboarding-ops .ob-sk-line-sub  { width: 70px; height: 7px; opacity: .7; }
+    #view-onboarding-ops .ob-sk-ring {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border-strong, #d1d5db);
+      background: transparent;
+      opacity: .55;
+    }
+    #view-onboarding-ops .ob-sk-actions {
+      display: inline-flex; align-items: center; gap: 10px;
+      justify-content: center;
+    }
+    #view-onboarding-ops .ob-sk-icon {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border-radius: 3px;
+      background: var(--canvas, #f3f4f6);
+      opacity: .7;
+    }
+  `;
+  document.head?.appendChild(css);
+})();
+
 function _obMountDocuments() {
   // Move the entire #view-documents node into the Overview tab's
   // right-side placeholder card (#ob-docs-mount). The dedicated
@@ -4167,74 +4267,6 @@ function _obMountDocuments() {
   }
 }
 
-// Applicant pipeline grid — one card per status='onboarding' driver,
-// filled from the top-left. Placeholder cards use the SAME markup as
-// real applicant cards (just with transparent text via CSS) so the
-// grid reads uniformly whether anyone is in onboarding or not. The
-// container fills down to the viewport bottom and scrolls when the
-// content overflows.
-//
-// Slot total = max(MIN_VISIBLE, applicants.length, computedFitCount)
-// — computedFitCount is how many cards fit at the current width × the
-// rows that fit in the scroll wrap, so the grid looks fully populated
-// even on a tall monitor with no applicants.
-const _OB_GRID_MIN_VISIBLE = 24;
-async function _renderOnboardingApplicantGrid() {
-  const grid = document.getElementById("ob-applicant-grid");
-  const wrap = document.getElementById("ob-applicant-grid-wrap");
-  if (!grid) return;
-  const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
-  const { data, error } = await sb.from("drivers")
-    .select("id, full_name, first_name, last_name, preferred_name, status, hire_date, training_date")
-    .eq("dsp_id", dspId)
-    .eq("status", "onboarding")
-    .order("hire_date", { ascending: false, nullsFirst: false });
-  if (error) { console.warn("applicant grid:", error); return; }
-  const applicants = data || [];
-  // Estimate how many cards fit in the wrap so the grid looks full.
-  // Card min-width 220 + gap 12; row height 132 + gap 12. Fall back to
-  // a safe constant if the wrap isn't sized yet.
-  let fit = _OB_GRID_MIN_VISIBLE;
-  if (wrap) {
-    const colW = 220 + 12;
-    const rowH = 132 + 12;
-    const cols = Math.max(1, Math.floor((wrap.clientWidth - 28) / colW));
-    const rows = Math.max(1, Math.floor((wrap.clientHeight - 28) / rowH));
-    fit = Math.max(cols * rows, _OB_GRID_MIN_VISIBLE);
-  }
-  const slotCount = Math.max(fit, applicants.length);
-  const cards = [];
-  for (let i = 0; i < slotCount; i++) {
-    const a = applicants[i];
-    if (a) {
-      const display = a.preferred_name || a.full_name
-        || [a.first_name, a.last_name].filter(Boolean).join(" ")
-        || "Applicant";
-      const initials = (display.match(/\b\w/g) || []).slice(0, 2).join("").toUpperCase() || "?";
-      const stepLabel = a.training_date
-        ? `Training ${new Date(a.training_date + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
-        : "Onboarding";
-      cards.push(
-        `<div class="ob-applicant-card ob-applicant-filled" data-rr-driver-id="${escapeHtml(a.id)}">` +
-          `<span class="ob-applicant-avatar">${escapeHtml(initials)}</span>` +
-          `<span class="ob-applicant-name">${escapeHtml(display)}</span>` +
-          `<span class="ob-applicant-step">${escapeHtml(stepLabel)}</span>` +
-        `</div>`
-      );
-    } else {
-      // Same markup, transparent text via .ob-applicant-empty in CSS.
-      cards.push(
-        `<div class="ob-applicant-card ob-applicant-empty" aria-hidden="true">` +
-          `<span class="ob-applicant-avatar">·</span>` +
-          `<span class="ob-applicant-name">Applicant</span>` +
-          `<span class="ob-applicant-step">Onboarding</span>` +
-        `</div>`
-      );
-    }
-  }
-  grid.innerHTML = cards.join("");
-}
 window.obSub = function (which) {
   document.querySelectorAll("#view-onboarding-ops .subnav .subnav-item[data-obsub]").forEach(b => b.classList.toggle("active", b.getAttribute("data-obsub") === which));
   const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? "" : "none"; };
@@ -4890,10 +4922,6 @@ async function loadOnboardingOps(opts) {
   if (typeof loadDocumentsView === "function") {
     try { loadDocumentsView(); } catch (e) { console.warn("loadDocumentsView:", e); }
   }
-  // Applicant pipeline grid at the bottom of the Overview tab —
-  // populated from the same drivers fetch used by the cohort matrix.
-  // Best-effort: any error just leaves the empty placeholders showing.
-  try { _renderOnboardingApplicantGrid(); } catch (_) { /* non-fatal */ }
   if (!(opts && opts.keepTab) && typeof obSub === "function") obSub("overview");
   _i9DashStylesOnce();
   body.innerHTML = _i9QueueSkeleton();
@@ -5087,6 +5115,13 @@ async function loadOnboardingOps(opts) {
         <tbody>${enriched.map(matrixRow).join("")}</tbody>
       </table></div></div>`
     : `${_helpBar("overview")}<div class="dr-empty" style="border:none;background:none;box-shadow:none"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>No one in onboarding</h3><p>New hires from the Hiring Pipeline land here automatically; drivers can also self-onboard via the RouteReady app.</p></div>`;
+  // Fill the rest of the viewport with skeleton rows so the matrix
+  // reads as a populated surface, not a half-empty table. Each
+  // skeleton row mirrors the column structure of a real row (avatar +
+  // text bars in the Driver col, hollow rings in each step col, a
+  // hollow ring in Active, ghost icons in Actions) — same line-height
+  // as a real row so adding a real applicant just replaces a skeleton.
+  try { _fillObMatrixSkeletonRows(body); } catch (_) { /* non-fatal */ }
 
   body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
     el.addEventListener("click", (e) => {
