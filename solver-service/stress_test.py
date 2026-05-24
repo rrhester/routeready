@@ -76,12 +76,11 @@ def build_payload(
     pto = []
     for d in random.sample(drivers, max(3, len(drivers) // 16)):
         start_offset = random.choice([0, 2, 4])
-        pto.append({
-            "driver_id": d["id"],
-            "start_date": (week_start + timedelta(days=start_offset)).isoformat(),
-            "end_date":   (week_start + timedelta(days=start_offset + 1)).isoformat(),
-            "kind": "pto",
-        })
+        for day in range(2):  # 2 consecutive PTO days
+            pto.append({
+                "driver_id": d["id"],
+                "date": (week_start + timedelta(days=start_offset + day)).isoformat(),
+            })
 
     # Inject rolling-forward affinity so the engine can favour stable
     # weekday patterns from prior weeks.
