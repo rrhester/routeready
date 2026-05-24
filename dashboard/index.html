@@ -19376,6 +19376,33 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
+        <!-- Targets rules · embedded mirror of the schedule's
+             #rr-sched-quick-settings-popover inputs. Both surfaces share
+             the same backing storage (scheduling_settings_for_week) and
+             stay in sync via _rrMirrorTargetsRule(). The popover stays
+             too — it's the quick-edit-without-leaving-Schedule shortcut.
+             Max-days isn't represented here because it lives in the
+             Smart Fill rules popover, not the Targets popover. -->
+        <div id="rr-okami-targets-rules" style="margin:0 0 var(--s-3) 0;display:flex;align-items:center;gap:var(--s-4);flex-wrap:wrap;font-size:var(--fs-sm);color:var(--text-muted)">
+          <span style="font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle)">Targets rules ·</span>
+          <label style="display:inline-flex;align-items:center;gap:6px">
+            <span>Block</span>
+            <input class="form-input form-input-sm" id="rr-okami-set-block-hours" type="number" min="1" max="14" step="1" autocomplete="off" style="width:64px;text-align:right"/>
+            <span style="color:var(--text-subtle);font-size:var(--fs-xs)">h</span>
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:6px">
+            <span>Cushion</span>
+            <input class="form-input form-input-sm" id="rr-okami-set-cushion-pct" type="number" min="0" max="50" step="1" autocomplete="off" style="width:64px;text-align:right"/>
+            <span style="color:var(--text-subtle);font-size:var(--fs-xs)">%</span>
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:6px">
+            <span>Report time</span>
+            <input class="form-input form-input-sm" id="rr-okami-set-report-lead" type="number" min="0" max="120" step="5" autocomplete="off" style="width:72px;text-align:right"/>
+            <span style="color:var(--text-subtle);font-size:var(--fs-xs)">min</span>
+          </label>
+          <span id="rr-okami-targets-rules-status" aria-live="polite" style="font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums"></span>
+        </div>
+
         <!-- Single staffing-plan input — Plan Pad % above the 2× baseline. -->
         <div id="rr-okami-pad-row" style="margin-bottom:var(--s-4);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:var(--s-3-5) 18px;display:flex;align-items:center;gap:var(--s-3-5);flex-wrap:wrap">
           <div style="flex:0 0 auto">
