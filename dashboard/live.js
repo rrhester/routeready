@@ -23695,13 +23695,16 @@ document.addEventListener("click", async (e) => {
 
   // Remove a wave row. closest() instead of matches() so clicks on
   // the inner SVG icon bubble up to the button correctly.
-  // stopPropagation() is critical here · once the row is removed
-  // from the DOM the click target is detached, so a later
-  // click-outside-popover handler can't find the popover ancestor
-  // and would close the Targets > Rules popover unexpectedly.
+  // stopImmediatePropagation() is critical here — once the row is
+  // removed from the DOM the click target is detached, and a
+  // sibling document-level click listener (the "click outside
+  // popover closes it" guard for #rr-sched-quick-settings-popover)
+  // would see closest("#rr-sched-quick-settings-popover") return
+  // null and close the popover. stopPropagation() alone doesn't
+  // stop other listeners on the same node.
   if (e.target.closest?.("[data-rr-remove-wave]")) {
     e.preventDefault();
-    e.stopPropagation();
+    e.stopImmediatePropagation();
     const row = e.target.closest("[data-rr-wave]");
     if (row) row.remove();
     return;
