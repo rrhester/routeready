@@ -990,3 +990,89 @@
   background: var(--rr-bg-card, #FFFFFF) !important;
   color: var(--rr-fg-secondary, #605E5C) !important;
 }
+
+/* ── Matrix head right group + Focus button ─────────────────── */
+
+#view-onboarding-ops.rrx-onboarding .ob-mx-head {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: var(--rr-space-120) !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-mx-head-right {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: var(--rr-space-80) !important;
+  flex: 0 0 auto !important;
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-mx-focus-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  appearance: none;
+  background: var(--rr-bg-card, #FFFFFF);
+  border: 1px solid var(--rr-border-secondary, #E1DFDD);
+  border-radius: var(--rr-radius-medium, 4px);
+  padding: 4px 9px;
+  font: 600 12px/16px var(--rr-font-family, 'Segoe UI');
+  color: var(--rr-fg-secondary, #605E5C);
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+#view-onboarding-ops.rrx-onboarding .ob-mx-focus-btn:hover {
+  background: var(--rr-bg-card-hover, #FAFAFA);
+  border-color: var(--rr-border-primary, #C8C6C4);
+  color: var(--rr-fg-primary, #242424);
+}
+#view-onboarding-ops.rrx-onboarding .ob-mx-focus-btn[aria-pressed="true"] {
+  background: var(--rr-brand-soft, rgba(0,120,212,.10));
+  border-color: var(--rr-brand-primary, #0078D4);
+  color: var(--rr-brand-pressed, #005A9E);
+}
+body.rr-ob-focus #rr-ob-focus-toggle .ic-focus-on { display: none !important; }
+body.rr-ob-focus #rr-ob-focus-toggle .ic-focus-off { display: inline !important; }
+
+/* ── Focus mode ─────────────────────────────────────────────
+   Hides every non-readiness-board chrome surface so the matrix
+   stretches to the full viewport. Same pattern as Schedule's
+   rr-sched-focus. Escape key exits (wired in live.js next to
+   the schedule version). */
+body.rr-ob-focus .sidebar,
+body.rr-ob-focus .topbar {
+  display: none !important;
+}
+body.rr-ob-focus .app {
+  grid-template-columns: 1fr !important;
+}
+
+/* Hide every chrome surface in the onboarding view EXCEPT the
+   readiness board itself. */
+body.rr-ob-focus #view-onboarding-ops > .page > .ob-cmd-shell,
+body.rr-ob-focus #view-onboarding-ops > .page > .ob-print-actions,
+body.rr-ob-focus #view-onboarding-ops > .page > #rr-ob-print-area,
+body.rr-ob-focus #view-onboarding-ops > .page > #obsub-workauth,
+body.rr-ob-focus #view-onboarding-ops > .page > #obsub-pipeline,
+body.rr-ob-focus #view-onboarding-ops > .page > #obsub-documents {
+  display: none !important;
+}
+
+/* Let the page + overview host fill the viewport with no padding
+   stealing edge real estate. */
+body.rr-ob-focus #view-onboarding-ops.rrx-onboarding > .page {
+  padding: 0 !important;
+  gap: 0 !important;
+}
+body.rr-ob-focus #view-onboarding-ops.rrx-onboarding > .page > #obsub-overview {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100vh !important;
+}
+body.rr-ob-focus #view-onboarding-ops.rrx-onboarding .ob-mx-wrap {
+  border-radius: 0 !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-top: 0 !important;
+  height: 100% !important;
+}

@@ -4916,7 +4916,7 @@ async function loadOnboardingOps(opts) {
 
   const stepHeaders = stepCols.map(s => `<th title="${escapeHtml(s.title)}">${escapeHtml(s.map.head)}</th>`).join("");
   body.innerHTML = enriched.length
-    ? `${_helpBar("overview")}<div class="ob-mx-wrap"><div class="ob-mx-head"><div><div class="ob-mx-head-title">Readiness board</div><div class="ob-mx-head-sub">Sorted by what needs attention first. Click any dot to update a step.</div></div><div class="ob-mx-head-chip">${readyCount} ready</div></div><div class="ob-mx-scroll"><table class="ob-matrix">
+    ? `${_helpBar("overview")}<div class="ob-mx-wrap"><div class="ob-mx-head"><div><div class="ob-mx-head-title">Readiness board</div><div class="ob-mx-head-sub">Sorted by what needs attention first. Click any dot to update a step.</div></div><div class="ob-mx-head-right"><div class="ob-mx-head-chip">${readyCount} ready</div><button type="button" id="rr-ob-focus-toggle" class="ob-mx-focus-btn" aria-pressed="false" title="Focus mode — hide the rest of the chrome and stretch the readiness board to the full viewport. Press Esc to exit." aria-label="Toggle focus mode"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="ic-focus-on"><polyline points="4 9 4 4 9 4"/><polyline points="15 4 20 4 20 9"/><polyline points="20 15 20 20 15 20"/><polyline points="9 20 4 20 4 15"/></svg><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="ic-focus-off" style="display:none"><polyline points="9 4 4 4 4 9"/><polyline points="20 9 20 4 15 4"/><polyline points="15 20 20 20 20 15"/><polyline points="4 15 4 20 9 20"/></svg><span class="ob-mx-focus-label">Focus</span></button></div></div><div class="ob-mx-scroll"><table class="ob-matrix">
         <thead>
           <tr>
             <th class="ob-mx-namecol">Driver</th>
@@ -22594,13 +22594,33 @@ document.addEventListener("click", (e) => {
 });
 
 // Escape exits focus mode — operator safety net so a stuck class
-// never traps the page chrome.
+// never traps the page chrome. Same pattern for the onboarding
+// readiness-board focus mode (#rr-ob-focus-toggle on .ob-mx-head).
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && document.body.classList.contains("rr-sched-focus")) {
+  if (e.key !== "Escape") return;
+  if (document.body.classList.contains("rr-sched-focus")) {
     document.body.classList.remove("rr-sched-focus");
     const btn = document.getElementById("rr-sched-focus-toggle");
     if (btn) btn.setAttribute("aria-pressed", "false");
   }
+  if (document.body.classList.contains("rr-ob-focus")) {
+    document.body.classList.remove("rr-ob-focus");
+    const btn = document.getElementById("rr-ob-focus-toggle");
+    if (btn) btn.setAttribute("aria-pressed", "false");
+  }
+});
+
+// Onboarding readiness-board focus toggle. Delegated so it survives
+// the re-render the matrix does whenever data refreshes — the button
+// re-renders too but the listener doesn't have to be rebound.
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("#rr-ob-focus-toggle");
+  if (!t) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const on = !document.body.classList.contains("rr-ob-focus");
+  document.body.classList.toggle("rr-ob-focus", on);
+  t.setAttribute("aria-pressed", on ? "true" : "false");
 });
 let _okamiStart = null;
 let _schedStart = null;
@@ -48751,7 +48771,12 @@ document.addEventListener("click", (e) => {
     const sel =
       "#view-schedule.rrx-schedule .cal-wrap, " +
       "#view-schedule.rrx-schedule .pool-openshifts-body, " +
-      "#view-schedule.rrx-schedule .driver-pool";
+      "#view-schedule.rrx-schedule .driver-pool, " +
+      // Onboarding readiness-board scroll container — same
+      // always-visible scrollbar treatment as the schedule grid so
+      // operators on macOS Chrome don't lose the scroll affordance
+      // when the cursor isn't moving.
+      "#view-onboarding-ops.rrx-onboarding .ob-mx-scroll";
     document.querySelectorAll(sel).forEach(attachFauxScrollbar);
   }
 
@@ -48769,7 +48794,13 @@ document.addEventListener("click", (e) => {
     kick();
   }
   document.addEventListener("click", (e) => {
-    if (!e.target.closest("[data-sub='schedule'], [data-v='schedule'], .sched-cmd-tab, .sched-v2-tile")) return;
+    // Re-kick when the operator navigates into either the schedule
+    // view OR the onboarding readiness board (both have async
+    // re-renders that wipe + recreate the scroll container).
+    if (!e.target.closest(
+      "[data-sub='schedule'], [data-v='schedule'], .sched-cmd-tab, .sched-v2-tile, " +
+      "[data-obsub='overview'], [data-v='onboarding-ops']"
+    )) return;
     setTimeout(setupFauxScrollbars, 150);
     setTimeout(setupFauxScrollbars, 600);
   });
