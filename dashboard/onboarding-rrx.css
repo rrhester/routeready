@@ -538,10 +538,22 @@
   border: 1px solid transparent;
   border-bottom: 0;
   border-radius: var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
+  /* Tabs now carry an SVG glyph next to their label — align them
+     in a horizontal flex row so the icon sits beside the text, not
+     wrapping below it. */
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   transition:
     color var(--rr-motion-fast),
     background var(--rr-motion-fast),
     border-color var(--rr-motion-fast);
+}
+
+#view-onboarding-ops.rrx-onboarding .ob-cmd-tab svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-cmd-tab:hover:not(.active) {
