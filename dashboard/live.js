@@ -29063,7 +29063,11 @@ async function autoAssignDriversForWeek() {
 
   // DOW (0=Sun..6=Sat) name lookup for human-readable availability.
   const DOW_LBL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const driverPayloadById = new Map((sfPayload.drivers || []).map(d => [d.id, d]));
+  // sfPayload was declared inside the try block above, so it's not in scope
+  // here — read it back from the window stash where we put it for exactly
+  // this kind of post-run inspection.
+  const sfPayloadForDiag = window._rrLastSmartFillPayload || { drivers: [] };
+  const driverPayloadById = new Map((sfPayloadForDiag.drivers || []).map(d => [d.id, d]));
 
   const diagnostics = {
     failedWrites,
