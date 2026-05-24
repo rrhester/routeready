@@ -13737,6 +13737,7 @@ body.rr-cmdk-open{ overflow:hidden }
                unchanged. -->
           <div class="sched-cmd-tabs sched-v2-cmd-tabs" role="tablist" aria-label="Command strip mode">
             <button class="sched-cmd-tab active" type="button" data-cmd-tab="schedule" role="tab" aria-selected="true">Schedule</button>
+            <button class="sched-cmd-tab" type="button" data-cmd-tab="insights" role="tab" aria-selected="false">Insights</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
           </div>
 
@@ -17318,11 +17319,18 @@ body.rr-cmdk-open{ overflow:hidden }
             appearance:none;
             background:transparent;border:1px solid transparent;
             border-radius:var(--sch-radius);
-            width:24px;height:24px;
+            width:44px;height:44px;
             display:inline-flex;align-items:center;justify-content:center;
             color:var(--text-subtle);cursor:pointer;
             transition:background var(--t-fast),color var(--t-fast);
             box-shadow:none;
+          }
+          /* Schedule grid header tools (Driver column) — pump every SVG
+             inside an rr-tf-icon up to match the larger hit target. The
+             buttons declare 13×13 inline; override that here so we don't
+             have to touch the markup. */
+          #view-schedule .rr-tf-icon svg{
+            width:24px !important;height:24px !important;
           }
           #view-schedule .rr-tf-icon:hover{
             background:var(--sch-hover);color:var(--text);
