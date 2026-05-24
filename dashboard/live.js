@@ -28609,7 +28609,16 @@ async function autoFillScheduleWeek() {
       console.log(summaryAlert);
       console.log("payload (window._rrLastSmartFillPayload):", window._rrLastSmartFillPayload);
       console.groupEnd();
-      _rrShowSmartFillDetails(summaryAlert);
+      // The popup is gated on the "Show results popup" rule (default on).
+      // The console group + window._rrLastSmartFillDiagnostics are
+      // always populated so the data is available even when the popup
+      // is turned off.
+      let showPopup = true;
+      try {
+        const sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+        if (sf && sf.show_results_popup === false) showPopup = false;
+      } catch (_) { /* default to showing */ }
+      if (showPopup) _rrShowSmartFillDetails(summaryAlert);
     } else {
       console.info("[Smart Fill] completed — no skipped shifts / unscheduled drivers reported.");
     }
