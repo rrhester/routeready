@@ -7710,10 +7710,16 @@ document.addEventListener("click", async (e) => {
 // name changes. Inbound mail to this address routes through
 // webhook-email-inbound which already matches on lower(short_code) as
 // a fallback for slug lookups.
-const RR_FB_EMAIL_DOMAIN = "mail.gorouteready.com";
+//
+// IMPORTANT · the domain is inlined as a string literal, NOT lifted
+// to a module-level `const`. _paintWorkspaceChip() runs immediately
+// at module boot (line 261) and now calls this function; a module-
+// level `const` declared after that boot call would trip the temporal
+// dead zone and throw ReferenceError, crashing the whole live.js
+// load and killing every click handler on the page. Don't extract.
 function _fbEmailFromCode(code) {
   const local = String(code || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
-  return local ? `${local}@${RR_FB_EMAIL_DOMAIN}` : "";
+  return local ? `${local}@mail.gorouteready.com` : "";
 }
 window._fbEmailFromCode = _fbEmailFromCode;
 // Back-compat shim · earlier code paths may still reference the
