@@ -772,13 +772,22 @@
    .view → .page → .page-header structure. Their .page-header is
    already hidden (display:none) in the existing inline rules at
    the top of the file. Make the wrapper transparent so the
-   onboarding canvas shows through. */
+   onboarding canvas shows through.
+
+   ALSO zero out the inner .page padding. Onboarding's outer
+   #view-onboarding-ops > .page already provides 20px padding;
+   the relocated #view-pipeline / #view-documents bring their
+   OWN .page with another 20px of top padding, stacking to ~40px
+   of dead space above the strip on Calendar / Funnel / Interview
+   Day / Documents tabs. Operator caught the spacing mismatch
+   between those views and the rest of the onboarding sub-pages. */
 #view-onboarding-ops.rrx-onboarding #obsub-pipeline #view-pipeline,
 #view-onboarding-ops.rrx-onboarding #obsub-pipeline #view-pipeline > .page,
 #view-onboarding-ops.rrx-onboarding #obsub-documents #view-documents,
 #view-onboarding-ops.rrx-onboarding #obsub-documents #view-documents > .page {
   background: transparent !important;
   font-family: var(--rr-font-family) !important;
+  padding: 0 !important;
 }
 
 /* Re-skin every inner card surface that lands inside an
