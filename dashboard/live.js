@@ -4167,15 +4167,22 @@ function _obMountDocuments() {
   }
 }
 
-// Bottom-of-page applicant strip — one card per status='onboarding'
-// driver, filled left-to-right. Unfilled slots stay as dashed-border
-// placeholders so the page reads as a defined surface even when nobody
-// is actively onboarding. Total slot count is the larger of SLOT_MIN
-// and the number of onboarding drivers.
-const _OB_STRIP_SLOTS = 6;
-async function _renderOnboardingApplicantStrip() {
-  const row = document.getElementById("ob-applicant-strip-row");
-  if (!row) return;
+// Applicant pipeline grid — one card per status='onboarding' driver,
+// filled from the top-left. Placeholder cards use the SAME markup as
+// real applicant cards (just with transparent text via CSS) so the
+// grid reads uniformly whether anyone is in onboarding or not. The
+// container fills down to the viewport bottom and scrolls when the
+// content overflows.
+//
+// Slot total = max(MIN_VISIBLE, applicants.length, computedFitCount)
+// — computedFitCount is how many cards fit at the current width × the
+// rows that fit in the scroll wrap, so the grid looks fully populated
+// even on a tall monitor with no applicants.
+const _OB_GRID_MIN_VISIBLE = 24;
+async function _renderOnboardingApplicantGrid() {
+  const grid = document.getElementById("ob-applicant-grid");
+  const wrap = document.getElementById("ob-applicant-grid-wrap");
+  if (!grid) return;
   const dspId = window.RR?.dsp?.id;
   if (!dspId) return;
   const { data, error } = await sb.from("drivers")
@@ -4183,9 +4190,20 @@ async function _renderOnboardingApplicantStrip() {
     .eq("dsp_id", dspId)
     .eq("status", "onboarding")
     .order("hire_date", { ascending: false, nullsFirst: false });
-  if (error) { console.warn("applicant strip:", error); return; }
+  if (error) { console.warn("applicant grid:", error); return; }
   const applicants = data || [];
-  const slotCount = Math.max(_OB_STRIP_SLOTS, applicants.length);
+  // Estimate how many cards fit in the wrap so the grid looks full.
+  // Card min-width 220 + gap 12; row height 132 + gap 12. Fall back to
+  // a safe constant if the wrap isn't sized yet.
+  let fit = _OB_GRID_MIN_VISIBLE;
+  if (wrap) {
+    const colW = 220 + 12;
+    const rowH = 132 + 12;
+    const cols = Math.max(1, Math.floor((wrap.clientWidth - 28) / colW));
+    const rows = Math.max(1, Math.floor((wrap.clientHeight - 28) / rowH));
+    fit = Math.max(cols * rows, _OB_GRID_MIN_VISIBLE);
+  }
+  const slotCount = Math.max(fit, applicants.length);
   const cards = [];
   for (let i = 0; i < slotCount; i++) {
     const a = applicants[i];
@@ -4205,15 +4223,17 @@ async function _renderOnboardingApplicantStrip() {
         `</div>`
       );
     } else {
+      // Same markup, transparent text via .ob-applicant-empty in CSS.
       cards.push(
-        `<div class="ob-applicant-card ob-applicant-empty">` +
-          `<div class="ob-applicant-empty-circle"></div>` +
-          `<div class="ob-applicant-empty-line"></div>` +
+        `<div class="ob-applicant-card ob-applicant-empty" aria-hidden="true">` +
+          `<span class="ob-applicant-avatar">·</span>` +
+          `<span class="ob-applicant-name">Applicant</span>` +
+          `<span class="ob-applicant-step">Onboarding</span>` +
         `</div>`
       );
     }
   }
-  row.innerHTML = cards.join("");
+  grid.innerHTML = cards.join("");
 }
 window.obSub = function (which) {
   document.querySelectorAll("#view-onboarding-ops .subnav .subnav-item[data-obsub]").forEach(b => b.classList.toggle("active", b.getAttribute("data-obsub") === which));
@@ -4870,10 +4890,10 @@ async function loadOnboardingOps(opts) {
   if (typeof loadDocumentsView === "function") {
     try { loadDocumentsView(); } catch (e) { console.warn("loadDocumentsView:", e); }
   }
-  // Applicant placeholder strip at the bottom of the Overview tab —
+  // Applicant pipeline grid at the bottom of the Overview tab —
   // populated from the same drivers fetch used by the cohort matrix.
   // Best-effort: any error just leaves the empty placeholders showing.
-  try { _renderOnboardingApplicantStrip(); } catch (_) { /* non-fatal */ }
+  try { _renderOnboardingApplicantGrid(); } catch (_) { /* non-fatal */ }
   if (!(opts && opts.keepTab) && typeof obSub === "function") obSub("overview");
   _i9DashStylesOnce();
   body.innerHTML = _i9QueueSkeleton();

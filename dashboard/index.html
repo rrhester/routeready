@@ -11536,23 +11536,19 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </div>
 
-          <!-- Applicant placeholder strip — sits at the bottom of the
-               Overview tab. Renders one card per onboarding-status
-               driver via _renderOnboardingApplicantStrip(); the
-               remaining slots stay as dashed-border empty placeholders
-               so the page doesn't read as empty when nobody's actively
-               in onboarding. -->
-          <div id="ob-applicant-strip" class="ob-applicant-strip" aria-label="Applicants in onboarding">
-            <div class="ob-applicant-strip-head">Applicants in onboarding</div>
-            <div class="ob-applicant-strip-row" id="ob-applicant-strip-row">
-              <!-- N slots; index 0..N-1. _renderOnboardingApplicantStrip
-                   fills them from the front. -->
-              <div class="ob-applicant-card ob-applicant-empty"><div class="ob-applicant-empty-circle"></div><div class="ob-applicant-empty-line"></div></div>
-              <div class="ob-applicant-card ob-applicant-empty"><div class="ob-applicant-empty-circle"></div><div class="ob-applicant-empty-line"></div></div>
-              <div class="ob-applicant-card ob-applicant-empty"><div class="ob-applicant-empty-circle"></div><div class="ob-applicant-empty-line"></div></div>
-              <div class="ob-applicant-card ob-applicant-empty"><div class="ob-applicant-empty-circle"></div><div class="ob-applicant-empty-line"></div></div>
-              <div class="ob-applicant-card ob-applicant-empty"><div class="ob-applicant-empty-circle"></div><div class="ob-applicant-empty-line"></div></div>
-              <div class="ob-applicant-card ob-applicant-empty"><div class="ob-applicant-empty-circle"></div><div class="ob-applicant-empty-line"></div></div>
+          <!-- Applicant pipeline grid — every cell is the same
+               applicant-card format whether it's a real
+               status='onboarding' driver or an empty slot waiting
+               for someone to be added. Live applicants populate from
+               the top-left; the rest stay as visually-identical
+               placeholder cards. Container grows to fill the rest of
+               the viewport and scrolls (schedule-style scrollbar)
+               when overflowing. -->
+          <div id="ob-applicant-grid-wrap" class="ob-applicant-grid-wrap">
+            <div id="ob-applicant-grid" class="ob-applicant-grid">
+              <!-- Filled in by _renderOnboardingApplicantGrid().
+                   Initial empty grid renders below in CSS via
+                   :empty + ::before so there's no jitter on load. -->
             </div>
           </div>
         </div>
@@ -11568,68 +11564,80 @@ body.rr-cmdk-open{ overflow:hidden }
             margin: 4px 6px 0;
             min-height: 32px;
           }
-          /* Applicant placeholder strip — fixed-grid row of slots.
-             Each slot is either an empty dashed-border placeholder or
-             a populated applicant card (added at runtime by the
-             render fn in live.js). */
-          #view-onboarding-ops .ob-applicant-strip {
+          /* Applicant pipeline grid — every cell uses the same
+             applicant-card format (real applicant or empty
+             placeholder). Fills viewport down to bottom and scrolls
+             when contents overflow, with the same scrollbar treatment
+             the schedule grid uses. */
+          #view-onboarding-ops .ob-applicant-grid-wrap {
             margin-top: 16px;
+            min-height: calc(100vh - 320px);
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+            border: 1px solid var(--border, #e5e7eb);
+            border-radius: 12px;
+            background: var(--surface, #fff);
+            padding: 14px;
           }
-          #view-onboarding-ops .ob-applicant-strip-head {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text, #111);
-            margin-bottom: 8px;
-            letter-spacing: 0.01em;
+          /* Schedule-grid-style scrollbar — mirror of .cal-wrap
+             (8px wide, transparent track, soft thumb on hover). */
+          #view-onboarding-ops .ob-applicant-grid-wrap {
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-strong, #d1d5db) transparent;
           }
-          #view-onboarding-ops .ob-applicant-strip-row {
+          #view-onboarding-ops .ob-applicant-grid-wrap::-webkit-scrollbar {
+            width: 8px;
+          }
+          #view-onboarding-ops .ob-applicant-grid-wrap::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          #view-onboarding-ops .ob-applicant-grid-wrap::-webkit-scrollbar-thumb {
+            background: var(--border-strong, #d1d5db);
+            border-radius: var(--r-sm, 4px);
+          }
+          #view-onboarding-ops .ob-applicant-grid-wrap::-webkit-scrollbar-thumb:hover {
+            background: var(--text-subtle, #6b7280);
+          }
+          #view-onboarding-ops .ob-applicant-grid {
             display: grid;
-            grid-template-columns: repeat(6, 1fr);
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            grid-auto-rows: 132px;
             gap: 12px;
           }
-          @media (max-width: 1180px) {
-            #view-onboarding-ops .ob-applicant-strip-row {
-              grid-template-columns: repeat(3, 1fr);
-            }
-          }
-          @media (max-width: 720px) {
-            #view-onboarding-ops .ob-applicant-strip-row {
-              grid-template-columns: repeat(2, 1fr);
-            }
-          }
+          /* One unified card style — real applicants and placeholders
+             look identical, only the avatar/name/step content differs. */
           #view-onboarding-ops .ob-applicant-card {
             background: var(--surface, #fff);
+            border: 1px solid var(--border, #e5e7eb);
             border-radius: 10px;
             padding: 14px;
-            min-height: 96px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             gap: 8px;
           }
-          #view-onboarding-ops .ob-applicant-empty {
-            border: 1px dashed var(--border-strong, #d1d5db);
+          #view-onboarding-ops .ob-applicant-empty .ob-applicant-avatar {
+            background: var(--canvas, #f3f4f6);
+            color: transparent;
           }
-          #view-onboarding-ops .ob-applicant-filled {
-            border: 1px solid var(--border, #e5e7eb);
-          }
-          #view-onboarding-ops .ob-applicant-empty-circle {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            border: 1.5px dashed var(--border-strong, #d1d5db);
-            background: transparent;
-          }
-          #view-onboarding-ops .ob-applicant-empty-line {
-            width: 60%;
-            height: 8px;
+          #view-onboarding-ops .ob-applicant-empty .ob-applicant-name {
+            color: transparent;
             background: var(--canvas, #f3f4f6);
             border-radius: 4px;
+            min-width: 80px;
+            height: 10px;
+          }
+          #view-onboarding-ops .ob-applicant-empty .ob-applicant-step {
+            color: transparent;
+            background: var(--canvas, #f3f4f6);
+            border-radius: 4px;
+            min-width: 60px;
+            height: 8px;
           }
           #view-onboarding-ops .ob-applicant-avatar {
-            width: 32px;
-            height: 32px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             background: var(--accent-soft, #ede9fe);
             color: #5B21B6;
@@ -11637,10 +11645,10 @@ body.rr-cmdk-open{ overflow:hidden }
             align-items: center;
             justify-content: center;
             font-weight: 700;
-            font-size: 12px;
+            font-size: 13px;
           }
           #view-onboarding-ops .ob-applicant-name {
-            font-size: 12.5px;
+            font-size: 13px;
             font-weight: 600;
             color: var(--text, #111);
             text-align: center;
