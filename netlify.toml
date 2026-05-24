@@ -67,6 +67,24 @@
   status = 200
 
 # ─────────────────────────────────────────────────────────────────────
+# Build · auto cache-bust every static asset
+# ─────────────────────────────────────────────────────────────────────
+# scripts/bust-cache.mjs rewrites every `<asset>.{js,mjs,css}?v=...`
+# token in our HTML + JS files to the deploy's COMMIT_REF before
+# Netlify publishes. Without this, the `?v=...` tokens were
+# hand-bumped per-PR — and forgotten — so operators kept loading
+# stale JS even after a green deploy ("dashboard still shows old
+# data" reports from 2026-05-24). Auto-rewriting makes
+# "deploy = invalidate every cached asset" hold by construction.
+#
+# `publish = "."` keeps the publish root at the repo root, same as
+# the implicit default before this block was added.
+
+[build]
+  command = "node scripts/bust-cache.mjs"
+  publish = "."
+
+# ─────────────────────────────────────────────────────────────────────
 # Cache headers
 # ─────────────────────────────────────────────────────────────────────
 # dashboard/index.html (and its sibling pages) inline every stylesheet
@@ -80,7 +98,9 @@
 # operator was still loading pre-#599 HTML+CSS).
 #
 # We treat HTML as never-cache and rely on URL-versioned JS (?v=…)
-# for cache-busting on the heavy assets.
+# for cache-busting on the heavy assets. The ?v= tokens are auto-
+# rewritten by scripts/bust-cache.mjs in the build step above so
+# every deploy uses a fresh, deploy-unique value (COMMIT_REF).
 
 [[headers]]
   for = "/dashboard/*.html"
