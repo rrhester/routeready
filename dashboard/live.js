@@ -26072,6 +26072,51 @@ function _obPrint() {
 
 // PTO / time-off report — pulls every approved / pending PTO row
 // for the current DSP within a 90-day window (45 back, 45 forward)
+// Serialises the live readiness matrix to a CSV file and triggers
+// a download. Pulls headers from <thead><th> and rows from each
+// <tbody><tr><td>. Skips the Actions column (no useful text — just
+// buttons) and the trailing utility column.
+function _obDownloadCsv() {
+  const matrix = document.querySelector("#obsub-overview .ob-matrix");
+  if (!matrix) { toast?.("Readiness board hasn't loaded yet", "warn"); return; }
+  const csvCell = (v) => {
+    const s = String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const headers = Array.from(matrix.querySelectorAll("thead th"))
+    .map((th) => ({ el: th, text: th.textContent || "" }))
+    // Drop the Actions column — its <th> says "Actions" but the
+    // <td>s are buttons with no useful text.
+    .filter((h) => !h.el.classList.contains("ob-mx-toolcol"));
+  const headerRow = headers.map((h) => csvCell(h.text)).join(",");
+  const bodyRows = Array.from(matrix.querySelectorAll("tbody tr")).map((tr) => {
+    const cells = Array.from(tr.children);
+    return headers
+      .map((_, i) => {
+        const c = cells[i];
+        if (!c) return "";
+        // For dot cells, prefer the aria-label/title over textContent
+        // so "done" vs "todo" is captured instead of empty text.
+        const dot = c.querySelector(".ob-mxdot");
+        if (dot) return csvCell(dot.classList.contains("done") ? "yes" : "no");
+        return csvCell(c.textContent || "");
+      })
+      .join(",");
+  });
+  const csv = [headerRow].concat(bodyRows).join("\n");
+  const stamp = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `onboarding-readiness-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast?.("CSV downloaded", "ok");
+}
+
 // and prints a simple "Driver · Start · End · Status · Reason" table.
 async function _obPrintPtoReport() {
   const view = document.getElementById("view-onboarding-ops");
@@ -26160,6 +26205,15 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("#rr-ob-pto-print-btn")) {
     e.preventDefault();
     _obPrintPtoReport();
+    return;
+  }
+  // Onboarding "Download CSV" → serialise the live readiness matrix
+  // (the same <table> the print flow clones) into a CSV blob and
+  // trigger a download. Stays browser-side; no edge function or
+  // server endpoint needed.
+  if (e.target.closest("#rr-ob-csv-btn")) {
+    e.preventDefault();
+    _obDownloadCsv();
     return;
   }
   // Chevron split-toggle on the Smart Fill tile → open the rules
