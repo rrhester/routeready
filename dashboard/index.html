@@ -11482,15 +11482,67 @@ body.rr-cmdk-open{ overflow:hidden }
         <div id="rr-ob-print-area" aria-hidden="true"></div>
 
         <div id="obsub-overview">
-          <!-- Skeleton readiness matrix — 4 cohort cards stacked.
-               Replaced by loadOnboardingOps() once data arrives. -->
-          <div class="onb-skel-grid" aria-busy="true">
-            <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:30%"></span><span class="rr-skel rr-skel-sm" style="width:70%"></span><span class="rr-skel rr-skel-sm" style="width:60%"></span></div>
-            <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:36%"></span><span class="rr-skel rr-skel-sm" style="width:84%"></span><span class="rr-skel rr-skel-sm" style="width:68%"></span></div>
-            <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:28%"></span><span class="rr-skel rr-skel-sm" style="width:76%"></span><span class="rr-skel rr-skel-sm" style="width:54%"></span></div>
-            <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:32%"></span><span class="rr-skel rr-skel-sm" style="width:80%"></span><span class="rr-skel rr-skel-sm" style="width:64%"></span></div>
+          <!-- Two-column shell: the readiness matrix lives in
+               .ob-overview-left (loadOnboardingOps writes there);
+               .ob-overview-right is a sibling placeholder card the
+               operator will populate with moved-in items shortly. -->
+          <div class="ob-overview-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+            <div id="obsub-overview-left" class="ob-overview-left">
+              <!-- Skeleton readiness matrix — 4 cohort cards stacked.
+                   Replaced by loadOnboardingOps() once data arrives. -->
+              <div class="onb-skel-grid" aria-busy="true">
+                <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:30%"></span><span class="rr-skel rr-skel-sm" style="width:70%"></span><span class="rr-skel rr-skel-sm" style="width:60%"></span></div>
+                <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:36%"></span><span class="rr-skel rr-skel-sm" style="width:84%"></span><span class="rr-skel rr-skel-sm" style="width:68%"></span></div>
+                <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:28%"></span><span class="rr-skel rr-skel-sm" style="width:76%"></span><span class="rr-skel rr-skel-sm" style="width:54%"></span></div>
+                <div class="onb-skel-card"><span class="rr-skel rr-skel-md" style="width:32%"></span><span class="rr-skel rr-skel-sm" style="width:80%"></span><span class="rr-skel rr-skel-sm" style="width:64%"></span></div>
+              </div>
+            </div>
+            <div class="ob-overview-right ob-placeholder-card" aria-label="Placeholder">
+              <div class="ob-placeholder-inner">
+                <div class="ob-placeholder-title">Placeholder</div>
+                <div class="ob-placeholder-sub">Items will be moved into this card shortly.</div>
+              </div>
+            </div>
           </div>
         </div>
+        <style>
+          /* Onboarding overview · placeholder card shell. Matches the
+             rough proportions of the readiness matrix on its left so
+             the page reads as a balanced two-column overview. */
+          #view-onboarding-ops .ob-placeholder-card {
+            background: var(--surface, #fff);
+            border: 1px dashed var(--border-strong, #d1d5db);
+            border-radius: 12px;
+            min-height: 880px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-subtle, #6b7280);
+          }
+          #view-onboarding-ops .ob-placeholder-inner {
+            text-align: center;
+            padding: 24px;
+            max-width: 320px;
+          }
+          #view-onboarding-ops .ob-placeholder-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text, #111);
+            margin-bottom: 6px;
+          }
+          #view-onboarding-ops .ob-placeholder-sub {
+            font-size: 13px;
+            line-height: 1.5;
+          }
+          @media (max-width: 1180px) {
+            #view-onboarding-ops .ob-overview-cols {
+              grid-template-columns: 1fr !important;
+            }
+            #view-onboarding-ops .ob-placeholder-card {
+              min-height: 240px;
+            }
+          }
+        </style>
 
         <div id="obsub-workauth" style="display:none">
           <div id="rr-i9-queue">

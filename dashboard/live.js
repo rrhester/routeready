@@ -4797,7 +4797,12 @@ document.addEventListener("click", (e) => {
 });
 
 async function loadOnboardingOps(opts) {
-  const body  = document.getElementById("obsub-overview");
+  // Overview is now a 2-column shell: readiness matrix in
+  // #obsub-overview-left, a sibling placeholder card on the right.
+  // Fall back to the outer #obsub-overview for legacy DOMs that
+  // haven't been updated yet (cached HTML, etc.).
+  const body  = document.getElementById("obsub-overview-left")
+             || document.getElementById("obsub-overview");
   const subEl = document.getElementById("rr-onboardops-sub");
   if (!body) return;
   if (!(opts && opts.keepTab) && typeof obSub === "function") obSub("overview");
