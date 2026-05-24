@@ -29889,6 +29889,29 @@ async function autoAssignDriversForWeek() {
       affinityByDriver = await _rrComputeWeekdayAffinity(dspId, _schedStart, _rrAffinityWeeks());
     } catch (e) { console.warn("affinity compute failed:", e); }
 
+    // Ad-hoc constraints (Step 5.5) — fetch the DSP's active custom
+    // rules for this week and forward them to the solver. Best-effort;
+    // a fetch failure just means the solve runs without custom rules.
+    let adHocConstraints = [];
+    try {
+      const ahWeekEnd = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
+      const { data: ahRows } = await sb.from("current_ad_hoc_constraints")
+        .select("id, kind, payload, hardness, weight, scope, effective_from, effective_until, state")
+        .eq("state", "active")
+        .lte("effective_from", ahWeekEnd)
+        .or(`effective_until.is.null,effective_until.gte.${_schedStart}`);
+      adHocConstraints = (ahRows || []).map(r => ({
+        id: r.id,
+        kind: r.kind,
+        payload: r.payload,
+        hardness: r.hardness,
+        weight: r.weight,
+        scope: r.scope,
+      }));
+    } catch (e) {
+      console.warn("ad_hoc_constraints fetch failed:", e);
+    }
+
     const sfPayload = {
       schedule_week_start: _schedStart,
       max_days: maxDays,
@@ -29911,6 +29934,7 @@ async function autoAssignDriversForWeek() {
       })),
       shifts: engineShifts,
       pto: ptoFlat,
+      ad_hoc_constraints: adHocConstraints,
     };
     // Stash the payload so the KPI drill-downs can dry-run the engine
     // with candidate settings. Persisted to localStorage (keyed by week)

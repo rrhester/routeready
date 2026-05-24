@@ -340,6 +340,21 @@ def solve(req: SolveRequest) -> SolveResponse:
                 if (d.id, s.id) in assign:
                     objective_terms.append(-W_ATT * assign[(d.id, s.id)])
 
+    # ── 6. Ad-hoc constraints (Step 5.5) ──────────────────────────────
+    # Operator-authored rules compiled into CP-SAT additions. Soft rules
+    # contribute slack-penalty terms; hard rules add direct constraints.
+    if req.ad_hoc_constraints:
+        from .ad_hoc import AdHocContext, compile_ad_hoc
+        ah_ctx = AdHocContext(
+            assign=assign,
+            on_day=on_day,
+            shifts_by_id={s.id: s for s in req.shifts},
+            eligible_drivers_per_shift=eligible_drivers_per_shift,
+            all_dates_sorted=sorted({s.date for s in req.shifts}),
+        )
+        ah_penalties, _touched = compile_ad_hoc(model, ah_ctx, req.ad_hoc_constraints)
+        objective_terms.extend(ah_penalties)
+
     model.Maximize(sum(objective_terms))
 
     # ── Solve ─────────────────────────────────────────────────────────
