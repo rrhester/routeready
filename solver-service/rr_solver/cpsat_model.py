@@ -245,8 +245,102 @@ def solve(req: SolveRequest) -> SolveResponse:
                 if terms:
                     model.Add(sum(terms) <= cap)
 
-    # ── Objective: minimize uncovered shifts (= maximize coverage) ────
-    model.Minimize(sum(uncovered.values()))
+    # ── Objective: weighted soft terms (Step 6) ──────────────────────
+    # Weights are tunable per DSP via rules.weights.* (with sane
+    # defaults). Coverage dominates by ~100x so uncovered shifts are
+    # always the worst outcome; the rest are tie-breakers within the
+    # feasible-coverage frontier.
+    weights = (rules.get("weights") or {}) if isinstance(rules, dict) else {}
+    W_COV  = int(weights.get("coverage",   10000))   # per shift covered
+    W_AFF  = int(weights.get("affinity",   1))       # per affinity-pct point
+    W_OT   = int(weights.get("ot_risk",    5))       # per OT hour
+    W_FAIR = int(weights.get("fairness",   2))       # per max-hour-of-roster
+    W_ATT  = int(weights.get("attendance", 100))     # per shift to a final-corrective driver
+
+    objective_terms: list = []
+
+    # 1. Coverage — bonus per covered open shift (= 1 - uncovered[s]).
+    for s in open_shifts:
+        objective_terms.append(W_COV * (1 - uncovered[s.id]))
+
+    # 2. Affinity — bonus per assignment where the driver historically
+    # works that DOW. weekday_affinity is 7 ints in [0, 100] from the
+    # driver_affinity table (precomputed nightly; see migration 0325).
+    affinity_by_driver: dict[str, list[int]] = {}
+    for d in req.drivers:
+        if isinstance(d.weekday_affinity, list) and len(d.weekday_affinity) == 7:
+            affinity_by_driver[d.id] = [int(x or 0) for x in d.weekday_affinity]
+    for s in open_shifts:
+        sdow = _dow(s.date)
+        for did in eligible_drivers_per_shift.get(s.id, []):
+            score = affinity_by_driver.get(did, [0]*7)[sdow]
+            if score > 0:
+                objective_terms.append(W_AFF * score * assign[(did, s.id)])
+
+    # 3. Per-driver hours + OT penalty. Shift durations in whole hours
+    # (CP-SAT performs better with smaller integer ranges; sub-hour
+    # precision isn't material to OT decisions).
+    shift_hours: dict[str, int] = {}
+    for s in req.shifts:
+        if s.duration_hours and s.duration_hours > 0:
+            shift_hours[s.id] = max(1, round(s.duration_hours))
+        elif s.starts_at and s.ends_at:
+            try:
+                start = datetime.fromisoformat(s.starts_at.replace("Z", "+00:00"))
+                end = datetime.fromisoformat(s.ends_at.replace("Z", "+00:00"))
+                hrs = max(1, round((end - start).total_seconds() / 3600))
+                shift_hours[s.id] = hrs
+            except (ValueError, AttributeError):
+                shift_hours[s.id] = 10  # fallback to a typical DSP shift
+        else:
+            shift_hours[s.id] = 10
+    weekly_cap = int(req.weekly_hour_cap or 40)
+
+    # hours[d] = sum of (assign[d,s] * hours[s]) for all eligible s,
+    # plus the locked hours already on the driver's plate.
+    hours: dict[str, cp_model.IntVar] = {}
+    ot_hours: dict[str, cp_model.IntVar] = {}
+    max_assignable_hours = sum(shift_hours.values()) + 1
+    for d in req.drivers:
+        h = model.NewIntVar(0, max_assignable_hours, f"h_{d.id}")
+        terms = [
+            assign[(d.id, s.id)] * shift_hours.get(s.id, 10)
+            for s in open_shifts
+            if (d.id, s.id) in assign
+        ]
+        locked_hrs = sum(
+            shift_hours.get(ls.id, 10)
+            for ls in locked_shifts
+            if ls.assigned_driver_id == d.id
+        )
+        if terms or locked_hrs:
+            model.Add(h == sum(terms) + locked_hrs)
+        else:
+            model.Add(h == 0)
+        hours[d.id] = h
+        # ot[d] = max(0, h - cap)
+        ot = model.NewIntVar(0, max_assignable_hours, f"ot_{d.id}")
+        model.AddMaxEquality(ot, [h - weekly_cap, 0])
+        ot_hours[d.id] = ot
+        objective_terms.append(-W_OT * ot)
+
+    # 4. Fairness — penalize the max-hours-of-any-driver. Pushes the
+    # solver to spread hours instead of stacking onto a few drivers.
+    if hours:
+        max_hours_var = model.NewIntVar(0, max_assignable_hours, "max_hours")
+        model.AddMaxEquality(max_hours_var, list(hours.values()))
+        objective_terms.append(-W_FAIR * max_hours_var)
+
+    # 5. Attendance-risk penalty — final-corrective drivers carry a
+    # negative weight per assignment. The solver still picks them when
+    # coverage demands, but prefers safer drivers when there's a choice.
+    for d in req.drivers:
+        if d.final_corrective_action:
+            for s in open_shifts:
+                if (d.id, s.id) in assign:
+                    objective_terms.append(-W_ATT * assign[(d.id, s.id)])
+
+    model.Maximize(sum(objective_terms))
 
     # ── Solve ─────────────────────────────────────────────────────────
     solver = cp_model.CpSolver()
