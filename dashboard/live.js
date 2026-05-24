@@ -30435,10 +30435,12 @@ async function renderScheduleWeek() {
           else if (n >= 1) ptCount += 1;
         }
         const totalScheduled = ftCount + ptCount;
+        const ftPct = totalScheduled > 0 ? Math.round(ftCount / totalScheduled * 100) : 0;
+        const ptPct = totalScheduled > 0 ? 100 - ftPct : 0;
         return pill(
           "ftpt",
           navy,
-          totalScheduled > 0 ? `${ftCount} / ${ptCount} FT/PT` : "— FT/PT",
+          totalScheduled > 0 ? `${ftPct} / ${ptPct} FT/PT` : "— FT/PT",
           "",
           false,
           totalScheduled > 0
