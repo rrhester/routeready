@@ -333,6 +333,23 @@
   color: var(--rr-brand-pressed) !important;
   background: var(--rr-bg-selected) !important;
   font-weight: 600 !important;
+  /* Force-square the active state too — operator: "I have been
+     very clear that I want square and 90degree corners." The base
+     .subnav-item rule already sets radius:0, but adding it here
+     guarantees no .active descendant rule can sneak in a radius. */
+  border-radius: 0 !important;
+}
+
+/* Triple-belt-and-suspenders: any subnav-item, anywhere in the
+   onboarding strip, in any state. Pure 90-degree corners. */
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item,
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:hover,
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:focus,
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:focus-visible,
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active,
+#view-onboarding-ops.rrx-onboarding .ob-tab-wrap,
+#view-onboarding-ops.rrx-onboarding .ob-tab-wrap > .subnav-item {
+  border-radius: 0 !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active svg {
