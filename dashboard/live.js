@@ -25153,54 +25153,499 @@ document.addEventListener("click", (e) => {
 });
 
 // ─── Ad-hoc constraints list (Optimization Engine · Step 3.5) ─────
+// ─── Custom (ad-hoc) rules · authoring + list ──────────────────────
 // Reads current_ad_hoc_constraints (DSP-scoped view from migration
-// 0326) and renders compact rows in the Smart Fill rules popover's
-// "Custom rules" section. v1 is read-only — the template picker /
-// authoring form / per-rule actions ship with the compiler in step 5.5.
+// 0326) and renders compact rows + an "+ Add rule" authoring form in
+// the Smart Fill rules popover's "Custom rules" section. The form
+// writes via the create_ad_hoc_constraint / update_ad_hoc_constraint
+// / set_ad_hoc_constraint_state RPCs that migration 0326 already
+// installed; the 5 template kinds mirror the solver's compiler at
+// solver-service/rr_solver/ad_hoc.py (TEMPLATE_KINDS).
+
+// Catalog · keep `kind` strings aligned with TEMPLATE_KINDS in the
+// solver. Each entry declares its parameter shape so the form knows
+// which inputs to render + which validation to run.
+const _RR_AH_TEMPLATES = [
+  {
+    kind: "driver_pair_forbidden",
+    label: "Forbid driver pairing",
+    summary: "Two drivers must not be scheduled on the same day.",
+    fields: [
+      { key: "driver_a", type: "driver", label: "Driver A" },
+      { key: "driver_b", type: "driver", label: "Driver B" },
+    ],
+  },
+  {
+    kind: "driver_lock_to_day",
+    label: "Lock driver to a weekday",
+    summary: "Driver always works on the selected day of the week.",
+    fields: [
+      { key: "driver_id", type: "driver", label: "Driver" },
+      { key: "dow", type: "dow", label: "Day of week" },
+    ],
+  },
+  {
+    kind: "driver_exclude_from_day",
+    label: "Block driver from a weekday",
+    summary: "Driver never works on the selected day of the week.",
+    fields: [
+      { key: "driver_id", type: "driver", label: "Driver" },
+      { key: "dow", type: "dow", label: "Day of week" },
+    ],
+  },
+  {
+    kind: "driver_max_days_override",
+    label: "Custom max days per week",
+    summary: "Override the default per-week cap for one driver.",
+    fields: [
+      { key: "driver_id", type: "driver", label: "Driver" },
+      { key: "max_days", type: "number", label: "Max days", min: 1, max: 7, step: 1, def: 5 },
+    ],
+  },
+  {
+    kind: "date_blackout_driver",
+    label: "Date blackout (PTO etc.)",
+    summary: "Driver is unavailable across a date range.",
+    fields: [
+      { key: "driver_id", type: "driver", label: "Driver" },
+      { key: "date_from", type: "date", label: "From" },
+      { key: "date_to",   type: "date", label: "To" },
+      { key: "reason",    type: "text", label: "Reason (optional)" },
+    ],
+  },
+];
+const _RR_AH_DOW_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+let _rrAhDriversCache = null; // [{id, name, status}] — DSP-scoped, cached for the popover session
+async function _rrSfAdHocLoadDrivers(force = false) {
+  if (!force && Array.isArray(_rrAhDriversCache)) return _rrAhDriversCache;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) return [];
+  const { data, error } = await sb.from("drivers")
+    .select("id, first_name, last_name, status")
+    .eq("dsp_id", dspId)
+    .in("status", ["active", "onboarding"])
+    .order("first_name", { ascending: true });
+  if (error) { console.warn("ad-hoc · drivers fetch:", error.message); return []; }
+  _rrAhDriversCache = (data || []).map(d => ({
+    id: d.id,
+    name: `${d.first_name || ""} ${d.last_name || ""}`.trim() || "Unnamed",
+    status: d.status,
+  }));
+  return _rrAhDriversCache;
+}
+
+function _rrAhDriverName(id) {
+  if (!Array.isArray(_rrAhDriversCache) || !id) return "(driver)";
+  const d = _rrAhDriversCache.find(x => x.id === id);
+  return d ? d.name : "(removed)";
+}
+
+function _rrAhFormatSummary(rule) {
+  const p = rule.payload || {};
+  switch (rule.kind) {
+    case "driver_pair_forbidden":
+      return `${_rrAhDriverName(p.driver_a)} ⇎ ${_rrAhDriverName(p.driver_b)}`;
+    case "driver_lock_to_day":
+      return `${_rrAhDriverName(p.driver_id)} · only ${_RR_AH_DOW_LABELS[p.dow] || "?"}`;
+    case "driver_exclude_from_day":
+      return `${_rrAhDriverName(p.driver_id)} · off ${_RR_AH_DOW_LABELS[p.dow] || "?"}`;
+    case "driver_max_days_override":
+      return `${_rrAhDriverName(p.driver_id)} · ≤ ${p.max_days}/wk`;
+    case "date_blackout_driver":
+      return `${_rrAhDriverName(p.driver_id)} · ${p.date_from || "?"} → ${p.date_to || "?"}${p.reason ? ` (${p.reason})` : ""}`;
+    default:
+      return rule.kind;
+  }
+}
+
 async function _rrLoadAdHocConstraintsList() {
-  const list = document.getElementById("rr-sf-adhoc-list");
+  const list  = document.getElementById("rr-sf-adhoc-list");
   const count = document.getElementById("rr-sf-adhoc-count");
   if (!list) return;
+  _rrInjectAdHocCss();
+  // Drivers list powers every template's pickers; pre-load it so the
+  // form is ready the moment the operator clicks Add rule.
+  _rrSfAdHocLoadDrivers().catch(() => {});
+
   let rows;
   try {
     const res = await sb.from("current_ad_hoc_constraints")
-      .select("id, name, description, kind, hardness, weight, state, effective_from, effective_until")
+      .select("id, name, description, kind, payload, hardness, weight, state, effective_from, effective_until")
       .order("created_at", { ascending: false });
     rows = res.data;
     if (res.error) throw res.error;
   } catch (e) {
-    list.innerHTML = `<div class="sf-adhoc-empty" style="font-size:12px;color:var(--text-subtle);padding:8px 0">Custom rules unavailable (${escapeHtml(e?.message || "RPC error")}).</div>`;
+    list.innerHTML = `${_rrAhToolbarHtml(false)}<div class="sf-adhoc-empty" style="font-size:12px;color:var(--text-subtle);padding:8px 0">Custom rules unavailable (${escapeHtml(e?.message || "RPC error")}).</div>`;
     if (count) count.textContent = "0";
+    _rrBindAdHocList();
     return;
   }
   const items = Array.isArray(rows) ? rows : [];
   const active = items.filter(r => r.state === "active").length;
   if (count) count.textContent = String(active);
 
-  if (items.length === 0) {
-    list.innerHTML = `
-      <div class="sf-adhoc-empty">
-        <div class="sf-adhoc-empty-title">No custom rules yet</div>
-        <div class="sf-adhoc-empty-sub">Encode DSP-specific rules here once and Smart Fill will honor them on every solve. Authoring lands in a follow-up.</div>
-      </div>`;
-    _rrInjectAdHocCss();
-    return;
-  }
+  const rowsHtml = items.length === 0
+    ? `<div class="sf-adhoc-empty">
+         <div class="sf-adhoc-empty-title">No custom rules yet</div>
+         <div class="sf-adhoc-empty-sub">Encode DSP-specific rules here once and Smart Fill will honor them on every solve.</div>
+       </div>`
+    : items.map(r => _rrAhRowHtml(r)).join("");
 
-  list.innerHTML = items.map(r => {
-    const stateBadge = `<span class="sf-adhoc-state sf-adhoc-state-${escapeHtml(r.state)}">${escapeHtml(r.state)}</span>`;
-    const hardness = `<span class="sf-adhoc-hardness sf-adhoc-hardness-${escapeHtml(r.hardness)}">${escapeHtml(r.hardness)}${r.weight != null ? ` · ${r.weight}` : ""}</span>`;
-    return `
-      <div class="sf-adhoc-row" data-rr-adhoc-id="${escapeHtml(r.id)}">
-        <div class="sf-adhoc-row-main">
-          <div class="sf-adhoc-row-name">${escapeHtml(r.name)}</div>
-          ${r.description ? `<div class="sf-adhoc-row-desc">${escapeHtml(r.description)}</div>` : ""}
-        </div>
-        <div class="sf-adhoc-row-meta">${hardness}${stateBadge}</div>
+  list.innerHTML = `
+    ${_rrAhToolbarHtml(false)}
+    ${_rrAhFormHtml()}
+    <div class="sf-adhoc-rows">${rowsHtml}</div>
+  `;
+  _rrBindAdHocList();
+}
+
+function _rrAhToolbarHtml(formOpen) {
+  return `
+    <div class="sf-adhoc-toolbar">
+      <button type="button" class="sf-adhoc-add" data-rr-ah-act="open-form" aria-expanded="${formOpen ? "true" : "false"}">
+        <svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg>
+        Add rule
+      </button>
+    </div>`;
+}
+
+function _rrAhRowHtml(r) {
+  const stateBadge = `<span class="sf-adhoc-state sf-adhoc-state-${escapeHtml(r.state)}">${escapeHtml(r.state)}</span>`;
+  const hardness   = `<span class="sf-adhoc-hardness sf-adhoc-hardness-${escapeHtml(r.hardness)}">${escapeHtml(r.hardness)}${r.weight != null ? ` · ${r.weight}` : ""}</span>`;
+  const summary    = _rrAhFormatSummary(r);
+  const canActivate = r.state === "draft" || r.state === "paused";
+  const canPause    = r.state === "active";
+  return `
+    <div class="sf-adhoc-row" data-rr-adhoc-id="${escapeHtml(r.id)}">
+      <div class="sf-adhoc-row-main">
+        <div class="sf-adhoc-row-name">${escapeHtml(r.name)}</div>
+        <div class="sf-adhoc-row-summary">${escapeHtml(summary)}</div>
+        ${r.description ? `<div class="sf-adhoc-row-desc">${escapeHtml(r.description)}</div>` : ""}
       </div>
-    `;
+      <div class="sf-adhoc-row-meta">
+        <div class="sf-adhoc-row-badges">${hardness}${stateBadge}</div>
+        <div class="sf-adhoc-row-actions">
+          ${canActivate ? `<button type="button" data-rr-ah-act="activate" data-rr-ah-id="${escapeHtml(r.id)}" title="Activate">Activate</button>` : ""}
+          ${canPause    ? `<button type="button" data-rr-ah-act="pause"    data-rr-ah-id="${escapeHtml(r.id)}" title="Pause">Pause</button>`       : ""}
+          <button type="button" data-rr-ah-act="edit"   data-rr-ah-id="${escapeHtml(r.id)}" title="Edit">Edit</button>
+          <button type="button" data-rr-ah-act="delete" data-rr-ah-id="${escapeHtml(r.id)}" title="Archive" class="is-danger">Delete</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function _rrAhFormHtml() {
+  // Form is rendered hidden; toggled by clicking "Add rule" or "Edit"
+  // on a row. The template-kind <select> wires the dynamic params
+  // panel via change-event delegation in _rrBindAdHocList.
+  const opts = _RR_AH_TEMPLATES.map(t => `<option value="${t.kind}">${escapeHtml(t.label)}</option>`).join("");
+  return `
+    <form class="sf-adhoc-form" id="rr-sf-adhoc-form" hidden>
+      <input type="hidden" name="id" value=""/>
+      <div class="sf-adhoc-fld">
+        <label>Name</label>
+        <input type="text" name="name" required maxlength="80" placeholder="e.g. Bob and Frank can't pair"/>
+      </div>
+      <div class="sf-adhoc-fld">
+        <label>Template</label>
+        <select name="kind" required>${opts}</select>
+        <div class="sf-adhoc-fld-hint" id="rr-sf-adhoc-kind-hint"></div>
+      </div>
+      <div class="sf-adhoc-params" id="rr-sf-adhoc-params"></div>
+      <div class="sf-adhoc-fld-row">
+        <div class="sf-adhoc-fld">
+          <label>Hardness</label>
+          <select name="hardness">
+            <option value="hard">Hard · always enforced</option>
+            <option value="soft">Soft · weighted penalty</option>
+          </select>
+        </div>
+        <div class="sf-adhoc-fld sf-adhoc-fld-weight" hidden>
+          <label>Weight</label>
+          <input type="number" name="weight" step="0.5" min="0" placeholder="e.g. 10"/>
+        </div>
+      </div>
+      <div class="sf-adhoc-fld-row">
+        <div class="sf-adhoc-fld">
+          <label>Effective from</label>
+          <input type="date" name="effective_from"/>
+        </div>
+        <div class="sf-adhoc-fld">
+          <label>Until (optional)</label>
+          <input type="date" name="effective_until"/>
+        </div>
+      </div>
+      <div class="sf-adhoc-fld">
+        <label>State on save</label>
+        <select name="state">
+          <option value="active">Active</option>
+          <option value="draft">Draft (not yet enforced)</option>
+        </select>
+      </div>
+      <div class="sf-adhoc-fld">
+        <label>Description (optional)</label>
+        <input type="text" name="description" maxlength="200" placeholder="Shown in Smart Fill explainer"/>
+      </div>
+      <div class="sf-adhoc-form-err" id="rr-sf-adhoc-form-err" hidden></div>
+      <div class="sf-adhoc-form-actions">
+        <button type="button" class="btn-ghost" data-rr-ah-act="close-form">Cancel</button>
+        <button type="submit" class="btn-primary">Save rule</button>
+      </div>
+    </form>`;
+}
+
+function _rrAhRenderParams(kind, prefill) {
+  const tpl = _RR_AH_TEMPLATES.find(t => t.kind === kind);
+  const host = document.getElementById("rr-sf-adhoc-params");
+  const hint = document.getElementById("rr-sf-adhoc-kind-hint");
+  if (!host || !tpl) return;
+  if (hint) hint.textContent = tpl.summary;
+  const drivers = Array.isArray(_rrAhDriversCache) ? _rrAhDriversCache : [];
+  const driverOpts = `<option value="">Select driver…</option>` +
+    drivers.map(d => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.name)}</option>`).join("");
+  const dowOpts = _RR_AH_DOW_LABELS.map((lbl, i) => `<option value="${i}">${lbl}</option>`).join("");
+  host.innerHTML = tpl.fields.map(f => {
+    const v = prefill ? (prefill[f.key] ?? "") : (f.def ?? "");
+    if (f.type === "driver") {
+      return `<div class="sf-adhoc-fld">
+        <label>${escapeHtml(f.label)}</label>
+        <select name="p_${f.key}" data-rr-ah-driver required>${driverOpts}</select>
+      </div>`;
+    }
+    if (f.type === "dow") {
+      return `<div class="sf-adhoc-fld">
+        <label>${escapeHtml(f.label)}</label>
+        <select name="p_${f.key}" required>${dowOpts}</select>
+      </div>`;
+    }
+    if (f.type === "number") {
+      return `<div class="sf-adhoc-fld">
+        <label>${escapeHtml(f.label)}</label>
+        <input type="number" name="p_${f.key}" min="${f.min ?? 0}" max="${f.max ?? 999}" step="${f.step ?? 1}" value="${escapeHtml(String(v))}" required/>
+      </div>`;
+    }
+    if (f.type === "date") {
+      return `<div class="sf-adhoc-fld">
+        <label>${escapeHtml(f.label)}</label>
+        <input type="date" name="p_${f.key}" required/>
+      </div>`;
+    }
+    return `<div class="sf-adhoc-fld">
+      <label>${escapeHtml(f.label)}</label>
+      <input type="text" name="p_${f.key}" maxlength="200"/>
+    </div>`;
   }).join("");
-  _rrInjectAdHocCss();
+  // Apply prefill values now that the inputs exist.
+  if (prefill) {
+    for (const f of tpl.fields) {
+      const el = host.querySelector(`[name="p_${f.key}"]`);
+      if (el && prefill[f.key] != null) el.value = String(prefill[f.key]);
+    }
+  }
+}
+
+function _rrAhOpenForm(rule) {
+  const form = document.getElementById("rr-sf-adhoc-form");
+  if (!form) return;
+  form.hidden = false;
+  form.reset();
+  const errEl = document.getElementById("rr-sf-adhoc-form-err");
+  if (errEl) { errEl.hidden = true; errEl.textContent = ""; }
+  // Toggle the toolbar Add-button into "open" state.
+  const addBtn = document.querySelector(".sf-adhoc-add");
+  if (addBtn) addBtn.setAttribute("aria-expanded", "true");
+
+  if (rule) {
+    form.elements.id.value             = rule.id;
+    form.elements.name.value           = rule.name || "";
+    form.elements.kind.value           = rule.kind;
+    form.elements.kind.disabled        = true; // kind is immutable on update (RPC ignores it)
+    form.elements.hardness.value       = rule.hardness || "hard";
+    form.elements.weight.value         = rule.weight != null ? rule.weight : "";
+    form.elements.effective_from.value = rule.effective_from || "";
+    form.elements.effective_until.value= rule.effective_until || "";
+    form.elements.state.value          = (rule.state === "draft" || rule.state === "active") ? rule.state : "active";
+    form.elements.description.value    = rule.description || "";
+    _rrAhRenderParams(rule.kind, rule.payload || {});
+  } else {
+    form.elements.id.value = "";
+    form.elements.kind.disabled = false;
+    form.elements.kind.value = _RR_AH_TEMPLATES[0].kind;
+    form.elements.hardness.value = "hard";
+    form.elements.state.value = "active";
+    _rrAhRenderParams(_RR_AH_TEMPLATES[0].kind, null);
+  }
+  _rrAhSyncWeightVisibility();
+  const nameEl = form.elements.name;
+  if (nameEl) try { nameEl.focus(); } catch (_) {}
+}
+
+function _rrAhCloseForm() {
+  const form = document.getElementById("rr-sf-adhoc-form");
+  if (form) form.hidden = true;
+  const addBtn = document.querySelector(".sf-adhoc-add");
+  if (addBtn) addBtn.setAttribute("aria-expanded", "false");
+}
+
+function _rrAhSyncWeightVisibility() {
+  const form = document.getElementById("rr-sf-adhoc-form");
+  if (!form) return;
+  const isSoft = form.elements.hardness?.value === "soft";
+  const wrap = form.querySelector(".sf-adhoc-fld-weight");
+  if (wrap) wrap.hidden = !isSoft;
+  const weightEl = form.elements.weight;
+  if (weightEl) weightEl.required = isSoft;
+}
+
+function _rrAhCollectPayload(form, kind) {
+  const tpl = _RR_AH_TEMPLATES.find(t => t.kind === kind);
+  if (!tpl) return null;
+  const payload = {};
+  for (const f of tpl.fields) {
+    const el = form.querySelector(`[name="p_${f.key}"]`);
+    if (!el) continue;
+    let v = el.value;
+    if (v === "" && f.type !== "text") return { _err: `Missing ${f.label}` };
+    if (f.type === "number" || f.type === "dow") v = Number(v);
+    payload[f.key] = v;
+  }
+  // Kind-specific cross-field checks.
+  if (kind === "driver_pair_forbidden" && payload.driver_a === payload.driver_b) {
+    return { _err: "Driver A and Driver B must be different" };
+  }
+  if (kind === "date_blackout_driver" && payload.date_from && payload.date_to && payload.date_from > payload.date_to) {
+    return { _err: "From date must be on or before the To date" };
+  }
+  return payload;
+}
+
+async function _rrAhSubmit(form) {
+  const errEl = document.getElementById("rr-sf-adhoc-form-err");
+  const showErr = (msg) => { if (errEl) { errEl.hidden = false; errEl.textContent = msg; } };
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const name = (form.elements.name.value || "").trim();
+  if (!name) return showErr("Name is required");
+  const kind     = form.elements.kind.value;
+  const hardness = form.elements.hardness.value;
+  const weight   = form.elements.weight.value ? Number(form.elements.weight.value) : null;
+  if (hardness === "soft" && (weight == null || isNaN(weight))) return showErr("Soft rules need a numeric weight");
+  const description    = (form.elements.description.value || "").trim() || null;
+  const effective_from = form.elements.effective_from.value || null;
+  const effective_until= form.elements.effective_until.value || null;
+  const state          = form.elements.state.value || "active";
+  const id             = form.elements.id.value || null;
+  const payload = _rrAhCollectPayload(form, kind);
+  if (!payload) return showErr("Could not read template parameters");
+  if (payload._err) return showErr(payload._err);
+
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Saving…"; }
+  try {
+    if (id) {
+      const { error } = await sb.rpc("update_ad_hoc_constraint", {
+        p_id: id,
+        p_name: name,
+        p_payload: payload,
+        p_hardness: hardness,
+        p_description: description,
+        p_weight: weight,
+        p_effective_from: effective_from,
+        p_effective_until: effective_until,
+        p_state: state,
+      });
+      if (error) throw error;
+      toast("Rule updated", "success");
+    } else {
+      const { error } = await sb.rpc("create_ad_hoc_constraint", {
+        p_name: name,
+        p_kind: kind,
+        p_payload: payload,
+        p_hardness: hardness,
+        p_description: description,
+        p_weight: weight,
+        p_effective_from: effective_from,
+        p_effective_until: effective_until,
+        p_state: state,
+      });
+      if (error) throw error;
+      toast("Rule saved", "success");
+    }
+    _rrAhCloseForm();
+    _rrLoadAdHocConstraintsList();
+  } catch (e) {
+    showErr(e?.message || "Save failed");
+  } finally {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Save rule"; }
+  }
+}
+
+async function _rrAhSetState(id, newState) {
+  try {
+    const { error } = await sb.rpc("set_ad_hoc_constraint_state", { p_id: id, p_state: newState });
+    if (error) throw error;
+    toast(newState === "archived" ? "Rule deleted" : `Rule ${newState}`, "success");
+    _rrLoadAdHocConstraintsList();
+  } catch (e) {
+    toast(e?.message || "Update failed", "warn");
+  }
+}
+
+let _rrAdHocListBound = false;
+function _rrBindAdHocList() {
+  if (_rrAdHocListBound) return;
+  const host = document.getElementById("rr-sf-adhoc-list");
+  if (!host) return;
+  _rrAdHocListBound = true;
+  // Single delegated click handler — survives re-renders since the
+  // host (#rr-sf-adhoc-list) itself stays put.
+  host.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-rr-ah-act]");
+    if (!btn) return;
+    const act = btn.dataset.rrAhAct;
+    const id  = btn.dataset.rrAhId;
+    if (act === "open-form") {
+      const form = document.getElementById("rr-sf-adhoc-form");
+      if (form && !form.hidden) { _rrAhCloseForm(); return; }
+      await _rrSfAdHocLoadDrivers();
+      _rrAhOpenForm(null);
+      return;
+    }
+    if (act === "close-form") { _rrAhCloseForm(); return; }
+    if (act === "edit" && id) {
+      // Re-fetch the row so we have the full payload.
+      const { data, error } = await sb.from("current_ad_hoc_constraints")
+        .select("id, name, description, kind, payload, hardness, weight, state, effective_from, effective_until")
+        .eq("id", id).maybeSingle();
+      if (error || !data) { toast(error?.message || "Rule not found", "warn"); return; }
+      await _rrSfAdHocLoadDrivers();
+      _rrAhOpenForm(data);
+      return;
+    }
+    if (act === "pause"    && id) return _rrAhSetState(id, "paused");
+    if (act === "activate" && id) return _rrAhSetState(id, "active");
+    if (act === "delete"   && id) {
+      if (!confirm("Archive this custom rule? It will stop affecting Smart Fill immediately.")) return;
+      return _rrAhSetState(id, "archived");
+    }
+  });
+  host.addEventListener("change", (e) => {
+    const form = document.getElementById("rr-sf-adhoc-form");
+    if (!form || form.hidden) return;
+    if (e.target === form.elements.kind) {
+      _rrAhRenderParams(form.elements.kind.value, null);
+      return;
+    }
+    if (e.target === form.elements.hardness) {
+      _rrAhSyncWeightVisibility();
+      return;
+    }
+  });
+  host.addEventListener("submit", (e) => {
+    if (e.target?.id === "rr-sf-adhoc-form") {
+      e.preventDefault();
+      _rrAhSubmit(e.target);
+    }
+  });
 }
 function _rrInjectAdHocCss() {
   if (typeof document === "undefined" || !document.head) return;
@@ -25236,6 +25681,91 @@ function _rrInjectAdHocCss() {
     .sf-adhoc-state-expired { background:rgba(148,163,184,.18); color:#64748b; }
     .sf-adhoc-hardness-hard { background:rgba(220,38,38,.10); color:#b91c1c; }
     .sf-adhoc-hardness-soft { background:rgba(99,102,241,.12); color:#4338ca; }
+
+    /* Authoring · toolbar + per-row actions + inline form. Sized to
+       fit inside the Smart Fill rules popover; everything tracks the
+       Custom-rules disclosure so it never overflows the panel. */
+    .sf-adhoc-toolbar { display:flex; justify-content:flex-end; padding:2px 0 8px; }
+    .sf-adhoc-add {
+      display:inline-flex; align-items:center; gap:5px;
+      font:600 12px/1.2 var(--rr-font-family,'Segoe UI');
+      padding:4px 10px; border-radius:6px;
+      background:var(--accent, #0F6CBD); color:#fff; border:1px solid var(--accent, #0F6CBD);
+      cursor:pointer; transition:background var(--t-fast,160ms);
+    }
+    .sf-adhoc-add:hover { background:#115EA3; border-color:#115EA3; }
+    .sf-adhoc-add[aria-expanded="true"] { background:var(--text-muted,#475569); border-color:var(--text-muted,#475569); }
+    .sf-adhoc-rows { display:flex; flex-direction:column; gap:4px; }
+    .sf-adhoc-row { flex-wrap:wrap; }
+    .sf-adhoc-row-summary { font:12px/1.4 var(--rr-font-family,'Segoe UI');
+                            color:var(--text-muted,#475569); margin-top:2px; }
+    .sf-adhoc-row-badges { display:flex; gap:4px; align-items:center; }
+    .sf-adhoc-row-actions { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; justify-content:flex-end; }
+    .sf-adhoc-row-actions button {
+      font:500 11px/1.2 var(--rr-font-family,'Segoe UI');
+      padding:3px 8px; border-radius:5px;
+      background:var(--canvas,#F8F9FB); color:var(--text-muted,#475569);
+      border:1px solid var(--border,#e5e7eb); cursor:pointer;
+      transition:background var(--t-fast,160ms);
+    }
+    .sf-adhoc-row-actions button:hover { background:rgba(15,23,42,.06); color:var(--text,#111); }
+    .sf-adhoc-row-actions button.is-danger:hover { background:rgba(220,38,38,.08); color:#b91c1c; border-color:rgba(220,38,38,.30); }
+
+    .sf-adhoc-form {
+      background:var(--canvas,#F8F9FB);
+      border:1px solid var(--border,#e5e7eb);
+      border-radius:8px;
+      padding:10px 12px;
+      margin:0 0 8px;
+      display:flex; flex-direction:column; gap:8px;
+    }
+    .sf-adhoc-fld { display:flex; flex-direction:column; gap:3px; min-width:0; }
+    .sf-adhoc-fld label {
+      font:600 10px/1 var(--rr-font-family,'Segoe UI');
+      color:var(--text-subtle,#6b7280); text-transform:uppercase; letter-spacing:.04em;
+    }
+    .sf-adhoc-fld input[type="text"],
+    .sf-adhoc-fld input[type="number"],
+    .sf-adhoc-fld input[type="date"],
+    .sf-adhoc-fld select {
+      font:inherit; font-size:12px;
+      padding:5px 8px; border-radius:5px;
+      border:1px solid var(--border,#e5e7eb);
+      background:var(--surface,#fff); color:var(--text,#111);
+      min-width:0;
+    }
+    .sf-adhoc-fld input:focus, .sf-adhoc-fld select:focus {
+      outline:0; border-color:var(--accent,#0F6CBD);
+      box-shadow:0 0 0 2px rgba(15,108,189,.18);
+    }
+    .sf-adhoc-fld-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .sf-adhoc-fld-hint {
+      font:11px/1.3 var(--rr-font-family,'Segoe UI'); color:var(--text-subtle,#6b7280);
+    }
+    .sf-adhoc-params { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .sf-adhoc-params .sf-adhoc-fld:only-child { grid-column:1 / -1; }
+    .sf-adhoc-form-err {
+      font:12px/1.4 var(--rr-font-family,'Segoe UI');
+      color:#b91c1c; background:rgba(220,38,38,.08);
+      padding:6px 10px; border-radius:5px;
+      border:1px solid rgba(220,38,38,.20);
+    }
+    .sf-adhoc-form-actions { display:flex; justify-content:flex-end; gap:6px; margin-top:2px; }
+    .sf-adhoc-form-actions button {
+      font:600 12px/1.2 var(--rr-font-family,'Segoe UI');
+      padding:6px 12px; border-radius:6px; cursor:pointer;
+    }
+    .sf-adhoc-form-actions .btn-ghost {
+      background:transparent; color:var(--text-muted,#475569);
+      border:1px solid var(--border,#e5e7eb);
+    }
+    .sf-adhoc-form-actions .btn-ghost:hover { background:rgba(15,23,42,.05); }
+    .sf-adhoc-form-actions .btn-primary {
+      background:var(--accent,#0F6CBD); color:#fff;
+      border:1px solid var(--accent,#0F6CBD);
+    }
+    .sf-adhoc-form-actions .btn-primary:hover { background:#115EA3; border-color:#115EA3; }
+    .sf-adhoc-form-actions .btn-primary[disabled] { opacity:.6; cursor:default; }
   `;
   document.head.appendChild(css);
 }
