@@ -16034,21 +16034,25 @@ body.rr-cmdk-open{ overflow:hidden }
              priority sliders, data-source toggles, compute budget. Uses
              a native <details> for keyboard-friendly expand/collapse;
              chevron rotates 90deg on open. */
+          /* Advanced engine controls: flow inline with the rest of the
+             popover — no box, no nested-page feel. */
           #view-schedule .sched-smartfill-engine{
-            border-top:1px solid rgba(15,23,42,.08);
-            margin-top:4px;padding:0;
+            margin:0;padding:0;
             font-family:inherit;
           }
           #view-schedule .sched-smartfill-engine[open]{
-            background:rgba(15,23,42,.015);
+            background:transparent;
           }
           #view-schedule .sched-smartfill-engine-head{
             list-style:none;cursor:pointer;user-select:none;
-            display:flex;align-items:center;gap:8px;
-            padding:10px 16px;
-            font-size:11px;font-weight:600;
-            text-transform:uppercase;letter-spacing:.04em;
-            color:#616161;
+            display:flex;align-items:center;gap:6px;
+            padding:6px 16px;
+            font-size:13px;font-weight:500;
+            text-transform:none;letter-spacing:normal;
+            color:#1f1f1f;
+          }
+          #view-schedule .sched-smartfill-engine-head:hover{
+            background:rgba(15,23,42,.05);border-radius:6px;
           }
           #view-schedule .sched-smartfill-engine-head::-webkit-details-marker{display:none}
           #view-schedule .sf-engine-chev{
@@ -16060,11 +16064,17 @@ body.rr-cmdk-open{ overflow:hidden }
             transform:rotate(90deg);
           }
           #view-schedule .sched-smartfill-engine-body{
-            padding:4px 16px 12px;
-            display:flex;flex-direction:column;gap:14px;
+            padding:4px 16px 8px;
+            display:flex;flex-direction:column;gap:10px;
+          }
+          /* Cap the popover body height so opening Advanced doesn't push
+             the popover off-screen — scroll inside instead. */
+          #view-schedule #rr-sched-smartfill-rules-body{
+            max-height:min(72vh,640px);
+            overflow-y:auto;
           }
           #view-schedule .sf-engine-group{
-            display:flex;flex-direction:column;gap:8px;
+            display:flex;flex-direction:column;gap:4px;
           }
           #view-schedule .sf-engine-group-label{
             font-size:11px;font-weight:600;
