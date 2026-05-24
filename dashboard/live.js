@@ -31395,19 +31395,14 @@ function bindSchedWeekNav() {
           tradeoff: "Drivers can be placed on any day they're available, not only their preferred days.",
         });
       }
-      const curMax = Math.max(0, Math.min(7, Math.round(payload.max_days ?? 6)));
-      // One candidate per intermediate step (curMax+1 … 7) rather than a
-      // single jump straight to 7. _openCovModal collapses this family
-      // down to the gentlest step that actually closes the gap.
-      for (let m = curMax + 1; m <= 7; m++) {
-        c.push({
-          maxDays: m,
-          title: `Raise max allowable days per week to ${m} (from ${curMax})`,
-          tradeoff: m >= 7
-            ? "Drivers may work up to 7 days — watch fatigue and overtime."
-            : `Drivers may work up to ${m} days a week — a modest increase from ${curMax}.`,
-        });
-      }
+      // The bulk "raise max allowable days per week" recommendations
+      // are removed per operator request — they'd force every driver
+      // up to 5/6/7 days, not just the ones who opted in. The 5th-day
+      // pass (rendered later as its own standing option in
+      // _openCovModal) is the only overtime route the operator wants
+      // to offer here: it gives just opted-in drivers one extra
+      // shift each, still inside the DSP's WOC consecutive-days +
+      // weekly-hour caps.
       if ((r.dl_protection_days ?? 0) > 0) {
         c.push({
           ruleDelta: { dl_protection_days: 0 },
@@ -31504,7 +31499,6 @@ function bindSchedWeekNav() {
           }
         }
         const recs = [];
-        const maxDaysRecs = [];
         for (const cand of _covCandidates(payload)) {
           let res = null;
           try {
@@ -31519,23 +31513,7 @@ function bindSchedWeekNav() {
           // it counts onboarding-driver assignments as filled.
           const proj = _projectStripPct(res);
           if (proj == null || baseCov == null || proj <= baseCov) continue;
-          const rec = { ...cand, proj };
-          if (cand.maxDays != null) maxDaysRecs.push(rec);
-          else recs.push(rec);
-        }
-        // Collapse the max-days steps to the gentlest one that helps:
-        // the smallest increase that reaches 100%, or — if none does —
-        // the smallest increase that achieves the best coverage. This
-        // keeps the drill-down from jumping straight to 7 days when a
-        // smaller bump would already close the gap.
-        if (maxDaysRecs.length > 0) {
-          maxDaysRecs.sort((a, b) => a.maxDays - b.maxDays);
-          let pick = maxDaysRecs.find((r) => r.proj >= 100);
-          if (!pick) {
-            const best = Math.max(...maxDaysRecs.map((r) => r.proj));
-            pick = maxDaysRecs.find((r) => r.proj === best);
-          }
-          if (pick) recs.push(pick);
+          recs.push({ ...cand, proj });
         }
         curLabel = baseCov == null
           ? "How coverage could improve"
