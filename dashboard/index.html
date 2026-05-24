@@ -19168,75 +19168,6 @@ body.rr-cmdk-open{ overflow:hidden }
              on schedSub('targets'). -->
         <div class="sched-subview" id="sched-sub-targets" style="display:none">
           <style>
-            /* Targets sub-view shell · puts the daily-targets editor on
-               the left and the Amazon sync log on the right, matching
-               the Pipeline view's pipe-shell layout. */
-            #view-schedule #sched-sub-targets .rr-targets-shell{
-              display:grid;grid-template-columns:1fr 320px;
-              gap:var(--s-3);align-items:start;
-            }
-            @media (max-width:1180px){
-              #view-schedule #sched-sub-targets .rr-targets-shell{grid-template-columns:1fr}
-            }
-            #view-schedule #sched-sub-targets .rr-amz-sync{
-              background:var(--surface);
-              border:1px solid rgba(15,23,42,.07);
-              border-radius:8px;
-              padding:var(--s-4);
-              box-shadow:var(--shadow-sm);
-              display:flex;flex-direction:column;gap:var(--s-3);
-              position:sticky;top:80px;
-            }
-            #view-schedule #sched-sub-targets .rr-amz-sync-head{
-              display:flex;justify-content:space-between;align-items:center;
-              font-size:var(--fs-sm);font-weight:600;color:var(--text);
-              padding-bottom:var(--s-2);
-              border-bottom:1px solid rgba(15,23,42,.05);
-            }
-            #view-schedule #sched-sub-targets .rr-amz-sync-head > span:last-child{
-              font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);
-              text-transform:uppercase;letter-spacing:.04em;
-            }
-            #view-schedule #sched-sub-targets .rr-amz-pull{
-              display:flex;align-items:center;justify-content:center;gap:7px;
-              width:100%;padding:8px 12px;border-radius:6px;
-              background:#0078D4;color:#fff;border:1px solid #0078D4;cursor:pointer;
-              font-family:inherit;font-size:var(--fs-sm);font-weight:600;
-              transition:background var(--t-fast),border-color var(--t-fast);
-            }
-            #view-schedule #sched-sub-targets .rr-amz-pull:hover{background:#106EBE;border-color:#106EBE}
-            #view-schedule #sched-sub-targets .rr-amz-pull:disabled{cursor:default;opacity:.72}
-            #view-schedule #sched-sub-targets .rr-amz-pull svg{width:14px;height:14px}
-            #view-schedule #sched-sub-targets .rr-amz-pull.is-loading svg{animation:rr-spin .65s linear infinite}
-            #view-schedule #sched-sub-targets .rr-amz-sync-list{
-              display:flex;flex-direction:column;
-              flex:1;min-height:0;overflow-y:auto;
-              scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;
-            }
-            #view-schedule #sched-sub-targets .rr-amz-sync-row{
-              display:flex;align-items:flex-start;gap:9px;padding:9px 4px;
-            }
-            #view-schedule #sched-sub-targets .rr-amz-sync-row + .rr-amz-sync-row{
-              border-top:1px solid rgba(15,23,42,.04);
-            }
-            #view-schedule #sched-sub-targets .rr-amz-sync-dot{
-              width:7px;height:7px;border-radius:50%;background:var(--accent);
-              flex:0 0 auto;margin-top:5px;
-            }
-            #view-schedule #sched-sub-targets .rr-amz-sync-row-title{
-              font-size:var(--fs-sm);color:var(--text);line-height:1.35;
-            }
-            #view-schedule #sched-sub-targets .rr-amz-sync-row-time{
-              font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px;
-            }
-            #view-schedule #sched-sub-targets .rr-amz-sync-note{
-              font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;
-              padding-top:var(--s-2);border-top:1px solid rgba(15,23,42,.05);
-            }
-            #view-schedule #sched-sub-targets .rr-amz-sync-newest{
-              text-align:right;font-size:var(--fs-xs);color:var(--text-subtle);
-              margin:0 0 var(--s-2) 0;
-            }
             /* 13-week OKAMI planner · embedded above the daily editor.
                Wraps the OKAMI table that lives in #view-okami; on
                schedSub('targets') the live table is moved here at
@@ -19252,7 +19183,24 @@ body.rr-cmdk-open{ overflow:hidden }
               padding:10px 14px 8px;
               margin-bottom:var(--s-3);
               overflow:hidden;
+              display:flex;flex-direction:column;
             }
+            /* Scrollable host · the 13-week table can outgrow the
+               viewport, so cap the table area and let it scroll inside
+               the card. Scrollbar styled to mirror .cal-wrap on the
+               main schedule grid (thin, hairline thumb, transparent
+               track) so both surfaces feel like one product. */
+            #view-schedule #sched-sub-targets #rr-sched-targets-13week-host{
+              flex:1;min-height:0;
+              max-height:calc(100vh - 280px);
+              overflow-y:auto;
+              scrollbar-width:thin;
+              scrollbar-color:var(--border-strong) transparent;
+            }
+            #view-schedule #sched-sub-targets #rr-sched-targets-13week-host::-webkit-scrollbar{width:8px}
+            #view-schedule #sched-sub-targets #rr-sched-targets-13week-host::-webkit-scrollbar-track{background:transparent}
+            #view-schedule #sched-sub-targets #rr-sched-targets-13week-host::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:var(--r-sm)}
+            #view-schedule #sched-sub-targets #rr-sched-targets-13week-host::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
             #view-schedule #sched-sub-targets .rr-tgt-13w-head{
               display:flex;align-items:center;justify-content:space-between;
               gap:var(--s-2);flex-wrap:wrap;
@@ -19365,59 +19313,6 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </section>
 
-          <div class="rr-targets-shell">
-            <div id="sched-sub-targets-daily">
-              <div class="rr-loading">Loading route targets…</div>
-            </div>
-
-            <!-- Amazon sync log · right rail. Placeholder/dummy content
-                 until the Amazon portal pull-and-merge integration is
-                 built. Mirrors the Pipeline view's Indeed sync card. -->
-            <div>
-              <div class="rr-amz-sync-newest">Newest first</div>
-              <aside class="rr-amz-sync" id="rr-amz-sync" aria-label="Amazon sync log">
-                <div class="rr-amz-sync-head">
-                  <span>Amazon sync</span>
-                  <span>log</span>
-                </div>
-                <button type="button" class="rr-amz-pull" id="rr-amz-pull-btn" onclick="rrPullFromAmazon(this)">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                  <span>Pull from Amazon</span>
-                </button>
-                <div class="rr-amz-sync-list">
-                  <div class="rr-amz-sync-row">
-                    <span class="rr-amz-sync-dot"></span>
-                    <div>
-                      <div class="rr-amz-sync-row-title">Updated targets for 4 routes from Amazon</div>
-                      <div class="rr-amz-sync-row-time">Today · 9:02 AM</div>
-                    </div>
-                  </div>
-                  <div class="rr-amz-sync-row">
-                    <span class="rr-amz-sync-dot"></span>
-                    <div>
-                      <div class="rr-amz-sync-row-title">Synced targets · no changes detected</div>
-                      <div class="rr-amz-sync-row-time">Today · 6:00 AM</div>
-                    </div>
-                  </div>
-                  <div class="rr-amz-sync-row">
-                    <span class="rr-amz-sync-dot"></span>
-                    <div>
-                      <div class="rr-amz-sync-row-title">Updated targets for 6 routes from Amazon</div>
-                      <div class="rr-amz-sync-row-time">Yesterday · 9:01 AM</div>
-                    </div>
-                  </div>
-                  <div class="rr-amz-sync-row">
-                    <span class="rr-amz-sync-dot"></span>
-                    <div>
-                      <div class="rr-amz-sync-row-title">Updated targets for 2 routes from Amazon</div>
-                      <div class="rr-amz-sync-row-time">Yesterday · 6:00 AM</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="rr-amz-sync-note">Sample data — the Amazon targets sync isn't wired up yet.</div>
-              </aside>
-            </div>
-          </div>
         </div><!-- /sched-sub-targets -->
 
         <!-- VAN ASSIGNMENTS · auto-assign result view. The action-
