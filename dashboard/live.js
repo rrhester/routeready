@@ -28565,7 +28565,13 @@ async function autoFillScheduleWeek() {
     }
   }
   await renderScheduleWeek();
-  if (summaryAlert) alert(summaryAlert);
+  // Operator: "When you hit smart fill — I don't want the pop-up
+  // giving you details to appear." The diagnostics summary
+  // (assignment failures, uncovered shifts, unscheduled drivers)
+  // still gets built above so it can be surfaced elsewhere later
+  // (e.g., a side panel or log), but the blocking alert() popup is
+  // gone. Toast at line 28531/28533 still confirms the run.
+  void summaryAlert;
 }
 
 // Auto-assign drivers to open shifts in the current week based on each
@@ -31195,12 +31201,14 @@ function bindSchedWeekNav() {
         bodyHtml = `<p class="rr-pref-empty">Run Smart Fill once and RouteReady can preview how each setting would change the Preferred %.</p>`;
         curLabel = "How preferred-day scheduling could improve";
       } else {
-        // Coverage % of a dry-run result (filled / total shifts).
+        // Coverage % of a dry-run result. Same fix as _covOf above —
+        // closed shifts must be subtracted from the denominator so the
+        // percentage agrees with the uncovered count downstream.
         const _covPctOf = (res) => {
           const sm = res && res.summary_metrics;
-          return sm && sm.total_shifts
-            ? Math.round((sm.filled_shifts / sm.total_shifts) * 100)
-            : null;
+          if (!sm || !sm.total_shifts) return null;
+          const denom = (sm.total_shifts || 0) - (sm.closed_shifts || 0);
+          return denom > 0 ? Math.round((sm.filled_shifts / denom) * 100) : null;
         };
         let baseline = null, baseCov = null;
         try {
@@ -31338,11 +31346,24 @@ function bindSchedWeekNav() {
       document.head.appendChild(st);
     }
 
+    // Coverage % and uncovered count have to use the SAME denominator
+    // or the numbers go inconsistent (operator caught this — "It isn't
+    // giving accurate numbers"). _uncoveredOf already excludes closed
+    // shifts from the denominator (total - filled - closed); _covOf was
+    // computing filled / total without subtracting closed, so a week
+    // with closed shifts would underreport coverage relative to the
+    // uncovered count.
+    //
+    // Example: 50 total, 40 filled, 5 closed, 5 uncovered.
+    //   _covOf (old):  filled / total = 40/50 = 80%   ← misleading
+    //   _uncoveredOf:  total - filled - closed = 5    ← right
+    //   _covOf (new):  filled / (total - closed) = 40/45 = 89%
+    // Both now agree the operator handled 40 of 45 remaining shifts.
     const _covOf = (res) => {
       const sm = res && res.summary_metrics;
-      return sm && sm.total_shifts
-        ? Math.round((sm.filled_shifts / sm.total_shifts) * 100)
-        : null;
+      if (!sm || !sm.total_shifts) return null;
+      const denom = (sm.total_shifts || 0) - (sm.closed_shifts || 0);
+      return denom > 0 ? Math.round((sm.filled_shifts / denom) * 100) : null;
     };
     const _uncoveredOf = (res) => {
       const sm = res && res.summary_metrics;
