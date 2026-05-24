@@ -15450,22 +15450,13 @@ body.rr-cmdk-open{ overflow:hidden }
             display:inline-flex;gap:8px;visibility:visible;
             position:absolute;left:0;top:50%;transform:translateY(-50%);
           }
-          /* Intelligence mode · same shape as print mode. When the
-             tab is active the existing icon ribbon (Week view, Today
-             view, Smart Fill, etc.) goes invisible but holds its
-             footprint so the card never resizes, and the intel
-             tiles render in its place. Page contents below the
-             ribbon are untouched — only the stripe swaps. */
-          #view-schedule .sched-v2-intel-actions{display:none}
-          #view-schedule .sched-cmd-shell.is-intel .sched-v2-intel-actions{
-            display:flex;align-items:center;gap:14px;
-            position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
-            padding-left:4px;padding-right:4px;
-          }
-          #view-schedule .sched-cmd-shell.is-intel .sched-nav-heading-actions{position:relative}
-          #view-schedule .sched-cmd-shell.is-intel .sched-nav-heading-actions > :not(.sched-v2-intel-actions){
-            visibility:hidden;
-          }
+          /* Intelligence mode · visual treatment for the intel ribbon.
+             The display-toggle CSS (hide tiles / title / week nav,
+             show intel ribbon) lives in schedule-rrx.css alongside
+             the matching `is-print` rules so both tabs share one
+             pattern. The strip's min-height (also in -rrx.css) keeps
+             the bar at the Schedule-tab natural size so the page
+             never jumps when the operator flips tabs. */
           #view-schedule .sched-v2-intel-label{
             font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
             color:var(--sch-blue);
@@ -15475,18 +15466,23 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-v2-intel-tiles{
             display:flex;align-items:center;gap:8px;flex-wrap:nowrap;
           }
+          /* Intel tile = same column shape as the standard sched-v2-tile
+             (icon + label) so the row height matches whatever the
+             Schedule-tab tiles render at. The Rules-foot height delta
+             is absorbed by the strip's min-height — see schedule-rrx
+             .css `.sched-v2-strip { min-height }`. */
           #view-schedule .sched-v2-intel-tile{
             appearance:none;cursor:pointer;font:inherit;
             display:inline-flex;flex-direction:column;
             align-items:center;justify-content:center;gap:4px;
-            min-width:74px;padding:6px 10px 7px;
+            min-width:62px;padding:6px 10px 7px;
             background:transparent;border:0;border-radius:6px;
             color:var(--text-muted);
             transition:background var(--t-fast),color var(--t-fast);
           }
-          #view-schedule .sched-v2-intel-tile svg{width:24px;height:24px;stroke-width:1.7}
+          #view-schedule .sched-v2-intel-tile svg{width:28px;height:28px;stroke-width:1.6}
           #view-schedule .sched-v2-intel-tile span{
-            font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;
+            font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;
             white-space:nowrap;
           }
           #view-schedule .sched-v2-intel-tile:hover{
