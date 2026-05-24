@@ -31429,30 +31429,57 @@ function bindSchedWeekNav() {
         bodyHtml = `<p class="rr-cov-empty">Run Smart Fill once and RouteReady can preview how each setting would change coverage.</p>`;
         curLabel = "How coverage could improve";
       } else {
+        // The drill-down shows THREE distinct numbers that each have a
+        // different rightful source:
+        //   1. Baseline % (top of card) — what the operator sees on the
+        //      KPI strip. Source = _rrLiveSchedCoverage. Strip math:
+        //      active-drivers-only as filled / all shifts on the board.
+        //   2. "N shifts can't be staffed" / "~K more drivers needed" —
+        //      what the engine literally couldn't fill at current
+        //      settings (not "unstaffed by onboarding drivers" — those
+        //      will fill themselves as drivers activate). Source =
+        //      engine dry-run via _uncoveredOf().
+        //   3. Each candidate's projected % — what the strip would show
+        //      AFTER accepting that candidate + re-running. NOT what
+        //      the engine reports as filled (that counts onboarding
+        //      assignments too and would over-promise). Source = the
+        //      strip's totalFilled denominator + a count of engine
+        //      assignments that go to ACTIVE drivers.
         let baseCov = null, baseUncov = null;
-        // BASELINE comes from the live KPI strip, NOT a dry-run.
-        // _rrLiveSchedCoverage is stashed by renderScheduleWeek with
-        // the same numbers the operator sees on the strip ("71% ·
-        // 35/49 shifts staffed"). The drill-down previously re-derived
-        // baseline from a planScheduleWeek dry-run which counts ANY
-        // assigned shift as filled (including onboarding-driver
-        // assignments) and drops terminal-status shifts from the
-        // denominator — that's why the operator saw the drill-down
-        // say 94% while the strip said 71%. Now they agree.
         const live = window._rrLiveSchedCoverage;
         if (live && live.weekStart === payload.schedule_week_start) {
           baseCov = live.pct;
-          baseUncov = Math.max(0, (live.needed || 0) - (live.filled || 0));
-        } else {
-          // Fallback: if the strip hasn't computed yet (e.g. drill-down
-          // opened before renderScheduleWeek finished), use the engine
-          // dry-run so we show something rather than nothing.
-          try {
-            const baseRes = planScheduleWeek({ ...payload, rules: { ...payload.rules } });
-            baseCov = _covOf(baseRes);
-            baseUncov = _uncoveredOf(baseRes);
-          } catch (err) { console.warn("coverage baseline dry-run:", err); }
         }
+        // Engine dry-run = source of truth for "shifts that can't be
+        // staffed" and the baseline pct fallback.
+        let baseRes = null;
+        try {
+          baseRes = planScheduleWeek({ ...payload, rules: { ...payload.rules } });
+        } catch (err) { console.warn("coverage baseline dry-run:", err); }
+        baseUncov = _uncoveredOf(baseRes);
+        if (baseCov == null) baseCov = _covOf(baseRes);
+
+        // Strip-math projector. Walks the engine's assigned_shifts and
+        // counts only assignments that go to ACTIVE drivers (matches
+        // the strip's filled count). Denominator = strip's needed
+        // (49 in the operator's case) so the projection number is
+        // directly comparable to what the strip will display after
+        // the re-run, not the engine's optimistic "filled = anyone
+        // got assigned" count.
+        const _activeIds = new Set(
+          (payload.drivers || []).filter(d => d && d.status === "active").map(d => d.id)
+        );
+        const _projectStripPct = (res) => {
+          if (!res) return null;
+          const need = (live && live.weekStart === payload.schedule_week_start)
+            ? (live.needed || 0) : null;
+          if (!need) return _covOf(res); // fallback to engine pct
+          let filled = 0;
+          for (const a of (res.assigned_shifts || [])) {
+            if (a && _activeIds.has(a.driver_id)) filled += 1;
+          }
+          return Math.round(filled / need * 100);
+        };
         const curMax = Math.max(1, Math.min(7, Math.round(payload.max_days ?? 6)));
         let neededHtml = "";
         if (baseUncov != null) {
@@ -31476,7 +31503,10 @@ function bindSchedWeekNav() {
               rules: { ...payload.rules, ...(cand.ruleDelta || {}) },
             });
           } catch (err) { console.warn("coverage dry-run:", err); }
-          const proj = _covOf(res);
+          // Project the STRIP's pct (active-drivers-only / strip's
+          // needed), not the engine's. Engine pct over-promises because
+          // it counts onboarding-driver assignments as filled.
+          const proj = _projectStripPct(res);
           if (proj == null || baseCov == null || proj <= baseCov) continue;
           const rec = { ...cand, proj };
           if (cand.maxDays != null) maxDaysRecs.push(rec);
@@ -31528,7 +31558,7 @@ function bindSchedWeekNav() {
               ...payload,
               rules: { ...payload.rules, ...fifthDelta },
             });
-            fifthProj = _covOf(fres);
+            fifthProj = _projectStripPct(fres);
           } catch (err) { console.warn("5th-day dry-run:", err); }
           const projLine = (fifthProj != null && fifthProj > baseCov)
             ? `<div class="rr-cov-rec-metric"><span class="rr-cov-metric-label">Coverage</span><span>${baseCov}%<span class="rr-cov-arrow">→</span><strong>${fifthProj}%</strong></span></div>`
