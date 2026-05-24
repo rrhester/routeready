@@ -4150,13 +4150,19 @@ function _obMountPipeline() {
   }
 }
 function _obMountDocuments() {
-  // Same pattern as _obMountPipeline — move the entire
-  // #view-documents node into #obsub-documents on first open.
-  const host = document.getElementById("obsub-documents");
+  // Move the entire #view-documents node into the Overview tab's
+  // right-side placeholder card (#ob-docs-mount). The dedicated
+  // Documents subnav tab was retired — Documents now lives on the
+  // Overview tab next to the readiness matrix.
+  const host = document.getElementById("ob-docs-mount");
   const docs = document.getElementById("view-documents");
   if (host && docs && docs.parentElement !== host) {
     docs.classList.remove("view", "active");
     docs.style.display = "";
+    // Clear the loading placeholder before mounting.
+    const loading = host.querySelector(".ob-docs-loading");
+    if (loading) loading.remove();
+    host.classList.remove("ob-placeholder-card");
     host.appendChild(docs);
   }
 }
@@ -4167,7 +4173,15 @@ window.obSub = function (which) {
   show("obsub-overview",  which === "overview");
   show("obsub-workauth",  which === "workauth");
   show("obsub-pipeline",  isPipe);
-  show("obsub-documents", which === "documents");
+  // Documents now live inside the Overview tab's right card; mount
+  // them whenever the Overview tab is activated so they show up
+  // alongside the readiness matrix.
+  if (which === "overview") {
+    _obMountDocuments();
+    if (typeof loadDocumentsView === "function") {
+      try { loadDocumentsView(); } catch (e) { console.warn("loadDocumentsView:", e); }
+    }
+  }
   // The page title + sub-line follow the active icon.
   const _OB_META = {
     overview:  { title: "Onboarding",         sub: "Every driver getting ready to drive — readiness at a glance." },
@@ -4175,7 +4189,6 @@ window.obSub = function (which) {
     funnel:    { title: "Funnel",             sub: "Hiring pipeline." },
     interview: { title: "Interview Day",      sub: "Interview-day scheduling." },
     calendar:  { title: "Calendar",           sub: "Interview availability and bookings." },
-    documents: { title: "Documents",          sub: "Driver documents and forms." },
   };
   const _m = _OB_META[which];
   if (_m) {
@@ -4192,12 +4205,8 @@ window.obSub = function (which) {
       if (typeof loadPipelineKpis === "function") loadPipelineKpis();
     }
   }
-  if (which === "documents") {
-    _obMountDocuments();
-    if (typeof loadDocumentsView === "function") {
-      try { loadDocumentsView(); } catch (e) { console.warn("loadDocumentsView:", e); }
-    }
-  }
+  // ("documents" subnav was retired — Documents now mount into the
+  //  Overview tab's right card, handled in the if-overview block above.)
 };
 
 // Onboarding "Rules" footer · opens the onboarding-steps blueprint
@@ -4798,13 +4807,20 @@ document.addEventListener("click", (e) => {
 
 async function loadOnboardingOps(opts) {
   // Overview is now a 2-column shell: readiness matrix in
-  // #obsub-overview-left, a sibling placeholder card on the right.
-  // Fall back to the outer #obsub-overview for legacy DOMs that
-  // haven't been updated yet (cached HTML, etc.).
+  // #obsub-overview-left, the Documents page mounted into the
+  // right-side card. Fall back to the outer #obsub-overview for
+  // legacy DOMs that haven't been updated yet (cached HTML, etc.).
   const body  = document.getElementById("obsub-overview-left")
              || document.getElementById("obsub-overview");
   const subEl = document.getElementById("rr-onboardops-sub");
   if (!body) return;
+  // Mount + initialize the Documents view in the right card. Safe
+  // to re-run — _obMountDocuments is a no-op once mounted, and
+  // loadDocumentsView re-renders idempotently.
+  if (typeof _obMountDocuments === "function") _obMountDocuments();
+  if (typeof loadDocumentsView === "function") {
+    try { loadDocumentsView(); } catch (e) { console.warn("loadDocumentsView:", e); }
+  }
   if (!(opts && opts.keepTab) && typeof obSub === "function") obSub("overview");
   _i9DashStylesOnce();
   body.innerHTML = _i9QueueSkeleton();
@@ -37420,17 +37436,16 @@ document.addEventListener("change", (e) => {
 {
   const _origGotoDocs = window.goto;
   window.goto = function (view) {
-    // Documents is now mounted inside the Onboarding view via
-    // _obMountDocuments — there is no top-level #view-documents
-    // anymore. Redirect goto('documents') to onboarding-ops +
-    // obSub('documents') so legacy callers keep working.
+    // Documents is now mounted inside the Onboarding Overview tab's
+    // right-side card (the dedicated "documents" subnav was retired).
+    // Redirect goto('documents') to onboarding-ops + obSub('overview')
+    // so legacy callers land on the right tab.
     if (view === "documents") {
       if (typeof _origGotoDocs === "function") _origGotoDocs("onboarding-ops");
-      setTimeout(() => { if (typeof window.obSub === "function") window.obSub("documents"); }, 0);
+      setTimeout(() => { if (typeof window.obSub === "function") window.obSub("overview"); }, 0);
       return;
     }
     if (typeof _origGotoDocs === "function") _origGotoDocs(view);
-    if (view === "documents") loadDocumentsView();
   };
 }
 
