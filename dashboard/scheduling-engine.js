@@ -492,6 +492,7 @@ function normalizeDriver(raw) {
     license_expiration_date: raw.license_expiration_date ?? null,
     dot_certified: raw.dot_certified === true,
     xl_certified: raw.xl_certified === true,
+    edv_certified: raw.edv_certified === true,
     saved_availability: validateAvailability(raw.saved_availability, where),
     preferred_availability: validateAvailability(
       raw.preferred_availability,
@@ -838,6 +839,9 @@ function checkCertification(shift, driver, settings) {
   }
   if (shift.route_type === "xl" && !driver.xl_certified) {
     return { rule: "R004", message: "Missing XL certification" };
+  }
+  if (shift.route_type === "edv" && !driver.edv_certified) {
+    return { rule: "R004", message: "Missing EDV certification" };
   }
   return null;
 }
@@ -2210,6 +2214,7 @@ function mapDriver(raw, ptoByDriver) {
     license_expiration_date: raw.dl_expires_on ? raw.dl_expires_on.slice(0, 10) : null,
     dot_certified: raw.dot_certified === true,
     xl_certified: raw.xl_certified === true,
+    edv_certified: raw.edv_certified === true,
     saved_availability: availabilityFromDows(raw.available_dows),
     preferred_availability: availabilityFromDows(raw.preferred_dows),
     pto_records: (ptoByDriver.get(String(raw.id)) ?? []).map((date) => ({

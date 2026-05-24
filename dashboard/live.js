@@ -17337,6 +17337,7 @@ async function _buildEmploymentReport(driverId, m) {
 const _RR_BOOL_TOGGLE_MSG = {
   dot_certified: ["DOT certified", "DOT certification removed"],
   xl_certified:  ["XL certified",  "XL certification removed"],
+  edv_certified: ["EDV certified", "EDV certification removed"],
   is_trainer:    ["Marked as a trainer", "No longer a trainer"],
 };
 document.addEventListener("change", async (e) => {
@@ -17535,6 +17536,13 @@ async function renderLicenseTab(body, d) {
         <div>
           ${boolToggle("xl_certified", !!d.xl_certified)}
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:6px">Required for Extra-Large vans. Smart Fill blocks XL routes unless this is on.</div>
+        </div>
+      </div>
+      <div class="dd-row" style="align-items:flex-start">
+        <label>EDV certified</label>
+        <div>
+          ${boolToggle("edv_certified", !!d.edv_certified)}
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin-top:6px">Required for Electric Delivery Vehicles. Smart Fill blocks EDV routes unless this is on.</div>
         </div>
       </div>
       <div class="dd-row" style="align-items:flex-start">
@@ -28802,15 +28810,16 @@ async function autoAssignDriversForWeek() {
   // forwarded to the engine via planScheduleWeek.
   const sfDotRequired  = sfRules.dot_required  !== false;
   const sfXlRequired   = sfRules.xl_required   !== false;
+  const sfEdvRequired  = sfRules.edv_required  !== false;
   const sfServiceTypes = sfRules.service_types !== false;
 
   // Pull drivers + their cert flags, the per-week shifts (with their
   // service_type_id so we can check cert requirements), the active
-  // service types (which carry requires_dot / requires_xl), and any
-  // approved PTO inside the week.
+  // service types (which carry requires_dot / requires_xl / requires_edv),
+  // and any approved PTO inside the week.
   const [driversRes, ptoRes, shiftsRes, svcRes, pairRes] = await Promise.all([
     sb.from("drivers")
-      .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified, status")
+      .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, status")
       .eq("dsp_id", dspId)
       .order("full_name"),
     sb.from("time_off_requests")
@@ -28825,7 +28834,7 @@ async function autoAssignDriversForWeek() {
       .gte("date", _schedStart)
       .lte("date", weekEndIso),
     sb.from("service_types")
-      .select("id, code, label, requires_dot, requires_xl, active")
+      .select("id, code, label, requires_dot, requires_xl, requires_edv, active")
       .eq("dsp_id", dspId),
     // Activated trainees — drivers whose training pairing has been
     // materialized (= they've completed orientation and been released to
@@ -28861,14 +28870,18 @@ async function autoAssignDriversForWeek() {
     return false;
   });
   const pto     = ptoRes.data     || [];
-  // Map service_type_id → { requires_dot, requires_xl } so we can
-  // gate driver eligibility per shift.
+  // Map service_type_id → { requires_dot, requires_xl, requires_edv }
+  // so we can gate driver eligibility per shift.
   const serviceCerts = new Map();
   // service_types rule: ids of service types still marked active, so the
   // planner can skip open shifts on a retired service type.
   const activeServiceTypeIds = new Set();
   for (const s of (svcRes?.data || [])) {
-    serviceCerts.set(s.id, { requires_dot: !!s.requires_dot, requires_xl: !!s.requires_xl });
+    serviceCerts.set(s.id, {
+      requires_dot: !!s.requires_dot,
+      requires_xl:  !!s.requires_xl,
+      requires_edv: !!s.requires_edv,
+    });
     if (s.active !== false) activeServiceTypeIds.add(s.id);
   }
   const driverHasCertsFor = (driver, serviceTypeId) => {
@@ -28876,6 +28889,7 @@ async function autoAssignDriversForWeek() {
     if (!cert) return true; // unknown service type → don't gate
     if (sfDotRequired && cert.requires_dot && !driver.dot_certified) return false;
     if (sfXlRequired  && cert.requires_xl  && !driver.xl_certified)  return false;
+    if (sfEdvRequired && cert.requires_edv && !driver.edv_certified) return false;
     return true;
   };
   // Smart Fill only touches *regular* route-staffing shifts. Training
@@ -28982,12 +28996,13 @@ async function autoAssignDriversForWeek() {
     return pref.map(c => DOW.indexOf(c)).filter(i => i >= 0);
   };
 
-  // route_type per shift, from its service type. The DOT / XL cert
+  // route_type per shift, from its service type. The DOT / XL / EDV cert
   // checkboxes are baked in here: when a cert rule is unchecked the route
   // is reported as standard so the engine won't gate on that cert.
   const routeTypeOf = (sh) => {
     const cert = serviceCerts.get(sh.service_type_id);
-    if (cert && cert.requires_xl && sfXlRequired) return "xl";
+    if (cert && cert.requires_edv && sfEdvRequired) return "edv";
+    if (cert && cert.requires_xl  && sfXlRequired)  return "xl";
     if (cert && cert.requires_dot && sfDotRequired) return "step_van";
     return "standard";
   };
@@ -29127,6 +29142,7 @@ async function autoAssignDriversForWeek() {
         dl_expires_on: d.dl_expires_on,
         dot_certified: d.dot_certified,
         xl_certified: d.xl_certified,
+        edv_certified: d.edv_certified,
         available_dows: availableDowsOf(d),
         preferred_dows: preferredDowsOf(d),
         final_corrective_action: finalDrivers.has(d.id),
@@ -29932,7 +29948,7 @@ async function renderScheduleWeek() {
   const [gridRes, driversRes, toRes, femVehRes, femAssignRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
-      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, birthday, tier, metadata, dl_expires_on, dot_certified, xl_certified, is_trainer, station:station_id (code)")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, birthday, tier, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, is_trainer, station:station_id (code)")
       .eq("dsp_id", dspId)
       .eq("status", "active")
       .eq("role", "driver")
@@ -32447,12 +32463,13 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
     const dspId = window.RR?.dsp?.id;
     if (dspId) {
       const { data: svcs } = await sb.from("service_types")
-        .select("id, code, label, requires_dot, requires_xl")
+        .select("id, code, label, requires_dot, requires_xl, requires_edv")
         .eq("dsp_id", dspId);
       for (const s of (svcs || [])) {
         serviceCerts.set(s.id, {
           requires_dot: !!s.requires_dot,
           requires_xl:  !!s.requires_xl,
+          requires_edv: !!s.requires_edv,
           code:         s.code,
           label:        s.label,
         });
@@ -32517,6 +32534,10 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
         if (cert.requires_xl && !d.xl_certified) {
           violations.push({ driver: display, date: sh.date, kind: "missing_xl",
             note: `${stLabel} requires XL certification` });
+        }
+        if (cert.requires_edv && !d.edv_certified) {
+          violations.push({ driver: display, date: sh.date, kind: "missing_edv",
+            note: `${stLabel} requires EDV certification` });
         }
       }
 
@@ -32687,7 +32708,7 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
     : sb.from("shifts").select("id, date, starts_at, ends_at, block_hours, service_type_id").eq("id", shiftId).single();
 
   const [drvRes, ptoRes, shiftsRes, candidateRes, svcRes] = await Promise.all([
-    sb.from("drivers").select("id, full_name, metadata, dl_expires_on, dot_certified, xl_certified").eq("id", driverId).single(),
+    sb.from("drivers").select("id, full_name, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified").eq("id", driverId).single(),
     sb.from("time_off_requests").select("start_date, end_date")
       .eq("dsp_id", dspId).eq("driver_id", driverId).eq("status", "approved")
       .lte("start_date", weekEndIso).gte("end_date", _schedStart),
@@ -32695,7 +32716,7 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
       .eq("dsp_id", dspId).eq("driver_id", driverId)
       .gte("date", _schedStart).lte("date", weekEndIso),
     candidateFetch,
-    sb.from("service_types").select("id, code, label, requires_dot, requires_xl").eq("dsp_id", dspId),
+    sb.from("service_types").select("id, code, label, requires_dot, requires_xl, requires_edv").eq("dsp_id", dspId),
   ]);
 
   const driver = drvRes.data;
@@ -32723,6 +32744,9 @@ async function _checkAssignViolations(shiftId, shiftDate, driverId, candidateShi
       }
       if (st.requires_xl && !driver.xl_certified) {
         violations.push(`${stLabel} requires XL certification`);
+      }
+      if (st.requires_edv && !driver.edv_certified) {
+        violations.push(`${stLabel} requires EDV certification`);
       }
     }
   }
