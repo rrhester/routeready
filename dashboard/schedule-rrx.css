@@ -133,11 +133,25 @@
 /* Insights tab — leave the icon ribbon visually blank so the panel
    below feels like its own surface. The cmd-shell stays in the
    layout (preserves spacing + the tab strip above it) but every
-   ribbon group / action button inside it is hidden. */
+   ribbon group / action button inside it is hidden.
+
+   Strong selector — match both the body-level marker class and the
+   shell-level one, and hide the whole .sched-nav-heading-actions
+   wrapper too (it's the flex container that wraps every group +
+   action). Belt + suspenders for any sibling that doesn't carry
+   the standard ribbon classes. */
+#view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-nav-heading-actions,
+#view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-ribbon-grouped,
 #view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-ribbon-group,
 #view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-ribbon-actions,
-#view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-print-actions {
+#view-schedule.rrx-schedule .sched-cmd-shell.is-insights .sched-print-actions,
+body.rr-sched-insights #view-schedule.rrx-schedule .sched-nav-heading-actions,
+body.rr-sched-insights #view-schedule.rrx-schedule .sched-ribbon-grouped,
+body.rr-sched-insights #view-schedule.rrx-schedule .sched-ribbon-group,
+body.rr-sched-insights #view-schedule.rrx-schedule .sched-ribbon-actions,
+body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   display: none !important;
+  visibility: hidden !important;
 }
 
 /* Same guard for Fleet's print actions. */
