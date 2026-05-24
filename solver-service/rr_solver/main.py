@@ -18,9 +18,16 @@ import os
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 
 from . import __version__
+from .cpsat_model import SOLVER_VERSION as CPSAT_VERSION, solve as cpsat_solve
 from .models import SolveRequest, SolveResponse
-from .solver import SOLVER_VERSION, solve
+from .solver import SOLVER_VERSION as STUB_VERSION, solve as stub_solve
 from .validators import quick_validate
+
+# RR_SOLVER_ENGINE=cpsat (default) | stub
+#
+# Lets us flip back to the heuristic stub without redeploying, in case
+# the CP-SAT model misbehaves on a particular payload in production.
+_ENGINE = os.environ.get("RR_SOLVER_ENGINE", "cpsat").lower()
 
 logger = logging.getLogger("rr_solver")
 logging.basicConfig(level=logging.INFO,
@@ -61,7 +68,8 @@ def healthz() -> dict:
         "ok": True,
         "service": "rr-solver",
         "version": __version__,
-        "solver_version": SOLVER_VERSION,
+        "engine": _ENGINE,
+        "solver_version": CPSAT_VERSION if _ENGINE == "cpsat" else STUB_VERSION,
     }
 
 
@@ -77,23 +85,27 @@ def validate(req: SolveRequest) -> dict:
           response_model=SolveResponse,
           dependencies=[Depends(require_bearer_token)])
 def solve_endpoint(req: SolveRequest) -> SolveResponse:
-    """Run the solver. v1 returns the stub heuristic result so the wire
-    format is validated end-to-end; v2 swaps in the real CP-SAT model
-    without changing the response shape."""
+    """Run the solver. Engine selection via RR_SOLVER_ENGINE env var
+    (cpsat | stub). Default: cpsat. Both engines return the same
+    SolveResponse shape, so callers don't need to know which ran."""
+    engine_fn = cpsat_solve if _ENGINE == "cpsat" else stub_solve
+    engine_label = CPSAT_VERSION if _ENGINE == "cpsat" else STUB_VERSION
     try:
         issues = quick_validate(req)
         if issues:
             logger.warning("solve called with %d structural issues", len(issues))
-        result = solve(req)
-        logger.info("solve ok: assigned=%d uncovered=%d coverage=%s%% wall=%dms",
-                    result.metrics.assigned, result.metrics.uncovered,
-                    result.metrics.coverage_pct,
-                    result.metrics.solver_wall_ms or 0)
+        result = engine_fn(req)
+        logger.info(
+            "solve ok: engine=%s assigned=%d uncovered=%d coverage=%s%% wall=%dms status=%s",
+            engine_label, result.metrics.assigned, result.metrics.uncovered,
+            result.metrics.coverage_pct, result.metrics.solver_wall_ms or 0,
+            result.metrics.solver_status,
+        )
         return result
     except Exception as exc:  # noqa: BLE001 — surface everything to the caller
-        logger.exception("solve failed")
+        logger.exception("solve failed (engine=%s)", engine_label)
         return SolveResponse(
             status="error",
-            solver_version=SOLVER_VERSION,
+            solver_version=engine_label,
             error_message=str(exc),
         )
