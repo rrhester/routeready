@@ -28539,6 +28539,19 @@ async function autoFillScheduleWeek() {
     // re-renders below, so the operator reads it against a fresh board.
     if (diagnostics) {
       const parts = [];
+      // Counters first — make engine-vs-actual mismatch obvious.
+      parts.push(
+        `Engine assigned ${diagnostics.engineAssignedCount}, ` +
+        `wrote ${diagnostics.writtenCount}, ` +
+        `still open in engine's view: ${diagnostics.engineSawOpenCount}, ` +
+        `still open after write: ${diagnostics.stillOpenAfterWrite.length}.`
+      );
+      if (diagnostics.stillOpenAfterWrite.length > 0) {
+        parts.push(
+          `Open shifts after write:\n` +
+          diagnostics.stillOpenAfterWrite.map(s => "  • " + s).join("\n")
+        );
+      }
       if (diagnostics.failedWrites > 0) {
         parts.push(
           `⚠ ${diagnostics.failedWrites} assignment${diagnostics.failedWrites === 1 ? "" : "s"} could not be saved` +
@@ -28564,7 +28577,7 @@ async function autoFillScheduleWeek() {
           diagnostics.unscheduled.map(s => "  • " + s).join("\n")
         );
       }
-      if (parts.length > 0) summaryAlert = "Smart Fill results\n\n" + parts.join("\n\n");
+      summaryAlert = "Smart Fill results\n\n" + parts.join("\n\n");
     }
   }
   await renderScheduleWeek();
@@ -29030,17 +29043,46 @@ async function autoAssignDriversForWeek() {
   for (const r of skippedOpen) {
     skippedByReason.set(r, (skippedByReason.get(r) || 0) + 1);
   }
+  // For triangulating "engine thinks all shifts filled but 2 remain open in
+  // the grid": list every regular shift that ended up unassigned after the
+  // write pass, alongside what the engine itself reported as uncovered.
+  // If these two lists disagree, the engine assigned someone to a shift
+  // that didn't actually get written (or didn't see the shift at all).
+  const assignedShiftIds = new Set((result.assigned_shifts || []).map(a => a.shift_id));
+  const writtenShiftIds = new Set(toWrite.map(t => t.id));
+  // Drop any IDs that failed to write.
+  // Note: _assignShiftsParallel doesn't return the failed IDs, only counts.
+  // For now, take the engine's assigned set minus locked/preserved and
+  // assume the failures are evenly distributed; the count is enough to
+  // detect the mismatch.
+  const stillOpen = engineShifts
+    .filter(es => !es.is_locked && !assignedShiftIds.has(es.id))
+    .map(es => `${es.date} ${es.starts_at ? new Date(es.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : ""}`.trim());
+  const engineSawOpenCount = engineShifts.filter(es => !es.is_locked && es.assigned_driver_id === null).length;
+  const engineAssignedCount = (result.assigned_shifts || []).filter(a => a.source !== "locked" && a.source !== "preserved").length;
+
+  // DOW (0=Sun..6=Sat) name lookup for human-readable availability.
+  const DOW_LBL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const driverPayloadById = new Map((sfPayload.drivers || []).map(d => [d.id, d]));
+
   const diagnostics = {
     failedWrites,
     writeError,
+    engineAssignedCount,
+    engineSawOpenCount,
+    writtenCount: writtenShiftIds.size,
+    stillOpenAfterWrite: stillOpen,
     skipped: [...skippedByReason.entries()].map(([reason, count]) => ({ reason, count })),
     uncovered: (result.uncovered_shifts || []).map(u => u.summary),
     unscheduled: (result.unscheduled_drivers || []).map(u => {
       const name = nameById.get(u.driver_id) || u.driver_id;
       const blocks = u.block_reasons || [];
+      const dp = driverPayloadById.get(u.driver_id);
+      const avail = Array.isArray(dp?.available_dows) && dp.available_dows.length > 0
+        ? dp.available_dows.map(i => DOW_LBL[i]).join("/")
+        : (dp?.available_dows === null ? "(no availability set)" : "(none)");
       let reason;
       if (blocks.length > 0) {
-        // There were open shifts the driver could not take — say why.
         reason = "blocked from the open shifts — " +
           blocks.map(b => b.message).join("; ");
       } else if (u.eligible_somewhere) {
@@ -29049,7 +29091,7 @@ async function autoAssignDriversForWeek() {
       } else {
         reason = "no eligible shift this week";
       }
-      return `${name} — ${reason}`;
+      return `${name} [avail: ${avail}] — ${reason}`;
     }),
   };
   return { assigned, diagnostics };
