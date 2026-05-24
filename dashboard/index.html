@@ -11480,6 +11480,12 @@ body.rr-cmdk-open{ overflow:hidden }
         </div><!-- /page-header.sched-nav-heading -->
         </div><!-- /ob-cmd-shell -->
 
+        <!-- KPI strip · identical to the schedule's #rr-sched-kpis
+             strip. Reuses .sched-kpi-pills + .sched-kpi-pill so the
+             scoped Schedule CSS picks it up unchanged — same height
+             (46px), same border, same spacing below the icon strip. -->
+        <div id="rr-ob-kpis" class="sched-kpi-pills" role="status" aria-label="Onboarding KPIs"></div>
+
         <!-- Print mode · shown only when the Print/Download tab is
              active. Clones the readiness matrix into
              #rr-ob-print-area on click and runs window.print() for
@@ -22077,17 +22083,19 @@ body.rr-cmdk-open{ overflow:hidden }
             outline:none;background:rgba(15,23,42,.04);color:var(--text);
             box-shadow:0 0 0 2px rgba(15,108,189,.30);
           }
-          /* Document AI · vibrant gradient tile with an ambient glow.
-             Click triggers a one-shot spin on the sparkle icon. */
+          /* Document AI · same vibe as the Schedule's Smart Fill /
+             Unassign tiles: soft purple-to-pink gradient pill, dark
+             purple icon + label (not white-on-vibrant). Click still
+             triggers the one-shot spin on the sparkle icon. */
           #view-email .em-action.em-action-ai{
-            position:relative;color:#fff;
-            background:linear-gradient(135deg,#6366F1 0%,#8B5CF6 48%,#EC4899 100%);
-            box-shadow:0 1px 4px rgba(139,92,246,.35);
-            animation:hdr-ask-glow 3.2s ease-in-out infinite;
+            position:relative;color:#5B21B6;
+            background:linear-gradient(135deg,#EDE9FE 0%,#FCE7F3 100%);
+            box-shadow:none;
           }
-          #view-email .em-action.em-action-ai span{color:#fff;font-weight:600}
+          #view-email .em-action.em-action-ai span{color:#5B21B6;font-weight:600}
+          #view-email .em-action.em-action-ai svg{color:#5B21B6;fill:#5B21B6}
           #view-email .em-action.em-action-ai:hover{
-            color:#fff;filter:brightness(1.06);
+            color:#4C1D95;filter:brightness(.98);
           }
           #view-email .em-action.em-action-ai:focus-visible{
             outline:none;
