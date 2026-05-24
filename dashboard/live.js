@@ -28815,6 +28815,14 @@ async function autoAssignDriversForWeek() {
       duration_hours: durationOf(sh),
       route_type: routeTypeOf(sh),
       assigned_driver_id: assignedDriverId, is_locked: isLocked,
+      // station_id + route_code aren't used by the engine itself,
+      // but the 5th-day pass confirm flow downstream looks them up
+      // from payload.shifts to build a complete proposed_shift for
+      // the shift_confirmation_requests row. Without these the
+      // driver-side accept RPC would try to insert a shifts row
+      // with a null station_id and hit the NOT NULL constraint.
+      station_id: sh.station_id || null,
+      route_code: sh.route_code || null,
     });
   };
   // An open shift is fillable unless its status is terminal (the work
@@ -31744,18 +31752,20 @@ function bindSchedWeekNav() {
           finally { delete window._rrSfRulesOverride; delete window._rrMaxDaysOverride; }
 
           if (fifthMode === "notify" && postRunAssignments && postRunAssignments.length > 0) {
-            const dspId = window.RR?.dsp?.id;
+            // RLS on driver_messages denies direct INSERT — we have
+            // to go through dispatch_chat_send (security definer)
+            // which validates the dispatcher's role and writes the
+            // row server-side.
             let sent = 0;
             for (const a of postRunAssignments) {
               try {
-                await sb.from("driver_messages").insert({
-                  driver_id: a.driver_id,
-                  dsp_id: dspId,
-                  sender_kind: "dispatch",
-                  body: "You've been scheduled for an extra (5th-day) shift this week — check the app for the details.",
+                const { error } = await sb.rpc("dispatch_chat_send", {
+                  p_driver_id: a.driver_id,
+                  p_body: "You've been scheduled for an extra (5th-day) shift this week — check the app for the details.",
                 });
-                sent += 1;
-              } catch (err) { console.warn("notify driver_messages insert:", err); }
+                if (!error) sent += 1;
+                else console.warn("dispatch_chat_send error:", error);
+              } catch (err) { console.warn("notify dispatch_chat_send:", err); }
             }
             toast(`Schedule re-run · ${sent} driver${sent === 1 ? "" : "s"} notified`, "success");
           } else {
