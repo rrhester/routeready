@@ -2560,6 +2560,74 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
 }
 
 /* ============================================================
+   ATTENDANCE STATUS BAR · thin bar across the bottom of every
+   shift chip noting the day's attendance outcome. Operator wanted
+   the schedule grid to reflect at-a-glance whether each driver
+   checked in, was late, no-showed, or took VTO. Matches the
+   status values written by the Today / Attendance check-in flow.
+
+   Future shifts (status='scheduled' or empty) get NO bar — the
+   day hasn't been worked yet, so there's nothing to note.
+
+   Bar is 2px tall, full chip width, painted as a ::before pseudo
+   so it doesn't add DOM. Sits flush with the chip's rounded
+   bottom corners — slightly inset (left:1px right:1px bottom:1px)
+   so it doesn't clip outside the chip border on hover.
+   ============================================================ */
+
+/* Position-relative for the pseudo to anchor against. Only the
+   chip variants that get a bar need this (avoids breaking any
+   chip that already relies on static positioning). */
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="completed"],
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="late"],
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="vto"],
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="no_show"],
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="called_off"] {
+  position: relative;
+}
+
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status]::before {
+  /* Default: no bar. Specific statuses below override. */
+  content: none;
+}
+
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="completed"]::before,
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="late"]::before,
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="vto"]::before,
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="no_show"]::before,
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="called_off"]::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  bottom: 1px;
+  height: 2px;
+  border-radius: 0 0 3px 3px;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+/* Status colors — muted Fluent tones, NOT loud. Operator asked
+   for non-distracting. */
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="completed"]::before {
+  /* Checked-in / completed → calm green */
+  background: #16A34A;
+}
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="late"]::before {
+  /* Late → warm amber */
+  background: #D97706;
+}
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="vto"]::before {
+  /* VTO → muted slate (driver opted out, not a problem) */
+  background: #64748B;
+}
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="no_show"]::before,
+#view-schedule.rrx-schedule .shift-chip[data-rr-shift-status="called_off"]::before {
+  /* NCNS / called off → red */
+  background: #DC2626;
+}
+
+/* ============================================================
    DENSITY-PICKER POPOVERS · streamlined Fluent treatment
    ------------------------------------------------------------
    Operator: "The weekly view rules look poor. Redo the layout so
