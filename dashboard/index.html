@@ -13539,6 +13539,21 @@ body.rr-cmdk-open{ overflow:hidden }
                     <label class="sched-smartfill-rule sched-smartfill-rule--baseline"><input type="checkbox" data-rr-sf-rule="attendance_penalty"> <span class="sf-rule-name"><strong>Attendance Penalty</strong> · drivers on a Final corrective action are filled last</span></label>
                     <label class="sched-smartfill-rule sched-smartfill-rule--baseline sched-smartfill-rule--manual-keep"><input type="checkbox" data-rr-sf-rule="show_results_popup" checked> <span class="sf-rule-name"><strong>Show results popup</strong> · after each run, pop up the per-driver reasons + open-shift list (auto-copyable for support)</span></label>
                   </div>
+                  <!-- ── Custom rules ── ad-hoc constraints authored
+                       per DSP. Listed here for visibility; the
+                       template picker / authoring form + the solver-
+                       side compiler ship in a follow-up. -->
+                  <div class="sf-section sf-section--keep">
+                    <div class="sf-section-label" style="display:flex;align-items:center;justify-content:space-between">
+                      <span>Custom rules</span>
+                      <span style="font-size:11px;color:var(--text-subtle);font-weight:500">
+                        <span id="rr-sf-adhoc-count">0</span> active
+                      </span>
+                    </div>
+                    <div id="rr-sf-adhoc-list" class="sf-adhoc-list" aria-live="polite">
+                      <div class="sf-adhoc-loading" style="font-size:12px;color:var(--text-subtle);padding:8px 0">Loading…</div>
+                    </div>
+                  </div>
 
                   <!-- ── Enhancements ── optional post-passes that swap
                        drivers after the schedule is built. --keep so the
