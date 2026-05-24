@@ -29950,6 +29950,20 @@ async function renderScheduleWeek() {
   // in any fully-unstaffed planned day, so a missing day still counts.
   const coverageDenom = totalNeeded;
   const pct = coverageDenom ? Math.round(totalFilled / coverageDenom * 100) : 0;
+  // Stash for the Improve Coverage drill-down so its baseline % shows
+  // the SAME number the operator sees on the KPI strip. Without this
+  // they read different numbers (strip 71%, drill-down 94%) because
+  // the drill-down used the engine's dry-run metrics, which count
+  // shifts assigned to ANY driver_id as filled (including
+  // onboarding/inactive) and drop shifts with terminal status from
+  // the denominator. The strip's math is the canonical "what's
+  // actually staffed right now" — operator caught the discrepancy.
+  window._rrLiveSchedCoverage = {
+    pct,
+    filled: totalFilled,
+    needed: totalNeeded,
+    weekStart: _schedStart,
+  };
 
   // Virtual open shifts: for each (date, station), needed − filled minus
   // any real unassigned shift rows already in the DB. Filled here only
@@ -31416,11 +31430,29 @@ function bindSchedWeekNav() {
         curLabel = "How coverage could improve";
       } else {
         let baseCov = null, baseUncov = null;
-        try {
-          const baseRes = planScheduleWeek({ ...payload, rules: { ...payload.rules } });
-          baseCov = _covOf(baseRes);
-          baseUncov = _uncoveredOf(baseRes);
-        } catch (err) { console.warn("coverage baseline dry-run:", err); }
+        // BASELINE comes from the live KPI strip, NOT a dry-run.
+        // _rrLiveSchedCoverage is stashed by renderScheduleWeek with
+        // the same numbers the operator sees on the strip ("71% ·
+        // 35/49 shifts staffed"). The drill-down previously re-derived
+        // baseline from a planScheduleWeek dry-run which counts ANY
+        // assigned shift as filled (including onboarding-driver
+        // assignments) and drops terminal-status shifts from the
+        // denominator — that's why the operator saw the drill-down
+        // say 94% while the strip said 71%. Now they agree.
+        const live = window._rrLiveSchedCoverage;
+        if (live && live.weekStart === payload.schedule_week_start) {
+          baseCov = live.pct;
+          baseUncov = Math.max(0, (live.needed || 0) - (live.filled || 0));
+        } else {
+          // Fallback: if the strip hasn't computed yet (e.g. drill-down
+          // opened before renderScheduleWeek finished), use the engine
+          // dry-run so we show something rather than nothing.
+          try {
+            const baseRes = planScheduleWeek({ ...payload, rules: { ...payload.rules } });
+            baseCov = _covOf(baseRes);
+            baseUncov = _uncoveredOf(baseRes);
+          } catch (err) { console.warn("coverage baseline dry-run:", err); }
+        }
         const curMax = Math.max(1, Math.min(7, Math.round(payload.max_days ?? 6)));
         let neededHtml = "";
         if (baseUncov != null) {
