@@ -1667,8 +1667,16 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
      Round up to 115px to absorb any rendering nudge. Whichever
      command tab is active, the strip stays this tall; visual
      parity across all three. (svg size grew 28→33 per the
-     operator-requested +18% icon bump.) */
+     operator-requested +18% icon bump.)
+     Hard-lock (height + max-height) so the strip matches the
+     Onboarding strip exactly — Onboarding is locked the same way
+     in onboarding-rrx.css. Operator complaint was Schedule was
+     "slightly taller" than Onboarding even after the min-height
+     change; equal hard locks guarantee identical heights. */
   min-height: 115px;
+  height: 115px;
+  max-height: 115px;
+  overflow: visible;
   /* Stretch the strip to the full page width so margin-left:auto
      on the week navigator pushes it to the FAR right of the
      page, not just the right edge of the tile cluster. */
