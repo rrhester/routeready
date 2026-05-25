@@ -23559,11 +23559,15 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:0 0 0 2px rgba(15,108,189,.30);
           }
           /* Stacked Reply / Reply All / Forward · three compact rows in
-             a single tile. Visually grouped with a soft divider line. */
+             a single tile. Divider matches the first hairline (title
+             block → actions): same color + same 16px margin/pad so
+             the two visible dividers on this strip read as one
+             consistent rule. */
           #view-email .em-action-stack{
             display:flex;flex-direction:column;gap:1px;
-            margin-left:2px;padding-left:10px;
-            border-left:1px solid var(--border-subtle,rgba(15,23,42,.06));
+            margin-left:var(--rr-space-160);
+            padding-left:var(--rr-space-160);
+            border-left:1px solid #C8C6C4;
           }
           #view-email .em-action-stack-btn{
             appearance:none;cursor:pointer;font:inherit;
