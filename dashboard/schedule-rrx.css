@@ -1699,7 +1699,13 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
      it right within the same order group. */
   order: 100 !important;
   margin-left: auto !important;
-  flex: 0 0 auto !important;
+  /* flex: 0 1 auto (not 0 0 auto) so the nav can SHRINK when the
+     strip is too narrow to hold every tile + the nav at natural
+     width. Combined with min-width: 0 and the ellipsis on the
+     range button below, the nav stays inside the strip card
+     instead of overflowing the right edge. */
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
   align-self: center !important;
 }
 

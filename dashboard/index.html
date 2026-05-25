@@ -15388,6 +15388,16 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-xs);font-weight:600;color:var(--text);
             font-variant-numeric:tabular-nums;
             transition:background var(--t-fast);
+            /* Let the range button shrink and truncate its label
+               with ellipsis when the strip is too narrow to hold
+               the whole "Wk 21 · May 24 – 30" string. The arrows
+               + Today stay full-width; only the date label
+               truncates. */
+            flex:0 1 auto;min-width:0;overflow:hidden;
+          }
+          #view-schedule .sched-week-nav-range > span{
+            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+            min-width:0;
           }
           #view-schedule .sched-week-nav-range:hover{background:var(--canvas)}
           #view-schedule .sched-week-nav-range:focus-visible{outline:none;box-shadow:var(--ring-focus)}
