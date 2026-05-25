@@ -185,8 +185,14 @@
      min-height: 115px      (so the bar never jumps between tabs)
    The Onboarding row is .page-header.sched-nav-heading (different
    DOM but same conceptual role) — we override its inline chrome
-   from index.html so both strips render identically. */
-#view-onboarding-ops.rrx-onboarding .page-header.sched-nav-heading {
+   from index.html so both strips render identically.
+
+   Selector list covers both the .rrx-onboarding-scoped form and the
+   non-rrx form in case the class hasn't been applied yet during
+   first paint. */
+#view-onboarding-ops.rrx-onboarding > .page > .page-header.sched-nav-heading,
+#view-onboarding-ops.rrx-onboarding .page-header.sched-nav-heading,
+#view-onboarding-ops > .page > .page-header.sched-nav-heading {
   padding: 11px 18px !important;
   margin: 0 0 var(--rr-space-160) 0 !important;
   background: var(--rr-bg-surface-1) !important;
@@ -194,8 +200,11 @@
   border-radius: var(--rr-radius-medium) !important;
   box-shadow: none !important;
   min-height: 115px !important;
+  height: 115px !important;
+  max-height: 115px !important;
   width: 100% !important;
   box-sizing: border-box !important;
+  overflow: visible !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions {
@@ -600,7 +609,10 @@
   display: inline-flex;
   align-self: flex-start;
   gap: 2px;
-  margin: 0 0 -1px var(--rr-space-40);
+  /* Flush LEFT with the strip card · operator wants Schedule +
+     Onboarding tabs to start at the same x as the card edge.
+     Previously had a 4px (rr-space-40) inset. */
+  margin: 0 0 -1px 0;
   padding: 0;
   z-index: 1;
 }
