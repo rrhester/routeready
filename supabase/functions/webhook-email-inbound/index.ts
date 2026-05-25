@@ -574,7 +574,7 @@ async function _captureAttachments(
         continue;
       }
 
-      const { error: insErr } = await supa.from("document_intake").insert({
+      const { data: insRow, error: insErr } = await supa.from("document_intake").insert({
         dsp_id: ctx.dspId,
         source: "email",
         email_message_id: ctx.emailMessageId,
@@ -586,14 +586,37 @@ async function _captureAttachments(
         mime_type: att.contentType,
         status: "pending",
         retention_until: retentionUntil,
-      });
+      }).select("id").single();
       if (insErr) {
         console.warn("document_intake insert failed", { storagePath, error: insErr.message });
+      } else if (insRow?.id) {
+        // Phase 2 · fire-and-forget classification call. Wrapped so a
+        // classifier failure never blocks the email pipeline.
+        _kickoffClassify(insRow.id as string).catch(e =>
+          console.warn("classify kickoff failed", { id: insRow.id, error: (e as Error)?.message }));
       }
     } catch (e) {
       console.warn("attachment capture exception", { filename: att.filename, error: (e as Error)?.message });
     }
   }
+}
+
+async function _kickoffClassify(id: string): Promise<void> {
+  const base = Deno.env.get("SUPABASE_URL");
+  const key  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!base || !key) return;
+  const url = `${base}/functions/v1/document-classify`;
+  // We deliberately don't await the classifier's full response — the
+  // email pipeline shouldn't block on an Anthropic round-trip.
+  await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "authorization": `Bearer ${key}`,
+      "apikey": key,
+    },
+    body: JSON.stringify({ id }),
+  }).catch(() => { /* swallowed */ });
 }
 
 function _base64ToBytes(b64: string): Uint8Array {
