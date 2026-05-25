@@ -28216,7 +28216,8 @@ function _rrClearPrintOrient() {
 function _obCmdTab(mode) {
   const cmd = document.getElementById("rr-ob-cmd");
   if (!cmd) return;
-  cmd.classList.toggle("is-print", mode === "print");
+  cmd.classList.toggle("is-print",  mode === "print");
+  cmd.classList.toggle("is-roster", mode === "roster");
   cmd.querySelectorAll(".ob-cmd-tab").forEach((t) => {
     const on = t.getAttribute("data-ob-cmd-tab") === mode;
     t.classList.toggle("active", on);
@@ -28226,6 +28227,19 @@ function _obCmdTab(mode) {
   if (printActions) {
     if (mode === "print") printActions.removeAttribute("hidden");
     else printActions.setAttribute("hidden", "");
+  }
+  // Strip title swap · the title block inside the strip card
+  // should reflect which mode is active. Roster → "Roster",
+  // anything else → "On-boarding". Subtitle gets the same
+  // treatment so it doesn't read stale.
+  const title = document.getElementById("rr-onboardops-title");
+  const sub   = document.getElementById("rr-onboardops-sub");
+  if (mode === "roster") {
+    if (title) title.textContent = "Roster";
+    if (sub)   sub.textContent   = "Drivers active in the rotation";
+  } else {
+    if (title) title.textContent = "On-boarding";
+    if (sub)   sub.textContent   = "Every driver getting ready to drive — readiness at a glance.";
   }
 }
 
