@@ -11387,6 +11387,29 @@ body.rr-cmdk-open{ overflow:hidden }
               <p class="page-sub" id="rr-onboardops-sub">Every driver getting ready to drive — readiness at a glance.</p>
             </div>
           </div>
+          <!-- Print/Download actions · only visible when the
+               Print/Download mode tab is active (.ob-cmd-shell
+               gains .is-print, sibling CSS reveals these and
+               hides the regular tiles). Mirrors Schedule's
+               .sched-v2-print-actions pattern — same .sched-print-btn
+               class so the tiles render at exactly the same
+               size/style as Schedule's print tiles. IDs preserved
+               so existing live.js handlers keep working. -->
+          <div class="ob-v2-print-actions" aria-label="Print actions">
+            <button class="sched-print-btn" type="button" id="rr-ob-print-btn" aria-label="Print the readiness matrix">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              <span>Print page</span>
+            </button>
+            <button class="sched-print-btn" type="button" id="rr-ob-csv-btn" aria-label="Download the readiness matrix as a CSV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download CSV</span>
+            </button>
+            <button class="sched-print-btn" type="button" id="rr-ob-pto-print-btn" aria-label="Print the PTO / time-off report">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h3M8 17h6"/></svg>
+              <span>PTO report</span>
+            </button>
+          </div>
+
           <!-- Icon command strip · three groups separated by hairline
                dividers (rendered via CSS `+` selector on
                .sched-ribbon-group). Same divider mechanism as the
@@ -11697,34 +11720,14 @@ body.rr-cmdk-open{ overflow:hidden }
              Schedule KPI strip), styled with matching chrome via
              the rules in #pipe-sub-funnel below. -->
 
-        <!-- Print mode · shown only when the Print/Download tab is
-             active. Clones the readiness matrix into
-             #rr-ob-print-area on click and runs window.print() for
-             the print buttons; the Download CSV button serialises
-             the current matrix view to CSV and triggers a download.
-             Mirrors the Schedule page's Print + Download Excel pair
-             for visual + functional parity. -->
-        <div class="ob-print-actions" id="rr-ob-print-actions" hidden>
-          <button type="button" class="ob-print-btn" id="rr-ob-print-btn" title="Print or download the readiness matrix">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            <span>Print this page</span>
-          </button>
-          <!-- Download CSV · serialises the readiness matrix that's
-               currently rendered in #obsub-overview into a CSV file.
-               Header row from the table's <thead>, body rows pull
-               from each <td> visible text. Wired in live.js
-               (handler reads the same matrix the printer prints). -->
-          <button type="button" class="ob-print-btn" id="rr-ob-csv-btn" title="Download the readiness matrix as a CSV">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span>Download CSV</span>
-          </button>
-          <!-- PTO report · prints just the PTO/time-off summary
-               for the currently-loaded cohort. -->
-          <button type="button" class="ob-print-btn ob-print-btn--ghost" id="rr-ob-pto-print-btn" title="Print the PTO / time-off report">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h3M8 17h6"/></svg>
-            <span>Print PTO report</span>
-          </button>
-        </div>
+        <!-- Print/Download buttons (Print page / Download CSV /
+             PTO report) moved INTO the .page-header.sched-nav-heading
+             strip card above as .ob-v2-print-actions tiles — matches
+             the Schedule page's Print/Download mode pattern exactly.
+             Old body-rendered .ob-print-actions block removed; the
+             same IDs (rr-ob-print-btn, rr-ob-csv-btn,
+             rr-ob-pto-print-btn) are preserved on the new tiles so
+             live.js click handlers keep working unchanged. -->
         <div id="rr-ob-print-area" aria-hidden="true"></div>
 
         <div id="obsub-overview">
