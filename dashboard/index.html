@@ -9569,24 +9569,63 @@ body.rr-cmdk-open{ overflow:hidden }
         <style>
           .hp-window-btn.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
           .hp-window-btn:hover:not(.active){color:var(--text)}
+          /* Funnel KPI banner · chrome matches the Schedule KPI
+             strip (#rr-sched-kpis.sched-kpi-pills) exactly so when
+             the operator flips Onboarding → Funnel and Schedule →
+             Week, the strip below the icon ribbon looks identical
+             in size, position, and finish. Same surface, same
+             hairline border, same 10px radius, same elevation,
+             same 10px-0 internal padding, same margin-bottom. */
           .hp-stats-banner{
             position:relative;
-            display:grid;grid-template-columns:repeat(6,1fr);
-            background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-            padding:var(--s-4) 0;margin-bottom:var(--s-3);overflow:hidden;
+            display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+            align-items:stretch;gap:0;
+            background:var(--surface-elevated);
+            border:1px solid rgba(15,23,42,.07);
+            border-radius:10px;
+            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
+            padding:10px 0;margin:0 0 var(--s-4) 0;overflow:hidden;
+            font-size:var(--fs-sm);
           }
-          @media (max-width:1100px){.hp-stats-banner{grid-template-columns:repeat(3,1fr)}}
-          @media (max-width:760px){.hp-stats-banner{grid-template-columns:repeat(2,1fr)}}
-          .hp-stat{padding:0 var(--s-4);border-right:1px solid var(--border-subtle);position:relative}
-          .hp-stat:last-child{border-right:none}
-          .hp-stat-label{font-size:var(--fs-xs);font-weight:500;color:var(--text-muted);margin-bottom:6px}
-          .hp-stat-value{font-size:var(--fs-xxl);font-weight:700;color:var(--text);letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
-          .hp-stat-value .frac{font-size:var(--fs-md);font-weight:600;color:var(--text-subtle);margin-left:4px}
-          .hp-stat-trend{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;display:flex;align-items:center;gap:5px}
+          /* Cell · matches .sched-kpi-pill exactly (hairline dividers
+             via border-left, 2px-10px padding, tabular numerals). */
+          .hp-stat{
+            display:flex;flex-direction:column;justify-content:center;
+            padding:2px 10px 2px 18px;
+            border-right:0;border-left:1px solid rgba(15,23,42,.06);
+            position:relative;min-width:0;
+            color:var(--text);font-weight:600;
+            font-variant-numeric:tabular-nums;
+          }
+          .hp-stat:first-child{border-left:0}
+          .hp-stat-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);
+            text-transform:uppercase;letter-spacing:.04em;margin-bottom:1px;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          .hp-stat-value{
+            font-size:var(--fs-base);font-weight:700;color:var(--text);
+            letter-spacing:-.005em;line-height:1.2;
+            font-variant-numeric:tabular-nums;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          .hp-stat-value .frac{font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);margin-left:2px}
+          .hp-stat-trend{font-size:var(--fs-xs);font-weight:400;color:var(--text-subtle);
+            margin-top:1px;display:flex;align-items:center;gap:5px;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
           .hp-stat-delta{display:inline-flex;align-items:center;gap:3px;font-size:var(--fs-xs);font-weight:700;padding:2px 7px;border-radius:var(--r-sm);font-variant-numeric:tabular-nums}
           .hp-stat-delta.ok{background:var(--green-soft);color:var(--green)}
           .hp-stat-delta.warn{background:var(--amber-soft);color:var(--amber)}
           .hp-stat-delta.bad{background:var(--red-soft);color:var(--red)}
+          /* Hide the progress bar + the in-banner window toggle now
+             that the banner is shrunk to match the Schedule KPI strip.
+             They were sized for the old 110px-tall card; in the new
+             ~66px shell they overlap the stat cells. The Week / 4 wk /
+             All toggle is still reachable via the page's window
+             toggle elsewhere (hp-window-toggle-h), and the progress
+             stripe was decorative. */
+          .hp-stats-banner .hp-stats-progress,
+          .hp-stats-banner .hp-stats-window{ display:none !important; }
           .hp-stats-progress{position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--canvas)}
           .hp-stats-progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));transition:width var(--t-spring);width:62%}
 
@@ -11480,11 +11519,12 @@ body.rr-cmdk-open{ overflow:hidden }
         </div><!-- /page-header.sched-nav-heading -->
         </div><!-- /ob-cmd-shell -->
 
-        <!-- KPI strip · identical to the schedule's #rr-sched-kpis
-             strip. Reuses .sched-kpi-pills + .sched-kpi-pill so the
-             scoped Schedule CSS picks it up unchanged — same height
-             (46px), same border, same spacing below the icon strip. -->
-        <div id="rr-ob-kpis" class="sched-kpi-pills" role="status" aria-label="Onboarding KPIs"></div>
+        <!-- Onboarding KPI strip removed · never populated by JS,
+             rendered as an empty white card below the icon strip.
+             On the Funnel sub-view, the hp-stats-banner now sits
+             directly below the icon strip (same position as the
+             Schedule KPI strip), styled with matching chrome via
+             the rules in #pipe-sub-funnel below. -->
 
         <!-- Print mode · shown only when the Print/Download tab is
              active. Clones the readiness matrix into
