@@ -28241,56 +28241,97 @@ function _obCmdTab(mode) {
     if (title) title.textContent = "On-boarding";
     if (sub)   sub.textContent   = "Every driver getting ready to drive — readiness at a glance.";
   }
-  // Roster-mode body swap · move the live #dr-sub-roster node
-  // into #ob-roster-mount on enter, restore on exit. See
-  // _obMountDriverRoster below.
-  if (mode === "roster") _obMountDriverRoster();
+  // Roster-mode body swap · default to the Roster sub-view on
+  // entering roster mode; restore on exit. Tile clicks below
+  // can swap to other Drivers sub-views (licenses, attendance,
+  // coaching) without leaving roster mode.
+  if (mode === "roster") _obMountDriverSub("roster");
   else                   _obUnmountDriverRoster();
 }
 
-// Remembers where #dr-sub-roster lived inside #view-drivers so
-// we can put it back after the operator leaves Roster mode.
-let _obRosterOriginalParent = null;
-let _obRosterOriginalNextSibling = null;
+// Map from data-rr-tile suffix (in the Roster ribbon) to the
+// Drivers sub-view id. The "licences" tile is spelled British
+// in the HTML; Drivers' sub-view id is American "licenses".
+const _OB_ROSTER_TILE_TO_DR_SUB = {
+  roster:     "dr-sub-roster",
+  licences:   "dr-sub-licenses",
+  attendance: "dr-sub-attendance",
+  coaching:   "dr-sub-coaching",
+};
 
-function _obMountDriverRoster() {
-  const mount = document.getElementById("ob-roster-mount");
+// Each Drivers sub-view we move out is stamped with its original
+// parent + next sibling so it can be put back exactly where
+// Drivers expects it. We attach the breadcrumb to the node itself
+// rather than maintaining a separate map.
+function _obStashOriginalPosition(node) {
+  if (!node) return;
+  node.__obOrigParent      = node.parentNode;
+  node.__obOrigNextSibling = node.nextSibling;
+}
+function _obRestoreToOriginalPosition(node) {
+  if (!node || !node.__obOrigParent) return;
+  const p = node.__obOrigParent;
+  const n = node.__obOrigNextSibling;
+  if (n && n.parentNode === p) p.insertBefore(node, n);
+  else                          p.appendChild(node);
+  node.__obOrigParent      = null;
+  node.__obOrigNextSibling = null;
+}
+
+function _obMountDriverSub(subKey) {
+  const mount  = document.getElementById("ob-roster-mount");
   if (!mount) return;
-  // Style alias must be in place BEFORE the roster paints in its
-  // new parent — otherwise the first frame renders unstyled (the
-  // operator saw a giant unsized SVG, see PR #1802 / revert).
+  const subId  = _OB_ROSTER_TILE_TO_DR_SUB[subKey];
+  if (!subId) return;
+
+  // Style alias must be in place BEFORE the sub-view paints in
+  // its new parent — otherwise the first frame renders unstyled
+  // (the operator saw a giant unsized SVG, see PR #1802 / #1803).
   _obInjectDriverStyleAlias();
-  if (mount.querySelector("#dr-sub-roster")) {
+
+  // If the requested sub is already mounted, just refresh active
+  // tile state and bail.
+  const current = mount.querySelector('[id^="dr-sub-"]');
+  if (current && current.id === subId) {
     mount.hidden = false;
+    _obSyncRosterTileActiveState(subKey);
     return;
   }
-  // Make sure Drivers has rendered the roster table at least once
-  // — loadDriversRoster (or equivalent init) wires the JS
-  // handlers. Best-effort — we still try to move whatever's there.
+  // Restore any other sub currently in the mount before moving the
+  // new one in (only one Drivers sub lives in the mount at a time).
+  if (current) _obRestoreToOriginalPosition(current);
+
+  // First-time init — make sure Drivers has rendered its sub-views.
   if (typeof loadDriversRoster === "function" && !window.__ob_drivers_inited) {
     try { loadDriversRoster(); window.__ob_drivers_inited = true; } catch (_) {}
   }
-  const src = document.getElementById("dr-sub-roster");
+
+  const src = document.getElementById(subId);
   if (!src) return;
-  _obRosterOriginalParent     = src.parentNode;
-  _obRosterOriginalNextSibling = src.nextSibling;
+  _obStashOriginalPosition(src);
+  // Drivers toggles sub-view visibility via .dr-subview.active —
+  // ensure the one we're embedding is marked active so its
+  // display:block rule applies in the new parent.
+  src.classList.add("active");
+  src.style.display = "";
   mount.appendChild(src);
   mount.hidden = false;
+  _obSyncRosterTileActiveState(subKey);
+}
+
+function _obSyncRosterTileActiveState(activeKey) {
+  document.querySelectorAll('.ob-v2-roster-actions [data-rr-tile^="roster-"]').forEach((wrap) => {
+    const key = (wrap.getAttribute("data-rr-tile") || "").replace(/^roster-/, "");
+    const btn = wrap.querySelector(".subnav-item");
+    if (btn) btn.classList.toggle("active", key === activeKey);
+  });
 }
 
 function _obUnmountDriverRoster() {
   const mount = document.getElementById("ob-roster-mount");
   if (!mount) return;
-  const src = mount.querySelector("#dr-sub-roster");
-  if (src && _obRosterOriginalParent) {
-    if (_obRosterOriginalNextSibling && _obRosterOriginalNextSibling.parentNode === _obRosterOriginalParent) {
-      _obRosterOriginalParent.insertBefore(src, _obRosterOriginalNextSibling);
-    } else {
-      _obRosterOriginalParent.appendChild(src);
-    }
-    _obRosterOriginalParent = null;
-    _obRosterOriginalNextSibling = null;
-  }
+  const current = mount.querySelector('[id^="dr-sub-"]');
+  if (current) _obRestoreToOriginalPosition(current);
   mount.hidden = true;
 }
 
@@ -28328,6 +28369,9 @@ function _obInjectDriverStyleAlias() {
 // Drivers while the roster is still parked in Onboarding — the
 // roster must be returned to Drivers before Drivers paints.
 window._obUnmountDriverRoster = _obUnmountDriverRoster;
+// Expose so inline onclick on each Roster tile (Roster / Licences /
+// Attendance / Coaching) can swap which Drivers sub-view is embedded.
+window._obMountDriverSub      = _obMountDriverSub;
 
 function _obPrint() {
   // Clone every visible onboarding sub-page (overview, workauth,
