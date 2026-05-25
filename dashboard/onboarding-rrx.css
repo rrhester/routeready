@@ -44,9 +44,18 @@
    active onboarding sub-page (#obsub-overview / -workauth /
    -pipeline) gets the remaining height + internal scroll, and
    every other direct child of .page (print-area mount, print
-   actions strip, sidecars) sticks to its natural size. */
+   actions strip, sidecars) sticks to its natural size.
+
+   Asymmetric top padding (4px instead of the 20px the other sides
+   use) gives the in-flow cmd-tabs strip room to live in the same
+   vertical band Schedule's absolute-positioned tabs occupy:
+   tabs sit Y=4 to Y≈32, the header card lands at Y=32 — pixel-
+   identical to Schedule's card top. Absolute tabs were tried and
+   abandoned because .page overflow:hidden clips them
+   (onboarding-rrx.css:634-636); shrinking the top padding gets
+   the same visual without that risk. */
 #view-onboarding-ops.rrx-onboarding > .page {
-  padding: var(--rr-space-200) !important;
+  padding: 4px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
