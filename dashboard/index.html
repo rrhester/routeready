@@ -11404,10 +11404,11 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download CSV</span>
             </button>
-            <button class="sched-print-btn" type="button" id="rr-ob-pto-print-btn" aria-label="Print the PTO / time-off report">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h3M8 17h6"/></svg>
-              <span>PTO report</span>
-            </button>
+            <!-- PTO report tile relocated to Schedule's print
+                 actions per operator request — that report
+                 surfaces driver PTO/time-off, which fits the
+                 Schedule context better than Onboarding. See
+                 #rr-ob-pto-print-btn on the Schedule strip. -->
           </div>
 
           <!-- Icon command strip · three groups separated by hairline
@@ -14298,6 +14299,16 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="sched-print-btn" type="button" id="rr-sched-download-btn" aria-label="Download the schedule as a spreadsheet">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download Excel</span>
+            </button>
+            <!-- PTO report · relocated from Onboarding's print
+                 actions (operator preference — PTO/time-off is
+                 schedule-relevant). Keeps the original handler
+                 id `rr-ob-pto-print-btn` so the live.js handler
+                 finds the same element wherever it lives in the
+                 DOM. -->
+            <button class="sched-print-btn" type="button" id="rr-ob-pto-print-btn" aria-label="Print the PTO / time-off report">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h3M8 17h6"/></svg>
+              <span>PTO report</span>
             </button>
           </div>
 

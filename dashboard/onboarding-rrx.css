@@ -166,6 +166,18 @@
   box-shadow: none !important;
 }
 
+/* Hide the title block ("Onboarding" + "N driver in onboarding")
+   inside the strip card · operator wants the icon strip to use
+   the full card width left-justified. The sidebar tab already
+   carries the page name; the subtitle was redundant with the
+   cohort matrix below. This rule wins over both of the original
+   .page-header-l rules below via order (last-declared wins on
+   equal specificity). */
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-header-l,
+#view-onboarding-ops.rrx-onboarding > .page .sched-nav-heading .page-header-l {
+  display: none !important;
+}
+
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-header-l {
   /* HARD-LOCK the title block to a fixed width so the icon strip
      never shifts when the operator flips between sub-views. The
