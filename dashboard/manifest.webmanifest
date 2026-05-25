@@ -8,8 +8,8 @@
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "any",
-  "theme_color": "#0F6CBD",
-  "background_color": "#F3F6FA",
+  "theme_color": "#EEF1F5",
+  "background_color": "#EEF1F5",
   "categories": ["productivity", "business", "logistics"],
   "icons": [
     { "src": "/app/Icon.png",  "sizes": "512x512", "type": "image/png",     "purpose": "any" },

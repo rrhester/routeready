@@ -28,7 +28,11 @@
      button stays hidden there but the manifest + apple-touch-icon
      + theme-color still wire up the Dock icon and title bar. -->
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0F6CBD">
+<!-- theme-color drives the Window Controls Overlay strip color on
+     installed PWAs (and the browser tab bar tint on mobile). Matched
+     to the dashboard canvas (--canvas: #EEF1F5) so the WCO blends
+     into the page instead of standing out as a blue band. -->
+<meta name="theme-color" content="#EEF1F5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RR Dispatch">
