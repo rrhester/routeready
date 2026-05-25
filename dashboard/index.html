@@ -518,98 +518,8 @@ textarea,
 /* ─────────────────────────────────────────────────────────────
    APP SHELL
    ───────────────────────────────────────────────────────────── */
-
-/* ─── Shell design tokens · the contract that every page obeys ─
-   Every top-level view shares a stack of locked-height regions
-   (cmd-tabs → header → icon strip → KPI bar) above a scrollable
-   body. Buttons, drawers, tab switches, expanded cards, loading
-   states — none of them can move these heights. Each page only
-   controls what renders inside .page-shell-body.
-
-   Don't override these per-page. If something doesn't fit, the
-   fix is to render inside the body or an overlay, never to grow
-   the shell. */
-:root{
-  --shell-sidebar-w:   240px;
-  --shell-sidebar-w-collapsed: 64px;
-  --shell-cmd-tabs-h:  30px;  /* the row of mode tabs (Schedule / Print) */
-  --shell-header-h:    60px;  /* title + subtitle + icon block */
-  --shell-strip-h:     76px;  /* the icon-over-label action ribbon */
-  --shell-kpi-h:       66px;  /* the metric pill row */
-  --shell-pad-x:       16px;
-  --shell-pad-y:       8px;
-  --shell-z-chrome:    20;    /* sticky chrome sits above body content */
-}
-
-.app{display:grid;grid-template-columns:var(--shell-sidebar-w) 1fr;min-height:100vh}
-.app:has(.sidebar.collapsed){grid-template-columns:var(--shell-sidebar-w-collapsed) 1fr}
-
-/* ─── Page shell · adopted per-view ──────────────────────────────
-   A view opts in by adding class="page-shell" to its top-level
-   wrapper and wrapping its sticky chrome in .page-shell-chrome,
-   its scrollable body in .page-shell-body. The shell pins the
-   chrome to the top of the viewport (minus the topbar) and lets
-   the body scroll underneath. Heights for each chrome region
-   come from the tokens above.
-
-   Pages that have NOT yet migrated keep working — they just don't
-   get the locked-height guarantee until they adopt these classes. */
-.page-shell{
-  display:flex;flex-direction:column;
-  height:calc(100vh - var(--topbar-h, 0px));
-  overflow:hidden;
-  min-width:0;
-}
-.page-shell-chrome{
-  flex:0 0 auto;
-  position:sticky;top:0;z-index:var(--shell-z-chrome);
-  background:var(--surface,#fff);
-}
-.page-shell-body{
-  flex:1 1 auto;min-height:0;
-  overflow-y:auto;overflow-x:hidden;
-  /* Scroll container — page content lives here. */
-}
-
-/* Per-region locks · every page's chrome uses these same classes
-   alongside its own existing markup. The min/max-height pin keeps
-   the row from growing or shrinking based on whatever buttons or
-   pills happen to render inside it. */
-.page-shell-cmd-tabs{
-  min-height:var(--shell-cmd-tabs-h);max-height:var(--shell-cmd-tabs-h);
-  display:flex;align-items:flex-end;
-  padding:0 var(--shell-pad-x);
-}
-.page-shell-header{
-  min-height:var(--shell-header-h);max-height:var(--shell-header-h);
-  display:flex;align-items:center;justify-content:space-between;
-  padding:0 var(--shell-pad-x);gap:var(--shell-pad-x);
-}
-.page-shell-strip{
-  min-height:var(--shell-strip-h);max-height:var(--shell-strip-h);
-  display:flex;align-items:center;
-  padding:0 var(--shell-pad-x);gap:var(--shell-pad-y);
-  overflow-x:auto;overflow-y:hidden;
-  scrollbar-width:none;
-}
-.page-shell-strip::-webkit-scrollbar{display:none}
-.page-shell-kpi{
-  min-height:var(--shell-kpi-h);max-height:var(--shell-kpi-h);
-  display:flex;align-items:center;
-  padding:0 var(--shell-pad-x);gap:var(--shell-pad-x);
-  overflow:hidden;
-}
-/* Empty KPI slot · views without metrics still render the reserved
-   space so switching to a metric-bearing view doesn't shift the
-   body content vertically. Add class="page-shell-kpi page-shell-kpi-empty"
-   to render the slot without rendering pills. */
-.page-shell-kpi-empty{visibility:hidden}
-
-/* When a .page wrapper opts into the shell, its own padding has to
-   come off — each shell region paints its own padding via the
-   tokens. Without this override the chrome inherits .page padding
-   and the locked-height regions miscompute. */
-.page.page-shell{padding:0}
+.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.app:has(.sidebar.collapsed){grid-template-columns:64px 1fr}
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
@@ -9635,10 +9545,8 @@ body.rr-cmdk-open{ overflow:hidden }
 
     <!-- ─── HIRING PIPELINE VIEW ─── -->
     <div class="view" id="view-pipeline">
-      <div class="page page-shell">
+      <div class="page">
 
-        <!-- ── Page shell · canonical layout adoption ────────────── -->
-        <div class="page-shell-chrome">
         <div class="page-header">
           <div class="page-header-l">
             <div class="page-icon" data-c="pipeline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/><circle cx="17" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="11" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="7" cy="18" r="2" fill="currentColor" stroke="none"/></svg></div>
@@ -9658,10 +9566,6 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="subnav-item" data-pipesub="calendar" onclick="pipeSub('calendar')">Calendar</button>
           </div>
         </div>
-        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
-        </div><!-- /.page-shell-chrome -->
-
-        <div class="page-shell-body">
 
         <!-- FUNNEL SUB-VIEW -->
         <div class="pipe-subview active" id="pipe-sub-funnel">
@@ -11258,7 +11162,6 @@ body.rr-cmdk-open{ overflow:hidden }
           </div><!-- /pipe-cal-shell -->
         </div><!-- /pipe-sub-calendar -->
 
-        </div><!-- /.page-shell-body -->
       </div>
     </div>
 
@@ -11449,9 +11352,7 @@ body.rr-cmdk-open{ overflow:hidden }
         #obsub-pipeline #view-pipeline .page-header{display:none}
         #obsub-pipeline #view-pipeline .pipe-subnav-row{display:none}
       </style>
-      <div class="page page-shell">
-        <!-- ── Page shell · canonical layout adoption ────────────── -->
-        <div class="page-shell-chrome">
+      <div class="page">
         <!-- Command shell · Onboarding / Print-Download mode tabs
              above the header, matching the Schedule page pattern. -->
         <div class="ob-cmd-shell" id="rr-ob-cmd">
@@ -11763,10 +11664,6 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div><!-- /page-header.sched-nav-heading -->
         </div><!-- /ob-cmd-shell -->
-        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
-        </div><!-- /.page-shell-chrome -->
-
-        <div class="page-shell-body">
 
         <!-- Onboarding KPI strip removed · never populated by JS,
              rendered as an empty white card below the icon strip.
@@ -12085,7 +11982,6 @@ body.rr-cmdk-open{ overflow:hidden }
              Overview tab's right column (see _obMountDocuments).
              The old #obsub-documents host is removed. -->
 
-        </div><!-- /.page-shell-body -->
       </div>
     </div>
 
@@ -12093,9 +11989,7 @@ body.rr-cmdk-open{ overflow:hidden }
          DRIVERS VIEW
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-drivers">
-      <div class="page page-shell">
-        <!-- ── Page shell · canonical layout adoption ────────────── -->
-        <div class="page-shell-chrome">
+      <div class="page">
         <div class="page-header">
           <div class="page-header-l">
             <div class="page-icon" data-c="drivers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
@@ -12168,10 +12062,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="stat-mini-label">Turnover</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div>
             <button class="rr-tf-icon" data-rr-roster-tf-toggle="turnover" type="button" aria-label="Switch time frame" title="Switch time frame"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></button>
           </div>
-        </div><!-- /.driver-stat-row -->
-        </div><!-- /.page-shell-chrome -->
-
-        <div class="page-shell-body">
+        </div>
 
         <!-- Roster KPI drill-down panel · opens when an operator clicks
              one of the clickable KPI tiles above. -->
@@ -12809,7 +12700,6 @@ body.rr-cmdk-open{ overflow:hidden }
 
         </div><!-- /dr-sub-availability -->
 
-        </div><!-- /.page-shell-body -->
       </div>
     </div>
 
@@ -20681,9 +20571,7 @@ body.rr-cmdk-open{ overflow:hidden }
          MESSAGES — real-time dispatch ↔ driver comms
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-messages">
-      <div class="page page-shell" style="padding-bottom:0">
-        <!-- ── Page shell · canonical layout adoption ────────────── -->
-        <div class="page-shell-chrome">
+      <div class="page" style="padding-bottom:0">
         <div class="page-header">
           <div class="page-header-l">
             <div class="page-icon" data-c="messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
@@ -20702,11 +20590,8 @@ body.rr-cmdk-open{ overflow:hidden }
               New broadcast
             </button>
           </div>
-        </div><!-- /.page-header -->
-        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
-        </div><!-- /.page-shell-chrome -->
+        </div>
 
-        <div class="page-shell-body">
         <div class="msg-shell" data-rr-no-drawer>
           <!-- LEFT: conversation list -->
           <aside class="msg-list">
@@ -20752,8 +20637,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="rr-empty-sub">Select a driver, channel, or broadcast from the list to open the thread.</div>
             </div>
           </section>
-        </div><!-- /.msg-shell -->
-        </div><!-- /.page-shell-body -->
+        </div>
       </div>
     </div>
 
@@ -20929,15 +20813,7 @@ body.rr-cmdk-open{ overflow:hidden }
          live.js; clicking a row opens the record drawer.
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-fleet">
-      <div class="page page-shell">
-        <!-- ── Page shell · canonical layout adoption ───────────────
-             Wraps the ribbon in .page-shell-chrome (sticky to the
-             top of the main area) and the sub-views in
-             .page-shell-body (scrolls independently). An empty KPI
-             slot is reserved below the ribbon so the body Y position
-             matches Schedule's body even though Fleet has no metrics
-             of its own. -->
-        <div class="page-shell-chrome">
+      <div class="page">
         <!-- Page ribbon · the Fleet title rides the icon strip, just
              like the schedule page. View switchers + page actions sit
              on the right. Wiring is in fleetSub() in live.js. -->
@@ -21030,15 +20906,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </button>
             </div>
           </div>
-        </div><!-- /.fl-ribbon -->
-        <!-- Reserved KPI slot · keeps the body Y position consistent
-             with Schedule/Pipeline/Drivers even though Fleet has no
-             metrics. The slot stays visibility:hidden so it occupies
-             space without rendering pills. -->
-        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
-        </div><!-- /.page-shell-chrome -->
-
-        <div class="page-shell-body">
+        </div>
         <!-- Print mount · receives a clone of the active sub-view when
              the operator hits Print. -->
         <div id="rr-fleet-print-area" aria-hidden="true"></div>
@@ -22111,7 +21979,6 @@ body.rr-cmdk-open{ overflow:hidden }
             </aside>
           </div>
         </div>
-        </div><!-- /.page-shell-body -->
       </div>
     </div>
 
@@ -22131,7 +21998,7 @@ body.rr-cmdk-open{ overflow:hidden }
          [data-co-render="rules-list"].
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-compliance">
-      <div class="page co-page page-shell">
+      <div class="page co-page">
 
         <style>
           /* ── Compliance · table-first scoped design system ─────── */
@@ -22377,8 +22244,6 @@ body.rr-cmdk-open{ overflow:hidden }
           .co-cap.escalate{background:var(--text);color:var(--red-bright);border-color:transparent}
         </style>
 
-        <!-- ── Page shell · canonical layout adoption ────────────── -->
-        <div class="page-shell-chrome">
         <div class="page-header">
           <div class="page-header-l">
             <div class="page-icon" data-c="compliance">
@@ -22406,11 +22271,7 @@ body.rr-cmdk-open{ overflow:hidden }
             Rules
             <span class="subnav-count" data-co-count="rules" hidden>0</span>
           </button>
-        </div><!-- /.subnav#co-subnav -->
-        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
-        </div><!-- /.page-shell-chrome -->
-
-        <div class="page-shell-body">
+        </div>
 
         <div class="co-tab is-active" id="co-tab-exceptions">
           <div data-co-render="exceptions-table" style="flex:1;display:flex;flex-direction:column;min-height:0">
@@ -22437,7 +22298,6 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        </div><!-- /.page-shell-body -->
       </div>
     </div>
 
@@ -22450,7 +22310,7 @@ body.rr-cmdk-open{ overflow:hidden }
          the driver app, and logs the accountability trail.
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-workspaces">
-      <div class="page page-shell">
+      <div class="page">
         <style>
           /* ── Workspaces · operational boards (scoped) ─────────────── */
           #view-workspaces .ws-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3-5);margin-bottom:var(--s-4);flex-wrap:wrap}
@@ -22664,8 +22524,6 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:5px 0;
           }
         </style>
-        <!-- ── Page shell · canonical layout adoption ────────────── -->
-        <div class="page-shell-chrome">
         <div class="page-header">
           <div class="page-header-l">
             <div class="page-icon" data-c="forms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
@@ -22680,10 +22538,6 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="subnav-item active" data-sub="workflows" onclick="goto('workspaces')">Workflows</button>
           <button class="subnav-item" data-sub="checklists" onclick="goto('checklists')">Checklists</button>
         </div>
-        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
-        </div><!-- /.page-shell-chrome -->
-
-        <div class="page-shell-body">
         <div id="rr-ws-root">
           <!-- Skeleton workspaces grid — six card placeholders so
                the layout doesn't reflow when the boards arrive. -->
@@ -22696,7 +22550,6 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="ws-skel-card"><span class="rr-skel rr-skel-md" style="width:58%"></span><span class="rr-skel rr-skel-sm" style="width:82%"></span><span class="rr-skel rr-skel-sm" style="width:66%"></span></div>
           </div>
         </div>
-        </div><!-- /.page-shell-body -->
       </div>
     </div>
 
@@ -23382,7 +23235,7 @@ body.rr-cmdk-open{ overflow:hidden }
          on the LEFT, the calendar-sized main panel on the RIGHT.
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-email">
-      <div class="page page-shell">
+      <div class="page">
         <style>
           #view-email .em-cmd-shell{position:relative;display:block;margin-bottom:var(--s-4)}
           #view-email .em-cmd-shell .em-header{margin-bottom:0}
@@ -24234,13 +24087,6 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:11px;color:var(--text-subtle,#94a3b8);flex:0 0 auto;
           }
         </style>
-        <!-- ── Page shell · canonical layout adoption ───────────────
-             Same containment Fleet now uses. The cmd-shell (cmd-tabs
-             + header + icon strip) lives in .page-shell-chrome so
-             nothing can push it; the two-column em-grid lives in
-             .page-shell-body so its internal scroll behavior stays
-             unchanged. -->
-        <div class="page-shell-chrome">
         <div class="em-cmd-shell" id="rr-em-cmd">
           <div class="em-cmd-tabs" role="tablist" aria-label="Command strip mode">
             <button class="em-cmd-tab active" type="button" data-em-cmd-tab="email" role="tab" aria-selected="true">Fleet Bridge</button>
@@ -24295,11 +24141,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </button>
             </div>
           </div>
-        </div><!-- /.em-cmd-shell -->
-        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
-        </div><!-- /.page-shell-chrome -->
-
-        <div class="page-shell-body">
+        </div>
         <div class="em-grid">
           <aside class="em-aside" aria-label="Email folders">
             <div class="em-aside-head">
@@ -24341,8 +24183,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
           </section>
-        </div><!-- /.em-grid -->
-        </div><!-- /.page-shell-body -->
+        </div>
       </div>
     </div>
 
