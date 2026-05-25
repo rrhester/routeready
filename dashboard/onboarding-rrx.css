@@ -759,6 +759,35 @@
   display: none !important;
 }
 
+/* Text-only roster tiles · the operator wants the Roster tiles
+   to render as text labels only (no SVG glyphs) while keeping
+   the same outer box, Rules-footer alignment, and hairline
+   chrome as the icon tiles. Re-create the vertical 33px space
+   the SVG normally occupies with a transparent reserved block
+   so the label sits at the SAME baseline as a label under an
+   icon tile and Rules footers align across all groups. */
+#view-onboarding-ops.rrx-onboarding .subnav-item.subnav-item-textonly {
+  display: inline-flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 4px !important;
+  min-width: 62px !important;
+  padding: 6px 10px 7px !important;
+}
+#view-onboarding-ops.rrx-onboarding .subnav-item.subnav-item-textonly::before {
+  content: "";
+  display: block;
+  height: 33px;   /* matches --tcp-strip-svg / .subnav-item svg */
+  width: 33px;
+  flex: 0 0 auto;
+}
+#view-onboarding-ops.rrx-onboarding .subnav-item.subnav-item-textonly > span {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
 /* ── Roster mode · the new third cmd-tab ─────────────────────
    Same swap pattern as the Print/Download mode: roster tiles
    are hidden by default and revealed when .ob-cmd-shell carries
