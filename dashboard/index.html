@@ -9142,16 +9142,6 @@ body.rr-cmdk-open{ overflow:hidden }
         Schedule
         <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
-      <!-- Schedule 2 · static layout clone of Schedule. Markup is
-           cloned at first navigation from the live Schedule view's
-           DOM with every id suffixed `-s2` so JS handlers don't
-           accidentally bind to it. Lets the operator iterate on
-           layout/UX without touching the live page. See _schedClone
-           in live.js for the clone routine. -->
-      <button class="nav-item" data-view="schedule-2" data-c="schedule" onclick="goto('schedule-2')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><line x1="3.5" y1="10" x2="20.5" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></span>
-        Schedule 2
-      </button>
       <!-- Workspaces page is hidden from the sidebar but stays in
            the DOM so the Schedule view's Van Assignments flow can
            reuse loadWorkspacesView / _wsRenderVehicles internally.
@@ -20356,17 +20346,6 @@ body.rr-cmdk-open{ overflow:hidden }
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
-         SCHEDULE 2 — static layout clone of #view-schedule.
-         Container is empty in source; on first navigation the
-         _schedClone() routine in live.js clones the live Schedule
-         view's innerHTML into here with every id suffixed `-s2` so
-         no JS handler accidentally binds to the clone. Pure UI
-         sandbox — buttons are visible but inert. Wire the data
-         layer per-piece when ready.
-         ═══════════════════════════════════════════════════════════ -->
-    <div class="view rrx-schedule" id="view-schedule-2"></div>
-
-    <!-- ═══════════════════════════════════════════════════════════
          OKAMI — 13-week strategic capacity planner
          (Amazon's term for DSP route plan horizon)
          ═══════════════════════════════════════════════════════════ -->
@@ -27892,99 +27871,12 @@ John,Smith,555-0101,john@example.com</code>
   }
 
 
-  // Schedule 2 · static layout clone of the Onboarding view. Earlier
-  // iterations tried to clone Schedule and then surgically swap in
-  // Onboarding's icon strip + title; the swap kept failing due to
-  // parser quirks with the strip's inline <style> blocks. Simpler:
-  // just clone Onboarding directly into Schedule 2. That gets the
-  // same visible chrome (title block, icon ribbon, header) for free.
-  // Re-clone on demand via reSchedule2Clone().
-  function _cloneScheduleInto(target){
-    var src = document.getElementById('view-onboarding-ops');
-    if (!src) return;
-    var html = src.innerHTML;
-    // Suffix every id / for / aria-controls / aria-labelledby with
-    // `-s2` so live Onboarding handlers (which query the original
-    // ids) can't accidentally bind to or mutate the clone.
-    var renamed = html
-      .replace(/(\sid=")([^"]+)(")/g, function(_m, a, idv, c){ return a + idv + '-s2' + c; })
-      .replace(/(\sfor=")([^"]+)(")/g, function(_m, a, lv, c){ return a + lv + '-s2' + c; })
-      .replace(/(\saria-controls=")([^"]+)(")/g, function(_m, a, v, c){ return a + v + '-s2' + c; })
-      .replace(/(\saria-labelledby=")([^"]+)(")/g, function(_m, a, v, c){ return a + v + '-s2' + c; });
-    target.innerHTML = renamed;
-    target.setAttribute('data-rr-clone', 'onboarding');
-    _injectSchedule2StyleAlias();
-    _applySchedule2Trim(target);
-  }
-
-  // Once the clone is in place, do the small per-page touches that
-  // distinguish Schedule 2 from the live Onboarding view: subtitle
-  // marker so it's obvious you're on the sandbox, and scrollbar
-  // suppression.
-  function _applySchedule2Trim(root){
-    if (!root) return;
-    var subs = root.querySelectorAll('.page-sub');
-    subs.forEach(function(s){ if (s) s.textContent = 'Onboarding · static layout clone'; });
-    if (!document.getElementById('rr-sched2-no-scrollbar')) {
-      var s = document.createElement('style');
-      s.id = 'rr-sched2-no-scrollbar';
-      s.textContent =
-        '#view-schedule-2 *::-webkit-scrollbar{display:none !important;width:0 !important;height:0 !important}' +
-        '#view-schedule-2 *{scrollbar-width:none !important;-ms-overflow-style:none !important}' +
-        '#view-schedule-2{overflow:hidden}';
-      document.head.appendChild(s);
-    }
-  }
-
-  // Onboarding's CSS is scoped with `#view-onboarding-ops X`
-  // selectors — they won't match the `#view-schedule-2` clone. Walk
-  // every stylesheet once and emit a parallel rule keyed on
-  // `#view-schedule-2` so the clone inherits the exact same chrome.
-  function _injectSchedule2StyleAlias(){
-    if (document.getElementById('rr-sched2-style-alias')) return;
-    var aliasStyle = document.createElement('style');
-    aliasStyle.id = 'rr-sched2-style-alias';
-    var out = [];
-    for (var s = 0; s < document.styleSheets.length; s++) {
-      var sheet = document.styleSheets[s];
-      var rules = null;
-      try { rules = sheet.cssRules; } catch (_) { continue; } // cross-origin
-      if (!rules) continue;
-      for (var r = 0; r < rules.length; r++) {
-        var rule = rules[r];
-        if (!rule || !rule.selectorText) continue;
-        if (rule.selectorText.indexOf('#view-onboarding-ops') === -1) continue;
-        var newSel = rule.selectorText.replace(/#view-onboarding-ops/g, '#view-schedule-2');
-        if (newSel === rule.selectorText) continue;
-        out.push(newSel + '{' + rule.style.cssText + '}');
-      }
-    }
-    aliasStyle.textContent = out.join('\n');
-    document.head.appendChild(aliasStyle);
-  }
-  function ensureSchedule2Clone(){
-    var v2 = document.getElementById('view-schedule-2');
-    if (!v2) return;
-    if (v2.children.length > 0) return; // already cloned
-    _cloneScheduleInto(v2);
-  }
-  // Expose for the console / future "re-clone" button.
-  window.reSchedule2Clone = function(){
-    var v2 = document.getElementById('view-schedule-2');
-    if (v2) { v2.innerHTML = ''; ensureSchedule2Clone(); }
-  };
-
   function goto(view){
     // Interview Day is now a sub-tab inside the Pipeline view.
     if (view === 'interview') {
       goto('pipeline');
       if (typeof pipeSub === 'function') pipeSub('interview');
       return;
-    }
-    // Schedule 2 · clone the live Schedule's DOM the first time we
-    // navigate here so the operator can see the actual layout.
-    if (view === 'schedule-2') {
-      ensureSchedule2Clone();
     }
     // The Fleet calendar is one shared node hosted by either the
     // Fleet or the Schedule view; this opens it on the Fleet page.
@@ -28011,7 +27903,6 @@ John,Smith,555-0101,john@example.com</code>
       fleet: 'Fleet',
       compliance: 'Compliance',
       schedule: 'Schedule',
-      'schedule-2': 'Schedule 2',
       overtime: 'Overtime Intelligence',
       outlook: 'Staffing outlook',
       analytics: 'Analytics',
@@ -28036,7 +27927,6 @@ John,Smith,555-0101,john@example.com</code>
       fleet: 'Van roster · drivers · service history',
       compliance: 'Live operational risk · continuous monitoring across fleet, drivers, vendors, DOT',
       schedule: 'Week of May 1–7 · 5 pending approvals',
-      'schedule-2': 'Static layout clone · iterate freely here',
       overtime: 'Operational labor exposure · projected before payroll closes',
       okami: '13-week strategic capacity plan',
       messages: '7 unread · 12 active drivers',
