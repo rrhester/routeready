@@ -401,6 +401,13 @@
   flex: 0 0 auto !important;
   color: var(--rr-fg-secondary) !important;
   stroke-width: 1.6 !important;
+  /* Lock cap/join to match Schedule's .sched-v2-tile svg rule.
+     Without these, the inline stroke-linecap="square" on the
+     Roster SVGs extends each line-end by 0.8px, making the
+     glyphs read slightly chunkier than Schedule's at the same
+     33×33 box. */
+  stroke-linecap: butt !important;
+  stroke-linejoin: miter !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item span {
