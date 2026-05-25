@@ -28278,6 +28278,29 @@ function _obRestoreToOriginalPosition(node) {
   node.__obOrigNextSibling = null;
 }
 
+// Each Drivers sub-view has its own loader that drSub() fires on
+// activation. We trigger the right loader after mounting so the
+// data actually populates (otherwise the sub renders empty or
+// stuck on a spinner — that's why Licences was a spinning circle
+// and Attendance came up blank).
+function _obFireSubLoader(subKey) {
+  try {
+    if (subKey === "roster" && typeof loadDriversRoster === "function") {
+      loadDriversRoster();
+    } else if (subKey === "licences" && typeof loadDriverLicensesView === "function") {
+      loadDriverLicensesView();
+    } else if (subKey === "attendance") {
+      if (typeof _rrApplyAttPolicyMode === "function") _rrApplyAttPolicyMode();
+      if (typeof loadAttendanceLive === "function")    loadAttendanceLive();
+      if (typeof _rrInitAttTabDnD === "function")      _rrInitAttTabDnD();
+    } else if (subKey === "coaching" && typeof loadCoachingFeed === "function") {
+      loadCoachingFeed();
+    }
+  } catch (e) {
+    console.warn("Roster embed: loader for " + subKey + " threw", e);
+  }
+}
+
 function _obMountDriverSub(subKey) {
   const mount  = document.getElementById("ob-roster-mount");
   if (!mount) return;
@@ -28289,12 +28312,13 @@ function _obMountDriverSub(subKey) {
   // (the operator saw a giant unsized SVG, see PR #1802 / #1803).
   _obInjectDriverStyleAlias();
 
-  // If the requested sub is already mounted, just refresh active
-  // tile state and bail.
+  // If the requested sub is already mounted, refresh data + tile
+  // state and bail.
   const current = mount.querySelector('[id^="dr-sub-"]');
   if (current && current.id === subId) {
     mount.hidden = false;
     _obSyncRosterTileActiveState(subKey);
+    _obFireSubLoader(subKey);
     return;
   }
   // Restore any other sub currently in the mount before moving the
@@ -28317,6 +28341,10 @@ function _obMountDriverSub(subKey) {
   mount.appendChild(src);
   mount.hidden = false;
   _obSyncRosterTileActiveState(subKey);
+  // Fire the sub-view-specific loader so data populates. Roster
+  // already loaded above via the one-time __ob_drivers_inited
+  // path, but it's idempotent — calling again is fine.
+  _obFireSubLoader(subKey);
 }
 
 function _obSyncRosterTileActiveState(activeKey) {
