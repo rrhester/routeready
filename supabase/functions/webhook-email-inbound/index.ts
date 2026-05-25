@@ -340,8 +340,29 @@ Deno.serve(async (req) => {
     folderId = (inbox?.id as string | null) ?? null;
   }
 
-  // 5. Idempotency — a re-delivered message id is a no-op, but backfill
-  // the applicant, folder, and/or body if the stored row is missing them.
+  // Merge inline + fetched attachments BEFORE the dedup branch so both
+  // the fresh-insert and the dedup-backfill paths can use them. Dedup
+  // matters here because the first delivery of an email — before this
+  // function was deployed — created the email_messages row but never
+  // captured the attachments; we need to backfill on a later retry.
+  const inlineAttachments = _extractAttachments(data);
+  const attachments = (() => {
+    const seen = new Set<string>();
+    const out: InboundAttachment[] = [];
+    for (const a of [...inlineAttachments, ...fetchedAttachments]) {
+      const key = a.filename + "|" + (a.contentType || "");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(a);
+    }
+    return out;
+  })();
+
+  // 5. Idempotency — a re-delivered message id is a no-op for the email
+  // row, but we still backfill applicant_id / folder_id / body / and
+  // attachments if any of those are missing on the stored row. The
+  // attachment backfill is gated on document_intake being empty for
+  // this email_message_id so retries never double-insert.
   if (messageId) {
     const { data: existing } = await supa.from("email_messages")
       .select("id, applicant_id, folder_id, body_text, body_html")
@@ -356,6 +377,27 @@ Deno.serve(async (req) => {
         patch.body_html = bodyHtml;
       }
       if (Object.keys(patch).length > 0) await supa.from("email_messages").update(patch).eq("id", row.id);
+
+      if (attachments.length > 0) {
+        const { count } = await supa.from("document_intake")
+          .select("id", { count: "exact", head: true })
+          .eq("email_message_id", row.id as string);
+        console.log("INBOUND_DIAG dedup-backfill " + JSON.stringify({
+          emailMessageId: row.id,
+          existingIntakeCount: count ?? 0,
+          mergedAttachments: attachments.length,
+          willBackfill: !count,
+        }));
+        if (!count) {
+          await _captureAttachments(supa, {
+            dspId: dsp.id,
+            emailMessageId: row.id as string,
+            senderEmail: fromEmail,
+            senderName: _extractSenderName(data.from),
+            attachments,
+          });
+        }
+      }
       return jsonResponse({ ok: true, deduped: true, applicant_id: applicantId ?? row.applicant_id ?? null });
     }
   }
@@ -381,25 +423,6 @@ Deno.serve(async (req) => {
   // Phase 3 will file. For now we just capture so nothing arriving in
   // mail is ever lost. Best-effort — a failed attachment upload never
   // blocks the email itself from being recorded.
-  //
-  // Two possible sources:
-  //   1. Inline in the webhook payload (some forwarders include them).
-  //   2. The Resend API response we fetched above (`fetchedAttachments`)
-  //      — this is the path for Resend's own email.received which is
-  //      metadata-only and never carries attachments in the webhook.
-  // Merge both, dedupe by filename, so we capture whichever shows up.
-  const inlineAttachments = _extractAttachments(data);
-  const attachments = (() => {
-    const seen = new Set<string>();
-    const out: InboundAttachment[] = [];
-    for (const a of [...inlineAttachments, ...fetchedAttachments]) {
-      const key = a.filename + "|" + (a.contentType || "");
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(a);
-    }
-    return out;
-  })();
   console.log("INBOUND_DIAG attachments " + JSON.stringify({
     inlineCount: inlineAttachments.length,
     fetchedCount: fetchedAttachments.length,
