@@ -32,7 +32,7 @@ const CORS = {
 };
 
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
-const DEFAULT_MODEL = Deno.env.get("ANTHROPIC_MODEL") || "claude-haiku-4-5";
+const DEFAULT_MODEL = Deno.env.get("ANTHROPIC_MODEL") || "claude-haiku-4-5-20251001";
 const BUCKET = "document-intake";
 const PROMPT_VERSION = 1;
 
@@ -260,7 +260,12 @@ Deno.serve(async (req) => {
     });
     if (!resp.ok) {
       const txt = await resp.text();
-      lastError = `anthropic_${resp.status}`;
+      // Surface the first chunk of Anthropic's error body in the
+      // saved error so the operator can see "model_not_found" or
+      // "overloaded" instead of just a status code. 200 chars is
+      // plenty for the standard {type, error: {message}} envelope.
+      const detail = txt.replace(/\s+/g, " ").slice(0, 200);
+      lastError = `anthropic_${resp.status}_${detail}`;
       console.error("anthropic non-2xx:", resp.status, txt.slice(0, 500));
     } else {
       const data = await resp.json() as {
