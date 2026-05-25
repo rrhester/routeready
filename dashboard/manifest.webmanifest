@@ -1,0 +1,20 @@
+{
+  "name": "RouteReady Dispatch",
+  "short_name": "RR Dispatch",
+  "description": "RouteReady dispatcher dashboard — schedule, onboarding, fleet, messaging.",
+  "id": "/dashboard/",
+  "start_url": "/dashboard/",
+  "scope": "/dashboard/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "theme_color": "#0F6CBD",
+  "background_color": "#F3F6FA",
+  "categories": ["productivity", "business", "logistics"],
+  "icons": [
+    { "src": "/app/Icon.png",  "sizes": "512x512", "type": "image/png",     "purpose": "any" },
+    { "src": "/app/Icon.png",  "sizes": "192x192", "type": "image/png",     "purpose": "any" },
+    { "src": "/app/Icon.png",  "sizes": "any",     "type": "image/png",     "purpose": "maskable" },
+    { "src": "/app/icon.svg",  "sizes": "any",     "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

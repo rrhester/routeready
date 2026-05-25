@@ -16,6 +16,25 @@
 <title>RouteReady — Dispatcher Dashboard</title>
 <link rel="icon" type="image/png" href="../app/Icon.png">
 <link rel="apple-touch-icon" href="../app/Icon.png">
+
+<!-- ── Installable PWA · dispatcher dashboard ────────────────────
+     Scope: /dashboard/ (the driver-facing PWA at /app/ owns its own
+     scope, so the two installs coexist on the same device). The
+     manifest, service worker, and the "Install app" button in the
+     topbar work together — when Chrome/Edge fire
+     `beforeinstallprompt`, the button reveals itself; clicking it
+     triggers the OS install dialog. On macOS Safari the install
+     happens through "File → Add to Dock" (no install event), so the
+     button stays hidden there but the manifest + apple-touch-icon
+     + theme-color still wire up the Dock icon and title bar. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0F6CBD">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="RR Dispatch">
+<meta name="application-name" content="RouteReady Dispatch">
+<meta name="msapplication-TileColor" content="#0F6CBD">
+<meta name="msapplication-TileImage" content="../app/Icon.png">
 <!-- RouteReady Fluent 2 design system foundation (additive).
      Tokens: --rr-*. Primitives: .rrx-* (see app/rr-system.css). -->
 <link rel="stylesheet" href="../app/rr-system.css?v=6">
@@ -9212,6 +9231,14 @@ body.rr-cmdk-open{ overflow:hidden }
            build. Subtle by default; faint hover state. -->
       <button type="button" id="rr-hdr-refresh" class="hdr-refresh" title="Refresh dashboard (clears cached scripts)" aria-label="Refresh dashboard">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
+      </button>
+      <!-- Install app · only visible after the browser fires
+           `beforeinstallprompt` (Chrome / Edge / desktop + Android).
+           Hidden by default; live.js wires it up. On macOS Safari
+           the install path is "File → Add to Dock" and there's no
+           install event, so the button stays hidden there. -->
+      <button type="button" id="rr-hdr-install" class="hdr-refresh hdr-install" title="Install RouteReady Dispatch as an app" aria-label="Install RouteReady Dispatch" hidden>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>
       </button>
       <!-- Undo · pops the last reversible action (5-deep). The caret
            opens a history of recent actions. -->
@@ -32279,6 +32306,63 @@ John,Smith,555-0101,john@example.com</code>
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
 <script type="module" src="./live.js?v=20260523-fauxscroll"></script>
+
+<!-- ─── PWA · service-worker registration + install button ────────────
+     Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
+     SW at /app/sw.js owns its own scope, so the two coexist.
+     Listens for `beforeinstallprompt` and reveals the topbar install
+     button; clicking it fires the OS install dialog. If the user
+     already installed the app, the button stays hidden. -->
+<script>
+(function () {
+  // Register the dashboard SW (no-op if the browser doesn't support
+  // service workers — e.g. very old browsers or some embedded views).
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("./sw.js", { scope: "/dashboard/" })
+        .catch(function () { /* SW registration is best-effort */ });
+    });
+  }
+
+  // Capture the install prompt so the topbar button can fire it on
+  // click. Chrome / Edge / Android fire this; iOS / macOS Safari do
+  // not (those use "Add to Dock" / "Add to Home Screen" through the
+  // browser menu — the manifest + apple-touch-icon still apply).
+  var deferredInstall = null;
+  var installBtn = null;
+
+  function showInstallBtn() {
+    installBtn = installBtn || document.getElementById("rr-hdr-install");
+    if (installBtn) installBtn.hidden = false;
+  }
+  function hideInstallBtn() {
+    installBtn = installBtn || document.getElementById("rr-hdr-install");
+    if (installBtn) installBtn.hidden = true;
+  }
+
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredInstall = e;
+    showInstallBtn();
+  });
+
+  window.addEventListener("appinstalled", function () {
+    deferredInstall = null;
+    hideInstallBtn();
+  });
+
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest("#rr-hdr-install");
+    if (!btn) return;
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    deferredInstall.userChoice.finally(function () {
+      deferredInstall = null;
+      hideInstallBtn();
+    });
+  });
+})();
+</script>
 
 </body>
 </html>
