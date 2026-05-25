@@ -830,16 +830,38 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* ── Top bar (clean white control surface) ────────────────── */
 .topbar{
   position:sticky;top:0;z-index:10;
-  /* Shortened from 56px → 36px so the tool row (refresh, undo, AI
-     search, install, settings) sits flush near the top of the page
-     in the installed PWA — no floating gap below the OS title bar.
-     The Ask pill below is trimmed from 38px → 32px in lockstep so
-     the row still has 2px breathing room top + bottom. */
-  height:36px;
-  display:flex;align-items:center;padding:0 var(--s-6);gap:var(--s-4);
+  /* Topbar overlays the OS title-bar zone via Window Controls
+     Overlay (`display_override: window-controls-overlay` in the
+     manifest). 44px height fits the Ask pill (38px) with 3px ring
+     of breathing room, and is taller than the OS title-bar zone
+     (~30px) so the controls visually nest inside the topbar. */
+  height:44px;
+  display:flex;align-items:center;gap:var(--s-4);
   background:var(--canvas);
   border-bottom:0;
   box-shadow:none;
+  /* WCO-aware padding: clears the window-controls overlay region
+     on both Windows (controls on the right) and macOS (controls
+     on the left). When WCO is inactive (regular browser tab), the
+     env() fallbacks collapse the padding to the design default. */
+  padding-left:max(var(--s-6), calc(env(titlebar-area-x, 0px) + var(--s-4)));
+  padding-right:max(
+    var(--s-6),
+    calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + var(--s-4))
+  );
+  /* Whole bar drags the window in WCO mode; individual interactive
+     elements opt back out below. */
+  -webkit-app-region:drag;
+  app-region:drag;
+}
+/* Buttons + pills inside the topbar are interactive — opt out of
+   the drag region so clicks land on them. */
+.topbar button,
+.topbar input,
+.topbar .hdr-ask,
+.topbar .hdr-undo-wrap{
+  -webkit-app-region:no-drag;
+  app-region:no-drag;
 }
 .topbar::after{ display:none; }
 .topbar-title{font-size:var(--fs-base);font-weight:600;color:var(--text)}
@@ -875,10 +897,11 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .hdr-ask{
   flex:1;max-width:680px;margin:0 auto;
   display:flex;align-items:center;gap:var(--s-2);
-  /* 34px — sized to nearly fill the 36px topbar (1px breathing top
-     + bottom). Matches the Settings pill height, so the prominent
-     center control and the right-edge control read as one row. */
-  height:34px;padding:3px var(--s-1) 3px var(--s-3);border-radius:var(--r-pill);
+  /* 38px — bumped from 34 → 38 to read more prominently in the
+     44px topbar. 3px breathing top + bottom; matches the topbar's
+     taller stance now that the bar overlays the OS title-bar zone
+     via WCO. */
+  height:38px;padding:4px var(--s-1) 4px var(--s-3);border-radius:var(--r-pill);
   background:var(--surface);
   border:1px solid var(--border-strong);
   box-shadow:var(--shadow-xs);
