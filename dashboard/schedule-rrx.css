@@ -1930,7 +1930,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-v2-cmd-tabs {
   position: absolute !important;
   top: -28px !important;
-  left: var(--rr-space-80) !important;  /* far LEFT of the V2 strip */
+  /* Flush with the LEFT edge of the strip card · operator wants
+     Schedule + Onboarding tabs to start at the same x as the card.
+     Previously had a small 8px (rr-space-80) inset that left a sliver
+     between the leftmost tab edge and the card edge. */
+  left: 0 !important;
   right: auto !important;
   bottom: auto !important;
   margin: 0 !important;
