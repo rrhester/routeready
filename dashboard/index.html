@@ -23417,20 +23417,30 @@ body.rr-cmdk-open{ overflow:hidden }
              Per operator preference there's no KPI strip on this
              surface — Fleet Bridge stops at the header card and
              the email grid takes over. */
-          #view-email .em-cmd-shell{position:relative;display:block;margin-bottom:var(--s-4)}
+          /* cmd-shell · flex-column wrapper. cmd-tabs sit IN-FLOW
+             above the strip card (same pattern as Onboarding); the
+             previous absolute positioning made the strip card sit
+             ~28px higher than Schedule's because the tabs ate no
+             in-flow space. With the tabs in-flow the strip card
+             lands at the same Y as Schedule's. */
+          #view-email .em-cmd-shell{
+            position:relative;
+            display:flex;flex-direction:column;
+            margin-bottom:var(--s-4);
+          }
           #view-email .em-cmd-shell .em-header{margin-bottom:0}
 
           /* cmd-tabs · plain-text labels above the strip card,
              matching Schedule's .sched-v2-cmd-tabs (transparent
-             everything, active = brand blue text). The tab band
-             sits absolute above the card so the card itself owns
-             the locked 115px height. */
+             everything, active = brand blue text). In-flow so they
+             reserve real layout height instead of overlapping the
+             topbar above. */
           #view-email .em-cmd-tabs{
-            display:inline-flex;gap:2px;
-            position:absolute;left:4px;bottom:100%;margin-bottom:-1px;
-            height:var(--tcp-cmd-tabs-h);
-            align-items:center;
-            z-index:2;
+            position:static;
+            display:inline-flex;align-self:flex-start;
+            gap:2px;
+            margin:0 0 -1px 0;padding:0;
+            z-index:1;
           }
           #view-email .em-cmd-tab{
             appearance:none;background:transparent;cursor:pointer;font:inherit;
@@ -23466,37 +23476,52 @@ body.rr-cmdk-open{ overflow:hidden }
             max-height:var(--tcp-strip-h);
             box-sizing:border-box;
           }
+          /* Title block · matches Schedule's .sched-v2-title rules
+             exactly (flex 0 0 240px, centered, margin-right + pad-
+             right that line up with Schedule's first-hairline x).
+             The page-icon (mail glyph) is hidden — Schedule's strip
+             has no icon next to the title, so Fleet Bridge drops
+             it too. */
           #view-email .em-header .page-header-l{
-            flex:0 0 240px;min-width:0;
-            display:flex;align-items:center;gap:var(--s-3);
+            flex:0 0 var(--tcp-title-w);
+            align-self:center;
+            display:flex;flex-direction:column;justify-content:center;
+            min-width:0;
+            margin-right:var(--rr-space-160);
+            padding-right:var(--rr-space-120);
           }
-          #view-email .em-header .page-icon{
-            width:36px;height:36px;flex:0 0 auto;
-            display:inline-flex;align-items:center;justify-content:center;
-            color:var(--sch-blue);
-            background:rgba(15,108,189,.10);border-radius:8px;
-          }
-          #view-email .em-header .page-icon svg{width:18px;height:18px}
-          /* Title + subtitle typography matched to Schedule's
-             .sched-nav-heading rules so the locked card reads with
-             identical weight on both pages. */
+          #view-email .em-header .page-icon{display:none !important}
+
+          /* Title + subtitle typography pinned to Schedule's
+             .sched-v2-title rules — same font tokens, same letter-
+             spacing, same nowrap behavior. */
           #view-email .em-header .page-title{
-            font:var(--rr-font-title);
+            font:var(--rr-font-subtitle);
             color:var(--rr-fg-primary);
             letter-spacing:-.01em;
             margin:0;
+            white-space:nowrap;
           }
           #view-email .em-header .page-sub{
             font:var(--rr-font-caption);
             color:var(--rr-fg-secondary);
             margin:2px 0 0;
+            white-space:nowrap;
           }
           /* Action ribbon · icon tiles matching the schedule strip.
              Left-anchored so the first icon sits flush with the icon
              strips on the schedule / fleet / pipeline pages. */
+          /* Action ribbon · first hairline divider sits at the
+             same X as Schedule's (border-left + matching margin/
+             padding produce the same 1px line in the same place,
+             since the title block left of it is locked to the same
+             240px + 16px margin-right). */
           #view-email .em-actions{
             display:flex;align-items:center;gap:8px;
             flex-wrap:nowrap;min-width:0;
+            margin-left:var(--rr-space-160);
+            padding-left:var(--rr-space-160);
+            border-left:1px solid #C8C6C4;
           }
           #view-email .em-action{
             appearance:none;cursor:pointer;font:inherit;
