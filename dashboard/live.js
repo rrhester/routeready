@@ -1598,6 +1598,30 @@ function _rrIntelHide() {
 //    coded seed); we don't issue new RPCs so the view opens instantly
 //    and the analysis matches whatever the operator just saw on the
 //    13-week planner.
+// Simulation cache · populated by the "Simulate 13 weeks" button on
+// the Targets planner card. Shape: { [yyyy-mm-dd weekStart]: { available,
+// onTimeOff, onPto, totalActive } }. When set, _rrReadOkamiWeeks
+// overrides each week's `avail` with the PTO-adjusted number from the
+// projection so the Risk Forecast reads the real-data view instead of
+// OKAMI's planning seed.
+window._rrSimResultsByWeek = window._rrSimResultsByWeek || null;
+window._rrSimResultsRanAt  = window._rrSimResultsRanAt  || null;
+
+// Map an OKAMI row's week label (e.g. "W22 May 24–30") to an ISO date
+// the simulation cache is keyed by. _okamiStart is the ISO date of
+// week-0 in the table; each subsequent row is +7 days. Returns null
+// when _okamiStart isn't loaded yet.
+function _rrOkamiWeekStartIso(idx) {
+  const start = window._okamiStart;
+  if (!start) return null;
+  const d = new Date(start + "T12:00:00");
+  d.setDate(d.getDate() + (idx * 7));
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function _rrReadOkamiWeeks() {
   // Each non-detail <tr> = one week. Cells:
   //   col 0: Week label + dates (+ tags)
@@ -1627,7 +1651,32 @@ function _rrReadOkamiWeeks() {
                      : statusEl?.classList.contains("warn") ? "tight"
                      : "ok";
     const hireBy = (cells[6]?.querySelector(".plan-calc")?.textContent || "").trim();
-    weeks.push({ idx, label, dates, needed, avail, gap, gapKind, statusText, statusKind, hireBy });
+    // Simulation override · if the operator has run the planner
+    // simulation, the PTO-adjusted available count for this week
+    // replaces OKAMI's static planning seed. Capture the original
+    // so the Risk Forecast view can show "planned X · projected Y"
+    // when the two differ.
+    let simAvail = null, simOnPto = null, simOnTimeOff = null;
+    const weekStartIso = _rrOkamiWeekStartIso(idx);
+    if (window._rrSimResultsByWeek && weekStartIso) {
+      const sim = window._rrSimResultsByWeek[weekStartIso];
+      if (sim) {
+        simAvail     = sim.available;
+        simOnPto     = sim.onPto;
+        simOnTimeOff = sim.onTimeOff;
+      }
+    }
+    const effectiveAvail = simAvail != null ? simAvail : avail;
+    const effectiveGap   = simAvail != null ? (effectiveAvail - needed) : gap;
+    weeks.push({
+      idx, label, dates, needed,
+      avail: effectiveAvail,
+      gap: effectiveGap,
+      gapKind, statusText, statusKind, hireBy,
+      plannedAvail: avail,
+      simAvail, simOnPto, simOnTimeOff,
+      isSimulated: simAvail != null,
+    });
   });
   return weeks;
 }
@@ -1639,6 +1688,127 @@ function _rrToInt(text) {
   const n = parseInt(cleaned, 10);
   return Number.isFinite(n) ? n : 0;
 }
+
+// ── Simulate 13 weeks · per-week PTO-aware headcount projection ───
+// Called when the operator clicks "Simulate 13 weeks" on the Targets
+// planner card. Hits active_drivers_for_horizon (migration 0329) for
+// one round-trip across the visible horizon, caches per-week results
+// on window._rrSimResultsByWeek, annotates the OKAMI table in place
+// with the projected number, and re-renders the Risk Forecast view
+// if it's currently open. Phase 1 is headcount-only — a follow-up PR
+// will run the CP-SAT solver per week against this same projected
+// pool so we can also catch constraint-level breaks (cert mismatch,
+// wave fit, etc.).
+async function _rrSimulateNext13Weeks() {
+  const btn    = document.getElementById("rr-tgt-sim-btn");
+  const status = document.getElementById("rr-tgt-sim-status");
+  if (btn && btn.disabled) return;
+  const baseIso = window._okamiStart;
+  if (!baseIso) {
+    if (status) status.textContent = "Load the 13-week plan first";
+    return;
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add("is-loading");
+    const lbl = btn.querySelector("span");
+    if (lbl) lbl.dataset.rrOrig = lbl.textContent;
+    if (lbl) lbl.textContent = "Simulating…";
+  }
+  if (status) status.textContent = "Projecting drivers across 13 weeks…";
+
+  try {
+    const { data, error } = await sb.rpc("active_drivers_for_horizon", {
+      p_first_week_start: baseIso,
+      p_weeks: 13,
+    });
+    if (error) throw error;
+    const rows = Array.isArray(data) ? data : [];
+    const cache = {};
+    for (const r of rows) {
+      cache[r.week_start] = {
+        available:   r.available,
+        onTimeOff:   r.on_time_off,
+        onPto:       r.on_pto,
+        totalActive: r.total_active,
+      };
+    }
+    window._rrSimResultsByWeek = cache;
+    window._rrSimResultsRanAt  = new Date().toISOString();
+    _rrPaintOkamiSimAnnotations();
+    // If the Risk Forecast view is open, re-render it so the headline
+    // pill, KPIs, strip, and detail card all reflect the projection.
+    if (typeof _rrIntelActiveName !== "undefined" && _rrIntelActiveName === "risk-forecast") {
+      const view = document.getElementById("rr-intel-view-risk-forecast");
+      if (view && typeof _rrIntelRenderRiskForecast === "function") {
+        _rrIntelRenderRiskForecast(view);
+      }
+    }
+    if (status) {
+      const ranAt = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      status.textContent = `Last run · ${ranAt}`;
+    }
+    if (typeof toast === "function") toast("13-week projection complete", "success");
+  } catch (e) {
+    console.warn("simulate-13-weeks:", e);
+    if (status) status.textContent = "Simulation failed · check console";
+    if (typeof toast === "function") toast("Simulation failed: " + (e?.message || String(e)), "warn");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove("is-loading");
+      const lbl = btn.querySelector("span");
+      if (lbl && lbl.dataset.rrOrig) { lbl.textContent = lbl.dataset.rrOrig; delete lbl.dataset.rrOrig; }
+    }
+  }
+}
+window._rrSimulateNext13Weeks = _rrSimulateNext13Weeks;
+
+// Annotate each row's "Available" cell in the OKAMI table with the
+// projected available (vs. planned) so the planner table itself
+// surfaces the simulation right next to the planning numbers.
+// Severity tint matches the Risk Forecast thresholds.
+function _rrPaintOkamiSimAnnotations() {
+  if (!window._rrSimResultsByWeek) return;
+  const rows = document.querySelectorAll("#okami-tbody > tr:not(.okami-detail)");
+  rows.forEach((row, idx) => {
+    const wkIso = _rrOkamiWeekStartIso(idx);
+    if (!wkIso) return;
+    const sim = window._rrSimResultsByWeek[wkIso];
+    if (!sim) return;
+    const cells = row.querySelectorAll("td");
+    const availCell = cells[3];
+    if (!availCell) return;
+    let ann = availCell.querySelector(".okami-sim-avail");
+    if (!ann) {
+      ann = document.createElement("div");
+      ann.className = "okami-sim-avail";
+      availCell.appendChild(ann);
+    }
+    // Tint severity vs. drivers needed for that row.
+    const needed = _rrToInt(cells[2]?.querySelector(".plan-calc")?.textContent);
+    const cov = needed > 0 ? sim.available / needed : 1;
+    ann.classList.toggle("is-warn", cov < 0.95 && cov >= 0.80);
+    ann.classList.toggle("is-risk", cov < 0.80);
+    const offBits = [];
+    if (sim.onPto)     offBits.push(`${sim.onPto} PTO`);
+    const unpaid = sim.onTimeOff - sim.onPto;
+    if (unpaid > 0)    offBits.push(`${unpaid} off`);
+    const offSuffix = offBits.length ? ` · −${offBits.join(", ")}` : "";
+    ann.textContent = `Sim ${sim.available}${offSuffix}`;
+    ann.title = `PTO-adjusted available: ${sim.available} of ${sim.totalActive} active · ${sim.onTimeOff} on approved time-off (${sim.onPto} PTO)`;
+  });
+}
+
+// Click handler for the simulate button. Lives at document level so
+// it survives the OKAMI table being moved between #view-okami and
+// #sched-sub-targets at runtime.
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#rr-tgt-sim-btn")) {
+    e.preventDefault();
+    _rrSimulateNext13Weeks();
+  }
+});
 
 function _rrIntelRenderRiskForecast(view) {
   const weeks = _rrReadOkamiWeeks();
@@ -1797,7 +1967,9 @@ function _rrIntelRenderRiskForecast(view) {
           Risk forecast
           <span class="rr-intel-headline-pill ${overallKind}"><span class="dot"></span>${overallLabel}</span>
         </h2>
-        <p class="rr-intel-view-sub">Smart Fill projections of coverage across your 13-week plan. Numbers come straight from your live OKAMI grid — no separate forecast queue.</p>
+        <p class="rr-intel-view-sub">${window._rrSimResultsByWeek
+          ? "Reading from your last <strong>Simulate 13 weeks</strong> run — each week's available count is the actual driver pool minus anyone with an approved time-off request that covers it."
+          : "Smart Fill projections of coverage across your 13-week plan. Numbers come straight from your live OKAMI grid — click <strong>Simulate 13 weeks</strong> on the Targets page to project against approved PTO + time-off."}</p>
       </div>
       <button type="button" class="rr-intel-view-close" data-rr-intel-close title="Close" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1838,7 +2010,9 @@ function _rrIntelRenderRiskForecast(view) {
     ${detailHtml}
 
     <footer class="rr-intel-foot">
-      <span class="rr-intel-foot-bullet"><span class="dot"></span>Reads from the live 13-week plan — no separate refresh needed.</span>
+      <span class="rr-intel-foot-bullet"><span class="dot"></span>${window._rrSimResultsByWeek
+        ? "Simulation ran " + (window._rrSimResultsRanAt ? new Date(window._rrSimResultsRanAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "just now") + " — PTO + time-off folded in."
+        : "Reads from the live 13-week plan — click Simulate 13 weeks on Targets for the PTO-aware projection."}</span>
       <span>Want a deeper analysis? Run the solver against the next 4 weeks from Targets → Smart Fill.</span>
     </footer>
   `;
@@ -23610,6 +23784,10 @@ async function _renderOkamiLiveImpl() {
   } else {
     _okamiStart = fmtIsoDate(startOfWeekMonday(new Date()));
   }
+  // Mirror to window so the Risk Forecast simulate hook (defined at
+  // the top of the module) can map row index → ISO week-start without
+  // having to reach into this function's scope.
+  window._okamiStart = _okamiStart;
   const start = new Date(_okamiStart + "T12:00:00");
 
   const [gridRes, drvRes] = await Promise.all([
