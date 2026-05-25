@@ -30,9 +30,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <!-- theme-color drives the Window Controls Overlay strip color on
      installed PWAs (and the browser tab bar tint on mobile). Matched
-     to the dashboard canvas (--canvas: #EEF1F5) so the WCO blends
-     into the page instead of standing out as a blue band. -->
-<meta name="theme-color" content="#EEF1F5">
+     to the dashboard canvas (--canvas: #F2F7FC) so the WCO blends
+     into the page instead of standing out as a separate band. -->
+<meta name="theme-color" content="#F2F7FC">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="RR Dispatch">
@@ -75,7 +75,12 @@
      layered off-white palette, now global so the whole dashboard
      reads with the same depth. No pure white; the canvas sits a
      touch cooler than the cards. */
-  --canvas:#EEF1F5;
+  /* Canvas · lifted from the older #EEF1F5 (cool gray) to a
+     brighter cool-cyan-tinted off-white. The +4pt lightness +
+     small cyan saturation lift gives the page that "electric
+     Outlook" cool brightness without changing the underlying
+     Fluent depth — cards still elevate visibly off this base. */
+  --canvas:#F2F7FC;
   --canvas-grad:none;
   --surface:#F8F9FB;
   --surface-secondary:#F2F3F6;

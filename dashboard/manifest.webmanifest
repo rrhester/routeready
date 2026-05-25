@@ -7,8 +7,8 @@
   "scope": "/dashboard/",
   "display": "standalone",
   "orientation": "any",
-  "theme_color": "#EEF1F5",
-  "background_color": "#EEF1F5",
+  "theme_color": "#F2F7FC",
+  "background_color": "#F2F7FC",
   "categories": ["productivity", "business", "logistics"],
   "icons": [
     { "src": "/app/Icon.png",  "sizes": "512x512", "type": "image/png",     "purpose": "any" },
