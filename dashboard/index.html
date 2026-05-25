@@ -605,12 +605,6 @@ textarea,
    to render the slot without rendering pills. */
 .page-shell-kpi-empty{visibility:hidden}
 
-/* When a .page wrapper opts into the shell, its own padding has to
-   come off — each shell region paints its own padding via the
-   tokens. Without this override the chrome inherits .page padding
-   and the locked-height regions miscompute. */
-.page.page-shell{padding:0}
-
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
   /* Microsoft Fluent communication blue — Outlook / M365 brand
@@ -20903,15 +20897,7 @@ body.rr-cmdk-open{ overflow:hidden }
          live.js; clicking a row opens the record drawer.
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-fleet">
-      <div class="page page-shell">
-        <!-- ── Page shell · canonical layout adoption ───────────────
-             Wraps the ribbon in .page-shell-chrome (sticky to the
-             top of the main area) and the sub-views in
-             .page-shell-body (scrolls independently). An empty KPI
-             slot is reserved below the ribbon so the body Y position
-             matches Schedule's body even though Fleet has no metrics
-             of its own. -->
-        <div class="page-shell-chrome">
+      <div class="page">
         <!-- Page ribbon · the Fleet title rides the icon strip, just
              like the schedule page. View switchers + page actions sit
              on the right. Wiring is in fleetSub() in live.js. -->
@@ -21004,15 +20990,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </button>
             </div>
           </div>
-        </div><!-- /.fl-ribbon -->
-        <!-- Reserved KPI slot · keeps the body Y position consistent
-             with Schedule/Pipeline/Drivers even though Fleet has no
-             metrics. The slot stays visibility:hidden so it occupies
-             space without rendering pills. -->
-        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
-        </div><!-- /.page-shell-chrome -->
-
-        <div class="page-shell-body">
+        </div>
         <!-- Print mount · receives a clone of the active sub-view when
              the operator hits Print. -->
         <div id="rr-fleet-print-area" aria-hidden="true"></div>
@@ -22085,7 +22063,6 @@ body.rr-cmdk-open{ overflow:hidden }
             </aside>
           </div>
         </div>
-        </div><!-- /.page-shell-body -->
       </div>
     </div>
 
