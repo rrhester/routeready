@@ -520,54 +520,32 @@ function renderApplicantCard(a) {
   // Activity timeline. Empty applicants get a quiet placeholder.
   const steps = _activitySteps(a);
 
-  // Icon buttons. Phone/email are disabled (with title) when no contact
-  // info is on file; notes is always available.
-  const phoneDisabled = !a.phone ? " is-disabled" : "";
-  const phoneTitle    = a.phone ? `Call ${escapeHtml(a.phone)}` : "No phone on file";
-  const emailDisabled = !a.email ? " is-disabled" : "";
-  const emailTitle    = a.email ? `Email ${escapeHtml(a.email)}` : "No email on file";
-
-  // Stage CTA + decline. Labels vary by stage so the operator never has
-  // to think about which button to hit — the wording matches the
-  // conversation they're having with the applicant. booking_scheduled
-  // re-labels "Decline" as "Cancel interview" since that's the equivalent
-  // negative action once an interview is on the books.
+  // Stage CTA. Operator-requested single-primary card: only the stage
+  // CTA (Resend screening / Send booking link / etc.) reads as a button.
+  // Decline + Video + the contact icon row all moved into the ⋯ menu
+  // (or, for Decline + Video, removed entirely) so each card carries
+  // one obvious workflow + a quiet overflow.
   let ctaAction = "", ctaLabel = "";
   if (stage === "applied")           { ctaAction = "resend_screening"; ctaLabel = "Resend screening"; }
   else if (stage === "screened")     { ctaAction = "send_link";        ctaLabel = "Send booking link"; }
   else if (stage === "booking_pending") { ctaAction = "resend_link";   ctaLabel = "Resend booking link"; }
   else if (stage === "booking_scheduled") { ctaAction = "reschedule";  ctaLabel = "Reschedule"; }
 
-  // Screening video — the centrepiece of the screen-an-applicant flow.
-  // When a video exists it gets a loud Fluent-primary "Review video"
-  // button with a red unwatched dot; the advance button steps back to
-  // secondary so the operator's eye lands on the video first. Once the
-  // video is opened, the loud-primary state hands off to the advance
-  // button — the next thing to do.
-  const hasVideo       = !!a.video_url;
-  const videoWatched   = hasVideo && _paVideoWatched(a.id);
-  const advancePrimary = !hasVideo || videoWatched;
-
-  const playSvg = '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
-  const videoBtn = hasVideo
-    ? `<button class="pa-btn-video${videoWatched ? " is-watched" : ""}" type="button" data-rr-action="play_video" data-applicant-id="${escapeHtml(a.id)}" data-video-url="${encodeURI(a.video_url)}" title="${videoWatched ? "Re-watch screening video" : "Review screening video"}" aria-label="${videoWatched ? "Re-watch screening video" : "Review screening video"}">
-         ${videoWatched ? "" : '<span class="pa-btn-video-dot" aria-hidden="true"></span>'}
-         ${playSvg}<span class="pa-btn-video-lbl">${videoWatched ? "Re-watch video" : "Review video"}</span>
-       </button>`
-    : "";
-
   const advanceBtn = ctaAction
-    ? `<button class="pa-btn-advance${advancePrimary ? " is-primary" : ""}" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">
+    ? `<button class="pa-btn-advance is-primary" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">
          <svg class="pa-adv-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
          ${escapeHtml(ctaLabel)}
        </button>`
     : "";
 
-  // Decline / cancel · a quiet ghost ✕ that only reads red on hover.
-  const declineAction = stage === "booking_scheduled" ? "cancel_interview" : "decline";
-  const declineLabel  = stage === "booking_scheduled" ? "Cancel interview" : "Decline";
-  const declineBtn = `<button class="pa-act-decline" type="button" data-rr-action="${declineAction}" data-applicant-id="${escapeHtml(a.id)}" title="${escapeHtml(declineLabel)}" aria-label="${escapeHtml(declineLabel)}">
-      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+  // Quiet ⋯ overflow · Phone / Email / Note utilities. Tertiary color,
+  // no border, only reads on hover. Menu opens via _paOpenMoreMenu below.
+  const moreBtn = `<button class="pa-act-more" type="button" data-rr-pa-more aria-label="More actions" title="More actions">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+        <circle cx="5"  cy="12" r="1.7"/>
+        <circle cx="12" cy="12" r="1.7"/>
+        <circle cx="19" cy="12" r="1.7"/>
+      </svg>
     </button>`;
 
   // Timeline · a Fluent process rail — node over label over time,
@@ -607,23 +585,9 @@ function renderApplicantCard(a) {
           <div class="pa-steps">${timelineHtml}</div>
         </div>
 
-        <div class="pa-zone pa-zone-action">
-          <div class="pa-act-row">
-            ${videoBtn}
-            ${advanceBtn}
-            ${declineBtn}
-          </div>
-          <div class="pa-act-contact">
-            <button class="pa-icon-btn${phoneDisabled}" type="button" data-rr-pa-pop="phone" title="${phoneTitle}" aria-label="Call">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-            </button>
-            <button class="pa-icon-btn${emailDisabled}" type="button" data-rr-pa-pop="email" title="${emailTitle}" aria-label="Email">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>
-            </button>
-            <button class="pa-icon-btn" type="button" data-rr-pa-pop="notes" title="Notes" aria-label="Notes">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
-            </button>
-          </div>
+        <div class="pa-zone pa-zone-action pa-zone-action-v4">
+          ${advanceBtn}
+          ${moreBtn}
         </div>
 
       </div>
@@ -751,6 +715,23 @@ function _paOpenNotesPopover(anchor, a) {
 }
 
 document.addEventListener("click", (e) => {
+  // Overflow ⋯ menu · the only secondary surface on the card. Opens
+  // a single popover with Phone / Email / Note utilities; each row
+  // dispatches to the existing _paOpen* handlers so the underlying
+  // contact flows stay unchanged.
+  const moreBtn = e.target.closest("[data-rr-pa-more]");
+  if (moreBtn) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const card = moreBtn.closest(".pa-card");
+    const id = card?.getAttribute("data-applicant");
+    if (!id) return;
+    if (_paOpenPop && _paOpenPop.anchor === moreBtn) { _paClosePop(); return; }
+    const a = (window._rrPipelineById?.get?.(id))
+      || { id, full_name: card.querySelector(".pa-card-name")?.textContent || "" };
+    _paOpenMoreMenu(moreBtn, a);
+    return;
+  }
   const icon = e.target.closest("[data-rr-pa-pop]");
   if (!icon) return;
   e.preventDefault();
@@ -771,6 +752,42 @@ document.addEventListener("click", (e) => {
     openEmailThreadModal(id, a.full_name || "", a.email);
   }
 }, true);
+
+// ── Overflow ⋯ menu builder · one popover with Phone / Email / Note
+// rows. Each row dispatches to the existing per-utility opener so all
+// the downstream flows (call / email thread modal / notes popover)
+// stay exactly as they were.
+function _paOpenMoreMenu(anchor, a) {
+  const phoneSub = a.phone ? escapeHtml(a.phone) : "No phone on file";
+  const emailSub = a.email ? escapeHtml(a.email) : "No email on file";
+  const phoneIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+  const emailIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>';
+  const noteIcon  = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>';
+  const row = (act, icon, label, sub, disabled) => `
+    <button class="pa-pop-mi${disabled ? " is-disabled" : ""}" type="button" data-rr-more-act="${act}"${disabled ? " disabled" : ""}>
+      <span class="pa-pop-mi-icon">${icon}</span>
+      <span class="pa-pop-mi-body">
+        <span class="pa-pop-mi-label">${label}</span>
+        <span class="pa-pop-mi-sub">${sub}</span>
+      </span>
+    </button>`;
+  const html =
+      row("phone", phoneIcon, "Phone", phoneSub, !a.phone)
+    + row("email", emailIcon, "Email", emailSub, !a.email)
+    + row("note",  noteIcon,  "Note",  "Add an internal note", false);
+  const pop = _paOpenPopover(anchor, html);
+  if (!pop) return;
+  pop.classList.add("pa-pop-menu");
+  pop.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-rr-more-act]");
+    if (!btn || btn.disabled) return;
+    const act = btn.getAttribute("data-rr-more-act");
+    _paClosePop();
+    if (act === "phone" && a.phone)  _paOpenPhonePopover(anchor, a);
+    else if (act === "email" && a.email) openEmailThreadModal(a.id, a.full_name || "", a.email);
+    else if (act === "note")          _paOpenNotesPopover(anchor, a);
+  });
+}
 
 // Any data-rr-action click inside the More popover should close the
 // popover before firing (the handler at the bottom will refresh the list).
