@@ -235,39 +235,48 @@ Deno.serve(async (req) => {
     `Call submit_classification with your verdict.`;
 
   // Call Anthropic with tool_choice forcing the structured output path.
+  // 5xx responses (502/503/504/520 from Cloudflare in front of the
+  // Anthropic gateway, or 529 'overloaded') get retried with
+  // exponential backoff — these are usually transient blips.
   let verdict: ClassifierVerdict | null = null;
   let modelUsed = DEFAULT_MODEL;
   let lastError: string | null = null;
-  try {
-    const resp = await fetch(ANTHROPIC_API, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "anthropic-version": "2023-06-01",
-        "x-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        model: DEFAULT_MODEL,
-        max_tokens: 1500,
-        system: SYSTEM_PROMPT,
-        tools: [CLASSIFY_TOOL],
-        tool_choice: { type: "tool", name: "submit_classification" },
-        messages: [{
-          role: "user",
-          content: [fileBlock, { type: "text", text: userText }],
-        }],
-      }),
-    });
-    if (!resp.ok) {
-      const txt = await resp.text();
-      // Surface the first chunk of Anthropic's error body in the
-      // saved error so the operator can see "model_not_found" or
-      // "overloaded" instead of just a status code. 200 chars is
-      // plenty for the standard {type, error: {message}} envelope.
-      const detail = txt.replace(/\s+/g, " ").slice(0, 200);
-      lastError = `anthropic_${resp.status}_${detail}`;
-      console.error("anthropic non-2xx:", resp.status, txt.slice(0, 500));
-    } else {
+  const requestBody = JSON.stringify({
+    model: DEFAULT_MODEL,
+    max_tokens: 1500,
+    system: SYSTEM_PROMPT,
+    tools: [CLASSIFY_TOOL],
+    tool_choice: { type: "tool", name: "submit_classification" },
+    messages: [{
+      role: "user",
+      content: [fileBlock, { type: "text", text: userText }],
+    }],
+  });
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const resp = await fetch(ANTHROPIC_API, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "anthropic-version": "2023-06-01",
+          "x-api-key": apiKey,
+        },
+        body: requestBody,
+      });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        const detail = txt.replace(/\s+/g, " ").slice(0, 200);
+        lastError = `anthropic_${resp.status}_${detail}`;
+        console.error(`anthropic non-2xx attempt ${attempt + 1}:`, resp.status, txt.slice(0, 500));
+        const retriable = resp.status >= 500 || resp.status === 429 || resp.status === 529;
+        if (retriable && attempt < 3) {
+          // 1s, 2s, 4s — keeps the whole retry envelope under the
+          // dashboard's "is it working?" attention span.
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+          continue;
+        }
+        break;
+      }
       const data = await resp.json() as {
         model?: string;
         content: Array<{ type: string; name?: string; input?: unknown }>;
@@ -276,13 +285,20 @@ Deno.serve(async (req) => {
       const block = (data.content || []).find(b => b.type === "tool_use" && b.name === "submit_classification");
       if (block && typeof block.input === "object" && block.input) {
         verdict = coerceVerdict(block.input);
+        lastError = null;
       } else {
         lastError = "no_tool_use_block";
       }
+      break;
+    } catch (e) {
+      lastError = (e as Error).message;
+      console.error(`anthropic exception attempt ${attempt + 1}:`, e);
+      if (attempt < 3) {
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        continue;
+      }
+      break;
     }
-  } catch (e) {
-    lastError = (e as Error).message;
-    console.error("anthropic error:", e);
   }
 
   if (!verdict) {
