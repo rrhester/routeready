@@ -132,19 +132,7 @@ async function fetchResendInboundBody(
     // place — handles `{ attachments: [{filename, content_type,
     // content|url}] }` as well as the slightly older shapes some
     // Resend versions return.
-    const attachments = _extractAttachments({ attachments: j.attachments } as InboundPayload);
-    console.log("INBOUND_DIAG fetchResendInboundBody " + JSON.stringify({
-      emailId,
-      hasText: typeof j.text === "string" && !!j.text,
-      hasHtml: typeof j.html === "string" && !!j.html,
-      attachmentsKey: typeof j.attachments,
-      attachmentsLen: Array.isArray(j.attachments) ? j.attachments.length : null,
-      attachmentsSample: Array.isArray(j.attachments) && j.attachments.length > 0
-        ? Object.keys((j.attachments as Record<string, unknown>[])[0] ?? {})
-        : null,
-      parsedCount: attachments.length,
-      topLevelKeys: Object.keys(j),
-    }));
+    const attachments = _extractAttachments({ attachments: j.attachments } as InboundPayload, emailId);
     return {
       text: typeof j.text === "string" && j.text ? j.text : null,
       html: typeof j.html === "string" && j.html ? j.html : null,
@@ -234,18 +222,6 @@ Deno.serve(async (req) => {
   let payload: InboundPayload = {};
   try { payload = JSON.parse(rawBody || "{}") as InboundPayload; } catch { /* keep {} */ }
   const data = payload.data ?? payload; // Resend nests the message under `data`.
-
-  console.log("INBOUND_DIAG entry " + JSON.stringify({
-    topLevelKeys: Object.keys(payload),
-    dataKeys: Object.keys(data),
-    hasEmailId: !!(data as Record<string, unknown>).email_id,
-    hasId: !!(data as Record<string, unknown>).id,
-    payloadAttachmentsType: typeof (data as Record<string, unknown>).attachments,
-    payloadAttachmentsLen: Array.isArray((data as Record<string, unknown>).attachments)
-      ? ((data as Record<string, unknown>).attachments as unknown[]).length
-      : null,
-    subject: typeof data.subject === "string" ? data.subject.slice(0, 80) : null,
-  }));
 
   const fromEmail = pickAddress(data.from);
   const toEmail   = pickAddress(data.to);
@@ -382,12 +358,6 @@ Deno.serve(async (req) => {
         const { count } = await supa.from("document_intake")
           .select("id", { count: "exact", head: true })
           .eq("email_message_id", row.id as string);
-        console.log("INBOUND_DIAG dedup-backfill " + JSON.stringify({
-          emailMessageId: row.id,
-          existingIntakeCount: count ?? 0,
-          mergedAttachments: attachments.length,
-          willBackfill: !count,
-        }));
         if (!count) {
           await _captureAttachments(supa, {
             dspId: dsp.id,
@@ -423,13 +393,6 @@ Deno.serve(async (req) => {
   // Phase 3 will file. For now we just capture so nothing arriving in
   // mail is ever lost. Best-effort — a failed attachment upload never
   // blocks the email itself from being recorded.
-  console.log("INBOUND_DIAG attachments " + JSON.stringify({
-    inlineCount: inlineAttachments.length,
-    fetchedCount: fetchedAttachments.length,
-    mergedCount: attachments.length,
-    emailRowInserted: !!insertedEmail?.id,
-    willCapture: !!(insertedEmail?.id && attachments.length > 0),
-  }));
   if (insertedEmail?.id && attachments.length > 0) {
     await _captureAttachments(supa, {
       dspId: dsp.id,
@@ -450,23 +413,45 @@ Deno.serve(async (req) => {
 
 
 // ── Attachment capture ──────────────────────────────────────────────
-// Resend's email.received payload carries attachments inline as a list
-// of objects. The exact shape varies a little by sender / parser, so we
-// accept several common variants:
-//   { filename, content_type, content (base64) }      ← Resend native
-//   { name, type, data }                              ← some forwarders
-//   { filename, content_type, url }                   ← URL-only payloads
-// _extractAttachments normalizes to a single shape.
+// Inbound mail attachments arrive in three different shapes depending
+// on who's sending the webhook:
+//
+//   1. { filename, content_type, content (base64) }  ← inline body
+//   2. { filename, content_type, url }                ← URL-only payload
+//   3. { id, filename, content_type, size, … }        ← metadata-only
+//                                                       (this is what
+//                                                       Resend's
+//                                                       /emails/receiving/{id}
+//                                                       API returns —
+//                                                       the bytes have
+//                                                       to be fetched
+//                                                       in a second
+//                                                       step via
+//                                                       /emails/receiving/{eid}/attachments/{aid}
+//                                                       which returns a
+//                                                       short-lived
+//                                                       download_url).
+//
+// _extractAttachments normalizes all three into a single InboundAttachment
+// shape; _captureAttachments knows how to resolve each variant down to
+// raw bytes.
 
 interface InboundAttachment {
   filename: string;
   contentType: string;
-  // Exactly one of these is populated:
+  // At least one of these is populated. For metadata-only Resend API
+  // responses we keep the email_id + attachment_id and resolve the
+  // download_url at capture time, since the URL is short-lived.
   contentB64?: string;
   url?: string;
+  resendEmailId?: string;
+  resendAttachmentId?: string;
 }
 
-function _extractAttachments(data: InboundPayload): InboundAttachment[] {
+function _extractAttachments(
+  data: InboundPayload,
+  resendEmailId?: string,
+): InboundAttachment[] {
   const raw = (data as unknown as Record<string, unknown>).attachments;
   if (!Array.isArray(raw)) return [];
   const out: InboundAttachment[] = [];
@@ -477,13 +462,17 @@ function _extractAttachments(data: InboundPayload): InboundAttachment[] {
     const contentType = (obj.content_type ?? obj.contentType ?? obj.type ?? obj.mime_type) as string | undefined;
     const contentB64 = (obj.content ?? obj.data ?? obj.content_base64) as string | undefined;
     const url = (obj.url ?? obj.path ?? obj.href) as string | undefined;
+    const id = obj.id as string | undefined;
     if (!filename) continue;
-    if (!contentB64 && !url) continue;
+    const canResolveViaResend = !!(id && resendEmailId);
+    if (!contentB64 && !url && !canResolveViaResend) continue;
     out.push({
       filename: String(filename).slice(0, 200),
       contentType: String(contentType || "application/octet-stream"),
       contentB64: typeof contentB64 === "string" ? contentB64 : undefined,
       url: typeof url === "string" ? url : undefined,
+      resendEmailId: canResolveViaResend ? resendEmailId : undefined,
+      resendAttachmentId: canResolveViaResend ? String(id) : undefined,
     });
   }
   return out;
@@ -520,19 +509,50 @@ async function _captureAttachments(
   const retentionUntil = new Date(Date.now() + 90 * 86400 * 1000)
     .toISOString().slice(0, 10);
 
+  const apiKey = Deno.env.get("RESEND_API_KEY") || "";
+
   for (const att of ctx.attachments) {
     try {
       let bytes: Uint8Array | null = null;
+      let resolvedUrl: string | null = null;
+
+      // Resend API path: fetch the per-attachment endpoint to get a
+      // short-lived download_url, then download those bytes. The URL
+      // expires fast so we resolve at capture time, not earlier.
+      if (!att.contentB64 && !att.url && att.resendEmailId && att.resendAttachmentId && apiKey) {
+        const metaRes = await fetch(
+          `https://api.resend.com/emails/receiving/${encodeURIComponent(att.resendEmailId)}/attachments/${encodeURIComponent(att.resendAttachmentId)}`,
+          { headers: { Authorization: `Bearer ${apiKey}` } },
+        );
+        if (!metaRes.ok) {
+          console.warn("resend attachment meta fetch failed", {
+            status: metaRes.status,
+            attachmentId: att.resendAttachmentId,
+          });
+          continue;
+        }
+        const meta = await metaRes.json().catch(() => ({})) as Record<string, unknown>;
+        const dl = (meta.download_url ?? meta.downloadUrl ?? meta.url) as string | undefined;
+        if (typeof dl === "string" && dl) resolvedUrl = dl;
+        else {
+          console.warn("resend attachment meta missing download_url", { keys: Object.keys(meta) });
+          continue;
+        }
+      }
+
       if (att.contentB64) {
         bytes = _base64ToBytes(att.contentB64);
-      } else if (att.url) {
-        const resp = await fetch(att.url);
-        if (resp.ok) {
-          const buf = new Uint8Array(await resp.arrayBuffer());
-          bytes = buf;
-        } else {
-          console.warn("attachment fetch failed", { url: att.url, status: resp.status });
-          continue;
+      } else {
+        const url = att.url ?? resolvedUrl;
+        if (url) {
+          const resp = await fetch(url);
+          if (resp.ok) {
+            const buf = new Uint8Array(await resp.arrayBuffer());
+            bytes = buf;
+          } else {
+            console.warn("attachment fetch failed", { url, status: resp.status });
+            continue;
+          }
         }
       }
       if (!bytes || bytes.length === 0) continue;
