@@ -20674,9 +20674,7 @@ body.rr-cmdk-open{ overflow:hidden }
          MESSAGES — real-time dispatch ↔ driver comms
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-messages">
-      <div class="page page-shell" style="padding-bottom:0">
-        <!-- ── Page shell · canonical layout adoption ────────────── -->
-        <div class="page-shell-chrome">
+      <div class="page" style="padding-bottom:0">
         <div class="page-header">
           <div class="page-header-l">
             <div class="page-icon" data-c="messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
@@ -20695,11 +20693,8 @@ body.rr-cmdk-open{ overflow:hidden }
               New broadcast
             </button>
           </div>
-        </div><!-- /.page-header -->
-        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
-        </div><!-- /.page-shell-chrome -->
+        </div>
 
-        <div class="page-shell-body">
         <div class="msg-shell" data-rr-no-drawer>
           <!-- LEFT: conversation list -->
           <aside class="msg-list">
@@ -20745,8 +20740,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="rr-empty-sub">Select a driver, channel, or broadcast from the list to open the thread.</div>
             </div>
           </section>
-        </div><!-- /.msg-shell -->
-        </div><!-- /.page-shell-body -->
+        </div>
       </div>
     </div>
 
@@ -22124,7 +22118,7 @@ body.rr-cmdk-open{ overflow:hidden }
          [data-co-render="rules-list"].
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-compliance">
-      <div class="page co-page page-shell">
+      <div class="page co-page">
 
         <style>
           /* ── Compliance · table-first scoped design system ─────── */
@@ -22370,8 +22364,6 @@ body.rr-cmdk-open{ overflow:hidden }
           .co-cap.escalate{background:var(--text);color:var(--red-bright);border-color:transparent}
         </style>
 
-        <!-- ── Page shell · canonical layout adoption ────────────── -->
-        <div class="page-shell-chrome">
         <div class="page-header">
           <div class="page-header-l">
             <div class="page-icon" data-c="compliance">
@@ -22399,11 +22391,7 @@ body.rr-cmdk-open{ overflow:hidden }
             Rules
             <span class="subnav-count" data-co-count="rules" hidden>0</span>
           </button>
-        </div><!-- /.subnav#co-subnav -->
-        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
-        </div><!-- /.page-shell-chrome -->
-
-        <div class="page-shell-body">
+        </div>
 
         <div class="co-tab is-active" id="co-tab-exceptions">
           <div data-co-render="exceptions-table" style="flex:1;display:flex;flex-direction:column;min-height:0">
@@ -22430,7 +22418,6 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
-        </div><!-- /.page-shell-body -->
       </div>
     </div>
 
@@ -22443,7 +22430,7 @@ body.rr-cmdk-open{ overflow:hidden }
          the driver app, and logs the accountability trail.
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-workspaces">
-      <div class="page page-shell">
+      <div class="page">
         <style>
           /* ── Workspaces · operational boards (scoped) ─────────────── */
           #view-workspaces .ws-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3-5);margin-bottom:var(--s-4);flex-wrap:wrap}
@@ -22657,8 +22644,6 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:5px 0;
           }
         </style>
-        <!-- ── Page shell · canonical layout adoption ────────────── -->
-        <div class="page-shell-chrome">
         <div class="page-header">
           <div class="page-header-l">
             <div class="page-icon" data-c="forms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
@@ -22673,10 +22658,6 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="subnav-item active" data-sub="workflows" onclick="goto('workspaces')">Workflows</button>
           <button class="subnav-item" data-sub="checklists" onclick="goto('checklists')">Checklists</button>
         </div>
-        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
-        </div><!-- /.page-shell-chrome -->
-
-        <div class="page-shell-body">
         <div id="rr-ws-root">
           <!-- Skeleton workspaces grid — six card placeholders so
                the layout doesn't reflow when the boards arrive. -->
@@ -22689,7 +22670,6 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="ws-skel-card"><span class="rr-skel rr-skel-md" style="width:58%"></span><span class="rr-skel rr-skel-sm" style="width:82%"></span><span class="rr-skel rr-skel-sm" style="width:66%"></span></div>
           </div>
         </div>
-        </div><!-- /.page-shell-body -->
       </div>
     </div>
 
