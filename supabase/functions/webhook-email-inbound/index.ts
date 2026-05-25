@@ -42,6 +42,10 @@ interface InboundPayload {
   message_id?: string;
   email_id?: string;
   id?: string;
+  // Attachments only appear via the Resend API response (the webhook
+  // payload itself is metadata-only). Shape varies across forwarders;
+  // _extractAttachments normalizes it.
+  attachments?: unknown;
   // Resend's `email.received` event nests the message under `data`.
   data?: InboundPayload;
 }
@@ -89,12 +93,27 @@ function htmlToText(html: string): string {
     .trim();
 }
 
-// Resend's `email.received` webhook is metadata-only (no body). Fetch
-// the parsed message from Resend's API by its email id to get text/html.
+// Resend's `email.received` webhook is metadata-only (no body, no
+// attachments). Fetch the parsed message from Resend's API by its
+// email id to get the text/html body AND the attachment list.
+//
+// The /emails/receiving/{id} endpoint returns the full inbound payload
+// including any attachments — each attachment carries filename,
+// content_type, and either inline base64 `content` or a downloadable
+// `url`. We surface both so the caller can pass them straight to the
+// document_intake capture path without a second round trip.
 async function fetchResendInboundBody(
   emailId: string | null,
-): Promise<{ text: string | null; html: string | null }> {
-  const empty = { text: null as string | null, html: null as string | null };
+): Promise<{
+  text: string | null;
+  html: string | null;
+  attachments: InboundAttachment[];
+}> {
+  const empty = {
+    text: null as string | null,
+    html: null as string | null,
+    attachments: [] as InboundAttachment[],
+  };
   if (!emailId) return empty;
   const apiKey = Deno.env.get("RESEND_API_KEY");
   if (!apiKey) return empty;
@@ -109,9 +128,15 @@ async function fetchResendInboundBody(
       return empty;
     }
     const j = await r.json().catch(() => ({})) as Record<string, unknown>;
+    // Reuse the shared extractor so the API-shape parser stays in one
+    // place — handles `{ attachments: [{filename, content_type,
+    // content|url}] }` as well as the slightly older shapes some
+    // Resend versions return.
+    const attachments = _extractAttachments({ attachments: j.attachments } as InboundPayload);
     return {
       text: typeof j.text === "string" && j.text ? j.text : null,
       html: typeof j.html === "string" && j.html ? j.html : null,
+      attachments,
     };
   } catch (e) {
     console.log(`fetchResendInboundBody: ${(e as Error)?.message ?? e}`);
@@ -258,13 +283,22 @@ Deno.serve(async (req) => {
   // 3. Body. Resend's email.received webhook is metadata-only, so fetch
   // the parsed message from Resend's API; fall back to anything inline
   // in the payload (other parsers carry text/html), then to an HTML→text
-  // pass so the thread always shows the reply text.
+  // pass so the thread always shows the reply text. We always pull
+  // from Resend's API when we have an email_id — even when the
+  // webhook payload already carries body text — because attachments
+  // are NEVER in the webhook payload (metadata-only) and only the
+  // API response includes them.
   let bodyText: string | null = typeof data.text === "string" && data.text ? data.text : null;
   let bodyHtml: string | null = typeof data.html === "string" && data.html ? data.html : null;
-  if (!bodyText && !bodyHtml) {
-    const fetched = await fetchResendInboundBody(typeof data.email_id === "string" ? data.email_id : null);
-    bodyText = fetched.text;
-    bodyHtml = fetched.html;
+  let fetchedAttachments: InboundAttachment[] = [];
+  const resendEmailId = typeof data.email_id === "string" && data.email_id
+    ? data.email_id
+    : (typeof data.id === "string" ? data.id : null);
+  if (resendEmailId) {
+    const fetched = await fetchResendInboundBody(resendEmailId);
+    if (!bodyText) bodyText = fetched.text;
+    if (!bodyHtml) bodyHtml = fetched.html;
+    fetchedAttachments = fetched.attachments;
   }
   if (!bodyText && bodyHtml) bodyText = htmlToText(bodyHtml);
 
@@ -323,7 +357,25 @@ Deno.serve(async (req) => {
   // Phase 3 will file. For now we just capture so nothing arriving in
   // mail is ever lost. Best-effort — a failed attachment upload never
   // blocks the email itself from being recorded.
-  const attachments = _extractAttachments(data);
+  //
+  // Two possible sources:
+  //   1. Inline in the webhook payload (some forwarders include them).
+  //   2. The Resend API response we fetched above (`fetchedAttachments`)
+  //      — this is the path for Resend's own email.received which is
+  //      metadata-only and never carries attachments in the webhook.
+  // Merge both, dedupe by filename, so we capture whichever shows up.
+  const inlineAttachments = _extractAttachments(data);
+  const attachments = (() => {
+    const seen = new Set<string>();
+    const out: InboundAttachment[] = [];
+    for (const a of [...inlineAttachments, ...fetchedAttachments]) {
+      const key = a.filename + "|" + (a.contentType || "");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(a);
+    }
+    return out;
+  })();
   if (insertedEmail?.id && attachments.length > 0) {
     await _captureAttachments(supa, {
       dspId: dsp.id,
