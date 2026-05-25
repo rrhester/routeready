@@ -27942,18 +27942,32 @@ John,Smith,555-0101,john@example.com</code>
     var subs = root.querySelectorAll('#rr-sched-page-sub-s2, .sched-page-sub, .page-sub');
     subs.forEach(function(s){ if (s) s.textContent = 'Onboarding · static layout clone'; });
 
-    // 2. Action strip swap. Find the cloned action ribbon in Schedule 2
-    // and replace it with the live Onboarding strip's HTML (also
-    // suffixed so live handlers can't bind into it).
+    // 2. Action strip swap. cloneNode(true) + replaceChild is the
+    // bulletproof DOM-level swap — outerHTML replacement was failing
+    // silently (parser quirks + the strip's inline <style> tags).
     var s2Strip = root.querySelector('.sched-nav-heading-actions');
     var obStrip = document.querySelector('#view-onboarding-ops .sched-nav-heading-actions');
-    if (s2Strip && obStrip) {
-      var obHtml = obStrip.outerHTML
-        .replace(/(\sid=")([^"]+)(")/g, function(_m, a, idv, c){ return a + idv + '-s2ob' + c; })
-        .replace(/(\sfor=")([^"]+)(")/g, function(_m, a, lv, c){ return a + lv + '-s2ob' + c; })
-        .replace(/(\saria-controls=")([^"]+)(")/g, function(_m, a, v, c){ return a + v + '-s2ob' + c; })
-        .replace(/(\saria-labelledby=")([^"]+)(")/g, function(_m, a, v, c){ return a + v + '-s2ob' + c; });
-      s2Strip.outerHTML = obHtml;
+    if (s2Strip && obStrip && s2Strip.parentNode) {
+      var clone = obStrip.cloneNode(true);
+      // Suffix every id on the clone so live Onboarding handlers
+      // (which query the original ids) can't bind to or mutate the
+      // duplicates. Also rename for / aria-controls / aria-labelledby
+      // so accessibility associations stay intact within the clone.
+      var withId = clone.querySelectorAll('[id]');
+      for (var i = 0; i < withId.length; i++) withId[i].id = withId[i].id + '-s2ob';
+      if (clone.id) clone.id = clone.id + '-s2ob';
+      var withFor = clone.querySelectorAll('[for]');
+      for (var j = 0; j < withFor.length; j++) withFor[j].setAttribute('for', withFor[j].getAttribute('for') + '-s2ob');
+      var withCtl = clone.querySelectorAll('[aria-controls]');
+      for (var k = 0; k < withCtl.length; k++) withCtl[k].setAttribute('aria-controls', withCtl[k].getAttribute('aria-controls') + '-s2ob');
+      var withLab = clone.querySelectorAll('[aria-labelledby]');
+      for (var l = 0; l < withLab.length; l++) withLab[l].setAttribute('aria-labelledby', withLab[l].getAttribute('aria-labelledby') + '-s2ob');
+      // Strip onclick handlers so the cloned buttons stay inert
+      // (clicking "Add applicant" in Schedule 2 shouldn't open the
+      // real modal in the Onboarding view).
+      var withClick = clone.querySelectorAll('[onclick]');
+      for (var m = 0; m < withClick.length; m++) withClick[m].removeAttribute('onclick');
+      s2Strip.parentNode.replaceChild(clone, s2Strip);
     }
 
     // 3. Kill scrollbars inside Schedule 2. One-time style injection.
