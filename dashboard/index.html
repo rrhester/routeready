@@ -15368,18 +15368,24 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-schedule .sched-week-nav-btn{
             appearance:none;background:transparent;border:0;cursor:pointer;
-            color:var(--text-muted);width:30px;height:30px;border-radius:var(--r-md);
+            color:var(--text-muted);
+            /* Tightened from 30 → 26px so the whole nav fits between
+               the last icon (Kudos) and the strip-card right edge
+               on narrower windows. */
+            width:26px;height:26px;border-radius:var(--r-md);
             display:inline-flex;align-items:center;justify-content:center;
             transition:background var(--t-fast), color var(--t-fast);
           }
           #view-schedule .sched-week-nav-btn:hover{background:var(--canvas);color:var(--text)}
           #view-schedule .sched-week-nav-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
-          #view-schedule .sched-week-nav-btn svg{width:16px;height:16px}
+          #view-schedule .sched-week-nav-btn svg{width:14px;height:14px}
           #view-schedule .sched-week-nav-range{
             appearance:none;background:transparent;border:0;cursor:pointer;font:inherit;
-            display:inline-flex;align-items:center;gap:8px;
-            padding:0 10px;height:30px;border-radius:var(--r-md);
-            font-size:var(--fs-sm);font-weight:600;color:var(--text);
+            display:inline-flex;align-items:center;gap:6px;
+            /* Padding + height tightened to match the smaller arrow
+               buttons; gap to caret reduced from 8 → 6. */
+            padding:0 8px;height:26px;border-radius:var(--r-md);
+            font-size:var(--fs-xs);font-weight:600;color:var(--text);
             font-variant-numeric:tabular-nums;
             transition:background var(--t-fast);
           }
