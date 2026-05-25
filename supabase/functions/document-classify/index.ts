@@ -131,7 +131,13 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
 
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  // Some operators paste the key with its dashboard label prefix
+  // (e.g. "rrai2 sk-ant-api03-…"). The whitespace makes Headers
+  // reject the value with "Invalid header value", so strip anything
+  // before the sk-ant- prefix defensively.
+  const rawKey = (Deno.env.get("ANTHROPIC_API_KEY") || "").trim();
+  const skIdx = rawKey.indexOf("sk-ant-");
+  const apiKey = skIdx > 0 ? rawKey.slice(skIdx) : rawKey;
   if (!apiKey) return jsonResponse({ error: "anthropic_key_missing" }, { status: 500, headers: CORS });
 
   let body: { id?: string; force?: boolean } = {};
