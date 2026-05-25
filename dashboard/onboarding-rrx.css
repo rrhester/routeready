@@ -70,32 +70,18 @@
   overflow: visible !important;
 }
 
-/* KPI-strip placeholder · Schedule's chrome reserves ~54px below
-   the header card for its #rr-sched-kpis row (schedule-rrx.css:921).
-   Onboarding doesn't render a metric strip, but without that
-   reserved space the Onboarding body content sits ~54px HIGHER
-   than Schedule's, so clicking between the two pages snaps the
-   body upward. Paint an empty, visually-identical card here so
-   the body Y-origin matches.  Dimensions mirror Schedule's KPI
-   strip 1:1 (46px content + 1px×2 border + 8px bottom margin =
-   ~56px total reserved space). */
-#view-onboarding-ops.rrx-onboarding > .page > .ob-cmd-shell::after {
-  content: "";
-  display: block;
-  /* Heights point at the TopControlPlane KPI token — same
-     source of truth as Schedule's #rr-sched-kpis. This pseudo
-     is the .tcp-kpi.is-empty equivalent for Onboarding. */
-  min-height: var(--tcp-kpi-h, 46px);
-  height:     var(--tcp-kpi-h, 46px);
+/* KPI-strip card surface · paints the visible empty card under
+   the strip card. tcp.css owns the height (--tcp-kpi-h); this
+   rule paints border/background/radius/margin-bottom so the
+   empty Onboarding KPI band looks identical to Schedule's
+   #rr-sched-kpis before pills populate it. */
+#view-onboarding-ops.rrx-onboarding > .page > .tcp-kpi {
   margin: 0 0 var(--tcp-kpi-gap, 8px) 0;
   border: 1px solid var(--rr-border-primary, #E1DFDD);
   border-radius: var(--rr-radius-medium, 4px);
   background: var(--rr-bg-surface-1, #FFFFFF);
   box-sizing: border-box;
 }
-/* Focus mode hides the cmd-shell entirely — the ::after pseudo
-   goes with it automatically since it's the shell's own pseudo,
-   so no extra rule needed. */
 
 /* Onboarding sub-pages (the readiness board, work-auth queue,
    pipeline mount) fill the leftover space and scroll inside. */
@@ -693,15 +679,21 @@
   height: 14px;
 }
 
+/* Plain-text cmd-tabs · matches Schedule's treatment (see
+   schedule-rrx.css :1982 + :209). No active-tab card chrome,
+   no hover background — the row reads as a static row of
+   brand-blue labels above the strip card. Same treatment on
+   both pages means there's no visual jump when flipping
+   between Schedule and Onboarding. */
 #view-onboarding-ops.rrx-onboarding .ob-cmd-tab:hover:not(.active) {
-  color: var(--rr-fg-primary);
-  background: var(--rr-bg-hover);
+  color: var(--rr-brand-primary);
+  background: transparent;
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-cmd-tab.active {
   color: var(--rr-brand-primary);
-  background: var(--rr-bg-surface-1);
-  border-color: var(--rr-border-primary);
+  background: transparent;
+  border-color: transparent;
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-cmd-tab:focus-visible {
