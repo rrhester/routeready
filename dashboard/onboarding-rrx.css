@@ -795,8 +795,16 @@
    In roster mode the regular Onboarding ribbon AND any print
    actions are hidden so only the roster tiles render in the
    strip-card icon slot. */
+/* The Roster ribbon ALSO carries .sched-nav-heading-actions for
+   tile chrome inheritance, and that class has display:flex
+   !important — which would force the Roster ribbon to show on
+   EVERY mode unless we beat it with !important here. So hide
+   the Roster ribbon by default with !important, only revealing
+   it in roster mode (rule below). Without this, the Roster
+   tiles (Roster/Licences/Attendance/Coaching) bleed onto the
+   Onboarding cmd-tab strip alongside the regular tiles. */
 #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions {
-  display: none;
+  display: none !important;
 }
 #view-onboarding-ops.rrx-onboarding .ob-cmd-shell.is-roster .ob-v2-roster-actions {
   display: flex !important;
