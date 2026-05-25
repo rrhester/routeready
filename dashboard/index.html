@@ -11442,7 +11442,9 @@ body.rr-cmdk-open{ overflow:hidden }
         #obsub-pipeline #view-pipeline .page-header{display:none}
         #obsub-pipeline #view-pipeline .pipe-subnav-row{display:none}
       </style>
-      <div class="page">
+      <div class="page page-shell">
+        <!-- ── Page shell · canonical layout adoption ────────────── -->
+        <div class="page-shell-chrome">
         <!-- Command shell · Onboarding / Print-Download mode tabs
              above the header, matching the Schedule page pattern. -->
         <div class="ob-cmd-shell" id="rr-ob-cmd">
@@ -11754,6 +11756,10 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div><!-- /page-header.sched-nav-heading -->
         </div><!-- /ob-cmd-shell -->
+        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
+        </div><!-- /.page-shell-chrome -->
+
+        <div class="page-shell-body">
 
         <!-- Onboarding KPI strip removed · never populated by JS,
              rendered as an empty white card below the icon strip.
@@ -12072,6 +12078,7 @@ body.rr-cmdk-open{ overflow:hidden }
              Overview tab's right column (see _obMountDocuments).
              The old #obsub-documents host is removed. -->
 
+        </div><!-- /.page-shell-body -->
       </div>
     </div>
 
@@ -12079,7 +12086,9 @@ body.rr-cmdk-open{ overflow:hidden }
          DRIVERS VIEW
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-drivers">
-      <div class="page">
+      <div class="page page-shell">
+        <!-- ── Page shell · canonical layout adoption ────────────── -->
+        <div class="page-shell-chrome">
         <div class="page-header">
           <div class="page-header-l">
             <div class="page-icon" data-c="drivers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
@@ -12152,7 +12161,10 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="stat-mini-label">Turnover</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div>
             <button class="rr-tf-icon" data-rr-roster-tf-toggle="turnover" type="button" aria-label="Switch time frame" title="Switch time frame"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></button>
           </div>
-        </div>
+        </div><!-- /.driver-stat-row -->
+        </div><!-- /.page-shell-chrome -->
+
+        <div class="page-shell-body">
 
         <!-- Roster KPI drill-down panel · opens when an operator clicks
              one of the clickable KPI tiles above. -->
@@ -12790,6 +12802,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
         </div><!-- /dr-sub-availability -->
 
+        </div><!-- /.page-shell-body -->
       </div>
     </div>
 
