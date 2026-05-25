@@ -23879,6 +23879,56 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-email .em-grid{grid-template-columns:1fr}
             #view-email .em-aside{position:static;max-height:none}
           }
+          /* Documents pseudo-folder · pinned at top of the System list,
+             muted accent so it reads as "different kind of inbox" without
+             stealing attention from the email tabs. */
+          #view-email .em-folder.em-folder-docs .em-folder-icon{color:var(--accent-7,#6366f1)}
+          #view-email .em-folder.em-folder-docs.active .em-folder-icon{color:#fff}
+          /* Upload pill sits in the docs inbox toolbar. */
+          #view-email .em-docs-toolbar{
+            display:flex;align-items:center;justify-content:flex-end;
+            padding:var(--s-3) var(--s-4);
+            border-bottom:1px solid var(--border-subtle,#e5e7eb);
+            background:var(--surface,#fff);
+          }
+          #view-email .em-docs-upload{
+            display:inline-flex;align-items:center;gap:6px;
+            padding:6px 12px;border-radius:6px;cursor:pointer;
+            background:var(--accent-7,#6366f1);color:#fff;
+            font-size:var(--fs-xs,12px);font-weight:600;letter-spacing:.01em;
+            border:1px solid var(--accent-7,#6366f1);
+            transition:background .15s ease,border-color .15s ease;
+          }
+          #view-email .em-docs-upload:hover{background:var(--accent-8,#4f46e5);border-color:var(--accent-8,#4f46e5)}
+          #view-email .em-docs-upload svg{width:13px;height:13px}
+          /* Status pills on the doc row's snippet line. */
+          #view-email .em-doc-badge{
+            display:inline-block;padding:1px 8px;border-radius:999px;
+            font-size:10px;font-weight:600;letter-spacing:.03em;
+            text-transform:uppercase;line-height:1.4;
+            background:var(--neutral-2,#f3f4f6);color:var(--text-muted,#6b7280);
+          }
+          #view-email .em-doc-badge-pending{background:#fef3c7;color:#92400e}
+          #view-email .em-doc-badge-classified{background:#dbeafe;color:#1e40af}
+          #view-email .em-doc-badge-filed{background:#dcfce7;color:#166534}
+          /* Preview body for docs — fills the available height with the
+             PDF iframe or image, instead of the email body's natural flow. */
+          #view-email .em-doc-preview-body{
+            padding:0;display:flex;flex-direction:column;min-height:0;flex:1;
+          }
+          #view-email .em-doc-preview-frame{
+            width:100%;flex:1;min-height:0;border:0;background:var(--neutral-1,#f9fafb);
+          }
+          #view-email .em-doc-preview-img{
+            max-width:100%;max-height:100%;object-fit:contain;
+            margin:auto;padding:var(--s-4);background:var(--neutral-1,#f9fafb);
+          }
+          #view-email .em-doc-download-btn{
+            display:inline-block;margin-top:8px;padding:6px 14px;border-radius:6px;
+            background:var(--accent-7,#6366f1);color:#fff;
+            text-decoration:none;font-size:var(--fs-xs,12px);font-weight:600;
+          }
+          #view-email .em-doc-download-btn:hover{background:var(--accent-8,#4f46e5)}
         </style>
         <div class="em-cmd-shell" id="rr-em-cmd">
           <div class="em-cmd-tabs" role="tablist" aria-label="Command strip mode">
