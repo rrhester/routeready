@@ -133,6 +133,18 @@ async function fetchResendInboundBody(
     // content|url}] }` as well as the slightly older shapes some
     // Resend versions return.
     const attachments = _extractAttachments({ attachments: j.attachments } as InboundPayload);
+    console.log("INBOUND_DIAG fetchResendInboundBody " + JSON.stringify({
+      emailId,
+      hasText: typeof j.text === "string" && !!j.text,
+      hasHtml: typeof j.html === "string" && !!j.html,
+      attachmentsKey: typeof j.attachments,
+      attachmentsLen: Array.isArray(j.attachments) ? j.attachments.length : null,
+      attachmentsSample: Array.isArray(j.attachments) && j.attachments.length > 0
+        ? Object.keys((j.attachments as Record<string, unknown>[])[0] ?? {})
+        : null,
+      parsedCount: attachments.length,
+      topLevelKeys: Object.keys(j),
+    }));
     return {
       text: typeof j.text === "string" && j.text ? j.text : null,
       html: typeof j.html === "string" && j.html ? j.html : null,
@@ -222,6 +234,18 @@ Deno.serve(async (req) => {
   let payload: InboundPayload = {};
   try { payload = JSON.parse(rawBody || "{}") as InboundPayload; } catch { /* keep {} */ }
   const data = payload.data ?? payload; // Resend nests the message under `data`.
+
+  console.log("INBOUND_DIAG entry " + JSON.stringify({
+    topLevelKeys: Object.keys(payload),
+    dataKeys: Object.keys(data),
+    hasEmailId: !!(data as Record<string, unknown>).email_id,
+    hasId: !!(data as Record<string, unknown>).id,
+    payloadAttachmentsType: typeof (data as Record<string, unknown>).attachments,
+    payloadAttachmentsLen: Array.isArray((data as Record<string, unknown>).attachments)
+      ? ((data as Record<string, unknown>).attachments as unknown[]).length
+      : null,
+    subject: typeof data.subject === "string" ? data.subject.slice(0, 80) : null,
+  }));
 
   const fromEmail = pickAddress(data.from);
   const toEmail   = pickAddress(data.to);
@@ -376,6 +400,13 @@ Deno.serve(async (req) => {
     }
     return out;
   })();
+  console.log("INBOUND_DIAG attachments " + JSON.stringify({
+    inlineCount: inlineAttachments.length,
+    fetchedCount: fetchedAttachments.length,
+    mergedCount: attachments.length,
+    emailRowInserted: !!insertedEmail?.id,
+    willCapture: !!(insertedEmail?.id && attachments.length > 0),
+  }));
   if (insertedEmail?.id && attachments.length > 0) {
     await _captureAttachments(supa, {
       dspId: dsp.id,
