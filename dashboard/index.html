@@ -825,12 +825,12 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* ── Top bar (clean white control surface) ────────────────── */
 .topbar{
   position:sticky;top:0;z-index:10;
-  /* Shortened from 56px → 44px so the tool row (refresh, undo, AI
-     search, install, settings) sits close to the top of the page
-     instead of floating ~10px below the window edge. The tallest
-     control inside the bar is the Ask pill at 38px, so 44px gives
-     it 3px breathing room top + bottom — tight without compressing. */
-  height:44px;
+  /* Shortened from 56px → 36px so the tool row (refresh, undo, AI
+     search, install, settings) sits flush near the top of the page
+     in the installed PWA — no floating gap below the OS title bar.
+     The Ask pill below is trimmed from 38px → 32px in lockstep so
+     the row still has 2px breathing room top + bottom. */
+  height:36px;
   display:flex;align-items:center;padding:0 var(--s-6);gap:var(--s-4);
   background:var(--canvas);
   border-bottom:0;
@@ -870,7 +870,8 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .hdr-ask{
   flex:1;max-width:680px;margin:0 auto;
   display:flex;align-items:center;gap:var(--s-2);
-  height:38px;padding:3px var(--s-1) 3px var(--s-3);border-radius:var(--r-pill);
+  /* Trimmed from 38px → 32px to match the tightened 36px topbar. */
+  height:32px;padding:2px var(--s-1) 2px var(--s-3);border-radius:var(--r-pill);
   background:var(--surface);
   border:1px solid var(--border-strong);
   box-shadow:var(--shadow-xs);
