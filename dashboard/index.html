@@ -27892,85 +27892,39 @@ John,Smith,555-0101,john@example.com</code>
   }
 
 
-  // Schedule 2 · static layout clone of the Schedule page. On first
-  // navigation, copies the live Schedule view's rendered DOM into
-  // #view-schedule-2 with every `id` suffixed `-s2` so JS handlers
-  // (which target the original ids) don't accidentally fire on the
-  // clone. Subsequent navigations are no-ops — the clone stays as
-  // a static snapshot. Re-clone on demand via reSchedule2Clone().
+  // Schedule 2 · static layout clone of the Onboarding view. Earlier
+  // iterations tried to clone Schedule and then surgically swap in
+  // Onboarding's icon strip + title; the swap kept failing due to
+  // parser quirks with the strip's inline <style> blocks. Simpler:
+  // just clone Onboarding directly into Schedule 2. That gets the
+  // same visible chrome (title block, icon ribbon, header) for free.
+  // Re-clone on demand via reSchedule2Clone().
   function _cloneScheduleInto(target){
-    var src = document.getElementById('view-schedule');
+    var src = document.getElementById('view-onboarding-ops');
     if (!src) return;
-    // Make sure Schedule's JS has had a chance to populate its DOM.
-    if (typeof loadSchedule === 'function' && !window.__sched_ever_loaded) {
-      try { loadSchedule(); window.__sched_ever_loaded = true; } catch (_) {}
-    }
     var html = src.innerHTML;
-    // Suffix every id so the clone is uniquely addressable AND so
-    // JS handlers querying the live ids can't match into it.
+    // Suffix every id / for / aria-controls / aria-labelledby with
+    // `-s2` so live Onboarding handlers (which query the original
+    // ids) can't accidentally bind to or mutate the clone.
     var renamed = html
       .replace(/(\sid=")([^"]+)(")/g, function(_m, a, idv, c){ return a + idv + '-s2' + c; })
       .replace(/(\sfor=")([^"]+)(")/g, function(_m, a, lv, c){ return a + lv + '-s2' + c; })
       .replace(/(\saria-controls=")([^"]+)(")/g, function(_m, a, v, c){ return a + v + '-s2' + c; })
       .replace(/(\saria-labelledby=")([^"]+)(")/g, function(_m, a, v, c){ return a + v + '-s2' + c; });
     target.innerHTML = renamed;
-    target.setAttribute('data-rr-clone', 'schedule');
+    target.setAttribute('data-rr-clone', 'onboarding');
     _injectSchedule2StyleAlias();
-    _applySchedule2OnboardingLook(target);
+    _applySchedule2Trim(target);
   }
-  // Operator-requested layout iteration · make Schedule 2 wear the
-  // Onboarding chrome:
-  //   1. Title block reads "Onboarding" instead of "Schedule".
-  //   2. The icon strip is replaced by a clone of the live
-  //      Onboarding view's icon ribbon (Funnel / Interview Day /
-  //      Calendar / Onboarding / Work auth / Add applicant /
-  //      PDF Upload).
-  //   3. Horizontal scrollbars are hidden inside Schedule 2.
-  function _applySchedule2OnboardingLook(root){
+
+  // Once the clone is in place, do the small per-page touches that
+  // distinguish Schedule 2 from the live Onboarding view: subtitle
+  // marker so it's obvious you're on the sandbox, and scrollbar
+  // suppression.
+  function _applySchedule2Trim(root){
     if (!root) return;
-    // 1. Title swap. The Schedule title sits inside the V2 nav strip;
-    // search for the H1 by its cloned id and any visible title node.
-    var titles = root.querySelectorAll('.page-title, .sched-page-title, #rr-sched-page-title-s2, h1');
-    titles.forEach(function(t){
-      if (t && t.textContent && t.textContent.trim().toLowerCase().indexOf('schedule') === 0) {
-        t.textContent = 'Onboarding';
-      }
-    });
-    // Subtitle too · the operator only sees "Schedule" up top, but
-    // the subtitle line ("Week of …") doesn't match Onboarding any
-    // more. Blank it for now so it doesn't read as stale.
-    var subs = root.querySelectorAll('#rr-sched-page-sub-s2, .sched-page-sub, .page-sub');
+    var subs = root.querySelectorAll('.page-sub');
     subs.forEach(function(s){ if (s) s.textContent = 'Onboarding · static layout clone'; });
-
-    // 2. Action strip swap. cloneNode(true) + replaceChild is the
-    // bulletproof DOM-level swap — outerHTML replacement was failing
-    // silently (parser quirks + the strip's inline <style> tags).
-    var s2Strip = root.querySelector('.sched-nav-heading-actions');
-    var obStrip = document.querySelector('#view-onboarding-ops .sched-nav-heading-actions');
-    if (s2Strip && obStrip && s2Strip.parentNode) {
-      var clone = obStrip.cloneNode(true);
-      // Suffix every id on the clone so live Onboarding handlers
-      // (which query the original ids) can't bind to or mutate the
-      // duplicates. Also rename for / aria-controls / aria-labelledby
-      // so accessibility associations stay intact within the clone.
-      var withId = clone.querySelectorAll('[id]');
-      for (var i = 0; i < withId.length; i++) withId[i].id = withId[i].id + '-s2ob';
-      if (clone.id) clone.id = clone.id + '-s2ob';
-      var withFor = clone.querySelectorAll('[for]');
-      for (var j = 0; j < withFor.length; j++) withFor[j].setAttribute('for', withFor[j].getAttribute('for') + '-s2ob');
-      var withCtl = clone.querySelectorAll('[aria-controls]');
-      for (var k = 0; k < withCtl.length; k++) withCtl[k].setAttribute('aria-controls', withCtl[k].getAttribute('aria-controls') + '-s2ob');
-      var withLab = clone.querySelectorAll('[aria-labelledby]');
-      for (var l = 0; l < withLab.length; l++) withLab[l].setAttribute('aria-labelledby', withLab[l].getAttribute('aria-labelledby') + '-s2ob');
-      // Strip onclick handlers so the cloned buttons stay inert
-      // (clicking "Add applicant" in Schedule 2 shouldn't open the
-      // real modal in the Onboarding view).
-      var withClick = clone.querySelectorAll('[onclick]');
-      for (var m = 0; m < withClick.length; m++) withClick[m].removeAttribute('onclick');
-      s2Strip.parentNode.replaceChild(clone, s2Strip);
-    }
-
-    // 3. Kill scrollbars inside Schedule 2. One-time style injection.
     if (!document.getElementById('rr-sched2-no-scrollbar')) {
       var s = document.createElement('style');
       s.id = 'rr-sched2-no-scrollbar';
@@ -27981,11 +27935,11 @@ John,Smith,555-0101,john@example.com</code>
       document.head.appendChild(s);
     }
   }
-  // Schedule's CSS is scoped with `#view-schedule X` selectors — they
-  // won't match the `#view-schedule-2` clone. Walk every stylesheet
-  // once and emit a parallel rule keyed on `#view-schedule-2` so the
-  // clone inherits the exact same chrome. Runs at clone-time, after
-  // the live page's CSS has been parsed.
+
+  // Onboarding's CSS is scoped with `#view-onboarding-ops X`
+  // selectors — they won't match the `#view-schedule-2` clone. Walk
+  // every stylesheet once and emit a parallel rule keyed on
+  // `#view-schedule-2` so the clone inherits the exact same chrome.
   function _injectSchedule2StyleAlias(){
     if (document.getElementById('rr-sched2-style-alias')) return;
     var aliasStyle = document.createElement('style');
@@ -27999,8 +27953,8 @@ John,Smith,555-0101,john@example.com</code>
       for (var r = 0; r < rules.length; r++) {
         var rule = rules[r];
         if (!rule || !rule.selectorText) continue;
-        if (rule.selectorText.indexOf('#view-schedule') === -1) continue;
-        var newSel = rule.selectorText.replace(/#view-schedule\b(?!-)/g, '#view-schedule-2');
+        if (rule.selectorText.indexOf('#view-onboarding-ops') === -1) continue;
+        var newSel = rule.selectorText.replace(/#view-onboarding-ops/g, '#view-schedule-2');
         if (newSel === rule.selectorText) continue;
         out.push(newSel + '{' + rule.style.cssText + '}');
       }
