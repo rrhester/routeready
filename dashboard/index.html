@@ -11357,7 +11357,13 @@ body.rr-cmdk-open{ overflow:hidden }
         #obsub-pipeline #view-pipeline .page-header{display:none}
         #obsub-pipeline #view-pipeline .pipe-subnav-row{display:none}
       </style>
-      <div class="page">
+      <!-- .tcp-shell · structural lock matching Schedule (PR #1785).
+           Flex column, viewport-tall, overflow:hidden. The chrome
+           rows below (.tcp + the KPI placeholder) are flex:0 and
+           lock their own heights via tokens. Body content (the
+           obsub-* sub-pages) scrolls inside its own container and
+           can never push the chrome. -->
+      <div class="page tcp-shell">
         <!-- Command shell · Onboarding / Print-Download mode tabs
              above the header, matching the Schedule page pattern.
              Carries the .tcp class — chrome dimensions are owned
@@ -11675,6 +11681,14 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div><!-- /page-header.sched-nav-heading -->
         </div><!-- /ob-cmd-shell -->
+
+        <!-- TCP KPI band · Onboarding has no metrics yet, but the
+             card surface IS visible (empty white card) to match
+             Schedule's empty-then-populated #rr-sched-kpis behavior.
+             Drops `.is-empty` (which would visibility:hidden it)
+             so the card renders. Future: when Onboarding starts
+             emitting KPI pills, just put them inside this div. -->
+        <div class="sched-kpi-pills tcp-kpi" aria-label="Onboarding metrics"></div>
 
         <!-- Onboarding KPI strip removed · never populated by JS,
              rendered as an empty white card below the icon strip.
