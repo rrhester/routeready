@@ -23911,17 +23911,53 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-email .em-doc-badge-pending{background:#fef3c7;color:#92400e}
           #view-email .em-doc-badge-classified{background:#dbeafe;color:#1e40af}
           #view-email .em-doc-badge-filed{background:#dcfce7;color:#166534}
-          /* Preview body for docs — fills the available height with the
-             PDF iframe or image, instead of the email body's natural flow. */
-          #view-email .em-doc-preview-body{
-            padding:0;display:flex;flex-direction:column;min-height:0;flex:1;
+          /* Documents drill-down ·  the master/detail split that works
+             great for emails fights the operator when the "detail" is a
+             multi-page PDF.  Instead we toggle the em-split between
+             list-only (no doc selected) and detail-only (doc selected)
+             so each view gets the entire main area. */
+          #view-email .em-split.em-split-docs-list .em-preview,
+          #view-email .em-split.em-split-docs-list .em-resizer{display:none}
+          #view-email .em-split.em-split-docs-list .em-inbox{
+            width:auto;right:0;padding-right:0;
+          }
+          #view-email .em-split.em-split-docs-detail .em-inbox,
+          #view-email .em-split.em-split-docs-detail .em-resizer{display:none}
+          #view-email .em-split.em-split-docs-detail .em-preview{
+            left:0;padding-left:0;
+            display:flex;flex-direction:column;
+          }
+          #view-email .em-split.em-split-docs-detail .em-preview-header{flex:0 0 auto}
+          #view-email .em-split.em-split-docs-detail .em-doc-preview-body{
+            flex:1;min-height:0;padding:0;display:flex;flex-direction:column;
           }
           #view-email .em-doc-preview-frame{
-            width:100%;flex:1;min-height:0;border:0;background:var(--neutral-1,#f9fafb);
+            width:100%;height:100%;border:0;background:var(--neutral-1,#f9fafb);
           }
           #view-email .em-doc-preview-img{
             max-width:100%;max-height:100%;object-fit:contain;
             margin:auto;padding:var(--s-4);background:var(--neutral-1,#f9fafb);
+          }
+          /* Back-to-list bar lives at the top of the detail view. */
+          #view-email .em-doc-detail-bar{
+            display:flex;align-items:center;gap:8px;
+            padding:8px 12px;border-bottom:1px solid var(--border-subtle,#e5e7eb);
+            background:var(--surface,#fff);
+          }
+          #view-email .em-doc-back{
+            display:inline-flex;align-items:center;gap:6px;
+            padding:6px 10px;border-radius:6px;
+            border:1px solid var(--border,#d1d5db);background:#fff;color:var(--text-muted,#475569);
+            font-size:var(--fs-xs,12px);font-weight:600;cursor:pointer;
+            transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
+          }
+          #view-email .em-doc-back:hover{
+            background:var(--neutral-1,#f8fafc);border-color:var(--border-strong,#94a3b8);color:var(--text,#0f172a);
+          }
+          #view-email .em-doc-back svg{width:13px;height:13px}
+          #view-email .em-doc-detail-name{
+            font-weight:600;color:var(--text,#0f172a);font-size:var(--fs-sm,13px);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
           }
           #view-email .em-doc-download-btn{
             display:inline-block;margin-top:8px;padding:6px 14px;border-radius:6px;
@@ -23929,6 +23965,41 @@ body.rr-cmdk-open{ overflow:hidden }
             text-decoration:none;font-size:var(--fs-xs,12px);font-weight:600;
           }
           #view-email .em-doc-download-btn:hover{background:var(--accent-8,#4f46e5)}
+          /* Attachment chips on an email preview · clicking one jumps
+             to the Documents folder with the file pre-selected. */
+          #view-email .em-msg-attachments{
+            padding:12px 16px 18px 16px;border-top:1px solid var(--border-subtle,#e5e7eb);
+            margin-top:8px;background:var(--neutral-1,#f8fafc);
+          }
+          #view-email .em-msg-attachments-label{
+            font-size:11px;font-weight:600;letter-spacing:.05em;
+            text-transform:uppercase;color:var(--text-muted,#64748b);
+            margin-bottom:8px;
+          }
+          #view-email .em-msg-attachments-chips{
+            display:flex;flex-wrap:wrap;gap:8px;
+          }
+          #view-email .em-msg-attachment{
+            display:inline-flex;align-items:center;gap:8px;
+            padding:8px 12px;border-radius:8px;
+            border:1px solid var(--border,#d1d5db);background:#fff;
+            cursor:pointer;font:inherit;color:var(--text,#0f172a);
+            transition:border-color var(--t-fast),background var(--t-fast),box-shadow var(--t-fast);
+            max-width:320px;
+          }
+          #view-email .em-msg-attachment:hover{
+            border-color:var(--accent-7,#6366f1);
+            background:#fff;
+            box-shadow:0 1px 3px rgba(99,102,241,.12);
+          }
+          #view-email .em-msg-attachment svg{width:16px;height:16px;color:var(--accent-7,#6366f1);flex:0 0 auto}
+          #view-email .em-msg-attachment-name{
+            font-weight:600;font-size:var(--fs-xs,12px);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
+          #view-email .em-msg-attachment-meta{
+            font-size:11px;color:var(--text-subtle,#94a3b8);flex:0 0 auto;
+          }
         </style>
         <div class="em-cmd-shell" id="rr-em-cmd">
           <div class="em-cmd-tabs" role="tablist" aria-label="Command strip mode">

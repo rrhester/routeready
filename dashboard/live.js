@@ -50763,7 +50763,46 @@ document.addEventListener("click", (e) => {
         </div>
       </div>
       <div class="em-preview-body">${body ? escapeHtmlLocal(body).replace(/\n/g, "<br>") : `<em style="color:var(--text-subtle)">(no text body — message may have arrived as HTML only)</em>`}</div>
+      <div class="em-msg-attachments" id="rr-em-msg-attachments" hidden></div>
     `;
+    // Fan out the attachment fetch async — the body renders immediately
+    // and the attachment chips fill in once the document_intake query
+    // returns. Skipped on outbound messages since those aren't in the
+    // intake table.
+    if (isInbound) renderMessageAttachments(m.id);
+  }
+
+  // Lazily fetch + render attachment chips for an inbound email row.
+  // Each chip is a click-to-preview shortcut that opens the file in
+  // the Documents folder's full-area PDF viewer.
+  async function renderMessageAttachments(messageId) {
+    const host = document.getElementById("rr-em-msg-attachments");
+    if (!host) return;
+    const { data, error } = await sb.from("document_intake")
+      .select("id, file_name, file_size_bytes, mime_type, status, classified_type")
+      .eq("email_message_id", messageId)
+      .neq("status", "dismissed")
+      .order("created_at", { ascending: true });
+    if (error || !data || data.length === 0) {
+      host.hidden = true;
+      return;
+    }
+    // Belt-and-braces: if the user switched messages while the query
+    // was in-flight, bail out before painting a stale list.
+    if (!state.messages.some(x => x.id === messageId)) return;
+    if (state.activeMessageId !== messageId) return;
+    const chips = data.map(d => {
+      const typeShort = (d.mime_type || "").split("/").pop() || "file";
+      const sizeText = formatBytes(d.file_size_bytes || 0);
+      return `<button type="button" class="em-msg-attachment" data-em-msg-attachment="${escapeHtmlLocal(d.id)}" title="Open document">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        <span class="em-msg-attachment-name">${escapeHtmlLocal(d.file_name || "Attachment")}</span>
+        <span class="em-msg-attachment-meta">${escapeHtmlLocal(sizeText)} · ${escapeHtmlLocal(typeShort)}</span>
+      </button>`;
+    }).join("");
+    host.innerHTML = `<div class="em-msg-attachments-label">${data.length === 1 ? "1 attachment" : `${data.length} attachments`}</div>
+      <div class="em-msg-attachments-chips">${chips}</div>`;
+    host.hidden = false;
   }
 
   // ── Documents pseudo-folder ─────────────────────────────────────
@@ -50780,8 +50819,20 @@ document.addEventListener("click", (e) => {
     return (n / (1024 * 1024 * 1024)).toFixed(2) + " GB";
   }
 
+  // Toggle the em-split between list-only / detail-only / default
+  // (email master-detail). Documents folder uses list-only when no
+  // doc is selected and detail-only when one is — see renderDocsInbox /
+  // renderDocsPreview / selectDocument below.
+  function setDocsSplitMode(mode) {
+    const split = document.getElementById("rr-em-split");
+    if (!split) return;
+    split.classList.remove("em-split-docs-list", "em-split-docs-detail");
+    if (mode === "list" || mode === "detail") split.classList.add(`em-split-docs-${mode}`);
+  }
+
   function renderDocsInbox() {
     renderHeader();
+    setDocsSplitMode("list");
     const inbox = document.getElementById("rr-em-inbox");
     if (!inbox) return;
     const toolbar = `<div class="em-docs-toolbar">
@@ -50827,12 +50878,13 @@ document.addEventListener("click", (e) => {
     const preview = document.getElementById("rr-em-preview");
     if (!preview) return;
     if (!state.activeDocId) {
-      preview.innerHTML = `<div class="em-placeholder">
-        <span class="em-placeholder-label">No document selected</span>
-        <div>Pick a document from the list to preview it.</div>
-      </div>`;
+      // No selection · the list view fills the main area. Preview pane
+      // is hidden by the split mode but we still clear it so a later
+      // selection paints from a clean slate.
+      preview.innerHTML = "";
       return;
     }
+    setDocsSplitMode("detail");
     const d = state.documents.find(x => x.id === state.activeDocId);
     if (!d) {
       preview.innerHTML = `<div class="em-placeholder"><span class="em-placeholder-label">Document not found</span></div>`;
@@ -50843,8 +50895,14 @@ document.addEventListener("click", (e) => {
       : "Manual upload";
     const when = d.created_at ? new Date(d.created_at).toLocaleString() : "—";
     preview.innerHTML = `
+      <div class="em-doc-detail-bar">
+        <button type="button" class="em-doc-back" data-em-doc-back aria-label="Back to documents list">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+          <span>Documents</span>
+        </button>
+        <span class="em-doc-detail-name">${escapeHtmlLocal(d.file_name || "Untitled")}</span>
+      </div>
       <div class="em-preview-header">
-        <div class="em-preview-subject">${escapeHtmlLocal(d.file_name || "Untitled")}</div>
         <div class="em-preview-meta">
           <div><strong>Source:</strong> ${escapeHtmlLocal(sourceLabel)}</div>
           <div><strong>Type:</strong> ${escapeHtmlLocal(d.mime_type || "—")} · ${escapeHtmlLocal(formatBytes(d.file_size_bytes || 0))}</div>
@@ -50887,10 +50945,15 @@ document.addEventListener("click", (e) => {
 
   function selectDocument(id) {
     state.activeDocId = id;
-    document.querySelectorAll("#rr-em-inbox .em-doc-row").forEach(row => {
-      row.classList.toggle("active", row.getAttribute("data-em-doc") === id);
-    });
     renderDocsPreview();
+  }
+
+  function backToDocsList() {
+    state.activeDocId = null;
+    renderDocsInbox();
+    // Clear the preview pane content too (it's hidden in list mode).
+    const preview = document.getElementById("rr-em-preview");
+    if (preview) preview.innerHTML = "";
   }
 
   async function dismissDoc(id) {
@@ -50901,6 +50964,24 @@ document.addEventListener("click", (e) => {
     if (state.activeDocId === id) state.activeDocId = null;
     await loadDocuments();
     renderDocsInbox();
+    renderDocsPreview();
+  }
+
+  // Jump from an email-attachment chip into the Documents folder with
+  // the file pre-selected, so the operator gets the same full-area
+  // PDF viewer used in the Documents drill-down.
+  async function openDocFromEmail(docId) {
+    if (!docId) return;
+    if (state.activeFolderId !== DOCS_FOLDER_ID) {
+      await selectFolder(DOCS_FOLDER_ID);
+    }
+    // loadDocuments may not contain the doc yet if it was loaded on
+    // the dedup-backfill path moments earlier; refresh once if so.
+    if (!state.documents.some(d => d.id === docId)) {
+      await loadDocuments();
+      renderDocsInbox();
+    }
+    state.activeDocId = docId;
     renderDocsPreview();
   }
 
@@ -50948,6 +51029,7 @@ document.addEventListener("click", (e) => {
     state.activeFolderId = id;
     state.activeMessageId = null;
     state.activeDocId = null;
+    if (id !== DOCS_FOLDER_ID) setDocsSplitMode(null);
     try { localStorage.setItem(ACTIVE_KEY, id); } catch (_) {}
     // Mark this folder as viewed so its "new mail" badge clears.
     setFolderLastViewed(id);
@@ -51493,10 +51575,25 @@ document.addEventListener("click", (e) => {
       dismissDoc(docDismiss.getAttribute("data-em-doc-dismiss"));
       return;
     }
+    if (e.target.closest("[data-em-doc-back]")) {
+      e.preventDefault();
+      backToDocsList();
+      return;
+    }
     const doc = e.target.closest("#rr-em-inbox [data-em-doc]");
     if (doc) {
       e.preventDefault();
       selectDocument(doc.getAttribute("data-em-doc"));
+      return;
+    }
+    // Attachment chip inside an email preview · jump straight to the
+    // Documents folder with the file pre-selected so the operator gets
+    // the same full-page PDF viewer.
+    const emAtt = e.target.closest("#rr-em-preview [data-em-msg-attachment]");
+    if (emAtt) {
+      e.preventDefault();
+      const docId = emAtt.getAttribute("data-em-msg-attachment");
+      openDocFromEmail(docId);
       return;
     }
     if (e.target.closest("#rr-em-new-folder")) {
