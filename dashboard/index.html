@@ -9747,9 +9747,11 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="hp-stage-btn stage-tab" data-stage="booking_scheduled" onclick="filterPipelineStage(this)">Booking scheduled <span class="hp-stage-btn-count stage-tab-count">7</span></button>
             <button class="hp-stage-btn stage-tab" data-stage="hired" onclick="filterPipelineStage(this)">Hired <span class="hp-stage-btn-count stage-tab-count">0</span></button>
           </div>
-          <div class="hp-list-tools">
-            <span class="hp-sort">Newest first</span>
-          </div>
+          <!-- hp-list-tools / "Newest first" removed · operator wanted
+               that text gone (it was visually appearing next to the
+               Indeed sync card on the right rail and reading as a
+               header for it). Sort order is still implicit (newest
+               first by default, set in pipeline_list RPC). -->
         </div>
 
         <!-- Applicant cards — single muted accent for stage; expandable detail -->
@@ -10332,11 +10334,24 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:11px;font-weight:600;letter-spacing:.04em;
             text-transform:uppercase;color:var(--text-subtle);
           }
+          /* Pipeline applicant-list header bar · enclosed in the same
+             chrome as the schedule grid's #view-schedule .cal-grid.head
+             (sch-surface-2 background, hairline sch-line border). Runs
+             the full width of the applicant card column. The bar is
+             the sole anchor for the stage-filter pivot — the small
+             "Newest first" label on the right has been removed; that
+             text was visually appearing next to the Indeed-sync card
+             on the right rail and reading as a header for it. */
           #view-pipeline .hp-list-head{
             align-items:center;margin:2px 0 var(--s-2);
+            background:var(--sch-surface-2, #F2F3F6);
+            border:1px solid var(--sch-line, rgba(15,23,42,.07));
+            border-radius:8px;
+            padding:8px 14px;
+            box-shadow:0 1px 2px rgba(15,23,42,.04);
           }
-          /* Stage filter · quiet Fluent pivot tabs — no box chrome, so
-             the row reads as a light inline filter, not a toolbar. */
+          /* Stage filter · quiet Fluent pivot tabs sit directly on the
+             new header background; no extra box chrome. */
           #view-pipeline .hp-stages{
             max-width:100%;overflow-x:auto;gap:2px;padding:0;
             background:transparent;border:0;border-radius:0;
