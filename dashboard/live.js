@@ -1679,13 +1679,49 @@ function _rrIntelRenderRiskForecast(view) {
     else if (delta < -0.05){ trendLabel = "Declining"; trendDetail = "Coverage erodes over the next 4 weeks"; }
   }
 
-  // Next break = first upcoming week with statusKind 'risk' (critical),
-  // then 'tight'. Headline severity comes from the worst week we find.
-  const nextRisk  = weeks.find((w) => w.statusKind === "risk");
-  const nextTight = weeks.find((w) => w.statusKind === "tight");
+  // Next break + headline status are derived from the ACTUAL coverage
+  // ratio per week, NOT from OKAMI's per-row status pill — OKAMI's pill
+  // can read "On track" for a peak week when its strategy column claims
+  // the peak is "absorbed" by ADW + OT, but that's a planning assumption,
+  // not a real-time signal. From a risk-forecast standpoint, a week
+  // where avail / needed < 80% IS at risk regardless of what the
+  // strategy column says, so we surface that honestly here.
+  function deriveKind(w) {
+    if (w.needed <= 0) return "ok";
+    const cov = w.avail / w.needed;
+    if (cov < 0.80) return "risk";
+    if (cov < 0.95) return "tight";
+    return "ok";
+  }
+  weeks.forEach((w) => { w.derivedKind = deriveKind(w); });
+  const nextRisk  = weeks.find((w) => w.derivedKind === "risk");
+  const nextTight = weeks.find((w) => w.derivedKind === "tight");
   const nextBreak = nextRisk || nextTight || null;
-  const overallKind = nextRisk ? "risk" : (nextTight ? "tight" : "ok");
-  const overallLabel = nextRisk ? "At risk" : (nextTight ? "Tight" : "On track");
+
+  // Headline pill · honest summary of the worst signal we're showing.
+  // Any of: a current-week coverage hole, a declining 4-week trend
+  // with open shifts, a per-week risk, or aggregate open shifts moves
+  // the headline. A handful of borderline-tight weeks moves it down
+  // a notch to "Tight" but not to "At risk".
+  let overallKind = "ok";
+  let overallLabel = "On track";
+  if (
+    nextRisk
+    || coveragePct < 80
+    || (trendLabel === "Declining" && horizonGap > 0)
+    || horizonGap >= 30
+  ) {
+    overallKind = "risk";
+    overallLabel = "At risk";
+  } else if (
+    nextTight
+    || coveragePct < 95
+    || horizonGap >= 5
+    || trendLabel === "Declining"
+  ) {
+    overallKind = "tight";
+    overallLabel = "Tight";
+  }
 
   // Narrative · plain, calm sentences. No alarm color in the prose;
   // status carries that signal via the pill + bars.
@@ -1693,11 +1729,11 @@ function _rrIntelRenderRiskForecast(view) {
   if (!nextBreak) {
     narrative = `Coverage holds across your full 13-week horizon. The 4-week look-ahead shows
       <strong>${horizonAvail.toLocaleString()}</strong> drivers available against
-      <strong>${horizonNeeded.toLocaleString()}</strong> needed — no week falls below the cushion.
+      <strong>${horizonNeeded.toLocaleString()}</strong> needed — every week sits at or above 95% cushion.
       Hire-by dates from the planner stay quiet through this window.`;
   } else {
-    const breakKind = nextBreak.statusKind === "risk" ? "critical" : "tight";
-    const breakShort = Math.max(0, -nextBreak.gap);
+    const breakKind = nextBreak.derivedKind === "risk" ? "critical" : "tight";
+    const breakShort = Math.max(0, nextBreak.needed - nextBreak.avail);
     const idx = nextBreak.idx;
     const lead = idx === 0 ? "this week" : `in ${idx} week${idx === 1 ? "" : "s"}`;
     narrative = `Your next ${breakKind} window is <strong>${escapeHtml(nextBreak.label)}</strong>
@@ -1716,9 +1752,10 @@ function _rrIntelRenderRiskForecast(view) {
   const stripHtml = weeks.map((w) => {
     const heightPx = 14 + Math.round((w.needed / maxNeeded) * 46); // 14–60px
     const isCurrent = w.idx === 0;
-    const titleAttr = `${w.label} · ${w.dates} · ${w.needed} needed / ${w.avail} avail · ${w.statusText || "On track"}`;
+    const covPct = w.needed > 0 ? Math.round((w.avail / w.needed) * 100) : 100;
+    const titleAttr = `${w.label} · ${w.dates} · ${w.needed} needed / ${w.avail} avail · ${covPct}% coverage`;
     return `<div class="rr-intel-strip-bar${isCurrent ? " is-current" : ""}" title="${escapeHtml(titleAttr)}">
-      <div class="rr-intel-strip-fill ${w.statusKind}" style="height:${heightPx}px"></div>
+      <div class="rr-intel-strip-fill ${w.derivedKind}" style="height:${heightPx}px"></div>
       <div class="rr-intel-strip-label">${escapeHtml(w.label)}</div>
     </div>`;
   }).join("");
@@ -1732,11 +1769,12 @@ function _rrIntelRenderRiskForecast(view) {
         <div class="rr-intel-detail-fact"><span>Dates</span><span>${escapeHtml(nextBreak.dates)}</span></div>
         <div class="rr-intel-detail-fact"><span>Needed</span><span>${nextBreak.needed.toLocaleString()}</span></div>
         <div class="rr-intel-detail-fact"><span>Available</span><span>${nextBreak.avail.toLocaleString()}</span></div>
-        <div class="rr-intel-detail-fact"><span>Open</span><span>${Math.max(0, -nextBreak.gap).toLocaleString()}</span></div>
+        <div class="rr-intel-detail-fact"><span>Open</span><span>${Math.max(0, nextBreak.needed - nextBreak.avail).toLocaleString()}</span></div>
+        <div class="rr-intel-detail-fact"><span>Coverage</span><span>${nextBreak.needed > 0 ? Math.round((nextBreak.avail / nextBreak.needed) * 100) : 100}%</span></div>
         ${nextBreak.hireBy && nextBreak.hireBy !== "—"
           ? `<div class="rr-intel-detail-fact"><span>Hire by</span><span>${escapeHtml(nextBreak.hireBy)}</span></div>`
           : ""}
-        <div class="rr-intel-detail-fact"><span>Status</span><span>${escapeHtml(nextBreak.statusText)}</span></div>
+        <div class="rr-intel-detail-fact"><span>Status</span><span>${nextBreak.derivedKind === "risk" ? "At risk" : "Tight"}</span></div>
       </aside>
     </div>
   ` : `
