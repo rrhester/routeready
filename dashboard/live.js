@@ -50328,12 +50328,18 @@ document.addEventListener("click", (e) => {
 // realtime subscription on email_messages for the active folder.
 (function () {
   const ACTIVE_KEY = "rr-em-active-folder";
+  // Sentinel id for the Documents pseudo-folder. Documents live in
+  // public.document_intake (not fb_folders), but the operator picks
+  // them from the same folders aside, so we surface a virtual folder
+  // entry and dispatch the loaders/renderers below on this id.
+  const DOCS_FOLDER_ID = "__docs__";
   const ICONS = {
     inbox:   `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`,
     drafts:  `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
     sent:    `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
     archive: `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`,
     trash:   `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`,
+    docs:    `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`,
     folder:  `<svg class="em-folder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
   };
 
@@ -50347,6 +50353,10 @@ document.addEventListener("click", (e) => {
     inboxSort:       "desc",  // "desc" | "asc"
     collapsedGroups: new Set(),
     readMessages:    new Set(),
+    // Documents pseudo-folder state — populated when
+    // activeFolderId === DOCS_FOLDER_ID.
+    documents:       [],
+    activeDocId:     null,
     booted:          false,
   };
 
@@ -50417,7 +50427,13 @@ document.addEventListener("click", (e) => {
       .order("position", { ascending: true })
       .order("name",     { ascending: true });
     if (error) { console.error("fb_folders load failed:", error); state.folders = []; return; }
-    state.folders = data || [];
+    // Pin the Documents pseudo-folder to the top of the system list.
+    // It isn't a real fb_folders row — clicking it dispatches to the
+    // document_intake loaders/renderers instead of the email ones.
+    state.folders = [
+      { id: DOCS_FOLDER_ID, name: "Documents", kind: "docs", position: -1, parent_id: null },
+      ...(data || []),
+    ];
     // Pick the active folder: last-remembered if still valid, else
     // the Inbox kind, else the first folder we have.
     let remembered = null;
@@ -50431,6 +50447,7 @@ document.addEventListener("click", (e) => {
   }
 
   async function loadMessages() {
+    if (state.activeFolderId === DOCS_FOLDER_ID) { await loadDocuments(); return; }
     if (!state.activeFolderId) { state.messages = []; return; }
     const { data, error } = await sb.from("email_messages")
       .select("id, from_email, to_email, subject, body_text, body_html, direction, status, created_at")
@@ -50446,6 +50463,19 @@ document.addEventListener("click", (e) => {
     }
   }
 
+  async function loadDocuments() {
+    const { data, error } = await sb.from("document_intake")
+      .select("id, source, sender_email, sender_name, storage_path, file_name, file_size_bytes, mime_type, status, classified_type, classification_score, created_at, email_message_id, uploaded_by")
+      .neq("status", "dismissed")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) { console.error("document_intake load failed:", error); state.documents = []; return; }
+    state.documents = data || [];
+    if (state.activeDocId && !state.documents.some(d => d.id === state.activeDocId)) {
+      state.activeDocId = null;
+    }
+  }
+
   // Count "new since last visit" messages per folder so the folder
   // list can show an unread-style badge. One HEAD-mode query per folder
   // (Supabase doesn't expose group-by counts through the JS client).
@@ -50454,6 +50484,16 @@ document.addEventListener("click", (e) => {
     const out = {};
     for (const folder of state.folders) {
       const lastViewed = getFolderLastViewed(folder.id);
+      if (folder.id === DOCS_FOLDER_ID) {
+        // Docs badge = pending docs since last visit.
+        let q = sb.from("document_intake")
+          .select("*", { count: "exact", head: true })
+          .neq("status", "dismissed");
+        if (lastViewed) q = q.gt("created_at", lastViewed);
+        const { count, error } = await q;
+        out[folder.id] = error ? 0 : (count ?? 0);
+        continue;
+      }
       let q = sb.from("email_messages")
         .select("*", { count: "exact", head: true })
         .eq("folder_id", folder.id);
@@ -50471,6 +50511,20 @@ document.addEventListener("click", (e) => {
       inboxChannel = null;
     }
     if (!state.activeFolderId) return;
+    if (state.activeFolderId === DOCS_FOLDER_ID) {
+      inboxChannel = sb.channel("rr-fb-docs")
+        .on("postgres_changes",
+          { event: "*", schema: "public", table: "document_intake" },
+          async () => {
+            await loadDocuments();
+            await loadFolderCounts();
+            renderFolders();
+            renderInbox();
+            renderPreview();
+          })
+        .subscribe();
+      return;
+    }
     inboxChannel = sb.channel("rr-fb-inbox-" + state.activeFolderId)
       .on("postgres_changes",
         { event: "*", schema: "public", table: "email_messages",
@@ -50529,14 +50583,15 @@ document.addEventListener("click", (e) => {
   function folderHtml(f, depth = 0) {
     const isActive = f.id === state.activeFolderId;
     const isCustom = f.kind === "custom";
+    const isDocs   = f.id === DOCS_FOLDER_ID;
     const newCount = state.folderCounts[f.id] || 0;
     const countDisplay = newCount > 0 ? (newCount > 99 ? "99+" : String(newCount)) : "";
     const indent = depth > 0 ? ` style="padding-left:${10 + depth * 14}px"` : "";
-    return `<button type="button" class="em-folder${isActive ? " active" : ""}" data-em-folder="${escapeHtmlLocal(f.id)}" aria-pressed="${isActive ? "true" : "false"}"${indent}>
+    return `<button type="button" class="em-folder${isActive ? " active" : ""}${isDocs ? " em-folder-docs" : ""}" data-em-folder="${escapeHtmlLocal(f.id)}" aria-pressed="${isActive ? "true" : "false"}"${indent}>
       ${iconFor(f.kind)}
       <span class="em-folder-name">${escapeHtmlLocal(f.name)}</span>
       <span class="em-folder-count${newCount > 0 ? " has-new" : ""}" aria-hidden="true">${countDisplay}</span>
-      <span class="em-folder-add" role="button" tabindex="0" data-em-folder-add-child="${escapeHtmlLocal(f.id)}" aria-label="Add subfolder" title="Add subfolder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+      ${isDocs ? "" : `<span class="em-folder-add" role="button" tabindex="0" data-em-folder-add-child="${escapeHtmlLocal(f.id)}" aria-label="Add subfolder" title="Add subfolder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>`}
       ${isCustom ? `<span class="em-folder-delete" role="button" tabindex="0" data-em-folder-delete="${escapeHtmlLocal(f.id)}" aria-label="Delete folder" title="Delete folder"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>` : ""}
     </button>`;
   }
@@ -50547,8 +50602,13 @@ document.addEventListener("click", (e) => {
     const f = state.folders.find(x => x.id === state.activeFolderId);
     if (title) title.textContent = f ? f.name : "Inbox";
     if (count) {
-      const n = state.messages.length;
-      count.textContent = n === 1 ? "1 message" : `${n} messages`;
+      if (state.activeFolderId === DOCS_FOLDER_ID) {
+        const n = state.documents.length;
+        count.textContent = n === 1 ? "1 document" : `${n} documents`;
+      } else {
+        const n = state.messages.length;
+        count.textContent = n === 1 ? "1 message" : `${n} messages`;
+      }
     }
   }
 
@@ -50568,6 +50628,7 @@ document.addEventListener("click", (e) => {
   }
 
   function renderInbox() {
+    if (state.activeFolderId === DOCS_FOLDER_ID) { renderDocsInbox(); return; }
     renderHeader();
     const inbox = document.getElementById("rr-em-inbox");
     if (!inbox) return;
@@ -50670,6 +50731,7 @@ document.addEventListener("click", (e) => {
   }
 
   function renderPreview() {
+    if (state.activeFolderId === DOCS_FOLDER_ID) { renderDocsPreview(); return; }
     const preview = document.getElementById("rr-em-preview");
     if (!preview) return;
     if (!state.activeMessageId) {
@@ -50704,11 +50766,188 @@ document.addEventListener("click", (e) => {
     `;
   }
 
+  // ── Documents pseudo-folder ─────────────────────────────────────
+  // Documents come from inbound email attachments (captured by the
+  // webhook-email-inbound function) and manual uploads. They live in
+  // public.document_intake and storage bucket `document-intake` under
+  // path `<dsp_id>/<date>/<rand>-<sanitized-name>`. RLS scopes both
+  // reads and writes to the operator's DSP.
+  function formatBytes(n) {
+    if (!Number.isFinite(n) || n <= 0) return "—";
+    if (n < 1024) return n + " B";
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+    if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + " MB";
+    return (n / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+  }
+
+  function renderDocsInbox() {
+    renderHeader();
+    const inbox = document.getElementById("rr-em-inbox");
+    if (!inbox) return;
+    const toolbar = `<div class="em-docs-toolbar">
+      <label class="em-docs-upload" for="rr-em-docs-upload" title="Upload PDF / image / spreadsheet">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>Upload document</span>
+      </label>
+      <input type="file" id="rr-em-docs-upload" accept=".pdf,image/*,.xlsx,.xls,.csv,.doc,.docx,.txt" hidden multiple>
+    </div>`;
+    if (state.documents.length === 0) {
+      inbox.innerHTML = toolbar + `<div class="em-placeholder">
+        <span class="em-placeholder-label">No pending documents</span>
+        <div>PDFs, photos, and spreadsheets attached to inbound mail land here. You can also upload one manually.</div>
+      </div>`;
+      return;
+    }
+    inbox.innerHTML = toolbar + state.documents.map(docRowHtml).join("");
+  }
+
+  function docRowHtml(d) {
+    const isActive = d.id === state.activeDocId;
+    const when = d.created_at ? formatRelative(new Date(d.created_at)) : "";
+    const sizeText = formatBytes(d.file_size_bytes || 0);
+    const sourceLabel = d.source === "email"
+      ? (d.sender_name || d.sender_email || "From email")
+      : "Manual upload";
+    const statusLabel = d.status === "pending"
+      ? "Pending"
+      : (d.status === "classified" ? (d.classified_type || "Classified") : (d.status || "—"));
+    const typeShort = (d.mime_type || "").split("/").pop() || "file";
+    return `<button type="button" class="em-msg-row em-doc-row${isActive ? " active" : ""}" data-em-doc="${escapeHtmlLocal(d.id)}">
+      <div class="em-msg-row-line1">
+        <span class="em-msg-who">${escapeHtmlLocal(d.file_name || "Untitled")}</span>
+        <span class="em-msg-when">${escapeHtmlLocal(when)}</span>
+      </div>
+      <div class="em-msg-subject">${escapeHtmlLocal(sourceLabel)}</div>
+      <div class="em-msg-snippet"><span class="em-doc-badge em-doc-badge-${escapeHtmlLocal(d.status || "pending")}">${escapeHtmlLocal(statusLabel)}</span> · ${escapeHtmlLocal(sizeText)} · ${escapeHtmlLocal(typeShort)}</div>
+      <span class="em-msg-delete" role="button" tabindex="-1" data-em-doc-dismiss="${escapeHtmlLocal(d.id)}" aria-label="Dismiss document" title="Dismiss" draggable="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+    </button>`;
+  }
+
+  async function renderDocsPreview() {
+    const preview = document.getElementById("rr-em-preview");
+    if (!preview) return;
+    if (!state.activeDocId) {
+      preview.innerHTML = `<div class="em-placeholder">
+        <span class="em-placeholder-label">No document selected</span>
+        <div>Pick a document from the list to preview it.</div>
+      </div>`;
+      return;
+    }
+    const d = state.documents.find(x => x.id === state.activeDocId);
+    if (!d) {
+      preview.innerHTML = `<div class="em-placeholder"><span class="em-placeholder-label">Document not found</span></div>`;
+      return;
+    }
+    const sourceLabel = d.source === "email"
+      ? "Email · " + (d.sender_name || d.sender_email || "(unknown sender)")
+      : "Manual upload";
+    const when = d.created_at ? new Date(d.created_at).toLocaleString() : "—";
+    preview.innerHTML = `
+      <div class="em-preview-header">
+        <div class="em-preview-subject">${escapeHtmlLocal(d.file_name || "Untitled")}</div>
+        <div class="em-preview-meta">
+          <div><strong>Source:</strong> ${escapeHtmlLocal(sourceLabel)}</div>
+          <div><strong>Type:</strong> ${escapeHtmlLocal(d.mime_type || "—")} · ${escapeHtmlLocal(formatBytes(d.file_size_bytes || 0))}</div>
+          <div><strong>Received:</strong> ${escapeHtmlLocal(when)}</div>
+          <div><strong>Status:</strong> ${escapeHtmlLocal(d.status || "pending")}${d.classified_type ? " · " + escapeHtmlLocal(d.classified_type) : ""}</div>
+        </div>
+      </div>
+      <div class="em-preview-body em-doc-preview-body">
+        <div class="em-placeholder"><span class="em-placeholder-label">Loading preview…</span></div>
+      </div>
+    `;
+    // Sign the URL after the metadata renders so the operator gets
+    // immediate feedback even if the signing call is slow.
+    const { data: signed, error: signErr } = await sb.storage
+      .from("document-intake")
+      .createSignedUrl(d.storage_path, 60 * 30);
+    const body = preview.querySelector(".em-doc-preview-body");
+    if (!body) return;
+    if (state.activeDocId !== d.id) return; // user moved on while we waited
+    if (signErr || !signed?.signedUrl) {
+      body.innerHTML = `<div class="em-placeholder">
+        <span class="em-placeholder-label">Preview unavailable</span>
+        <div>${escapeHtmlLocal(signErr?.message || "Couldn't sign the file URL.")}</div>
+      </div>`;
+      return;
+    }
+    const url = signed.signedUrl;
+    const mt = (d.mime_type || "").toLowerCase();
+    if (mt === "application/pdf") {
+      body.innerHTML = `<iframe class="em-doc-preview-frame" src="${url}#toolbar=1" title="Document preview" loading="lazy"></iframe>`;
+    } else if (mt.startsWith("image/")) {
+      body.innerHTML = `<img class="em-doc-preview-img" src="${url}" alt="${escapeHtmlLocal(d.file_name || "Document")}" />`;
+    } else {
+      body.innerHTML = `<div class="em-placeholder">
+        <span class="em-placeholder-label">Inline preview not available for this file type</span>
+        <a class="em-doc-download-btn" href="${url}" target="_blank" rel="noopener">Open / download</a>
+      </div>`;
+    }
+  }
+
+  function selectDocument(id) {
+    state.activeDocId = id;
+    document.querySelectorAll("#rr-em-inbox .em-doc-row").forEach(row => {
+      row.classList.toggle("active", row.getAttribute("data-em-doc") === id);
+    });
+    renderDocsPreview();
+  }
+
+  async function dismissDoc(id) {
+    if (!id) return;
+    if (!confirm("Dismiss this document? It won't show up in the intake list anymore.")) return;
+    const { error } = await sb.rpc("dismiss_document_intake", { p_id: id, p_reason: null });
+    if (error) { if (typeof toast === "function") toast("Dismiss failed: " + error.message, "warn"); return; }
+    if (state.activeDocId === id) state.activeDocId = null;
+    await loadDocuments();
+    renderDocsInbox();
+    renderDocsPreview();
+  }
+
+  async function uploadDocs(files) {
+    const dsp_id = currentDspId();
+    if (!dsp_id) { if (typeof toast === "function") toast("Couldn't determine DSP — please reload", "warn"); return; }
+    const userId = window.RR?.user?.id || null;
+    const date = new Date().toISOString().slice(0, 10);
+    let ok = 0;
+    for (const file of files) {
+      const safe = (file.name || "file").replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 120);
+      const rand = Math.random().toString(36).slice(2, 10);
+      const storagePath = `${dsp_id}/${date}/${rand}-${safe}`;
+      const { error: upErr } = await sb.storage.from("document-intake")
+        .upload(storagePath, file, { contentType: file.type || "application/octet-stream", upsert: false });
+      if (upErr) { if (typeof toast === "function") toast("Upload failed: " + upErr.message, "warn"); continue; }
+      // Raw uploads age out after 90 days unless they get filed in Phase 3.
+      const retention = new Date(Date.now() + 90 * 86400 * 1000).toISOString().slice(0, 10);
+      const { error: dbErr } = await sb.from("document_intake").insert({
+        dsp_id,
+        source: "manual_upload",
+        uploaded_by: userId,
+        storage_path: storagePath,
+        file_name: file.name,
+        file_size_bytes: file.size,
+        mime_type: file.type || "application/octet-stream",
+        status: "pending",
+        retention_until: retention,
+      });
+      if (dbErr) {
+        await sb.storage.from("document-intake").remove([storagePath]).catch(() => {});
+        if (typeof toast === "function") toast("Insert failed: " + dbErr.message, "warn");
+        continue;
+      }
+      ok++;
+    }
+    if (ok > 0 && typeof toast === "function") toast(`Uploaded ${ok} document${ok === 1 ? "" : "s"}`, "success");
+    await loadDocuments();
+    renderDocsInbox();
+  }
+
   // ── State mutators ──────────────────────────────────────────────
   async function selectFolder(id) {
     if (!state.folders.some(f => f.id === id)) return;
     state.activeFolderId = id;
     state.activeMessageId = null;
+    state.activeDocId = null;
     try { localStorage.setItem(ACTIVE_KEY, id); } catch (_) {}
     // Mark this folder as viewed so its "new mail" badge clears.
     setFolderLastViewed(id);
@@ -51247,6 +51486,19 @@ document.addEventListener("click", (e) => {
       selectMessage(msg.getAttribute("data-em-msg"));
       return;
     }
+    // Documents pseudo-folder — dismiss × on a doc row, then row click.
+    const docDismiss = e.target.closest("[data-em-doc-dismiss]");
+    if (docDismiss) {
+      e.preventDefault(); e.stopPropagation();
+      dismissDoc(docDismiss.getAttribute("data-em-doc-dismiss"));
+      return;
+    }
+    const doc = e.target.closest("#rr-em-inbox [data-em-doc]");
+    if (doc) {
+      e.preventDefault();
+      selectDocument(doc.getAttribute("data-em-doc"));
+      return;
+    }
     if (e.target.closest("#rr-em-new-folder")) {
       e.preventDefault();
       const form = document.getElementById("rr-em-new-folder-form");
@@ -51414,6 +51666,17 @@ document.addEventListener("click", (e) => {
         return;
       }
     }
+  });
+
+  // Documents upload input — fires whenever the operator picks files
+  // from the hidden <input type="file"> rendered inside the docs
+  // toolbar.
+  document.addEventListener("change", (e) => {
+    if (!e.target || e.target.id !== "rr-em-docs-upload") return;
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    uploadDocs(files);
   });
 
   // Smart Fill (Schedule ribbon) · same visual one-shot spin as the
