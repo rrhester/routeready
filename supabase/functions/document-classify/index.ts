@@ -9,18 +9,21 @@
 // variant). Inline base64 cap is 32 MB — anything larger gets marked
 // error/unsupported.
 //
-// Auth: this endpoint is called server-to-server by
-// webhook-email-inbound after a fresh attachment lands, by the
-// dashboard's "Re-classify" button, and (via pg_net) by an
-// AFTER INSERT trigger on document_intake. All three present the
-// service-role key in Authorization, gated by requireServiceKey().
+// Auth: this endpoint accepts either the service-role key (used
+// server-to-server by webhook-email-inbound after a fresh attachment
+// lands) OR a regular Supabase JWT (the dashboard's "Re-classify"
+// click). For the JWT path we additionally RLS-check the doc by
+// querying with a user-scoped client — if the user can SELECT it,
+// they're allowed to (re-)classify it.
 //
 // Env:
 //   ANTHROPIC_API_KEY   sk-ant-…                          (required)
 //   ANTHROPIC_MODEL     defaults to claude-haiku-4-5      (optional)
 //   SUPABASE_URL                                          auto-injected
 //   SUPABASE_SERVICE_ROLE_KEY                             auto-injected
-import { serviceClient, jsonResponse, badRequest, requireServiceKey } from "../_shared/supabase.ts";
+//   SUPABASE_ANON_KEY                                     auto-injected
+import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const CORS = {
   "access-control-allow-origin": "*",
@@ -128,9 +131,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return badRequest("method_not_allowed", 405);
 
-  const authFail = requireServiceKey(req);
-  if (authFail) return authFail;
-
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) return jsonResponse({ error: "anthropic_key_missing" }, { status: 500, headers: CORS });
 
@@ -138,6 +138,33 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return badRequest("invalid_json"); }
   const id = (body.id || "").trim();
   if (!id) return badRequest("id_required");
+
+  // Auth · service-role bearer (server-to-server) or user JWT (dashboard).
+  // For user JWTs we RLS-check by selecting the doc with a user-scoped
+  // client first; if RLS lets them read it, they can classify it.
+  const auth = req.headers.get("authorization") || "";
+  const token = auth.replace(/^Bearer\s+/i, "");
+  const srk = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const fit = Deno.env.get("FUNCTION_INTERNAL_TOKEN") || "";
+  const isServiceCaller = token.length > 0 && (token === srk || (fit !== "" && token === fit));
+  if (!isServiceCaller) {
+    if (!token) return jsonResponse({ error: "unauthorized" }, { status: 401, headers: CORS });
+    const supaUrl = Deno.env.get("SUPABASE_URL") || "";
+    const anon = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    if (!supaUrl || !anon) return jsonResponse({ error: "auth_misconfigured" }, { status: 500, headers: CORS });
+    const userClient = createClient(supaUrl, anon, {
+      global: { headers: { Authorization: auth } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: visible, error: vErr } = await userClient
+      .from("document_intake")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+    if (vErr || !visible) {
+      return jsonResponse({ error: "forbidden" }, { status: 403, headers: CORS });
+    }
+  }
 
   const supa = serviceClient();
 
