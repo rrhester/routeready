@@ -1797,7 +1797,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-v2-title {
   order: -1;
-  flex: 0 0 auto;
+  /* Fixed-width title block · keeps the icon ribbon's first tile at
+     the SAME x as the Onboarding ribbon (whose .page-header-l is also
+     locked to 240px). Without this, the two strips' first tiles
+     shifted whenever the schedule subtitle ("Week of …") rendered
+     wider or narrower. */
+  flex: 0 0 240px;
   align-self: center;
   margin-right: var(--rr-space-160);
   padding-right: var(--rr-space-120);

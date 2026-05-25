@@ -175,6 +175,29 @@
 
 /* ── Ribbon actions row ─────────────────────────────────────── */
 
+/* Strip container chrome · operator wants the Onboarding strip to
+   be the SAME exact size + position as the Schedule strip. Schedule's
+   .sched-v2-strip uses:
+     padding: 11px 18px
+     background: var(--rr-bg-surface-1)
+     border: 1px solid var(--rr-border-primary)
+     border-radius: var(--rr-radius-medium)
+     min-height: 115px      (so the bar never jumps between tabs)
+   The Onboarding row is .page-header.sched-nav-heading (different
+   DOM but same conceptual role) — we override its inline chrome
+   from index.html so both strips render identically. */
+#view-onboarding-ops.rrx-onboarding .page-header.sched-nav-heading {
+  padding: 11px 18px !important;
+  margin: 0 0 var(--rr-space-160) 0 !important;
+  background: var(--rr-bg-surface-1) !important;
+  border: 1px solid var(--rr-border-primary) !important;
+  border-radius: var(--rr-radius-medium) !important;
+  box-shadow: none !important;
+  min-height: 115px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions {
   display: flex !important;
   align-items: center !important;
@@ -288,7 +311,9 @@
   margin: 0 !important;
   background: transparent !important;
   border: 0 !important;
-  border-radius: 0 !important;
+  /* Rounded tile corners on hover/active — matches Schedule's
+     tile chrome so the hover state reads identical across pages. */
+  border-radius: var(--rr-radius-medium) !important;
   color: var(--rr-fg-secondary) !important;
   font-family: var(--rr-font-family) !important;
   font-size: 13px !important;
@@ -304,13 +329,11 @@
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item svg,
 #view-onboarding-ops.rrx-onboarding .ob-tab-wrap > .subnav-item svg {
-  /* Match Schedule strip icon size exactly. Earlier I matched the
-     20×20 rule at index.html:16809, but that rule is OVERRIDDEN by
-     a more-specific inline rule at index.html:16775 that locks
-     `.sched-nav-heading-actions .subnav-item svg` to 28×28. So
-     Schedule's actual rendered icon size is 28×28, not 20×20. */
-  width: 28px !important;
-  height: 28px !important;
+  /* Match Schedule strip icon size exactly. Operator bumped both
+     surfaces by +18% (28 → 33) so the dispatch eye sees the same
+     tile glyphs whether they're on Onboarding or Schedule. */
+  width: 33px !important;
+  height: 33px !important;
   flex: 0 0 auto !important;
   color: var(--rr-fg-secondary) !important;
   stroke-width: 1.6 !important;
@@ -333,23 +356,23 @@
   color: var(--rr-brand-pressed) !important;
   background: var(--rr-bg-selected) !important;
   font-weight: 600 !important;
-  /* Force-square the active state too — operator: "I have been
-     very clear that I want square and 90degree corners." The base
-     .subnav-item rule already sets radius:0, but adding it here
-     guarantees no .active descendant rule can sneak in a radius. */
-  border-radius: 0 !important;
+  /* Active tile carries the same rounded corners as the base + hover
+     states — matches the Schedule strip's tile chrome end-to-end.
+     (Earlier this surface was locked to square corners; operator
+     now wants visual parity with Schedule.) */
+  border-radius: var(--rr-radius-medium) !important;
 }
 
-/* Triple-belt-and-suspenders: any subnav-item, anywhere in the
-   onboarding strip, in any state. Pure 90-degree corners. */
+/* Belt-and-suspenders: every state of every subnav-item in the
+   onboarding strip carries the same rounded radius so no rule
+   downstream can re-square them. */
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item,
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:hover,
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:focus,
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:focus-visible,
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active,
-#view-onboarding-ops.rrx-onboarding .ob-tab-wrap,
 #view-onboarding-ops.rrx-onboarding .ob-tab-wrap > .subnav-item {
-  border-radius: 0 !important;
+  border-radius: var(--rr-radius-medium) !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active svg {
