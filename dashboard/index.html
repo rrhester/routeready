@@ -10058,12 +10058,23 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-btn-advance:hover{background:#F5F5F5;border-color:#C7C7C7}
           #view-pipeline .pa-btn-advance:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px #0F6CBD}
           #view-pipeline .pa-btn-advance .pa-adv-ico{color:#0F6CBD;flex:0 0 auto}
+          /* Subtle primary · operator dialed back the loud solid-fill
+             treatment. Soft blue tint background + brand-blue text +
+             matching border. Still reads as the dominant action on
+             the card (clearly the brand color, only colored element
+             in the action zone) but no longer shouts. Hover deepens
+             the tint slightly without flipping to solid. */
           #view-pipeline .pa-btn-advance.is-primary{
-            background:#0F6CBD;color:#fff;border-color:#0F6CBD;
-            box-shadow:0 1px 2px rgba(15,23,42,.12);
+            background:rgba(15,108,189,.08);
+            color:#0F6CBD;
+            border-color:rgba(15,108,189,.22);
+            box-shadow:none;
           }
-          #view-pipeline .pa-btn-advance.is-primary:hover{background:#115EA3;border-color:#115EA3}
-          #view-pipeline .pa-btn-advance.is-primary .pa-adv-ico{color:#fff}
+          #view-pipeline .pa-btn-advance.is-primary:hover{
+            background:rgba(15,108,189,.14);
+            border-color:rgba(15,108,189,.34);
+          }
+          #view-pipeline .pa-btn-advance.is-primary .pa-adv-ico{color:#0F6CBD}
           /* Decline — a defined Fluent danger button: red-tinted surface
              + red glyph so the disposition action is unmistakable and
              stands clear of the neutral contact icons. */
