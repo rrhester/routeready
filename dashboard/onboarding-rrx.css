@@ -61,6 +61,30 @@
   overflow: visible !important;
 }
 
+/* KPI-strip placeholder · Schedule's chrome reserves ~54px below
+   the header card for its #rr-sched-kpis row (schedule-rrx.css:921).
+   Onboarding doesn't render a metric strip, but without that
+   reserved space the Onboarding body content sits ~54px HIGHER
+   than Schedule's, so clicking between the two pages snaps the
+   body upward. Paint an empty, visually-identical card here so
+   the body Y-origin matches.  Dimensions mirror Schedule's KPI
+   strip 1:1 (46px content + 1px×2 border + 8px bottom margin =
+   ~56px total reserved space). */
+#view-onboarding-ops.rrx-onboarding > .page > .ob-cmd-shell::after {
+  content: "";
+  display: block;
+  min-height: 46px;
+  height: 46px;
+  margin: 0 0 var(--rr-space-80, 8px) 0;
+  border: 1px solid var(--rr-border-primary, #E1DFDD);
+  border-radius: var(--rr-radius-medium, 4px);
+  background: var(--rr-bg-surface-1, #FFFFFF);
+  box-sizing: border-box;
+}
+/* Focus mode hides the cmd-shell entirely — the ::after pseudo
+   goes with it automatically since it's the shell's own pseudo,
+   so no extra rule needed. */
+
 /* Onboarding sub-pages (the readiness board, work-auth queue,
    pipeline mount) fill the leftover space and scroll inside. */
 #view-onboarding-ops.rrx-onboarding > .page > [id^="obsub-"] {
@@ -143,15 +167,21 @@
      ("Form I-9 and work authorization review.") at 14px exceeded
      280px and grew the block, which shoved the icon strip rightward.
 
-     Switching to a hard `width: 320px` + `flex-basis` lock so the
-     block ALWAYS measures 320px regardless of which sub-view's
+     Switching to a hard `width` + `flex-basis` lock so the
+     block ALWAYS measures the same regardless of which sub-view's
      title is showing. Title/subtitle long enough to overflow get
-     clipped with ellipsis (text-overflow handled below). The
-     operator picked the Work-authorization layout as the anchor;
-     320px comfortably fits its subtitle. */
-  flex: 0 0 320px !important;
-  width: 320px !important;
-  max-width: 320px !important;
+     clipped with ellipsis (text-overflow handled below).
+
+     Width = 240px to match the Schedule page's V2 title block
+     (schedule-rrx.css:1810). With both pages locked to 240px the
+     icon strip starts at the same X on Schedule and Onboarding so
+     switching between them in the sidebar doesn't shift any tile
+     horizontally. Subtitles longer than ~240px (e.g. "Work
+     authorization · Form I-9 and work authorization review.")
+     truncate with the ellipsis rule below. */
+  flex: 0 0 240px !important;
+  width: 240px !important;
+  max-width: 240px !important;
   padding-right: var(--rr-space-160) !important;
   display: flex !important;
   align-items: center !important;
