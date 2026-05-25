@@ -23408,36 +23408,63 @@ body.rr-cmdk-open{ overflow:hidden }
     <div class="view" id="view-email">
       <div class="page">
         <style>
+          /* Fleet Bridge chrome · brought to the TCP spec so the
+             header strip + cmd-tabs match Schedule + Onboarding
+             pixel-for-pixel. Tokens live in dashboard/tcp.css:
+               --tcp-strip-h     = 115px
+               --tcp-cmd-tabs-h  =  28px
+               --tcp-title-w     = 240px
+             Per operator preference there's no KPI strip on this
+             surface — Fleet Bridge stops at the header card and
+             the email grid takes over. */
           #view-email .em-cmd-shell{position:relative;display:block;margin-bottom:var(--s-4)}
           #view-email .em-cmd-shell .em-header{margin-bottom:0}
+
+          /* cmd-tabs · plain-text labels above the strip card,
+             matching Schedule's .sched-v2-cmd-tabs (transparent
+             everything, active = brand blue text). The tab band
+             sits absolute above the card so the card itself owns
+             the locked 115px height. */
           #view-email .em-cmd-tabs{
-            display:inline-flex;gap:3px;
+            display:inline-flex;gap:2px;
             position:absolute;left:4px;bottom:100%;margin-bottom:-1px;
+            height:var(--tcp-cmd-tabs-h);
+            align-items:center;
+            z-index:2;
           }
           #view-email .em-cmd-tab{
             appearance:none;background:transparent;cursor:pointer;font:inherit;
-            font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
-            color:var(--text-subtle);padding:6px 14px;
+            font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+            color:var(--rr-fg-secondary);
+            padding:var(--rr-space-60) var(--rr-space-120);
             border:1px solid transparent;border-bottom:0;
-            border-radius:8px 8px 0 0;
-            transition:color var(--t-fast),background var(--t-fast);
+            border-radius:var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
+            transition:color var(--rr-motion-fast);
           }
-          #view-email .em-cmd-tab:hover:not(.active){color:var(--text-muted)}
+          #view-email .em-cmd-tab:hover:not(.active){background:transparent}
           #view-email .em-cmd-tab.active{
-            color:var(--sch-blue);background:var(--surface-elevated);
-            border-color:rgba(15,23,42,.07);
+            color:var(--rr-brand-primary);background:transparent;border-color:transparent;
           }
-          #view-email .em-cmd-tab:focus-visible{outline:none;color:var(--sch-blue)}
-          /* Header card · same chrome as the schedule's sched-nav-heading. */
+          #view-email .em-cmd-tab:focus-visible{outline:none;color:var(--rr-brand-primary)}
+
+          /* Header card · locked to the TCP strip height so Fleet
+             Bridge's chrome matches Schedule + Onboarding. Same
+             padding (11px 18px), same background, same border, no
+             box-shadow — Schedule dropped that for the flatter
+             Fluent look. */
           #view-email .em-header{
             display:flex;align-items:center;justify-content:flex-start;
             gap:var(--s-3);flex-wrap:nowrap;
             padding:11px 18px;
             margin-bottom:var(--s-4);
-            background:var(--surface-elevated);
-            border:1px solid rgba(15,23,42,.07);
-            border-radius:10px;
-            box-shadow:0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.04);
+            background:var(--rr-bg-surface-1);
+            border:1px solid var(--rr-border-primary);
+            border-radius:var(--rr-radius-medium);
+            box-shadow:none;
+            min-height:var(--tcp-strip-h);
+            height:var(--tcp-strip-h);
+            max-height:var(--tcp-strip-h);
+            box-sizing:border-box;
           }
           #view-email .em-header .page-header-l{
             flex:0 0 240px;min-width:0;
@@ -23450,13 +23477,19 @@ body.rr-cmdk-open{ overflow:hidden }
             background:rgba(15,108,189,.10);border-radius:8px;
           }
           #view-email .em-header .page-icon svg{width:18px;height:18px}
+          /* Title + subtitle typography matched to Schedule's
+             .sched-nav-heading rules so the locked card reads with
+             identical weight on both pages. */
           #view-email .em-header .page-title{
-            font-size:22px;font-weight:600;letter-spacing:-.015em;
-            line-height:1.2;margin:0;
+            font:var(--rr-font-title);
+            color:var(--rr-fg-primary);
+            letter-spacing:-.01em;
+            margin:0;
           }
           #view-email .em-header .page-sub{
-            font-size:var(--fs-sm);font-weight:500;
-            color:var(--text-subtle);margin:2px 0 0;
+            font:var(--rr-font-caption);
+            color:var(--rr-fg-secondary);
+            margin:2px 0 0;
           }
           /* Action ribbon · icon tiles matching the schedule strip.
              Left-anchored so the first icon sits flush with the icon
@@ -23474,8 +23507,17 @@ body.rr-cmdk-open{ overflow:hidden }
             color:var(--text-muted);
             transition:background var(--t-fast),color var(--t-fast);
           }
-          #view-email .em-action svg{width:28px;height:28px;stroke-width:1.6}
-          #view-email .em-action span{font-size:var(--fs-sm);font-weight:500}
+          /* Tile SVG bumped 28 → 33px so the action tiles read at
+             the same visual weight as Schedule's .sched-v2-tile
+             icons (operator-requested +18% bump applied globally).
+             Cap/join pinned to butt/miter for the same reason — the
+             inline `stroke-linecap` on these SVGs varies and we
+             want the rendered glyph weight identical to Schedule. */
+          #view-email .em-action svg{
+            width:33px;height:33px;stroke-width:1.6;
+            stroke-linecap:butt;stroke-linejoin:miter;
+          }
+          #view-email .em-action span{font-size:13px;font-weight:500}
           #view-email .em-action:hover{background:rgba(15,23,42,.04);color:var(--text)}
           #view-email .em-action:focus-visible{
             outline:none;background:rgba(15,23,42,.04);color:var(--text);
@@ -23549,6 +23591,9 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;flex-direction:column;
             flex:1 1 auto;min-height:0;
             height:100%;
+            /* Match Schedule's .page padding so Fleet Bridge's strip
+               card lands at the same Y position as Schedule's. */
+            padding:var(--rr-space-200) !important;
           }
           #view-email .em-cmd-shell{flex:0 0 auto}
           /* Layout · aside on the LEFT (open-shifts-sized), main on the
