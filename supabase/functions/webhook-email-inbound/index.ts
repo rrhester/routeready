@@ -302,7 +302,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  await supa.from("email_messages").insert({
+  const { data: insertedEmail } = await supa.from("email_messages").insert({
     dsp_id: dsp.id,
     applicant_id: applicantId,
     folder_id: folderId,
@@ -315,7 +315,169 @@ Deno.serve(async (req) => {
     body_html: bodyHtml,
     provider: "inbound",
     provider_message_id: messageId,
-  });
+  }).select("id").single();
 
-  return jsonResponse({ ok: true, applicant_id: applicantId, folder_id: folderId });
+  // 6. Attachments → document_intake. Every attached file (PDF, image,
+  // Excel, …) gets streamed into the `document-intake` Storage bucket
+  // and a row in document_intake. Phase 2 will classify + extract;
+  // Phase 3 will file. For now we just capture so nothing arriving in
+  // mail is ever lost. Best-effort — a failed attachment upload never
+  // blocks the email itself from being recorded.
+  const attachments = _extractAttachments(data);
+  if (insertedEmail?.id && attachments.length > 0) {
+    await _captureAttachments(supa, {
+      dspId: dsp.id,
+      emailMessageId: insertedEmail.id as string,
+      senderEmail: fromEmail,
+      senderName: _extractSenderName(data.from),
+      attachments,
+    });
+  }
+
+  return jsonResponse({
+    ok: true,
+    applicant_id: applicantId,
+    folder_id: folderId,
+    attachments_captured: attachments.length,
+  });
 });
+
+
+// ── Attachment capture ──────────────────────────────────────────────
+// Resend's email.received payload carries attachments inline as a list
+// of objects. The exact shape varies a little by sender / parser, so we
+// accept several common variants:
+//   { filename, content_type, content (base64) }      ← Resend native
+//   { name, type, data }                              ← some forwarders
+//   { filename, content_type, url }                   ← URL-only payloads
+// _extractAttachments normalizes to a single shape.
+
+interface InboundAttachment {
+  filename: string;
+  contentType: string;
+  // Exactly one of these is populated:
+  contentB64?: string;
+  url?: string;
+}
+
+function _extractAttachments(data: InboundPayload): InboundAttachment[] {
+  const raw = (data as unknown as Record<string, unknown>).attachments;
+  if (!Array.isArray(raw)) return [];
+  const out: InboundAttachment[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const obj = item as Record<string, unknown>;
+    const filename = (obj.filename ?? obj.name ?? obj.file_name) as string | undefined;
+    const contentType = (obj.content_type ?? obj.contentType ?? obj.type ?? obj.mime_type) as string | undefined;
+    const contentB64 = (obj.content ?? obj.data ?? obj.content_base64) as string | undefined;
+    const url = (obj.url ?? obj.path ?? obj.href) as string | undefined;
+    if (!filename) continue;
+    if (!contentB64 && !url) continue;
+    out.push({
+      filename: String(filename).slice(0, 200),
+      contentType: String(contentType || "application/octet-stream"),
+      contentB64: typeof contentB64 === "string" ? contentB64 : undefined,
+      url: typeof url === "string" ? url : undefined,
+    });
+  }
+  return out;
+}
+
+function _extractSenderName(from: unknown): string | null {
+  if (!from) return null;
+  const v = Array.isArray(from) ? from[0] : from;
+  if (typeof v === "string") {
+    // "Display Name <addr@host>" → "Display Name"
+    const m = v.match(/^\s*"?([^"<]+?)"?\s*</);
+    return m ? m[1].trim() : null;
+  }
+  if (typeof v === "object" && v != null) {
+    const obj = v as Record<string, unknown>;
+    const name = obj.name ?? obj.display_name ?? obj.displayName;
+    return typeof name === "string" ? name.trim() : null;
+  }
+  return null;
+}
+
+async function _captureAttachments(
+  supa: ReturnType<typeof serviceClient>,
+  ctx: {
+    dspId: string;
+    emailMessageId: string;
+    senderEmail: string;
+    senderName: string | null;
+    attachments: InboundAttachment[];
+  },
+): Promise<void> {
+  // Raw email attachments age out after 90 days unless they get filed
+  // — Phase 3 will null this column on filed_at to retain forever.
+  const retentionUntil = new Date(Date.now() + 90 * 86400 * 1000)
+    .toISOString().slice(0, 10);
+
+  for (const att of ctx.attachments) {
+    try {
+      let bytes: Uint8Array | null = null;
+      if (att.contentB64) {
+        bytes = _base64ToBytes(att.contentB64);
+      } else if (att.url) {
+        const resp = await fetch(att.url);
+        if (resp.ok) {
+          const buf = new Uint8Array(await resp.arrayBuffer());
+          bytes = buf;
+        } else {
+          console.warn("attachment fetch failed", { url: att.url, status: resp.status });
+          continue;
+        }
+      }
+      if (!bytes || bytes.length === 0) continue;
+
+      // Storage path: <dsp_id>/<yyyy-mm-dd>/<random>-<sanitized-name>
+      const safeName = att.filename.replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 120);
+      const date = new Date().toISOString().slice(0, 10);
+      const rand = crypto.randomUUID().slice(0, 8);
+      const storagePath = `${ctx.dspId}/${date}/${rand}-${safeName}`;
+
+      const { error: upErr } = await supa.storage
+        .from("document-intake")
+        .upload(storagePath, bytes, {
+          contentType: att.contentType,
+          upsert: false,
+        });
+      if (upErr) {
+        console.warn("attachment upload failed", { storagePath, error: upErr.message });
+        continue;
+      }
+
+      const { error: insErr } = await supa.from("document_intake").insert({
+        dsp_id: ctx.dspId,
+        source: "email",
+        email_message_id: ctx.emailMessageId,
+        sender_email: ctx.senderEmail,
+        sender_name: ctx.senderName,
+        storage_path: storagePath,
+        file_name: att.filename,
+        file_size_bytes: bytes.length,
+        mime_type: att.contentType,
+        status: "pending",
+        retention_until: retentionUntil,
+      });
+      if (insErr) {
+        console.warn("document_intake insert failed", { storagePath, error: insErr.message });
+      }
+    } catch (e) {
+      console.warn("attachment capture exception", { filename: att.filename, error: (e as Error)?.message });
+    }
+  }
+}
+
+function _base64ToBytes(b64: string): Uint8Array {
+  try {
+    const clean = b64.replace(/\s+/g, "");
+    const bin = atob(clean);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  } catch {
+    return new Uint8Array(0);
+  }
+}
