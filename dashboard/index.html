@@ -10431,7 +10431,10 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Applicant list scrolls inside its own region so the page
              header, KPI strip + stage tabs stay pinned while the DSP
              works through dozens of applicants. max-height is measured
-             to the viewport by _pipeFitList(). */
+             to the viewport by _pipeFitList(). Scrollbar styled to
+             match the schedule grid's .cal-wrap exactly: 8px wide,
+             hairline border-strong thumb, transparent track,
+             text-subtle on hover. */
           #view-pipeline .pipe-applicants{
             gap:var(--s-2);
             overflow-y:auto;overflow-x:hidden;
@@ -10442,9 +10445,20 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pipe-applicants::-webkit-scrollbar{width:8px}
           #view-pipeline .pipe-applicants::-webkit-scrollbar-track{background:transparent}
           #view-pipeline .pipe-applicants::-webkit-scrollbar-thumb{
-            background:var(--border-strong);border-radius:4px;
+            background:var(--border-strong);border-radius:var(--r-sm);
           }
           #view-pipeline .pipe-applicants::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
+          /* Cards never shrink along the flex axis · without this,
+             when many cards fit within the .pipe-applicants
+             max-height, flex-shrink:1 (the default) lets each card
+             compress and clip its content (overflow:hidden on
+             .pa-card). flex-shrink:0 keeps every card at its natural
+             height so content stays intact and the container scrolls
+             when total height exceeds the viewport. */
+          #view-pipeline .pipe-applicants > .pa-card,
+          #view-pipeline .pipe-applicants > .pa-skel-card{
+            flex-shrink:0;
+          }
           /* ── Funnel two-column shell · applicant list + right rail ──
              Mirrors the schedule's .builder-shell (1fr / 320px) so the
              Indeed-sync card matches the "Open shifts" card exactly. */
@@ -10485,11 +10499,22 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .rr-indeed-pull:disabled{cursor:default;opacity:.72}
           #view-pipeline .rr-indeed-pull svg{width:14px;height:14px}
           #view-pipeline .rr-indeed-pull.is-loading svg{animation:rr-spin .65s linear infinite}
+          /* Indeed sync log · scrolls inside the card so long sync
+             histories don't push the card past its allotted height.
+             Scrollbar matches the schedule grid's .cal-wrap (8px,
+             border-strong thumb on transparent track, text-subtle on
+             hover) so both surfaces feel like one product. */
           #view-pipeline .rr-indeed-log-list{
             display:flex;flex-direction:column;
             flex:1;min-height:0;overflow-y:auto;
             scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;
           }
+          #view-pipeline .rr-indeed-log-list::-webkit-scrollbar{width:8px}
+          #view-pipeline .rr-indeed-log-list::-webkit-scrollbar-track{background:transparent}
+          #view-pipeline .rr-indeed-log-list::-webkit-scrollbar-thumb{
+            background:var(--border-strong);border-radius:var(--r-sm);
+          }
+          #view-pipeline .rr-indeed-log-list::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
           #view-pipeline .rr-indeed-log-row{
             display:flex;align-items:flex-start;gap:9px;padding:9px 4px;
           }
