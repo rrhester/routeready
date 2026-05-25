@@ -9957,6 +9957,56 @@ body.rr-cmdk-open{ overflow:hidden }
             background:rgba(15,108,189,.07);
             border-left:1px solid rgba(15,108,189,.22);
           }
+          /* V4 action zone · one primary CTA + a quiet ⋯ overflow at
+             the far right. Operator-requested cognitive-load reduction
+             (Fluent hierarchy: strong primary, tertiary utility).
+             The advance button stretches to fill the available width;
+             the more button sits at the right with a fixed footprint. */
+          #view-pipeline .pa-zone-action-v4{
+            flex-direction:row;align-items:center;gap:6px;
+          }
+          #view-pipeline .pa-zone-action-v4 .pa-btn-advance{
+            flex:1 1 auto;justify-content:center;
+          }
+          #view-pipeline .pa-act-more{
+            appearance:none;cursor:pointer;font:inherit;
+            display:inline-flex;align-items:center;justify-content:center;
+            flex:0 0 28px;width:28px;height:28px;padding:0;
+            background:transparent;border:0;border-radius:4px;
+            color:var(--text-subtle);
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-pipeline .pa-act-more:hover{
+            background:rgba(15,23,42,.06);color:var(--text);
+          }
+          #view-pipeline .pa-act-more:focus-visible{
+            outline:none;background:rgba(15,23,42,.06);color:var(--text);
+            box-shadow:0 0 0 2px rgba(15,108,189,.30);
+          }
+          #view-pipeline .pa-act-more svg{width:16px;height:16px;flex:0 0 auto}
+          /* Overflow menu rows · Fluent menu-item layout (icon · label / sub). */
+          .pa-pop.pa-pop-menu{
+            padding:6px;min-width:240px;
+          }
+          .pa-pop-mi{
+            appearance:none;cursor:pointer;font:inherit;width:100%;text-align:left;
+            display:flex;align-items:center;gap:10px;
+            padding:8px 10px;border-radius:6px;
+            background:transparent;border:0;color:var(--text);
+            transition:background var(--t-fast);
+          }
+          .pa-pop-mi:hover:not(:disabled){background:var(--canvas)}
+          .pa-pop-mi:disabled,.pa-pop-mi.is-disabled{opacity:.55;cursor:not-allowed}
+          .pa-pop-mi-icon{
+            width:24px;height:24px;flex:0 0 auto;
+            display:inline-flex;align-items:center;justify-content:center;
+            color:var(--text-muted);
+          }
+          .pa-pop-mi-body{display:flex;flex-direction:column;min-width:0;gap:1px}
+          .pa-pop-mi-label{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.25}
+          .pa-pop-mi-sub{font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.25;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
           #view-pipeline .pa-act-row{
             display:flex;align-items:center;gap:8px;
             flex-wrap:nowrap;justify-content:flex-end;width:100%;
@@ -10431,21 +10481,27 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Applicant list scrolls inside its own region so the page
              header, KPI strip + stage tabs stay pinned while the DSP
              works through dozens of applicants. max-height is measured
-             to the viewport by _pipeFitList(). Scrollbar styled to
-             match the schedule grid's .cal-wrap exactly: 8px wide,
-             hairline border-strong thumb, transparent track,
-             text-subtle on hover. */
+             to the viewport by _pipeFitList(). Scrollbar matches the
+             schedule grid's .cal-wrap exactly:
+               • 8px wide  · width:8px
+               • thumb     · border-strong on hover → text-subtle
+               • track     · transparent
+             overflow-y:scroll (not auto) reserves the track so the
+             scrollbar is always present, never auto-hides — operator
+             explicit request. */
           #view-pipeline .pipe-applicants{
             gap:var(--s-2);
-            overflow-y:auto;overflow-x:hidden;
+            overflow-y:scroll;overflow-x:hidden;
             padding-right:4px;
+            scrollbar-gutter:stable;
             scrollbar-width:thin;
             scrollbar-color:var(--border-strong) transparent;
           }
-          #view-pipeline .pipe-applicants::-webkit-scrollbar{width:8px}
+          #view-pipeline .pipe-applicants::-webkit-scrollbar{width:8px;-webkit-appearance:none}
           #view-pipeline .pipe-applicants::-webkit-scrollbar-track{background:transparent}
           #view-pipeline .pipe-applicants::-webkit-scrollbar-thumb{
             background:var(--border-strong);border-radius:var(--r-sm);
+            min-height:30px;
           }
           #view-pipeline .pipe-applicants::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
           /* Cards never shrink along the flex axis · without this,
@@ -10499,20 +10555,23 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .rr-indeed-pull:disabled{cursor:default;opacity:.72}
           #view-pipeline .rr-indeed-pull svg{width:14px;height:14px}
           #view-pipeline .rr-indeed-pull.is-loading svg{animation:rr-spin .65s linear infinite}
-          /* Indeed sync log · scrolls inside the card so long sync
-             histories don't push the card past its allotted height.
-             Scrollbar matches the schedule grid's .cal-wrap (8px,
-             border-strong thumb on transparent track, text-subtle on
-             hover) so both surfaces feel like one product. */
+          /* Indeed sync log · always-visible 8px scrollbar matching
+             the schedule grid's .cal-wrap. overflow-y:scroll reserves
+             the track so the bar is present even when the list isn't
+             long enough to actually scroll (operator wanted it visible
+             at all times). */
           #view-pipeline .rr-indeed-log-list{
             display:flex;flex-direction:column;
-            flex:1;min-height:0;overflow-y:auto;
-            scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;
+            flex:1;min-height:0;overflow-y:scroll;
+            scrollbar-gutter:stable;
+            scrollbar-width:thin;
+            scrollbar-color:var(--border-strong) transparent;
           }
-          #view-pipeline .rr-indeed-log-list::-webkit-scrollbar{width:8px}
+          #view-pipeline .rr-indeed-log-list::-webkit-scrollbar{width:8px;-webkit-appearance:none}
           #view-pipeline .rr-indeed-log-list::-webkit-scrollbar-track{background:transparent}
           #view-pipeline .rr-indeed-log-list::-webkit-scrollbar-thumb{
             background:var(--border-strong);border-radius:var(--r-sm);
+            min-height:30px;
           }
           #view-pipeline .rr-indeed-log-list::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
           #view-pipeline .rr-indeed-log-row{
