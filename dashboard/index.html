@@ -11359,13 +11359,19 @@ body.rr-cmdk-open{ overflow:hidden }
       </style>
       <div class="page">
         <!-- Command shell · Onboarding / Print-Download mode tabs
-             above the header, matching the Schedule page pattern. -->
-        <div class="ob-cmd-shell" id="rr-ob-cmd">
+             above the header, matching the Schedule page pattern.
+             Carries the .tcp class — chrome dimensions are owned
+             by the TopControlPlane tokens in dashboard/tcp.css.
+             The .sched-nav-heading card below carries .tcp-strip;
+             the KPI band is reserved via the ::after placeholder
+             in onboarding-rrx.css (it predates TCP — equivalent
+             to .tcp-kpi.is-empty). -->
+        <div class="ob-cmd-shell tcp" id="rr-ob-cmd">
         <div class="ob-cmd-tabs" role="tablist" aria-label="Command strip mode">
           <button class="ob-cmd-tab active" type="button" data-ob-cmd-tab="ops" role="tab" aria-selected="true">Onboarding</button>
           <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
         </div>
-        <div class="page-header sched-nav-heading">
+        <div class="page-header sched-nav-heading tcp-strip">
           <div class="page-header-l">
             <!-- Decorative driver-with-checkmark icon removed per
                  operator request — title alone reads cleaner and
