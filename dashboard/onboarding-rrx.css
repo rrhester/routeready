@@ -82,9 +82,12 @@
 #view-onboarding-ops.rrx-onboarding > .page > .ob-cmd-shell::after {
   content: "";
   display: block;
-  min-height: 46px;
-  height: 46px;
-  margin: 0 0 var(--rr-space-80, 8px) 0;
+  /* Heights point at the TopControlPlane KPI token — same
+     source of truth as Schedule's #rr-sched-kpis. This pseudo
+     is the .tcp-kpi.is-empty equivalent for Onboarding. */
+  min-height: var(--tcp-kpi-h, 46px);
+  height:     var(--tcp-kpi-h, 46px);
+  margin: 0 0 var(--tcp-kpi-gap, 8px) 0;
   border: 1px solid var(--rr-border-primary, #E1DFDD);
   border-radius: var(--rr-radius-medium, 4px);
   background: var(--rr-bg-surface-1, #FFFFFF);
@@ -233,14 +236,17 @@
 #view-onboarding-ops.rrx-onboarding .page-header.sched-nav-heading,
 #view-onboarding-ops > .page > .page-header.sched-nav-heading {
   padding: 11px 18px !important;
-  margin: 0 0 var(--rr-space-160) 0 !important;
+  margin: 0 0 var(--tcp-strip-gap, 16px) 0 !important;
   background: var(--rr-bg-surface-1) !important;
   border: 1px solid var(--rr-border-primary) !important;
   border-radius: var(--rr-radius-medium) !important;
   box-shadow: none !important;
-  min-height: 115px !important;
-  height: 115px !important;
-  max-height: 115px !important;
+  /* Height locks point at the TopControlPlane token so Schedule
+     and Onboarding can never drift apart. Single source of truth
+     lives in dashboard/tcp.css (--tcp-strip-h). */
+  min-height: var(--tcp-strip-h, 115px) !important;
+  height:     var(--tcp-strip-h, 115px) !important;
+  max-height: var(--tcp-strip-h, 115px) !important;
   width: 100% !important;
   box-sizing: border-box !important;
   overflow: visible !important;
