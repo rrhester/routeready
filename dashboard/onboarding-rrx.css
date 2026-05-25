@@ -314,13 +314,17 @@
   border-left-color: #C8C6C4 !important;
 }
 
-/* Title-to-first-group divider — hairline between the "Onboarding"
-   page title block and the first ribbon group (Funnel), matching the
-   inter-group hairline. The first ribbon group has no preceding
-   .sched-ribbon-group sibling, so we paint the left border on it
-   directly. */
+/* Title-to-first-group divider — hairline between the title
+   block and the first ribbon group (Funnel on the default
+   ribbon, Roster on the Roster ribbon). margin-left is bumped
+   from --rr-space-160 (16px) to 32px to align the hairline X
+   with Schedule's first hairline (the week-tile divider on
+   .sched-v2-strip). Measured deltas pre-fix:
+     Schedule  hairline.left  = card.left + 298.85
+     Onboarding hairline.left = card.left + 282.86   (16px short)
+   +16px nudge puts both at ~298.85. */
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions .sched-ribbon-group:first-child {
-  margin-left: var(--rr-space-160) !important;
+  margin-left: 32px !important;
   padding-left: var(--rr-space-160) !important;
   border-left: 1px solid #C8C6C4 !important;
 }
