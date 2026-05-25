@@ -1711,11 +1711,11 @@ async function _rrSimulateNext13Weeks() {
   if (btn) {
     btn.disabled = true;
     btn.classList.add("is-loading");
-    const lbl = btn.querySelector("span");
+    const lbl = btn.querySelector(":scope > span:not(.sched-v2-intel-tile-status)");
     if (lbl) lbl.dataset.rrOrig = lbl.textContent;
-    if (lbl) lbl.textContent = "Simulating…";
+    if (lbl) lbl.textContent = "Running…";
   }
-  if (status) status.textContent = "Projecting drivers across 13 weeks…";
+  if (status) status.textContent = "in progress";
 
   try {
     const { data, error } = await sb.rpc("active_drivers_for_horizon", {
@@ -1746,18 +1746,19 @@ async function _rrSimulateNext13Weeks() {
     }
     if (status) {
       const ranAt = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-      status.textContent = `Last run · ${ranAt}`;
+      status.textContent = `ran ${ranAt}`;
+      status.title = `Last simulation: ${ranAt} · PTO + time-off folded in.`;
     }
     if (typeof toast === "function") toast("13-week projection complete", "success");
   } catch (e) {
     console.warn("simulate-13-weeks:", e);
-    if (status) status.textContent = "Simulation failed · check console";
+    if (status) status.textContent = "failed";
     if (typeof toast === "function") toast("Simulation failed: " + (e?.message || String(e)), "warn");
   } finally {
     if (btn) {
       btn.disabled = false;
       btn.classList.remove("is-loading");
-      const lbl = btn.querySelector("span");
+      const lbl = btn.querySelector(":scope > span:not(.sched-v2-intel-tile-status)");
       if (lbl && lbl.dataset.rrOrig) { lbl.textContent = lbl.dataset.rrOrig; delete lbl.dataset.rrOrig; }
     }
   }
@@ -1800,12 +1801,17 @@ function _rrPaintOkamiSimAnnotations() {
   });
 }
 
-// Click handler for the simulate button. Lives at document level so
-// it survives the OKAMI table being moved between #view-okami and
-// #sched-sub-targets at runtime.
+// Click handler for the Simulate action tile in the Intelligence
+// ribbon. Lives at document level so it survives the ribbon being
+// re-rendered or the operator switching tabs. The data-rr-intel-action
+// attribute is distinct from data-rr-intel (which opens a view) so
+// the main intel click router doesn't try to open a "simulate" view.
 document.addEventListener("click", (e) => {
-  if (e.target.closest("#rr-tgt-sim-btn")) {
-    e.preventDefault();
+  const action = e.target.closest("[data-rr-intel-action]");
+  if (!action) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (action.dataset.rrIntelAction === "simulate") {
     _rrSimulateNext13Weeks();
   }
 });

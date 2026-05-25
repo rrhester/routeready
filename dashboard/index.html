@@ -14139,6 +14139,18 @@ body.rr-cmdk-open{ overflow:hidden }
                 </svg>
                 <span>What-if</span>
               </button>
+              <!-- Simulate · action tile, not a view-opener. Refreshes
+                   the PTO-aware projection that feeds Risk forecast (and
+                   future intel views). Visual separator on the left to
+                   distinguish it from the 5 forecast views. -->
+              <button type="button" class="sched-v2-intel-tile sched-v2-intel-tile-action" id="rr-tgt-sim-btn" data-rr-intel-action="simulate" title="Project drivers available for each of the next 13 weeks, accounting for approved time-off requests">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="23 4 23 10 17 10"/>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                </svg>
+                <span>Simulate</span>
+                <span class="sched-v2-intel-tile-status" id="rr-tgt-sim-status" aria-live="polite"></span>
+              </button>
             </div>
           </div>
 
@@ -15511,6 +15523,38 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-v2-intel-tile.is-active{
             color:var(--sch-blue,#0F6CBD);
             background:rgba(15,108,189,.08);
+          }
+          /* Action tile · "Simulate". Same dimensions as the 5
+             forecast tiles so the ribbon stays even, but with a
+             hairline separator on the left and a brand-blue glyph
+             so the operator reads it as an action (refresh data)
+             not a 6th forecast view. */
+          #view-schedule .sched-v2-intel-tile-action{
+            margin-left:8px;padding-left:18px;
+            border-left:1px solid rgba(15,23,42,.08);
+            border-radius:0 6px 6px 0;
+            color:var(--sch-blue,#0F6CBD);
+            position:relative;
+          }
+          #view-schedule .sched-v2-intel-tile-action svg{color:var(--sch-blue,#0F6CBD)}
+          #view-schedule .sched-v2-intel-tile-action:hover{
+            color:#115EA3;background:rgba(15,108,189,.06);
+          }
+          #view-schedule .sched-v2-intel-tile-action:disabled{cursor:default;opacity:.65}
+          #view-schedule .sched-v2-intel-tile-action.is-loading svg{
+            animation:rr-spin .65s linear infinite;
+          }
+          /* Small "Last run · HH:MM" indicator sits below the tile's
+             label, replacing nothing — appears only after a sim runs
+             so the ribbon's height stays constant. */
+          #view-schedule .sched-v2-intel-tile-status{
+            font-size:9px;font-weight:500;color:var(--text-subtle);
+            letter-spacing:.02em;font-variant-numeric:tabular-nums;
+            white-space:nowrap;line-height:1;
+            min-height:10px;
+          }
+          #view-schedule .sched-v2-intel-tile-action:hover .sched-v2-intel-tile-status{
+            color:var(--text-muted);
           }
 
           /* ── Intelligence views · calm Microsoft-style analysis
@@ -19534,27 +19578,6 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-schedule #sched-sub-targets .rr-tgt-13w-sub{
               display:none;
             }
-            /* Simulate button · sits at the right of the planner header,
-               same chrome the Pipeline page uses for "Pull from Indeed".
-               Calm Microsoft blue, no shadow. */
-            #view-schedule #sched-sub-targets .rr-tgt-13w-actions{
-              display:flex;align-items:center;gap:10px;flex:0 0 auto;
-            }
-            #view-schedule #sched-sub-targets .rr-tgt-13w-sim-btn{
-              display:inline-flex;align-items:center;gap:6px;
-              padding:6px 12px;border-radius:6px;
-              background:#0078D4;color:#fff;border:1px solid #0078D4;cursor:pointer;
-              font-family:inherit;font-size:var(--fs-sm);font-weight:600;
-              transition:background var(--t-fast),border-color var(--t-fast);
-            }
-            #view-schedule #sched-sub-targets .rr-tgt-13w-sim-btn:hover{background:#106EBE;border-color:#106EBE}
-            #view-schedule #sched-sub-targets .rr-tgt-13w-sim-btn:disabled{cursor:default;opacity:.72}
-            #view-schedule #sched-sub-targets .rr-tgt-13w-sim-btn svg{width:13px;height:13px}
-            #view-schedule #sched-sub-targets .rr-tgt-13w-sim-btn.is-loading svg{animation:rr-spin .65s linear infinite}
-            #view-schedule #sched-sub-targets .rr-tgt-13w-sim-status{
-              font-size:var(--fs-xs);color:var(--text-subtle);
-              font-variant-numeric:tabular-nums;white-space:nowrap;
-            }
             /* Sim avail annotation under each week's Available cell · only
                rendered after the simulate run completes. Placed inline so
                operators can compare planning numbers (the existing OKAMI
@@ -19653,21 +19676,6 @@ body.rr-cmdk-open{ overflow:hidden }
                   <span class="rr-tgt-13w-badge" title="Amazon's term for the 13-week DSP route plan horizon">13-week plan</span>
                 </div>
                 <p class="rr-tgt-13w-sub">Routes vs. staffing vs. risk · drawn from your real history. Edit any week to recalc downstream coverage.</p>
-              </div>
-              <!-- Simulate next 13 weeks · runs a PTO-aware headcount
-                   projection for each week in the planner and writes
-                   the results into the Risk forecast view. Numbers
-                   land in window._rrSimResults; the planner table
-                   gets an inline "Sim avail" annotation per row. -->
-              <div class="rr-tgt-13w-actions">
-                <button type="button" class="rr-tgt-13w-sim-btn" id="rr-tgt-sim-btn" title="Project drivers available for each of the next 13 weeks, accounting for approved time-off requests">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="23 4 23 10 17 10"/>
-                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-                  </svg>
-                  <span>Simulate 13 weeks</span>
-                </button>
-                <span class="rr-tgt-13w-sim-status" id="rr-tgt-sim-status" aria-live="polite"></span>
               </div>
             </div>
             <div id="rr-sched-targets-13week-host">
