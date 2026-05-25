@@ -28241,67 +28241,7 @@ function _obCmdTab(mode) {
     if (title) title.textContent = "On-boarding";
     if (sub)   sub.textContent   = "Every driver getting ready to drive — readiness at a glance.";
   }
-  // Roster-mode body swap · in Roster mode the Onboarding body
-  // shows the live driver-roster table from #view-drivers. We
-  // physically relocate the .dr-subview#dr-sub-roster node into
-  // #ob-roster-mount so all its JS bindings (sort, search,
-  // columns toggle, Add driver) keep working. Onboarding's
-  // normal body content (obsub-*) is hidden via the .is-roster
-  // class hook in onboarding-rrx.css. On the way out, we restore
-  // the node to Drivers so navigating to Drivers later finds it
-  // where it expects to be.
-  if (mode === "roster") _obMountDriverRoster();
-  else                   _obUnmountDriverRoster();
 }
-
-// Remembers where #dr-sub-roster lived inside #view-drivers so
-// we can put it back after the operator leaves Roster mode.
-let _obRosterOriginalParent = null;
-let _obRosterOriginalNextSibling = null;
-
-function _obMountDriverRoster() {
-  const mount = document.getElementById("ob-roster-mount");
-  if (!mount) return;
-  // Already mounted? No-op.
-  if (mount.querySelector("#dr-sub-roster")) {
-    mount.hidden = false;
-    return;
-  }
-  // Ensure Drivers has had a chance to render the roster table
-  // at least once. loadDriversRoster (or equivalent init) wires
-  // the JS handlers. Best-effort — if the function isn't loaded
-  // we still try to move whatever's there.
-  if (typeof loadDriversRoster === "function" && !window.__ob_drivers_inited) {
-    try { loadDriversRoster(); window.__ob_drivers_inited = true; } catch (_) {}
-  }
-  const src = document.getElementById("dr-sub-roster");
-  if (!src) return;
-  _obRosterOriginalParent     = src.parentNode;
-  _obRosterOriginalNextSibling = src.nextSibling;
-  mount.appendChild(src);
-  mount.hidden = false;
-}
-
-function _obUnmountDriverRoster() {
-  const mount = document.getElementById("ob-roster-mount");
-  if (!mount) return;
-  const src = mount.querySelector("#dr-sub-roster");
-  if (src && _obRosterOriginalParent) {
-    if (_obRosterOriginalNextSibling && _obRosterOriginalNextSibling.parentNode === _obRosterOriginalParent) {
-      _obRosterOriginalParent.insertBefore(src, _obRosterOriginalNextSibling);
-    } else {
-      _obRosterOriginalParent.appendChild(src);
-    }
-    _obRosterOriginalParent = null;
-    _obRosterOriginalNextSibling = null;
-  }
-  mount.hidden = true;
-}
-
-// Expose so goto() can call this when the operator navigates to
-// Drivers while the roster is still parked in Onboarding — the
-// roster must be returned to Drivers before Drivers paints.
-window._obUnmountDriverRoster = _obUnmountDriverRoster;
 
 function _obPrint() {
   // Clone every visible onboarding sub-page (overview, workauth,
