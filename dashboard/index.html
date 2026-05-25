@@ -15672,10 +15672,13 @@ body.rr-cmdk-open{ overflow:hidden }
             transition:color var(--t-fast),background var(--t-fast);
           }
           #view-schedule .sched-cmd-tab:hover:not(.active){color:var(--text-muted)}
+          /* Plain-text cmd-tabs (operator preference) — no active
+             tab-card. All three tabs read as labels above the card;
+             no background, no border distinguishes the active one. */
           #view-schedule .sched-cmd-tab.active{
             color:var(--sch-blue);
-            background:var(--surface-elevated);
-            border-color:rgba(15,23,42,.07);
+            background:transparent;
+            border-color:transparent;
           }
           #view-schedule .sched-cmd-tab:focus-visible{outline:none;color:var(--sch-blue)}
           /* Print mode · the ribbon's real items go invisible (holding
