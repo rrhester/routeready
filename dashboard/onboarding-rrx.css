@@ -157,8 +157,13 @@
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading {
   display: flex !important;
   align-items: center !important;
-  gap: var(--rr-space-120) !important;
-  padding: var(--rr-space-100) var(--rr-space-160) !important;
+  /* Padding + gap matched to Schedule's .sched-v2-strip
+     (schedule-rrx.css:1654-1657) so when both pages have a
+     240px title block on the left, the first hairline divider
+     (the left border of the first ribbon group) lands at the
+     SAME X coordinate on both pages. */
+  gap: 8px !important;
+  padding: 11px 18px !important;
   margin: 0 0 var(--rr-space-200) !important;
   background: var(--rr-bg-surface-1) !important;
   border: 1px solid var(--rr-border-primary) !important;
@@ -166,17 +171,11 @@
   box-shadow: none !important;
 }
 
-/* Hide the title block ("Onboarding" + "N driver in onboarding")
-   inside the strip card · operator wants the icon strip to use
-   the full card width left-justified. The sidebar tab already
-   carries the page name; the subtitle was redundant with the
-   cohort matrix below. This rule wins over both of the original
-   .page-header-l rules below via order (last-declared wins on
-   equal specificity). */
-#view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-header-l,
-#view-onboarding-ops.rrx-onboarding > .page .sched-nav-heading .page-header-l {
-  display: none !important;
-}
+/* Title block restored per operator request — reads "On-boarding".
+   (Was display:none'd in #1793; the operator wanted the title back
+   AND the icon strip's first hairline divider aligned with
+   Schedule's leftmost hairline. Matching Schedule's 11px 18px
+   strip-card padding + 8px gap below does the alignment.) */
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-header-l {
   /* HARD-LOCK the title block to a fixed width so the icon strip
@@ -752,7 +751,9 @@
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
-  margin-left: auto;
+  /* No margin-left:auto · print tiles pack to the LEFT of the
+     icon area (right after the title block) instead of the
+     right edge, per operator preference. */
 }
 #view-onboarding-ops.rrx-onboarding .ob-cmd-shell.is-print .sched-nav-heading-actions {
   display: none !important;
