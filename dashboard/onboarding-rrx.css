@@ -759,6 +759,39 @@
   display: none !important;
 }
 
+/* ── Roster mode · the new third cmd-tab ─────────────────────
+   Same swap pattern as the Print/Download mode: roster tiles
+   are hidden by default and revealed when .ob-cmd-shell carries
+   .is-roster (set by _obCmdTab when the Roster tab is clicked).
+   In roster mode the regular Onboarding ribbon AND any print
+   actions are hidden so only the roster tiles render in the
+   strip-card icon slot. */
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions {
+  display: none;
+}
+#view-onboarding-ops.rrx-onboarding .ob-cmd-shell.is-roster .ob-v2-roster-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex: 1 1 auto !important;
+}
+/* When roster mode is active, hide the default Onboarding tile
+   ribbon. .sched-nav-heading-actions is the rule the regular
+   ribbon uses; the roster ribbon ALSO carries that class so the
+   tile/divider chrome inherits without duplication. Scope this
+   hide to the FIRST occurrence (the original ribbon) by using
+   :not(.ob-v2-roster-actions). */
+#view-onboarding-ops.rrx-onboarding .ob-cmd-shell.is-roster .sched-nav-heading-actions:not(.ob-v2-roster-actions) {
+  display: none !important;
+}
+/* And hide the Print/Download tiles too while roster mode is on
+   (defensive — the print tiles are already hidden unless
+   .is-print is set, but if both classes were ever set
+   simultaneously, roster wins). */
+#view-onboarding-ops.rrx-onboarding .ob-cmd-shell.is-roster .ob-v2-print-actions {
+  display: none !important;
+}
+
 /* Tile styling for the print buttons — mirrors Schedule's
    .sched-print-btn rule (schedule-rrx.css:2042+) so the
    Onboarding print tiles render at the exact same dimensions,
