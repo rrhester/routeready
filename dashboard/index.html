@@ -23342,7 +23342,7 @@ body.rr-cmdk-open{ overflow:hidden }
          on the LEFT, the calendar-sized main panel on the RIGHT.
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-email">
-      <div class="page page-shell">
+      <div class="page">
         <style>
           #view-email .em-cmd-shell{position:relative;display:block;margin-bottom:var(--s-4)}
           #view-email .em-cmd-shell .em-header{margin-bottom:0}
@@ -24194,13 +24194,6 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:11px;color:var(--text-subtle,#94a3b8);flex:0 0 auto;
           }
         </style>
-        <!-- ── Page shell · canonical layout adoption ───────────────
-             Same containment Fleet now uses. The cmd-shell (cmd-tabs
-             + header + icon strip) lives in .page-shell-chrome so
-             nothing can push it; the two-column em-grid lives in
-             .page-shell-body so its internal scroll behavior stays
-             unchanged. -->
-        <div class="page-shell-chrome">
         <div class="em-cmd-shell" id="rr-em-cmd">
           <div class="em-cmd-tabs" role="tablist" aria-label="Command strip mode">
             <button class="em-cmd-tab active" type="button" data-em-cmd-tab="email" role="tab" aria-selected="true">Fleet Bridge</button>
@@ -24255,11 +24248,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </button>
             </div>
           </div>
-        </div><!-- /.em-cmd-shell -->
-        <div class="page-shell-kpi page-shell-kpi-empty" aria-hidden="true"></div>
-        </div><!-- /.page-shell-chrome -->
-
-        <div class="page-shell-body">
+        </div>
         <div class="em-grid">
           <aside class="em-aside" aria-label="Email folders">
             <div class="em-aside-head">
@@ -24301,8 +24290,7 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
           </section>
-        </div><!-- /.em-grid -->
-        </div><!-- /.page-shell-body -->
+        </div>
       </div>
     </div>
 
