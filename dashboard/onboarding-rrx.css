@@ -813,6 +813,26 @@
   display: none !important;
 }
 
+/* Roster mode body swap · #ob-roster-mount holds the live
+   #dr-sub-roster relocated from #view-drivers (see
+   _obMountDriverRoster in live.js). The mount sits inside the
+   TopControlPlane body and scrolls inside the chrome-locked
+   shell just like the obsub-* sub-views. In roster mode the
+   normal obsub-* body is hidden; on exit the mount hides and
+   obsub-* reappears. */
+#view-onboarding-ops.rrx-onboarding > .page > .ob-roster-mount {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  display: none;
+}
+#view-onboarding-ops.rrx-onboarding > .page:has(> .ob-cmd-shell.is-roster) > .ob-roster-mount {
+  display: block !important;
+}
+#view-onboarding-ops.rrx-onboarding > .page:has(> .ob-cmd-shell.is-roster) > [id^="obsub-"] {
+  display: none !important;
+}
+
 /* Tile styling for the print buttons — mirrors Schedule's
    .sched-print-btn rule (schedule-rrx.css:2042+) so the
    Onboarding print tiles render at the exact same dimensions,
