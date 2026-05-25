@@ -27916,6 +27916,56 @@ John,Smith,555-0101,john@example.com</code>
     target.innerHTML = renamed;
     target.setAttribute('data-rr-clone', 'schedule');
     _injectSchedule2StyleAlias();
+    _applySchedule2OnboardingLook(target);
+  }
+  // Operator-requested layout iteration · make Schedule 2 wear the
+  // Onboarding chrome:
+  //   1. Title block reads "Onboarding" instead of "Schedule".
+  //   2. The icon strip is replaced by a clone of the live
+  //      Onboarding view's icon ribbon (Funnel / Interview Day /
+  //      Calendar / Onboarding / Work auth / Add applicant /
+  //      PDF Upload).
+  //   3. Horizontal scrollbars are hidden inside Schedule 2.
+  function _applySchedule2OnboardingLook(root){
+    if (!root) return;
+    // 1. Title swap. The Schedule title sits inside the V2 nav strip;
+    // search for the H1 by its cloned id and any visible title node.
+    var titles = root.querySelectorAll('.page-title, .sched-page-title, #rr-sched-page-title-s2, h1');
+    titles.forEach(function(t){
+      if (t && t.textContent && t.textContent.trim().toLowerCase().indexOf('schedule') === 0) {
+        t.textContent = 'Onboarding';
+      }
+    });
+    // Subtitle too · the operator only sees "Schedule" up top, but
+    // the subtitle line ("Week of …") doesn't match Onboarding any
+    // more. Blank it for now so it doesn't read as stale.
+    var subs = root.querySelectorAll('#rr-sched-page-sub-s2, .sched-page-sub, .page-sub');
+    subs.forEach(function(s){ if (s) s.textContent = 'Onboarding · static layout clone'; });
+
+    // 2. Action strip swap. Find the cloned action ribbon in Schedule 2
+    // and replace it with the live Onboarding strip's HTML (also
+    // suffixed so live handlers can't bind into it).
+    var s2Strip = root.querySelector('.sched-nav-heading-actions');
+    var obStrip = document.querySelector('#view-onboarding-ops .sched-nav-heading-actions');
+    if (s2Strip && obStrip) {
+      var obHtml = obStrip.outerHTML
+        .replace(/(\sid=")([^"]+)(")/g, function(_m, a, idv, c){ return a + idv + '-s2ob' + c; })
+        .replace(/(\sfor=")([^"]+)(")/g, function(_m, a, lv, c){ return a + lv + '-s2ob' + c; })
+        .replace(/(\saria-controls=")([^"]+)(")/g, function(_m, a, v, c){ return a + v + '-s2ob' + c; })
+        .replace(/(\saria-labelledby=")([^"]+)(")/g, function(_m, a, v, c){ return a + v + '-s2ob' + c; });
+      s2Strip.outerHTML = obHtml;
+    }
+
+    // 3. Kill scrollbars inside Schedule 2. One-time style injection.
+    if (!document.getElementById('rr-sched2-no-scrollbar')) {
+      var s = document.createElement('style');
+      s.id = 'rr-sched2-no-scrollbar';
+      s.textContent =
+        '#view-schedule-2 *::-webkit-scrollbar{display:none !important;width:0 !important;height:0 !important}' +
+        '#view-schedule-2 *{scrollbar-width:none !important;-ms-overflow-style:none !important}' +
+        '#view-schedule-2{overflow:hidden}';
+      document.head.appendChild(s);
+    }
   }
   // Schedule's CSS is scoped with `#view-schedule X` selectors — they
   // won't match the `#view-schedule-2` clone. Walk every stylesheet
