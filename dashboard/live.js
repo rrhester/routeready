@@ -50465,7 +50465,7 @@ document.addEventListener("click", (e) => {
 
   async function loadDocuments() {
     const { data, error } = await sb.from("document_intake")
-      .select("id, source, sender_email, sender_name, storage_path, file_name, file_size_bytes, mime_type, status, classified_type, classification_score, created_at, email_message_id, uploaded_by")
+      .select("id, source, sender_email, sender_name, storage_path, file_name, file_size_bytes, mime_type, status, classified_type, classified_type_label, classification_score, classification_summary, classification_error, classification_model, extracted_data, created_at, email_message_id, uploaded_by")
       .neq("status", "dismissed")
       .order("created_at", { ascending: false })
       .limit(200);
@@ -50859,19 +50859,103 @@ document.addEventListener("click", (e) => {
     const sourceLabel = d.source === "email"
       ? (d.sender_name || d.sender_email || "From email")
       : "Manual upload";
-    const statusLabel = d.status === "pending"
-      ? "Pending"
-      : (d.status === "classified" ? (d.classified_type || "Classified") : (d.status || "—"));
+    const status = d.status || "pending";
+    let statusLabel;
+    if (status === "classified") {
+      statusLabel = d.classified_type_label || prettifyType(d.classified_type) || "Classified";
+    } else if (status === "classifying") {
+      statusLabel = "Classifying…";
+    } else if (status === "error") {
+      statusLabel = "Classify failed";
+    } else if (status === "pending") {
+      statusLabel = "Pending";
+    } else {
+      statusLabel = status;
+    }
+    // Subject line: when classified, prefer the AI summary over the
+    // source so the operator sees what the doc actually is at a glance.
+    const subjectLine = (status === "classified" && d.classification_summary)
+      ? d.classification_summary
+      : sourceLabel;
     const typeShort = (d.mime_type || "").split("/").pop() || "file";
     return `<button type="button" class="em-msg-row em-doc-row${isActive ? " active" : ""}" data-em-doc="${escapeHtmlLocal(d.id)}">
       <div class="em-msg-row-line1">
         <span class="em-msg-who">${escapeHtmlLocal(d.file_name || "Untitled")}</span>
         <span class="em-msg-when">${escapeHtmlLocal(when)}</span>
       </div>
-      <div class="em-msg-subject">${escapeHtmlLocal(sourceLabel)}</div>
-      <div class="em-msg-snippet"><span class="em-doc-badge em-doc-badge-${escapeHtmlLocal(d.status || "pending")}">${escapeHtmlLocal(statusLabel)}</span> · ${escapeHtmlLocal(sizeText)} · ${escapeHtmlLocal(typeShort)}</div>
+      <div class="em-msg-subject">${escapeHtmlLocal(subjectLine)}</div>
+      <div class="em-msg-snippet"><span class="em-doc-badge em-doc-badge-${escapeHtmlLocal(status)}">${escapeHtmlLocal(statusLabel)}</span> · ${escapeHtmlLocal(sizeText)} · ${escapeHtmlLocal(typeShort)}</div>
       <span class="em-msg-delete" role="button" tabindex="-1" data-em-doc-dismiss="${escapeHtmlLocal(d.id)}" aria-label="Dismiss document" title="Dismiss" draggable="false"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
     </button>`;
+  }
+
+  function prettifyType(t) {
+    if (!t) return "";
+    return String(t).replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  }
+  function prettifyFieldKey(k) {
+    return String(k).replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  }
+  function formatFieldValue(v) {
+    if (v == null || v === "") return "—";
+    if (Array.isArray(v)) return v.map(formatFieldValue).join(", ");
+    if (typeof v === "object") {
+      try { return JSON.stringify(v); } catch { return String(v); }
+    }
+    return String(v);
+  }
+
+  // Renders the AI classification card · type + confidence pill,
+  // summary, the extracted fields as a key/value grid, and the
+  // people/organizations parties chip strip. Empty / pre-classify
+  // states render a thinner status banner instead.
+  function docClassificationHtml(d) {
+    const st = d.status || "pending";
+    if (st === "pending" || st === "classifying") {
+      return `<div class="em-doc-ai-banner em-doc-ai-banner-${st}">
+        <span class="em-doc-ai-dot"></span>
+        <span>${st === "classifying" ? "Classifying with AI…" : "Pending AI classification"}</span>
+      </div>`;
+    }
+    if (st === "error") {
+      return `<div class="em-doc-ai-banner em-doc-ai-banner-error">
+        <span>AI classification failed${d.classification_error ? " · " + escapeHtmlLocal(d.classification_error) : ""}</span>
+      </div>`;
+    }
+    if (st !== "classified") return "";
+    const typeLabel = d.classified_type_label || prettifyType(d.classified_type) || "Document";
+    const confPct = Math.round((Number(d.classification_score) || 0) * 100);
+    const summary = d.classification_summary || "";
+    const fields = (d.extracted_data && typeof d.extracted_data === "object" && d.extracted_data.fields && typeof d.extracted_data.fields === "object")
+      ? d.extracted_data.fields
+      : {};
+    const parties = (d.extracted_data && Array.isArray(d.extracted_data.parties))
+      ? d.extracted_data.parties
+      : [];
+    const fieldEntries = Object.entries(fields).filter(([_, v]) => v != null && v !== "");
+    const fieldsHtml = fieldEntries.length === 0
+      ? ""
+      : `<dl class="em-doc-ai-fields">${fieldEntries.map(([k, v]) =>
+            `<div class="em-doc-ai-field">
+              <dt>${escapeHtmlLocal(prettifyFieldKey(k))}</dt>
+              <dd>${escapeHtmlLocal(formatFieldValue(v))}</dd>
+            </div>`).join("")}</dl>`;
+    const partiesHtml = parties.length === 0
+      ? ""
+      : `<div class="em-doc-ai-parties">
+          <span class="em-doc-ai-parties-label">Parties</span>
+          ${parties.map(p => `<span class="em-doc-ai-party"><strong>${escapeHtmlLocal(p.name || "")}</strong>${p.role ? ` · ${escapeHtmlLocal(p.role)}` : ""}</span>`).join("")}
+        </div>`;
+    return `<div class="em-doc-ai-card">
+      <div class="em-doc-ai-head">
+        <span class="em-doc-ai-type">${escapeHtmlLocal(typeLabel)}</span>
+        <span class="em-doc-ai-conf" title="AI confidence">${confPct}% confidence</span>
+        ${d.classification_model ? `<span class="em-doc-ai-model">${escapeHtmlLocal(d.classification_model)}</span>` : ""}
+      </div>
+      ${summary ? `<div class="em-doc-ai-summary">${escapeHtmlLocal(summary)}</div>` : ""}
+      ${fieldsHtml}
+      ${partiesHtml}
+    </div>`;
   }
 
   async function renderDocsPreview() {
@@ -50894,6 +50978,7 @@ document.addEventListener("click", (e) => {
       ? "Email · " + (d.sender_name || d.sender_email || "(unknown sender)")
       : "Manual upload";
     const when = d.created_at ? new Date(d.created_at).toLocaleString() : "—";
+    const classificationHtml = docClassificationHtml(d);
     preview.innerHTML = `
       <div class="em-doc-detail-bar">
         <button type="button" class="em-doc-back" data-em-doc-back aria-label="Back to documents list">
@@ -50901,13 +50986,17 @@ document.addEventListener("click", (e) => {
           <span>Documents</span>
         </button>
         <span class="em-doc-detail-name">${escapeHtmlLocal(d.file_name || "Untitled")}</span>
+        <button type="button" class="em-doc-reclassify" data-em-doc-reclassify="${escapeHtmlLocal(d.id)}" title="Re-run AI classification">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <span>${d.status === "classifying" ? "Classifying…" : (d.status === "classified" ? "Re-classify" : "Classify")}</span>
+        </button>
       </div>
+      ${classificationHtml}
       <div class="em-preview-header">
         <div class="em-preview-meta">
           <div><strong>Source:</strong> ${escapeHtmlLocal(sourceLabel)}</div>
           <div><strong>Type:</strong> ${escapeHtmlLocal(d.mime_type || "—")} · ${escapeHtmlLocal(formatBytes(d.file_size_bytes || 0))}</div>
           <div><strong>Received:</strong> ${escapeHtmlLocal(when)}</div>
-          <div><strong>Status:</strong> ${escapeHtmlLocal(d.status || "pending")}${d.classified_type ? " · " + escapeHtmlLocal(d.classified_type) : ""}</div>
         </div>
       </div>
       <div class="em-preview-body em-doc-preview-body">
@@ -50991,6 +51080,7 @@ document.addEventListener("click", (e) => {
     const userId = window.RR?.user?.id || null;
     const date = new Date().toISOString().slice(0, 10);
     let ok = 0;
+    const inserted = [];
     for (const file of files) {
       const safe = (file.name || "file").replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 120);
       const rand = Math.random().toString(36).slice(2, 10);
@@ -51000,7 +51090,7 @@ document.addEventListener("click", (e) => {
       if (upErr) { if (typeof toast === "function") toast("Upload failed: " + upErr.message, "warn"); continue; }
       // Raw uploads age out after 90 days unless they get filed in Phase 3.
       const retention = new Date(Date.now() + 90 * 86400 * 1000).toISOString().slice(0, 10);
-      const { error: dbErr } = await sb.from("document_intake").insert({
+      const { data: row, error: dbErr } = await sb.from("document_intake").insert({
         dsp_id,
         source: "manual_upload",
         uploaded_by: userId,
@@ -51010,17 +51100,37 @@ document.addEventListener("click", (e) => {
         mime_type: file.type || "application/octet-stream",
         status: "pending",
         retention_until: retention,
-      });
+      }).select("id").single();
       if (dbErr) {
         await sb.storage.from("document-intake").remove([storagePath]).catch(() => {});
         if (typeof toast === "function") toast("Insert failed: " + dbErr.message, "warn");
         continue;
       }
       ok++;
+      if (row?.id) inserted.push(row.id);
     }
-    if (ok > 0 && typeof toast === "function") toast(`Uploaded ${ok} document${ok === 1 ? "" : "s"}`, "success");
+    if (ok > 0 && typeof toast === "function") toast(`Uploaded ${ok} document${ok === 1 ? "" : "s"} · classifying…`, "success");
     await loadDocuments();
     renderDocsInbox();
+    // Fire Phase 2 classification in the background for every fresh
+    // upload. The function updates the row directly; realtime picks
+    // up the change and refreshes the UI.
+    for (const id of inserted) classifyDoc(id, /* silent */ true);
+  }
+
+  async function classifyDoc(id, silent) {
+    if (!id) return;
+    try {
+      const { error } = await sb.functions.invoke("document-classify", { body: { id, force: true } });
+      if (error && !silent && typeof toast === "function") {
+        toast("Classify failed: " + (error.message || "unknown"), "warn");
+      }
+    } catch (e) {
+      if (!silent && typeof toast === "function") toast("Classify failed: " + (e?.message || e), "warn");
+    }
+    await loadDocuments();
+    renderDocsInbox();
+    if (state.activeDocId === id) renderDocsPreview();
   }
 
   // ── State mutators ──────────────────────────────────────────────
@@ -51578,6 +51688,12 @@ document.addEventListener("click", (e) => {
     if (e.target.closest("[data-em-doc-back]")) {
       e.preventDefault();
       backToDocsList();
+      return;
+    }
+    const reclassify = e.target.closest("[data-em-doc-reclassify]");
+    if (reclassify) {
+      e.preventDefault();
+      classifyDoc(reclassify.getAttribute("data-em-doc-reclassify"), /* silent */ false);
       return;
     }
     const doc = e.target.closest("#rr-em-inbox [data-em-doc]");

@@ -23909,8 +23909,94 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--neutral-2,#f3f4f6);color:var(--text-muted,#6b7280);
           }
           #view-email .em-doc-badge-pending{background:#fef3c7;color:#92400e}
+          #view-email .em-doc-badge-classifying{background:#e0e7ff;color:#3730a3}
           #view-email .em-doc-badge-classified{background:#dbeafe;color:#1e40af}
           #view-email .em-doc-badge-filed{background:#dcfce7;color:#166534}
+          #view-email .em-doc-badge-error{background:#fee2e2;color:#991b1b}
+          /* AI classification banner / card · sits between the detail
+             bar and the metadata block in the docs drill-down preview. */
+          #view-email .em-doc-ai-banner{
+            display:flex;align-items:center;gap:8px;
+            padding:8px 14px;font-size:var(--fs-xs,12px);
+            border-bottom:1px solid var(--border-subtle,#e5e7eb);
+          }
+          #view-email .em-doc-ai-banner-pending{background:#fffbeb;color:#92400e}
+          #view-email .em-doc-ai-banner-classifying{background:#eef2ff;color:#3730a3}
+          #view-email .em-doc-ai-banner-error{background:#fef2f2;color:#991b1b}
+          #view-email .em-doc-ai-dot{
+            width:8px;height:8px;border-radius:50%;
+            background:currentColor;opacity:.75;
+            animation:em-doc-ai-pulse 1.4s ease-in-out infinite;
+          }
+          @keyframes em-doc-ai-pulse{
+            0%,100%{opacity:.35;transform:scale(.9)}
+            50%{opacity:1;transform:scale(1.1)}
+          }
+          #view-email .em-doc-ai-card{
+            margin:12px 16px 0 16px;padding:14px 16px;
+            border:1px solid var(--accent-7,#6366f1);
+            background:linear-gradient(180deg,#eef2ff 0%,#fafbff 100%);
+            border-radius:10px;
+          }
+          #view-email .em-doc-ai-head{
+            display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+            margin-bottom:6px;
+          }
+          #view-email .em-doc-ai-type{
+            font-size:var(--fs-md,14px);font-weight:700;color:#3730a3;
+          }
+          #view-email .em-doc-ai-conf{
+            font-size:11px;font-weight:600;
+            padding:2px 8px;border-radius:999px;
+            background:#fff;border:1px solid var(--accent-7,#6366f1);color:#3730a3;
+          }
+          #view-email .em-doc-ai-model{
+            font-size:10px;color:var(--text-subtle,#94a3b8);
+            font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+            margin-left:auto;
+          }
+          #view-email .em-doc-ai-summary{
+            font-size:var(--fs-xs,12px);color:var(--text,#0f172a);
+            line-height:1.55;margin-bottom:10px;
+          }
+          #view-email .em-doc-ai-fields{
+            display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+            gap:6px 18px;margin:8px 0 0 0;
+          }
+          #view-email .em-doc-ai-field{display:flex;flex-direction:column;gap:1px}
+          #view-email .em-doc-ai-field dt{
+            font-size:10px;font-weight:600;letter-spacing:.04em;
+            text-transform:uppercase;color:var(--text-muted,#64748b);
+          }
+          #view-email .em-doc-ai-field dd{
+            margin:0;font-size:var(--fs-xs,12px);color:var(--text,#0f172a);
+            font-weight:500;word-break:break-word;
+          }
+          #view-email .em-doc-ai-parties{
+            display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+            margin-top:10px;padding-top:10px;
+            border-top:1px solid rgba(99,102,241,.18);
+          }
+          #view-email .em-doc-ai-parties-label{
+            font-size:10px;font-weight:600;letter-spacing:.04em;
+            text-transform:uppercase;color:var(--text-muted,#64748b);
+            margin-right:4px;
+          }
+          #view-email .em-doc-ai-party{
+            font-size:11px;padding:2px 8px;border-radius:999px;
+            background:#fff;border:1px solid var(--border,#d1d5db);color:var(--text,#0f172a);
+          }
+          /* Re-classify button in the detail bar. */
+          #view-email .em-doc-reclassify{
+            margin-left:auto;display:inline-flex;align-items:center;gap:5px;
+            padding:5px 10px;border-radius:6px;
+            border:1px solid var(--accent-7,#6366f1);background:#fff;color:#3730a3;
+            font-size:11px;font-weight:600;cursor:pointer;
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-email .em-doc-reclassify:hover{
+            background:var(--accent-7,#6366f1);color:#fff;
+          }
           /* Documents drill-down ·  the master/detail split that works
              great for emails fights the operator when the "detail" is a
              multi-page PDF.  Instead we toggle the em-split between
