@@ -23,6 +23,11 @@
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
      `rrx-schedule` class on the view-schedule element. -->
+<!-- TopControlPlane · protected layout infrastructure (tokens +
+     structural classes). Single source of truth for chrome
+     dimensions across the platform. Loaded BEFORE the per-page
+     rrx files so they can reference the tokens. -->
+<link rel="stylesheet" href="tcp.css?v=1">
 <link rel="stylesheet" href="schedule-rrx.css?v=39">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
@@ -13590,7 +13595,11 @@ body.rr-cmdk-open{ overflow:hidden }
              ribbon. Title sits on the left, the full icon cluster
              (nav tabs + commands + week nav) rides the same line,
              Outlook-style. Replaces the old two-row header. -->
-        <div class="sched-cmd-shell" id="rr-sched-cmd">
+        <!-- TopControlPlane: this wrapper IS the TCP for Schedule.
+             Tokens + class contract live in tcp.css. Future pages
+             may opt in by adopting the same .tcp / .tcp-strip /
+             .tcp-kpi class scaffold around their own chrome. -->
+        <div class="sched-cmd-shell tcp" id="rr-sched-cmd">
         <!-- cmd-tabs (Schedule / Print/Download) relocated to the
              top-right of the V2 strip. The `_schedCmdTab` handler
              still toggles `.is-print` on this #rr-sched-cmd shell,
@@ -14235,7 +14244,7 @@ body.rr-cmdk-open{ overflow:hidden }
              both side-by-side and decide which sticks. Every tile
              is `pointer-events: none` so clicks don't fire.
              ─────────────────────────────────────────────────────── -->
-        <div class="sched-v2-strip" role="toolbar" aria-label="Schedule ribbon">
+        <div class="sched-v2-strip tcp-strip" role="toolbar" aria-label="Schedule ribbon">
           <!-- Schedule / Print/Download tabs — moved from the old
                cmd-shell to the top-right of this strip. The
                `_schedCmdTab` JS handler still toggles `.is-print`
@@ -14496,7 +14505,7 @@ body.rr-cmdk-open{ overflow:hidden }
         </div>
 
         <!-- KPI pill row · populated by renderScheduleWeek. -->
-        <div id="rr-sched-kpis" class="sched-kpi-pills"></div>
+        <div id="rr-sched-kpis" class="sched-kpi-pills tcp-kpi"></div>
         <!-- Targets KPI strip · swapped in when the Targets sub-view
              is active. Same dimensions + position as #rr-sched-kpis;
              the Targets rules (Block / Cushion / Report time) become

@@ -1,0 +1,151 @@
+/* ============================================================
+   TopControlPlane (TCP) — protected layout infrastructure
+   ============================================================
+
+   The TCP is RouteReady's locked top region: cmd-tabs band,
+   Header+IconStrip card, KPI band. These three rows are
+   SYSTEM-LEVEL LAYOUT INFRASTRUCTURE, not page content.
+
+   Operator's hard rule: their position, size, spacing,
+   alignment, height, padding, and visual rhythm are immune to
+   downstream changes (button clicks, drawers, modals,
+   conditional rendering, future features). Pages may ONLY
+   provide content INTO the TCP slots (title, subtitle,
+   actions, icon-strip data, KPI data) — never override the
+   geometry.
+
+   Reference page: Schedule. Every token below is derived from
+   the current Schedule measurements:
+     - --tcp-strip-h     = 115px (schedule-rrx.css:1676-1678)
+     - --tcp-kpi-h       =  46px (schedule-rrx.css:934)
+     - --tcp-kpi-gap     =   8px (schedule-rrx.css:935)
+     - --tcp-strip-gap   =  16px (schedule-rrx.css:1658)
+     - --tcp-cmd-tabs-h  =  28px (schedule-rrx.css:1940 top:-28)
+     - --tcp-title-w     = 240px (schedule-rrx.css:1810)
+
+   This file is the SINGLE SOURCE OF TRUTH for these values.
+   Any future change to the chrome must edit the token here —
+   never duplicated in a per-page stylesheet. That's how the
+   region stays locked.
+
+   Scope of v1 (this file's first delivery):
+     - Tokens are LIVE — schedule-rrx.css now references them.
+     - Structural classes (.tcp / .tcp-strip / .tcp-kpi /
+       .tcp-body / .tcp-shell) are DEFINED here and APPLIED to
+       Schedule's existing markup. Schedule renders identically.
+     - Other views are NOT touched in v1; they may opt in to
+       the TCP shell later, one PR at a time. */
+
+:root {
+  /* ── Heights ────────────────────────────────────────────── */
+  --tcp-topbar-h:      56px;
+  --tcp-cmd-tabs-h:    28px;   /* the absolute tab band above the strip card */
+  --tcp-strip-h:       115px;  /* the Header+IconStrip card */
+  --tcp-kpi-h:         46px;   /* the KPI band content height (excl. borders) */
+  --tcp-kpi-border-h:  2px;    /* 1px top + 1px bottom */
+  --tcp-kpi-gap:       8px;    /* between KPI band and body */
+  --tcp-strip-gap:     16px;   /* between strip card and KPI band */
+
+  /* Composite — the full TCP block height, including the
+     cmd-tabs overhang above the card. Use for any internal
+     layout that needs viewport - topbar - tcp arithmetic. */
+  --tcp-total-h: calc(
+    var(--tcp-cmd-tabs-h)
+    + var(--tcp-strip-h)
+    + var(--tcp-strip-gap)
+    + var(--tcp-kpi-h)
+    + var(--tcp-kpi-border-h)
+    + var(--tcp-kpi-gap)
+  );
+
+  /* ── Spacing ────────────────────────────────────────────── */
+  --tcp-pad-x:         20px;   /* horizontal padding inside .page-shell */
+  --tcp-pad-top:       4px;    /* small top padding above the cmd-tabs band */
+  --tcp-title-w:       240px;  /* hard-locked title-block width */
+
+  /* ── Visual rhythm ──────────────────────────────────────── */
+  --tcp-strip-svg:     33px;   /* icon-tile SVG size */
+  --tcp-strip-tile-min-w: 62px;
+  --tcp-strip-tile-pad: 6px 10px 7px;
+  --tcp-strip-tile-gap: 4px;
+
+  /* ── Z-index ────────────────────────────────────────────── */
+  --tcp-z-chrome:      20;     /* TCP sits above body, below modals (≥100) */
+}
+
+
+/* ── .tcp-shell · the page-level flex column ────────────────
+   When a page opts in, its inner .page wrapper gets this class.
+   The shell is exactly viewport-tall (minus the topbar) and
+   never scrolls itself — scroll is delegated to .tcp-body.
+   v1 does NOT apply this to Schedule (Schedule's existing
+   .page uses natural document scroll, which already works).
+   Future per-view migrations can opt in by adding .tcp-shell
+   to their .page wrapper. */
+.tcp-shell {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--tcp-topbar-h));
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── .tcp · the locked chrome block ─────────────────────────
+   Hosts the cmd-tabs / strip / KPI rows. flex:0 0 auto means
+   no view can grow or shrink the TCP — its size is decided
+   here, not at the page level.
+
+   z-index keeps TCP above any body content that scrolls
+   underneath; overflow:visible lets the cmd-tabs band (which
+   absolute-positions at top:-28px) hang above the strip card
+   without being clipped. */
+.tcp {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: var(--tcp-z-chrome);
+  overflow: visible;
+}
+
+/* ── .tcp-body · the only scroll container ──────────────────
+   flex:1 grabs the remaining viewport height; min-height:0 is
+   the standard flex-child unstick that lets overflow:auto
+   actually scroll. */
+.tcp-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Per-row height locks ───────────────────────────────────
+   These triple-lock heights so no descendant content (more
+   tiles, taller pills, longer subtitle, sub-tab change) can
+   resize the row. If a page needs to grow, it grows INSIDE
+   .tcp-body. Period. */
+.tcp-strip {
+  min-height: var(--tcp-strip-h);
+  height:     var(--tcp-strip-h);
+  max-height: var(--tcp-strip-h);
+  box-sizing: border-box;
+}
+
+.tcp-kpi {
+  min-height: var(--tcp-kpi-h);
+  height:     var(--tcp-kpi-h);
+  max-height: var(--tcp-kpi-h);
+  box-sizing: border-box;
+}
+
+/* Views with no metrics still reserve the KPI footprint so
+   switching to a metric-bearing view doesn't shift the body
+   Y. Hide visually, keep the layout space. */
+.tcp-kpi.is-empty {
+  visibility: hidden;
+}
+
+/* ── Enforcement note ───────────────────────────────────────
+   Per-page CSS files MUST NOT redeclare the heights / paddings
+   above. If you find yourself reaching for `min-height: …` on
+   a `.tcp-*` element inside a per-page stylesheet, you're
+   fighting the contract — file an issue and bump the token
+   here instead. */
