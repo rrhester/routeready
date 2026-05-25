@@ -13596,7 +13596,14 @@ body.rr-cmdk-open{ overflow:hidden }
          SCHEDULE VIEW — full DSP-grade schedule system
          ═══════════════════════════════════════════════════════════ -->
     <div class="view active rrx-schedule" id="view-schedule">
-      <div class="page">
+      <!-- .tcp-shell makes the .page a viewport-tall flex column.
+           Chrome rows (.tcp-strip and .tcp-kpi below) are flex:0
+           and lock their own heights via tcp.css tokens. The
+           .tcp-body wrapper below them is flex:1 with its own
+           overflow — body content scrolls inside that, NEVER
+           pushing the chrome. This is what fully isolates the
+           KPI band + icon strip from anything in the body. -->
+      <div class="page tcp-shell">
         <!-- Navigation heading — the schedule's single horizontal
              ribbon. Title sits on the left, the full icon cluster
              (nav tabs + commands + week nav) rides the same line,
@@ -14516,7 +14523,7 @@ body.rr-cmdk-open{ overflow:hidden }
              is active. Same dimensions + position as #rr-sched-kpis;
              the Targets rules (Block / Cushion / Report time) become
              individual KPI pills with inline number inputs. -->
-        <div id="rr-sched-targets-kpis" class="sched-kpi-pills" role="group" aria-label="Targets rules" style="display:none">
+        <div id="rr-sched-targets-kpis" class="sched-kpi-pills tcp-kpi" role="group" aria-label="Targets rules" style="display:none">
           <div class="rr-tgt-kpi">
             <div class="rr-tgt-kpi-text">
               <div class="rr-tgt-kpi-label">Block</div>
@@ -14552,7 +14559,14 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
           </div>
-        </div>
+        </div><!-- /#rr-sched-targets-kpis -->
+
+        <!-- TCP body · everything below this point is body content
+             that scrolls inside its own container. The chrome above
+             (.tcp-strip + .tcp-kpi) stays locked in place no matter
+             how much body content exists or how the operator
+             scrolls/interacts. -->
+        <div class="tcp-body">
         <!-- Print-only mount · the Print tab clones the week grid +
              heading here, then window.print() shows just this. -->
         <div id="rr-sched-print-area" aria-hidden="true"></div>
@@ -20357,6 +20371,7 @@ body.rr-cmdk-open{ overflow:hidden }
         </div>
 
 
+        </div><!-- /.tcp-body -->
       </div>
     </div>
 
