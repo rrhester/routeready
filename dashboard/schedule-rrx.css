@@ -201,15 +201,18 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
     border-color var(--rr-motion-fast);
 }
 
+/* Plain-text cmd-tabs (operator preference) — no hover bg, no
+   active-card chrome. The active state is not visually marked;
+   tabs read as a row of brand-blue labels sitting above the card. */
 #view-schedule.rrx-schedule .sched-cmd-tab:hover:not(.active) {
-  color: var(--rr-fg-primary);
-  background: var(--rr-bg-hover);
+  color: var(--rr-brand-primary);
+  background: transparent;
 }
 
 #view-schedule.rrx-schedule .sched-cmd-tab.active {
   color: var(--rr-brand-primary);
-  background: var(--rr-bg-surface-1);
-  border-color: var(--rr-border-primary);
+  background: transparent;
+  border-color: transparent;
 }
 
 #view-schedule.rrx-schedule .sched-cmd-tab:focus-visible {
@@ -1975,14 +1978,19 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
     border-color var(--rr-motion-fast);
 }
 
+/* Operator wants the cmd-tabs to read as plain text above the
+   card — no tab-card chrome, no highlight on the active tab.
+   All three (Schedule / Intelligence / Print/Download) sit as
+   brand-blue uppercase labels; nothing visually distinguishes
+   the active tab. Hover stays a no-op so the row feels static. */
 #view-schedule.rrx-schedule .sched-v2-cmd-tabs .sched-cmd-tab:hover:not(.active) {
-  background: var(--rr-bg-hover);
+  background: transparent;
 }
 
 #view-schedule.rrx-schedule .sched-v2-cmd-tabs .sched-cmd-tab.active {
   color: var(--rr-brand-primary);
-  background: var(--rr-bg-surface-1);
-  border-color: var(--rr-border-primary);
+  background: transparent;
+  border-color: transparent;
 }
 
 /* ============================================================
