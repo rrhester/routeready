@@ -55,18 +55,20 @@
    (onboarding-rrx.css:634-636); shrinking the top padding gets
    the same visual without that risk. */
 #view-onboarding-ops.rrx-onboarding > .page {
-  padding: 4px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
+  /* Measured delta with Schedule: the live Schedule page renders
+     its strip card 8px lower than Onboarding's was — Schedule's
+     hidden legacy .sched-cmd-shell takes ~20px of layout even
+     when its child header is display:none, plus 20px of .page
+     padding-top = 40px total before the visible strip. Onboarding
+     has 4px .page padding-top + 28px in-flow cmd-tabs = 32px.
+     Pad the difference (8px) into Onboarding's top padding so
+     both pages' strip cards (and KPI cards below) land at the
+     same Y when switching. */
+  padding: 12px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
   min-height: 0 !important;
-  /* No flex gap. Spacing between chrome rows is owned by each
-     row's own margin-bottom (strip card = --tcp-strip-gap,
-     KPI card = --tcp-kpi-gap) so Onboarding's vertical rhythm
-     matches Schedule exactly (Schedule's .page has no gap and
-     does spacing the same way). Adding a flex gap would push
-     every row below it 8px down and the KPI / body would land
-     at a different Y than Schedule's. */
   gap: 0 !important;
 }
 
