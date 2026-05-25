@@ -201,11 +201,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
     border-color var(--rr-motion-fast);
 }
 
-/* Plain-text cmd-tabs (operator preference) — no hover bg, no
-   active-card chrome. The active state is not visually marked;
-   tabs read as a row of brand-blue labels sitting above the card. */
+/* Plain-text cmd-tabs (operator preference) — inactive tabs gray,
+   active tab blue. No hover background. */
 #view-schedule.rrx-schedule .sched-cmd-tab:hover:not(.active) {
-  color: var(--rr-brand-primary);
+  color: var(--rr-fg-secondary);
   background: transparent;
 }
 
@@ -1962,12 +1961,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  /* All three tabs (Schedule / Intelligence / Print/Download) read
-     in the same brand blue regardless of active state — operator
-     asked for the words to look identical in format + color across
-     tabs. The active state is signaled by the white background +
-     border below, not by a color shift on the label. */
-  color: var(--rr-brand-primary);
+  /* Inactive tabs read gray; the active tab gets brand-blue
+     (overridden in the .active rule below). Operator preference. */
+  color: var(--rr-fg-secondary);
   padding: var(--rr-space-60) var(--rr-space-120);
   border: 1px solid transparent;
   border-bottom: 0;

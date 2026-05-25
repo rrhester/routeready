@@ -11287,10 +11287,13 @@ body.rr-cmdk-open{ overflow:hidden }
         #view-onboarding-ops .sched-nav-heading .subnav-item:hover{
           color:var(--text);background:rgba(0,0,0,.04);
         }
+        /* Operator preference · no blue highlight on active tile.
+           Only the font-weight bumps to 600 for a subtle indicator;
+           color + svg color stay matching the inactive tiles. */
         #view-onboarding-ops .sched-nav-heading .subnav-item.active{
-          color:var(--sch-blue);font-weight:600;
+          color:inherit;font-weight:600;
         }
-        #view-onboarding-ops .sched-nav-heading .subnav-item.active svg{color:var(--sch-blue)}
+        #view-onboarding-ops .sched-nav-heading .subnav-item.active svg{color:inherit}
         #view-onboarding-ops .sched-nav-heading .subnav-item:focus,
         #view-onboarding-ops .sched-nav-heading .subnav-item:focus-visible{outline:none}
         @media (max-width:1280px){

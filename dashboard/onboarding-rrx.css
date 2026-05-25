@@ -413,13 +413,14 @@
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active {
-  color: var(--rr-brand-pressed) !important;
-  background: var(--rr-bg-selected) !important;
+  /* Operator preference · NO blue highlight card on the active
+     tile. Background stays transparent (matches inactive); only
+     the text weight bumps to 600 so there's still a subtle
+     indicator. Color stays at the default tile color (no shift
+     to brand-pressed blue). */
+  color: inherit !important;
+  background: transparent !important;
   font-weight: 600 !important;
-  /* Active tile carries the same rounded corners as the base + hover
-     states — matches the Schedule strip's tile chrome end-to-end.
-     (Earlier this surface was locked to square corners; operator
-     now wants visual parity with Schedule.) */
   border-radius: var(--rr-radius-medium) !important;
 }
 
@@ -436,7 +437,10 @@
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active svg {
-  color: var(--rr-brand-primary) !important;
+  /* Operator preference · no blue highlight on the active tile,
+     including its SVG. Inherit color so the active icon looks
+     identical to inactive icons. */
+  color: inherit !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:focus-visible {
@@ -706,7 +710,9 @@
    both pages means there's no visual jump when flipping
    between Schedule and Onboarding. */
 #view-onboarding-ops.rrx-onboarding .ob-cmd-tab:hover:not(.active) {
-  color: var(--rr-brand-primary);
+  /* Operator preference · inactive cmd-tabs stay gray even on
+     hover. Only the active cmd-tab is blue. */
+  color: var(--rr-fg-secondary);
   background: transparent;
 }
 
