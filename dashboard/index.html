@@ -23486,6 +23486,11 @@ body.rr-cmdk-open{ overflow:hidden }
             flex:0 0 var(--tcp-title-w);
             align-self:center;
             display:flex;flex-direction:column;justify-content:center;
+            /* Override the global .page-header-l { align-items:center }
+               at index.html:1070 — in a flex-COLUMN that rule centers
+               children horizontally, which made the title + sub read
+               centered instead of left-justified. */
+            align-items:flex-start;
             min-width:0;
             margin-right:var(--rr-space-160);
             padding-right:var(--rr-space-120);
@@ -23616,9 +23621,14 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;flex-direction:column;
             flex:1 1 auto;min-height:0;
             height:100%;
-            /* Match Schedule's .page padding so Fleet Bridge's strip
-               card lands at the same Y position as Schedule's. */
-            padding:var(--rr-space-200) !important;
+            /* Match Onboarding's .page padding (12px top, 20px else).
+               Fleet Bridge has cmd-tabs in-flow above the strip card
+               (same pattern as Onboarding), so it needs the same
+               top padding to land its strip card at the SAME Y as
+               Schedule's. Schedule uses 20px top + 20px from its
+               hidden legacy shell = 40px; Onboarding + Fleet Bridge
+               use 12px top + 28px in-flow tabs = 40px. */
+            padding:12px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
           }
           #view-email .em-cmd-shell{flex:0 0 auto}
           /* Layout · aside on the LEFT (open-shifts-sized), main on the
