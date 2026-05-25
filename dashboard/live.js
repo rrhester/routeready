@@ -51795,11 +51795,77 @@ document.addEventListener("click", (e) => {
   // Double-click a message row → pop it out into its own window.
   document.addEventListener("dblclick", (e) => {
     if (!e.target.closest) return;
+    // Attachment chips inside an email preview · double-click pops the
+    // PDF out into its own browser window with the native PDF viewer
+    // (zoom, print, search). Single-click still jumps to the Documents
+    // folder's drill-down view.
+    const att = e.target.closest("#rr-em-preview [data-em-msg-attachment]");
+    if (att) {
+      e.preventDefault();
+      e.stopPropagation();
+      popOutDocument(att.getAttribute("data-em-msg-attachment"));
+      return;
+    }
+    // Double-click a doc row in the Documents folder → same popout.
+    const docRow = e.target.closest("#rr-em-inbox [data-em-doc]");
+    if (docRow) {
+      e.preventDefault();
+      e.stopPropagation();
+      popOutDocument(docRow.getAttribute("data-em-doc"));
+      return;
+    }
     const row = e.target.closest("#rr-em-inbox [data-em-msg]");
     if (!row) return;
     e.preventDefault();
     openMessagePopout(row.getAttribute("data-em-msg"));
   });
+
+  // Open the doc's signed URL in a separate browser window so the
+  // operator gets the native PDF viewer at full size. Browsers throttle
+  // window.open from async contexts (popup blocker) — to work around
+  // that we open the window synchronously with about:blank, then
+  // navigate it once the signed URL is in hand. If the open is
+  // blocked entirely, fall back to a new tab.
+  async function popOutDocument(docId) {
+    if (!docId) return;
+    const win = window.open(
+      "about:blank",
+      "rr-doc-" + docId,
+      "width=1100,height=900,menubar=no,toolbar=no,location=no,status=no",
+    );
+    let storagePath = null;
+    let fileName = "Document";
+    const cached = state.documents.find(d => d.id === docId);
+    if (cached) { storagePath = cached.storage_path; fileName = cached.file_name || fileName; }
+    else {
+      const { data } = await sb.from("document_intake")
+        .select("storage_path, file_name")
+        .eq("id", docId)
+        .maybeSingle();
+      storagePath = data?.storage_path || null;
+      fileName = data?.file_name || fileName;
+    }
+    if (!storagePath) {
+      if (typeof toast === "function") toast("Couldn't find that document", "warn");
+      if (win) try { win.close(); } catch (_) {}
+      return;
+    }
+    const { data: signed, error: signErr } = await sb.storage
+      .from("document-intake")
+      .createSignedUrl(storagePath, 60 * 30);
+    if (signErr || !signed?.signedUrl) {
+      if (typeof toast === "function") toast("Couldn't sign the file URL", "warn");
+      if (win) try { win.close(); } catch (_) {}
+      return;
+    }
+    if (win) {
+      try { win.document.title = fileName; } catch (_) {}
+      win.location.href = signed.signedUrl;
+    } else {
+      // Popup blocked — fall back to a new tab.
+      window.open(signed.signedUrl, "_blank", "noopener");
+    }
+  }
 
   // Drag-and-drop: drag a message row onto a folder button to move it.
   document.addEventListener("dragstart", (e) => {
