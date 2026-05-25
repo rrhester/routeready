@@ -825,7 +825,12 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* ── Top bar (clean white control surface) ────────────────── */
 .topbar{
   position:sticky;top:0;z-index:10;
-  height:56px;
+  /* Shortened from 56px → 44px so the tool row (refresh, undo, AI
+     search, install, settings) sits close to the top of the page
+     instead of floating ~10px below the window edge. The tallest
+     control inside the bar is the Ask pill at 38px, so 44px gives
+     it 3px breathing room top + bottom — tight without compressing. */
+  height:44px;
   display:flex;align-items:center;padding:0 var(--s-6);gap:var(--s-4);
   background:var(--canvas);
   border-bottom:0;
