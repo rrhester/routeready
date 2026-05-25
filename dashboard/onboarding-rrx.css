@@ -60,7 +60,14 @@
   display: flex !important;
   flex-direction: column !important;
   min-height: 0 !important;
-  gap: var(--rr-space-80) !important;
+  /* No flex gap. Spacing between chrome rows is owned by each
+     row's own margin-bottom (strip card = --tcp-strip-gap,
+     KPI card = --tcp-kpi-gap) so Onboarding's vertical rhythm
+     matches Schedule exactly (Schedule's .page has no gap and
+     does spacing the same way). Adding a flex gap would push
+     every row below it 8px down and the KPI / body would land
+     at a different Y than Schedule's. */
+  gap: 0 !important;
 }
 
 /* Command shell sticks to natural height — header + tab strip
