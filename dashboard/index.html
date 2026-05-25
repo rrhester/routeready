@@ -11797,6 +11797,16 @@ body.rr-cmdk-open{ overflow:hidden }
              live.js click handlers keep working unchanged. -->
         <div id="rr-ob-print-area" aria-hidden="true"></div>
 
+        <!-- Driver-roster mount point · when the operator clicks
+             the Roster cmd-tab, _obCmdTab('roster') moves the
+             live #dr-sub-roster node from #view-drivers into this
+             slot, AND injects a CSS alias block so all the
+             #view-drivers .x rules also apply to
+             #ob-roster-mount .x — preserving the table's styling
+             after the move. Hidden + empty until first roster-mode
+             entry. -->
+        <div id="ob-roster-mount" class="ob-roster-mount" hidden></div>
+
         <div id="obsub-overview">
           <!-- Two-column shell: the readiness matrix lives in
                .ob-overview-left (loadOnboardingOps writes there);
@@ -28011,6 +28021,13 @@ John,Smith,555-0101,john@example.com</code>
       goto('fleet');
       if (typeof fleetSub === 'function') fleetSub('calendar');
       return;
+    }
+    // If the operator parked #dr-sub-roster inside Onboarding via
+    // the Roster cmd-tab and is now navigating to Drivers, return
+    // the roster node to Drivers BEFORE Drivers paints — otherwise
+    // Drivers would render with an empty Roster sub-view.
+    if (view === 'drivers' && typeof window._obUnmountDriverRoster === 'function') {
+      try { window._obUnmountDriverRoster(); } catch (_) {}
     }
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
     var target = document.getElementById('view-' + view);

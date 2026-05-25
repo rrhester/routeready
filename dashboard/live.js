@@ -28241,7 +28241,93 @@ function _obCmdTab(mode) {
     if (title) title.textContent = "On-boarding";
     if (sub)   sub.textContent   = "Every driver getting ready to drive — readiness at a glance.";
   }
+  // Roster-mode body swap · move the live #dr-sub-roster node
+  // into #ob-roster-mount on enter, restore on exit. See
+  // _obMountDriverRoster below.
+  if (mode === "roster") _obMountDriverRoster();
+  else                   _obUnmountDriverRoster();
 }
+
+// Remembers where #dr-sub-roster lived inside #view-drivers so
+// we can put it back after the operator leaves Roster mode.
+let _obRosterOriginalParent = null;
+let _obRosterOriginalNextSibling = null;
+
+function _obMountDriverRoster() {
+  const mount = document.getElementById("ob-roster-mount");
+  if (!mount) return;
+  // Style alias must be in place BEFORE the roster paints in its
+  // new parent — otherwise the first frame renders unstyled (the
+  // operator saw a giant unsized SVG, see PR #1802 / revert).
+  _obInjectDriverStyleAlias();
+  if (mount.querySelector("#dr-sub-roster")) {
+    mount.hidden = false;
+    return;
+  }
+  // Make sure Drivers has rendered the roster table at least once
+  // — loadDriversRoster (or equivalent init) wires the JS
+  // handlers. Best-effort — we still try to move whatever's there.
+  if (typeof loadDriversRoster === "function" && !window.__ob_drivers_inited) {
+    try { loadDriversRoster(); window.__ob_drivers_inited = true; } catch (_) {}
+  }
+  const src = document.getElementById("dr-sub-roster");
+  if (!src) return;
+  _obRosterOriginalParent     = src.parentNode;
+  _obRosterOriginalNextSibling = src.nextSibling;
+  mount.appendChild(src);
+  mount.hidden = false;
+}
+
+function _obUnmountDriverRoster() {
+  const mount = document.getElementById("ob-roster-mount");
+  if (!mount) return;
+  const src = mount.querySelector("#dr-sub-roster");
+  if (src && _obRosterOriginalParent) {
+    if (_obRosterOriginalNextSibling && _obRosterOriginalNextSibling.parentNode === _obRosterOriginalParent) {
+      _obRosterOriginalParent.insertBefore(src, _obRosterOriginalNextSibling);
+    } else {
+      _obRosterOriginalParent.appendChild(src);
+    }
+    _obRosterOriginalParent = null;
+    _obRosterOriginalNextSibling = null;
+  }
+  mount.hidden = true;
+}
+
+// Drivers CSS is scoped with `#view-drivers X` selectors — they
+// won't match the roster after it's moved into #ob-roster-mount.
+// Walk every parsed stylesheet once and emit a parallel rule
+// keyed on `#ob-roster-mount X` so the embedded roster inherits
+// the exact same chrome. Runs at first mount; the resulting
+// <style> block stays in <head> for the rest of the session so
+// re-mounts are zero-cost.
+function _obInjectDriverStyleAlias() {
+  if (document.getElementById("rr-ob-roster-style-alias")) return;
+  const aliasStyle = document.createElement("style");
+  aliasStyle.id = "rr-ob-roster-style-alias";
+  const out = [];
+  for (let s = 0; s < document.styleSheets.length; s++) {
+    const sheet = document.styleSheets[s];
+    let rules = null;
+    try { rules = sheet.cssRules; } catch (_) { continue; } // cross-origin
+    if (!rules) continue;
+    for (let r = 0; r < rules.length; r++) {
+      const rule = rules[r];
+      if (!rule || !rule.selectorText) continue;
+      if (rule.selectorText.indexOf("#view-drivers") === -1) continue;
+      const newSel = rule.selectorText.replace(/#view-drivers\b/g, "#ob-roster-mount");
+      if (newSel === rule.selectorText) continue;
+      out.push(newSel + "{" + rule.style.cssText + "}");
+    }
+  }
+  aliasStyle.textContent = out.join("\n");
+  document.head.appendChild(aliasStyle);
+}
+
+// Expose so goto() can call this when the operator navigates to
+// Drivers while the roster is still parked in Onboarding — the
+// roster must be returned to Drivers before Drivers paints.
+window._obUnmountDriverRoster = _obUnmountDriverRoster;
 
 function _obPrint() {
   // Clone every visible onboarding sub-page (overview, workauth,
