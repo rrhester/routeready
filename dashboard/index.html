@@ -825,7 +825,12 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* ── Top bar (clean white control surface) ────────────────── */
 .topbar{
   position:sticky;top:0;z-index:10;
-  height:56px;
+  /* Shortened from 56px → 36px so the tool row (refresh, undo, AI
+     search, install, settings) sits flush near the top of the page
+     in the installed PWA — no floating gap below the OS title bar.
+     The Ask pill below is trimmed from 38px → 32px in lockstep so
+     the row still has 2px breathing room top + bottom. */
+  height:36px;
   display:flex;align-items:center;padding:0 var(--s-6);gap:var(--s-4);
   background:var(--canvas);
   border-bottom:0;
@@ -865,7 +870,10 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .hdr-ask{
   flex:1;max-width:680px;margin:0 auto;
   display:flex;align-items:center;gap:var(--s-2);
-  height:38px;padding:3px var(--s-1) 3px var(--s-3);border-radius:var(--r-pill);
+  /* 34px — sized to nearly fill the 36px topbar (1px breathing top
+     + bottom). Matches the Settings pill height, so the prominent
+     center control and the right-edge control read as one row. */
+  height:34px;padding:3px var(--s-1) 3px var(--s-3);border-radius:var(--r-pill);
   background:var(--surface);
   border:1px solid var(--border-strong);
   box-shadow:var(--shadow-xs);
