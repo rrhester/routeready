@@ -58,6 +58,20 @@
     + var(--tcp-kpi-gap)
   );
 
+  /* ── Absolute Y positions ───────────────────────────────────
+     Distance from .page (== .tcp-shell) top to each chrome row.
+     These exist so the chrome's POSITION is locked, not just its
+     SIZE. Without them, two pages with identical strip+KPI
+     dimensions could still land at different Y values depending
+     on what each page renders above the strip (hidden wrappers,
+     in-flow cmd-tabs, padding-top, etc). With the rows
+     absolute-positioned at these Y values, every page's chrome
+     lands at the same coordinates regardless of page-level
+     structure differences. */
+  --tcp-strip-y: 40px;
+  --tcp-kpi-y:   calc(var(--tcp-strip-y) + var(--tcp-strip-h) + var(--tcp-strip-gap));
+  --tcp-body-y:  calc(var(--tcp-kpi-y)   + var(--tcp-kpi-h)   + var(--tcp-kpi-gap));
+
   /* ── Spacing ────────────────────────────────────────────── */
   --tcp-pad-x:         20px;   /* horizontal padding inside .page-shell */
   --tcp-pad-top:       4px;    /* small top padding above the cmd-tabs band */
@@ -88,6 +102,11 @@
   height: calc(100vh - var(--tcp-topbar-h));
   min-height: 0;
   overflow: hidden;
+  /* Positioned ancestor for the absolute-anchored chrome rows
+     below (.tcp-strip / .tcp-kpi). Required so the chrome can
+     pin itself to a known Y inside the shell, independent of
+     whatever each page renders above the strip. */
+  position: relative;
 }
 
 /* ── .tcp · the locked chrome block ─────────────────────────
@@ -123,6 +142,21 @@
    resize the row. If a page needs to grow, it grows INSIDE
    .tcp-body. Period. */
 .tcp-strip {
+  /* Position lock · pinned at a known Y inside .tcp-shell so
+     pre-strip page structure (hidden wrappers, in-flow cmd-tabs,
+     padding-top) can NEVER push this row vertically. !important
+     so per-page CSS can't accidentally re-flow it.
+
+     left / right inset matches .page's horizontal padding so the
+     absolute strip lands in the same X range an in-flow element
+     would (the containing block for absolute is .tcp-shell's
+     padding box, which includes the page padding — without
+     the inset the strip would extend INTO the padding area). */
+  position: absolute !important;
+  top:    var(--tcp-strip-y) !important;
+  left:   var(--tcp-pad-x);
+  right:  var(--tcp-pad-x);
+  /* Height lock (unchanged) */
   min-height: var(--tcp-strip-h);
   height:     var(--tcp-strip-h);
   max-height: var(--tcp-strip-h);
@@ -130,10 +164,40 @@
 }
 
 .tcp-kpi {
+  position: absolute !important;
+  top:    var(--tcp-kpi-y) !important;
+  left:   var(--tcp-pad-x);
+  right:  var(--tcp-pad-x);
   min-height: var(--tcp-kpi-h);
   height:     var(--tcp-kpi-h);
   max-height: var(--tcp-kpi-h);
   box-sizing: border-box;
+}
+
+/* Body is absolutely positioned at a known Y too — so the body
+   top edge is locked independently of what each page renders
+   in document flow above the chrome. Pages that have hidden
+   wrappers (Schedule's legacy .sched-cmd-shell) or in-flow
+   cmd-tabs (Onboarding) above the chrome can't push the body
+   off-target because the body doesn't depend on those at all.
+   Combined with absolute strip + KPI, every page's TCP region
+   is now pixel-locked to the same Y coordinates.
+
+   left / right / bottom match .page padding so the body lives
+   in the same horizontal + vertical bounds an in-flow body
+   would. display:flex column so descendants (obsub-* on
+   Onboarding, cal-wrap on Schedule) keep their flex behaviour. */
+.tcp-body {
+  position: absolute;
+  top:    var(--tcp-body-y);
+  left:   var(--tcp-pad-x);
+  right:  var(--tcp-pad-x);
+  bottom: var(--tcp-pad-x);
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* Views with no metrics still reserve the KPI footprint so
