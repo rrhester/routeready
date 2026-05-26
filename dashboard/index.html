@@ -14646,7 +14646,7 @@ body.rr-cmdk-open{ overflow:hidden }
                   </details>
 
                   <!-- ── 2 · WHO'S ELIGIBLE ── hard gates that exclude drivers entirely. -->
-                  <details class="sf2-section" data-rr-sf-section="eligibility" open>
+                  <details class="sf2-section" data-rr-sf-section="eligibility">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">2</span>
                       <span class="sf2-section-titles">
@@ -14674,7 +14674,7 @@ body.rr-cmdk-open{ overflow:hidden }
                   </details>
 
                   <!-- ── 3 · PROTECTIONS ── per-shift / per-driver protections. -->
-                  <details class="sf2-section" data-rr-sf-section="protections" open>
+                  <details class="sf2-section" data-rr-sf-section="protections">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">3</span>
                       <span class="sf2-section-titles">
@@ -17944,10 +17944,14 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;flex-direction:column;gap:10px;
           }
           /* Cap the popover body height so opening Advanced doesn't push
-             the popover off-screen — scroll inside instead. */
+             the popover off-screen — scroll inside instead. overflow-y
+             is `scroll` (not auto) so the bar is always visible — makes
+             it obvious there's more content below. scrollbar-gutter keeps
+             the layout from jumping as sections expand. */
           #view-schedule #rr-sched-smartfill-rules-body{
             max-height:min(72vh,640px);
-            overflow-y:auto;
+            overflow-y:scroll;
+            scrollbar-gutter:stable;
           }
           #view-schedule .sf-engine-group{
             display:flex;flex-direction:column;gap:4px;
