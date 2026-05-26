@@ -492,7 +492,6 @@ function normalizeDriver(raw) {
     license_expiration_date: raw.license_expiration_date ?? null,
     dot_certified: raw.dot_certified === true,
     xl_certified: raw.xl_certified === true,
-    edv_certified: raw.edv_certified === true,
     saved_availability: validateAvailability(raw.saved_availability, where),
     preferred_availability: validateAvailability(
       raw.preferred_availability,
@@ -839,9 +838,6 @@ function checkCertification(shift, driver, settings) {
   }
   if (shift.route_type === "xl" && !driver.xl_certified) {
     return { rule: "R004", message: "Missing XL certification" };
-  }
-  if (shift.route_type === "edv" && !driver.edv_certified) {
-    return { rule: "R004", message: "Missing EDV certification" };
   }
   return null;
 }
@@ -2214,7 +2210,6 @@ function mapDriver(raw, ptoByDriver) {
     license_expiration_date: raw.dl_expires_on ? raw.dl_expires_on.slice(0, 10) : null,
     dot_certified: raw.dot_certified === true,
     xl_certified: raw.xl_certified === true,
-    edv_certified: raw.edv_certified === true,
     saved_availability: availabilityFromDows(raw.available_dows),
     preferred_availability: availabilityFromDows(raw.preferred_dows),
     pto_records: (ptoByDriver.get(String(raw.id)) ?? []).map((date) => ({
@@ -2319,46 +2314,81 @@ function buildSettings(payload) {
   const attendancePenalty = r.attendance_penalty === true;
   const schedulingMethod = r.fill_priority === "random" ? "random" : "seniority";
   const rotationStartDay = Math.max(0, Math.min(6, Math.round(r.rotation_start_day ?? 0)));
+  const runMode = r.run_mode === "fill_empty_only" || r.run_mode === "rebuild_unlocked" ? r.run_mode : "full_rebuild";
+  const preserveLocked = r.preserve_locked_assignments !== false;
+  const METHOD_SET = /* @__PURE__ */ new Set([
+    "fair_rotation",
+    "seniority",
+    "full_time_priority",
+    "availability_first",
+    "alphabetical",
+    "attendance_priority",
+    "random"
+  ]);
+  const explicitMethod = typeof r.scheduling_method === "string" && METHOD_SET.has(r.scheduling_method) ? r.scheduling_method : null;
+  const sameDay = r.same_day_multi_shift === "allow" ? "allow" : "block";
+  const PATTERN_SET = /* @__PURE__ */ new Set(["off", "low", "medium", "high"]);
+  const patternStrength = typeof r.historical_pattern_protection === "string" && PATTERN_SET.has(r.historical_pattern_protection) ? r.historical_pattern_protection : "off";
+  const historyWeeks = r.history_window_weeks === 6 || r.history_window_weeks === 8 ? r.history_window_weeks : 4;
+  const attendanceScheduling = r.attendance_scheduling === true;
+  const ATT_WEIGHT_SET = /* @__PURE__ */ new Set(["low", "medium", "high"]);
+  const attendanceWeight = typeof r.attendance_weight === "string" && ATT_WEIGHT_SET.has(r.attendance_weight) ? r.attendance_weight : "medium";
+  const WINDOW_SET = /* @__PURE__ */ new Set(["schedule_week", "rolling_7_days"]);
+  const maxDaysWindow = typeof r.max_days_window === "string" && WINDOW_SET.has(r.max_days_window) ? r.max_days_window : "schedule_week";
+  const weeklyHourWindow = typeof r.weekly_hour_window === "string" && WINDOW_SET.has(r.weekly_hour_window) ? r.weekly_hour_window : "schedule_week";
+  const ptoCountsTowardCap = r.pto_counts_toward_cap !== false;
+  const ptoDefaultHours = Math.max(0, Math.min(
+    24,
+    Math.round(r.pto_default_hours ?? PTO_HOURS_PER_DAY)
+  ));
+  const minRestHours = Math.max(0, Math.min(
+    48,
+    Math.round(r.min_rest_hours ?? 10)
+  ));
   if (r.preferred_only === true) {
     return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, fifthDayFill, fifthDayOverrideAvail, attendancePenalty, schedulingMethod, rotationStartDay);
   }
   if (r.availability_only === true) {
     return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, fifthDayFill, fifthDayOverrideAvail, attendancePenalty, schedulingMethod, rotationStartDay);
   }
-  const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
+  const legacyMethod = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
+  const finalMethod = explicitMethod ?? (schedulingMethod === "random" ? "random" : legacyMethod);
   return {
-    // Auto-schedule always performs a FULL REBUILD (SPEC Default Schedule
-    // Behavior); locked manual assignments are still preserved + validated.
-    run_mode: "full_rebuild",
+    run_mode: runMode,
+    preserve_locked_assignments: preserveLocked,
     eligible_driver_status: r.include_onboarding !== false ? "active_and_onboarding" : "active_only",
     license_enforcement: license.on,
     license_protection_days: license.protectionDays,
     certification_enforcement: true,
     pto_protection: r.pto_block !== false,
     availability_enforcement: r.availability !== false,
+    availability_required: false,
     max_days_enforcement: true,
     max_days: maxDays,
+    max_days_window: maxDaysWindow,
     // WOC (Working Hours Compliance) governs the weekly-hours cap.
     weekly_hour_cap_enforcement: woc.on,
     weekly_hour_cap: woc.maxHours,
-    // PTO / approved day off always counts toward the weekly cap (hard rule).
-    pto_counts_toward_cap: true,
-    pto_default_hours: PTO_HOURS_PER_DAY,
+    weekly_hour_window: weeklyHourWindow,
+    pto_counts_toward_cap: ptoCountsTowardCap,
+    pto_default_hours: ptoDefaultHours,
     min_rest_enforcement: r.min_rest !== false,
+    min_rest_hours: minRestHours,
     // WOC — also caps consecutive working days.
     woc_enforcement: woc.on,
     woc_max_consecutive_days: woc.maxConsecutiveDays,
-    // A driver works at most one shift per day — a physical constraint,
-    // never operator-configurable.
-    same_day_multi_shift: "block",
-    historical_pattern_protection: "off",
-    attendance_scheduling: false,
+    same_day_multi_shift: sameDay,
+    historical_pattern_protection: patternStrength,
+    history_window_weeks: historyWeeks,
+    attendance_scheduling: attendanceScheduling,
     attendance_penalty: attendancePenalty,
-    scheduling_method: schedulingMethod === "random" ? "random" : method,
+    attendance_weight: attendanceWeight,
+    scheduling_method: finalMethod,
     assignment_mode: assignmentMode,
     rotation_batch_size: rotationBatch,
     rotation_start_day: rotationStartDay,
     preferred_availability_priority: r.preferred_days !== false,
+    preferred_availability_required: r.preferred_availability_required === true,
     preferred_enhancement: enh.on,
     preferred_enhancement_contiguous: enh.contiguous,
     preferred_enhancement_extra: enh.extra,
