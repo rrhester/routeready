@@ -5,13 +5,21 @@
 // matching shift in the schedule week, claim the first eligible open one
 // for the locked driver before the rest of the engine runs.
 //
-// Eligibility is evaluated normally before pre-assignment, so PTO,
-// availability, certification, license, and rest rules all naturally
-// override the lock. If no eligible shift exists on that DOW (e.g. the
-// driver is on PTO that day), the lock goes silent for that week — no
-// violation, no error, the rule just doesn't fire.
+// Eligibility for the lock pass deliberately relaxes the soft-preference
+// rules — saved availability (R006) and preferred-required (R020) are
+// IGNORED during pre-assignment because an explicit pin is the operator
+// overriding those preferences. ("I know Chucky usually doesn't work
+// Sundays. I'm pinning him to Sundays anyway.") Hard compliance rules
+// (PTO, license, cert, WOC, max-days, weekly cap, min rest, same-day
+// block, blackout, status) all still apply — a pin can never cause one
+// of those.
+//
+// If no shift is eligible on the matching DOW even with availability
+// relaxed (driver is on PTO that day, or it would break WOC, etc), the
+// pin goes silent for that week — no violation, the rule just doesn't
+// fire and the schedule fills around it.
 
-import type { AdHocConstraint, NormalizedDriver } from "../types.ts";
+import type { AdHocConstraint, NormalizedDriver, Settings } from "../types.ts";
 import type { EngineContext } from "../runtime.ts";
 import { dayOfWeek } from "../dates.ts";
 import { evaluateEligibility } from "../eligibility.ts";
@@ -55,6 +63,17 @@ export function applyDriverDayLocks(
   }
   if (rules.length === 0) return;
 
+  // Relaxed eligibility context: pins override saved availability + the
+  // preferred-required boundary. They do NOT override hard compliance
+  // rules. See file-level comment.
+  const relaxedSettings: Settings = {
+    ...ctx.settings,
+    availability_enforcement: false,
+    availability_required: false,
+    preferred_availability_required: false,
+  };
+  const relaxedCtx: EngineContext = { ...ctx, settings: relaxedSettings };
+
   // Sort by driver_id for determinism. Same driver appearing twice with
   // different DOWs gets both rules applied (pinned to multiple days).
   rules.sort((a, b) => {
@@ -82,7 +101,7 @@ export function applyDriverDayLocks(
     for (const plan of candidates) {
       const state = ws.states.get(rule.driver.driver_id);
       if (!state) break;
-      const cell = evaluateEligibility(plan.shift, rule.driver, state, ctx);
+      const cell = evaluateEligibility(plan.shift, rule.driver, state, relaxedCtx);
       if (!cell.eligible) continue;
       applyAssignment(ws, plan, rule.driver.driver_id, "locked");
       break; // one shift per (driver, DOW) — the rule is satisfied
