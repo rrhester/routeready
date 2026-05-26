@@ -946,7 +946,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    + label + optional sub. */
 #view-schedule.rrx-schedule .sched-kpi-pill,
 #view-schedule.rrx-schedule .tp-kpi-pill,
-#view-schedule.rrx-schedule .tp-kpis .tp-kpi-pill {
+#view-schedule.rrx-schedule .tp-kpis .tp-kpi-pill,
+#view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill {
   display: inline-flex;
   align-items: center;
   gap: var(--rr-space-100);
@@ -962,12 +963,14 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-kpi-pill:last-child,
 #view-schedule.rrx-schedule .tp-kpi-pill:last-child,
-#view-schedule.rrx-schedule .tp-kpis .tp-kpi-pill:last-child {
+#view-schedule.rrx-schedule .tp-kpis .tp-kpi-pill:last-child,
+#view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill:last-child {
   border-right: 0;
 }
 
 #view-schedule.rrx-schedule .sched-kpi-dot,
-#view-schedule.rrx-schedule .tp-kpi-dot {
+#view-schedule.rrx-schedule .tp-kpi-dot,
+#view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -975,7 +978,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 #view-schedule.rrx-schedule .sched-kpi-text,
-#view-schedule.rrx-schedule .tp-kpi-text {
+#view-schedule.rrx-schedule .tp-kpi-text,
+#view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-text {
   display: inline-flex;
   flex-direction: column;
   line-height: 1.15;
@@ -983,7 +987,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 #view-schedule.rrx-schedule .sched-kpi-sub,
-#view-schedule.rrx-schedule .tp-kpi-sub {
+#view-schedule.rrx-schedule .tp-kpi-sub,
+#view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-sub {
   font: var(--rr-font-caption);
   font-weight: 500;
   color: var(--rr-fg-secondary);
