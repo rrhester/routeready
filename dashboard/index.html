@@ -5576,6 +5576,140 @@ body.rr-cmdk-open{ overflow:hidden }
 .msg-item.channel{background:var(--accent-soft)}
 .msg-item.channel:hover{background:var(--accent-soft-strong)}
 
+/* ───────────────────────────────────────────────────────────────
+   Messages · AFTER spec
+   ─────────────────────────────────────────────────────────────
+   Operator's BEFORE/AFTER mockup refresh: open chat area (no
+   boxy container), lighter chrome, softer active-conversation
+   highlight, integrated compose bar, subtle row separators.
+─────────────────────────────────────────────────────────────── */
+.msg-shell{
+  background:var(--canvas) !important;
+  background-image:none !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+}
+.msg-list{
+  background:transparent !important;
+  border-right:0 !important;
+  padding:var(--s-2) var(--s-2);
+}
+.msg-list-head{border-bottom:0 !important;padding:var(--s-3) var(--s-3) var(--s-1)}
+.msg-item{
+  border-bottom:0 !important;
+  padding:var(--s-3) var(--s-3) !important;
+  border-radius:8px;
+}
+.msg-item.active{background:rgba(15,108,189,.08) !important}
+.msg-item.channel{background:transparent !important}
+.msg-item.channel:hover{background:rgba(15,108,189,.06) !important}
+.msg-item.broadcast{background:transparent !important}
+.msg-item.broadcast:hover{background:rgba(245,158,11,.10) !important}
+
+.rr-mc-head, .rr-cc-head{
+  background:transparent !important;
+  border-bottom:1px solid rgba(15,23,42,.05) !important;
+}
+.rr-mc-thread, .rr-cc-thread{
+  background:var(--canvas) !important;
+  padding:var(--s-5) var(--s-6) var(--s-5) !important;
+}
+
+/* Head right-side stats: render as a plain inline text line
+   instead of boxed chips ("Connected · Last active 3d ago"). */
+.rr-mc-head-stats{
+  display:flex !important;align-items:center !important;
+  gap:6px !important;flex-shrink:0 !important;margin-left:auto !important;
+  font-size:var(--fs-sm);color:var(--text-subtle);
+}
+.rr-mc-head-stats .rr-mc-stat{
+  background:transparent !important;border:0 !important;padding:0 !important;
+  color:var(--text-subtle);
+}
+.rr-mc-head-stats .rr-mc-stat-icon{display:none !important}
+.rr-mc-head-stats .rr-mc-stat-label{display:none !important}
+.rr-mc-head-stats .rr-mc-stat-value{
+  font-size:var(--fs-sm) !important;font-weight:500 !important;
+  color:var(--text-subtle) !important;margin:0 !important;
+}
+.rr-mc-head-stats .rr-mc-stat + .rr-mc-stat::before{
+  content:"·";margin:0 6px;color:var(--text-subtle);
+}
+.rr-mc-head-stats .rr-mc-stat-more{
+  width:28px;height:28px;background:transparent !important;border:0 !important;
+  color:var(--text-subtle);
+}
+.rr-mc-head-stats .rr-mc-stat-more:hover{background:var(--surface-hover) !important;color:var(--text)}
+
+/* Compose area · transparent bg, lighter top hairline, integrated
+   priority chips + ack toggle + round icon send. */
+.rr-mc-composer, .rr-cc-composer{
+  background:transparent !important;
+  background-image:none !important;
+  border-top:1px solid rgba(15,23,42,.05) !important;
+  padding:var(--s-3) var(--s-5) var(--s-4) !important;
+  gap:var(--s-2) !important;
+}
+.rr-mc-composer textarea, .rr-cc-composer textarea{
+  background:var(--surface) !important;
+  border:1px solid rgba(15,23,42,.10) !important;
+  box-shadow:none !important;
+  padding:10px 12px !important;
+  border-radius:10px !important;
+}
+.rr-mc-composer textarea:focus, .rr-cc-composer textarea:focus,
+.rr-mc-composer textarea:focus-visible, .rr-cc-composer textarea:focus-visible{
+  border-color:var(--accent) !important;
+  box-shadow:0 0 0 3px var(--accent-soft) !important;
+}
+.rr-mc-options{
+  display:flex !important;align-items:center !important;
+  gap:6px !important;flex-wrap:wrap;
+}
+.rr-mc-pri{
+  display:inline-flex;background:var(--canvas);
+  border-radius:999px;padding:2px;gap:1px;
+}
+.rr-mc-pri-btn{
+  appearance:none;background:transparent;border:0;cursor:pointer;
+  font:inherit;font-size:11px;font-weight:600;letter-spacing:.02em;
+  padding:4px 10px;border-radius:999px;color:var(--text-subtle);
+  transition:background var(--t-fast),color var(--t-fast);
+}
+.rr-mc-pri-btn.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow-xs)}
+.rr-mc-pri-btn.urgent.on{background:#FEE2E2;color:#B91C1C}
+.rr-mc-pri-btn:hover:not(.on){color:var(--text)}
+.rr-mc-ack-toggle{
+  display:inline-flex;align-items:center;gap:6px;font-size:11px;
+  color:var(--text-subtle);cursor:pointer;
+}
+.rr-mc-ack-toggle input{
+  appearance:none;width:14px;height:14px;border:1px solid var(--border-strong);
+  border-radius:3px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+}
+.rr-mc-ack-toggle input:checked{background:var(--accent);border-color:var(--accent)}
+.rr-mc-ack-toggle input:checked::after{
+  content:"";width:8px;height:8px;background:#fff;
+  clip-path:polygon(15% 50%, 40% 75%, 90% 20%, 80% 10%, 40% 55%, 25% 40%);
+}
+/* Send · round icon button (paper plane) instead of the wide pill. */
+.rr-mc-send, .rr-cc-send{
+  background:var(--accent) !important;color:#fff !important;border:0 !important;
+  width:38px !important;min-height:38px !important;height:38px !important;
+  padding:0 !important;border-radius:50% !important;
+  font-size:0 !important;
+  display:inline-flex !important;align-items:center !important;justify-content:center !important;
+  flex:0 0 auto;
+  box-shadow:0 1px 2px rgba(37,99,235,.20) !important;
+}
+.rr-mc-send::before, .rr-cc-send::before{
+  content:"";display:block;width:18px;height:18px;
+  background-color:#fff;
+  -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='22' y1='2' x2='11' y2='13'/><polygon points='22 2 15 22 11 13 2 9 22 2'/></svg>") center/contain no-repeat;
+  mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='22' y1='2' x2='11' y2='13'/><polygon points='22 2 15 22 11 13 2 9 22 2'/></svg>") center/contain no-repeat;
+}
+
 .msg-conv{
   position:relative;background:var(--surface);
   min-height:0;min-width:0;height:100%;overflow:hidden;
