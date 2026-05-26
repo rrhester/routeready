@@ -5956,8 +5956,19 @@ async function loadOnboardingOps(opts) {
   // a leftmost "Onboarding drivers" total and a rightmost "Active"
   // count. Stages come from the same blueprint that drives the
   // matrix columns, so adding or removing a step in the builder
-  // updates the KPI bar on the next render.
-  try { _obRenderKpis(enriched, stepCols); } catch (_) { /* non-fatal */ }
+  // updates the KPI bar on the next render. Guarded so it ONLY
+  // paints when the Overview sub-tab is active — otherwise the
+  // matrix-render path would overwrite the Funnel KPIs that obSub
+  // just installed and the operator would see a brief onboarding-
+  // stage flash before the funnel pills repaint.
+  try {
+    const activeSub = document.querySelector(
+      "#view-onboarding-ops .subnav .subnav-item[data-obsub].active"
+    )?.getAttribute("data-obsub");
+    if (!activeSub || activeSub === "overview") {
+      _obRenderKpis(enriched, stepCols);
+    }
+  } catch (_) { /* non-fatal */ }
 
   body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
     el.addEventListener("click", (e) => {
