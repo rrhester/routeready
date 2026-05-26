@@ -14470,6 +14470,26 @@ body.rr-cmdk-open{ overflow:hidden }
                       0%,100%{transform:scale(1);opacity:.5}
                       50%{transform:scale(1.4);opacity:1}
                     }
+                    /* Manual-mode banner — hidden by default; the
+                       .is-manual class on the body flips it on. */
+                    #rr-sched-smartfill-rules-body .sf2-manual-banner{
+                      display:none;
+                      align-items:flex-start;gap:10px;
+                      margin:8px 10px 0;
+                      padding:10px 12px;
+                      background:#FFF8E6;border:1px solid #F5C97E;
+                      border-radius:6px;
+                      font-size:12px;color:#8A6D3B;line-height:1.45;
+                    }
+                    #rr-sched-smartfill-rules-body.is-manual .sf2-manual-banner{
+                      display:flex;
+                    }
+                    #rr-sched-smartfill-rules-body .sf2-manual-banner-icon{
+                      color:#B8860B;flex:0 0 auto;margin-top:1px;
+                    }
+                    #rr-sched-smartfill-rules-body .sf2-manual-banner-text strong{
+                      color:#7A5A0F;
+                    }
                     #rr-sched-smartfill-rules-body .sf2-section{
                       border:1px solid rgba(15,23,42,.12);
                       border-radius:6px;
@@ -14590,13 +14610,38 @@ body.rr-cmdk-open{ overflow:hidden }
                       background:#FFF8E6;border:1px solid #F5C97E;border-radius:3px;
                       padding:7px 10px;margin:6px 10px;line-height:1.4;
                     }
-                    /* Manual mode hides everything but Section 1 + Custom rules. */
-                    #rr-sched-smartfill-rules-body.is-manual .sf2-section:not([data-rr-sf-section="mode"]):not([data-rr-sf-section="custom"]){
+                    /* Manual mode keeps eligibility + protections + custom
+                       rules visible (they still affect hand-filling) and
+                       only hides the genuinely solver-specific sections:
+                       ordering, soft prefs, polish passes, engine compute.
+                       Also forces Section 1 open so the Smart Fill / Manual
+                       radio is always reachable. Live-diff hidden (it
+                       reports Smart Fill outcomes). Presets stay visible
+                       so the operator can one-click back into Smart Fill. */
+                    #rr-sched-smartfill-rules-body.is-manual .sf2-section[data-rr-sf-section="ordering"],
+                    #rr-sched-smartfill-rules-body.is-manual .sf2-section[data-rr-sf-section="prefs"],
+                    #rr-sched-smartfill-rules-body.is-manual .sf2-section[data-rr-sf-section="passes"],
+                    #rr-sched-smartfill-rules-body.is-manual .sf2-section[data-rr-sf-section="engine"],
+                    #rr-sched-smartfill-rules-body.is-manual .sf2-section[data-rr-sf-section="diagnostic"]{
                       display:none;
                     }
-                    #rr-sched-smartfill-rules-body.is-manual .sf2-livediff,
-                    #rr-sched-smartfill-rules-body.is-manual .sf2-presets{
+                    #rr-sched-smartfill-rules-body.is-manual .sf2-livediff{
                       display:none;
+                    }
+                    /* Force Section 1 open in Manual mode — the operator
+                       must always be able to flip back to Smart Fill. */
+                    #rr-sched-smartfill-rules-body.is-manual .sf2-section[data-rr-sf-section="mode"]{
+                      box-shadow:0 1px 3px rgba(15,23,42,.08);
+                      border-color:rgba(0,120,212,.30);
+                    }
+                    /* Override legacy is-manual rules that hide sections by
+                       their .sf-zone--* legacy classes — those classes are
+                       now shared with new v2 sections we want visible in
+                       Manual mode (vans, custom rules). Engine compute is
+                       Smart-Fill-only so still hidden via the rule above. */
+                    #view-schedule .sched-smartfill-rules-body.is-manual .sf2-section.sf-zone--vans,
+                    #view-schedule .sched-smartfill-rules-body.is-manual .sf2-section#rr-sf-adhoc-disclosure{
+                      display:block;
                     }
                   </style>
 
@@ -14620,6 +14665,17 @@ body.rr-cmdk-open{ overflow:hidden }
                   <div class="sf2-livediff" id="sf2-livediff" data-state="idle">
                     <div class="sf2-livediff-pulse" aria-hidden="true"></div>
                     <div class="sf2-livediff-text" id="sf2-livediff-text">Run Smart Fill once to enable live preview of rule changes.</div>
+                  </div>
+                  <!-- Visible only when .is-manual is on the body. Tells
+                       the operator they're in Manual scheduling mode and
+                       gives them a one-click path back to Smart Fill. -->
+                  <div class="sf2-manual-banner" id="sf2-manual-banner">
+                    <div class="sf2-manual-banner-icon" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12" y2="16"/></svg>
+                    </div>
+                    <div class="sf2-manual-banner-text">
+                      <strong>You're in Manual scheduling mode.</strong> Smart Fill is off and the auto-staffing rules don't run. Switch back below to use rules-driven fill.
+                    </div>
                   </div>
 
                   <!-- ── 1 · MODE &amp; SCOPE ── how this run should behave. -->
