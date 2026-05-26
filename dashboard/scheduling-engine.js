@@ -508,6 +508,99 @@ function normalizeDriver(raw) {
   };
 }
 
+// src/adhoc.ts
+var EMPTY = Object.freeze({
+  excludeFromDay: /* @__PURE__ */ new Map(),
+  blackouts: /* @__PURE__ */ new Map(),
+  pairForbidden: /* @__PURE__ */ new Map(),
+  maxDaysOverride: /* @__PURE__ */ new Map()
+});
+function indexAdHoc(constraints) {
+  if (!constraints || constraints.length === 0) return EMPTY;
+  const idx = {
+    excludeFromDay: /* @__PURE__ */ new Map(),
+    blackouts: /* @__PURE__ */ new Map(),
+    pairForbidden: /* @__PURE__ */ new Map(),
+    maxDaysOverride: /* @__PURE__ */ new Map()
+  };
+  for (const c of constraints) {
+    if (!c || c.hardness !== "hard") continue;
+    const p = c.payload ?? {};
+    switch (c.kind) {
+      case "driver_exclude_from_day": {
+        const did = p.driver_id;
+        const dow = p.dow;
+        if (typeof did !== "string" || typeof dow !== "number") break;
+        if (!Number.isInteger(dow) || dow < 0 || dow > 6) break;
+        let set = idx.excludeFromDay.get(did);
+        if (!set) {
+          set = /* @__PURE__ */ new Set();
+          idx.excludeFromDay.set(did, set);
+        }
+        set.add(dow);
+        break;
+      }
+      case "date_blackout_driver": {
+        const did = p.driver_id;
+        const from = p.date_from;
+        const to = p.date_to;
+        if (typeof did !== "string") break;
+        if (typeof from !== "string" || !isValidDate(from)) break;
+        if (typeof to !== "string" || !isValidDate(to)) break;
+        if (to < from) break;
+        let arr = idx.blackouts.get(did);
+        if (!arr) {
+          arr = [];
+          idx.blackouts.set(did, arr);
+        }
+        arr.push([from, to]);
+        break;
+      }
+      case "driver_pair_forbidden": {
+        const a = p.driver_a;
+        const b = p.driver_b;
+        if (typeof a !== "string" || typeof b !== "string" || a === b) break;
+        let sa = idx.pairForbidden.get(a);
+        if (!sa) {
+          sa = /* @__PURE__ */ new Set();
+          idx.pairForbidden.set(a, sa);
+        }
+        sa.add(b);
+        let sb = idx.pairForbidden.get(b);
+        if (!sb) {
+          sb = /* @__PURE__ */ new Set();
+          idx.pairForbidden.set(b, sb);
+        }
+        sb.add(a);
+        break;
+      }
+      case "driver_max_days_override": {
+        const did = p.driver_id;
+        const cap = p.max_days;
+        if (typeof did !== "string" || typeof cap !== "number") break;
+        if (!Number.isFinite(cap) || cap < 0) break;
+        const intCap = Math.floor(cap);
+        const prev = idx.maxDaysOverride.get(did);
+        if (prev === void 0 || intCap < prev) {
+          idx.maxDaysOverride.set(did, intCap);
+        }
+        break;
+      }
+      // driver_lock_to_day is handled by step1_5_locks, not here.
+      default:
+        break;
+    }
+  }
+  return idx;
+}
+function inBlackoutRange(iso, ranges) {
+  if (!ranges) return false;
+  for (const [from, to] of ranges) {
+    if (iso >= from && iso <= to) return true;
+  }
+  return false;
+}
+
 // src/runtime.ts
 function windowRange(type, shift, ctx) {
   if (type === "schedule_week") return ctx.scheduleWeek;
@@ -850,10 +943,13 @@ function checkMaxDays(shift, state, ctx) {
   if (!inRange(shift.date, range[0], range[1])) return null;
   const dates = uniqueDatesInWindow(state, range);
   dates.add(shift.date);
-  if (dates.size > ctx.settings.max_days) {
+  const override = ctx.adHoc.maxDaysOverride.get(state.driver_id);
+  const cap = override !== void 0 ? Math.min(ctx.settings.max_days, override) : ctx.settings.max_days;
+  if (dates.size > cap) {
+    const note = override !== void 0 && override === cap ? ` (per-driver override)` : "";
     return {
       rule: "R007",
-      message: `Would exceed max ${ctx.settings.max_days} days in ${ctx.settings.max_days_window}`
+      message: `Would exceed max ${cap} days in ${ctx.settings.max_days_window}${note}`
     };
   }
   return null;
@@ -956,6 +1052,37 @@ function checkPreferredRequired(shift, driver, settings) {
   };
 }
 
+// src/rules/r021_adhoc.ts
+function checkAdHocExcludeFromDay(shift, driver, ctx) {
+  const dows = ctx.adHoc.excludeFromDay.get(driver.driver_id);
+  if (!dows || !dows.has(shift.dow)) return null;
+  return {
+    rule: "R021",
+    message: `Ad-hoc: driver excluded from ${DOW_NAMES[shift.dow]}`
+  };
+}
+function checkAdHocBlackout(shift, driver, ctx) {
+  const ranges = ctx.adHoc.blackouts.get(driver.driver_id);
+  if (!inBlackoutRange(shift.date, ranges)) return null;
+  return {
+    rule: "R021",
+    message: `Ad-hoc: driver on blackout range covering ${shift.date}`
+  };
+}
+function checkAdHocPairForbidden(shift, driver, ctx) {
+  const partners = ctx.adHoc.pairForbidden.get(driver.driver_id);
+  if (!partners || partners.size === 0) return null;
+  for (const partnerId of partners) {
+    if (shift.original_assigned_driver_id === partnerId) {
+      return {
+        rule: "R021",
+        message: `Ad-hoc: forbidden to share a shift with ${partnerId}`
+      };
+    }
+  }
+  return null;
+}
+
 // src/eligibility.ts
 var PASS = Object.freeze({
   eligible: true,
@@ -963,7 +1090,7 @@ var PASS = Object.freeze({
 });
 function evaluateEligibility(shift, driver, state, ctx) {
   const s = ctx.settings;
-  const block = checkBlackout(shift, ctx.blackout) ?? checkStatus(driver, s) ?? checkPreferredRequired(shift, driver, s) ?? checkLicense(shift, driver, s) ?? checkCertification(shift, driver, s) ?? checkPto(shift, driver, s) ?? checkAvailability(shift, driver, s) ?? checkSameDay(shift, state, s) ?? checkMaxDays(shift, state, ctx) ?? checkWeeklyCap(shift, driver, state, ctx) ?? checkWoc(shift, state, s) ?? checkMinRest(shift, state, s);
+  const block = checkBlackout(shift, ctx.blackout) ?? checkStatus(driver, s) ?? checkPreferredRequired(shift, driver, s) ?? checkLicense(shift, driver, s) ?? checkCertification(shift, driver, s) ?? checkPto(shift, driver, s) ?? checkAvailability(shift, driver, s) ?? checkAdHocExcludeFromDay(shift, driver, ctx) ?? checkAdHocBlackout(shift, driver, ctx) ?? checkAdHocPairForbidden(shift, driver, ctx) ?? checkSameDay(shift, state, s) ?? checkMaxDays(shift, state, ctx) ?? checkWeeklyCap(shift, driver, state, ctx) ?? checkWoc(shift, state, s) ?? checkMinRest(shift, state, s);
   if (block) return { eligible: false, block_reasons: [block] };
   return PASS;
 }
@@ -980,6 +1107,9 @@ function collectBlocks(shift, driver, state, ctx) {
   push(checkCertification(shift, driver, s));
   push(checkPto(shift, driver, s));
   push(checkAvailability(shift, driver, s));
+  push(checkAdHocExcludeFromDay(shift, driver, ctx));
+  push(checkAdHocBlackout(shift, driver, ctx));
+  push(checkAdHocPairForbidden(shift, driver, ctx));
   push(checkSameDay(shift, state, s));
   push(checkMaxDays(shift, state, ctx));
   push(checkWeeklyCap(shift, driver, state, ctx));
@@ -1903,7 +2033,8 @@ var HARD_CHECKS = [
   "R010",
   "R011",
   "R019",
-  "R020"
+  "R020",
+  "R021"
 ];
 function clock(min) {
   const m = (min % 1440 + 1440) % 1440;
@@ -2088,7 +2219,8 @@ function buildContext(input) {
     ],
     payPeriod,
     history,
-    patterns: /* @__PURE__ */ new Map()
+    patterns: /* @__PURE__ */ new Map(),
+    adHoc: indexAdHoc(input.ad_hoc_constraints)
   };
 }
 function buildDriverTotals(ctx, ws) {

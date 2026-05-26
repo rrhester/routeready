@@ -914,3 +914,100 @@ test("driver_lock_to_day — unknown driver in payload is silently skipped", () 
   assert.equal(r.summary_metrics.filled_shifts, 1);
   assert.equal(r.assigned_shifts[0]?.driver_id, "alice");
 });
+
+test("R021 — driver_exclude_from_day blocks the driver on that DOW", () => {
+  // Bob is excluded from Wednesdays. Alice has to take the Wed shift.
+  const r = runEngine(
+    input({
+      shifts: [shift({ shift_id: "s_wed", date: "2026-05-27" })],
+      drivers: [
+        driver({ driver_id: "alice", last_name: "Z_alice" }),
+        driver({ driver_id: "bob",   last_name: "A_bob" }),
+      ],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "driver_exclude_from_day",
+          payload: { driver_id: "bob", dow: 3 }, hardness: "hard" },
+      ],
+      settings: {
+        scheduling_method: "alphabetical",
+        max_days_enforcement: false, woc_enforcement: false,
+      },
+    }),
+  );
+  // Bob sorts first alphabetically but is excluded → Alice gets it.
+  assert.equal(r.assigned_shifts.find(a => a.shift_id === "s_wed")?.driver_id, "alice");
+});
+
+test("R021 — date_blackout_driver blocks the driver inside the range", () => {
+  const r = runEngine(
+    input({
+      shifts: [
+        shift({ shift_id: "s_mon", date: "2026-05-25" }),
+        shift({ shift_id: "s_tue", date: "2026-05-26" }),
+        shift({ shift_id: "s_wed", date: "2026-05-27" }),
+      ],
+      drivers: [
+        driver({ driver_id: "alice", last_name: "A_alice" }),
+        driver({ driver_id: "bob",   last_name: "B_bob" }),
+      ],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "date_blackout_driver",
+          payload: { driver_id: "alice", date_from: "2026-05-25", date_to: "2026-05-26" },
+          hardness: "hard" },
+      ],
+      settings: {
+        scheduling_method: "alphabetical",
+        max_days_enforcement: false, woc_enforcement: false,
+      },
+    }),
+  );
+  // Alice blocked Mon + Tue but free on Wed. Bob takes Mon + Tue.
+  const monDriver = r.assigned_shifts.find(a => a.shift_id === "s_mon")?.driver_id;
+  const tueDriver = r.assigned_shifts.find(a => a.shift_id === "s_tue")?.driver_id;
+  assert.notEqual(monDriver, "alice");
+  assert.notEqual(tueDriver, "alice");
+});
+
+test("R007 — driver_max_days_override caps tighter than the global", () => {
+  // Global max_days = 5; Alice has an override to 2. Even with 4 open
+  // shifts she can only be on 2 of them.
+  const r = runEngine(
+    input({
+      shifts: [
+        shift({ shift_id: "s_mon", date: "2026-05-25" }),
+        shift({ shift_id: "s_tue", date: "2026-05-26" }),
+        shift({ shift_id: "s_wed", date: "2026-05-27" }),
+        shift({ shift_id: "s_thu", date: "2026-05-28" }),
+      ],
+      drivers: [driver({ driver_id: "alice" })],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "driver_max_days_override",
+          payload: { driver_id: "alice", max_days: 2 }, hardness: "hard" },
+      ],
+      settings: {
+        max_days_enforcement: true, max_days: 5,
+        weekly_hour_cap_enforcement: false, woc_enforcement: false,
+      },
+    }),
+  );
+  // 2 of 4 shifts filled (Alice's per-driver cap), 2 uncovered.
+  assert.equal(r.summary_metrics.filled_shifts, 2);
+});
+
+test("R021 — soft hardness is ignored by the heuristic", () => {
+  // Soft excludes are CP-SAT only in v1. Heuristic ignores them.
+  const r = runEngine(
+    input({
+      shifts: [shift({ shift_id: "s_wed", date: "2026-05-27" })],
+      drivers: [driver({ driver_id: "alice" })],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "driver_exclude_from_day",
+          payload: { driver_id: "alice", dow: 3 },
+          hardness: "soft", weight: 10 },
+      ],
+      settings: { max_days_enforcement: false, woc_enforcement: false },
+    }),
+  );
+  // Soft exclude ignored — alice gets the shift.
+  assert.equal(r.assigned_shifts.find(a => a.shift_id === "s_wed")?.driver_id, "alice");
+});
