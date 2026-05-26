@@ -14962,6 +14962,13 @@ body.rr-cmdk-open{ overflow:hidden }
                         <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="preferred_enhancement_extra"> <span class="sf-rule-name">Allow extra rounds that may scatter day-blocks</span></label>
                       </div>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="affinity_enhancement"> <span class="sf-rule-name"><strong>Driver Affinity Enhancement</strong> · swap drivers onto the weekdays they historically work most</span></label>
+                      <div class="sf2-subrules sched-smartfill-rule-advanced" data-rr-parent="affinity_enhancement">
+                        <div style="font-size:11px;font-weight:600;color:#605E5C;margin:6px 0 4px;letter-spacing:.02em">Weekday priority order — higher first</div>
+                        <div class="sf2-dayorder-help" style="font-size:11px;color:#605E5C;line-height:1.4;margin-bottom:6px">
+                          The affinity sweep settles weekdays in this order. Days higher up are locked in before lower-priority days can swap into them, so a high-priority day's placement is protected.
+                        </div>
+                        <div id="rr-set-affinity-day-order" class="sf-affinity-dayorder"></div>
+                      </div>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="fifth_day_fill"> <span class="sf-rule-name"><strong>5th-day fill</strong> · give opted-in drivers one extra shift if coverage needs it (respects WOC + license)</span></label>
                       <div class="sf2-subrules">
                         <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="fifth_day_override_availability"> <span class="sf-rule-name">Override availability for the 5th day — let it land any day (WOC + license still gate)</span></label>
