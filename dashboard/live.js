@@ -25982,7 +25982,13 @@ const _RR_SF_PRESETS = Object.freeze({
     affinity_enhancement: true,
     historical_pattern_protection: "medium",
   },
-  compliance_first: {
+  // "Conservative" — tighter buffers on top of the hard rules. Hard
+  // rules (WOC, license, certs, PTO, min rest) are ALWAYS enforced,
+  // regardless of preset — they're not optional. This preset just adds
+  // buffer beyond the defaults: WOC cap drops 6 → 5 days, license
+  // protection window extends 0 → 7 days, no 5th-day overtime, no
+  // enhancement passes.
+  conservative: {
     dl_valid: true,
     dl_protection_days: 7,
     woc: true,
@@ -26037,7 +26043,7 @@ window._rrApplySfPreset = function (name) {
     const labels = {
       stick_to_last_week: "Stick to last week",
       maximize_coverage:  "Maximize coverage",
-      compliance_first:   "Compliance first",
+      conservative:       "Conservative",
       balanced:           "Balanced",
       reset:              "All rules reset",
     };
