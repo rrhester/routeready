@@ -31708,6 +31708,17 @@ async function autoFillScheduleWeek() {
   // pass since their write path is disabled. Manual mode + the
   // assign-vans toggle off both skip the pass too.
   try {
+    // Read the "Assign vans during Smart Fill" toggle from the saved rule
+    // blob. Previously this referenced _sfVansAssign which is local to
+    // autoAssignDriversForWeek (a different function) — that ReferenceError
+    // was swallowed by the surrounding catch and vans never got assigned.
+    const _sfVansAssign = (() => {
+      try {
+        const sf = (typeof window._rrLoadSfRules === "function")
+          ? window._rrLoadSfRules() : {};
+        return !(sf && sf.vans && sf.vans.assign === false);
+      } catch (_) { return true; }
+    })();
     if (!_rrWhatIfOptions && _sfVansAssign && typeof _runSchedVanAssignmentsBackground === "function") {
       // Fire & forget — the renderer that runs at the end of
       // _assignVansForRange will repaint the chips with their
