@@ -26736,9 +26736,34 @@ function _toggleSchedSmartFillRules(force) {
       const cb = document.querySelector("[data-rr-van-auto-rescue]");
       if (cb) cb.checked = auto === null ? true : auto === "1";
     } catch (_) {}
+    // After all van state is restored, gate the rest of the van
+    // zone behind the master "Assign vans during Smart Fill"
+    // switch — when off, every other van rule is dimmed +
+    // unclickable so the operator can see they don't apply.
+    _rrApplyVansMasterGate();
   }
   return next;
 }
+
+// Toggle the .is-vans-off class on the Van assignment zone based
+// on the master "Assign vans during Smart Fill" switch. When that
+// switch is off, every other rule in the zone (FEM auto-rescue,
+// prefer-paired, the 7 chain rules, the 2 solver-hard locks) is
+// CSS-dimmed and made pointer-events:none so the operator can see
+// at a glance that none of them apply.
+function _rrApplyVansMasterGate() {
+  const master = document.querySelector('input[data-rr-sf-vans="assign"]');
+  const zone   = document.querySelector('#rr-sched-smartfill-rules-body .sf-zone--vans');
+  if (!master || !zone) return;
+  zone.classList.toggle('is-vans-off', !master.checked);
+}
+window._rrApplyVansMasterGate = _rrApplyVansMasterGate;
+// Reapply the gate whenever the master switch flips.
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.closest && e.target.closest('input[data-rr-sf-vans="assign"]')) {
+    _rrApplyVansMasterGate();
+  }
+});
 window._rrToggleSchedSmartFillRules = _toggleSchedSmartFillRules;
 
 // Refresh derived rule visibility (incl. the standalone Assign Vans
