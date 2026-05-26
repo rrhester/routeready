@@ -9302,13 +9302,29 @@ body.rr-cmdk-open{ overflow:hidden }
         Schedule
         <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
-      <!-- Workspaces page is hidden from the sidebar but stays in
-           the DOM so the Schedule view's Van Assignments flow can
-           reuse loadWorkspacesView / _wsRenderVehicles internally.
-           A separate "Workflows" nav-item below routes to the
-           Forms + Checklists subtabs. -->
-      <button class="nav-item" data-view="workspaces" data-c="forms" onclick="goto('workspaces')" style="display:none" aria-hidden="true">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+      <!-- Workspaces · re-revealed in the sidebar (was hidden so the
+           Schedule view's Van Assignments flow could reuse
+           loadWorkspacesView internally; that path still works).
+           The visible "Workflows" nav-item below still routes to
+           the Forms + Checklists subtabs via goto('forms'). -->
+      <button class="nav-item" data-view="workspaces" data-c="forms" onclick="goto('workspaces')">
+        <!-- Workspaces (SECONDARY) · slate-violet frame, 2×2 grid
+             tiles in muted violet (matches the Workflows palette
+             tier so the two related entries read as siblings). -->
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#2D2D4A"/>
+          <rect x="5" y="5" width="6" height="6" rx="0.8" fill="#5A4F7A"/>
+          <rect x="13" y="5" width="6" height="6" rx="0.8" fill="#5A4F7A"/>
+          <rect x="5" y="13" width="6" height="6" rx="0.8" fill="#5A4F7A"/>
+          <rect x="13" y="13" width="6" height="6" rx="0.8" fill="#5A4F7A"/>
+        </svg></span>
+        <span class="nav-icon nav-icon-color"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#581C87"/>
+          <rect x="5" y="5" width="6" height="6" rx="0.8" fill="#A78BFA"/>
+          <rect x="13" y="5" width="6" height="6" rx="0.8" fill="#A78BFA"/>
+          <rect x="5" y="13" width="6" height="6" rx="0.8" fill="#A78BFA"/>
+          <rect x="13" y="13" width="6" height="6" rx="0.8" fill="#A78BFA"/>
+        </svg></span>
         Workspaces
       </button>
       <button class="nav-item" data-view="forms" data-c="forms" onclick="goto('forms')">
