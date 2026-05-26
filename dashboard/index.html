@@ -21149,155 +21149,22 @@ body.rr-cmdk-open{ overflow:hidden }
          MESSAGES — real-time dispatch ↔ driver comms
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-messages">
-      <div class="page">
+      <div class="page" style="padding-bottom:0">
+        <!-- Icon header retired per operator request · Messages
+             goes straight into the chat shell with no strip card
+             above it. The chat shell flexes to fill the page so
+             the composer stays anchored at the bottom. -->
         <style>
-          /* Messages chrome · standardized to the TCP spec so it
-             reads identical to Schedule / Onboarding / Fleet /
-             Fleet Bridge / Workspaces. Tokens come from
-             dashboard/tcp.css. No KPI strip on this surface
-             per operator request — the strip card sits directly
-             above the chat shell. */
-
-          /* Page padding matches the rest of the standardized
-             pages — 40px top so the strip card lands at the same Y
-             as Schedule. */
+          #view-messages.active{display:flex;flex:1 1 auto;min-height:0}
           #view-messages > .page{
-            padding:40px var(--rr-space-200) 0 var(--rr-space-200) !important;
             display:flex;flex-direction:column;
             flex:1 1 auto;min-height:0;
           }
-          #view-messages.active{display:flex;flex:1 1 auto;min-height:0}
-
-          /* cmd-shell + cmd-tabs · same absolute pattern as
-             Schedule / Fleet. */
-          #view-messages .msg-cmd-shell{
-            position:relative;
-            margin-bottom:var(--s-4);
-            flex:0 0 auto;
-          }
-          #view-messages .msg-cmd-tabs{
-            position:absolute;left:0;bottom:100%;margin-bottom:-1px;
-            display:inline-flex;gap:2px;
-            height:var(--tcp-cmd-tabs-h);
-            align-items:center;
-          }
-          #view-messages .msg-cmd-tab{
-            appearance:none;background:transparent;cursor:pointer;
-            font:var(--rr-font-caption);
-            font-weight:600;letter-spacing:.04em;text-transform:uppercase;
-            color:var(--rr-fg-secondary);
-            padding:var(--rr-space-60) var(--rr-space-120);
-            border:1px solid transparent;border-bottom:0;
-            border-radius:var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
-            transition:color var(--rr-motion-fast);
-          }
-          #view-messages .msg-cmd-tab:hover:not(.active){background:transparent}
-          #view-messages .msg-cmd-tab.active{
-            color:var(--rr-brand-primary);background:transparent;border-color:transparent;
-          }
-          #view-messages .msg-cmd-tab:focus-visible{outline:none;color:var(--rr-brand-primary)}
-
-          /* Strip card · locked 115px, matches Schedule chrome. */
-          #view-messages .msg-strip{
-            display:flex;align-items:center;justify-content:flex-start;
-            gap:var(--s-3);flex-wrap:nowrap;
-            padding:11px 18px;
-            background:var(--rr-bg-surface-1);
-            border:1px solid var(--rr-border-primary);
-            border-radius:var(--rr-radius-medium);
-            box-shadow:none;
-            min-height:var(--tcp-strip-h);
-            height:var(--tcp-strip-h);
-            max-height:var(--tcp-strip-h);
-            box-sizing:border-box;
-          }
-          #view-messages .msg-strip-title{
-            flex:0 0 var(--tcp-title-w);
-            align-self:center;
-            display:flex;flex-direction:column;justify-content:center;
-            align-items:flex-start;
-            min-width:0;
-            margin-right:var(--rr-space-160);
-            padding-right:var(--rr-space-120);
-          }
-          #view-messages .msg-strip-title .page-title{
-            font:var(--rr-font-subtitle);
-            color:var(--rr-fg-primary);
-            letter-spacing:-.01em;
-            margin:0;
-            white-space:nowrap;
-          }
-          #view-messages .msg-strip-title .page-sub{
-            font:var(--rr-font-caption);
-            color:var(--rr-fg-secondary);
-            margin:2px 0 0;
-            white-space:nowrap;
-          }
-          #view-messages .msg-strip-actions{
-            display:flex;align-items:center;
-            gap:6px;flex-wrap:nowrap;min-width:0;
-            margin-left:var(--rr-space-160);
-            padding-left:var(--rr-space-160);
-            border-left:1px solid #C8C6C4;
-          }
-          #view-messages .msg-strip-tile{
-            position:relative;
-            appearance:none;cursor:pointer;font:inherit;
-            display:inline-flex;flex-direction:column;
-            align-items:center;justify-content:center;gap:4px;
-            min-width:62px;
-            padding:6px 10px 7px;
-            background:transparent;border:0;
-            border-radius:var(--rr-radius-medium);
-            color:var(--rr-fg-secondary);
-            transition:background var(--t-fast),color var(--t-fast);
-          }
-          #view-messages .msg-strip-tile:hover{
-            background:var(--rr-bg-hover);color:var(--rr-fg-primary);
-          }
-          #view-messages .msg-strip-tile svg{
-            width:33px;height:33px;stroke-width:1.6;
-            stroke-linecap:butt;stroke-linejoin:miter;
-          }
-          #view-messages .msg-strip-tile span{font-size:13px;font-weight:500}
-
-          /* Make the msg shell fill the remaining space (chrome at
-             top is fixed; chat fills the rest of the page). */
           #view-messages .msg-shell{
             flex:1 1 auto;min-height:0;
             height:auto !important;
           }
         </style>
-        <!-- TCP chrome · matches Schedule / Onboarding / Fleet /
-             Fleet Bridge / Workspaces. No KPI strip per operator
-             request — chat shell sits directly below the strip
-             card. -->
-        <div class="msg-cmd-shell">
-          <div class="msg-cmd-tabs" role="tablist" aria-label="Messages mode">
-            <button class="msg-cmd-tab active" type="button" data-msg-cmd-tab="messages" role="tab" aria-selected="true">Messages</button>
-            <button class="msg-cmd-tab" type="button" data-msg-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
-          </div>
-          <div class="msg-strip">
-            <div class="msg-strip-title">
-              <h1 class="page-title">Messages</h1>
-              <p class="page-sub">Real-time comms with drivers · 7 unread · 12 active right now</p>
-            </div>
-            <div class="msg-strip-actions">
-              <button type="button" class="msg-strip-tile" title="Search messages">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <span>Search</span>
-              </button>
-              <button type="button" class="msg-strip-tile" onclick="renderNewDmList('');openModal('modal-new-dm')" title="New direct message">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="12" y1="8" x2="12" y2="14"/></svg>
-                <span>New DM</span>
-              </button>
-              <button type="button" class="msg-strip-tile" onclick="openModal('modal-broadcast')" title="Send a broadcast">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><path d="M3 11l18-5v12L3 13"/><line x1="11.6" y1="16.8" x2="11.6" y2="22"/></svg>
-                <span>Broadcast</span>
-              </button>
-            </div>
-          </div>
-        </div>
 
         <div class="msg-shell" data-rr-no-drawer>
           <!-- LEFT: conversation list -->
