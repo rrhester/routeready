@@ -22958,20 +22958,172 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:5px 0;
           }
         </style>
-        <div class="page-header">
-          <div class="page-header-l">
-            <div class="page-icon" data-c="forms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
-            <div>
+        <style>
+          /* Workspaces chrome · brought to the TCP spec so the
+             header strip + cmd-tabs + KPI strip read identical to
+             Schedule, Onboarding, Fleet, and Fleet Bridge. Tokens
+             come from dashboard/tcp.css. */
+
+          /* Page padding matches Schedule's effective offset (20px
+             + 20px hidden shell = 40px) so the strip card lands at
+             the same Y. */
+          #view-workspaces > .page{
+            padding:40px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
+          }
+
+          /* cmd-shell + cmd-tabs · same absolute pattern as the
+             Schedule / Fleet strips. */
+          #view-workspaces .ws-cmd-shell{
+            position:relative;
+            margin-bottom:var(--s-4);
+          }
+          #view-workspaces .ws-cmd-tabs{
+            position:absolute;left:0;bottom:100%;margin-bottom:-1px;
+            display:inline-flex;gap:2px;
+            height:var(--tcp-cmd-tabs-h);
+            align-items:center;
+          }
+          #view-workspaces .ws-cmd-tab{
+            appearance:none;background:transparent;cursor:pointer;
+            font:var(--rr-font-caption);
+            font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+            color:var(--rr-fg-secondary);
+            padding:var(--rr-space-60) var(--rr-space-120);
+            border:1px solid transparent;border-bottom:0;
+            border-radius:var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
+            transition:color var(--rr-motion-fast);
+          }
+          #view-workspaces .ws-cmd-tab:hover:not(.active){background:transparent}
+          #view-workspaces .ws-cmd-tab.active{
+            color:var(--rr-brand-primary);background:transparent;border-color:transparent;
+          }
+          #view-workspaces .ws-cmd-tab:focus-visible{outline:none;color:var(--rr-brand-primary)}
+
+          /* Strip card · locked 115px, matches Schedule chrome. */
+          #view-workspaces .ws-strip{
+            display:flex;align-items:center;justify-content:flex-start;
+            gap:var(--s-3);flex-wrap:nowrap;
+            padding:11px 18px;
+            background:var(--rr-bg-surface-1);
+            border:1px solid var(--rr-border-primary);
+            border-radius:var(--rr-radius-medium);
+            box-shadow:none;
+            min-height:var(--tcp-strip-h);
+            height:var(--tcp-strip-h);
+            max-height:var(--tcp-strip-h);
+            box-sizing:border-box;
+          }
+          /* Title block · 240px, left-justified, matches Schedule's
+             .sched-v2-title. */
+          #view-workspaces .ws-strip-title{
+            flex:0 0 var(--tcp-title-w);
+            align-self:center;
+            display:flex;flex-direction:column;justify-content:center;
+            align-items:flex-start;
+            min-width:0;
+            margin-right:var(--rr-space-160);
+            padding-right:var(--rr-space-120);
+          }
+          #view-workspaces .ws-strip-title .page-title{
+            font:var(--rr-font-subtitle);
+            color:var(--rr-fg-primary);
+            letter-spacing:-.01em;
+            margin:0;
+            white-space:nowrap;
+          }
+          #view-workspaces .ws-strip-title .page-sub{
+            font:var(--rr-font-caption);
+            color:var(--rr-fg-secondary);
+            margin:2px 0 0;
+            white-space:nowrap;
+          }
+          /* Actions · first hairline at the same X as Schedule. */
+          #view-workspaces .ws-strip-actions{
+            display:flex;align-items:center;
+            gap:6px;flex-wrap:nowrap;min-width:0;
+            margin-left:var(--rr-space-160);
+            padding-left:var(--rr-space-160);
+            border-left:1px solid #C8C6C4;
+          }
+          /* Action tiles · 33×33 svg, 13px label, rounded medium,
+             butt/miter cap (same as Schedule .sched-v2-tile). */
+          #view-workspaces .ws-strip-tile{
+            position:relative;
+            appearance:none;cursor:pointer;font:inherit;
+            display:inline-flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:4px;
+            min-width:62px;
+            padding:6px 10px 7px;
+            background:transparent;border:0;
+            border-radius:var(--rr-radius-medium);
+            color:var(--rr-fg-secondary);
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-workspaces .ws-strip-tile:hover{
+            background:var(--rr-bg-hover);color:var(--rr-fg-primary);
+          }
+          #view-workspaces .ws-strip-tile.active{
+            color:var(--rr-fg-primary);font-weight:600;
+          }
+          #view-workspaces .ws-strip-tile svg{
+            width:33px;height:33px;stroke-width:1.6;
+            stroke-linecap:butt;stroke-linejoin:miter;
+          }
+          #view-workspaces .ws-strip-tile span{font-size:13px;font-weight:500}
+
+          /* KPI strip · TCP 46px, joined-pill style. Empty by
+             default; live.js can populate it with workspace counts
+             later. .is-empty keeps the layout footprint while
+             hiding the visual band. */
+          #view-workspaces .ws-kpis{
+            display:flex;flex-wrap:wrap;align-items:stretch;
+            gap:0;padding:0;
+            margin:var(--rr-space-160) 0 var(--rr-space-160);
+            background:var(--rr-bg-surface-1);
+            border:1px solid var(--rr-border-primary);
+            border-radius:var(--rr-radius-medium);
+            box-shadow:none;
+            font:var(--rr-font-body);
+            min-height:var(--tcp-kpi-h);
+            overflow:hidden;
+          }
+          #view-workspaces .ws-kpis.is-empty{visibility:hidden}
+        </style>
+        <!-- TCP chrome · cmd-tabs above the strip, strip card with
+             title + action tiles, KPI strip below. The legacy
+             .page-header + .subnav were replaced by this block on
+             2026-05-26 to match Schedule / Onboarding / Fleet /
+             Fleet Bridge. The Forms / Workflows / Checklists nav
+             targets stayed the same (goto handlers preserved). -->
+        <div class="ws-cmd-shell">
+          <div class="ws-cmd-tabs" role="tablist" aria-label="Workspaces mode">
+            <button class="ws-cmd-tab active" type="button" data-ws-cmd-tab="workflows" role="tab" aria-selected="true">Workflows</button>
+            <button class="ws-cmd-tab" type="button" data-ws-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
+          </div>
+          <div class="ws-strip">
+            <div class="ws-strip-title">
               <h1 class="page-title">Workspaces</h1>
               <p class="page-sub">Operational boards, forms, and recurring checklists</p>
             </div>
+            <div class="ws-strip-actions" role="group" aria-label="Workspaces sections">
+              <button type="button" class="ws-strip-tile" onclick="goto('forms')" title="Forms">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>
+                <span>Forms</span>
+              </button>
+              <button type="button" class="ws-strip-tile active" onclick="goto('workspaces')" title="Workflows">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                <span>Workflows</span>
+              </button>
+              <button type="button" class="ws-strip-tile" onclick="goto('checklists')" title="Checklists">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><polyline points="8 9 10 11 13 8"/><polyline points="8 14 10 16 13 13"/><line x1="15" y1="9" x2="17" y2="9"/><line x1="15" y1="14" x2="17" y2="14"/></svg>
+                <span>Checklists</span>
+              </button>
+            </div>
           </div>
         </div>
-        <div class="subnav" data-rr-tabbar="workspaces">
-          <button class="subnav-item" data-sub="forms" onclick="goto('forms')">Forms</button>
-          <button class="subnav-item active" data-sub="workflows" onclick="goto('workspaces')">Workflows</button>
-          <button class="subnav-item" data-sub="checklists" onclick="goto('checklists')">Checklists</button>
-        </div>
+        <!-- KPI strip · empty placeholder for now; populated later
+             via live.js when workspace counts are wired up. -->
+        <div id="rr-ws-kpis" class="ws-kpis is-empty" role="group" aria-label="Workspace metrics"></div>
         <div id="rr-ws-root">
           <!-- Skeleton workspaces grid — six card placeholders so
                the layout doesn't reflow when the boards arrive. -->
