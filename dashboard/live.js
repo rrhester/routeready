@@ -19485,26 +19485,23 @@ async function refreshDriverChatThread(scrollToBottom) {
         </div>
         <form class="rr-mc-composer" id="rr-mc-form">
           <input type="file" id="rr-mc-file" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" hidden>
-          <button type="button" id="rr-mc-attach" title="Attach photo or document"
-                  style="background:transparent;border:0;color:var(--text-muted);cursor:pointer;width:36px;height:36px;border-radius:var(--r-2xl);display:flex;align-items:center;justify-content:center">
+          <button type="button" id="rr-mc-attach" class="rr-mc-attach" title="Attach photo or document">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </button>
-          <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
-            <div id="rr-mc-attach-preview" style="display:none"></div>
-            <div class="rr-mc-options" id="rr-mc-options">
-              <div class="rr-mc-pri" role="radiogroup" aria-label="Priority">
-                <button type="button" class="rr-mc-pri-btn ${_dispatchPriority === "normal" ? "on" : ""}" data-rr-pri="normal">Normal</button>
-                <button type="button" class="rr-mc-pri-btn ${_dispatchPriority === "high"   ? "on" : ""}" data-rr-pri="high">High</button>
-                <button type="button" class="rr-mc-pri-btn urgent ${_dispatchPriority === "urgent" ? "on" : ""}" data-rr-pri="urgent">Urgent</button>
-              </div>
-              <label class="rr-mc-ack-toggle">
-                <input type="checkbox" id="rr-mc-req-ack" ${_dispatchRequiresAck ? "checked" : ""}>
-                Require acknowledgement
-              </label>
+          <div id="rr-mc-attach-preview" class="rr-mc-attach-preview" style="display:none"></div>
+          <textarea id="rr-mc-input" class="rr-mc-input" rows="1" placeholder="Message ${escapeHtml(drv.name || "driver")}…" maxlength="2000"></textarea>
+          <div class="rr-mc-options" id="rr-mc-options">
+            <div class="rr-mc-pri" role="radiogroup" aria-label="Priority">
+              <button type="button" class="rr-mc-pri-btn ${_dispatchPriority === "normal" ? "on" : ""}" data-rr-pri="normal">Normal</button>
+              <button type="button" class="rr-mc-pri-btn ${_dispatchPriority === "high"   ? "on" : ""}" data-rr-pri="high">High</button>
+              <button type="button" class="rr-mc-pri-btn urgent ${_dispatchPriority === "urgent" ? "on" : ""}" data-rr-pri="urgent">Urgent</button>
             </div>
-            <textarea id="rr-mc-input" rows="1" placeholder="Reply to ${escapeHtml(drv.name || "driver")}…" maxlength="2000"></textarea>
+            <label class="rr-mc-ack-toggle" title="Require acknowledgement">
+              <input type="checkbox" id="rr-mc-req-ack" ${_dispatchRequiresAck ? "checked" : ""}>
+              <span class="rr-mc-ack-box" aria-hidden="true"></span>
+            </label>
           </div>
-          <button class="rr-mc-send" type="submit">Send</button>
+          <button class="rr-mc-send" type="submit" aria-label="Send"></button>
         </form>
       </div>`;
     const ta = document.getElementById("rr-mc-input");
