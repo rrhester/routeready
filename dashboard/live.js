@@ -26725,7 +26725,18 @@ function _toggleSchedSmartFillRules(force) {
   const next = (typeof force === "boolean") ? force : !isOpen;
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
-  if (next) _restoreSmartFillRules();
+  if (next) {
+    _restoreSmartFillRules();
+    // Van rules folded into Smart Fill (Path B) — restore the
+    // [data-rr-van-rule] + auto-rescue checkboxes from localStorage
+    // on every open so saved state shows up.
+    _restoreSchedVanRules();
+    try {
+      const auto = localStorage.getItem(_RR_VAN_AUTO_RESCUE_KEY);
+      const cb = document.querySelector("[data-rr-van-auto-rescue]");
+      if (cb) cb.checked = auto === null ? true : auto === "1";
+    } catch (_) {}
+  }
   return next;
 }
 window._rrToggleSchedSmartFillRules = _toggleSchedSmartFillRules;
@@ -26746,6 +26757,18 @@ if (document.readyState === "loading") {
 // resolver in _assignVansForRange reads it via _rrLoadVanRules
 // at the start of every run.
 const _RR_VAN_RULES_KEY = "rr-sched-van-rules";
+// Path B · the FEM auto-rescue trigger at the bottom of
+// renderScheduleWeek now respects this localStorage flag so the
+// operator can disable automatic van re-assignment when an at-risk
+// van surfaces. Default = on (preserves existing behavior).
+const _RR_VAN_AUTO_RESCUE_KEY = "rr-sched-van-auto-rescue";
+function _rrVanAutoRescueEnabled() {
+  try {
+    const v = localStorage.getItem(_RR_VAN_AUTO_RESCUE_KEY);
+    return v === null ? true : v === "1";
+  } catch (_) { return true; }
+}
+window._rrVanAutoRescueEnabled = _rrVanAutoRescueEnabled;
 const _RR_VAN_RULE_DEFAULTS = {
   primary_chain:    true,
   secondary_chain:  true,
@@ -27170,6 +27193,15 @@ document.addEventListener("change", (e) => {
   document.querySelectorAll('input[data-rr-van-rule="' + key + '"]').forEach(other => {
     if (other !== cb) other.checked = cb.checked;
   });
+});
+// Persist the FEM auto-rescue toggle (the new "Auto-rescue at-risk
+// vans" checkbox in the Smart Fill > Van assignment > When to
+// assign zone). When unchecked, the FEM auto-rescue path at the
+// bottom of renderScheduleWeek skips its automatic firing.
+document.addEventListener("change", (e) => {
+  const cb = e.target && e.target.closest && e.target.closest("input[data-rr-van-auto-rescue]");
+  if (!cb) return;
+  try { localStorage.setItem(_RR_VAN_AUTO_RESCUE_KEY, cb.checked ? "1" : "0"); } catch (_) {}
 });
 // Outside click closes the popover.
 document.addEventListener("click", (e) => {
@@ -33063,9 +33095,10 @@ function _rrMountSchedKpiSelector(host) {
     btn.setAttribute("aria-expanded", "false");
     btn.title = "Choose which KPIs to show";
     btn.innerHTML =
-      '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-        '<circle cx="12" cy="12" r="3"/>' +
-        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' +
+      '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">' +
+        '<circle cx="12" cy="5"  r="1.6"/>' +
+        '<circle cx="12" cy="12" r="1.6"/>' +
+        '<circle cx="12" cy="19" r="1.6"/>' +
       '</svg>';
     host.appendChild(btn);
   }
@@ -34001,7 +34034,12 @@ async function renderScheduleWeek() {
   // assigned the second run is a no-op. Gated so we only fire
   // once per visible week per session (operator can still
   // manually re-run via the tile).
+  // Path B · gate the auto-rescue trigger behind the new
+  // "Auto-rescue at-risk vans" toggle in Smart Fill > Van
+  // assignment. When disabled, FEM risks still surface in the KPI
+  // strip but the system stops kicking the van assigner on its own.
   if (femRisks.length > 0
+      && _rrVanAutoRescueEnabled()
       && window._rrFemAutoRescuedFor !== _schedStart
       && typeof _runSchedVanAssignmentsBackground === "function") {
     const btn = document.getElementById("rr-sched-vans-h");

@@ -997,38 +997,42 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   margin-top: 0;
 }
 
-/* KPI selector · small gear button anchored to the right edge of
-   the KPI strip, opens a popover with checkboxes for each pill so
-   the DSP can hide ones they don't care about. */
+/* KPI selector · subtle 3-dot kebab on the right edge of the KPI
+   strip. No chrome at rest — just a muted dot trio that lifts to
+   a faint hover tint when the cursor is on it. Opens a popover
+   with checkboxes for each pill so the DSP can hide ones they
+   don't care about. */
 #view-schedule.rrx-schedule .sched-kpi-config{
   margin-left: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 28px;
   align-self: center;
   margin-right: var(--rr-space-80);
   background: transparent;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: var(--rr-radius-medium);
   color: var(--rr-fg-secondary);
   cursor: pointer;
   flex: 0 0 auto;
+  opacity: .55;
   transition:
     background var(--rr-motion-fast),
     color var(--rr-motion-fast),
-    border-color var(--rr-motion-fast);
+    opacity var(--rr-motion-fast);
 }
 #view-schedule.rrx-schedule .sched-kpi-config:hover,
 #view-schedule.rrx-schedule .sched-kpi-config[aria-expanded="true"]{
   background: var(--rr-bg-hover);
   color: var(--rr-fg-primary);
-  border-color: var(--rr-border-primary);
+  opacity: 1;
 }
 #view-schedule.rrx-schedule .sched-kpi-config:focus-visible{
   outline: 2px solid var(--rr-brand-primary);
   outline-offset: 1px;
+  opacity: 1;
 }
 .sched-kpi-config-popover{
   position: fixed;

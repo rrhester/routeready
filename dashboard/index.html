@@ -14435,14 +14435,40 @@ body.rr-cmdk-open{ overflow:hidden }
 
                   <hr class="sf-zone-sep"/>
 
-                  <!-- ── Zone 3 · Vans ── nested under sfRules.vans. The
-                       "Prefer paired van" checkbox is a synced twin of the
-                       Advanced > Data sources > Use van pairings box; the
-                       last two are display-only (solver always enforces). -->
+                  <!-- ── Zone 3 · Vans ── folded ALL van-assignment rules
+                       into Smart Fill (Path B). The standalone "Rules ⌄"
+                       footer on the Fleet Assignment tile was retired —
+                       the tile now is one-click "Re-run van assignment
+                       now" with no popover.
+
+                       Three sub-zones inside Vans:
+                       a) Timing · when van assignment runs
+                       b) Chain · who gets which van
+                       c) Solver hard rules (display-only)
+
+                       data-rr-van-rule checkboxes write to localStorage
+                       key rr-sched-van-rules so _rrLoadVanRules() (the
+                       reader inside _assignVansForRange) keeps working
+                       unchanged. Auto-rescue toggle writes to
+                       rr-sched-van-auto-rescue. -->
                   <div class="sf-zone sf-zone--vans">
-                    <div class="sf-engine-group-label">Vans</div>
+                    <div class="sf-engine-group-label">Van assignment</div>
+
+                    <div class="sf-vans-subzone-label">When to assign</div>
                     <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="assign" checked> <span class="sf-rule-name"><strong>Assign vans during Smart Fill</strong> · when off, the van column stays empty for new assignments</span></label>
+                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-auto-rescue checked> <span class="sf-rule-name"><strong>Auto-rescue at-risk vans</strong> · run van assignment automatically when FEM flags a van approaching the 14-day rotation rule</span></label>
+
+                    <div class="sf-vans-subzone-label">Who gets which van</div>
                     <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="prefer_paired" checked> <span class="sf-rule-name"><strong>Prefer driver's paired van</strong> · use the standing primary / backup chain when possible</span></label>
+                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="primary_chain" checked> <span class="sf-rule-name">Each van's primary driver keeps their van when they're scheduled</span></label>
+                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="secondary_chain" checked> <span class="sf-rule-name">When the primary is off, the backup driver takes the van</span></label>
+                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="pool_fill" checked> <span class="sf-rule-name">Match remaining drivers with any leftover vans</span></label>
+                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="branded_first" checked> <span class="sf-rule-name">Assign branded (Amazon-wrapped) vans first</span></label>
+                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="fem_priority" checked> <span class="sf-rule-name">Prioritize branded vans approaching the 14-day rotation rule</span></label>
+                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_secondary" checked> <span class="sf-rule-name">Move a backup driver onto an at-risk van to prevent a VERO defect</span></label>
+                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_primary" checked> <span class="sf-rule-name">Move a primary driver onto an at-risk van as a last resort</span></label>
+
+                    <div class="sf-vans-subzone-label">Always enforced</div>
                     <label class="sched-smartfill-rule is-locked"><input type="checkbox" data-rr-sf-vans="type_match" checked disabled> <span class="sf-rule-name"><strong>Match van type to route</strong> · always on <span class="sf-locked-hint">— solver hard rule</span></span></label>
                     <label class="sched-smartfill-rule is-locked"><input type="checkbox" data-rr-sf-vans="skip_inactive" checked disabled> <span class="sf-rule-name"><strong>Skip vans in repair / inactive</strong> · always on <span class="sf-locked-hint">— solver hard rule</span></span></label>
                   </div>
@@ -14612,39 +14638,13 @@ body.rr-cmdk-open{ overflow:hidden }
                   <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                 </span>
               </button>
-              <button type="button" class="sched-page-btn-rules-foot" id="rr-sched-vans-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-vans-rules-popover" title="Van assignment rules — toggle parts of the auto-assign logic on/off">
-                Rules
-                <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-              </button>
-              <!-- Van assignment rules popover · checkboxes per rule
-                   so the operator can toggle parts of the auto-assign
-                   logic on/off. State persists in localStorage; the
-                   resolver in _assignVansForRange reads it at the
-                   start of every run. -->
-              <div class="sched-vans-rules-popover" id="rr-sched-vans-rules-popover" role="dialog" aria-modal="false" aria-label="Van assignment rules" hidden>
-                <div class="sched-vans-rules-head">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="5" width="14" height="12" rx="1"/><path d="M15 9h4l3 3v5h-7z"/><circle cx="6" cy="18.5" r="2"/><circle cx="18" cy="18.5" r="2"/></svg>
-                  <span class="sched-vans-rules-head-title">Van assignment rules</span>
-                  <button type="button" class="sched-vans-rules-info" id="rr-sched-vans-rules-info"
-                    aria-label="What each rule does"
-                    title="What each rule does · click for the explainer">
-                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10"/>
-                      <line x1="12" y1="16" x2="12" y2="12"/>
-                      <line x1="12" y1="8"  x2="12.01" y2="8"/>
-                    </svg>
-                  </button>
-                </div>
-                <div class="sched-smartfill-rules-body" id="rr-sched-vans-rules-body">
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="primary_chain" checked> <span class="sf-rule-name">Each van's primary driver keeps their van when they're scheduled</span></label>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="secondary_chain" checked> <span class="sf-rule-name">When the primary is off, the backup driver takes the van</span></label>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="pool_fill" checked> <span class="sf-rule-name">Match remaining drivers with any leftover vans</span></label>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="branded_first" checked> <span class="sf-rule-name">Assign branded (Amazon-wrapped) vans first</span></label>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="fem_priority" checked> <span class="sf-rule-name">Prioritize branded vans approaching the 14-day rotation rule</span></label>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_secondary" checked> <span class="sf-rule-name">Move a backup driver onto an at-risk van to prevent a VERO defect</span></label>
-                  <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_primary" checked> <span class="sf-rule-name">Move a primary driver onto an at-risk van as a last resort</span></label>
-                </div>
-              </div>
+              <!-- Standalone "Van rules" footer + popover retired
+                   (Path B). All van assignment rules now live in
+                   the Smart Fill rules popover under the "Van
+                   assignment" section. The Fleet Assignment tile
+                   stays as a one-click "Re-run van assignment now"
+                   button. -->
+
             </div>
             <div class="sched-settings-split">
               <button class="sched-page-btn sched-page-btn--okami" id="rr-sched-okami-open-h" data-rr-tile="okami" draggable="true" type="button" title="Targets for this week" aria-label="Targets">
@@ -17039,7 +17039,10 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid rgba(15,23,42,.14);
             border-radius:6px;
             box-shadow:0 8px 20px rgba(15,23,42,.18), 0 0 2px rgba(15,23,42,.12);
-            min-width:860px;max-width:calc(100vw - 40px);
+            /* Widened from 860 → 960px so the new folded-in van rules
+               (timing / chain / solver-hard) read comfortably without
+               wrapping. */
+            min-width:960px;max-width:calc(100vw - 40px);
             max-height:calc(100vh - 96px);overflow-y:auto;
             padding:4px 0 6px;
             font-family:"Segoe UI", "Segoe UI Web", system-ui, -apple-system, sans-serif;
@@ -17501,6 +17504,17 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sf-zone .sf-engine-group-label{
             padding:0 16px 2px;
           }
+          /* Sub-zone label inside the Van assignment zone · breaks up
+             "When to assign / Who gets which van / Always enforced" so
+             the 10 rules below read as three grouped lists, not a
+             single wall of checkboxes. */
+          #view-schedule .sf-vans-subzone-label{
+            padding:6px 16px 2px;
+            font:var(--rr-font-caption);
+            font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+            color:var(--rr-fg-secondary);
+          }
+          #view-schedule .sf-vans-subzone-label:first-of-type{padding-top:0}
           /* Display-only van rules (type_match, skip_inactive). */
           #view-schedule .sched-smartfill-rule.is-locked{
             opacity:.8;cursor:default;
@@ -21441,31 +21455,10 @@ body.rr-cmdk-open{ overflow:hidden }
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4.5" width="13" height="12" rx="1"/><path d="M15 8h4.4l2.6 3.2v5.3h-7z"/><circle cx="6.5" cy="18" r="2"/><circle cx="17.6" cy="18" r="2"/><polyline points="5 10 7 12 11 8"/></svg>
                   <span>Fleet assignment</span>
                 </button>
-                <button type="button" class="fl-rules-foot" id="rr-fleet-vans-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-fleet-vans-rules-popover" title="Van assignment rules — toggle parts of the auto-assign logic on/off">
-                  Rules
-                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-                </button>
-                <!-- Shares the van-assignment rule state with the schedule
-                     page's "Assign" rules popover · same localStorage key,
-                     so a change in either popover updates the other. -->
-                <div class="sched-vans-rules-popover" id="rr-fleet-vans-rules-popover" role="dialog" aria-modal="false" aria-label="Van assignment rules" hidden>
-                  <div class="sched-vans-rules-head">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="5" width="14" height="12" rx="1"/><path d="M15 9h4l3 3v5h-7z"/><circle cx="6" cy="18.5" r="2"/><circle cx="18" cy="18.5" r="2"/></svg>
-                    <span class="sched-vans-rules-head-title">Van assignment rules</span>
-                    <button type="button" class="sched-vans-rules-info" aria-label="What each rule does" title="What each rule does · click for the explainer">
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                    </button>
-                  </div>
-                  <div class="sched-smartfill-rules-body" id="rr-fleet-vans-rules-body">
-                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="primary_chain" checked> <span class="sf-rule-name">Each van's primary driver keeps their van when they're scheduled</span></label>
-                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="secondary_chain" checked> <span class="sf-rule-name">When the primary is off, the backup driver takes the van</span></label>
-                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="pool_fill" checked> <span class="sf-rule-name">Match remaining drivers with any leftover vans</span></label>
-                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="branded_first" checked> <span class="sf-rule-name">Assign branded (Amazon-wrapped) vans first</span></label>
-                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="fem_priority" checked> <span class="sf-rule-name">Prioritize branded vans approaching the 14-day rotation rule</span></label>
-                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_secondary" checked> <span class="sf-rule-name">Move a backup driver onto an at-risk van to prevent a VERO defect</span></label>
-                    <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_primary" checked> <span class="sf-rule-name">Move a primary driver onto an at-risk van as a last resort</span></label>
-                  </div>
-                </div>
+                <!-- Standalone "Van rules" footer + popover retired
+                     (Path B). All van assignment rules now live in
+                     the Schedule's Smart Fill rules popover under
+                     the "Van assignment" section. -->
               </div>
             </div>
             <div class="fl-ribbon-group">
