@@ -30877,6 +30877,19 @@ document.addEventListener("click", async (e) => {
           `.cal-row-label-name[data-rr-driver-id="${driverId}"]`);
         return row ? row.textContent.trim().split(/\s+/)[0] : "Driver";
       })();
+      // Click-time validation · dry-run the engine with the proposed
+      // pin and check for hard-rule violations involving this driver.
+      // If any, ask the operator to cancel or pin-anyway before
+      // committing the rule. Best-effort — a validation failure
+      // (no payload, engine throws) doesn't block the pin.
+      const conflicts = _rrValidatePinDryRun(driverId, dow);
+      if (conflicts.length > 0) {
+        const proceed = await _rrShowPinConflictModal(driverName, dow, conflicts);
+        if (!proceed) {
+          btn.disabled = false;
+          return; // operator cancelled
+        }
+      }
       const { error } = await sb.rpc("create_ad_hoc_constraint", {
         p_name: `${driverName} on ${_RR_DOW_LBL[dow] || "day"}`,
         p_description: "Pinned from the schedule grid",
@@ -30910,6 +30923,128 @@ document.addEventListener("click", async (e) => {
     btn.disabled = false;
   }
 });
+
+// ─── Pin · click-time conflict validation ───────────────────────────
+// Dry-runs the engine with the proposed pin merged into the last cached
+// Smart Fill payload, then filters the returned violations to those
+// involving this driver (which is what the new pin would cause).
+//
+// Returns a list of conflict descriptors:
+//   { rule: "R019", shift_id: "...", message: "WOC: ..." }
+//
+// Empty list = pin is safe to apply. A non-empty list opens a modal
+// asking the operator to cancel or pin anyway.
+function _rrValidatePinDryRun(driverId, dow) {
+  try {
+    const payload = window._rrLastSmartFillPayload;
+    if (!payload || typeof planScheduleWeek !== "function") return [];
+    // Merge the proposed pin into the payload's ad-hoc constraints.
+    const tempId = "__rr_pin_validate__" + Date.now();
+    const augmented = {
+      ...payload,
+      ad_hoc_constraints: [
+        ...(payload.ad_hoc_constraints || []),
+        {
+          id: tempId, kind: "driver_lock_to_day",
+          payload: { driver_id: driverId, dow: dow },
+          hardness: "hard", weight: null,
+        },
+      ],
+    };
+    const result = planScheduleWeek(augmented);
+    const out = [];
+    for (const v of (result.violations || [])) {
+      if (v.driver_id !== driverId) continue;
+      if (v.severity !== "critical") continue;
+      // R005 (PTO) and R006 (availability) explicitly yield to pins —
+      // PTO / day-off blocks are the operator's wishes too, so the pin
+      // going silent that week isn't a conflict. (The engine surfaces
+      // these as "the pin couldn't place this week" rather than a
+      // critical violation, but defensive-filter here anyway.)
+      if (v.rule === "R005" || v.rule === "R006") continue;
+      out.push({ rule: v.rule, shift_id: v.shift_id, message: v.message });
+    }
+    return out;
+  } catch (err) {
+    console.warn("pin dry-run failed:", err);
+    return [];
+  }
+}
+
+// Modal · "this pin would break X · cancel or pin anyway"
+// Resolves to true (proceed) or false (cancel).
+function _rrShowPinConflictModal(driverName, dow, conflicts) {
+  return new Promise(resolve => {
+    document.getElementById("rr-pin-conflict-modal")?.remove();
+    const items = conflicts.slice(0, 6).map(c => {
+      const tag = c.rule ? `<span class="rr-pin-conflict-rule">${escapeHtml(c.rule)}</span>` : "";
+      return `<li>${tag}<span class="rr-pin-conflict-msg">${escapeHtml(c.message || "Hard-rule violation")}</span></li>`;
+    }).join("");
+    const more = conflicts.length > 6
+      ? `<li class="rr-pin-conflict-more">…and ${conflicts.length - 6} more</li>` : "";
+    const m = document.createElement("div");
+    m.id = "rr-pin-conflict-modal";
+    m.className = "modal-backdrop open";
+    m.innerHTML = `
+      <div class="modal-card" style="max-width:460px">
+        <div class="modal-head">
+          <div>
+            <p class="modal-title">Pinning ${escapeHtml(driverName)} to ${escapeHtml(_RR_DOW_LBL[dow] || "this day")} would break a hard rule</p>
+            <p class="modal-sub">Hard rules are normally enforced. You can pin anyway and acknowledge that this week's schedule will surface the violation, or cancel and reconsider.</p>
+          </div>
+          <button type="button" class="modal-close" data-rr-pin-conflict-action="cancel" aria-label="Cancel">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <ul class="rr-pin-conflict-list">${items}${more}</ul>
+        </div>
+        <div class="modal-foot" style="display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid rgba(15,23,42,.08)">
+          <button type="button" class="btn" data-rr-pin-conflict-action="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" data-rr-pin-conflict-action="confirm">Pin anyway</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    if (!document.getElementById("rr-pin-conflict-styles")) {
+      const st = document.createElement("style");
+      st.id = "rr-pin-conflict-styles";
+      st.textContent = `
+        #rr-pin-conflict-modal .rr-pin-conflict-list{
+          margin:0;padding:0;list-style:none;
+          display:flex;flex-direction:column;gap:8px;
+        }
+        #rr-pin-conflict-modal .rr-pin-conflict-list li{
+          display:flex;align-items:flex-start;gap:8px;
+          font-size:12px;color:#323130;line-height:1.4;
+          padding:8px 10px;background:#FFF8E6;border:1px solid #F5C97E;
+          border-radius:4px;
+        }
+        #rr-pin-conflict-modal .rr-pin-conflict-rule{
+          flex:0 0 auto;
+          font-size:10px;font-weight:700;letter-spacing:.04em;
+          color:#7A5A0F;background:#fff;border:1px solid #F5C97E;
+          padding:2px 6px;border-radius:3px;
+        }
+        #rr-pin-conflict-modal .rr-pin-conflict-msg{
+          flex:1 1 auto;
+        }
+        #rr-pin-conflict-modal .rr-pin-conflict-more{
+          background:transparent !important;border:0 !important;
+          color:#605E5C;padding:2px 10px !important;font-style:italic;
+        }`;
+      document.head.appendChild(st);
+    }
+    const close = (val) => { m.remove(); resolve(val); };
+    m.addEventListener("click", (ev) => {
+      const a = ev.target && ev.target.closest && ev.target.closest("[data-rr-pin-conflict-action]");
+      if (a) {
+        close(a.getAttribute("data-rr-pin-conflict-action") === "confirm");
+        return;
+      }
+      if (ev.target === m) close(false); // backdrop click cancels
+    });
+  });
+}
 
 
 // ─── Van assignments renderer (legacy) ──────────────────────────────
