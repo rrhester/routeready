@@ -14443,6 +14443,14 @@ body.rr-cmdk-open{ overflow:hidden }
                     #rr-sched-smartfill-rules-body .sf2-preset-secondary{
                       flex:0 0 auto;font-weight:500;color:#605E5C;
                     }
+                    #rr-sched-smartfill-rules-body .sf2-presets-foot{
+                      display:flex;align-items:center;gap:6px;
+                      margin-top:2px;padding:2px 2px 0;
+                      font-size:11px;color:#605E5C;line-height:1.35;
+                    }
+                    #rr-sched-smartfill-rules-body .sf2-presets-foot svg{
+                      color:#107C10;flex:0 0 auto;
+                    }
                     #rr-sched-smartfill-rules-body .sf2-livediff{
                       display:flex;align-items:center;gap:8px;
                       padding:8px 14px;
@@ -14653,9 +14661,13 @@ body.rr-cmdk-open{ overflow:hidden }
                     <div class="sf2-presets-row">
                       <button type="button" class="sf2-preset" data-rr-sf-preset="stick_to_last_week" title="Strong historical pattern + driver-affinity polish. Keeps drivers on the days they usually work.">Stick to last week</button>
                       <button type="button" class="sf2-preset" data-rr-sf-preset="maximize_coverage" title="5th-day fill on, preferred-day enhancement on, every protection still applies.">Maximize coverage</button>
-                      <button type="button" class="sf2-preset" data-rr-sf-preset="compliance_first" title="All hard rules on, tighter WOC, license protection window enabled, no enhancements.">Compliance first</button>
+                      <button type="button" class="sf2-preset" data-rr-sf-preset="conservative" title="Tighter buffers on top of the hard rules: WOC cap 5 consecutive days (vs 6), 7-day license-expiry warning, no 5th-day overtime, no enhancement passes. Hard rules are always enforced regardless of preset.">Conservative</button>
                       <button type="button" class="sf2-preset" data-rr-sf-preset="balanced" title="The historical defaults — what Smart Fill ships with out of the box.">Balanced</button>
                       <button type="button" class="sf2-preset sf2-preset-secondary" data-rr-sf-preset="reset" title="Clear every saved rule. Equivalent to a fresh install.">Reset all</button>
+                    </div>
+                    <div class="sf2-presets-foot">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                      <span>Hard rules (WOC, license, certs, PTO, min rest) are always enforced. Presets only adjust buffer sizes and soft preferences.</span>
                     </div>
                   </div>
 
