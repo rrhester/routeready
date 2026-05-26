@@ -607,7 +607,9 @@ textarea,
 .nav-item{
   position:relative;
   display:flex;align-items:center;gap:var(--s-3);
-  padding:8px var(--s-3);border-radius:var(--r-md);
+  /* Operator-requested · selected/hovered nav items render with
+     straight 90° corners, not the previous --r-md rounding. */
+  padding:8px var(--s-3);border-radius:0;
   color:rgba(226,232,240,.72);
   font-size:var(--fs-sm);font-weight:500;letter-spacing:0;
   cursor:pointer;
