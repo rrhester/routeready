@@ -4915,7 +4915,9 @@ function _fillObMatrixSkeletonRows(body) {
   const skeletonRow = `<tr class="ob-sk-tr" aria-hidden="true">${nameCell}${middleCells}${actionsCell}</tr>`;
   // How many rows fit below the existing real rows? Measure against
   // the scroll container (.ob-mx-scroll) so the rows we add fill the
-  // visible scroll viewport, not the full page below it.
+  // visible scroll viewport, then +2 EXTRA rows past the visible
+  // bottom so the matrix reads as "more applicants below, scroll
+  // to see" — operator's mental model is a busy onboarding queue.
   const scroll = body.querySelector(".ob-mx-scroll");
   const thead = table.querySelector("thead");
   const ROW_PX = 70;
@@ -4928,8 +4930,10 @@ function _fillObMatrixSkeletonRows(body) {
     const tableRect = table.getBoundingClientRect();
     remainingPx = Math.max(0, window.innerHeight - tableRect.bottom - 24);
   }
-  const rowsToAdd = Math.max(0, Math.floor(remainingPx / ROW_PX));
-  if (rowsToAdd === 0) return;
+  const visibleRows = Math.floor(remainingPx / ROW_PX);
+  // +2 past the bottom of the visible viewport · the operator wants
+  // it to look like more applicants exist than fit on screen.
+  const rowsToAdd = Math.max(2, visibleRows + 2);
   tbody.insertAdjacentHTML("beforeend", skeletonRow.repeat(rowsToAdd));
 }
 // Inject the skeleton-row styles once on script load. Cheap, idempotent.
@@ -4949,9 +4953,14 @@ function _fillObMatrixSkeletonRows(body) {
     #view-onboarding-ops .ob-sk-row {
       display: flex; align-items: center; gap: 12px;
     }
+    /* Skeleton fills · explicit cool gray (#DDE3EB) instead of
+       --canvas. The canvas was brightened to a near-white #F2F7FC
+       cool tint, which made canvas-tinted skeletons disappear
+       against the white card background. Pin to a fixed gray so
+       the ghost rows are always visible. */
     #view-onboarding-ops .ob-sk-avatar {
       width: 28px; height: 28px; border-radius: 50%;
-      background: var(--canvas, #f3f4f6);
+      background: #DDE3EB;
       display: inline-block;
     }
     #view-onboarding-ops .ob-sk-text {
@@ -4959,7 +4968,7 @@ function _fillObMatrixSkeletonRows(body) {
     }
     #view-onboarding-ops .ob-sk-line {
       display: inline-block;
-      background: var(--canvas, #f3f4f6);
+      background: #DDE3EB;
       border-radius: 4px;
       height: 9px;
     }
@@ -4969,9 +4978,9 @@ function _fillObMatrixSkeletonRows(body) {
       display: inline-block;
       width: 18px; height: 18px;
       border-radius: 50%;
-      border: 1.5px solid var(--border-strong, #d1d5db);
+      border: 1.5px solid #C8CDD8;
       background: transparent;
-      opacity: .55;
+      opacity: .9;
     }
     #view-onboarding-ops .ob-sk-actions {
       display: inline-flex; align-items: center; gap: 10px;
@@ -4981,8 +4990,8 @@ function _fillObMatrixSkeletonRows(body) {
       display: inline-block;
       width: 16px; height: 16px;
       border-radius: 3px;
-      background: var(--canvas, #f3f4f6);
-      opacity: .7;
+      background: #DDE3EB;
+      opacity: .8;
     }
   `;
   document.head?.appendChild(css);
@@ -5841,8 +5850,12 @@ async function loadOnboardingOps(opts) {
   };
 
   const stepHeaders = stepCols.map(s => `<th title="${escapeHtml(s.title)}">${escapeHtml(s.map.head)}</th>`).join("");
-  body.innerHTML = enriched.length
-    ? `${_helpBar("overview")}<div class="ob-mx-wrap"><div class="ob-mx-scroll"><table class="ob-matrix">
+  // Always render the table — skeleton rows fill in below the real
+  // applicants (zero or more). The previous "No one in onboarding"
+  // empty state was retired per operator request: the matrix should
+  // always feel like a populated queue, with new applicants
+  // "filling" skeleton slots as they arrive.
+  body.innerHTML = `${_helpBar("overview")}<div class="ob-mx-wrap"><div class="ob-mx-scroll"><table class="ob-matrix">
         <thead>
           <tr>
             <th class="ob-mx-namecol">Driver</th>
@@ -5852,8 +5865,7 @@ async function loadOnboardingOps(opts) {
           </tr>
         </thead>
         <tbody>${enriched.map(matrixRow).join("")}</tbody>
-      </table></div></div>`
-    : `${_helpBar("overview")}<div class="dr-empty" style="border:none;background:none;box-shadow:none"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><h3>No one in onboarding</h3><p>New hires from the Hiring Pipeline land here automatically; drivers can also self-onboard via the RouteReady app.</p></div>`;
+      </table></div></div>`;
   // Fill the rest of the viewport with skeleton rows so the matrix
   // reads as a populated surface, not a half-empty table. Each
   // skeleton row mirrors the column structure of a real row (avatar +
