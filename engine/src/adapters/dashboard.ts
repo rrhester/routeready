@@ -105,6 +105,43 @@ export interface DashboardRules {
    * other rule and assigns drivers across their full availability.
    */
   availability_only?: boolean;
+  /** Run mode: "full_rebuild" (default), "rebuild_unlocked", "fill_empty_only". */
+  run_mode?: "full_rebuild" | "rebuild_unlocked" | "fill_empty_only";
+  /** Keep locked assignments verbatim under full_rebuild. Default true. */
+  preserve_locked_assignments?: boolean;
+  /** Full scheduling-method picker (overrides fill_priority/tiebreaker when set). */
+  scheduling_method?:
+    | "fair_rotation"
+    | "seniority"
+    | "full_time_priority"
+    | "availability_first"
+    | "alphabetical"
+    | "attendance_priority"
+    | "random";
+  /** Same-day double-shift policy. */
+  same_day_multi_shift?: "block" | "allow";
+  /** Historical pattern protection: off / low / medium / high. */
+  historical_pattern_protection?: "off" | "low" | "medium" | "high";
+  /** How many weeks back the historical pattern pre-pass looks. */
+  history_window_weeks?: 4 | 6 | 8;
+  /** Smooth attendance scoring on/off. */
+  attendance_scheduling?: boolean;
+  /** Attendance score weight: low / medium / high. */
+  attendance_weight?: "low" | "medium" | "high";
+  /** Max-days cap window: this week / rolling 7 days / pay period. */
+  max_days_window?: "schedule_week" | "rolling_7_days" | "pay_period";
+  /** Weekly-hour cap window. */
+  weekly_hour_window?: "schedule_week" | "rolling_7_days" | "pay_period";
+  /** Whether PTO hours count toward the weekly hour cap. */
+  pto_counts_toward_cap?: boolean;
+  /** Hours-per-day to assume when a PTO record has no hours value. */
+  pto_default_hours?: number;
+  /** Minimum rest between two consecutive shifts. */
+  min_rest_hours?: number;
+  /** Block drivers from non-preferred days entirely (hard rule). */
+  preferred_availability_required?: boolean;
+  /** Notify drivers when the 5th-day pass assigns them an extra shift. */
+  fifth_day_notify?: boolean;
 }
 
 export interface PlanPayload {
@@ -343,6 +380,66 @@ function buildSettings(payload: PlanPayload): RawSettings {
   // Which weekday the shift-fill rotation starts on (0=Sun..6=Sat).
   const rotationStartDay = Math.max(0, Math.min(6, Math.round(r.rotation_start_day ?? 0)));
 
+  // Run mode — defaults to full_rebuild (the historical behavior). Operators
+  // can opt into rebuild_unlocked ("keep my pinned ones") or fill_empty_only
+  // ("just fill the holes, don't touch existing").
+  const runMode =
+    r.run_mode === "fill_empty_only" || r.run_mode === "rebuild_unlocked"
+      ? r.run_mode
+      : "full_rebuild";
+  const preserveLocked = r.preserve_locked_assignments !== false;
+
+  // Full scheduling-method picker. When supplied, overrides the legacy
+  // fill_priority/tiebreaker pair. Falls back to those for backwards compat.
+  const METHOD_SET = new Set([
+    "fair_rotation",
+    "seniority",
+    "full_time_priority",
+    "availability_first",
+    "alphabetical",
+    "attendance_priority",
+    "random",
+  ]);
+  const explicitMethod = (typeof r.scheduling_method === "string" &&
+    METHOD_SET.has(r.scheduling_method)) ? r.scheduling_method : null;
+
+  // Same-day double-shift policy. Default block (one shift per driver per day).
+  const sameDay = r.same_day_multi_shift === "allow" ? "allow" : "block";
+
+  // Historical pattern protection. Off by default (legacy) — operators turn
+  // it on per DSP to surface the R012 score component + Step 5 pre-pass.
+  const PATTERN_SET = new Set(["off", "low", "medium", "high"]);
+  const patternStrength = (typeof r.historical_pattern_protection === "string" &&
+    PATTERN_SET.has(r.historical_pattern_protection))
+      ? r.historical_pattern_protection
+      : "off";
+  const historyWeeks = r.history_window_weeks === 6 || r.history_window_weeks === 8
+    ? r.history_window_weeks
+    : 4;
+
+  // Smooth attendance scoring (R013). Off by default. When on, weight is
+  // low/medium/high — scales the ±25-point contribution by 0.4/1.0/1.6.
+  const attendanceScheduling = r.attendance_scheduling === true;
+  const ATT_WEIGHT_SET = new Set(["low", "medium", "high"]);
+  const attendanceWeight = (typeof r.attendance_weight === "string" &&
+    ATT_WEIGHT_SET.has(r.attendance_weight)) ? r.attendance_weight : "medium";
+
+  // Per-rule windows. Default to schedule_week (the historical behavior).
+  // rolling_7_days = a 7-day window ending on the shift date; pay_period
+  // requires a pay_period range on the EngineInput, which we don't currently
+  // forward — so callers requesting pay_period get rolling_7_days instead.
+  const WINDOW_SET = new Set(["schedule_week", "rolling_7_days"]);
+  const maxDaysWindow = (typeof r.max_days_window === "string" &&
+    WINDOW_SET.has(r.max_days_window)) ? r.max_days_window : "schedule_week";
+  const weeklyHourWindow = (typeof r.weekly_hour_window === "string" &&
+    WINDOW_SET.has(r.weekly_hour_window)) ? r.weekly_hour_window : "schedule_week";
+
+  const ptoCountsTowardCap = r.pto_counts_toward_cap !== false;
+  const ptoDefaultHours = Math.max(0, Math.min(24,
+    Math.round(r.pto_default_hours ?? PTO_HOURS_PER_DAY)));
+  const minRestHours = Math.max(0, Math.min(48,
+    Math.round(r.min_rest_hours ?? 10)));
+
   // Boundary modes are mutually exclusive; preferred wins if both are set.
   if (r.preferred_only === true) {
     return boundaryModeSettings("preferred", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, fifthDayFill, fifthDayOverrideAvail, attendancePenalty, schedulingMethod, rotationStartDay);
@@ -351,11 +448,15 @@ function buildSettings(payload: PlanPayload): RawSettings {
     return boundaryModeSettings("availability", maxDays, assignmentMode, rotationBatch, enh, license, woc, affinity, fifthDayFill, fifthDayOverrideAvail, attendancePenalty, schedulingMethod, rotationStartDay);
   }
 
-  const method = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
+  // Pick the final scheduling method: explicit picker > legacy
+  // fill_priority/tiebreaker. Legacy fallback preserves old DSP setups.
+  const legacyMethod = r.tiebreaker === "seniority" ? "seniority" : "fair_rotation";
+  const finalMethod = explicitMethod
+    ?? (schedulingMethod === "random" ? "random" : legacyMethod);
+
   return {
-    // Auto-schedule always performs a FULL REBUILD (SPEC Default Schedule
-    // Behavior); locked manual assignments are still preserved + validated.
-    run_mode: "full_rebuild",
+    run_mode: runMode,
+    preserve_locked_assignments: preserveLocked,
     eligible_driver_status:
       r.include_onboarding !== false ? "active_and_onboarding" : "active_only",
     license_enforcement: license.on,
@@ -363,29 +464,33 @@ function buildSettings(payload: PlanPayload): RawSettings {
     certification_enforcement: true,
     pto_protection: r.pto_block !== false,
     availability_enforcement: r.availability !== false,
+    availability_required: false,
     max_days_enforcement: true,
     max_days: maxDays,
+    max_days_window: maxDaysWindow,
     // WOC (Working Hours Compliance) governs the weekly-hours cap.
     weekly_hour_cap_enforcement: woc.on,
     weekly_hour_cap: woc.maxHours,
-    // PTO / approved day off always counts toward the weekly cap (hard rule).
-    pto_counts_toward_cap: true,
-    pto_default_hours: PTO_HOURS_PER_DAY,
+    weekly_hour_window: weeklyHourWindow,
+    pto_counts_toward_cap: ptoCountsTowardCap,
+    pto_default_hours: ptoDefaultHours,
     min_rest_enforcement: r.min_rest !== false,
+    min_rest_hours: minRestHours,
     // WOC — also caps consecutive working days.
     woc_enforcement: woc.on,
     woc_max_consecutive_days: woc.maxConsecutiveDays,
-    // A driver works at most one shift per day — a physical constraint,
-    // never operator-configurable.
-    same_day_multi_shift: "block",
-    historical_pattern_protection: "off",
-    attendance_scheduling: false,
+    same_day_multi_shift: sameDay,
+    historical_pattern_protection: patternStrength,
+    history_window_weeks: historyWeeks,
+    attendance_scheduling: attendanceScheduling,
     attendance_penalty: attendancePenalty,
-    scheduling_method: schedulingMethod === "random" ? "random" : method,
+    attendance_weight: attendanceWeight,
+    scheduling_method: finalMethod,
     assignment_mode: assignmentMode,
     rotation_batch_size: rotationBatch,
     rotation_start_day: rotationStartDay,
     preferred_availability_priority: r.preferred_days !== false,
+    preferred_availability_required: r.preferred_availability_required === true,
     preferred_enhancement: enh.on,
     preferred_enhancement_contiguous: enh.contiguous,
     preferred_enhancement_extra: enh.extra,

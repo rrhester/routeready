@@ -25603,6 +25603,34 @@ function _restoreSmartFillRules() {
   const affWeeksEl = document.getElementById("rr-set-affinity-weeks");
   if (affWeeksEl) affWeeksEl.value = String(Math.max(1, Math.min(26, parseInt(saved.affinity_rolling_weeks, 10) || 4)));
   _renderAffinityDayOrder();
+  // ── v2 popover · restore generic selects + number inputs ──────────
+  // Each control identifies its rule key via data-rr-sf-select / -num
+  // so this loop covers them all without a per-control switch.
+  document.querySelectorAll("#rr-sched-smartfill-rules-body [data-rr-sf-select]").forEach((el) => {
+    const k = el.getAttribute("data-rr-sf-select");
+    if (k === "attendance_weight_combined") {
+      // Composite: maps engine's (attendance_scheduling, attendance_weight)
+      // back onto a single select value (off/low/medium/high).
+      if (saved.attendance_scheduling === false) el.value = "off";
+      else if (typeof saved.attendance_weight === "string") el.value = saved.attendance_weight;
+      return;
+    }
+    if (typeof saved[k] === "string") el.value = saved[k];
+  });
+  document.querySelectorAll("#rr-sched-smartfill-rules-body [data-rr-sf-num]").forEach((el) => {
+    const k = el.getAttribute("data-rr-sf-num");
+    const v = saved[k];
+    if (typeof v === "number" && Number.isFinite(v)) el.value = String(v);
+  });
+  // Restore the v2 fill-style + rotation selects (ID-keyed, handler at
+  // line ~27157 persists them via spread_evenly / rotation_batch /
+  // rotation_start_day).
+  const fillOrderEl = document.getElementById("rr-set-fill-order");
+  if (fillOrderEl) fillOrderEl.value = saved.spread_evenly === false ? "sequential" : "rotational";
+  const rotBatchEl = document.getElementById("rr-set-rotation-batch");
+  if (rotBatchEl) rotBatchEl.value = String(Math.max(1, Math.min(4, parseInt(saved.rotation_batch, 10) || 1)));
+  const rotStartEl = document.getElementById("rr-set-rotation-start-day");
+  if (rotStartEl) rotStartEl.value = String(Math.max(0, Math.min(6, parseInt(saved.rotation_start_day, 10) || 0)));
   // Restore Zone 3 (Vans) checkboxes. All four default to true (handled
   // by _RR_SF_VANS_DEFAULTS); type_match + skip_inactive are display-only
   // (the solver enforces them unconditionally) so they stay disabled-and-
@@ -25848,6 +25876,303 @@ document.addEventListener("click", (e) => {
   delete saved.weeklyHourCap;
   try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
   _restoreSfEngineControls(saved);
+});
+
+// ─── v2 popover · generic select + number persistence ─────────────────
+// New rule controls in the rebuilt popover use these attributes so we
+// don't have to hand-write a handler per control. Boolean checkboxes
+// keep using data-rr-sf-rule (existing handler at the bottom of file).
+//
+//   data-rr-sf-select="<key>"  →  saved[<key>] = value (string)
+//   data-rr-sf-num="<key>"     →  saved[<key>] = clamped integer
+//
+// Special-cased keys: attendance_weight_combined splits into the engine's
+// attendance_scheduling boolean + attendance_weight string. preferred_only
+// and availability_only are diagnostic — mutually exclusive, with an
+// inline confirm (see the confirm handler below).
+document.addEventListener("change", (e) => {
+  const el = e.target && e.target.closest && e.target.closest(
+    "#rr-sched-smartfill-rules-body [data-rr-sf-select]");
+  if (!el) return;
+  const key = el.getAttribute("data-rr-sf-select");
+  const value = el.value;
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  if (key === "attendance_weight_combined") {
+    if (value === "off") {
+      saved.attendance_scheduling = false;
+    } else {
+      saved.attendance_scheduling = true;
+      saved.attendance_weight = value;
+    }
+  } else {
+    saved[key] = value;
+  }
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+  _rrSfDiffSchedule();
+});
+
+document.addEventListener("input", (e) => {
+  const el = e.target && e.target.closest && e.target.closest(
+    "#rr-sched-smartfill-rules-body [data-rr-sf-num]");
+  if (!el) return;
+  const key = el.getAttribute("data-rr-sf-num");
+  const min = Number.isFinite(parseFloat(el.min)) ? parseFloat(el.min) : -Infinity;
+  const max = Number.isFinite(parseFloat(el.max)) ? parseFloat(el.max) : Infinity;
+  const raw = parseInt(el.value, 10);
+  if (!Number.isFinite(raw)) return;
+  const v = Math.max(min, Math.min(max, raw));
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  saved[key] = v;
+  try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+  _rrSfDiffSchedule();
+});
+
+// Diagnostic boundary modes ask for confirmation before enabling
+// (they disable most other rules). Also mutually exclusive — turning
+// one on clears the other.
+document.addEventListener("change", (e) => {
+  const el = e.target && e.target.closest && e.target.closest(
+    "#rr-sched-smartfill-rules-body input[data-rr-sf-confirm]");
+  if (!el || !el.checked) return;
+  const msg = el.getAttribute("data-rr-sf-confirm") || "Are you sure?";
+  if (!confirm(msg)) {
+    el.checked = false;
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
+  const key = el.getAttribute("data-rr-sf-rule");
+  const otherKey = key === "preferred_only" ? "availability_only" : "preferred_only";
+  const other = document.querySelector(
+    `#rr-sched-smartfill-rules-body [data-rr-sf-rule="${otherKey}"]`);
+  if (other && other.checked) {
+    other.checked = false;
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+    catch (_) { saved = {}; }
+    saved[otherKey] = false;
+    try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+  }
+});
+
+// ─── v2 popover · presets ─────────────────────────────────────────────
+// Four one-click bundles + a Reset that wipes everything. Each preset
+// is a merge — it writes its keys into the saved rule blob, leaving any
+// non-listed keys untouched (so a DSP that customized something niche
+// doesn't lose it when they pick a preset). Reset clears everything.
+const _RR_SF_PRESETS = Object.freeze({
+  stick_to_last_week: {
+    historical_pattern_protection: "high",
+    affinity_enhancement: true,
+    scheduling_method: "fair_rotation",
+    spread_evenly: true,
+    preferred_enhancement: true,
+    preferred_enhancement_contiguous: true,
+    consecutive_days: true,
+  },
+  maximize_coverage: {
+    fifth_day_fill: true,
+    fifth_day_override_availability: false,
+    fifth_day_notify: true,
+    preferred_enhancement: true,
+    preferred_enhancement_contiguous: true,
+    affinity_enhancement: true,
+    historical_pattern_protection: "medium",
+  },
+  compliance_first: {
+    dl_valid: true,
+    dl_protection_days: 7,
+    woc: true,
+    woc_max_consecutive_days: 5,
+    pto_block: true,
+    min_rest: true,
+    min_rest_hours: 10,
+    availability: true,
+    same_day_multi_shift: "block",
+    fifth_day_fill: false,
+    preferred_enhancement: false,
+    affinity_enhancement: false,
+    attendance_penalty: true,
+  },
+  balanced: {
+    historical_pattern_protection: "off",
+    attendance_scheduling: false,
+    preferred_enhancement: false,
+    affinity_enhancement: false,
+    fifth_day_fill: false,
+    consecutive_days: false,
+    preferred_only: false,
+    availability_only: false,
+    same_day_multi_shift: "block",
+    run_mode: "full_rebuild",
+    scheduling_method: "fair_rotation",
+    dl_protection_days: 0,
+    woc_max_consecutive_days: 6,
+    min_rest_hours: 10,
+  },
+});
+
+window._rrApplySfPreset = function (name) {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  if (name === "reset") {
+    try { localStorage.removeItem(_RR_SF_RULES_KEY); } catch (_) {}
+  } else {
+    const preset = _RR_SF_PRESETS[name];
+    if (!preset) return;
+    Object.assign(saved, preset);
+    try { localStorage.setItem(_RR_SF_RULES_KEY, JSON.stringify(saved)); } catch (_) {}
+  }
+  _restoreSmartFillRules();
+  // Mark the active preset visually until the operator edits anything.
+  document.querySelectorAll("#rr-sched-smartfill-rules-body .sf2-preset")
+    .forEach((b) => b.classList.toggle("is-active",
+      b.getAttribute("data-rr-sf-preset") === name));
+  _rrSfDiffSchedule();
+  if (typeof toast === "function") {
+    const labels = {
+      stick_to_last_week: "Stick to last week",
+      maximize_coverage:  "Maximize coverage",
+      compliance_first:   "Compliance first",
+      balanced:           "Balanced",
+      reset:              "All rules reset",
+    };
+    toast(`Applied · ${labels[name] || name}`, "success");
+  }
+};
+
+document.addEventListener("click", (e) => {
+  const btn = e.target && e.target.closest && e.target.closest(
+    "#rr-sched-smartfill-rules-body [data-rr-sf-preset]");
+  if (!btn) return;
+  e.preventDefault();
+  const name = btn.getAttribute("data-rr-sf-preset");
+  if (name === "reset" && !confirm("Clear every saved Smart Fill rule? This can't be undone.")) return;
+  window._rrApplySfPreset(name);
+});
+
+// Any non-preset edit clears the preset highlight — the saved blob is
+// no longer a pure preset.
+document.addEventListener("change", (e) => {
+  if (!e.target || !e.target.closest) return;
+  if (!e.target.closest("#rr-sched-smartfill-rules-body")) return;
+  if (e.target.closest("[data-rr-sf-preset]")) return;
+  document.querySelectorAll("#rr-sched-smartfill-rules-body .sf2-preset")
+    .forEach((b) => b.classList.remove("is-active"));
+});
+
+// ─── v2 popover · live diff strip ─────────────────────────────────────
+// Debounced dry-run of the engine with the popover's current rule set,
+// compared against a baseline cached from the last actual Smart Fill
+// run. Surfaces "→ +3 covered, 2 reassignments, 1 new OT exposure" so
+// operators can see the impact of a toggle without committing it.
+//
+// Requires window._rrLastSmartFillPayload — populated by autoFill once
+// the operator runs Smart Fill at least once. Until then the strip
+// shows a "run once to enable" empty state.
+let _rrSfDiffTimer = null;
+let _rrSfDiffBaseline = null; // { covered, ot, assignments }
+function _rrSfDiffSetText(state, text) {
+  const strip = document.getElementById("sf2-livediff");
+  const txt = document.getElementById("sf2-livediff-text");
+  if (!strip || !txt) return;
+  strip.setAttribute("data-state", state);
+  txt.textContent = text;
+}
+function _rrSfDiffCompute(res, payload) {
+  if (!res || !res.summary_metrics) return null;
+  const sm = res.summary_metrics;
+  const covered = sm.filled_shifts || 0;
+  // OT proxy: drivers near the weekly cap warnings (engine surfaces
+  // these). For CP-SAT runs the dashboard caches a real OT total; for
+  // the heuristic this is the closest stable signal.
+  const ot = sm.drivers_near_weekly_cap || 0;
+  const assignments = new Map();
+  for (const a of (res.assigned_shifts || [])) {
+    if (a.source === "locked" || a.source === "preserved") continue;
+    assignments.set(a.shift_id, a.driver_id);
+  }
+  return { covered, ot, assignments, totalShifts: sm.total_shifts || 0 };
+}
+function _rrSfDiffRun() {
+  const payload = window._rrLastSmartFillPayload;
+  if (!payload) {
+    _rrSfDiffSetText("idle", "Run Smart Fill once to enable live preview of rule changes.");
+    return;
+  }
+  if (typeof window.planScheduleWeek !== "function") {
+    _rrSfDiffSetText("idle", "Engine not loaded.");
+    return;
+  }
+  _rrSfDiffSetText("busy", "Calculating impact…");
+  // Snapshot baseline once per payload — the schedule the operator is
+  // actually living with. Recomputed when the payload identity changes.
+  const baselineKey = payload.schedule_week_start + ":" +
+    (payload.shifts ? payload.shifts.length : 0);
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
+  catch (_) { saved = {}; }
+  // Defer to a microtask so the spinner has a chance to paint.
+  setTimeout(() => {
+    try {
+      if (!_rrSfDiffBaseline || _rrSfDiffBaseline.key !== baselineKey) {
+        const baseRes = window.planScheduleWeek({
+          ...payload,
+          rules: { ...(payload.rules || {}) },
+        });
+        const b = _rrSfDiffCompute(baseRes, payload);
+        if (b) _rrSfDiffBaseline = { ...b, key: baselineKey };
+      }
+      const liveRes = window.planScheduleWeek({
+        ...payload,
+        rules: { ...(payload.rules || {}), ...saved },
+      });
+      const live = _rrSfDiffCompute(liveRes, payload);
+      const base = _rrSfDiffBaseline;
+      if (!live || !base) {
+        _rrSfDiffSetText("idle", "Live preview unavailable for this payload.");
+        return;
+      }
+      // Count assignment changes (shift_id whose driver differs).
+      let reassigned = 0;
+      for (const [shiftId, driverId] of live.assignments) {
+        if (base.assignments.get(shiftId) !== driverId) reassigned += 1;
+      }
+      const dCov = live.covered - base.covered;
+      const dOt = live.ot - base.ot;
+      const parts = [];
+      if (dCov > 0) parts.push(`+${dCov} covered`);
+      else if (dCov < 0) parts.push(`${dCov} covered`);
+      else parts.push("same coverage");
+      if (reassigned > 0) parts.push(`${reassigned} reassignment${reassigned === 1 ? "" : "s"}`);
+      if (dOt !== 0) parts.push(`${dOt > 0 ? "+" : ""}${dOt} near-cap`);
+      const state = dCov > 0 ? "better" : (dCov < 0 ? "worse" : "idle");
+      _rrSfDiffSetText(state, "Live preview: " + parts.join(" · "));
+    } catch (err) {
+      console.warn("sf live-diff failed:", err);
+      _rrSfDiffSetText("idle", "Live preview failed — check console.");
+    }
+  }, 0);
+}
+function _rrSfDiffSchedule() {
+  if (_rrSfDiffTimer) clearTimeout(_rrSfDiffTimer);
+  _rrSfDiffTimer = setTimeout(_rrSfDiffRun, 300);
+}
+window._rrSfDiffSchedule = _rrSfDiffSchedule;
+// Invalidate the baseline when an actual Smart Fill run completes so
+// the next diff compares against the freshest schedule.
+window._rrSfDiffInvalidateBaseline = () => { _rrSfDiffBaseline = null; };
+
+// Any rule edit triggers a debounced re-diff.
+document.addEventListener("change", (e) => {
+  if (!e.target || !e.target.closest) return;
+  if (!e.target.closest("#rr-sched-smartfill-rules-body")) return;
+  if (e.target.closest("[data-rr-sf-preset]")) return; // preset handler already schedules
+  _rrSfDiffSchedule();
 });
 
 // ─── Ad-hoc constraints list (Optimization Engine · Step 3.5) ─────
@@ -26727,6 +27052,11 @@ function _toggleSchedSmartFillRules(force) {
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
   if (next) {
     _restoreSmartFillRules();
+    // v2 popover · refresh the live-diff strip when the popover opens
+    // so it reflects the current saved rule blob immediately.
+    if (typeof window._rrSfDiffSchedule === "function") {
+      window._rrSfDiffSchedule();
+    }
     // Van rules folded into Smart Fill (Path B) — restore the
     // [data-rr-van-rule] + auto-rescue checkboxes from localStorage
     // on every open so saved state shows up.
@@ -32218,6 +32548,13 @@ async function autoAssignDriversForWeek() {
     // with candidate settings. Persisted to localStorage (keyed by week)
     // so the drill-downs work across page reloads, not just in-session.
     window._rrLastSmartFillPayload = sfPayload;
+    // v2 popover · the rules popover's live-diff strip caches a
+    // baseline derived from this payload. A fresh Smart Fill run
+    // means the schedule the operator is now living with is new, so
+    // wipe the cached baseline so the next diff recomputes.
+    if (typeof window._rrSfDiffInvalidateBaseline === "function") {
+      window._rrSfDiffInvalidateBaseline();
+    }
     try { localStorage.setItem("rr-sf-payload:" + _schedStart, JSON.stringify(sfPayload)); } catch (_) {}
     // Audit: enqueue this run before the engine fires. Best-effort —
     // wrapped so an audit failure never blocks Smart Fill.
