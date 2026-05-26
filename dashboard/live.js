@@ -33006,6 +33006,149 @@ function _getSfDrillPayload() {
   return null;
 }
 
+// ── Schedule KPI selector ────────────────────────────────────────────
+// Operator-configurable visibility for the KPI strip. A small gear
+// button on the right edge of #rr-sched-kpis opens a popover with
+// checkboxes for each pill (Coverage / Violations / OT Risk / FT-PT /
+// Preferred / Affinity / Fleet rotation). Toggled state persists in
+// localStorage; pills the DSP turns off get display:none on each
+// render so the strip rebuild from renderScheduleWeek doesn't
+// resurrect them.
+
+const _RR_SCHED_KPI_DEFS = [
+  { key: "coverage",   label: "Coverage" },
+  { key: "violations", label: "Violations" },
+  { key: "overtime",   label: "OT Risk" },
+  { key: "ftpt",       label: "FT / PT split" },
+  { key: "preferred",  label: "Preferred-day rate" },
+  { key: "affinity",   label: "Affinity match" },
+  { key: "rotation",   label: "Fleet rotation" },
+];
+const _RR_SCHED_KPI_VIS_KEY = "rr-sched-kpi-visible";
+
+function _rrSchedKpiVisible() {
+  try {
+    const raw = localStorage.getItem(_RR_SCHED_KPI_VIS_KEY);
+    if (!raw) return null;
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? new Set(arr) : null;
+  } catch (_) { return null; }
+}
+function _rrSchedKpiSetVisible(set) {
+  try { localStorage.setItem(_RR_SCHED_KPI_VIS_KEY, JSON.stringify([...set])); } catch (_) {}
+}
+function _rrSchedKpiApplyVisibility(host) {
+  const saved = _rrSchedKpiVisible();
+  // Default · everything on if nothing saved.
+  const visible = saved || new Set(_RR_SCHED_KPI_DEFS.map(d => d.key));
+  host.querySelectorAll(".sched-kpi-pill[data-rr-kpi]").forEach(pill => {
+    const key = pill.getAttribute("data-rr-kpi");
+    pill.style.display = visible.has(key) ? "" : "none";
+  });
+}
+
+function _rrMountSchedKpiSelector(host) {
+  if (!host) return;
+  // Append the gear button (only if not already there). innerHTML
+  // gets rebuilt each render, so the gear comes back as part of the
+  // pill string — we add it here instead so the renderer doesn't
+  // have to know about it.
+  if (!host.querySelector(".sched-kpi-config")) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "sched-kpi-config";
+    btn.id = "rr-sched-kpi-config";
+    btn.setAttribute("aria-label", "Customize KPI strip");
+    btn.setAttribute("aria-haspopup", "dialog");
+    btn.setAttribute("aria-expanded", "false");
+    btn.title = "Choose which KPIs to show";
+    btn.innerHTML =
+      '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<circle cx="12" cy="12" r="3"/>' +
+        '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>' +
+      '</svg>';
+    host.appendChild(btn);
+  }
+  // Apply saved visibility to every render (pills are reborn each
+  // call). Skip pills the DSP turned off.
+  _rrSchedKpiApplyVisibility(host);
+}
+
+// Outside-click + gear-click toggle the selector popover. Popover
+// is lazy-mounted into <body> on first open so it's never affected
+// by the kpis innerHTML rebuild.
+function _rrSchedKpiTogglePopover(force) {
+  let pop = document.getElementById("rr-sched-kpi-config-popover");
+  const btn = document.getElementById("rr-sched-kpi-config");
+  if (!btn) return false;
+  if (!pop) {
+    pop = document.createElement("div");
+    pop.id = "rr-sched-kpi-config-popover";
+    pop.className = "sched-kpi-config-popover";
+    pop.setAttribute("role", "dialog");
+    pop.setAttribute("aria-label", "Choose which KPIs to show");
+    document.body.appendChild(pop);
+  }
+  const willOpen = (typeof force === "boolean") ? force : pop.hidden !== false ? true : false;
+  // For our use we want: clicking the gear when hidden → open; when
+  // visible → close.
+  const isOpen = pop.style.display === "block";
+  const next = (typeof force === "boolean") ? force : !isOpen;
+  if (next) {
+    // Build / refresh the checkbox list.
+    const saved = _rrSchedKpiVisible() || new Set(_RR_SCHED_KPI_DEFS.map(d => d.key));
+    pop.innerHTML =
+      '<div class="sched-kpi-config-head">Show in KPI strip</div>' +
+      '<div class="sched-kpi-config-body">' +
+        _RR_SCHED_KPI_DEFS.map(d => (
+          '<label class="sched-kpi-config-opt">' +
+            '<input type="checkbox" data-rr-kpi-toggle="' + d.key + '"' +
+              (saved.has(d.key) ? " checked" : "") + '/>' +
+            '<span>' + d.label + '</span>' +
+          '</label>'
+        )).join("") +
+      '</div>';
+    // Position the popover at the gear button's bottom-right.
+    const r = btn.getBoundingClientRect();
+    pop.style.display = "block";
+    pop.style.top  = (r.bottom + 6) + "px";
+    pop.style.left = Math.max(8, r.right - 220) + "px";
+    btn.setAttribute("aria-expanded", "true");
+  } else {
+    pop.style.display = "none";
+    btn.setAttribute("aria-expanded", "false");
+  }
+  return next;
+}
+
+document.addEventListener("click", (e) => {
+  // Toggle on gear click.
+  if (e.target.closest && e.target.closest("#rr-sched-kpi-config")) {
+    e.preventDefault();
+    e.stopPropagation();
+    _rrSchedKpiTogglePopover();
+    return;
+  }
+  // Checkbox toggle inside the popover.
+  const cb = e.target.closest && e.target.closest("[data-rr-kpi-toggle]");
+  if (cb) {
+    const key = cb.getAttribute("data-rr-kpi-toggle");
+    const saved = _rrSchedKpiVisible() || new Set(_RR_SCHED_KPI_DEFS.map(d => d.key));
+    if (cb.checked) saved.add(key); else saved.delete(key);
+    _rrSchedKpiSetVisible(saved);
+    // Reapply visibility to the live strip immediately (no full
+    // re-render needed; pills just hide/show).
+    const host = document.getElementById("rr-sched-kpis");
+    if (host) _rrSchedKpiApplyVisibility(host);
+    return;
+  }
+  // Outside-click closes the popover.
+  const pop = document.getElementById("rr-sched-kpi-config-popover");
+  if (!pop || pop.style.display !== "block") return;
+  if (e.target.closest && (e.target.closest("#rr-sched-kpi-config-popover") || e.target.closest("#rr-sched-kpi-config"))) return;
+  _rrSchedKpiTogglePopover(false);
+});
+
 async function renderScheduleWeek() {
   const sub = document.getElementById("sched-sub-week");
   if (!sub) return;
@@ -33879,6 +34022,11 @@ async function renderScheduleWeek() {
   if (typeof window._rrRenderAutoRescueBanner === "function") {
     window._rrRenderAutoRescueBanner();
   }
+  // ── KPI selector · operator-configurable visibility for the
+  // Schedule KPI strip. Append a gear button + apply saved
+  // visibility every render (the kpis innerHTML is rebuilt each
+  // render, so the gear and any hidden state must be reapplied).
+  try { _rrMountSchedKpiSelector(kpis); } catch (_) { /* non-fatal */ }
   kpis.dataset.rrViolations = JSON.stringify(violations);
   kpis.dataset.rrPrefMisses = JSON.stringify(prefMissList);
   kpis.dataset.rrPrefSummary = JSON.stringify({ honored: prefHonored, denom: prefDenom });

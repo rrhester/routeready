@@ -997,6 +997,83 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   margin-top: 0;
 }
 
+/* KPI selector · small gear button anchored to the right edge of
+   the KPI strip, opens a popover with checkboxes for each pill so
+   the DSP can hide ones they don't care about. */
+#view-schedule.rrx-schedule .sched-kpi-config{
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  align-self: center;
+  margin-right: var(--rr-space-80);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--rr-radius-medium);
+  color: var(--rr-fg-secondary);
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition:
+    background var(--rr-motion-fast),
+    color var(--rr-motion-fast),
+    border-color var(--rr-motion-fast);
+}
+#view-schedule.rrx-schedule .sched-kpi-config:hover,
+#view-schedule.rrx-schedule .sched-kpi-config[aria-expanded="true"]{
+  background: var(--rr-bg-hover);
+  color: var(--rr-fg-primary);
+  border-color: var(--rr-border-primary);
+}
+#view-schedule.rrx-schedule .sched-kpi-config:focus-visible{
+  outline: 2px solid var(--rr-brand-primary);
+  outline-offset: 1px;
+}
+.sched-kpi-config-popover{
+  position: fixed;
+  z-index: 120;
+  display: none;
+  width: 220px;
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-primary);
+  border-radius: var(--rr-radius-medium);
+  box-shadow: 0 14px 32px rgba(0,0,0,.16), 0 0 10px rgba(0,0,0,.06);
+  font: var(--rr-font-body);
+  color: var(--rr-fg-primary);
+  overflow: hidden;
+}
+.sched-kpi-config-head{
+  padding: 10px 14px 8px;
+  font: var(--rr-font-caption);
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--rr-fg-secondary);
+  border-bottom: 1px solid var(--rr-border-secondary);
+}
+.sched-kpi-config-body{
+  padding: 6px 4px 8px;
+  display: flex;
+  flex-direction: column;
+}
+.sched-kpi-config-opt{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--rr-fg-primary);
+  border-radius: 4px;
+}
+.sched-kpi-config-opt:hover{ background: var(--rr-bg-hover); }
+.sched-kpi-config-opt input[type="checkbox"]{
+  width: 14px; height: 14px;
+  accent-color: var(--rr-brand-primary);
+  cursor: pointer;
+}
+
 /* ============================================================
    Persistent scrollbars on the schedule grid + the open-shifts
    tray + driver pool. Default browser behavior fades scrollbars
