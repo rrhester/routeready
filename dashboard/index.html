@@ -21441,49 +21441,50 @@ body.rr-cmdk-open{ overflow:hidden }
           /* ── Page ribbon · set 1:1 with the schedule page's icon
              strip (.sched-nav-heading) — same card chrome, padding,
              radius, shadow, and title-left / actions-right layout. ── */
+          /* Fleet strip card · locked to the TCP spec so it reads
+             identical to Schedule + Onboarding (and now Fleet Bridge).
+             Tokens come from dashboard/tcp.css. */
           #view-fleet .fl-ribbon{
             display:flex;align-items:center;
             justify-content:flex-start;
             gap:var(--s-3);flex-wrap:nowrap;
-            /* Match the schedule ribbon (.sched-v2-strip) exactly · same
-               padding, same chrome, same hard-locked 115px height so the
-               two strips never differ. Operator wants Fleet to read as
-               the same product surface. */
             padding:11px 18px;
             margin-bottom:var(--s-4);
-            background:var(--surface-elevated);
-            border:1px solid rgba(15,23,42,.07);
-            border-radius:10px;
+            background:var(--rr-bg-surface-1);
+            border:1px solid var(--rr-border-primary);
+            border-radius:var(--rr-radius-medium);
             box-shadow:none;
-            min-height:115px;
-            height:115px;
-            max-height:115px;
+            min-height:var(--tcp-strip-h);
+            height:var(--tcp-strip-h);
+            max-height:var(--tcp-strip-h);
             box-sizing:border-box;
             overflow:visible;
           }
-          /* Cmd-shell · the "Fleet / Print/Download" tabs sit above the
-             ribbon card, exactly like the schedule's sheet tabs. */
+          /* Cmd-shell · the "Fleet / Print/Download" tabs sit above
+             the ribbon card. Plain-text labels matching Schedule's
+             .sched-v2-cmd-tabs — active is brand-blue text, no card
+             chrome, hover stays transparent. */
           #view-fleet .fl-ribbon.fl-cmd-shell{position:relative}
           #view-fleet .fl-cmd-tabs{
-            /* Flush with the LEFT edge of the strip card · matches the
-               Schedule + Onboarding tabs (also at left:0). */
             position:absolute;left:0;bottom:100%;margin-bottom:-1px;
-            display:inline-flex;gap:3px;
+            display:inline-flex;gap:2px;
+            height:var(--tcp-cmd-tabs-h);
+            align-items:center;
           }
           #view-fleet .fl-cmd-tab{
             appearance:none;background:transparent;cursor:pointer;font:inherit;
-            font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
-            color:var(--text-subtle);padding:6px 14px;
+            font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+            color:var(--rr-fg-secondary);
+            padding:var(--rr-space-60) var(--rr-space-120);
             border:1px solid transparent;border-bottom:0;
-            border-radius:8px 8px 0 0;
-            transition:color var(--t-fast),background var(--t-fast);
+            border-radius:var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
+            transition:color var(--rr-motion-fast);
           }
-          #view-fleet .fl-cmd-tab:hover:not(.active){color:var(--text-muted)}
+          #view-fleet .fl-cmd-tab:hover:not(.active){background:transparent}
           #view-fleet .fl-cmd-tab.active{
-            color:var(--sch-blue);background:var(--surface-elevated);
-            border-color:rgba(15,23,42,.07);
+            color:var(--rr-brand-primary);background:transparent;border-color:transparent;
           }
-          #view-fleet .fl-cmd-tab:focus-visible{outline:none;color:var(--sch-blue)}
+          #view-fleet .fl-cmd-tab:focus-visible{outline:none;color:var(--rr-brand-primary)}
           /* Print/Download mode · everything except the print-actions
              goes invisible; the print/download/proof buttons sit at the
              ribbon's left edge. */
@@ -21591,26 +21592,47 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .rr-proof-foot .btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8}
 
-          /* Fixed-width title block · keeps the icon strip's first tile
-             at the same x as the schedule / pipeline ribbons. */
+          /* Title block · matches Schedule's .sched-v2-title exactly.
+             flex 0 0 240px (TCP --tcp-title-w), flex-column with
+             explicit align-items:flex-start to override the global
+             .page-header-l { align-items:center } that would otherwise
+             center the title horizontally. Page-icon (the fleet
+             diagram glyph) hidden — Schedule + Onboarding + Fleet
+             Bridge all drop the icon next to the title. */
           #view-fleet .fl-ribbon-titlewrap{
-            display:flex;align-items:center;gap:var(--s-3);
-            flex:0 0 240px;min-width:0;
+            flex:0 0 var(--tcp-title-w);
+            align-self:center;
+            display:flex;flex-direction:column;justify-content:center;
+            align-items:flex-start;
+            min-width:0;
+            margin-right:var(--rr-space-160);
+            padding-right:var(--rr-space-120);
           }
+          #view-fleet .fl-ribbon-titlewrap .page-icon{display:none !important}
           #view-fleet .fl-ribbon .page-title{
-            font-size:22px;font-weight:600;
-            letter-spacing:-.015em;line-height:1.2;margin:0;
+            font:var(--rr-font-subtitle);
+            color:var(--rr-fg-primary);
+            letter-spacing:-.01em;
+            margin:0;
+            white-space:nowrap;
           }
           #view-fleet .fl-ribbon .page-sub{
-            font-size:var(--fs-sm);font-weight:500;
-            color:var(--text-subtle);margin:2px 0 0;
+            font:var(--rr-font-caption);
+            color:var(--rr-fg-secondary);
+            margin:2px 0 0;
+            white-space:nowrap;
           }
+          /* Action ribbon · first hairline divider sits at the same X
+             as Schedule's (16px margin + 16px padding + 1px line in
+             #C8C6C4 after a 240px title block + 16px margin-right
+             on the title). */
           #view-fleet .fl-ribbon-actions{
             display:flex;align-items:center;
             justify-content:flex-start;
-            /* Every Fleet ribbon tile shares the same gap — no wider
-               between-group spacing. */
             gap:6px;flex-wrap:nowrap;min-width:0;
+            margin-left:var(--rr-space-160);
+            padding-left:var(--rr-space-160);
+            border-left:1px solid #C8C6C4;
           }
           #view-fleet .fl-ribbon-tail{
             display:flex;align-items:center;gap:8px;
@@ -21621,9 +21643,10 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-bottom:0;
             padding:0;
           }
-          /* Tile metrics match the schedule ribbon · same padding,
-             min-width, gap and icon size, so the two strips read as
-             one shared command surface. */
+          /* Tile metrics match Schedule's .sched-v2-tile exactly:
+             same padding, min-width, gap, icon size, and rounded
+             corners (--rr-radius-medium, not 90° square — Schedule's
+             rounded tiles are the standard now). */
           #view-fleet .fl-ribbon-btn{
             position:relative;
             appearance:none;cursor:pointer;font:inherit;
@@ -21633,20 +21656,22 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:6px 10px 7px;
             background:transparent;
             border:0;
-            /* Operator-requested square 90° corners on Fleet tiles. */
-            border-radius:0;
-            color:var(--text-muted);
+            border-radius:var(--rr-radius-medium);
+            color:var(--rr-fg-secondary);
             transition:background var(--t-fast),color var(--t-fast);
           }
           #view-fleet .fl-ribbon-btn:hover{
-            background:rgba(15,23,42,.04);color:var(--text);
-            /* Hover background stays square too. */
-            border-radius:0;
+            background:var(--rr-bg-hover);color:var(--rr-fg-primary);
           }
-          /* Icon size bumped 28 → 33 to match the schedule strip's +18%
-             tile icons. */
-          #view-fleet .fl-ribbon-btn svg{width:33px;height:33px;stroke-width:1.6}
-          #view-fleet .fl-ribbon-btn span{font-size:var(--fs-sm);font-weight:500}
+          /* Icon size 33px to match the Schedule strip; cap/join
+             pinned to butt/miter so glyph weight is identical
+             across pages (same fix that was needed for the Roster
+             ribbon and Fleet Bridge action tiles). */
+          #view-fleet .fl-ribbon-btn svg{
+            width:33px;height:33px;stroke-width:1.6;
+            stroke-linecap:butt;stroke-linejoin:miter;
+          }
+          #view-fleet .fl-ribbon-btn span{font-size:13px;font-weight:500}
           /* Active view switcher — colored, not boxed (mirrors the
              schedule ribbon's active tab). */
           #view-fleet .fl-ribbon-view.active,
@@ -21668,13 +21693,21 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-fleet .fl-ribbon-view.active .fl-ribbon-count{
             background:var(--accent);color:#fff;
           }
-          /* Hairline divider between the view group and the action
-             group, same cue as the schedule ribbon. */
+          /* Hairline divider between ribbon groups — matches Schedule's
+             .sched-ribbon-group + .sched-ribbon-group::before (1px ×
+             20px line in --rr-border-secondary, 4px margin on the
+             right). */
           #view-fleet .fl-ribbon-group + .fl-ribbon-group{
-            margin-left:0;padding-left:0;position:static;
+            margin-left:var(--rr-space-40);
+            padding-left:0;
+            position:static;
           }
           #view-fleet .fl-ribbon-group + .fl-ribbon-group::before{
-            content:none;
+            content:"";
+            display:inline-block;
+            width:1px;height:20px;
+            background:var(--rr-border-secondary);
+            margin-right:var(--rr-space-40);
           }
 
           /* ── Fleet assignment · "Rules" footer + van-rules popover ──
@@ -21749,21 +21782,32 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-fleet .sched-smartfill-rule .sf-rule-name{flex:1;line-height:1.3}
 
-          /* ── Slim KPI strip · joined pills, matches the schedule
-             page's KPI bar exactly. ── */
+          /* KPI strip · brought to the TCP --tcp-kpi-h (46px) spec
+             so Fleet's KPI bar reads identical to Schedule's joined-
+             pill row. Tokens match #rr-sched-kpis.sched-kpi-pills. */
           #view-fleet .fl-kpi-pills{
             display:flex;flex-wrap:wrap;align-items:stretch;
-            margin:0 0 var(--s-5) 0;
-            background:#FFFFFF;
-            border:1px solid rgba(15,23,42,.07);
-            border-radius:6px;
+            gap:0;padding:0;
+            margin:0 0 var(--rr-space-80);
+            background:var(--rr-bg-surface-1);
+            border:1px solid var(--rr-border-primary);
+            border-radius:var(--rr-radius-medium);
+            box-shadow:none;
+            font:var(--rr-font-body);
+            min-height:var(--tcp-kpi-h);
             overflow:hidden;
           }
           #view-fleet .fl-kpi-pills[hidden]{display:none}
           #view-fleet .fl-kpi-pill{
-            display:inline-flex;align-items:center;gap:10px;
-            padding:10px 18px;
-            border-right:1px solid rgba(15,23,42,.04);
+            display:inline-flex;align-items:center;
+            gap:var(--rr-space-100);
+            padding:var(--rr-space-120) var(--rr-space-240);
+            border-right:1px solid var(--rr-border-secondary);
+            font:var(--rr-font-body);font-weight:600;
+            color:var(--rr-fg-primary);
+            font-variant-numeric:tabular-nums;
+            line-height:1.2;
+            min-height:var(--tcp-kpi-h);
             cursor:pointer;
             transition:background var(--t-fast);
           }
