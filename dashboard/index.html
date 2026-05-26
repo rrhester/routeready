@@ -5741,10 +5741,11 @@ body.rr-cmdk-open{ overflow:hidden }
 @media (max-width:560px){.forms-kpi{grid-template-columns:1fr}}
 
 .forms-shell{
-  display:grid;grid-template-columns:240px minmax(0,1fr) 300px;gap:var(--s-4);
+  /* Right rail (.forms-rail) was retired · the grid drops back to
+     sidebar + main only. */
+  display:grid;grid-template-columns:240px minmax(0,1fr);gap:var(--s-4);
   align-items:start;
 }
-@media (max-width:1280px){.forms-shell{grid-template-columns:240px minmax(0,1fr);} .forms-rail{display:none}}
 @media (max-width:880px){.forms-shell{grid-template-columns:1fr}}
 
 /* ── Right rail · Recent submissions / Form activity / help card ── */
@@ -21579,9 +21580,66 @@ body.rr-cmdk-open{ overflow:hidden }
              a hidden ~20px legacy .sched-cmd-shell = 40px before
              the visible strip. Fleet has no hidden shell, so its
              .page padding-top is bumped to 40px directly. The other
-             three sides stay at 20px (--rr-space-200) like Schedule. */
+             three sides stay at 20px (--rr-space-200) like Schedule.
+             Also locks the page to a viewport-tall flex column so the
+             chrome (strip card, KPI strip, roster bar) stays put and
+             only the table body scrolls — same pattern Schedule uses. */
+          #view-fleet.active{
+            display:flex;flex:1 1 auto;min-height:0;
+          }
           #view-fleet > .page{
             padding:40px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
+            display:flex;flex-direction:column;
+            flex:1 1 auto;min-height:0;
+            overflow:hidden;
+          }
+          /* TCP chrome rows · locked at the top, never scroll. */
+          #view-fleet .fl-ribbon,
+          #view-fleet .fl-kpi-pills,
+          #view-fleet #rr-fleet-exec-detail{
+            flex:0 0 auto;
+          }
+          /* Active sub-tab fills the remaining space and itself is a
+             flex column so the roster bar can sit above the scrolling
+             table area. */
+          #view-fleet .fl-sub.active{
+            flex:1 1 auto;min-height:0;
+            display:flex;flex-direction:column;
+          }
+          /* Table-wrap is the visual card (border, radius); inside it,
+             the roster bar pins to the top and .fl-table-scroll owns
+             the vertical scroll for the table body. */
+          #view-fleet .table-wrap{
+            flex:1 1 auto;min-height:0;
+            display:flex;flex-direction:column;
+            overflow:hidden;
+          }
+          #view-fleet .fl-roster-bar{
+            flex:0 0 auto;
+          }
+          #view-fleet .fl-table-scroll{
+            flex:1 1 auto;min-height:0;
+            overflow-y:scroll;overflow-x:auto;
+            scrollbar-gutter:stable;
+            scrollbar-width:auto;
+            scrollbar-color:#5A5A5A #E1DFDD;
+          }
+          /* Match Schedule's scrollbar look on the right edge of the
+             fleet table — dark thumb against the muted track, persistent
+             gutter so the bar never disappears. */
+          #view-fleet .fl-table-scroll::-webkit-scrollbar{
+            -webkit-appearance:none;appearance:none;
+            width:14px;height:14px;background:#E1DFDD;display:block;
+          }
+          #view-fleet .fl-table-scroll::-webkit-scrollbar-track{
+            background:#E1DFDD;border-left:1px solid #C8C6C4;
+          }
+          #view-fleet .fl-table-scroll::-webkit-scrollbar-thumb{
+            background:#5A5A5A;background-clip:padding-box;
+            border:3px solid #E1DFDD;border-radius:999px;min-height:56px;
+          }
+          #view-fleet .fl-table-scroll::-webkit-scrollbar-thumb:hover{
+            background:#3B3A39;
           }
 
           /* Fleet strip card · locked to the TCP spec so it reads
@@ -22229,7 +22287,12 @@ body.rr-cmdk-open{ overflow:hidden }
              side slide-over). -->
         <div id="rr-fleet-exec-detail" hidden></div>
 
-        <!-- MY VEHICLES sub-tab — roster -->
+        <!-- MY VEHICLES sub-tab — roster. The .fl-roster-bar +
+             .table are siblings inside .table-wrap; the bar pins
+             at top via flex:0 0 auto and the table sits inside
+             .fl-table-scroll which carries overflow:auto so only
+             the rows scroll (matches the Schedule view's pattern
+             where chrome is locked and only the body scrolls). -->
         <div class="fl-sub active" id="fl-sub-vehicles">
         <div class="table-wrap">
           <!-- Search + filters live in the table card's header. -->
@@ -22257,6 +22320,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <option value="missing">Missing</option>
             </select>
           </div>
+          <div class="fl-table-scroll">
           <table class="table">
             <thead>
               <tr>
@@ -22280,6 +22344,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:150px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:44%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td></tr>
             </tbody>
           </table>
+          </div><!-- /.fl-table-scroll -->
         </div>
         </div><!-- /#fl-sub-vehicles -->
 
@@ -23412,67 +23477,10 @@ body.rr-cmdk-open{ overflow:hidden }
               <div id="rr-subm-list"><div class="rr-empty-inline">Submissions will appear here once drivers start filling out published forms.</div></div>
             </div>
           </main>
-
-          <!-- Right rail: Recent submissions + Form activity + Need-help card -->
-          <aside class="forms-rail" aria-label="Workspace activity">
-            <section class="forms-rail-card">
-              <div class="forms-rail-head">
-                <div class="forms-rail-title">Recent submissions</div>
-                <a href="#" class="rr-text-link" id="rr-forms-rail-viewall">View all</a>
-              </div>
-              <div class="forms-rail-body" id="rr-forms-recent-subs">
-                <div class="rr-empty-inline" style="padding:18px 6px">No submissions yet.</div>
-              </div>
-            </section>
-
-            <section class="forms-rail-card">
-              <div class="forms-rail-head">
-                <div class="forms-rail-title">Form activity</div>
-                <span class="forms-rail-meta">This week</span>
-              </div>
-              <div class="forms-rail-body forms-rail-stats" id="rr-forms-activity">
-                <div class="forms-rail-stat" data-rr-stat="subs">
-                  <div class="forms-rail-stat-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                  </div>
-                  <div class="forms-rail-stat-body">
-                    <div class="forms-rail-stat-value" data-rr-stat-value>—</div>
-                    <div class="forms-rail-stat-label">Submissions</div>
-                  </div>
-                  <span class="forms-rail-delta" data-rr-stat-delta></span>
-                </div>
-                <div class="forms-rail-stat" data-rr-stat="rate">
-                  <div class="forms-rail-stat-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                  </div>
-                  <div class="forms-rail-stat-body">
-                    <div class="forms-rail-stat-value" data-rr-stat-value>—</div>
-                    <div class="forms-rail-stat-label">Completion rate</div>
-                  </div>
-                  <span class="forms-rail-delta" data-rr-stat-delta></span>
-                </div>
-                <div class="forms-rail-stat" data-rr-stat="incomplete">
-                  <div class="forms-rail-stat-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  </div>
-                  <div class="forms-rail-stat-body">
-                    <div class="forms-rail-stat-value" data-rr-stat-value>—</div>
-                    <div class="forms-rail-stat-label">Incomplete</div>
-                  </div>
-                  <span class="forms-rail-delta" data-rr-stat-delta></span>
-                </div>
-              </div>
-            </section>
-
-            <section class="forms-rail-help">
-              <div class="forms-rail-help-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              </div>
-              <div class="forms-rail-help-title">Need help building a form?</div>
-              <div class="forms-rail-help-sub">Start from scratch with Build a form — bring fields, audience, and assignments into one flow.</div>
-              <button class="forms-rail-help-cta" type="button" data-rr-form-new>Build a form</button>
-            </section>
-          </aside>
+          <!-- Right rail (Recent submissions / Form activity /
+               Need-help card) removed per operator request. The
+               main column now spans the full width of the workflow
+               shell. -->
         </div>
       </div>
     </div>
