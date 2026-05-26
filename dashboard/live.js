@@ -26104,7 +26104,7 @@ function _rrSfDiffRun() {
     _rrSfDiffSetText("idle", "Run Smart Fill once to enable live preview of rule changes.");
     return;
   }
-  if (typeof window.planScheduleWeek !== "function") {
+  if (typeof planScheduleWeek !== "function") {
     _rrSfDiffSetText("idle", "Engine not loaded.");
     return;
   }
@@ -26120,14 +26120,14 @@ function _rrSfDiffRun() {
   setTimeout(() => {
     try {
       if (!_rrSfDiffBaseline || _rrSfDiffBaseline.key !== baselineKey) {
-        const baseRes = window.planScheduleWeek({
+        const baseRes = planScheduleWeek({
           ...payload,
           rules: { ...(payload.rules || {}) },
         });
         const b = _rrSfDiffCompute(baseRes, payload);
         if (b) _rrSfDiffBaseline = { ...b, key: baselineKey };
       }
-      const liveRes = window.planScheduleWeek({
+      const liveRes = planScheduleWeek({
         ...payload,
         rules: { ...(payload.rules || {}), ...saved },
       });
