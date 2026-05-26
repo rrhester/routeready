@@ -15369,30 +15369,24 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-week-nav-btn{
             appearance:none;background:transparent;border:0;cursor:pointer;
             color:var(--text-muted);
-            /* Tightened from 30 → 26px so the whole nav fits between
-               the last icon (Kudos) and the strip-card right edge
-               on narrower windows. */
-            width:26px;height:26px;border-radius:var(--r-md);
+            /* Tightened further: 26 → 22px so the whole nav reads
+               as a compact group inside the strip card. */
+            width:22px;height:22px;border-radius:var(--r-md);
             display:inline-flex;align-items:center;justify-content:center;
             transition:background var(--t-fast), color var(--t-fast);
           }
           #view-schedule .sched-week-nav-btn:hover{background:var(--canvas);color:var(--text)}
           #view-schedule .sched-week-nav-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
-          #view-schedule .sched-week-nav-btn svg{width:14px;height:14px}
+          #view-schedule .sched-week-nav-btn svg{width:12px;height:12px}
           #view-schedule .sched-week-nav-range{
             appearance:none;background:transparent;border:0;cursor:pointer;font:inherit;
-            display:inline-flex;align-items:center;gap:6px;
-            /* Padding + height tightened to match the smaller arrow
-               buttons; gap to caret reduced from 8 → 6. */
-            padding:0 8px;height:26px;border-radius:var(--r-md);
+            display:inline-flex;align-items:center;gap:5px;
+            /* 26 → 22 height + tighter padding so the range button
+               matches the slimmer arrow buttons. */
+            padding:0 6px;height:22px;border-radius:var(--r-md);
             font-size:var(--fs-xs);font-weight:600;color:var(--text);
             font-variant-numeric:tabular-nums;
             transition:background var(--t-fast);
-            /* Let the range button shrink and truncate its label
-               with ellipsis when the strip is too narrow to hold
-               the whole "Wk 21 · May 24 – 30" string. The arrows
-               + Today stay full-width; only the date label
-               truncates. */
             flex:0 1 auto;min-width:0;overflow:hidden;
           }
           #view-schedule .sched-week-nav-range > span{
@@ -15405,7 +15399,9 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-week-nav-today{
             appearance:none;background:transparent;border:0;cursor:pointer;font:inherit;
             font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-            color:var(--accent-text);padding:0 var(--s-2-5);height:26px;border-radius:var(--r-md);
+            /* 26 → 22 height + tighter horizontal padding in lockstep
+               with the arrow + range buttons. */
+            color:var(--accent-text);padding:0 8px;height:22px;border-radius:var(--r-md);
             display:inline-flex;align-items:center;transition:background var(--t-fast),color var(--t-fast);
           }
           #view-schedule .sched-week-nav-today:hover{background:var(--accent-soft)}

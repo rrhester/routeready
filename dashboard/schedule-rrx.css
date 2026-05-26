@@ -454,10 +454,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-week-nav {
   display: flex;
   align-items: center;
-  /* Gap tightened 8 → 4px so the nav (prev / Today / range /
-     next) packs into the narrow slot between Kudos and the strip-
-     card right edge without overflowing. */
-  gap: var(--rr-space-40);
+  /* Gap tightened to 2px (--rr-space-20) so the smaller 22px
+     buttons pack as a single compact group. */
+  gap: var(--rr-space-20);
 }
 
 #view-schedule.rrx-schedule .sched-week-arrow {
@@ -2192,10 +2191,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-v2-strip > #rr-sched-week-nav {
   border-left: 1px solid #C8C6C4 !important;
-  /* Padding 16 → 12px so the nav clears Kudos's hairline with less
-     forced gap, leaving more room on the right for the range
-     label without overflowing the strip card. */
-  padding-left: var(--rr-space-120) !important;
+  /* Padding 12 → 8px (--rr-space-80) to free up more horizontal
+     room for the smaller nav buttons. */
+  padding-left: var(--rr-space-80) !important;
 }
 
 /* ============================================================
