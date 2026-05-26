@@ -31047,6 +31047,273 @@ function _rrShowPinConflictModal(driverName, dow, conflicts) {
 }
 
 
+// ─── Pin · bulk operations + grid filter ────────────────────────────
+// Two power-user features layered on top of the per-shift pin toggle:
+//
+//   1. Right-click a driver's name on the schedule grid → context menu
+//      → "Pin all of [name]'s shifts this week" creates one pin per
+//      weekday they're currently scheduled. Skips DOWs already pinned.
+//      Each pin runs through the same dry-run validation the click
+//      handler uses, so a bulk operation can't sneak a hard-rule
+//      violation past the operator either.
+//
+//   2. "Show pinned only" toggle on the schedule view dims every cell
+//      whose (driver, DOW) doesn't have an active pin, so the operator
+//      can verify their pinned coverage at a glance. CSS-only — the
+//      data-rr-pin-state attribute the decorator already writes drives
+//      the filter.
+
+// Helper · all (driver_id, dow) pairs the operator's driver currently
+// has shifts for this week. Reads directly from the DOM so we don't
+// need to re-query Supabase.
+function _rrPinsForDriverThisWeek(driverId) {
+  const cells = document.querySelectorAll(
+    `#view-schedule .cal-cell[data-rr-cell-driver="${driverId}"]`);
+  const map = new Map(); // dow → { date, isPinned, ruleId }
+  cells.forEach(cell => {
+    const date = cell.getAttribute("data-rr-cell-date");
+    if (!date) return;
+    const dow = new Date(date + "T12:00:00").getDay();
+    const hasShiftChip = cell.querySelector(".shift-chip:not(.timeoff):not(.off)") !== null;
+    if (!hasShiftChip) return; // only pin DOWs the driver is actually working
+    const btn = cell.querySelector(".cal-pin-btn");
+    const ruleId = btn?.getAttribute("data-rr-pin-rule") || null;
+    map.set(dow, { date, isPinned: !!ruleId, ruleId });
+  });
+  return map;
+}
+
+// Right-click on driver row label → context menu.
+document.addEventListener("contextmenu", (e) => {
+  const label = e.target && e.target.closest && e.target.closest(
+    "#view-schedule .cal-row-label[data-rr-driver-id], " +
+    "#view-schedule .cal-row-label-name[data-rr-driver-id]");
+  if (!label) return;
+  const driverId = label.getAttribute("data-rr-driver-id");
+  if (!driverId) return;
+  e.preventDefault();
+  _rrShowPinContextMenu(e.clientX, e.clientY, driverId);
+});
+
+function _rrShowPinContextMenu(x, y, driverId) {
+  document.getElementById("rr-pin-ctx-menu")?.remove();
+  const pins = _rrPinsForDriverThisWeek(driverId);
+  if (pins.size === 0) return; // driver isn't scheduled this week
+  const driverName = (() => {
+    const row = document.querySelector(
+      `[data-rr-cell-driver="${driverId}"] .cal-row-label-name, ` +
+      `.cal-row-label-name[data-rr-driver-id="${driverId}"]`);
+    return row ? row.textContent.trim().split(/\s+/).slice(0, 2).join(" ") : "Driver";
+  })();
+  const anyUnpinned = [...pins.values()].some(p => !p.isPinned);
+  const anyPinned   = [...pins.values()].some(p =>  p.isPinned);
+  const m = document.createElement("div");
+  m.id = "rr-pin-ctx-menu";
+  m.style.cssText =
+    `position:fixed;top:${y}px;left:${x}px;z-index:9000;` +
+    "background:#fff;border:1px solid rgba(15,23,42,.12);border-radius:6px;" +
+    "box-shadow:0 8px 20px rgba(15,23,42,.18);padding:4px 0;" +
+    "min-width:240px;font-family:'Segoe UI',system-ui,sans-serif;" +
+    "font-size:13px;color:#1F1F1F;";
+  const items = [];
+  if (anyUnpinned) {
+    items.push(`<button type="button" class="rr-pin-ctx-item" data-rr-pin-ctx="pin-all">📌 Pin all of ${escapeHtml(driverName)}'s shifts this week</button>`);
+  }
+  if (anyPinned) {
+    items.push(`<button type="button" class="rr-pin-ctx-item" data-rr-pin-ctx="unpin-all">📌 Unpin all of ${escapeHtml(driverName)}'s shifts</button>`);
+  }
+  items.push(`<div class="rr-pin-ctx-sep"></div>`);
+  items.push(`<button type="button" class="rr-pin-ctx-item rr-pin-ctx-cancel" data-rr-pin-ctx="cancel">Cancel</button>`);
+  m.innerHTML = items.join("");
+  document.body.appendChild(m);
+
+  if (!document.getElementById("rr-pin-ctx-styles")) {
+    const st = document.createElement("style");
+    st.id = "rr-pin-ctx-styles";
+    st.textContent = `
+      .rr-pin-ctx-item{
+        display:block;width:100%;text-align:left;
+        background:transparent;border:0;cursor:pointer;
+        padding:8px 14px;font:inherit;color:inherit;
+      }
+      .rr-pin-ctx-item:hover{background:rgba(0,120,212,.08)}
+      .rr-pin-ctx-cancel{color:#605E5C}
+      .rr-pin-ctx-sep{height:1px;background:rgba(15,23,42,.08);margin:4px 0}`;
+    document.head.appendChild(st);
+  }
+
+  const close = () => { m.remove(); document.removeEventListener("click", outside, true); };
+  const outside = (ev) => { if (!m.contains(ev.target)) close(); };
+  setTimeout(() => document.addEventListener("click", outside, true), 0);
+  m.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("[data-rr-pin-ctx]");
+    if (!btn) return;
+    const action = btn.getAttribute("data-rr-pin-ctx");
+    close();
+    if (action === "pin-all") await _rrBulkPin(driverId, pins);
+    else if (action === "unpin-all") await _rrBulkUnpin(driverId, pins);
+  });
+}
+
+async function _rrBulkPin(driverId, pinMap) {
+  const driverName = (() => {
+    const row = document.querySelector(
+      `[data-rr-cell-driver="${driverId}"] .cal-row-label-name, ` +
+      `.cal-row-label-name[data-rr-driver-id="${driverId}"]`);
+    return row ? row.textContent.trim().split(/\s+/)[0] : "Driver";
+  })();
+  let pinned = 0;
+  let skipped = 0;
+  let conflicts = 0;
+  for (const [dow, info] of [...pinMap.entries()].sort((a, b) => a[0] - b[0])) {
+    if (info.isPinned) { skipped += 1; continue; }
+    const conflictList = _rrValidatePinDryRun(driverId, dow);
+    if (conflictList.length > 0) {
+      const proceed = await _rrShowPinConflictModal(driverName, dow, conflictList);
+      if (!proceed) { conflicts += 1; continue; }
+    }
+    try {
+      const { error } = await sb.rpc("create_ad_hoc_constraint", {
+        p_name: `${driverName} on ${_RR_DOW_LBL[dow] || "day"}`,
+        p_description: "Bulk-pinned from the schedule grid",
+        p_kind: "driver_lock_to_day",
+        p_payload: { driver_id: driverId, dow: dow },
+        p_hardness: "hard",
+        p_weight: null,
+        p_scope: {},
+        p_effective_from: null,
+        p_effective_until: null,
+        p_state: "active",
+      });
+      if (error) throw error;
+      pinned += 1;
+    } catch (e) {
+      console.warn("bulk pin · single create failed:", e);
+    }
+  }
+  if (typeof toast === "function") {
+    const parts = [];
+    if (pinned > 0)    parts.push(`Pinned ${pinned} day${pinned === 1 ? "" : "s"}`);
+    if (skipped > 0)   parts.push(`${skipped} already pinned`);
+    if (conflicts > 0) parts.push(`${conflicts} skipped (conflict)`);
+    toast(parts.length ? parts.join(" · ") : "Nothing to pin", "ok");
+  }
+  if (typeof _decorateScheduleChipsWithPins === "function") await _decorateScheduleChipsWithPins();
+  if (typeof _rrLoadAdHocConstraintsList === "function") { try { _rrLoadAdHocConstraintsList(); } catch (_) {} }
+}
+
+async function _rrBulkUnpin(driverId, pinMap) {
+  let unpinned = 0;
+  for (const [, info] of pinMap) {
+    if (!info.isPinned || !info.ruleId) continue;
+    try {
+      const { error } = await sb.rpc("update_ad_hoc_constraint", {
+        p_id: info.ruleId, p_state: "archived",
+      });
+      if (error) throw error;
+      unpinned += 1;
+    } catch (e) {
+      console.warn("bulk unpin · single archive failed:", e);
+    }
+  }
+  if (typeof toast === "function") {
+    toast(unpinned > 0 ? `Unpinned ${unpinned} day${unpinned === 1 ? "" : "s"}` : "Nothing to unpin", "ok");
+  }
+  if (typeof _decorateScheduleChipsWithPins === "function") await _decorateScheduleChipsWithPins();
+  if (typeof _rrLoadAdHocConstraintsList === "function") { try { _rrLoadAdHocConstraintsList(); } catch (_) {} }
+}
+
+// "Show pinned only" filter toggle · dims every cell that doesn't
+// carry an active pin. Toggled via window._rrToggleSchedPinnedOnly()
+// from the schedule view's filter button (added below).
+window._rrToggleSchedPinnedOnly = function (force) {
+  const root = document.getElementById("view-schedule");
+  if (!root) return false;
+  const next = (typeof force === "boolean") ? force : !root.classList.contains("is-pinned-only");
+  root.classList.toggle("is-pinned-only", next);
+  const btn = document.getElementById("rr-sched-pinned-only-btn");
+  if (btn) {
+    btn.setAttribute("aria-pressed", next ? "true" : "false");
+    btn.classList.toggle("is-on", next);
+  }
+  try { localStorage.setItem("rr-sched-pinned-only", next ? "1" : "0"); } catch (_) {}
+  return next;
+};
+// Apply persisted state on load.
+document.addEventListener("DOMContentLoaded", () => {
+  try {
+    if (localStorage.getItem("rr-sched-pinned-only") === "1") {
+      window._rrToggleSchedPinnedOnly(true);
+    }
+  } catch (_) {}
+}, { once: true });
+
+// Filter button injection · runs after the schedule grid paints. Adds
+// a small Fluent toggle pill into the KPI tile strip's right side.
+function _rrInsertPinnedOnlyToggle() {
+  const view = document.getElementById("view-schedule");
+  if (!view) return;
+  if (document.getElementById("rr-sched-pinned-only-btn")) return;
+  // Anchor: the row containing the coverage / affinity tiles (KPI strip).
+  const anchor = view.querySelector(".sched-kpi-strip, .rr-sched-kpi, .sched-insights-strip")
+    || view.querySelector(".cal-grid");
+  if (!anchor) return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.id = "rr-sched-pinned-only-btn";
+  btn.className = "rr-sched-pinned-only-toggle";
+  btn.setAttribute("aria-pressed", "false");
+  btn.title = "Dim cells without an active pin so you can see your pinned coverage at a glance.";
+  btn.innerHTML = _RR_PIN_SVG + '<span>Show pinned only</span>';
+  btn.addEventListener("click", () => window._rrToggleSchedPinnedOnly());
+  anchor.parentNode?.insertBefore(btn, anchor.nextSibling);
+
+  if (!document.getElementById("rr-sched-pinned-only-styles")) {
+    const st = document.createElement("style");
+    st.id = "rr-sched-pinned-only-styles";
+    st.textContent = `
+      .rr-sched-pinned-only-toggle{
+        display:inline-flex;align-items:center;gap:6px;
+        margin:6px 14px 0;padding:5px 10px;
+        background:#fff;border:1px solid #D2D0CE;border-radius:14px;
+        font-size:11px;font-weight:600;color:#605E5C;cursor:pointer;
+        transition:background .12s,border-color .12s,color .12s;
+      }
+      .rr-sched-pinned-only-toggle:hover{
+        border-color:#0078D4;color:#0078D4;
+      }
+      .rr-sched-pinned-only-toggle.is-on{
+        background:#EFF6FC;border-color:#0078D4;color:#0078D4;
+      }
+      .rr-sched-pinned-only-toggle svg{width:11px;height:11px}
+      /* Dim cells whose pin button is in the "empty" state. */
+      #view-schedule.is-pinned-only .cal-cell:has(.cal-pin-btn[data-rr-pin-state="empty"]){
+        opacity:.22;
+      }
+      /* Cells with no pin button at all (Off / PTO) also dim out so
+         the eye lands only on pinned coverage. */
+      #view-schedule.is-pinned-only .cal-cell:not(:has(.cal-pin-btn)){
+        opacity:.22;
+      }
+      #view-schedule.is-pinned-only .cal-cell:hover{opacity:1}`;
+    document.head.appendChild(st);
+  }
+}
+// Insert the toggle once the schedule view's chrome exists.
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(_rrInsertPinnedOnlyToggle, 200);
+}, { once: true });
+// Also try after each schedule render (idempotent — early-returns if
+// the button is already present).
+const _rrOrigDecorateForToggle = _decorateScheduleChipsWithPins;
+_decorateScheduleChipsWithPins = async function (...args) {
+  const out = await _rrOrigDecorateForToggle.apply(this, args);
+  _rrInsertPinnedOnlyToggle();
+  return out;
+};
+window._rrDecorateScheduleChipsWithPins = _decorateScheduleChipsWithPins;
+
+
 // ─── Van assignments renderer (legacy) ──────────────────────────────
 // Driver ↔ vehicle pairings for the visible week, read from the
 // existing vehicle_pairings / day_vehicle_assignment tables via a
