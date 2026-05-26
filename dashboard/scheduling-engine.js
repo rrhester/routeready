@@ -1157,6 +1157,13 @@ function applyDriverDayLocks(ctx, ws, constraints) {
     if (r) rules.push(r);
   }
   if (rules.length === 0) return;
+  const relaxedSettings = {
+    ...ctx.settings,
+    availability_enforcement: false,
+    availability_required: false,
+    preferred_availability_required: false
+  };
+  const relaxedCtx = { ...ctx, settings: relaxedSettings };
   rules.sort((a, b) => {
     if (a.driver.driver_id !== b.driver.driver_id) {
       return a.driver.driver_id < b.driver.driver_id ? -1 : 1;
@@ -1176,7 +1183,7 @@ function applyDriverDayLocks(ctx, ws, constraints) {
     for (const plan of candidates) {
       const state = ws.states.get(rule.driver.driver_id);
       if (!state) break;
-      const cell = evaluateEligibility(plan.shift, rule.driver, state, ctx);
+      const cell = evaluateEligibility(plan.shift, rule.driver, state, relaxedCtx);
       if (!cell.eligible) continue;
       applyAssignment(ws, plan, rule.driver.driver_id, "locked");
       break;

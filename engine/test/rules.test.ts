@@ -1011,3 +1011,59 @@ test("R021 — soft hardness is ignored by the heuristic", () => {
   // Soft exclude ignored — alice gets the shift.
   assert.equal(r.assigned_shifts.find(a => a.shift_id === "s_wed")?.driver_id, "alice");
 });
+
+test("driver_lock_to_day — overrides saved availability (operator override)", () => {
+  // Chucky's saved availability doesn't include Sundays, but the
+  // operator pinned him to Sundays anyway. The pin wins — saved
+  // availability is a preference, not a hard absence.
+  const r = runEngine(
+    input({
+      shifts: [
+        shift({ shift_id: "s_sun", date: "2026-05-24" }), // dow=0
+      ],
+      drivers: [
+        driver({
+          driver_id: "chucky", last_name: "Cheese",
+          // No Sunday (0) listed → R006 would normally block.
+          saved_availability: { "1": [{ start: "00:00", end: "48:00" }] },
+        }),
+      ],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "driver_lock_to_day",
+          payload: { driver_id: "chucky", dow: 0 }, hardness: "hard" },
+      ],
+      settings: {
+        availability_enforcement: true,
+        max_days_enforcement: false, woc_enforcement: false,
+      },
+    }),
+  );
+  // Pin overrides R006 — chucky takes Sunday.
+  assert.equal(r.assigned_shifts.find(a => a.shift_id === "s_sun")?.driver_id, "chucky");
+});
+
+test("driver_lock_to_day — still blocked by hard rules (license expired)", () => {
+  // Chucky pinned to Sunday but license is expired. Pin must yield.
+  const r = runEngine(
+    input({
+      shifts: [shift({ shift_id: "s_sun", date: "2026-05-24" })],
+      drivers: [
+        driver({
+          driver_id: "chucky", last_name: "Cheese",
+          license_expiration_date: "2026-05-01", // expired
+        }),
+        driver({ driver_id: "bob", last_name: "Bob" }),
+      ],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "driver_lock_to_day",
+          payload: { driver_id: "chucky", dow: 0 }, hardness: "hard" },
+      ],
+      settings: {
+        license_enforcement: true,
+        max_days_enforcement: false, woc_enforcement: false,
+      },
+    }),
+  );
+  // Chucky's license is expired → pin yields → Bob takes Sunday.
+  assert.equal(r.assigned_shifts.find(a => a.shift_id === "s_sun")?.driver_id, "bob");
+});
