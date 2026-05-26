@@ -820,3 +820,97 @@ test("rotation_start_day fills the chosen weekday first", () => {
   // 2026-05-30 is the Saturday of this Sun-start week.
   assert.equal(r.assigned_shifts[0]?.shift_id, "s6");
 });
+
+test("driver_lock_to_day — Wednesday pin places driver on the Wed shift", () => {
+  // Week of 2026-05-24 (Sun). Wednesday is 2026-05-27 (dow=3).
+  const r = runEngine(
+    input({
+      shifts: [
+        shift({ shift_id: "s_sun", date: "2026-05-24" }),
+        shift({ shift_id: "s_wed", date: "2026-05-27" }),
+        shift({ shift_id: "s_sat", date: "2026-05-30" }),
+      ],
+      drivers: [
+        driver({ driver_id: "alice", last_name: "Alice" }),
+        driver({ driver_id: "bob",   last_name: "Bob" }),
+      ],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "driver_lock_to_day", payload: { driver_id: "alice", dow: 3 }, hardness: "hard" },
+      ],
+      settings: { max_days_enforcement: false, woc_enforcement: false },
+    }),
+  );
+  const wed = r.assigned_shifts.find(a => a.shift_id === "s_wed");
+  assert.equal(wed?.driver_id, "alice", "Alice should be pinned to the Wednesday shift");
+  assert.equal(wed?.source, "locked");
+});
+
+test("driver_lock_to_day — PTO overrides the lock (no violation)", () => {
+  // Alice is pinned to Wednesday but has PTO on Wed 2026-05-27.
+  // The lock should go silent — Bob takes the Wednesday shift, no error.
+  const r = runEngine(
+    input({
+      shifts: [
+        shift({ shift_id: "s_wed", date: "2026-05-27" }),
+      ],
+      drivers: [
+        driver({
+          driver_id: "alice",
+          last_name: "Alice",
+          pto_records: [{ date: "2026-05-27", hours: 10 }],
+        }),
+        driver({ driver_id: "bob", last_name: "Bob" }),
+      ],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "driver_lock_to_day", payload: { driver_id: "alice", dow: 3 }, hardness: "hard" },
+      ],
+      settings: { pto_protection: true, max_days_enforcement: false, woc_enforcement: false },
+    }),
+  );
+  const wed = r.assigned_shifts.find(a => a.shift_id === "s_wed");
+  assert.equal(wed?.driver_id, "bob", "Bob should take Wednesday when Alice is on PTO");
+  // Pin going silent for a week is NOT a violation.
+  assert.deepEqual(r.violations, []);
+});
+
+test("driver_lock_to_day — soft hardness is ignored by the heuristic (v1)", () => {
+  // Soft lock-to-day rules are only honored by CP-SAT in v1. The
+  // heuristic ignores them and assigns normally.
+  const r = runEngine(
+    input({
+      shifts: [
+        shift({ shift_id: "s_wed", date: "2026-05-27" }),
+      ],
+      drivers: [
+        driver({ driver_id: "alice", last_name: "Z_alice" }), // sorts last
+        driver({ driver_id: "bob",   last_name: "A_bob"  }), // sorts first
+      ],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "driver_lock_to_day", payload: { driver_id: "alice", dow: 3 }, hardness: "soft", weight: 100 },
+      ],
+      settings: {
+        scheduling_method: "alphabetical",
+        max_days_enforcement: false,
+        woc_enforcement: false,
+      },
+    }),
+  );
+  // Bob sorts first alphabetically; soft rule is ignored → Bob wins.
+  assert.equal(r.assigned_shifts.find(a => a.shift_id === "s_wed")?.driver_id, "bob");
+});
+
+test("driver_lock_to_day — unknown driver in payload is silently skipped", () => {
+  const r = runEngine(
+    input({
+      shifts: [shift({ shift_id: "s_wed", date: "2026-05-27" })],
+      drivers: [driver({ driver_id: "alice" })],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "driver_lock_to_day", payload: { driver_id: "ghost", dow: 3 }, hardness: "hard" },
+      ],
+      settings: { max_days_enforcement: false, woc_enforcement: false },
+    }),
+  );
+  // Schedule still fills — bad rule is silently dropped, not an error.
+  assert.equal(r.summary_metrics.filled_shifts, 1);
+  assert.equal(r.assigned_shifts[0]?.driver_id, "alice");
+});

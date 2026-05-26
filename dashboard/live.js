@@ -30707,6 +30707,211 @@ async function _decorateScheduleChipsWithVans() {
 }
 window._rrDecorateScheduleChipsWithVans = _decorateScheduleChipsWithVans;
 
+// ─── Schedule grid · pin (driver_lock_to_day) decorator ──────────────────
+// Walks every shift cell after renderScheduleWeek finishes and injects a
+// pin button at the top-right corner. The button visual state reflects
+// whether the (driver, day-of-week) is currently covered by an active
+// driver_lock_to_day ad-hoc constraint.
+//
+// State map:
+//   • No active rule for (driver, dow)        → outlined pin (unpinned)
+//   • Active rule + cell has a shift chip     → solid pin   (pin holds)
+//   • Active rule + cell is Off/PTO           → dotted pin  (rule yields
+//                                               to PTO / availability)
+//
+// Click → toggle. Creates a new driver_lock_to_day rule or archives the
+// existing one via the existing create/update_ad_hoc_constraint RPCs.
+// PR #1 ships the visual + toggle. Click-time conflict validation lands
+// in PR #2; bulk operations + grid filter in PR #3.
+
+// Fluent stroke pushpin · 14×14 outline icon, tilted ~45°.
+const _RR_PIN_SVG =
+  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" ' +
+  'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
+  'stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M16 3l5 5-4 4-1-1-4.5 4.5L9 12l4.5-4.5L12 6l4-3z"/>' +
+  '<line x1="9" y1="12" x2="3" y2="18"/>' +
+  '</svg>';
+
+async function _decorateScheduleChipsWithPins() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !_schedStart) return;
+
+  // 1. Active driver_lock_to_day rules for this DSP. Best-effort; a
+  // fetch failure leaves cells unpinned (no error toast for the operator).
+  const pinByKey = new Map(); // `${driverId}|${dow}` → rule_id
+  try {
+    const { data, error } = await sb.from("current_ad_hoc_constraints")
+      .select("id, kind, payload, state")
+      .eq("kind", "driver_lock_to_day")
+      .eq("state", "active");
+    if (error) throw error;
+    for (const r of (data || [])) {
+      const did = r.payload?.driver_id;
+      const dow = r.payload?.dow;
+      if (typeof did === "string" && typeof dow === "number") {
+        pinByKey.set(`${did}|${dow}`, r.id);
+      }
+    }
+  } catch (e) {
+    console.warn("pin decorator · fetch active rules failed:", e);
+  }
+
+  // 2. Walk every (driver, date) cell on the visible schedule grid.
+  const cells = document.querySelectorAll(
+    "#view-schedule .cal-cell[data-rr-cell-driver][data-rr-cell-date]");
+  cells.forEach(cell => {
+    cell.querySelector(":scope > .cal-pin-btn")?.remove();
+    const driverId = cell.getAttribute("data-rr-cell-driver");
+    const date     = cell.getAttribute("data-rr-cell-date");
+    if (!driverId || !date) return;
+
+    // Day-of-week from the ISO date. Using a noon-offset Date so DST
+    // boundaries don't shift the day.
+    const dow = new Date(date + "T12:00:00").getDay();
+    const key = `${driverId}|${dow}`;
+    const ruleId = pinByKey.get(key) || "";
+
+    // The cell shows "Off" or a PTO chip when the driver has no
+    // assignment that day. Pins still apply, but the visual is
+    // "dotted" — the rule is being held by an absence.
+    const hasShiftChip = cell.querySelector(".shift-chip:not(.timeoff):not(.off)") !== null;
+    let state = "empty";
+    if (ruleId) state = hasShiftChip ? "active" : "held";
+
+    const tooltip =
+      state === "empty"  ? "Pin this driver to " + _RR_DOW_LBL[dow] + "s · click to add a recurring rule" :
+      state === "active" ? "Pinned · " + _RR_DOW_LBL[dow] + "s, ongoing · click to unpin" :
+                           "Pinned · " + _RR_DOW_LBL[dow] + "s, ongoing · today held by PTO / availability · click to unpin";
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "cal-pin-btn";
+    btn.setAttribute("data-rr-pin-btn", "");
+    btn.setAttribute("data-rr-pin-driver", driverId);
+    btn.setAttribute("data-rr-pin-dow", String(dow));
+    btn.setAttribute("data-rr-pin-state", state);
+    if (ruleId) btn.setAttribute("data-rr-pin-rule", ruleId);
+    btn.setAttribute("title", tooltip);
+    btn.setAttribute("aria-label", tooltip);
+    btn.innerHTML = _RR_PIN_SVG;
+    cell.appendChild(btn);
+  });
+
+  // Ensure the cells are position:relative so the absolutely-positioned
+  // pin button anchors to them. cal-cell is already relative in the
+  // existing CSS, but inject a fallback rule for safety + the button
+  // styles themselves.
+  if (!document.getElementById("rr-pin-btn-styles")) {
+    const st = document.createElement("style");
+    st.id = "rr-pin-btn-styles";
+    st.textContent = `
+      #view-schedule .cal-cell{position:relative}
+      #view-schedule .cal-pin-btn{
+        position:absolute;top:3px;right:3px;z-index:2;
+        display:inline-flex;align-items:center;justify-content:center;
+        width:20px;height:20px;padding:0;
+        background:transparent;border:0;border-radius:3px;
+        color:rgba(15,23,42,.30);
+        opacity:0;cursor:pointer;
+        transition:opacity .12s, background .12s, color .12s;
+      }
+      #view-schedule .cal-cell:hover .cal-pin-btn,
+      #view-schedule .cal-pin-btn[data-rr-pin-state="active"],
+      #view-schedule .cal-pin-btn[data-rr-pin-state="held"]{
+        opacity:1;
+      }
+      #view-schedule .cal-pin-btn:hover{
+        background:rgba(0,120,212,.10);color:#0078D4;
+      }
+      #view-schedule .cal-pin-btn[data-rr-pin-state="active"]{
+        color:#0078D4;
+      }
+      #view-schedule .cal-pin-btn[data-rr-pin-state="active"] svg{
+        fill:#0078D4;fill-opacity:.20;
+      }
+      #view-schedule .cal-pin-btn[data-rr-pin-state="held"]{
+        color:#0078D4;opacity:.55;
+      }
+      #view-schedule .cal-pin-btn[data-rr-pin-state="held"] svg{
+        stroke-dasharray:2.2 2.2;
+      }
+      #view-schedule .cal-pin-btn[disabled]{opacity:.35;cursor:wait}
+    `;
+    document.head.appendChild(st);
+  }
+}
+window._rrDecorateScheduleChipsWithPins = _decorateScheduleChipsWithPins;
+
+// Day-of-week label table for pin tooltips.
+const _RR_DOW_LBL = ["Sundays","Mondays","Tuesdays","Wednesdays","Thursdays","Fridays","Saturdays"];
+
+// Pin click handler · delegates from the document to every pin button
+// in the schedule grid. Toggles the rule in the ad_hoc_constraints
+// table and re-decorates the grid so the visual state updates.
+document.addEventListener("click", async (e) => {
+  const btn = e.target && e.target.closest && e.target.closest("[data-rr-pin-btn]");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (btn.disabled) return;
+  btn.disabled = true;
+  const driverId = btn.getAttribute("data-rr-pin-driver");
+  const dow = parseInt(btn.getAttribute("data-rr-pin-dow") || "", 10);
+  const ruleId = btn.getAttribute("data-rr-pin-rule");
+  try {
+    if (ruleId) {
+      // Unpin · archive the existing rule.
+      const { error } = await sb.rpc("update_ad_hoc_constraint", {
+        p_id: ruleId, p_state: "archived",
+      });
+      if (error) throw error;
+      if (typeof toast === "function") {
+        toast(`Unpinned ${_RR_DOW_LBL[dow] || "day"}`, "ok");
+      }
+    } else if (driverId && Number.isInteger(dow)) {
+      // Pin · create a new driver_lock_to_day rule.
+      const driverName = (() => {
+        const row = document.querySelector(
+          `[data-rr-cell-driver="${driverId}"] .cal-row-label-name, ` +
+          `.cal-row-label-name[data-rr-driver-id="${driverId}"]`);
+        return row ? row.textContent.trim().split(/\s+/)[0] : "Driver";
+      })();
+      const { error } = await sb.rpc("create_ad_hoc_constraint", {
+        p_name: `${driverName} on ${_RR_DOW_LBL[dow] || "day"}`,
+        p_description: "Pinned from the schedule grid",
+        p_kind: "driver_lock_to_day",
+        p_payload: { driver_id: driverId, dow: dow },
+        p_hardness: "hard",
+        p_weight: null,
+        p_scope: {},
+        p_effective_from: null,
+        p_effective_until: null,
+        p_state: "active",
+      });
+      if (error) throw error;
+      if (typeof toast === "function") {
+        toast(`Pinned ${_RR_DOW_LBL[dow] || "day"} · runs forever until unpinned`, "ok");
+      }
+    }
+    // Re-decorate the grid so the visual reflects the new state.
+    if (typeof _decorateScheduleChipsWithPins === "function") {
+      await _decorateScheduleChipsWithPins();
+    }
+    // Ad-hoc list in the Smart Fill popover may also be visible — refresh it.
+    if (typeof _rrLoadAdHocConstraintsList === "function") {
+      try { _rrLoadAdHocConstraintsList(); } catch (_) {}
+    }
+  } catch (err) {
+    console.warn("pin toggle failed:", err);
+    if (typeof toast === "function") {
+      toast("Pin toggle failed: " + ((err && err.message) || "RPC error"), "warn");
+    }
+    btn.disabled = false;
+  }
+});
+
+
 // ─── Van assignments renderer (legacy) ──────────────────────────────
 // Driver ↔ vehicle pairings for the visible week, read from the
 // existing vehicle_pairings / day_vehicle_assignment tables via a
@@ -34741,6 +34946,7 @@ async function renderScheduleWeek() {
   // chips show the van even before the operator re-runs Assign
   // Vans. Safe no-op when no assignments exist for the week.
   if (typeof _decorateScheduleChipsWithVans === "function") _decorateScheduleChipsWithVans();
+  if (typeof _decorateScheduleChipsWithPins === "function") _decorateScheduleChipsWithPins();
   // Reflect the current week's assignment state on the Assign Vans
   // tile (label flips between "Assign Vans" and "Unassign Vans").
   if (typeof _refreshAssignVansLabel === "function") _refreshAssignVansLabel();

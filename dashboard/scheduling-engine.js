@@ -745,45 +745,6 @@ function prepareSchedule(ctx) {
   });
 }
 
-// src/plan.ts
-function assignedRefOf(shift, source) {
-  return {
-    shift_id: shift.shift_id,
-    date: shift.date,
-    dow: shift.dow,
-    start_ms: shift.start_ms,
-    end_ms: shift.end_ms,
-    duration_hours: shift.duration_hours,
-    source
-  };
-}
-function applyAssignment(ws, plan, driverId, source) {
-  plan.assignedDriverId = driverId;
-  plan.source = source;
-  plan.open = false;
-  const state = ws.states.get(driverId);
-  if (state) state.assigned.push(assignedRefOf(plan.shift, source));
-}
-
-// src/steps/step2_driver_state.ts
-function initDriverState(ctx, plans) {
-  const states = /* @__PURE__ */ new Map();
-  for (const d of ctx.drivers) {
-    states.set(d.driver_id, { driver_id: d.driver_id, assigned: [] });
-  }
-  for (const plan of plans) {
-    if (plan.assignedDriverId === null || plan.source === null) continue;
-    const state = states.get(plan.assignedDriverId);
-    if (state) state.assigned.push(assignedRefOf(plan.shift, plan.source));
-  }
-  for (const state of states.values()) {
-    state.assigned.sort(
-      (a, b) => a.shift_id < b.shift_id ? -1 : a.shift_id > b.shift_id ? 1 : 0
-    );
-  }
-  return states;
-}
-
 // src/rules/r011_blackout.ts
 function checkBlackout(shift, blackout) {
   if (blackout.has(shift.date)) {
@@ -1025,6 +986,91 @@ function collectBlocks(shift, driver, state, ctx) {
   push(checkWoc(shift, state, s));
   push(checkMinRest(shift, state, s));
   return reasons;
+}
+
+// src/plan.ts
+function assignedRefOf(shift, source) {
+  return {
+    shift_id: shift.shift_id,
+    date: shift.date,
+    dow: shift.dow,
+    start_ms: shift.start_ms,
+    end_ms: shift.end_ms,
+    duration_hours: shift.duration_hours,
+    source
+  };
+}
+function applyAssignment(ws, plan, driverId, source) {
+  plan.assignedDriverId = driverId;
+  plan.source = source;
+  plan.open = false;
+  const state = ws.states.get(driverId);
+  if (state) state.assigned.push(assignedRefOf(plan.shift, source));
+}
+
+// src/steps/step1_5_locks.ts
+function parseLockRule(raw, ctx) {
+  if (raw.kind !== "driver_lock_to_day") return null;
+  if (raw.hardness !== "hard") return null;
+  const did = raw.payload?.driver_id;
+  const dow = raw.payload?.dow;
+  if (typeof did !== "string" || typeof dow !== "number") return null;
+  if (!Number.isInteger(dow) || dow < 0 || dow > 6) return null;
+  const driver = ctx.driverById.get(did);
+  if (!driver) return null;
+  return { driver, dow };
+}
+function applyDriverDayLocks(ctx, ws, constraints) {
+  const rules = [];
+  for (const c of constraints) {
+    const r = parseLockRule(c, ctx);
+    if (r) rules.push(r);
+  }
+  if (rules.length === 0) return;
+  rules.sort((a, b) => {
+    if (a.driver.driver_id !== b.driver.driver_id) {
+      return a.driver.driver_id < b.driver.driver_id ? -1 : 1;
+    }
+    return a.dow - b.dow;
+  });
+  for (const rule of rules) {
+    const candidates = ws.plans.filter((p) => p.open && dayOfWeek(p.shift.date) === rule.dow).sort((a, b) => {
+      if (a.shift.date !== b.shift.date) {
+        return a.shift.date < b.shift.date ? -1 : 1;
+      }
+      if (a.shift.start_ms !== b.shift.start_ms) {
+        return a.shift.start_ms - b.shift.start_ms;
+      }
+      return a.shift.shift_id < b.shift.shift_id ? -1 : 1;
+    });
+    for (const plan of candidates) {
+      const state = ws.states.get(rule.driver.driver_id);
+      if (!state) break;
+      const cell = evaluateEligibility(plan.shift, rule.driver, state, ctx);
+      if (!cell.eligible) continue;
+      applyAssignment(ws, plan, rule.driver.driver_id, "locked");
+      break;
+    }
+  }
+}
+
+// src/steps/step2_driver_state.ts
+function initDriverState(ctx, plans) {
+  const states = /* @__PURE__ */ new Map();
+  for (const d of ctx.drivers) {
+    states.set(d.driver_id, { driver_id: d.driver_id, assigned: [] });
+  }
+  for (const plan of plans) {
+    if (plan.assignedDriverId === null || plan.source === null) continue;
+    const state = states.get(plan.assignedDriverId);
+    if (state) state.assigned.push(assignedRefOf(plan.shift, plan.source));
+  }
+  for (const state of states.values()) {
+    state.assigned.sort(
+      (a, b) => a.shift_id < b.shift_id ? -1 : a.shift_id > b.shift_id ? 1 : 0
+    );
+  }
+  return states;
 }
 
 // src/steps/step3_eligibility.ts
@@ -2075,6 +2121,7 @@ function runEngine(input) {
   const states = initDriverState(ctx, plans);
   const planByShiftId = new Map(plans.map((p) => [p.shift.shift_id, p]));
   const ws = { plans, planByShiftId, states };
+  applyDriverDayLocks(ctx, ws, input.ad_hoc_constraints ?? []);
   const matrix = buildEligibilityMatrix(ctx, ws);
   ctx.patterns = computePatterns(ctx);
   runPatternPass(ctx, ws, matrix);
@@ -2418,7 +2465,8 @@ function planScheduleWeek(payload) {
     shifts: payload.shifts.map(mapShift),
     drivers,
     dsp: { dsp_blackout_dates: payload.blackout_dates ?? [] },
-    settings: buildSettings(payload)
+    settings: buildSettings(payload),
+    ad_hoc_constraints: payload.ad_hoc_constraints
   };
   return runEngine(input);
 }
