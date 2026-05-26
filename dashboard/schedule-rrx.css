@@ -1825,11 +1825,34 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   height: 33px;
   flex: 0 0 auto;
   color: var(--rr-fg-secondary);
-  stroke-width: 1.6;
+  /* Fluent-thin stroke · operator wanted the whole strip to read
+     like Microsoft 365 command bars (Outlook / Teams). 1.5px is
+     the canonical Fluent stroke weight. */
+  stroke-width: 1.5;
   /* Sharp edges — defeat any global stroke-linecap/join rules
      that might soften corners on these icons. */
   stroke-linecap: butt;
   stroke-linejoin: miter;
+}
+
+/* Calm selected + hover states (Path: refine only) ──────────────
+   Selected · very soft accent background, subtle border, slightly
+   stronger icon color. No glow, no saturation jump.
+   Hover    · light surface tint only. No scale / no bounce. */
+#view-schedule.rrx-schedule .sched-v2-tile:hover {
+  background: var(--rr-bg-hover);
+}
+#view-schedule.rrx-schedule .sched-v2-tile.is-active,
+#view-schedule.rrx-schedule .sched-v2-tile[aria-pressed="true"],
+#view-schedule.rrx-schedule .sched-v2-split.is-active > .sched-v2-tile {
+  background: color-mix(in srgb, var(--rr-brand-primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--rr-brand-primary) 18%, transparent);
+  color: var(--rr-fg-primary);
+}
+#view-schedule.rrx-schedule .sched-v2-tile.is-active svg,
+#view-schedule.rrx-schedule .sched-v2-tile[aria-pressed="true"] svg,
+#view-schedule.rrx-schedule .sched-v2-split.is-active > .sched-v2-tile svg {
+  color: var(--rr-brand-primary);
 }
 
 #view-schedule.rrx-schedule .sched-v2-tile span {
