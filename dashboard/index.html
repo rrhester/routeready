@@ -21441,6 +21441,16 @@ body.rr-cmdk-open{ overflow:hidden }
           /* ── Page ribbon · set 1:1 with the schedule page's icon
              strip (.sched-nav-heading) — same card chrome, padding,
              radius, shadow, and title-left / actions-right layout. ── */
+          /* Page padding · match Schedule's effective offset before
+             the strip card. Schedule uses 20px page padding-top +
+             a hidden ~20px legacy .sched-cmd-shell = 40px before
+             the visible strip. Fleet has no hidden shell, so its
+             .page padding-top is bumped to 40px directly. The other
+             three sides stay at 20px (--rr-space-200) like Schedule. */
+          #view-fleet > .page{
+            padding:40px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
+          }
+
           /* Fleet strip card · locked to the TCP spec so it reads
              identical to Schedule + Onboarding (and now Fleet Bridge).
              Tokens come from dashboard/tcp.css. */
@@ -21472,8 +21482,14 @@ body.rr-cmdk-open{ overflow:hidden }
             align-items:center;
           }
           #view-fleet .fl-cmd-tab{
-            appearance:none;background:transparent;cursor:pointer;font:inherit;
-            font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+            appearance:none;background:transparent;cursor:pointer;
+            /* Match Schedule's .sched-v2-cmd-tabs .sched-cmd-tab: same
+               font-shorthand (--rr-font-caption = 400 12px/16px) then
+               override weight to 600. Earlier I used `font:inherit` +
+               `font-size:11px`, which rendered 1px smaller than
+               Schedule. */
+            font:var(--rr-font-caption);
+            font-weight:600;letter-spacing:.04em;text-transform:uppercase;
             color:var(--rr-fg-secondary);
             padding:var(--rr-space-60) var(--rr-space-120);
             border:1px solid transparent;border-bottom:0;
