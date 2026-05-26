@@ -9961,59 +9961,13 @@ body.rr-cmdk-open{ overflow:hidden }
           }
         </style>
 
-        <div class="hp-stats-banner">
-          <div class="hp-stat">
-            <span class="hp-stat-dot"></span>
-            <div class="hp-stat-text">
-              <div class="hp-stat-value"><span id="hp-contacted-pct">0</span>% Contacted</div>
-              <div class="hp-stat-trend">Sent a screening invite</div>
-            </div>
-          </div>
-          <div class="hp-stat">
-            <span class="hp-stat-dot"></span>
-            <div class="hp-stat-text">
-              <div class="hp-stat-value"><span id="hp-passed-pct">0</span>% Screening passed</div>
-              <div class="hp-stat-trend">Cleared screening + still active</div>
-            </div>
-          </div>
-          <div class="hp-stat">
-            <span class="hp-stat-dot"></span>
-            <div class="hp-stat-text">
-              <div class="hp-stat-value"><span id="hp-booked-pct">0</span>% Booked rate</div>
-              <div class="hp-stat-trend" id="hp-booked-sub">Of those sent a booking link</div>
-            </div>
-          </div>
-          <div class="hp-stat">
-            <span class="hp-stat-dot"></span>
-            <div class="hp-stat-text">
-              <div class="hp-stat-value"><span id="hp-show-rate">75</span>% Show rate</div>
-              <div class="hp-stat-trend">Of those who booked</div>
-            </div>
-          </div>
-          <div class="hp-stat">
-            <span class="hp-stat-dot"></span>
-            <div class="hp-stat-text">
-              <div class="hp-stat-value"><span id="hp-hire-rate">75</span>% Hire rate</div>
-              <div class="hp-stat-trend">Of candidates who showed</div>
-            </div>
-          </div>
-          <div class="hp-stat">
-            <span class="hp-stat-dot"></span>
-            <div class="hp-stat-text">
-              <div class="hp-stat-value"><span id="hp-e2e">0</span>% End-to-end</div>
-              <div class="hp-stat-trend" id="hp-e2e-sub">Hired ÷ total applicants</div>
-            </div>
-          </div>
-          <div class="hp-stats-progress"><div class="hp-stats-progress-fill" id="hp-stats-fill"></div></div>
-          <div class="hp-stats-window">
-            <span class="hp-stats-window-label">Window</span>
-            <div id="hp-window-toggle-h" class="pipe-window-toggle" role="group" aria-label="Time window">
-              <button class="hp-window-btn" data-rr-window="7"    type="button">Week</button>
-              <button class="hp-window-btn" data-rr-window="28"   type="button">4 wk</button>
-              <button class="hp-window-btn" data-rr-window="3650" type="button">All</button>
-            </div>
-          </div>
-        </div>
+        <!-- Funnel KPI banner moved INTO the Onboarding TCP KPI
+             bar (#rr-ob-kpis). _obRenderFunnelKpis() in live.js
+             rebuilds the pill markup with the same hp-* span IDs,
+             so loadPipelineKpis() keeps populating them. The
+             Week / 4wk / All window toggle is rendered inline at
+             the right edge of the same bar. -->
+
 
 
         <!-- Applicants list header — stage tabs only -->

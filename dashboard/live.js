@@ -5043,6 +5043,13 @@ window.obSub = function (which) {
   if (isPipe) {
     _obMountPipeline();
     if (typeof pipeSub === "function") pipeSub(which);
+    // Repaint the top KPI bar with the Funnel/pipeline metrics
+    // (Contacted / Screening passed / Booked / Show / Hire /
+    // End-to-end + Week/4wk/All toggle). This replaces the old
+    // .hp-stats-banner block that used to sit above the applicant
+    // list. We rebuild the pill markup BEFORE loadPipelineKpis()
+    // so the setText hp-* lookups land on the new spans.
+    try { _obRenderFunnelKpis(); } catch (_) { /* non-fatal */ }
     if (which === "funnel") {
       if (typeof loadPipeline === "function") loadPipeline(typeof getActiveStage === "function" ? getActiveStage() : "all");
       if (typeof loadPipelineKpis === "function") loadPipelineKpis();
@@ -13421,6 +13428,47 @@ document.addEventListener("click", async (e) => {
 // Selected lookback window for the KPI strip. Defaults to 4 weeks; the
 // segmented control above the strip toggles between 7 / 28 / 3650.
 let _kpiWindowDays = 28;
+
+// ── Paint the Funnel KPIs into the Onboarding TCP KPI bar.
+// Called from obSub() when the operator switches to Funnel /
+// Interview / Calendar. Rebuilds #rr-ob-kpis with one pill per
+// funnel metric (Contacted / Screening passed / Booked / Show /
+// Hire / End-to-end), each carrying the SAME hp-* span IDs the
+// legacy .hp-stats-banner used — so loadPipelineKpis() keeps
+// updating them via setText("hp-...", value). A small Week / 4wk
+// /All segmented control is appended to the right edge of the bar
+// to replace the toggle that lived next to the legacy banner.
+function _obRenderFunnelKpis() {
+  const host = document.getElementById("rr-ob-kpis");
+  if (!host) return;
+  const navy = "#1F2A44";
+  const pill = (key, id, suffix, sub) =>
+    `<span class="sched-kpi-pill" data-rr-ob-kpi="${key}">` +
+      `<span class="sched-kpi-dot" style="background:${navy}"></span>` +
+      `<span class="sched-kpi-text">` +
+        `<span class="sched-kpi-val"><span id="${id}">0</span>${suffix}</span>` +
+        `<span class="sched-kpi-sub" ${sub.id ? `id="${sub.id}"` : ""}>${sub.text}</span>` +
+      `</span>` +
+    `</span>`;
+  host.innerHTML =
+    pill("contacted",   "hp-contacted-pct", "% Contacted",       { text: "Sent a screening invite" }) +
+    pill("passed",      "hp-passed-pct",    "% Screening passed",{ text: "Cleared screening + still active" }) +
+    pill("booked",      "hp-booked-pct",    "% Booked rate",     { id: "hp-booked-sub", text: "Of those sent a booking link" }) +
+    pill("show",        "hp-show-rate",     "% Show rate",       { text: "Of those who booked" }) +
+    pill("hire",        "hp-hire-rate",     "% Hire rate",       { text: "Of candidates who showed" }) +
+    pill("e2e",         "hp-e2e",           "% End-to-end",      { id: "hp-e2e-sub", text: "Hired ÷ total applicants" }) +
+    // Window toggle anchored to the right edge of the bar so the
+    // operator can still cycle Week / 4wk / All without the old
+    // banner chrome. margin-left:auto pushes it past the last pill.
+    `<span class="sched-kpi-pill" style="margin-left:auto;border-right:0;gap:8px">` +
+      `<span class="sched-kpi-sub">Window</span>` +
+      `<div id="hp-window-toggle-h" class="pipe-window-toggle" role="group" aria-label="Time window">` +
+        `<button class="hp-window-btn" data-rr-window="7"    type="button">Week</button>` +
+        `<button class="hp-window-btn" data-rr-window="28"   type="button">4 wk</button>` +
+        `<button class="hp-window-btn" data-rr-window="3650" type="button">All</button>` +
+      `</div>` +
+    `</span>`;
+}
 
 async function loadPipelineKpis() {
   syncKpiWindowToggle();
