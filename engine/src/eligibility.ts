@@ -21,6 +21,11 @@ import { checkWeeklyCap } from "./rules/r008_weekly_cap.ts";
 import { checkMinRest } from "./rules/r009_min_rest.ts";
 import { checkWoc } from "./rules/r019_woc.ts";
 import { checkPreferredRequired } from "./rules/r020_preferred_required.ts";
+import {
+  checkAdHocBlackout,
+  checkAdHocExcludeFromDay,
+  checkAdHocPairForbidden,
+} from "./rules/r021_adhoc.ts";
 
 const PASS: EligibilityCell = Object.freeze({
   eligible: true,
@@ -42,6 +47,9 @@ export function evaluateEligibility(
     checkCertification(shift, driver, s) ??
     checkPto(shift, driver, s) ??
     checkAvailability(shift, driver, s) ??
+    checkAdHocExcludeFromDay(shift, driver, ctx) ??
+    checkAdHocBlackout(shift, driver, ctx) ??
+    checkAdHocPairForbidden(shift, driver, ctx) ??
     checkSameDay(shift, state, s) ??
     checkMaxDays(shift, state, ctx) ??
     checkWeeklyCap(shift, driver, state, ctx) ??
@@ -74,6 +82,9 @@ export function collectBlocks(
   push(checkCertification(shift, driver, s));
   push(checkPto(shift, driver, s));
   push(checkAvailability(shift, driver, s));
+  push(checkAdHocExcludeFromDay(shift, driver, ctx));
+  push(checkAdHocBlackout(shift, driver, ctx));
+  push(checkAdHocPairForbidden(shift, driver, ctx));
   push(checkSameDay(shift, state, s));
   push(checkMaxDays(shift, state, ctx));
   push(checkWeeklyCap(shift, driver, state, ctx));

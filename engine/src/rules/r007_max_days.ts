@@ -1,4 +1,8 @@
 // R007 — Max days per window [HARD if enabled].
+//
+// Honors per-driver overrides from the ad-hoc rule
+// driver_max_days_override (the driver's tighter cap wins over the
+// global setting).
 
 import type { BlockReason, DriverState, NormalizedShift } from "../types.ts";
 import { inRange } from "../dates.ts";
@@ -20,10 +24,19 @@ export function checkMaxDays(
 
   const dates = uniqueDatesInWindow(state, range);
   dates.add(shift.date);
-  if (dates.size > ctx.settings.max_days) {
+  // Per-driver override from driver_max_days_override (ad-hoc rule).
+  // The tighter (lower) cap wins.
+  const override = ctx.adHoc.maxDaysOverride.get(state.driver_id);
+  const cap = override !== undefined
+    ? Math.min(ctx.settings.max_days, override)
+    : ctx.settings.max_days;
+  if (dates.size > cap) {
+    const note = override !== undefined && override === cap
+      ? ` (per-driver override)`
+      : "";
     return {
       rule: "R007",
-      message: `Would exceed max ${ctx.settings.max_days} days in ${ctx.settings.max_days_window}`,
+      message: `Would exceed max ${cap} days in ${ctx.settings.max_days_window}${note}`,
     };
   }
   return null;

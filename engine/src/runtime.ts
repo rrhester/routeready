@@ -12,6 +12,7 @@ import {
   type WindowType,
 } from "./types.ts";
 import { addDays, clockToMinutes, inRange } from "./dates.ts";
+import { type AdHocIndex } from "./adhoc.ts";
 
 export interface EngineContext {
   settings: Settings;
@@ -24,6 +25,8 @@ export interface EngineContext {
   payPeriod: [string, string] | null;
   history: HistoryShift[];
   patterns: Map<string, DriverPattern>;
+  /** Compiled ad-hoc rule index (exclude_from_day, blackouts, etc). */
+  adHoc: AdHocIndex;
 }
 
 /** Inclusive [start, end] date range for a window type, relative to a shift. */

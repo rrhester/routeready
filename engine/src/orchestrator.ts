@@ -25,6 +25,7 @@ import {
 } from "./runtime.ts";
 import { inputsHash } from "./hash.ts";
 import type { WorkingSchedule } from "./plan.ts";
+import { indexAdHoc } from "./adhoc.ts";
 import { prepareSchedule } from "./steps/step1_prepare.ts";
 import { applyDriverDayLocks } from "./steps/step1_5_locks.ts";
 import { initDriverState } from "./steps/step2_driver_state.ts";
@@ -134,6 +135,7 @@ function buildContext(input: EngineInput): EngineContext {
     payPeriod,
     history,
     patterns: new Map(),
+    adHoc: indexAdHoc(input.ad_hoc_constraints),
   };
 }
 
