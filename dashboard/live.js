@@ -4913,27 +4913,21 @@ function _fillObMatrixSkeletonRows(body) {
     `</td>`;
   const middleCells = Array.from({ length: Math.max(0, headerCells.length - 2) }, () => stepRing).join("");
   const skeletonRow = `<tr class="ob-sk-tr" aria-hidden="true">${nameCell}${middleCells}${actionsCell}</tr>`;
-  // How many rows fit below the existing real rows? Measure against
-  // the scroll container (.ob-mx-scroll) so the rows we add fill the
-  // visible scroll viewport, then +2 EXTRA rows past the visible
-  // bottom so the matrix reads as "more applicants below, scroll
-  // to see" — operator's mental model is a busy onboarding queue.
-  const scroll = body.querySelector(".ob-mx-scroll");
-  const thead = table.querySelector("thead");
+  // How many rows fit between the current table bottom and the
+  // window's bottom edge, plus a few extras past it so the matrix
+  // overflows the viewport and the scroller actually engages.
+  // Measuring against window.innerHeight (not the inner
+  // .ob-mx-scroll) sidesteps the case where the scroll container
+  // is sized to its content (clientHeight = content height,
+  // remainingPx = 0) — in that case the matrix never gained
+  // ghost rows because it "fit perfectly" in zero remaining space.
+  const tableRect = table.getBoundingClientRect();
+  const windowH   = window.innerHeight || 0;
   const ROW_PX = 70;
-  let remainingPx = 0;
-  if (scroll) {
-    const headPx = thead ? thead.getBoundingClientRect().height : 0;
-    const realBodyPx = (tbody.getBoundingClientRect().height) || 0;
-    remainingPx = Math.max(0, scroll.clientHeight - headPx - realBodyPx - 8);
-  } else {
-    const tableRect = table.getBoundingClientRect();
-    remainingPx = Math.max(0, window.innerHeight - tableRect.bottom - 24);
-  }
-  const visibleRows = Math.floor(remainingPx / ROW_PX);
-  // +2 past the bottom of the visible viewport · the operator wants
-  // it to look like more applicants exist than fit on screen.
-  const rowsToAdd = Math.max(2, visibleRows + 2);
+  const EXTRA_ROWS = 3;  // rows past the visible bottom so the page can scroll
+  const remainingPx = Math.max(0, windowH - tableRect.bottom);
+  const visibleRows = Math.ceil(remainingPx / ROW_PX);
+  const rowsToAdd = Math.max(EXTRA_ROWS, visibleRows + EXTRA_ROWS);
   tbody.insertAdjacentHTML("beforeend", skeletonRow.repeat(rowsToAdd));
 }
 // Inject the skeleton-row styles once on script load. Cheap, idempotent.
@@ -5719,6 +5713,83 @@ async function loadOnboardingOps(opts) {
   _rosterState = new Map((Array.isArray(stateRes?.data) ? stateRes.data : []).map((r) => [r.driver_id, (r && r.steps) || {}]));
   if (subEl) subEl.textContent = N ? `${N} driver${N === 1 ? "" : "s"} in onboarding` : "No one in onboarding right now";
 
+  // ── Per-step "is this driver done with that step?" predicate.
+  // Mirrors matrixRow's done-detection logic so the KPI counts agree
+  // with the dots painted in the matrix below. Walks the same data
+  // sources matrixRow does (_rosterProg, _rosterState, _rosterI9,
+  // _rosterPairings); centralizing here means the matrix and the KPI
+  // bar can never drift.
+  function _obIsStepDoneFor(d, stepCol) {
+    if (!d || !stepCol || !stepCol.map) return false;
+    const m = stepCol.map;
+    if (m.kind === "drv") return !!d[m.done];
+    if (m.kind === "prog") {
+      const prog = (_rosterProg && _rosterProg.get(d.id)) || {};
+      return !!prog[m.done];
+    }
+    if (m.kind === "state") {
+      if (stepCol.key === "trainer_pair") {
+        const pair = _rosterPairings && _rosterPairings.get(d.id);
+        return !!(pair && pair.status === "materialized");
+      }
+      const st = (_rosterState && _rosterState.get(d.id)) || {};
+      return !!st[m.done];
+    }
+    if (m.kind === "i9") {
+      const i9r = (_rosterI9 && _rosterI9.get(d.id)) || null;
+      if (!i9r) return false;
+      const i9 = _i9Derived(i9r);
+      return i9.key === "verified" || i9.key === "verified_expiring" || i9.key === "sealing";
+    }
+    return false;
+  }
+
+  // ── Paint the dynamic KPI bar from the blueprint. The KPI bar
+  // (#rr-ob-kpis) sits in the TCP slot above the matrix. Pills are
+  // built from the same `stepCols` array the matrix uses, so the bar
+  // reflects whatever steps the operator has configured in the
+  // Onboarding Builder — add a step → new pill, remove a step → pill
+  // disappears, on the next render.
+  function _obRenderKpis(rowsEnriched, stepCols) {
+    const host = document.getElementById("rr-ob-kpis");
+    if (!host) return;
+    const total = rowsEnriched.length;
+    const navy  = "#1F2A44";
+    const green = "#10B981";
+
+    const pill = (key, dotColor, valHtml, subText) =>
+      `<span class="sched-kpi-pill" data-rr-ob-kpi="${escapeHtml(key)}">` +
+        `<span class="sched-kpi-dot" style="background:${dotColor}"></span>` +
+        `<span class="sched-kpi-text">` +
+          `<span class="sched-kpi-val">${valHtml}</span>` +
+          `<span class="sched-kpi-sub">${escapeHtml(subText)}</span>` +
+        `</span>` +
+      `</span>`;
+
+    // Leftmost · total onboarding-drivers count. The value reads as
+    // a plain number; sub-line says "Onboarding drivers" so the
+    // operator immediately knows what's being totalled.
+    const header = pill("total", navy, String(total), "Onboarding drivers");
+
+    // Per blueprint step · "N/total Step Name". Dot greens when
+    // every onboarding driver has cleared that step.
+    const stages = stepCols.map(s => {
+      const n = rowsEnriched.filter(({ d }) => _obIsStepDoneFor(d, s)).length;
+      const color = total > 0 && n === total ? green : navy;
+      const valHtml = `${n}<span style="color:var(--rr-fg-secondary);font-weight:500">/${total}</span>`;
+      return pill(s.key || s.map.head, color, valHtml, s.map.head);
+    }).join("");
+
+    // Rightmost · drivers who have flipped to status="active". This
+    // mirrors the Active column on the right edge of the matrix.
+    const activeN = rowsEnriched.filter(({ d }) => d && d.status === "active").length;
+    const activeColor = activeN > 0 ? green : navy;
+    const activeVal = `${activeN}<span style="color:var(--rr-fg-secondary);font-weight:500">/${total}</span>`;
+    const activePill = pill("active", activeColor, activeVal, "Active");
+
+    host.innerHTML = header + stages + activePill;
+  }
+
   // The matrix is the page.  Sorted urgency-first — compliance risks
   // rise to the top, then ready-to-activate, then due-soon, etc. — so
   // the colour-coded status pills carry the at-a-glance read with no
@@ -5873,6 +5944,13 @@ async function loadOnboardingOps(opts) {
   // hollow ring in Active, ghost icons in Actions) — same line-height
   // as a real row so adding a real applicant just replaces a skeleton.
   try { _fillObMatrixSkeletonRows(body); } catch (_) { /* non-fatal */ }
+  // Paint the dynamic KPI bar above the matrix with one pill per
+  // blueprint stage (Drug clear / BG clear / Job offer / …) plus
+  // a leftmost "Onboarding drivers" total and a rightmost "Active"
+  // count. Stages come from the same blueprint that drives the
+  // matrix columns, so adding or removing a step in the builder
+  // updates the KPI bar on the next render.
+  try { _obRenderKpis(enriched, stepCols); } catch (_) { /* non-fatal */ }
 
   body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
     el.addEventListener("click", (e) => {
