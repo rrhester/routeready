@@ -5024,6 +5024,17 @@ window.obSub = function (which) {
     if (typeof loadDocumentsView === "function") {
       try { loadDocumentsView(); } catch (e) { console.warn("loadDocumentsView:", e); }
     }
+    // Swap the TCP KPI bar back to the onboarding-stage pills.
+    // Uses the cached enriched + stepCols last computed by
+    // loadOnboardingOps so no refetch is needed; if the cache is
+    // empty (very first render before data lands) we no-op and
+    // the next matrix render will fill the bar.
+    try {
+      const cache = window.__obKpiCache;
+      if (cache && cache.stepCols && typeof window.__obRenderKpis === "function") {
+        window.__obRenderKpis(cache.enriched || [], cache.stepCols);
+      }
+    } catch (_) { /* non-fatal */ }
   }
   // The page title + sub-line follow the active icon.
   const _OB_META = {
@@ -5818,6 +5829,14 @@ async function loadOnboardingOps(opts) {
   // column comes from the blueprint loop now (driver-state-backed),
   // so no special-case column rendering is needed.
   const stepCols = _obSteps().filter(s => s && s.enabled).map(_obStepColumn);
+  // Cache the latest matrix inputs + the renderer itself on window
+  // so obSub('overview') can repaint the KPI bar with onboarding
+  // stages WITHOUT having to re-run loadOnboardingOps (which would
+  // refetch the roster). The Funnel sub-tab installs its own pills
+  // via _obRenderFunnelKpis; the overview path uses this cache to
+  // swap back.
+  window.__obKpiCache   = { enriched, stepCols };
+  window.__obRenderKpis = _obRenderKpis;
   const fmtCellDate = (x) => x ? new Date(x).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null;
   // Onboarding dot: green once the step is complete, no fill otherwise.
   // Every step in the overview is visible to the driver; hover for status.
@@ -5956,8 +5975,19 @@ async function loadOnboardingOps(opts) {
   // a leftmost "Onboarding drivers" total and a rightmost "Active"
   // count. Stages come from the same blueprint that drives the
   // matrix columns, so adding or removing a step in the builder
-  // updates the KPI bar on the next render.
-  try { _obRenderKpis(enriched, stepCols); } catch (_) { /* non-fatal */ }
+  // updates the KPI bar on the next render. Guarded so it ONLY
+  // paints when the Overview sub-tab is active — otherwise the
+  // matrix-render path would overwrite the Funnel KPIs that obSub
+  // just installed and the operator would see a brief onboarding-
+  // stage flash before the funnel pills repaint.
+  try {
+    const activeSub = document.querySelector(
+      "#view-onboarding-ops .subnav .subnav-item[data-obsub].active"
+    )?.getAttribute("data-obsub");
+    if (!activeSub || activeSub === "overview") {
+      _obRenderKpis(enriched, stepCols);
+    }
+  } catch (_) { /* non-fatal */ }
 
   body.querySelectorAll("[data-rr-onboardops-open]").forEach(el => {
     el.addEventListener("click", (e) => {
