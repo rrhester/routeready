@@ -9190,16 +9190,49 @@ body.rr-cmdk-open{ overflow:hidden }
 
     <nav class="nav">
       <button class="nav-item" data-view="onboarding-ops" data-c="drivers" onclick="goto('onboarding-ops')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="15.5 11 17.5 13 21.5 9"/></svg></span>
+        <!-- Onboarding · Microsoft Teams "People"-style person tile
+             with a green check badge. Dark-teal outer; white person
+             silhouette; green check pinned bottom-right. -->
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#0F766E"/>
+          <circle cx="10" cy="9.5" r="3" fill="#FFFFFF"/>
+          <path d="M4.5 18.5 C 4.5 14.2 6.5 13 10 13 C 12 13 13.5 13.5 14.3 15" fill="#FFFFFF"/>
+          <circle cx="17" cy="14" r="4" fill="#10B981"/>
+          <path d="M15.2 14.2 L16.5 15.5 L19 12.9" stroke="#FFFFFF" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg></span>
         Onboarding
       </button>
       <button class="nav-item" data-view="fleet" data-c="fleet" onclick="goto('fleet')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/></svg></span>
+        <!-- Fleet · layered van glyph. Dark-amber outer tile; amber
+             van body + cab + wheels. -->
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#7C2D12"/>
+          <rect x="3" y="9" width="11" height="8" rx="1" fill="#F59E0B"/>
+          <path d="M14 11 L17 11 L20 14 L20 17 L14 17 Z" fill="#FBBF24"/>
+          <rect x="15" y="11.6" width="3.5" height="2" rx="0.3" fill="#FFFFFF" fill-opacity="0.85"/>
+          <circle cx="6.5" cy="17.5" r="1.8" fill="#1F2937"/>
+          <circle cx="6.5" cy="17.5" r="0.7" fill="#D1D5DB"/>
+          <circle cx="16.5" cy="17.5" r="1.8" fill="#1F2937"/>
+          <circle cx="16.5" cy="17.5" r="0.7" fill="#D1D5DB"/>
+        </svg></span>
         Fleet
         <span class="nav-badge" style="background:var(--amber)">2</span>
       </button>
       <button class="nav-item active" data-view="schedule" data-c="schedule" onclick="goto('schedule')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><line x1="3.5" y1="10" x2="20.5" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/><rect x="7" y="13" width="3" height="3" rx=".6" fill="currentColor" stroke="none"/></svg></span>
+        <!-- Schedule · Outlook Calendar-style tile. Dark-blue outer;
+             white calendar paper with a blue header bar; highlighted
+             "today" cell. -->
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#0A4A78"/>
+          <rect x="4" y="5" width="16" height="15" rx="1.5" fill="#FFFFFF"/>
+          <rect x="4" y="5" width="16" height="4" rx="1.5" fill="#0284C7"/>
+          <rect x="7" y="3" width="1.5" height="3.5" rx="0.5" fill="#0A4A78"/>
+          <rect x="15.5" y="3" width="1.5" height="3.5" rx="0.5" fill="#0A4A78"/>
+          <line x1="4" y1="13" x2="20" y2="13" stroke="#CFD8E3" stroke-width="0.6"/>
+          <line x1="9.5" y1="9" x2="9.5" y2="20" stroke="#CFD8E3" stroke-width="0.5"/>
+          <line x1="14.5" y1="9" x2="14.5" y2="20" stroke="#CFD8E3" stroke-width="0.5"/>
+          <rect x="10" y="14.2" width="4" height="3.6" rx="0.6" fill="#0284C7"/>
+        </svg></span>
         Schedule
         <span class="nav-badge" style="background:var(--amber)">5</span>
       </button>
@@ -9213,11 +9246,33 @@ body.rr-cmdk-open{ overflow:hidden }
         Workspaces
       </button>
       <button class="nav-item" data-view="forms" data-c="forms" onclick="goto('forms')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg></span>
+        <!-- Workflows · Microsoft Forms-style checklist document.
+             Dark-purple outer; white doc with corner fold; two
+             check rows in purple. -->
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#581C87"/>
+          <path d="M5 4 L13 4 L18 9 L18 20 L5 20 Z" fill="#FFFFFF"/>
+          <path d="M13 4 L13 9 L18 9 Z" fill="#E0E7FF"/>
+          <circle cx="7.8" cy="13" r="1.1" fill="#9333EA"/>
+          <path d="M7.2 13 L7.7 13.5 L8.4 12.7" stroke="#FFFFFF" stroke-width="0.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="10" y1="13" x2="15.5" y2="13" stroke="#A78BFA" stroke-width="1.1" stroke-linecap="round"/>
+          <circle cx="7.8" cy="16.3" r="1.1" fill="#9333EA"/>
+          <path d="M7.2 16.3 L7.7 16.8 L8.4 16" stroke="#FFFFFF" stroke-width="0.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="10" y1="16.3" x2="14" y2="16.3" stroke="#A78BFA" stroke-width="1.1" stroke-linecap="round"/>
+        </svg></span>
         Workflows
       </button>
       <button class="nav-item" data-view="messages" data-c="messages" onclick="goto('messages')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <!-- Messages · Teams chat-style speech bubble with three
+             dots. Dark-indigo outer; white bubble with indigo
+             dots. -->
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#312E81"/>
+          <path d="M4 8 C 4 6.5 5 5.5 6.5 5.5 L17.5 5.5 C 19 5.5 20 6.5 20 8 L20 14.5 C 20 16 19 17 17.5 17 L10.5 17 L7 20 L7 17 L6.5 17 C 5 17 4 16 4 14.5 Z" fill="#FFFFFF"/>
+          <circle cx="9" cy="11.2" r="1.1" fill="#4F46E5"/>
+          <circle cx="12" cy="11.2" r="1.1" fill="#4F46E5"/>
+          <circle cx="15" cy="11.2" r="1.1" fill="#4F46E5"/>
+        </svg></span>
         Messages
         <span class="nav-badge">7</span>
       </button>
