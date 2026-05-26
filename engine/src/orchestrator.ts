@@ -26,6 +26,7 @@ import {
 import { inputsHash } from "./hash.ts";
 import type { WorkingSchedule } from "./plan.ts";
 import { prepareSchedule } from "./steps/step1_prepare.ts";
+import { applyDriverDayLocks } from "./steps/step1_5_locks.ts";
 import { initDriverState } from "./steps/step2_driver_state.ts";
 import { buildEligibilityMatrix } from "./steps/step3_eligibility.ts";
 import { computePatterns } from "./steps/step4_patterns.ts";
@@ -171,6 +172,13 @@ export function runEngine(input: EngineInput): ScheduleResult {
   const states = initDriverState(ctx, plans);
   const planByShiftId = new Map(plans.map((p) => [p.shift.shift_id, p]));
   const ws: WorkingSchedule = { plans, planByShiftId, states };
+
+  // Step 1.5 — apply operator pin rules (driver_lock_to_day).
+  // Eligibility is evaluated before pre-assignment so PTO, availability,
+  // cert, license, and rest rules naturally override pins. If a pinned
+  // driver can't be placed on their DOW (e.g. they're on PTO), the pin
+  // goes silent for the week — no violation flagged.
+  applyDriverDayLocks(ctx, ws, input.ad_hoc_constraints ?? []);
 
   // Step 3 — eligibility matrix.
   const matrix = buildEligibilityMatrix(ctx, ws);

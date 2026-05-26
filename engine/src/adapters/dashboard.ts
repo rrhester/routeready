@@ -8,6 +8,7 @@
 import { runEngine } from "../orchestrator.ts";
 import {
   EngineError,
+  type AdHocConstraint,
   type DriverInput,
   type EngineInput,
   type RawSettings,
@@ -153,6 +154,10 @@ export interface PlanPayload {
   drivers: DashboardDriver[];
   shifts: DashboardShift[];
   pto?: DashboardPto[];
+  /** Active ad-hoc constraints (from public.current_ad_hoc_constraints).
+   *  Forwarded to the engine so the heuristic can honor driver_lock_to_day
+   *  pins. CP-SAT compiles every kind; heuristic v1 only acts on lock-to-day. */
+  ad_hoc_constraints?: AdHocConstraint[];
 }
 
 // PTO / approved day off always counts as 10 hours toward the weekly cap.
@@ -531,6 +536,7 @@ export function planScheduleWeek(payload: PlanPayload): ScheduleResult {
     drivers,
     dsp: { dsp_blackout_dates: payload.blackout_dates ?? [] },
     settings: buildSettings(payload),
+    ad_hoc_constraints: payload.ad_hoc_constraints,
   };
   return runEngine(input);
 }

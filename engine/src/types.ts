@@ -176,6 +176,20 @@ export interface EngineInput {
   dsp?: DspConfig;
   settings?: RawSettings;
   pay_period?: PayPeriod;
+  /** Active ad-hoc constraints — recurring rules the operator has set up
+   *  (driver_pair_forbidden, driver_lock_to_day, etc). v1 of the heuristic
+   *  honors driver_lock_to_day; the rest are forwarded only for the CP-SAT
+   *  path and ignored here. */
+  ad_hoc_constraints?: AdHocConstraint[];
+}
+
+/** Shape of one ad-hoc constraint row (from public.ad_hoc_constraints). */
+export interface AdHocConstraint {
+  id: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  hardness: "hard" | "soft";
+  weight?: number | null;
 }
 
 // ---------------------------------------------------------------------------
