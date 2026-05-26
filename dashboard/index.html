@@ -9221,8 +9221,27 @@ body.rr-cmdk-open{ overflow:hidden }
         Messages
         <span class="nav-badge">7</span>
       </button>
-      <button class="nav-item" data-view="email" data-c="messages" onclick="goto('email')">
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="M2.5 5.2 L12 13.2 L21.5 5.2 Z" fill="currentColor" fill-opacity="0.28" stroke="currentColor"/><line x1="3" y1="19" x2="10.5" y2="13"/><line x1="21" y1="19" x2="13.5" y2="13"/></svg></span>
+      <button class="nav-item nav-item-fleet-bridge" data-view="email" data-c="messages" onclick="goto('email')">
+        <!-- Fleet Bridge icon · Outlook-style layered mail. Dark
+             navy outer tile + light envelope body + bright inner
+             tile holding a white envelope. Colors are pinned via
+             fill (not currentColor) so the icon stays branded
+             instead of inheriting the sidebar's muted text color. -->
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- Outer dark-navy rounded square -->
+          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#1F3D7A"/>
+          <!-- White paper card peeking out the top -->
+          <rect x="9" y="4" width="11" height="9" rx="1" fill="#F3F6FC"/>
+          <!-- Light-blue envelope body -->
+          <path d="M4 11 L4 20 L20 20 L20 11 L12 16.5 Z" fill="#6BA6FA"/>
+          <!-- Bright-blue envelope flap -->
+          <path d="M4 11 L12 16.5 L20 11 L12 6 Z" fill="#3D7CFA"/>
+          <!-- Inner bright-blue tile holding the small envelope -->
+          <rect x="3.5" y="6" width="9" height="9" rx="1.8" fill="#1E63E0"/>
+          <!-- White envelope inside the inner tile -->
+          <rect x="5" y="8" width="6" height="5" rx="0.5" fill="#FFFFFF"/>
+          <path d="M5.3 8.4 L8 10.7 L10.7 8.4" stroke="#1E63E0" stroke-width="0.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg></span>
         Fleet Bridge
       </button>
       <!-- Documents · moved into the Onboarding ribbon. Sidebar entry
