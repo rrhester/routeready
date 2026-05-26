@@ -17517,16 +17517,17 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sf-vans-subzone-label:first-of-type{padding-top:0}
           /* Master-switch gating · when "Assign vans during Smart Fill"
              is OFF, the Van assignment zone gains .is-vans-off and
-             every rule inside (except the master switch row itself
-             and the zone's title row) is dimmed + pointer-events:none.
-             :has() selector picks out the row that carries the master
-             checkbox so it stays interactive at full opacity. */
+             every other rule inside disappears entirely (operator
+             didn't even want them visible). Only the zone title and
+             the master switch row remain. */
           #view-schedule .sf-zone--vans.is-vans-off .sched-smartfill-rule:not(:has([data-rr-sf-vans="assign"])){
-            opacity:.42;
-            pointer-events:none;
+            display:none;
           }
           #view-schedule .sf-zone--vans.is-vans-off .sf-vans-subzone-label:not(:first-of-type){
-            opacity:.42;
+            display:none;
+          }
+          #view-schedule .sf-zone--vans.is-vans-off .sf-vans-subzone-label:first-of-type{
+            display:none;
           }
           /* Display-only van rules (type_match, skip_inactive). */
           #view-schedule .sched-smartfill-rule.is-locked{
