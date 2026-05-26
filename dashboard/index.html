@@ -14480,17 +14480,27 @@ body.rr-cmdk-open{ overflow:hidden }
                     #rr-sched-smartfill-rules-body .sf2-section[open]{
                       box-shadow:0 1px 2px rgba(15,23,42,.05);
                     }
+                    /* The summary itself stays default block so the
+                       native <details> toggle keeps working — applying
+                       display:grid directly to <summary> breaks the
+                       toggle in several browsers. Grid layout goes on
+                       the inner wrapper. */
                     #rr-sched-smartfill-rules-body .sf2-section-head{
+                      display:block;
+                      padding:0;
+                      cursor:pointer;list-style:none;
+                      transition:background .12s;
+                    }
+                    #rr-sched-smartfill-rules-body .sf2-section-head::-webkit-details-marker{display:none}
+                    #rr-sched-smartfill-rules-body .sf2-section-head::marker{display:none;content:""}
+                    #rr-sched-smartfill-rules-body .sf2-section-head-inner{
                       display:grid;
                       grid-template-columns:28px 1fr auto;
                       align-items:center;
                       gap:10px;
                       padding:11px 14px;
-                      cursor:pointer;list-style:none;
-                      transition:background .12s;
                     }
-                    #rr-sched-smartfill-rules-body .sf2-section-head::-webkit-details-marker{display:none}
-                    #rr-sched-smartfill-rules-body .sf2-section-head:hover{
+                    #rr-sched-smartfill-rules-body .sf2-section-head:hover .sf2-section-head-inner{
                       background:rgba(15,23,42,.025);
                     }
                     #rr-sched-smartfill-rules-body .sf2-section-num{
@@ -14604,14 +14614,14 @@ body.rr-cmdk-open{ overflow:hidden }
 
                   <!-- ── 1 · MODE &amp; SCOPE ── how this run should behave. -->
                   <details class="sf2-section" data-rr-sf-section="mode" open>
-                    <summary class="sf2-section-head">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">1</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Mode &amp; scope</div>
                         <div class="sf2-section-sub">How this run should behave</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </summary>
+                    </div></summary>
                     <div class="sf2-section-body">
                       <div class="sched-smartfill-rule sched-smartfill-mode">
                         <label class="sf-mode-opt"><input type="radio" name="rr-sf-mode" data-rr-sf-mode="smart" checked> <span class="sf-rule-name"><strong>Smart Fill</strong> · auto-staff the board from the rules below</span></label>
@@ -14637,14 +14647,14 @@ body.rr-cmdk-open{ overflow:hidden }
 
                   <!-- ── 2 · WHO'S ELIGIBLE ── hard gates that exclude drivers entirely. -->
                   <details class="sf2-section" data-rr-sf-section="eligibility" open>
-                    <summary class="sf2-section-head">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">2</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Who's eligible</div>
                         <div class="sf2-section-sub">Hard gates that exclude drivers from the run</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </summary>
+                    </div></summary>
                     <div class="sf2-section-body">
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="include_onboarding" checked> <span class="sf-rule-name"><strong>Include onboarding drivers</strong> · activated trainees can take regular shifts</span></label>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name"><strong>DL valid required</strong> · skip drivers with an expired license</span></label>
@@ -14665,14 +14675,14 @@ body.rr-cmdk-open{ overflow:hidden }
 
                   <!-- ── 3 · PROTECTIONS ── per-shift / per-driver protections. -->
                   <details class="sf2-section" data-rr-sf-section="protections" open>
-                    <summary class="sf2-section-head">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">3</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Protections</div>
                         <div class="sf2-section-sub">PTO, availability, caps on days &amp; hours, rest, WOC</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </summary>
+                    </div></summary>
                     <div class="sf2-section-body">
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="pto_block" checked> <span class="sf-rule-name"><strong>Block approved PTO</strong> · don't assign a driver on a date they have approved time off</span></label>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="availability" checked> <span class="sf-rule-name"><strong>Respect saved availability</strong> · don't assign drivers on days they marked unavailable</span></label>
@@ -14745,14 +14755,14 @@ body.rr-cmdk-open{ overflow:hidden }
 
                   <!-- ── 4 · WHO GETS PICKED FIRST ── driver ordering. -->
                   <details class="sf2-section" data-rr-sf-section="ordering">
-                    <summary class="sf2-section-head">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">4</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Who gets picked first</div>
                         <div class="sf2-section-sub">Driver ordering &amp; fill strategy</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </summary>
+                    </div></summary>
                     <div class="sf2-section-body">
                       <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-sf-method">Pick order</label>
@@ -14808,14 +14818,14 @@ body.rr-cmdk-open{ overflow:hidden }
 
                   <!-- ── 5 · SOFT PREFERENCES ── score-shaping signals. -->
                   <details class="sf2-section" data-rr-sf-section="prefs">
-                    <summary class="sf2-section-head">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">5</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Soft preferences</div>
                         <div class="sf2-section-sub">Score-shaping signals — break ties, never block</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </summary>
+                    </div></summary>
                     <div class="sf2-section-body">
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_days" checked> <span class="sf-rule-name"><strong>Reward preferred days</strong> · score drivers higher on the days they marked as preferred</span></label>
                       <div class="sf2-row">
@@ -14859,14 +14869,14 @@ body.rr-cmdk-open{ overflow:hidden }
 
                   <!-- ── 6 · POLISH PASSES ── post-pass enhancements. -->
                   <details class="sf2-section" data-rr-sf-section="passes">
-                    <summary class="sf2-section-head">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">6</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Polish passes</div>
                         <div class="sf2-section-sub">Extra rounds after the main fill: swaps + 5th-day</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </summary>
+                    </div></summary>
                     <div class="sf2-section-body">
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_enhancement"> <span class="sf-rule-name"><strong>Preferred Availability Enhancement</strong> · swap pairs of drivers so both land on preferred days</span></label>
                       <div class="sf2-subrules">
@@ -14884,14 +14894,14 @@ body.rr-cmdk-open{ overflow:hidden }
 
                   <!-- ── 7 · VANS ── van-assignment rules (moved from Zone 3). -->
                   <details class="sf2-section sf-zone--vans" data-rr-sf-section="vans">
-                    <summary class="sf2-section-head">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">7</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Vans</div>
                         <div class="sf2-section-sub">When &amp; how vans are assigned alongside drivers</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </summary>
+                    </div></summary>
                     <div class="sf2-section-body">
                       <div class="sf-vans-subzone-label">When to assign</div>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-vans="assign" checked> <span class="sf-rule-name"><strong>Assign vans during Smart Fill</strong> · when off, the van column stays empty for new assignments</span></label>
@@ -14913,7 +14923,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
                   <!-- ── 8 · CUSTOM RULES ── ad-hoc constraints (preserved). -->
                   <details class="sf2-section sf-zone--adhoc" id="rr-sf-adhoc-disclosure" data-rr-sf-section="custom">
-                    <summary class="sf2-section-head">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">8</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Custom rules</div>
@@ -14921,7 +14931,7 @@ body.rr-cmdk-open{ overflow:hidden }
                       </span>
                       <span class="sf-adhoc-count-pill" style="margin-right:8px"><span id="rr-sf-adhoc-count">0</span> active</span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </summary>
+                    </div></summary>
                     <div class="sf2-section-body">
                       <div id="rr-sf-adhoc-list" class="sf-adhoc-list" aria-live="polite">
                         <div class="sf-adhoc-loading" style="font-size:12px;color:var(--text-subtle);padding:8px 0">Loading…</div>
@@ -14931,14 +14941,14 @@ body.rr-cmdk-open{ overflow:hidden }
 
                   <!-- ── 9 · ENGINE &amp; COMPUTE ── CP-SAT controls (preserved). -->
                   <details class="sf2-section sf-zone--engine" id="rr-sf-engine-expander" data-rr-sf-section="engine">
-                    <summary class="sf2-section-head">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">9</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Engine &amp; compute</div>
                         <div class="sf2-section-sub">CP-SAT priorities, data sources, compute budget</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </summary>
+                    </div></summary>
                     <div class="sched-smartfill-engine-body">
                       <div class="sf-engine-group">
                         <div class="sf-engine-group-label">Priorities</div>
@@ -15047,14 +15057,14 @@ body.rr-cmdk-open{ overflow:hidden }
                        the engine to a single behavior. Off by default and
                        gated behind a confirmation in the JS handler. -->
                   <details class="sf2-section" data-rr-sf-section="diagnostic">
-                    <summary class="sf2-section-head">
+                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">10</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Diagnostic modes</div>
                         <div class="sf2-section-sub">Strip the engine to one boundary — for triage only</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </summary>
+                    </div></summary>
                     <div class="sf2-section-body">
                       <div class="sf2-diagnostic-warn">⚠ Diagnostic modes disable most other rules. Use them to triage "why is no one eligible for this shift?" — not for regular scheduling.</div>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_only" data-rr-sf-confirm="Turn on Preferred-only mode? Most other rules will be disabled."> <span class="sf-rule-name"><strong>Preferred-only mode</strong> · only assign drivers to shifts on their preferred days (disables almost everything else)</span></label>
