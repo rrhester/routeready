@@ -31359,6 +31359,26 @@ async function autoFillScheduleWeek() {
     }
   }
   await renderScheduleWeek();
+  // Post-Smart-Fill van fill · the CP-SAT solver carries its own van
+  // assignment logic but doesn't apply the 7 chain rules (primary /
+  // backup / pool_fill / branded_first / FEM priority / rescue_*)
+  // that the operator configures in the Smart Fill rules popover.
+  // When "Assign vans during Smart Fill" is on, the solver may leave
+  // drivers without a van — _assignVansForRange (the client-side
+  // resolver) is idempotent on existing assignments and uses the
+  // chain rules, so running it as a fill-the-gaps pass after the
+  // solver completes guarantees every scheduled driver who can have
+  // a van does. SIMULATION runs (_rrWhatIfOptions set) skip the
+  // pass since their write path is disabled. Manual mode + the
+  // assign-vans toggle off both skip the pass too.
+  try {
+    if (!_rrWhatIfOptions && _sfVansAssign && typeof _runSchedVanAssignmentsBackground === "function") {
+      // Fire & forget — the renderer that runs at the end of
+      // _assignVansForRange will repaint the chips with their
+      // van codes.
+      Promise.resolve().then(() => _runSchedVanAssignmentsBackground());
+    }
+  } catch (_) { /* non-fatal */ }
   // Diagnostics surfaces (also see window._rrLastSmartFillDiagnostics):
   //   • Popup with the engine's "why" report when shifts/drivers were
   //     skipped — also auto-copied to the clipboard so it can be pasted
