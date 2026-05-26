@@ -21579,9 +21579,66 @@ body.rr-cmdk-open{ overflow:hidden }
              a hidden ~20px legacy .sched-cmd-shell = 40px before
              the visible strip. Fleet has no hidden shell, so its
              .page padding-top is bumped to 40px directly. The other
-             three sides stay at 20px (--rr-space-200) like Schedule. */
+             three sides stay at 20px (--rr-space-200) like Schedule.
+             Also locks the page to a viewport-tall flex column so the
+             chrome (strip card, KPI strip, roster bar) stays put and
+             only the table body scrolls — same pattern Schedule uses. */
+          #view-fleet.active{
+            display:flex;flex:1 1 auto;min-height:0;
+          }
           #view-fleet > .page{
             padding:40px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
+            display:flex;flex-direction:column;
+            flex:1 1 auto;min-height:0;
+            overflow:hidden;
+          }
+          /* TCP chrome rows · locked at the top, never scroll. */
+          #view-fleet .fl-ribbon,
+          #view-fleet .fl-kpi-pills,
+          #view-fleet #rr-fleet-exec-detail{
+            flex:0 0 auto;
+          }
+          /* Active sub-tab fills the remaining space and itself is a
+             flex column so the roster bar can sit above the scrolling
+             table area. */
+          #view-fleet .fl-sub.active{
+            flex:1 1 auto;min-height:0;
+            display:flex;flex-direction:column;
+          }
+          /* Table-wrap is the visual card (border, radius); inside it,
+             the roster bar pins to the top and .fl-table-scroll owns
+             the vertical scroll for the table body. */
+          #view-fleet .table-wrap{
+            flex:1 1 auto;min-height:0;
+            display:flex;flex-direction:column;
+            overflow:hidden;
+          }
+          #view-fleet .fl-roster-bar{
+            flex:0 0 auto;
+          }
+          #view-fleet .fl-table-scroll{
+            flex:1 1 auto;min-height:0;
+            overflow-y:scroll;overflow-x:auto;
+            scrollbar-gutter:stable;
+            scrollbar-width:auto;
+            scrollbar-color:#5A5A5A #E1DFDD;
+          }
+          /* Match Schedule's scrollbar look on the right edge of the
+             fleet table — dark thumb against the muted track, persistent
+             gutter so the bar never disappears. */
+          #view-fleet .fl-table-scroll::-webkit-scrollbar{
+            -webkit-appearance:none;appearance:none;
+            width:14px;height:14px;background:#E1DFDD;display:block;
+          }
+          #view-fleet .fl-table-scroll::-webkit-scrollbar-track{
+            background:#E1DFDD;border-left:1px solid #C8C6C4;
+          }
+          #view-fleet .fl-table-scroll::-webkit-scrollbar-thumb{
+            background:#5A5A5A;background-clip:padding-box;
+            border:3px solid #E1DFDD;border-radius:999px;min-height:56px;
+          }
+          #view-fleet .fl-table-scroll::-webkit-scrollbar-thumb:hover{
+            background:#3B3A39;
           }
 
           /* Fleet strip card · locked to the TCP spec so it reads
@@ -22229,7 +22286,12 @@ body.rr-cmdk-open{ overflow:hidden }
              side slide-over). -->
         <div id="rr-fleet-exec-detail" hidden></div>
 
-        <!-- MY VEHICLES sub-tab — roster -->
+        <!-- MY VEHICLES sub-tab — roster. The .fl-roster-bar +
+             .table are siblings inside .table-wrap; the bar pins
+             at top via flex:0 0 auto and the table sits inside
+             .fl-table-scroll which carries overflow:auto so only
+             the rows scroll (matches the Schedule view's pattern
+             where chrome is locked and only the body scrolls). -->
         <div class="fl-sub active" id="fl-sub-vehicles">
         <div class="table-wrap">
           <!-- Search + filters live in the table card's header. -->
@@ -22257,6 +22319,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <option value="missing">Missing</option>
             </select>
           </div>
+          <div class="fl-table-scroll">
           <table class="table">
             <thead>
               <tr>
@@ -22280,6 +22343,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <tr class="fl-skel-row"><td><div class="fl-skel-veh"><span class="rr-skel" style="width:32px;height:24px;flex:0 0 auto;border-radius:var(--r-sm)"></span><span class="rr-skel rr-skel-md" style="width:150px"></span></div></td><td><span class="rr-skel rr-skel-md" style="width:80%"></span></td><td><span class="rr-skel rr-skel-md" style="width:62%"></span></td><td><span class="rr-skel rr-skel-md" style="width:72%"></span></td><td><span class="rr-skel rr-skel-md" style="width:60%"></span></td><td><span class="rr-skel rr-skel-md" style="width:44%"></span></td><td><span class="rr-skel rr-skel-md" style="width:54%"></span></td></tr>
             </tbody>
           </table>
+          </div><!-- /.fl-table-scroll -->
         </div>
         </div><!-- /#fl-sub-vehicles -->
 
