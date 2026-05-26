@@ -39542,10 +39542,13 @@ async function _renderDocsTemplates() {
     ? `<span class="docs-tier secure" title="Compliance-grade: signing, hash-chained audit, ECDSA + RFC 3161 seal, Certificate of Completion"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>Secure</span>`
     : `<span class="docs-tier info" title="Informational: the driver opens and acknowledges it — no signature, no seal"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/></svg>Informational</span>`;
   const nSecure = data.filter(isSecure).length, nInfo = data.length - nSecure;
+  // Section header tightened · "Document library" was redundant
+  // with the "Documents" title on the page above. The "Reusable
+  // across…" sentence was moved into the (i) tooltip on the page
+  // title. Counts stay as a small inline footer-style row.
   list.innerHTML = `
     <div class="docs-section-bar">
-      <h2>Document library</h2>
-      <div class="docs-counts"><span><b>${nSecure}</b> secure</span><span><b>${nInfo}</b> informational</span><span>Reusable across onboarding steps, messages & acknowledgements</span></div>
+      <div class="docs-counts"><span><b>${nSecure}</b> secure</span><span><b>${nInfo}</b> informational</span></div>
     </div>` + data.map((t) => `
     <div class="docs-template-card ${isSecure(t) ? "" : "is-info"}" data-tid="${escapeHtml(t.id)}">
       <div class="docs-doc-tile ${isSecure(t) ? "tile-secure" : "tile-info"}">
