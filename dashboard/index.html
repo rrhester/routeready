@@ -23160,81 +23160,242 @@ body.rr-cmdk-open{ overflow:hidden }
          ═══════════════════════════════════════════════════════════ -->
     <div class="view" id="view-forms">
       <div class="page">
-        <div class="page-header">
-          <div class="page-header-l">
-            <div class="page-icon" data-c="forms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
-            <div>
-              <h1 class="page-title">Workspaces</h1>
-              <p class="page-sub" id="rr-forms-page-sub">Forms workspace</p>
-            </div>
+        <style>
+          /* Workflows chrome · standardized to the TCP spec so it
+             reads identical to Schedule, Onboarding, Fleet, Fleet
+             Bridge, and Workspaces. Tokens come from
+             dashboard/tcp.css. */
+
+          /* Page padding matches Schedule's effective offset
+             (20px + 20px hidden shell = 40px) so the strip card
+             lands at the same Y. */
+          #view-forms > .page{
+            padding:40px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
+          }
+
+          /* cmd-shell + cmd-tabs · same absolute pattern as the
+             Schedule / Fleet strips. */
+          #view-forms .wf-cmd-shell{
+            position:relative;
+            margin-bottom:var(--s-4);
+          }
+          #view-forms .wf-cmd-tabs{
+            position:absolute;left:0;bottom:100%;margin-bottom:-1px;
+            display:inline-flex;gap:2px;
+            height:var(--tcp-cmd-tabs-h);
+            align-items:center;
+          }
+          #view-forms .wf-cmd-tab{
+            appearance:none;background:transparent;cursor:pointer;
+            font:var(--rr-font-caption);
+            font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+            color:var(--rr-fg-secondary);
+            padding:var(--rr-space-60) var(--rr-space-120);
+            border:1px solid transparent;border-bottom:0;
+            border-radius:var(--rr-radius-medium) var(--rr-radius-medium) 0 0;
+            transition:color var(--rr-motion-fast);
+          }
+          #view-forms .wf-cmd-tab:hover:not(.active){background:transparent}
+          #view-forms .wf-cmd-tab.active{
+            color:var(--rr-brand-primary);background:transparent;border-color:transparent;
+          }
+          #view-forms .wf-cmd-tab:focus-visible{outline:none;color:var(--rr-brand-primary)}
+
+          /* Strip card · locked 115px, matches Schedule chrome. */
+          #view-forms .wf-strip{
+            display:flex;align-items:center;justify-content:flex-start;
+            gap:var(--s-3);flex-wrap:nowrap;
+            padding:11px 18px;
+            background:var(--rr-bg-surface-1);
+            border:1px solid var(--rr-border-primary);
+            border-radius:var(--rr-radius-medium);
+            box-shadow:none;
+            min-height:var(--tcp-strip-h);
+            height:var(--tcp-strip-h);
+            max-height:var(--tcp-strip-h);
+            box-sizing:border-box;
+          }
+          #view-forms .wf-strip-title{
+            flex:0 0 var(--tcp-title-w);
+            align-self:center;
+            display:flex;flex-direction:column;justify-content:center;
+            align-items:flex-start;
+            min-width:0;
+            margin-right:var(--rr-space-160);
+            padding-right:var(--rr-space-120);
+          }
+          #view-forms .wf-strip-title .page-title{
+            font:var(--rr-font-subtitle);
+            color:var(--rr-fg-primary);
+            letter-spacing:-.01em;
+            margin:0;
+            white-space:nowrap;
+          }
+          #view-forms .wf-strip-title .page-sub{
+            font:var(--rr-font-caption);
+            color:var(--rr-fg-secondary);
+            margin:2px 0 0;
+            white-space:nowrap;
+          }
+          #view-forms .wf-strip-actions{
+            display:flex;align-items:center;
+            gap:6px;flex-wrap:nowrap;min-width:0;
+            margin-left:var(--rr-space-160);
+            padding-left:var(--rr-space-160);
+            border-left:1px solid #C8C6C4;
+          }
+          #view-forms .wf-strip-group{
+            display:flex;align-items:center;gap:6px;flex-wrap:nowrap;
+          }
+          #view-forms .wf-strip-group + .wf-strip-group{
+            margin-left:var(--rr-space-40);
+          }
+          #view-forms .wf-strip-group + .wf-strip-group::before{
+            content:"";display:inline-block;
+            width:1px;height:20px;
+            background:var(--rr-border-secondary);
+            margin-right:var(--rr-space-40);
+          }
+          #view-forms .wf-strip-tile{
+            position:relative;
+            appearance:none;cursor:pointer;font:inherit;
+            display:inline-flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:4px;
+            min-width:62px;
+            padding:6px 10px 7px;
+            background:transparent;border:0;
+            border-radius:var(--rr-radius-medium);
+            color:var(--rr-fg-secondary);
+            transition:background var(--t-fast),color var(--t-fast);
+          }
+          #view-forms .wf-strip-tile:hover{
+            background:var(--rr-bg-hover);color:var(--rr-fg-primary);
+          }
+          #view-forms .wf-strip-tile.active{
+            color:var(--rr-fg-primary);font-weight:600;
+          }
+          #view-forms .wf-strip-tile svg{
+            width:33px;height:33px;stroke-width:1.6;
+            stroke-linecap:butt;stroke-linejoin:miter;
+          }
+          #view-forms .wf-strip-tile span{font-size:13px;font-weight:500}
+
+          /* KPI strip · TCP 46px joined-pill row. The legacy
+             .forms-kpi card grid is hidden via CSS; the standard
+             pills are populated by re-using the same IDs the old
+             card values were bound to (rr-forms-kpi-published /
+             -subs / -rate / -drivers) so existing live.js
+             rendering keeps working. */
+          #view-forms .wf-kpis{
+            display:flex;flex-wrap:wrap;align-items:stretch;
+            gap:0;padding:0;
+            margin:var(--rr-space-160) 0 var(--rr-space-160);
+            background:var(--rr-bg-surface-1);
+            border:1px solid var(--rr-border-primary);
+            border-radius:var(--rr-radius-medium);
+            box-shadow:none;
+            font:var(--rr-font-body);
+            min-height:var(--tcp-kpi-h);
+            overflow:hidden;
+          }
+          #view-forms .wf-kpi{
+            display:inline-flex;align-items:center;
+            gap:var(--rr-space-100);
+            padding:var(--rr-space-120) var(--rr-space-240);
+            border-right:1px solid var(--rr-border-secondary);
+            font:var(--rr-font-body);font-weight:600;
+            color:var(--rr-fg-primary);
+            font-variant-numeric:tabular-nums;
+            line-height:1.2;
+            min-height:var(--tcp-kpi-h);
+          }
+          #view-forms .wf-kpi:last-child{border-right:0}
+          #view-forms .wf-kpi-dot{
+            width:8px;height:8px;border-radius:50%;flex:0 0 auto;
+            background:var(--rr-brand-primary);
+          }
+          #view-forms .wf-kpi-value{font-weight:700}
+          #view-forms .wf-kpi-name{
+            color:var(--rr-fg-secondary);font-weight:500;margin-left:4px;
+          }
+          /* Hide the legacy forms-kpi card row; the new TCP pills
+             replace it visually. JS still updates the underlying
+             value spans via id. */
+          #view-forms .forms-kpi{display:none !important}
+        </style>
+        <!-- TCP chrome · matches Schedule / Fleet / Workspaces.
+             Title now correctly reads "Workflows" (the legacy
+             .page-header had a stale "Workspaces" label). -->
+        <div class="wf-cmd-shell">
+          <div class="wf-cmd-tabs" role="tablist" aria-label="Workflows mode">
+            <button class="wf-cmd-tab active" type="button" data-wf-cmd-tab="workflows" role="tab" aria-selected="true">Workflows</button>
+            <button class="wf-cmd-tab" type="button" data-wf-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
           </div>
-          <div class="page-actions">
-            <button class="btn" type="button" id="rr-forms-import-btn" title="Import a form definition">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Import form
-            </button>
-            <button class="btn" type="button" data-rr-install-concerns-form title="Install the Vehicle Concerns form so drivers can proactively report damage, mechanical issues, and other van concerns. Submissions auto-flag the van on the Fleet roster.">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v18l-8-4-8 4z"/></svg>
-              Install Vehicle Concerns
-            </button>
-            <button class="btn btn-primary" data-rr-form-new>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Build a form
-            </button>
+          <div class="wf-strip">
+            <div class="wf-strip-title">
+              <h1 class="page-title">Workflows</h1>
+              <p class="page-sub" id="rr-forms-page-sub">Forms, automation, and recurring checklists</p>
+            </div>
+            <div class="wf-strip-actions">
+              <div class="wf-strip-group" role="group" aria-label="Sections">
+                <button type="button" class="wf-strip-tile active" title="Forms">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>
+                  <span>Forms</span>
+                </button>
+                <button type="button" class="wf-strip-tile" onclick="goto('checklists')" title="Checklists">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><polyline points="8 9 10 11 13 8"/><polyline points="8 14 10 16 13 13"/><line x1="15" y1="9" x2="17" y2="9"/><line x1="15" y1="14" x2="17" y2="14"/></svg>
+                  <span>Checklists</span>
+                </button>
+              </div>
+              <div class="wf-strip-group" role="group" aria-label="Actions">
+                <button type="button" class="wf-strip-tile" id="rr-forms-import-btn" title="Import a form definition">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <span>Import</span>
+                </button>
+                <button type="button" class="wf-strip-tile" data-rr-install-concerns-form title="Install the Vehicle Concerns form so drivers can proactively report damage, mechanical issues, and other van concerns. Submissions auto-flag the van on the Fleet roster.">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><path d="M4 22V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v18l-8-4-8 4z"/></svg>
+                  <span>Install</span>
+                </button>
+                <button type="button" class="wf-strip-tile" data-rr-form-new title="Build a new form">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  <span>Build</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="subnav" data-rr-tabbar="workspaces">
-          <button class="subnav-item active" data-sub="forms">Forms</button>
-          <!-- Workflows (boards) tab hidden — the fleet assignment
-               board now lives in the Schedule view. -->
-          <button class="subnav-item" data-sub="workflows" onclick="goto('workspaces')" style="display:none" aria-hidden="true">Workflows</button>
-          <button class="subnav-item" data-sub="checklists" onclick="goto('checklists')">Checklists</button>
+        <!-- TCP KPI strip · joined-pill row matching Schedule. The
+             value spans below still carry the original ids so
+             live.js's KPI renderer keeps working unchanged. -->
+        <div class="wf-kpis" role="group" aria-label="Workflows metrics">
+          <div class="wf-kpi">
+            <span class="wf-kpi-dot"></span>
+            <span class="wf-kpi-value" id="rr-forms-kpi-published">—</span>
+            <span class="wf-kpi-name">Forms published</span>
+          </div>
+          <div class="wf-kpi">
+            <span class="wf-kpi-dot"></span>
+            <span class="wf-kpi-value" id="rr-forms-kpi-subs">—</span>
+            <span class="wf-kpi-name">Submissions this week</span>
+          </div>
+          <div class="wf-kpi">
+            <span class="wf-kpi-dot"></span>
+            <span class="wf-kpi-value" id="rr-forms-kpi-rate">—</span>
+            <span class="wf-kpi-name">Completion rate · 7d</span>
+          </div>
+          <div class="wf-kpi">
+            <span class="wf-kpi-dot"></span>
+            <span class="wf-kpi-value" id="rr-forms-kpi-drivers">—</span>
+            <span class="wf-kpi-name">Drivers completed · 7d</span>
+          </div>
         </div>
 
-        <!-- KPI strip · operational at-a-glance counts -->
-        <div class="forms-kpi" id="rr-forms-kpi" aria-label="Forms workspace overview">
-          <div class="forms-kpi-card forms-kpi-published">
-            <div class="forms-kpi-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            </div>
-            <div class="forms-kpi-body">
-              <div class="forms-kpi-value" id="rr-forms-kpi-published">—</div>
-              <div class="forms-kpi-label">Forms</div>
-              <div class="forms-kpi-sub">published</div>
-            </div>
-          </div>
-          <div class="forms-kpi-card forms-kpi-subs">
-            <div class="forms-kpi-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            </div>
-            <div class="forms-kpi-body">
-              <div class="forms-kpi-value" id="rr-forms-kpi-subs">—</div>
-              <div class="forms-kpi-label">Submissions</div>
-              <div class="forms-kpi-sub">this week</div>
-            </div>
-          </div>
-          <div class="forms-kpi-card forms-kpi-rate">
-            <div class="forms-kpi-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            </div>
-            <div class="forms-kpi-body">
-              <div class="forms-kpi-value" id="rr-forms-kpi-rate">—</div>
-              <div class="forms-kpi-label">Completion rate</div>
-              <div class="forms-kpi-sub">last 7 days</div>
-            </div>
-          </div>
-          <div class="forms-kpi-card forms-kpi-drivers">
-            <div class="forms-kpi-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            </div>
-            <div class="forms-kpi-body">
-              <div class="forms-kpi-value" id="rr-forms-kpi-drivers">—</div>
-              <div class="forms-kpi-label">Drivers</div>
-              <div class="forms-kpi-sub">completed this week</div>
-            </div>
-          </div>
-        </div>
+        <!-- Legacy .forms-kpi card row removed · the TCP KPI strip
+             above carries the same IDs (rr-forms-kpi-published /
+             -subs / -rate / -drivers) so live.js's KPI renderer
+             keeps working without changes. -->
+
 
         <div class="forms-shell">
           <aside class="forms-side">
