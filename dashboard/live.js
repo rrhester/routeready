@@ -26807,6 +26807,44 @@ document.addEventListener("click", (e) => {
   }
 });
 
+// Attendance policy popover · anchored under the Onboarding →
+// Roster → Attendance tile's Rules footer. Same pattern as the
+// van-rules popover above. loadAttendancePolicy() lazy-fires on
+// first open so the controls populate without forcing the user
+// to visit Settings first; subsequent toggles are no-ops on the
+// load side. Outside-click closes the popover.
+let _attRulesLoaded = false;
+function _toggleAttRules(force) {
+  const pop = document.getElementById("rr-att-rules-popover");
+  const toggle = document.getElementById("rr-att-rules-toggle");
+  if (!pop) return false;
+  const next = (typeof force === "boolean") ? force : pop.hidden;
+  pop.hidden = !next;
+  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  if (next && !_attRulesLoaded) {
+    _attRulesLoaded = true;
+    if (typeof loadAttendancePolicy === "function") {
+      try { loadAttendancePolicy(); } catch (err) { console.warn("loadAttendancePolicy:", err); }
+    }
+  }
+  return next;
+}
+window._rrToggleAttRules = _toggleAttRules;
+document.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("#rr-att-rules-toggle")) {
+    e.preventDefault();
+    e.stopPropagation();
+    _toggleAttRules();
+    return;
+  }
+  // Outside-click closes the policy popover (any click that lands
+  // outside the popover AND outside the toggle).
+  const pop = document.getElementById("rr-att-rules-popover");
+  if (!pop || pop.hidden) return;
+  if (e.target.closest && (e.target.closest("#rr-att-rules-popover") || e.target.closest("#rr-att-rules-toggle"))) return;
+  _toggleAttRules(false);
+});
+
 // Public reader so _assignVansForRange can query the live rule
 // state without a DOM read.
 window._rrLoadVanRules = function () {
