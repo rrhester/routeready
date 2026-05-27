@@ -390,13 +390,19 @@ def solve(req: SolveRequest) -> SolveResponse:
     # 5b. Soft target days/week per driver (R022 equivalent on CP-SAT).
     # DSPs commonly want every driver at e.g. 4 days a week, going past
     # only when coverage demands it (4×10h = 40h before OT). Linear
-    # penalty per day over target, summed across drivers — encourages
-    # spreading OT rather than stacking on one driver. 0 disables.
-    # Calibration matches the heuristic's R022: W_TARGET=100 strongly
-    # outranks the smaller objective terms (affinity, preferred_days)
-    # while still letting coverage win when ALL drivers are at target.
+    # penalty per day over target, summed across drivers.
+    #
+    # Calibration: W_TARGET=1000 is intentionally an order of magnitude
+    # above the per-shift gains (W_AFF up to 100, W_PREF 5). The soft
+    # cap is meant to act as a wall — a high-affinity tenured driver
+    # should not get pushed into OT just because they "usually" work
+    # that day, as long as a lower-affinity driver under target is
+    # eligible. Affinity still controls which weekday each driver lands
+    # on inside the wall; it just can't break the wall. Coverage
+    # (W_COV=10000) still wins when every driver hits target — that's
+    # the OT escape hatch. 0 disables the cap entirely.
     target_days = int(rules.get("target_days_per_week", 4))
-    W_TARGET = int(weights.get("target_days", 100))
+    W_TARGET = int(weights.get("target_days", 1000))
     if target_days > 0 and W_TARGET > 0:
         for d in req.drivers:
             d_day_vars = [
