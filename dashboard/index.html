@@ -3,6 +3,49 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<!-- ONE-TIME service-worker reset · runs before everything else on the
+     page so it bypasses every cache layer. Without this, operators
+     whose old SW (with stale-while-revalidate semantics) was already
+     installed kept loading the old bundle on every refresh even after
+     PRs #1870 + #1871 shipped the network-first replacement. The check
+     is gated on a localStorage flag so it only fires ONCE per browser;
+     subsequent visits skip the unregister + reload. To force another
+     round of resets in the future, bump the storage key. -->
+<script>
+(function () {
+  var RESET_KEY = "rr-sw-reset-20260527-pinfix";
+  if (!("serviceWorker" in navigator)) return;
+  try {
+    if (localStorage.getItem(RESET_KEY)) return; // already reset
+  } catch (_) { return; }
+  navigator.serviceWorker.getRegistrations().then(function (regs) {
+    if (!regs || regs.length === 0) {
+      // No SW registered yet — nothing to nuke. Set the flag so we
+      // don't run this branch on every fresh-install page load.
+      try { localStorage.setItem(RESET_KEY, "1"); } catch (_) {}
+      return;
+    }
+    // Unregister every SW under this origin's scope, then hard-reload
+    // so the page comes up with no SW controlling and fresh JS / CSS
+    // straight from the network. The reload runs ONCE because the
+    // flag is set before location.reload() fires.
+    Promise.all(regs.map(function (r) { return r.unregister(); }))
+      .then(function () {
+        try { localStorage.setItem(RESET_KEY, "1"); } catch (_) {}
+        // Use a one-time hash marker on the URL so a SW that hasn't
+        // fully released yet can't intercept this fetch.
+        var u = new URL(window.location.href);
+        u.searchParams.set("_swreset", String(Date.now()));
+        window.location.replace(u.toString());
+      })
+      .catch(function () {
+        try { localStorage.setItem(RESET_KEY, "1"); } catch (_) {}
+      });
+  }).catch(function () {
+    try { localStorage.setItem(RESET_KEY, "1"); } catch (_) {}
+  });
+})();
+</script>
 <!-- Disable HTML caching at the browser level.  This file inlines all
      dashboard CSS, so a stale HTML cache means stale CSS — which is
      exactly how the PR #599 / #600 composer fix never reached some
