@@ -14308,6 +14308,58 @@ body.rr-cmdk-open{ overflow:hidden }
                         });
                       })();
                     </script>
+
+                    <!-- Route color coding · master toggle. When ON,
+                         shift chips paint themselves per route_classification:
+                         rescue=red, nursery=teal, reduction=orange,
+                         cycle_1=purple, cycle_2=magenta, backup=gray.
+                         Standard (NULL) keeps the existing brand-blue chip. -->
+                    <fieldset class="rr-sched-routecolor-fset" style="border:0;padding:14px 0 0;margin:14px 0 0;border-top:1px solid #E1DFDD">
+                      <legend style="font:600 13px/18px var(--rr-font-family,'Segoe UI');color:var(--rr-fg-primary,#242424);margin-bottom:6px">Route color coding</legend>
+                      <p style="font:13px/18px var(--rr-font-family,'Segoe UI');color:var(--rr-fg-secondary,#605E5C);margin:0 0 10px">Tint each shift chip by its route type (Rescue, Nursery, etc.) so the schedule reads at a glance. Set a shift's type from its Edit drawer.</p>
+
+                      <label class="rr-sched-routecolor-opt" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF;cursor:pointer;font-family:var(--rr-font-family,'Segoe UI')">
+                        <input type="checkbox" id="rr-sched-routecolor-on" style="margin:0;accent-color:#0078D4" />
+                        <span style="font-size:13px;font-weight:600;color:#242424">Color-code chips by route type</span>
+                      </label>
+
+                      <!-- Legend · only visible when the toggle is on,
+                           shows which color maps to which type. -->
+                      <div id="rr-sched-routecolor-legend" hidden style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px 12px;margin-top:10px;font:12px/1.4 var(--rr-font-family,'Segoe UI');color:var(--rr-fg-secondary,#605E5C)">
+                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(0,120,212,.22);border:1.5px solid rgba(0,120,212,.55);flex-shrink:0"></span>Standard</div>
+                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(220,38,38,.22);border:1.5px solid rgba(220,38,38,.65);flex-shrink:0"></span>Rescue</div>
+                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(13,148,136,.22);border:1.5px solid rgba(13,148,136,.65);flex-shrink:0"></span>Nursery</div>
+                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(234,88,12,.22);border:1.5px solid rgba(234,88,12,.65);flex-shrink:0"></span>Reduction</div>
+                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(124,58,237,.22);border:1.5px solid rgba(124,58,237,.65);flex-shrink:0"></span>Cycle 1</div>
+                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(219,39,119,.22);border:1.5px solid rgba(219,39,119,.65);flex-shrink:0"></span>Cycle 2</div>
+                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(100,116,139,.24);border:1.5px solid rgba(100,116,139,.65);flex-shrink:0"></span>Backup</div>
+                      </div>
+                    </fieldset>
+
+                    <script>
+                      (function () {
+                        if (window.__rrRouteColorWired) return;
+                        window.__rrRouteColorWired = true;
+                        var KEY = "rr-sched-routecolor";
+                        function apply(on) {
+                          document.body.classList.toggle("rr-sched-color-routes", !!on);
+                          var legend = document.getElementById("rr-sched-routecolor-legend");
+                          if (legend) legend.hidden = !on;
+                        }
+                        var stored = null;
+                        try { stored = localStorage.getItem(KEY); } catch (e) {}
+                        var on = stored === "1";
+                        var cb = document.getElementById("rr-sched-routecolor-on");
+                        if (cb) cb.checked = on;
+                        apply(on);
+                        document.addEventListener("change", function (e) {
+                          if (!e.target || e.target.id !== "rr-sched-routecolor-on") return;
+                          var v = e.target.checked;
+                          try { localStorage.setItem(KEY, v ? "1" : "0"); } catch (er) {}
+                          apply(v);
+                        });
+                      })();
+                    </script>
                   </div>
                 </div>
               </div>
