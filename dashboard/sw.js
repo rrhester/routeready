@@ -7,17 +7,21 @@
 // Strategy:
 //   • Navigation requests           → network-first, fall back to
 //     cached index.html so the dashboard still launches offline.
-//   • Same-origin dashboard assets  → stale-while-revalidate. The
-//     dashboard's static JS/CSS is cache-busted with ?v=… at build
-//     time, so a new deploy hands the SW new URLs and the old ones
-//     age out on the next activate.
+//   • Code assets (.js / .mjs / .css) → NETWORK-FIRST. A stale JS
+//     bundle is the difference between "operator sees the bug fix
+//     I shipped 10 minutes ago" and "operator screenshots the same
+//     broken state and asks why nothing changed." Worth the small
+//     extra round-trip to never serve stale code.
+//   • Other dashboard assets (images, fonts) → stale-while-revalidate.
+//     Fast launch, updates in background. Safe because asset content
+//     doesn't drive behavior — only its display.
 //   • Everything else (Supabase RPC, edge functions, external CDNs)
 //     → pass-through. No offline data; live state needs the network.
 //
 // Bump SHELL_CACHE when the cached file set changes so the activate
 // step purges the old cache.
 
-const SHELL_CACHE = "rr-dash-shell-v1";
+const SHELL_CACHE = "rr-dash-shell-v2";
 
 // Files that make the dashboard boot. index.html is the heaviest —
 // once it's in the cache, an offline relaunch can still render the
@@ -74,17 +78,38 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Same-origin dashboard / app assets: stale-while-revalidate so
-  // the dashboard launches fast from cache and updates in the
-  // background. Skip cross-origin requests entirely — the SW must
-  // not interfere with Supabase RPC, edge function calls, or any
-  // third-party API.
+  // Skip cross-origin requests entirely — the SW must not interfere
+  // with Supabase RPC, edge function calls, or any third-party API.
   if (url.origin !== location.origin) return;
 
   const isDashboardAsset =
     url.pathname.startsWith("/dashboard/") || url.pathname.startsWith("/app/");
   if (!isDashboardAsset) return;
 
+  // Code assets: network-first. A stale JS/CSS bundle defeats the
+  // entire purpose of deploys — operators saw "ran Smart Fill, no
+  // changes" for hours because the SW kept serving the previous
+  // bundle. Network-first guarantees a fresh deploy reaches every
+  // refresh, period. Falls back to cache when offline.
+  const isCode = /\.(?:js|mjs|css)(?:\?|$)/.test(url.pathname + url.search);
+  if (isCode) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.status === 200 && res.type !== "opaque") {
+            const copy = res.clone();
+            caches.open(SHELL_CACHE).then((c) => c.put(req, copy)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(() => caches.match(req)),
+    );
+    return;
+  }
+
+  // Non-code dashboard assets (images, fonts, manifest): stale-
+  // while-revalidate. Fast launch, updates in background. Safe
+  // because asset content doesn't drive behavior.
   event.respondWith(
     caches.open(SHELL_CACHE).then((cache) =>
       cache.match(req).then((cached) => {
