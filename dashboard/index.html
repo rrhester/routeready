@@ -118,12 +118,12 @@
      layered off-white palette, now global so the whole dashboard
      reads with the same depth. No pure white; the canvas sits a
      touch cooler than the cards. */
-  /* Canvas · lifted from the older #EEF1F5 (cool gray) to a
-     brighter cool-cyan-tinted off-white. The +4pt lightness +
-     small cyan saturation lift gives the page that "electric
-     Outlook" cool brightness without changing the underlying
-     Fluent depth — cards still elevate visibly off this base. */
-  --canvas:#F2F7FC;
+  /* Canvas · lifted once more for the "brighter dashboard" pass —
+     #F2F7FC → #F7FAFC. Near-white with a hint of blue so every
+     card/surface reads as elevated off a crisp base instead of
+     sitting on a tinted ground. Matches the Schedule page that
+     introduced this tone. */
+  --canvas:#F7FAFC;
   --canvas-grad:none;
   --surface:#F8F9FB;
   --surface-secondary:#F2F3F6;
@@ -143,12 +143,16 @@
   --glass-strong:rgba(255,255,255,.90);
 
   /* ── Borders (Fluent leans on edges over shadows) ─────────── */
-  /* Lowered opacities per the governance brief so the eye stops
-     reading borders and starts reading data. */
-  --border:rgba(15,23,42,.06);
-  --border-strong:rgba(15,23,42,.10);
-  --border-subtle:rgba(15,23,42,.04);
-  --border-inverse:rgba(255,255,255,.08);
+  /* "Crisper dashboard" pass — opacities bumped ~75% so every
+     card edge, table divider, and grid line reads as a clear
+     hairline against the brighter canvas. Previously calibrated
+     for a "borders fade, data leads" feel; the operator wants
+     the table-rule precision back so every cell/card defines
+     itself cleanly. */
+  --border:rgba(15,23,42,.11);
+  --border-strong:rgba(15,23,42,.16);
+  --border-subtle:rgba(15,23,42,.08);
+  --border-inverse:rgba(255,255,255,.10);
 
   /* ── Text ──────────────────────────────────────────────────── */
   --text:#0F172A;
