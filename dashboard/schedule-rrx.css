@@ -2256,15 +2256,13 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    shadow) so the only thing changing is the hue.
    ============================================================ */
 
+/* Only the CHIP body (background + border + shadow) changes color
+   per route type. Text colors stay at the default for readability —
+   the operator scans the SHAPE / FILL, not the type within. */
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: rgba(220, 38, 38, 0.22) !important;
   border-color: rgba(220, 38, 38, 0.65) !important;
   box-shadow: 0 1px 0 rgba(220, 38, 38, 0.22) !important;
-}
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route,
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code,
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
-  color: #991B1B !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
@@ -2272,21 +2270,11 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
   border-color: rgba(13, 148, 136, 0.65) !important;
   box-shadow: 0 1px 0 rgba(13, 148, 136, 0.22) !important;
 }
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route,
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code,
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
-  color: #115E59 !important;
-}
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: rgba(234, 88, 12, 0.22) !important;
   border-color: rgba(234, 88, 12, 0.65) !important;
   box-shadow: 0 1px 0 rgba(234, 88, 12, 0.22) !important;
-}
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route,
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code,
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
-  color: #9A3412 !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
@@ -2294,32 +2282,17 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
   border-color: rgba(124, 58, 237, 0.65) !important;
   box-shadow: 0 1px 0 rgba(124, 58, 237, 0.22) !important;
 }
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route,
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code,
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
-  color: #5B21B6 !important;
-}
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: rgba(219, 39, 119, 0.22) !important;
   border-color: rgba(219, 39, 119, 0.65) !important;
   box-shadow: 0 1px 0 rgba(219, 39, 119, 0.22) !important;
 }
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route,
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code,
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
-  color: #9D174D !important;
-}
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: rgba(100, 116, 139, 0.24) !important;
   border-color: rgba(100, 116, 139, 0.65) !important;
   box-shadow: 0 1px 0 rgba(100, 116, 139, 0.22) !important;
-}
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route,
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code,
-body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
-  color: #334155 !important;
 }
 
 /* ============================================================
