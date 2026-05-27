@@ -49,7 +49,7 @@ from .models import (
     VanPairingIn,
 )
 
-SOLVER_VERSION = "rr-solver-cpsat-v2-target-wall"
+SOLVER_VERSION = "rr-solver-cpsat-v3-strict-hierarchy"
 
 # Default WOC max-consecutive-days if the operator hasn't set one. The
 # in-browser engine defaults to 6 (matches the popover).
@@ -279,13 +279,26 @@ def solve(req: SolveRequest) -> SolveResponse:
     # defaults). Coverage dominates by ~100x so uncovered shifts are
     # always the worst outcome; the rest are tie-breakers within the
     # feasible-coverage frontier.
+    # Weight hierarchy — STRICT (operator rule: "NEVER allow OT when
+    # another driver could take the shift without OT"). Each tier
+    # dominates the SUM of every term below it across the whole roster:
+    #   1. Coverage (1M per shift) — uncovered is the worst possible
+    #      outcome. Max 49 shifts × 1M = 49M overall ceiling.
+    #   2. Target_days wall (10k per day over) — max plausible total
+    #      OT = ~40 days × 10k = 400k, comfortably below a single
+    #      uncovered shift. So coverage can never be sacrificed to
+    #      avoid OT, but OT can never be incurred when an alternative
+    #      exists (10k > sum of every affinity/preferred/fairness gain).
+    #   3. Affinity/preferred/fairness/attendance — fine-tuning inside
+    #      a feasible-non-OT schedule. Per-shift gains stay in single
+    #      or double digits, well below the OT penalty.
     weights = (rules.get("weights") or {}) if isinstance(rules, dict) else {}
-    W_COV  = int(weights.get("coverage",   10000))   # per shift covered
-    W_AFF  = int(weights.get("affinity",   1))       # per affinity-pct point
-    W_OT   = int(weights.get("ot_risk",    5))       # per OT hour
-    W_FAIR = int(weights.get("fairness",   2))       # per max-hour-of-roster
-    W_ATT  = int(weights.get("attendance", 100))     # per shift to a final-corrective driver
-    W_PREF = int(weights.get("preferred_days", 5))   # per assignment landing on the driver's preferred DOW
+    W_COV  = int(weights.get("coverage",   1000000))  # per shift covered (was 10k)
+    W_AFF  = int(weights.get("affinity",   1))        # per affinity-pct point
+    W_OT   = int(weights.get("ot_risk",    5))        # per OT hour
+    W_FAIR = int(weights.get("fairness",   2))        # per max-hour-of-roster
+    W_ATT  = int(weights.get("attendance", 100))      # per shift to a final-corrective driver
+    W_PREF = int(weights.get("preferred_days", 5))    # per assignment landing on the driver's preferred DOW
 
     objective_terms: list = []
 
@@ -402,7 +415,7 @@ def solve(req: SolveRequest) -> SolveResponse:
     # (W_COV=10000) still wins when every driver hits target — that's
     # the OT escape hatch. 0 disables the cap entirely.
     target_days = int(rules.get("target_days_per_week", 4))
-    W_TARGET = int(weights.get("target_days", 1000))
+    W_TARGET = int(weights.get("target_days", 10000))
     if target_days > 0 and W_TARGET > 0:
         for d in req.drivers:
             d_day_vars = [
