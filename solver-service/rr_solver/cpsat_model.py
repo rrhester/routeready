@@ -49,7 +49,7 @@ from .models import (
     VanPairingIn,
 )
 
-SOLVER_VERSION = "rr-solver-cpsat-v1"
+SOLVER_VERSION = "rr-solver-cpsat-v2-target-wall"
 
 # Default WOC max-consecutive-days if the operator hasn't set one. The
 # in-browser engine defaults to 6 (matches the popover).

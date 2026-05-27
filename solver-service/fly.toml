@@ -2,7 +2,7 @@
 # Region defaults to iad (US East) — change to match your Supabase project's
 # region to minimize round-trip latency on solve calls.
 
-app = "rr-solver"
+app = "rr-solve-ready"
 primary_region = "iad"
 kill_signal = "SIGINT"
 kill_timeout = "30s"
