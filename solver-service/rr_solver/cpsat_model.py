@@ -387,6 +387,34 @@ def solve(req: SolveRequest) -> SolveResponse:
                     if (d.id, s.id) in assign:
                         objective_terms.append(-W_ATT * assign[(d.id, s.id)])
 
+    # 5b. Soft target days/week per driver (R022 equivalent on CP-SAT).
+    # DSPs commonly want every driver at e.g. 4 days a week, going past
+    # only when coverage demands it (4×10h = 40h before OT). Linear
+    # penalty per day over target, summed across drivers — encourages
+    # spreading OT rather than stacking on one driver. 0 disables.
+    # Calibration matches the heuristic's R022: W_TARGET=100 strongly
+    # outranks the smaller objective terms (affinity, preferred_days)
+    # while still letting coverage win when ALL drivers are at target.
+    target_days = int(rules.get("target_days_per_week", 4))
+    W_TARGET = int(weights.get("target_days", 100))
+    if target_days > 0 and W_TARGET > 0:
+        for d in req.drivers:
+            d_day_vars = [
+                on_day[(did, dt)]
+                for (did, dt) in on_day
+                if did == d.id
+            ]
+            if not d_day_vars:
+                continue
+            prebaked = len(locked_on_days.get(d.id, set()))
+            d_total = model.NewIntVar(0, len(d_day_vars) + prebaked,
+                                      f"days_{d.id}")
+            model.Add(d_total == sum(d_day_vars) + prebaked)
+            over = model.NewIntVar(0, len(d_day_vars) + prebaked,
+                                   f"over_{d.id}")
+            model.AddMaxEquality(over, [d_total - target_days, 0])
+            objective_terms.append(-W_TARGET * over)
+
     # ── 5c. Van decision variables ────────────────────────────────────
     # Vans become first-class assignments alongside drivers. The model
     # decides which van goes to which open shift jointly with which
