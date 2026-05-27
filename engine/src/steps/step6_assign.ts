@@ -16,7 +16,7 @@
 //
 // target_days_per_week=0 collapses to a single pass (no soft cap).
 
-import type { NormalizedDriver } from "../types.ts";
+import type { DriverState, NormalizedDriver } from "../types.ts";
 import {
   type EngineContext,
   isDotRoute,
@@ -116,6 +116,7 @@ function runFillCycle(
   order: NormalizedDriver[],
   rankMap: Map<string, number>,
   driverSkip: (driver: NormalizedDriver) => boolean,
+  reorderByLoad: boolean = false,
 ): void {
   const assignOne = (driver: NormalizedDriver): boolean => {
     if (driverSkip(driver)) return false;
@@ -128,8 +129,29 @@ function runFillCycle(
     return true;
   };
 
+  // Days the driver currently has assigned this week — used by Pass B's
+  // load-aware reorder so the least-loaded driver always gets first
+  // claim on a remaining open shift. Tie-break: original order rank
+  // (so seniority / fair_rotation still steers when loads are equal).
+  const daysOf = (driver: NormalizedDriver): number => {
+    const state = ws.states.get(driver.driver_id);
+    if (!state) return 0;
+    return uniqueDatesInWindow(state, ctx.scheduleWeek).size;
+  };
+  const cycleOrder = (): NormalizedDriver[] => {
+    if (!reorderByLoad) return order;
+    return [...order].sort((a, b) => {
+      const da = daysOf(a);
+      const db = daysOf(b);
+      if (da !== db) return da - db;
+      const ra = rankMap.get(a.driver_id) ?? order.length;
+      const rb = rankMap.get(b.driver_id) ?? order.length;
+      return ra - rb;
+    });
+  };
+
   if (ctx.settings.assignment_mode === "sequential_fill") {
-    for (const driver of order) {
+    for (const driver of cycleOrder()) {
       while (assignOne(driver)) {
         /* keep filling this driver until blocked */
       }
@@ -138,11 +160,14 @@ function runFillCycle(
   }
   // Rotational fill — each driver claims up to `rotation_batch_size`
   // shifts before the cycle rotates to the next driver, then repeats.
+  // Pass B re-sorts by current days each cycle so the OT escape hatch
+  // gives leftover shifts to the least-loaded eligible driver first
+  // instead of letting the first-ranked driver eat them all.
   const batch = Math.max(1, ctx.settings.rotation_batch_size);
   let progress = true;
   while (progress) {
     progress = false;
-    for (const driver of order) {
+    for (const driver of cycleOrder()) {
       for (let i = 0; i < batch; i++) {
         if (assignOne(driver)) progress = true;
         else break;
@@ -173,9 +198,18 @@ function runPhase(
   // Pass B — coverage escape hatch. Any still-eligible driver may claim
   // remaining open shifts, even if it pushes them past their target.
   // This is the OT mode — only kicks in when Pass A couldn't cover.
+  //
+  // reorderByLoad=true: each cycle re-sorts drivers by current days
+  // ascending so the LEAST-loaded driver gets first claim on the
+  // remaining shifts. Without this, the first-ranked driver in the
+  // seniority/method order eats every leftover before lower-ranked
+  // drivers get a turn — exactly the imbalance we kept seeing where
+  // one tenured driver stacked at 6 days while others sat at 3.
+  // The scheduling_method's order still tie-breaks when loads are equal.
   runFillCycle(
     ctx, ws, matrix, phase, order, rankMap,
     () => false,
+    /* reorderByLoad */ true,
   );
 }
 
