@@ -15479,16 +15479,6 @@ function renderAvailabilityTab(body, d, record) {
   const isAvail = (k) => days.includes(k);
   const dayKey = ["mon","tue","wed","thu","fri","sat","sun"];
   const dayLabel = { mon:"Mon", tue:"Tue", wed:"Wed", thu:"Thu", fri:"Fri", sat:"Sat", sun:"Sun" };
-  const availBoxes = dayKey.map(k => `
-    <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);padding:6px var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;background:var(--canvas);user-select:none">
-      <input type="checkbox" data-rr-avail-day="${k}" ${isAvail(k) ? "checked" : ""}/>
-      <span style="font-weight:600">${dayLabel[k]}</span>
-    </label>`).join("");
-  const prefBoxes = dayKey.map(k => `
-    <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);padding:6px var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);cursor:${isAvail(k) ? "pointer" : "not-allowed"};background:var(--canvas);user-select:none;${isAvail(k) ? "" : "opacity:.4"}">
-      <input type="checkbox" data-rr-avail-pref="${k}" ${preferred.has(k) ? "checked" : ""} ${isAvail(k) ? "" : "disabled"}/>
-      <span style="font-weight:600">${dayLabel[k]}</span>
-    </label>`).join("");
 
   // Surface the request workflow state so the operator understands
   // why the checkboxes might not match a recent approval (with the
@@ -15500,6 +15490,56 @@ function renderAvailabilityTab(body, d, record) {
   const fmtDays    = (arr) => (Array.isArray(arr) && arr.length)
     ? arr.map((k) => dayLabel[k] || k).join(", ")
     : "no days";
+
+  // Active-override gate: an approved request is in effect RIGHT NOW
+  // (effective_from has passed and effective_until hasn't). The engine
+  // reads this request's days, NOT the default checkboxes below. The
+  // checkboxes are dimmed + disabled and an "Effective right now"
+  // overlay surfaces the days actually being honored.
+  const activeOverride = !!(
+    latest &&
+    latest.status === "approved" &&
+    latest.days && Array.isArray(latest.days) &&
+    (!latest.effective_from || latest.effective_from <= todayIso) &&
+    latest.effective_until && latest.effective_until >= todayIso
+  );
+
+  const overrideDays = activeOverride ? new Set(latest.days) : null;
+  const dimStyle = activeOverride ? "opacity:.45;pointer-events:none;" : "";
+
+  const availBoxes = dayKey.map(k => `
+    <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);padding:6px var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);cursor:pointer;background:var(--canvas);user-select:none;${dimStyle}">
+      <input type="checkbox" data-rr-avail-day="${k}" ${isAvail(k) ? "checked" : ""} ${activeOverride ? "disabled" : ""}/>
+      <span style="font-weight:600">${dayLabel[k]}</span>
+    </label>`).join("");
+  const prefBoxes = dayKey.map(k => `
+    <label style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-md);padding:6px var(--s-2-5);border:1px solid var(--border);border-radius:var(--r-md);cursor:${isAvail(k) ? "pointer" : "not-allowed"};background:var(--canvas);user-select:none;${isAvail(k) ? "" : "opacity:.4"}${activeOverride ? dimStyle : ""}">
+      <input type="checkbox" data-rr-avail-pref="${k}" ${preferred.has(k) ? "checked" : ""} ${isAvail(k) && !activeOverride ? "" : "disabled"}/>
+      <span style="font-weight:600">${dayLabel[k]}</span>
+    </label>`).join("");
+
+  // Effective-right-now strip: read-only chips showing the days the
+  // engine actually sees for this driver while the active request is
+  // in effect. Built only when activeOverride is true.
+  let effectiveStrip = "";
+  if (activeOverride) {
+    const chips = dayKey.map(k => {
+      const on = overrideDays.has(k);
+      const bg = on ? "var(--green-soft)" : "transparent";
+      const border = on ? "1px solid rgba(16,185,129,.5)" : "1px dashed var(--border)";
+      const color = on ? "var(--green)" : "var(--text-subtle)";
+      const fontWeight = on ? "700" : "500";
+      return `<span style="display:inline-flex;align-items:center;justify-content:center;min-width:48px;padding:6px 10px;border-radius:var(--r-md);background:${bg};border:${border};color:${color};font-size:var(--fs-md);font-weight:${fontWeight}">${dayLabel[k]}</span>`;
+    }).join("");
+    effectiveStrip = `
+      <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start;margin-bottom:var(--s-3)">
+        <label style="font-weight:700;color:var(--green)">Effective right now</label>
+        <div>
+          <div style="display:flex;flex-wrap:wrap;gap:var(--s-2)">${chips}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">These are the days the scheduling engine sees through ${escapeHtml(_fmtAvailDateShort(latest.effective_until))}. The toggles below show the underlying default that resumes after the request expires.</div>
+        </div>
+      </div>`;
+  }
 
   const startStr = (v) => (v && _fmtTime12(v)) || v || "";
   const pendStart = pending && startStr(pending.earliest_start) ? `, earliest start ${escapeHtml(startStr(pending.earliest_start))}` : "";
@@ -15521,29 +15561,30 @@ function renderAvailabilityTab(body, d, record) {
         ${escapeHtml(fmtDays(latest.days))}${latStart}.
         The toggles below still show today's live availability until then.
       </div>`;
-  } else if (latest && latest.status === "approved" && latest.effective_until && latest.effective_until >= todayIso) {
-    // Currently in effect.
+  } else if (activeOverride) {
+    // Currently in effect — banner + dim+disable + effective strip below.
     stateBanner = `
       <div style="margin-bottom:var(--s-3);padding:var(--s-2) var(--s-3);border-radius:var(--r-md);background:var(--green-soft);border:1px solid rgba(16,185,129,.2);font-size:var(--fs-sm);color:var(--green);line-height:1.5">
-        Current availability is from an approved request, in effect through ${escapeHtml(_fmtAvailDateShort(latest.effective_until))}.
+        Current availability is from an approved request, in effect through ${escapeHtml(_fmtAvailDateShort(latest.effective_until))}. The default below is dimmed because it doesn't apply this week.
       </div>`;
   }
 
   body.innerHTML = `
     ${stateBanner}
+    ${effectiveStrip}
     <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
-      <label>Available days</label>
+      <label style="${activeOverride ? "color:var(--text-subtle)" : ""}">Available days${activeOverride ? '<div style="font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);margin-top:2px">default (after request)</div>' : ''}</label>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2)">${availBoxes}</div>
     </div>
     <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:center">
-      <label>Earliest start</label>
-      <div style="display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap">
-        <select data-rr-avail-start style="font:inherit;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text)">${_availStartOptionsHtml(earliest)}</select>
+      <label style="${activeOverride ? "color:var(--text-subtle)" : ""}">Earliest start</label>
+      <div style="display:flex;align-items:center;gap:var(--s-2-5);flex-wrap:wrap;${dimStyle}">
+        <select data-rr-avail-start ${activeOverride ? "disabled" : ""} style="font:inherit;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--canvas);color:var(--text)">${_availStartOptionsHtml(earliest)}</select>
         <span class="u-xs-subtle">Earliest time of day this driver can begin a shift.</span>
       </div>
     </div>
     <div class="dd-row" style="grid-template-columns:160px 1fr;align-items:flex-start">
-      <label>Preferred days</label>
+      <label style="${activeOverride ? "color:var(--text-subtle)" : ""}">Preferred days</label>
       <div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2)">${prefBoxes}</div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Days the driver most wants to work. Only days in their available set can be preferred.</div>
