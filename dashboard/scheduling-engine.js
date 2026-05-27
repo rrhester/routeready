@@ -84,6 +84,7 @@ var KNOWN_KEYS = /* @__PURE__ */ new Set([
   "max_days_enforcement",
   "max_days",
   "max_days_window",
+  "target_days_per_week",
   "weekly_hour_cap_enforcement",
   "weekly_hour_cap",
   "weekly_hour_window",
@@ -208,6 +209,7 @@ function validateSettings(raw) {
     ),
     max_days_enforcement: bool(r.max_days_enforcement, "max_days_enforcement", true),
     max_days: num(r.max_days, "max_days", 6, 0, 7),
+    target_days_per_week: num(r.target_days_per_week, "target_days_per_week", 4, 0, 7),
     max_days_window: oneOf(
       r.max_days_window,
       "max_days_window",
@@ -1499,6 +1501,17 @@ function consecutivePoints(shift, state, settings) {
   return 0;
 }
 
+// src/rules/r022_target_days.ts
+function targetCapPoints(shift, state, ctx, settings) {
+  const target = settings.target_days_per_week;
+  if (target <= 0) return 0;
+  const dates = uniqueDatesInWindow(state, ctx.scheduleWeek);
+  const isSameDate = dates.has(shift.date);
+  const projected = isSameDate ? dates.size : dates.size + 1;
+  if (projected <= target) return 0;
+  return -(projected - target) * 100;
+}
+
 // src/steps/step7_scoring.ts
 function computeScore(ctx, shift, driver, state, methodRank) {
   const pattern = ctx.patterns.get(driver.driver_id);
@@ -1516,17 +1529,21 @@ function computeScore(ctx, shift, driver, state, methodRank) {
   );
   const method = Math.round(methodPoints(methodRank, ctx.drivers.length));
   const performance = 0;
+  const target_days = Math.round(
+    targetCapPoints(shift, state, ctx, ctx.settings)
+  );
   const components = {
     historical,
     attendance,
     preferred,
     consecutive,
     method,
-    performance
+    performance,
+    target_days
   };
   return {
     components,
-    total: historical + attendance + preferred + consecutive + method + performance
+    total: historical + attendance + preferred + consecutive + method + performance + target_days
   };
 }
 
@@ -2090,7 +2107,7 @@ function buildAssignmentExplanations(ctx, ws, warnings) {
       score_components: components,
       total_score: total,
       warnings: warningsByShift.get(plan.shift.shift_id) ?? [],
-      summary: `Assigned ${driver.first_name} ${driver.last_name} to ${dow} ${plan.shift.date} (${plan.shift.route_type}) via ${plan.source}; score ${total} [historical ${components.historical}, attendance ${components.attendance}, preferred ${components.preferred}, consecutive ${components.consecutive}, method ${components.method}].`
+      summary: `Assigned ${driver.first_name} ${driver.last_name} to ${dow} ${plan.shift.date} (${plan.shift.route_type}) via ${plan.source}; score ${total} [historical ${components.historical}, attendance ${components.attendance}, preferred ${components.preferred}, consecutive ${components.consecutive}, method ${components.method}, target_days ${components.target_days}].`
     });
   }
   return out;
@@ -2525,6 +2542,10 @@ function buildSettings(payload) {
   const attendanceWeight = typeof r.attendance_weight === "string" && ATT_WEIGHT_SET.has(r.attendance_weight) ? r.attendance_weight : "medium";
   const WINDOW_SET = /* @__PURE__ */ new Set(["schedule_week", "rolling_7_days"]);
   const maxDaysWindow = typeof r.max_days_window === "string" && WINDOW_SET.has(r.max_days_window) ? r.max_days_window : "schedule_week";
+  const targetDays = Math.max(0, Math.min(
+    7,
+    Math.round(r.target_days_per_week ?? 4)
+  ));
   const weeklyHourWindow = typeof r.weekly_hour_window === "string" && WINDOW_SET.has(r.weekly_hour_window) ? r.weekly_hour_window : "schedule_week";
   const ptoCountsTowardCap = r.pto_counts_toward_cap !== false;
   const ptoDefaultHours = Math.max(0, Math.min(
@@ -2556,6 +2577,7 @@ function buildSettings(payload) {
     max_days_enforcement: true,
     max_days: maxDays,
     max_days_window: maxDaysWindow,
+    target_days_per_week: targetDays,
     // WOC (Working Hours Compliance) governs the weekly-hours cap.
     weekly_hour_cap_enforcement: woc.on,
     weekly_hour_cap: woc.maxHours,

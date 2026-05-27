@@ -13,6 +13,7 @@ import { attendancePoints } from "../rules/r013_attendance.ts";
 import { preferredPoints } from "../rules/r017_preferred.ts";
 import { consecutivePoints } from "../rules/r018_consecutive.ts";
 import { methodPoints } from "../rules/r015_method.ts";
+import { targetCapPoints } from "../rules/r022_target_days.ts";
 
 export interface ScoreResult {
   components: ScoreComponents;
@@ -49,6 +50,9 @@ export function computeScore(
   );
   const method = Math.round(methodPoints(methodRank, ctx.drivers.length));
   const performance = 0; // R014 — reserved, always 0 in v1.
+  const target_days = Math.round(
+    targetCapPoints(shift, state, ctx, ctx.settings),
+  );
 
   const components: ScoreComponents = {
     historical,
@@ -57,10 +61,11 @@ export function computeScore(
     consecutive,
     method,
     performance,
+    target_days,
   };
   return {
     components,
     total:
-      historical + attendance + preferred + consecutive + method + performance,
+      historical + attendance + preferred + consecutive + method + performance + target_days,
   };
 }

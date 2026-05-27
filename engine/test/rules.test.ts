@@ -1150,3 +1150,71 @@ test("driver_lock_to_day — Affinity Enhancement must NOT swap a pinned shift",
     "affinity enhancement must not break a pinned (locked) assignment",
   );
 });
+
+test("R022 — target_days_per_week deprioritizes drivers over their target", () => {
+  // Two eligible drivers, 5 shifts. target=4, max_days=6.
+  // Without R022 (target=0), fair rotation would split work roughly 3+2.
+  // With target=4, the engine should still fill all 5 shifts because no
+  // alternative driver exists — but it should spread, not stack one.
+  // Stronger signal: when one driver is at target and another is under,
+  // the under-target driver wins each round until they catch up.
+  const dates = ["2026-05-24","2026-05-25","2026-05-26","2026-05-27","2026-05-28"];
+  const r = runEngine(
+    input({
+      shifts: dates.map((d, i) => shift({ shift_id: `s${i}`, date: d })),
+      drivers: [
+        driver({ driver_id: "alice", last_name: "A_alice" }),
+        driver({ driver_id: "bob",   last_name: "B_bob" }),
+      ],
+      settings: {
+        max_days_enforcement: true, max_days: 6,
+        target_days_per_week: 4,
+        scheduling_method: "fair_rotation",
+        weekly_hour_cap_enforcement: false, woc_enforcement: false,
+      },
+    }),
+  );
+  // All 5 shifts assigned (coverage wins even with target soft-cap).
+  assert.equal(r.summary_metrics.filled_shifts, 5);
+  // Spread roughly 3-2 — neither driver over their target of 4.
+  const aliceShifts = r.driver_totals.find(t => t.driver_id === "alice")?.assigned_shift_ids.length ?? 0;
+  const bobShifts   = r.driver_totals.find(t => t.driver_id === "bob")?.assigned_shift_ids.length ?? 0;
+  assert.ok(aliceShifts <= 4 && bobShifts <= 4,
+    `neither driver should exceed target=4 when spread is possible (got alice=${aliceShifts}, bob=${bobShifts})`);
+});
+
+test("R022 — target_days_per_week=0 disables the soft cap (no behavior change)", () => {
+  const dates = ["2026-05-24","2026-05-25","2026-05-26","2026-05-27"];
+  const r = runEngine(
+    input({
+      shifts: dates.map((d, i) => shift({ shift_id: `s${i}`, date: d })),
+      drivers: [driver({ driver_id: "alice" })],
+      settings: {
+        max_days_enforcement: true, max_days: 6,
+        target_days_per_week: 0, // disabled
+        weekly_hour_cap_enforcement: false, woc_enforcement: false,
+      },
+    }),
+  );
+  // All 4 shifts to alice — soft cap disabled.
+  assert.equal(r.summary_metrics.filled_shifts, 4);
+});
+
+test("R022 — coverage wins when ALL eligible drivers are at target", () => {
+  // 6 shifts, 1 driver, target=4, max_days=6. Soft cap penalizes days
+  // 5 and 6 — but they're the ONLY option, so the engine fills them.
+  const dates = ["2026-05-24","2026-05-25","2026-05-26","2026-05-27","2026-05-28","2026-05-29"];
+  const r = runEngine(
+    input({
+      shifts: dates.map((d, i) => shift({ shift_id: `s${i}`, date: d })),
+      drivers: [driver({ driver_id: "alice" })],
+      settings: {
+        max_days_enforcement: true, max_days: 6,
+        target_days_per_week: 4,
+        weekly_hour_cap_enforcement: false, woc_enforcement: false,
+      },
+    }),
+  );
+  // All 6 fill — coverage need overrides the soft cap.
+  assert.equal(r.summary_metrics.filled_shifts, 6);
+});

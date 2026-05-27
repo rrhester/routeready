@@ -135,6 +135,11 @@ export interface RawSettings {
   max_days_enforcement?: RawBool;
   max_days?: number;
   max_days_window?: WindowType;
+  /** Soft per-driver target days/week. Engine scores against placements
+   *  beyond this number — drivers stay at or below the target unless
+   *  coverage would otherwise suffer. Distinct from max_days, which is
+   *  a hard cap. Default 5. */
+  target_days_per_week?: number;
   weekly_hour_cap_enforcement?: RawBool;
   weekly_hour_cap?: number;
   weekly_hour_window?: WindowType;
@@ -210,6 +215,10 @@ export interface Settings {
   max_days_enforcement: boolean;
   max_days: number;
   max_days_window: WindowType;
+  /** Soft target days per driver per week. Engine deprioritizes placements
+   *  that would take a driver past this number. Distinct from max_days
+   *  (hard cap). 0 disables the soft cap. */
+  target_days_per_week: number;
   weekly_hour_cap_enforcement: boolean;
   weekly_hour_cap: number;
   weekly_hour_window: WindowType;
@@ -355,6 +364,9 @@ export interface ScoreComponents {
   consecutive: number;
   method: number;
   performance: number;
+  /** Per-driver soft-target penalty (R022). Negative when a candidate
+   *  would take the driver past target_days_per_week; 0 otherwise. */
+  target_days: number;
 }
 
 // ---------------------------------------------------------------------------

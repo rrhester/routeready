@@ -21,6 +21,7 @@ const KNOWN_KEYS = new Set<keyof RawSettings>([
   "max_days_enforcement",
   "max_days",
   "max_days_window",
+  "target_days_per_week",
   "weekly_hour_cap_enforcement",
   "weekly_hour_cap",
   "weekly_hour_window",
@@ -164,6 +165,7 @@ export function validateSettings(raw: RawSettings | undefined): Settings {
     ),
     max_days_enforcement: bool(r.max_days_enforcement, "max_days_enforcement", true),
     max_days: num(r.max_days, "max_days", 6, 0, 7),
+    target_days_per_week: num(r.target_days_per_week, "target_days_per_week", 4, 0, 7),
     max_days_window: oneOf(
       r.max_days_window,
       "max_days_window",
