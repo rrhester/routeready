@@ -33564,27 +33564,47 @@ function addHoursToWaveTime(hhmm, hours) {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
-// Edit modal for an assigned shift. Loads the row, lets the operator
-// nudge start_time / end_time (free-text HH:MM) and Save or Remove.
-// Save preserves the shift's date timezone — we only swap the time
-// portion of starts_at / ends_at, not the date.
-async function openShiftEditModal(shiftId) {
+// Unified shift drawer — handles both "edit existing" and "add new".
+// arg is either a shiftId (string → edit mode) or an opts object
+// {date, stationId, driverId} (→ add mode). Same drawer chrome,
+// same fields where they apply; the add/edit-specific bits branch
+// inline so the operator sees one consistent surface.
+async function openShiftEditModal(arg) {
   let m = document.getElementById("rr-shift-edit-modal");
   if (m) m.remove();
+  const isAdd = typeof arg !== "string";
+  const addOpts = isAdd ? (arg || {}) : null;
+  const shiftId = isAdd ? null : arg;
 
-  // Disambiguate the drivers embed — `shifts` now has two FKs to
-  // drivers (driver_id and trainer_driver_id from 0268), so the bare
-  // `drivers(...)` embed errors out with "more than one relationship".
-  // Always resolve via driver_id (the assigned driver, what this modal
-  // is editing).
-  const { data: sh, error } = await sb
-    .from("shifts")
-    .select("id, date, starts_at, ends_at, driver_id, route_code, route_classification, drivers!driver_id(full_name, preferred_name)")
-    .eq("id", shiftId)
-    .single();
-  if (error || !sh) {
-    toast("Couldn't load shift: " + (error?.message || "not found"), "warn");
-    return;
+  // In edit mode we load the existing row; in add mode we synthesize
+  // a stub `sh` from the cell the operator clicked so the rest of
+  // the render code doesn't have to branch on every field.
+  let sh;
+  if (isAdd) {
+    sh = {
+      id: null,
+      date: addOpts.date || fmtIsoDate(new Date()),
+      starts_at: null,
+      ends_at: null,
+      driver_id: addOpts.driverId || null,
+      route_code: "",
+      route_classification: "",
+      drivers: null,
+    };
+  } else {
+    // Disambiguate the drivers embed — `shifts` now has two FKs to
+    // drivers (driver_id and trainer_driver_id from 0268), so the bare
+    // `drivers(...)` embed errors out with "more than one relationship".
+    const { data, error } = await sb
+      .from("shifts")
+      .select("id, date, starts_at, ends_at, driver_id, route_code, route_classification, drivers!driver_id(full_name, preferred_name)")
+      .eq("id", shiftId)
+      .single();
+    if (error || !data) {
+      toast("Couldn't load shift: " + (error?.message || "not found"), "warn");
+      return;
+    }
+    sh = data;
   }
 
   const driver = sh.drivers?.preferred_name?.trim() || sh.drivers?.full_name || "Driver";
@@ -33594,8 +33614,8 @@ async function openShiftEditModal(shiftId) {
     const d = new Date(iso);
     return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   };
-  const startHM = fmtHM(sh.starts_at);
-  const endHM   = fmtHM(sh.ends_at);
+  const startHM = isAdd ? "07:00" : fmtHM(sh.starts_at);
+  const endHM   = isAdd ? "17:00" : fmtHM(sh.ends_at);
   // Route-classification options. Keep value lowercase_snake (matches
   // the DB CHECK in migration 0332); label is what the operator sees.
   const ROUTE_CLASS_OPTIONS = [
@@ -33615,24 +33635,87 @@ async function openShiftEditModal(shiftId) {
   m = document.createElement("div");
   m.id = "rr-shift-edit-modal";
   // Left-fly drawer · no backdrop blur so the schedule grid stays
-  // visible underneath while the operator edits one shift.
+  // visible underneath while the operator edits or adds a shift.
   m.style.cssText =
     "position:fixed;top:0;left:0;bottom:0;width:380px;background:var(--surface);" +
     "border-right:1px solid var(--border);box-shadow:4px 0 16px rgba(15,23,42,.10);" +
     "z-index:9999;display:flex;flex-direction:column;transform:translateX(-100%);" +
     "transition:transform 200ms ease-out;";
+  // Header subtitle differs by mode — in edit mode we show
+  // "driver · route · date"; in add mode we show "Pick the details"
+  // (date is editable below, driver below, route below).
+  const headerSubtitle = isAdd
+    ? "Fill in the shift details"
+    : `${escapeHtml(driver)} · ${escapeHtml(route)} · ${escapeHtml(sh.date)}`;
+  const headerTitle = isAdd ? "Add shift" : "Edit shift";
+  // In add mode show Date, Driver, Shift kind, Route code — these are
+  // all set on creation. In edit mode those fields are baked into the
+  // shift already (changing them post-create gets complicated and we
+  // skip it for now). Route type and times are common to both.
+  const addOnlyFields = isAdd ? `
+        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Date</span>
+          <input type="date" id="rr-shift-edit-date" value="${escapeHtml(sh.date)}" class="form-input" style="max-width:200px" />
+        </label>
+        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Driver</span>
+          <select id="rr-shift-edit-driver" class="form-input" style="max-width:220px">
+            <option value="">— Open shift —</option>
+            ${(_schedDriverList || []).map(d => `<option value="${d.id}"${sh.driver_id === d.id ? " selected" : ""}>${escapeHtml(displayDriverName(d))}</option>`).join("")}
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Shift kind</span>
+          <select id="rr-shift-edit-kind" class="form-input" style="max-width:200px">
+            <option value="regular">Regular</option>
+            <option value="training">Training</option>
+            <option value="ride_along">Ride-along</option>
+            <option value="rescue">Rescue</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Route</span>
+          <input id="rr-shift-edit-routecode" class="form-input" style="max-width:200px" placeholder="e.g. KMO1-14B" value="${escapeHtml(sh.route_code || '')}" />
+        </label>` : "";
+  // Edit-only: Recognition + History + Unassign/Delete. None of these
+  // make sense before the shift exists.
+  const editExtras = isAdd ? "" : `
+        <!-- Recognition · per-shift entry point. -->
+        <div class="rr-shift-edit-recognition" data-rr-driver-id="${escapeHtml(sh.driver_id || '')}">
+          <div class="rr-shift-edit-recognition-row">
+            <div>
+              <div class="rr-shift-edit-recognition-label">Recognition</div>
+              <div class="rr-shift-edit-recognition-help" id="rr-shift-edit-recognition-help">Loading…</div>
+            </div>
+            <button type="button" class="btn btn-sm" id="rr-shift-edit-send-kudos">Send Kudos</button>
+          </div>
+        </div>
+        <details style="margin-top:4px">
+          <summary style="cursor:pointer;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)">History</summary>
+          <div id="rr-shift-edit-history" style="margin-top:var(--s-2);font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5">Loading…</div>
+        </details>`;
+  // Footer destructive buttons only in edit mode. In add mode there's
+  // nothing to unassign/delete yet — just Cancel + Add shift.
+  const destructiveButtons = isAdd ? "" : (sh.driver_id
+    ? `<button class="btn btn-sm" data-rr-shift-edit-unassign style="color:var(--red);border-color:rgba(225,29,72,.3)">Unassign driver</button>
+       <button type="button" data-rr-shift-edit-delete class="rr-text-link" style="background:none;border:none;padding:0;font-size:var(--fs-xs);color:var(--text-subtle);cursor:pointer;text-decoration:underline">Delete shift entirely</button>`
+    : `<button class="btn btn-sm" data-rr-shift-edit-delete style="color:var(--red);border-color:rgba(225,29,72,.3)">Delete shift</button>`);
+  const primaryBtnLabel = isAdd ? "Add shift" : "Save";
+
   m.innerHTML = `
     <div style="display:flex;flex-direction:column;height:100%">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3)">
           <div>
-            <div style="font-size:var(--fs-lg);font-weight:600">Edit shift</div>
-            <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(driver)} · ${escapeHtml(route)} · ${escapeHtml(sh.date)}</div>
+            <div style="font-size:var(--fs-lg);font-weight:600">${headerTitle}</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${headerSubtitle}</div>
           </div>
           <button type="button" data-rr-shift-edit-cancel aria-label="Close" style="background:none;border:0;cursor:pointer;font-size:18px;color:var(--text-subtle);padding:0;line-height:1">×</button>
         </div>
       </div>
       <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5);overflow-y:auto;flex:1">
+        ${addOnlyFields}
         <label style="display:flex;align-items:center;gap:var(--s-3-5)">
           <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Start time</span>
           <input type="time" id="rr-shift-edit-start" value="${escapeHtml(startHM)}" class="form-input" style="max-width:160px" />
@@ -33646,33 +33729,15 @@ async function openShiftEditModal(shiftId) {
           <select id="rr-shift-edit-class" class="form-input" style="max-width:200px">${classOptionsHTML}</select>
         </label>
         <div id="rr-shift-edit-status" style="font-size:var(--fs-xs);color:var(--text-subtle);min-height:14px"></div>
-        <!-- Recognition · per-shift entry point. Opens the Kudos
-             modal with this driver locked in so the dispatcher can
-             send recognition without leaving the shift edit flow. -->
-        <div class="rr-shift-edit-recognition" data-rr-driver-id="${escapeHtml(sh.driver_id || '')}">
-          <div class="rr-shift-edit-recognition-row">
-            <div>
-              <div class="rr-shift-edit-recognition-label">Recognition</div>
-              <div class="rr-shift-edit-recognition-help" id="rr-shift-edit-recognition-help">Loading…</div>
-            </div>
-            <button type="button" class="btn btn-sm" id="rr-shift-edit-send-kudos">Send Kudos</button>
-          </div>
-        </div>
-        <details style="margin-top:4px">
-          <summary style="cursor:pointer;font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)">History</summary>
-          <div id="rr-shift-edit-history" style="margin-top:var(--s-2);font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5">Loading…</div>
-        </details>
+        ${editExtras}
       </div>
       <div style="display:flex;justify-content:space-between;gap:var(--s-2);padding:var(--s-3-5) 22px;border-top:1px solid var(--border);background:var(--canvas);align-items:center">
         <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-start">
-          ${sh.driver_id
-            ? `<button class="btn btn-sm" data-rr-shift-edit-unassign style="color:var(--red);border-color:rgba(225,29,72,.3)">Unassign driver</button>
-               <button type="button" data-rr-shift-edit-delete class="rr-text-link" style="background:none;border:none;padding:0;font-size:var(--fs-xs);color:var(--text-subtle);cursor:pointer;text-decoration:underline">Delete shift entirely</button>`
-            : `<button class="btn btn-sm" data-rr-shift-edit-delete style="color:var(--red);border-color:rgba(225,29,72,.3)">Delete shift</button>`}
+          ${destructiveButtons}
         </div>
         <div style="display:flex;gap:var(--s-2)">
           <button class="btn btn-sm" data-rr-shift-edit-cancel>Cancel</button>
-          <button class="btn btn-sm btn-primary" data-rr-shift-edit-save>Save</button>
+          <button class="btn btn-sm btn-primary" data-rr-shift-edit-save>${primaryBtnLabel}</button>
         </div>
       </div>
     </div>`;
@@ -33681,9 +33746,11 @@ async function openShiftEditModal(shiftId) {
   requestAnimationFrame(() => { m.style.transform = "translateX(0)"; });
 
   // Load shift history lazily — fire once the modal is on screen.
-  _loadShiftHistory(shiftId);
+  // Skipped in add mode (no shift exists yet).
+  if (!isAdd) _loadShiftHistory(shiftId);
   // Load recent recognition for this shift's driver (1 line summary).
-  if (sh.driver_id) {
+  // Skipped in add mode (no shift exists yet).
+  if (!isAdd && sh.driver_id) {
     (async () => {
       try {
         const { data } = await sb
@@ -33821,10 +33888,54 @@ async function openShiftEditModal(shiftId) {
       const newStart = document.getElementById("rr-shift-edit-start").value;
       const newEnd   = document.getElementById("rr-shift-edit-end").value;
       if (!newStart || !newEnd) { status.textContent = "Both times are required."; status.style.color = "var(--red)"; return; }
-      // Swap only the time-of-day on the existing timestamps so the
-      // shift's date + tz are preserved. Browser's <input type="time">
-      // gives us local HH:MM, which is what the operator sees on the
-      // chip.
+      // Route classification — empty value means "Standard" (NULL in DB).
+      const newClass = document.getElementById("rr-shift-edit-class")?.value || "";
+      const classValue = newClass === "" ? null : newClass;
+
+      // Add-mode branch · build a fresh shift via create_shift RPC.
+      if (isAdd) {
+        const addDate = document.getElementById("rr-shift-edit-date")?.value || sh.date;
+        const addDriver = document.getElementById("rr-shift-edit-driver")?.value || "";
+        const addKind   = document.getElementById("rr-shift-edit-kind")?.value || "regular";
+        const addRoute  = document.getElementById("rr-shift-edit-routecode")?.value?.trim() || "";
+        if (!addDate) { status.textContent = "Date is required."; status.style.color = "var(--red)"; return; }
+        const startsAtIso = new Date(`${addDate}T${newStart}:00`).toISOString();
+        let endsAtIso     = new Date(`${addDate}T${newEnd}:00`).toISOString();
+        if (new Date(endsAtIso) <= new Date(startsAtIso)) {
+          endsAtIso = new Date(new Date(endsAtIso).getTime() + 24 * 60 * 60 * 1000).toISOString();
+        }
+        status.textContent = "Saving…";
+        status.style.color = "var(--text-subtle)";
+        if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) {
+          status.textContent = ""; return;
+        }
+        _markLocalShiftMutation();
+        const { error: createErr } = await sb.rpc("create_shift", {
+          p_payload: {
+            date: addDate,
+            station_id: addOpts.stationId,
+            driver_id: addDriver || null,
+            route_code: addRoute || null,
+            shift_kind: addKind,
+            route_classification: classValue,
+            starts_at: startsAtIso,
+            ends_at:   endsAtIso,
+          },
+        });
+        if (createErr) {
+          status.textContent = "Add failed: " + createErr.message;
+          status.style.color = "var(--red)";
+          return;
+        }
+        toast("Shift added", "success");
+        close();
+        if (typeof loadScheduleView === "function") loadScheduleView();
+        else renderScheduleWeek();
+        return;
+      }
+
+      // Edit-mode branch · swap only the time-of-day on the existing
+      // timestamps so the shift's date + tz are preserved.
       const swapTime = (iso, hhmm) => {
         const d = new Date(iso);
         const [h, mi] = hhmm.split(":").map(Number);
@@ -33833,17 +33944,12 @@ async function openShiftEditModal(shiftId) {
       };
       const newStartIso = swapTime(sh.starts_at, newStart);
       const newEndIso   = swapTime(sh.ends_at,   newEnd);
-      // End must be after start within the same shift; if the operator
-      // entered an end <= start, assume they want next-day end (rare
-      // but possible for overnight shifts) and roll it 24h.
+      // End must be after start; assume next-day end if the operator
+      // entered an end <= start (overnight shift).
       let endIso = newEndIso;
       if (new Date(endIso) <= new Date(newStartIso)) {
         endIso = new Date(new Date(endIso).getTime() + 24 * 60 * 60 * 1000).toISOString();
       }
-
-      // Route classification — empty value means "Standard" (NULL in DB).
-      const newClass = document.getElementById("rr-shift-edit-class")?.value || "";
-      const classValue = newClass === "" ? null : newClass;
 
       status.textContent = "Saving…";
       status.style.color = "var(--text-subtle)";
@@ -35838,7 +35944,7 @@ function bindSchedWeekNav() {
         toast(stationId ? "" : "Driver has no station — assign one in the Drivers page", "warn");
         return;
       }
-      openAddShiftModal(date, stationId, driverId, cell);
+      openShiftEditModal({ date, stationId, driverId });
     }
   });
 
@@ -37342,109 +37448,9 @@ async function materializeVirtualShiftToDriver(payload, driverId, cell) {
   renderScheduleWeek();
 }
 
-function openAddShiftModal(date, stationId, prefDriverId, anchorEl) {
-  let m = document.getElementById("rr-shift-modal");
-  if (m) m.remove();
-  m = document.createElement("div");
-  m.id = "rr-shift-modal";
-  // Operator wanted this to feel like part of the schedule — not a
-  // full-screen modal with the background blurred out. Render as an
-  // anchored popover floating over the cell the operator clicked.
-  // Wrapper is a transparent click-trap (no overlay tint) that
-  // closes on outside-click. Inner card sits at a fixed position
-  // computed from the cell's bounding rect.
-  m.style.cssText = "position:fixed;inset:0;background:transparent;z-index:10000;pointer-events:auto";
-  // Compute anchor position. Default to viewport-centered if no
-  // anchor was passed (manual API caller).
-  let anchorTop = 100, anchorLeft = 100;
-  if (anchorEl && anchorEl.getBoundingClientRect) {
-    const rect = anchorEl.getBoundingClientRect();
-    // Popover width ~ 380px (smaller than the old 440px). Try to
-    // anchor at the cell's bottom-left. Clamp inside viewport.
-    const W = 380, H = 480;
-    anchorLeft = Math.max(8, Math.min(window.innerWidth - W - 8, rect.left));
-    anchorTop  = Math.max(8, Math.min(window.innerHeight - H - 8, rect.bottom + 6));
-  }
-  m.innerHTML = `
-    <div style="position:absolute;top:${anchorTop}px;left:${anchorLeft}px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:18px;width:380px;box-shadow:0 8px 16px rgba(0,0,0,0.14),0 0 2px rgba(0,0,0,0.12)">
-      <h3 style="margin:0 0 14px;font-size:var(--fs-md);font-weight:600">Add shift</h3>
-      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Date</label>
-      <input type="date" id="rr-sh-date" class="form-input" style="width:100%;margin-bottom:10px" value="${date}"/>
-      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Driver (optional · leave blank for open shift)</label>
-      <select id="rr-sh-driver" class="form-input" style="width:100%;margin-bottom:10px">
-        <option value="">— Open shift —</option>
-        ${_schedDriverList.map(d => `<option value="${d.id}"${prefDriverId === d.id ? " selected" : ""}>${escapeHtml(displayDriverName(d))}</option>`).join("")}
-      </select>
-      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Shift type</label>
-      <select id="rr-sh-kind" class="form-input" style="width:100%;margin-bottom:10px">
-        <option value="regular">Regular</option>
-        <option value="training">Training</option>
-        <option value="ride_along">Ride-along</option>
-        <option value="rescue">Rescue</option>
-        <option value="other">Other</option>
-      </select>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-2);margin-bottom:10px">
-        <div>
-          <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Start time</label>
-          <input type="time" id="rr-sh-start" class="form-input" style="width:100%" value="07:00"/>
-        </div>
-        <div>
-          <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">End time</label>
-          <input type="time" id="rr-sh-end" class="form-input" style="width:100%" value="17:00"/>
-        </div>
-      </div>
-      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Route</label>
-      <input id="rr-sh-route" class="form-input" style="width:100%;margin-bottom:10px" placeholder="e.g. KMO1-14B"/>
-      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Route type</label>
-      <select id="rr-sh-class" class="form-input" style="width:100%;margin-bottom:14px">
-        <option value="">Standard</option>
-        <option value="rescue">Rescue</option>
-        <option value="nursery">Nursery</option>
-        <option value="reduction">Reduction</option>
-        <option value="cycle_1">Cycle 1</option>
-        <option value="cycle_2">Cycle 2</option>
-        <option value="backup">Backup</option>
-      </select>
-      <div style="display:flex;gap:var(--s-2);justify-content:flex-end">
-        <button class="btn" data-rr-sh-cancel>Cancel</button>
-        <button class="btn btn-primary" data-rr-sh-save>Add shift</button>
-      </div>
-    </div>`;
-  document.body.appendChild(m);
-  m.addEventListener("click", async (e) => {
-    if (e.target.closest("[data-rr-sh-cancel]") || e.target === m) { m.remove(); return; }
-    if (e.target.closest("[data-rr-sh-save]")) {
-      const date  = document.getElementById("rr-sh-date").value;
-      const start = document.getElementById("rr-sh-start").value;
-      const end   = document.getElementById("rr-sh-end").value;
-      // Date + HH:MM produces a local-time ISO; the browser converts to
-      // UTC via toISOString. Operators run a per-DSP timezone but the
-      // shifts table stores UTC, so this round-trip is correct: enter
-      // "07:00" in your local zone, see it back as your local "07:00".
-      let startsAtIso = null, endsAtIso = null;
-      if (date && start) startsAtIso = new Date(`${date}T${start}:00`).toISOString();
-      if (date && end)   endsAtIso   = new Date(`${date}T${end}:00`).toISOString();
-      const classRaw = document.getElementById("rr-sh-class")?.value || "";
-      const payload = {
-        date,
-        station_id: stationId,
-        driver_id: document.getElementById("rr-sh-driver").value || null,
-        route_code: document.getElementById("rr-sh-route").value.trim() || null,
-        shift_kind: document.getElementById("rr-sh-kind").value || "regular",
-        route_classification: classRaw || null,
-        starts_at: startsAtIso,
-        ends_at:   endsAtIso,
-      };
-      if (!_confirmLiveScheduleEdit()) return;
-      _markLocalShiftMutation();
-      const { error } = await sb.rpc("create_shift", { p_payload: payload });
-      if (error) { toast("Save failed: " + error.message, "warn"); return; }
-      m.remove();
-      toast("Shift added", "success");
-      loadScheduleView();
-    }
-  });
-}
+// openAddShiftModal has been folded into openShiftEditModal — call
+// openShiftEditModal({date, stationId, driverId}) for the add path.
+// One drawer, two modes; see the unified function above.
 
 function openAssignShiftModal(shiftId) {
   let m = document.getElementById("rr-shift-modal");
