@@ -37394,7 +37394,17 @@ function openAddShiftModal(date, stationId, prefDriverId, anchorEl) {
         </div>
       </div>
       <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Route</label>
-      <input id="rr-sh-route" class="form-input" style="width:100%;margin-bottom:14px" placeholder="e.g. KMO1-14B"/>
+      <input id="rr-sh-route" class="form-input" style="width:100%;margin-bottom:10px" placeholder="e.g. KMO1-14B"/>
+      <label style="display:block;font-size:var(--fs-xs);font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Route type</label>
+      <select id="rr-sh-class" class="form-input" style="width:100%;margin-bottom:14px">
+        <option value="">Standard</option>
+        <option value="rescue">Rescue</option>
+        <option value="nursery">Nursery</option>
+        <option value="reduction">Reduction</option>
+        <option value="cycle_1">Cycle 1</option>
+        <option value="cycle_2">Cycle 2</option>
+        <option value="backup">Backup</option>
+      </select>
       <div style="display:flex;gap:var(--s-2);justify-content:flex-end">
         <button class="btn" data-rr-sh-cancel>Cancel</button>
         <button class="btn btn-primary" data-rr-sh-save>Add shift</button>
@@ -37414,12 +37424,14 @@ function openAddShiftModal(date, stationId, prefDriverId, anchorEl) {
       let startsAtIso = null, endsAtIso = null;
       if (date && start) startsAtIso = new Date(`${date}T${start}:00`).toISOString();
       if (date && end)   endsAtIso   = new Date(`${date}T${end}:00`).toISOString();
+      const classRaw = document.getElementById("rr-sh-class")?.value || "";
       const payload = {
         date,
         station_id: stationId,
         driver_id: document.getElementById("rr-sh-driver").value || null,
         route_code: document.getElementById("rr-sh-route").value.trim() || null,
         shift_kind: document.getElementById("rr-sh-kind").value || "regular",
+        route_classification: classRaw || null,
         starts_at: startsAtIso,
         ends_at:   endsAtIso,
       };
