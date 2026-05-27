@@ -88,6 +88,10 @@ function onePass(
     for (const refA of aRefs) {
       const planA = ws.planByShiftId.get(refA.shift_id);
       if (!planA || planA.assignedDriverId !== a.driver_id) continue;
+      // Never swap a shift the operator explicitly locked or pinned.
+      // A pin (source="locked" from step1_5_locks) reflects an explicit
+      // operator decision and must survive every later pass.
+      if (planA.source === "locked" || planA.source === "preserved") continue;
       if (inPreferredWindow(planA.shift, a)) continue; // already preferred
 
       for (const b of order) {
@@ -104,6 +108,7 @@ function onePass(
           if (refB.date === refA.date) continue;
           const planB = ws.planByShiftId.get(refB.shift_id);
           if (!planB || planB.assignedDriverId !== b.driver_id) continue;
+          if (planB.source === "locked" || planB.source === "preserved") continue;
           if (inPreferredWindow(planB.shift, b)) continue;
           // A must prefer B's day.
           if (!inPreferredWindow(planB.shift, a)) continue;

@@ -1067,3 +1067,86 @@ test("driver_lock_to_day — still blocked by hard rules (license expired)", () 
   // Chucky's license is expired → pin yields → Bob takes Sunday.
   assert.equal(r.assigned_shifts.find(a => a.shift_id === "s_sun")?.driver_id, "bob");
 });
+
+test("driver_lock_to_day — Preferred Enhancement must NOT swap a pinned shift", () => {
+  // The original operator bug: Chucky pinned to Monday. Bob prefers
+  // Mondays; Chucky prefers Tuesdays. Without the fix, the preferred-
+  // availability enhancement would swap them so both land on preferred
+  // days — but the pin would be broken. With the fix, Chucky stays
+  // pinned to Monday even though it's not his preferred day.
+  const r = runEngine(
+    input({
+      shifts: [
+        shift({ shift_id: "s_mon", date: "2026-05-25" }), // Mon
+        shift({ shift_id: "s_tue", date: "2026-05-26" }), // Tue
+      ],
+      drivers: [
+        driver({
+          driver_id: "chucky", last_name: "Cheese",
+          preferred_availability: { "2": [{ start: "00:00", end: "48:00" }] }, // prefers Tue
+        }),
+        driver({
+          driver_id: "bob", last_name: "Bob",
+          preferred_availability: { "1": [{ start: "00:00", end: "48:00" }] }, // prefers Mon
+        }),
+      ],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "driver_lock_to_day",
+          payload: { driver_id: "chucky", dow: 1 }, hardness: "hard" },
+      ],
+      settings: {
+        preferred_enhancement: true,
+        preferred_enhancement_contiguous: false,
+        preferred_enhancement_extra: true,
+        max_days_enforcement: false, woc_enforcement: false,
+      },
+    }),
+  );
+  // The pin must survive: chucky stays on Monday.
+  assert.equal(
+    r.assigned_shifts.find(a => a.shift_id === "s_mon")?.driver_id,
+    "chucky",
+    "preferred enhancement must not break a pinned (locked) assignment",
+  );
+});
+
+test("driver_lock_to_day — Affinity Enhancement must NOT swap a pinned shift", () => {
+  // Symmetric test for the affinity enhancement. Chucky pinned to Mon,
+  // but his historical weekday affinity favors Wednesday. Without the
+  // fix, the affinity sweep would swap him to Wed; with the fix, the
+  // pin holds.
+  const r = runEngine(
+    input({
+      shifts: [
+        shift({ shift_id: "s_mon", date: "2026-05-25" }), // Mon (dow=1)
+        shift({ shift_id: "s_wed", date: "2026-05-27" }), // Wed (dow=3)
+      ],
+      drivers: [
+        driver({
+          driver_id: "chucky", last_name: "Cheese",
+          // Strong Wed affinity, no Mon affinity.
+          weekday_affinity: [0, 0, 0, 100, 0, 0, 0],
+        }),
+        driver({
+          driver_id: "bob", last_name: "Bob",
+          // Strong Mon affinity.
+          weekday_affinity: [0, 100, 0, 0, 0, 0, 0],
+        }),
+      ],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "driver_lock_to_day",
+          payload: { driver_id: "chucky", dow: 1 }, hardness: "hard" },
+      ],
+      settings: {
+        affinity_enhancement: true,
+        affinity_day_order: [1, 3, 0, 2, 4, 5, 6],
+        max_days_enforcement: false, woc_enforcement: false,
+      },
+    }),
+  );
+  assert.equal(
+    r.assigned_shifts.find(a => a.shift_id === "s_mon")?.driver_id,
+    "chucky",
+    "affinity enhancement must not break a pinned (locked) assignment",
+  );
+});
