@@ -34039,7 +34039,8 @@ function _schedShiftChip(sh, extras) {
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';
-  return `<div class="shift-chip${routineCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" style="${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}</div>`;
+  const trainingCls = extras?.traineeName ? ' shift-chip-training' : '';
+  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" style="${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}</div>`;
 }
 
 function _schedDriverInitials(name) {
