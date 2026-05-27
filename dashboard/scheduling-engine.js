@@ -1608,11 +1608,16 @@ function isBetter(plan, score, best, startDow) {
   if (a.start_ms !== b.start_ms) return a.start_ms < b.start_ms;
   return a.shift_id < b.shift_id;
 }
-function runPhase(ctx, ws, matrix, phase) {
-  const order = orderDrivers(ctx, ws.states);
-  const rankMap = /* @__PURE__ */ new Map();
-  order.forEach((d, i) => rankMap.set(d.driver_id, i + 1));
+function isAtOrOverTarget(ctx, ws, driver) {
+  const target = ctx.settings.target_days_per_week;
+  if (target <= 0) return false;
+  const state = ws.states.get(driver.driver_id);
+  if (!state) return false;
+  return uniqueDatesInWindow(state, ctx.scheduleWeek).size >= target;
+}
+function runFillCycle(ctx, ws, matrix, phase, order, rankMap, driverSkip) {
   const assignOne = (driver) => {
+    if (driverSkip(driver)) return false;
     const rank = rankMap.get(driver.driver_id) ?? order.length;
     const best = bestShiftForDriver(ctx, ws, matrix, driver, rank, phase);
     if (!best) return false;
@@ -1626,19 +1631,42 @@ function runPhase(ctx, ws, matrix, phase) {
       while (assignOne(driver)) {
       }
     }
-  } else {
-    const batch = Math.max(1, ctx.settings.rotation_batch_size);
-    let progress = true;
-    while (progress) {
-      progress = false;
-      for (const driver of order) {
-        for (let i = 0; i < batch; i++) {
-          if (assignOne(driver)) progress = true;
-          else break;
-        }
+    return;
+  }
+  const batch = Math.max(1, ctx.settings.rotation_batch_size);
+  let progress = true;
+  while (progress) {
+    progress = false;
+    for (const driver of order) {
+      for (let i = 0; i < batch; i++) {
+        if (assignOne(driver)) progress = true;
+        else break;
       }
     }
   }
+}
+function runPhase(ctx, ws, matrix, phase) {
+  const order = orderDrivers(ctx, ws.states);
+  const rankMap = /* @__PURE__ */ new Map();
+  order.forEach((d, i) => rankMap.set(d.driver_id, i + 1));
+  runFillCycle(
+    ctx,
+    ws,
+    matrix,
+    phase,
+    order,
+    rankMap,
+    (driver) => isAtOrOverTarget(ctx, ws, driver)
+  );
+  runFillCycle(
+    ctx,
+    ws,
+    matrix,
+    phase,
+    order,
+    rankMap,
+    () => false
+  );
 }
 function runMainPass(ctx, ws, matrix) {
   runPhase(ctx, ws, matrix, "dot");
