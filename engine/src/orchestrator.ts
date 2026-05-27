@@ -179,8 +179,11 @@ export function runEngine(input: EngineInput): ScheduleResult {
   // Eligibility is evaluated before pre-assignment so PTO, availability,
   // cert, license, and rest rules naturally override pins. If a pinned
   // driver can't be placed on their DOW (e.g. they're on PTO), the pin
-  // goes silent for the week — no violation flagged.
-  applyDriverDayLocks(ctx, ws, input.ad_hoc_constraints ?? []);
+  // goes silent for the week — no violation flagged. The pass returns
+  // per-rule warnings ("pin_not_applied") naming the actual blocker,
+  // surfaced in the final result so operators can diagnose why a pin
+  // didn't fire (cert mismatch, PTO, blackout, etc).
+  const lockWarnings = applyDriverDayLocks(ctx, ws, input.ad_hoc_constraints ?? []);
 
   // Step 3 — eligibility matrix.
   const matrix = buildEligibilityMatrix(ctx, ws);
@@ -208,6 +211,8 @@ export function runEngine(input: EngineInput): ScheduleResult {
 
   // Step 9 — final validation.
   const { violations, warnings } = validate(ctx, ws);
+  // Surface Step 1.5 pin-yield warnings alongside the validation warnings.
+  warnings.push(...lockWarnings);
 
   // Step 9b — Fifth-Day Fill. Runs AFTER validation: it intentionally
   // takes opted-in drivers one day past the max-days cap, so validating

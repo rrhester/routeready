@@ -1153,12 +1153,13 @@ function parseLockRule(raw, ctx) {
   return { driver, dow };
 }
 function applyDriverDayLocks(ctx, ws, constraints) {
+  const warnings = [];
   const rules = [];
   for (const c of constraints) {
     const r = parseLockRule(c, ctx);
     if (r) rules.push(r);
   }
-  if (rules.length === 0) return;
+  if (rules.length === 0) return warnings;
   const relaxedSettings = {
     ...ctx.settings,
     availability_enforcement: false,
@@ -1182,15 +1183,40 @@ function applyDriverDayLocks(ctx, ws, constraints) {
       }
       return a.shift.shift_id < b.shift.shift_id ? -1 : 1;
     });
+    let placed = false;
+    const blockTally = /* @__PURE__ */ new Map();
+    const dowName = DOW_NAMES[rule.dow] || "day";
     for (const plan of candidates) {
       const state = ws.states.get(rule.driver.driver_id);
       if (!state) break;
       const cell = evaluateEligibility(plan.shift, rule.driver, state, relaxedCtx);
-      if (!cell.eligible) continue;
-      applyAssignment(ws, plan, rule.driver.driver_id, "locked");
-      break;
+      if (cell.eligible) {
+        applyAssignment(ws, plan, rule.driver.driver_id, "locked");
+        placed = true;
+        break;
+      }
+      const reason = cell.block_reasons[0];
+      if (reason && !blockTally.has(reason.rule)) {
+        blockTally.set(reason.rule, reason);
+      }
+    }
+    if (!placed) {
+      const driverName = `${rule.driver.first_name} ${rule.driver.last_name}`.trim() || rule.driver.driver_id;
+      let reasonText;
+      if (candidates.length === 0) {
+        reasonText = `no ${dowName} shift exists in this schedule week`;
+      } else {
+        const reasons = [...blockTally.values()];
+        reasonText = reasons.length > 0 ? `${reasons.length === 1 ? "" : "primary reason: "}${reasons[0].message}` : "no eligible shift this week";
+      }
+      warnings.push({
+        type: "pin_not_applied",
+        driver_id: rule.driver.driver_id,
+        message: `Pin \xB7 ${driverName} on ${dowName}s couldn't place this week \u2014 ${reasonText}.`
+      });
     }
   }
+  return warnings;
 }
 
 // src/steps/step2_driver_state.ts
@@ -2281,7 +2307,7 @@ function runEngine(input) {
   const states = initDriverState(ctx, plans);
   const planByShiftId = new Map(plans.map((p) => [p.shift.shift_id, p]));
   const ws = { plans, planByShiftId, states };
-  applyDriverDayLocks(ctx, ws, input.ad_hoc_constraints ?? []);
+  const lockWarnings = applyDriverDayLocks(ctx, ws, input.ad_hoc_constraints ?? []);
   const matrix = buildEligibilityMatrix(ctx, ws);
   ctx.patterns = computePatterns(ctx);
   runPatternPass(ctx, ws, matrix);
@@ -2290,6 +2316,7 @@ function runEngine(input) {
   runPreferredEnhancement(ctx, ws);
   runAffinityEnhancement(ctx, ws);
   const { violations, warnings } = validate(ctx, ws);
+  warnings.push(...lockWarnings);
   runFifthDayFill(ctx, ws);
   const assignmentExplanations = buildAssignmentExplanations(
     ctx,

@@ -32282,6 +32282,14 @@ async function autoFillScheduleWeek() {
           diagnostics.uncovered.map(s => "  • " + s).join("\n")
         );
       }
+      // Pin yields · highlighted first because they're the most common
+      // "I pinned a driver but they didn't get scheduled" diagnostic.
+      if (diagnostics.pinYields && diagnostics.pinYields.length > 0) {
+        parts.push(
+          `${diagnostics.pinYields.length} pin${diagnostics.pinYields.length === 1 ? "" : "s"} couldn't fire this week:\n` +
+          diagnostics.pinYields.map(m => "  • " + m).join("\n")
+        );
+      }
       if (diagnostics.skipped && diagnostics.skipped.length > 0) {
         const total = diagnostics.skipped.reduce((n, s) => n + s.count, 0);
         parts.push(
@@ -33413,6 +33421,14 @@ async function autoAssignDriversForWeek() {
       }
       return `${name} [avail: ${avail}] — ${reason}`;
     }),
+    // Pin yields · operator-pinned (driver_lock_to_day) rules that
+    // couldn't fire this week, with the engine's reason. Surfaces in
+    // the diagnostic popup so the operator can fix the underlying
+    // block (cert mismatch, PTO, etc) instead of wondering why their
+    // pin "didn't work."
+    pinYields: (result.warnings || [])
+      .filter(w => w && w.type === "pin_not_applied")
+      .map(w => w.message),
   };
   // Audit: record the final result. Best-effort — wrapped so an audit
   // failure never disrupts the operator's flow. Decision rows + metrics
