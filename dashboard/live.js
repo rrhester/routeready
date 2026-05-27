@@ -3837,7 +3837,7 @@ async function loadDriversRoster() {
                training_scheduled_at, training_date,
                station:station_id (code)`)
       .eq("dsp_id", window.RR.dsp.id)
-      .eq("role", "driver")
+      .in("role", ["driver", "other"])
       .order("hire_date", { ascending: false })
       .limit(500),
     sb.rpc("driver_app_status"),
@@ -8599,7 +8599,7 @@ async function loadCheckinView() {
       .select("id, full_name, first_name, last_name, preferred_name, phone, station:station_id (code), tier")
       .eq("dsp_id", dspId)
       .eq("status", "active")
-      .eq("role", "driver"),
+      .in("role", ["driver", "other"]),
     sb.from("shifts")
       .select("id, driver_id, status, date")
       .eq("dsp_id", dspId)
@@ -16024,7 +16024,7 @@ async function _tpOpenPickerPane() {
         .select("id, full_name, is_trainer")
         .eq("dsp_id", dspId)
         .eq("status", "active")
-        .eq("role", "driver")
+        .in("role", ["driver", "other"])
         .neq("id", s.driverId)
         .order("full_name");
       s.allDrivers = allRows || [];
@@ -29438,7 +29438,7 @@ async function _renderSchedTodayView_LEGACY_UNUSED() {
       .select("id, full_name, first_name, last_name, preferred_name, status, station_id, tier, station:station_id (code)")
       .eq("dsp_id", dspId)
       .eq("status", "active")
-      .eq("role", "driver")
+      .in("role", ["driver", "other"])
       .order("full_name"),
   ]);
   if (gridRes.error || driversRes.error) {
@@ -32818,7 +32818,7 @@ async function autoAssignDriversForWeek() {
     sb.from("drivers")
       .select("id, full_name, hire_date, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, status, role")
       .eq("dsp_id", dspId)
-      .eq("role", "driver")
+      .in("role", ["driver", "other"])
       .order("full_name"),
     sb.from("time_off_requests")
       .select("driver_id, start_date, end_date, is_pto")
@@ -34272,7 +34272,7 @@ async function renderScheduleWeek() {
       .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, birthday, tier, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, is_trainer, station:station_id (code)")
       .eq("dsp_id", dspId)
       .eq("status", "active")
-      .eq("role", "driver")
+      .in("role", ["driver", "other"])
       .order("full_name"),
     sb.from("time_off_requests")
       .select("id, driver_id, start_date, end_date, status, is_pto")
@@ -50947,7 +50947,7 @@ async function openRecogSendModal(opts) {
     const { data, error } = await sb.from("drivers")
       .select("id, full_name, preferred_name, photo_path, role, status")
       .eq("dsp_id", window.RR.dsp.id)
-      .eq("role", "driver")
+      .in("role", ["driver", "other"])
       .eq("status", "active")
       .order("full_name", { ascending: true })
       .limit(2000);
