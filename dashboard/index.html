@@ -14213,10 +14213,14 @@ body.rr-cmdk-open{ overflow:hidden }
                     <span class="sched-vans-rules-head-title">Week view display</span>
                   </div>
                   <!-- Single-column override · the shared .sched-smartfill-rules-body
-                       uses a 2-col grid for the Smart Fill popover. Week-view has
-                       narrower content (density + color coding) that reads better
-                       stacked. Inline grid override scoped to this popover only. -->
-                  <div class="sched-smartfill-rules-body" style="grid-template-columns:1fr;gap:14px;padding:12px 14px">
+                       uses BOTH a 2-col grid AND a CSS multi-column flow (two
+                       separate rules layered). For Week-view we want sections
+                       to stack top-to-bottom, so we neutralize both:
+                       - column-count:1 disables the multi-col flow
+                       - display:flex+flex-direction:column overrides the grid
+                       Inline scoped to this popover only; Smart Fill popover
+                       still uses its 2-col layout via the same class. -->
+                  <div class="sched-smartfill-rules-body" style="column-count:1;display:flex;flex-direction:column;gap:14px;padding:12px 14px">
                     <!-- Grid density picker · three named options. Toggles
                          `body.rr-sched-compact` / `body.rr-sched-ultra-compact`
                          so the rest of the grid CSS (already wired for
