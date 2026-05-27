@@ -19,9 +19,15 @@
 // pin goes silent for that week — no violation, the rule just doesn't
 // fire and the schedule fills around it.
 
-import type { AdHocConstraint, NormalizedDriver, Settings } from "../types.ts";
+import type {
+  AdHocConstraint,
+  BlockReason,
+  NormalizedDriver,
+  Settings,
+  Warning,
+} from "../types.ts";
 import type { EngineContext } from "../runtime.ts";
-import { dayOfWeek } from "../dates.ts";
+import { DOW_NAMES, dayOfWeek } from "../dates.ts";
 import { evaluateEligibility } from "../eligibility.ts";
 import { type ShiftPlan, type WorkingSchedule, applyAssignment } from "../plan.ts";
 
@@ -50,18 +56,24 @@ function parseLockRule(
  * Apply every active driver_lock_to_day rule by claiming an eligible open
  * shift on the matching DOW for that driver. Source = "locked" so later
  * steps treat it like any other pinned manual assignment.
+ *
+ * Returns a list of warnings for rules that COULDN'T be applied this
+ * week — e.g. the pinned driver has no eligible open shift on the
+ * matching DOW. Surfaces in the result so operators can diagnose
+ * silent yields ("Chucky pinned to Mon but no eligible Mon shift").
  */
 export function applyDriverDayLocks(
   ctx: EngineContext,
   ws: WorkingSchedule,
   constraints: AdHocConstraint[],
-): void {
+): Warning[] {
+  const warnings: Warning[] = [];
   const rules: LockRule[] = [];
   for (const c of constraints) {
     const r = parseLockRule(c, ctx);
     if (r) rules.push(r);
   }
-  if (rules.length === 0) return;
+  if (rules.length === 0) return warnings;
 
   // Relaxed eligibility context: pins override saved availability + the
   // preferred-required boundary. They do NOT override hard compliance
@@ -98,13 +110,49 @@ export function applyDriverDayLocks(
         return a.shift.shift_id < b.shift.shift_id ? -1 : 1;
       });
 
+    let placed = false;
+    // Track the most common block reason across candidates so the
+    // warning can name the actual blocker ("missing DOT cert", not
+    // just "ineligible").
+    const blockTally = new Map<string, BlockReason>();
+    const dowName = DOW_NAMES[rule.dow] || "day";
+
     for (const plan of candidates) {
       const state = ws.states.get(rule.driver.driver_id);
       if (!state) break;
       const cell = evaluateEligibility(plan.shift, rule.driver, state, relaxedCtx);
-      if (!cell.eligible) continue;
-      applyAssignment(ws, plan, rule.driver.driver_id, "locked");
-      break; // one shift per (driver, DOW) — the rule is satisfied
+      if (cell.eligible) {
+        applyAssignment(ws, plan, rule.driver.driver_id, "locked");
+        placed = true;
+        break; // one shift per (driver, DOW) — the rule is satisfied
+      }
+      const reason = cell.block_reasons[0];
+      if (reason && !blockTally.has(reason.rule)) {
+        blockTally.set(reason.rule, reason);
+      }
+    }
+
+    if (!placed) {
+      const driverName =
+        `${rule.driver.first_name} ${rule.driver.last_name}`.trim() ||
+        rule.driver.driver_id;
+      let reasonText: string;
+      if (candidates.length === 0) {
+        reasonText = `no ${dowName} shift exists in this schedule week`;
+      } else {
+        // Pick the most-mentioned blocker for a useful diagnostic.
+        const reasons = [...blockTally.values()];
+        reasonText = reasons.length > 0
+          ? `${reasons.length === 1 ? "" : "primary reason: "}${reasons[0].message}`
+          : "no eligible shift this week";
+      }
+      warnings.push({
+        type: "pin_not_applied",
+        driver_id: rule.driver.driver_id,
+        message:
+          `Pin · ${driverName} on ${dowName}s couldn't place this week — ${reasonText}.`,
+      });
     }
   }
+  return warnings;
 }
