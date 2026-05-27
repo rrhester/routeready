@@ -15913,6 +15913,20 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--accent-soft);
             border-color:var(--accent-border);
           }
+          /* Training shift designation · a thin Fluent-purple stripe
+             along the left edge of the chip + a slight background tint.
+             Identifies shifts where the trainer (this row's driver) is
+             paired with a trainee for the day. Subtle enough not to
+             clash with the wave / cushion styling, distinct enough to
+             spot at a glance. The trainee-initials badge in the eyebrow
+             row gives the detail. */
+          #view-schedule .shift-chip.shift-chip-training{
+            background:linear-gradient(90deg, rgba(136,71,255,.06) 0%, rgba(255,255,255,0) 60%);
+            box-shadow:inset 3px 0 0 0 rgba(136,71,255,.55);
+          }
+          #view-schedule .shift-chip.shift-chip-training.is-routine{
+            background:linear-gradient(90deg, rgba(136,71,255,.10) 0%, var(--accent-soft) 60%);
+          }
           #view-schedule .shift-chip.is-routine .shift-chip-route,
           #view-schedule .shift-chip.is-routine .shift-chip-time{
             color:color-mix(in srgb, var(--accent-text) 60%, transparent);
