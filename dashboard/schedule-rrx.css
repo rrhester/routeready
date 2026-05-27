@@ -2246,6 +2246,83 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 /* ============================================================
+   Route color coding · scoped to body.rr-sched-color-routes
+   ------------------------------------------------------------
+   Toggled by the Week-view rules popover. When on, each shift
+   chip paints by `data-rr-route-class` — Rescue/Nursery/etc.
+   Standard (empty value) keeps the brand-blue default so the
+   bulk of the grid looks unchanged. Uses the same opacity
+   stack as the default chip (22% fill / 55% border / 1px hard
+   shadow) so the only thing changing is the hue.
+   ============================================================ */
+
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: rgba(220, 38, 38, 0.22) !important;
+  border-color: rgba(220, 38, 38, 0.65) !important;
+  box-shadow: 0 1px 0 rgba(220, 38, 38, 0.22) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
+  color: #991B1B !important;
+}
+
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: rgba(13, 148, 136, 0.22) !important;
+  border-color: rgba(13, 148, 136, 0.65) !important;
+  box-shadow: 0 1px 0 rgba(13, 148, 136, 0.22) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
+  color: #115E59 !important;
+}
+
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: rgba(234, 88, 12, 0.22) !important;
+  border-color: rgba(234, 88, 12, 0.65) !important;
+  box-shadow: 0 1px 0 rgba(234, 88, 12, 0.22) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
+  color: #9A3412 !important;
+}
+
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: rgba(124, 58, 237, 0.22) !important;
+  border-color: rgba(124, 58, 237, 0.65) !important;
+  box-shadow: 0 1px 0 rgba(124, 58, 237, 0.22) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
+  color: #5B21B6 !important;
+}
+
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: rgba(219, 39, 119, 0.22) !important;
+  border-color: rgba(219, 39, 119, 0.65) !important;
+  box-shadow: 0 1px 0 rgba(219, 39, 119, 0.22) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
+  color: #9D174D !important;
+}
+
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: rgba(100, 116, 139, 0.24) !important;
+  border-color: rgba(100, 116, 139, 0.65) !important;
+  box-shadow: 0 1px 0 rgba(100, 116, 139, 0.22) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route-code,
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-primary {
+  color: #334155 !important;
+}
+
+/* ============================================================
    Crispness · sharper grid lines, tighter chip corners,
    stronger micro-shadow. The base styles use rgba(15,23,42,.05)
    for every divider — only 5% opacity reads as washed-out next
