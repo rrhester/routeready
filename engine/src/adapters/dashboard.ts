@@ -131,6 +131,10 @@ export interface DashboardRules {
   attendance_weight?: "low" | "medium" | "high";
   /** Max-days cap window: this week / rolling 7 days / pay period. */
   max_days_window?: "schedule_week" | "rolling_7_days" | "pay_period";
+  /** Soft per-driver target days/week. Engine deprioritizes placements
+   *  past this number — drivers stay at or below the target unless
+   *  coverage would suffer. Distinct from max_days (hard cap). */
+  target_days_per_week?: number;
   /** Weekly-hour cap window. */
   weekly_hour_window?: "schedule_week" | "rolling_7_days" | "pay_period";
   /** Whether PTO hours count toward the weekly hour cap. */
@@ -436,6 +440,10 @@ function buildSettings(payload: PlanPayload): RawSettings {
   const WINDOW_SET = new Set(["schedule_week", "rolling_7_days"]);
   const maxDaysWindow = (typeof r.max_days_window === "string" &&
     WINDOW_SET.has(r.max_days_window)) ? r.max_days_window : "schedule_week";
+  // Soft target days/week (default 4 — most DSPs run 4-day weeks with
+  // 10h shifts before OT).
+  const targetDays = Math.max(0, Math.min(7,
+    Math.round(r.target_days_per_week ?? 4)));
   const weeklyHourWindow = (typeof r.weekly_hour_window === "string" &&
     WINDOW_SET.has(r.weekly_hour_window)) ? r.weekly_hour_window : "schedule_week";
 
@@ -473,6 +481,7 @@ function buildSettings(payload: PlanPayload): RawSettings {
     max_days_enforcement: true,
     max_days: maxDays,
     max_days_window: maxDaysWindow,
+    target_days_per_week: targetDays,
     // WOC (Working Hours Compliance) governs the weekly-hours cap.
     weekly_hour_cap_enforcement: woc.on,
     weekly_hour_cap: woc.maxHours,

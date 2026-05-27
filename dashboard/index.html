@@ -14774,6 +14774,14 @@ body.rr-cmdk-open{ overflow:hidden }
                       </div>
                       <div class="sf2-group-label">Days &amp; hours caps</div>
                       <div class="sf2-row">
+                        <label class="sf2-row-label" for="rr-sf-target-days">Target days per driver</label>
+                        <div class="sf2-row-control">
+                          <input type="number" class="sf2-number" id="rr-sf-target-days" min="0" max="7" step="1" value="4" data-rr-sf-num="target_days_per_week">
+                          <span style="font-size:11px;color:#605E5C">days/week (soft)</span>
+                        </div>
+                        <p class="sf2-row-help">Aim to keep every driver at or below this many days a week. Engine scores against placements past this number, so other drivers fill first. The engine still goes over the target when coverage demands it (the OT escape hatch). 0 disables. Default 4 — fits a 4-day, 10-hour-shift week before OT.</p>
+                      </div>
+                      <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-sf-max-days-window">Max days window</label>
                         <div class="sf2-row-control">
                           <select id="rr-sf-max-days-window" class="sf2-select" data-rr-sf-select="max_days_window">

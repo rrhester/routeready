@@ -94,7 +94,8 @@ export function buildAssignmentExplanations(
         `${plan.shift.date} (${plan.shift.route_type}) via ${plan.source}; ` +
         `score ${total} [historical ${components.historical}, ` +
         `attendance ${components.attendance}, preferred ${components.preferred}, ` +
-        `consecutive ${components.consecutive}, method ${components.method}].`,
+        `consecutive ${components.consecutive}, method ${components.method}, ` +
+        `target_days ${components.target_days}].`,
     });
   }
   return out;
