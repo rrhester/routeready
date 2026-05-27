@@ -84,7 +84,7 @@ function onePassForDay(
     // Never swap a shift the operator explicitly locked or pinned —
     // a pin (source="locked") reflects explicit operator intent that
     // must survive every later pass.
-    if (planA.source === "locked" || planA.source === "preserved") continue;
+    if (planA.source === "locked" || planA.source === "preserved" || planA.source === "pin_lock") continue;
     const a = driverById.get(planA.assignedDriverId);
     const stateA = ws.states.get(planA.assignedDriverId);
     if (!a || !stateA) continue;
@@ -93,7 +93,7 @@ function onePassForDay(
     for (const planB of ws.plans) {
       if (planB.shift.dow === day) continue; // must be a different weekday
       if (!planB.assignedDriverId || locked.has(planB.shift.shift_id)) continue;
-      if (planB.source === "locked" || planB.source === "preserved") continue;
+      if (planB.source === "locked" || planB.source === "preserved" || planB.source === "pin_lock") continue;
       if (planB.assignedDriverId === a.driver_id) continue;
       const b = driverById.get(planB.assignedDriverId);
       const stateB = ws.states.get(planB.assignedDriverId);

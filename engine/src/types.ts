@@ -38,7 +38,8 @@ export type AssignmentSource =
   | "pattern_pass"
   | "auto_fill"
   | "swap"
-  | "fifth_day";
+  | "fifth_day"
+  | "pin_lock";
 
 // ---------------------------------------------------------------------------
 // Raw inputs (as supplied by callers — loosely typed, normalized at entry)

@@ -842,7 +842,7 @@ test("driver_lock_to_day — Wednesday pin places driver on the Wed shift", () =
   );
   const wed = r.assigned_shifts.find(a => a.shift_id === "s_wed");
   assert.equal(wed?.driver_id, "alice", "Alice should be pinned to the Wednesday shift");
-  assert.equal(wed?.source, "locked");
+  assert.equal(wed?.source, "pin_lock");
 });
 
 test("driver_lock_to_day — PTO overrides the lock (no violation)", () => {

@@ -122,7 +122,15 @@ export function applyDriverDayLocks(
       if (!state) break;
       const cell = evaluateEligibility(plan.shift, rule.driver, state, relaxedCtx);
       if (cell.eligible) {
-        applyAssignment(ws, plan, rule.driver.driver_id, "locked");
+        // Source = "pin_lock" so this placement is distinguishable from
+        // pre-existing locked input. The dashboard's write-back skips
+        // source === "locked" (which means "came in already assigned,
+        // don't double-write"); pin_lock is a NEW assignment created by
+        // the engine that DOES need to be written. The enhancement
+        // passes (8b/8c) treat pin_lock the same as locked — never
+        // swap. Optimization (step 8) only swaps auto_fill/pattern_pass/
+        // swap, so pin_lock is naturally safe there.
+        applyAssignment(ws, plan, rule.driver.driver_id, "pin_lock");
         placed = true;
         break; // one shift per (driver, DOW) — the rule is satisfied
       }
