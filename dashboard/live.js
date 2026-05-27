@@ -25773,11 +25773,13 @@ const _RR_SF_ENGINE_DEFAULTS = Object.freeze({
   maxDaysOverride: 5,
   weeklyHourCap:   40,
 });
-// Default weight constants — must match cpsat_model.py defaults so a
-// slider left at 3 ("Default") multiplies by 1.0 and produces the
-// solver's existing numbers (no behaviour change).
+// Default weight constants — match cpsat_model.py defaults so a
+// slider left at 3 ("Default") multiplies by 1.0 and reproduces the
+// solver-side hierarchy. Coverage = 1M is intentional: it dominates
+// the sum of every other term so coverage can never be sacrificed for
+// any other objective. See cpsat_model.py for the full hierarchy.
 const _RR_SF_ENGINE_WEIGHT_DEFAULTS = Object.freeze({
-  coverage:       10000,
+  coverage:       1000000,
   fairness:       2,
   ot_risk:        5,
   affinity:       1,
