@@ -1191,7 +1191,7 @@ function applyDriverDayLocks(ctx, ws, constraints) {
       if (!state) break;
       const cell = evaluateEligibility(plan.shift, rule.driver, state, relaxedCtx);
       if (cell.eligible) {
-        applyAssignment(ws, plan, rule.driver.driver_id, "locked");
+        applyAssignment(ws, plan, rule.driver.driver_id, "pin_lock");
         placed = true;
         break;
       }
@@ -1780,7 +1780,7 @@ function onePass(ctx, ws, allowScatter) {
     for (const refA of aRefs) {
       const planA = ws.planByShiftId.get(refA.shift_id);
       if (!planA || planA.assignedDriverId !== a.driver_id) continue;
-      if (planA.source === "locked" || planA.source === "preserved") continue;
+      if (planA.source === "locked" || planA.source === "preserved" || planA.source === "pin_lock") continue;
       if (inPreferredWindow(planA.shift, a)) continue;
       for (const b of order) {
         if (b.driver_id === a.driver_id) continue;
@@ -1794,7 +1794,7 @@ function onePass(ctx, ws, allowScatter) {
           if (refB.date === refA.date) continue;
           const planB = ws.planByShiftId.get(refB.shift_id);
           if (!planB || planB.assignedDriverId !== b.driver_id) continue;
-          if (planB.source === "locked" || planB.source === "preserved") continue;
+          if (planB.source === "locked" || planB.source === "preserved" || planB.source === "pin_lock") continue;
           if (inPreferredWindow(planB.shift, b)) continue;
           if (!inPreferredWindow(planB.shift, a)) continue;
           const baseA = stateWithout2(stateA, refA.shift_id);
@@ -1876,7 +1876,7 @@ function onePassForDay(ctx, ws, day, locked) {
   for (const planA of ws.plans) {
     if (planA.shift.dow !== day) continue;
     if (!planA.assignedDriverId || locked.has(planA.shift.shift_id)) continue;
-    if (planA.source === "locked" || planA.source === "preserved") continue;
+    if (planA.source === "locked" || planA.source === "preserved" || planA.source === "pin_lock") continue;
     const a = driverById.get(planA.assignedDriverId);
     const stateA = ws.states.get(planA.assignedDriverId);
     if (!a || !stateA) continue;
@@ -1884,7 +1884,7 @@ function onePassForDay(ctx, ws, day, locked) {
     for (const planB of ws.plans) {
       if (planB.shift.dow === day) continue;
       if (!planB.assignedDriverId || locked.has(planB.shift.shift_id)) continue;
-      if (planB.source === "locked" || planB.source === "preserved") continue;
+      if (planB.source === "locked" || planB.source === "preserved" || planB.source === "pin_lock") continue;
       if (planB.assignedDriverId === a.driver_id) continue;
       const b = driverById.get(planB.assignedDriverId);
       const stateB = ws.states.get(planB.assignedDriverId);
