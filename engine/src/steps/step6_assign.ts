@@ -1,13 +1,27 @@
 // Step 6 — Main assignment pass (R016: rotational or sequential fill).
 //
-// Runs in two phases so DOT-required routes are always filled before any
-// DOT-certified driver is spent on a standard route (SPEC Route Fill Order):
+// Outer layering — two route phases so DOT-required routes are always
+// filled before any DOT-certified driver is spent on a standard route
+// (SPEC Route Fill Order):
 //   Phase 1 — DOT-required shifts only.
 //   Phase 2 — standard shifts only.
-// Within each phase the configured rotational/sequential logic applies.
+//
+// Within each route phase, runs TWO target-aware passes:
+//   Pass A — only drivers under target_days_per_week claim shifts.
+//            This honors the soft cap — engine prefers spreading work
+//            across drivers who haven't hit their target yet.
+//   Pass B — every still-eligible driver can claim. This is the "OT
+//            escape hatch" — runs only when coverage still has open
+//            shifts after Pass A.
+//
+// target_days_per_week=0 collapses to a single pass (no soft cap).
 
 import type { NormalizedDriver } from "../types.ts";
-import { type EngineContext, isDotRoute } from "../runtime.ts";
+import {
+  type EngineContext,
+  isDotRoute,
+  uniqueDatesInWindow,
+} from "../runtime.ts";
 import { type WorkingSchedule, applyAssignment } from "../plan.ts";
 import type { ShiftPlan } from "../plan.ts";
 import { orderDrivers } from "../rules/r015_method.ts";
@@ -79,17 +93,32 @@ function isBetter(
   return a.shift_id < b.shift_id;
 }
 
-function runPhase(
+/** Pass-A skip predicate: true when the driver is already at-or-over their
+ *  target. Existing assigned days (including pin_lock and any locked
+ *  input shifts) count toward the target via uniqueDatesInWindow. */
+function isAtOrOverTarget(
+  ctx: EngineContext,
+  ws: WorkingSchedule,
+  driver: NormalizedDriver,
+): boolean {
+  const target = ctx.settings.target_days_per_week;
+  if (target <= 0) return false; // soft cap disabled
+  const state = ws.states.get(driver.driver_id);
+  if (!state) return false;
+  return uniqueDatesInWindow(state, ctx.scheduleWeek).size >= target;
+}
+
+function runFillCycle(
   ctx: EngineContext,
   ws: WorkingSchedule,
   matrix: EligibilityMatrix,
   phase: Phase,
+  order: NormalizedDriver[],
+  rankMap: Map<string, number>,
+  driverSkip: (driver: NormalizedDriver) => boolean,
 ): void {
-  const order = orderDrivers(ctx, ws.states);
-  const rankMap = new Map<string, number>();
-  order.forEach((d, i) => rankMap.set(d.driver_id, i + 1));
-
   const assignOne = (driver: NormalizedDriver): boolean => {
+    if (driverSkip(driver)) return false;
     const rank = rankMap.get(driver.driver_id) ?? order.length;
     const best = bestShiftForDriver(ctx, ws, matrix, driver, rank, phase);
     if (!best) return false;
@@ -105,21 +134,49 @@ function runPhase(
         /* keep filling this driver until blocked */
       }
     }
-  } else {
-    // Rotational fill — each driver claims up to `rotation_batch_size`
-    // shifts before the cycle rotates to the next driver, then repeats.
-    const batch = Math.max(1, ctx.settings.rotation_batch_size);
-    let progress = true;
-    while (progress) {
-      progress = false;
-      for (const driver of order) {
-        for (let i = 0; i < batch; i++) {
-          if (assignOne(driver)) progress = true;
-          else break;
-        }
+    return;
+  }
+  // Rotational fill — each driver claims up to `rotation_batch_size`
+  // shifts before the cycle rotates to the next driver, then repeats.
+  const batch = Math.max(1, ctx.settings.rotation_batch_size);
+  let progress = true;
+  while (progress) {
+    progress = false;
+    for (const driver of order) {
+      for (let i = 0; i < batch; i++) {
+        if (assignOne(driver)) progress = true;
+        else break;
       }
     }
   }
+}
+
+function runPhase(
+  ctx: EngineContext,
+  ws: WorkingSchedule,
+  matrix: EligibilityMatrix,
+  phase: Phase,
+): void {
+  const order = orderDrivers(ctx, ws.states);
+  const rankMap = new Map<string, number>();
+  order.forEach((d, i) => rankMap.set(d.driver_id, i + 1));
+
+  // Pass A — only drivers UNDER their target_days_per_week can claim.
+  // Re-evaluated per call (driver's day-count grows as they're assigned),
+  // so a driver naturally drops out of Pass A once they hit target. When
+  // target is 0, this collapses to "always true" — no soft-cap filter.
+  runFillCycle(
+    ctx, ws, matrix, phase, order, rankMap,
+    (driver) => isAtOrOverTarget(ctx, ws, driver),
+  );
+
+  // Pass B — coverage escape hatch. Any still-eligible driver may claim
+  // remaining open shifts, even if it pushes them past their target.
+  // This is the OT mode — only kicks in when Pass A couldn't cover.
+  runFillCycle(
+    ctx, ws, matrix, phase, order, rankMap,
+    () => false,
+  );
 }
 
 export function runMainPass(

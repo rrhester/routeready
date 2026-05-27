@@ -1218,3 +1218,68 @@ test("R022 — coverage wins when ALL eligible drivers are at target", () => {
   // All 6 fill — coverage need overrides the soft cap.
   assert.equal(r.summary_metrics.filled_shifts, 6);
 });
+
+test("R022 two-phase · pin doesn't push driver into OT when another under-target driver is eligible", () => {
+  // Charlie pinned to Mon + Thu (2 pin_lock days). target=4. Renee
+  // has zero shifts. There are 5 standard shifts on five different
+  // weekdays. With the two-phase fill, Charlie tops out at 4 days
+  // (his 2 pins + 2 auto-fill from Pass A) and Renee picks up the
+  // 5th day (her first) in Pass A — Charlie should NOT be pushed to
+  // a 5th day because Renee was still under target.
+  const dates = ["2026-05-24", "2026-05-25", "2026-05-26", "2026-05-28", "2026-05-29"];
+  // Mon = 2026-05-25, Thu = 2026-05-28.
+  const r = runEngine(
+    input({
+      shifts: dates.map((d, i) => shift({ shift_id: `s${i}`, date: d })),
+      drivers: [
+        driver({ driver_id: "charlie", last_name: "Charlie" }),
+        driver({ driver_id: "renee",   last_name: "Renee" }),
+      ],
+      ad_hoc_constraints: [
+        { id: "r1", kind: "driver_lock_to_day",
+          payload: { driver_id: "charlie", dow: 1 }, hardness: "hard" },
+        { id: "r2", kind: "driver_lock_to_day",
+          payload: { driver_id: "charlie", dow: 4 }, hardness: "hard" },
+      ],
+      settings: {
+        target_days_per_week: 4,
+        max_days_enforcement: true, max_days: 6,
+        weekly_hour_cap_enforcement: false, woc_enforcement: false,
+        scheduling_method: "fair_rotation",
+      },
+    }),
+  );
+  // 5 shifts, all should be covered.
+  assert.equal(r.summary_metrics.filled_shifts, 5);
+  const charlieDays = r.driver_totals.find(t => t.driver_id === "charlie")?.assigned_shift_ids.length ?? 0;
+  const reneeDays   = r.driver_totals.find(t => t.driver_id === "renee")?.assigned_shift_ids.length ?? 0;
+  // The two-phase fix's correctness condition: neither driver pushed
+  // past target=4. (Charlie has 2 pins so he can take 0-2 more in
+  // Pass A; Renee has 0 pins so she can take 1-4 in Pass A.) The
+  // engine can split the 3 unpinned shifts either way as long as
+  // neither goes over 4.
+  assert.ok(charlieDays <= 4, `charlie should not exceed target=4 (got ${charlieDays})`);
+  assert.ok(reneeDays   <= 4, `renee should not exceed target=4 (got ${reneeDays})`);
+  // Charlie's pinned days must still be in his roster.
+  assert.ok(charlieDays >= 2, "charlie must still have both his pins");
+});
+
+test("R022 two-phase · OT escape kicks in when coverage demands it", () => {
+  // 5 shifts, 1 driver, target=4, max_days=6. Pass A places 4 shifts
+  // (driver hits target). Pass B handles the 5th — the driver goes to
+  // 5 days because nobody else is eligible.
+  const dates = ["2026-05-24", "2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28"];
+  const r = runEngine(
+    input({
+      shifts: dates.map((d, i) => shift({ shift_id: `s${i}`, date: d })),
+      drivers: [driver({ driver_id: "alice" })],
+      settings: {
+        target_days_per_week: 4,
+        max_days_enforcement: true, max_days: 6,
+        weekly_hour_cap_enforcement: false, woc_enforcement: false,
+      },
+    }),
+  );
+  // All 5 fill — coverage need overrides the soft target via Pass B.
+  assert.equal(r.summary_metrics.filled_shifts, 5);
+});
