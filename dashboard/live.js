@@ -35261,9 +35261,13 @@ async function renderScheduleWeek() {
     // the driver is actually on the clock. (Display only — hoursPerDriver
     // itself stays gross for sorting / OT math elsewhere.)
     const netHours = Math.max(0, totalHours - (shiftCountPerDriver.get(d.id) || 0) * 0.5);
-    const hoursLabel = totalHours > 0
-      ? `${Math.round(netHours * 10) / 10}h scheduled`
-      : "0h scheduled";
+    // Two-piece hours label so the schedule-grid's density modes can
+    // strip the trailing "scheduled" word at ultra-compact without
+    // losing the number itself. CSS hides `.cal-row-label-hours-word`
+    // when the row is too short for the full phrase.
+    const netHoursRounded = totalHours > 0 ? Math.round(netHours * 10) / 10 : 0;
+    const hoursLabelHTML =
+      `<span class="cal-row-label-hours">${netHoursRounded}h<span class="cal-row-label-hours-word"> scheduled</span></span>`;
     // Expired-DL flag — passive visual cue next to the driver name so
     // the operator sees at a glance that scheduling will trigger a warning.
     const todayIsoForDL = fmtIsoDate(new Date());
@@ -35324,7 +35328,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}${prefCls}" ${data}>${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta">${escapeHtml(station)} · ${escapeHtml(hoursLabel)}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div></div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta"><span class="cal-row-label-station">${escapeHtml(station)}</span><span class="cal-row-label-sep"> · </span>${hoursLabelHTML}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div></div>
       ${cells}
     </div>`;
   }).join("");

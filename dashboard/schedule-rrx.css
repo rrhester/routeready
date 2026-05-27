@@ -2707,8 +2707,20 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label-name {
   font-weight: 600 !important;
 }
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label-meta {
-  /* Hide the secondary meta line entirely at this density — the
-     row is too short for a two-line label to read. */
+  /* Ultra-compact density was hiding the whole meta line, which
+     dropped the "Xh scheduled" hours count too. Keep the line
+     visible but strip station + word "scheduled" so it reads as
+     a single short "60h" pill — fits the 24px row, preserves
+     the operator's read on each driver's weekly load. */
+  font-size: 9.5px !important;
+  line-height: 1.05 !important;
+  margin-top: 0 !important;
+  font-weight: 600 !important;
+  color: var(--text-muted) !important;
+}
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label-station,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label-sep,
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label-hours-word {
   display: none !important;
 }
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip {
