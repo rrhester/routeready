@@ -2246,6 +2246,56 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 /* ============================================================
+   Crispness · sharper grid lines, tighter chip corners,
+   stronger micro-shadow. The base styles use rgba(15,23,42,.05)
+   for every divider — only 5% opacity reads as washed-out next
+   to the lighter canvas. Doubling the opacity on schedule-page
+   dividers reads as crisp without ever feeling heavy.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .cal-cell,
+#view-schedule.rrx-schedule .cal-cell-head,
+#view-schedule.rrx-schedule .cal-grid,
+#view-schedule.rrx-schedule .cal-grid.head {
+  border-color: rgba(15, 23, 42, 0.11) !important;
+}
+
+/* Right-divider between day columns + bottom border below each
+   driver row. These selectors target the specific properties
+   so we don't accidentally also recolor the .today bottom
+   indicator (which uses var(--accent)). */
+#view-schedule.rrx-schedule .cal-cell {
+  border-right-color: rgba(15, 23, 42, 0.11) !important;
+}
+#view-schedule.rrx-schedule .cal-cell-head:not(.today) {
+  border-right-color: rgba(15, 23, 42, 0.11) !important;
+}
+#view-schedule.rrx-schedule .cal-grid {
+  border-bottom-color: rgba(15, 23, 42, 0.11) !important;
+}
+#view-schedule.rrx-schedule .cal-grid.head {
+  border-bottom-color: rgba(15, 23, 42, 0.14) !important;
+}
+
+/* Tighter corners on shift chips · the base 6px radius reads
+   as soft against the now-crisper grid lines. 4px tile-style
+   corners feel like Excel/Outlook cells — what an operator
+   pattern-matches as "scheduling grid". */
+#view-schedule.rrx-schedule .shift-chip {
+  border-radius: 4px !important;
+}
+
+/* Stronger micro-shadow on assigned chips so they "lift" off
+   the canvas instead of sitting flush. Single 1px hairline
+   shadow — sharp, no blur stack — for that Outlook-table feel. */
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  box-shadow: 0 1px 0 rgba(0, 97, 194, 0.18) !important;
+}
+#view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  box-shadow: 0 2px 0 rgba(0, 97, 194, 0.28) !important;
+}
+
+/* ============================================================
    Old icon strip retired · V2 takes its place
    ------------------------------------------------------------
    Per operator direction, the entire legacy .sched-nav-heading
