@@ -33579,7 +33579,7 @@ async function openShiftEditModal(shiftId) {
   // is editing).
   const { data: sh, error } = await sb
     .from("shifts")
-    .select("id, date, starts_at, ends_at, driver_id, route_code, drivers!driver_id(full_name, preferred_name)")
+    .select("id, date, starts_at, ends_at, driver_id, route_code, route_classification, drivers!driver_id(full_name, preferred_name)")
     .eq("id", shiftId)
     .single();
   if (error || !sh) {
@@ -33596,17 +33596,43 @@ async function openShiftEditModal(shiftId) {
   };
   const startHM = fmtHM(sh.starts_at);
   const endHM   = fmtHM(sh.ends_at);
+  // Route-classification options. Keep value lowercase_snake (matches
+  // the DB CHECK in migration 0332); label is what the operator sees.
+  const ROUTE_CLASS_OPTIONS = [
+    ["",          "Standard"],
+    ["rescue",    "Rescue"],
+    ["nursery",   "Nursery"],
+    ["reduction", "Reduction"],
+    ["cycle_1",   "Cycle 1"],
+    ["cycle_2",   "Cycle 2"],
+    ["backup",    "Backup"],
+  ];
+  const currentClass = (sh.route_classification || "");
+  const classOptionsHTML = ROUTE_CLASS_OPTIONS.map(([v, label]) =>
+    `<option value="${escapeHtml(v)}"${v === currentClass ? " selected" : ""}>${escapeHtml(label)}</option>`
+  ).join("");
 
   m = document.createElement("div");
   m.id = "rr-shift-edit-modal";
-  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  // Left-fly drawer · no backdrop blur so the schedule grid stays
+  // visible underneath while the operator edits one shift.
+  m.style.cssText =
+    "position:fixed;top:0;left:0;bottom:0;width:380px;background:var(--surface);" +
+    "border-right:1px solid var(--border);box-shadow:4px 0 16px rgba(15,23,42,.10);" +
+    "z-index:9999;display:flex;flex-direction:column;transform:translateX(-100%);" +
+    "transition:transform 200ms ease-out;";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:440px;overflow:hidden">
+    <div style="display:flex;flex-direction:column;height:100%">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
-        <div style="font-size:var(--fs-lg);font-weight:600">Edit shift</div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(driver)} · ${escapeHtml(route)} · ${escapeHtml(sh.date)}</div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3)">
+          <div>
+            <div style="font-size:var(--fs-lg);font-weight:600">Edit shift</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(driver)} · ${escapeHtml(route)} · ${escapeHtml(sh.date)}</div>
+          </div>
+          <button type="button" data-rr-shift-edit-cancel aria-label="Close" style="background:none;border:0;cursor:pointer;font-size:18px;color:var(--text-subtle);padding:0;line-height:1">×</button>
+        </div>
       </div>
-      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5)">
+      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5);overflow-y:auto;flex:1">
         <label style="display:flex;align-items:center;gap:var(--s-3-5)">
           <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Start time</span>
           <input type="time" id="rr-shift-edit-start" value="${escapeHtml(startHM)}" class="form-input" style="max-width:160px" />
@@ -33614,6 +33640,10 @@ async function openShiftEditModal(shiftId) {
         <label style="display:flex;align-items:center;gap:var(--s-3-5)">
           <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">End time</span>
           <input type="time" id="rr-shift-edit-end" value="${escapeHtml(endHM)}" class="form-input" style="max-width:160px" />
+        </label>
+        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Route type</span>
+          <select id="rr-shift-edit-class" class="form-input" style="max-width:200px">${classOptionsHTML}</select>
         </label>
         <div id="rr-shift-edit-status" style="font-size:var(--fs-xs);color:var(--text-subtle);min-height:14px"></div>
         <!-- Recognition · per-shift entry point. Opens the Kudos
@@ -33647,6 +33677,8 @@ async function openShiftEditModal(shiftId) {
       </div>
     </div>`;
   document.body.appendChild(m);
+  // Slide in from the left on next frame so the transition fires.
+  requestAnimationFrame(() => { m.style.transform = "translateX(0)"; });
 
   // Load shift history lazily — fire once the modal is on screen.
   _loadShiftHistory(shiftId);
@@ -33698,9 +33730,23 @@ async function openShiftEditModal(shiftId) {
     }
   });
 
-  const close = () => m.remove();
+  // Drawer slides out before unmount so the close feels symmetric
+  // with the open animation. matchMedia check skips the wait on
+  // reduced-motion preference.
+  const close = () => {
+    const noMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (noMotion) { m.remove(); return; }
+    m.style.transform = "translateX(-100%)";
+    setTimeout(() => m.remove(), 200);
+  };
+  // Escape key closes the drawer (it doesn't cover the page, so
+  // there's no overlay to click on).
+  const escHandler = (ev) => {
+    if (ev.key === "Escape") { close(); document.removeEventListener("keydown", escHandler); }
+  };
+  document.addEventListener("keydown", escHandler);
   m.addEventListener("click", async (e) => {
-    if (e.target === m || e.target.closest("[data-rr-shift-edit-cancel]")) { close(); return; }
+    if (e.target.closest("[data-rr-shift-edit-cancel]")) { close(); return; }
 
     // Unassign — drop the driver but keep the planned slot open so it
     // shows up in the open-shifts pool and the day's planned count
@@ -33795,11 +33841,19 @@ async function openShiftEditModal(shiftId) {
         endIso = new Date(new Date(endIso).getTime() + 24 * 60 * 60 * 1000).toISOString();
       }
 
+      // Route classification — empty value means "Standard" (NULL in DB).
+      const newClass = document.getElementById("rr-shift-edit-class")?.value || "";
+      const classValue = newClass === "" ? null : newClass;
+
       status.textContent = "Saving…";
       status.style.color = "var(--text-subtle)";
       const { error: upErr } = await sb
         .from("shifts")
-        .update({ starts_at: newStartIso, ends_at: endIso })
+        .update({
+          starts_at: newStartIso,
+          ends_at: endIso,
+          route_classification: classValue,
+        })
         .eq("id", shiftId);
       if (upErr) {
         status.textContent = "Save failed: " + upErr.message;
