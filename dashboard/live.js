@@ -33628,8 +33628,13 @@ async function openShiftEditModal(shiftId) {
           <div id="rr-shift-edit-history" style="margin-top:var(--s-2);font-size:var(--fs-xs);color:var(--text-muted);line-height:1.5">Loading…</div>
         </details>
       </div>
-      <div style="display:flex;justify-content:space-between;gap:var(--s-2);padding:var(--s-3-5) 22px;border-top:1px solid var(--border);background:var(--canvas)">
-        <button class="btn btn-sm" data-rr-shift-edit-remove style="color:var(--red);border-color:rgba(225,29,72,.3)">Remove shift</button>
+      <div style="display:flex;justify-content:space-between;gap:var(--s-2);padding:var(--s-3-5) 22px;border-top:1px solid var(--border);background:var(--canvas);align-items:center">
+        <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-start">
+          ${sh.driver_id
+            ? `<button class="btn btn-sm" data-rr-shift-edit-unassign style="color:var(--red);border-color:rgba(225,29,72,.3)">Unassign driver</button>
+               <button type="button" data-rr-shift-edit-delete class="rr-text-link" style="background:none;border:none;padding:0;font-size:var(--fs-xs);color:var(--text-subtle);cursor:pointer;text-decoration:underline">Delete shift entirely</button>`
+            : `<button class="btn btn-sm" data-rr-shift-edit-delete style="color:var(--red);border-color:rgba(225,29,72,.3)">Delete shift</button>`}
+        </div>
         <div style="display:flex;gap:var(--s-2)">
           <button class="btn btn-sm" data-rr-shift-edit-cancel>Cancel</button>
           <button class="btn btn-sm btn-primary" data-rr-shift-edit-save>Save</button>
@@ -33692,9 +33697,41 @@ async function openShiftEditModal(shiftId) {
   m.addEventListener("click", async (e) => {
     if (e.target === m || e.target.closest("[data-rr-shift-edit-cancel]")) { close(); return; }
 
-    if (e.target.closest("[data-rr-shift-edit-remove]")) {
-      if (!confirm("Remove this shift?")) return;
-      // Snapshot the full row before deleting so the action can be undone.
+    // Unassign — drop the driver but keep the planned slot open so it
+    // shows up in the open-shifts pool and the day's planned count
+    // stays put (7/8 instead of dropping to 7/7).
+    if (e.target.closest("[data-rr-shift-edit-unassign]")) {
+      const priorDriverId = sh.driver_id;
+      _markLocalShiftMutation();
+      const { error: unaErr } = await sb.from("shifts")
+        .update({ driver_id: null, updated_at: new Date().toISOString() })
+        .eq("id", shiftId);
+      if (unaErr) { toast("Couldn't unassign: " + unaErr.message, "warn"); return; }
+      toast("Shift moved to open shifts", "success");
+      if (priorDriverId && typeof _rrPushUndo === "function") {
+        _rrPushUndo({
+          label: `Unassigned ${driver}${sh.date ? " · " + sh.date : ""}`,
+          undo: async () => {
+            _markLocalShiftMutation();
+            const { error: undoErr } = await sb.from("shifts")
+              .update({ driver_id: priorDriverId, updated_at: new Date().toISOString() })
+              .eq("id", shiftId);
+            if (undoErr) throw new Error(undoErr.message);
+            if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+          },
+        });
+      }
+      close();
+      renderScheduleWeek();
+      if (typeof loadCoverageRadar === "function") loadCoverageRadar();
+      return;
+    }
+
+    // Delete — nuke the planned slot entirely. Use this when the route
+    // itself shouldn't exist (cancelled, mis-planned), not when a
+    // driver just needs to come off.
+    if (e.target.closest("[data-rr-shift-edit-delete]")) {
+      if (!confirm("Delete this shift entirely? The planned slot will be removed from the day's count.")) return;
       let snapshot = null;
       try {
         const { data: snap } = await sb.from("shifts").select("*").eq("id", shiftId).single();
@@ -33703,13 +33740,11 @@ async function openShiftEditModal(shiftId) {
       _markLocalShiftMutation();
       const { error: delErr } = await sb.from("shifts").delete().eq("id", shiftId);
       if (delErr) { toast("Delete failed: " + delErr.message, "warn"); return; }
-      toast("Shift removed", "success");
+      toast("Shift deleted", "success");
       if (snapshot && typeof _rrPushUndo === "function") {
         _rrPushUndo({
-          label: `Shift removed${snapshot.date ? " · " + snapshot.date : ""}`,
+          label: `Shift deleted${snapshot.date ? " · " + snapshot.date : ""}`,
           undo: async () => {
-            // Re-create the deleted row via create_shift to keep any
-            // server-side side effects (audit log etc.) consistent.
             _markLocalShiftMutation();
             const payload = {
               date:       snapshot.date,
