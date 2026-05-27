@@ -33797,6 +33797,36 @@ John,Smith,555-0101,john@example.com</code>
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
       navigator.serviceWorker.register("./sw.js", { scope: "/dashboard/" })
+        .then(function (reg) {
+          // Self-updating SW · tell any waiting SW to take over
+          // immediately, and reload the page once it does so the new
+          // fetch handler is in control (= fresh JS / CSS gets loaded).
+          // Without this, a deploy installs a new SW but the operator's
+          // page keeps running the old one until they manually close +
+          // reopen — meaning bug fixes can sit in main for hours
+          // without reaching the operator's browser.
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: "rr:skip-waiting" });
+          }
+          reg.addEventListener("updatefound", function () {
+            var sw = reg.installing;
+            if (!sw) return;
+            sw.addEventListener("statechange", function () {
+              if (sw.state === "installed" && navigator.serviceWorker.controller) {
+                sw.postMessage({ type: "rr:skip-waiting" });
+              }
+            });
+          });
+          // Once a NEW SW takes control, reload so the page runs under
+          // it (otherwise the just-loaded scripts keep running under
+          // the OLD SW for the rest of this page's lifetime).
+          var reloaded = false;
+          navigator.serviceWorker.addEventListener("controllerchange", function () {
+            if (reloaded) return;
+            reloaded = true;
+            window.location.reload();
+          });
+        })
         .catch(function () { /* SW registration is best-effort */ });
     });
   }
