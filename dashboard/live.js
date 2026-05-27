@@ -33253,7 +33253,15 @@ async function autoAssignDriversForWeek() {
     // Python solver service). Otherwise use the in-browser heuristic.
     // Falls back to the heuristic on any dispatcher error so a misbehaving
     // solver can't strand the operator.
-    const _useCpsat = !!(sfRules && sfRules.use_cpsat_solver);
+    //
+    // Default = TRUE. The popover checkbox ships `checked` in HTML, but
+    // the localStorage sync only writes a value when the operator
+    // actually clicks the checkbox. If they never touched it, the key is
+    // absent from saved state, which used to evaluate to false here — so
+    // the dashboard ran the local engine despite the UI showing the
+    // toggle on. We now treat "key absent" as the HTML default (true) so
+    // the UI and the runtime agree.
+    const _useCpsat = !(sfRules && sfRules.use_cpsat_solver === false);
     if (_useCpsat) {
       try {
         const dispatchStart = Date.now();
