@@ -1031,49 +1031,50 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* Main column */
 .main{display:flex;flex-direction:column;min-width:0;background:var(--canvas)}
 
-/* Dark-header mode · operator-toggled via the palette icon in the
-   topbar. Paints the topbar in the same midnight steel (#2C4567)
-   as the sidebar so the chrome reads as one continuous frame.
-   Text + icons + the Ask pill + Undo + Settings all flip to
-   readable inverse colors. */
-body.rr-header-dark .topbar{
+/* Topbar = sidebar color · operator wants the chrome to read as
+   one continuous midnight-steel frame, not a light pill on top
+   of a dark rail. Paints the topbar permanently in #2C4567 to
+   match the sidebar; text + icons + Ask pill + Undo + Settings
+   all flip to readable inverse colors. (The old
+   body.rr-header-dark gate was made unconditional — the palette
+   icon is no longer needed to apply the dark header.) */
+.topbar{
   background:#2C4567 !important;
   -webkit-backdrop-filter:none !important;
   backdrop-filter:none !important;
   border-bottom-color:rgba(255,255,255,.08) !important;
   color:rgba(255,255,255,.92);
 }
-body.rr-header-dark .topbar button,
-body.rr-header-dark .topbar input,
-body.rr-header-dark .topbar .hdr-undo span,
-body.rr-header-dark .topbar .topbar-settings span{
+.topbar button,
+.topbar input,
+.topbar .hdr-undo span,
+.topbar .topbar-settings span{
   color:rgba(255,255,255,.92) !important;
 }
-body.rr-header-dark .topbar svg{
+.topbar svg{
   color:rgba(255,255,255,.85) !important;
 }
-body.rr-header-dark .topbar button:hover,
-body.rr-header-dark .topbar .topbar-settings:hover{
+.topbar button:hover,
+.topbar .topbar-settings:hover{
   background:rgba(255,255,255,.08) !important;
   border-color:rgba(255,255,255,.18) !important;
 }
-body.rr-header-dark .topbar .hdr-ask{
+.topbar .hdr-ask{
   background:rgba(255,255,255,.10) !important;
   border-color:rgba(255,255,255,.16) !important;
 }
-body.rr-header-dark .topbar .hdr-ask input{
+.topbar .hdr-ask input{
   background:transparent !important;color:rgba(255,255,255,.92) !important;
 }
-body.rr-header-dark .topbar .hdr-ask input::placeholder{
+.topbar .hdr-ask input::placeholder{
   color:rgba(255,255,255,.55) !important;
 }
-body.rr-header-dark .topbar .hdr-ask button{
+.topbar .hdr-ask button{
   background:#0078D4 !important;color:#fff !important;
 }
-body.rr-header-dark #rr-hdr-theme-toggle[aria-pressed="true"]{
-  background:rgba(255,255,255,.14) !important;
-  border-color:rgba(255,255,255,.22) !important;
-}
+/* Palette icon retained for future light/dark switching, but
+   hidden for now since the topbar matches the sidebar by default. */
+#rr-hdr-theme-toggle{display:none !important}
 
 /* ── Top bar (clean white control surface) ────────────────── */
 .topbar{
@@ -21224,7 +21225,7 @@ body.rr-cmdk-open{ overflow:hidden }
           <div class="cal-wrap">
             <div class="cal-grid head">
               <div class="cal-cell-head" style="display:flex;align-items:center;gap:6px;position:relative">
-                <span>Driver</span>
+                <span id="rr-sched-row-label">Driver</span>
                 <!-- 4-column · 2-row icon grid · operator wanted the
                      header icons laid out 4 across, with a second
                      row that will fill in as more icons land. Items
