@@ -33528,6 +33528,142 @@ function _rrShowSmartFillDetails(text) {
   });
 }
 
+// ─── Right-click a driver → "why these shifts" popover ───────────────
+// Right-clicking a driver in the Schedule grid opens a dashboard-styled
+// card explaining EXACTLY why that driver got the shifts they did in the
+// last Smart Fill run — the same deterministic optimization_decisions
+// data the engine console uses, but formatted to match the dashboard
+// (light card, soft shadow) instead of the terminal look.
+
+// Cache the last run's decision load so repeated right-clicks are instant.
+let _rrSfDecisionsCache = { runId: null, data: null };
+async function _rrGetSmartFillDecisionsCached() {
+  const runId = window._rrLastOptimizationRunId || null;
+  if (_rrSfDecisionsCache.runId === runId && _rrSfDecisionsCache.data) return _rrSfDecisionsCache.data;
+  const data = await _rrLoadSmartFillDecisions();
+  _rrSfDecisionsCache = { runId, data };
+  return data;
+}
+
+function _rrCloseDriverWhyPopover() {
+  const ex = document.getElementById("rr-driver-why-pop");
+  if (ex) ex.remove();
+  document.removeEventListener("keydown", _rrDriverWhyKey, true);
+  document.removeEventListener("mousedown", _rrDriverWhyOutside, true);
+  window.removeEventListener("scroll", _rrCloseDriverWhyPopover, true);
+}
+function _rrDriverWhyKey(e) { if (e.key === "Escape") _rrCloseDriverWhyPopover(); }
+function _rrDriverWhyOutside(e) {
+  const p = document.getElementById("rr-driver-why-pop");
+  if (p && !p.contains(e.target)) _rrCloseDriverWhyPopover();
+}
+
+async function _rrShowDriverWhyPopover(driverId, x, y) {
+  _rrCloseDriverWhyPopover();
+  const esc = _RR_SFC.esc;
+  const pop = document.createElement("div");
+  pop.id = "rr-driver-why-pop";
+  pop.setAttribute("role", "dialog");
+  pop.setAttribute("aria-label", "Smart Fill explanation for this driver");
+  pop.style.cssText = [
+    "position:fixed", "z-index:100000", "width:344px", "max-width:calc(100vw - 24px)",
+    "max-height:62vh", "overflow:auto",
+    "background:var(--surface-elevated,#FCFDFE)", "border:1px solid var(--sch-line,rgba(15,23,42,.12))",
+    "border-radius:12px", "box-shadow:0 2px 6px rgba(15,23,42,.05),0 14px 34px rgba(15,23,42,.16)",
+    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
+    "color:var(--text,#242424)", "padding:0",
+  ].join(";");
+  const px = Math.max(12, Math.min(x, window.innerWidth - 356));
+  const py = Math.max(12, Math.min(y, window.innerHeight - 90));
+  pop.style.left = px + "px";
+  pop.style.top = py + "px";
+  pop.innerHTML = '<div style="padding:14px 16px;color:var(--text-subtle,#6b7280);font-size:13px">Loading the engine’s reasoning…</div>';
+  document.body.appendChild(pop);
+  document.addEventListener("keydown", _rrDriverWhyKey, true);
+  document.addEventListener("mousedown", _rrDriverWhyOutside, true);
+  window.addEventListener("scroll", _rrCloseDriverWhyPopover, true);
+
+  if (!window._rrLastOptimizationRunId) {
+    pop.innerHTML =
+      '<div style="padding:15px 16px">' +
+      '<div style="font-weight:700;font-size:13.5px;margin-bottom:4px">No Smart Fill run yet</div>' +
+      '<div style="font-size:12.5px;color:var(--text-subtle,#6b7280);line-height:1.5">Run Smart Fill, then right-click a driver to see exactly why they got the shifts they did.</div></div>';
+    return;
+  }
+
+  let res = null;
+  try { res = await _rrGetSmartFillDecisionsCached(); } catch (_) { res = null; }
+  if (!document.body.contains(pop)) return; // closed while loading
+
+  const drivers = (res && res.drivers) || _RR_SFC.driverMap();
+  const prof = drivers.get(driverId) || { name: "Driver", full: "", preferred: null };
+  const decisions = (res && res.decisions) || [];
+  const shiftMeta = (res && res.shiftMeta) || new Map();
+  const mine = decisions.filter((d) => d.driver_id === driverId && d.decision !== "uncovered");
+
+  const initials = (prof.full || prof.name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "?";
+  let html =
+    '<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--sch-line,rgba(15,23,42,.08));position:sticky;top:0;background:var(--surface-elevated,#FCFDFE)">' +
+      `<div class="avatar-sm" data-rr-driver-id="${esc(driverId)}">${esc(initials)}</div>` +
+      '<div style="min-width:0">' +
+        `<div style="font-weight:700;font-size:13.5px;line-height:1.2">${esc(prof.name)}</div>` +
+        '<div style="font-size:11.5px;color:var(--text-subtle,#6b7280)">Smart Fill · why these shifts</div>' +
+      '</div></div>';
+
+  if (res && res.error) {
+    html += `<div style="padding:13px 15px;font-size:12.5px;color:var(--red,#dc2626);line-height:1.5">Couldn’t load the engine’s decisions: ${esc(res.error)}</div>`;
+  } else if (!mine.length) {
+    const pref = prof.preferred ? `<div style="margin-top:6px"><span style="color:var(--text,#374151);font-weight:600">Preferred days:</span> ${esc(Array.isArray(prof.preferred) ? prof.preferred.join(", ") : prof.preferred)}</div>` : "";
+    html += `<div style="padding:13px 15px;font-size:12.5px;color:var(--text-subtle,#6b7280);line-height:1.5">This driver received <strong style="color:var(--text)">no shifts</strong> in the last run.${pref}<div style="margin-top:6px">Open the Smart Fill results for the blocking reason (caps, license, availability, etc.).</div></div>`;
+  } else {
+    mine.sort((a, b) => String((shiftMeta.get(a.shift_id) || {}).date).localeCompare(String((shiftMeta.get(b.shift_id) || {}).date)));
+    html += '<div style="padding:6px 8px">';
+    for (const d of mine) {
+      const label = _RR_SFC.shiftLabel(d.shift_id, shiftMeta);
+      const score = (d.total_score != null)
+        ? `<span style="margin-left:auto;font-size:11px;font-weight:700;color:var(--accent-text,#1d4ed8);background:var(--accent-soft,rgba(37,99,235,.1));padding:2px 8px;border-radius:999px;font-variant-numeric:tabular-nums">${Math.round(d.total_score * 10) / 10}</span>`
+        : "";
+      html += '<div style="padding:9px 8px;border-bottom:1px solid var(--sch-line,rgba(15,23,42,.05))">' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          `<span style="font-weight:600;font-size:12.5px">${esc(label)}</span>` +
+          `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle,#6b7280)">${esc(d.decision || "assigned")}</span>` +
+          score +
+        '</div>';
+      if (d.reason_message) html += `<div style="font-size:11.5px;color:var(--text-subtle,#6b7280);margin-top:3px;line-height:1.45">${esc(d.reason_message)}</div>`;
+      const sc = d.score_components;
+      if (sc && typeof sc === "object" && Object.keys(sc).length) {
+        html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">' +
+          Object.keys(sc).map((k) => {
+            const v = sc[k];
+            const val = (typeof v === "number") ? (Math.round(v * 100) / 100) : v;
+            return `<span style="font-size:10.5px;background:var(--canvas,#f3f4f6);border:1px solid var(--sch-line,rgba(15,23,42,.06));border-radius:6px;padding:1px 6px"><span style="color:var(--text-subtle,#6b7280)">${esc(k.replace(/_/g, " "))}:</span> <span style="color:var(--text,#374151);font-weight:600">${esc(val)}</span></span>`;
+          }).join("") +
+          '</div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  pop.innerHTML = html;
+  if (typeof _paintDriverAvatars === "function") { try { _paintDriverAvatars(pop); } catch (_) {} }
+}
+
+// Delegated right-click handler · driver row labels in the Schedule grid.
+document.addEventListener("contextmenu", (e) => {
+  const label = e.target.closest && e.target.closest("#view-schedule .cal-row-label");
+  if (!label) return;
+  let driverId = null;
+  const tagged = label.querySelector("[data-rr-driver-id]");
+  if (tagged) driverId = tagged.getAttribute("data-rr-driver-id");
+  if (!driverId && typeof _resolveDriverIdForAvatar === "function") {
+    const av = label.querySelector(".avatar-sm");
+    if (av) driverId = _resolveDriverIdForAvatar(av);
+  }
+  if (!driverId) return; // staff rows / unresolved → let the native menu show
+  e.preventDefault();
+  _rrShowDriverWhyPopover(driverId, e.clientX, e.clientY);
+});
+
 // ─── Optimization audit helpers (Workforce Optimization Engine · Step 2) ───
 // Best-effort wiring: every Smart Fill run is captured into the
 // optimization_runs / optimization_decisions tables created in
