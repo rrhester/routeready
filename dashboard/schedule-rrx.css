@@ -2215,9 +2215,15 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 #view-schedule.rrx-schedule .sched-v2-status-pill[data-state="live"] {
-  background: var(--rr-success-soft);
-  color: var(--rr-success);
-  border: 1px solid rgba(16, 124, 65, 0.30);
+  /* Solid bright green to match the "All shifts assigned"
+     medallion in the Open shifts rail — same #107C41 hue at full
+     saturation, white text. Operator's prior request to make
+     these two surfaces match by color was applied to the wrong
+     pill class (.sched-status-pill); this is the actual visible
+     Live pill on the V2 chrome. */
+  background: var(--rr-success, #107C41);
+  color: #ffffff;
+  border: 1px solid var(--rr-success, #107C41);
 }
 
 #view-schedule.rrx-schedule .sched-v2-status-pill .sched-v2-status-check {
