@@ -331,6 +331,40 @@
 
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;padding:0}
+
+/* Global icon refinement · operator wanted the dashboard's icons
+   to read consistently darker + thinner everywhere, matching what
+   we already shipped for the Schedule action strip. Line icons
+   (the ones drawn with `fill="none"` and a stroke) get a uniform
+   1.3 stroke-width — overrides the per-SVG values (typically
+   1.5-2) so toolbars, tab strips, modal close buttons, form
+   field glyphs, etc. all share one weight.
+
+   Why fill="none" as the selector: filled SVGs (sidebar nav
+   medallions, avatars, status badges, brand marks) have no
+   strokes to thin, so they're untouched. Strokes inside line
+   icons typically use stroke="currentColor", so color stays
+   tied to each surface's text-color context — no risk of
+   forcing a slate-900 onto a dark sidebar where icons need
+   to read white.
+
+   !important needed because individual SVGs set stroke-width as
+   an attribute; CSS attribute values lose to inline markup
+   unless forced. */
+svg[fill="none"]{
+  stroke-width:1.3 !important;
+}
+/* Hover lift · interactive controls (buttons + links + nav items)
+   bump the stroke a hair so the engaged icon reads as activated.
+   Same idea as the schedule strip's hover treatment, now global. */
+button:hover > svg[fill="none"],
+button:hover svg[fill="none"],
+a:hover > svg[fill="none"],
+a:hover svg[fill="none"],
+.nav-item:hover svg[fill="none"]{
+  stroke-width:1.5 !important;
+}
+
 body{
   font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
   font-size:var(--fs-base);
