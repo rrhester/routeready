@@ -2306,15 +2306,16 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
    Crispness · sharper grid lines, tighter chip corners,
    stronger micro-shadow. The base styles use rgba(15,23,42,.05)
    for every divider — only 5% opacity reads as washed-out next
-   to the lighter canvas. Doubling the opacity on schedule-page
-   dividers reads as crisp without ever feeling heavy.
+   to the lighter canvas. Operator wanted these crisper still:
+   bumped to 20% (was 11%) so the grid reads as a solid technical
+   surface, not a soft outline.
    ============================================================ */
 
 #view-schedule.rrx-schedule .cal-cell,
 #view-schedule.rrx-schedule .cal-cell-head,
 #view-schedule.rrx-schedule .cal-grid,
 #view-schedule.rrx-schedule .cal-grid.head {
-  border-color: rgba(15, 23, 42, 0.11) !important;
+  border-color: rgba(15, 23, 42, 0.20) !important;
 }
 
 /* Right-divider between day columns + bottom border below each
@@ -2322,16 +2323,16 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
    so we don't accidentally also recolor the .today bottom
    indicator (which uses var(--accent)). */
 #view-schedule.rrx-schedule .cal-cell {
-  border-right-color: rgba(15, 23, 42, 0.11) !important;
+  border-right-color: rgba(15, 23, 42, 0.20) !important;
 }
 #view-schedule.rrx-schedule .cal-cell-head:not(.today) {
-  border-right-color: rgba(15, 23, 42, 0.11) !important;
+  border-right-color: rgba(15, 23, 42, 0.20) !important;
 }
 #view-schedule.rrx-schedule .cal-grid {
-  border-bottom-color: rgba(15, 23, 42, 0.11) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.20) !important;
 }
 #view-schedule.rrx-schedule .cal-grid.head {
-  border-bottom-color: rgba(15, 23, 42, 0.14) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.26) !important;
 }
 
 /* Tighter corners on shift chips · the base 6px radius reads
@@ -3071,4 +3072,78 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
 #view-schedule.rrx-schedule #rr-sched-today-rules-popover .rr-sched-density-fset,
 #view-schedule.rrx-schedule #rr-sched-cal-rules-popover .rr-sched-density-fset {
   margin-top: 10px !important;
+}
+
+/* ============================================================
+   SHARPNESS LAYER · operator wanted crisp, technical, dark.
+   ------------------------------------------------------------
+   Bumps line/stroke/text weights ACROSS the schedule view so
+   every edge reads as solid, not soft. Doesn't touch any
+   already-bold accent (today underline, KPI accent text); only
+   the muted/subtle tokens get darkened or thickened.
+   ============================================================ */
+
+/* Icons in the schedule strip (cmd tabs + subnav-item tiles) ·
+   stroke 1.6 → 1.9, color text-subtle → text-muted. */
+#view-schedule.rrx-schedule .sched-nav-heading .subnav-item svg,
+#view-schedule.rrx-schedule .sched-cmd-tab svg,
+#view-schedule.rrx-schedule .sched-print-btn svg,
+#view-schedule.rrx-schedule .sched-page-btn-rules-foot svg {
+  stroke-width: 1.9 !important;
+  color: var(--text-muted) !important;
+}
+#view-schedule.rrx-schedule .sched-nav-heading .subnav-item:hover svg,
+#view-schedule.rrx-schedule .sched-cmd-tab:hover svg {
+  color: var(--text) !important;
+}
+
+/* Subnav-item labels in the strip · text-muted → text (one step
+   darker). The font-weight bump on .active stays as the
+   secondary indicator. */
+#view-schedule.rrx-schedule .sched-nav-heading .subnav-item {
+  color: var(--text) !important;
+}
+
+/* Cmd-tab strip (Schedule / Roster / Onboarding / …) · darken
+   inactive tabs so the row reads as a navigation surface rather
+   than a faded label list. */
+#view-schedule.rrx-schedule .sched-cmd-tab {
+  color: var(--text) !important;
+}
+
+/* KPI pill row · stronger card border so the strip pops off
+   the canvas. Uses --sch-line-strong now that we've bumped
+   that token to 22% alpha. */
+#view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills,
+#view-schedule.rrx-schedule #rr-sched-targets-kpis.sched-kpi-pills {
+  border-color: var(--sch-line-strong) !important;
+}
+#view-schedule.rrx-schedule .sched-kpi-pill {
+  border-right-color: rgba(15, 23, 42, 0.18) !important;
+}
+
+/* Shift chip borders · operator wanted the chips' edges to read
+   as a clear outline against the new sharper grid lines. */
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  border-color: rgba(15, 23, 42, 0.18) !important;
+}
+
+/* Day-of-week header strip · the SUN/MON/… label text was muted;
+   now reads as the primary text token. Date number stays at its
+   existing weight. */
+#view-schedule.rrx-schedule .cal-cell-head {
+  color: var(--text) !important;
+}
+#view-schedule.rrx-schedule .cal-cell-head .day-num {
+  color: var(--text) !important;
+}
+
+/* Driver-row label column · station code + hours line was
+   text-subtle. Bump to text-muted so the operator can read it
+   without leaning in. */
+#view-schedule.rrx-schedule .cal-row-label-meta,
+#view-schedule.rrx-schedule .cal-row-label-station,
+#view-schedule.rrx-schedule .cal-row-label-hours,
+#view-schedule.rrx-schedule .cal-row-label-hours-word {
+  color: var(--text-muted) !important;
 }
