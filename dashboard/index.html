@@ -14876,42 +14876,14 @@ body.rr-cmdk-open{ overflow:hidden }
                        Inline scoped to this popover only; Smart Fill popover
                        still uses its 2-col layout via the same class. -->
                   <div class="sched-smartfill-rules-body" style="column-count:1;display:flex;flex-direction:column;gap:14px;padding:12px 14px">
-                    <!-- Grid density picker · three named options. Toggles
-                         `body.rr-sched-compact` / `body.rr-sched-ultra-compact`
-                         so the rest of the grid CSS (already wired for
-                         compact) picks up the right cell sizing without us
-                         having to re-render anything. Persisted in
-                         localStorage('rr-sched-density') so the choice
-                         survives reloads. Inline <script> runs once on
-                         first parse to hydrate from storage. -->
-                    <fieldset class="rr-sched-density-fset" role="radiogroup" aria-label="Grid density">
-                      <legend style="font:600 13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Grid density</legend>
-                      <p style="font:13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Pick how many drivers' weekly schedules you want on screen at once. Sort the driver column from the icon in the upper right of the grid.</p>
-
-                      <label class="rr-sched-density-opt">
-                        <input type="radio" name="rr-sched-density" value="standard" checked />
-                        <span class="rr-sched-density-opt-body">
-                          <span class="rr-sched-density-opt-title">Standard</span>
-                          <span class="rr-sched-density-opt-sub">Square cells. Fewest drivers per screen, fullest shift-chip detail.</span>
-                        </span>
-                      </label>
-
-                      <label class="rr-sched-density-opt">
-                        <input type="radio" name="rr-sched-density" value="compact" />
-                        <span class="rr-sched-density-opt-body">
-                          <span class="rr-sched-density-opt-title">Compact</span>
-                          <span class="rr-sched-density-opt-sub">Rectangular cells, ~25% shorter. ~50% more drivers visible at once; shift chips stay readable.</span>
-                        </span>
-                      </label>
-
-                      <label class="rr-sched-density-opt">
-                        <input type="radio" name="rr-sched-density" value="ultra" />
-                        <span class="rr-sched-density-opt-body">
-                          <span class="rr-sched-density-opt-title">Ultra-compact</span>
-                          <span class="rr-sched-density-opt-sub">Slimmest rows. Maximum drivers per screen for a planning-week overview.</span>
-                        </span>
-                      </label>
-                    </fieldset>
+                    <!-- Grid density picker REMOVED from the Week rules box —
+                         the DRIVER-header icon (#rr-sched-compact-toggle) now
+                         cycles Standard → Compact → Ultra-compact, so the
+                         picker here was redundant. The <style> below is kept
+                         (it also styles the Fleet calendar's density picker)
+                         and the <script> below is kept (it applies the saved
+                         `rr-sched-density` on page load — the header icon only
+                         runs on click). -->
 
                     <style>
                       /* Density picker — Fluent radio rows. Match the

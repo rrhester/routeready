@@ -33237,50 +33237,133 @@ async function autoFillScheduleWeek() {
   } catch (_) { /* visibility-only, never throw */ }
 }
 
-// Native alert() doesn't allow text selection in most browsers — switch
-// to a real modal with a focused, pre-selected textarea + a Copy button
-// so the diagnostic text can be grabbed and pasted into a support thread.
+// Smart Fill · engine console. A terminal-look-alike window that opens
+// after a Smart Fill run (gated on the "Show results when done" rule).
+// It shows the run summary and — crucially — lets the operator search
+// ANY driver's name to see EXACTLY why that driver got the shifts they
+// did, straight from the deterministic per-shift decision rows the
+// engine writes to public.optimization_decisions (run_id, driver_id,
+// decision, total_score, score_components, binding_constraints,
+// reason_message). No AI guesswork — the console renders the engine's
+// own recorded scores + reasons.
+const _RR_SFC = {
+  esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  },
+  C: { dim: "#6e7681", txt: "#c9d1d9", grn: "#3fb950", red: "#f85149",
+       cyan: "#56d4dd", yel: "#e3b341", mag: "#bc8cff", white: "#e6edf3" },
+  span(c, s) { return `<span style="color:${c}">${_RR_SFC.esc(s)}</span>`; },
+  DOW: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  shiftLabel(meta, sm) {
+    const m = sm.get(meta);
+    if (!m) return "shift " + String(meta).slice(0, 8);
+    const d = m.date ? new Date(m.date + "T12:00:00") : null;
+    const dow = d ? _RR_SFC.DOW[d.getDay()] + " " : "";
+    const dd = m.date || "";
+    const route = m.route_code || (m.station && m.station.code) || "route";
+    return `${dow}${dd} · ${route}`;
+  },
+  // Build id→profile from the schedule's loaded driver list.
+  driverMap() {
+    const map = new Map();
+    for (const d of (window._schedDriverList || [])) {
+      const md = d.metadata || {};
+      map.set(d.id, {
+        id: d.id,
+        name: d.preferred_name || d.full_name || "—",
+        full: d.full_name || "",
+        preferred: md.preferred_dows || md.preferred_days || null,
+        available: md.available_dows || md.availability_dows || null,
+        dl: d.dl_expires_on || null,
+        dot: d.dot_certified, xl: d.xl_certified, edv: d.edv_certified,
+        tier: d.tier, trainer: d.is_trainer,
+      });
+    }
+    return map;
+  },
+};
+
+async function _rrLoadSmartFillDecisions() {
+  const runId = window._rrLastOptimizationRunId || null;
+  const drivers = _RR_SFC.driverMap();
+  if (!runId) return { runId: null, decisions: [], shiftMeta: new Map(), drivers, error: null };
+  try {
+    const { data: decisions, error } = await sb
+      .from("optimization_decisions")
+      .select("shift_id, driver_id, decision, total_score, score_components, binding_constraints, reason_code, reason_message")
+      .eq("run_id", runId);
+    if (error) throw error;
+    const shiftIds = [...new Set((decisions || []).map((d) => d.shift_id).filter(Boolean))];
+    const shiftMeta = new Map();
+    if (shiftIds.length) {
+      const { data: shifts } = await sb
+        .from("shifts")
+        .select("id, date, route_code, starts_at, station:station_id (code)")
+        .in("id", shiftIds);
+      for (const s of (shifts || [])) shiftMeta.set(s.id, s);
+    }
+    return { runId, decisions: decisions || [], shiftMeta, drivers, error: null };
+  } catch (e) {
+    return { runId, decisions: [], shiftMeta: new Map(), drivers, error: (e && e.message) || String(e) };
+  }
+}
+
 function _rrShowSmartFillDetails(text) {
-  // Reuse an existing modal if one is already open from a previous run.
+  const { esc, C, span } = _RR_SFC;
   let backdrop = document.getElementById("rr-sf-details-backdrop");
   if (backdrop) backdrop.remove();
   backdrop = document.createElement("div");
   backdrop.id = "rr-sf-details-backdrop";
   backdrop.setAttribute("role", "dialog");
   backdrop.setAttribute("aria-modal", "true");
-  backdrop.style.cssText = [
-    "position:fixed", "inset:0", "background:rgba(0,0,0,0.45)",
-    "z-index:99999", "display:flex", "align-items:center", "justify-content:center",
-    "padding:24px",
-  ].join(";");
+  backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px";
+
   const card = document.createElement("div");
-  card.style.cssText = [
-    "background:#fff", "border-radius:12px", "max-width:760px", "width:100%",
-    "max-height:80vh", "display:flex", "flex-direction:column",
-    "box-shadow:0 20px 60px rgba(0,0,0,0.3)", "overflow:hidden",
-    "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
-  ].join(";");
+  card.style.cssText = "background:#0b0f14;border:1px solid #1f2630;border-radius:12px;max-width:900px;width:100%;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,0.55);overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace";
+
+  // ── Title bar (traffic lights + driver search) ──────────────────
   const header = document.createElement("div");
-  header.style.cssText = "padding:16px 20px;border-bottom:1px solid #e5e7eb;font-weight:600;font-size:15px";
-  header.textContent = "Smart Fill diagnostics";
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.readOnly = true;
-  ta.style.cssText = [
-    "flex:1", "border:none", "padding:16px 20px", "font-family:ui-monospace,SFMono-Regular,Consolas,monospace",
-    "font-size:12.5px", "line-height:1.5", "resize:none", "outline:none", "background:#fafafa",
-    "white-space:pre",
-  ].join(";");
+  header.style.cssText = "padding:11px 14px;border-bottom:1px solid #1f2630;display:flex;align-items:center;gap:10px;background:#11161d";
+  const dot = (c) => `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${c};margin-right:6px"></span>`;
+  const title = document.createElement("div");
+  title.style.cssText = "display:flex;align-items:center;color:#8b949e;font-size:12px;font-weight:600;white-space:nowrap;flex:0 0 auto";
+  title.innerHTML = dot("#ff5f56") + dot("#ffbd2e") + dot("#27c93f") + '<span style="margin-left:6px;letter-spacing:.02em">smart-fill — engine console</span>';
+  const search = document.createElement("input");
+  search.type = "search";
+  search.id = "rr-sfc-search";
+  search.placeholder = "search a driver…  (exactly why they got their shifts)";
+  search.setAttribute("aria-label", "Search a driver to explain their assignments");
+  search.style.cssText = "flex:1;min-width:0;background:#0b0f14;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font:12.5px ui-monospace,monospace;padding:7px 10px;outline:none";
+  search.addEventListener("focus", () => { search.style.borderColor = "#388bfd"; });
+  search.addEventListener("blur", () => { search.style.borderColor = "#30363d"; });
+  header.appendChild(title);
+  header.appendChild(search);
+
+  // ── Console output ──────────────────────────────────────────────
+  const out = document.createElement("div");
+  out.id = "rr-sfc-out";
+  out.style.cssText = "flex:1;overflow:auto;padding:14px 16px;background:#0b0f14;color:#c9d1d9;font-size:12.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word";
+
+  // ── Footer ──────────────────────────────────────────────────────
   const footer = document.createElement("div");
-  footer.style.cssText = "padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end;align-items:center";
+  footer.style.cssText = "padding:10px 14px;border-top:1px solid #1f2630;display:flex;gap:8px;justify-content:flex-end;align-items:center;background:#11161d";
   const status = document.createElement("span");
-  status.style.cssText = "color:#6b7280;font-size:12px;margin-right:auto";
-  const copyBtn = document.createElement("button");
-  copyBtn.textContent = "Copy";
-  copyBtn.style.cssText = "padding:8px 16px;border:1px solid #d1d5db;background:#fff;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500";
-  const closeBtn = document.createElement("button");
-  closeBtn.textContent = "Close";
-  closeBtn.style.cssText = "padding:8px 16px;border:none;background:#2563eb;color:#fff;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500";
+  status.style.cssText = "color:#8b949e;font-size:12px;margin-right:auto;font-family:ui-monospace,monospace";
+  const mkBtn = (label, primary) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.style.cssText = primary
+      ? "padding:7px 14px;border:0;background:#238636;color:#fff;border-radius:6px;font:600 12.5px ui-monospace,monospace;cursor:pointer"
+      : "padding:7px 14px;border:1px solid #30363d;background:#161b22;color:#c9d1d9;border-radius:6px;font:600 12.5px ui-monospace,monospace;cursor:pointer";
+    return b;
+  };
+  const copyBtn = mkBtn("Copy log", false);
+  const explainBtn = mkBtn("Explain (AI)", false);
+  explainBtn.style.borderColor = "#6e40c9";
+  explainBtn.style.color = "#d2a8ff";
+  const closeBtn = mkBtn("Close", true);
+
   const dismiss = () => backdrop.remove();
   closeBtn.onclick = dismiss;
   backdrop.addEventListener("click", (e) => { if (e.target === backdrop) dismiss(); });
@@ -33290,68 +33373,159 @@ function _rrShowSmartFillDetails(text) {
       document.removeEventListener("keydown", onKey);
     }
   });
-  copyBtn.onclick = async () => {
-    let ok = false;
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-        ok = true;
-      }
-    } catch (_) { /* fall through to execCommand */ }
-    if (!ok) {
-      ta.select();
-      try { ok = document.execCommand("copy"); } catch (_) { ok = false; }
-    }
-    status.textContent = ok ? "✓ copied" : "Copy failed — select the text and ⌘C / Ctrl+C";
-    setTimeout(() => { status.textContent = ""; }, 2500);
-  };
-  // AI explainer button — calls the explain-optimization-run edge
-  // function with the last run's id (captured in step 2) + the
-  // 'summary' question kind. Result renders inline above the
-  // diagnostic textarea so the operator gets a plain-English readout
-  // without leaving the modal.
-  const explainBtn = document.createElement("button");
-  explainBtn.textContent = "Explain in plain English";
-  explainBtn.style.cssText = "padding:8px 14px;border:1px solid #c4b5fd;background:linear-gradient(135deg,#EDE9FE 0%,#FCE7F3 100%);color:#5B21B6;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600";
-  const explainOut = document.createElement("div");
-  explainOut.style.cssText = "padding:0 20px 12px;font-size:13px;line-height:1.5;color:#1f2937;white-space:pre-wrap;border-bottom:1px solid #e5e7eb;display:none;background:linear-gradient(135deg,rgba(237,233,254,.3) 0%,rgba(252,231,243,.3) 100%)";
-  explainBtn.onclick = async () => {
-    const runId = window._rrLastOptimizationRunId;
-    if (!runId) {
-      explainOut.style.display = "block";
-      explainOut.textContent = "No optimization run id available — try clicking Smart Fill once more.";
-      return;
-    }
-    explainBtn.disabled = true;
-    explainBtn.textContent = "Asking Claude…";
-    explainOut.style.display = "block";
-    explainOut.style.padding = "12px 20px";
-    explainOut.textContent = "…";
-    try {
-      const { data, error } = await sb.functions.invoke("explain-optimization-run", {
-        body: { run_id: runId, question_kind: "summary" },
-      });
-      if (error) throw error;
-      explainOut.textContent = data?.answer || "(empty response)";
-    } catch (e) {
-      explainOut.textContent = "Couldn't generate explanation: " + ((e && e.message) || e);
-    } finally {
-      explainBtn.disabled = false;
-      explainBtn.textContent = "Explain in plain English";
-    }
-  };
+
   footer.appendChild(status);
   footer.appendChild(explainBtn);
   footer.appendChild(copyBtn);
   footer.appendChild(closeBtn);
   card.appendChild(header);
-  card.appendChild(explainOut);
-  card.appendChild(ta);
+  card.appendChild(out);
   card.appendChild(footer);
   backdrop.appendChild(card);
   document.body.appendChild(backdrop);
-  // Focus + auto-select so users can ⌘A / ⌘C immediately.
-  setTimeout(() => { ta.focus(); ta.select(); }, 0);
+
+  // ── State + renderers ───────────────────────────────────────────
+  const state = { loaded: false, runId: null, decisions: [], shiftMeta: new Map(), drivers: new Map(), error: null };
+  const prompt = (cmd) => span(C.grn, "rr@smartfill") + span(C.dim, ":~$ ") + span(C.white, cmd) + "\n";
+
+  function plainLog() {
+    const lines = [];
+    lines.push(prompt("smartfill --explain" + (state.runId ? " --run " + String(state.runId).slice(0, 8) : "")));
+    lines.push(span(C.dim, esc(text)) + "\n");
+    if (!state.loaded) {
+      lines.push(span(C.yel, "↻ loading per-driver decisions…"));
+    } else if (state.error) {
+      lines.push(span(C.red, "! couldn't load decision rows: " + state.error));
+      lines.push(span(C.dim, "  (the run summary above is still accurate)"));
+    } else if (!state.runId || !state.decisions.length) {
+      lines.push(span(C.dim, "no per-shift decision rows recorded for this run."));
+    } else {
+      const assigned = state.decisions.filter((d) => d.driver_id && d.decision !== "uncovered").length;
+      const uncovered = state.decisions.filter((d) => d.decision === "uncovered").length;
+      lines.push(span(C.cyan, `✓ ${state.decisions.length} decisions recorded`) + span(C.dim, ` · ${assigned} assigned · ${uncovered} uncovered`));
+      lines.push("");
+      lines.push(span(C.white, "→ type a driver's name in the search bar to see EXACTLY why they got their shifts."));
+    }
+    out.innerHTML = lines.join("\n");
+    out.scrollTop = 0;
+  }
+
+  function compsHtml(sc) {
+    if (!sc || typeof sc !== "object") return "";
+    const keys = Object.keys(sc);
+    if (!keys.length) return "";
+    return keys.map((k) => {
+      const v = sc[k];
+      const val = (typeof v === "number") ? (Math.round(v * 1000) / 1000) : v;
+      return "      " + span(C.dim, k.replace(/_/g, " ") + ": ") + span(C.txt, val);
+    }).join("\n");
+  }
+
+  function profileHtml(p) {
+    const bits = [];
+    if (p.preferred) bits.push("      " + span(C.dim, "preferred days: ") + span(C.txt, Array.isArray(p.preferred) ? p.preferred.join(", ") : p.preferred));
+    if (p.available) bits.push("      " + span(C.dim, "availability: ") + span(C.txt, Array.isArray(p.available) ? p.available.join(", ") : p.available));
+    if (p.dl) bits.push("      " + span(C.dim, "license expires: ") + span(C.txt, p.dl));
+    const certs = [p.dot && "DOT", p.xl && "XL", p.edv && "EDV"].filter(Boolean);
+    if (certs.length) bits.push("      " + span(C.dim, "certs: ") + span(C.txt, certs.join(", ")));
+    if (p.tier) bits.push("      " + span(C.dim, "tier: ") + span(C.txt, p.tier));
+    if (p.trainer) bits.push("      " + span(C.yel, "trainer"));
+    return bits.join("\n");
+  }
+
+  function driverView(query) {
+    const q = query.trim().toLowerCase();
+    const lines = [prompt("explain --driver \"" + esc(query.trim()) + "\"")];
+    if (!state.loaded) { lines.push(span(C.yel, "↻ still loading decisions… try again in a moment.")); out.innerHTML = lines.join("\n"); return; }
+    if (state.error) { lines.push(span(C.red, "! decision rows unavailable: " + state.error)); out.innerHTML = lines.join("\n"); return; }
+    // Match drivers by name.
+    const matches = [...state.drivers.values()].filter((p) =>
+      (p.name || "").toLowerCase().includes(q) || (p.full || "").toLowerCase().includes(q));
+    if (!matches.length) {
+      lines.push(span(C.red, `no driver matches "${esc(query.trim())}".`));
+      lines.push(span(C.dim, "tip: search by first or last name."));
+      out.innerHTML = lines.join("\n"); out.scrollTop = 0; return;
+    }
+    for (const p of matches.slice(0, 8)) {
+      lines.push("");
+      lines.push(span(C.cyan, "── " + p.name + " ").padEnd(0) + span(C.cyan, "─".repeat(Math.max(2, 40 - p.name.length))));
+      const mine = state.decisions.filter((d) => d.driver_id === p.id && d.decision !== "uncovered");
+      if (!mine.length) {
+        lines.push("  " + span(C.red, "● received no shifts this run."));
+        const prof = profileHtml(p);
+        if (prof) { lines.push("  " + span(C.dim, "eligibility on file:")); lines.push(prof); }
+        lines.push("  " + span(C.dim, "→ see the run summary's “drivers received no shifts / skipped” section for the blocking reason."));
+        continue;
+      }
+      lines.push("  " + span(C.grn, `● got ${mine.length} shift${mine.length === 1 ? "" : "s"}:`));
+      // Sort by date when available.
+      mine.sort((a, b) => {
+        const ma = state.shiftMeta.get(a.shift_id), mb = state.shiftMeta.get(b.shift_id);
+        return String(ma && ma.date).localeCompare(String(mb && mb.date));
+      });
+      for (const d of mine) {
+        const label = _RR_SFC.shiftLabel(d.shift_id, state.shiftMeta);
+        const score = (d.total_score != null) ? span(C.yel, "  score " + (Math.round(d.total_score * 1000) / 1000)) : "";
+        const tag = span(C.mag, "[" + (d.decision || "assigned") + "]");
+        lines.push("    " + span(C.white, label) + "  " + tag + score);
+        if (d.reason_message) lines.push("      " + span(C.dim, "why: ") + span(C.txt, d.reason_message));
+        const comps = compsHtml(d.score_components);
+        if (comps) { lines.push("      " + span(C.dim, "score breakdown:")); lines.push(comps); }
+      }
+      const prof = profileHtml(p);
+      if (prof) { lines.push("  " + span(C.dim, "eligibility on file:")); lines.push(prof); }
+    }
+    if (matches.length > 8) lines.push("\n" + span(C.dim, `…and ${matches.length - 8} more — narrow your search.`));
+    out.innerHTML = lines.join("\n");
+    out.scrollTop = 0;
+  }
+
+  function render() {
+    const q = search.value.trim();
+    if (q) driverView(q); else plainLog();
+  }
+
+  let _t = null;
+  search.addEventListener("input", () => { clearTimeout(_t); _t = setTimeout(render, 120); });
+
+  // Copy the current run summary text.
+  copyBtn.onclick = async () => {
+    let ok = false;
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); ok = true; } } catch (_) {}
+    status.textContent = ok ? "✓ copied run log" : "copy failed";
+    setTimeout(() => { status.textContent = ""; }, 2200);
+  };
+
+  // Optional AI narrative (kept as a bonus; deterministic facts are the
+  // primary explanation above).
+  explainBtn.onclick = async () => {
+    const runId = window._rrLastOptimizationRunId;
+    if (!runId) { status.textContent = "no run id — run Smart Fill once more"; return; }
+    explainBtn.disabled = true; explainBtn.textContent = "asking Claude…";
+    out.innerHTML = prompt("explain --ai") + span(C.yel, "↻ asking Claude for a plain-English summary…");
+    try {
+      const { data, error } = await sb.functions.invoke("explain-optimization-run", { body: { run_id: runId, question_kind: "summary" } });
+      if (error) throw error;
+      out.innerHTML = prompt("explain --ai") + span(C.txt, esc(data?.answer || "(empty response)"));
+    } catch (e) {
+      out.innerHTML = prompt("explain --ai") + span(C.red, "couldn't generate explanation: " + ((e && e.message) || e));
+    } finally {
+      explainBtn.disabled = false; explainBtn.textContent = "Explain (AI)";
+    }
+  };
+
+  // Initial paint, then load decisions and re-render.
+  plainLog();
+  setTimeout(() => search.focus(), 0);
+  _rrLoadSmartFillDecisions().then((res) => {
+    state.loaded = true;
+    state.runId = res.runId;
+    state.decisions = res.decisions;
+    state.shiftMeta = res.shiftMeta;
+    state.drivers = res.drivers;
+    state.error = res.error;
+    render();
+  });
 }
 
 // ─── Optimization audit helpers (Workforce Optimization Engine · Step 2) ───
