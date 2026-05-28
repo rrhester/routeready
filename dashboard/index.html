@@ -12857,6 +12857,10 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-xs) !important;font-weight:600 !important;
             letter-spacing:.07em !important;text-transform:uppercase !important;
             padding:10px var(--s-4) 11px !important;
+            /* Header strip height pinned to match Schedule's
+               .cal-grid.head (live measurement: 79px). */
+            height:79px !important;
+            vertical-align:middle !important;
           }
           /* Solid-color fallback for browsers without backdrop-filter
              so the sticky header never reads as transparent. */
