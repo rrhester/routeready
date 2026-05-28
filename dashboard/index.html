@@ -149,9 +149,14 @@
      for a "borders fade, data leads" feel; the operator wants
      the table-rule precision back so every cell/card defines
      itself cleanly. */
-  --border:rgba(15,23,42,.11);
-  --border-strong:rgba(15,23,42,.16);
-  --border-subtle:rgba(15,23,42,.08);
+  /* Operator wanted every page to feel crisp + technical, matching
+     the sharper schedule treatment. Bumped the global border tokens
+     (used everywhere via var(--border) etc.) roughly +80% so cell
+     edges, card outlines, and dividers read as solid rules instead
+     of soft hairlines. */
+  --border:rgba(15,23,42,.20);
+  --border-strong:rgba(15,23,42,.26);
+  --border-subtle:rgba(15,23,42,.14);
   --border-inverse:rgba(255,255,255,.10);
 
   /* ── Route color coding (per route_classification) ────────────
@@ -170,8 +175,8 @@
 
   /* ── Text ──────────────────────────────────────────────────── */
   --text:#0F172A;
-  --text-muted:#475569;
-  --text-subtle:#64748B;
+  --text-muted:#3F4B5C;   /* was #475569 — one shade darker for sharper UI */
+  --text-subtle:#566173;  /* was #64748B — one shade darker for sharper UI */
   --text-disabled:#94A3B8;
   --text-inverse:#F8FAFC;
   --text-inverse-muted:#94A3B8;
@@ -685,6 +690,22 @@ textarea,
    ───────────────────────────────────────────────────────────── */
 .app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
 .app:has(.sidebar.collapsed){grid-template-columns:64px 1fr}
+
+/* Dashboard-wide sharpness layer · matches the schedule sharpness
+   treatment but extends it to every view. Bumps any SVG icon that
+   doesn't have an explicit stroke-width override to 1.9 (was the
+   browser default of 1 → 1.5 for outline icons), and darkens icons
+   that inherit currentColor when that currentColor is muted.
+   Scope: every .view container, so non-dashboard fixtures (login,
+   404, etc.) are not affected. */
+.view svg:not([stroke-width]){
+  stroke-width:1.9;
+}
+.view svg[stroke-width="1.5"],
+.view svg[stroke-width="1.6"],
+.view svg[stroke-width="1.7"]{
+  stroke-width:1.9 !important;
+}
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
