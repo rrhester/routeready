@@ -17254,9 +17254,13 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-blue-softer:rgba(15,108,189,.05);
             --sch-blue-tint:rgba(15,108,189,.035);
             --sch-blue-text:#0E4F86;
-            --sch-line:rgba(15,23,42,.07);
-            --sch-line-strong:rgba(15,23,42,.10);
-            --sch-line-subtle:rgba(15,23,42,.04);
+            /* Sharper line tokens · operator wanted the schedule page
+               to read crisp + technical. Doubled (roughly) the line
+               alpha across every divider so card edges, table borders,
+               and KPI strips feel solid instead of washed. */
+            --sch-line:rgba(15,23,42,.16);
+            --sch-line-strong:rgba(15,23,42,.22);
+            --sch-line-subtle:rgba(15,23,42,.09);
             --sch-surface:#F8F9FB;
             --sch-surface-2:#F2F3F6;
             --sch-surface-3:#EBEDF1;
