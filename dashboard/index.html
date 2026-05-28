@@ -12772,19 +12772,26 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-drivers .dr-roster-bar-overflow{display:none !important}
 
           /* KPI strip → driver-table gap parity with Schedule.
-             Schedule has .sched-kpi-pills{margin:0 0 var(--s-4) 0}
-             then the calendar grid sits flush after. The Roster on
-             onboarding-ops has an empty print-area + the mount div
-             + the moved sub-view + table-wrap stacked between the
-             KPI strip and the thead — any of them can add a top
-             gap. Zero them all so the only space between the KPI
-             strip and the table is the KPI's own bottom margin. */
+             Measured live: Schedule's gap is 25px (KPI margin-bottom
+             8px + ~17px contributed elsewhere in the schedule chrome).
+             Roster was at 9px (just KPI mb + 1px rounding). Bump
+             #rr-ob-kpis margin-bottom to 25px while in roster mode
+             so the visible gap matches Schedule exactly. Selector
+             uses the sibling combinator on #rr-ob-cmd.is-roster
+             (which is the cmd-shell class _obCmdTab toggles) so the
+             override only applies in roster mode — Onboarding mode
+             keeps its original 8px gap to the readiness matrix.
+             Also zero every parent contribution between the KPI
+             strip and the thead so the only space is the new 25px. */
           #rr-ob-print-area:empty{display:none}
           #ob-roster-mount,
           #ob-roster-mount > .dr-subview,
           #ob-roster-mount #rr-roster-table-wrap,
           #ob-roster-mount #rr-roster-table-wrap > .table{
             margin-top:0 !important;padding-top:0 !important;
+          }
+          #view-onboarding-ops #rr-ob-cmd.is-roster ~ #rr-ob-kpis{
+            margin-bottom:25px !important;
           }
 
           /* Driver-table header · matches the Schedule page's
