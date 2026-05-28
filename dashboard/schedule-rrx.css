@@ -3161,14 +3161,18 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
 /* DRIVER header icon grid · hover-to-reveal. The 4×2 grid of
    subtle-icon buttons (focus / compact / sort / pin / staff /
    future) reads as clutter at rest. Hide them by default and
-   fade in only when the operator hovers the DRIVER cell. */
+   fade in only when the operator hovers the DRIVER cell.
+   :focus-within was originally part of the reveal selector but
+   any click on an icon was setting focus, and that focus
+   lingered after the pointer left — so the grid stayed visible.
+   Now purely hover-driven; the icons disappear the moment the
+   pointer leaves the DRIVER cell. */
 #view-schedule.rrx-schedule .cal-grid.head > .cal-cell-head:first-child .rr-sched-driver-actions {
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--t-fast);
 }
-#view-schedule.rrx-schedule .cal-grid.head > .cal-cell-head:first-child:hover .rr-sched-driver-actions,
-#view-schedule.rrx-schedule .cal-grid.head > .cal-cell-head:first-child:focus-within .rr-sched-driver-actions {
+#view-schedule.rrx-schedule .cal-grid.head > .cal-cell-head:first-child:hover .rr-sched-driver-actions {
   opacity: 1;
   pointer-events: auto;
 }
