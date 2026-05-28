@@ -1931,9 +1931,13 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   white-space: nowrap;
 }
 
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="week"])      { order: 1; }
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="today"])     { order: 2; }
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="staff"])     { order: 3; }
+/* V2 strip tile order · operator-specified layout:
+   [Schedule title] | divider | Today Weekly Monthly | divider |
+   Requests | divider | Targets Smart Fill Finalize | divider |
+   Fleet (was "Fleet calendar") Unassign | divider | Kudos | divider */
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="today"])     { order: 1; }
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="week"])      { order: 2; }
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="monthly"])   { order: 3; }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="requests"])  { order: 4; }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="targets"])   { order: 5; }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) { order: 6; }
@@ -1942,10 +1946,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="unassign"])  { order: 9; }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="kudos"])     { order: 10; }
 
-/* Hairline dividers — left border on the tile that starts each
-   new functional group. Today no longer carries a divider per
-   operator request — the views block (Today / Weekly / Monthly)
-   reads as one continuous cluster, no line between them. */
+/* Hairline dividers · operator-specified layout:
+     | Today  Weekly Monthly | Requests | Targets Smart Fill Finalize | Fleet Unassign | Kudos |
+   left-border on the tile that starts each functional group;
+   right-border on Kudos for the trailing divider after it. */
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="today"]),
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="requests"]),
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="targets"]),
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="calendar"]),
@@ -1953,6 +1958,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   margin-left: var(--rr-space-160) !important;
   padding-left: var(--rr-space-160) !important;
   border-left: 1px solid #C8C6C4 !important;
+}
+/* Trailing divider · right border on the last tile (Kudos). */
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="kudos"]) {
+  margin-right: var(--rr-space-160) !important;
+  padding-right: var(--rr-space-160) !important;
+  border-right: 1px solid #C8C6C4 !important;
 }
 
 /* ============================================================
