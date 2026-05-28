@@ -2248,51 +2248,48 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 /* ============================================================
    Route color coding · scoped to body.rr-sched-color-routes
    ------------------------------------------------------------
-   Toggled by the Week-view rules popover. When on, each shift
-   chip paints by `data-rr-route-class` — Rescue/Nursery/etc.
-   Standard (empty value) keeps the brand-blue default so the
-   bulk of the grid looks unchanged. Uses the same opacity
-   stack as the default chip (22% fill / 55% border / 1px hard
-   shadow) so the only thing changing is the hue.
+   Each route type gets a single hex variable (--rr-route-c-*).
+   Fill / border / shadow derive from that hex via color-mix so
+   the DSP only has to pick ONE color per route in the Rules
+   popover and the chip stays cohesive. Defaults defined on
+   :root in index.html; the Week-view popover overrides per-DSP
+   via inline `documentElement.style.setProperty`.
    ============================================================ */
 
-/* Only the CHIP body (background + border + shadow) changes color
-   per route type. Text colors stay at the default for readability —
-   the operator scans the SHAPE / FILL, not the type within. */
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: rgba(220, 38, 38, 0.22) !important;
-  border-color: rgba(220, 38, 38, 0.65) !important;
-  box-shadow: 0 1px 0 rgba(220, 38, 38, 0.22) !important;
+  background: color-mix(in srgb, var(--rr-route-c-rescue) 22%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-rescue) 65%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-rescue) 22%, transparent) !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: rgba(13, 148, 136, 0.22) !important;
-  border-color: rgba(13, 148, 136, 0.65) !important;
-  box-shadow: 0 1px 0 rgba(13, 148, 136, 0.22) !important;
+  background: color-mix(in srgb, var(--rr-route-c-nursery) 22%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-nursery) 65%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-nursery) 22%, transparent) !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: rgba(234, 88, 12, 0.22) !important;
-  border-color: rgba(234, 88, 12, 0.65) !important;
-  box-shadow: 0 1px 0 rgba(234, 88, 12, 0.22) !important;
+  background: color-mix(in srgb, var(--rr-route-c-reduction) 22%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-reduction) 65%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-reduction) 22%, transparent) !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: rgba(124, 58, 237, 0.22) !important;
-  border-color: rgba(124, 58, 237, 0.65) !important;
-  box-shadow: 0 1px 0 rgba(124, 58, 237, 0.22) !important;
+  background: color-mix(in srgb, var(--rr-route-c-cycle_1) 22%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-cycle_1) 65%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-cycle_1) 22%, transparent) !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: rgba(219, 39, 119, 0.22) !important;
-  border-color: rgba(219, 39, 119, 0.65) !important;
-  box-shadow: 0 1px 0 rgba(219, 39, 119, 0.22) !important;
+  background: color-mix(in srgb, var(--rr-route-c-cycle_2) 22%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-cycle_2) 65%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-cycle_2) 22%, transparent) !important;
 }
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: rgba(100, 116, 139, 0.24) !important;
-  border-color: rgba(100, 116, 139, 0.65) !important;
-  box-shadow: 0 1px 0 rgba(100, 116, 139, 0.22) !important;
+  background: color-mix(in srgb, var(--rr-route-c-backup) 22%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-backup) 65%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-backup) 22%, transparent) !important;
 }
 
 /* ============================================================
