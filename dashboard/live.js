@@ -24163,14 +24163,17 @@ document.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     const on = !document.body.classList.contains("rr-sched-staff-mode");
+    const labelEl = document.getElementById("rr-sched-row-label");
     if (on) {
       document.body.classList.add("rr-sched-staff-mode");
       staffBtn.setAttribute("aria-pressed", "true");
+      if (labelEl) labelEl.textContent = "Staff";
       try { localStorage.setItem("rr-sched-staff-only", "1"); } catch (_) {}
       _rrRenderStaffInWeekGrid();
     } else {
       document.body.classList.remove("rr-sched-staff-mode");
       staffBtn.setAttribute("aria-pressed", "false");
+      if (labelEl) labelEl.textContent = "Driver";
       try { localStorage.setItem("rr-sched-staff-only", "0"); } catch (_) {}
       _rrClearStaffWeekRows();
       if (typeof renderScheduleWeek === "function") {
@@ -24275,8 +24278,10 @@ window._rrClearStaffWeekRows    = _rrClearStaffWeekRows;
   try { on = localStorage.getItem("rr-sched-staff-only") === "1"; } catch (_) {}
   if (!on) return;
   const apply = () => {
-    const btn = document.getElementById("rr-sched-staff-view-toggle");
+    const btn      = document.getElementById("rr-sched-staff-view-toggle");
+    const labelEl  = document.getElementById("rr-sched-row-label");
     if (btn) btn.setAttribute("aria-pressed", "true");
+    if (labelEl) labelEl.textContent = "Staff";
     document.body.classList.add("rr-sched-staff-mode");
     if (typeof _rrRenderStaffInWeekGrid === "function") {
       try { _rrRenderStaffInWeekGrid(); } catch (_) {}
