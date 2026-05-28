@@ -703,8 +703,46 @@ textarea,
 }
 .view svg[stroke-width="1.5"],
 .view svg[stroke-width="1.6"],
-.view svg[stroke-width="1.7"]{
+.view svg[stroke-width="1.7"],
+.view svg[stroke-width="1.8"]{
   stroke-width:1.9 !important;
+}
+
+/* Sidebar nav-item icons live OUTSIDE any .view, so the rule
+   above doesn't catch them. Bump explicitly to 1.9 so the
+   sidebar reads at the same weight as the page chrome. */
+.nav-item svg{stroke-width:1.9 !important}
+
+/* Chrome icons across every view — subnav, cmd-tabs, page-header
+   action buttons — get the same color treatment Schedule chrome
+   icons received. Pulls every muted icon to var(--text-muted) at
+   rest and var(--text) on hover/active so the chrome reads
+   consistent crisp + technical across pages, not just on
+   Schedule. Active state still picks up var(--text) automatically
+   when its parent gains .active (existing rules win specificity). */
+.view .subnav-item svg,
+.view .cmd-tab svg,
+.view .ob-cmd-tab svg,
+.view .sched-cmd-tab svg,
+.view .fl-cmd-tab svg,
+.view .wf-cmd-tab svg,
+.view .pipe-cmd-tab svg,
+.view .sched-print-btn svg,
+.view .sched-page-btn-rules-foot svg,
+.view .ob-rules-foot svg,
+.view .page-actions .btn svg{
+  color:var(--text-muted);
+}
+.view .subnav-item:hover svg,
+.view .cmd-tab:hover svg,
+.view .ob-cmd-tab:hover svg,
+.view .sched-cmd-tab:hover svg,
+.view .fl-cmd-tab:hover svg,
+.view .wf-cmd-tab:hover svg,
+.view .pipe-cmd-tab:hover svg,
+.view .ob-rules-foot:hover svg,
+.view .page-actions .btn:hover svg{
+  color:var(--text);
 }
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
