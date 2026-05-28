@@ -12704,70 +12704,91 @@ body.rr-cmdk-open{ overflow:hidden }
         <div id="rr-roster-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
 
         <style>
-          /* Roster header · operator wanted the chrome between the
-             KPI band and the driver table header tightened to match
-             Schedule's distance. The Active/On leave/Inactive tabs
-             at the top were redundant with the "Active" dropdown in
-             the toolbar below — same filter, two places. Hidden so
-             the toolbar carries the stage filter alone.
-             Net: ~50px shaved off the header stack. */
+          /* Roster header · the operator wanted the search + filter
+             row visually merged with the driver table header — one
+             continuous strip instead of two stacked rows. The Active /
+             On leave / Inactive stage tabs were already hidden because
+             the toolbar's stage dropdown duplicated them. The Insights /
+             Inactive drivers overflow row is also folded away — its
+             links live in the Filters popover / page actions instead.
+             The toolbar itself is rendered "flush": transparent ghost
+             controls, no card chrome, sitting directly on top of the
+             table with zero gap. The search bar leads (left-aligned
+             under the Driver column) and the filter / stage / location /
+             columns controls trail to the right as subtle pill buttons.
+             KPI-to-table distance now matches Schedule's subnav gap. */
           #view-drivers .stage-tabs{display:none !important}
           #view-drivers .dr-roster-bar{
-            display:flex;align-items:center;gap:var(--s-2);margin-bottom:6px;flex-wrap:wrap;
+            display:flex;align-items:center;gap:var(--s-2);
+            margin:0;flex-wrap:wrap;
+            padding:6px 0;
           }
-          /* Overflow links (Insights · Inactive drivers) ride right
-             above the table. Drop the negative-top + bottom padding
-             so the row sits 4px above the table header instead of
-             a full --s-3 gap. */
-          #view-drivers .dr-roster-bar-overflow{margin:0 0 4px}
+          /* Insights / Inactive-drivers overflow row · folded away to
+             tighten the stack. The KPI tile (Insights) still opens via
+             the Filters popover footer; Inactive drivers is reached
+             through the stage dropdown. */
+          #view-drivers .dr-roster-bar-overflow{display:none !important}
           #view-drivers .dr-roster-bar .dr-search{
-            position:relative;flex:1;min-width:240px;
+            position:relative;flex:1 1 280px;min-width:240px;max-width:420px;
+            order:-1;
           }
           #view-drivers .dr-roster-bar .dr-search svg{
-            position:absolute;left:12px;top:50%;transform:translateY(-50%);
-            width:15px;height:15px;color:var(--text-subtle);pointer-events:none;
+            position:absolute;left:10px;top:50%;transform:translateY(-50%);
+            width:14px;height:14px;color:var(--text-subtle);pointer-events:none;
           }
           #view-drivers .dr-roster-bar .dr-search input{
-            width:100%;height:38px;padding:0 12px 0 36px;
-            border:1px solid var(--border);border-radius:10px;
-            font:inherit;font-size:var(--fs-md);background:var(--surface);color:var(--text);
+            width:100%;height:32px;padding:0 10px 0 32px;
+            border:1px solid transparent;border-radius:8px;
+            font:inherit;font-size:var(--fs-md);background:transparent;color:var(--text);
             transition:border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
+          }
+          #view-drivers .dr-roster-bar .dr-search input::placeholder{color:var(--text-subtle)}
+          #view-drivers .dr-roster-bar .dr-search:hover input{
+            border-color:var(--border);background:var(--surface);
           }
           #view-drivers .dr-roster-bar .dr-search input:focus{
             outline:none;background:var(--surface);border-color:var(--accent);
             box-shadow:0 0 0 3px var(--accent-soft);
           }
-          /* Filters + Columns ghost buttons, plus the stage/location
-             dropdowns — same height + radius so the rail aligns. */
+          /* Subtle ghost controls · transparent at rest so the rail
+             reads as part of the table header, not as a separate card.
+             A faint border appears on hover / focus only. */
           #view-drivers .dr-roster-bar .dr-bar-btn,
           #view-drivers .dr-roster-bar .dr-bar-select{
-            height:38px;border:1px solid var(--border);border-radius:10px;
-            background:var(--surface);color:var(--text);
-            font:inherit;font-size:var(--fs-md);font-weight:500;
-            display:inline-flex;align-items:center;gap:8px;cursor:pointer;
-            transition:border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
+            height:32px;border:1px solid transparent;border-radius:8px;
+            background:transparent;color:var(--text-muted);
+            font:inherit;font-size:var(--fs-sm);font-weight:500;
+            display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+            transition:border-color var(--t-fast), box-shadow var(--t-fast),
+                       background var(--t-fast), color var(--t-fast);
           }
-          #view-drivers .dr-roster-bar .dr-bar-btn{padding:0 14px}
+          #view-drivers .dr-roster-bar .dr-bar-btn{padding:0 10px}
           #view-drivers .dr-roster-bar .dr-bar-btn svg{
-            width:15px;height:15px;color:var(--text-muted);flex:0 0 auto;
+            width:14px;height:14px;color:var(--text-subtle);flex:0 0 auto;
           }
           #view-drivers .dr-roster-bar .dr-bar-btn:hover,
           #view-drivers .dr-roster-bar .dr-bar-select:hover{
-            border-color:var(--border-strong);background:var(--canvas);
+            border-color:var(--border);background:var(--surface);color:var(--text);
           }
           #view-drivers .dr-roster-bar .dr-bar-btn:focus-visible,
           #view-drivers .dr-roster-bar .dr-bar-select:focus-visible{
             outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);
+            background:var(--surface);color:var(--text);
           }
           #view-drivers .dr-roster-bar .dr-bar-select{
             appearance:none;-webkit-appearance:none;
-            padding:0 32px 0 14px;
-            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-            background-repeat:no-repeat;background-position:right 12px center;
+            padding:0 24px 0 10px;
+            background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat:no-repeat;background-position:right 8px center;
           }
-          #view-drivers .dr-roster-bar-overflow{
-            display:flex;align-items:center;gap:var(--s-3);
-            margin:calc(-1 * var(--s-2)) 0 var(--s-3);
+          /* Table-wrap sits flush below the toolbar with no extra gap;
+             the table head row continues the rail visually. */
+          #view-drivers #rr-roster-table-wrap{margin-top:0}
+          #view-drivers #rr-roster-table-wrap > .table > thead{
+            position:sticky;top:0;z-index:1;
+          }
+          #view-drivers #rr-roster-table-wrap > .table > thead th{
+            background:var(--canvas);
           }
           /* Filters popover (anchored to the [Filters] button on the
              left of the rail — override default right:0 alignment). */
