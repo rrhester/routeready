@@ -6726,7 +6726,7 @@ function renderDriverRow(d) {
       <td>${_statusPillCell(d.status)}</td>
       <td>${_scoreCell(d.score)}</td>
       <td>${_appStatusCell(d.id)}</td>
-      <td data-rr-no-drawer class="u-center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
+      <td data-rr-no-drawer class="u-center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
       <td data-rr-no-drawer style="text-align:center;width:32px"></td>
     </tr>`;
 }
