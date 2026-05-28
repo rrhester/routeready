@@ -1031,64 +1031,64 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* Main column */
 .main{display:flex;flex-direction:column;min-width:0;background:var(--canvas)}
 
-/* Topbar = sidebar color · operator wants the chrome to read as
-   one continuous slate-blue frame, not a light pill on top
-   of a dark rail. Paints the topbar permanently in #344154 to
-   match the sidebar; text + icons + Ask pill + Undo + Settings
-   all flip to readable inverse colors. (The old
-   body.rr-header-dark gate was made unconditional — the palette
-   icon is no longer needed to apply the dark header.) */
+/* Light topbar · operator-picked #EEF2F7. Pairs with the slate
+   sidebar as a calm, cool, layered chrome (not a contrasting
+   dark band). Text + icons return to the regular dark tokens
+   so they're readable on the light surface. */
 .topbar{
-  background:#344154 !important;
+  background:#EEF2F7 !important;
   -webkit-backdrop-filter:none !important;
   backdrop-filter:none !important;
-  border-bottom-color:rgba(255,255,255,.08) !important;
-  color:rgba(255,255,255,.92);
+  border-bottom-color:rgba(15,23,42,.10) !important;
+  color:var(--text);
 }
 .topbar button,
 .topbar input,
 .topbar .hdr-undo span,
 .topbar .topbar-settings span{
-  color:#fff !important;
+  color:var(--text) !important;
 }
 .topbar svg{
-  color:#fff !important;opacity:.95;
+  color:var(--text-muted) !important;opacity:1;
 }
 .topbar button:hover,
 .topbar .topbar-settings:hover{
-  background:rgba(255,255,255,.12) !important;
-  border-color:rgba(255,255,255,.28) !important;
+  background:rgba(15,23,42,.05) !important;
+  border-color:rgba(15,23,42,.18) !important;
 }
 .topbar .hdr-refresh,
 .topbar .hdr-undo,
 .topbar .hdr-undo-caret,
 .topbar .topbar-settings{
-  background:rgba(255,255,255,.14) !important;
-  border-color:rgba(255,255,255,.35) !important;
-  color:#fff !important;
+  background:transparent !important;
+  border-color:rgba(15,23,42,.12) !important;
+  color:var(--text) !important;
   box-shadow:none !important;
 }
-.topbar .topbar-settings,
-.topbar .topbar-settings span,
-.topbar .hdr-undo,
-.topbar .hdr-undo span{
-  color:#fff !important;
-}
-/* Disabled Undo · operator screenshot showed it nearly invisible
-   because the base rule drops opacity to 0.5 over a barely-tinted
-   surface. Bumping opacity floor so it still reads as a chip on
-   the dark background. */
 .topbar .hdr-undo:disabled,
 .topbar .hdr-undo-caret:disabled{
-  opacity:.78 !important;
+  opacity:.55 !important;
 }
-/* Ask RouteReady pill · solid white surface so the search bar
-   reads as the primary call-to-action against the dark topbar.
-   Text + icon flip to dark for contrast. */
+
+/* Ask RouteReady pill · elevated capsule that's softly blended
+   with the #EEF2F7 topbar — not a stark white pill. The surface
+   sits one step lighter (#F8FAFC) with a hairline border and a
+   subtle drop shadow so it reads as a "lifted" control without
+   shouting. The pill is the primary input target so it still
+   stands out from the bare ghost icon buttons next to it. */
 .topbar .hdr-ask{
-  background:#fff !important;
-  border-color:#fff !important;
-  box-shadow:0 1px 2px rgba(0,0,0,.18) !important;
+  background:#F8FAFC !important;
+  border-color:rgba(15,23,42,.10) !important;
+  box-shadow:
+    0 1px 2px rgba(15,23,42,.06),
+    0 0 0 1px rgba(255,255,255,.6) inset !important;
+  border-radius:var(--r-pill, 9999px) !important;
+}
+.topbar .hdr-ask:focus-within{
+  border-color:var(--accent) !important;
+  box-shadow:
+    0 1px 3px rgba(15,23,42,.10),
+    0 0 0 3px var(--accent-soft) !important;
 }
 .topbar .hdr-ask input{
   background:transparent !important;color:var(--text) !important;
@@ -1107,7 +1107,7 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   color:#fff !important;
 }
 /* Palette icon retained for future light/dark switching, but
-   hidden for now since the topbar matches the sidebar by default. */
+   hidden for now since the topbar uses its own color. */
 #rr-hdr-theme-toggle{display:none !important}
 
 /* ── Top bar (clean white control surface) ────────────────── */
