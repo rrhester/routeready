@@ -32895,56 +32895,36 @@ async function renderSchedMonthlyView() {
   const weeks = Math.round((gridEnd - gridStart) / 86400000 + 1) / 7;    // 5 or 6
 
   gridEl.innerHTML = '<div class="sched-monthly-loading">Loading month…</div>';
-  const [gridRes, driversRes] = await Promise.all([
-    sb.rpc("schedule_grid", { p_start: gridStartIso, p_weeks: weeks }),
-    sb.from("drivers")
-      .select("id, full_name, preferred_name, status, is_trainer")
-      .eq("dsp_id", dspId)
-      .eq("status", "active")
-      .order("full_name"),
-  ]);
-  if (gridRes.error) {
-    gridEl.innerHTML = `<div class="sched-monthly-loading" style="color:var(--red)">Couldn't load: ${escapeHtml(gridRes.error.message)}</div>`;
+  const { data, error } = await sb.rpc("schedule_grid", { p_start: gridStartIso, p_weeks: weeks });
+  if (error) {
+    gridEl.innerHTML = `<div class="sched-monthly-loading" style="color:var(--red)">Couldn't load: ${escapeHtml(error.message)}</div>`;
     return;
   }
-  const grid    = gridRes.data    || { coverage: [], shifts: [] };
-  const drivers = driversRes.data || [];
-  const shifts  = grid.shifts     || [];
-
   const covByDate = new Map();
-  for (const c of (grid.coverage || [])) {
+  for (const c of ((data && data.coverage) || [])) {
     covByDate.set(c.date, { needed: c.needed || 0, filled: c.filled || 0 });
-  }
-  // Bucket shifts by driver + day for O(1) cell lookup.
-  const byCell = new Map();
-  for (const s of shifts) {
-    const k = `${s.driver_id}|${s.date}`;
-    if (!byCell.has(k)) byCell.set(k, []);
-    byCell.get(k).push(s);
   }
 
   const todayIso = fmtIsoDate(today);
   const DOW = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 
-  const chipHtml = (s) => {
-    const t1 = s.starts_at ? new Date(s.starts_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
-    const t2 = s.ends_at   ? new Date(s.ends_at  ).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
-    const time = (t1 || t2) ? `${t1}${t2 ? " – " + t2 : ""}` : "All day";
-    const route = s.route_code ? `<div class="shift-chip-route">${escapeHtml(s.route_code)}</div>` : "";
-    return `<div class="shift-chip" data-rr-shift-id="${escapeHtml(s.id || "")}">`
-      + `<div class="shift-chip-time">${escapeHtml(time)}</div>${route}</div>`;
-  };
-
+  // Regular month calendar formatted with the Weekly grid chrome:
+  // rows = weeks (left label column), columns = days of the week
+  // (header row). Reuses .cal-grid / .cal-cell / .cal-cell-head so it
+  // is visually identical to the Weekly view.
   let html = "";
+  // Header row: corner cell ("Week" axis) + 7 day-of-week columns.
+  let head = `<div class="cal-cell-head cal-row-label sched-mw-corner">Week</div>`;
+  for (const w of DOW) head += `<div class="cal-cell-head sched-mw-dayhead">${w}</div>`;
+  html += `<div class="cal-grid head sched-mw-row">${head}</div>`;
+
+  // One row per week of the month.
   for (let w = 0; w < weeks; w++) {
     const wkStart = addDays(gridStart, w * 7);
     const wkEnd   = addDays(wkStart, 6);
     const wkLabel = `${wkStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – `
       + `${wkEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-    html += `<div class="sched-mw-weeklabel">${escapeHtml(wkLabel)}</div>`;
-
-    // Header row: driver-name column + 7 day columns (DOW + date + coverage).
-    let headCells = `<div class="cal-cell-head cal-row-label"></div>`;
+    let cells = `<div class="cal-cell-head cal-row-label sched-mw-weekcell">${escapeHtml(wkLabel)}</div>`;
     for (let i = 0; i < 7; i++) {
       const d = addDays(wkStart, i);
       const iso = fmtIsoDate(d);
@@ -32954,31 +32934,12 @@ async function renderSchedMonthlyView() {
       let cov = "";
       if (c && c.needed > 0) {
         const cls = c.filled >= c.needed ? "is-full" : (c.filled > 0 ? "" : "is-open");
-        cov = ` <span class="sched-mw-cov ${cls}">${c.filled}/${c.needed}</span>`;
+        cov = `<div class="sched-month-cell-cov ${cls}">${c.filled}/${c.needed}</div>`;
       }
-      headCells += `<div class="cal-cell-head sched-mw-dayhead${isOther ? " is-other-month" : ""}${isToday ? " is-today" : ""}">`
-        + `${DOW[i]} ${d.getDate()}${cov}</div>`;
+      cells += `<div class="cal-cell sched-mw-daycell${isOther ? " is-other-month" : ""}${isToday ? " is-today" : ""}" data-rr-monthly-iso="${iso}">`
+        + `<div class="sched-month-cell-num">${d.getDate()}</div>${cov}</div>`;
     }
-    html += `<div class="cal-grid head sched-mw-row">${headCells}</div>`;
-
-    // One driver row per active driver.
-    for (const drv of drivers) {
-      const name = drv.preferred_name || drv.full_name || "—";
-      const initials = (drv.full_name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "?";
-      let cells = `<div class="cal-cell-head cal-row-label" data-rr-no-drawer>`
-        + `<div class="avatar-sm">${escapeHtml(initials)}</div>`
-        + `<div><div class="cal-row-label-name">${escapeHtml(name)}</div></div></div>`;
-      for (let i = 0; i < 7; i++) {
-        const d = addDays(wkStart, i);
-        const iso = fmtIsoDate(d);
-        const isOther = d.getMonth() !== monthIdx;
-        const todays = byCell.get(`${drv.id}|${iso}`) || [];
-        const chips = todays.map(chipHtml).join("");
-        cells += `<div class="cal-cell${isOther ? " is-other-month" : ""}" data-iso="${iso}" data-rr-cell-driver="${escapeHtml(drv.id)}" data-rr-cell-date="${iso}">`
-          + `${chips || '<div class="shift-chip off">Off</div>'}</div>`;
-      }
-      html += `<div class="cal-grid sched-mw-row">${cells}</div>`;
-    }
+    html += `<div class="cal-grid sched-mw-row sched-mw-weekrow">${cells}</div>`;
   }
   gridEl.innerHTML = html;
 }
