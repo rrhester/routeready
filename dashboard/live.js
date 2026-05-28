@@ -24153,68 +24153,139 @@ document.addEventListener("click", (e) => {
     compactBtn.setAttribute("aria-pressed", on ? "true" : "false");
     return;
   }
-  // Staff view — swap the Week sub-view's content with the Staff
-  // sub-view (role <> 'driver', via the staff_schedule_grid RPC)
-  // IN PLACE, without changing which subnav tab is "active".
-  // Operator's intent: consolidate staff scheduling into the
-  // driver scheduling tool and use this icon to toggle which
-  // schedule the operator is looking at — the chrome (Week tab,
-  // KPI strip, date strip, etc.) stays the same.
+  // Staff view — operator wants to STAY on the Week's .cal-grid
+  // layout (same chrome, same header, same row format) but see
+  // only staff (role <> 'driver') instead of drivers. Hides every
+  // driver row, then injects staff rows fetched from
+  // staff_schedule_grid into the same .cal-wrap.
   const staffBtn = e.target.closest("#rr-sched-staff-view-toggle");
   if (staffBtn) {
     e.preventDefault();
     e.stopPropagation();
-    const weekSub  = document.getElementById("sched-sub-week");
-    const staffSub = document.getElementById("sched-sub-staff");
-    if (!weekSub || !staffSub) return;
-    const currentlyStaff = staffSub.style.display !== "none";
-    if (currentlyStaff) {
-      // Flip back to drivers — show Week, hide Staff
-      weekSub.style.display = "";
-      weekSub.classList.add("active");
-      staffSub.style.display = "none";
-      staffSub.classList.remove("active");
-      staffBtn.setAttribute("aria-pressed", "false");
-      try { localStorage.setItem("rr-sched-staff-only", "0"); } catch (_) {}
-    } else {
-      // Flip to staff — hide Week, show Staff, load data
-      weekSub.style.display = "none";
-      weekSub.classList.remove("active");
-      staffSub.style.display = "";
-      staffSub.classList.add("active");
-      if (typeof loadStaffSchedule === "function") {
-        try { loadStaffSchedule(); } catch (_) { /* non-fatal */ }
-      }
+    const on = !document.body.classList.contains("rr-sched-staff-mode");
+    if (on) {
+      document.body.classList.add("rr-sched-staff-mode");
       staffBtn.setAttribute("aria-pressed", "true");
       try { localStorage.setItem("rr-sched-staff-only", "1"); } catch (_) {}
+      _rrRenderStaffInWeekGrid();
+    } else {
+      document.body.classList.remove("rr-sched-staff-mode");
+      staffBtn.setAttribute("aria-pressed", "false");
+      try { localStorage.setItem("rr-sched-staff-only", "0"); } catch (_) {}
+      _rrClearStaffWeekRows();
+      if (typeof renderScheduleWeek === "function") {
+        try { renderScheduleWeek(); } catch (_) {}
+      }
     }
     return;
   }
 });
-// Rehydrate the Staff-view preference on every page load so the
-// operator's previous choice sticks.
+
+// Pull staff_schedule_grid for the visible Week and inject one
+// .cal-grid row per staff member into the Week sub-view's
+// .cal-wrap. Each row carries a .cal-cell-head (staff name +
+// role line) and seven .cal-cell day cells; each day cell holds
+// a .shift-chip for any shifts the staff member is scheduled on.
+// CSS-rule body.rr-sched-staff-mode in schedule-rrx.css hides
+// the original driver .cal-grid rows while we're in staff mode.
+async function _rrRenderStaffInWeekGrid() {
+  const calWrap = document.querySelector('#sched-sub-week .cal-wrap');
+  if (!calWrap) return;
+  const head = calWrap.querySelector('.cal-grid.head');
+  if (!head) return;
+  const start = _schedStart || fmtIsoDate(startOfWeekMonday(new Date()));
+  // Loading row.
+  _rrClearStaffWeekRows();
+  const loading = document.createElement('div');
+  loading.className = 'cal-grid rr-staff-week-row rr-staff-week-loading';
+  loading.innerHTML = '<div class="cal-cell-head" style="padding:14px 16px;color:var(--text-subtle)">Loading staff schedule…</div>';
+  head.parentNode.appendChild(loading);
+  const { data, error } = await sb.rpc('staff_schedule_grid', { p_start: start, p_weeks: 1 });
+  loading.remove();
+  if (error) {
+    const err = document.createElement('div');
+    err.className = 'cal-grid rr-staff-week-row rr-staff-week-error';
+    err.innerHTML = `<div class="cal-cell-head" style="padding:14px 16px;color:var(--red)">Couldn't load staff: ${escapeHtml(error.message)}</div>`;
+    head.parentNode.appendChild(err);
+    return;
+  }
+  const staff  = (data && data.staff)  || [];
+  const shifts = (data && data.shifts) || [];
+  if (!staff.length) {
+    const empty = document.createElement('div');
+    empty.className = 'cal-grid rr-staff-week-row rr-staff-week-empty';
+    empty.innerHTML = '<div class="cal-cell-head" style="padding:14px 16px;color:var(--text-subtle)">No staff yet. Add dispatchers, fleet managers, HR, and other support staff to schedule them.</div>';
+    head.parentNode.appendChild(empty);
+    return;
+  }
+  // Bucket shifts by staff + day
+  const byCell = new Map();
+  for (const s of shifts) {
+    const k = `${s.staff_id}|${s.date}`;
+    if (!byCell.has(k)) byCell.set(k, []);
+    byCell.get(k).push(s);
+  }
+  const startDate = new Date(start + 'T12:00:00');
+  const ROLE_LABEL = {
+    dispatcher: 'Dispatcher', fleet_manager: 'Fleet manager',
+    hr: 'HR', ops_manager: 'Ops manager', other: 'Other',
+  };
+  const frag = document.createDocumentFragment();
+  staff.forEach((m) => {
+    const row = document.createElement('div');
+    row.className = 'cal-grid rr-staff-week-row';
+    row.dataset.rrStaffMember = m.id;
+    const initials = (m.full_name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?';
+    const roleLine = ROLE_LABEL[m.role] || m.role || '';
+    const label = `<div class="cal-cell-head cal-row-label" data-rr-no-drawer>`
+      + `<div class="avatar-sm">${escapeHtml(initials)}</div>`
+      + `<div><div class="cal-row-label-name">${escapeHtml(m.full_name || '—')}</div>`
+      +   `<div class="cal-row-label-meta">${escapeHtml(roleLine)}</div></div>`
+      + `</div>`;
+    let cells = '';
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(startDate, i);
+      const iso = fmtIsoDate(d);
+      const todays = byCell.get(`${m.id}|${iso}`) || [];
+      const chips = todays.map((s) => {
+        const t1 = s.starts_at ? new Date(s.starts_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
+        const t2 = s.ends_at   ? new Date(s.ends_at  ).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
+        const inner = (t1 || t2)
+          ? `<div class="shift-chip-time">${escapeHtml(t1)}${t2 ? ' – ' + escapeHtml(t2) : ''}</div>`
+          : `<div class="shift-chip-time">All day</div>`;
+        return `<div class="shift-chip" data-rr-shift-id="${escapeHtml(s.id)}">${inner}</div>`;
+      }).join('');
+      cells += `<div class="cal-cell" data-iso="${iso}">${chips || '<div class="shift-chip off">Off</div>'}</div>`;
+    }
+    row.innerHTML = label + cells;
+    frag.appendChild(row);
+  });
+  head.parentNode.appendChild(frag);
+}
+
+function _rrClearStaffWeekRows() {
+  document.querySelectorAll('#sched-sub-week .rr-staff-week-row').forEach((el) => el.remove());
+}
+window._rrRenderStaffInWeekGrid = _rrRenderStaffInWeekGrid;
+window._rrClearStaffWeekRows    = _rrClearStaffWeekRows;
+
+// Rehydrate the Staff-view preference on every page load.
 (function _rrHydrateStaffOnly(){
   let on = false;
   try { on = localStorage.getItem("rr-sched-staff-only") === "1"; } catch (_) {}
   if (!on) return;
   const apply = () => {
-    const btn      = document.getElementById("rr-sched-staff-view-toggle");
-    const weekSub  = document.getElementById("sched-sub-week");
-    const staffSub = document.getElementById("sched-sub-staff");
-    if (!weekSub || !staffSub) return;
-    weekSub.style.display = "none";
-    weekSub.classList.remove("active");
-    staffSub.style.display = "";
-    staffSub.classList.add("active");
-    if (typeof loadStaffSchedule === "function") {
-      try { loadStaffSchedule(); } catch (_) { /* non-fatal */ }
-    }
+    const btn = document.getElementById("rr-sched-staff-view-toggle");
     if (btn) btn.setAttribute("aria-pressed", "true");
+    document.body.classList.add("rr-sched-staff-mode");
+    if (typeof _rrRenderStaffInWeekGrid === "function") {
+      try { _rrRenderStaffInWeekGrid(); } catch (_) {}
+    }
   };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", apply, { once: true });
   } else {
-    setTimeout(apply, 0);
+    setTimeout(apply, 200);
   }
 })();
 

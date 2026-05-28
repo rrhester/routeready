@@ -3176,3 +3176,14 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
   opacity: 1;
   pointer-events: auto;
 }
+
+/* Staff mode · operator-toggled via the people-plus icon in the
+   DRIVER header. Hides every original driver .cal-grid row in
+   the Week sub-view; the injected .rr-staff-week-row rows take
+   their place. The .cal-grid.head (day-of-week strip) stays so
+   the header chrome and SUN/MON/TUE/... labels keep their
+   identity. Toggle off → remove the staff rows + re-render
+   drivers via renderScheduleWeek (wired in live.js). */
+body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .cal-grid:not(.head):not(.rr-staff-week-row) {
+  display: none !important;
+}
