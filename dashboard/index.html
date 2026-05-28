@@ -16589,18 +16589,21 @@ body.rr-cmdk-open{ overflow:hidden }
              Schedule view only. */
           /* Schedule canvas + .stat-mini elevation now live in the
              global rules at the top of the file. */
+          /* Match the KPI card's recipe (light border + tight radius +
+             the shared float shadow) so the grid and Open-shifts cards
+             float the same way the KPI card does. */
           #view-schedule .cal-wrap{
-            border-radius:22px;
+            border-radius:var(--sch-radius);
             background:#FFFFFF;
-            border:1px solid rgba(15,23,42,.08);
+            border:1px solid var(--sch-line-subtle);
             box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
             overflow:hidden;
           }
           #view-schedule .driver-pool,
           #view-schedule .sched-insights{
-            border-radius:22px;
+            border-radius:var(--sch-radius);
             background:#FFFFFF;
-            border:1px solid rgba(15,23,42,.08);
+            border:1px solid var(--sch-line-subtle);
             box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
           }
           #view-schedule .shift-chip{
