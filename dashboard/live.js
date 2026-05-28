@@ -1534,17 +1534,19 @@ document.addEventListener("click", (e) => {
   if (tab) {
     e.preventDefault();
     const mode = tab.getAttribute("data-cmd-tab");
-    // Roster + Onboarding + Fleet tabs render their respective
-    // views, but they're conceptually PART of Schedule — the sidebar
-    // should stay lit on Schedule. Operator's mental model: one
-    // Schedule hub with sub-surfaces.
-    if (mode === "roster" || mode === "onboarding" || mode === "fleet") {
-      const dest = mode === "fleet" ? "fleet" : "onboarding-ops";
+    // Roster + Onboarding + Fleet + Workflows render their views,
+    // but they're conceptually PART of Schedule — sidebar stays
+    // lit on Schedule throughout.
+    if (mode === "roster" || mode === "onboarding" || mode === "fleet" || mode === "workflows") {
+      const dest =
+        mode === "fleet"     ? "fleet" :
+        mode === "workflows" ? "forms" :
+                               "onboarding-ops";
       try { window.goto(dest); } catch (_) {}
       setTimeout(() => {
         if (mode === "fleet") {
           if (typeof _flCmdTab === "function") _flCmdTab("fleet");
-        } else if (typeof _obCmdTab === "function") {
+        } else if (mode !== "workflows" && typeof _obCmdTab === "function") {
           _obCmdTab(mode === "roster" ? "roster" : "ops");
         }
         // Keep sidebar lit on Schedule.
@@ -29238,6 +29240,45 @@ async function _obPrintPtoReport() {
 }
 
 document.addEventListener("click", (e) => {
+  // Workflows (view-forms) cmd-tab clicks. All non-local tabs
+  // navigate to other views with sidebar locked on Schedule.
+  // Workflows + Print stay as in-page (Print is currently a
+  // no-op in this view, but kept for consistency).
+  const wfTab = e.target.closest(".wf-cmd-tab");
+  if (wfTab) {
+    e.preventDefault();
+    const wfMode = wfTab.getAttribute("data-wf-cmd-tab");
+    if (wfMode === "schedule" || wfMode === "intelligence" ||
+        wfMode === "roster"   || wfMode === "onboarding"   ||
+        wfMode === "fleet") {
+      const dest =
+        wfMode === "fleet" ? "fleet" :
+        (wfMode === "roster" || wfMode === "onboarding") ? "onboarding-ops" :
+                              "schedule";
+      try { window.goto(dest); } catch (_) {}
+      setTimeout(() => {
+        if (wfMode === "fleet") {
+          if (typeof _flCmdTab === "function") _flCmdTab("fleet");
+        } else if (wfMode === "roster" || wfMode === "onboarding") {
+          if (typeof _obCmdTab === "function") _obCmdTab(wfMode === "roster" ? "roster" : "ops");
+        } else if (typeof _schedCmdTab === "function") {
+          _schedCmdTab(wfMode === "intelligence" ? "insights" : "schedule");
+        }
+        document.querySelectorAll(".nav-item[data-view].active").forEach((b) => b.classList.remove("active"));
+        const schedNav = document.querySelector('.nav-item[data-view="schedule"]');
+        if (schedNav) schedNav.classList.add("active");
+      }, 0);
+      return;
+    }
+    // Local mode (workflows / print) — toggle the active class.
+    document.querySelectorAll(".wf-cmd-tab").forEach((t) => {
+      const on = t.getAttribute("data-wf-cmd-tab") === wfMode;
+      t.classList.toggle("active", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    return;
+  }
+
   // Onboarding cmd-tab clicks. Schedule / Intelligence / Fleet
   // navigate to those views; Roster / Onboarding / Print stay as
   // mode-switches within this page. Sidebar stays lit on Schedule
@@ -29246,16 +29287,18 @@ document.addEventListener("click", (e) => {
   if (obTab) {
     e.preventDefault();
     const obMode = obTab.getAttribute("data-ob-cmd-tab") || "ops";
-    if (obMode === "schedule" || obMode === "intelligence" || obMode === "fleet") {
-      const dest = obMode === "fleet" ? "fleet" : "schedule";
+    if (obMode === "schedule" || obMode === "intelligence" || obMode === "fleet" || obMode === "workflows") {
+      const dest =
+        obMode === "fleet"     ? "fleet" :
+        obMode === "workflows" ? "forms" :
+                                 "schedule";
       try { window.goto(dest); } catch (_) {}
       setTimeout(() => {
         if (obMode === "fleet") {
           if (typeof _flCmdTab === "function") _flCmdTab("fleet");
-        } else if (typeof _schedCmdTab === "function") {
+        } else if (obMode !== "workflows" && typeof _schedCmdTab === "function") {
           _schedCmdTab(obMode === "intelligence" ? "insights" : "schedule");
         }
-        // Keep sidebar lit on Schedule.
         document.querySelectorAll(".nav-item[data-view].active").forEach((b) => b.classList.remove("active"));
         const schedNav = document.querySelector('.nav-item[data-view="schedule"]');
         if (schedNav) schedNav.classList.add("active");
@@ -46467,17 +46510,20 @@ document.addEventListener("click", (e) => {
   if (tab) {
     e.preventDefault();
     const flMode = tab.getAttribute("data-fl-cmd-tab");
-    // Schedule / Intelligence / Roster / Onboarding navigate away
-    // from Fleet to the unified hub. Fleet + Print stay as mode-
-    // switches. Sidebar stays lit on Schedule throughout.
-    if (flMode === "schedule" || flMode === "intelligence" ||
-        flMode === "roster"   || flMode === "onboarding") {
-      const dest = (flMode === "roster" || flMode === "onboarding") ? "onboarding-ops" : "schedule";
+    // Anything that isn't fleet/print navigates back to the
+    // unified Schedule hub. Sidebar stays lit on Schedule.
+    if (flMode === "schedule"  || flMode === "intelligence" ||
+        flMode === "roster"    || flMode === "onboarding"   ||
+        flMode === "workflows") {
+      const dest =
+        flMode === "workflows" ? "forms" :
+        (flMode === "roster" || flMode === "onboarding") ? "onboarding-ops" :
+                                  "schedule";
       try { window.goto(dest); } catch (_) {}
       setTimeout(() => {
         if (flMode === "roster" || flMode === "onboarding") {
           if (typeof _obCmdTab === "function") _obCmdTab(flMode === "roster" ? "roster" : "ops");
-        } else if (typeof _schedCmdTab === "function") {
+        } else if (flMode !== "workflows" && typeof _schedCmdTab === "function") {
           _schedCmdTab(flMode === "intelligence" ? "insights" : "schedule");
         }
         document.querySelectorAll(".nav-item[data-view].active").forEach((b) => b.classList.remove("active"));
