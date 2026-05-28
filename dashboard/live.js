@@ -3961,12 +3961,28 @@ function _applyRosterFiltersAndSort(rows) {
     });
   }
   const dispName = (r) => (r.preferred_name?.trim() || r.full_name || "").toLowerCase();
+  // Status priority for status-asc sort (active first, terminated last).
+  const statusPri = { active: 0, onboarding: 1, leave: 2, inactive: 3, terminated: 4 };
+  const statusRank = (r) => (statusPri[r.status] ?? 99);
+  // Last-active timestamp from the in-memory roster app-session
+  // cache. Drivers with no app session sort to the end on asc, to
+  // the start on desc — same "no data" behaviour as score sorts.
+  const lastActiveMs = (r) => {
+    const s = _rosterAppStatus && _rosterAppStatus.get ? _rosterAppStatus.get(r.id) : null;
+    const iso = s ? (s.last_seen_at || s.signed_in_at) : null;
+    return iso ? new Date(iso).getTime() : null;
+  };
   switch (f.sort) {
-    case "score-asc":   out = [...out].sort((a, b) => (a.score ?? 999) - (b.score ?? 999)); break;
-    case "score-desc":  out = [...out].sort((a, b) => (b.score ?? -1)  - (a.score ?? -1));  break;
-    case "name":        out = [...out].sort((a, b) => dispName(a).localeCompare(dispName(b))); break;
-    case "tenure-desc": out = [...out].sort((a, b) => new Date(a.hire_date || 0) - new Date(b.hire_date || 0)); break;
-    case "tenure-asc":  out = [...out].sort((a, b) => new Date(b.hire_date || 0) - new Date(a.hire_date || 0)); break;
+    case "score-asc":      out = [...out].sort((a, b) => (a.score ?? 999) - (b.score ?? 999)); break;
+    case "score-desc":     out = [...out].sort((a, b) => (b.score ?? -1)  - (a.score ?? -1));  break;
+    case "name":           out = [...out].sort((a, b) => dispName(a).localeCompare(dispName(b))); break;
+    case "name-desc":      out = [...out].sort((a, b) => dispName(b).localeCompare(dispName(a))); break;
+    case "tenure-desc":    out = [...out].sort((a, b) => new Date(a.hire_date || 0) - new Date(b.hire_date || 0)); break;
+    case "tenure-asc":     out = [...out].sort((a, b) => new Date(b.hire_date || 0) - new Date(a.hire_date || 0)); break;
+    case "status-asc":     out = [...out].sort((a, b) => statusRank(a) - statusRank(b)); break;
+    case "status-desc":    out = [...out].sort((a, b) => statusRank(b) - statusRank(a)); break;
+    case "lastactive-desc": out = [...out].sort((a, b) => (lastActiveMs(b) ?? -Infinity) - (lastActiveMs(a) ?? -Infinity)); break;
+    case "lastactive-asc":  out = [...out].sort((a, b) => (lastActiveMs(a) ?? Infinity)  - (lastActiveMs(b) ?? Infinity));  break;
   }
   return out;
 }
@@ -4025,9 +4041,11 @@ document.addEventListener("click", (e) => {
   const col = th.dataset.rrRosterSort;
   const cur = _rosterFilters.sort;
   let next;
-  if (col === "name")        next = "name";
-  else if (col === "tenure") next = cur === "tenure-desc" ? "tenure-asc"  : "tenure-desc";
-  else if (col === "score")  next = cur === "score-asc"   ? "score-desc"  : "score-asc";
+  if (col === "name")            next = cur === "name" ? "name-desc" : "name";
+  else if (col === "tenure")     next = cur === "tenure-desc" ? "tenure-asc" : "tenure-desc";
+  else if (col === "score")      next = cur === "score-asc"   ? "score-desc" : "score-asc";
+  else if (col === "status")     next = cur === "status-asc"  ? "status-desc": "status-asc";
+  else if (col === "lastactive") next = cur === "lastactive-desc" ? "lastactive-asc" : "lastactive-desc";
   if (!next) return;
   _rosterFilters = { ..._rosterFilters, sort: next };
   renderDriverTable(_rosterRows, null);
@@ -4039,18 +4057,27 @@ function renderDriverTable(rows, error) {
   if (!tbody || !thead) return;
 
   // Sort caret helper — shows the active sort direction next to the
-  // matching header.
+  // matching header. Inactive columns render a faded dual-arrow
+  // glyph so the operator can see EVERY header is sortable, not
+  // just the one that happens to be active.
   const f = _rosterFilters;
   const caret = (col) => {
     const map = {
-      name:    ["name"],
-      tenure:  ["tenure-asc", "tenure-desc"],
-      score:   ["score-asc", "score-desc"],
+      name:       ["name", "name-desc"],
+      tenure:     ["tenure-asc", "tenure-desc"],
+      score:      ["score-asc", "score-desc"],
+      status:     ["status-asc", "status-desc"],
+      lastactive: ["lastactive-asc", "lastactive-desc"],
     };
     const ours = map[col] || [];
-    if (!ours.includes(f.sort)) return "";
-    if (f.sort.endsWith("-asc") || f.sort === "name") return ' <span style="font-size:9px">▲</span>';
-    return ' <span style="font-size:9px">▼</span>';
+    const active = ours.includes(f.sort);
+    if (!active) {
+      // Faded dual-arrow glyph — signals "click to sort" without
+      // claiming a direction.
+      return ' <span class="rr-sort-caret rr-sort-caret-idle" aria-hidden="true">⇅</span>';
+    }
+    const isAsc = f.sort.endsWith("-asc") || f.sort === "name";
+    return ` <span class="rr-sort-caret rr-sort-caret-active" aria-hidden="true">${isAsc ? "▲" : "▼"}</span>`;
   };
 
   // Swap headers per stage.  Onboarding still uses the milestone
@@ -4090,9 +4117,9 @@ function renderDriverTable(rows, error) {
         <span class="rr-roster-th-search-slot" data-rr-no-drawer></span>
       </th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
-      <th>Status</th>
+      <th data-rr-roster-sort="status" style="cursor:pointer;user-select:none">Status${caret("status")}</th>
       <th data-rr-roster-sort="score"  style="cursor:pointer;user-select:none">Score <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;opacity:.6" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${caret("score")}</th>
-      <th>Last active</th>
+      <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th>App</th>
       <th></th>`;
     thead.dataset.rrColCount = "8";
