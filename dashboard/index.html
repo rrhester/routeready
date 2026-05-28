@@ -12753,16 +12753,20 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Driver-table header · matches the Schedule page's
              day-of-week strip — frosted-glass tinted blue, sticky
              top, backdrop blur so rows scroll softly underneath.
-             Same #E8F1FA tint at 72% alpha that .cal-grid.head uses. */
-          #view-drivers .table-wrap{overflow:auto;position:relative}
-          #view-drivers .table thead{
+             Same #E8F1FA tint at 72% alpha that .cal-grid.head uses.
+             Scoped to #dr-sub-roster (NOT #view-drivers) because the
+             roster sub-view is physically moved into view-onboarding-ops
+             when reached via the Schedule sidebar slot's Roster tab —
+             scoping to #view-drivers would miss the table there. */
+          #dr-sub-roster .table-wrap{overflow:auto;position:relative}
+          #dr-sub-roster .table thead{
             position:sticky;top:0;z-index:3;
           }
-          #view-drivers .table thead th{
-            background:rgba(232, 241, 250, 0.72);
+          #dr-sub-roster .table thead th{
+            background:rgba(232, 241, 250, 0.72) !important;
             -webkit-backdrop-filter:saturate(180%) blur(20px);
             backdrop-filter:saturate(180%) blur(20px);
-            border-bottom:1px solid rgba(15,23,42,.10);
+            border-bottom:1px solid rgba(15,23,42,.10) !important;
             color:var(--text-muted);
             font-size:var(--fs-xs);font-weight:600;
             letter-spacing:.07em;text-transform:uppercase;
@@ -12770,13 +12774,13 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Solid-color fallback for browsers without backdrop-filter
              so the sticky header never reads as transparent. */
           @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-            #view-drivers .table thead th{background:#E8F1FA}
+            #dr-sub-roster .table thead th{background:#E8F1FA !important}
           }
           /* Soft-blue row hover · matches the Schedule grid's hover
              tint so the operator pattern-matches roster rows as
              behaving like schedule rows. */
-          #view-drivers .table tbody tr:hover,
-          #view-drivers .table-clickable tbody tr:hover{
+          #dr-sub-roster .table tbody tr:hover,
+          #dr-sub-roster .table-clickable tbody tr:hover{
             background:rgba(232, 241, 250, 0.55) !important;
           }
 
@@ -12786,29 +12790,29 @@ body.rr-cmdk-open{ overflow:hidden }
              equivalents shrink row padding, avatar size, and meta
              line so more drivers fit on screen. Standard = base
              styles (no override). */
-          body.rr-roster-compact #view-drivers .table tbody td{
+          body.rr-roster-compact #dr-sub-roster .table tbody td{
             padding-top:6px !important;padding-bottom:6px !important;
           }
-          body.rr-roster-compact #view-drivers .table tbody td .avatar,
-          body.rr-roster-compact #view-drivers .table tbody td .avatar-sm,
-          body.rr-roster-compact #view-drivers .table tbody td img.avatar{
+          body.rr-roster-compact #dr-sub-roster .table tbody td .avatar,
+          body.rr-roster-compact #dr-sub-roster .table tbody td .avatar-sm,
+          body.rr-roster-compact #dr-sub-roster .table tbody td img.avatar{
             width:26px !important;height:26px !important;font-size:11px !important;
           }
-          body.rr-roster-ultra-compact #view-drivers .table tbody td{
+          body.rr-roster-ultra-compact #dr-sub-roster .table tbody td{
             padding-top:3px !important;padding-bottom:3px !important;
             font-size:12.5px !important;line-height:1.2 !important;
           }
-          body.rr-roster-ultra-compact #view-drivers .table tbody td .avatar,
-          body.rr-roster-ultra-compact #view-drivers .table tbody td .avatar-sm,
-          body.rr-roster-ultra-compact #view-drivers .table tbody td img.avatar{
+          body.rr-roster-ultra-compact #dr-sub-roster .table tbody td .avatar,
+          body.rr-roster-ultra-compact #dr-sub-roster .table tbody td .avatar-sm,
+          body.rr-roster-ultra-compact #dr-sub-roster .table tbody td img.avatar{
             width:20px !important;height:20px !important;font-size:9.5px !important;
           }
-          body.rr-roster-ultra-compact #view-drivers .table tbody td small,
-          body.rr-roster-ultra-compact #view-drivers .table tbody td .text-muted,
-          body.rr-roster-ultra-compact #view-drivers .table tbody td .dr-app-rel{
+          body.rr-roster-ultra-compact #dr-sub-roster .table tbody td small,
+          body.rr-roster-ultra-compact #dr-sub-roster .table tbody td .text-muted,
+          body.rr-roster-ultra-compact #dr-sub-roster .table tbody td .dr-app-rel{
             font-size:10.5px !important;
           }
-          body.rr-roster-ultra-compact #view-drivers .table tbody td .dr-app-chip{
+          body.rr-roster-ultra-compact #dr-sub-roster .table tbody td .dr-app-chip{
             padding:1px 6px 1px 5px !important;font-size:10.5px !important;
           }
           /* Filters popover (anchored to the [Filters] button on the
