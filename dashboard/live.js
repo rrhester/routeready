@@ -12461,17 +12461,34 @@ async function refreshDriverStatRow(rows) {
     turnoverPct, turnoverPriorPct, turnoverDelta,
   };
 
-  const tiles = document.querySelectorAll("#rr-roster-insights .stat-mini");
-  if (tiles.length >= 3) {
-    setStatTile(tiles[0], "Active drivers", counts.active,
-      counts.onboarding ? `${counts.onboarding} onboarding` : "—");
-    setStatTile(tiles[1], "Drivers on LOA", counts.leave || 0,
-      counts.leave ? "Currently on leave" : "None on leave");
-    setStatTile(tiles[2], "Avg tenure",
-      avgTenure == null ? "—" : `${avgTenure.toFixed(1)} mo`,
-      avgTenure == null
-        ? "Set hire dates to see tenure"
-        : `Median ${medianTenure.toFixed(0)} mo · longest ${(longestMonths / 12).toFixed(1)} yr`);
+  // Render KPI pills into the shared .sched-kpi-pills strip — same
+  // visual rhythm as Schedule's #rr-sched-kpis and Onboarding's
+  // #rr-ob-kpis. Three pills: Active drivers · Drivers on LOA · Avg
+  // tenure (clickable; opens the existing tenure drilldown).
+  const kpisHost = document.getElementById("rr-roster-kpis");
+  if (kpisHost) {
+    const navy = "#1A1F47";
+    const amber = "#C7860B";
+    const pill = (key, color, label, sub, clickable) => {
+      const cl = clickable ? ' data-clickable="true"' : "";
+      const subHtml = `<span class="sched-kpi-sub">${sub || "&nbsp;"}</span>`;
+      return `<span class="sched-kpi-pill" data-rr-roster-kpi="${key}"${cl}>`
+        + `<span class="sched-kpi-dot" style="background:${color}"></span>`
+        + `<span class="sched-kpi-text">`
+        + `<span class="sched-kpi-val">${label}</span>${subHtml}`
+        + `</span></span>`;
+    };
+    const tenureLabel = avgTenure == null ? "— Avg tenure" : `${avgTenure.toFixed(1)} mo Avg tenure`;
+    const tenureSub = avgTenure == null
+      ? "Set hire dates to see tenure"
+      : `Median ${medianTenure.toFixed(0)} mo · longest ${(longestMonths / 12).toFixed(1)} yr`;
+    kpisHost.innerHTML =
+      pill("active", navy, `${counts.active} Active driver${counts.active === 1 ? "" : "s"}`,
+        counts.onboarding ? `${counts.onboarding} onboarding` : "&nbsp;", false) +
+      pill("loa",    (counts.leave || 0) > 0 ? amber : navy,
+        `${counts.leave || 0} on LOA`,
+        (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
+      pill("tenure", navy, tenureLabel, tenureSub, true);
   }
 
   // Re-render the open drilldown if one was active.
