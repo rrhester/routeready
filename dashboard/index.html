@@ -9486,33 +9486,12 @@ body.rr-cmdk-open{ overflow:hidden }
            cmd-strip (and the Onboarding-ops cmd-strip mirrors the
            same set so operators can navigate freely between them
            without leaving the unified Schedule sidebar slot). -->
-      <button class="nav-item" data-view="fleet" data-c="fleet" onclick="goto('fleet')">
-        <!-- Fleet (SECONDARY) · slate frame, muted-blue van. Amber
-             was retired — the whole sidebar now sits in the cool
-             palette so Fleet doesn't break system tone. -->
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#2D3548"/>
-          <rect x="3" y="9" width="11" height="8" rx="1" fill="#5266A0"/>
-          <path d="M14 11 L17 11 L20 14 L20 17 L14 17 Z" fill="#6A7CB0"/>
-          <rect x="15" y="11.6" width="3.5" height="2" rx="0.3" fill="#E8EBF1"/>
-          <circle cx="6.5" cy="17.5" r="1.8" fill="#1A1F35"/>
-          <circle cx="6.5" cy="17.5" r="0.7" fill="#5A6580"/>
-          <circle cx="16.5" cy="17.5" r="1.8" fill="#1A1F35"/>
-          <circle cx="16.5" cy="17.5" r="0.7" fill="#5A6580"/>
-        </svg></span>
-        <span class="nav-icon nav-icon-color"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#7C2D12"/>
-          <rect x="3" y="9" width="11" height="8" rx="1" fill="#F59E0B"/>
-          <path d="M14 11 L17 11 L20 14 L20 17 L14 17 Z" fill="#FBBF24"/>
-          <rect x="15" y="11.6" width="3.5" height="2" rx="0.3" fill="#FFFFFF" fill-opacity="0.85"/>
-          <circle cx="6.5" cy="17.5" r="1.8" fill="#1F2937"/>
-          <circle cx="6.5" cy="17.5" r="0.7" fill="#D1D5DB"/>
-          <circle cx="16.5" cy="17.5" r="1.8" fill="#1F2937"/>
-          <circle cx="16.5" cy="17.5" r="0.7" fill="#D1D5DB"/>
-        </svg></span>
-        Fleet
-        <span class="nav-badge" style="background:var(--amber)">2</span>
-      </button>
+      <!-- Fleet sidebar nav-item removed — Fleet now lives as a tab
+           inside the unified Schedule cmd-strip (mirrored on
+           Onboarding-ops + Fleet's own strip). Badges that used
+           to attach to .nav-item[data-view="fleet"] .nav-badge
+           silently no-op when the element is absent. -->
+
       <button class="nav-item active" data-view="schedule" data-c="schedule" onclick="goto('schedule')">
         <!-- Schedule (CORE) · deep-navy frame, recessed inner panel
              for the calendar paper, cool-blue header bar with a 1px
@@ -11889,6 +11868,7 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="intelligence" role="tab" aria-selected="false">Intelligence</button>
           <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
           <button class="ob-cmd-tab active" type="button" data-ob-cmd-tab="ops" role="tab" aria-selected="true">Onboarding</button>
+          <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="fleet" role="tab" aria-selected="false">Fleet</button>
           <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
         </div>
         <div class="page-header sched-nav-heading tcp-strip">
@@ -15656,6 +15636,7 @@ body.rr-cmdk-open{ overflow:hidden }
                  listener (live.js ~line 1532). -->
             <button class="sched-cmd-tab" type="button" data-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="onboarding" role="tab" aria-selected="false">Onboarding</button>
+            <button class="sched-cmd-tab" type="button" data-cmd-tab="fleet" role="tab" aria-selected="false">Fleet</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
           </div>
 
@@ -22330,6 +22311,16 @@ body.rr-cmdk-open{ overflow:hidden }
              on the right. Wiring is in fleetSub() in live.js. -->
         <div class="fl-ribbon fl-cmd-shell" id="rr-fl-cmd" aria-label="Fleet">
           <div class="fl-cmd-tabs" role="tablist" aria-label="Command strip mode">
+            <!-- Unified strip · Schedule + Intelligence + Roster +
+                 Onboarding navigate back to the Schedule hub.
+                 Fleet + Print stay as mode-switches within this
+                 page. Same 6-tab set as Schedule + Onboarding-ops
+                 strips so operators can hop anywhere without
+                 touching the sidebar. -->
+            <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="schedule" role="tab" aria-selected="false">Schedule</button>
+            <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="intelligence" role="tab" aria-selected="false">Intelligence</button>
+            <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
+            <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="onboarding" role="tab" aria-selected="false">Onboarding</button>
             <button class="fl-cmd-tab active" type="button" data-fl-cmd-tab="fleet" role="tab" aria-selected="true">Fleet</button>
             <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
           </div>
