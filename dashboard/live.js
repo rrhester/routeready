@@ -6731,17 +6731,111 @@ function _i9OnboardCell(driverId) {
   return `${_i9StatusPill(d)}${sub ? `<div style="font-size:var(--fs-xs);color:${sub.c};margin-top:3px">${escapeHtml(sub.t)}</div>` : ""}`;
 }
 
-function _statusPillCell(status) {
-  const map = {
-    active:     { label: "Active",     cls: "status-pill-success"  },
-    onboarding: { label: "Onboarding", cls: "status-pill-info"     },
-    leave:      { label: "On leave",   cls: "status-pill-pending"  },
-    inactive:   { label: "Inactive",   cls: "status-pill-neutral"  },
-    terminated: { label: "Terminated", cls: "status-pill-danger"   },
-  };
-  const m = map[status] || { label: status || "—", cls: "status-pill-neutral" };
-  return `<span class="status-pill ${m.cls}">${escapeHtml(m.label)}</span>`;
+const _RR_STATUS_MAP = {
+  active:     { label: "Active",     cls: "status-pill-success"  },
+  onboarding: { label: "Onboarding", cls: "status-pill-info"     },
+  leave:      { label: "On leave",   cls: "status-pill-pending"  },
+  inactive:   { label: "Inactive",   cls: "status-pill-neutral"  },
+  terminated: { label: "Terminated", cls: "status-pill-danger"   },
+};
+function _statusPillCell(status, driverId) {
+  const m = _RR_STATUS_MAP[status] || { label: status || "—", cls: "status-pill-neutral" };
+  // Pill is now a button that opens a status-picker popover. The
+  // surrounding TD is marked data-rr-no-drawer in renderDriverRow
+  // so clicking here doesn't also open the driver detail drawer.
+  const did = driverId ? ` data-rr-driver-id="${escapeHtml(driverId)}"` : "";
+  const cur = status ? ` data-rr-current-status="${escapeHtml(status)}"` : "";
+  return `<button type="button" class="status-pill ${m.cls} rr-status-trigger" data-rr-no-drawer${did}${cur} title="Change status" aria-haspopup="menu" aria-expanded="false">`
+    + `<span class="rr-status-trigger-label">${escapeHtml(m.label)}</span>`
+    + `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:4px;opacity:.7"><polyline points="6 9 12 15 18 9"/></svg>`
+    + `</button>`;
 }
+
+// Status-picker popover · single floating menu reused across all
+// driver rows. Click any pill → menu opens anchored under that
+// pill; pick a value → drivers.status update + roster refresh.
+const _RR_STATUS_OPTIONS = ["active", "onboarding", "leave", "inactive", "terminated"];
+function _rrEnsureStatusPicker() {
+  let pop = document.getElementById("rr-roster-status-picker");
+  if (pop) return pop;
+  pop = document.createElement("div");
+  pop.id = "rr-roster-status-picker";
+  pop.className = "rr-status-picker";
+  pop.setAttribute("role", "menu");
+  pop.hidden = true;
+  document.body.appendChild(pop);
+  return pop;
+}
+function _rrCloseStatusPicker() {
+  const pop = document.getElementById("rr-roster-status-picker");
+  if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  pop.innerHTML = "";
+  const prev = document.querySelector('.rr-status-trigger[aria-expanded="true"]');
+  if (prev) prev.setAttribute("aria-expanded", "false");
+}
+function _rrOpenStatusPicker(trigger) {
+  if (!trigger) return;
+  const driverId = trigger.getAttribute("data-rr-driver-id");
+  const cur      = trigger.getAttribute("data-rr-current-status") || "";
+  if (!driverId) return;
+  const pop = _rrEnsureStatusPicker();
+  pop.innerHTML = _RR_STATUS_OPTIONS.map((s) => {
+    const m = _RR_STATUS_MAP[s] || { label: s };
+    const active = s === cur ? " is-current" : "";
+    return `<button type="button" role="menuitem" class="rr-status-picker-item${active}" data-rr-status-pick="${s}" data-rr-driver-id="${escapeHtml(driverId)}">`
+      + `<span class="rr-status-picker-dot rr-status-dot-${s}"></span>`
+      + `<span class="rr-status-picker-label">${escapeHtml(m.label)}</span>`
+      + (s === cur ? `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg>` : ``)
+      + `</button>`;
+  }).join("");
+  // Position under the trigger, aligned to its left edge.
+  const r = trigger.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.left = `${Math.max(8, r.left)}px`;
+  pop.style.top  = `${r.bottom + 6}px`;
+  pop.style.minWidth = `${Math.max(180, r.width)}px`;
+  pop.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+}
+document.addEventListener("click", async (e) => {
+  // Open on pill click.
+  const trigger = e.target.closest(".rr-status-trigger");
+  if (trigger) {
+    e.preventDefault();
+    e.stopPropagation();
+    const pop = document.getElementById("rr-roster-status-picker");
+    const isOpen = pop && !pop.hidden && trigger.getAttribute("aria-expanded") === "true";
+    _rrCloseStatusPicker();
+    if (!isOpen) _rrOpenStatusPicker(trigger);
+    return;
+  }
+  // Pick an option → update Supabase + refresh.
+  const opt = e.target.closest("[data-rr-status-pick]");
+  if (opt) {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = opt.getAttribute("data-rr-driver-id");
+    const nextStatus = opt.getAttribute("data-rr-status-pick");
+    if (!id || !nextStatus) return;
+    opt.disabled = true;
+    const { error } = await sb.from("drivers").update({ status: nextStatus }).eq("id", id);
+    _rrCloseStatusPicker();
+    if (error) { toast("Couldn't update status: " + (error.message || ""), "warn"); return; }
+    if (typeof loadDriversRoster === "function") loadDriversRoster();
+    return;
+  }
+  // Outside click → close.
+  const pop = document.getElementById("rr-roster-status-picker");
+  if (pop && !pop.hidden && !e.target.closest("#rr-roster-status-picker")) {
+    _rrCloseStatusPicker();
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") _rrCloseStatusPicker();
+});
+window.addEventListener("scroll", _rrCloseStatusPicker, true);
+window.addEventListener("resize", _rrCloseStatusPicker);
 
 function renderDriverRow(d) {
   const initials = displayDriverInitials(d);
@@ -6756,7 +6850,7 @@ function renderDriverRow(d) {
         <div><div class="cell-name">${escapeHtml(display)}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${tenure}</td>
-      <td>${_statusPillCell(d.status)}</td>
+      <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
       <td>${_scoreCell(d.score)}</td>
       <td>${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer class="u-center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
