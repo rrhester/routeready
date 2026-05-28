@@ -3165,3 +3165,18 @@ body.rr-sched-staff-only #view-schedule.rrx-schedule .cal-grid:not(.head):not(:h
   color: var(--sch-blue) !important;
   background: var(--sch-blue-soft) !important;
 }
+
+/* DRIVER header icon grid · hover-to-reveal. The 4×2 grid of
+   subtle-icon buttons (focus / compact / sort / pin / staff /
+   future) reads as clutter at rest. Hide them by default and
+   fade in only when the operator hovers the DRIVER cell. */
+#view-schedule.rrx-schedule .cal-grid.head > .cal-cell-head:first-child .rr-sched-driver-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--t-fast);
+}
+#view-schedule.rrx-schedule .cal-grid.head > .cal-cell-head:first-child:hover .rr-sched-driver-actions,
+#view-schedule.rrx-schedule .cal-grid.head > .cal-cell-head:first-child:focus-within .rr-sched-driver-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
