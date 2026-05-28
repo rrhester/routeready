@@ -1534,21 +1534,20 @@ document.addEventListener("click", (e) => {
   if (tab) {
     e.preventDefault();
     const mode = tab.getAttribute("data-cmd-tab");
-    // Roster + Onboarding tabs render the Onboarding-ops content,
-    // but they're conceptually PART of Schedule — the sidebar should
-    // stay lit on Schedule. Operator's mental model: one Schedule
-    // hub with sub-surfaces. After goto() swaps the view, we
-    // override the sidebar's active state back to schedule and
-    // preselect the right ribbon on the destination page.
-    if (mode === "roster" || mode === "onboarding") {
-      try { window.goto("onboarding-ops"); } catch (_) {}
+    // Roster + Onboarding + Fleet tabs render their respective
+    // views, but they're conceptually PART of Schedule — the sidebar
+    // should stay lit on Schedule. Operator's mental model: one
+    // Schedule hub with sub-surfaces.
+    if (mode === "roster" || mode === "onboarding" || mode === "fleet") {
+      const dest = mode === "fleet" ? "fleet" : "onboarding-ops";
+      try { window.goto(dest); } catch (_) {}
       setTimeout(() => {
-        if (typeof _obCmdTab === "function") {
+        if (mode === "fleet") {
+          if (typeof _flCmdTab === "function") _flCmdTab("fleet");
+        } else if (typeof _obCmdTab === "function") {
           _obCmdTab(mode === "roster" ? "roster" : "ops");
         }
-        // Restore sidebar lit on Schedule — goto() flipped it to
-        // onboarding-ops but the operator should see this as
-        // "still on Schedule, just viewing a different sub-tab".
+        // Keep sidebar lit on Schedule.
         document.querySelectorAll(".nav-item[data-view].active").forEach((b) => b.classList.remove("active"));
         const schedNav = document.querySelector('.nav-item[data-view="schedule"]');
         if (schedNav) schedNav.classList.add("active");
@@ -29239,17 +29238,21 @@ async function _obPrintPtoReport() {
 }
 
 document.addEventListener("click", (e) => {
-  // Onboarding cmd-tab clicks. Schedule + Intelligence navigate
-  // back to the Schedule page; Roster / Onboarding / Print stay
-  // as mode-switches within this page.
+  // Onboarding cmd-tab clicks. Schedule / Intelligence / Fleet
+  // navigate to those views; Roster / Onboarding / Print stay as
+  // mode-switches within this page. Sidebar stays lit on Schedule
+  // throughout — operator sees this as one unified hub.
   const obTab = e.target.closest(".ob-cmd-tab");
   if (obTab) {
     e.preventDefault();
     const obMode = obTab.getAttribute("data-ob-cmd-tab") || "ops";
-    if (obMode === "schedule" || obMode === "intelligence") {
-      try { window.goto("schedule"); } catch (_) {}
+    if (obMode === "schedule" || obMode === "intelligence" || obMode === "fleet") {
+      const dest = obMode === "fleet" ? "fleet" : "schedule";
+      try { window.goto(dest); } catch (_) {}
       setTimeout(() => {
-        if (typeof _schedCmdTab === "function") {
+        if (obMode === "fleet") {
+          if (typeof _flCmdTab === "function") _flCmdTab("fleet");
+        } else if (typeof _schedCmdTab === "function") {
           _schedCmdTab(obMode === "intelligence" ? "insights" : "schedule");
         }
         // Keep sidebar lit on Schedule.
@@ -46461,7 +46464,31 @@ window._flOpenProofModal = _flOpenProofModal;
 document.addEventListener("click", (e) => {
   if (!e.target.closest) return;
   const tab = e.target.closest(".fl-cmd-tab");
-  if (tab) { e.preventDefault(); _flCmdTab(tab.getAttribute("data-fl-cmd-tab")); return; }
+  if (tab) {
+    e.preventDefault();
+    const flMode = tab.getAttribute("data-fl-cmd-tab");
+    // Schedule / Intelligence / Roster / Onboarding navigate away
+    // from Fleet to the unified hub. Fleet + Print stay as mode-
+    // switches. Sidebar stays lit on Schedule throughout.
+    if (flMode === "schedule" || flMode === "intelligence" ||
+        flMode === "roster"   || flMode === "onboarding") {
+      const dest = (flMode === "roster" || flMode === "onboarding") ? "onboarding-ops" : "schedule";
+      try { window.goto(dest); } catch (_) {}
+      setTimeout(() => {
+        if (flMode === "roster" || flMode === "onboarding") {
+          if (typeof _obCmdTab === "function") _obCmdTab(flMode === "roster" ? "roster" : "ops");
+        } else if (typeof _schedCmdTab === "function") {
+          _schedCmdTab(flMode === "intelligence" ? "insights" : "schedule");
+        }
+        document.querySelectorAll(".nav-item[data-view].active").forEach((b) => b.classList.remove("active"));
+        const schedNav = document.querySelector('.nav-item[data-view="schedule"]');
+        if (schedNav) schedNav.classList.add("active");
+      }, 0);
+      return;
+    }
+    _flCmdTab(flMode);
+    return;
+  }
   if (e.target.closest("#rr-fl-print-btn"))    { e.preventDefault(); _flPrintActive(); return; }
   if (e.target.closest("#rr-fl-download-btn")) { e.preventDefault(); _flDownloadActive(); return; }
   if (e.target.closest("#rr-fl-proof-btn"))    { e.preventDefault(); _flOpenProofModal(); }
