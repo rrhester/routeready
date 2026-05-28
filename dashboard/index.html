@@ -9548,33 +9548,9 @@ body.rr-cmdk-open{ overflow:hidden }
         </svg></span>
         Workspaces
       </button>
-      <button class="nav-item" data-view="forms" data-c="forms" onclick="goto('forms')">
-        <!-- Workflows (SECONDARY) · slate-violet frame, off-white
-             document with corner fold, muted-violet check rows. -->
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#2D2D4A"/>
-          <path d="M5 4 L13 4 L18 9 L18 20 L5 20 Z" fill="#E8EBF1"/>
-          <path d="M13 4 L13 9 L18 9 Z" fill="#C7CDD9"/>
-          <circle cx="7.8" cy="13" r="1.1" fill="#5A4F7A"/>
-          <path d="M7.2 13 L7.7 13.5 L8.4 12.7" stroke="#F2F4F8" stroke-width="0.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <line x1="10" y1="13" x2="15.5" y2="13" stroke="#8488A8" stroke-width="1.1" stroke-linecap="round"/>
-          <circle cx="7.8" cy="16.3" r="1.1" fill="#5A4F7A"/>
-          <path d="M7.2 16.3 L7.7 16.8 L8.4 16" stroke="#F2F4F8" stroke-width="0.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <line x1="10" y1="16.3" x2="14" y2="16.3" stroke="#8488A8" stroke-width="1.1" stroke-linecap="round"/>
-        </svg></span>
-        <span class="nav-icon nav-icon-color"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#581C87"/>
-          <path d="M5 4 L13 4 L18 9 L18 20 L5 20 Z" fill="#FFFFFF"/>
-          <path d="M13 4 L13 9 L18 9 Z" fill="#E0E7FF"/>
-          <circle cx="7.8" cy="13" r="1.1" fill="#9333EA"/>
-          <path d="M7.2 13 L7.7 13.5 L8.4 12.7" stroke="#FFFFFF" stroke-width="0.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <line x1="10" y1="13" x2="15.5" y2="13" stroke="#A78BFA" stroke-width="1.1" stroke-linecap="round"/>
-          <circle cx="7.8" cy="16.3" r="1.1" fill="#9333EA"/>
-          <path d="M7.2 16.3 L7.7 16.8 L8.4 16" stroke="#FFFFFF" stroke-width="0.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <line x1="10" y1="16.3" x2="14" y2="16.3" stroke="#A78BFA" stroke-width="1.1" stroke-linecap="round"/>
-        </svg></span>
-        Workflows
-      </button>
+      <!-- Workflows sidebar nav-item removed — Workflows now lives
+           as a tab in the unified Schedule cmd-strip (mirrored on
+           Onboarding-ops + Fleet + Workflows' own strip). -->
       <button class="nav-item" data-view="messages" data-c="messages" onclick="goto('messages')">
         <!-- Messages (CORE) · deep-indigo frame, off-white bubble
              with a subtle recessed bottom edge (tonal step, no
@@ -11869,6 +11845,7 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
           <button class="ob-cmd-tab active" type="button" data-ob-cmd-tab="ops" role="tab" aria-selected="true">Onboarding</button>
           <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="fleet" role="tab" aria-selected="false">Fleet</button>
+          <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="workflows" role="tab" aria-selected="false">Workflows</button>
           <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
         </div>
         <div class="page-header sched-nav-heading tcp-strip">
@@ -15637,6 +15614,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="sched-cmd-tab" type="button" data-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="onboarding" role="tab" aria-selected="false">Onboarding</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="fleet" role="tab" aria-selected="false">Fleet</button>
+            <button class="sched-cmd-tab" type="button" data-cmd-tab="workflows" role="tab" aria-selected="false">Workflows</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
           </div>
 
@@ -22322,6 +22300,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
             <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="onboarding" role="tab" aria-selected="false">Onboarding</button>
             <button class="fl-cmd-tab active" type="button" data-fl-cmd-tab="fleet" role="tab" aria-selected="true">Fleet</button>
+            <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="workflows" role="tab" aria-selected="false">Workflows</button>
             <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
           </div>
           <div class="fl-ribbon-titlewrap">
@@ -24483,6 +24462,14 @@ body.rr-cmdk-open{ overflow:hidden }
              .page-header had a stale "Workspaces" label). -->
         <div class="wf-cmd-shell">
           <div class="wf-cmd-tabs" role="tablist" aria-label="Workflows mode">
+            <!-- Unified strip · all non-local tabs navigate back to
+                 the Schedule hub. Workflows + Print stay as local
+                 mode-switches. -->
+            <button class="wf-cmd-tab" type="button" data-wf-cmd-tab="schedule" role="tab" aria-selected="false">Schedule</button>
+            <button class="wf-cmd-tab" type="button" data-wf-cmd-tab="intelligence" role="tab" aria-selected="false">Intelligence</button>
+            <button class="wf-cmd-tab" type="button" data-wf-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
+            <button class="wf-cmd-tab" type="button" data-wf-cmd-tab="onboarding" role="tab" aria-selected="false">Onboarding</button>
+            <button class="wf-cmd-tab" type="button" data-wf-cmd-tab="fleet" role="tab" aria-selected="false">Fleet</button>
             <button class="wf-cmd-tab active" type="button" data-wf-cmd-tab="workflows" role="tab" aria-selected="true">Workflows</button>
             <button class="wf-cmd-tab" type="button" data-wf-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
           </div>
