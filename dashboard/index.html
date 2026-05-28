@@ -12750,6 +12750,22 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-drivers .dr-roster-bar{display:none !important}
           #view-drivers .dr-roster-bar-overflow{display:none !important}
 
+          /* KPI strip → driver-table gap parity with Schedule.
+             Schedule has .sched-kpi-pills{margin:0 0 var(--s-4) 0}
+             then the calendar grid sits flush after. The Roster on
+             onboarding-ops has an empty print-area + the mount div
+             + the moved sub-view + table-wrap stacked between the
+             KPI strip and the thead — any of them can add a top
+             gap. Zero them all so the only space between the KPI
+             strip and the table is the KPI's own bottom margin. */
+          #rr-ob-print-area:empty{display:none}
+          #ob-roster-mount,
+          #ob-roster-mount > .dr-subview,
+          #ob-roster-mount #rr-roster-table-wrap,
+          #ob-roster-mount #rr-roster-table-wrap > .table{
+            margin-top:0 !important;padding-top:0 !important;
+          }
+
           /* Driver-table header · matches the Schedule page's
              day-of-week strip — frosted-glass tinted blue, sticky
              top, backdrop blur so rows scroll softly underneath.
