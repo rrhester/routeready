@@ -6981,8 +6981,7 @@ document.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     const id = noteBtn.getAttribute("data-rr-driver-note");
-    if (typeof loadDriverDrawer === "function") loadDriverDrawer(id);
-    else if (typeof openDriverDrawer === "function") openDriverDrawer(id);
+    if (id && typeof openDriverDrawer === "function") openDriverDrawer(id);
   }
 });
 // Rehydrate the saved view on first paint.
