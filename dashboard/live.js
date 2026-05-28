@@ -538,6 +538,19 @@ function renderApplicantCard(a) {
        </button>`
     : "";
 
+  // Review video · secondary button alongside the primary CTA when
+  // the applicant has uploaded a screening video. Operators were
+  // missing the entry point — the comment row near _recommendedNextStep
+  // hinted at the video in the subtitle but offered no way to actually
+  // open it. Renders only when a.video_url is set so cards without a
+  // video stay single-CTA.
+  const reviewVideoBtn = a.video_url
+    ? `<a class="pa-btn-video" href="${escapeHtml(a.video_url)}" target="_blank" rel="noopener" data-applicant-id="${escapeHtml(a.id)}" title="Open the applicant's screening video in a new tab">
+         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
+         Review video
+       </a>`
+    : "";
+
   // Quiet ⋯ overflow · Phone / Email / Note utilities. Tertiary color,
   // no border, only reads on hover. Menu opens via _paOpenMoreMenu below.
   const moreBtn = `<button class="pa-act-more" type="button" data-rr-pa-more aria-label="More actions" title="More actions">
@@ -586,6 +599,7 @@ function renderApplicantCard(a) {
         </div>
 
         <div class="pa-zone pa-zone-action pa-zone-action-v4">
+          ${reviewVideoBtn}
           ${advanceBtn}
           ${moreBtn}
         </div>
