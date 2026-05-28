@@ -27326,6 +27326,60 @@ document.addEventListener("click", (e) => {
   _toggleAttRules(false);
 });
 
+// Roster display rules popover · table density picker
+// (Standard / Compact / Ultra-compact) wired to the same body-class
+// pattern as the Schedule density picker. Persisted in
+// localStorage('rr-roster-density'). Anchored under the Roster
+// tile's Rules footer button.
+function _toggleRosterRules(force) {
+  const pop = document.getElementById("rr-roster-rules-popover");
+  const toggle = document.getElementById("rr-roster-rules-toggle");
+  if (!pop) return false;
+  const next = (typeof force === "boolean") ? force : pop.hidden;
+  pop.hidden = !next;
+  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  return next;
+}
+window._rrToggleRosterRules = _toggleRosterRules;
+document.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("#rr-roster-rules-toggle")) {
+    e.preventDefault();
+    e.stopPropagation();
+    _toggleRosterRules();
+    return;
+  }
+  const pop = document.getElementById("rr-roster-rules-popover");
+  if (!pop || pop.hidden) return;
+  if (e.target.closest && (e.target.closest("#rr-roster-rules-popover") || e.target.closest("#rr-roster-rules-toggle"))) return;
+  _toggleRosterRules(false);
+});
+// Density radio change → toggle body classes + persist.
+function _rrApplyRosterDensity(val) {
+  document.body.classList.toggle("rr-roster-compact",       val === "compact");
+  document.body.classList.toggle("rr-roster-ultra-compact", val === "ultra");
+  try { localStorage.setItem("rr-roster-density", val); } catch (_) {}
+  document.querySelectorAll('input[name="rr-roster-density"]').forEach(r => {
+    r.checked = (r.value === val);
+  });
+}
+window._rrApplyRosterDensity = _rrApplyRosterDensity;
+document.addEventListener("change", (e) => {
+  const r = e.target && e.target.name === "rr-roster-density" ? e.target : null;
+  if (!r) return;
+  _rrApplyRosterDensity(r.value);
+});
+// Rehydrate from storage on load so the picker survives reloads.
+(function _rrHydrateRosterDensity() {
+  let v = "standard";
+  try { v = localStorage.getItem("rr-roster-density") || "standard"; } catch (_) {}
+  if (v !== "standard" && v !== "compact" && v !== "ultra") v = "standard";
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => _rrApplyRosterDensity(v), { once: true });
+  } else {
+    _rrApplyRosterDensity(v);
+  }
+})();
+
 // Public reader so _assignVansForRange can query the live rule
 // state without a DOM read.
 window._rrLoadVanRules = function () {
