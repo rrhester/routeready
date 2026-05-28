@@ -1031,83 +1031,11 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* Main column */
 .main{display:flex;flex-direction:column;min-width:0;background:var(--canvas)}
 
-/* Light topbar · operator-picked #EEF2F7. Pairs with the slate
-   sidebar as a calm, cool, layered chrome (not a contrasting
-   dark band). Text + icons return to the regular dark tokens
-   so they're readable on the light surface. */
-.topbar{
-  background:#EEF2F7 !important;
-  -webkit-backdrop-filter:none !important;
-  backdrop-filter:none !important;
-  border-bottom-color:rgba(15,23,42,.10) !important;
-  color:var(--text);
-}
-.topbar button,
-.topbar input,
-.topbar .hdr-undo span,
-.topbar .topbar-settings span{
-  color:var(--text) !important;
-}
-.topbar svg{
-  color:var(--text-muted) !important;opacity:1;
-}
-.topbar button:hover,
-.topbar .topbar-settings:hover{
-  background:rgba(15,23,42,.05) !important;
-  border-color:rgba(15,23,42,.18) !important;
-}
-.topbar .hdr-refresh,
-.topbar .hdr-undo,
-.topbar .hdr-undo-caret,
-.topbar .topbar-settings{
-  background:transparent !important;
-  border-color:rgba(15,23,42,.12) !important;
-  color:var(--text) !important;
-  box-shadow:none !important;
-}
-.topbar .hdr-undo:disabled,
-.topbar .hdr-undo-caret:disabled{
-  opacity:.55 !important;
-}
-
-/* Ask RouteReady pill · elevated capsule that's softly blended
-   with the #EEF2F7 topbar — not a stark white pill. The surface
-   sits one step lighter (#F8FAFC) with a hairline border and a
-   subtle drop shadow so it reads as a "lifted" control without
-   shouting. The pill is the primary input target so it still
-   stands out from the bare ghost icon buttons next to it. */
-.topbar .hdr-ask{
-  background:#F8FAFC !important;
-  border-color:rgba(15,23,42,.10) !important;
-  box-shadow:
-    0 1px 2px rgba(15,23,42,.06),
-    0 0 0 1px rgba(255,255,255,.6) inset !important;
-  border-radius:var(--r-pill, 9999px) !important;
-}
-.topbar .hdr-ask:focus-within{
-  border-color:var(--accent) !important;
-  box-shadow:
-    0 1px 3px rgba(15,23,42,.10),
-    0 0 0 3px var(--accent-soft) !important;
-}
-.topbar .hdr-ask input{
-  background:transparent !important;color:var(--text) !important;
-}
-.topbar .hdr-ask input::placeholder{
-  color:var(--text-subtle) !important;
-}
-.topbar .hdr-ask svg,
-.topbar .hdr-ask .hdr-ask-icon svg{
-  color:var(--accent) !important;opacity:1 !important;
-}
-.topbar .hdr-ask button{
-  background:#0078D4 !important;color:#fff !important;
-}
-.topbar .hdr-ask button svg{
-  color:#fff !important;
-}
-/* Palette icon retained for future light/dark switching, but
-   hidden for now since the topbar uses its own color. */
+/* Topbar overrides reverted · operator wanted the original light
+   frosted-glass header back. All previous .topbar / .topbar .hdr-*
+   override rules removed; the base styles below (line ~1090+)
+   take over again. The palette icon toggle remains hidden so the
+   topbar uses its native frosted-glass treatment by default. */
 #rr-hdr-theme-toggle{display:none !important}
 
 /* ── Top bar (clean white control surface) ────────────────── */
