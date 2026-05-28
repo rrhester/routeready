@@ -1749,7 +1749,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: var(--rr-bg-surface-1);
   border: 1px solid var(--rr-border-primary);
   border-radius: var(--rr-radius-medium);
-  box-shadow: none;
+  /* Gentle floating elevation to match the other Schedule cards
+     (grid, Open shifts, KPI band). */
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05), 0 14px 34px rgba(15, 23, 42, 0.10);
   /* Lock the strip's height to the Schedule-tab natural size so
      the Intelligence + Print/Download tabs never make it jump.
      Standard tile column ≈ 66px tile (33px svg + ~16px label +
