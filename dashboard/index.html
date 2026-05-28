@@ -12794,6 +12794,28 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-bottom:25px !important;
           }
 
+          /* Sort caret · idle (clickable but not the active sort)
+             is a faded dual-arrow; active is a solid up/down. */
+          #rr-roster-thead .rr-sort-caret{
+            display:inline-block;margin-left:3px;
+            font-size:10px;line-height:1;vertical-align:1px;
+            font-variant-numeric:tabular-nums;
+          }
+          #rr-roster-thead .rr-sort-caret-idle{
+            color:var(--text-subtle);opacity:.45;
+            transition:opacity var(--t-fast);
+          }
+          #rr-roster-thead th[data-rr-roster-sort]:hover .rr-sort-caret-idle{
+            opacity:.9;
+          }
+          #rr-roster-thead .rr-sort-caret-active{
+            color:var(--accent);font-weight:700;
+          }
+          #rr-roster-thead th[data-rr-roster-sort]:hover,
+          #rr-roster-thead [data-rr-roster-sort]:hover{
+            color:var(--text) !important;
+          }
+
           /* Status-pill picker · clicking the status pill in any
              driver row opens a small floating menu of status
              options. Trigger is a button styled identically to the
