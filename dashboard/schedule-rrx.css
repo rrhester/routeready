@@ -3363,21 +3363,16 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   background: var(--surface-elevated, #FCFDFE);
 }
 
-/* V2 strip view-tile order · operator wanted Today, then Week,
-   then Monthly in that order. CSS `order` reshuffles the visible
-   tiles without moving the markup so click-forwarding stays
-   intact. The strip must be display:flex (it is by default in
-   the rrx-schedule pattern). */
-#view-schedule.rrx-schedule .sched-v2-split:has(.sched-v2-tile[data-rr-v2="today"]) {
-  order: 1;
-}
-#view-schedule.rrx-schedule .sched-v2-split:has(.sched-v2-tile[data-rr-v2="week"]) {
-  order: 2;
-}
-#view-schedule.rrx-schedule .sched-v2-split:has(.sched-v2-tile[data-rr-v2="monthly"]) {
-  order: 3;
-}
-#view-schedule.rrx-schedule .sched-v2-split:has(.sched-v2-tile[data-rr-v2="calendar"]),
-#view-schedule.rrx-schedule .sched-v2-split:has(.sched-v2-tile[data-rr-v2="requests"]) {
-  order: 4;
-}
+/* V2 strip view-tile order — REMOVED.
+   This was a stale, partial order block (only today/week/monthly +
+   a shared calendar/requests rule) left over from when the strip
+   had just the five view tiles. Sitting later in the file than the
+   full order block above, it WON the cascade and pinned the Fleet
+   (`calendar`) tile to `order:4` — the same as Requests — so Fleet
+   rendered tracking Requests no matter what. That was the root
+   cause of the scrambled strip.
+
+   Tile order is now defined solely by DOM source order in
+   dashboard/index.html (today, week, monthly, requests, targets,
+   smartfill, finalize, calendar, unassign, kudos). No per-tile
+   `order` anywhere — title stays order:-1, week nav order:100. */
