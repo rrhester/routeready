@@ -12461,34 +12461,47 @@ async function refreshDriverStatRow(rows) {
     turnoverPct, turnoverPriorPct, turnoverDelta,
   };
 
-  // Render KPI pills into the shared .sched-kpi-pills strip — same
-  // visual rhythm as Schedule's #rr-sched-kpis and Onboarding's
-  // #rr-ob-kpis. Three pills: Active drivers · Drivers on LOA · Avg
-  // tenure (clickable; opens the existing tenure drilldown).
-  const kpisHost = document.getElementById("rr-roster-kpis");
-  if (kpisHost) {
-    const navy = "#1A1F47";
-    const amber = "#C7860B";
-    const pill = (key, color, label, sub, clickable) => {
-      const cl = clickable ? ' data-clickable="true"' : "";
-      const subHtml = `<span class="sched-kpi-sub">${sub || "&nbsp;"}</span>`;
-      return `<span class="sched-kpi-pill" data-rr-roster-kpi="${key}"${cl}>`
-        + `<span class="sched-kpi-dot" style="background:${color}"></span>`
-        + `<span class="sched-kpi-text">`
-        + `<span class="sched-kpi-val">${label}</span>${subHtml}`
-        + `</span></span>`;
-    };
-    const tenureLabel = avgTenure == null ? "— Avg tenure" : `${avgTenure.toFixed(1)} mo Avg tenure`;
-    const tenureSub = avgTenure == null
-      ? "Set hire dates to see tenure"
-      : `Median ${medianTenure.toFixed(0)} mo · longest ${(longestMonths / 12).toFixed(1)} yr`;
-    kpisHost.innerHTML =
-      pill("active", navy, `${counts.active} Active driver${counts.active === 1 ? "" : "s"}`,
-        counts.onboarding ? `${counts.onboarding} onboarding` : "&nbsp;", false) +
-      pill("loa",    (counts.leave || 0) > 0 ? amber : navy,
-        `${counts.leave || 0} on LOA`,
-        (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
-      pill("tenure", navy, tenureLabel, tenureSub, true);
+  // Render the roster KPI pills (Active drivers · Drivers on LOA ·
+  // Avg tenure) into whichever shared KPI strip is currently visible.
+  // The Roster page lives in two places:
+  //   1. /dashboard/#drivers  → #rr-roster-kpis on view-drivers
+  //   2. The "Roster" cmd-tab on view-onboarding-ops → that page's
+  //      #rr-ob-kpis strip, the only KPI bar visible on screen.
+  // Both hosts get painted; the hidden one is invisible.
+  const navy = "#1A1F47";
+  const amber = "#C7860B";
+  const rosterPill = (key, color, label, sub, clickable) => {
+    const cl = clickable ? ' data-clickable="true"' : "";
+    const subHtml = `<span class="sched-kpi-sub">${sub || "&nbsp;"}</span>`;
+    return `<span class="sched-kpi-pill" data-rr-roster-kpi="${key}"${cl}>`
+      + `<span class="sched-kpi-dot" style="background:${color}"></span>`
+      + `<span class="sched-kpi-text">`
+      + `<span class="sched-kpi-val">${label}</span>${subHtml}`
+      + `</span></span>`;
+  };
+  const tenureLabel = avgTenure == null ? "— Avg tenure" : `${avgTenure.toFixed(1)} mo Avg tenure`;
+  const tenureSub = avgTenure == null
+    ? "Set hire dates to see tenure"
+    : `Median ${medianTenure.toFixed(0)} mo · longest ${(longestMonths / 12).toFixed(1)} yr`;
+  const rosterKpisHtml =
+    rosterPill("active", navy, `${counts.active} Active driver${counts.active === 1 ? "" : "s"}`,
+      counts.onboarding ? `${counts.onboarding} onboarding` : "&nbsp;", false) +
+    rosterPill("loa",    (counts.leave || 0) > 0 ? amber : navy,
+      `${counts.leave || 0} on LOA`,
+      (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
+    rosterPill("tenure", navy, tenureLabel, tenureSub, true);
+
+  const rosterHost = document.getElementById("rr-roster-kpis");
+  if (rosterHost) rosterHost.innerHTML = rosterKpisHtml;
+
+  // Onboarding page's roster mode · the visible KPI strip is
+  // #rr-ob-kpis. Overwrite it with the roster pills while the
+  // operator is in roster mode; _obCmdTab restores onboarding pills
+  // on exit via the window.__obRenderKpis cache.
+  const obShell = document.getElementById("rr-ob-cmd");
+  if (obShell && obShell.classList.contains("is-roster")) {
+    const obHost = document.getElementById("rr-ob-kpis");
+    if (obHost) obHost.innerHTML = rosterKpisHtml;
   }
 
   // Re-render the open drilldown if one was active.
@@ -28951,6 +28964,31 @@ function _obCmdTab(mode) {
   // coaching) without leaving roster mode.
   if (mode === "roster") _obMountDriverSub("roster");
   else                   _obUnmountDriverRoster();
+
+  // KPI strip swap · the visible #rr-ob-kpis bar should show
+  // ROSTER metrics in roster mode and ONBOARDING metrics in any
+  // other mode. refreshDriverStatRow re-paints the bar on every
+  // roster load; here we cover the boundary transitions.
+  if (mode === "roster") {
+    // Re-fire with cached roster rows if available so the bar
+    // updates immediately even before the fresh load completes.
+    try {
+      if (typeof refreshDriverStatRow === "function" && Array.isArray(window._rosterRows)) {
+        refreshDriverStatRow(window._rosterRows);
+      } else if (typeof refreshDriverStatRow === "function" && typeof _rosterRows !== "undefined" && Array.isArray(_rosterRows)) {
+        refreshDriverStatRow(_rosterRows);
+      }
+    } catch (_) { /* non-fatal */ }
+  } else {
+    // Leaving roster mode → restore the onboarding step pills via
+    // the cached renderer + cached inputs (set inside
+    // loadOnboardingOps when the matrix is rendered).
+    try {
+      if (window.__obRenderKpis && window.__obKpiCache) {
+        window.__obRenderKpis(window.__obKpiCache.enriched, window.__obKpiCache.stepCols);
+      }
+    } catch (_) { /* non-fatal */ }
+  }
 }
 
 // Map from data-rr-tile suffix (in the Roster ribbon) to the
