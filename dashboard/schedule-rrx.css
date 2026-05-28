@@ -3187,3 +3187,151 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
 body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .cal-grid:not(.head):not(.rr-staff-week-row) {
   display: none !important;
 }
+
+/* ============================================================
+   View tab order · Today before Week before Monthly
+   ------------------------------------------------------------
+   Operator wanted the three view tabs ordered:
+     Today view → Week view → Monthly view
+   Using CSS `order` instead of moving the markup so the existing
+   handlers + popovers + click wiring stay intact.
+   ============================================================ */
+#view-schedule.rrx-schedule .sched-ribbon-group[data-group="views"] > .subnav {
+  display: flex;
+}
+#view-schedule.rrx-schedule .sched-ribbon-group[data-group="views"] [data-rr-tile="today"] {
+  order: 1;
+}
+#view-schedule.rrx-schedule .sched-ribbon-group[data-group="views"] [data-rr-tile="week"] {
+  order: 2;
+}
+#view-schedule.rrx-schedule .sched-ribbon-group[data-group="views"] [data-rr-tile="monthly"] {
+  order: 3;
+}
+#view-schedule.rrx-schedule .sched-ribbon-group[data-group="views"] [data-rr-tile="calendar"],
+#view-schedule.rrx-schedule .sched-ribbon-group[data-group="views"] [data-rr-tile="targets"] {
+  order: 4;
+}
+
+/* ============================================================
+   MONTHLY VIEW · 6 rows × 7 columns, fills the viewport
+   ------------------------------------------------------------
+   Weeks down the left, days across the top. The shell is
+   absolute-sized off the viewport (minus header chrome) so the
+   grid never scrolls — every cell flexes to fill its track.
+   ============================================================ */
+
+#view-schedule.rrx-schedule .sched-monthly-shell {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 220px); /* under page header + cmd ribbon + KPI */
+  min-height: 460px;
+  gap: 10px;
+}
+
+#view-schedule.rrx-schedule .sched-monthly-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex: 0 0 auto;
+  padding: 0 4px;
+}
+#view-schedule.rrx-schedule .sched-monthly-title {
+  display: flex; flex-direction: column; gap: 2px;
+}
+#view-schedule.rrx-schedule .sched-monthly-month {
+  font-size: 20px; font-weight: 700; color: var(--text);
+  letter-spacing: -0.005em;
+}
+#view-schedule.rrx-schedule .sched-monthly-sub {
+  font-size: var(--fs-sm); color: var(--text-subtle); font-weight: 500;
+}
+#view-schedule.rrx-schedule .sched-monthly-nav {
+  display: inline-flex; align-items: center;
+  background: var(--sch-surface);
+  border: 1px solid var(--sch-line);
+  border-radius: var(--sch-radius);
+  overflow: hidden;
+}
+#view-schedule.rrx-schedule .sched-monthly-nav-btn,
+#view-schedule.rrx-schedule .sched-monthly-nav-today {
+  appearance: none; background: transparent; border: 0; cursor: pointer;
+  color: var(--text-muted); height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: inherit; font-size: var(--fs-sm);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+#view-schedule.rrx-schedule .sched-monthly-nav-btn { width: 32px }
+#view-schedule.rrx-schedule .sched-monthly-nav-today {
+  padding: 0 14px; color: var(--sch-blue); font-weight: 500;
+  border-left: 1px solid var(--sch-line);
+  border-right: 1px solid var(--sch-line);
+}
+#view-schedule.rrx-schedule .sched-monthly-nav-btn:hover { background: var(--sch-hover); color: var(--text) }
+#view-schedule.rrx-schedule .sched-monthly-nav-today:hover { background: var(--sch-blue-softer) }
+
+#view-schedule.rrx-schedule .sched-monthly-grid {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 1px;
+  background: rgba(15, 23, 42, 0.20);
+  border: 1px solid rgba(15, 23, 42, 0.20);
+  border-radius: var(--sch-radius);
+  overflow: hidden;
+  min-height: 0;
+}
+
+#view-schedule.rrx-schedule .sched-month-dow {
+  background: rgba(232, 241, 250, 0.72);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  padding: 8px 10px;
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--text-muted);
+  display: flex; align-items: center;
+  border-bottom: 1px solid rgba(15,23,42,.10);
+}
+
+#view-schedule.rrx-schedule .sched-month-cell {
+  background: var(--surface-elevated, #FCFDFE);
+  display: flex; flex-direction: column;
+  padding: 6px 8px;
+  min-height: 0; overflow: hidden;
+  cursor: pointer;
+  transition: background var(--t-fast);
+  position: relative;
+}
+#view-schedule.rrx-schedule .sched-month-cell:hover {
+  background: var(--sch-blue-softer);
+}
+#view-schedule.rrx-schedule .sched-month-cell.is-other-month {
+  background: rgba(15, 23, 42, 0.03);
+  color: var(--text-subtle);
+}
+#view-schedule.rrx-schedule .sched-month-cell.is-today {
+  background: var(--sch-blue-tint);
+  outline: 2px solid var(--sch-blue);
+  outline-offset: -2px;
+  z-index: 1;
+}
+#view-schedule.rrx-schedule .sched-month-cell-num {
+  font-size: var(--fs-sm); font-weight: 600; color: var(--text);
+  letter-spacing: -0.01em;
+}
+#view-schedule.rrx-schedule .sched-month-cell.is-other-month .sched-month-cell-num {
+  color: var(--text-subtle); font-weight: 500;
+}
+#view-schedule.rrx-schedule .sched-month-cell-cov {
+  font-size: 10.5px; font-weight: 600; color: var(--text-muted);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+#view-schedule.rrx-schedule .sched-month-cell-cov.is-full { color: var(--green) }
+#view-schedule.rrx-schedule .sched-month-cell-cov.is-open { color: var(--red) }
+
+#view-schedule.rrx-schedule .sched-monthly-loading {
+  grid-column: 1 / -1; grid-row: 1 / -1;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-subtle); font-size: var(--fs-sm);
+  background: var(--surface-elevated, #FCFDFE);
+}

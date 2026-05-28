@@ -28383,6 +28383,7 @@ window.schedSub = function (sub) {
   if (sub === "rules")     { loadStationGeofences(); loadAttendanceWindows(); }
   if (sub === "templates") loadScheduleTemplates();
   if (sub === "today")     renderSchedTodayView();
+  if (sub === "monthly")   renderSchedMonthlyView();
   if (sub === "vans")      renderSchedVanAssignments();
   if (sub === "calendar") {
     if (typeof _mountFleetCalendar === "function") _mountFleetCalendar("sched-sub-calendar");
@@ -32852,6 +32853,118 @@ async function _assignShiftsParallel(items, concurrency = 12) {
   }
   return { assigned, failed, firstError };
 }
+
+// ── Monthly view · weeks-down-the-left / days-across-the-top
+// Renders a 6-row × 7-col calendar covering the current month
+// (plus the trailing days of the previous month and the leading
+// days of the next month to fill the grid). Each day cell shows
+// the date number and a small filled/needed coverage line; click
+// a cell to drop into the Today view for that date.
+let _rrMonthlyAnchor = null;   // ISO of the first day of the visible month
+async function renderSchedMonthlyView() {
+  const monthEl = document.getElementById("rr-sched-monthly-month");
+  const gridEl  = document.getElementById("rr-sched-monthly-grid");
+  if (!gridEl) return;
+  const today = new Date();
+  if (!_rrMonthlyAnchor) {
+    _rrMonthlyAnchor = fmtIsoDate(new Date(today.getFullYear(), today.getMonth(), 1));
+  }
+  const anchor = new Date(_rrMonthlyAnchor + "T12:00:00");
+  if (monthEl) {
+    monthEl.textContent = anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  }
+  // Calendar bounds: first day of month → first Sunday before; last
+  // day of month → last Saturday after. Always 6 rows × 7 cols.
+  const monthStart = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const dowOfFirst = monthStart.getDay();     // 0 = Sunday
+  const gridStart  = new Date(monthStart);
+  gridStart.setDate(monthStart.getDate() - dowOfFirst);
+  const gridStartIso = fmtIsoDate(gridStart);
+  const gridEnd    = new Date(gridStart);
+  gridEnd.setDate(gridStart.getDate() + 41);  // 6 weeks × 7 days - 1
+  const gridEndIso = fmtIsoDate(gridEnd);
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { gridEl.innerHTML = '<div class="sched-monthly-loading">DSP not loaded</div>'; return; }
+  // Pull the entire visible window in one shot (6 weeks).
+  gridEl.innerHTML = '<div class="sched-monthly-loading">Loading month…</div>';
+  const { data, error } = await sb.rpc("schedule_grid", { p_start: gridStartIso, p_weeks: 6 });
+  if (error) {
+    gridEl.innerHTML = `<div class="sched-monthly-loading" style="color:var(--red)">Couldn't load: ${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  const cov = (data && data.coverage) || [];
+  const covByDate = new Map();
+  for (const c of cov) {
+    covByDate.set(c.date, { needed: c.needed || 0, filled: c.filled || 0 });
+  }
+  const todayIso = fmtIsoDate(today);
+  const monthIdx = anchor.getMonth();
+  const DOW = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+  const cells = [];
+  for (const w of DOW) cells.push(`<div class="sched-month-dow">${w}</div>`);
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + i);
+    const iso = fmtIsoDate(d);
+    const isOther = d.getMonth() !== monthIdx;
+    const isToday = iso === todayIso;
+    const c = covByDate.get(iso);
+    let covLine = "";
+    if (c && c.needed > 0) {
+      const cls = c.filled >= c.needed ? "is-full" : (c.filled > 0 ? "" : "is-open");
+      covLine = `<div class="sched-month-cell-cov ${cls}">${c.filled}/${c.needed}</div>`;
+    }
+    const klass = "sched-month-cell"
+      + (isOther ? " is-other-month" : "")
+      + (isToday ? " is-today" : "");
+    cells.push(
+      `<div class="${klass}" data-rr-monthly-iso="${iso}">`
+      + `<div class="sched-month-cell-num">${d.getDate()}</div>`
+      + covLine
+      + `</div>`
+    );
+  }
+  gridEl.innerHTML = cells.join("");
+}
+window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
+window.renderSchedMonthlyView    = renderSchedMonthlyView;
+// Navigation handlers — prev/next month + this-month.
+document.addEventListener("click", (e) => {
+  const prev = e.target.closest("#rr-sched-monthly-prev");
+  if (prev) {
+    e.preventDefault();
+    const a = _rrMonthlyAnchor ? new Date(_rrMonthlyAnchor + "T12:00:00") : new Date();
+    a.setMonth(a.getMonth() - 1, 1);
+    _rrMonthlyAnchor = fmtIsoDate(a);
+    renderSchedMonthlyView();
+    return;
+  }
+  const next = e.target.closest("#rr-sched-monthly-next");
+  if (next) {
+    e.preventDefault();
+    const a = _rrMonthlyAnchor ? new Date(_rrMonthlyAnchor + "T12:00:00") : new Date();
+    a.setMonth(a.getMonth() + 1, 1);
+    _rrMonthlyAnchor = fmtIsoDate(a);
+    renderSchedMonthlyView();
+    return;
+  }
+  const tod = e.target.closest("#rr-sched-monthly-today");
+  if (tod) {
+    e.preventDefault();
+    const now = new Date();
+    _rrMonthlyAnchor = fmtIsoDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    renderSchedMonthlyView();
+    return;
+  }
+  // Click any day cell → drop into Today view for that date.
+  const cell = e.target.closest("[data-rr-monthly-iso]");
+  if (cell) {
+    e.preventDefault();
+    const iso = cell.getAttribute("data-rr-monthly-iso");
+    if (iso && typeof _tpDateGoTo === "function") _tpDateGoTo(iso);
+    if (typeof schedSub === "function") schedSub("today");
+  }
+});
 
 async function autoFillScheduleWeek() {
   const dspId = window.RR?.dsp?.id;

@@ -15184,6 +15184,14 @@ body.rr-cmdk-open{ overflow:hidden }
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 16 11 19 16 14"/></svg>
                 <span>Targets</span>
               </button>
+              <!-- Monthly view · 5-6 row × 7-col calendar (weeks
+                   down the left, days across the top) for a
+                   month-at-a-glance read. Renderer lives in
+                   live.js → renderSchedMonthlyView. -->
+              <button class="subnav-item" data-sub="monthly" data-rr-tile="monthly" onclick="schedSub('monthly')" title="Monthly view — weeks down the left, days across the top">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="14" x2="21" y2="14"/><line x1="3" y1="18" x2="21" y2="18"/><line x1="9" y1="10" x2="9" y2="22"/><line x1="15" y1="10" x2="15" y2="22"/></svg>
+                <span>Monthly view</span>
+              </button>
               <div class="sched-week-split" data-rr-tile="calendar">
                 <button class="subnav-item" data-sub="calendar" data-rr-tile="calendar" onclick="schedSub('calendar')" title="Fleet calendar — schedule events per van">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="8" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="16" cy="14.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.1" fill="currentColor" stroke="none"/></svg>
@@ -15229,13 +15237,11 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
           </div>
-          <!-- PLANNING group · Staff, Templates, Requests. -->
+          <!-- PLANNING group · Requests (Staff cmd-tab removed per
+               operator request — staff access now lives entirely on
+               the Week view via the DRIVER-header staff toggle). -->
           <div class="sched-ribbon-group" data-group="planning">
             <div class="subnav sched-ribbon-subnav" data-rr-tabbar="schedule-planning">
-              <button class="subnav-item" data-sub="staff" data-rr-tile="staff" onclick="schedSub('staff')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                <span>Staff</span>
-              </button>
               <button class="subnav-item" data-sub="requests" data-rr-tile="requests" onclick="schedSub('requests')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
                 <span>Requests</span>
@@ -22092,6 +22098,29 @@ body.rr-cmdk-open{ overflow:hidden }
              Populated by renderFleetCalendar() in live.js; events are
              DSP-scoped and persist via the fleet_calendar_events table
              (migration 0306). -->
+        <!-- ── MONTHLY VIEW · weeks-down-the-left, days-across-the-top
+             month-at-a-glance grid. Filled by renderSchedMonthlyView
+             in live.js when schedSub('monthly') runs. The grid is
+             sized to fill the viewport without scrolling — cells
+             flex evenly within the available row height. -->
+        <div class="sched-subview" id="sched-sub-monthly" style="display:none">
+          <div class="sched-monthly-shell" id="rr-sched-monthly-shell">
+            <div class="sched-monthly-head" id="rr-sched-monthly-head">
+              <div class="sched-monthly-title">
+                <div class="sched-monthly-month" id="rr-sched-monthly-month">—</div>
+                <div class="sched-monthly-sub">Month-at-a-glance · click a day to drill in</div>
+              </div>
+              <div class="sched-monthly-nav">
+                <button type="button" class="sched-monthly-nav-btn" id="rr-sched-monthly-prev" aria-label="Previous month"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
+                <button type="button" class="sched-monthly-nav-today" id="rr-sched-monthly-today">This month</button>
+                <button type="button" class="sched-monthly-nav-btn" id="rr-sched-monthly-next" aria-label="Next month"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
+              </div>
+            </div>
+            <div class="sched-monthly-grid" id="rr-sched-monthly-grid">
+              <div class="sched-monthly-loading">Loading month…</div>
+            </div>
+          </div>
+        </div>
         <div class="sched-subview" id="sched-sub-calendar" style="display:none">
           <style>
             /* The calendar is one shared DOM node moved between the
