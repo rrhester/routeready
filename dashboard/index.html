@@ -1059,7 +1059,10 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   background:rgba(247, 250, 252, 0.72);
   -webkit-backdrop-filter:saturate(180%) blur(20px);
   backdrop-filter:saturate(180%) blur(20px);
-  border-bottom:1px solid rgba(15, 23, 42, 0.06);
+  /* Operator wanted the hairline between topbar and the dashboard
+     dropped — header now reads as flush against the canvas, no
+     dividing line. */
+  border-bottom:0;
   box-shadow:none;
   /* WCO-aware padding: clears the window-controls overlay region
      on both Windows (controls on the right) and macOS (controls
