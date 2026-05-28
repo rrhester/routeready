@@ -10430,6 +10430,25 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-zone-action-v4 .pa-btn-advance{
             flex:1 1 auto;justify-content:center;
           }
+          /* Review video · secondary action that sits next to the
+             primary CTA on screened applicants. Subtle Fluent
+             outline button — clear it's a button but visually
+             quieter than the primary advance. */
+          #view-pipeline .pa-btn-video{
+            appearance:none;cursor:pointer;font:inherit;text-decoration:none;
+            display:inline-flex;align-items:center;gap:6px;
+            flex:0 0 auto;padding:7px 12px;
+            background:#fff;border:1px solid var(--border-strong);border-radius:4px;
+            color:var(--text);font-size:12px;font-weight:600;line-height:1;
+            transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
+          }
+          #view-pipeline .pa-btn-video:hover{
+            background:#F3F8FE;border-color:#0078D4;color:#0078D4;
+          }
+          #view-pipeline .pa-btn-video:focus-visible{
+            outline:none;border-color:#0078D4;box-shadow:0 0 0 2px rgba(15,108,189,.30);
+          }
+          #view-pipeline .pa-btn-video svg{width:11px;height:11px;flex:0 0 auto}
           #view-pipeline .pa-act-more{
             appearance:none;cursor:pointer;font:inherit;
             display:inline-flex;align-items:center;justify-content:center;
