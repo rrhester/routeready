@@ -17329,11 +17329,33 @@ body.rr-cmdk-open{ overflow:hidden }
              panel hangs off the bottom of the pool. */
           #view-schedule .sched-right-rail{
             display:flex;flex-direction:column;gap:var(--s-3);
-            position:sticky;top:80px;
-            max-height:calc(100vh - 100px);overflow-y:auto;
+            /* Operator wanted the Open shifts box flush with the
+               top of the schedule grid and running to the bottom
+               of the viewport when the schedule is fully covered.
+               Sticky top tuned to the cal-grid.head y-offset; the
+               max-height now spans the full visible viewport so
+               the panel can grow into all of it. */
+            position:sticky;top:0;
+            max-height:100vh;overflow-y:auto;
             scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent;
           }
           #view-schedule .sched-right-rail .driver-pool{position:static;max-height:none}
+          /* When the driver pool is empty (no open shifts to drag
+             into cells), the Open shifts footer takes the rail's
+             remaining height — its empty-state card centers
+             inside that full column. */
+          #view-schedule .sched-right-rail > aside{
+            flex:1;display:flex;flex-direction:column;
+          }
+          #view-schedule .pool-openshifts-foot{
+            flex:1;display:flex;flex-direction:column;
+          }
+          /* Center the "All shifts covered" medallion + copy within
+             the full-height empty state. */
+          #view-schedule .pool-openshifts-body{flex:1}
+          #view-schedule .pool-openshifts-empty{
+            flex:1;justify-content:center !important;
+          }
 
           /* Driver-pool footer · Open Shifts. Mirrors the empty-state
              visual from the mockup (green check medallion + "All shifts
