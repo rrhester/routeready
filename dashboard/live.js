@@ -1534,6 +1534,21 @@ document.addEventListener("click", (e) => {
   if (tab) {
     e.preventDefault();
     const mode = tab.getAttribute("data-cmd-tab");
+    // Roster + Onboarding tabs navigate to the Onboarding-ops page
+    // instead of swapping a mode within Schedule — operator wants
+    // direct access to those surfaces from the Schedule strip.
+    if (mode === "roster" || mode === "onboarding") {
+      try { window.goto("onboarding-ops"); } catch (_) {}
+      // Preselect the matching sub-mode on the destination page so
+      // clicking "Roster" lands on the roster ribbon, "Onboarding"
+      // on the default ops ribbon.
+      setTimeout(() => {
+        if (typeof _obCmdTab === "function") {
+          _obCmdTab(mode === "roster" ? "roster" : "ops");
+        }
+      }, 0);
+      return;
+    }
     _schedCmdTab(mode);
     // Leaving the Intelligence ribbon · close any open intel view
     // so the operator returns to the normal schedule surfaces.
