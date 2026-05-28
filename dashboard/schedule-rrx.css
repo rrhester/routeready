@@ -1943,11 +1943,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="kudos"])     { order: 10; }
 
 /* Hairline dividers — left border on the tile that starts each
-   new functional group. Today now leads the view tiles (Today →
-   Week → Monthly), so it gets the divider that previously sat
-   on Week, visually separating the views block from the Schedule
-   title on its left. */
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="today"]),
+   new functional group. Today no longer carries a divider per
+   operator request — the views block (Today / Weekly / Monthly)
+   reads as one continuous cluster, no line between them. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="requests"]),
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="targets"]),
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="calendar"]),
@@ -3228,9 +3226,16 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .sched-monthly-shell {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 220px); /* under page header + cmd ribbon + KPI */
-  min-height: 460px;
-  gap: 10px;
+  /* Fit the entire 6×7 grid + the month header strip on screen
+     without scrolling. Buffer = topbar (44px) + page header
+     (~80px) + KPI strip (~70px) + cmd ribbon (~70px) + gap.
+     The dynamic viewport unit (dvh) handles mobile chrome
+     correctly; the vh fallback keeps older browsers sensible. */
+  height: calc(100vh - 260px);
+  height: calc(100dvh - 260px);
+  min-height: 420px;
+  gap: 8px;
+  padding-bottom: 8px;
 }
 
 #view-schedule.rrx-schedule .sched-monthly-head {
