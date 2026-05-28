@@ -4068,7 +4068,10 @@ function renderDriverTable(rows, error) {
       <th></th>`;
   } else {
     thead.innerHTML = cbHeader + `
-      <th data-rr-roster-sort="name"   style="cursor:pointer;user-select:none">Driver${caret("name")}</th>
+      <th class="rr-roster-th-driver">
+        <span class="rr-roster-th-driver-label" data-rr-roster-sort="name" style="cursor:pointer;user-select:none">Driver${caret("name")}</span>
+        <span class="rr-roster-th-search-slot" data-rr-no-drawer></span>
+      </th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
       <th>Status</th>
       <th data-rr-roster-sort="score"  style="cursor:pointer;user-select:none">Score <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;opacity:.6" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${caret("score")}</th>
@@ -4076,6 +4079,15 @@ function renderDriverTable(rows, error) {
       <th>App</th>
       <th></th>`;
     thead.dataset.rrColCount = "8";
+    // Relocate the existing search input (still wired with its
+    // change/input handlers in the hidden .dr-roster-bar) into the
+    // Driver header cell. appendChild moves the DOM node; the
+    // handlers come along untouched.
+    const searchSlot = thead.querySelector(".rr-roster-th-search-slot");
+    const searchWrap = document.querySelector(".dr-roster-bar .dr-search");
+    if (searchSlot && searchWrap && searchSlot.firstChild !== searchWrap) {
+      searchSlot.appendChild(searchWrap);
+    }
   }
 
   _obSetStrip(error ? null : rows);
