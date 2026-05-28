@@ -12754,27 +12754,29 @@ body.rr-cmdk-open{ overflow:hidden }
              day-of-week strip — frosted-glass tinted blue, sticky
              top, backdrop blur so rows scroll softly underneath.
              Same #E8F1FA tint at 72% alpha that .cal-grid.head uses.
-             Scoped to #dr-sub-roster (NOT #view-drivers) because the
-             roster sub-view is physically moved into view-onboarding-ops
-             when reached via the Schedule sidebar slot's Roster tab —
-             scoping to #view-drivers would miss the table there. */
-          #dr-sub-roster .table-wrap{overflow:auto;position:relative}
-          #dr-sub-roster .table thead{
-            position:sticky;top:0;z-index:3;
+             Targets the thead by id (#rr-roster-thead) so the rule
+             fires regardless of which view currently hosts the moved
+             sub-tree (view-drivers vs view-onboarding-ops roster
+             mode). The wrapping table-wrap is the scroll container;
+             position:sticky on the thead pins it to the wrapper top. */
+          #rr-roster-table-wrap{overflow:auto;position:relative}
+          #rr-roster-thead{
+            position:sticky !important;top:0 !important;z-index:3 !important;
           }
-          #dr-sub-roster .table thead th{
+          #rr-roster-thead th{
             background:rgba(232, 241, 250, 0.72) !important;
-            -webkit-backdrop-filter:saturate(180%) blur(20px);
-            backdrop-filter:saturate(180%) blur(20px);
+            -webkit-backdrop-filter:saturate(180%) blur(20px) !important;
+            backdrop-filter:saturate(180%) blur(20px) !important;
             border-bottom:1px solid rgba(15,23,42,.10) !important;
-            color:var(--text-muted);
-            font-size:var(--fs-xs);font-weight:600;
-            letter-spacing:.07em;text-transform:uppercase;
+            color:var(--text-muted) !important;
+            font-size:var(--fs-xs) !important;font-weight:600 !important;
+            letter-spacing:.07em !important;text-transform:uppercase !important;
+            padding:10px var(--s-4) 11px !important;
           }
           /* Solid-color fallback for browsers without backdrop-filter
              so the sticky header never reads as transparent. */
           @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-            #dr-sub-roster .table thead th{background:#E8F1FA !important}
+            #rr-roster-thead th{background:#E8F1FA !important}
           }
           /* Soft-blue row hover · matches the Schedule grid's hover
              tint so the operator pattern-matches roster rows as
