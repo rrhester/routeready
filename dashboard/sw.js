@@ -21,7 +21,7 @@
 // Bump SHELL_CACHE when the cached file set changes so the activate
 // step purges the old cache.
 
-const SHELL_CACHE = "rr-dash-shell-v3";
+const SHELL_CACHE = "rr-dash-shell-v4";
 
 // Files that make the dashboard boot. index.html is the heaviest —
 // once it's in the cache, an offline relaunch can still render the

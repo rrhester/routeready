@@ -1932,19 +1932,26 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 /* V2 strip tile order · operator-specified layout:
-   [Schedule title] | divider | Today Weekly Monthly | divider |
-   Requests | divider | Targets Smart Fill Finalize | divider |
-   Fleet (was "Fleet calendar") Unassign | divider | Kudos | divider */
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="today"])     { order: 1; }
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="week"])      { order: 2; }
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="monthly"])   { order: 3; }
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="requests"])  { order: 4; }
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="targets"])   { order: 5; }
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) { order: 6; }
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="finalize"])  { order: 7; }
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="calendar"])  { order: 8; }
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="unassign"])  { order: 9; }
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="kudos"])     { order: 10; }
+     Today Weekly Monthly | Requests | Targets Smart Fill Finalize | Fleet Unassign | Kudos
+
+   The tiles are now authored in this EXACT order in the DOM
+   (dashboard/index.html), so the visual order is correct by
+   construction — no per-tile flex `order` needed.
+
+   We previously reordered the tiles with `:has()`-driven `order:N`
+   rules layered on top of a scrambled DOM order. That proved
+   fragile in the field: on at least one operator's browser the
+   Fleet (`calendar`) tile consistently inherited the Requests
+   tile's `order` and rendered in the wrong slot, regardless of
+   where it sat in the DOM. Removing the per-tile `order` layer
+   eliminates that failure mode entirely — DOM order is now the
+   single source of truth.
+
+   Title stays flex-first (`order:-1`) and the week navigator stays
+   flex-last (`order:100`); every tile between them flows in DOM
+   order. (The other strip children — `.sched-v2-cmd-tabs` and the
+   print/intel action rows — are `position:absolute` / `display:none`
+   on the Schedule tab, so they never participate in this flow.) */
 
 /* Hairline dividers · operator-specified layout:
      | Today  Weekly Monthly | Requests | Targets Smart Fill Finalize | Fleet Unassign | Kudos |
