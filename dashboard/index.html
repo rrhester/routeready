@@ -11920,10 +11920,55 @@ body.rr-cmdk-open{ overflow:hidden }
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
                     <span>Roster</span>
                   </button>
-                  <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Roster rules — coming soon">
+                  <button type="button" class="ob-rules-foot" id="rr-roster-rules-toggle"
+                          aria-haspopup="dialog" aria-expanded="false"
+                          aria-controls="rr-roster-rules-popover"
+                          title="Roster display rules · table density">
                     Rules
                     <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
+                  <!-- Roster display rules · table density picker.
+                       Mirrors the Schedule grid's density popover
+                       (Standard / Compact / Ultra-compact), persisted
+                       in localStorage('rr-roster-density') and applied
+                       via body classes rr-roster-compact /
+                       rr-roster-ultra-compact. -->
+                  <div id="rr-roster-rules-popover" class="ob-att-rules-popover" role="dialog" aria-modal="false" aria-label="Roster display" hidden>
+                    <div class="ob-att-rules-head">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
+                      <span class="ob-att-rules-head-title">Roster display</span>
+                    </div>
+                    <div class="ob-att-rules-body">
+                      <fieldset class="rr-sched-density-fset" role="radiogroup" aria-label="Table density">
+                        <legend style="font:600 13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Table density</legend>
+                        <p style="font:13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Pick how many drivers you want on screen at once.</p>
+
+                        <label class="rr-sched-density-opt">
+                          <input type="radio" name="rr-roster-density" value="standard" checked />
+                          <span class="rr-sched-density-opt-body">
+                            <span class="rr-sched-density-opt-title">Standard</span>
+                            <span class="rr-sched-density-opt-sub">Roomy rows with avatars at full size. Easiest to scan.</span>
+                          </span>
+                        </label>
+
+                        <label class="rr-sched-density-opt">
+                          <input type="radio" name="rr-roster-density" value="compact" />
+                          <span class="rr-sched-density-opt-body">
+                            <span class="rr-sched-density-opt-title">Compact</span>
+                            <span class="rr-sched-density-opt-sub">~25% shorter rows. ~50% more drivers visible at once.</span>
+                          </span>
+                        </label>
+
+                        <label class="rr-sched-density-opt">
+                          <input type="radio" name="rr-roster-density" value="ultra" />
+                          <span class="rr-sched-density-opt-body">
+                            <span class="rr-sched-density-opt-title">Ultra-compact</span>
+                            <span class="rr-sched-density-opt-sub">Slimmest rows. Maximum drivers per screen for an overview read.</span>
+                          </span>
+                        </label>
+                      </fieldset>
+                    </div>
+                  </div>
                 </div>
                 <div class="ob-tab-wrap" data-rr-tile="roster-licences">
                   <button class="subnav-item" type="button" title="Driver licences" onclick="if(typeof _obMountDriverSub==='function') _obMountDriverSub('licences');">
@@ -12733,6 +12778,38 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-drivers .table tbody tr:hover,
           #view-drivers .table-clickable tbody tr:hover{
             background:rgba(232, 241, 250, 0.55) !important;
+          }
+
+          /* Density modes · Standard / Compact / Ultra-compact.
+             Mirrors the Schedule density picker (body classes
+             rr-sched-compact / rr-sched-ultra-compact). Roster
+             equivalents shrink row padding, avatar size, and meta
+             line so more drivers fit on screen. Standard = base
+             styles (no override). */
+          body.rr-roster-compact #view-drivers .table tbody td{
+            padding-top:6px !important;padding-bottom:6px !important;
+          }
+          body.rr-roster-compact #view-drivers .table tbody td .avatar,
+          body.rr-roster-compact #view-drivers .table tbody td .avatar-sm,
+          body.rr-roster-compact #view-drivers .table tbody td img.avatar{
+            width:26px !important;height:26px !important;font-size:11px !important;
+          }
+          body.rr-roster-ultra-compact #view-drivers .table tbody td{
+            padding-top:3px !important;padding-bottom:3px !important;
+            font-size:12.5px !important;line-height:1.2 !important;
+          }
+          body.rr-roster-ultra-compact #view-drivers .table tbody td .avatar,
+          body.rr-roster-ultra-compact #view-drivers .table tbody td .avatar-sm,
+          body.rr-roster-ultra-compact #view-drivers .table tbody td img.avatar{
+            width:20px !important;height:20px !important;font-size:9.5px !important;
+          }
+          body.rr-roster-ultra-compact #view-drivers .table tbody td small,
+          body.rr-roster-ultra-compact #view-drivers .table tbody td .text-muted,
+          body.rr-roster-ultra-compact #view-drivers .table tbody td .dr-app-rel{
+            font-size:10.5px !important;
+          }
+          body.rr-roster-ultra-compact #view-drivers .table tbody td .dr-app-chip{
+            padding:1px 6px 1px 5px !important;font-size:10.5px !important;
           }
           /* Filters popover (anchored to the [Filters] button on the
              left of the rail — override default right:0 alignment). */
