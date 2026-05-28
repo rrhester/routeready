@@ -1747,8 +1747,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   padding: 11px 18px;
   margin: 0 0 var(--rr-space-160) 0;
   background: var(--rr-bg-surface-1);
-  border: 1px solid var(--rr-border-primary);
-  border-radius: var(--rr-radius-medium);
+  /* Match the KPI card's border + radius (not the heavier V2 --rr-
+     tokens) so the icon strip floats exactly like the KPI / grid /
+     Open-shifts cards rather than reading as more lifted. */
+  border: 1px solid var(--sch-line-subtle);
+  border-radius: var(--sch-radius);
   /* Gentle floating elevation to match the other Schedule cards
      (grid, Open shifts, KPI band). */
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05), 0 14px 34px rgba(15, 23, 42, 0.10);
