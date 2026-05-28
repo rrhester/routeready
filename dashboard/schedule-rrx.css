@@ -3072,3 +3072,94 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
 #view-schedule.rrx-schedule #rr-sched-cal-rules-popover .rr-sched-density-fset {
   margin-top: 10px !important;
 }
+
+/* ============================================================
+   PREMIUM COLOR LAYER · three additions per operator request
+   ------------------------------------------------------------
+   1. Saturated shift chips — bumps route-class fill alpha from
+      22% → 38% so chips read as solid tiles, not pale washes.
+      Border also bumps so the chip pops off the canvas.
+   2. Today column wash — every cal-cell under the Today header
+      gets a faint accent-blue tint so the eye lands there first.
+   3. Day-coverage health — header cells gain soft green / amber
+      / red backgrounds based on staffing state. Live.js paints
+      one of .is-cover-full / .is-cover-partial / .is-cover-open
+      onto each .cal-cell-head every grid render.
+   ============================================================ */
+
+/* 1 · Saturated route chips */
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="rescue"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-rescue) 38%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-rescue) 80%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-rescue) 32%, transparent) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="nursery"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-nursery) 38%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-nursery) 80%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-nursery) 32%, transparent) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-reduction) 38%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-reduction) 80%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-reduction) 32%, transparent) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_1"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-cycle_1) 38%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-cycle_1) 80%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-cycle_1) 32%, transparent) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="cycle_2"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-cycle_2) 38%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-cycle_2) 80%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-cycle_2) 32%, transparent) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="backup"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-backup) 38%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-backup) 80%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-backup) 32%, transparent) !important;
+}
+
+/* Default chip (no route classification set) gets a soft accent
+   fill so even un-tagged shifts feel solid, not transparent. */
+#view-schedule.rrx-schedule .shift-chip:not([data-rr-route-class]):not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here),
+#view-schedule.rrx-schedule .shift-chip[data-rr-route-class=""]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--accent) 18%, #fff) !important;
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent) !important;
+}
+
+/* 2 · Today column wash · every body cell in today's column gets
+   a faint accent tint at rest. Hover overrides win because of the
+   existing :hover rule's source order; we still keep the tint
+   subtle enough that it reads as "where you are" rather than a
+   selection state. */
+#view-schedule.rrx-schedule .cal-cell.today:not(.cal-row-label) {
+  background: color-mix(in srgb, var(--accent) 5%, transparent) !important;
+}
+#view-schedule.rrx-schedule .cal-cell.today:not(.cal-row-label):hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--canvas)) !important;
+}
+
+/* 3 · Day-coverage heat map · header cell background tracks
+   filled-vs-needed. Tints sit on top of the existing frosted
+   blue (rgba(232,241,250,0.35)) so the strip's glass effect
+   stays intact. */
+#view-schedule.rrx-schedule .cal-grid.head .cal-cell-head.is-cover-full {
+  background: color-mix(in srgb, var(--green) 14%, rgba(232, 241, 250, 0.55)) !important;
+}
+#view-schedule.rrx-schedule .cal-grid.head .cal-cell-head.is-cover-partial {
+  background: color-mix(in srgb, var(--amber) 16%, rgba(232, 241, 250, 0.55)) !important;
+}
+#view-schedule.rrx-schedule .cal-grid.head .cal-cell-head.is-cover-open {
+  background: color-mix(in srgb, var(--red) 14%, rgba(232, 241, 250, 0.55)) !important;
+}
+/* Today still wins on the header so the active-day accent
+   underline + slightly stronger tint reads above the heat map. */
+#view-schedule.rrx-schedule .cal-grid.head .cal-cell-head.today.is-cover-full {
+  background: color-mix(in srgb, var(--green) 22%, rgba(232, 241, 250, 0.55)) !important;
+}
+#view-schedule.rrx-schedule .cal-grid.head .cal-cell-head.today.is-cover-partial {
+  background: color-mix(in srgb, var(--amber) 22%, rgba(232, 241, 250, 0.55)) !important;
+}
+#view-schedule.rrx-schedule .cal-grid.head .cal-cell-head.today.is-cover-open {
+  background: color-mix(in srgb, var(--red) 22%, rgba(232, 241, 250, 0.55)) !important;
+}
