@@ -28769,16 +28769,37 @@ document.addEventListener("click", (e) => {
         }
       }
 
-      // Smart Fill — kick a one-shot AI-vibe spin on the V2 icon
-      // before forwarding the click. The original Smart Fill
-      // already runs its own spin via #rr-sched-smartfill-h.is-spinning,
-      // but the V2 tile is a separate element so we mirror the
-      // animation on it.
+      // Smart Fill — start a spin on the V2 icon and keep it
+      // spinning until the underlying Smart Fill operation actually
+      // finishes. The legacy button (#rr-sched-smartfill-h) gets
+      // `data-rr-busy="1"` while autoFillScheduleWeek runs and
+      // clears it on completion (5-10s typically with the CP-SAT
+      // solver). The prior fixed 900ms timeout stopped the spinner
+      // ~7s before the schedule actually filled, which made it
+      // look like nothing was happening — operator complaint.
       if (isTile && key === "smartfill") {
         const v2Tile = v2Split.querySelector(".sched-v2-tile");
         if (v2Tile) {
           v2Tile.classList.add("is-v2-spin");
-          setTimeout(() => v2Tile.classList.remove("is-v2-spin"), 900);
+          const legacy = document.getElementById("rr-sched-smartfill-h");
+          const startedAt = Date.now();
+          const stopWhenIdle = () => {
+            // Bail out after 60s no matter what so a stuck busy
+            // flag can't trap the icon in a permanent spin.
+            if (Date.now() - startedAt > 60000) {
+              v2Tile.classList.remove("is-v2-spin");
+              return;
+            }
+            if (legacy && legacy.dataset.rrBusy) {
+              setTimeout(stopWhenIdle, 250);
+            } else {
+              v2Tile.classList.remove("is-v2-spin");
+            }
+          };
+          // Give the click a tick to flip data-rr-busy before we
+          // start polling, otherwise we'd see "not busy" on the
+          // first check and stop immediately.
+          setTimeout(stopWhenIdle, 150);
         }
       }
 
