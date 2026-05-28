@@ -3289,17 +3289,83 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .sched-monthly-nav-btn:hover { background: var(--sch-hover); color: var(--text) }
 #view-schedule.rrx-schedule .sched-monthly-nav-today:hover { background: var(--sch-blue-softer) }
 
+/* Monthly view now renders the Weekly driver×day grid, one block per
+   week of the month, stacked vertically. The container scrolls so the
+   whole month fits the page without breaking the layout. */
 #view-schedule.rrx-schedule .sched-monthly-grid {
   flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  grid-auto-rows: minmax(0, 1fr);
-  gap: 1px;
-  background: rgba(15, 23, 42, 0.20);
+  display: block;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  background: var(--surface-elevated, #FCFDFE);
   border: 1px solid rgba(15, 23, 42, 0.20);
   border-radius: var(--sch-radius);
-  overflow: hidden;
-  min-height: 0;
+  scrollbar-gutter: stable;
+}
+
+/* Sticky week-range header that anchors each stacked week block. */
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-weeklabel {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: rgba(232, 241, 250, 0.92);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  padding: 7px 14px;
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--text-muted);
+  border-top: 1px solid rgba(15, 23, 42, 0.10);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.10);
+}
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-weeklabel:first-child {
+  border-top: 0;
+}
+/* Each week reuses the Weekly .cal-grid layout. The week label is the
+   sticky anchor here, so the day-of-week header row is NOT sticky
+   (avoids multiple stacked sticky rows fighting at the top). */
+#view-schedule.rrx-schedule .sched-monthly-grid .cal-grid.head.sched-mw-row {
+  position: static;
+}
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-dayhead {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px;
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-dayhead.is-other-month {
+  color: var(--text-subtle); opacity: 0.7;
+}
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-dayhead.is-today {
+  color: var(--sch-blue);
+}
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-cov {
+  font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-muted);
+}
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-cov.is-full { color: var(--green); }
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-cov.is-open { color: var(--red); }
+/* Dim out-of-month day cells so the focus stays on the anchor month. */
+#view-schedule.rrx-schedule .sched-monthly-grid .cal-cell.is-other-month {
+  background: rgba(15, 23, 42, 0.03);
+}
+
+/* Whole-month overview · keep day cells as slim rectangles instead of
+   the Weekly view's square day cells (the base rule is
+   `.cal-cell:not(.cal-row-label){aspect-ratio:1/1}`), so a full month
+   of driver rows fits with far less scrolling. Mirrors Compact mode's
+   override of that aspect-ratio. */
+#view-schedule.rrx-schedule .sched-monthly-grid .cal-cell:not(.cal-row-label) {
+  aspect-ratio: auto !important;
+  min-height: 46px !important;
+  padding: 4px 8px !important;
+}
+#view-schedule.rrx-schedule .sched-monthly-grid .cal-row-label {
+  min-height: 46px !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+#view-schedule.rrx-schedule .sched-monthly-grid .shift-chip {
+  min-height: 0 !important;
 }
 
 #view-schedule.rrx-schedule .sched-month-dow {
