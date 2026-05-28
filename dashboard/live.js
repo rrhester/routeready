@@ -31287,70 +31287,35 @@ document.addEventListener("DOMContentLoaded", () => {
   } catch (_) {}
 }, { once: true });
 
-// Filter button injection · runs after the schedule grid paints. Adds
-// a small Fluent toggle pill into the KPI tile strip's right side.
-function _rrInsertPinnedOnlyToggle() {
-  const view = document.getElementById("view-schedule");
-  if (!view) return;
-  if (document.getElementById("rr-sched-pinned-only-btn")) return;
-  // Anchor: the row containing the coverage / affinity tiles (KPI strip).
-  const anchor = view.querySelector(".sched-kpi-strip, .rr-sched-kpi, .sched-insights-strip")
-    || view.querySelector(".cal-grid");
-  if (!anchor) return;
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.id = "rr-sched-pinned-only-btn";
-  btn.className = "rr-sched-pinned-only-toggle";
-  btn.setAttribute("aria-pressed", "false");
-  btn.title = "Dim cells without an active pin so you can see your pinned coverage at a glance.";
-  btn.innerHTML = _RR_PIN_SVG + '<span>Show pinned only</span>';
-  btn.addEventListener("click", () => window._rrToggleSchedPinnedOnly());
-  anchor.parentNode?.insertBefore(btn, anchor.nextSibling);
-
-  if (!document.getElementById("rr-sched-pinned-only-styles")) {
-    const st = document.createElement("style");
-    st.id = "rr-sched-pinned-only-styles";
-    st.textContent = `
-      .rr-sched-pinned-only-toggle{
-        display:inline-flex;align-items:center;gap:6px;
-        margin:6px 14px 0;padding:5px 10px;
-        background:#fff;border:1px solid #D2D0CE;border-radius:14px;
-        font-size:11px;font-weight:600;color:#605E5C;cursor:pointer;
-        transition:background .12s,border-color .12s,color .12s;
-      }
-      .rr-sched-pinned-only-toggle:hover{
-        border-color:#0078D4;color:#0078D4;
-      }
-      .rr-sched-pinned-only-toggle.is-on{
-        background:#EFF6FC;border-color:#0078D4;color:#0078D4;
-      }
-      .rr-sched-pinned-only-toggle svg{width:11px;height:11px}
-      /* Dim cells whose pin button is in the "empty" state. */
-      #view-schedule.is-pinned-only .cal-cell:has(.cal-pin-btn[data-rr-pin-state="empty"]){
-        opacity:.22;
-      }
-      /* Cells with no pin button at all (Off / PTO) also dim out so
-         the eye lands only on pinned coverage. */
-      #view-schedule.is-pinned-only .cal-cell:not(:has(.cal-pin-btn)){
-        opacity:.22;
-      }
-      #view-schedule.is-pinned-only .cal-cell:hover{opacity:1}`;
-    document.head.appendChild(st);
-  }
-}
-// Insert the toggle once the schedule view's chrome exists.
-document.addEventListener("DOMContentLoaded", () => {
-  setTimeout(_rrInsertPinnedOnlyToggle, 200);
-}, { once: true });
-// Also try after each schedule render (idempotent — early-returns if
-// the button is already present).
-const _rrOrigDecorateForToggle = _decorateScheduleChipsWithPins;
-_decorateScheduleChipsWithPins = async function (...args) {
-  const out = await _rrOrigDecorateForToggle.apply(this, args);
-  _rrInsertPinnedOnlyToggle();
-  return out;
-};
-window._rrDecorateScheduleChipsWithPins = _decorateScheduleChipsWithPins;
+// Show-pinned-only toggle CSS · the button itself now lives in the
+// Driver column header alongside Focus / Compact / Sort (see
+// index.html ~line 20537), so we only need to ship the dimming
+// rules + the active state for the icon. No JS injection needed.
+(function () {
+  if (document.getElementById("rr-sched-pinned-only-styles")) return;
+  const st = document.createElement("style");
+  st.id = "rr-sched-pinned-only-styles";
+  st.textContent = `
+    /* Active icon state — same brand-blue tint the other rr-tf-icon
+       toggles use when pressed. */
+    #rr-sched-pinned-only-btn.is-on{
+      background:#EFF6FC;border-color:#0078D4;color:#0078D4;
+    }
+    #rr-sched-pinned-only-btn[aria-pressed="true"]{
+      background:#EFF6FC;border-color:#0078D4;color:#0078D4;
+    }
+    /* Dim cells whose pin button is in the "empty" state. */
+    #view-schedule.is-pinned-only .cal-cell:has(.cal-pin-btn[data-rr-pin-state="empty"]){
+      opacity:.22;
+    }
+    /* Cells with no pin button at all (Off / PTO) also dim out so
+       the eye lands only on pinned coverage. */
+    #view-schedule.is-pinned-only .cal-cell:not(:has(.cal-pin-btn)){
+      opacity:.22;
+    }
+    #view-schedule.is-pinned-only .cal-cell:hover{opacity:1}`;
+  document.head.appendChild(st);
+})();
 
 
 // ─── Van assignments renderer (legacy) ──────────────────────────────
