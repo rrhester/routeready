@@ -12706,11 +12706,26 @@ body.rr-cmdk-open{ overflow:hidden }
         <style>
           /* ── Drivers · roster toolbar rail (scoped) ──────────────────
              Single horizontal rail: [Filters] · search · [stage ▾] ·
-             [location ▾] · [Columns].  Each control sits on the same
-             white surface so the rail reads as one unit. */
+             [location ▾] · [Columns]. Each control sits on the same
+             white surface so the rail reads as one unit.
+
+             Tight spacing pass · operator wanted the chrome between
+             KPI band and driver table to match the schedule page's
+             distance. The rail itself gets a 6px bottom margin
+             (matches Schedule's KPI→strip gap); the inline
+             stage-tabs above and overflow-links below get pulled
+             toward zero so the three rows hug. */
           #view-drivers .dr-roster-bar{
-            display:flex;align-items:center;gap:var(--s-2);margin-bottom:var(--s-3);flex-wrap:wrap;
+            display:flex;align-items:center;gap:var(--s-2);margin-bottom:6px;flex-wrap:wrap;
           }
+          /* Collapse the stage-tabs row's gap to nearly zero so it
+             reads as a header above the toolbar, not a separate band. */
+          #view-drivers .stage-tabs{margin-bottom:4px}
+          /* Overflow links (Insights · Inactive drivers) ride right
+             above the table. Drop the negative-top + bottom padding
+             so the row sits 4px above the table header instead of
+             a full --s-3 gap. */
+          #view-drivers .dr-roster-bar-overflow{margin:0 0 4px}
           #view-drivers .dr-roster-bar .dr-search{
             position:relative;flex:1;min-width:240px;
           }
