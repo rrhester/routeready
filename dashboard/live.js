@@ -29168,12 +29168,29 @@ document.addEventListener("click", (e) => {
       // solver). The prior fixed 900ms timeout stopped the spinner
       // ~7s before the schedule actually filled, which made it
       // look like nothing was happening — operator complaint.
+      //
+      // Two follow-up fixes (operator: "motion stops before the
+      // shifts actually populate"):
+      //   1. Smart Fill triggers a fire-and-forget van-assignment
+      //      pass (#rr-sched-vans-h) that runs AFTER Smart Fill
+      //      returns. We now wait for both busy flags to clear, so
+      //      the spinner keeps running while van codes paint onto
+      //      the chips.
+      //   2. Once both flags clear, we wait two animation frames
+      //      before stopping the spin, so the final DOM paint is
+      //      visible BEFORE the icon goes still.
       if (isTile && key === "smartfill") {
         const v2Tile = v2Split.querySelector(".sched-v2-tile");
         if (v2Tile) {
           v2Tile.classList.add("is-v2-spin");
-          const legacy = document.getElementById("rr-sched-smartfill-h");
+          const legacy   = document.getElementById("rr-sched-smartfill-h");
+          const vansBtn  = document.getElementById("rr-sched-vans-h");
           const startedAt = Date.now();
+          const isBusy = () => {
+            if (legacy  && legacy.dataset.rrBusy)  return true;
+            if (vansBtn && vansBtn.dataset.rrBusy) return true;
+            return false;
+          };
           const stopWhenIdle = () => {
             // Bail out after 60s no matter what so a stuck busy
             // flag can't trap the icon in a permanent spin.
@@ -29181,10 +29198,19 @@ document.addEventListener("click", (e) => {
               v2Tile.classList.remove("is-v2-spin");
               return;
             }
-            if (legacy && legacy.dataset.rrBusy) {
+            if (isBusy()) {
               setTimeout(stopWhenIdle, 250);
             } else {
-              v2Tile.classList.remove("is-v2-spin");
+              // Both busy flags cleared, but the awaited
+              // renderScheduleWeek's promise resolved BEFORE the
+              // browser actually painted the new chips. Wait two
+              // frames so the visible chips land before the spin
+              // stops, otherwise the operator sees the icon go
+              // still and the shifts appear right after — reads
+              // like nothing happened.
+              requestAnimationFrame(() => requestAnimationFrame(() => {
+                v2Tile.classList.remove("is-v2-spin");
+              }));
             }
           };
           // Give the click a tick to flip data-rr-busy before we
