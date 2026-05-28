@@ -35848,6 +35848,16 @@ async function renderScheduleWeek() {
       const iso = fmtIsoDate(dt);
       const c = fillByDate.get(iso) || { needed: 0, filled: 0 };
       cellHead.classList.toggle("today", iso === todayIso);
+      // Coverage health tint · CSS layers a soft green / amber / red
+      // gradient on top of the existing frosted-blue glass so the
+      // backdrop-filter blur stays visible underneath the tint.
+      cellHead.classList.remove("is-cover-full", "is-cover-partial", "is-cover-open");
+      if (c.needed > 0) {
+        const state = c.filled >= c.needed ? "is-cover-full"
+                    : c.filled > 0          ? "is-cover-partial"
+                    : "is-cover-open";
+        cellHead.classList.add(state);
+      }
       let coverageLine = "";
       if (c.needed > 0) {
         const color = c.filled >= c.needed ? "var(--green)" : "var(--red)";
