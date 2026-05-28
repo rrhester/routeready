@@ -12794,6 +12794,47 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-bottom:25px !important;
           }
 
+          /* In-header search · the search input was moved into the
+             Driver column header cell so operators can scan + filter
+             from the same row. JS in renderDriverTable relocates the
+             .dr-search node (with its change/input handlers) into
+             the .rr-roster-th-search-slot span here. */
+          #rr-roster-thead th.rr-roster-th-driver{
+            padding-top:6px !important;padding-bottom:6px !important;
+          }
+          #rr-roster-thead .rr-roster-th-driver-label{
+            display:inline-flex;align-items:center;gap:4px;
+            margin-right:14px;
+          }
+          #rr-roster-thead .rr-roster-th-search-slot{
+            display:inline-flex;align-items:center;vertical-align:middle;
+          }
+          #rr-roster-thead .rr-roster-th-search-slot .dr-search{
+            display:inline-block;position:relative;width:240px;max-width:32vw;
+          }
+          #rr-roster-thead .rr-roster-th-search-slot .dr-search svg{
+            position:absolute;left:8px;top:50%;transform:translateY(-50%);
+            width:13px;height:13px;color:var(--text-subtle);pointer-events:none;
+          }
+          #rr-roster-thead .rr-roster-th-search-slot .dr-search input{
+            width:100%;height:26px;padding:0 8px 0 26px;
+            border:1px solid rgba(15,23,42,.10);border-radius:6px;
+            background:rgba(255,255,255,0.65);color:var(--text);
+            font:inherit;font-size:var(--fs-xs);font-weight:500;
+            text-transform:none;letter-spacing:0;
+            transition:border-color var(--t-fast), box-shadow var(--t-fast), background var(--t-fast);
+          }
+          #rr-roster-thead .rr-roster-th-search-slot .dr-search input::placeholder{
+            color:var(--text-subtle);font-weight:500;letter-spacing:0;text-transform:none;
+          }
+          #rr-roster-thead .rr-roster-th-search-slot .dr-search input:hover{
+            border-color:rgba(15,23,42,.18);background:#fff;
+          }
+          #rr-roster-thead .rr-roster-th-search-slot .dr-search input:focus{
+            outline:none;background:#fff;border-color:var(--accent);
+            box-shadow:0 0 0 3px var(--accent-soft);
+          }
+
           /* Driver-table header · matches the Schedule page's
              day-of-week strip — frosted-glass tinted blue, sticky
              top, backdrop blur so rows scroll softly underneath.
