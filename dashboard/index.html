@@ -12682,20 +12682,14 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="stage-tab" data-stage="inactive" onclick="filterDriversStage(this)">Inactive</button>
         </div>
 
-        <!-- Driver insights · KPI grid hidden by default; surfaced by
-             the small "Insights" link to the right of the table. -->
-        <div class="driver-stat-row" id="rr-roster-insights" style="display:none">
-          <div class="stat-mini"><div class="stat-mini-label">Active</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
-          <div class="stat-mini stat-mini-clickable" data-rr-roster-kpi="score" role="button" tabindex="0" aria-label="Open average score detail">
-            <div class="stat-mini-label">Avg score</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div>
-          </div>
-          <div class="stat-mini"><div class="stat-mini-label">At risk</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
+        <!-- Driver KPIs · Active drivers · Drivers on LOA · Avg tenure.
+             Visible by default (the old Insights toggle is moot now that
+             the toolbar strip is gone). 3-up grid. -->
+        <div class="driver-stat-row" id="rr-roster-insights" style="grid-template-columns:repeat(3,1fr)">
+          <div class="stat-mini"><div class="stat-mini-label">Active drivers</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
+          <div class="stat-mini"><div class="stat-mini-label">Drivers on LOA</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div></div>
           <div class="stat-mini stat-mini-clickable" data-rr-roster-kpi="tenure" role="button" tabindex="0" aria-label="Open average tenure detail">
             <div class="stat-mini-label">Avg tenure</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div>
-          </div>
-          <div class="stat-mini stat-mini-clickable" data-rr-roster-kpi="turnover" role="button" tabindex="0" aria-label="Open turnover detail">
-            <div class="stat-mini-label">Turnover</div><div class="stat-mini-value">—</div><div class="stat-mini-sub">—</div>
-            <button class="rr-tf-icon" data-rr-roster-tf-toggle="turnover" type="button" aria-label="Switch time frame" title="Switch time frame"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></button>
           </div>
         </div>
 
