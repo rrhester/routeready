@@ -1534,18 +1534,24 @@ document.addEventListener("click", (e) => {
   if (tab) {
     e.preventDefault();
     const mode = tab.getAttribute("data-cmd-tab");
-    // Roster + Onboarding tabs navigate to the Onboarding-ops page
-    // instead of swapping a mode within Schedule — operator wants
-    // direct access to those surfaces from the Schedule strip.
+    // Roster + Onboarding tabs render the Onboarding-ops content,
+    // but they're conceptually PART of Schedule — the sidebar should
+    // stay lit on Schedule. Operator's mental model: one Schedule
+    // hub with sub-surfaces. After goto() swaps the view, we
+    // override the sidebar's active state back to schedule and
+    // preselect the right ribbon on the destination page.
     if (mode === "roster" || mode === "onboarding") {
       try { window.goto("onboarding-ops"); } catch (_) {}
-      // Preselect the matching sub-mode on the destination page so
-      // clicking "Roster" lands on the roster ribbon, "Onboarding"
-      // on the default ops ribbon.
       setTimeout(() => {
         if (typeof _obCmdTab === "function") {
           _obCmdTab(mode === "roster" ? "roster" : "ops");
         }
+        // Restore sidebar lit on Schedule — goto() flipped it to
+        // onboarding-ops but the operator should see this as
+        // "still on Schedule, just viewing a different sub-tab".
+        document.querySelectorAll(".nav-item[data-view].active").forEach((b) => b.classList.remove("active"));
+        const schedNav = document.querySelector('.nav-item[data-view="schedule"]');
+        if (schedNav) schedNav.classList.add("active");
       }, 0);
       return;
     }
@@ -29233,11 +29239,27 @@ async function _obPrintPtoReport() {
 }
 
 document.addEventListener("click", (e) => {
-  // Onboarding cmd-tab clicks (Onboarding / Print-Download).
+  // Onboarding cmd-tab clicks. Schedule + Intelligence navigate
+  // back to the Schedule page; Roster / Onboarding / Print stay
+  // as mode-switches within this page.
   const obTab = e.target.closest(".ob-cmd-tab");
   if (obTab) {
     e.preventDefault();
-    _obCmdTab(obTab.getAttribute("data-ob-cmd-tab") || "ops");
+    const obMode = obTab.getAttribute("data-ob-cmd-tab") || "ops";
+    if (obMode === "schedule" || obMode === "intelligence") {
+      try { window.goto("schedule"); } catch (_) {}
+      setTimeout(() => {
+        if (typeof _schedCmdTab === "function") {
+          _schedCmdTab(obMode === "intelligence" ? "insights" : "schedule");
+        }
+        // Keep sidebar lit on Schedule.
+        document.querySelectorAll(".nav-item[data-view].active").forEach((b) => b.classList.remove("active"));
+        const schedNav = document.querySelector('.nav-item[data-view="schedule"]');
+        if (schedNav) schedNav.classList.add("active");
+      }, 0);
+      return;
+    }
+    _obCmdTab(obMode);
     return;
   }
   // Onboarding print button → run the print flow.
