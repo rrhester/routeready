@@ -25010,6 +25010,7 @@ document.addEventListener("click", async (e) => {
       next = `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
     }
     wavesEl.insertAdjacentHTML("beforeend", _renderWaveRow(next));
+    _scheduleWaveAutosave();
     return;
   }
 
@@ -25027,15 +25028,34 @@ document.addEventListener("click", async (e) => {
     e.stopImmediatePropagation();
     const row = e.target.closest("[data-rr-wave]");
     if (row) row.remove();
+    _scheduleWaveAutosave();
     return;
   }
+});
 
-  // Save scheduling settings (Save button inside the drawer).
-  if (e.target.id === "rr-set-sched-save") {
-    e.preventDefault();
-    await _saveScheduleSettings({ source: "drawer" });
-    return;
-  }
+// Wave time edits — debounced auto-save (same pattern as the
+// block-hours / cushion / max-days inputs in _NAV_SETTING_IDS).
+// Add/remove wave-row callers above use the same handle.
+let _waveAutosaveTimer = null;
+function _scheduleWaveAutosave() {
+  if (_waveAutosaveTimer) clearTimeout(_waveAutosaveTimer);
+  _flashNavStatus("Editing…", "var(--text-subtle)");
+  _waveAutosaveTimer = setTimeout(() => {
+    _waveAutosaveTimer = null;
+    _navSettingsTriggerSave(null);
+  }, 800);
+}
+document.addEventListener("input", (e) => {
+  const inp = e.target;
+  if (!inp || !inp.matches?.("[data-rr-wave-time]")) return;
+  if (!inp.closest("#rr-sched-quick-settings-popover")) return;
+  _scheduleWaveAutosave();
+});
+document.addEventListener("change", (e) => {
+  const inp = e.target;
+  if (!inp || !inp.matches?.("[data-rr-wave-time]")) return;
+  if (!inp.closest("#rr-sched-quick-settings-popover")) return;
+  _scheduleWaveAutosave();
 });
 
 // Persist the visible week's scheduling settings + regenerate the
