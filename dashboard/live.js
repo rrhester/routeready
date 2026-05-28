@@ -52636,6 +52636,38 @@ document.addEventListener("click", async (e) => {
 // HTML + the new live.js when a deploy has shipped but the operator's
 // browser is sitting on cached assets. Tiny spin animation on click
 // so it feels responsive.
+// Dark-header toggle · flips body.rr-header-dark so the topbar
+// paints in the same #2B3445 graphite navy as the sidebar.
+// Choice persists in localStorage('rr-header-dark') and rehydrates
+// on page load.
+document.addEventListener("click", (e) => {
+  const themeBtn = e.target.closest("#rr-hdr-theme-toggle");
+  if (themeBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const on = !document.body.classList.contains("rr-header-dark");
+    document.body.classList.toggle("rr-header-dark", on);
+    themeBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    try { localStorage.setItem("rr-header-dark", on ? "1" : "0"); } catch (_) {}
+    return;
+  }
+});
+(function _rrHydrateHeaderDark(){
+  let on = false;
+  try { on = localStorage.getItem("rr-header-dark") === "1"; } catch (_) {}
+  if (!on) return;
+  const apply = () => {
+    document.body.classList.add("rr-header-dark");
+    const btn = document.getElementById("rr-hdr-theme-toggle");
+    if (btn) btn.setAttribute("aria-pressed", "true");
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", apply, { once: true });
+  } else {
+    apply();
+  }
+})();
+
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("#rr-hdr-refresh");
   if (!btn) return;

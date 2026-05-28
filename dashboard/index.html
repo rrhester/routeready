@@ -1031,6 +1031,50 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 /* Main column */
 .main{display:flex;flex-direction:column;min-width:0;background:var(--canvas)}
 
+/* Dark-header mode · operator-toggled via the palette icon in the
+   topbar. Paints the topbar in the same graphite navy (#2B3445)
+   as the sidebar so the chrome reads as one continuous frame.
+   Text + icons + the Ask pill + Undo + Settings all flip to
+   readable inverse colors. */
+body.rr-header-dark .topbar{
+  background:#2B3445 !important;
+  -webkit-backdrop-filter:none !important;
+  backdrop-filter:none !important;
+  border-bottom-color:rgba(255,255,255,.08) !important;
+  color:rgba(255,255,255,.92);
+}
+body.rr-header-dark .topbar button,
+body.rr-header-dark .topbar input,
+body.rr-header-dark .topbar .hdr-undo span,
+body.rr-header-dark .topbar .topbar-settings span{
+  color:rgba(255,255,255,.92) !important;
+}
+body.rr-header-dark .topbar svg{
+  color:rgba(255,255,255,.85) !important;
+}
+body.rr-header-dark .topbar button:hover,
+body.rr-header-dark .topbar .topbar-settings:hover{
+  background:rgba(255,255,255,.08) !important;
+  border-color:rgba(255,255,255,.18) !important;
+}
+body.rr-header-dark .topbar .hdr-ask{
+  background:rgba(255,255,255,.10) !important;
+  border-color:rgba(255,255,255,.16) !important;
+}
+body.rr-header-dark .topbar .hdr-ask input{
+  background:transparent !important;color:rgba(255,255,255,.92) !important;
+}
+body.rr-header-dark .topbar .hdr-ask input::placeholder{
+  color:rgba(255,255,255,.55) !important;
+}
+body.rr-header-dark .topbar .hdr-ask button{
+  background:#0078D4 !important;color:#fff !important;
+}
+body.rr-header-dark #rr-hdr-theme-toggle[aria-pressed="true"]{
+  background:rgba(255,255,255,.14) !important;
+  border-color:rgba(255,255,255,.22) !important;
+}
+
 /* ── Top bar (clean white control surface) ────────────────── */
 .topbar{
   position:sticky;top:0;z-index:10;
@@ -9899,6 +9943,14 @@ body.rr-cmdk-open{ overflow:hidden }
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
         </button>
       </form>
+      <!-- Header theme toggle · flips the topbar to the same
+           graphite-navy (#2B3445) as the sidebar so the chrome
+           reads as one cohesive frame. Persists in
+           localStorage('rr-header-dark'). -->
+      <button class="hdr-refresh" id="rr-hdr-theme-toggle" type="button"
+              aria-label="Dark header" title="Dark header — match the sidebar color" aria-pressed="false">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 1 0 0 20 5 5 0 0 1 0-10 5 5 0 0 0 0-10z"/></svg>
+      </button>
       <button class="topbar-settings" type="button" aria-label="Settings" title="Settings" onclick="goto('settings')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span>Settings</span>
