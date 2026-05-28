@@ -12660,6 +12660,14 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div>
 
+        <!-- Driver KPIs · the top KPI strip — same physical position
+             as #rr-ob-kpis on Onboarding and #rr-sched-kpis on
+             Schedule, so there's effectively one shared KPI bar
+             across every page in the Schedule sidebar slot, whose
+             contents swap per page. Three pills:
+             Active drivers · Drivers on LOA · Avg tenure. -->
+        <div id="rr-roster-kpis" class="sched-kpi-pills tcp-kpi" aria-label="Roster metrics"></div>
+
         <!-- Drivers sub-nav: Roster · Insights · Attendance -->
         <div class="subnav" data-rr-tabbar="drivers">
           <button class="subnav-item active" data-sub="roster" onclick="drSub('roster')">Roster</button>
@@ -12681,12 +12689,6 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="stage-tab" data-stage="onleave" onclick="filterDriversStage(this)">On leave</button>
           <button class="stage-tab" data-stage="inactive" onclick="filterDriversStage(this)">Inactive</button>
         </div>
-
-        <!-- Driver KPIs · Active drivers · Drivers on LOA · Avg tenure.
-             Uses the same .sched-kpi-pills.tcp-kpi pill strip that
-             Schedule and Onboarding use, so every page reached via the
-             Schedule sidebar slot shares one visual KPI rhythm. -->
-        <div id="rr-roster-kpis" class="sched-kpi-pills tcp-kpi" aria-label="Roster metrics"></div>
 
         <!-- Roster KPI drill-down panel · opens when an operator clicks
              one of the clickable KPI tiles above. -->
