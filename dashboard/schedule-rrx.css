@@ -1943,7 +1943,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="kudos"])     { order: 10; }
 
 /* Hairline dividers — left border on the tile that starts each
-   new functional group. */
+   new functional group. Today now leads the view tiles (Today →
+   Week → Monthly), so it gets the divider that previously sat
+   on Week, visually separating the views block from the Schedule
+   title on its left. */
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="today"]),
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="requests"]),
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="targets"]),
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="calendar"]),
