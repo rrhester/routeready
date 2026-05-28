@@ -12959,7 +12959,38 @@ body.rr-cmdk-open{ overflow:hidden }
              sub-tree (view-drivers vs view-onboarding-ops roster
              mode). The wrapping table-wrap is the scroll container;
              position:sticky on the thead pins it to the wrapper top. */
-          #rr-roster-table-wrap{overflow:auto;position:relative}
+          /* Persistent vertical scrollbar · operator wanted the
+             roster scrollbar to stay on screen even when idle (the
+             OS auto-hide behaviour made the table feel like it was
+             missing chrome). Force overflow-y:scroll so the track is
+             always reserved, and style the webkit scrollbar so it
+             reads as a quiet rail rather than the chunky OS default. */
+          #rr-roster-table-wrap{
+            overflow-x:auto;overflow-y:scroll !important;
+            scrollbar-gutter:stable;
+            position:relative;
+            scrollbar-width:thin;                    /* Firefox */
+            scrollbar-color:rgba(15,23,42,.22) transparent;
+          }
+          #rr-roster-table-wrap::-webkit-scrollbar{
+            width:10px;height:10px;background:transparent;
+          }
+          #rr-roster-table-wrap::-webkit-scrollbar-track{
+            background:rgba(15,23,42,.03);
+            border-left:1px solid rgba(15,23,42,.06);
+          }
+          #rr-roster-table-wrap::-webkit-scrollbar-thumb{
+            background:rgba(15,23,42,.22);
+            border-radius:6px;
+            border:2px solid transparent;
+            background-clip:padding-box;
+            transition:background var(--t-fast);
+          }
+          #rr-roster-table-wrap::-webkit-scrollbar-thumb:hover{
+            background:rgba(15,23,42,.36);
+            background-clip:padding-box;
+          }
+          #rr-roster-table-wrap::-webkit-scrollbar-corner{background:transparent}
           #rr-roster-thead{
             position:sticky !important;top:0 !important;z-index:3 !important;
           }
