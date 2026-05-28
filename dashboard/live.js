@@ -33670,8 +33670,6 @@ async function openShiftEditModal(arg) {
             <option value="regular">Regular</option>
             <option value="training">Training</option>
             <option value="ride_along">Ride-along</option>
-            <option value="rescue">Rescue</option>
-            <option value="other">Other</option>
           </select>
         </label>
         <label style="display:flex;align-items:center;gap:var(--s-3-5)">
