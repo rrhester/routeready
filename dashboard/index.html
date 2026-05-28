@@ -1678,17 +1678,18 @@ button.card:focus-visible{
 
 /* ── Today's Plan · two-column main row ────────────────────────
    Roster on the left, reserved right-rail card on the right.
-   Collapses to single column on narrower viewports so the
-   roster stays readable on smaller laptops. */
+   The right-rail is currently a "Reserved" placeholder with no
+   real content, and the fixed 320px column was eating space the
+   roster's Action buttons needed — Confirm / VTO / Excused was
+   being truncated as "Excu…". Hides the placeholder + collapses
+   to single-column until the right rail gets real content. */
 .tp-mainrow{
   display:grid;
-  grid-template-columns:minmax(0,1fr) 320px;
+  grid-template-columns:minmax(0,1fr);
   gap:var(--s-4);
   align-items:start;
 }
-@media (max-width:1180px){
-  .tp-mainrow{grid-template-columns:minmax(0,1fr)}
-}
+.tp-rightrail{display:none !important}
 
 /* Right-rail placeholder card · Fluent calm panel until future
    content lands. Sits one notch above the page like the
