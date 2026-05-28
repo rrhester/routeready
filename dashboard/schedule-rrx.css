@@ -2824,7 +2824,12 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
 #view-schedule.rrx-schedule .cal-grid.head,
 #view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:not(.today),
 #view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:first-child {
-  background: #E8F1FA !important;
+  /* Frosted-glass tint · same blue-tinted off-white as before but
+     with 72% alpha so the backdrop-filter applied on .cal-grid.head
+     can blur driver rows scrolling past. The cells themselves
+     stay matched to the parent's tone so the strip reads as one
+     unified material. */
+  background: rgba(232, 241, 250, 0.72) !important;
 }
 
 /* ── Day-coverage count · -25% from previous 15px ─────────────

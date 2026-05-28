@@ -916,8 +916,18 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
      (~30px) so the controls visually nest inside the topbar. */
   height:44px;
   display:flex;align-items:center;gap:var(--s-4);
-  background:var(--canvas);
-  border-bottom:0;
+  /* Frosted-glass material · same pattern as iOS sticky search
+     bars (Amazon app, Mail, etc.). Translucent background +
+     backdrop-filter blurs whatever scrolls under the bar so the
+     bar reads as a layer floating above the content. saturate
+     boost prevents the blur from washing color out. The opaque
+     fallback (var(--canvas)) is preserved via the @supports
+     guard for browsers without backdrop-filter (rare on
+     desktop in 2026, but still ~Firefox-Android). */
+  background:rgba(247, 250, 252, 0.72);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid rgba(15, 23, 42, 0.06);
   box-shadow:none;
   /* WCO-aware padding: clears the window-controls overlay region
      on both Windows (controls on the right) and macOS (controls
@@ -3857,10 +3867,22 @@ select.form-input{
   border-bottom:1px solid rgba(15,23,42,.05);
 }
 .cal-grid.head{
-  background:var(--canvas);border-bottom:1px solid rgba(15,23,42,.05);
+  /* Frosted-glass material — driver rows scrolling past the
+     sticky day-of-week strip blur softly through. Matches the
+     topbar treatment so the page reads as layered. */
+  background:rgba(232, 241, 250, 0.72);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid rgba(15,23,42,.10);
   /* Keep day-of-week labels in view as the operator scrolls past
      the first 7 drivers. */
   position:sticky;top:0;z-index:2;
+}
+/* Browsers without backdrop-filter (rare) get a solid fallback
+   so the sticky strip never reads as transparent. */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .topbar{background:var(--canvas)}
+  .cal-grid.head{background:var(--canvas)}
 }
 /* Day header — calm, spacious enterprise hierarchy: a small muted
    weekday label over a larger dominant date. */
