@@ -33600,8 +33600,35 @@ async function openShiftEditModal(arg) {
     const d = new Date(iso);
     return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   };
-  const startHM = isAdd ? "07:00" : fmtHM(sh.starts_at);
-  const endHM   = isAdd ? "17:00" : fmtHM(sh.ends_at);
+  // Add-mode time defaults derive from THIS DSP's schedule settings:
+  // first wave's start minus report_lead = the driver's clock-in time,
+  // and that + default_block_hours = clock-out. Falls back to 07:00 /
+  // 17:00 only if no DSP settings are loaded (rare; mostly first-run
+  // before the settings RPC returns). Without this, every new shift
+  // landed at 7am regardless of the DSP's actual wave times.
+  const _drawerDefaults = (() => {
+    if (!isAdd) return { start: fmtHM(sh.starts_at), end: fmtHM(sh.ends_at) };
+    try {
+      const eff = window._rrEffectiveSettings || {};
+      const waves = Array.isArray(eff.waves) ? eff.waves : null;
+      const firstWave = waves && waves.length && waves[0].start ? waves[0].start : null;
+      const reportLead = Math.max(0, parseInt(eff.report_lead_minutes, 10) || 0);
+      const block = Math.max(1, parseFloat(eff.default_block_hours) || 10);
+      if (!firstWave || !/^\d\d:\d\d$/.test(firstWave)) {
+        return { start: "07:00", end: "17:00" };
+      }
+      const [wh, wm] = firstWave.split(":").map(Number);
+      const waveMin = wh * 60 + wm;
+      const startMin = (waveMin - reportLead + 1440) % 1440;
+      const endMin = (startMin + Math.round(block * 60)) % 1440;
+      const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+      return { start: fmt(startMin), end: fmt(endMin) };
+    } catch (_) {
+      return { start: "07:00", end: "17:00" };
+    }
+  })();
+  const startHM = _drawerDefaults.start;
+  const endHM   = _drawerDefaults.end;
   // Route-classification options. Keep value lowercase_snake (matches
   // the DB CHECK in migration 0332); label is what the operator sees.
   const ROUTE_CLASS_OPTIONS = [
