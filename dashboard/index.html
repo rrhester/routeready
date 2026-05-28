@@ -13087,6 +13087,43 @@ body.rr-cmdk-open{ overflow:hidden }
           .rr-status-dot-inactive{background:var(--text-subtle)}
           .rr-status-dot-terminated{background:var(--red)}
 
+          /* Attendance table header · same treatment as the Roster
+             driver-table header (frosted-glass blue, sticky top,
+             backdrop blur, pinned 79px) so Roster → Attendance reads
+             as the same chrome family. Also zeros the table-wrap /
+             dr-subview top margins inside the onboarding-roster
+             mount so the KPI → table-header gap matches Schedule's
+             25px. */
+          #att-report-thead{
+            position:sticky !important;top:0 !important;z-index:3 !important;
+          }
+          #att-report-thead th{
+            background:rgba(232, 241, 250, 0.72) !important;
+            -webkit-backdrop-filter:saturate(180%) blur(20px) !important;
+            backdrop-filter:saturate(180%) blur(20px) !important;
+            border-bottom:1px solid rgba(15,23,42,.10) !important;
+            color:var(--text-muted) !important;
+            font-size:var(--fs-xs) !important;font-weight:600 !important;
+            letter-spacing:.07em !important;text-transform:uppercase !important;
+            padding:10px var(--s-4) 11px !important;
+            height:79px !important;
+            vertical-align:middle !important;
+          }
+          @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+            #att-report-thead th{background:#E8F1FA !important}
+          }
+          /* Match Roster's KPI → table-header gap parity rules so
+             Attendance reads at the same vertical rhythm. */
+          #ob-roster-mount #dr-sub-attendance,
+          #ob-roster-mount #dr-sub-attendance .table-wrap,
+          #ob-roster-mount #dr-sub-attendance .table-wrap > .table{
+            margin-top:0 !important;padding-top:0 !important;
+          }
+          #ob-roster-mount #dr-sub-attendance .att-tabstrip,
+          #ob-roster-mount #dr-sub-attendance #rr-att-filters{
+            display:none !important;
+          }
+
           /* In-header search · the search input was moved into the
              Driver column header cell so operators can scan + filter
              from the same row. JS in renderDriverTable relocates the
