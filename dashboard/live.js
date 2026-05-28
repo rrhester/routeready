@@ -5806,6 +5806,16 @@ async function loadOnboardingOps(opts) {
   function _obRenderKpis(rowsEnriched, stepCols) {
     const host = document.getElementById("rr-ob-kpis");
     if (!host) return;
+    // Don't overwrite the roster KPI pills when the operator is in
+    // Roster mode — refreshDriverStatRow paints Active / On LOA /
+    // Avg tenure into this same host, and any matrix re-render
+    // (driver updates, polling refresh, blueprint edits) was
+    // wiping it back to onboarding step pills. The outer scope in
+    // loadOnboardingOps keeps the cache up to date so _obCmdTab
+    // can still restore the step pills when the operator exits
+    // roster mode.
+    const obShell = document.getElementById("rr-ob-cmd");
+    if (obShell && obShell.classList.contains("is-roster")) return;
     const total = rowsEnriched.length;
     const navy  = "#1F2A44";
     const green = "#10B981";
