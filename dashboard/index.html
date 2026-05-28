@@ -9481,26 +9481,11 @@ body.rr-cmdk-open{ overflow:hidden }
            Every icon shares: rx=3.5 outer corner, identical light
            direction, fills pinned (no currentColor) so they hold
            tone across inactive/hover/active states. ═══════════════ -->
-      <button class="nav-item" data-view="onboarding-ops" data-c="drivers" onclick="goto('onboarding-ops')">
-        <!-- Onboarding (SECONDARY) · slate frame, person silhouette,
-             muted-indigo check badge. No green — the badge stays in
-             the cool palette so it reads as part of the system. -->
-        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#2D3548"/>
-          <circle cx="10" cy="9.5" r="3" fill="#DDE1E8"/>
-          <path d="M4.5 18.5 C 4.5 14.2 6.5 13 10 13 C 12 13 13.5 13.5 14.3 15" fill="#DDE1E8"/>
-          <circle cx="17" cy="14" r="4" fill="#4A5380"/>
-          <path d="M15.2 14.2 L16.5 15.5 L19 12.9" stroke="#F2F4F8" stroke-width="1.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg></span>
-        <span class="nav-icon nav-icon-color"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="2" y="2" width="20" height="20" rx="3.5" fill="#0F766E"/>
-          <circle cx="10" cy="9.5" r="3" fill="#FFFFFF"/>
-          <path d="M4.5 18.5 C 4.5 14.2 6.5 13 10 13 C 12 13 13.5 13.5 14.3 15" fill="#FFFFFF"/>
-          <circle cx="17" cy="14" r="4" fill="#10B981"/>
-          <path d="M15.2 14.2 L16.5 15.5 L19 12.9" stroke="#FFFFFF" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg></span>
-        Onboarding
-      </button>
+      <!-- Onboarding sidebar nav-item removed — the Onboarding +
+           Roster surfaces now live as tabs inside the Schedule
+           cmd-strip (and the Onboarding-ops cmd-strip mirrors the
+           same set so operators can navigate freely between them
+           without leaving the unified Schedule sidebar slot). -->
       <button class="nav-item" data-view="fleet" data-c="fleet" onclick="goto('fleet')">
         <!-- Fleet (SECONDARY) · slate frame, muted-blue van. Amber
              was retired — the whole sidebar now sits in the cool
@@ -11895,12 +11880,13 @@ body.rr-cmdk-open{ overflow:hidden }
              to .tcp-kpi.is-empty). -->
         <div class="ob-cmd-shell tcp" id="rr-ob-cmd">
         <div class="ob-cmd-tabs" role="tablist" aria-label="Command strip mode">
-          <!-- Roster · first cmd-tab. Clicking swaps the strip
-               into roster mode (.ob-cmd-shell.is-roster), which
-               hides the default Onboarding icon ribbon and reveals
-               the .ob-v2-roster-actions tiles (Roster / Licences /
-               Attendance / Coaching). The strip title swaps to
-               "Roster" via _obCmdTab. -->
+          <!-- Schedule + Intelligence · navigate back to the Schedule
+               page. Roster / Onboarding / Print stay as mode-switches
+               within this page. With the Onboarding sidebar icon now
+               removed, this strip is the way operators move between
+               Schedule and the Roster / Onboarding ribbons. -->
+          <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="schedule" role="tab" aria-selected="false">Schedule</button>
+          <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="intelligence" role="tab" aria-selected="false">Intelligence</button>
           <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
           <button class="ob-cmd-tab active" type="button" data-ob-cmd-tab="ops" role="tab" aria-selected="true">Onboarding</button>
           <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
