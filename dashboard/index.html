@@ -3838,7 +3838,12 @@ select.form-input{
   display:inline-flex;align-items:center;gap:var(--s-1);
   padding:3px var(--s-2-5);border-radius:var(--r-lg);
   font-size:var(--fs-xs);font-weight:600;line-height:1.5;white-space:nowrap;
-  background:var(--green-soft);color:var(--green);
+  /* Live state · solid green to match the "All shifts assigned"
+     medallion in the Open shifts rail. White text reads cleanly
+     on the saturated background; Draft state below keeps its
+     soft-amber tint since amber-on-amber doesn't have a paired
+     medallion to align to. */
+  background:var(--green);color:#fff;
 }
 .sched-status-pill.draft{background:var(--amber-soft);color:var(--amber)}
 .sched-status-pill .status-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
