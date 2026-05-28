@@ -6880,26 +6880,125 @@ function _appBtnTitle(driverId) {
   return "No app invite yet · open driver view";
 }
 
+// Row alert badges · paints tiny tags next to the driver name when
+// the row needs operator attention. RISK = active driver with score
+// under 70; NEW = hired within the last 30 days; NO APP = active
+// driver without any app session or invite. Each badge is one of the
+// smallest pieces of glance-able state on the roster.
+function _rowBadgesFor(d) {
+  const out = [];
+  if (d.status === "active" && d.score != null && d.score < 70) {
+    out.push(`<span class="rr-row-badge rr-badge-risk" title="Score ${Math.round(d.score)} — below the 70 threshold">Risk</span>`);
+  }
+  if (d.hire_date) {
+    const days = Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000);
+    if (days >= 0 && days <= 30) {
+      out.push(`<span class="rr-row-badge rr-badge-new" title="Hired ${days} day${days === 1 ? "" : "s"} ago">New</span>`);
+    }
+  }
+  if (d.status === "active") {
+    const s = _rosterAppStatus && _rosterAppStatus.get ? _rosterAppStatus.get(d.id) : null;
+    if (!s || (!s.signed_in_at && !s.invited)) {
+      out.push(`<span class="rr-row-badge rr-badge-noapp" title="Active driver — no app invite sent yet">No app</span>`);
+    }
+  }
+  return out.join("");
+}
+
+// Hover-revealed quick actions on the trailing row cell · tel: link
+// to the driver's phone and a note button that opens the drawer.
+function _rowActionsFor(d) {
+  const callIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+  const noteIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>';
+  const callBtn = d.phone
+    ? `<a class="rr-row-action" href="tel:${escapeHtml(d.phone)}" title="Call ${escapeHtml(d.phone)}" aria-label="Call driver">${callIcon}</a>`
+    : "";
+  const noteBtn = `<button type="button" class="rr-row-action" data-rr-driver-note="${escapeHtml(d.id)}" title="Open driver notes" aria-label="Open driver notes">${noteIcon}</button>`;
+  return `<div class="rr-row-actions-bar">${callBtn}${noteBtn}</div>`;
+}
+
 function renderDriverRow(d) {
   const initials = displayDriverInitials(d);
   const display = displayDriverName(d);
   const tier = d.tier ? `tier-${String(d.tier).toLowerCase()}` : "";
   const tenure = d.hire_date ? tenureLabel(d.hire_date) : "—";
   const contact = d.phone || d.email || "";
+  const badges = _rowBadgesFor(d);
+  const actions = _rowActionsFor(d);
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
-        <div><div class="cell-name">${escapeHtml(display)}</div>
+        <div><div class="cell-name">${escapeHtml(display)}${badges}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${tenure}</td>
       <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
       <td>${_scoreCell(d.score)}</td>
       <td>${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer class="u-center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" data-rr-app-state="${_appBtnState(d.id)}" title="${escapeHtml(_appBtnTitle(d.id))}" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
-      <td data-rr-no-drawer style="text-align:center;width:32px"></td>
+      <td data-rr-no-drawer class="rr-row-actions">${actions}</td>
     </tr>`;
 }
+
+// Saved-view chip click → apply the preset filter combo. Toggling
+// "all" clears every preset; clicking any chip flips _driverStage
+// and _rosterFilters then re-loads. State stored in
+// localStorage('rr-roster-view') so the chosen view survives reloads.
+function _rrApplyRosterView(view) {
+  const v = view || "all";
+  try { localStorage.setItem("rr-roster-view", v); } catch (_) {}
+  document.querySelectorAll("#rr-roster-views .rr-roster-view-chip").forEach((c) => {
+    const on = c.getAttribute("data-rr-view") === v;
+    c.classList.toggle("is-active", on);
+    c.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  if (v === "atrisk") {
+    _driverStage = "active";
+    _rosterFilters = { ..._rosterFilters, score: "0-69", tenure: "" };
+  } else if (v === "newhires") {
+    _driverStage = "active";
+    _rosterFilters = { ..._rosterFilters, score: "", tenure: "0-30" };
+  } else if (v === "onleave") {
+    _driverStage = "onleave";
+    _rosterFilters = { ..._rosterFilters, score: "", tenure: "" };
+  } else {
+    _driverStage = "active";
+    _rosterFilters = { ..._rosterFilters, score: "", tenure: "" };
+  }
+  if (typeof loadDriversRoster === "function") loadDriversRoster();
+}
+window._rrApplyRosterView = _rrApplyRosterView;
+document.addEventListener("click", (e) => {
+  // Saved-view chip
+  const chip = e.target.closest("#rr-roster-views .rr-roster-view-chip");
+  if (chip) {
+    e.preventDefault();
+    _rrApplyRosterView(chip.getAttribute("data-rr-view") || "all");
+    return;
+  }
+  // Hover-action: Note button → open driver drawer
+  const noteBtn = e.target.closest("[data-rr-driver-note]");
+  if (noteBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = noteBtn.getAttribute("data-rr-driver-note");
+    if (typeof loadDriverDrawer === "function") loadDriverDrawer(id);
+    else if (typeof openDriverDrawer === "function") openDriverDrawer(id);
+  }
+});
+// Rehydrate the saved view on first paint.
+(function _rrHydrateRosterView() {
+  let v = "all";
+  try { v = localStorage.getItem("rr-roster-view") || "all"; } catch (_) {}
+  if (!["all","atrisk","newhires","onleave"].includes(v)) v = "all";
+  if (v === "all") return; // default already active
+  const apply = () => _rrApplyRosterView(v);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", apply, { once: true });
+  } else {
+    setTimeout(apply, 0);
+  }
+})();
 
 // Driver score → small colored pill (red < 70, amber 70–84, green 85+).
 function _scoreCell(s) {
