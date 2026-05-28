@@ -6864,6 +6864,22 @@ document.addEventListener("keydown", (e) => {
 window.addEventListener("scroll", _rrCloseStatusPicker, true);
 window.addEventListener("resize", _rrCloseStatusPicker);
 
+// Compact status helpers for the dr-app-btn — paints the small
+// indicator dot on the phone-shaped button + sets a useful title
+// tooltip so the button doesn't read as a stray icon.
+function _appBtnState(driverId) {
+  const s = _rosterAppStatus && _rosterAppStatus.get ? _rosterAppStatus.get(driverId) : null;
+  if (s && s.signed_in_at) return "on";
+  if (s && s.invited)      return "invited";
+  return "none";
+}
+function _appBtnTitle(driverId) {
+  const state = _appBtnState(driverId);
+  if (state === "on")      return "Signed in to the app · open driver view";
+  if (state === "invited") return "Invite sent · open driver view";
+  return "No app invite yet · open driver view";
+}
+
 function renderDriverRow(d) {
   const initials = displayDriverInitials(d);
   const display = displayDriverName(d);
@@ -6880,7 +6896,7 @@ function renderDriverRow(d) {
       <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
       <td>${_scoreCell(d.score)}</td>
       <td>${_appStatusCell(d.id)}</td>
-      <td data-rr-no-drawer class="u-center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
+      <td data-rr-no-drawer class="u-center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" data-rr-app-state="${_appBtnState(d.id)}" title="${escapeHtml(_appBtnTitle(d.id))}" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
       <td data-rr-no-drawer style="text-align:center;width:32px"></td>
     </tr>`;
 }
