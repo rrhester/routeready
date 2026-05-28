@@ -29244,8 +29244,8 @@ const _RR_V2_FORWARD = {
   tile: {
     week:      '.subnav-item[data-sub="week"]',
     today:     '.subnav-item[data-sub="today"]',
+    monthly:   '.subnav-item[data-sub="monthly"]',
     calendar:  '.subnav-item[data-sub="calendar"]',
-    staff:     '.subnav-item[data-sub="staff"]',
     requests:  '.subnav-item[data-sub="requests"]',
     smartfill: '#rr-sched-smartfill-h',
     targets:   '#rr-sched-okami-open-h',
