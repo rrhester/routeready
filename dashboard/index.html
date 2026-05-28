@@ -12704,23 +12704,17 @@ body.rr-cmdk-open{ overflow:hidden }
         <div id="rr-roster-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
 
         <style>
-          /* ── Drivers · roster toolbar rail (scoped) ──────────────────
-             Single horizontal rail: [Filters] · search · [stage ▾] ·
-             [location ▾] · [Columns]. Each control sits on the same
-             white surface so the rail reads as one unit.
-
-             Tight spacing pass · operator wanted the chrome between
-             KPI band and driver table to match the schedule page's
-             distance. The rail itself gets a 6px bottom margin
-             (matches Schedule's KPI→strip gap); the inline
-             stage-tabs above and overflow-links below get pulled
-             toward zero so the three rows hug. */
+          /* Roster header · operator wanted the chrome between the
+             KPI band and the driver table header tightened to match
+             Schedule's distance. The Active/On leave/Inactive tabs
+             at the top were redundant with the "Active" dropdown in
+             the toolbar below — same filter, two places. Hidden so
+             the toolbar carries the stage filter alone.
+             Net: ~50px shaved off the header stack. */
+          #view-drivers .stage-tabs{display:none !important}
           #view-drivers .dr-roster-bar{
             display:flex;align-items:center;gap:var(--s-2);margin-bottom:6px;flex-wrap:wrap;
           }
-          /* Collapse the stage-tabs row's gap to nearly zero so it
-             reads as a header above the toolbar, not a separate band. */
-          #view-drivers .stage-tabs{margin-bottom:4px}
           /* Overflow links (Insights · Inactive drivers) ride right
              above the table. Drop the negative-top + bottom padding
              so the row sits 4px above the table header instead of
