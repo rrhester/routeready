@@ -36393,14 +36393,39 @@ function bindSchedWeekNav() {
   const nextBtn = document.getElementById("rr-sched-week-next");
   const rangeBtn = document.getElementById("rr-sched-week-range");
   const todayBtn = document.getElementById("rr-sched-week-today");
-  if (prevBtn) prevBtn.addEventListener("click", () => _shiftWeek(-1));
-  if (nextBtn) nextBtn.addEventListener("click", () => _shiftWeek(1));
+  // When the operator is on the TODAY sub-view, these chevrons +
+  // the Today button walk the DAY instead of the week. The week-nav
+  // is the only top-level time control visible on that view, and
+  // the operator pointed out it felt broken when clicks did nothing.
+  // _tpOnTodaySubView checks the .subnav-item active state and the
+  // #rr-tp-roster shell's visibility — either is conclusive.
+  const _tpOnTodaySubView = () => {
+    const activeTab = document.querySelector('#view-schedule .subnav-item.active[data-sub="today"]');
+    if (activeTab) return true;
+    const shell = document.getElementById("rr-today-plan-shell");
+    return !!(shell && shell.offsetParent);
+  };
+  if (prevBtn) prevBtn.addEventListener("click", () => {
+    if (_tpOnTodaySubView() && typeof _tpDateShift === "function") { _tpDateShift(-1); return; }
+    _shiftWeek(-1);
+  });
+  if (nextBtn) nextBtn.addEventListener("click", () => {
+    if (_tpOnTodaySubView() && typeof _tpDateShift === "function") { _tpDateShift(1); return; }
+    _shiftWeek(1);
+  });
   if (todayBtn) todayBtn.addEventListener("click", () => {
+    if (_tpOnTodaySubView() && typeof _tpDateGoTo === "function" && typeof _tpToday === "function") {
+      _tpDateGoTo(_tpToday()); return;
+    }
     _goToWeek(startOfWeekMonday(new Date()));
   });
   // The chevron-down on the range button — kept as a quick "next week"
-  // shortcut now that there's no fixed cycle to cycle through.
-  if (rangeBtn) rangeBtn.addEventListener("click", () => _shiftWeek(1));
+  // shortcut now that there's no fixed cycle to cycle through. On
+  // Today view it's a "+7 days" shortcut, matching its week semantics.
+  if (rangeBtn) rangeBtn.addEventListener("click", () => {
+    if (_tpOnTodaySubView() && typeof _tpDateShift === "function") { _tpDateShift(7); return; }
+    _shiftWeek(1);
+  });
   // Resync Today's active state whenever the hidden offset tabs are
   // clicked (other helpers still drive those).
   document.addEventListener("click", (e) => {

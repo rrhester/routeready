@@ -1696,6 +1696,14 @@ button.card:focus-visible{
 /* Empty ridealong-alerts slot was adding silent vertical space
    between the KPI strip and the roster card on most days. */
 #rr-tp-ridealong-alerts:empty{display:none}
+/* Today view · the 7-day mini-strip below the KPI bar was the
+   reason the gap to the roster table was much bigger than
+   Schedule's 25px. The week-nav chevrons + Today button at the
+   top of the Schedule page already advance/rewind the day on
+   Today view (wired in live.js), so the in-shell day strip is
+   redundant. Hide it so the KPI → table-header gap matches the
+   other pages. */
+#rr-tp-daystrip{display:none !important}
 
 /* Right-rail placeholder card · Fluent calm panel until future
    content lands. Sits one notch above the page like the
