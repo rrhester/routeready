@@ -2033,15 +2033,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   }
 }
 
-/* ============================================================
-   V2 strip — hairline divider before Week view
-   ============================================================ */
-
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="week"]) {
-  margin-left: var(--rr-space-160) !important;
-  padding-left: var(--rr-space-160) !important;
-  border-left: 1px solid #C8C6C4 !important;
-}
+/* V2 strip — no divider before Week. Today / Weekly / Monthly are
+   one group, so Weekly sits flush next to Today (the old hairline +
+   extra margin/padding before Week was removed per operator request). */
 
 /* ============================================================
    V2 strip — cmd-tabs (Schedule / Print/Download) at top-right
