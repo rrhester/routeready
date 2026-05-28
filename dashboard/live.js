@@ -24153,19 +24153,27 @@ document.addEventListener("click", (e) => {
     compactBtn.setAttribute("aria-pressed", on ? "true" : "false");
     return;
   }
-  // Staff view — hide every driver row that has zero assigned
-  // shifts this week (operator wants to see only staff actually
-  // working). CSS rule body.rr-sched-staff-only ... :has(...) does
-  // the actual filtering. Choice persists in localStorage so the
-  // operator's preferred mode survives reloads.
+  // Staff view — flip the grid to show only employees whose role
+  // is NOT 'driver'. The existing Staff sub-view already uses the
+  // staff_schedule_grid RPC (migration 0221: WHERE role <> 'driver')
+  // so routing the operator there gives them the right people in
+  // the same calendar layout. Click again → flip back to Week view.
   const staffBtn = e.target.closest("#rr-sched-staff-view-toggle");
   if (staffBtn) {
     e.preventDefault();
     e.stopPropagation();
-    const on = !document.body.classList.contains("rr-sched-staff-only");
-    document.body.classList.toggle("rr-sched-staff-only", on);
-    staffBtn.setAttribute("aria-pressed", on ? "true" : "false");
-    try { localStorage.setItem("rr-sched-staff-only", on ? "1" : "0"); } catch (_) {}
+    const currentlyOnStaff = !!document.querySelector('#view-schedule .subnav-item.active[data-sub="staff"]');
+    if (currentlyOnStaff) {
+      // Toggle off → back to Week view
+      if (typeof schedSub === "function") schedSub("week");
+      staffBtn.setAttribute("aria-pressed", "false");
+      try { localStorage.setItem("rr-sched-staff-only", "0"); } catch (_) {}
+    } else {
+      // Toggle on → Staff sub-view (role <> 'driver')
+      if (typeof schedSub === "function") schedSub("staff");
+      staffBtn.setAttribute("aria-pressed", "true");
+      try { localStorage.setItem("rr-sched-staff-only", "1"); } catch (_) {}
+    }
     return;
   }
 });
@@ -24176,14 +24184,14 @@ document.addEventListener("click", (e) => {
   try { on = localStorage.getItem("rr-sched-staff-only") === "1"; } catch (_) {}
   if (!on) return;
   const apply = () => {
-    document.body.classList.add("rr-sched-staff-only");
     const btn = document.getElementById("rr-sched-staff-view-toggle");
     if (btn) btn.setAttribute("aria-pressed", "true");
+    if (typeof schedSub === "function") schedSub("staff");
   };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", apply, { once: true });
   } else {
-    apply();
+    setTimeout(apply, 0);
   }
 })();
 
