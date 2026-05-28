@@ -12794,6 +12794,47 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-bottom:25px !important;
           }
 
+          /* Status-pill picker · clicking the status pill in any
+             driver row opens a small floating menu of status
+             options. Trigger is a button styled identically to the
+             original .status-pill so the at-rest visual is unchanged. */
+          .rr-status-trigger{
+            border:0;cursor:pointer;
+            display:inline-flex;align-items:center;
+            font:inherit;
+            transition:filter var(--t-fast), box-shadow var(--t-fast);
+          }
+          .rr-status-trigger:hover{filter:brightness(0.96);box-shadow:0 1px 3px rgba(15,23,42,.08)}
+          .rr-status-trigger:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+          .rr-status-picker{
+            position:fixed;z-index:9999;
+            background:var(--surface);
+            border:1px solid var(--border);border-radius:10px;
+            box-shadow:0 8px 24px rgba(15,23,42,.18), 0 2px 4px rgba(15,23,42,.06);
+            padding:4px;
+            display:flex;flex-direction:column;gap:2px;
+          }
+          .rr-status-picker[hidden]{display:none}
+          .rr-status-picker-item{
+            display:flex;align-items:center;gap:10px;
+            padding:8px 10px;
+            border:0;background:transparent;cursor:pointer;
+            font:inherit;font-size:var(--fs-sm);font-weight:500;
+            color:var(--text);text-align:left;border-radius:6px;
+            transition:background var(--t-fast);
+          }
+          .rr-status-picker-item:hover{background:var(--canvas)}
+          .rr-status-picker-item:focus-visible{outline:none;background:var(--accent-soft);color:var(--accent-text)}
+          .rr-status-picker-item.is-current{background:rgba(232,241,250,.55)}
+          .rr-status-picker-dot{
+            width:8px;height:8px;border-radius:50%;flex-shrink:0;
+          }
+          .rr-status-dot-active{background:var(--green)}
+          .rr-status-dot-onboarding{background:var(--accent)}
+          .rr-status-dot-leave{background:var(--amber)}
+          .rr-status-dot-inactive{background:var(--text-subtle)}
+          .rr-status-dot-terminated{background:var(--red)}
+
           /* In-header search · the search input was moved into the
              Driver column header cell so operators can scan + filter
              from the same row. JS in renderDriverTable relocates the
