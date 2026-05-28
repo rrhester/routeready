@@ -24153,24 +24153,38 @@ document.addEventListener("click", (e) => {
     compactBtn.setAttribute("aria-pressed", on ? "true" : "false");
     return;
   }
-  // Staff view — flip the grid to show only employees whose role
-  // is NOT 'driver'. The existing Staff sub-view already uses the
-  // staff_schedule_grid RPC (migration 0221: WHERE role <> 'driver')
-  // so routing the operator there gives them the right people in
-  // the same calendar layout. Click again → flip back to Week view.
+  // Staff view — swap the Week sub-view's content with the Staff
+  // sub-view (role <> 'driver', via the staff_schedule_grid RPC)
+  // IN PLACE, without changing which subnav tab is "active".
+  // Operator's intent: consolidate staff scheduling into the
+  // driver scheduling tool and use this icon to toggle which
+  // schedule the operator is looking at — the chrome (Week tab,
+  // KPI strip, date strip, etc.) stays the same.
   const staffBtn = e.target.closest("#rr-sched-staff-view-toggle");
   if (staffBtn) {
     e.preventDefault();
     e.stopPropagation();
-    const currentlyOnStaff = !!document.querySelector('#view-schedule .subnav-item.active[data-sub="staff"]');
-    if (currentlyOnStaff) {
-      // Toggle off → back to Week view
-      if (typeof schedSub === "function") schedSub("week");
+    const weekSub  = document.getElementById("sched-sub-week");
+    const staffSub = document.getElementById("sched-sub-staff");
+    if (!weekSub || !staffSub) return;
+    const currentlyStaff = staffSub.style.display !== "none";
+    if (currentlyStaff) {
+      // Flip back to drivers — show Week, hide Staff
+      weekSub.style.display = "";
+      weekSub.classList.add("active");
+      staffSub.style.display = "none";
+      staffSub.classList.remove("active");
       staffBtn.setAttribute("aria-pressed", "false");
       try { localStorage.setItem("rr-sched-staff-only", "0"); } catch (_) {}
     } else {
-      // Toggle on → Staff sub-view (role <> 'driver')
-      if (typeof schedSub === "function") schedSub("staff");
+      // Flip to staff — hide Week, show Staff, load data
+      weekSub.style.display = "none";
+      weekSub.classList.remove("active");
+      staffSub.style.display = "";
+      staffSub.classList.add("active");
+      if (typeof loadStaffSchedule === "function") {
+        try { loadStaffSchedule(); } catch (_) { /* non-fatal */ }
+      }
       staffBtn.setAttribute("aria-pressed", "true");
       try { localStorage.setItem("rr-sched-staff-only", "1"); } catch (_) {}
     }
@@ -24184,9 +24198,18 @@ document.addEventListener("click", (e) => {
   try { on = localStorage.getItem("rr-sched-staff-only") === "1"; } catch (_) {}
   if (!on) return;
   const apply = () => {
-    const btn = document.getElementById("rr-sched-staff-view-toggle");
+    const btn      = document.getElementById("rr-sched-staff-view-toggle");
+    const weekSub  = document.getElementById("sched-sub-week");
+    const staffSub = document.getElementById("sched-sub-staff");
+    if (!weekSub || !staffSub) return;
+    weekSub.style.display = "none";
+    weekSub.classList.remove("active");
+    staffSub.style.display = "";
+    staffSub.classList.add("active");
+    if (typeof loadStaffSchedule === "function") {
+      try { loadStaffSchedule(); } catch (_) { /* non-fatal */ }
+    }
     if (btn) btn.setAttribute("aria-pressed", "true");
-    if (typeof schedSub === "function") schedSub("staff");
   };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", apply, { once: true });
