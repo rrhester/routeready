@@ -15664,6 +15664,12 @@ body.rr-cmdk-open{ overflow:hidden }
           <div class="sched-cmd-tabs sched-v2-cmd-tabs" role="tablist" aria-label="Command strip mode">
             <button class="sched-cmd-tab active" type="button" data-cmd-tab="schedule" role="tab" aria-selected="true">Schedule</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="intelligence" role="tab" aria-selected="false">Intelligence</button>
+            <!-- Roster + Onboarding · navigation tabs (not mode-switches).
+                 Clicking goes to the Onboarding-ops view with the right
+                 sub-mode preselected. Handled inline in the cmd-tab click
+                 listener (live.js ~line 1532). -->
+            <button class="sched-cmd-tab" type="button" data-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
+            <button class="sched-cmd-tab" type="button" data-cmd-tab="onboarding" role="tab" aria-selected="false">Onboarding</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
           </div>
 
