@@ -12704,6 +12704,36 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-drivers .stage-tabs{display:none !important}
           #view-drivers .dr-roster-bar{display:none !important}
           #view-drivers .dr-roster-bar-overflow{display:none !important}
+
+          /* Driver-table header · matches the Schedule page's
+             day-of-week strip — frosted-glass tinted blue, sticky
+             top, backdrop blur so rows scroll softly underneath.
+             Same #E8F1FA tint at 72% alpha that .cal-grid.head uses. */
+          #view-drivers .table-wrap{overflow:auto;position:relative}
+          #view-drivers .table thead{
+            position:sticky;top:0;z-index:3;
+          }
+          #view-drivers .table thead th{
+            background:rgba(232, 241, 250, 0.72);
+            -webkit-backdrop-filter:saturate(180%) blur(20px);
+            backdrop-filter:saturate(180%) blur(20px);
+            border-bottom:1px solid rgba(15,23,42,.10);
+            color:var(--text-muted);
+            font-size:var(--fs-xs);font-weight:600;
+            letter-spacing:.07em;text-transform:uppercase;
+          }
+          /* Solid-color fallback for browsers without backdrop-filter
+             so the sticky header never reads as transparent. */
+          @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+            #view-drivers .table thead th{background:#E8F1FA}
+          }
+          /* Soft-blue row hover · matches the Schedule grid's hover
+             tint so the operator pattern-matches roster rows as
+             behaving like schedule rows. */
+          #view-drivers .table tbody tr:hover,
+          #view-drivers .table-clickable tbody tr:hover{
+            background:rgba(232, 241, 250, 0.55) !important;
+          }
           /* Filters popover (anchored to the [Filters] button on the
              left of the rail — override default right:0 alignment). */
           #view-drivers #rr-roster-filters-popover{
