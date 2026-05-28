@@ -12877,6 +12877,94 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-bottom:25px !important;
           }
 
+          /* Saved-view chips · quick-filter strip above the driver
+             table. At-rest variant is a soft pill; the active chip
+             gets the accent surface. Operators can toggle one preset
+             at a time; "All drivers" clears every preset. */
+          .rr-roster-views{
+            display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+            margin:0 0 var(--s-3) 0;
+          }
+          .rr-roster-view-chip{
+            appearance:none;cursor:pointer;
+            display:inline-flex;align-items:center;
+            font:inherit;font-size:var(--fs-xs);font-weight:600;letter-spacing:.02em;
+            padding:5px 12px;
+            border:1px solid rgba(15,23,42,.10);border-radius:var(--r-pill);
+            background:rgba(248,250,252,.65);color:var(--text-muted);
+            transition:background var(--t-fast),color var(--t-fast),
+                       border-color var(--t-fast),box-shadow var(--t-fast);
+          }
+          .rr-roster-view-chip:hover{
+            background:#fff;color:var(--text);border-color:rgba(15,23,42,.18);
+          }
+          .rr-roster-view-chip.is-active,
+          .rr-roster-view-chip[aria-pressed="true"]{
+            background:var(--accent-soft);color:var(--accent-text);
+            border-color:var(--accent-border);
+            box-shadow:0 1px 2px rgba(15,23,42,.06);
+          }
+          .rr-roster-view-chip:focus-visible{
+            outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);
+          }
+
+          /* Row alert badges · tiny tags next to the driver name.
+             RISK = score below 70 (active), NEW = hired ≤30 days,
+             NO APP = active driver without an app session or invite.
+             Each one is the smallest possible affordance — colour
+             carries the meaning, so a glance down the column reads
+             attention-needed rows instantly. */
+          .rr-row-badge{
+            display:inline-flex;align-items:center;
+            font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+            padding:1.5px 6px;border-radius:var(--r-pill);
+            margin-left:6px;vertical-align:1px;line-height:1;
+            border:1px solid transparent;
+          }
+          .rr-row-badge.rr-badge-risk{
+            background:var(--red-soft);color:var(--red-dark, var(--red));border-color:var(--red-border, transparent);
+          }
+          .rr-row-badge.rr-badge-new{
+            background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border);
+          }
+          .rr-row-badge.rr-badge-noapp{
+            background:rgba(15,23,42,.05);color:var(--text-muted);border-color:rgba(15,23,42,.08);
+          }
+
+          /* Hover row actions · ghost buttons in the trailing cell
+             that fade in only when the row is hovered. Operator can
+             call the driver or open the note drawer without leaving
+             the roster. */
+          #rr-roster-table-wrap td.rr-row-actions{
+            width:74px;text-align:right;padding-right:12px;
+          }
+          .rr-row-actions-bar{
+            opacity:0;
+            display:inline-flex;align-items:center;gap:4px;
+            transition:opacity var(--t-fast);
+          }
+          #rr-roster-table-wrap tbody tr:hover .rr-row-actions-bar,
+          #rr-roster-table-wrap tbody tr:focus-within .rr-row-actions-bar{
+            opacity:1;
+          }
+          .rr-row-action{
+            appearance:none;cursor:pointer;
+            width:24px;height:24px;border-radius:6px;
+            display:inline-flex;align-items:center;justify-content:center;
+            border:1px solid rgba(15,23,42,.10);
+            background:rgba(255,255,255,.7);
+            color:var(--text-muted);
+            transition:background var(--t-fast),color var(--t-fast),border-color var(--t-fast);
+            text-decoration:none;
+          }
+          .rr-row-action:hover{
+            background:#fff;color:var(--accent);border-color:var(--accent-border);
+          }
+          .rr-row-action:focus-visible{
+            outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);
+          }
+          .rr-row-action svg{width:12px;height:12px;stroke-width:1.8}
+
           /* Sort caret · idle (clickable but not the active sort)
              is a faded dual-arrow; active is a solid up/down. */
           #rr-roster-thead .rr-sort-caret{
@@ -13364,6 +13452,17 @@ body.rr-cmdk-open{ overflow:hidden }
           <button class="btn btn-sm btn-ghost" id="rr-roster-bulk-msg">Send message</button>
           <button class="btn btn-sm btn-ghost" id="rr-roster-bulk-export">Export CSV</button>
           <button class="btn btn-sm btn-ghost" id="rr-roster-bulk-clear">Clear</button>
+        </div>
+
+        <!-- Saved-view chips · quick-filter presets above the table.
+             "All" is the at-rest selection (no filter); the rest set a
+             single filter combo via the click handler in live.js
+             (_rrApplyRosterView). -->
+        <div class="rr-roster-views" id="rr-roster-views" data-rr-no-drawer>
+          <button type="button" class="rr-roster-view-chip is-active" data-rr-view="all" aria-pressed="true">All drivers</button>
+          <button type="button" class="rr-roster-view-chip" data-rr-view="atrisk" aria-pressed="false" title="Active drivers with score under 70">At risk</button>
+          <button type="button" class="rr-roster-view-chip" data-rr-view="newhires" aria-pressed="false" title="Hired in the last 30 days">New hires</button>
+          <button type="button" class="rr-roster-view-chip" data-rr-view="onleave" aria-pressed="false" title="Drivers on leave of absence">On leave</button>
         </div>
 
         <div class="table-wrap" id="rr-roster-table-wrap" style="max-height:calc(100vh - 360px);overflow-y:auto">
