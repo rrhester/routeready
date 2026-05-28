@@ -21172,51 +21172,59 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="cal-grid head">
               <div class="cal-cell-head" style="display:flex;align-items:center;gap:6px;position:relative">
                 <span>Driver</span>
-                <button class="rr-tf-icon" id="rr-sched-focus-toggle" type="button"
-                        title="Focus mode — hide chrome, expand schedule + open shifts"
-                        aria-label="Focus mode" aria-pressed="false"
-                        style="position:relative;top:0;right:0;margin-left:auto">
-                  <svg class="ic-focus-on" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 3 3 3 3 9"/><polyline points="15 3 21 3 21 9"/><polyline points="21 15 21 21 15 21"/><polyline points="3 15 3 21 9 21"/></svg>
-                  <svg class="ic-focus-off" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="3 9 9 9 9 3"/><polyline points="21 9 15 9 15 3"/><polyline points="15 21 15 15 21 15"/><polyline points="3 15 9 15 9 21"/></svg>
-                </button>
-                <button class="rr-tf-icon" id="rr-sched-compact-toggle" type="button"
-                        title="Compact rows — shrink row height to see more drivers"
-                        aria-label="Compact rows" aria-pressed="false"
-                        style="position:relative;top:0;right:0">
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="15" x2="20" y2="15"/></svg>
-                </button>
-                <button class="rr-tf-icon" id="rr-sched-driver-sort-toggle" type="button"
-                        title="Sort drivers" aria-label="Sort drivers"
-                        style="position:relative;top:0;right:0">
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="13" y2="6"/><line x1="3" y1="12" x2="11" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 8 21 12 17 16"/><line x1="14" y1="12" x2="21" y2="12"/></svg>
-                </button>
-                <!-- Show pinned only · same subtile-icon row as the
-                     focus / compact / sort buttons. Toggles a class on
-                     #view-schedule that dims every cell without an
-                     active pin. Click handler lives in live.js via
-                     window._rrToggleSchedPinnedOnly(). The standalone
-                     button this used to live in is no longer injected.
-                     -->
-                <button class="rr-tf-icon" id="rr-sched-pinned-only-btn" type="button"
-                        title="Dim cells without an active pin so you can see your pinned coverage at a glance."
-                        aria-label="Show pinned only" aria-pressed="false"
-                        style="position:relative;top:0;right:0"
-                        onclick="window._rrToggleSchedPinnedOnly && window._rrToggleSchedPinnedOnly()">
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l3 3.24-1 2H7l-1-2z"/></svg>
-                </button>
-                <!-- Staff view toggle · flips the grid from "every
-                     driver" to "only drivers with at least one
-                     assigned shift this week" so the operator can
-                     see just the staff actually working. Same grid,
-                     same chips, just a row-level filter. Click
-                     again to flip back. State stored in
-                     localStorage('rr-sched-staff-only'). -->
-                <button class="rr-tf-icon" id="rr-sched-staff-view-toggle" type="button"
-                        title="Staff view — show only drivers with at least one shift this week"
-                        aria-label="Staff view" aria-pressed="false"
-                        style="position:relative;top:0;right:0">
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3-3"/><path d="M22 8l-3 3"/></svg>
-                </button>
+                <!-- 4-column · 2-row icon grid · operator wanted the
+                     header icons laid out 4 across, with a second
+                     row that will fill in as more icons land. Items
+                     flow row-first (4 → next row), so the existing
+                     5 icons render as 4 on top + 1 on the bottom
+                     until more are added. -->
+                <div class="rr-sched-driver-actions" style="display:grid;grid-template-columns:repeat(4, auto);grid-auto-rows:auto;gap:4px;margin-left:auto;align-items:center;justify-items:center">
+                  <button class="rr-tf-icon" id="rr-sched-focus-toggle" type="button"
+                          title="Focus mode — hide chrome, expand schedule + open shifts"
+                          aria-label="Focus mode" aria-pressed="false"
+                          style="position:relative;top:0;right:0">
+                    <svg class="ic-focus-on" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 3 3 3 3 9"/><polyline points="15 3 21 3 21 9"/><polyline points="21 15 21 21 15 21"/><polyline points="3 15 3 21 9 21"/></svg>
+                    <svg class="ic-focus-off" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="3 9 9 9 9 3"/><polyline points="21 9 15 9 15 3"/><polyline points="15 21 15 15 21 15"/><polyline points="3 15 9 15 9 21"/></svg>
+                  </button>
+                  <button class="rr-tf-icon" id="rr-sched-compact-toggle" type="button"
+                          title="Compact rows — shrink row height to see more drivers"
+                          aria-label="Compact rows" aria-pressed="false"
+                          style="position:relative;top:0;right:0">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="15" x2="20" y2="15"/></svg>
+                  </button>
+                  <button class="rr-tf-icon" id="rr-sched-driver-sort-toggle" type="button"
+                          title="Sort drivers" aria-label="Sort drivers"
+                          style="position:relative;top:0;right:0">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="13" y2="6"/><line x1="3" y1="12" x2="11" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 8 21 12 17 16"/><line x1="14" y1="12" x2="21" y2="12"/></svg>
+                  </button>
+                  <!-- Show pinned only · same subtile-icon row as the
+                       focus / compact / sort buttons. Toggles a class on
+                       #view-schedule that dims every cell without an
+                       active pin. Click handler lives in live.js via
+                       window._rrToggleSchedPinnedOnly(). The standalone
+                       button this used to live in is no longer injected.
+                       -->
+                  <button class="rr-tf-icon" id="rr-sched-pinned-only-btn" type="button"
+                          title="Dim cells without an active pin so you can see your pinned coverage at a glance."
+                          aria-label="Show pinned only" aria-pressed="false"
+                          style="position:relative;top:0;right:0"
+                          onclick="window._rrToggleSchedPinnedOnly && window._rrToggleSchedPinnedOnly()">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l3 3.24-1 2H7l-1-2z"/></svg>
+                  </button>
+                  <!-- Staff view toggle · flips the grid from "every
+                       driver" to "only drivers with at least one
+                       assigned shift this week" so the operator can
+                       see just the staff actually working. Same grid,
+                       same chips, just a row-level filter. Click
+                       again to flip back. State stored in
+                       localStorage('rr-sched-staff-only'). -->
+                  <button class="rr-tf-icon" id="rr-sched-staff-view-toggle" type="button"
+                          title="Staff view — show only drivers with at least one shift this week"
+                          aria-label="Staff view" aria-pressed="false"
+                          style="position:relative;top:0;right:0">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3-3"/><path d="M22 8l-3 3"/></svg>
+                  </button>
+                </div>
               </div>
               <div class="cal-cell-head today">Tue<span class="day-num">1</span></div>
               <div class="cal-cell-head">Wed<span class="day-num">2</span></div>
