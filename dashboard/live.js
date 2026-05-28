@@ -24153,7 +24153,39 @@ document.addEventListener("click", (e) => {
     compactBtn.setAttribute("aria-pressed", on ? "true" : "false");
     return;
   }
+  // Staff view — hide every driver row that has zero assigned
+  // shifts this week (operator wants to see only staff actually
+  // working). CSS rule body.rr-sched-staff-only ... :has(...) does
+  // the actual filtering. Choice persists in localStorage so the
+  // operator's preferred mode survives reloads.
+  const staffBtn = e.target.closest("#rr-sched-staff-view-toggle");
+  if (staffBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const on = !document.body.classList.contains("rr-sched-staff-only");
+    document.body.classList.toggle("rr-sched-staff-only", on);
+    staffBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    try { localStorage.setItem("rr-sched-staff-only", on ? "1" : "0"); } catch (_) {}
+    return;
+  }
 });
+// Rehydrate the Staff-view preference on every page load so the
+// operator's previous choice sticks.
+(function _rrHydrateStaffOnly(){
+  let on = false;
+  try { on = localStorage.getItem("rr-sched-staff-only") === "1"; } catch (_) {}
+  if (!on) return;
+  const apply = () => {
+    document.body.classList.add("rr-sched-staff-only");
+    const btn = document.getElementById("rr-sched-staff-view-toggle");
+    if (btn) btn.setAttribute("aria-pressed", "true");
+  };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", apply, { once: true });
+  } else {
+    apply();
+  }
+})();
 
 // Escape exits focus mode — operator safety net so a stuck class
 // never traps the page chrome. Same pattern for the onboarding

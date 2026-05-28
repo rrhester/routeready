@@ -21204,6 +21204,19 @@ body.rr-cmdk-open{ overflow:hidden }
                         onclick="window._rrToggleSchedPinnedOnly && window._rrToggleSchedPinnedOnly()">
                   <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l3 3.24-1 2H7l-1-2z"/></svg>
                 </button>
+                <!-- Staff view toggle · flips the grid from "every
+                     driver" to "only drivers with at least one
+                     assigned shift this week" so the operator can
+                     see just the staff actually working. Same grid,
+                     same chips, just a row-level filter. Click
+                     again to flip back. State stored in
+                     localStorage('rr-sched-staff-only'). -->
+                <button class="rr-tf-icon" id="rr-sched-staff-view-toggle" type="button"
+                        title="Staff view — show only drivers with at least one shift this week"
+                        aria-label="Staff view" aria-pressed="false"
+                        style="position:relative;top:0;right:0">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3-3"/><path d="M22 8l-3 3"/></svg>
+                </button>
               </div>
               <div class="cal-cell-head today">Tue<span class="day-num">1</span></div>
               <div class="cal-cell-head">Wed<span class="day-num">2</span></div>

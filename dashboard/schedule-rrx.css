@@ -3147,3 +3147,21 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
 #view-schedule.rrx-schedule .cal-row-label-hours-word {
   color: var(--text-muted) !important;
 }
+
+/* Staff view toggle · when body.rr-sched-staff-only is set, hide
+   every driver row that has zero assigned shifts this week.
+   Operator wanted to flip the grid into a "who's actually
+   working" view without leaving the page. Uses :has() to detect
+   the absence of any assigned shift chip in the row — modern
+   browsers (Chrome 105+, Safari 15.4+, Firefox 121+) all support
+   it. The row stays in DOM; only its display is suppressed, so
+   flipping the toggle off restores everyone instantly. */
+body.rr-sched-staff-only #view-schedule.rrx-schedule .cal-grid:not(.head):not(:has(.shift-chip:not(.open):not(.off):not(.timeoff):not(.add-here):not(.swap))) {
+  display: none !important;
+}
+/* Active-state styling for the toggle button so the operator
+   can tell at a glance which mode the grid is in. */
+#rr-sched-staff-view-toggle[aria-pressed="true"] {
+  color: var(--sch-blue) !important;
+  background: var(--sch-blue-soft) !important;
+}
