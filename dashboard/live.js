@@ -29248,8 +29248,8 @@ document.addEventListener("click", (e) => {
   if (wfTab) {
     e.preventDefault();
     const wfMode = wfTab.getAttribute("data-wf-cmd-tab");
-    if (wfMode === "schedule" || wfMode === "intelligence" ||
-        wfMode === "roster"   || wfMode === "onboarding"   ||
+    if (wfMode === "schedule" ||
+        wfMode === "roster" || wfMode === "onboarding" ||
         wfMode === "fleet") {
       const dest =
         wfMode === "fleet" ? "fleet" :
@@ -29262,7 +29262,7 @@ document.addEventListener("click", (e) => {
         } else if (wfMode === "roster" || wfMode === "onboarding") {
           if (typeof _obCmdTab === "function") _obCmdTab(wfMode === "roster" ? "roster" : "ops");
         } else if (typeof _schedCmdTab === "function") {
-          _schedCmdTab(wfMode === "intelligence" ? "insights" : "schedule");
+          _schedCmdTab("schedule");
         }
         document.querySelectorAll(".nav-item[data-view].active").forEach((b) => b.classList.remove("active"));
         const schedNav = document.querySelector('.nav-item[data-view="schedule"]');
@@ -29287,7 +29287,7 @@ document.addEventListener("click", (e) => {
   if (obTab) {
     e.preventDefault();
     const obMode = obTab.getAttribute("data-ob-cmd-tab") || "ops";
-    if (obMode === "schedule" || obMode === "intelligence" || obMode === "fleet" || obMode === "workflows") {
+    if (obMode === "schedule" || obMode === "fleet" || obMode === "workflows") {
       const dest =
         obMode === "fleet"     ? "fleet" :
         obMode === "workflows" ? "forms" :
@@ -29297,7 +29297,7 @@ document.addEventListener("click", (e) => {
         if (obMode === "fleet") {
           if (typeof _flCmdTab === "function") _flCmdTab("fleet");
         } else if (obMode !== "workflows" && typeof _schedCmdTab === "function") {
-          _schedCmdTab(obMode === "intelligence" ? "insights" : "schedule");
+          _schedCmdTab("schedule");
         }
         document.querySelectorAll(".nav-item[data-view].active").forEach((b) => b.classList.remove("active"));
         const schedNav = document.querySelector('.nav-item[data-view="schedule"]');
@@ -46512,8 +46512,8 @@ document.addEventListener("click", (e) => {
     const flMode = tab.getAttribute("data-fl-cmd-tab");
     // Anything that isn't fleet/print navigates back to the
     // unified Schedule hub. Sidebar stays lit on Schedule.
-    if (flMode === "schedule"  || flMode === "intelligence" ||
-        flMode === "roster"    || flMode === "onboarding"   ||
+    if (flMode === "schedule" ||
+        flMode === "roster" || flMode === "onboarding" ||
         flMode === "workflows") {
       const dest =
         flMode === "workflows" ? "forms" :
@@ -46524,7 +46524,7 @@ document.addEventListener("click", (e) => {
         if (flMode === "roster" || flMode === "onboarding") {
           if (typeof _obCmdTab === "function") _obCmdTab(flMode === "roster" ? "roster" : "ops");
         } else if (flMode !== "workflows" && typeof _schedCmdTab === "function") {
-          _schedCmdTab(flMode === "intelligence" ? "insights" : "schedule");
+          _schedCmdTab("schedule");
         }
         document.querySelectorAll(".nav-item[data-view].active").forEach((b) => b.classList.remove("active"));
         const schedNav = document.querySelector('.nav-item[data-view="schedule"]');
