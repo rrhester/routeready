@@ -154,6 +154,20 @@
   --border-subtle:rgba(15,23,42,.08);
   --border-inverse:rgba(255,255,255,.10);
 
+  /* ── Route color coding (per route_classification) ────────────
+     One hex variable per route type. The Schedule chip rules in
+     schedule-rrx.css derive fill / border / shadow from these via
+     color-mix at the standard 22% / 65% / 22% opacities so the
+     DSP only has to pick ONE color per route in the Week-view
+     Rules popover. The popover writes overrides on :root via
+     setProperty so the colors persist per-browser. */
+  --rr-route-c-rescue:#dc2626;
+  --rr-route-c-nursery:#0d9488;
+  --rr-route-c-reduction:#ea580c;
+  --rr-route-c-cycle_1:#7c3aed;
+  --rr-route-c-cycle_2:#db2777;
+  --rr-route-c-backup:#64748b;
+
   /* ── Text ──────────────────────────────────────────────────── */
   --text:#0F172A;
   --text-muted:#475569;
@@ -14331,16 +14345,46 @@ body.rr-cmdk-open{ overflow:hidden }
                         <span style="font-size:13px;font-weight:600;color:#242424">Color-code chips by route type</span>
                       </label>
 
-                      <!-- Legend · only visible when the toggle is on,
-                           shows which color maps to which type. -->
-                      <div id="rr-sched-routecolor-legend" hidden style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px 12px;margin-top:10px;font:12px/1.4 var(--rr-font-family,'Segoe UI');color:var(--rr-fg-secondary,#605E5C)">
-                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(0,120,212,.22);border:1.5px solid rgba(0,120,212,.55);flex-shrink:0"></span>Standard</div>
-                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(220,38,38,.22);border:1.5px solid rgba(220,38,38,.65);flex-shrink:0"></span>Rescue</div>
-                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(13,148,136,.22);border:1.5px solid rgba(13,148,136,.65);flex-shrink:0"></span>Nursery</div>
-                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(234,88,12,.22);border:1.5px solid rgba(234,88,12,.65);flex-shrink:0"></span>Reduction</div>
-                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(124,58,237,.22);border:1.5px solid rgba(124,58,237,.65);flex-shrink:0"></span>Cycle 1</div>
-                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(219,39,119,.22);border:1.5px solid rgba(219,39,119,.65);flex-shrink:0"></span>Cycle 2</div>
-                        <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:3px;background:rgba(100,116,139,.24);border:1.5px solid rgba(100,116,139,.65);flex-shrink:0"></span>Backup</div>
+                      <!-- Picker grid · only visible when the toggle is on.
+                           Each row lets the DSP pick the hex color used
+                           for that route type. Native <input type="color">
+                           is plenty here — no popup, just the OS picker. -->
+                      <div id="rr-sched-routecolor-legend" hidden style="display:flex;flex-direction:column;gap:6px;margin-top:10px;font:12px/1.4 var(--rr-font-family,'Segoe UI');color:var(--rr-fg-secondary,#605E5C)">
+                        <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
+                          <span style="width:14px;height:14px;border-radius:3px;background:rgba(0,120,212,.22);border:1.5px solid rgba(0,120,212,.55);flex-shrink:0"></span>
+                          <span style="flex:1">Standard</span>
+                          <span style="color:#9A9A9A;font-size:11px">(no override)</span>
+                        </div>
+                        <label class="rr-rcp-row" data-rr-route="rescue"    style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF;cursor:pointer">
+                          <input type="color" data-rr-route-picker="rescue" style="width:24px;height:24px;border:0;padding:0;background:none;cursor:pointer;flex-shrink:0" />
+                          <span style="flex:1">Rescue</span>
+                          <button type="button" data-rr-route-reset="rescue" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button>
+                        </label>
+                        <label class="rr-rcp-row" data-rr-route="nursery"   style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF;cursor:pointer">
+                          <input type="color" data-rr-route-picker="nursery" style="width:24px;height:24px;border:0;padding:0;background:none;cursor:pointer;flex-shrink:0" />
+                          <span style="flex:1">Nursery</span>
+                          <button type="button" data-rr-route-reset="nursery" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button>
+                        </label>
+                        <label class="rr-rcp-row" data-rr-route="reduction" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF;cursor:pointer">
+                          <input type="color" data-rr-route-picker="reduction" style="width:24px;height:24px;border:0;padding:0;background:none;cursor:pointer;flex-shrink:0" />
+                          <span style="flex:1">Reduction</span>
+                          <button type="button" data-rr-route-reset="reduction" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button>
+                        </label>
+                        <label class="rr-rcp-row" data-rr-route="cycle_1"   style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF;cursor:pointer">
+                          <input type="color" data-rr-route-picker="cycle_1" style="width:24px;height:24px;border:0;padding:0;background:none;cursor:pointer;flex-shrink:0" />
+                          <span style="flex:1">Cycle 1</span>
+                          <button type="button" data-rr-route-reset="cycle_1" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button>
+                        </label>
+                        <label class="rr-rcp-row" data-rr-route="cycle_2"   style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF;cursor:pointer">
+                          <input type="color" data-rr-route-picker="cycle_2" style="width:24px;height:24px;border:0;padding:0;background:none;cursor:pointer;flex-shrink:0" />
+                          <span style="flex:1">Cycle 2</span>
+                          <button type="button" data-rr-route-reset="cycle_2" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button>
+                        </label>
+                        <label class="rr-rcp-row" data-rr-route="backup"    style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF;cursor:pointer">
+                          <input type="color" data-rr-route-picker="backup" style="width:24px;height:24px;border:0;padding:0;background:none;cursor:pointer;flex-shrink:0" />
+                          <span style="flex:1">Backup</span>
+                          <button type="button" data-rr-route-reset="backup" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button>
+                        </label>
                       </div>
                     </fieldset>
 
@@ -14348,23 +14392,91 @@ body.rr-cmdk-open{ overflow:hidden }
                       (function () {
                         if (window.__rrRouteColorWired) return;
                         window.__rrRouteColorWired = true;
-                        var KEY = "rr-sched-routecolor";
-                        function apply(on) {
+                        var ON_KEY = "rr-sched-routecolor";
+                        var HEX_KEY = "rr-sched-routecolor-hex";
+                        // Defaults must match the :root vars in index.html
+                        // and the original schedule-rrx.css palette so a
+                        // first-time DSP sees the same colors they had
+                        // before the picker existed.
+                        var DEFAULTS = {
+                          rescue:    "#dc2626",
+                          nursery:   "#0d9488",
+                          reduction: "#ea580c",
+                          cycle_1:   "#7c3aed",
+                          cycle_2:   "#db2777",
+                          backup:    "#64748b",
+                        };
+                        function loadHex() {
+                          try {
+                            var raw = localStorage.getItem(HEX_KEY);
+                            if (!raw) return Object.assign({}, DEFAULTS);
+                            var parsed = JSON.parse(raw);
+                            return Object.assign({}, DEFAULTS, parsed && typeof parsed === "object" ? parsed : {});
+                          } catch (e) { return Object.assign({}, DEFAULTS); }
+                        }
+                        function saveHex(map) {
+                          try { localStorage.setItem(HEX_KEY, JSON.stringify(map)); } catch (e) {}
+                        }
+                        function applyColor(route, hex) {
+                          document.documentElement.style.setProperty("--rr-route-c-" + route, hex);
+                        }
+                        function applyAll(map) {
+                          Object.keys(DEFAULTS).forEach(function (k) {
+                            applyColor(k, map[k] || DEFAULTS[k]);
+                          });
+                        }
+                        function syncPickers(map) {
+                          Object.keys(DEFAULTS).forEach(function (k) {
+                            var el = document.querySelector('[data-rr-route-picker="' + k + '"]');
+                            if (el) el.value = map[k] || DEFAULTS[k];
+                          });
+                        }
+                        function applyToggle(on) {
                           document.body.classList.toggle("rr-sched-color-routes", !!on);
                           var legend = document.getElementById("rr-sched-routecolor-legend");
                           if (legend) legend.hidden = !on;
                         }
+                        // Initial state — colors apply regardless of the
+                        // toggle so if the operator turns coloring on
+                        // later they see their saved palette instantly.
+                        var current = loadHex();
+                        applyAll(current);
                         var stored = null;
-                        try { stored = localStorage.getItem(KEY); } catch (e) {}
+                        try { stored = localStorage.getItem(ON_KEY); } catch (e) {}
                         var on = stored === "1";
                         var cb = document.getElementById("rr-sched-routecolor-on");
                         if (cb) cb.checked = on;
-                        apply(on);
+                        applyToggle(on);
+                        setTimeout(function () { syncPickers(current); }, 0);
+                        // Toggle on/off
                         document.addEventListener("change", function (e) {
-                          if (!e.target || e.target.id !== "rr-sched-routecolor-on") return;
-                          var v = e.target.checked;
-                          try { localStorage.setItem(KEY, v ? "1" : "0"); } catch (er) {}
-                          apply(v);
+                          var t = e.target;
+                          if (!t) return;
+                          if (t.id === "rr-sched-routecolor-on") {
+                            var v = !!t.checked;
+                            try { localStorage.setItem(ON_KEY, v ? "1" : "0"); } catch (er) {}
+                            applyToggle(v);
+                            return;
+                          }
+                          var route = t.getAttribute && t.getAttribute("data-rr-route-picker");
+                          if (route && DEFAULTS[route]) {
+                            current[route] = t.value;
+                            saveHex(current);
+                            applyColor(route, t.value);
+                          }
+                        });
+                        // Per-row reset button — restore that route to its default
+                        document.addEventListener("click", function (e) {
+                          var btn = e.target && e.target.closest && e.target.closest("[data-rr-route-reset]");
+                          if (!btn) return;
+                          e.preventDefault();
+                          var route = btn.getAttribute("data-rr-route-reset");
+                          if (!DEFAULTS[route]) return;
+                          current[route] = DEFAULTS[route];
+                          saveHex(current);
+                          applyColor(route, DEFAULTS[route]);
+                          var p = document.querySelector('[data-rr-route-picker="' + route + '"]');
+                          if (p) p.value = DEFAULTS[route];
                         });
                       })();
                     </script>
