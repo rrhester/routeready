@@ -24143,14 +24143,39 @@ document.addEventListener("click", (e) => {
     focusBtn.setAttribute("aria-pressed", on ? "true" : "false");
     return;
   }
-  // Compact rows — ~25% shorter rows so more drivers fit on screen.
+  // Density cycle — Standard → Compact → Ultra-compact → Standard.
+  // The DRIVER-header icon now cycles through ALL THREE grid-density
+  // modes (was a binary Standard/Compact toggle). Shares the same
+  // `rr-sched-density` localStorage key + body classes as the Week-
+  // rules density picker, and syncs that picker's radios, so the two
+  // controls stay in lockstep.
   const compactBtn = e.target.closest("#rr-sched-compact-toggle");
   if (compactBtn) {
     e.preventDefault();
     e.stopPropagation();
-    const on = !document.body.classList.contains("rr-sched-compact");
-    document.body.classList.toggle("rr-sched-compact", on);
-    compactBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    const ORDER = ["standard", "compact", "ultra"];
+    const cur = document.body.classList.contains("rr-sched-ultra-compact")
+      ? "ultra"
+      : document.body.classList.contains("rr-sched-compact")
+        ? "compact"
+        : "standard";
+    const next = ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length];
+    document.body.classList.remove("rr-sched-compact", "rr-sched-ultra-compact");
+    if (next === "compact")      document.body.classList.add("rr-sched-compact");
+    else if (next === "ultra")   document.body.classList.add("rr-sched-ultra-compact");
+    try { localStorage.setItem("rr-sched-density", next); } catch (_) {}
+    // Keep the Week-rules density radios in sync.
+    document.querySelectorAll('input[name="rr-sched-density"]').forEach((r) => {
+      r.checked = (r.value === next);
+    });
+    const TITLE = {
+      standard: "Grid density: Standard — click for Compact",
+      compact:  "Grid density: Compact — click for Ultra-compact",
+      ultra:    "Grid density: Ultra-compact — click for Standard",
+    };
+    compactBtn.setAttribute("aria-pressed", next === "standard" ? "false" : "true");
+    compactBtn.title = TITLE[next];
+    compactBtn.setAttribute("aria-label", "Grid density: " + next + " (click to cycle)");
     return;
   }
   // Staff view — operator wants to STAY on the Week's .cal-grid
