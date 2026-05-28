@@ -20638,13 +20638,26 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:none;
           }
 
-          /* ── Right rail · driver pool ────────────────────────── */
+          /* ── Right rail · driver pool ──────────────────────────
+             Operator wanted the Open shifts box flush with the
+             top of the schedule grid and running through to the
+             bottom of the viewport. Sticky top:0 + max-height
+             100vh + align-self:stretch on the grid item make
+             the whole column claim the available vertical run.
+             #view-schedule .builder-shell{align-items:start} was
+             also fighting the stretch — we re-enable it via the
+             selector below. */
           #view-schedule .sched-right-rail{
             display:flex;flex-direction:column;gap:var(--s-3);
-            position:sticky;top:80px;
-            max-height:calc(100vh - 100px);overflow-y:auto;
+            position:sticky;top:0;
+            max-height:100vh;height:100vh;overflow-y:auto;
+            align-self:stretch;
             scrollbar-width:thin;scrollbar-color:var(--sch-line-strong) transparent;
           }
+          /* Make the .builder-shell grid item align-stretch so the
+             rail can fill its parent row even when the .cal-wrap
+             body is shorter than the viewport. */
+          #view-schedule .builder-shell{align-items:stretch !important}
           #view-schedule .driver-pool{
             background:var(--sch-surface);
             border:1px solid var(--sch-line);
