@@ -747,12 +747,12 @@ textarea,
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
-  /* Operator-chosen midnight steel — #2C4567. Subtle vertical
+  /* Operator-chosen slate blue — #344154. Subtle vertical
      gradient (a few percent darker at the bottom) keeps the
      soft depth the original Fluent blue had without reading
      as a marketing flourish. */
-  --sidebar:#2C4567;
-  --sidebar-grad:linear-gradient(180deg, #2C4567 0%, #243A57 100%);
+  --sidebar:#344154;
+  --sidebar-grad:linear-gradient(180deg, #344154 0%, #2B3645 100%);
   --sidebar-hover:rgba(255,255,255,.09);
   --sidebar-active:rgba(255,255,255,.12);
   --sidebar-divider:rgba(255,255,255,.11);
@@ -1032,14 +1032,14 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .main{display:flex;flex-direction:column;min-width:0;background:var(--canvas)}
 
 /* Topbar = sidebar color · operator wants the chrome to read as
-   one continuous midnight-steel frame, not a light pill on top
-   of a dark rail. Paints the topbar permanently in #2C4567 to
+   one continuous slate-blue frame, not a light pill on top
+   of a dark rail. Paints the topbar permanently in #344154 to
    match the sidebar; text + icons + Ask pill + Undo + Settings
    all flip to readable inverse colors. (The old
    body.rr-header-dark gate was made unconditional — the palette
    icon is no longer needed to apply the dark header.) */
 .topbar{
-  background:#2C4567 !important;
+  background:#344154 !important;
   -webkit-backdrop-filter:none !important;
   backdrop-filter:none !important;
   border-bottom-color:rgba(255,255,255,.08) !important;
@@ -9979,7 +9979,7 @@ body.rr-cmdk-open{ overflow:hidden }
         </button>
       </form>
       <!-- Header theme toggle · flips the topbar to the same
-           midnight-steel (#2C4567) as the sidebar so the chrome
+           slate-blue (#344154) as the sidebar so the chrome
            reads as one cohesive frame. Persists in
            localStorage('rr-header-dark'). -->
       <button class="hdr-refresh" id="rr-hdr-theme-toggle" type="button"
