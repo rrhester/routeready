@@ -1063,8 +1063,24 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .topbar .hdr-undo,
 .topbar .hdr-undo-caret,
 .topbar .topbar-settings{
-  border-color:rgba(255,255,255,.22) !important;
-  background:rgba(255,255,255,.06) !important;
+  background:rgba(255,255,255,.14) !important;
+  border-color:rgba(255,255,255,.35) !important;
+  color:#fff !important;
+  box-shadow:none !important;
+}
+.topbar .topbar-settings,
+.topbar .topbar-settings span,
+.topbar .hdr-undo,
+.topbar .hdr-undo span{
+  color:#fff !important;
+}
+/* Disabled Undo · operator screenshot showed it nearly invisible
+   because the base rule drops opacity to 0.5 over a barely-tinted
+   surface. Bumping opacity floor so it still reads as a chip on
+   the dark background. */
+.topbar .hdr-undo:disabled,
+.topbar .hdr-undo-caret:disabled{
+  opacity:.78 !important;
 }
 /* Ask RouteReady pill · solid white surface so the search bar
    reads as the primary call-to-action against the dark topbar.
