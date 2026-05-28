@@ -16538,11 +16538,30 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:8px 12px;border-radius:var(--r-md);cursor:pointer;
             transition:color var(--t-fast), background var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
           }
-          #view-schedule .sched-page-btn svg{width:15px;height:15px;flex-shrink:0;color:var(--text-subtle)}
+          /* Icon-strip glyphs · operator wants darker + thinner.
+             Color goes to --text (slate-900) so each glyph reads
+             confidently. Stroke width drops to 1.3 via CSS — the
+             SVG markup has 1.6-1.9, the CSS override wins. Both
+             the legacy .sched-page-btn buttons and the V2 tiles
+             (the visible strip on the schedule page) get the
+             same treatment. */
+          #view-schedule .sched-page-btn svg,
+          #view-schedule .sched-v2-tile svg,
+          #view-schedule .sched-v2-split svg,
+          #view-schedule .sched-week-split svg{
+            color:var(--text) !important;
+            stroke-width:1.3 !important;
+          }
+          #view-schedule .sched-page-btn svg{width:15px;height:15px;flex-shrink:0}
           #view-schedule .sched-page-btn:hover{
             color:var(--text);background:var(--canvas);border-color:var(--border-strong);
           }
-          #view-schedule .sched-page-btn:hover svg{color:var(--text-muted)}
+          /* Hover lifts the stroke slightly so the focused icon
+             reads as actively engaged. */
+          #view-schedule .sched-page-btn:hover svg,
+          #view-schedule .sched-v2-tile:hover svg{
+            stroke-width:1.5 !important;
+          }
           #view-schedule .sched-page-btn:focus-visible{outline:none;box-shadow:var(--ring-focus)}
 
           /* ── Subnav + week navigator row ───────────────────────────
