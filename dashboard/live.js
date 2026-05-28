@@ -12461,23 +12461,17 @@ async function refreshDriverStatRow(rows) {
     turnoverPct, turnoverPriorPct, turnoverDelta,
   };
 
-  const tiles = document.querySelectorAll(".driver-stat-row .stat-mini");
-  if (tiles.length >= 5) {
-    setStatTile(tiles[0], "Active", counts.active, `${counts.onboarding} onboarding · ${inactiveTotal} inactive`);
-    setStatTile(tiles[1], "Avg score", avgScore,
-      scored.length === 0 ? "No driver scores yet" : `Across ${scored.length} scored driver${scored.length === 1 ? "" : "s"}`);
-    setStatTile(tiles[2], "At risk", atRiskCount, "Active drivers below 70");
-    setStatTile(tiles[3], "Avg tenure",
+  const tiles = document.querySelectorAll("#rr-roster-insights .stat-mini");
+  if (tiles.length >= 3) {
+    setStatTile(tiles[0], "Active drivers", counts.active,
+      counts.onboarding ? `${counts.onboarding} onboarding` : "—");
+    setStatTile(tiles[1], "Drivers on LOA", counts.leave || 0,
+      counts.leave ? "Currently on leave" : "None on leave");
+    setStatTile(tiles[2], "Avg tenure",
       avgTenure == null ? "—" : `${avgTenure.toFixed(1)} mo`,
       avgTenure == null
         ? "Set hire dates to see tenure"
         : `Median ${medianTenure.toFixed(0)} mo · longest ${(longestMonths / 12).toFixed(1)} yr`);
-    const winLabel = winDays === 365 ? "1 yr" : `${winDays}d`;
-    setStatTile(tiles[4], "Turnover",
-      `${turnoverPct.toFixed(0)}%`,
-      termsLastWin.length === 0
-        ? `0 terms in last ${winLabel}`
-        : `${termsLastWin.length} term${termsLastWin.length === 1 ? "" : "s"} last ${winLabel} · ${turnoverDelta >= 0 ? "+" : ""}${turnoverDelta.toFixed(1)}% vs prior`);
   }
 
   // Re-render the open drilldown if one was active.
