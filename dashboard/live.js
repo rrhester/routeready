@@ -4067,6 +4067,23 @@ function renderDriverTable(rows, error) {
       <th>App</th>
       <th></th>`;
   } else {
+    // Detach the existing search wrapper BEFORE the innerHTML
+    // rebuild — otherwise the in-thead copy gets blown away and the
+    // source in .dr-roster-bar is also empty (we already moved it
+    // out on a previous render), so the search input vanishes after
+    // the first re-render (e.g. typing one character triggers the
+    // 120ms-debounced re-render which then deletes the input
+    // mid-keystroke). Capture focus + caret so the operator can keep
+    // typing without their cursor jumping.
+    const existingSearchInput = document.getElementById("rr-roster-search");
+    const detachedSearchWrap  = existingSearchInput ? existingSearchInput.closest(".dr-search") : null;
+    const searchWasFocused    = existingSearchInput && document.activeElement === existingSearchInput;
+    const searchCaretStart    = searchWasFocused ? existingSearchInput.selectionStart : null;
+    const searchCaretEnd      = searchWasFocused ? existingSearchInput.selectionEnd   : null;
+    if (detachedSearchWrap && detachedSearchWrap.parentNode) {
+      detachedSearchWrap.parentNode.removeChild(detachedSearchWrap);
+    }
+
     thead.innerHTML = cbHeader + `
       <th class="rr-roster-th-driver">
         <span class="rr-roster-th-driver-label" data-rr-roster-sort="name" style="cursor:pointer;user-select:none">Driver${caret("name")}</span>
@@ -4079,14 +4096,18 @@ function renderDriverTable(rows, error) {
       <th>App</th>
       <th></th>`;
     thead.dataset.rrColCount = "8";
-    // Relocate the existing search input (still wired with its
-    // change/input handlers in the hidden .dr-roster-bar) into the
-    // Driver header cell. appendChild moves the DOM node; the
-    // handlers come along untouched.
+
+    // Re-attach the search wrapper into the new search slot. Fall
+    // back to the still-hidden .dr-roster-bar source on the very
+    // first render before we've ever moved it.
     const searchSlot = thead.querySelector(".rr-roster-th-search-slot");
-    const searchWrap = document.querySelector(".dr-roster-bar .dr-search");
-    if (searchSlot && searchWrap && searchSlot.firstChild !== searchWrap) {
+    const searchWrap = detachedSearchWrap || document.querySelector(".dr-roster-bar .dr-search");
+    if (searchSlot && searchWrap) {
       searchSlot.appendChild(searchWrap);
+      if (searchWasFocused && existingSearchInput) {
+        existingSearchInput.focus();
+        try { existingSearchInput.setSelectionRange(searchCaretStart, searchCaretEnd); } catch (_) {}
+      }
     }
   }
 
