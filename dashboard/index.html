@@ -4170,9 +4170,61 @@ select.form-input{
 }
 
 /* ── Driver-app preview (read-only "what's on their app", in a phone) ─ */
-.dr-app-btn{appearance:none;background:transparent;border:1px solid transparent;border-radius:var(--r-md);color:var(--text-subtle);cursor:pointer;padding:5px;display:inline-flex;align-items:center;justify-content:center;transition:background var(--t-fast),color var(--t-fast),border-color .12s}
-.dr-app-btn:hover{background:var(--surface-hover);color:var(--accent-text);border-color:var(--border)}
-.dr-app-btn svg{width:15px;height:15px;stroke-width:2}
+/* App-view trigger · the phone-shaped button on every driver row.
+   Previously read as a stray decorative icon; now sized + filled like
+   a real action button so the operator pattern-matches it as
+   clickable. Small status dot (rendered via ::after) lives in the
+   top-right of the phone screen — color set by data-rr-app-state on
+   the button: 'on' = green, 'invited' = amber, 'none' = gray dot
+   hidden. */
+.dr-app-btn{
+  appearance:none;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  position:relative;
+  width:30px;height:30px;
+  padding:0;
+  border:1px solid rgba(15,23,42,.10);
+  border-radius:8px;
+  background:rgba(248,250,252,.6);
+  color:var(--text-muted);
+  box-shadow:inset 0 -1px 0 rgba(15,23,42,.04);
+  transition:background var(--t-fast),color var(--t-fast),
+             border-color var(--t-fast),box-shadow var(--t-fast),
+             transform var(--t-fast);
+}
+.dr-app-btn:hover{
+  background:#fff;color:var(--accent);
+  border-color:var(--accent-border);
+  box-shadow:0 1px 3px rgba(15,23,42,.08),
+             inset 0 -1px 0 rgba(15,23,42,.04);
+  transform:translateY(-0.5px);
+}
+.dr-app-btn:active{transform:translateY(0);box-shadow:inset 0 1px 2px rgba(15,23,42,.06)}
+.dr-app-btn:focus-visible{
+  outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);
+}
+.dr-app-btn svg{
+  width:16px;height:16px;stroke-width:1.6;
+  color:inherit;
+}
+/* Status dot · sits in the top-right corner of the button (over the
+   phone's "screen"). Hidden by default; data-rr-app-state="on" or
+   "invited" turns it on. */
+.dr-app-btn::after{
+  content:"";position:absolute;
+  top:5px;right:5px;
+  width:6px;height:6px;border-radius:50%;
+  background:transparent;
+  box-shadow:0 0 0 1.5px #fff;
+  transition:background var(--t-fast);
+}
+.dr-app-btn[data-rr-app-state="on"]::after{background:var(--green)}
+.dr-app-btn[data-rr-app-state="invited"]::after{background:var(--amber)}
+.dr-app-btn[data-rr-app-state="none"]::after,
+.dr-app-btn:not([data-rr-app-state])::after{
+  background:transparent;box-shadow:none;
+}
 .dapp-modal{position:fixed;inset:0;z-index:10024;background:var(--overlay-soft);display:flex;align-items:center;justify-content:center;padding:var(--s-6)}
 .dapp-phone{position:relative;width:344px;max-width:92vw;height:min(728px,90vh);background:#fff;border-radius:42px;display:flex;flex-direction:column;overflow:hidden;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);box-shadow:0 30px 64px rgba(0,0,0,.32),0 0 0 10px #1C2230,0 0 0 11px #2A3140}
 .dapp-island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:104px;height:30px;background:#0C0F17;border-radius:var(--r-2xl);z-index:5}
