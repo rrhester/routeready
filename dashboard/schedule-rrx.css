@@ -1975,20 +1975,24 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   outline-offset: 1px;
 }
 
-/* Smart Fill — subtle resting AI glow so the tile reads as
-   special before any click. */
+/* Smart Fill — vibrant resting AI glow. Operator wanted the tile
+   to feel more present at rest, not blend into the rest of the
+   action strip. Bumped both stops in the gradient ~75% so the
+   indigo→pink wash reads as a clear "this tile is special"
+   surface, and pushed the icon color from indigo-500 to
+   indigo-600 so the bolt punches harder against the gradient. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.10), rgba(236, 72, 153, 0.10));
-  color: #5B21B6;
-}
-
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:hover {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(236, 72, 153, 0.18));
   color: #4C1D95;
 }
 
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.30), rgba(236, 72, 153, 0.30));
+  color: #3B0764;
+}
+
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile svg {
-  color: #6366F1;
+  color: #4F46E5;
 }
 
 /* ── Spin animation (Smart Fill + Unassign click feedback) ── */
