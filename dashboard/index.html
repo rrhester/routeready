@@ -332,6 +332,37 @@
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;padding:0}
 
+/* Persistent page scrollbar · operator wanted the browser
+   scrollbar to stay on screen at all times, not auto-hide while
+   idle (macOS default). Forces html-level overflow-y:scroll so
+   the gutter is always reserved, and styles the webkit scrollbar
+   as a quiet rail. Firefox honors the scrollbar-color hint. */
+html{
+  overflow-y:scroll !important;
+  scrollbar-gutter:stable;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(15,23,42,.22) transparent;
+}
+html::-webkit-scrollbar{
+  width:11px;height:11px;background:transparent;-webkit-appearance:none;
+}
+html::-webkit-scrollbar-track{
+  background:rgba(15,23,42,.03);
+  border-left:1px solid rgba(15,23,42,.06);
+}
+html::-webkit-scrollbar-thumb{
+  background:rgba(15,23,42,.22);
+  border-radius:6px;
+  border:2px solid transparent;
+  background-clip:padding-box;
+  transition:background var(--t-fast);
+}
+html::-webkit-scrollbar-thumb:hover{
+  background:rgba(15,23,42,.36);
+  background-clip:padding-box;
+}
+html::-webkit-scrollbar-corner{background:transparent}
+
 /* Global icon refinement · operator wanted the dashboard's icons
    to read consistently darker + thinner everywhere, matching what
    we already shipped for the Schedule action strip. Line icons
