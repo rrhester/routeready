@@ -27767,6 +27767,48 @@ document.addEventListener("click", (e) => {
   _toggleAttRules(false);
 });
 
+// License renewals rules popover · same flyout pattern as the
+// Attendance policy popover. Moved here from Settings → License
+// renewals. Prefills the form (rr-lic-* fields) on first open via the
+// existing _rrPrefillLicenseSettings(); the save handler
+// ([data-rr-lic-save]) is document-delegated so it works unchanged.
+let _licRulesLoaded = false;
+function _toggleLicRules(force) {
+  const pop = document.getElementById("rr-lic-rules-popover");
+  const toggle = document.getElementById("rr-lic-rules-toggle");
+  if (!pop) return false;
+  const next = (typeof force === "boolean") ? force : pop.hidden;
+  pop.hidden = !next;
+  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  if (next && !_licRulesLoaded) {
+    _licRulesLoaded = true;
+    if (typeof _rrPrefillLicenseSettings === "function") {
+      try { _rrPrefillLicenseSettings(); } catch (err) { console.warn("prefill license settings:", err); }
+    }
+  } else if (next) {
+    // Re-sync on every open so a save elsewhere is reflected.
+    if (typeof _rrPrefillLicenseSettings === "function") {
+      try { _rrPrefillLicenseSettings(); } catch (_) {}
+    }
+  }
+  return next;
+}
+window._rrToggleLicRules = _toggleLicRules;
+document.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("#rr-lic-rules-toggle")) {
+    e.preventDefault();
+    e.stopPropagation();
+    _toggleLicRules();
+    return;
+  }
+  // Outside-click closes it (clicks inside the popover or on the
+  // toggle are ignored so interacting with the form stays open).
+  const pop = document.getElementById("rr-lic-rules-popover");
+  if (!pop || pop.hidden) return;
+  if (e.target.closest && (e.target.closest("#rr-lic-rules-popover") || e.target.closest("#rr-lic-rules-toggle"))) return;
+  _toggleLicRules(false);
+});
+
 // Roster display rules popover · table density picker
 // (Standard / Compact / Ultra-compact) wired to the same body-class
 // pattern as the Schedule density picker. Persisted in
