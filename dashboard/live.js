@@ -37861,20 +37861,35 @@ function bindSchedWeekNav() {
           <div class="modal-body" id="rr-cov-kpi-body">${bodyHtml}</div>
         </div>`;
       document.body.appendChild(m);
-      // Anchor the card over the KPI pill (top-left aligned, clamped to
-      // the viewport) instead of centering it on screen.
+      // Anchor the card over the KPI pill, clamped to the viewport on
+      // both axes so the whole box stays visible (raise it up when it
+      // would run off the bottom; scroll internally if it's taller than
+      // the screen) instead of centering it.
       const card = m.querySelector("#rr-cov-kpi-card");
       const a = anchorEl || document.querySelector('[data-rr-kpi="coverage"]');
       if (card && a) {
+        const M = 12;                       // viewport margin
         const r = a.getBoundingClientRect();
-        const cw = card.offsetWidth || 480;
-        let left = r.left;
-        if (left + cw > window.innerWidth - 12) left = window.innerWidth - cw - 12;
-        if (left < 12) left = 12;
+        const vh = window.innerHeight;
         card.style.position = "fixed";
         card.style.margin = "0";
+        // Cap height to the viewport so a tall card scrolls inside itself.
+        card.style.maxHeight = (vh - M * 2) + "px";
+        card.style.overflowY = "auto";
+        // Horizontal: align to the pill, clamp to viewport.
+        const cw = card.offsetWidth || 480;
+        let left = r.left;
+        if (left + cw > window.innerWidth - M) left = window.innerWidth - cw - M;
+        if (left < M) left = M;
         card.style.left = left + "px";
-        card.style.top = (r.bottom + 6) + "px";
+        // Vertical: prefer just below the pill; if it would overflow the
+        // bottom, lift it so the bottom sits at the viewport edge; never
+        // go above the top margin.
+        const ch = card.offsetHeight || 0;
+        let top = r.bottom + 6;
+        if (top + ch > vh - M) top = vh - M - ch;
+        if (top < M) top = M;
+        card.style.top = top + "px";
       }
     };
 
