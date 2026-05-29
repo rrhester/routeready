@@ -35945,7 +35945,27 @@ async function renderScheduleWeek() {
     filled: totalFilled,
     needed: totalNeeded,
     weekStart: _schedStart,
+    // RouteReady capacity-reliability model. "Routes" = the weekly route
+    // demand set on the Targets page (sum of okami_demand.target_routes
+    // across the week). Recommended driver headcount = routes × 2, then
+    // +15% buffer to absorb call-offs / extenuating circumstances.
+    // RR recommends scheduling OT (the 5th-day pass) to reach the 115%
+    // target and avoid Capacity Reliability Concerns.
+    weeklyRoutes: (() => { let r = 0; for (const n of plannedByDate.values()) r += n; return r; })(),
   };
+  window._rrLiveSchedCoverage.driverTarget115 =
+    Math.ceil(window._rrLiveSchedCoverage.weeklyRoutes * 2 * 1.15);
+  // Distinct active drivers with at least one scheduled (non-training)
+  // shift this week — the headcount we compare against the 115% target.
+  window._rrLiveSchedCoverage.scheduledDrivers = (() => {
+    const ids = new Set();
+    for (const sh of (grid.shifts || [])) {
+      if (!["scheduled", "completed"].includes(sh.status)) continue;
+      if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
+      if (sh.driver_id && visibleDriverIds.has(sh.driver_id)) ids.add(sh.driver_id);
+    }
+    return ids.size;
+  })();
   // Stash the strip's Preferred metrics too so the Improve
   // Preferred drill-down can match — same pattern as the
   // _rrLiveSchedCoverage stash above. Operator caught a
@@ -37636,7 +37656,37 @@ function bindSchedWeekNav() {
         const stripUnstaffed = (live && live.weekStart === payload.schedule_week_start)
           ? Math.max(0, (live.needed || 0) - (live.filled || 0))
           : (baseUncov != null ? baseUncov : null);
-        if (stripUnstaffed != null) {
+        // ── Capacity Reliability model ───────────────────────────────
+        // RouteReady recommends staffing to at least 115% of route demand
+        // to absorb call-offs and other extenuating circumstances, and
+        // recommends scheduling OT (the 5th-day pass) to reach it.
+        //   Routes (from Targets) × 2 = drivers needed, then +15% buffer.
+        const _routes = (live && live.weekStart === payload.schedule_week_start)
+          ? (live.weeklyRoutes || 0) : 0;
+        const _driverTarget = (live && live.driverTarget115 != null)
+          ? live.driverTarget115 : Math.ceil(_routes * 2 * 1.15);
+        const _scheduledDrivers = (live && live.scheduledDrivers != null)
+          ? live.scheduledDrivers : null;
+        if (_routes > 0) {
+          const baseDrivers = _routes * 2;
+          const shortBy = _scheduledDrivers != null
+            ? Math.max(0, _driverTarget - _scheduledDrivers) : null;
+          const headline = (shortBy != null && shortBy === 0)
+            ? `Capacity reliable · ${_driverTarget}+ drivers scheduled`
+            : (shortBy != null
+              ? `Short ${shortBy} driver${shortBy === 1 ? "" : "s"} of the 115% target`
+              : `Target: ${_driverTarget} drivers (115%)`);
+          const sched = _scheduledDrivers != null
+            ? `<strong>${_scheduledDrivers}</strong> scheduled · ` : "";
+          neededHtml =
+            `<div class="rr-cov-needed">` +
+              `<div class="rr-cov-needed-big">${headline}</div>` +
+              `<div class="rr-cov-needed-sub">RouteReady recommends staffing to at least <strong>115%</strong> of route demand to mitigate call-offs and other extenuating circumstances — schedule overtime to meet this threshold and avoid Capacity Reliability Concerns.</div>` +
+              `<div class="rr-cov-needed-sub" style="margin-top:6px">${_routes} routes this week × 2 = ${baseDrivers} drivers, +15% buffer = <strong>${_driverTarget}</strong> recommended. ${sched}Target <strong>${_driverTarget}</strong>.</div>` +
+            `</div>`;
+        } else if (stripUnstaffed != null) {
+          // No Targets route plan recorded — fall back to the shift-gap
+          // estimate so the drill-down still reads sensibly.
           if (stripUnstaffed === 0) {
             neededHtml = `<div class="rr-cov-needed"><div class="rr-cov-needed-big">Fully staffed</div>` +
               `<div class="rr-cov-needed-sub">Every shift on the board is covered at your current settings — no additional drivers needed.</div></div>`;
@@ -37680,16 +37730,24 @@ function bindSchedWeekNav() {
         // pass gives drivers who opted into a 5th day one open shift
         // each, with the DSP's approval (the button). It respects the
         // DSP's own WOC settings — consecutive-days and weekly-hour cap.
+        // Offer the 5th-day pass whenever staffing is short of the 115%
+        // capacity-reliability target (or, with no Targets plan, when
+        // coverage is under 100%).
+        const _belowTarget = (_routes > 0 && _scheduledDrivers != null)
+          ? (_scheduledDrivers < _driverTarget)
+          : (baseCov != null && baseCov < 100);
         let fifthDayHtml = "";
-        if (baseCov != null && baseCov < 100) {
+        if (_belowTarget) {
           const fifthVols = (payload.drivers || [])
             .filter((d) => d && d.fifth_day_ok)
             .map((d) => d.full_name || d.id);
-          // Just enable the pass — it respects the DSP's own WOC
-          // settings (consecutive-days + weekly-hour cap). A 5th day
-          // only lands where the DSP's configured WOC already allows it.
+          // Stage 1 — opted-in drivers, WITHIN their availability. Stage 2
+          // (escalation) — opted-in drivers REGARDLESS of availability,
+          // via the engine's fifth_day_override_availability flag. Both
+          // still respect the DSP's WOC consecutive-days + weekly-hour cap.
           const fifthDelta = { fifth_day_fill: true };
-          let fifthProj = null;
+          const fifthDeltaAny = { fifth_day_fill: true, fifth_day_override_availability: true };
+          let fifthProj = null, fifthProjAny = null;
           try {
             const fres = planScheduleWeek({
               ...payload,
@@ -37697,12 +37755,36 @@ function bindSchedWeekNav() {
             });
             fifthProj = _projectStripPct(fres);
           } catch (err) { console.warn("5th-day dry-run:", err); }
+          try {
+            const fresAny = planScheduleWeek({
+              ...payload,
+              rules: { ...payload.rules, ...fifthDeltaAny },
+            });
+            fifthProjAny = _projectStripPct(fresAny);
+          } catch (err) { console.warn("5th-day (any) dry-run:", err); }
           const projLine = (fifthProj != null && fifthProj > baseCov)
             ? `<div class="rr-cov-rec-metric"><span class="rr-cov-metric-label">Coverage</span><span>${baseCov}%<span class="rr-cov-arrow">→</span><strong>${fifthProj}%</strong></span></div>`
             : "";
           const volLine = fifthVols.length > 0
             ? `<div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Opted in</span>${escapeHtml(fifthVols.join(", "))}</div>`
             : `<div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Opted in</span>No drivers have opted into a 5th day yet — they can opt in from their availability card or the driver app.</div>`;
+          // Escalation card (Stage 2): only when within-availability
+          // doesn't reach the 115% target. Preview shows the extra lift;
+          // the button writes only after the operator confirms.
+          const fifthAnyAcceptPayload = JSON.stringify({
+            ruleDelta: fifthDeltaAny,
+            maxDays: null,
+            fifthDayPassMode: true,
+          });
+          const escalateHtml = (fifthProjAny != null && fifthProj != null && fifthProjAny > fifthProj)
+            ? `
+            <div class="rr-cov-rec rr-cov-fifth-card" style="margin-top:10px">
+              <div class="rr-cov-rec-title">Still short? Offer regardless of availability</div>
+              <div class="rr-cov-rec-metric"><span class="rr-cov-metric-label">Coverage</span><span>${fifthProj}%<span class="rr-cov-arrow">→</span><strong>${fifthProjAny}%</strong></span></div>
+              <div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Trade-off</span>Extends the 5th-day pass to any opted-in driver even on days outside their saved availability. Use only when the within-availability pass can't reach the 115% target. WOC + license rules still apply.</div>
+              <button type="button" class="btn btn-sm" data-rr-cov-accept='${escapeHtml(fifthAnyAcceptPayload)}'>Preview &amp; confirm · any opted-in driver</button>
+            </div>`
+            : "";
           // Two mutually-exclusive notify/confirm modes per operator
           // ask. Both modes are optional; if neither is checked, the
           // pass runs as before (silent direct assignment). The two
@@ -37718,9 +37800,9 @@ function bindSchedWeekNav() {
           });
           fifthDayHtml = `
             <div class="rr-cov-rec rr-cov-fifth-card">
-              <div class="rr-cov-rec-title">Overtime · re-run with the 5th-day pass</div>
+              <div class="rr-cov-rec-title">Overtime · schedule the 5th-day pass</div>
               ${projLine}
-              <div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Trade-off</span>Each driver who opted into a 5th day picks up one open shift. WOC consecutive-days and license rules still apply — only opted-in drivers, one extra day each.</div>
+              <div class="rr-cov-rec-trade"><span class="rr-cov-trade-label">Trade-off</span>Schedules drivers who opted into a 5th day — first to open shifts <strong>within their availability</strong>, one extra day each. Preview only until you confirm. WOC consecutive-days and license rules still apply.</div>
               ${volLine}
               <div class="rr-cov-fifth-modes" role="group" aria-label="Driver communication">
                 <label class="rr-cov-fifth-mode">
@@ -37738,8 +37820,9 @@ function bindSchedWeekNav() {
                   </span>
                 </label>
               </div>
-              <button type="button" class="btn btn-primary btn-sm" data-rr-cov-accept='${escapeHtml(fifthAcceptPayload)}'>Run the 5th-day pass</button>
+              <button type="button" class="btn btn-primary btn-sm" data-rr-cov-accept='${escapeHtml(fifthAcceptPayload)}'>Preview &amp; confirm · within availability</button>
             </div>
+            ${escalateHtml}
             <style>
               .rr-cov-fifth-modes{display:flex;flex-direction:column;gap:6px;margin:10px 0 12px}
               .rr-cov-fifth-mode{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid #E1DFDD;border-radius:4px;background:#FFFFFF;cursor:pointer;transition:border-color .12s, background .12s}
