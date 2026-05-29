@@ -17814,6 +17814,10 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-cmd-shell{position:relative;display:block;margin-bottom:4px}
           /* Tighten the KPI band -> grid gap by ~75% (8px -> 2px). */
           #view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills{margin-bottom:2px !important}
+          /* The icon card is the .sched-v2-strip (16px bottom margin);
+             reduce it ~75% so the icon-card -> KPI gap actually tightens
+             (the cmd-shell margin collapses with it). */
+          #view-schedule.rrx-schedule .sched-v2-strip{margin-bottom:4px !important}
           #view-schedule .sched-cmd-shell .sched-nav-heading{margin-bottom:0}
           #view-schedule .sched-cmd-tabs{
             display:inline-flex;gap:3px;
