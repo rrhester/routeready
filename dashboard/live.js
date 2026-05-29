@@ -36329,7 +36329,7 @@ async function renderScheduleWeek() {
   // Coverage pill carrying a subtle "X / Y shifts" sub-line.
   if (kpis) {
     kpis.classList.add("sched-kpi-pills");
-    const pill = (key, color, label, sub, clickable, title, iconHtml) => {
+    const pill = (key, color, label, sub, clickable, title, iconHtml, pillBg) => {
       const cl = clickable ? ' data-clickable="true"' : "";
       // Title attribute intentionally omitted — the native browser
       // tooltip on hover was reading as an unwanted "info toast"
@@ -36344,13 +36344,18 @@ async function renderScheduleWeek() {
       const marker = iconHtml
         ? `<span class="sched-kpi-icon">${iconHtml}</span>`
         : `<span class="sched-kpi-dot" style="background:${color}"></span>`;
-      return `<span class="sched-kpi-pill" data-rr-kpi="${key}"${cl}${tt}>${marker}<span class="sched-kpi-text"><span class="sched-kpi-val">${label}</span>${subHtml}</span></span>`;
+      const bg = pillBg ? ` style="background:${pillBg}"` : "";
+      return `<span class="sched-kpi-pill" data-rr-kpi="${key}"${cl}${tt}${bg}>${marker}<span class="sched-kpi-text"><span class="sched-kpi-val">${label}</span>${subHtml}</span></span>`;
     };
-    // Coverage status marker: green thumbs-up at ≥100%, red circle with a
-    // white "!" below 100%.
-    const coverageIcon = pct >= 100
-      ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="#107C41" aria-label="Coverage met"><path d="M2 21h2.5a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H2v11zm19.7-9.3c.2-.3.3-.6.3-1 0-.9-.8-1.7-1.7-1.7h-5.1l.8-3.7v-.3c0-.4-.2-.8-.4-1L14.5 2 8.6 7.9c-.4.4-.6.9-.6 1.5V19c0 1.1.9 2 2 2h7.5c.7 0 1.3-.4 1.6-1l2.6-6.3z"/></svg>'
-      : '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="Coverage below target"><circle cx="12" cy="12" r="10" fill="#D13438"/><rect x="11" y="6" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.5" r="1.2" fill="#fff"/></svg>';
+    // Coverage status — three tiers:
+    //   ≥115%   → soft green pill, darker-green circle with a white thumbs-up
+    //   105–114 → soft yellow pill, yellow circle with a white warning "!"
+    //   <105%   → soft red pill, red circle with a white exclamation point
+    const _thumbUp = '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="Coverage strong"><circle cx="12" cy="12" r="11" fill="#1E8E3E"/><g transform="translate(5.4 5.4) scale(0.55)" fill="#fff"><path d="M2 21h2.5a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H2v11zm19.7-9.3c.2-.3.3-.6.3-1 0-.9-.8-1.7-1.7-1.7h-5.1l.8-3.7v-.3c0-.4-.2-.8-.4-1L14.5 2 8.6 7.9c-.4.4-.6.9-.6 1.5V19c0 1.1.9 2 2 2h7.5c.7 0 1.3-.4 1.6-1l2.6-6.3z"/></g></svg>';
+    const _warnDot = '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="Coverage caution"><circle cx="12" cy="12" r="10" fill="#F9AB00"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>';
+    const _alertDot = '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="Coverage below target"><circle cx="12" cy="12" r="10" fill="#D13438"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>';
+    const coverageIcon = pct >= 115 ? _thumbUp : pct >= 105 ? _warnDot : _alertDot;
+    const coveragePillBg = pct >= 115 ? "#E6F4EA" : pct >= 105 ? "#FEF7E0" : "#FCE8E6";
     // Dots stay in the sidebar's navy family except for OT Risk and
     // Violations when they actually flare — those keep red so the
     // operator sees the alarm. Everything at-rest reads neutral navy.
@@ -36404,7 +36409,7 @@ async function renderScheduleWeek() {
       : `Click for details · ${femRisks.length} branded van${femRisks.length === 1 ? "" : "s"} projected to cross 13+ days unused`;
     kpis.innerHTML =
       pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, true,
-        "Click to see settings that would raise coverage", coverageIcon) +
+        "Click to see settings that would raise coverage", coverageIcon, coveragePillBg) +
       pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
       pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
       (() => {
