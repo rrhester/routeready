@@ -13050,6 +13050,9 @@ body.rr-cmdk-open{ overflow:hidden }
              controls stay in the DOM (so any code that still
              reads/writes their values keeps working) but the row is
              hidden so the KPI band sits directly above the table. */
+          /* Match the Schedule page's canvas exactly (#F4F5F7) so the
+             standalone Roster view's background is identical to Schedule. */
+          #view-drivers{background:#F4F5F7}
           #view-drivers .stage-tabs{display:none !important}
           #view-drivers .dr-roster-bar{display:none !important}
           #view-drivers .dr-roster-bar-overflow{display:none !important}
@@ -17711,11 +17714,12 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;flex-wrap:wrap;align-items:stretch;
             gap:0;
             margin:0 0 var(--s-4) 0;
-            background:var(--surface-elevated, #FCFDFE);
-            border:1px solid var(--sch-line-subtle, rgba(15,23,42,.07));
-            border-radius:var(--sch-radius, 10px);
+            /* Match the Schedule KPI card exactly: white surface,
+               primary-stroke border, 4px radius, two-layer float. */
+            background:var(--rr-bg-surface-1, #FFFFFF);
+            border:1px solid var(--rr-border-primary, #E1DFDD);
+            border-radius:var(--rr-radius-medium, 4px);
             padding:0;
-            /* Match the Schedule KPI card's elevation exactly. */
             box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
             overflow:hidden;
           }
