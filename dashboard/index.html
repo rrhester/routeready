@@ -4069,12 +4069,9 @@ select.form-input{
   border-bottom:1px solid rgba(15,23,42,.05);
 }
 .cal-grid.head{
-  /* Frosted-glass material — driver rows scrolling past the
-     sticky day-of-week strip blur softly through. Neutral tint
-     (no blue) so every header strip reads as one calm chrome family. */
-  background:rgba(15, 23, 42, 0.05);
-  -webkit-backdrop-filter:saturate(180%) blur(20px);
-  backdrop-filter:saturate(180%) blur(20px);
+  /* Solid header — no frosted glass. The sticky day-of-week strip reads
+     as a clean solid surface, not a blurred translucent pane. */
+  background:#FFFFFF;
   border-bottom:1px solid rgba(15,23,42,.10);
   /* Keep day-of-week labels in view as the operator scrolls past
      the first 7 drivers. */
@@ -20239,12 +20236,17 @@ body.rr-cmdk-open{ overflow:hidden }
             grid-template-columns:220px repeat(7,minmax(0,1fr));
             border-bottom:1px solid var(--sch-line);
           }
+          #view-schedule .cal-grid.head,
+          #view-schedule .cal-grid.head .cal-cell-head{
+            background:#FFFFFF !important;
+            -webkit-backdrop-filter:none !important;
+            backdrop-filter:none !important;
+          }
           #view-schedule .cal-grid.head{
-            background:#FFFFFF;
             border-bottom:1px solid var(--sch-line);
           }
           #view-schedule .cal-grid.head .cal-cell-head:first-child{
-            background:#FFFFFF;
+            background:#FFFFFF !important;
           }
 
           /* Day-of-week header — small label + big day number */
