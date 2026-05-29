@@ -477,27 +477,31 @@ select.field{
   text-align:center;margin-bottom:12px;
 }
 
-/* ── Schedule list ──────────────────────────────────────────── */
+/* ── Schedule list ──────────────────────────────────────────────
+   Operational grid feel: cards read as crisp rows on a neutral
+   canvas, not pillowy floating tiles. Neutral (not blue-slate)
+   hairline borders, a single tight shadow, and a denser row rhythm
+   give the schedule structural authority while keeping Fluent calm. */
 .shift-card{
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);
-  padding:16px 18px;margin-bottom:12px;display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-4);
+  background:var(--surface);border:1px solid #D7D8DB;border-radius:var(--r-lg);
+  padding:12px 16px;margin-bottom:8px;display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-3-5);
   align-items:center;
-  box-shadow:var(--shadow-card);
+  box-shadow:0 1px 2px rgba(0,0,0,.05);
   transition:transform 140ms var(--ease-out), box-shadow 160ms var(--ease-out), border-color 160ms var(--ease-out);
 }
 .shift-card:active{ transform:scale(.995) }
 .shift-card.is-today{
   border-color:var(--accent-border);
-  box-shadow:inset 3px 0 0 var(--accent), var(--shadow-card);
+  box-shadow:inset 3px 0 0 var(--accent), 0 1px 2px rgba(0,0,0,.05);
 }
 .shift-card .date-block{
   text-align:center;min-width:48px;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
 }
 .shift-card .date-dow{font-size:10px;font-weight:700;color:var(--text-subtle);letter-spacing:.08em;text-transform:uppercase;line-height:1}
-.shift-card .date-day{font-size:26px;font-weight:700;line-height:1;letter-spacing:-.025em;margin-top:4px;color:var(--text);font-variant-numeric:tabular-nums}
+.shift-card .date-day{font-size:25px;font-weight:700;line-height:1;letter-spacing:-.03em;margin-top:2px;color:var(--text);font-variant-numeric:tabular-nums}
 .shift-card.is-today .date-day{color:var(--accent)}
-.shift-card .date-month{font-size:10px;color:var(--text-subtle);margin-top:3px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.shift-card .date-month{font-size:10px;color:var(--text-subtle);margin-top:2px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
 .shift-card .meta-time-row{
   display:flex;align-items:baseline;justify-content:flex-start;
   gap:var(--s-3);flex-wrap:wrap;
@@ -532,7 +536,7 @@ select.field{
   background:var(--canvas);padding:2px 8px;border-radius:var(--r-md);
   white-space:nowrap;font-variant-numeric:tabular-nums;letter-spacing:.01em;
 }
-.shift-card .meta-station{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;font-weight:500}
+.shift-card .meta-station{font-size:var(--fs-sm);color:var(--text-muted);margin-top:2px;font-weight:600}
 /* Weather chip · one row, slightly muted, sits just below station /
    vehicle. Hidden until forecast data arrives (NWS only goes 7 days,
    so further-out shifts simply skip the chip). */
@@ -546,12 +550,13 @@ select.field{
 .shift-weather-icon{ font-size:15px;line-height:1 }
 .shift-weather-temp{ font-weight:700;color:var(--text);font-variant-numeric:tabular-nums }
 .shift-weather-text{ color:var(--text-subtle) }
-.shift-card .meta-tags{display:flex;gap:var(--s-1);margin-top:8px;flex-wrap:wrap}
+.shift-card .meta-tags{display:flex;gap:var(--s-1);margin-top:6px;flex-wrap:wrap}
 .shift-card .tag{
   font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-  padding:2px 6px;border-radius:var(--r-sm);background:var(--canvas);color:var(--text-muted);
+  padding:2px 6px;border-radius:var(--r-sm);background:var(--canvas);
+  border:1px solid #DFE0E2;color:var(--text-muted);
 }
-.shift-card .tag-status-confirmed{background:var(--green-soft);color:var(--green-dark)}
+.shift-card .tag-status-confirmed{background:var(--green-soft);border-color:rgba(16,124,65,.22);color:var(--green-dark)}
 .shift-card .chev{color:var(--text-subtle)}
 
 /* ── Task / hub cards (Tasks + Profile screens) ─────────────── */
@@ -1708,10 +1713,10 @@ select.field{
 
 /* ── Schedule skeleton ───────────────────────────────────── */
 .skel-shift{
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
-  padding:14px 16px;margin-bottom:10px;
-  display:grid;grid-template-columns:auto 1fr;gap:var(--s-4);align-items:center;
-  box-shadow:var(--shadow-xs);
+  background:var(--surface);border:1px solid #D7D8DB;border-radius:var(--r-lg);
+  padding:12px 16px;margin-bottom:8px;
+  display:grid;grid-template-columns:auto 1fr;gap:var(--s-3-5);align-items:center;
+  box-shadow:0 1px 2px rgba(0,0,0,.05);
 }
 .skel-shift .skel-date{ width:42px;height:54px;border-radius:var(--r-md) }
 .skel-shift .skel-body{ display:flex;flex-direction:column;gap:8px;flex:1;min-width:0 }
