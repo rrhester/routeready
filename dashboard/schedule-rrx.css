@@ -2448,26 +2448,26 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
    ============================================================ */
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  /* Driver-app communication blue (same gradient as the app header). */
-  background: linear-gradient(180deg, #5B9BD5 0%, #3D80C4 100%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.35) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
-  color: #FFFFFF !important;
+  /* Soft, pale blue tint (driver-app family) with dark text — much
+     calmer than the saturated fill. */
+  background: #DBE8F6 !important;
+  border: 1px solid rgba(15, 108, 189, 0.28) !important;
+  box-shadow: none !important;
+  color: #0F548C !important;
 }
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) * {
-  color: #FFFFFF !important;
+  color: #0F548C !important;
 }
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #FFFFFF !important;
+  color: #0F548C !important;
   font-weight: 700 !important;
 }
 
-/* On hover, deepen the fill + edge so the focused cell reads as
-   actively selected without resorting to a glow. */
+/* On hover, deepen the tint a touch so the focused cell registers. */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: linear-gradient(180deg, #4A8BCC 0%, #316FB5 100%) !important;
-  border-color: rgba(255, 255, 255, 0.45) !important;
+  background: #CBDDF0 !important;
+  border-color: rgba(15, 108, 189, 0.40) !important;
 }
 
 /* ============================================================
@@ -3167,11 +3167,11 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
   border-right-color: rgba(15, 23, 42, 0.18) !important;
 }
 
-/* Shift chip borders · soft white glass edge so each chip reads as a
-   light, glossy tile (kept in sync with the fill block above; this later
-   rule wins the cascade for the assigned-chip border color). */
+/* Shift chip borders · soft blue edge matching the pale tint fill
+   (kept in sync with the fill block above; this later rule wins the
+   cascade for the assigned-chip border color). */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  border-color: rgba(255, 255, 255, 0.35) !important;
+  border-color: rgba(15, 108, 189, 0.28) !important;
 }
 
 /* Day-of-week header strip · the SUN/MON/… label text was muted;
