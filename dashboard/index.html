@@ -17491,10 +17491,20 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-radius:6px;
             --sch-radius-lg:8px;
             /* Microsoft Workspace canvas — a very light neutral behind
-               the workspace (Outlook/Gmail feel). Surfaces are pure white
-               and separate from it via spacing + subtle shadows + faint
-               borders, not a heavy backdrop. */
-            background:#F6F8FB;
+               the workspace (Outlook/Gmail feel) with a soft blue glow
+               from the top (applied on .page below). Surfaces are pure
+               white and separate from it via spacing + subtle shadows. */
+            background:#F7F9FC;
+          }
+
+          /* Schedule workspace backdrop — #F7F9FC with a subtle blue
+             glow radiating from the top-center, so the page feels gently
+             lit without any heavy gradient or drawn borders. Scoped to
+             the schedule content wrapper only. */
+          #view-schedule .page{
+            background:
+              radial-gradient(circle at 50% 0%, rgba(0,120,255,.06), transparent 60%),
+              #F7F9FC;
           }
 
           /* Microsoft Workspace surfaces — every major workspace card
