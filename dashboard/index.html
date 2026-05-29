@@ -17464,11 +17464,12 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-blue-softer:rgba(26,115,232,.06);
             --sch-blue-tint:rgba(26,115,232,.04);
             --sch-blue-text:#1357B8;
-            /* Clean blue hairlines (not navy-gray). Kept light so the
-               float reads from contrast + shadow, not heavy borders. */
-            --sch-line:rgba(26,115,232,.16);
-            --sch-line-strong:rgba(26,115,232,.24);
-            --sch-line-subtle:rgba(26,115,232,.09);
+            /* Clean blue hairlines, reduced ~40% for the Microsoft
+               Workspace look — lean on spacing + subtle shadows, not
+               heavy borders. */
+            --sch-line:rgba(26,115,232,.10);
+            --sch-line-strong:rgba(26,115,232,.14);
+            --sch-line-subtle:rgba(26,115,232,.05);
             /* Pure-white working surfaces; light-blue secondaries for
                hover / selected / nested fills. */
             --sch-surface:#FFFFFF;
@@ -17479,7 +17480,7 @@ body.rr-cmdk-open{ overflow:hidden }
             --surface-elevated:#FFFFFF;
             --sch-hover:rgba(26,115,232,.08);
             --sch-pressed:rgba(26,115,232,.14);
-            --border:rgba(26,115,232,.20);
+            --border:rgba(26,115,232,.12);
             --sch-amber-soft:rgba(180,83,9,.10);
             --sch-amber:#B45309;
             --sch-amber-dark:#92400E;
@@ -17489,28 +17490,27 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-red-soft:rgba(185,28,28,.08);
             --sch-radius:6px;
             --sch-radius-lg:8px;
-            /* Radiant daylight workspace — a bright sun-glow pouring from
-               the top over a clean blue sky that deepens toward the
-               bottom. Unmistakably sunny + luminous; white cards snap
-               off it via the crisp shadows + defined edges below. */
-            background:
-              radial-gradient(1100px 620px at 50% -10%, #FFFFFF 0%, rgba(255,255,255,0) 66%),
-              linear-gradient(180deg, #EAF3FF 0%, #D6E8FF 100%);
-            background-attachment:fixed;
+            /* Microsoft Workspace canvas — a very light neutral behind
+               the workspace (Outlook/Gmail feel). Surfaces are pure white
+               and separate from it via spacing + subtle shadows + faint
+               borders, not a heavy backdrop. */
+            background:#F6F8FB;
           }
 
-          /* Crisp, sunny float for the schedule's primary white cards —
-             the week grid, driver pool, insights, and KPI strips. Swap
-             the soft, diffuse 'overcast' drop (0 14px 34px) for a tight,
-             clean, clearly-lifted shadow plus a defined clean-blue edge,
-             so each card snaps off the bright canvas sharp and clear. */
+          /* Microsoft Workspace surfaces — every major workspace card
+             (week grid, command strip, KPI band, driver pool, right-side
+             open-shifts panel) is pure white, separated from the light
+             canvas by a faint border + a soft, subtle shadow (Outlook /
+             Gmail feel), not a heavy lift. */
           #view-schedule .cal-wrap,
           #view-schedule .driver-pool,
           #view-schedule .sched-insights,
+          #view-schedule .sched-nav-heading,
           #view-schedule #rr-sched-kpis.sched-kpi-pills,
           #view-schedule #rr-sched-targets-kpis.sched-kpi-pills{
-            border:1px solid rgba(26,115,232,.24) !important;
-            box-shadow:0 1px 2px rgba(16,52,120,.12), 0 8px 20px rgba(16,52,120,.16), 0 26px 50px rgba(16,52,120,.10) !important;
+            background:#FFFFFF !important;
+            border:1px solid rgba(26,115,232,.14) !important;
+            box-shadow:0 1px 2px rgba(16,52,120,.06), 0 3px 8px rgba(16,52,120,.05) !important;
           }
 
           /* ── Page header / command band ──────────────────────────
@@ -20207,11 +20207,11 @@ body.rr-cmdk-open{ overflow:hidden }
             border-bottom:1px solid var(--sch-line);
           }
           #view-schedule .cal-grid.head{
-            background:var(--sch-surface-2);
+            background:#FFFFFF;
             border-bottom:1px solid var(--sch-line);
           }
           #view-schedule .cal-grid.head .cal-cell-head:first-child{
-            background:var(--sch-surface-2);
+            background:#FFFFFF;
           }
 
           /* Day-of-week header — small label + big day number */
