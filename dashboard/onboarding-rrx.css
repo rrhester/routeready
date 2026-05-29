@@ -31,10 +31,10 @@
 /* ── Workspace baseline ─────────────────────────────────────── */
 
 #view-onboarding-ops.rrx-onboarding {
-  /* Match the Schedule page's canvas exactly — cool blue-gray
-     instead of the warm gray we had before. Same fallback hex
-     the Schedule page resolves to. */
-  background: var(--canvas, #EEF1F5);
+  /* Match the Schedule page's canvas exactly. Schedule is now a
+     hardcoded #F4F5F7 (not --canvas), so mirror that literal value
+     here instead of --canvas (which resolves to a darker #EEF2F6). */
+  background: #F4F5F7;
   font-family: var(--rr-font-family);
   color: var(--rr-fg-primary);
 }
@@ -399,8 +399,10 @@
   width: 33px !important;
   height: 33px !important;
   flex: 0 0 auto !important;
-  color: var(--rr-fg-secondary) !important;
-  stroke-width: 1.6 !important;
+  /* Match Schedule's strip icons exactly — darker + thicker stroke
+     so the glyphs read sharp/crisp, not faint. */
+  color: var(--text-muted) !important;
+  stroke-width: 1.9 !important;
   /* Lock cap/join to match Schedule's .sched-v2-tile svg rule.
      Without these, the inline stroke-linecap="square" on the
      Roster SVGs extends each line-end by 0.8px, making the
