@@ -2870,9 +2870,9 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
 #view-schedule.rrx-schedule .cal-grid.head,
 #view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:not(.today),
 #view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:first-child {
-  /* Low-alpha neutral tint so the parent's backdrop-filter still
-     shows through, but the strip no longer reads blue. */
-  background: rgba(15, 23, 42, 0.05) !important;
+  /* Solid white — the sticky day-of-week header is fully opaque so
+     driver rows never show through it as it scrolls. */
+  background: #FFFFFF !important;
 }
 
 /* ── Day-coverage count · -25% from previous 15px ─────────────
