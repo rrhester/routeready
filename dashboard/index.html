@@ -13081,9 +13081,13 @@ body.rr-cmdk-open{ overflow:hidden }
              table. At-rest variant is a soft pill; the active chip
              gets the accent surface. Operators can toggle one preset
              at a time; "All drivers" clears every preset. */
+          /* Saved-view chips removed per operator request — the
+             driver table header now sits directly below the KPI strip
+             (matching Schedule's KPI → header gap). Kept the selectors
+             hidden rather than deleting the markup so live.js handlers
+             that reference them don't error. */
           .rr-roster-views{
-            display:flex;align-items:center;gap:6px;flex-wrap:wrap;
-            margin:0 0 var(--s-3) 0;
+            display:none !important;
           }
           .rr-roster-view-chip{
             appearance:none;cursor:pointer;
@@ -13242,8 +13246,8 @@ body.rr-cmdk-open{ overflow:hidden }
             background:rgba(15, 23, 42, 0.05) !important;
             -webkit-backdrop-filter:saturate(180%) blur(20px) !important;
             backdrop-filter:saturate(180%) blur(20px) !important;
-            border-bottom:1px solid rgba(15,23,42,.10) !important;
-            color:var(--text-muted) !important;
+            border-bottom:1px solid rgba(15,23,42,.26) !important;
+            color:var(--text) !important;
             font-size:var(--fs-xs) !important;font-weight:600 !important;
             letter-spacing:.07em !important;text-transform:uppercase !important;
             padding:10px var(--s-4) 11px !important;
@@ -13354,8 +13358,8 @@ body.rr-cmdk-open{ overflow:hidden }
             background:rgba(15, 23, 42, 0.05) !important;
             -webkit-backdrop-filter:saturate(180%) blur(20px) !important;
             backdrop-filter:saturate(180%) blur(20px) !important;
-            border-bottom:1px solid rgba(15,23,42,.10) !important;
-            color:var(--text-muted) !important;
+            border-bottom:1px solid rgba(15,23,42,.26) !important;
+            color:var(--text) !important;
             font-size:var(--fs-xs) !important;font-weight:600 !important;
             letter-spacing:.07em !important;text-transform:uppercase !important;
             padding:10px var(--s-4) 11px !important;
@@ -13578,7 +13582,10 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-drivers .table-wrap{
             border:1px solid var(--border);border-radius:var(--r-lg);
             background:var(--surface);background-image:none;
-            box-shadow:none;overflow:hidden;
+            /* Same elevation as the Schedule card so the roster table
+               reads as the same kind of surface. */
+            box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
+            overflow:hidden;
           }
           #view-drivers .table thead th,
           #view-drivers .table-compact thead th{
@@ -17708,7 +17715,8 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid var(--sch-line-subtle, rgba(15,23,42,.07));
             border-radius:var(--sch-radius, 10px);
             padding:0;
-            box-shadow:0 1px 4px rgba(15,23,42,.035);
+            /* Match the Schedule KPI card's elevation exactly. */
+            box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
             overflow:hidden;
           }
           #view-drivers #rr-roster-kpis.sched-kpi-pills:empty{display:none}
