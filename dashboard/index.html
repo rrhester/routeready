@@ -17489,11 +17489,13 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-red-soft:rgba(185,28,28,.08);
             --sch-radius:6px;
             --sch-radius-lg:8px;
-            /* Radiant daylight workspace — bright white light pouring
-               from the top easing into a clean light blue, so the page
-               reads luminous + sunny (never cool/overcast). White cards
-               lift off it via crisp shadows + defined edges below. */
-            background:radial-gradient(135% 105% at 50% -25%, #FFFFFF 0%, #F3F8FF 48%, #E8F1FF 100%);
+            /* Radiant daylight workspace — a bright sun-glow pouring from
+               the top over a clean blue sky that deepens toward the
+               bottom. Unmistakably sunny + luminous; white cards snap
+               off it via the crisp shadows + defined edges below. */
+            background:
+              radial-gradient(1100px 620px at 50% -10%, #FFFFFF 0%, rgba(255,255,255,0) 66%),
+              linear-gradient(180deg, #EAF3FF 0%, #D6E8FF 100%);
             background-attachment:fixed;
           }
 
@@ -17507,8 +17509,8 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .sched-insights,
           #view-schedule #rr-sched-kpis.sched-kpi-pills,
           #view-schedule #rr-sched-targets-kpis.sched-kpi-pills{
-            border:1px solid rgba(26,115,232,.22) !important;
-            box-shadow:0 1px 2px rgba(16,52,120,.10), 0 6px 16px rgba(16,52,120,.11), 0 18px 36px rgba(16,52,120,.06) !important;
+            border:1px solid rgba(26,115,232,.24) !important;
+            box-shadow:0 1px 2px rgba(16,52,120,.12), 0 8px 20px rgba(16,52,120,.16), 0 26px 50px rgba(16,52,120,.10) !important;
           }
 
           /* ── Page header / command band ──────────────────────────
