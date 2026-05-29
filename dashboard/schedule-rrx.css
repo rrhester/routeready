@@ -2448,10 +2448,10 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
    ============================================================ */
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  /* Soft, pale blue tint (driver-app family) with dark text — much
-     calmer than the saturated fill. */
-  background: #DBE8F6 !important;
-  border: 1px solid rgba(15, 108, 189, 0.28) !important;
+  /* Soft blue tint (driver-app family) with dark text — ~20% more
+     intense than the prior pale fill. */
+  background: #C5DBF1 !important;
+  border: 1px solid rgba(15, 108, 189, 0.34) !important;
   box-shadow: none !important;
   color: #0F548C !important;
 }
@@ -2466,8 +2466,8 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
 
 /* On hover, deepen the tint a touch so the focused cell registers. */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #CBDDF0 !important;
-  border-color: rgba(15, 108, 189, 0.40) !important;
+  background: #B3CFEC !important;
+  border-color: rgba(15, 108, 189, 0.48) !important;
 }
 
 /* ============================================================
@@ -2757,19 +2757,19 @@ body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-time {
 
    Hover to inspect a specific shift via the existing chip click /
    drag handlers; the title attribute was already removed in #1689. */
-body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip > *,
-body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-van,
+/* Operator wants the driver schedule (time / wave / van) visible in
+   every density mode, so the shift detail is NO LONGER hidden in
+   Compact / Ultra-compact — only the fifth-day decoration stays off.
+   Cells auto-grow to fit the chip (empty/off cells keep the small
+   min-height below, so the grid is still denser than Standard where
+   there's nothing to show). */
 body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip-fifth-day::after,
-body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip > *,
-body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-van,
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-fifth-day::after {
   display: none !important;
 }
-body.rr-sched-compact #view-schedule.rrx-schedule .shift-chip,
-body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip {
-  padding: 0 !important;
-  min-height: 0 !important;
-  height: 100% !important;
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-cell:not(.cal-row-label):has(.shift-chip),
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell:not(.cal-row-label):has(.shift-chip) {
+  height: auto !important;
 }
 
 /* ── Ultra-compact rows · slimmest rectangles ─────────────────
@@ -2828,10 +2828,9 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip {
   min-height: 0 !important;
   border-radius: 3px !important;
 }
-/* Ultra-compact intent: show ONLY wave times. Hide everything else
-   inside a chip — route codes, secondary lines, eyebrows, badges —
-   so a 24px row reads as a clean horizontal strip of times.
-   Operator can hover for the tooltip with the full chip detail. */
+/* Operator wants the full driver schedule (route / wave / van / badges)
+   visible in Ultra-compact too — so these are no longer hidden. Cells
+   with a shift auto-grow (see the :has(.shift-chip) rule above) to fit. */
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-route,
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-route-code,
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-secondary,
@@ -2839,7 +2838,7 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-rpt,
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip-van-tag,
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip .badge-st,
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .shift-chip .badge-trainee {
-  display: none !important;
+  display: revert !important;
 }
 /* The remaining time elements (.shift-chip-time legacy + the
    start/end range in .shift-chip-primary + .shift-chip-wave on
@@ -3171,7 +3170,7 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
    (kept in sync with the fill block above; this later rule wins the
    cascade for the assigned-chip border color). */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  border-color: rgba(15, 108, 189, 0.28) !important;
+  border-color: rgba(15, 108, 189, 0.34) !important;
 }
 
 /* Day-of-week header strip · the SUN/MON/… label text was muted;
