@@ -3144,12 +3144,15 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
 
 /* KPI pill row · stronger card border so the strip pops off
    the canvas. Uses --sch-line-strong now that we've bumped
-   that token to 22% alpha. */
+   that token to 22% alpha. The fallback matches the #view-schedule
+   value so the Roster strip (#view-drivers, where --sch-line-strong
+   isn't in scope) resolves to the same 22% line instead of dropping
+   to currentColor. */
 #view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills,
 #view-schedule.rrx-schedule #rr-sched-targets-kpis.sched-kpi-pills,
 #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills,
 #view-drivers #rr-roster-kpis.sched-kpi-pills {
-  border-color: var(--sch-line-strong) !important;
+  border-color: var(--sch-line-strong, rgba(15, 23, 42, 0.22)) !important;
 }
 #view-schedule.rrx-schedule .sched-kpi-pill,
 #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill,

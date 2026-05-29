@@ -17707,12 +17707,58 @@ body.rr-cmdk-open{ overflow:hidden }
           }
 
           /* Mirror the Schedule KPI strip on the Drivers (Roster) view.
-             The full chrome (container card, pill cells, dot/text/sub,
-             strong border + divider) is defined ONCE in schedule-rrx.css,
-             where #view-drivers #rr-roster-kpis is now listed alongside
-             #rr-sched-kpis and #rr-ob-kpis so all three strips resolve to
-             byte-identical styles. Only the roster-specific interaction
-             bits live here. */
+             The shared schedule-rrx.css block leans on --rr-* design
+             tokens that aren't defined in the #view-drivers scope (and
+             on --sch-line-strong, which only exists inside #view-schedule),
+             so on the Roster page those declarations drop out and the card
+             loses its border, fill, rounding and pill dividers. The Schedule
+             card avoids this because its #view-schedule rules use defined
+             tokens. To keep the two strips byte-identical, we re-state the
+             Schedule card's *computed* chrome here with concrete values —
+             the same elevated #FCFDFE fill, 22%-line border, 6px radius,
+             floating shadow, and hairline pill dividers — scoped to the
+             roster strip only so nothing else is touched. */
+          #view-drivers #rr-roster-kpis.sched-kpi-pills{
+            display:flex;flex-wrap:wrap;align-items:stretch;
+            gap:0;
+            margin:0 0 var(--s-4) 0;
+            padding:0;
+            background:var(--surface-elevated, #FCFDFE);
+            border:1px solid rgba(15,23,42,.22);
+            border-radius:6px;
+            box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
+            overflow:hidden;
+            min-height:46px;
+            font-size:var(--fs-sm);
+          }
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill{
+            display:inline-flex;align-items:center;gap:10px;
+            min-width:0;
+            color:var(--text);font-weight:600;font-size:var(--fs-sm);
+            font-variant-numeric:tabular-nums;
+            padding:11px 24px;
+            border-left:1px solid rgba(15,23,42,.06);
+            border-right:1px solid rgba(15,23,42,.18);
+            line-height:1.2;
+            min-height:46px;
+            transition:background var(--t-fast);
+          }
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill:first-child{border-left:0}
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill:last-child{border-right:0}
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-dot{
+            width:7px;height:7px;border-radius:50%;flex-shrink:0;
+          }
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-text{
+            display:inline-flex;flex-direction:column;line-height:1.15;gap:1px;min-width:0;
+          }
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-val{
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:var(--fs-sm);
+          }
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-sub{
+            font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);
+            letter-spacing:0;text-transform:none;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+          }
           #view-drivers #rr-roster-kpis.sched-kpi-pills:empty{display:none}
           #view-drivers #rr-roster-kpis .sched-kpi-pill[data-clickable="true"]{cursor:pointer}
           #view-drivers #rr-roster-kpis .sched-kpi-pill[data-clickable="true"]:hover{
