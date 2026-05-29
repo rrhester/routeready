@@ -10612,10 +10612,11 @@ body.rr-cmdk-open{ overflow:hidden }
             /* Top-anchored so the buttons hold a fixed position no
                matter how tall the identity/timeline zones grow. */
             justify-content:flex-start;gap:10px;
-            /* Set apart as a blue workflow surface — matches the
-               schedule shift-card blue, divided from the timeline. */
-            background:rgba(15,108,189,.07);
-            border-left:1px solid rgba(15,108,189,.22);
+            /* Set apart as a quietly recessed neutral workflow surface,
+               divided from the timeline by a hairline. The accent now
+               lives only in the primary CTA, not a blue panel wash. */
+            background:var(--canvas);
+            border-left:1px solid var(--border);
           }
           /* V4 action zone · one primary CTA + a quiet ⋯ overflow at
              the far right. Operator-requested cognitive-load reduction
@@ -11063,7 +11064,7 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pipe-subnav-row > .subnav,
           #view-pipeline .pipe-window-toggle{background:transparent;border:0;padding:0}
           #view-pipeline .subnav-item,
-          #view-pipeline .pipe-window-toggle .hp-window-btn{border-radius:13px}
+          #view-pipeline .pipe-window-toggle .hp-window-btn{border-radius:var(--r-lg)}
           #view-pipeline .subnav-item.active,
           #view-pipeline .pipe-window-toggle .hp-window-btn.active{
             background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(15,23,42,.05);
