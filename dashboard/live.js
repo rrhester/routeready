@@ -37564,7 +37564,7 @@ function bindSchedWeekNav() {
       return c;
     };
 
-    const _openCovModal = () => {
+    const _openCovModal = (anchorEl) => {
       document.getElementById("rr-cov-kpi-modal")?.remove();
       const payload = _getSfDrillPayload();
       let bodyHtml, curLabel;
@@ -37760,7 +37760,10 @@ function bindSchedWeekNav() {
       }
       const m = document.createElement("div");
       m.id = "rr-cov-kpi-modal";
-      m.className = "modal-backdrop open";
+      // Deep-dive opens as a box anchored over the Coverage KPI — no
+      // full-page dim/blur. (rr-cov-kpi-anchored swaps the centered dark
+      // backdrop for a transparent, click-through layer.)
+      m.className = "modal-backdrop open rr-cov-kpi-anchored";
       m.innerHTML = `
         <div id="rr-cov-kpi-card" class="modal-card" style="max-width:480px">
           <div class="modal-head">
@@ -37775,6 +37778,21 @@ function bindSchedWeekNav() {
           <div class="modal-body" id="rr-cov-kpi-body">${bodyHtml}</div>
         </div>`;
       document.body.appendChild(m);
+      // Anchor the card over the KPI pill (top-left aligned, clamped to
+      // the viewport) instead of centering it on screen.
+      const card = m.querySelector("#rr-cov-kpi-card");
+      const a = anchorEl || document.querySelector('[data-rr-kpi="coverage"]');
+      if (card && a) {
+        const r = a.getBoundingClientRect();
+        const cw = card.offsetWidth || 480;
+        let left = r.left;
+        if (left + cw > window.innerWidth - 12) left = window.innerWidth - cw - 12;
+        if (left < 12) left = 12;
+        card.style.position = "fixed";
+        card.style.margin = "0";
+        card.style.left = left + "px";
+        card.style.top = (r.bottom + 6) + "px";
+      }
     };
 
     document.addEventListener("click", async (e) => {
@@ -37927,12 +37945,42 @@ function bindSchedWeekNav() {
       const pillEl = e.target.closest('[data-rr-kpi="coverage"]');
       if (!pillEl) return;
       e.preventDefault();
-      _openCovModal();
+      _openCovModal(pillEl);
     });
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       const modal = document.getElementById("rr-cov-kpi-modal");
       if (modal && !modal.dataset.rrBusy) modal.remove();
+    });
+
+    // Coverage Deep Dive · open on hover over the Coverage KPI, anchored
+    // over the pill with no page-wide dim. Stays open while the pointer is
+    // on the pill or inside the box; a short grace delay lets the cursor
+    // travel between them.
+    let _covHoverTimer = null;
+    const _covCancelClose = () => { if (_covHoverTimer) { clearTimeout(_covHoverTimer); _covHoverTimer = null; } };
+    const _covScheduleClose = () => {
+      _covCancelClose();
+      _covHoverTimer = setTimeout(() => {
+        const modal = document.getElementById("rr-cov-kpi-modal");
+        if (modal && !modal.dataset.rrBusy) modal.remove();
+      }, 220);
+    };
+    document.addEventListener("mouseover", (e) => {
+      const pillEl = e.target.closest('[data-rr-kpi="coverage"]');
+      const inModal = e.target.closest("#rr-cov-kpi-modal");
+      if (pillEl || inModal) {
+        _covCancelClose();
+        if (pillEl && !document.getElementById("rr-cov-kpi-modal")) _openCovModal(pillEl);
+      }
+    });
+    document.addEventListener("mouseout", (e) => {
+      const fromCov = e.target.closest('[data-rr-kpi="coverage"]') || e.target.closest("#rr-cov-kpi-modal");
+      if (!fromCov) return;
+      // Only close if the pointer is actually leaving both the pill and box.
+      const to = e.relatedTarget;
+      if (to && (to.closest?.('[data-rr-kpi="coverage"]') || to.closest?.("#rr-cov-kpi-modal"))) return;
+      _covScheduleClose();
     });
   }
 
