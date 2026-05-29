@@ -2242,9 +2242,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 #view-schedule.rrx-schedule .sched-v2-status-pill[data-state="draft"] {
-  background: var(--rr-warning-soft);
-  color: #8A6A00;
-  border: 1px solid rgba(255, 185, 0, 0.30);
+  /* Google Meet gold — vibrant gold→amber fill with dark, legible text. */
+  background: linear-gradient(135deg, #FFC528 0%, #FFA000 100%);
+  color: #5A3E00;
+  border: 1px solid rgba(214, 140, 0, 0.55);
 }
 
 #view-schedule.rrx-schedule .sched-v2-status-pill[data-state="live"] {
