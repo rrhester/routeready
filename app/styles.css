@@ -20,20 +20,21 @@
   --surface-hover: rgba(15,23,42,.03);
   --surface-pressed: rgba(15,23,42,.06);
   --canvas: #FAFAFA;                   /* Fluent neutralBackground-2 */
-  --border: rgba(15,23,42,.07);        /* Fluent neutralStroke-2 */
+  --border: rgba(15,23,42,.10);        /* Fluent neutralStroke-2 — slightly clearer for crisper card/divider edges */
   --border-strong: rgba(15,23,42,.12); /* Fluent neutralStroke-1 */
   --border-subtle: rgba(15,23,42,.04);
   --glass: rgba(255,255,255,.92);      /* translucent surface for the tabbar (Mica-style) */
 
-  /* ── Fluent depth tokens — replaces the iOS card-shadow stack ─ */
-  --r-card:     12px;                  /* top-level cards (Fluent depth-4 surface) */
-  --r-card-sm:  10px;                  /* smaller / inline card surfaces */
+  /* ── Fluent depth tokens — crisp, operational (not pillowy) ───
+     Cards across the PWA now read as precise surfaces: tighter
+     corners and a single hairline shadow instead of the old soft
+     blue-slate blur stack, matching the Schedule list pass. */
+  --r-card:     8px;                   /* top-level cards — less rounded, crisper */
+  --r-card-sm:  8px;                   /* smaller / inline card surfaces */
   --shadow-card:
-    0 .8px 1.8px rgba(15,23,42,.06),
-    0 6.4px 14.4px rgba(15,23,42,.07);
+    0 1px 2px rgba(0,0,0,.05);
   --shadow-card-strong:
-    0 1.6px 3.6px rgba(15,23,42,.08),
-    0 12.8px 28.8px rgba(15,23,42,.10);
+    0 2px 6px rgba(15,23,42,.10);
   --text: #242424;                     /* Fluent neutralForeground-1 */
   --text-muted: #424242;               /* Fluent neutralForeground-2 */
   --text-subtle: #616161;              /* Fluent neutralForeground-3 */
@@ -334,7 +335,7 @@ main[data-page-enter] > *{
   background:var(--surface);
   background-image:var(--surface-grad);
   border:1px solid var(--border);border-radius:var(--r-card);
-  padding:var(--s-4) var(--s-4);margin-bottom:12px;
+  padding:var(--s-4) var(--s-4);margin-bottom:10px;
   box-shadow:var(--shadow-card);
   transition:transform 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
 }
@@ -483,16 +484,16 @@ select.field{
    hairline borders, a single tight shadow, and a denser row rhythm
    give the schedule structural authority while keeping Fluent calm. */
 .shift-card{
-  background:var(--surface);border:1px solid #D7D8DB;border-radius:var(--r-lg);
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);
   padding:12px 16px;margin-bottom:8px;display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-3-5);
   align-items:center;
-  box-shadow:0 1px 2px rgba(0,0,0,.05);
+  box-shadow:var(--shadow-card);
   transition:transform 140ms var(--ease-out), box-shadow 160ms var(--ease-out), border-color 160ms var(--ease-out);
 }
 .shift-card:active{ transform:scale(.995) }
 .shift-card.is-today{
   border-color:var(--accent-border);
-  box-shadow:inset 3px 0 0 var(--accent), 0 1px 2px rgba(0,0,0,.05);
+  box-shadow:inset 3px 0 0 var(--accent), var(--shadow-card);
 }
 .shift-card .date-block{
   text-align:center;min-width:48px;
@@ -563,7 +564,7 @@ select.field{
 .task-card{
   display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s-3);align-items:center;
   background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);
-  padding:14px 16px;margin-bottom:12px;
+  padding:14px 16px;margin-bottom:10px;
   cursor:pointer;transition:transform 140ms var(--ease-out), box-shadow 160ms var(--ease-out), border-color 160ms var(--ease-out);
   box-shadow:var(--shadow-card);
 }
@@ -1713,10 +1714,10 @@ select.field{
 
 /* ── Schedule skeleton ───────────────────────────────────── */
 .skel-shift{
-  background:var(--surface);border:1px solid #D7D8DB;border-radius:var(--r-lg);
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);
   padding:12px 16px;margin-bottom:8px;
   display:grid;grid-template-columns:auto 1fr;gap:var(--s-3-5);align-items:center;
-  box-shadow:0 1px 2px rgba(0,0,0,.05);
+  box-shadow:var(--shadow-card);
 }
 .skel-shift .skel-date{ width:42px;height:54px;border-radius:var(--r-md) }
 .skel-shift .skel-body{ display:flex;flex-direction:column;gap:8px;flex:1;min-width:0 }
