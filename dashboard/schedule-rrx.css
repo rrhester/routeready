@@ -2446,8 +2446,8 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
    ============================================================ */
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #E3EDF9 !important;
-  border-color: rgba(11, 95, 177, 0.42) !important;
+  background: #D2E3FC !important;
+  border-color: rgba(26, 115, 232, 0.55) !important;
   color: var(--rr-fg-primary) !important;
 }
 
@@ -2459,8 +2459,8 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
 /* On hover, deepen the fill + edge so the focused cell reads as
    actively selected without resorting to a glow. */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #D4E3F5 !important;
-  border-color: rgba(11, 95, 177, 0.60) !important;
+  background: #C2D7F9 !important;
+  border-color: rgba(26, 115, 232, 0.70) !important;
 }
 
 /* ============================================================
