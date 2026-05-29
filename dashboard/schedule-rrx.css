@@ -2017,17 +2017,21 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    surface, and pushed the icon color from indigo-500 to
    indigo-600 so the bolt punches harder against the gradient. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile {
-  background: linear-gradient(135deg, rgba(26, 115, 232, 0.18), rgba(26, 115, 232, 0.12));
-  color: #1357B8;
+  /* Solid blue fill — same treatment as the Draft pill, in Google blue.
+     White label/icon for contrast on the saturated fill. */
+  background: linear-gradient(135deg, #4285F4 0%, #1A73E8 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(13, 71, 161, 0.55);
 }
 
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:hover {
-  background: linear-gradient(135deg, rgba(26, 115, 232, 0.30), rgba(26, 115, 232, 0.20));
-  color: #0842A0;
+  background: linear-gradient(135deg, #4285F4 0%, #1A73E8 100%);
+  filter: brightness(1.06);
+  color: #FFFFFF;
 }
 
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile svg {
-  color: #1A73E8;
+  color: #FFFFFF;
 }
 
 /* ── Spin animation (Smart Fill + Unassign click feedback) ── */
