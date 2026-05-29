@@ -424,13 +424,11 @@
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active {
-  /* Operator preference · NO blue highlight card on the active
-     tile. Background stays transparent (matches inactive); only
-     the text weight bumps to 600 so there's still a subtle
-     indicator. Color stays at the default tile color (no shift
-     to brand-pressed blue). */
-  color: inherit !important;
-  background: transparent !important;
+  /* Matches Schedule's active ribbon tile · light-blue fill,
+     brand-pressed text, blue icon (operator chose to unify on the
+     Schedule treatment across all views). */
+  color: var(--rr-brand-pressed) !important;
+  background: var(--rr-bg-selected) !important;
   font-weight: 600 !important;
   border-radius: var(--rr-radius-medium) !important;
 }
@@ -448,10 +446,8 @@
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active svg {
-  /* Operator preference · no blue highlight on the active tile,
-     including its SVG. Inherit color so the active icon looks
-     identical to inactive icons. */
-  color: inherit !important;
+  /* Active icon goes brand-blue, matching Schedule's active tile. */
+  color: var(--rr-brand-primary) !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:focus-visible {

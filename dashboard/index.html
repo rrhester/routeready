@@ -11961,9 +11961,9 @@ body.rr-cmdk-open{ overflow:hidden }
            Only the font-weight bumps to 600 for a subtle indicator;
            color + svg color stay matching the inactive tiles. */
         #view-onboarding-ops .sched-nav-heading .subnav-item.active{
-          color:inherit;font-weight:600;
+          color:var(--rr-brand-pressed);background:var(--rr-bg-selected);font-weight:600;
         }
-        #view-onboarding-ops .sched-nav-heading .subnav-item.active svg{color:inherit}
+        #view-onboarding-ops .sched-nav-heading .subnav-item.active svg{color:var(--rr-brand-primary)}
         /* Roster-strip icons · thinner, darker, sharp corners
            (rx removed in the SVG markup itself). Scoped to the
            roster actions block so the rest of the onboarding strip
@@ -23788,10 +23788,10 @@ body.rr-cmdk-open{ overflow:hidden }
              schedule ribbon's active tab). */
           #view-fleet .fl-ribbon-view.active,
           #view-fleet .fl-ribbon-view.active:hover{
-            background:transparent;
-            color:var(--sch-blue);
+            background:var(--rr-bg-selected);
+            color:var(--rr-brand-pressed);
           }
-          #view-fleet .fl-ribbon-view.active svg{color:var(--sch-blue)}
+          #view-fleet .fl-ribbon-view.active svg{color:var(--rr-brand-primary)}
           #view-fleet .fl-ribbon-view.active span{font-weight:600}
           /* Count badge pinned to the button's top-right corner. */
           #view-fleet .fl-ribbon-count{
@@ -25003,8 +25003,9 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--rr-bg-hover);color:var(--rr-fg-primary);
           }
           #view-workspaces .ws-strip-tile.active{
-            color:var(--rr-fg-primary);font-weight:600;
+            color:var(--rr-brand-pressed);background:var(--rr-bg-selected);font-weight:600;
           }
+          #view-workspaces .ws-strip-tile.active svg{color:var(--rr-brand-primary)}
           #view-workspaces .ws-strip-tile svg{
             width:33px;height:33px;stroke-width:1.6;
             stroke-linecap:butt;stroke-linejoin:miter;
@@ -25196,8 +25197,9 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--rr-bg-hover);color:var(--rr-fg-primary);
           }
           #view-forms .wf-strip-tile.active{
-            color:var(--rr-fg-primary);font-weight:600;
+            color:var(--rr-brand-pressed);background:var(--rr-bg-selected);font-weight:600;
           }
+          #view-forms .wf-strip-tile.active svg{color:var(--rr-brand-primary)}
           #view-forms .wf-strip-tile svg{
             width:33px;height:33px;stroke-width:1.6;
             stroke-linecap:butt;stroke-linejoin:miter;
