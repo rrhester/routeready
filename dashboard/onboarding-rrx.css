@@ -735,6 +735,14 @@
   color: var(--rr-brand-primary);
 }
 
+/* Darken the whole cmd-tab strip to var(--text), matching the
+   Schedule view's strip (which darkens its .sched-cmd-tab the same
+   way) so the top page-nav row reads identically on every page.
+   This also drives the Roster page, hosted in this shell. */
+#view-onboarding-ops.rrx-onboarding .ob-cmd-tab {
+  color: var(--text) !important;
+}
+
 /* When the Print tab is active, just show the print buttons
    inline below the strip — operator caught the previous behavior
    of an absolute-positioned blue print button overlaying the
