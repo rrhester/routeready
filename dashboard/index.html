@@ -17453,30 +17453,33 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Schedule-local tokens (kept off :root so we don't bleed
              into other views). */
           #view-schedule{
-            --sch-blue:#0F6CBD;
-            --sch-blue-strong:#115EA3;
-            --sch-blue-soft:rgba(15,108,189,.08);
-            --sch-blue-softer:rgba(15,108,189,.05);
-            --sch-blue-tint:rgba(15,108,189,.035);
-            --sch-blue-text:#0E4F86;
-            /* Sharper line tokens · operator wanted the schedule page
-               to read crisp + technical. Doubled (roughly) the line
-               alpha across every divider so card edges, table borders,
-               and KPI strips feel solid instead of washed. */
-            --sch-line:rgba(15,23,42,.16);
-            --sch-line-strong:rgba(15,23,42,.22);
-            --sch-line-subtle:rgba(15,23,42,.09);
-            --sch-surface:#F8F9FB;
-            --sch-surface-2:#F2F3F6;
-            --sch-surface-3:#EBEDF1;
-            /* Priority 3 · no pure white. Override the global surface
-               tokens within the schedule view so cards/panels read as
-               layered off-white over the canvas, not stark #FFF. */
-            --surface:#F8F9FB;
-            --surface-secondary:#F2F3F6;
-            --surface-elevated:#FCFDFE;
-            --sch-hover:rgba(15,23,42,.04);
-            --sch-pressed:rgba(15,23,42,.06);
+            /* Bright · sunny · high-contrast. White cards floating on a
+               clean light-blue canvas. No grays or gray-blues: clean
+               blues for accents + hairlines + workspace, pure white for
+               every working surface, dark ink for sharp, trustworthy
+               contrast. */
+            --sch-blue:#1A73E8;
+            --sch-blue-strong:#1557B0;
+            --sch-blue-soft:rgba(26,115,232,.10);
+            --sch-blue-softer:rgba(26,115,232,.06);
+            --sch-blue-tint:rgba(26,115,232,.04);
+            --sch-blue-text:#1357B8;
+            /* Clean blue hairlines (not navy-gray). Kept light so the
+               float reads from contrast + shadow, not heavy borders. */
+            --sch-line:rgba(26,115,232,.16);
+            --sch-line-strong:rgba(26,115,232,.24);
+            --sch-line-subtle:rgba(26,115,232,.09);
+            /* Pure-white working surfaces; light-blue secondaries for
+               hover / selected / nested fills. */
+            --sch-surface:#FFFFFF;
+            --sch-surface-2:#EAF2FE;
+            --sch-surface-3:#DCE9FB;
+            --surface:#FFFFFF;
+            --surface-secondary:#EAF2FE;
+            --surface-elevated:#FFFFFF;
+            --sch-hover:rgba(26,115,232,.08);
+            --sch-pressed:rgba(26,115,232,.14);
+            --border:rgba(26,115,232,.20);
             --sch-amber-soft:rgba(180,83,9,.10);
             --sch-amber:#B45309;
             --sch-amber-dark:#92400E;
@@ -17486,12 +17489,19 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-red-soft:rgba(185,28,28,.08);
             --sch-radius:6px;
             --sch-radius-lg:8px;
-            /* Workspace bg matches the global --canvas so the schedule
-               content area, the sidebar, and the header read as one
-               continuous surface (no seam beside the icon rail). Cards
-               still sit a touch lighter than the canvas, so the
-               elevated-plane hierarchy is preserved. */
-            background:var(--canvas);
+            /* Bright, clean light-blue workspace so the white cards pop
+               and read as floating planes. */
+            background:#EAF2FF;
+          }
+
+          /* Crisp clean-blue float for the hero KPI strip — a lifted,
+             low-muddiness shadow so the white card reads as clearly
+             floating over the bright blue canvas. Blue-tinted (not gray)
+             to stay on the clean palette; overrides the shared shadow on
+             the schedule side. */
+          #view-schedule #rr-sched-kpis.sched-kpi-pills,
+          #view-schedule #rr-sched-targets-kpis.sched-kpi-pills{
+            box-shadow:0 1px 2px rgba(20,55,120,.10), 0 12px 28px rgba(20,55,120,.13) !important;
           }
 
           /* ── Page header / command band ──────────────────────────
