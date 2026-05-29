@@ -1799,7 +1799,7 @@ button.card:focus-visible{
 }
 .tp-roster-table th{
   text-align:left;padding:10px var(--s-4) 11px;
-  background:rgba(232, 241, 250, 0.72) !important;
+  background:rgba(15, 23, 42, 0.05) !important;
   -webkit-backdrop-filter:saturate(180%) blur(20px);
   backdrop-filter:saturate(180%) blur(20px);
   font-size:var(--fs-xs);font-weight:600;
@@ -1809,7 +1809,7 @@ button.card:focus-visible{
   height:79px;vertical-align:middle;
 }
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .tp-roster-table th{background:#E8F1FA !important}
+  .tp-roster-table th{background:#EEF1F5 !important}
 }
 .tp-roster-table th:last-child{text-align:right}
 .tp-roster-table td{
@@ -4040,9 +4040,9 @@ select.form-input{
 }
 .cal-grid.head{
   /* Frosted-glass material — driver rows scrolling past the
-     sticky day-of-week strip blur softly through. Matches the
-     topbar treatment so the page reads as layered. */
-  background:rgba(232, 241, 250, 0.72);
+     sticky day-of-week strip blur softly through. Neutral tint
+     (no blue) so every header strip reads as one calm chrome family. */
+  background:rgba(15, 23, 42, 0.05);
   -webkit-backdrop-filter:saturate(180%) blur(20px);
   backdrop-filter:saturate(180%) blur(20px);
   border-bottom:1px solid rgba(15,23,42,.10);
@@ -13202,7 +13202,7 @@ body.rr-cmdk-open{ overflow:hidden }
             position:fixed;z-index:9999;
             background:var(--surface);
             border:1px solid var(--border);border-radius:10px;
-            box-shadow:0 8px 24px rgba(15,23,42,.18), 0 2px 4px rgba(15,23,42,.06);
+            box-shadow:var(--shadow-md);
             padding:4px;
             display:flex;flex-direction:column;gap:2px;
           }
@@ -13217,7 +13217,7 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .rr-status-picker-item:hover{background:var(--canvas)}
           .rr-status-picker-item:focus-visible{outline:none;background:var(--accent-soft);color:var(--accent-text)}
-          .rr-status-picker-item.is-current{background:rgba(232,241,250,.55)}
+          .rr-status-picker-item.is-current{background:var(--accent-soft)}
           .rr-status-picker-dot{
             width:8px;height:8px;border-radius:50%;flex-shrink:0;
           }
@@ -13238,7 +13238,7 @@ body.rr-cmdk-open{ overflow:hidden }
             position:sticky !important;top:0 !important;z-index:3 !important;
           }
           #att-report-thead th{
-            background:rgba(232, 241, 250, 0.72) !important;
+            background:rgba(15, 23, 42, 0.05) !important;
             -webkit-backdrop-filter:saturate(180%) blur(20px) !important;
             backdrop-filter:saturate(180%) blur(20px) !important;
             border-bottom:1px solid rgba(15,23,42,.10) !important;
@@ -13250,7 +13250,7 @@ body.rr-cmdk-open{ overflow:hidden }
             vertical-align:middle !important;
           }
           @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-            #att-report-thead th{background:#E8F1FA !important}
+            #att-report-thead th{background:#EEF1F5 !important}
           }
           /* Match Roster's KPI → table-header gap parity rules so
              Attendance reads at the same vertical rhythm. */
@@ -13350,7 +13350,7 @@ body.rr-cmdk-open{ overflow:hidden }
             position:sticky !important;top:0 !important;z-index:3 !important;
           }
           #rr-roster-thead th{
-            background:rgba(232, 241, 250, 0.72) !important;
+            background:rgba(15, 23, 42, 0.05) !important;
             -webkit-backdrop-filter:saturate(180%) blur(20px) !important;
             backdrop-filter:saturate(180%) blur(20px) !important;
             border-bottom:1px solid rgba(15,23,42,.10) !important;
@@ -13366,14 +13366,14 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Solid-color fallback for browsers without backdrop-filter
              so the sticky header never reads as transparent. */
           @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-            #rr-roster-thead th{background:#E8F1FA !important}
+            #rr-roster-thead th{background:#EEF1F5 !important}
           }
-          /* Soft-blue row hover · matches the Schedule grid's hover
-             tint so the operator pattern-matches roster rows as
-             behaving like schedule rows. */
+          /* Neutral row hover · a clean gray wash (no blue tint) so
+             roster rows read as a crisp operational table, matching
+             the rest of the product's neutral hover surfaces. */
           #dr-sub-roster .table tbody tr:hover,
           #dr-sub-roster .table-clickable tbody tr:hover{
-            background:rgba(232, 241, 250, 0.55) !important;
+            background:rgba(15, 23, 42, 0.05) !important;
           }
 
           /* Density modes · Standard / Compact / Ultra-compact.
