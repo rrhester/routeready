@@ -94,7 +94,11 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=1">
+<<<<<<< HEAD
+<link rel="stylesheet" href="schedule-rrx.css?v=51">
+=======
 <link rel="stylesheet" href="schedule-rrx.css?v=50">
+>>>>>>> origin/main
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -428,21 +432,15 @@ body{
    whole app (z-index:-1), never painted on top of any section. The app
    chrome + content share one flat canvas color; this only adds a faint
    sense of depth from above. No visible blue patches or local gradients. */
+/* Flat single-color backdrop — no daylight gradient — so the sidebar,
+   header, and content read as the exact same canvas color (no seam). */
 body::before{
   content:"";
   position:fixed;
   inset:0;
   z-index:-1;
   pointer-events:none;
-  background:
-    radial-gradient(
-      ellipse 1800px 1200px at 50% -38%,
-      var(--rr-canvas-light) 0%,
-      var(--rr-daylight-blue) 28%,
-      var(--rr-daylight-blue-soft) 52%,
-      transparent 78%
-    ),
-    var(--rr-canvas);
+  background:var(--rr-canvas);
 }
 button{font-family:inherit;cursor:pointer}
 a{color:inherit;text-decoration:none}
@@ -17548,8 +17546,14 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule #rr-sched-targets-kpis.sched-kpi-pills{
             background:var(--rr-surface) !important;
             border:1px solid var(--rr-border-soft) !important;
-            box-shadow:var(--rr-shadow-ambient) !important;
+            box-shadow:none !important;
           }
+          /* No shadows on any schedule card (flat, crisp). */
+          #view-schedule.rrx-schedule .sched-v2-strip,
+          #view-schedule .cal-wrap,
+          #view-schedule .driver-pool,
+          #view-schedule .sched-insights,
+          #view-schedule .sched-nav-heading{box-shadow:none !important}
 
           /* ── Page header / command band ──────────────────────────
              Title left, ghost command bar right, single hairline
@@ -17818,7 +17822,11 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills{
             background:#FFFFFF !important;
             border-color:rgba(15,23,42,.10) !important;
+<<<<<<< HEAD
+            box-shadow:none !important;
+=======
             box-shadow:0 1px 2px rgba(15,23,42,.08) !important;
+>>>>>>> origin/main
             margin-bottom:1px !important;
           }
 =======

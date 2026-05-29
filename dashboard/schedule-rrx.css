@@ -1836,8 +1836,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
      command-strip tile (Schedule + Intelligence + Print/Download
      all scale together, since the intel + print SVG sizes mirror
      this one). The strip's min-height is grown in lockstep below. */
-  width: 33px;
-  height: 33px;
+  width: 38px;
+  height: 38px;
   flex: 0 0 auto;
   color: var(--rr-fg-secondary);
   stroke-width: 1.6;
@@ -2447,21 +2447,24 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
    ============================================================ */
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #D2E3FC !important;
-  border-color: rgba(26, 115, 232, 0.55) !important;
-  color: var(--rr-fg-primary) !important;
+  background: #1DA1F2 !important;
+  border-color: #1483C8 !important;
+  color: #FFFFFF !important;
 }
 
+#view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) * {
+  color: #FFFFFF !important;
+}
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #0B4F8F !important;
+  color: #FFFFFF !important;
   font-weight: 700 !important;
 }
 
 /* On hover, deepen the fill + edge so the focused cell reads as
    actively selected without resorting to a glow. */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #C2D7F9 !important;
-  border-color: rgba(26, 115, 232, 0.70) !important;
+  background: #1893E0 !important;
+  border-color: #0F76B8 !important;
 }
 
 /* ============================================================
