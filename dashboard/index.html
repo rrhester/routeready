@@ -17750,6 +17750,44 @@ body.rr-cmdk-open{ overflow:hidden }
             letter-spacing:0;text-transform:none;
           }
 
+          /* ════════════════════════════════════════════════════════
+             KPI strip · exact Schedule duplication
+             ────────────────────────────────────────────────────────
+             Schedule's KPI card gets a darker container border
+             (--sch-line-strong = rgba(15,23,42,.22)) and darker pill
+             divider lines (rgba(15,23,42,.18)) from #view-schedule-only
+             !important rules (schedule-rrx.css:3142-3148) that never
+             reach the Roster hosts — so the rosters were drawing the
+             much lighter #E1DFDD / #EDEBE9 / .08 lines. Plus the
+             standalone roster pill/sub used #0F172A / #566173 text.
+             Force BOTH roster KPI strips (Onboarding-hosted #rr-ob-kpis
+             and standalone #rr-roster-kpis) to Schedule's exact resolved
+             values so the strips are pixel-identical. (Dot colors stay
+             data-driven; container bg/radius/shadow already match.) */
+          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills,
+          #view-drivers #rr-roster-kpis.sched-kpi-pills{
+            border-color:rgba(15,23,42,.22) !important;
+          }
+          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill,
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill{
+            padding:12px 24px !important;
+            border-right:1px solid rgba(15,23,42,.18) !important;
+            color:#323130 !important;
+            min-height:46px !important;
+            line-height:1.2 !important;
+          }
+          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill:last-child,
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill:last-child{
+            border-right:0 !important;
+          }
+          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-sub,
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-sub{
+            font-size:12px !important;
+            line-height:16px !important;
+            font-weight:500 !important;
+            color:#605E5C !important;
+          }
+
           /* ── Navigation heading · single horizontal ribbon ──────
              Title on the left, all icon clusters (nav tabs + commands
              + week nav) right-justified on the SAME line — never
