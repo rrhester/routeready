@@ -37953,12 +37953,16 @@ function bindSchedWeekNav() {
       if (modal && !modal.dataset.rrBusy) modal.remove();
     });
 
-    // Coverage Deep Dive · open on hover over the Coverage KPI, anchored
-    // over the pill with no page-wide dim. Stays open while the pointer is
-    // on the pill or inside the box; a short grace delay lets the cursor
-    // travel between them.
-    let _covHoverTimer = null;
+    // Coverage Deep Dive · open on hover-INTENT over the Coverage KPI,
+    // anchored over the pill with no page-wide dim. The box only opens if
+    // the cursor lingers ~350ms (so it never pops while just passing
+    // over). Stays open while the pointer is on the pill or inside the
+    // box; a short grace delay lets the cursor travel between them.
+    const _COV_OPEN_DELAY = 350;
+    let _covHoverTimer = null;   // pending close
+    let _covOpenTimer = null;    // pending open (hover-intent)
     const _covCancelClose = () => { if (_covHoverTimer) { clearTimeout(_covHoverTimer); _covHoverTimer = null; } };
+    const _covCancelOpen = () => { if (_covOpenTimer) { clearTimeout(_covOpenTimer); _covOpenTimer = null; } };
     const _covScheduleClose = () => {
       _covCancelClose();
       _covHoverTimer = setTimeout(() => {
@@ -37971,7 +37975,13 @@ function bindSchedWeekNav() {
       const inModal = e.target.closest("#rr-cov-kpi-modal");
       if (pillEl || inModal) {
         _covCancelClose();
-        if (pillEl && !document.getElementById("rr-cov-kpi-modal")) _openCovModal(pillEl);
+        if (pillEl && !document.getElementById("rr-cov-kpi-modal") && !_covOpenTimer) {
+          // Hover-intent: only open once the cursor has stopped/lingered.
+          _covOpenTimer = setTimeout(() => {
+            _covOpenTimer = null;
+            if (pillEl.matches(":hover")) _openCovModal(pillEl);
+          }, _COV_OPEN_DELAY);
+        }
       }
     });
     document.addEventListener("mouseout", (e) => {
@@ -37980,6 +37990,8 @@ function bindSchedWeekNav() {
       // Only close if the pointer is actually leaving both the pill and box.
       const to = e.relatedTarget;
       if (to && (to.closest?.('[data-rr-kpi="coverage"]') || to.closest?.("#rr-cov-kpi-modal"))) return;
+      // Leaving the pill before the intent delay elapsed → cancel the open.
+      _covCancelOpen();
       _covScheduleClose();
     });
   }
