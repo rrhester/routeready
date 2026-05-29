@@ -35945,16 +35945,17 @@ async function renderScheduleWeek() {
     filled: totalFilled,
     needed: totalNeeded,
     weekStart: _schedStart,
-    // RouteReady capacity-reliability model. "Routes" = the weekly route
-    // demand set on the Targets page (sum of okami_demand.target_routes
-    // across the week). Recommended driver headcount = routes × 2, then
-    // +15% buffer to absorb call-offs / extenuating circumstances.
-    // RR recommends scheduling OT (the 5th-day pass) to reach the 115%
+    // RouteReady capacity-reliability model. "Routes" = the MAX DAILY
+    // route count this week (the busiest day's okami_demand.target_routes
+    // from the Targets page), since the driver pool has to cover the peak
+    // day. Recommended driver headcount = maxDailyRoutes × 2, then +15%
+    // buffer to absorb call-offs / extenuating circumstances. RR
+    // recommends scheduling OT (the 5th-day pass) to reach the 115%
     // target and avoid Capacity Reliability Concerns.
-    weeklyRoutes: (() => { let r = 0; for (const n of plannedByDate.values()) r += n; return r; })(),
+    maxDailyRoutes: (() => { let m = 0; for (const n of plannedByDate.values()) if (n > m) m = n; return m; })(),
   };
   window._rrLiveSchedCoverage.driverTarget115 =
-    Math.ceil(window._rrLiveSchedCoverage.weeklyRoutes * 2 * 1.15);
+    Math.ceil(window._rrLiveSchedCoverage.maxDailyRoutes * 2 * 1.15);
   // Distinct active drivers with at least one scheduled (non-training)
   // shift this week — the headcount we compare against the 115% target.
   window._rrLiveSchedCoverage.scheduledDrivers = (() => {
@@ -37662,7 +37663,7 @@ function bindSchedWeekNav() {
         // recommends scheduling OT (the 5th-day pass) to reach it.
         //   Routes (from Targets) × 2 = drivers needed, then +15% buffer.
         const _routes = (live && live.weekStart === payload.schedule_week_start)
-          ? (live.weeklyRoutes || 0) : 0;
+          ? (live.maxDailyRoutes || 0) : 0;
         const _driverTarget = (live && live.driverTarget115 != null)
           ? live.driverTarget115 : Math.ceil(_routes * 2 * 1.15);
         const _scheduledDrivers = (live && live.scheduledDrivers != null)
@@ -37682,7 +37683,7 @@ function bindSchedWeekNav() {
             `<div class="rr-cov-needed">` +
               `<div class="rr-cov-needed-big">${headline}</div>` +
               `<div class="rr-cov-needed-sub">RouteReady recommends staffing to at least <strong>115%</strong> of route demand to mitigate call-offs and other extenuating circumstances — schedule overtime to meet this threshold and avoid Capacity Reliability Concerns.</div>` +
-              `<div class="rr-cov-needed-sub" style="margin-top:6px">${_routes} routes this week × 2 = ${baseDrivers} drivers, +15% buffer = <strong>${_driverTarget}</strong> recommended. ${sched}Target <strong>${_driverTarget}</strong>.</div>` +
+              `<div class="rr-cov-needed-sub" style="margin-top:6px">${_routes} max daily routes × 2 = ${baseDrivers} drivers, +15% buffer = <strong>${_driverTarget}</strong> recommended. ${sched}Target <strong>${_driverTarget}</strong>.</div>` +
             `</div>`;
         } else if (stripUnstaffed != null) {
           // No Targets route plan recorded — fall back to the shift-gap
@@ -37861,20 +37862,35 @@ function bindSchedWeekNav() {
           <div class="modal-body" id="rr-cov-kpi-body">${bodyHtml}</div>
         </div>`;
       document.body.appendChild(m);
-      // Anchor the card over the KPI pill (top-left aligned, clamped to
-      // the viewport) instead of centering it on screen.
+      // Anchor the card over the KPI pill, clamped to the viewport on
+      // both axes so the whole box stays visible (raise it up when it
+      // would run off the bottom; scroll internally if it's taller than
+      // the screen) instead of centering it.
       const card = m.querySelector("#rr-cov-kpi-card");
       const a = anchorEl || document.querySelector('[data-rr-kpi="coverage"]');
       if (card && a) {
+        const M = 12;                       // viewport margin
         const r = a.getBoundingClientRect();
-        const cw = card.offsetWidth || 480;
-        let left = r.left;
-        if (left + cw > window.innerWidth - 12) left = window.innerWidth - cw - 12;
-        if (left < 12) left = 12;
+        const vh = window.innerHeight;
         card.style.position = "fixed";
         card.style.margin = "0";
+        // Cap height to the viewport so a tall card scrolls inside itself.
+        card.style.maxHeight = (vh - M * 2) + "px";
+        card.style.overflowY = "auto";
+        // Horizontal: align to the pill, clamp to viewport.
+        const cw = card.offsetWidth || 480;
+        let left = r.left;
+        if (left + cw > window.innerWidth - M) left = window.innerWidth - cw - M;
+        if (left < M) left = M;
         card.style.left = left + "px";
-        card.style.top = (r.bottom + 6) + "px";
+        // Vertical: prefer just below the pill; if it would overflow the
+        // bottom, lift it so the bottom sits at the viewport edge; never
+        // go above the top margin.
+        const ch = card.offsetHeight || 0;
+        let top = r.bottom + 6;
+        if (top + ch > vh - M) top = vh - M - ch;
+        if (top < M) top = M;
+        card.style.top = top + "px";
       }
     };
 
