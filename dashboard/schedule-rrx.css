@@ -2449,7 +2449,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   /* Driver-app communication blue (same gradient as the app header). */
-  background: linear-gradient(180deg, #0F6CBD 0%, #0B5394 100%) !important;
+  background: linear-gradient(180deg, #5B9BD5 0%, #3D80C4 100%) !important;
   border: 1px solid rgba(255, 255, 255, 0.35) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
   color: #FFFFFF !important;
@@ -2466,7 +2466,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
 /* On hover, deepen the fill + edge so the focused cell reads as
    actively selected without resorting to a glow. */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: linear-gradient(180deg, #115EA3 0%, #0B4A82 100%) !important;
+  background: linear-gradient(180deg, #4A8BCC 0%, #316FB5 100%) !important;
   border-color: rgba(255, 255, 255, 0.45) !important;
 }
 
