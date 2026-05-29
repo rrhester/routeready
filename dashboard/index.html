@@ -771,15 +771,13 @@ textarea,
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
-  /* Operator-chosen slate blue — #344154. Subtle vertical
-     gradient (a few percent darker at the bottom) keeps the
-     soft depth the original Fluent blue had without reading
-     as a marketing flourish. */
-  --sidebar:#344154;
-  --sidebar-grad:linear-gradient(180deg, #344154 0%, #2B3645 100%);
-  --sidebar-hover:rgba(255,255,255,.09);
-  --sidebar-active:rgba(255,255,255,.12);
-  --sidebar-divider:rgba(255,255,255,.11);
+  /* Driver-app communication blue — same gradient as the app header
+     (#0F6CBD -> #0B5394), white text/icons on top. */
+  --sidebar:#0F6CBD;
+  --sidebar-grad:linear-gradient(180deg, #0F6CBD 0%, #0B5394 100%);
+  --sidebar-hover:rgba(255,255,255,.12);
+  --sidebar-active:rgba(255,255,255,.16);
+  --sidebar-divider:rgba(255,255,255,.16);
 
   background:var(--sidebar);
   background-image:var(--sidebar-grad);
@@ -9708,9 +9706,8 @@ body.rr-cmdk-open{ overflow:hidden }
         if (saved !== "0") {
           document.documentElement.classList.add("rr-sidebar-collapsed-boot");
         }
-        // Sidebar matches the workspace canvas — always use the light
-        // rail so the chrome shares one color with the background.
-        document.documentElement.classList.add("rr-sidebar-light");
+        // Sidebar uses the driver-app communication-blue rail (white
+        // text/icons) — the dark base theme, not the light canvas rail.
       } catch (_) {}
     })();
   </script>
