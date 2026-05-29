@@ -2189,8 +2189,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-v2-print-actions .sched-print-btn svg {
   /* +18% to match the standard tile (28 → 33). */
-  width: 33px;
-  height: 33px;
+  width: 38px;
+  height: 38px;
   stroke-width: 1.6;
   flex: 0 0 auto;
 }
