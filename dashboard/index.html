@@ -84,7 +84,7 @@
 <meta name="msapplication-TileImage" content="../app/Icon.png">
 <!-- RouteReady Fluent 2 design system foundation (additive).
      Tokens: --rr-*. Primitives: .rrx-* (see app/rr-system.css). -->
-<link rel="stylesheet" href="../app/rr-system.css?v=6">
+<link rel="stylesheet" href="../app/rr-system.css?v=7">
 <!-- Schedule page — Fluent 2 visual rebind (reference migration).
      Re-skins existing .sched-* chrome under #view-schedule.rrx-schedule
      using --rr-* tokens. Zero DOM/JS changes; opt-in via the
@@ -406,7 +406,7 @@ body{
   font-size:var(--fs-base);
   line-height:1.5;
   color:var(--text);
-  background-color:var(--canvas);
+  background-color:var(--rr-canvas);
   background-image:var(--canvas-grad);
   background-attachment:fixed;
   -webkit-font-smoothing:antialiased;
@@ -688,7 +688,7 @@ textarea,
 /* ─────────────────────────────────────────────────────────────
    APP SHELL
    ───────────────────────────────────────────────────────────── */
-.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh;position:relative;z-index:1}
 .app:has(.sidebar.collapsed){grid-template-columns:64px 1fr}
 
 /* Dashboard-wide sharpness layer · matches the schedule sharpness
@@ -1029,7 +1029,7 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .workspace-chip-sub{font-size:var(--fs-xs);color:var(--text-inverse-muted);line-height:1.2;margin-top:2px}
 
 /* Main column */
-.main{display:flex;flex-direction:column;min-width:0;background:var(--canvas)}
+.main{display:flex;flex-direction:column;min-width:0;background:transparent}
 
 /* Topbar overrides reverted · operator wanted the original light
    frosted-glass header back. All previous .topbar / .topbar .hdr-*
@@ -17453,30 +17453,39 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Schedule-local tokens (kept off :root so we don't bleed
              into other views). */
           #view-schedule{
-            --sch-blue:#0F6CBD;
-            --sch-blue-strong:#115EA3;
-            --sch-blue-soft:rgba(15,108,189,.08);
-            --sch-blue-softer:rgba(15,108,189,.05);
-            --sch-blue-tint:rgba(15,108,189,.035);
-            --sch-blue-text:#0E4F86;
-            /* Sharper line tokens · operator wanted the schedule page
-               to read crisp + technical. Doubled (roughly) the line
-               alpha across every divider so card edges, table borders,
-               and KPI strips feel solid instead of washed. */
-            --sch-line:rgba(15,23,42,.16);
-            --sch-line-strong:rgba(15,23,42,.22);
-            --sch-line-subtle:rgba(15,23,42,.09);
-            --sch-surface:#F8F9FB;
-            --sch-surface-2:#F2F3F6;
-            --sch-surface-3:#EBEDF1;
-            /* Priority 3 · no pure white. Override the global surface
-               tokens within the schedule view so cards/panels read as
-               layered off-white over the canvas, not stark #FFF. */
-            --surface:#F8F9FB;
-            --surface-secondary:#F2F3F6;
-            --surface-elevated:#FCFDFE;
-            --sch-hover:rgba(15,23,42,.04);
-            --sch-pressed:rgba(15,23,42,.06);
+            /* ── Gmail / Material-3 surface hierarchy (pilot) ──────
+               The schedule view's local tokens are remapped onto the
+               global --rr-* design system (app/rr-system.css) so every
+               existing schedule rule inherits the calmer, layered look
+               without per-rule edits. Canvas + gradient show through;
+               cards/tables/KPI read as white surface-2 over them. */
+            /* Accent — Material-3 blue */
+            --sch-blue:var(--rr-accent);
+            --sch-blue-strong:var(--rr-accent-hover);
+            --sch-blue-soft:rgba(11,87,208,.10);
+            --sch-blue-softer:rgba(11,87,208,.06);
+            --sch-blue-tint:rgba(11,87,208,.04);
+            --sch-blue-text:var(--rr-accent-hover);
+            /* Borders — subtle warm gray, not dark navy hairlines */
+            --sch-line:var(--rr-border-subtle);
+            --sch-line-strong:var(--rr-border-default);
+            --sch-line-subtle:var(--rr-border-subtle);
+            /* Surfaces — layered planes */
+            --sch-surface:var(--rr-surface-1);
+            --sch-surface-2:var(--rr-surface-3);
+            --sch-surface-3:var(--rr-surface-3);
+            --surface:var(--rr-surface-2);
+            --surface-secondary:var(--rr-surface-3);
+            --surface-elevated:var(--rr-surface-2);
+            --sch-hover:var(--rr-surface-3);
+            --sch-pressed:var(--rr-accent-soft);
+            /* Element borders + text mapped to the new system */
+            --border:var(--rr-border-default);
+            --text:var(--rr-text-primary);
+            --text-subtle:var(--rr-text-secondary);
+            --text-muted:var(--rr-text-muted);
+            --accent-text:var(--rr-accent);
+            /* Status colors — unchanged (semantic) */
             --sch-amber-soft:rgba(180,83,9,.10);
             --sch-amber:#B45309;
             --sch-amber-dark:#92400E;
@@ -17484,14 +17493,13 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-green-soft:rgba(16,124,65,.10);
             --sch-red:#B91C1C;
             --sch-red-soft:rgba(185,28,28,.08);
-            --sch-radius:6px;
-            --sch-radius-lg:8px;
-            /* Workspace bg matches the global --canvas so the schedule
-               content area, the sidebar, and the header read as one
-               continuous surface (no seam beside the icon rail). Cards
-               still sit a touch lighter than the canvas, so the
-               elevated-plane hierarchy is preserved. */
-            background:var(--canvas);
+            /* Softer Material-3 rounding */
+            --sch-radius:var(--rr-radius-sm);
+            --sch-radius-lg:var(--rr-radius-md);
+            /* Transparent so the app canvas (--rr-canvas) and the
+               atmospheric body::before layer read through behind the
+               schedule content; white cards sit opaque on top. */
+            background:transparent;
           }
 
           /* ── Page header / command band ──────────────────────────
