@@ -33,11 +33,12 @@
 /* ── Workspace baseline ─────────────────────────────────────── */
 
 #view-schedule.rrx-schedule {
-  /* Schedule page · brighter ground tone. The legacy --canvas token
-     (#EEF1F5, cool blue-gray) read as dull. Lifted to a much lighter
-     near-white with a hint of blue so the page feels open and the
-     shift chips pop. */
-  background: #F7FAFC;
+  /* Schedule page · clean neutral table ground. Dropped the prior
+     blue-hinted #F7FAFC, which read as a soft wash across the grid.
+     A true light-neutral gray gives the schedule an enterprise
+     spreadsheet feel and lets the blue shift chips register as
+     deliberate, not as part of an overall blue cast. */
+  background: #F4F5F7;
   font-family: var(--rr-font-family);
   color: var(--rr-fg-primary);
 }
@@ -2334,42 +2335,45 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
 #view-schedule.rrx-schedule .cal-cell-head,
 #view-schedule.rrx-schedule .cal-grid,
 #view-schedule.rrx-schedule .cal-grid.head {
-  border-color: rgba(15, 23, 42, 0.20) !important;
+  border-color: rgba(15, 23, 42, 0.26) !important;
 }
 
 /* Right-divider between day columns + bottom border below each
    driver row. These selectors target the specific properties
    so we don't accidentally also recolor the .today bottom
-   indicator (which uses var(--accent)). */
+   indicator (which uses var(--accent)). Bumped from 20% → 26%
+   for a crisper, more authoritative grid. */
 #view-schedule.rrx-schedule .cal-cell {
-  border-right-color: rgba(15, 23, 42, 0.20) !important;
+  border-right-color: rgba(15, 23, 42, 0.26) !important;
 }
 #view-schedule.rrx-schedule .cal-cell-head:not(.today) {
-  border-right-color: rgba(15, 23, 42, 0.20) !important;
+  border-right-color: rgba(15, 23, 42, 0.26) !important;
 }
 #view-schedule.rrx-schedule .cal-grid {
-  border-bottom-color: rgba(15, 23, 42, 0.20) !important;
-}
-#view-schedule.rrx-schedule .cal-grid.head {
   border-bottom-color: rgba(15, 23, 42, 0.26) !important;
 }
-
-/* Tighter corners on shift chips · the base 6px radius reads
-   as soft against the now-crisper grid lines. 4px tile-style
-   corners feel like Excel/Outlook cells — what an operator
-   pattern-matches as "scheduling grid". */
-#view-schedule.rrx-schedule .shift-chip {
-  border-radius: 4px !important;
+#view-schedule.rrx-schedule .cal-grid.head {
+  border-bottom-color: rgba(15, 23, 42, 0.32) !important;
 }
 
-/* Stronger micro-shadow on assigned chips so they "lift" off
-   the canvas instead of sitting flush. Single 1px hairline
-   shadow — sharp, no blur stack — for that Outlook-table feel. */
+/* Tighter corners on shift chips · 3px tile-style corners read as
+   crisp Excel/Outlook scheduling cells, not soft pills. */
+#view-schedule.rrx-schedule .shift-chip {
+  border-radius: 3px !important;
+}
+
+/* Restrained, flush chips · the prior blue-tinted lift shadow added
+   to the page's blue wash and made chips feel pillowy. Assigned
+   chips now sit flush as defined tiles, leaning on their clearer
+   border for separation. Hover gets a single neutral hairline so
+   the focused cell still registers without a glow. */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  box-shadow: 0 1px 0 rgba(0, 97, 194, 0.18) !important;
+  box-shadow: none !important;
+  padding: 5px 7px !important;
+  line-height: 1.25 !important;
 }
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  box-shadow: 0 2px 0 rgba(0, 97, 194, 0.28) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.14) !important;
 }
 
 /* ============================================================
@@ -2423,29 +2427,31 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
 }
 
 /* ============================================================
-   Shift chips · more vibrant fill
+   Shift chips · crisp, restrained fill
    ------------------------------------------------------------
-   Default chip was brand-soft (#0078D4 @ 10% / 20% border) —
-   too pale against the now-cooler page background. Bumping to
-   ~16% fill, ~35% border, darker route text.
+   The prior translucent fill (#0078D4 @ 22%) read as a hazy
+   blue wash over the canvas. Swapped to a clean OPAQUE light
+   blue with a clearer, defined edge and higher-contrast route
+   text. The chip still reads unmistakably as an assigned shift,
+   but as a precise operational tile — not a soft pill.
    ============================================================ */
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: rgba(0, 120, 212, 0.22) !important;
-  border-color: rgba(0, 120, 212, 0.55) !important;
+  background: #E3EDF9 !important;
+  border-color: rgba(11, 95, 177, 0.42) !important;
   color: var(--rr-fg-primary) !important;
 }
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #0061C2 !important;
+  color: #0B4F8F !important;
   font-weight: 700 !important;
 }
 
-/* On hover, lift saturation further so the chip reads as
-   actively focused. */
+/* On hover, deepen the fill + edge so the focused cell reads as
+   actively selected without resorting to a glow. */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: rgba(0, 120, 212, 0.32) !important;
-  border-color: rgba(0, 120, 212, 0.70) !important;
+  background: #D4E3F5 !important;
+  border-color: rgba(11, 95, 177, 0.60) !important;
 }
 
 /* ============================================================
@@ -2847,20 +2853,17 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
   padding: 1px 5px !important;
 }
 
-/* ── Header shade · one step darker than the new canvas (#F7FAFC).
-   Lightened to #E8F1FA so the day-of-week strip reads as crisp
-   blue-tinted off-white instead of muddy gray. Driver header cell
-   + every day cell except .today (which keeps its accent tint). */
+/* ── Header shade · neutral, one step darker than the canvas.
+   Replaced the blue-tinted strip with a low-alpha neutral so the
+   day-of-week header reads as a crisp structural band rather than
+   adding to the page's blue cast. Driver header cell + every day
+   cell except .today (which keeps its accent tint). */
 #view-schedule.rrx-schedule .cal-grid.head,
 #view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:not(.today),
 #view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:first-child {
-  /* Frosted-glass tint · 35% alpha so the parent's backdrop-filter
-     actually shows through. The prior 72% value was too opaque —
-     only Today cell blurred (var(--accent-soft) is rgba .08, so
-     the blur came through naturally there). Now all 7 cells have
-     low-alpha tint and the blur reads consistently across the
-     whole strip. */
-  background: rgba(232, 241, 250, 0.35) !important;
+  /* Low-alpha neutral tint so the parent's backdrop-filter still
+     shows through, but the strip no longer reads blue. */
+  background: rgba(15, 23, 42, 0.05) !important;
 }
 
 /* ── Day-coverage count · -25% from previous 15px ─────────────
@@ -3141,10 +3144,12 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
   border-right-color: rgba(15, 23, 42, 0.18) !important;
 }
 
-/* Shift chip borders · operator wanted the chips' edges to read
-   as a clear outline against the new sharper grid lines. */
+/* Shift chip borders · a clear, slightly blue-toned outline so each
+   chip reads as a defined tile against the sharper grid lines.
+   (Kept in sync with the fill block above; this later rule is the
+   one that wins the cascade for the assigned-chip border color.) */
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  border-color: rgba(15, 23, 42, 0.18) !important;
+  border-color: rgba(11, 95, 177, 0.42) !important;
 }
 
 /* Day-of-week header strip · the SUN/MON/… label text was muted;
