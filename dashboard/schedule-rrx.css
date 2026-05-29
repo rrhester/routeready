@@ -2017,24 +2017,17 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    surface, and pushed the icon color from indigo-500 to
    indigo-600 so the bolt punches harder against the gradient. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile {
-  /* Google Maps four-color sweep (blue → green → yellow → red). White
-     label/icon with a soft text-shadow for legibility across the hues,
-     plus a gentle multi-color glow so the tile "gives off" the colors. */
-  background: linear-gradient(120deg, #4285F4 0%, #34A853 34%, #F9AB00 62%, #EA4335 100%);
-  color: #FFFFFF;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
-  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.22), 0 2px 12px rgba(66, 133, 244, 0.20);
+  background: linear-gradient(135deg, rgba(26, 115, 232, 0.18), rgba(26, 115, 232, 0.12));
+  color: #1357B8;
 }
 
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:hover {
-  background: linear-gradient(120deg, #4285F4 0%, #34A853 34%, #F9AB00 62%, #EA4335 100%);
-  filter: brightness(1.06);
-  color: #FFFFFF;
+  background: linear-gradient(135deg, rgba(26, 115, 232, 0.30), rgba(26, 115, 232, 0.20));
+  color: #0842A0;
 }
 
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile svg {
-  color: #FFFFFF;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.30));
+  color: #1A73E8;
 }
 
 /* ── Spin animation (Smart Fill + Unassign click feedback) ── */
