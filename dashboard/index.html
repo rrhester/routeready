@@ -94,7 +94,7 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=1">
-<link rel="stylesheet" href="schedule-rrx.css?v=57">
+<link rel="stylesheet" href="schedule-rrx.css?v=58">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -17479,44 +17479,43 @@ body.rr-cmdk-open{ overflow:hidden }
                blues for accents + hairlines + workspace, pure white for
                every working surface, dark ink for sharp, trustworthy
                contrast. */
-            --sch-blue:#1A73E8;
-            --sch-blue-strong:#1557B0;
-            --sch-blue-soft:rgba(26,115,232,.10);
-            --sch-blue-softer:rgba(26,115,232,.06);
-            --sch-blue-tint:rgba(26,115,232,.04);
-            --sch-blue-text:#1357B8;
-            /* Clean blue hairlines, reduced ~40% for the Microsoft
-               Workspace look — lean on spacing + subtle shadows, not
-               heavy borders. */
-            --sch-line:rgba(26,115,232,.10);
-            --sch-line-strong:rgba(26,115,232,.14);
-            --sch-line-subtle:rgba(26,115,232,.05);
-            /* Pure-white working surfaces; light-blue secondaries for
+            /* Match the driver app — Microsoft communication blue
+               (#0F6CBD family), rgb 15,108,189. */
+            --sch-blue:#0F6CBD;
+            --sch-blue-strong:#115EA3;
+            --sch-blue-soft:rgba(15,108,189,.08);
+            --sch-blue-softer:rgba(15,108,189,.05);
+            --sch-blue-tint:rgba(15,108,189,.035);
+            --sch-blue-text:#0F548C;
+            /* Driver-app hairlines: neutral slate (rgba(15,23,42,…)) like
+               the app's --border, not blue-tinted. */
+            --sch-line:rgba(15,23,42,.14);
+            --sch-line-strong:rgba(15,23,42,.20);
+            --sch-line-subtle:rgba(15,23,42,.07);
+            /* Pure-white working surfaces; soft blue secondaries for
                hover / selected / nested fills. */
             --sch-surface:#FFFFFF;
-            --sch-surface-2:#EAF2FE;
-            --sch-surface-3:#DCE9FB;
+            --sch-surface-2:#EAF1F8;
+            --sch-surface-3:#DCE7F3;
             --surface:#FFFFFF;
-            --surface-secondary:#EAF2FE;
+            --surface-secondary:#EAF1F8;
             --surface-elevated:#FFFFFF;
-            --sch-hover:rgba(26,115,232,.08);
-            --sch-pressed:rgba(26,115,232,.14);
-            --border:rgba(26,115,232,.12);
-            /* Status colors on the Google brand palette (yellow / green /
-               red). Yellow uses Google's darker #F9AB00 so text/icons stay
-               legible on white. */
-            --sch-amber-soft:rgba(251,188,4,.18);
-            --sch-amber:#F9AB00;
-            --sch-amber-dark:#E37400;
-            --sch-green:#34A853;
-            --sch-green-soft:rgba(52,168,83,.12);
-            --sch-red:#EA4335;
-            --sch-red-soft:rgba(234,67,53,.10);
-            /* Every blue accent resolves to Google blue (overrides the
-               global --accent #2563EB inside the schedule view). */
-            --accent:#1A73E8;
-            --accent-soft:rgba(26,115,232,.16);
-            --accent-text:#1357B8;
+            --sch-hover:rgba(15,23,42,.03);
+            --sch-pressed:rgba(15,23,42,.06);
+            --border:rgba(15,23,42,.14);
+            /* Status colors mirror the driver app: green #107C41,
+               indigo "attention" #6366F1, red #C50F1F. */
+            --sch-amber-soft:rgba(99,102,241,.10);
+            --sch-amber:#6366F1;
+            --sch-amber-dark:#4338CA;
+            --sch-green:#107C41;
+            --sch-green-soft:rgba(16,124,65,.10);
+            --sch-red:#C50F1F;
+            --sch-red-soft:rgba(197,15,31,.10);
+            /* Accent = driver-app communication blue. */
+            --accent:#0F6CBD;
+            --accent-soft:rgba(15,108,189,.08);
+            --accent-text:#0F548C;
             --sch-radius:6px;
             --sch-radius-lg:8px;
             /* Transparent — the schedule shares the one app canvas
