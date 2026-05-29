@@ -16464,10 +16464,22 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
           <div class="sched-v2-split">
             <button type="button" class="sched-v2-tile" data-rr-v2="targets" tabindex="-1">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true">
-              <rect x="3" y="3" width="18" height="18"/>
-              <rect x="7" y="7" width="10" height="10"/>
-              <rect x="11" y="11" width="2" height="2" fill="currentColor" stroke="none"/>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <defs>
+                <linearGradient id="tg-ring-1" x1="3" y1="21" x2="21" y2="3" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#1E8E3E"/><stop offset="50%" stop-color="#00A19A"/><stop offset="100%" stop-color="#1967D2"/>
+                </linearGradient>
+                <linearGradient id="tg-ring-2" x1="7" y1="17" x2="17" y2="7" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#5BB97E"/><stop offset="50%" stop-color="#3FC9BF"/><stop offset="100%" stop-color="#5E97F0"/>
+                </linearGradient>
+                <linearGradient id="tg-ring-3" x1="11" y1="13" x2="13" y2="11" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#A7DEBC"/><stop offset="50%" stop-color="#9DE7E1"/><stop offset="100%" stop-color="#AECBFA"/>
+                </linearGradient>
+              </defs>
+              <!-- Filled concentric rings, each lighter toward the center. -->
+              <rect x="3" y="3" width="18" height="18" rx="1.5" fill="url(#tg-ring-1)"/>
+              <rect x="7" y="7" width="10" height="10" rx="1" fill="url(#tg-ring-2)"/>
+              <rect x="10.5" y="10.5" width="3" height="3" rx="0.5" fill="url(#tg-ring-3)"/>
             </svg>
             <span>Targets</span>
           </button>
