@@ -3373,7 +3373,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 
 #view-schedule.rrx-schedule .sched-month-dow {
-  background: rgba(232, 241, 250, 0.72);
+  background: rgba(15, 23, 42, 0.05);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
   padding: 8px 10px;
