@@ -20,9 +20,9 @@
   --surface-hover: rgba(15,23,42,.03);
   --surface-pressed: rgba(15,23,42,.06);
   --canvas: #FAFAFA;                   /* Fluent neutralBackground-2 */
-  --border: rgba(15,23,42,.10);        /* Fluent neutralStroke-2 — slightly clearer for crisper card/divider edges */
-  --border-strong: rgba(15,23,42,.12); /* Fluent neutralStroke-1 */
-  --border-subtle: rgba(15,23,42,.04);
+  --border: rgba(15,23,42,.14);        /* Fluent neutralStroke-2 — crisper hairline, matched toward the dashboard's finer-line standard */
+  --border-strong: rgba(15,23,42,.20); /* Fluent neutralStroke-1 */
+  --border-subtle: rgba(15,23,42,.07);
   --glass: rgba(255,255,255,.92);      /* translucent surface for the tabbar (Mica-style) */
 
   /* ── Fluent depth tokens — crisp, operational (not pillowy) ───
@@ -36,8 +36,8 @@
   --shadow-card-strong:
     0 2px 6px rgba(15,23,42,.10);
   --text: #242424;                     /* Fluent neutralForeground-1 */
-  --text-muted: #424242;               /* Fluent neutralForeground-2 */
-  --text-subtle: #616161;              /* Fluent neutralForeground-3 */
+  --text-muted: #3A3A3A;               /* Fluent neutralForeground-2 — darkened one step for sharper contrast */
+  --text-subtle: #545454;              /* Fluent neutralForeground-3 — darkened one step for sharper contrast */
   --text-disabled: #BDBDBD;            /* Fluent neutralForegroundDisabled */
 
   /* ── Accent — Microsoft Fluent communicationBlue (M365 brand
