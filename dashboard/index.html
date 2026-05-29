@@ -94,7 +94,7 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=1">
-<link rel="stylesheet" href="schedule-rrx.css?v=39">
+<link rel="stylesheet" href="schedule-rrx.css?v=40">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -17706,86 +17706,17 @@ body.rr-cmdk-open{ overflow:hidden }
             letter-spacing:0;text-transform:none;
           }
 
-          /* Mirror the Schedule KPI strip on the Drivers (Roster) view
-             so the same outlined-ribbon pill strip appears above the
-             driver table. Every page in the Schedule sidebar slot
-             shares one KPI rhythm. */
-          #view-drivers #rr-roster-kpis.sched-kpi-pills{
-            display:flex;flex-wrap:wrap;align-items:stretch;
-            gap:0;
-            margin:0 0 var(--s-4) 0;
-            /* Match the Schedule KPI card exactly: white surface,
-               primary-stroke border, 4px radius, two-layer float. */
-            background:var(--rr-bg-surface-1, #FFFFFF);
-            border:1px solid var(--rr-border-primary, #E1DFDD);
-            border-radius:var(--rr-radius-medium, 4px);
-            padding:0;
-            box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
-            overflow:hidden;
-          }
+          /* Mirror the Schedule KPI strip on the Drivers (Roster) view.
+             The full chrome (container card, pill cells, dot/text/sub,
+             strong border + divider) is defined ONCE in schedule-rrx.css,
+             where #view-drivers #rr-roster-kpis is now listed alongside
+             #rr-sched-kpis and #rr-ob-kpis so all three strips resolve to
+             byte-identical styles. Only the roster-specific interaction
+             bits live here. */
           #view-drivers #rr-roster-kpis.sched-kpi-pills:empty{display:none}
-          #view-drivers .sched-kpi-pill{
-            display:inline-flex;align-items:center;gap:10px;
-            color:var(--text);font-weight:600;font-size:var(--fs-sm);
-            font-variant-numeric:tabular-nums;
-            padding:11px 24px;
-            border-right:1px solid rgba(15,23,42,.08);
-            line-height:1.2;
-            transition:background var(--t-fast);
-          }
-          #view-drivers .sched-kpi-pill:last-child{border-right:0}
-          #view-drivers .sched-kpi-pill[data-clickable="true"]{cursor:pointer}
-          #view-drivers .sched-kpi-pill[data-clickable="true"]:hover{
+          #view-drivers #rr-roster-kpis .sched-kpi-pill[data-clickable="true"]{cursor:pointer}
+          #view-drivers #rr-roster-kpis .sched-kpi-pill[data-clickable="true"]:hover{
             background:var(--sch-hover, rgba(15,23,42,.025));color:var(--text);
-          }
-          #view-drivers .sched-kpi-dot{
-            width:7px;height:7px;border-radius:50%;flex-shrink:0;
-          }
-          #view-drivers .sched-kpi-text{
-            display:inline-flex;flex-direction:column;line-height:1.15;gap:1px;
-          }
-          #view-drivers .sched-kpi-sub{
-            font-size:var(--fs-xs);font-weight:500;
-            color:var(--text-subtle);
-            letter-spacing:0;text-transform:none;
-          }
-
-          /* ════════════════════════════════════════════════════════
-             KPI strip · exact Schedule duplication
-             ────────────────────────────────────────────────────────
-             Schedule's KPI card gets a darker container border
-             (--sch-line-strong = rgba(15,23,42,.22)) and darker pill
-             divider lines (rgba(15,23,42,.18)) from #view-schedule-only
-             !important rules (schedule-rrx.css:3142-3148) that never
-             reach the Roster hosts — so the rosters were drawing the
-             much lighter #E1DFDD / #EDEBE9 / .08 lines. Plus the
-             standalone roster pill/sub used #0F172A / #566173 text.
-             Force BOTH roster KPI strips (Onboarding-hosted #rr-ob-kpis
-             and standalone #rr-roster-kpis) to Schedule's exact resolved
-             values so the strips are pixel-identical. (Dot colors stay
-             data-driven; container bg/radius/shadow already match.) */
-          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills,
-          #view-drivers #rr-roster-kpis.sched-kpi-pills{
-            border-color:rgba(15,23,42,.22) !important;
-          }
-          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill,
-          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill{
-            padding:12px 24px !important;
-            border-right:1px solid rgba(15,23,42,.18) !important;
-            color:#323130 !important;
-            min-height:46px !important;
-            line-height:1.2 !important;
-          }
-          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill:last-child,
-          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill:last-child{
-            border-right:0 !important;
-          }
-          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-sub,
-          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-sub{
-            font-size:12px !important;
-            line-height:16px !important;
-            font-weight:500 !important;
-            color:#605E5C !important;
           }
 
           /* ── Navigation heading · single horizontal ribbon ──────
