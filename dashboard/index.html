@@ -123,8 +123,18 @@
      card/surface reads as elevated off a crisp base instead of
      sitting on a tinted ground. Matches the Schedule page that
      introduced this tone. */
-  --canvas:#EEF2F6;
+  --canvas:#F5F7FA;
   --canvas-grad:none;
+  /* Consistent daylight workspace — ONE canvas color across the app
+     chrome (sidebar, header) and content, with a hidden light source
+     behind everything (body::before). No per-section gradients/patches. */
+  --rr-canvas:#F5F7FA;
+  --rr-canvas-light:rgba(255,255,255,.55);
+  --rr-daylight-blue:rgba(0,96,170,.045);
+  --rr-daylight-blue-soft:rgba(0,96,170,.022);
+  --rr-surface:#FFFFFF;
+  --rr-border-soft:rgba(15,23,42,.075);
+  --rr-shadow-ambient:0 10px 30px rgba(15,23,42,.055);
   --surface:#F8F9FB;
   --surface-secondary:#F2F3F6;
   --surface-elevated:#FCFDFE;
@@ -413,6 +423,26 @@ body{
   -moz-osx-font-smoothing:grayscale;
   font-feature-settings:"cv02","cv03","cv04","cv11";
   text-rendering:optimizeLegibility;
+}
+/* Hidden daylight light source — a soft, wide glow sitting BEHIND the
+   whole app (z-index:-1), never painted on top of any section. The app
+   chrome + content share one flat canvas color; this only adds a faint
+   sense of depth from above. No visible blue patches or local gradients. */
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  background:
+    radial-gradient(
+      ellipse 1800px 1200px at 50% -38%,
+      var(--rr-canvas-light) 0%,
+      var(--rr-daylight-blue) 28%,
+      var(--rr-daylight-blue-soft) 52%,
+      transparent 78%
+    ),
+    var(--rr-canvas);
 }
 button{font-family:inherit;cursor:pointer}
 a{color:inherit;text-decoration:none}
@@ -1029,7 +1059,7 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .workspace-chip-sub{font-size:var(--fs-xs);color:var(--text-inverse-muted);line-height:1.2;margin-top:2px}
 
 /* Main column */
-.main{display:flex;flex-direction:column;min-width:0;background:var(--canvas)}
+.main{display:flex;flex-direction:column;min-width:0;background:transparent}
 
 /* Topbar overrides reverted · operator wanted the original light
    frosted-glass header back. All previous .topbar / .topbar .hdr-*
@@ -1056,9 +1086,9 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
      fallback (var(--canvas)) is preserved via the @supports
      guard for browsers without backdrop-filter (rare on
      desktop in 2026, but still ~Firefox-Android). */
-  background:rgba(247, 250, 252, 0.72);
-  -webkit-backdrop-filter:saturate(180%) blur(20px);
-  backdrop-filter:saturate(180%) blur(20px);
+  /* Header reads as the same flat canvas color as the workspace — no
+     frosted tint, so the chrome and content share one surface. */
+  background:var(--rr-canvas);
   /* Operator wanted the hairline between topbar and the dashboard
      dropped — header now reads as flush against the canvas, no
      dividing line. */
@@ -9687,9 +9717,9 @@ body.rr-cmdk-open{ overflow:hidden }
         if (saved !== "0") {
           document.documentElement.classList.add("rr-sidebar-collapsed-boot");
         }
-        if (localStorage.getItem("rr-sidebar-theme") !== "dark") {
-          document.documentElement.classList.add("rr-sidebar-light");
-        }
+        // Sidebar matches the workspace canvas — always use the light
+        // rail so the chrome shares one color with the background.
+        document.documentElement.classList.add("rr-sidebar-light");
       } catch (_) {}
     })();
   </script>
@@ -17490,38 +17520,30 @@ body.rr-cmdk-open{ overflow:hidden }
             --sch-red-soft:rgba(185,28,28,.08);
             --sch-radius:6px;
             --sch-radius-lg:8px;
-            /* Microsoft Workspace canvas — a very light neutral behind
-               the workspace (Outlook/Gmail feel) with a soft blue glow
-               from the top (applied on .page below). Surfaces are pure
-               white and separate from it via spacing + subtle shadows. */
-            background:#F7F9FC;
+            /* Transparent — the schedule shares the one app canvas
+               (--rr-canvas) and the hidden daylight source behind it.
+               No local background color, gradient, or blue patch here. */
+            background:transparent;
           }
 
-          /* Schedule workspace backdrop — #F7F9FC with a subtle blue
-             glow radiating from the top-center, so the page feels gently
-             lit without any heavy gradient or drawn borders. Scoped to
-             the schedule content wrapper only. */
+          /* Schedule content wrapper is transparent so the single canvas
+             + hidden light read through consistently behind the cards. */
           #view-schedule .page{
-            background:
-              radial-gradient(circle at 50% 0%, rgba(0,120,255,.06), transparent 60%),
-              #F7F9FC;
+            background:transparent;
           }
 
-          /* Microsoft Workspace surfaces — every major workspace card
-             (week grid, command strip, KPI band, driver pool, right-side
-             open-shifts panel) is pure white. No drawn border: the edge
-             is defined purely by the white-on-light-canvas contrast plus
-             a clean, tight shadow, so each card reads as a crisp plane
-             rather than an outlined box. */
+          /* Bright, calm white cards floating on the single canvas.
+             Flat #FFFFFF surface, faint neutral hairline, and one soft
+             ambient shadow — no gradient fills, no blue glow. */
           #view-schedule .cal-wrap,
           #view-schedule .driver-pool,
           #view-schedule .sched-insights,
           #view-schedule .sched-nav-heading,
           #view-schedule #rr-sched-kpis.sched-kpi-pills,
           #view-schedule #rr-sched-targets-kpis.sched-kpi-pills{
-            background:linear-gradient(180deg, #FFFFFF, #FAFCFF) !important;
-            border:0 !important;
-            box-shadow:0 1px 2px rgba(0,0,0,.03), 0 12px 32px rgba(0,120,255,.08) !important;
+            background:var(--rr-surface) !important;
+            border:1px solid var(--rr-border-soft) !important;
+            box-shadow:var(--rr-shadow-ambient) !important;
           }
 
           /* ── Page header / command band ──────────────────────────
