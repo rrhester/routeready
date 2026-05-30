@@ -184,6 +184,12 @@
      looks the same until the DSP picks their own. */
   --rr-route-c-class_training:#038387;
   --rr-route-c-road_training:#CA5010;
+<<<<<<< HEAD
+  /* PTO / time-off chips. Default mirrors the chip's built-in amber so
+     turning color-coding on looks the same until the DSP picks their own. */
+  --rr-route-c-pto:#CA5010;
+=======
+>>>>>>> origin/main
   /* Legacy route types — retired from the picker but kept so any shift
      still tagged with one keeps its chip color. */
   --rr-route-c-reduction:#CA5010;
@@ -15040,6 +15046,13 @@ body.rr-cmdk-open{ overflow:hidden }
                           <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Road training</span><button type="button" data-rr-route-reset="road_training" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="road_training" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
+<<<<<<< HEAD
+                        <div class="rr-rcp-row" data-rr-route="pto" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">PTO / time off</span><button type="button" data-rr-route-reset="pto" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="pto" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
+=======
+>>>>>>> origin/main
                       </div>
                       <style>
                         /* Each swatch is a small clickable color tile.
@@ -15094,6 +15107,10 @@ body.rr-cmdk-open{ overflow:hidden }
                           other:          "#5D5A58",
                           class_training: "#038387",
                           road_training:  "#CA5010",
+<<<<<<< HEAD
+                          pto:            "#CA5010",
+=======
+>>>>>>> origin/main
                         };
                         function loadHex() {
                           try {
