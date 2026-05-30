@@ -35686,9 +35686,9 @@ function _rrKpiStatusIcon(tier, label) {
   const fill = RR_KPI_ICON_FILL[tier] || RR_KPI_ICON_FILL.red;
   const al = label ? ` aria-label="${label}"` : "";
   if (tier === "green") {
-    return `<svg viewBox="0 0 24 24" width="16" height="16"${al}><circle cx="12" cy="12" r="11" fill="${fill}"/><g transform="translate(5.4 5.4) scale(0.55)" fill="#fff"><path d="M2 21h2.5a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H2v11zm19.7-9.3c.2-.3.3-.6.3-1 0-.9-.8-1.7-1.7-1.7h-5.1l.8-3.7v-.3c0-.4-.2-.8-.4-1L14.5 2 8.6 7.9c-.4.4-.6.9-.6 1.5V19c0 1.1.9 2 2 2h7.5c.7 0 1.3-.4 1.6-1l2.6-6.3z"/></g></svg>`;
+    return `<svg viewBox="0 0 24 24" width="32" height="32"${al}><circle cx="12" cy="12" r="11" fill="${fill}"/><g transform="translate(5.4 5.4) scale(0.55)" fill="#fff"><path d="M2 21h2.5a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H2v11zm19.7-9.3c.2-.3.3-.6.3-1 0-.9-.8-1.7-1.7-1.7h-5.1l.8-3.7v-.3c0-.4-.2-.8-.4-1L14.5 2 8.6 7.9c-.4.4-.6.9-.6 1.5V19c0 1.1.9 2 2 2h7.5c.7 0 1.3-.4 1.6-1l2.6-6.3z"/></g></svg>`;
   }
-  return `<svg viewBox="0 0 24 24" width="16" height="16"${al}><circle cx="12" cy="12" r="10" fill="${fill}"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>`;
+  return `<svg viewBox="0 0 24 24" width="32" height="32"${al}><circle cx="12" cy="12" r="10" fill="${fill}"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>`;
 }
 
 // FT/PT Mix status guardrails (on the Full-Time %). Returns the tier
@@ -36555,7 +36555,8 @@ async function renderScheduleWeek() {
     // Coverage + FT/PT render as plain pills (no tint / status icon).
     const _kpiColorOn = _rrSchedKpiColorOn();
     const coverageIcon = _kpiColorOn ? _rrKpiStatusIcon(_covTier, _covLabel) : undefined;
-    const coveragePillBg = _kpiColorOn ? RR_KPI_SOFT_BG[_covTier] : undefined;
+    // KPI color-coding retired — show the status icon only, never a soft pill tint.
+    const coveragePillBg = undefined;
     // Dots stay in the sidebar's navy family except for OT Risk and
     // Violations when they actually flare — those keep red so the
     // operator sees the alarm. Everything at-rest reads neutral navy.
@@ -36651,7 +36652,7 @@ async function renderScheduleWeek() {
             ? `${ftCount} full-time · ${ptCount} part-time (of ${totalScheduled} active, by 40h)`
             : "No active drivers",
           totalScheduled > 0 && _kpiColorOn ? ftStatus.icon : undefined,
-          totalScheduled > 0 && _kpiColorOn ? ftStatus.pillBg : undefined,
+          undefined,  // color-coding retired — status icon only, no soft pill tint
         );
       })() +
       (() => {
@@ -36734,7 +36735,7 @@ async function renderScheduleWeek() {
             true,
             `Max routes/day · ≤40h peak ${peak40} → ≤50h peak ${peak50all}`,
             _kpiColorOn ? _rrKpiStatusIcon(flexTier, "Flex capacity") : undefined,
-            _kpiColorOn ? RR_KPI_SOFT_BG[flexTier] : undefined,
+            undefined,  // color-coding retired — status icon only, no soft pill tint
           );
         } catch (err) {
           console.warn("flex capacity KPI:", err);
