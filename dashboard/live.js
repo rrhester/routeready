@@ -34750,9 +34750,14 @@ function addHoursToWaveTime(hhmm, hours) {
 async function openShiftEditModal(arg) {
   let m = document.getElementById("rr-shift-edit-modal");
   if (m) m.remove();
-  const isAdd = typeof arg !== "string";
-  const addOpts = isAdd ? (arg || {}) : null;
-  const shiftId = isAdd ? null : arg;
+  // arg can be a legacy string shiftId, or an object:
+  //   add:  { date, stationId, driverId, anchorX, anchorY }
+  //   edit: { shiftId, anchorX, anchorY }
+  // Both add and edit render the same compact, click-anchored popover.
+  const opts    = (typeof arg === "string") ? { shiftId: arg } : (arg || {});
+  const shiftId = opts.shiftId || null;
+  const isAdd   = !shiftId;
+  const addOpts = opts;
 
   // In edit mode we load the existing row; in add mode we synthesize
   // a stub `sh` from the cell the operator clicked so the rest of
@@ -34843,42 +34848,27 @@ async function openShiftEditModal(arg) {
     `<option value="${escapeHtml(v)}"${v === currentClass ? " selected" : ""}>${escapeHtml(label)}</option>`
   ).join("");
 
-  // Add mode → a compact popover sized to its inputs (no Date / Shift kind,
-  // so just Driver · Route · times · type), positioned next to the cell the
-  // operator clicked so they don't have to move the cursor. Edit mode keeps
-  // the full-height left drawer (history, recognition, unassign/delete).
-  // A fully transparent backdrop catches outside clicks WITHOUT dimming or
+  // Both add and edit render the same compact popover, positioned next to the
+  // cell/chip the operator clicked so they don't have to move the cursor. A
+  // fully transparent backdrop catches outside clicks WITHOUT dimming or
   // blurring the schedule underneath.
-  let backdrop = null;
-  if (isAdd) {
-    backdrop = document.createElement("div");
-    backdrop.id = "rr-shift-edit-backdrop";
-    backdrop.style.cssText =
-      "position:fixed;inset:0;background:transparent;z-index:9998";
-    document.body.appendChild(backdrop);
-  }
+  const backdrop = document.createElement("div");
+  backdrop.id = "rr-shift-edit-backdrop";
+  backdrop.style.cssText =
+    "position:fixed;inset:0;background:transparent;z-index:9998";
+  document.body.appendChild(backdrop);
 
   m = document.createElement("div");
   m.id = "rr-shift-edit-modal";
-  if (isAdd) {
-    // Compact card — height is content-driven (only as large as the inputs
-    // need); scrolls if it ever exceeds the viewport. left/top are set after
-    // mount (once we can measure it) so it lands next to the click.
-    m.style.cssText =
-      "position:fixed;top:0;left:0;width:340px;max-width:calc(100vw - 16px);" +
-      "max-height:calc(100vh - 16px);background:var(--surface);" +
-      "border:1px solid var(--border);border-radius:12px;" +
-      "box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:9999;display:flex;" +
-      "flex-direction:column;opacity:0;transition:opacity 120ms ease-out;";
-  } else {
-    // Left-fly drawer · no backdrop blur so the schedule grid stays
-    // visible underneath while the operator edits a shift.
-    m.style.cssText =
-      "position:fixed;top:0;left:0;bottom:0;width:380px;background:var(--surface);" +
-      "border-right:1px solid var(--border);box-shadow:4px 0 16px rgba(15,23,42,.10);" +
-      "z-index:9999;display:flex;flex-direction:column;transform:translateX(-100%);" +
-      "transition:transform 200ms ease-out;";
-  }
+  // Compact card — height is content-driven (only as large as it needs);
+  // scrolls if it ever exceeds the viewport. left/top are set after mount
+  // (once we can measure it) so it lands next to the click.
+  m.style.cssText =
+    "position:fixed;top:0;left:0;width:340px;max-width:calc(100vw - 16px);" +
+    "max-height:calc(100vh - 16px);background:var(--surface);" +
+    "border:1px solid var(--border);border-radius:12px;" +
+    "box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:9999;display:flex;" +
+    "flex-direction:column;opacity:0;transition:opacity 120ms ease-out;";
   // Header subtitle differs by mode — in edit mode we show
   // "driver · route · date"; in add mode we show "Pick the details"
   // (date is editable below, driver below, route below).
@@ -34927,10 +34917,9 @@ async function openShiftEditModal(arg) {
         </details>`;
   // Footer destructive buttons only in edit mode. In add mode there's
   // nothing to unassign/delete yet — just Cancel + Add shift.
-  const destructiveButtons = isAdd ? "" : (sh.driver_id
-    ? `<button class="btn btn-sm" data-rr-shift-edit-unassign style="color:var(--red);border-color:rgba(225,29,72,.3)">Unassign driver</button>
-       <button type="button" data-rr-shift-edit-delete class="rr-text-link" style="background:none;border:none;padding:0;font-size:var(--fs-xs);color:var(--text-subtle);cursor:pointer;text-decoration:underline">Delete shift entirely</button>`
-    : `<button class="btn btn-sm" data-rr-shift-edit-delete style="color:var(--red);border-color:rgba(225,29,72,.3)">Delete shift</button>`);
+  // Edit footer · just Delete shift (operator asked to drop "Unassign driver").
+  const destructiveButtons = isAdd ? ""
+    : `<button class="btn btn-sm" data-rr-shift-edit-delete style="color:var(--red);border-color:rgba(225,29,72,.3)">Delete shift</button>`;
   const primaryBtnLabel = isAdd ? "Add shift" : "Save";
 
   m.innerHTML = `
@@ -34972,30 +34961,25 @@ async function openShiftEditModal(arg) {
       </div>
     </div>`;
   document.body.appendChild(m);
-  // Animate in on next frame so the transition fires. Add mode fades the
-  // popover in next to the click; edit mode slides the drawer in from left.
+  // Animate in on next frame so the transition fires: anchor the popover to
+  // the click point (falls back to viewport center if no anchor was passed),
+  // then clamp it fully on-screen.
   requestAnimationFrame(() => {
-    if (isAdd) {
-      // Anchor the popover to the click point (falls back to viewport
-      // center if no anchor was passed), then clamp it fully on-screen.
-      const pad = 8, gap = 12;
-      const w = m.offsetWidth, h = m.offsetHeight;
-      const ax = Number.isFinite(addOpts.anchorX) ? addOpts.anchorX : window.innerWidth / 2;
-      const ay = Number.isFinite(addOpts.anchorY) ? addOpts.anchorY : window.innerHeight / 2;
-      // Prefer down-right of the cursor; flip to the other side if it would
-      // overflow, so the card always stays close to where they clicked.
-      let left = ax + gap;
-      let top  = ay + gap;
-      if (left + w > window.innerWidth - pad)  left = ax - w - gap;
-      if (top + h  > window.innerHeight - pad) top  = ay - h - gap;
-      left = Math.max(pad, Math.min(left, window.innerWidth - w - pad));
-      top  = Math.max(pad, Math.min(top,  window.innerHeight - h - pad));
-      m.style.left = left + "px";
-      m.style.top  = top + "px";
-      m.style.opacity = "1";
-    } else {
-      m.style.transform = "translateX(0)";
-    }
+    const pad = 8, gap = 12;
+    const w = m.offsetWidth, h = m.offsetHeight;
+    const ax = Number.isFinite(addOpts.anchorX) ? addOpts.anchorX : window.innerWidth / 2;
+    const ay = Number.isFinite(addOpts.anchorY) ? addOpts.anchorY : window.innerHeight / 2;
+    // Prefer down-right of the cursor; flip to the other side if it would
+    // overflow, so the card always stays close to where they clicked.
+    let left = ax + gap;
+    let top  = ay + gap;
+    if (left + w > window.innerWidth - pad)  left = ax - w - gap;
+    if (top + h  > window.innerHeight - pad) top  = ay - h - gap;
+    left = Math.max(pad, Math.min(left, window.innerWidth - w - pad));
+    top  = Math.max(pad, Math.min(top,  window.innerHeight - h - pad));
+    m.style.left = left + "px";
+    m.style.top  = top + "px";
+    m.style.opacity = "1";
   });
   // Autofocus the first field in add mode so the operator can fill it out
   // without reaching for the mouse.
@@ -35055,24 +35039,17 @@ async function openShiftEditModal(arg) {
     }
   });
 
-  // Drawer slides out before unmount so the close feels symmetric
-  // with the open animation. matchMedia check skips the wait on
-  // reduced-motion preference.
+  // Fade the popover + backdrop out before unmount. matchMedia check skips
+  // the wait on reduced-motion preference.
   const close = () => {
     const removeBackdrop = () => { if (backdrop) backdrop.remove(); };
     const noMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (noMotion) { m.remove(); removeBackdrop(); return; }
-    if (isAdd) {
-      // Fade the popover out (it stays anchored where it opened).
-      m.style.opacity = "0";
-      setTimeout(() => { m.remove(); removeBackdrop(); }, 120);
-    } else {
-      m.style.transform = "translateX(-100%)";
-      setTimeout(() => m.remove(), 200);
-    }
+    m.style.opacity = "0";
+    setTimeout(() => { m.remove(); removeBackdrop(); }, 120);
   };
-  // Escape key closes either form. Clicking the backdrop closes the Add
-  // modal (the edit drawer has no backdrop — it doesn't cover the page).
+  // Escape closes the popover; clicking the (transparent) backdrop closes it
+  // too.
   const escHandler = (ev) => {
     if (ev.key === "Escape") { close(); document.removeEventListener("keydown", escHandler); }
   };
@@ -37590,7 +37567,7 @@ function bindSchedWeekNav() {
       const id = assignedChip.dataset.rrShiftId;
       if (!id) return;
       if (!_confirmLiveScheduleEdit()) return;
-      openShiftEditModal(id);
+      openShiftEditModal({ shiftId: id, anchorX: e.clientX, anchorY: e.clientY });
       return;
     }
 
