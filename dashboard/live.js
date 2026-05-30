@@ -24157,6 +24157,7 @@ document.addEventListener("click", (e) => {
       { v: "tenure", l: "By tenure" },
       { v: "wave",   l: "By wave" },
       { v: "hours",  l: "By hours" },
+      { v: "route",  l: "By route type" },
     ];
     const pop = document.createElement("div");
     pop.className = "rr-tf-popover";
