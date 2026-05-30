@@ -2317,6 +2317,27 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   min-height: 0 !important;
 }
 
+/* Standard density · uniform driver-row height ──────────────────────────
+   A driver who gets no shifts used to render as a thin sliver: their
+   day cells held only an "Off" chip (~1 line), while a scheduled driver's
+   cells grew to the ~3-line shift chip (time / wave / van ≈ 67px). The
+   grid row sizes to its tallest cell, so unstaffed rows collapsed and the
+   board looked ragged.
+
+   Give standard-density day cells a min-height matching a populated shift
+   cell so every driver row is the same height whether or not they were
+   scheduled. Cells with a taller chip (badges, etc.) still auto-grow.
+   aspect-ratio:auto so the min-height actually takes effect (the base
+   1/1 square would otherwise win — same fix Compact/Ultra-compact use).
+
+   Scoped to Standard only: Compact (34px) and Ultra-compact (24px)
+   deliberately keep empty cells short for a denser heat-map grid. */
+body:not(.rr-sched-compact):not(.rr-sched-ultra-compact)
+  #view-schedule.rrx-schedule .cal-cell:not(.cal-row-label) {
+  aspect-ratio: auto !important;
+  min-height: 68px !important;
+}
+
 /* ============================================================
    Route color coding · scoped to body.rr-sched-color-routes
    ------------------------------------------------------------
