@@ -21265,6 +21265,17 @@ body.rr-cmdk-open{ overflow:hidden }
                           style="position:relative;top:0;right:0">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3-3"/><path d="M22 8l-3 3"/></svg>
                   </button>
+                  <!-- Unassign all shifts this week · header-icon twin of the
+                       Open-shifts pool button. Clears every driver assignment
+                       for the visible week (shifts stay; only the driver
+                       assignments are cleared). Handler in live.js keys on
+                       #rr-sched-unassign-week-icon → _runUnassignAllShiftsForWeek. -->
+                  <button class="rr-tf-icon" id="rr-sched-unassign-week-icon" type="button"
+                          title="Unassign all shifts this week — clears every driver assignment (shifts stay)"
+                          aria-label="Unassign all shifts this week"
+                          style="position:relative;top:0;right:0">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg>
+                  </button>
                 </div>
               </div>
               <div class="cal-cell-head today">Tue<span class="day-num">1</span></div>
