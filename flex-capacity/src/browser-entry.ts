@@ -8,6 +8,13 @@
 // Rebuild: cd flex-capacity && npm run build:dashboard
 export { computeFlexCapacity, buildKpi, coachingFor } from "./engine.ts";
 export { runWhatIf, applyScenario } from "./whatif.ts";
+export {
+  computeDailyMax,
+  withHires,
+  STANDARD_SCENARIOS,
+  type DailyMaxScenario,
+  type DailyMaxResult,
+} from "./daily-max.ts";
 export { DAY_KEYS, DEFAULT_CONFIG } from "./types.ts";
 export type {
   DayKey,
