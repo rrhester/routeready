@@ -273,12 +273,107 @@ function runWhatIf(input, scenario) {
     confidenceScore
   };
 }
+
+// src/daily-max.ts
+var BASE_WEEK_HOURS = 40;
+function dayBudget(d, scenario) {
+  const block = d.blockHours > 0 ? d.blockHours : 10;
+  const baseDays = Math.floor(BASE_WEEK_HOURS / block);
+  const capDays = Math.floor(scenario.capHours / block);
+  let policyDays;
+  switch (scenario.fifthDayPolicy) {
+    case "none":
+      policyDays = baseDays;
+      break;
+    case "all":
+      policyDays = capDays;
+      break;
+    case "voluntary":
+      policyDays = d.fifthDayOptIn ? capDays : baseDays;
+      break;
+  }
+  const avail = d.available.length;
+  return Math.max(0, Math.min(avail, policyDays, d.maxDaysPerWeek));
+}
+function computeDailyMax(drivers, scenario, days = DAY_KEYS) {
+  const raw = /* @__PURE__ */ new Map();
+  for (const day of days) raw.set(day, 0);
+  for (const d of drivers) {
+    if (!d.active) continue;
+    const n = d.available.length;
+    if (n === 0) continue;
+    const budget = dayBudget(d, scenario);
+    if (budget === 0) continue;
+    const contribution = budget / n;
+    for (const day of d.available) {
+      if (raw.has(day)) raw.set(day, raw.get(day) + contribution);
+    }
+  }
+  const perDayRaw = days.map((day) => ({ day, routes: raw.get(day) ?? 0 }));
+  const perDay = perDayRaw.map((x) => ({ day: x.day, routes: Math.round(x.routes) }));
+  const counts = perDay.map((x) => x.routes);
+  return {
+    scenario,
+    perDay,
+    perDayRaw,
+    peak: counts.length ? Math.max(...counts) : 0,
+    bottleneck: counts.length ? Math.min(...counts) : 0
+  };
+}
+function ftHire(id, blockHours = 10) {
+  return {
+    id,
+    active: true,
+    available: [...DAY_KEYS],
+    preferred: [],
+    fifthDayOptIn: true,
+    pto: [],
+    scheduledDays: [],
+    scheduledHours: 0,
+    weeklyHourCap: 50,
+    blockHours,
+    maxDaysPerWeek: 7,
+    certifications: { dot: false, xl: false, edv: false }
+  };
+}
+function ptHire(id, maxDays = 3, blockHours = 10) {
+  return {
+    id,
+    active: true,
+    available: [...DAY_KEYS],
+    preferred: [],
+    fifthDayOptIn: false,
+    pto: [],
+    scheduledDays: [],
+    scheduledHours: 0,
+    weeklyHourCap: maxDays * blockHours,
+    blockHours,
+    maxDaysPerWeek: maxDays,
+    certifications: { dot: false, xl: false, edv: false }
+  };
+}
+function withHires(drivers, ftCount, ptCount, opts = {}) {
+  const block = opts.blockHours ?? 10;
+  const ptDays = opts.ptMaxDays ?? 3;
+  const hires = [];
+  for (let i = 0; i < ftCount; i++) hires.push(ftHire(`__ft_hire_${i}`, block));
+  for (let i = 0; i < ptCount; i++) hires.push(ptHire(`__pt_hire_${i}`, ptDays, block));
+  return [...drivers, ...hires];
+}
+var STANDARD_SCENARIOS = [
+  { label: "\u226440h", capHours: 40, fifthDayPolicy: "none" },
+  { label: "\u226450h \xB7 opted-in 5th day", capHours: 50, fifthDayPolicy: "voluntary" },
+  { label: "\u226450h \xB7 everyone 5th day", capHours: 50, fifthDayPolicy: "all" }
+];
 export {
   DAY_KEYS,
   DEFAULT_CONFIG,
+  STANDARD_SCENARIOS,
   applyScenario,
   buildKpi,
   coachingFor,
+  computeDailyMax,
   computeFlexCapacity,
-  runWhatIf
+  runWhatIf,
+  withHires
 };

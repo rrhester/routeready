@@ -29,3 +29,13 @@ export {
   type DemandRow,
   type SchedulingSettings,
 } from "./adapter.ts";
+export {
+  computeDailyMax,
+  ftHire,
+  ptHire,
+  withHires,
+  STANDARD_SCENARIOS,
+  type FifthDayPolicy,
+  type DailyMaxScenario,
+  type DailyMaxResult,
+} from "./daily-max.ts";

@@ -9,7 +9,7 @@
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { planScheduleWeek } from "./scheduling-engine.js?v=20260527-pinfix";
-import { computeFlexCapacity } from "./flex-capacity.js?v=20260530-flex1";
+import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=20260530-flex2";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -36670,25 +36670,29 @@ async function renderScheduleWeek() {
           const flexRes = computeFlexCapacity({ weekStart: _schedStart, drivers: flexDrivers, routes });
           const fa = flexRes.kpi.comfortableRoutesAvailable;
           const sa = flexRes.kpi.stretchRoutesAvailable;
-          // Daily MAX a DSP could execute = drivers schedulable that day at
-          // the Maximum tier (1 driver = 1 route). Report the per-day range
-          // (bottleneck → best day) so the strip shows the real ceiling, not
-          // a weekly-averaged figure. The deep-dive breaks it down per day.
-          const maxByDay = flexRes.days.map((d) => d.maximumDrivers);
-          const dailyMin = maxByDay.length ? Math.min(...maxByDay) : 0;
-          const dailyMax = maxByDay.length ? Math.max(...maxByDay) : 0;
+          // Daily MAX route count = "if everyone worked their availability,
+          // capped at N weekly hours, how many routes could we run each day?"
+          // Distributed model (see flex-capacity/src/daily-max.ts): 40h and
+          // 50h give different per-day numbers. The deep-dive breaks it out
+          // per day + the three 5th-day policies + a hire what-if.
+          const scen = STANDARD_SCENARIOS.map((s) => computeDailyMax(flexDrivers, s));
+          const peak40 = scen[0].peak;            // ≤40h
+          const peak50all = scen[2].peak;         // ≤50h, everyone 5th day
           // Pill status: green = comfortable headroom, yellow = only stretch
           // headroom, red = no headroom (must hire to grow).
           const flexTier = fa > 0 ? "green" : sa > 0 ? "yellow" : "red";
-          window._rrLiveFlex = { weekStart: _schedStart, result: flexRes, tier: flexTier };
-          const dailyLabel = dailyMin === dailyMax ? `${dailyMax}` : `${dailyMin}–${dailyMax}`;
+          window._rrLiveFlex = {
+            weekStart: _schedStart, result: flexRes, tier: flexTier,
+            drivers: flexDrivers, blockHours,
+          };
+          const label = peak40 === peak50all ? `${peak40}` : `${peak40}–${peak50all}`;
           return pill(
             "flex",
             navy,
-            `${dailyLabel} Max/day`,
+            `${label} Max/day`,
             "",
             true,
-            `Daily max executable routes · bottleneck ${dailyMin} → peak ${dailyMax}`,
+            `Max routes/day · ≤40h peak ${peak40} → ≤50h peak ${peak50all}`,
             _kpiColorOn ? _rrKpiStatusIcon(flexTier, "Flex capacity") : undefined,
             _kpiColorOn ? RR_KPI_SOFT_BG[flexTier] : undefined,
           );
@@ -38509,62 +38513,82 @@ function bindSchedWeekNav() {
     const _openFlexModal = (anchorEl) => {
       document.getElementById("rr-flex-kpi-modal")?.remove();
       const live = window._rrLiveFlex || null;
-      const res = live?.result;
-      if (!res || !Array.isArray(res.days) || res.days.length === 0) return;
-      // Order days Mon→Sun for the breakdown.
+      const fdrivers = live?.drivers;
+      if (!fdrivers || fdrivers.length === 0) return;
       const ORD = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
-      const LBL = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
-      const days = [...res.days].sort((a, b) => ORD[a.day] - ORD[b.day]);
-      const maxima = days.map((d) => d.maximumDrivers);
-      const dailyMin = Math.min(...maxima);
-      const dailyMax = Math.max(...maxima);
-      const bottleneckDay = days.find((d) => d.maximumDrivers === dailyMin);
-      // Per-day breakdown rows: Maximum executable (headline) + comfortable/
-      // stretch context + the day's planned routes. Bottleneck day flagged.
-      const rows = days.map((d) => {
-        const isBottleneck = d.maximumDrivers === dailyMin;
-        const flag = isBottleneck ? ` <span style="color:var(--red);font-weight:600">· bottleneck</span>` : "";
-        return `<div class="rr-flex-day">
-          <span class="rr-flex-day-name">${LBL[d.day]}</span>
-          <span class="rr-flex-day-max"><strong>${d.maximumDrivers}</strong> max</span>
-          <span class="rr-flex-day-sub">🟢 ${d.comfortableDrivers} · 🟡 ${d.stretchDrivers} · plan ${d.requiredRoutes}${flag}</span>
-        </div>`;
-      }).join("");
+      const LBL = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      const KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+      // Three policies the operator asked for: ≤40h, ≤50h (opted-in 5th day),
+      // ≤50h (everyone 5th day) — distributed model.
+      const scen = STANDARD_SCENARIOS.map((s) => computeDailyMax(fdrivers, s));
+      const cellFor = (sIdx, dayKey) =>
+        scen[sIdx].perDay.find((x) => x.day === dayKey)?.routes ?? 0;
+      // Per-day table rows (Mon→Sun): three columns.
+      const rows = KEYS.map((k, i) => `
+        <div class="rr-flex-row">
+          <span class="rr-flex-c0">${LBL[i]}</span>
+          <span class="rr-flex-c">${cellFor(0, k)}</span>
+          <span class="rr-flex-c">${cellFor(1, k)}</span>
+          <span class="rr-flex-c">${cellFor(2, k)}</span>
+        </div>`).join("");
+      // Hire what-if: +10 FT (7 days) + 5 PT (≤3 days). Peak per scenario.
+      const hired = STANDARD_SCENARIOS.map((s) => computeDailyMax(withHires(fdrivers, 10, 5, { blockHours: live.blockHours || 10 }), s));
+      const hireRow = (i, lbl) => {
+        const before = scen[i].peak, after = hired[i].peak;
+        return `<div class="rr-flex-hrow"><span>${lbl}</span><span>peak ${before} <span class="rr-cov-arrow">→</span> <strong>${after}</strong> <span style="color:var(--green)">(+${after - before})</span></span></div>`;
+      };
       const m = document.createElement("div");
       m.id = "rr-flex-kpi-modal";
       m.className = "modal-backdrop open rr-cov-kpi-anchored";
       m.innerHTML = `
-        <div id="rr-flex-kpi-card" class="modal-card" style="max-width:460px">
+        <div id="rr-flex-kpi-card" class="modal-card" style="max-width:480px">
           <div class="modal-head">
             <div>
-              <p class="modal-title">Flex Capacity · Daily Max</p>
-              <p class="modal-sub">Most routes the DSP could execute each day with existing availability</p>
+              <p class="modal-title">Flex Capacity · Max routes/day</p>
+              <p class="modal-sub">If everyone worked their availability, capped per policy</p>
             </div>
             <button type="button" id="rr-flex-kpi-close" class="modal-close" aria-label="Close">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
           <div class="modal-body">
-            <div class="rr-cov-needed">
-              <div class="rr-cov-needed-big">${dailyMin === dailyMax ? `${dailyMax}` : `${dailyMin}–${dailyMax}`} routes/day</div>
-              <div class="rr-cov-needed-sub">You could run as few as <strong>${dailyMin}</strong> on your tightest day (${LBL[bottleneckDay.day]}) and up to <strong>${dailyMax}</strong> on your best day. The bottleneck day is the most you can commit to <em>every</em> day.</div>
+            <div class="rr-flex-table">
+              <div class="rr-flex-row rr-flex-head">
+                <span class="rr-flex-c0"></span>
+                <span class="rr-flex-c">≤40h</span>
+                <span class="rr-flex-c">≤50h<br><small>opted 5th</small></span>
+                <span class="rr-flex-c">≤50h<br><small>all 5th</small></span>
+              </div>
+              ${rows}
             </div>
-            <div class="rr-flex-days">${rows}</div>
+            <div class="rr-cov-needed" style="margin-top:14px">
+              <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">What if you hired +10 FT &amp; +5 PT</div>
+              <div class="rr-cov-needed-sub" style="font-size:var(--fs-xs);margin-top:2px">FT available 7 days (work to the cap) · PT up to 3 days/week. Peak day:</div>
+              <div class="rr-flex-hires" style="margin-top:6px">
+                ${hireRow(0, "≤40h")}
+                ${hireRow(1, "≤50h · opted 5th")}
+                ${hireRow(2, "≤50h · all 5th")}
+              </div>
+            </div>
             <div class="rr-cov-needed" style="margin-top:12px">
               <div class="rr-cov-needed-sub" style="font-weight:600;color:var(--text)">How this is calculated</div>
-              <div class="rr-cov-needed-sub" style="margin-top:4px">For each day, count every driver who could run a route — i.e. passes all <strong>hard rules</strong>: active, available that day, not on PTO, within their weekly hour cap, within max days/week, and holding the cert the route type needs (XL/EDV/DOT). 1 eligible driver = 1 route. That count is the day's <strong>Maximum</strong>.</div>
-              <div class="rr-cov-needed-sub" style="margin-top:6px">🟢 <strong>Comfortable</strong> tightens it to preferred days and no 5th day. 🟡 <strong>Stretch</strong> allows non-preferred days and 5th days for opted-in drivers. 🔴 <strong>Maximum</strong> ignores comfort/retention — hard rules only.</div>
+              <div class="rr-cov-needed-sub" style="margin-top:4px">Each active driver works up to <strong>cap ÷ block</strong> days (40h → 4 shifts, 50h → 5), bounded by their availability and max-days. That budget is spread across the days they're available, so a driver available 6 days contributes 4/6 of a route per day at 40h vs 5/6 at 50h. Summed across drivers and rounded = the day's max routes.</div>
+              <div class="rr-cov-needed-sub" style="margin-top:6px"><strong>≤40h</strong>: nobody exceeds 4 days. <strong>≤50h opted 5th</strong>: only drivers who opted in work a 5th day. <strong>≤50h all 5th</strong>: everyone works a 5th day if available.</div>
             </div>
-            <p class="rr-cov-empty" style="margin-top:12px">Comfortable = sustainable. Stretch = temporary (Prime Week / spikes). Maximum = emergency ceiling, not sustainable. Planning model, not a guarantee.</p>
+            <p class="rr-cov-empty" style="margin-top:12px">Structural capacity (uses availability, not this week's PTO). Planning model, not a guarantee.</p>
           </div>
         </div>
         <style>
-          .rr-flex-days{margin:12px 0 0;display:flex;flex-direction:column;gap:2px}
-          .rr-flex-day{display:grid;grid-template-columns:42px 64px 1fr;align-items:baseline;gap:8px;padding:5px 8px;border-radius:4px}
-          .rr-flex-day:nth-child(odd){background:rgba(0,0,0,.025)}
-          .rr-flex-day-name{font-weight:600;font-size:13px;color:var(--text)}
-          .rr-flex-day-max{font-size:14px;color:var(--text)}
-          .rr-flex-day-sub{font-size:12px;color:var(--text-muted)}
+          .rr-flex-table{margin-top:4px;display:flex;flex-direction:column;gap:1px}
+          .rr-flex-row{display:grid;grid-template-columns:48px 1fr 1fr 1fr;align-items:center;gap:6px;padding:6px 8px;border-radius:4px}
+          .rr-flex-row:nth-child(even){background:rgba(0,0,0,.025)}
+          .rr-flex-head{font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+          .rr-flex-head small{font-weight:400;text-transform:none;letter-spacing:0}
+          .rr-flex-c0{font-weight:600;font-size:13px;color:var(--text)}
+          .rr-flex-c{text-align:center;font-size:14px;color:var(--text)}
+          .rr-flex-head .rr-flex-c{font-size:11px}
+          .rr-flex-hrow{display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);padding:2px 0}
+          .rr-flex-hrow strong{color:var(--text)}
         </style>`;
       document.body.appendChild(m);
       const card = m.querySelector("#rr-flex-kpi-card");
