@@ -34002,6 +34002,10 @@ async function autoAssignDriversForWeek() {
     : null;
   const drivers = (driversRes.data || []).filter(d => {
     if (_whatIfDropIds && _whatIfDropIds.has(d.id)) return false;
+    // Staff rows (dispatcher/ops/owner) live in the drivers table since
+    // migration 0221 — never put them in the scheduling pool. role is
+    // null/'driver' for real drivers.
+    if (d.role && d.role !== "driver") return false;
     if (d.status === "active") return true;
     if (d.status === "onboarding") return activatedTrainees.has(d.id);
     return false;
@@ -35769,9 +35773,13 @@ async function renderScheduleWeek() {
   const [gridRes, driversRes, toRes, femVehRes, femAssignRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
-      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, birthday, tier, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, is_trainer, station:station_id (code)")
+      .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, birthday, tier, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, is_trainer, role, station:station_id (code)")
       .eq("dsp_id", dspId)
       .eq("status", "active")
+      // Only actual drivers belong on the driver schedule — staff rows
+      // (dispatcher/ops/owner) live in the same table since migration 0221.
+      // role is null/'driver' for real drivers; exclude everyone else.
+      .or("role.eq.driver,role.is.null")
       .order("full_name"),
     sb.from("time_off_requests")
       .select("id, driver_id, start_date, end_date, status, is_pto")
