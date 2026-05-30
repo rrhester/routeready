@@ -39357,14 +39357,22 @@ async function _computeWeekViolations(shifts, drivers, timeOff, weekStartIso, we
     }
 
     // ── Working hours compliance (WOC) ────────────────────────────────
-    const WOC = (typeof _rrWocCurrent === "function" ? _rrWocCurrent() : null)
-              || { max_hours_per_week: 55, max_consecutive_days: 6, min_rest_hours: 10 };
+    // The operator's Smart Fill rules are the source of truth for the WOC
+    // caps (their "Weekly hour cap" / "Max consecutive days" fields), so the
+    // violation report matches what they set and what Smart Fill enforced.
+    // Fall back to the saved WOC config, then the legacy {55,6,10} defaults.
+    const _sfWoc = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
+    const _wocCfg = (typeof _rrWocCurrent === "function" ? _rrWocCurrent() : null) || {};
+    const WOC = {
+      max_hours_per_week:   parseInt(_sfWoc.woc_max_hours, 10) || _wocCfg.max_hours_per_week || 55,
+      max_consecutive_days: parseInt(_sfWoc.woc_max_consecutive_days, 10) || _wocCfg.max_consecutive_days || 6,
+      min_rest_hours:       _wocCfg.min_rest_hours || 10,
+    };
 
-    // Total hours this week
-    const totalHrs = list.reduce((s, sh) => {
-      if (sh.starts_at && sh.ends_at) return s + Math.max(0, (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000);
-      return s + (Number(sh.block_hours) || 10);
-    }, 0);
+    // Total hours this week — count BLOCK hours (the same number on the
+    // driver row and the same basis as the cap), not gross start→end (which
+    // includes the report lead and made 6×10h read as 63h).
+    const totalHrs = list.reduce((s, sh) => s + (Number(sh.block_hours) || 10), 0);
     if (totalHrs > WOC.max_hours_per_week) {
       violations.push({ driver: display, date: null, kind: "woc_max_hours",
         note: `${Math.round(totalHrs)}h scheduled (cap ${WOC.max_hours_per_week}h)` });
