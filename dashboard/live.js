@@ -36458,6 +36458,7 @@ async function renderScheduleWeek() {
         affinityPct,
         seniority: seniorityRank.get(d.id) || null,
         finalCorrective: false,
+        fifthDayOk: av.fifth_day_ok === true,
       });
     }
     // Over-staffing context for the "why these hours" explanation.
@@ -38860,150 +38861,66 @@ function bindSchedWeekNav() {
     const buildCard = (info) => {
       const esc = (s) => escapeHtml(String(s == null ? "" : s));
       const initials = info.name.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
-      // Stat chips — only the ones we can compute truthfully.
-      const chips = [];
-      if (info.affinityPct != null) chips.push(["Affinity", info.affinityPct + "%"]);
-      if (info.seniority != null) chips.push(["Seniority", "#" + info.seniority]);
-      chips.push(["Days", info.days]);
-      chips.push(["Hours", info.hours + "h"]);
-      const chipsHtml = chips.map(([k, v]) =>
-        `<div class="rr-di-chip"><div class="rr-di-chip-v">${esc(v)}</div><div class="rr-di-chip-k">${esc(k)}</div></div>`).join("");
-
-      // Scheduling explanation (✓ / · ).
-      const expl = [];
-      const prefSet = new Set(info.preferred);
-      const prefWorked = info.workedDows.filter(d => prefSet.has(d));
-      if (info.preferred.length === 0) expl.push([true, "No preferred days set — placed by availability"]);
-      else if (prefWorked.length === info.preferred.length && info.days > 0) expl.push([true, "Assigned all preferred days"]);
-      else expl.push([info.days > 0, `Assigned ${prefWorked.length} of ${info.preferred.length} preferred days`]);
-      const avail = [...info.available].sort((a, b) => ORD.indexOf(a) - ORD.indexOf(b)).map(d => LBL[d]).join(", ");
-      expl.push([true, `Available: ${avail || "none set"}`]);
-      expl.push([info.hours >= 40, `${info.hours >= 40 ? "Met" : "Under"} weekly hour target (${info.hours}h)`]);
-      expl.push([info.ptoDates.length === 0, info.ptoDates.length === 0 ? "No PTO this week" : `PTO on ${info.ptoDates.length} day(s)`]);
-      expl.push([true, "Passed all scheduling constraints"]);
-      const explHtml = expl.map(([ok, t]) =>
-        `<div class="rr-di-li"><span class="rr-di-ck ${ok ? "ok" : "no"}">${ok ? "✓" : "•"}</span>${esc(t)}</div>`).join("");
-
-      // Why not scheduled — each off day with a reason.
-      const workedSet = new Set(info.workedDows);
-      const availSet = new Set(info.available);
-      const whyNot = [];
-      for (const day of ORD) {
-        if (workedSet.has(day)) continue;
-        if (!availSet.has(day)) whyNot.push([LBL[day], "Marked unavailable"]);
-        else whyNot.push([LBL[day], prefSet.has(day) ? "Available & preferred — not selected (day filled or lower rank)" : "Available, non-preferred — lower priority than alternatives"]);
-      }
-      const whyHtml = whyNot.length === 0
-        ? `<div class="rr-di-li"><span class="rr-di-ck ok">✓</span>Scheduled every eligible day</div>`
-        : whyNot.map(([d, r]) => `<div class="rr-di-why"><div class="rr-di-why-d">${esc(d)}</div><div class="rr-di-why-r">${esc(r)}</div></div>`).join("");
-
-      // Rules that shaped this — the actual Smart Fill rules in effect,
-      // tied to how they affected THIS driver, so the operator sees which
-      // settings drove the hours.
       const rules = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
-      const PICK = {
-        fair_rotation: "Fair rotation (least hours first)",
-        full_time_priority: "Full-time first",
-        seniority: "Seniority first",
-        alphabetical: "Alphabetical",
-        attendance_priority: "Attendance first",
-        availability_first: "Most-available first",
-        random: "Random",
-      };
-      const ruleRows = [];
+      const PICK = { fair_rotation: "Fair rotation (least hours first)", full_time_priority: "Full-time first", seniority: "Seniority first", alphabetical: "Alphabetical", attendance_priority: "Attendance first", availability_first: "Most-available first", random: "Random" };
       const pick = rules.scheduling_method || "fair_rotation";
-      const pickNote = pick === "fair_rotation"
-        ? "least-loaded drivers picked first"
-        : (pick === "full_time_priority" || pick === "seniority")
-          ? `tie-breaks by seniority — this driver is #${info.seniority ?? "—"}`
-          : "";
-      ruleRows.push(["Pick order", (PICK[pick] || pick) + (pickNote ? ` — ${pickNote}` : "")]);
-      const seq = rules.spread_evenly === false;
-      const batch = Math.max(1, Math.min(4, parseInt(rules.rotation_batch, 10) || 1));
-      ruleRows.push(["Fill style", seq ? "Sequential (fill each driver fully before moving on)" : `Spread evenly · ${batch} shift${batch === 1 ? "" : "s"} per turn`]);
-      const target = (rules.target_days_per_week != null) ? rules.target_days_per_week : 4;
-      if (target > 0) ruleRows.push(["Target days/week", `${target} — worked ${info.days} (${info.days >= target ? "hit target" : "under target"})`]);
-      if (rules.attendance_penalty) ruleRows.push(["Penalize final-corrective", info.finalCorrective ? "On — this driver is scheduled last" : "On"]);
-      if (rules.weekly_hour_cap != null) ruleRows.push(["Weekly hour cap", `${rules.weekly_hour_cap}h`]);
-      const rulesHtml = ruleRows.map(([k, v]) =>
-        `<div class="rr-di-rule"><div class="rr-di-rule-k">${esc(k)}</div><div class="rr-di-rule-v">${esc(v)}</div></div>`).join("");
-
-      // Why these hours — lead with the actual outcome and explain a LOW
-      // total (over-staffing + pick-order rank + availability), not just
-      // "they were chosen".
+      const pickLabel = PICK[pick] || pick;
       const dctx = (window._rrDriverIntel && window._rrDriverIntel.context) || {};
       const avgD = dctx.avgDays || 0;
       const covP = dctx.coveragePct;
-      let whyLead, whyDetail;
-      if (info.days === 0) {
-        whyLead = "Not scheduled this week.";
-        whyDetail = 'See "Why Not Scheduled" below for the day-by-day reason.';
-      } else if (avgD && info.days + 0.5 < avgD) {
-        whyLead = `${info.days} day${info.days === 1 ? "" : "s"} (${info.hours}h) — below the team average of ${avgD}.`;
-        whyDetail = (covP != null && covP >= 100
-          ? `The week is over-staffed (${covP}% coverage): more available drivers than routes, so not everyone fills up. `
-          : "") + `Under "${PICK[pick] || pick}", ${pickNote || "drivers fill in the rule's order"}, so higher-ranked drivers took the contested days first and this driver got what was left.`;
-      } else {
-        whyLead = `${info.days} day${info.days === 1 ? "" : "s"} (${info.hours}h) — in line with the team${avgD ? ` (avg ${avgD})` : ""}.`;
-        whyDetail = `Filled per "${PICK[pick] || pick}".`;
-      }
-      const whyHoursHtml = `<div class="rr-di-wh"><div class="rr-di-wh-lead">${esc(whyLead)}</div><div class="rr-di-wh-det">${esc(whyDetail)}</div></div>`;
+      const overStaffed = covP != null && covP >= 100;
 
-      // Schedule confidence — a transparent blend of preferred-match,
-      // affinity, and hours-to-target (clearly a derived heuristic).
-      const prefScore = info.preferred.length ? (prefWorked.length / info.preferred.length) : 1;
-      const affScore = info.affinityPct != null ? info.affinityPct / 100 : 0.6;
-      const hourScore = Math.min(1, info.hours / 40);
-      const confidence = Math.round((prefScore * 0.4 + affScore * 0.3 + hourScore * 0.3) * 100);
+      // WHY you got these shifts (lead with a low total honestly).
+      let why;
+      if (info.days === 0) {
+        why = info.available.length === 0
+          ? "You have no availability set, so the engine can't place you on any day."
+          : `No shifts this week. ${overStaffed ? `The week is over-staffed (${covP}% coverage) — more available drivers than routes — and ` : ""}under "${pickLabel}" higher-priority drivers filled every route before you.`;
+      } else if (avgD && info.days + 0.5 < avgD) {
+        why = `You got ${info.days} day${info.days === 1 ? "" : "s"} (${info.hours}h), below the team average of ${avgD}. ${overStaffed ? `The week is over-staffed (${covP}% coverage), and ` : ""}under "${pickLabel}" fuller / higher-priority drivers took the contested days first.`;
+      } else {
+        why = `You got ${info.days} day${info.days === 1 ? "" : "s"} (${info.hours}h) — in line with the team${avgD ? ` (avg ${avgD})` : ""}, filled under "${pickLabel}".`;
+      }
+
+      // HOW to get more — only levers the DRIVER controls.
+      const tips = [];
+      const unavail = ORD.filter(d => !info.available.includes(d));
+      if (unavail.length) tips.push(`Add availability on ${unavail.map(d => LBL[d]).join(", ")} — you're currently available only ${info.available.length} day${info.available.length === 1 ? "" : "s"}.`);
+      if (!info.fifthDayOk) tips.push(`Opt in to a 5th day — you'd be eligible for an extra shift when the week needs it.`);
+      if (info.preferred.length && info.preferred.length < info.available.length) tips.push(`Broaden your preferred days — non-preferred days are filled at lower priority.`);
+      if (info.affinityPct != null && info.affinityPct < 60) tips.push(`Work a consistent set of days — schedule affinity builds over time and raises your priority.`);
+      if (tips.length === 0) tips.push(overStaffed
+        ? `You're fully available and opted in. The week is over-staffed (${covP}% coverage), so more hours depend on route growth or fewer available drivers — not something you can change.`
+        : `You're maximizing what you control — more hours will come from route demand and rotation.`);
+      const tipsHtml = tips.slice(0, 4).map(t => `<div class="rr-di-tip">• ${esc(t)}</div>`).join("");
 
       return `
         <div class="rr-di-card" data-rr-di-card>
           <div class="rr-di-head">
             <div class="rr-di-id"><span class="rr-di-av">${esc(initials)}</span>
               <div><div class="rr-di-name">${esc(info.name)}</div>
-                <div class="rr-di-sub">${esc(info.station)} · ${info.hours}h scheduled</div></div></div>
+                <div class="rr-di-sub">${esc(info.station)} · ${info.days} day${info.days === 1 ? "" : "s"} · ${info.hours}h</div></div></div>
             <button type="button" class="rr-di-x" data-rr-di-close aria-label="Close">✕</button>
           </div>
-          <div class="rr-di-chips">${chipsHtml}</div>
-          <div class="rr-di-sec">Why these hours</div>${whyHoursHtml}
-          <div class="rr-di-sec">Scheduling Explanation</div>${explHtml}
-          <div class="rr-di-sec">Why Not Scheduled</div>${whyHtml}
-          <div class="rr-di-sec">Rules that shaped this</div>${rulesHtml}
-          <div class="rr-di-sec">Schedule Confidence</div>
-          <div class="rr-di-bar"><span style="width:${confidence}%"></span></div>
-          <div class="rr-di-conf">${confidence}%</div>
+          <div class="rr-di-sec">Why you got this</div>
+          <div class="rr-di-why">${esc(why)}</div>
+          <div class="rr-di-sec">How to get more shifts</div>
+          ${tipsHtml}
           <button type="button" class="btn btn-sm rr-di-profile" data-rr-di-profile="${esc(info.id)}">View full driver profile</button>
         </div>
         <style>
-          #rr-di-host{position:fixed;z-index:1000;width:330px;max-height:80vh}
-          .rr-di-card{overflow-y:auto;max-height:80vh;background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:14px 15px;box-shadow:0 18px 44px rgba(0,0,0,.18),0 0 0 1px rgba(0,0,0,.02)}
-          .rr-di-wh{background:var(--canvas,#f6f7f9);border-radius:6px;padding:9px 11px}
-          .rr-di-wh-lead{font-size:13px;font-weight:700;color:var(--text)}
-          .rr-di-wh-det{font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:3px}
+          #rr-di-host{position:fixed;z-index:1000;width:300px;max-height:80vh}
+          .rr-di-card{overflow-y:auto;max-height:80vh;background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:14px 15px;box-shadow:0 18px 44px rgba(0,0,0,.18)}
           .rr-di-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
           .rr-di-id{display:flex;gap:10px;align-items:center}
-          .rr-di-av{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:#1A1F47;color:#fff;font-size:12px;font-weight:700;flex:0 0 auto}
+          .rr-di-av{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:#1A1F47;color:#fff;font-size:12px;font-weight:700;flex:0 0 auto}
           .rr-di-name{font-size:14px;font-weight:700;color:var(--text)}
           .rr-di-sub{font-size:12px;color:var(--text-muted)}
           .rr-di-x{border:0;background:transparent;color:var(--text-muted);cursor:pointer;font-size:13px;padding:2px 4px}
-          .rr-di-chips{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0}
-          .rr-di-chip{background:var(--canvas,#f6f7f9);border:1px solid var(--border,#e5e7eb);border-radius:6px;padding:6px 4px;text-align:center}
-          .rr-di-chip-v{font-size:14px;font-weight:700;color:#1E8E3E}
-          .rr-di-chip-k{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em}
-          .rr-di-sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin:12px 0 6px}
-          .rr-di-li{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--text);padding:2px 0}
-          .rr-di-ck{flex:0 0 auto;font-weight:700}
-          .rr-di-ck.ok{color:#1E8E3E}.rr-di-ck.no{color:var(--text-muted)}
-          .rr-di-why{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--border-subtle,#f0f0f0)}
-          .rr-di-why-d{font-size:12.5px;font-weight:600;color:var(--text)}
-          .rr-di-why-r{font-size:12px;color:var(--text-muted);text-align:right}
-          .rr-di-rule{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--border-subtle,#f0f0f0)}
-          .rr-di-rule-k{font-size:12px;font-weight:600;color:var(--text);flex:0 0 auto}
-          .rr-di-rule-v{font-size:12px;color:var(--text-muted);text-align:right}
-          .rr-di-bar{height:6px;border-radius:3px;background:var(--canvas,#eef0f2);overflow:hidden;margin-top:4px}
-          .rr-di-bar span{display:block;height:100%;background:#1A1F47}
-          .rr-di-conf{font-size:12px;font-weight:700;color:var(--text);margin-top:4px;text-align:right}
-          .rr-di-profile{width:100%;margin-top:12px}
+          .rr-di-sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin:13px 0 5px}
+          .rr-di-why{font-size:13px;color:var(--text);line-height:1.5}
+          .rr-di-tip{font-size:12.5px;color:var(--text);line-height:1.5;padding:2px 0}
+          .rr-di-profile{width:100%;margin-top:13px}
         </style>`;
     };
 
