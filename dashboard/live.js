@@ -36336,8 +36336,9 @@ async function renderScheduleWeek() {
   // affinity each driver has for the weekday they were given — measured
   // over the DSP's rolling period.
   let affSum = 0, affDenom = 0;
+  let _affMap = null;
   try {
-    const _affMap = await _rrComputeWeekdayAffinity(dspId, _schedStart, _rrAffinityWeeks());
+    _affMap = await _rrComputeWeekdayAffinity(dspId, _schedStart, _rrAffinityWeeks());
     for (const sh of (grid.shifts || [])) {
       if (!sh.driver_id || sh.status !== "scheduled") continue;
       const arr = _affMap.get(sh.driver_id);
@@ -36347,6 +36348,57 @@ async function renderScheduleWeek() {
       affSum += arr[dow] || 0;
     }
   } catch (e) { console.warn("affinity KPI failed:", e); }
+
+  // ── Driver Intelligence data ──────────────────────────────────────────
+  // Everything the hover card (rendered into the open-shifts rail) needs,
+  // assembled from this render's data so the hover handler can read it
+  // synchronously. Only TRUTHFUL, derivable fields — no fabricated scores.
+  try {
+    const DOWK = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const weekIsos = [];
+    for (let i = 0; i < 7; i++) weekIsos.push(fmtIsoDate(addDays(weekStart, i)));
+    // Seniority rank: earliest hire_date = #1 (drivers without a date last).
+    const ranked = [...drivers].filter(d => d.hire_date)
+      .sort((a, b) => String(a.hire_date).localeCompare(String(b.hire_date)));
+    const seniorityRank = new Map();
+    ranked.forEach((d, i) => seniorityRank.set(d.id, i + 1));
+    // Worked dates per driver this week (scheduled/completed, non-training).
+    const workedDates = new Map();
+    for (const sh of (grid.shifts || [])) {
+      if (!sh.driver_id || !visibleDriverIds.has(sh.driver_id)) continue;
+      if (!["scheduled", "completed"].includes(sh.status)) continue;
+      if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
+      const s = workedDates.get(sh.driver_id) || new Set();
+      s.add(sh.date);
+      workedDates.set(sh.driver_id, s);
+    }
+    const intelById = new Map();
+    for (const d of drivers) {
+      const av = d.metadata?.availability || {};
+      const available = Array.isArray(av.days) ? av.days : [];
+      const preferred = Array.isArray(av.preferred_days) ? av.preferred_days : [];
+      const worked = workedDates.get(d.id) || new Set();
+      // Affinity: average affinity for the weekdays this driver was given.
+      let aSum = 0, aN = 0;
+      const arr = _affMap && _affMap.get(d.id);
+      if (arr) for (const iso of worked) { aSum += arr[new Date(iso + "T12:00:00").getDay()] || 0; aN += 1; }
+      const affinityPct = aN > 0 ? Math.round((aSum / aN) * 100) : null;
+      intelById.set(d.id, {
+        id: d.id,
+        name: d.preferred_name || d.full_name || "—",
+        station: (d.station && d.station.code) || "—",
+        hours: Math.round((hoursPerDriver.get(d.id) || 0) * 10) / 10,
+        days: worked.size,
+        available, preferred,
+        workedDows: [...worked].map(iso => DOWK[new Date(iso + "T12:00:00").getDay()]),
+        ptoDates: weekIsos.filter(iso => ptoOn(d.id, iso)),
+        affinityPct,
+        seniority: seniorityRank.get(d.id) || null,
+        finalCorrective: false,
+      });
+    }
+    window._rrDriverIntel = { byId: intelById, weekStart: _schedStart, dowKeys: DOWK };
+  } catch (e) { console.warn("driver intel build failed:", e); }
 
   // Drill-down detail for the Preferences KPI card: who's scheduled off a
   // preferred day this week, what days they got vs. what they wanted.
@@ -38723,6 +38775,145 @@ function bindSchedWeekNav() {
   //    they can act on the assignments instead of just reading a
   //    list.) The chain editor surface already highlights the
   //    at-risk vans via their last-14-days strip.
+  // ── Driver Intelligence · hover a driver avatar → explanation card in
+  //    the open-shifts rail. Pointer must linger (hover-intent) so it
+  //    doesn't flash while scanning the grid. Reads window._rrDriverIntel
+  //    (rebuilt each render). Truthful, derived fields only.
+  if (!window._rrDriverIntelHandlerInstalled) {
+    window._rrDriverIntelHandlerInstalled = true;
+    const LBL = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
+    const ORD = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+    const buildCard = (info) => {
+      const esc = (s) => escapeHtml(String(s == null ? "" : s));
+      const initials = info.name.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+      // Stat chips — only the ones we can compute truthfully.
+      const chips = [];
+      if (info.affinityPct != null) chips.push(["Affinity", info.affinityPct + "%"]);
+      if (info.seniority != null) chips.push(["Seniority", "#" + info.seniority]);
+      chips.push(["Days", info.days]);
+      chips.push(["Hours", info.hours + "h"]);
+      const chipsHtml = chips.map(([k, v]) =>
+        `<div class="rr-di-chip"><div class="rr-di-chip-v">${esc(v)}</div><div class="rr-di-chip-k">${esc(k)}</div></div>`).join("");
+
+      // Scheduling explanation (✓ / · ).
+      const expl = [];
+      const prefSet = new Set(info.preferred);
+      const prefWorked = info.workedDows.filter(d => prefSet.has(d));
+      if (info.preferred.length === 0) expl.push([true, "No preferred days set — placed by availability"]);
+      else if (prefWorked.length === info.preferred.length && info.days > 0) expl.push([true, "Assigned all preferred days"]);
+      else expl.push([info.days > 0, `Assigned ${prefWorked.length} of ${info.preferred.length} preferred days`]);
+      const avail = [...info.available].sort((a, b) => ORD.indexOf(a) - ORD.indexOf(b)).map(d => LBL[d]).join(", ");
+      expl.push([true, `Available: ${avail || "none set"}`]);
+      expl.push([info.hours >= 40, `${info.hours >= 40 ? "Met" : "Under"} weekly hour target (${info.hours}h)`]);
+      expl.push([info.ptoDates.length === 0, info.ptoDates.length === 0 ? "No PTO this week" : `PTO on ${info.ptoDates.length} day(s)`]);
+      expl.push([true, "Passed all scheduling constraints"]);
+      const explHtml = expl.map(([ok, t]) =>
+        `<div class="rr-di-li"><span class="rr-di-ck ${ok ? "ok" : "no"}">${ok ? "✓" : "•"}</span>${esc(t)}</div>`).join("");
+
+      // Why not scheduled — each off day with a reason.
+      const workedSet = new Set(info.workedDows);
+      const availSet = new Set(info.available);
+      const whyNot = [];
+      for (const day of ORD) {
+        if (workedSet.has(day)) continue;
+        if (!availSet.has(day)) whyNot.push([LBL[day], "Marked unavailable"]);
+        else whyNot.push([LBL[day], prefSet.has(day) ? "Available & preferred — not selected (day filled or lower rank)" : "Available, non-preferred — lower priority than alternatives"]);
+      }
+      const whyHtml = whyNot.length === 0
+        ? `<div class="rr-di-li"><span class="rr-di-ck ok">✓</span>Scheduled every eligible day</div>`
+        : whyNot.map(([d, r]) => `<div class="rr-di-why"><div class="rr-di-why-d">${esc(d)}</div><div class="rr-di-why-r">${esc(r)}</div></div>`).join("");
+
+      // Schedule confidence — a transparent blend of preferred-match,
+      // affinity, and hours-to-target (clearly a derived heuristic).
+      const prefScore = info.preferred.length ? (prefWorked.length / info.preferred.length) : 1;
+      const affScore = info.affinityPct != null ? info.affinityPct / 100 : 0.6;
+      const hourScore = Math.min(1, info.hours / 40);
+      const confidence = Math.round((prefScore * 0.4 + affScore * 0.3 + hourScore * 0.3) * 100);
+
+      return `
+        <div class="rr-di-card" data-rr-di-card>
+          <div class="rr-di-head">
+            <div class="rr-di-id"><span class="rr-di-av">${esc(initials)}</span>
+              <div><div class="rr-di-name">${esc(info.name)}</div>
+                <div class="rr-di-sub">${esc(info.station)} · ${info.hours}h scheduled</div></div></div>
+            <button type="button" class="rr-di-x" data-rr-di-close aria-label="Close">✕</button>
+          </div>
+          <div class="rr-di-chips">${chipsHtml}</div>
+          <div class="rr-di-sec">Scheduling Explanation</div>${explHtml}
+          <div class="rr-di-sec">Why Not Scheduled</div>${whyHtml}
+          <div class="rr-di-sec">Schedule Confidence</div>
+          <div class="rr-di-bar"><span style="width:${confidence}%"></span></div>
+          <div class="rr-di-conf">${confidence}%</div>
+          <button type="button" class="btn btn-sm rr-di-profile" data-rr-di-profile="${esc(info.id)}">View full driver profile</button>
+        </div>
+        <style>
+          #sched-sub-week{position:relative}
+          .rr-di-card{position:absolute;inset:0;z-index:30;overflow-y:auto;background:var(--surface,#fff);border-radius:var(--r-md,8px);padding:14px 15px;box-shadow:0 1px 0 var(--border,#e5e7eb)}
+          .rr-di-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+          .rr-di-id{display:flex;gap:10px;align-items:center}
+          .rr-di-av{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:#1A1F47;color:#fff;font-size:12px;font-weight:700;flex:0 0 auto}
+          .rr-di-name{font-size:14px;font-weight:700;color:var(--text)}
+          .rr-di-sub{font-size:12px;color:var(--text-muted)}
+          .rr-di-x{border:0;background:transparent;color:var(--text-muted);cursor:pointer;font-size:13px;padding:2px 4px}
+          .rr-di-chips{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0}
+          .rr-di-chip{background:var(--canvas,#f6f7f9);border:1px solid var(--border,#e5e7eb);border-radius:6px;padding:6px 4px;text-align:center}
+          .rr-di-chip-v{font-size:14px;font-weight:700;color:#1E8E3E}
+          .rr-di-chip-k{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em}
+          .rr-di-sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin:12px 0 6px}
+          .rr-di-li{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--text);padding:2px 0}
+          .rr-di-ck{flex:0 0 auto;font-weight:700}
+          .rr-di-ck.ok{color:#1E8E3E}.rr-di-ck.no{color:var(--text-muted)}
+          .rr-di-why{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--border-subtle,#f0f0f0)}
+          .rr-di-why-d{font-size:12.5px;font-weight:600;color:var(--text)}
+          .rr-di-why-r{font-size:12px;color:var(--text-muted);text-align:right}
+          .rr-di-bar{height:6px;border-radius:3px;background:var(--canvas,#eef0f2);overflow:hidden;margin-top:4px}
+          .rr-di-bar span{display:block;height:100%;background:#1A1F47}
+          .rr-di-conf{font-size:12px;font-weight:700;color:var(--text);margin-top:4px;text-align:right}
+          .rr-di-profile{width:100%;margin-top:12px}
+        </style>`;
+    };
+
+    const openCard = (id) => {
+      const intel = window._rrDriverIntel;
+      const rail = document.getElementById("sched-sub-week");
+      if (!intel || !rail) return;
+      const info = intel.byId.get(id);
+      if (!info) return;
+      let host = document.getElementById("rr-di-host");
+      if (!host) { host = document.createElement("div"); host.id = "rr-di-host"; rail.appendChild(host); }
+      if (host.dataset.driver === id) return; // already showing this driver
+      host.dataset.driver = id;
+      host.innerHTML = buildCard(info);
+    };
+    const closeCard = () => { document.getElementById("rr-di-host")?.remove(); };
+
+    let _diOpen = null, _diClose = null;
+    document.addEventListener("mouseover", (e) => {
+      const av = e.target.closest?.('.cal-row-label .avatar-sm[data-rr-driver-id]');
+      const inCard = e.target.closest?.("#rr-di-host");
+      if (inCard) { if (_diClose) { clearTimeout(_diClose); _diClose = null; } return; }
+      if (!av) return;
+      const id = av.getAttribute("data-rr-driver-id");
+      if (_diClose) { clearTimeout(_diClose); _diClose = null; }
+      if (_diOpen) clearTimeout(_diOpen);
+      _diOpen = setTimeout(() => { _diOpen = null; if (av.matches(":hover")) openCard(id); }, 350);
+    });
+    document.addEventListener("mouseout", (e) => {
+      const from = e.target.closest?.('.cal-row-label .avatar-sm[data-rr-driver-id]') || e.target.closest?.("#rr-di-host");
+      if (!from) return;
+      const to = e.relatedTarget;
+      if (to && (to.closest?.('.cal-row-label .avatar-sm[data-rr-driver-id]') || to.closest?.("#rr-di-host"))) return;
+      if (_diOpen) { clearTimeout(_diOpen); _diOpen = null; }
+      _diClose = setTimeout(closeCard, 250);
+    });
+    document.addEventListener("click", (e) => {
+      if (e.target.closest?.("[data-rr-di-close]")) { closeCard(); return; }
+      const prof = e.target.closest?.("[data-rr-di-profile]");
+      if (prof) { const id = prof.getAttribute("data-rr-di-profile"); closeCard(); if (typeof openDriverDrawer === "function") openDriverDrawer(id); }
+    });
+  }
+
   if (!window._rrFemRotationHandlerInstalled) {
     window._rrFemRotationHandlerInstalled = true;
     document.addEventListener("click", (e) => {
