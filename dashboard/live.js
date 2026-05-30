@@ -36099,6 +36099,38 @@ async function renderScheduleWeek() {
       if (at !== bt) return at - bt;
       return _alphaKey(a).localeCompare(_alphaKey(b));
     });
+  } else if (_schedDriverSort === "route") {
+    // Group drivers by the route type they're predominantly assigned this
+    // week: rescue → nursery → other → class training → road training →
+    // standard, then drivers with no shifts. Name breaks ties. Training
+    // shifts read as Class/Road training; an unclassified route reads Standard.
+    const ROUTE_ORDER = ["rescue", "nursery", "other", "class_training", "road_training", "standard"];
+    const shiftRouteKey = (sh) => sh.shift_kind === "training" ? "class_training"
+      : sh.shift_kind === "ride_along" ? "road_training"
+      : (sh.route_classification || "standard");
+    const routeRank = (d) => {
+      const counts = new Map();
+      for (const sh of (grid.shifts || [])) {
+        if (sh.driver_id !== d.id) continue;
+        if (sh.status !== "scheduled" && sh.status !== "completed") continue;
+        const k = shiftRouteKey(sh);
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+      if (counts.size === 0) return ROUTE_ORDER.length + 1; // no shifts → last
+      let bestKey = null, bestN = -1;
+      for (const [k, n] of counts) {
+        const ki = ROUTE_ORDER.indexOf(k);
+        const bi = bestKey === null ? Infinity : ROUTE_ORDER.indexOf(bestKey);
+        if (n > bestN || (n === bestN && ki !== -1 && ki < bi)) { bestN = n; bestKey = k; }
+      }
+      const idx = ROUTE_ORDER.indexOf(bestKey);
+      return idx === -1 ? ROUTE_ORDER.length : idx;
+    };
+    drivers.sort((a, b) => {
+      const ar = routeRank(a), br = routeRank(b);
+      if (ar !== br) return ar - br;
+      return _alphaKey(a).localeCompare(_alphaKey(b));
+    });
   }
 
   // Index PTO by driver.
