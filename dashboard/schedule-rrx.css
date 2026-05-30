@@ -2762,15 +2762,19 @@ body.rr-sched-focus #view-schedule.rrx-schedule .pool-openshifts-body {
    in the Compact mode (the operator reported "Compact didn't change
    anything"). */
 body.rr-sched-compact #view-schedule.rrx-schedule .cal-cell:not(.cal-row-label) {
+  /* Uniform row height at Compact scale: a driver with no shifts must be
+     the same height as a staffed driver. Floor every day cell at the
+     populated 3-line chip height (~52px) instead of clamping empty cells
+     to a short 34px while staffed cells auto-grow. Staffed cells still
+     grow past this if their chip is taller (route code, badges). */
   aspect-ratio: auto !important;
-  min-height: 34px !important;
-  height: 34px !important;
+  min-height: 56px !important;
   padding: 3px 6px !important;
 }
 body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label {
   padding-top: 3px !important;
   padding-bottom: 3px !important;
-  min-height: 34px !important;
+  min-height: 56px !important;
 }
 body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
   width: 24px !important;
@@ -2836,16 +2840,18 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell:not(.cal-row-l
    so we explicitly set `aspect-ratio: auto`. Without that the cell
    wants to stay square and the min-height has no effect. */
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell:not(.cal-row-label) {
+  /* Uniform row height at Ultra-compact scale: empty rows match staffed
+     rows. Floor every day cell at the populated chip height (~40px) rather
+     than clamping empty cells to 24px while staffed cells auto-grow.
+     Staffed cells still grow past this for taller chips. */
   aspect-ratio: auto !important;
-  min-height: 24px !important;
-  height: 24px !important;
+  min-height: 44px !important;
   padding: 1px 4px !important;
 }
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label {
   padding-top: 1px !important;
   padding-bottom: 1px !important;
-  min-height: 24px !important;
-  height: 24px !important;
+  min-height: 44px !important;
 }
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
   width: 18px !important;
