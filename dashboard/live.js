@@ -35945,6 +35945,10 @@ async function renderScheduleWeek() {
   // onboarding/inactive) and drop shifts with terminal status from
   // the denominator. The strip's math is the canonical "what's
   // actually staffed right now" — operator caught the discrepancy.
+  // Per-date plan ceiling (route demand + cushion) so edit paths can
+  // tell when a day is already at/over plan before creating a new shift.
+  window._rrSchedPlanByDate = {};
+  for (const [d, p] of plannedByDate) window._rrSchedPlanByDate[d] = p;
   window._rrLiveSchedCoverage = {
     pct,
     filled: totalFilled,
@@ -38786,6 +38790,33 @@ async function materializeVirtualShiftToDriver(payload, driverId, cell) {
   // putting the driver on, not honoring the gap's original day.
   const date = cell.dataset.rrCellDate || payload.date;
   const stationId = cell.dataset.rrCellStation || payload.station_id;
+
+  // Plan-ceiling guard. Creating a shift here adds a row to the day. If
+  // the day is already at/over its planned route count (route demand +
+  // cushion), this would push it past plan (e.g. 7-plan day → 8 shifts,
+  // shown as 8/7). Auto/virtual creation should never silently exceed
+  // plan, but a deliberate manual override is allowed — so confirm first.
+  try {
+    const plan = (window._rrSchedPlanByDate || {})[date];
+    if (plan != null) {
+      const existing = (Array.isArray(window._rrLastGridShifts) ? window._rrLastGridShifts : [])
+        .filter(s => s && s.date === date
+          && ["scheduled", "completed"].includes(s.status)
+          && s.shift_kind !== "training" && s.shift_kind !== "ride_along"
+          && !s.is_cushion).length;
+      if (existing >= plan) {
+        const dow = new Date(date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long" });
+        const ok = confirm(
+          `${dow} is already at its planned route count (${existing} of ${plan} scheduled).\n\n` +
+          `Adding this shift puts the day over plan (it will read ${existing + 1}/${plan}). ` +
+          `Raise the route count or cushion on the Targets page if you want this to be part of the plan.\n\n` +
+          `Add the extra shift anyway?`
+        );
+        if (!ok) return;
+      }
+    }
+  } catch (_) { /* non-fatal: fall through to the normal create path */ }
+
   const block = (window.RR?.dsp?.metadata?.scheduling?.default_block_hours) || 10;
   const wave = payload.wave_start || "07:00";
   const startsLocal = `${date}T${wave}:00`;
