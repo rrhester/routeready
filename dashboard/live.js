@@ -35680,18 +35680,18 @@ document.addEventListener("click", (e) => {
 // action-needed read clearly at a glance.
 const RR_KPI_SOFT_BG   = { green: "#EDF3EE", yellow: "#FBEAB8", red: "#F8D3CF" };
 // Status-icon palette — every tier wears the schedule Draft pill's vibe:
-// a 135° gradient (light → saturated hue), a dark legible glyph, and a
-// warm translucent edge. Yellow IS the Draft pill (Google Meet gold);
+// a 135° gradient (light → saturated hue) and a warm translucent edge,
+// with a white glyph on top. Yellow IS the Draft pill (Google Meet gold);
 // green echoes the Live pill's #107C41; red the alert red — rendered in
 // the same glossy idiom so the three read as one family.
 const RR_KPI_ICON_PALETTE = {
-  green:  { from: "#84CF9B", to: "#137C43", ink: "#0A3A20", edge: "rgba(16,124,65,0.55)" },
-  yellow: { from: "#FFC528", to: "#FFA000", ink: "#5A3E00", edge: "rgba(214,140,0,0.55)" },
-  red:    { from: "#FF978F", to: "#D5392F", ink: "#5A100A", edge: "rgba(184,40,30,0.55)" },
+  green:  { from: "#84CF9B", to: "#137C43", edge: "rgba(16,124,65,0.55)" },
+  yellow: { from: "#FFC528", to: "#FFA000", edge: "rgba(214,140,0,0.55)" },
+  red:    { from: "#FF978F", to: "#D5392F", edge: "rgba(184,40,30,0.55)" },
 };
 // One status-icon set, reused by both KPIs so they read identically.
 // green → thumbs-up, yellow/red → exclamation dot. All three share the
-// gradient + dark-glyph + warm-edge treatment (the Draft-pill vibe).
+// gradient + warm-edge treatment (the Draft-pill vibe) with a white glyph.
 function _rrKpiStatusIcon(tier, label) {
   const al = label ? ` aria-label="${label}"` : "";
   const p = RR_KPI_ICON_PALETTE[tier] || RR_KPI_ICON_PALETTE.red;
@@ -35700,9 +35700,9 @@ function _rrKpiStatusIcon(tier, label) {
   const gid = "rrKpiGrad-" + Math.random().toString(36).slice(2, 8);
   const grad = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${p.from}"/><stop offset="1" stop-color="${p.to}"/></linearGradient></defs>`;
   if (tier === "green") {
-    return `<svg viewBox="0 0 24 24" width="32" height="32"${al}>${grad}<circle cx="12" cy="12" r="11" fill="url(#${gid})" stroke="${p.edge}" stroke-width="1"/><g transform="translate(5.4 5.4) scale(0.55)" fill="${p.ink}"><path d="M2 21h2.5a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H2v11zm19.7-9.3c.2-.3.3-.6.3-1 0-.9-.8-1.7-1.7-1.7h-5.1l.8-3.7v-.3c0-.4-.2-.8-.4-1L14.5 2 8.6 7.9c-.4.4-.6.9-.6 1.5V19c0 1.1.9 2 2 2h7.5c.7 0 1.3-.4 1.6-1l2.6-6.3z"/></g></svg>`;
+    return `<svg viewBox="0 0 24 24" width="16" height="16"${al}>${grad}<circle cx="12" cy="12" r="11" fill="url(#${gid})" stroke="${p.edge}" stroke-width="1"/><g transform="translate(5.4 5.4) scale(0.55)" fill="#fff"><path d="M2 21h2.5a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H2v11zm19.7-9.3c.2-.3.3-.6.3-1 0-.9-.8-1.7-1.7-1.7h-5.1l.8-3.7v-.3c0-.4-.2-.8-.4-1L14.5 2 8.6 7.9c-.4.4-.6.9-.6 1.5V19c0 1.1.9 2 2 2h7.5c.7 0 1.3-.4 1.6-1l2.6-6.3z"/></g></svg>`;
   }
-  return `<svg viewBox="0 0 24 24" width="32" height="32"${al}>${grad}<circle cx="12" cy="12" r="10" fill="url(#${gid})" stroke="${p.edge}" stroke-width="1"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="${p.ink}"/><circle cx="12" cy="16.7" r="1.2" fill="${p.ink}"/></svg>`;
+  return `<svg viewBox="0 0 24 24" width="16" height="16"${al}>${grad}<circle cx="12" cy="12" r="10" fill="url(#${gid})" stroke="${p.edge}" stroke-width="1"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>`;
 }
 
 // FT/PT Mix status guardrails (on the Full-Time %). Returns the tier
