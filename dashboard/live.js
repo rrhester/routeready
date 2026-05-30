@@ -8,7 +8,7 @@
 // Other tabs still show mockup data — they get wired up in follow-ups.
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { planScheduleWeek } from "./scheduling-engine.js?v=20260527-pinfix";
+import { planScheduleWeek } from "./scheduling-engine.js?v=20260530-scorebreakdown";
 import { computeFlexCapacity, computeDailyMax, withHires, STANDARD_SCENARIOS } from "./flex-capacity.js?v=20260530-flex2";
 
 const cfg = window.RR_CONFIG;
@@ -33411,15 +33411,58 @@ function _rrShowSmartFillDetails(text) {
     out.scrollTop = 0;
   }
 
+  // Plain-English names for the engine's score factors, so the breakdown
+  // reads as "what influenced this pick and by how much".
+  const FACTOR_LABELS = {
+    historical: "Historical pattern (usual days)",
+    attendance: "Attendance score",
+    preferred: "Preferred-day match",
+    consecutive: "Consecutive-day shaping",
+    method: "Pick-order rank",
+    performance: "Performance score",
+    target_days: "Over-target penalty",
+  };
   function compsHtml(sc) {
     if (!sc || typeof sc !== "object") return "";
-    const keys = Object.keys(sc);
-    if (!keys.length) return "";
-    return keys.map((k) => {
-      const v = sc[k];
-      const val = (typeof v === "number") ? (Math.round(v * 1000) / 1000) : v;
-      return "      " + span(C.dim, k.replace(/_/g, " ") + ": ") + span(C.txt, val);
+    const entries = Object.keys(sc)
+      .map((k) => [k, (typeof sc[k] === "number") ? sc[k] : 0])
+      .filter(([, v]) => Math.abs(v) > 0.0005)
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])); // biggest influence first
+    if (!entries.length) return "      " + span(C.dim, "(all factors neutral)");
+    return entries.map(([k, v]) => {
+      const mag = Math.round(v * 100) / 100;
+      const sign = v > 0 ? "+" : "";
+      const col = v > 0 ? C.grn : C.red;
+      const label = FACTOR_LABELS[k] || k.replace(/_/g, " ");
+      const dir = v > 0 ? "helped" : "hurt";
+      return "      " + span(col, (sign + mag).padStart(7)) + "  " +
+        span(C.txt, label) + "  " + span(C.dim, "(" + dir + ")");
     }).join("\n");
+  }
+  // Aggregate a driver's score factors across all their shifts → the
+  // factors that most shaped their whole schedule.
+  function aggFactorsHtml(decisions) {
+    const agg = {};
+    for (const d of decisions) {
+      const sc = d.score_components;
+      if (!sc || typeof sc !== "object") continue;
+      for (const k of Object.keys(sc)) {
+        if (typeof sc[k] === "number") agg[k] = (agg[k] || 0) + sc[k];
+      }
+    }
+    const entries = Object.entries(agg)
+      .filter(([, v]) => Math.abs(v) > 0.005)
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .slice(0, 5);
+    if (!entries.length) return "";
+    const rows = entries.map(([k, v]) => {
+      const mag = Math.round(v * 100) / 100;
+      const sign = v > 0 ? "+" : "";
+      const col = v > 0 ? C.grn : C.red;
+      const label = FACTOR_LABELS[k] || k.replace(/_/g, " ");
+      return "      " + span(col, (sign + mag).padStart(7)) + "  " + span(C.txt, label);
+    });
+    return "  " + span(C.dim, "biggest factors across their shifts:") + "\n" + rows.join("\n");
   }
 
   function profileHtml(p) {
@@ -33471,8 +33514,10 @@ function _rrShowSmartFillDetails(text) {
         lines.push("    " + span(C.white, label) + "  " + tag + score);
         if (d.reason_message) lines.push("      " + span(C.dim, "why: ") + span(C.txt, d.reason_message));
         const comps = compsHtml(d.score_components);
-        if (comps) { lines.push("      " + span(C.dim, "score breakdown:")); lines.push(comps); }
+        if (comps) { lines.push("      " + span(C.dim, "what influenced this pick (by how much):")); lines.push(comps); }
       }
+      const aggF = aggFactorsHtml(mine);
+      if (aggF) { lines.push(""); lines.push(aggF); }
       const prof = profileHtml(p);
       if (prof) { lines.push("  " + span(C.dim, "eligibility on file:")); lines.push(prof); }
     }

@@ -1132,10 +1132,12 @@ function assignedRefOf(shift, source) {
     source
   };
 }
-function applyAssignment(ws, plan, driverId, source) {
+function applyAssignment(ws, plan, driverId, source, score, scoreComponents) {
   plan.assignedDriverId = driverId;
   plan.source = source;
   plan.open = false;
+  if (score !== void 0) plan.score = score;
+  if (scoreComponents !== void 0) plan.scoreComponents = scoreComponents;
   const state = ws.states.get(driverId);
   if (state) state.assigned.push(assignedRefOf(plan.shift, source));
 }
@@ -1587,9 +1589,9 @@ function bestShiftForDriver(ctx, ws, matrix, driver, methodRank, phase) {
     if (!cell || !cell.eligible) continue;
     const plan = ws.planByShiftId.get(shiftId);
     if (!plan || !plan.open || !planInPhase(plan, phase)) continue;
-    const { total } = computeScore(ctx, plan.shift, driver, state, methodRank);
+    const { total, components } = computeScore(ctx, plan.shift, driver, state, methodRank);
     if (best === null || isBetter(plan, total, best, ctx.settings.rotation_start_day)) {
-      best = { plan, score: total };
+      best = { plan, score: total, components };
     }
   }
   return best;
@@ -1621,7 +1623,7 @@ function runFillCycle(ctx, ws, matrix, phase, order, rankMap, driverSkip) {
     const rank = rankMap.get(driver.driver_id) ?? order.length;
     const best = bestShiftForDriver(ctx, ws, matrix, driver, rank, phase);
     if (!best) return false;
-    applyAssignment(ws, best.plan, driver.driver_id, "auto_fill");
+    applyAssignment(ws, best.plan, driver.driver_id, "auto_fill", best.score, best.components);
     matrix.delete(best.plan.shift.shift_id);
     recomputeDriverColumn(ctx, ws, matrix, driver.driver_id);
     return true;
@@ -2365,7 +2367,9 @@ function runEngine(input) {
     assigned.push({
       shift_id: plan.shift.shift_id,
       driver_id: plan.assignedDriverId,
-      source: plan.source
+      source: plan.source,
+      total_score: plan.score ?? null,
+      score_components: plan.scoreComponents ?? null
     });
     const pattern = ctx.patterns.get(plan.assignedDriverId);
     if (pattern && pattern.day_of_week_affinity[plan.shift.dow] >= 0.5) {
