@@ -35680,14 +35680,28 @@ document.addEventListener("click", (e) => {
 // action-needed read clearly at a glance.
 const RR_KPI_SOFT_BG   = { green: "#EDF3EE", yellow: "#FBEAB8", red: "#F8D3CF" };
 const RR_KPI_ICON_FILL = { green: "#5C9B77", yellow: "#E6A100", red: "#D5392F" };
+// Schedule "Draft" pill palette — Google Meet gold: a vibrant gold→amber
+// gradient with a dark, legible glyph + a warm border. The yellow/caution
+// status icon borrows it wholesale so it carries the same vibe as the
+// Draft pill (and the yellow icon fill is swapped for the Draft color).
+const RR_KPI_DRAFT_GOLD = { from: "#FFC528", to: "#FFA000", ink: "#5A3E00", edge: "rgba(214,140,0,0.55)" };
 // One status-icon set, reused by both KPIs so they read identically.
-// green → thumbs-up, yellow/red → exclamation dot, in the muted fills.
+// green → thumbs-up, red → exclamation dot, yellow → exclamation dot in
+// the Draft-pill gold gradient (same vibe as the schedule Draft pill).
 function _rrKpiStatusIcon(tier, label) {
-  const fill = RR_KPI_ICON_FILL[tier] || RR_KPI_ICON_FILL.red;
   const al = label ? ` aria-label="${label}"` : "";
   if (tier === "green") {
+    const fill = RR_KPI_ICON_FILL.green;
     return `<svg viewBox="0 0 24 24" width="32" height="32"${al}><circle cx="12" cy="12" r="11" fill="${fill}"/><g transform="translate(5.4 5.4) scale(0.55)" fill="#fff"><path d="M2 21h2.5a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H2v11zm19.7-9.3c.2-.3.3-.6.3-1 0-.9-.8-1.7-1.7-1.7h-5.1l.8-3.7v-.3c0-.4-.2-.8-.4-1L14.5 2 8.6 7.9c-.4.4-.6.9-.6 1.5V19c0 1.1.9 2 2 2h7.5c.7 0 1.3-.4 1.6-1l2.6-6.3z"/></g></svg>`;
   }
+  if (tier === "yellow") {
+    // Draft-pill gold → amber gradient (135° ≈ SVG top-left→bottom-right),
+    // dark glyph + warm edge — the icon now matches the Draft pill exactly.
+    // Unique gradient id per call so multiple gold icons can't collide.
+    const gid = "rrKpiGold-" + Math.random().toString(36).slice(2, 8);
+    return `<svg viewBox="0 0 24 24" width="32" height="32"${al}><defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${RR_KPI_DRAFT_GOLD.from}"/><stop offset="1" stop-color="${RR_KPI_DRAFT_GOLD.to}"/></linearGradient></defs><circle cx="12" cy="12" r="10" fill="url(#${gid})" stroke="${RR_KPI_DRAFT_GOLD.edge}" stroke-width="1"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="${RR_KPI_DRAFT_GOLD.ink}"/><circle cx="12" cy="16.7" r="1.2" fill="${RR_KPI_DRAFT_GOLD.ink}"/></svg>`;
+  }
+  const fill = RR_KPI_ICON_FILL.red;
   return `<svg viewBox="0 0 24 24" width="32" height="32"${al}><circle cx="12" cy="12" r="10" fill="${fill}"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>`;
 }
 
