@@ -24129,7 +24129,15 @@ async function _runUnassignAllShiftsForWeek(triggerEl) {
     if (isTextBtn) triggerEl.textContent = "Unassign all shifts this week";
   }
   if (error) { toast("Unassign failed: " + error.message, "warn"); return; }
-  toast(`Unassigned ${count ?? "all"} shifts for the week`, "success");
+  // Clearing every assignment effectively returns the week to a draft, so a
+  // finalized ("Live") week auto-unfinalizes — drivers no longer see it and
+  // the Draft pill comes back. Done silently; we fold it into one toast.
+  let reverted = false;
+  if (window._rrWeekFinalized && typeof _setWeekFinalized === "function") {
+    const ok = await _setWeekFinalized(false, { silent: true });
+    reverted = ok !== false;
+  }
+  toast(`Unassigned ${count ?? "all"} shifts for the week${reverted ? " · schedule back to draft" : ""}`, "success");
   if (typeof renderScheduleWeek === "function") renderScheduleWeek();
 }
 
@@ -28500,17 +28508,33 @@ function _updateFinalizeButton() {
       pill.remove();
     }
   }
+
+  // Draft / Live status pill next to the Schedule title — sync it from the
+  // real finalized state. The Finalize tile also flips it optimistically on
+  // click, but this keeps it correct on load and after programmatic changes
+  // (e.g. "Unassign all shifts" reverting a finalized week back to draft).
+  const v2 = document.getElementById("rr-sched-v2-status");
+  if (v2) {
+    v2.setAttribute("data-state", isFinal ? "live" : "draft");
+    const v2lbl = v2.querySelector(".sched-v2-status-label");
+    if (v2lbl) v2lbl.textContent = isFinal ? "Live" : "Draft";
+  }
 }
 window._rrUpdateScheduleCta = _updateFinalizeButton;
 
-async function _setWeekFinalized(target) {
+async function _setWeekFinalized(target, opts) {
   const dspId = window.RR?.dsp?.id;
-  if (!dspId || !_schedStart) return;
+  if (!dspId || !_schedStart) return false;
   const { error } = await sb.rpc("set_schedule_finalized", { p_week_start: _schedStart, p_finalized: target });
-  if (error) { toast("Failed: " + error.message, "warn"); return; }
+  if (error) { toast("Failed: " + error.message, "warn"); return false; }
   window._rrWeekFinalized = target;
   _updateFinalizeButton();
-  toast(target ? "Schedule finalized · drivers can see it" : "Unfinalized · back to draft", "success");
+  // Callers that fold this into their own toast (e.g. Unassign all) pass
+  // { silent: true } so the operator doesn't get two notifications.
+  if (!(opts && opts.silent)) {
+    toast(target ? "Schedule finalized · drivers can see it" : "Unfinalized · back to draft", "success");
+  }
+  return true;
 }
 
 // Returns true if the operator confirms editing a live schedule. Always true
