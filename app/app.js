@@ -6114,6 +6114,11 @@ async function renderAvailability() {
   // waiting for approval. (Preferred days below stay editable — they're
   // a free preference, not part of the approval workflow.)
   const locked = !!blackout || hasPending;
+  // First-time / onboarding: no approved availability yet and able to submit.
+  // In this state the driver picks preferred days from the days they're
+  // CHOOSING (not yet approved), and both save together on submit — a new
+  // driver's submission auto-approves, so the preferred subset validates.
+  const firstTime = liveDays.size === 0 && !blackout && !hasPending;
 
   // Earliest start is carried on the request, so the form shows the
   // pending request's value if there is one, else the approved value.
@@ -6195,9 +6200,11 @@ async function renderAvailability() {
     </div>`;
   }
 
-  const prefRows = _AVAIL_DAYS.map((d) => {
-    const allowed = liveDays.has(d.k);
-    const on = prefSet.has(d.k);
+  // Preferred rows are re-rendered as the driver toggles availability in
+  // first-time mode, so this is a function rather than a one-shot string.
+  const _prefRowsHtml = () => _AVAIL_DAYS.map((d) => {
+    const allowed = firstTime ? picked.has(d.k) : liveDays.has(d.k);
+    const on = prefSet.has(d.k) && allowed;
     return `
       <label class="avail-day" data-rr-pref-row="${d.k}" style="${allowed ? "" : "opacity:.4"}">
         <span class="avail-day-name">${escapeHtml(d.fullLabel)}</span>
@@ -6211,10 +6218,12 @@ async function renderAvailability() {
   const prefBlock = `
     <div style="margin-top:26px">
       <div style="font-weight:700;font-size:var(--fs-lg)">Preferred days</div>
-      <div style="font-size:var(--fs-sm);color:var(--text-muted);margin:4px 0 10px">Days you'd most like to be scheduled — we'll try to honor these. You can only pick days you're already approved for; to add a new day, submit an availability change above.</div>
-      ${liveDays.size === 0
-        ? `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">Set your available days first.</div>`
-        : `<section class="avail-list" id="avail-pref-list">${prefRows}</section>`}
+      <div style="font-size:var(--fs-sm);color:var(--text-muted);margin:4px 0 10px">${firstTime
+        ? "Days you'd most like to be scheduled — pick from the days you chose above. We'll save them when you submit."
+        : "Days you'd most like to be scheduled — we'll try to honor these. You can only pick days you're already approved for; to add a new day, submit an availability change above."}</div>
+      ${(firstTime || liveDays.size > 0)
+        ? `<section class="avail-list" id="avail-pref-list">${_prefRowsHtml()}</section>`
+        : `<div style="font-size:var(--fs-sm);color:var(--text-subtle)">Set your available days first.</div>`}
     </div>`;
 
   // Overtime opt-in — would the driver take a 5th day when coverage is
@@ -6268,29 +6277,44 @@ async function renderAvailability() {
     if (cb.checked) picked.add(dk); else picked.delete(dk);
     cb.closest(".avail-toggle").classList.toggle("on", cb.checked);
     _haptic("select");
+    // First-time: preferred days are chosen from the days picked here, so
+    // keep the preferred list in sync — drop a day from preferred when it's
+    // removed from availability, and re-render so newly-picked days become
+    // selectable as preferred.
+    if (firstTime && prefEl) {
+      if (!cb.checked) prefSet.delete(dk);
+      prefEl.innerHTML = _prefRowsHtml();
+    }
   });
 
-  // Preferred days: persist on each toggle. Tapping a day outside the
-  // approved availability is blocked with a prompt.
+  // Preferred days: persist on each toggle (established driver). In first-time
+  // mode they're held locally and saved together with the availability submit.
   if (prefEl) {
     prefEl.addEventListener("click", (e) => {
       const row = e.target.closest("[data-rr-pref-row]");
       if (!row) return;
       const dk = row.getAttribute("data-rr-pref-row");
-      if (!liveDays.has(dk)) {
+      const allowed = firstTime ? picked.has(dk) : liveDays.has(dk);
+      if (!allowed) {
         e.preventDefault();
         const full = (_AVAIL_DAYS.find((d) => d.k === dk) || {}).fullLabel || dk;
-        toast(`${full} isn't in your approved availability. Submit an availability change to add it.`, "warn");
+        toast(firstTime
+          ? `Turn on ${full} in "Days you can work" above first.`
+          : `${full} isn't in your approved availability. Submit an availability change to add it.`, "warn");
       }
     });
     prefEl.addEventListener("change", async (e) => {
       const cb = e.target.closest("input[data-rr-pref]");
       if (!cb) return;
       const dk = cb.dataset.rrPref;
-      if (!liveDays.has(dk)) { cb.checked = false; return; }
+      const allowed = firstTime ? picked.has(dk) : liveDays.has(dk);
+      if (!allowed) { cb.checked = false; return; }
       if (cb.checked) prefSet.add(dk); else prefSet.delete(dk);
       cb.closest(".avail-toggle").classList.toggle("on", cb.checked);
       _haptic("select");
+      // First-time: no approved days to validate against yet — saved together
+      // with the availability submit below.
+      if (firstTime) return;
       _inFlight++;
       const { error: perr } = await sb.rpc("driver_set_preferred_days", { p_token: session.token, p_days: [...prefSet] });
       _inFlight--;
@@ -6363,6 +6387,28 @@ async function renderAvailability() {
         toast(_friendlyError(serr, "Couldn't submit. Try again."), "warn");
       }
       return;
+    }
+    // First-time: persist the preferred-day picks now. A new driver's submit
+    // auto-approves, so the approved days exist and preferred (a subset)
+    // validates. If it went to pending instead (e.g. a custom earliest start),
+    // preferred can't be saved until a dispatcher approves — tell the driver.
+    if (firstTime && prefSet.size > 0) {
+      const prefDays = days.filter((k) => prefSet.has(k));
+      if (res?.auto_approved && prefDays.length) {
+        _inFlight++;
+        const { error: perr } = await sb.rpc("driver_set_preferred_days", { p_token: session.token, p_days: prefDays });
+        _inFlight--;
+        toast(perr
+          ? "Availability saved · couldn't save preferred days — set them from this page"
+          : "Availability & preferred days saved", perr ? "warn" : "ok");
+        renderAvailability();
+        return;
+      }
+      if (!res?.auto_approved) {
+        toast("Submitted for approval · set your preferred days once it's approved", "ok");
+        renderAvailability();
+        return;
+      }
     }
     toast(res?.auto_approved ? "Availability updated" : "Submitted for approval", "ok");
     renderAvailability();
