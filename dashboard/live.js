@@ -31505,6 +31505,11 @@ const _RR_PIN_SVG =
   '</svg>';
 
 async function _decorateScheduleChipsWithPins() {
+  // Per-cell pin buttons retired — pinning/unpinning now happens via the
+  // driver right-click menu (Pin / Unpin to current days). Left as a no-op
+  // so existing callers stay safe.
+  return;
+  /* eslint-disable no-unreachable */
   const dspId = window.RR?.dsp?.id;
   if (!dspId || !_schedStart) return;
 
@@ -33724,8 +33729,24 @@ async function _rrPinDriverWorkedDays(driverId) {
     } catch (_) { /* skip */ }
   }
   if (typeof toast === "function") toast(ok ? `Pinned ${info.name} to ${ok} day${ok === 1 ? "" : "s"}` : "Pin failed", ok ? "ok" : "warn");
-  if (ok && typeof _decorateScheduleChipsWithPins === "function") { try { await _decorateScheduleChipsWithPins(); } catch (_) {} }
   if (ok && typeof _rrLoadAdHocConstraintsList === "function") { try { _rrLoadAdHocConstraintsList(); } catch (_) {} }
+}
+
+async function _rrUnpinDriver(driverId) {
+  const info = window._rrDriverIntel && window._rrDriverIntel.byId.get(driverId);
+  const name = (info && info.name) || "Driver";
+  let removed = 0;
+  try {
+    const { data } = await sb.from("current_ad_hoc_constraints")
+      .select("id, payload, state").eq("kind", "driver_lock_to_day").eq("state", "active");
+    for (const r of (data || [])) {
+      if (r.payload?.driver_id !== driverId) continue;
+      const { error } = await sb.rpc("update_ad_hoc_constraint", { p_id: r.id, p_state: "archived" });
+      if (!error) removed += 1;
+    }
+  } catch (_) { /* ignore */ }
+  if (typeof toast === "function") toast(removed ? `Unpinned ${name} (${removed} day${removed === 1 ? "" : "s"})` : `${name} has no pins to remove`, "ok");
+  if (removed && typeof _rrLoadAdHocConstraintsList === "function") { try { _rrLoadAdHocConstraintsList(); } catch (_) {} }
 }
 
 function _rrShowDriverMenu(driverId, x, y) {
@@ -33737,6 +33758,7 @@ function _rrShowDriverMenu(driverId, x, y) {
   m.innerHTML = `
     <div class="rr-di-menu-h">${escapeHtml(name)}</div>
     <button type="button" class="rr-di-menu-i" data-act="pin">📌 Pin to current days</button>
+    <button type="button" class="rr-di-menu-i" data-act="unpin">📍 Unpin all days</button>
     <button type="button" class="rr-di-menu-i" data-act="why">🔍 Why they were scheduled</button>
     <style>
       #rr-di-menu{position:fixed;z-index:1001;min-width:210px;background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:8px;box-shadow:0 14px 36px rgba(0,0,0,.18);padding:5px;font-size:13px}
@@ -33751,6 +33773,7 @@ function _rrShowDriverMenu(driverId, x, y) {
   m.addEventListener("click", (ev) => {
     const act = ev.target.closest("[data-act]")?.getAttribute("data-act");
     if (act === "pin") { _rrCloseDriverMenu(); _rrPinDriverWorkedDays(driverId); }
+    else if (act === "unpin") { _rrCloseDriverMenu(); _rrUnpinDriver(driverId); }
     else if (act === "why") { _rrCloseDriverMenu(); if (typeof window._rrOpenDriverIntel === "function") window._rrOpenDriverIntel(driverId, x, y); }
   });
 }
