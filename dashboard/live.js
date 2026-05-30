@@ -39115,7 +39115,7 @@ async function materializeVirtualShiftToDriver(payload, driverId, cell) {
         const ok = confirm(
           `${dow} is already at its planned route count (${existing} of ${plan} scheduled).\n\n` +
           `Adding this shift puts the day over plan (it will read ${existing + 1}/${plan}). ` +
-          `Raise the route count or cushion on the Targets page if you want this to be part of the plan.\n\n` +
+          `Heads up: an over-plan shift is auto-removed the next time you run Smart Fill or regenerate the week — to make it permanent, raise the route count or cushion on the Targets page instead.\n\n` +
           `Add the extra shift anyway?`
         );
         if (!ok) return;
