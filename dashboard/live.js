@@ -34479,6 +34479,11 @@ async function autoAssignDriversForWeek() {
         // consecutive-days cap) whenever "Enforce WOC" is on.
         weekly_hour_cap_enforcement: _wocEnforce,
         consecutive_working_days: _wocEnforce,
+        // Minimum rest is a hard rule too — send it explicitly (default on)
+        // so the CP-SAT solver enforces it even if the key wasn't toggled.
+        min_rest: !(sfRules && sfRules.min_rest === false),
+        min_rest_hours: (Number.isFinite(parseInt(sfRules && sfRules.min_rest_hours, 10))
+          ? parseInt(sfRules.min_rest_hours, 10) : 10),
       },
       drivers: drivers.map(d => ({
         id: d.id,
