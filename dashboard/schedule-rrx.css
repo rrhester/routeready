@@ -2361,6 +2361,12 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
   box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-nursery) 22%, transparent) !important;
 }
 
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="other"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-other) 22%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-other) 65%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-other) 22%, transparent) !important;
+}
+
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="reduction"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-reduction) 22%, transparent) !important;
   border-color: color-mix(in srgb, var(--rr-route-c-reduction) 65%, transparent) !important;
