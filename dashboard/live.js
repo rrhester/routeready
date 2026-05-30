@@ -34393,6 +34393,9 @@ async function autoAssignDriversForWeek() {
         }
       }
     } catch (e) { console.warn("attendance-penalty standing failed:", e); }
+    // Expose the Final-corrective standing so the "Why they were scheduled"
+    // card can explain attendance impact + give an actionable tip.
+    try { window._rrLastFinalCorrective = finalDrivers; } catch (_) {}
 
     // Driver Affinity Enhancement — per-driver weekday affinity over the
     // DSP's rolling period, used by the engine's final affinity swap pass.
@@ -36515,7 +36518,7 @@ async function renderScheduleWeek() {
         ptoDates: weekIsos.filter(iso => ptoOn(d.id, iso)),
         affinityPct,
         seniority: seniorityRank.get(d.id) || null,
-        finalCorrective: false,
+        finalCorrective: (window._rrLastFinalCorrective instanceof Set) && window._rrLastFinalCorrective.has(d.id),
         fifthDayOk: av.fifth_day_ok === true,
       });
     }
@@ -38868,8 +38871,16 @@ function bindSchedWeekNav() {
         why = `You got ${info.days} day${info.days === 1 ? "" : "s"} (${info.hours}h) — in line with the team${avgD ? ` (avg ${avgD})` : ""}, filled under "${pickLabel}".`;
       }
 
+      // Attendance impact — a Final attendance standing pushes a driver to
+      // the back of the line, so call it out honestly when it applied.
+      const attImpacted = info.finalCorrective && (rules.attendance_penalty !== false);
+      if (attImpacted) {
+        why += ` Attendance also weighed in: you’re on a Final attendance standing, so the engine scheduled you after drivers in good standing.`;
+      }
+
       // HOW to get more — only levers the DRIVER controls.
       const tips = [];
+      if (attImpacted) tips.push(`Improve your attendance — clearing your Final attendance standing moves you back up the priority list for more shifts.`);
       const unavail = ORD.filter(d => !info.available.includes(d));
       if (unavail.length) tips.push(`Add availability on ${unavail.map(d => LBL[d]).join(", ")} — you're currently available only ${info.available.length} day${info.available.length === 1 ? "" : "s"}.`);
       if (!info.fifthDayOk) tips.push(`Opt in to a 5th day — you'd be eligible for an extra shift when the week needs it.`);
