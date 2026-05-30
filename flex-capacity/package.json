@@ -1,0 +1,17 @@
+{
+  "name": "@routeready/flex-capacity",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "RouteReady Flex Capacity Engine — how many additional routes a DSP can absorb with existing driver availability before hiring. Operational planning metric (NOT a staffing/FT-PT metric).",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test --experimental-strip-types \"test/*.test.ts\"",
+    "check": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.0",
+    "typescript": "^6.0.0"
+  }
+}
