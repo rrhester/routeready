@@ -15545,19 +15545,16 @@ body.rr-cmdk-open{ overflow:hidden }
                       background:#FFF8E6;border:1px solid #F5C97E;border-radius:3px;
                       padding:7px 10px;margin:6px 10px;line-height:1.4;
                     }
-                    /* Manual mode keeps eligibility + protections + custom
-                       rules visible (they still affect hand-filling) and
-                       only hides the genuinely solver-specific sections:
-                       ordering, soft prefs, polish passes, engine compute.
+                    /* Manual mode keeps "who can work" + "limits &
+                       compliance" + custom rules visible (they still affect
+                       hand-filling) and only hides the genuinely
+                       solver-specific sections: preferences + advanced.
                        Also forces Section 1 open so the Smart Fill / Manual
                        radio is always reachable. Live-diff hidden (it
                        reports Smart Fill outcomes). Presets stay visible
                        so the operator can one-click back into Smart Fill. */
-                    #rr-sched-smartfill-rules-body.is-manual .sf2-section[data-rr-sf-section="ordering"],
                     #rr-sched-smartfill-rules-body.is-manual .sf2-section[data-rr-sf-section="prefs"],
-                    #rr-sched-smartfill-rules-body.is-manual .sf2-section[data-rr-sf-section="passes"],
-                    #rr-sched-smartfill-rules-body.is-manual .sf2-section[data-rr-sf-section="engine"],
-                    #rr-sched-smartfill-rules-body.is-manual .sf2-section[data-rr-sf-section="diagnostic"]{
+                    #rr-sched-smartfill-rules-body.is-manual .sf2-section[data-rr-sf-section="engine"]{
                       display:none;
                     }
                     #rr-sched-smartfill-rules-body.is-manual .sf2-livediff{
@@ -15617,25 +15614,24 @@ body.rr-cmdk-open{ overflow:hidden }
                     </div>
                   </div>
 
-                  <!-- ── 1 · MODE &amp; SCOPE ── how this run should behave. -->
+                  <!-- ── 1 · HOW IT RUNS ── mode + engine. -->
                   <details class="sf2-section" data-rr-sf-section="mode" open>
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">1</span>
                       <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Mode &amp; scope</div>
-                        <div class="sf2-section-sub">How this run should behave</div>
+                        <div class="sf2-section-title">How it runs</div>
+                        <div class="sf2-section-sub">Auto-staff or fill by hand</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
                     </div></summary>
                     <div class="sf2-section-body">
                       <div class="sched-smartfill-rule sched-smartfill-mode">
                         <label class="sf-mode-opt"><input type="radio" name="rr-sf-mode" data-rr-sf-mode="smart" checked> <span class="sf-rule-name"><strong>Smart Fill</strong> · auto-staff the board from the rules below</span></label>
-                        <label class="sf-mode-opt"><input type="radio" name="rr-sf-mode" data-rr-sf-mode="manual"> <span class="sf-rule-name"><strong>Manual scheduling</strong> · turn off Smart Fill and all rules — fill the board by hand</span></label>
+                        <label class="sf-mode-opt"><input type="radio" name="rr-sf-mode" data-rr-sf-mode="manual"> <span class="sf-rule-name"><strong>Fill by hand</strong> · turn Smart Fill off and place drivers yourself</span></label>
                       </div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preserve_locked_assignments" checked> <span class="sf-rule-name"><strong>Preserve all locked assignments</strong> · keep operator-pinned shifts even on a full rebuild</span></label>
-                      <div class="sf2-group-label">Engine &amp; UX</div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="use_cpsat_solver" checked> <span class="sf-rule-name"><strong>Use CP-SAT engine</strong> · route Smart Fill through the Python optimizer (richer objective + ad-hoc rules)</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="show_results_popup" checked> <span class="sf-rule-name"><strong>Show results when done</strong> · pop up the per-driver reasons + open-shift list after each run</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preserve_locked_assignments" checked> <span class="sf-rule-name"><strong>Keep my pinned shifts</strong> · never move shifts you've locked, even on a full rebuild</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="show_results_popup" checked> <span class="sf-rule-name"><strong>Show a summary when done</strong> · who got scheduled, who didn't, and why</span></label>
+                      <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="use_cpsat_solver" checked> <span class="sf-rule-name"><strong>Use the CP-SAT engine</strong> · the optimizer that powers every rule here — leave on</span></label>
                     </div>
                   </details>
 
@@ -15644,8 +15640,8 @@ body.rr-cmdk-open{ overflow:hidden }
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">2</span>
                       <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Who's eligible</div>
-                        <div class="sf2-section-sub">Hard gates that exclude drivers from the run</div>
+                        <div class="sf2-section-title">Who can work</div>
+                        <div class="sf2-section-sub">Hard gates — license, certs, active drivers</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
                     </div></summary>
@@ -15672,8 +15668,8 @@ body.rr-cmdk-open{ overflow:hidden }
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">3</span>
                       <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Protections</div>
-                        <div class="sf2-section-sub">PTO, availability, caps on days &amp; hours, rest, WOC</div>
+                        <div class="sf2-section-title">Limits &amp; compliance</div>
+                        <div class="sf2-section-sub">Time off, rest, day &amp; hour caps, WOC</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
                     </div></summary>
@@ -15755,82 +15751,52 @@ body.rr-cmdk-open{ overflow:hidden }
                     </div>
                   </details>
 
-                  <!-- ── 4 · FINAL-CORRECTIVE ── coaching-ladder handling. -->
-                  <details class="sf2-section" data-rr-sf-section="ordering">
+                  <!-- ── 4 · PREFERENCES ── soft nudges; never block. -->
+                  <details class="sf2-section" data-rr-sf-section="prefs">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">4</span>
                       <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Final-corrective</div>
-                        <div class="sf2-section-sub">Push drivers on a Final coaching ladder to the back</div>
+                        <div class="sf2-section-title">Preferences</div>
+                        <div class="sf2-section-sub">Soft nudges — who to favor when there's a choice</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
                     </div></summary>
                     <div class="sf2-section-body">
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="attendance_penalty"> <span class="sf-rule-name"><strong>Penalize Final-corrective drivers</strong> · drivers on a Final coaching/ladder are scheduled last</span></label>
-                    </div>
-                  </details>
-
-                  <!-- ── 5 · SOFT PREFERENCES ── score-shaping signals. -->
-                  <details class="sf2-section" data-rr-sf-section="prefs">
-                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">5</span>
-                      <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Soft preferences</div>
-                        <div class="sf2-section-sub">Score-shaping signals — break ties, never block</div>
-                      </span>
-                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </div></summary>
-                    <div class="sf2-section-body">
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_days" checked> <span class="sf-rule-name"><strong>Reward preferred days</strong> · score drivers higher on the days they marked as preferred</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_days" checked> <span class="sf-rule-name"><strong>Favor preferred days</strong> · lean toward the days drivers asked for</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="attendance_penalty"> <span class="sf-rule-name"><strong>Schedule Final-corrective drivers last</strong> · drivers on a Final coaching ladder go to the back</span></label>
                       <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-set-affinity-weeks">History window</label>
+                        <label class="sf2-row-label" for="rr-sf-att-scheduling">Reward good attendance</label>
+                        <div class="sf2-row-control">
+                          <select id="rr-sf-att-scheduling" class="sf2-select" data-rr-sf-select="attendance_weight_combined">
+                            <option value="off">Off</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div class="sf2-row">
+                        <label class="sf2-row-label" for="rr-set-affinity-weeks">History to look back on</label>
                         <div class="sf2-row-control">
                           <select id="rr-set-affinity-weeks" class="sf2-select">
                             <option value="4">4 weeks</option>
                             <option value="6">6 weeks</option>
                             <option value="8">8 weeks</option>
                           </select>
-                          <span style="font-size:11px;color:#605E5C">back from this week</span>
                         </div>
                       </div>
-                      <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-sf-att-scheduling">Attendance scoring</label>
-                        <div class="sf2-row-control">
-                          <select id="rr-sf-att-scheduling" class="sf2-select" data-rr-sf-select="attendance_weight_combined">
-                            <option value="off">Off</option>
-                            <option value="low">Low weight</option>
-                            <option value="medium">Medium weight</option>
-                            <option value="high">High weight</option>
-                          </select>
-                        </div>
-                        <p class="sf2-row-help">Scores drivers smoothly by attendance (±25 pts × weight). Different from the binary Final-corrective penalty above.</p>
-                      </div>
-                    </div>
-                  </details>
-
-                  <!-- ── 6 · POLISH PASSES ── post-pass enhancements. -->
-                  <details class="sf2-section" data-rr-sf-section="passes">
-                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">6</span>
-                      <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Polish passes</div>
-                        <div class="sf2-section-sub">Extra 5th-day shift for opted-in drivers when coverage needs it</div>
-                      </span>
-                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </div></summary>
-                    <div class="sf2-section-body">
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="fifth_day_fill"> <span class="sf-rule-name"><strong>5th-day fill</strong> · give opted-in drivers one extra shift if coverage needs it (respects WOC + license)</span></label>
+                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="fifth_day_fill"> <span class="sf-rule-name"><strong>Allow a 5th day</strong> · give opted-in drivers one extra shift if coverage needs it</span></label>
                       <div class="sf2-subrules">
-                        <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="fifth_day_override_availability"> <span class="sf-rule-name">Override availability for the 5th day — let it land any day (WOC + license still gate)</span></label>
+                        <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="fifth_day_override_availability"> <span class="sf-rule-name">Let the 5th day land on any day — WOC + license still apply</span></label>
                         <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="fifth_day_notify"> <span class="sf-rule-name">Message each driver who picks up a 5th day</span></label>
                       </div>
                     </div>
                   </details>
 
-                  <!-- ── 7 · VANS ── van-assignment rules (moved from Zone 3). -->
+                  <!-- ── 5 · VANS ── van-assignment rules. -->
                   <details class="sf2-section sf-zone--vans" data-rr-sf-section="vans">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">7</span>
+                      <span class="sf2-section-num">5</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Vans</div>
                         <div class="sf2-section-sub">When &amp; how vans are assigned alongside drivers</div>
@@ -15856,10 +15822,10 @@ body.rr-cmdk-open{ overflow:hidden }
                     </div>
                   </details>
 
-                  <!-- ── 8 · CUSTOM RULES ── ad-hoc constraints (preserved). -->
+                  <!-- ── 6 · CUSTOM RULES ── ad-hoc constraints (preserved). -->
                   <details class="sf2-section sf-zone--adhoc" id="rr-sf-adhoc-disclosure" data-rr-sf-section="custom">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">8</span>
+                      <span class="sf2-section-num">6</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Custom rules</div>
                         <div class="sf2-section-sub">DSP-specific constraints (pair-forbidden, lock-to-day, blackouts)</div>
@@ -15874,13 +15840,13 @@ body.rr-cmdk-open{ overflow:hidden }
                     </div>
                   </details>
 
-                  <!-- ── 9 · ENGINE &amp; COMPUTE ── CP-SAT controls (preserved). -->
+                  <!-- ── 7 · ADVANCED ── CP-SAT controls (preserved). -->
                   <details class="sf2-section sf-zone--engine" id="rr-sf-engine-expander" data-rr-sf-section="engine">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">9</span>
+                      <span class="sf2-section-num">7</span>
                       <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Engine &amp; compute</div>
-                        <div class="sf2-section-sub">CP-SAT priorities, data sources, compute budget</div>
+                        <div class="sf2-section-title">Advanced</div>
+                        <div class="sf2-section-sub">Priorities, data sources &amp; compute — fine-tuning</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
                     </div></summary>
@@ -34853,7 +34819,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260530-cpsat-hardrules"></script>
+<script type="module" src="./live.js?v=20260530-rulesbox-tidy"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
