@@ -24144,6 +24144,29 @@ document.addEventListener("click", (e) => {
     focusBtn.setAttribute("aria-pressed", on ? "true" : "false");
     return;
   }
+  // Hide / show the Open shifts rail. Unlike focus mode, this only collapses
+  // the right-hand panel so the calendar grid fills that space; all other
+  // page chrome stays. Persisted under rr-sched-hide-openshifts.
+  const osBtn = e.target.closest("#rr-sched-openshifts-toggle");
+  if (osBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const hidden = !document.body.classList.contains("rr-sched-hide-openshifts");
+    document.body.classList.toggle("rr-sched-hide-openshifts", hidden);
+    osBtn.setAttribute("aria-pressed", hidden ? "true" : "false");
+    osBtn.title = hidden
+      ? "Show the Open shifts panel"
+      : "Hide the Open shifts panel — the schedule fills the space";
+    osBtn.setAttribute("aria-label", hidden ? "Show open shifts" : "Hide open shifts");
+    const hideIc = osBtn.querySelector(".ic-os-hide");
+    const showIc = osBtn.querySelector(".ic-os-show");
+    if (hideIc && showIc) {
+      hideIc.style.display = hidden ? "none" : "";
+      showIc.style.display = hidden ? "" : "none";
+    }
+    try { localStorage.setItem("rr-sched-hide-openshifts", hidden ? "1" : "0"); } catch (_) {}
+    return;
+  }
   // Density cycle — Standard → Compact → Ultra-compact → Standard.
   // The DRIVER-header icon now cycles through ALL THREE grid-density
   // modes (was a binary Standard/Compact toggle). Shares the same
