@@ -34827,27 +34827,44 @@ async function openShiftEditModal(arg) {
   })();
   const startHM = _drawerDefaults.start;
   const endHM   = _drawerDefaults.end;
-  // Route-classification options. Keep value lowercase_snake (matches
-  // the DB CHECK in migration 0332 / 0338); label is what the operator sees.
-  // Trimmed to the set the operator uses + a catch-all "Other".
-  const ROUTE_CLASS_OPTIONS = [
-    ["",          "Standard"],
-    ["rescue",    "Rescue"],
-    ["nursery",   "Nursery"],
-    ["other",     "Other"],
+  // "Route type" options. Regular route types map to route_classification
+  // (lowercase_snake; matches the DB CHECK in 0332 / 0338). The two training
+  // options instead map to shift_kind ("kind:training" = Class training,
+  // "kind:ride_along" = Road training) so the operator can set a training day
+  // manually — it then behaves exactly like one created by onboarding (same
+  // chip, same Class/Road-training color). _parseRouteTypeSel turns the
+  // selected value back into { shift_kind, route_classification }.
+  const ROUTE_TYPE_OPTIONS = [
+    ["",                "Standard"],
+    ["rescue",          "Rescue"],
+    ["nursery",         "Nursery"],
+    ["other",           "Other"],
+    ["kind:training",   "Class training"],
+    ["kind:ride_along", "Road training"],
   ];
+  // Current selection reads shift_kind first (a training shift), else the
+  // route classification.
   const currentClass = (sh.route_classification || "");
+  const currentSel = sh.shift_kind === "training" ? "kind:training"
+    : sh.shift_kind === "ride_along" ? "kind:ride_along"
+    : currentClass;
   // Preserve a legacy classification (reduction / cycle_1 / cycle_2 / backup)
   // on an existing shift even though it's no longer offered for new shifts,
   // so opening that shift's editor doesn't silently change its type on save.
   const _legacyClassLabel = { standard: "Standard", reduction: "Reduction", cycle_1: "Cycle 1", cycle_2: "Cycle 2", backup: "Backup" };
-  const _classOpts = ROUTE_CLASS_OPTIONS.slice();
-  if (currentClass && !_classOpts.some(([v]) => v === currentClass)) {
-    _classOpts.push([currentClass, (_legacyClassLabel[currentClass] || currentClass) + " (legacy)"]);
+  const _classOpts = ROUTE_TYPE_OPTIONS.slice();
+  if (currentSel && !_classOpts.some(([v]) => v === currentSel)) {
+    _classOpts.push([currentSel, (_legacyClassLabel[currentSel] || currentSel) + " (legacy)"]);
   }
   const classOptionsHTML = _classOpts.map(([v, label]) =>
-    `<option value="${escapeHtml(v)}"${v === currentClass ? " selected" : ""}>${escapeHtml(label)}</option>`
+    `<option value="${escapeHtml(v)}"${v === currentSel ? " selected" : ""}>${escapeHtml(label)}</option>`
   ).join("");
+  // Selected "Route type" → { shift_kind, route_classification }. Training
+  // selections set shift_kind + clear the classification; everything else is
+  // a regular shift carrying the chosen classification (NULL = Standard).
+  const _parseRouteTypeSel = (val) => val.startsWith("kind:")
+    ? { shift_kind: val.slice(5), route_classification: null }
+    : { shift_kind: "regular", route_classification: val === "" ? null : val };
 
   // Both add and edit render the same compact popover, positioned next to the
   // cell/chip the operator clicked so they don't have to move the cursor. A
@@ -35132,15 +35149,16 @@ async function openShiftEditModal(arg) {
       const newStart = document.getElementById("rr-shift-edit-start").value;
       const newEnd   = document.getElementById("rr-shift-edit-end").value;
       if (!newStart || !newEnd) { status.textContent = "Both times are required."; status.style.color = "var(--red)"; return; }
-      // Route classification — empty value means "Standard" (NULL in DB).
-      const newClass = document.getElementById("rr-shift-edit-class")?.value || "";
-      const classValue = newClass === "" ? null : newClass;
+      // Route type → shift_kind + route_classification (training selections
+      // set shift_kind, regular selections set the classification).
+      const _sel = document.getElementById("rr-shift-edit-class")?.value || "";
+      const { shift_kind: selKind, route_classification: classValue } = _parseRouteTypeSel(_sel);
 
       // Add-mode branch · build a fresh shift via create_shift RPC.
       if (isAdd) {
         const addDate = document.getElementById("rr-shift-edit-date")?.value || sh.date;
         const addDriver = document.getElementById("rr-shift-edit-driver")?.value || "";
-        const addKind   = document.getElementById("rr-shift-edit-kind")?.value || "regular";
+        const addKind   = selKind; // from the Route type selection (training vs regular)
         const addRoute  = document.getElementById("rr-shift-edit-routecode")?.value?.trim() || "";
         if (!addDate) { status.textContent = "Date is required."; status.style.color = "var(--red)"; return; }
         const startsAtIso = new Date(`${addDate}T${newStart}:00`).toISOString();
