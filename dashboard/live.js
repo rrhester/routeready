@@ -33236,7 +33236,13 @@ async function autoFillScheduleWeek() {
         const sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
         if (sf && sf.show_results_popup === false) showPopup = false;
       } catch (_) { /* default to showing */ }
-      if (showPopup) _rrShowSmartFillDetails(summaryAlert);
+      // The dark terminal console is retired; per-driver reasoning now lives
+      // in the right-click "Why they were scheduled" card. When the summary
+      // toggle is on, surface a lightweight toast pointing operators there.
+      if (showPopup && typeof toast === "function") {
+        const firstLine = summaryAlert.split("\n", 1)[0] || "Smart Fill finished";
+        toast(firstLine + " · right-click any driver for why", "info");
+      }
     } else {
       console.info("[Smart Fill] completed — no skipped shifts / unscheduled drivers reported.");
     }
@@ -33315,269 +33321,11 @@ async function _rrLoadSmartFillDecisions() {
   }
 }
 
-function _rrShowSmartFillDetails(text) {
-  const { esc, C, span } = _RR_SFC;
-  let backdrop = document.getElementById("rr-sf-details-backdrop");
-  if (backdrop) backdrop.remove();
-  backdrop = document.createElement("div");
-  backdrop.id = "rr-sf-details-backdrop";
-  backdrop.setAttribute("role", "dialog");
-  backdrop.setAttribute("aria-modal", "true");
-  backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px";
-
-  const card = document.createElement("div");
-  card.style.cssText = "background:#0b0f14;border:1px solid #1f2630;border-radius:12px;max-width:900px;width:100%;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,0.55);overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace";
-
-  // ── Title bar (traffic lights + driver search) ──────────────────
-  const header = document.createElement("div");
-  header.style.cssText = "padding:11px 14px;border-bottom:1px solid #1f2630;display:flex;align-items:center;gap:10px;background:#11161d";
-  const dot = (c) => `<span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${c};margin-right:6px"></span>`;
-  const title = document.createElement("div");
-  title.style.cssText = "display:flex;align-items:center;color:#8b949e;font-size:12px;font-weight:600;white-space:nowrap;flex:0 0 auto";
-  title.innerHTML = dot("#ff5f56") + dot("#ffbd2e") + dot("#27c93f") + '<span style="margin-left:6px;letter-spacing:.02em">smart-fill — engine console</span>';
-  const search = document.createElement("input");
-  search.type = "search";
-  search.id = "rr-sfc-search";
-  search.placeholder = "search a driver…  (exactly why they got their shifts)";
-  search.setAttribute("aria-label", "Search a driver to explain their assignments");
-  search.style.cssText = "flex:1;min-width:0;background:#0b0f14;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font:12.5px ui-monospace,monospace;padding:7px 10px;outline:none";
-  search.addEventListener("focus", () => { search.style.borderColor = "#388bfd"; });
-  search.addEventListener("blur", () => { search.style.borderColor = "#30363d"; });
-  header.appendChild(title);
-  header.appendChild(search);
-
-  // ── Console output ──────────────────────────────────────────────
-  const out = document.createElement("div");
-  out.id = "rr-sfc-out";
-  out.style.cssText = "flex:1;overflow:auto;padding:14px 16px;background:#0b0f14;color:#c9d1d9;font-size:12.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word";
-
-  // ── Footer ──────────────────────────────────────────────────────
-  const footer = document.createElement("div");
-  footer.style.cssText = "padding:10px 14px;border-top:1px solid #1f2630;display:flex;gap:8px;justify-content:flex-end;align-items:center;background:#11161d";
-  const status = document.createElement("span");
-  status.style.cssText = "color:#8b949e;font-size:12px;margin-right:auto;font-family:ui-monospace,monospace";
-  const mkBtn = (label, primary) => {
-    const b = document.createElement("button");
-    b.textContent = label;
-    b.style.cssText = primary
-      ? "padding:7px 14px;border:0;background:#238636;color:#fff;border-radius:6px;font:600 12.5px ui-monospace,monospace;cursor:pointer"
-      : "padding:7px 14px;border:1px solid #30363d;background:#161b22;color:#c9d1d9;border-radius:6px;font:600 12.5px ui-monospace,monospace;cursor:pointer";
-    return b;
-  };
-  const copyBtn = mkBtn("Copy log", false);
-  const explainBtn = mkBtn("Explain (AI)", false);
-  explainBtn.style.borderColor = "#6e40c9";
-  explainBtn.style.color = "#d2a8ff";
-  const closeBtn = mkBtn("Close", true);
-
-  const dismiss = () => backdrop.remove();
-  closeBtn.onclick = dismiss;
-  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) dismiss(); });
-  document.addEventListener("keydown", function onKey(e) {
-    if (e.key === "Escape" && document.body.contains(backdrop)) {
-      dismiss();
-      document.removeEventListener("keydown", onKey);
-    }
-  });
-
-  footer.appendChild(status);
-  footer.appendChild(explainBtn);
-  footer.appendChild(copyBtn);
-  footer.appendChild(closeBtn);
-  card.appendChild(header);
-  card.appendChild(out);
-  card.appendChild(footer);
-  backdrop.appendChild(card);
-  document.body.appendChild(backdrop);
-
-  // ── State + renderers ───────────────────────────────────────────
-  const state = { loaded: false, runId: null, decisions: [], shiftMeta: new Map(), drivers: new Map(), error: null };
-  const prompt = (cmd) => span(C.grn, "rr@smartfill") + span(C.dim, ":~$ ") + span(C.white, cmd) + "\n";
-
-  function plainLog() {
-    const lines = [];
-    lines.push(prompt("smartfill --explain" + (state.runId ? " --run " + String(state.runId).slice(0, 8) : "")));
-    lines.push(span(C.dim, esc(text)) + "\n");
-    if (!state.loaded) {
-      lines.push(span(C.yel, "↻ loading per-driver decisions…"));
-    } else if (state.error) {
-      lines.push(span(C.red, "! couldn't load decision rows: " + state.error));
-      lines.push(span(C.dim, "  (the run summary above is still accurate)"));
-    } else if (!state.runId || !state.decisions.length) {
-      lines.push(span(C.dim, "no per-shift decision rows recorded for this run."));
-    } else {
-      const assigned = state.decisions.filter((d) => d.driver_id && d.decision !== "uncovered").length;
-      const uncovered = state.decisions.filter((d) => d.decision === "uncovered").length;
-      lines.push(span(C.cyan, `✓ ${state.decisions.length} decisions recorded`) + span(C.dim, ` · ${assigned} assigned · ${uncovered} uncovered`));
-      lines.push("");
-      lines.push(span(C.white, "→ type a driver's name in the search bar to see EXACTLY why they got their shifts."));
-    }
-    out.innerHTML = lines.join("\n");
-    out.scrollTop = 0;
-  }
-
-  // Plain-English names for the engine's score factors, so the breakdown
-  // reads as "what influenced this pick and by how much".
-  const FACTOR_LABELS = {
-    historical: "Historical pattern (usual days)",
-    attendance: "Attendance score",
-    preferred: "Preferred-day match",
-    consecutive: "Consecutive-day shaping",
-    method: "Pick-order rank",
-    performance: "Performance score",
-    target_days: "Over-target penalty",
-  };
-  function compsHtml(sc) {
-    if (!sc || typeof sc !== "object") return "";
-    const entries = Object.keys(sc)
-      .map((k) => [k, (typeof sc[k] === "number") ? sc[k] : 0])
-      .filter(([, v]) => Math.abs(v) > 0.0005)
-      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])); // biggest influence first
-    if (!entries.length) return "      " + span(C.dim, "(all factors neutral)");
-    return entries.map(([k, v]) => {
-      const mag = Math.round(v * 100) / 100;
-      const sign = v > 0 ? "+" : "";
-      const col = v > 0 ? C.grn : C.red;
-      const label = FACTOR_LABELS[k] || k.replace(/_/g, " ");
-      const dir = v > 0 ? "helped" : "hurt";
-      return "      " + span(col, (sign + mag).padStart(7)) + "  " +
-        span(C.txt, label) + "  " + span(C.dim, "(" + dir + ")");
-    }).join("\n");
-  }
-  // Aggregate a driver's score factors across all their shifts → the
-  // factors that most shaped their whole schedule.
-  function aggFactorsHtml(decisions) {
-    const agg = {};
-    for (const d of decisions) {
-      const sc = d.score_components;
-      if (!sc || typeof sc !== "object") continue;
-      for (const k of Object.keys(sc)) {
-        if (typeof sc[k] === "number") agg[k] = (agg[k] || 0) + sc[k];
-      }
-    }
-    const entries = Object.entries(agg)
-      .filter(([, v]) => Math.abs(v) > 0.005)
-      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-      .slice(0, 5);
-    if (!entries.length) return "";
-    const rows = entries.map(([k, v]) => {
-      const mag = Math.round(v * 100) / 100;
-      const sign = v > 0 ? "+" : "";
-      const col = v > 0 ? C.grn : C.red;
-      const label = FACTOR_LABELS[k] || k.replace(/_/g, " ");
-      return "      " + span(col, (sign + mag).padStart(7)) + "  " + span(C.txt, label);
-    });
-    return "  " + span(C.dim, "biggest factors across their shifts:") + "\n" + rows.join("\n");
-  }
-
-  function profileHtml(p) {
-    const bits = [];
-    if (p.preferred) bits.push("      " + span(C.dim, "preferred days: ") + span(C.txt, Array.isArray(p.preferred) ? p.preferred.join(", ") : p.preferred));
-    if (p.available) bits.push("      " + span(C.dim, "availability: ") + span(C.txt, Array.isArray(p.available) ? p.available.join(", ") : p.available));
-    if (p.dl) bits.push("      " + span(C.dim, "license expires: ") + span(C.txt, p.dl));
-    const certs = [p.dot && "DOT", p.xl && "XL", p.edv && "EDV"].filter(Boolean);
-    if (certs.length) bits.push("      " + span(C.dim, "certs: ") + span(C.txt, certs.join(", ")));
-    if (p.tier) bits.push("      " + span(C.dim, "tier: ") + span(C.txt, p.tier));
-    if (p.trainer) bits.push("      " + span(C.yel, "trainer"));
-    return bits.join("\n");
-  }
-
-  function driverView(query) {
-    const q = query.trim().toLowerCase();
-    const lines = [prompt("explain --driver \"" + esc(query.trim()) + "\"")];
-    if (!state.loaded) { lines.push(span(C.yel, "↻ still loading decisions… try again in a moment.")); out.innerHTML = lines.join("\n"); return; }
-    if (state.error) { lines.push(span(C.red, "! decision rows unavailable: " + state.error)); out.innerHTML = lines.join("\n"); return; }
-    // Match drivers by name.
-    const matches = [...state.drivers.values()].filter((p) =>
-      (p.name || "").toLowerCase().includes(q) || (p.full || "").toLowerCase().includes(q));
-    if (!matches.length) {
-      lines.push(span(C.red, `no driver matches "${esc(query.trim())}".`));
-      lines.push(span(C.dim, "tip: search by first or last name."));
-      out.innerHTML = lines.join("\n"); out.scrollTop = 0; return;
-    }
-    for (const p of matches.slice(0, 8)) {
-      lines.push("");
-      lines.push(span(C.cyan, "── " + p.name + " ").padEnd(0) + span(C.cyan, "─".repeat(Math.max(2, 40 - p.name.length))));
-      const mine = state.decisions.filter((d) => d.driver_id === p.id && d.decision !== "uncovered");
-      if (!mine.length) {
-        lines.push("  " + span(C.red, "● received no shifts this run."));
-        const prof = profileHtml(p);
-        if (prof) { lines.push("  " + span(C.dim, "eligibility on file:")); lines.push(prof); }
-        lines.push("  " + span(C.dim, "→ see the run summary's “drivers received no shifts / skipped” section for the blocking reason."));
-        continue;
-      }
-      lines.push("  " + span(C.grn, `● got ${mine.length} shift${mine.length === 1 ? "" : "s"}:`));
-      // Sort by date when available.
-      mine.sort((a, b) => {
-        const ma = state.shiftMeta.get(a.shift_id), mb = state.shiftMeta.get(b.shift_id);
-        return String(ma && ma.date).localeCompare(String(mb && mb.date));
-      });
-      for (const d of mine) {
-        const label = _RR_SFC.shiftLabel(d.shift_id, state.shiftMeta);
-        const score = (d.total_score != null) ? span(C.yel, "  score " + (Math.round(d.total_score * 1000) / 1000)) : "";
-        const tag = span(C.mag, "[" + (d.decision || "assigned") + "]");
-        lines.push("    " + span(C.white, label) + "  " + tag + score);
-        if (d.reason_message) lines.push("      " + span(C.dim, "why: ") + span(C.txt, d.reason_message));
-        const comps = compsHtml(d.score_components);
-        if (comps) { lines.push("      " + span(C.dim, "what influenced this pick (by how much):")); lines.push(comps); }
-      }
-      const aggF = aggFactorsHtml(mine);
-      if (aggF) { lines.push(""); lines.push(aggF); }
-      const prof = profileHtml(p);
-      if (prof) { lines.push("  " + span(C.dim, "eligibility on file:")); lines.push(prof); }
-    }
-    if (matches.length > 8) lines.push("\n" + span(C.dim, `…and ${matches.length - 8} more — narrow your search.`));
-    out.innerHTML = lines.join("\n");
-    out.scrollTop = 0;
-  }
-
-  function render() {
-    const q = search.value.trim();
-    if (q) driverView(q); else plainLog();
-  }
-
-  let _t = null;
-  search.addEventListener("input", () => { clearTimeout(_t); _t = setTimeout(render, 120); });
-
-  // Copy the current run summary text.
-  copyBtn.onclick = async () => {
-    let ok = false;
-    try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); ok = true; } } catch (_) {}
-    status.textContent = ok ? "✓ copied run log" : "copy failed";
-    setTimeout(() => { status.textContent = ""; }, 2200);
-  };
-
-  // Optional AI narrative (kept as a bonus; deterministic facts are the
-  // primary explanation above).
-  explainBtn.onclick = async () => {
-    const runId = window._rrLastOptimizationRunId;
-    if (!runId) { status.textContent = "no run id — run Smart Fill once more"; return; }
-    explainBtn.disabled = true; explainBtn.textContent = "asking Claude…";
-    out.innerHTML = prompt("explain --ai") + span(C.yel, "↻ asking Claude for a plain-English summary…");
-    try {
-      const { data, error } = await sb.functions.invoke("explain-optimization-run", { body: { run_id: runId, question_kind: "summary" } });
-      if (error) throw error;
-      out.innerHTML = prompt("explain --ai") + span(C.txt, esc(data?.answer || "(empty response)"));
-    } catch (e) {
-      out.innerHTML = prompt("explain --ai") + span(C.red, "couldn't generate explanation: " + ((e && e.message) || e));
-    } finally {
-      explainBtn.disabled = false; explainBtn.textContent = "Explain (AI)";
-    }
-  };
-
-  // Initial paint, then load decisions and re-render.
-  plainLog();
-  setTimeout(() => search.focus(), 0);
-  _rrLoadSmartFillDecisions().then((res) => {
-    state.loaded = true;
-    state.runId = res.runId;
-    state.decisions = res.decisions;
-    state.shiftMeta = res.shiftMeta;
-    state.drivers = res.drivers;
-    state.error = res.error;
-    render();
-  });
-}
+// Smart Fill · engine console (RETIRED). The terminal-look-alike window
+// that used to open after a run has been removed — per-driver reasoning now
+// lives in the right-click "Why they were scheduled" card. The function body
+// is gone; this no-op stub remains only so any stale caller can't throw.
+function _rrShowSmartFillDetails() { /* retired — see the right-click why-card */ }
 
 // ─── Right-click a driver → "why these shifts" popover ───────────────
 // Right-clicking a driver in the Schedule grid opens a dashboard-styled
@@ -38871,16 +38619,27 @@ function bindSchedWeekNav() {
         why = `You got ${info.days} day${info.days === 1 ? "" : "s"} (${info.hours}h) — in line with the team${avgD ? ` (avg ${avgD})` : ""}, filled under "${pickLabel}".`;
       }
 
-      // Attendance impact — a Final attendance standing pushes a driver to
-      // the back of the line, so call it out honestly when it applied.
-      const attImpacted = info.finalCorrective && (rules.attendance_penalty !== false);
-      if (attImpacted) {
+      // Attendance impact. Two cases, both worth calling out:
+      //  1. Final standing — the driver is on a Final attendance ladder /
+      //     coaching, which the engine penalizes directly (needs a fresh
+      //     Smart Fill run to be known, so it's best-effort).
+      //  2. "Attendance first" pick order + below the team average — under
+      //     this order, attendance literally sorted them down, so a weaker
+      //     attendance record demonstrably cost them contested days.
+      const belowAvg = avgD && (info.days + 0.5 < avgD);
+      const attFinal = info.finalCorrective && (rules.attendance_penalty !== false);
+      const attPickHurt = pick === "attendance_priority" && belowAvg;
+      const attImpacted = attFinal || attPickHurt;
+      if (attFinal) {
         why += ` Attendance also weighed in: you’re on a Final attendance standing, so the engine scheduled you after drivers in good standing.`;
+      } else if (attPickHurt) {
+        why += ` Because this week is set to schedule by attendance first, drivers with a stronger attendance record were placed ahead of you.`;
       }
 
       // HOW to get more — only levers the DRIVER controls.
       const tips = [];
-      if (attImpacted) tips.push(`Improve your attendance — clearing your Final attendance standing moves you back up the priority list for more shifts.`);
+      if (attFinal) tips.push(`Improve your attendance — clearing your Final attendance standing moves you back up the priority list for more shifts.`);
+      else if (attPickHurt) tips.push(`Improve your attendance — with “Attendance first” scheduling, a stronger attendance record moves you up the list for more shifts.`);
       const unavail = ORD.filter(d => !info.available.includes(d));
       if (unavail.length) tips.push(`Add availability on ${unavail.map(d => LBL[d]).join(", ")} — you're currently available only ${info.available.length} day${info.available.length === 1 ? "" : "s"}.`);
       if (!info.fifthDayOk) tips.push(`Opt in to a 5th day — you'd be eligible for an extra shift when the week needs it.`);
