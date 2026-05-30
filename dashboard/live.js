@@ -35614,6 +35614,27 @@ document.addEventListener("click", (e) => {
   _rrSchedKpiTogglePopover(false);
 });
 
+// FT/PT Mix status guardrails (on the Full-Time %). Returns the tier
+// plus the matching status icon + soft pill background, reusing the same
+// SVG style + soft tints as the Coverage KPI so the two read identically.
+//   green  : 80–90%        (healthy)
+//   yellow : 75–79.9 | 90.1–94.9  (caution / watch)
+//   red    : <75 | ≥95     (outside guardrails)
+function _ftptStatus(ftPct, totalScheduled) {
+  const ICON = {
+    green:  '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="FT/PT balanced"><circle cx="12" cy="12" r="11" fill="#1E8E3E"/><g transform="translate(5.4 5.4) scale(0.55)" fill="#fff"><path d="M2 21h2.5a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H2v11zm19.7-9.3c.2-.3.3-.6.3-1 0-.9-.8-1.7-1.7-1.7h-5.1l.8-3.7v-.3c0-.4-.2-.8-.4-1L14.5 2 8.6 7.9c-.4.4-.6.9-.6 1.5V19c0 1.1.9 2 2 2h7.5c.7 0 1.3-.4 1.6-1l2.6-6.3z"/></g></svg>',
+    yellow: '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="FT/PT caution"><circle cx="12" cy="12" r="10" fill="#F9AB00"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>',
+    red:    '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="FT/PT outside guardrails"><circle cx="12" cy="12" r="10" fill="#D13438"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>',
+  };
+  const BG = { green: "#E6F4EA", yellow: "#FEF7E0", red: "#FCE8E6" };
+  let tier;
+  if (!totalScheduled) tier = "none";
+  else if (ftPct >= 80 && ftPct <= 90) tier = "green";
+  else if ((ftPct >= 75 && ftPct < 80) || (ftPct > 90 && ftPct < 95)) tier = "yellow";
+  else tier = "red";  // <75 or >=95
+  return { tier, icon: ICON[tier] || null, pillBg: BG[tier] || null };
+}
+
 async function renderScheduleWeek() {
   const sub = document.getElementById("sched-sub-week");
   if (!sub) return;
@@ -35945,6 +35966,10 @@ async function renderScheduleWeek() {
   // onboarding/inactive) and drop shifts with terminal status from
   // the denominator. The strip's math is the canonical "what's
   // actually staffed right now" — operator caught the discrepancy.
+  // Per-date plan ceiling (route demand + cushion) so edit paths can
+  // tell when a day is already at/over plan before creating a new shift.
+  window._rrSchedPlanByDate = {};
+  for (const [d, p] of plannedByDate) window._rrSchedPlanByDate[d] = p;
   window._rrLiveSchedCoverage = {
     pct,
     filled: totalFilled,
@@ -36451,15 +36476,28 @@ async function renderScheduleWeek() {
         const totalScheduled = ftCount + ptCount;
         const ftPct = totalScheduled > 0 ? Math.round(ftCount / totalScheduled * 100) : 0;
         const ptPct = totalScheduled > 0 ? 100 - ftPct : 0;
+        // Status guardrails on the FT %: green 80–90, yellow 75–79.9 or
+        // 90.1–94.9, red <75 or ≥95. Soft pill background + status icon
+        // mirror the Coverage KPI's visual language.
+        const ftStatus = _ftptStatus(ftPct, totalScheduled);
+        // Stash for the hover deep-dive (same pattern as
+        // _rrLiveSchedCoverage) so the popout matches the strip exactly.
+        window._rrLiveFtpt = {
+          weekStart: _schedStart,
+          ftPct, ptPct, ftCount, ptCount, totalScheduled,
+          tier: ftStatus.tier,
+        };
         return pill(
           "ftpt",
           navy,
           totalScheduled > 0 ? `${ftPct} / ${ptPct} FT/PT` : "— FT/PT",
           "",
-          false,
+          true,
           totalScheduled > 0
             ? `${ftCount} full-time · ${ptCount} part-time (of ${totalScheduled} scheduled)`
             : "No drivers scheduled this week",
+          totalScheduled > 0 ? ftStatus.icon : undefined,
+          totalScheduled > 0 ? ftStatus.pillBg : undefined,
         );
       })() +
       (() => {
@@ -37673,21 +37711,31 @@ function bindSchedWeekNav() {
           ? live.driverTarget115 : Math.ceil(_routes * 2 * 1.15);
         const _scheduledDrivers = (live && live.scheduledDrivers != null)
           ? live.scheduledDrivers : null;
+        const _coverZero = (live && live.weekStart === payload.schedule_week_start)
+          ? (live.filled === 0) : (baseCov === 0);
         if (_routes > 0) {
           const baseDrivers = _routes * 2;
           const shortBy = _scheduledDrivers != null
             ? Math.max(0, _driverTarget - _scheduledDrivers) : null;
-          const headline = (shortBy != null && shortBy === 0)
-            ? `Capacity reliable · ${_driverTarget}+ drivers scheduled`
-            : (shortBy != null
-              ? `Short ${shortBy} driver${shortBy === 1 ? "" : "s"} of the 115% target`
-              : `Target: ${_driverTarget} drivers (115%)`);
+          // 0% coverage → nothing scheduled yet. Lead with a clear,
+          // professional next step (Smart Fill) instead of a "short N
+          // drivers" framing that reads oddly when the week is empty.
+          const headline = _coverZero
+            ? `No shifts staffed yet`
+            : ((shortBy != null && shortBy === 0)
+              ? `Capacity reliable · ${_driverTarget}+ drivers scheduled`
+              : (shortBy != null
+                ? `Short ${shortBy} driver${shortBy === 1 ? "" : "s"} of the 115% target`
+                : `Target: ${_driverTarget} drivers (115%)`));
+          const lead = _coverZero
+            ? `Use <strong>Smart Fill</strong> to staff this week's routes automatically, or assign drivers to open shifts. RouteReady recommends staffing to at least <strong>115%</strong> of route demand to mitigate call-offs and other extenuating circumstances — schedule overtime to meet this threshold and avoid Capacity Reliability Concerns.`
+            : `RouteReady recommends staffing to at least <strong>115%</strong> of route demand to mitigate call-offs and other extenuating circumstances — schedule overtime to meet this threshold and avoid Capacity Reliability Concerns.`;
           const sched = _scheduledDrivers != null
             ? `<strong>${_scheduledDrivers}</strong> scheduled · ` : "";
           neededHtml =
             `<div class="rr-cov-needed">` +
               `<div class="rr-cov-needed-big">${headline}</div>` +
-              `<div class="rr-cov-needed-sub">RouteReady recommends staffing to at least <strong>115%</strong> of route demand to mitigate call-offs and other extenuating circumstances — schedule overtime to meet this threshold and avoid Capacity Reliability Concerns.</div>` +
+              `<div class="rr-cov-needed-sub">${lead}</div>` +
               `<div class="rr-cov-needed-sub" style="margin-top:6px">${_routes} max daily routes × 2 = ${baseDrivers} drivers, +15% buffer = <strong>${_driverTarget}</strong> recommended. ${sched}Target <strong>${_driverTarget}</strong>.</div>` +
             `</div>`;
         } else if (stripUnstaffed != null) {
@@ -38097,6 +38145,126 @@ function bindSchedWeekNav() {
       // Leaving the pill before the intent delay elapsed → cancel the open.
       _covCancelOpen();
       _covScheduleClose();
+    });
+  }
+
+  // ── FT/PT Mix KPI · hover deep-dive (mirrors the Coverage popout) ──
+  // Same anchored, no-page-dim box + hover-intent behaviour as Coverage.
+  if (!window._rrFtptKpiHandlerInstalled) {
+    window._rrFtptKpiHandlerInstalled = true;
+
+    const _openFtptModal = (anchorEl) => {
+      document.getElementById("rr-ftpt-kpi-modal")?.remove();
+      const live = window._rrLiveFtpt || null;
+      const ftPct = live ? live.ftPct : 0;
+      const ptPct = live ? live.ptPct : 0;
+      const tier  = live ? live.tier : "none";
+      // Status message per spec (yellow/red split into low vs high).
+      let statusMsg;
+      if (tier === "green") {
+        statusMsg = "Staffing mix is balanced for retention, route ownership, and flexibility.";
+      } else if (tier === "yellow") {
+        statusMsg = ftPct < 80
+          ? "Full-Time mix is below the healthy range. Monitor turnover, route ownership, and schedule stability."
+          : "Full-Time mix is above the healthy range. Monitor flexibility, OT exposure, and flex-up capacity.";
+      } else if (tier === "red") {
+        statusMsg = ftPct < 75
+          ? "Full-Time mix is too low. This may increase turnover, training burden, and schedule instability."
+          : "Full-Time mix is too high. Flexibility may be limited during route growth, callouts, and peak events.";
+      } else {
+        statusMsg = "No drivers are scheduled yet — the FT/PT mix appears once the week is staffed.";
+      }
+      const curLine = live && live.totalScheduled > 0
+        ? `${ftPct}% Full-Time / ${ptPct}% Part-Time`
+        : "—";
+      const m = document.createElement("div");
+      m.id = "rr-ftpt-kpi-modal";
+      m.className = "modal-backdrop open rr-cov-kpi-anchored";
+      m.innerHTML = `
+        <div id="rr-ftpt-kpi-card" class="modal-card" style="max-width:420px">
+          <div class="modal-head">
+            <div>
+              <p class="modal-title">FT/PT Mix</p>
+              <p class="modal-sub">Current · ${curLine}</p>
+            </div>
+            <button type="button" id="rr-ftpt-kpi-close" class="modal-close" aria-label="Close">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="rr-cov-needed">
+              <div class="rr-cov-needed-sub"><strong>Target</strong> · 85% Full-Time</div>
+              <div class="rr-cov-needed-sub" style="margin-top:4px"><strong>Healthy range</strong> · 80%–90% Full-Time</div>
+              <div class="rr-cov-needed-sub" style="margin-top:10px">${statusMsg}</div>
+            </div>
+            <p class="rr-cov-empty" style="margin-top:12px">Target is not 100%. RouteReady treats FT/PT Mix as an optimization metric, not a maximization metric.</p>
+          </div>
+        </div>`;
+      document.body.appendChild(m);
+      // Anchor + clamp identically to the Coverage popout.
+      const card = m.querySelector("#rr-ftpt-kpi-card");
+      const a = anchorEl || document.querySelector('[data-rr-kpi="ftpt"]');
+      if (card && a) {
+        const M = 12;
+        const r = a.getBoundingClientRect();
+        const vh = window.innerHeight;
+        card.style.position = "fixed";
+        card.style.margin = "0";
+        card.style.maxHeight = (vh - M * 2) + "px";
+        card.style.overflowY = "auto";
+        const cw = card.offsetWidth || 420;
+        let left = r.left;
+        if (left + cw > window.innerWidth - M) left = window.innerWidth - cw - M;
+        if (left < M) left = M;
+        card.style.left = left + "px";
+        const ch = card.offsetHeight || 0;
+        let top = r.bottom + 6;
+        if (top + ch > vh - M) top = vh - M - ch;
+        if (top < M) top = M;
+        card.style.top = top + "px";
+      }
+    };
+
+    document.addEventListener("click", (e) => {
+      const modal = document.getElementById("rr-ftpt-kpi-modal");
+      if (modal && (e.target === modal || e.target.closest("#rr-ftpt-kpi-close"))) { modal.remove(); return; }
+      const pillEl = e.target.closest('[data-rr-kpi="ftpt"]');
+      if (!pillEl) return;
+      e.preventDefault();
+      _openFtptModal(pillEl);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      document.getElementById("rr-ftpt-kpi-modal")?.remove();
+    });
+    const _FT_OPEN_DELAY = 350;
+    let _ftCloseTimer = null, _ftOpenTimer = null;
+    const _ftCancelClose = () => { if (_ftCloseTimer) { clearTimeout(_ftCloseTimer); _ftCloseTimer = null; } };
+    const _ftCancelOpen = () => { if (_ftOpenTimer) { clearTimeout(_ftOpenTimer); _ftOpenTimer = null; } };
+    const _ftScheduleClose = () => {
+      _ftCancelClose();
+      _ftCloseTimer = setTimeout(() => { document.getElementById("rr-ftpt-kpi-modal")?.remove(); }, 220);
+    };
+    document.addEventListener("mouseover", (e) => {
+      const pillEl = e.target.closest('[data-rr-kpi="ftpt"]');
+      const inModal = e.target.closest("#rr-ftpt-kpi-modal");
+      if (pillEl || inModal) {
+        _ftCancelClose();
+        if (pillEl && !document.getElementById("rr-ftpt-kpi-modal") && !_ftOpenTimer) {
+          _ftOpenTimer = setTimeout(() => {
+            _ftOpenTimer = null;
+            if (pillEl.matches(":hover")) _openFtptModal(pillEl);
+          }, _FT_OPEN_DELAY);
+        }
+      }
+    });
+    document.addEventListener("mouseout", (e) => {
+      const fromFt = e.target.closest('[data-rr-kpi="ftpt"]') || e.target.closest("#rr-ftpt-kpi-modal");
+      if (!fromFt) return;
+      const to = e.relatedTarget;
+      if (to && (to.closest?.('[data-rr-kpi="ftpt"]') || to.closest?.("#rr-ftpt-kpi-modal"))) return;
+      _ftCancelOpen();
+      _ftScheduleClose();
     });
   }
 
@@ -38786,6 +38954,33 @@ async function materializeVirtualShiftToDriver(payload, driverId, cell) {
   // putting the driver on, not honoring the gap's original day.
   const date = cell.dataset.rrCellDate || payload.date;
   const stationId = cell.dataset.rrCellStation || payload.station_id;
+
+  // Plan-ceiling guard. Creating a shift here adds a row to the day. If
+  // the day is already at/over its planned route count (route demand +
+  // cushion), this would push it past plan (e.g. 7-plan day → 8 shifts,
+  // shown as 8/7). Auto/virtual creation should never silently exceed
+  // plan, but a deliberate manual override is allowed — so confirm first.
+  try {
+    const plan = (window._rrSchedPlanByDate || {})[date];
+    if (plan != null) {
+      const existing = (Array.isArray(window._rrLastGridShifts) ? window._rrLastGridShifts : [])
+        .filter(s => s && s.date === date
+          && ["scheduled", "completed"].includes(s.status)
+          && s.shift_kind !== "training" && s.shift_kind !== "ride_along"
+          && !s.is_cushion).length;
+      if (existing >= plan) {
+        const dow = new Date(date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long" });
+        const ok = confirm(
+          `${dow} is already at its planned route count (${existing} of ${plan} scheduled).\n\n` +
+          `Adding this shift puts the day over plan (it will read ${existing + 1}/${plan}). ` +
+          `Raise the route count or cushion on the Targets page if you want this to be part of the plan.\n\n` +
+          `Add the extra shift anyway?`
+        );
+        if (!ok) return;
+      }
+    }
+  } catch (_) { /* non-fatal: fall through to the normal create path */ }
+
   const block = (window.RR?.dsp?.metadata?.scheduling?.default_block_hours) || 10;
   const wave = payload.wave_start || "07:00";
   const startsLocal = `${date}T${wave}:00`;
