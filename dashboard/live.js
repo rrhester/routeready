@@ -34831,16 +34831,16 @@ async function openShiftEditModal(arg) {
   // (lowercase_snake; matches the DB CHECK in 0332 / 0338). The two training
   // options instead map to shift_kind ("kind:training" = Class training,
   // "kind:ride_along" = Road training) so the operator can set a training day
-  // manually — it then behaves exactly like one created by onboarding
-  // (same chip, same Class/Road-training color). _parseRouteTypeSel below
-  // turns the selected value back into { shift_kind, route_classification }.
+  // manually — it then behaves exactly like one created by onboarding (same
+  // chip, same Class/Road-training color). _parseRouteTypeSel turns the
+  // selected value back into { shift_kind, route_classification }.
   const ROUTE_TYPE_OPTIONS = [
-    ["",                 "Standard"],
-    ["rescue",           "Rescue"],
-    ["nursery",          "Nursery"],
-    ["other",            "Other"],
-    ["kind:training",    "Class training"],
-    ["kind:ride_along",  "Road training"],
+    ["",                "Standard"],
+    ["rescue",          "Rescue"],
+    ["nursery",         "Nursery"],
+    ["other",           "Other"],
+    ["kind:training",   "Class training"],
+    ["kind:ride_along", "Road training"],
   ];
   // Current selection reads shift_kind first (a training shift), else the
   // route classification.
