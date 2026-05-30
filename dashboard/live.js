@@ -9,6 +9,7 @@
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
 import { planScheduleWeek } from "./scheduling-engine.js?v=20260527-pinfix";
+import { computeFlexCapacity } from "./flex-capacity.js?v=20260530-flex1";
 
 const cfg = window.RR_CONFIG;
 if (!cfg) throw new Error("RR_CONFIG missing — load config.js before live.js");
@@ -35484,6 +35485,7 @@ const _RR_SCHED_KPI_DEFS = [
   { key: "violations", label: "Violations" },
   { key: "overtime",   label: "OT Risk" },
   { key: "ftpt",       label: "FT / PT split" },
+  { key: "flex",       label: "Flex Capacity" },
   { key: "preferred",  label: "Preferred-day rate" },
   { key: "affinity",   label: "Affinity match" },
   { key: "rotation",   label: "Fleet rotation" },
@@ -36611,6 +36613,82 @@ async function renderScheduleWeek() {
           totalScheduled > 0 && _kpiColorOn ? ftStatus.icon : undefined,
           totalScheduled > 0 && _kpiColorOn ? ftStatus.pillBg : undefined,
         );
+      })() +
+      (() => {
+        // ── Flex Capacity KPI ────────────────────────────────────────────
+        // "How many additional routes could this DSP absorb with existing
+        // availability before hiring?" Operational planning metric — NOT
+        // staffing/FT-PT. Computed by the SAME tested engine the edge
+        // function uses (dashboard/flex-capacity.js, built from
+        // flex-capacity/src), fed a FlexInput assembled from the data this
+        // render already has in memory.
+        try {
+          const isoToKey = (iso) =>
+            ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date(iso + "T00:00:00Z").getUTCDay()];
+          // Demand per day (route plan incl. cushion = plannedByDate).
+          const routes = [];
+          for (const [iso, target] of plannedByDate) routes.push({ day: isoToKey(iso), routeTarget: target });
+          // Per-driver scheduled days this week (assigned, non-training).
+          const schedDaysByDriver = new Map();
+          for (const sh of (grid.shifts || [])) {
+            if (!sh.driver_id || !visibleDriverIds.has(sh.driver_id)) continue;
+            if (!["scheduled", "completed"].includes(sh.status)) continue;
+            if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
+            const set = schedDaysByDriver.get(sh.driver_id) || new Set();
+            set.add(isoToKey(sh.date));
+            schedDaysByDriver.set(sh.driver_id, set);
+          }
+          const sched = window.RR?.dsp?.metadata?.scheduling || {};
+          const blockHours = Number(sched.default_block_hours) || 10;
+          const maxDaysPerWeek = Number(sched.max_days_per_week) || 5;
+          const weeklyHourCap = Number(sched.weekly_hour_cap) || maxDaysPerWeek * blockHours;
+          const weekIsos = [];
+          for (let i = 0; i < 7; i++) weekIsos.push(fmtIsoDate(addDays(weekStart, i)));
+          const flexDrivers = drivers
+            .filter((d) => d.status === "active")
+            .map((d) => {
+              const av = d.metadata?.availability || {};
+              const ptoDays = weekIsos.filter((iso) => ptoOn(d.id, iso)).map(isoToKey);
+              return {
+                id: d.id,
+                active: true,
+                available: Array.isArray(av.days) ? av.days : [],
+                preferred: Array.isArray(av.preferred_days) ? av.preferred_days : [],
+                fifthDayOptIn: av.fifth_day_ok === true,
+                pto: ptoDays,
+                scheduledDays: [...(schedDaysByDriver.get(d.id) || [])],
+                scheduledHours: hoursPerDriver.get(d.id) || 0,
+                weeklyHourCap,
+                blockHours,
+                maxDaysPerWeek,
+                certifications: { dot: d.dot_certified === true, xl: d.xl_certified === true, edv: d.edv_certified === true },
+              };
+            });
+          if (routes.length === 0 || flexDrivers.length === 0) {
+            return pill("flex", navy, "— Flex", "", false, "No route plan yet");
+          }
+          const flexRes = computeFlexCapacity({ weekStart: _schedStart, drivers: flexDrivers, routes });
+          const fa = flexRes.kpi.comfortableRoutesAvailable;
+          const sa = flexRes.kpi.stretchRoutesAvailable;
+          const ma = flexRes.kpi.maximumRoutesAvailable;
+          // Pill status: green = comfortable headroom, yellow = only stretch
+          // headroom, red = no headroom (must hire to grow).
+          const flexTier = fa > 0 ? "green" : sa > 0 ? "yellow" : "red";
+          window._rrLiveFlex = { weekStart: _schedStart, result: flexRes, tier: flexTier };
+          return pill(
+            "flex",
+            navy,
+            `+${fa} Flex`,
+            "",
+            true,
+            `Comfortable +${fa} · Stretch +${sa} · Maximum +${ma} routes`,
+            _kpiColorOn ? _rrKpiStatusIcon(flexTier, "Flex capacity") : undefined,
+            _kpiColorOn ? RR_KPI_SOFT_BG[flexTier] : undefined,
+          );
+        } catch (err) {
+          console.warn("flex capacity KPI:", err);
+          return "";
+        }
       })() +
       (() => {
         // Preferred % — of shifts assigned to drivers who have preferred
@@ -38414,6 +38492,115 @@ function bindSchedWeekNav() {
       if (to && (to.closest?.('[data-rr-kpi="ftpt"]') || to.closest?.("#rr-ftpt-kpi-modal"))) return;
       _ftCancelOpen();
       _ftScheduleClose();
+    });
+  }
+
+  // ── Flex Capacity KPI · hover deep-dive (mirrors the FT/PT popout) ──
+  if (!window._rrFlexKpiHandlerInstalled) {
+    window._rrFlexKpiHandlerInstalled = true;
+
+    const _openFlexModal = (anchorEl) => {
+      document.getElementById("rr-flex-kpi-modal")?.remove();
+      const live = window._rrLiveFlex || null;
+      const k = live?.result?.kpi;
+      if (!k) return;
+      const tier = live.tier;
+      const coaching = tier === "green"
+        ? "DSP can absorb projected growth using preferred schedules and normal operating patterns."
+        : tier === "yellow"
+          ? "DSP can absorb projected growth using schedule flexibility, non-preferred days, and voluntary 5th-day participation."
+          : "DSP lacks sufficient route absorption capacity and should hire additional drivers.";
+      const row = (label, val) =>
+        `<div class="rr-cov-needed-sub"><strong>${label}</strong> · ${val}</div>`;
+      const m = document.createElement("div");
+      m.id = "rr-flex-kpi-modal";
+      m.className = "modal-backdrop open rr-cov-kpi-anchored";
+      m.innerHTML = `
+        <div id="rr-flex-kpi-card" class="modal-card" style="max-width:440px">
+          <div class="modal-head">
+            <div>
+              <p class="modal-title">Flex Capacity</p>
+              <p class="modal-sub">Additional routes absorbable with existing availability</p>
+            </div>
+            <button type="button" id="rr-flex-kpi-close" class="modal-close" aria-label="Close">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="rr-cov-needed">
+              ${row("Current routes (peak day)", k.currentRoutes)}
+              ${row("🟢 Comfortable capacity", `${k.comfortableCapacity} <span style="color:var(--text-muted)">(+${k.comfortableRoutesAvailable})</span>`)}
+              ${row("🟡 Stretch capacity", `${k.stretchCapacity} <span style="color:var(--text-muted)">(+${k.stretchRoutesAvailable})</span>`)}
+              ${row("🔴 Maximum capacity", `${k.maximumCapacity} <span style="color:var(--text-muted)">(+${k.maximumRoutesAvailable})</span>`)}
+              <div class="rr-cov-needed-sub" style="margin-top:10px">${coaching}</div>
+            </div>
+            <p class="rr-cov-empty" style="margin-top:12px">Comfortable = sustainable. Stretch = temporary (Prime Week / spikes). Maximum = emergency ceiling, not sustainable. Planning model, not a guarantee.</p>
+          </div>
+        </div>`;
+      document.body.appendChild(m);
+      const card = m.querySelector("#rr-flex-kpi-card");
+      const a = anchorEl || document.querySelector('[data-rr-kpi="flex"]');
+      if (card && a) {
+        const M = 12;
+        const r = a.getBoundingClientRect();
+        const vh = window.innerHeight;
+        card.style.position = "fixed";
+        card.style.margin = "0";
+        card.style.maxHeight = (vh - M * 2) + "px";
+        card.style.overflowY = "auto";
+        const cw = card.offsetWidth || 440;
+        let left = r.left;
+        if (left + cw > window.innerWidth - M) left = window.innerWidth - cw - M;
+        if (left < M) left = M;
+        card.style.left = left + "px";
+        const ch = card.offsetHeight || 0;
+        let top = r.bottom + 6;
+        if (top + ch > vh - M) top = vh - M - ch;
+        if (top < M) top = M;
+        card.style.top = top + "px";
+      }
+    };
+
+    document.addEventListener("click", (e) => {
+      const modal = document.getElementById("rr-flex-kpi-modal");
+      if (modal && (e.target === modal || e.target.closest("#rr-flex-kpi-close"))) { modal.remove(); return; }
+      const pillEl = e.target.closest('[data-rr-kpi="flex"]');
+      if (!pillEl) return;
+      e.preventDefault();
+      _openFlexModal(pillEl);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      document.getElementById("rr-flex-kpi-modal")?.remove();
+    });
+    const _FX_OPEN_DELAY = 350;
+    let _fxCloseTimer = null, _fxOpenTimer = null;
+    const _fxCancelClose = () => { if (_fxCloseTimer) { clearTimeout(_fxCloseTimer); _fxCloseTimer = null; } };
+    const _fxCancelOpen = () => { if (_fxOpenTimer) { clearTimeout(_fxOpenTimer); _fxOpenTimer = null; } };
+    const _fxScheduleClose = () => {
+      _fxCancelClose();
+      _fxCloseTimer = setTimeout(() => { document.getElementById("rr-flex-kpi-modal")?.remove(); }, 220);
+    };
+    document.addEventListener("mouseover", (e) => {
+      const pillEl = e.target.closest('[data-rr-kpi="flex"]');
+      const inModal = e.target.closest("#rr-flex-kpi-modal");
+      if (pillEl || inModal) {
+        _fxCancelClose();
+        if (pillEl && !document.getElementById("rr-flex-kpi-modal") && !_fxOpenTimer) {
+          _fxOpenTimer = setTimeout(() => {
+            _fxOpenTimer = null;
+            if (pillEl.matches(":hover")) _openFlexModal(pillEl);
+          }, _FX_OPEN_DELAY);
+        }
+      }
+    });
+    document.addEventListener("mouseout", (e) => {
+      const fromFx = e.target.closest('[data-rr-kpi="flex"]') || e.target.closest("#rr-flex-kpi-modal");
+      if (!fromFx) return;
+      const to = e.relatedTarget;
+      if (to && (to.closest?.('[data-rr-kpi="flex"]') || to.closest?.("#rr-flex-kpi-modal"))) return;
+      _fxCancelOpen();
+      _fxScheduleClose();
     });
   }
 

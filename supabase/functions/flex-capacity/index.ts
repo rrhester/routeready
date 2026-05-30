@@ -122,5 +122,30 @@ Deno.serve(async (req: Request) => {
   const flex = computeFlexCapacity(input, growth);
   const whatIf = body.scenario ? runWhatIf(input, body.scenario) : null;
 
+  // Cache the latest base result for fast KPI reads / trend charts. Best
+  // effort — a cache failure must never fail the request. (Skipped when the
+  // flex_capacity_snapshots table hasn't been created yet.)
+  try {
+    await supa.from("flex_capacity_snapshots").upsert(
+      {
+        dsp_id: dspId,
+        week_start: weekStart,
+        current_routes: flex.kpi.currentRoutes,
+        comfortable_capacity: flex.kpi.comfortableCapacity,
+        stretch_capacity: flex.kpi.stretchCapacity,
+        maximum_capacity: flex.kpi.maximumCapacity,
+        comfortable_available: flex.kpi.comfortableRoutesAvailable,
+        stretch_available: flex.kpi.stretchRoutesAvailable,
+        maximum_available: flex.kpi.maximumRoutesAvailable,
+        status: flex.kpi.status,
+        result: flex,
+        computed_at: new Date().toISOString(),
+      },
+      { onConflict: "dsp_id,week_start" },
+    );
+  } catch (_) {
+    // ignore — snapshot cache is optional
+  }
+
   return jsonResponse({ flex, whatIf }, { headers: CORS });
 });
