@@ -141,7 +141,6 @@ def solve(req: SolveRequest) -> SolveResponse:
     use_affinity        = bool(rules.get("use_affinity", True))
     use_van_pairings    = bool(rules.get("use_van_pairings", True))
     use_attendance      = bool(rules.get("use_attendance", True))
-    use_fifth_day_optin = bool(rules.get("use_fifth_day_optin", True))
     use_ad_hoc_rules    = bool(rules.get("use_ad_hoc_rules", True))
 
     max_days = int(req.max_days or 5)
@@ -243,9 +242,13 @@ def solve(req: SolveRequest) -> SolveResponse:
         if ls.assigned_driver_id:
             locked_on_days[ls.assigned_driver_id].add(ls.date)
 
-    # Max days per week. Drivers who've opted in to a 5th day get a
-    # +1 cap bump when use_fifth_day_optin is on (the dashboard's
-    # default). With the toggle off, every driver respects max_days.
+    # Max days per week — a HARD ceiling for every driver. A 5th-day opt-in
+    # expands which days a driver is AVAILABLE for (baked into available_dows
+    # upstream by the dashboard), but it must NOT raise the cap past max_days:
+    # operators treat max_days as a hard limit, so the opt-in only helps fill a
+    # driver UP TO the cap, never beyond it. (To allow more days, raise
+    # max_days.) Previously opted-in drivers got max_days + 1, which let Smart
+    # Fill schedule e.g. 6 days against a 5-day cap.
     for d in req.drivers:
         prebaked = len(locked_on_days.get(d.id, set()))
         flex = [
@@ -254,8 +257,6 @@ def solve(req: SolveRequest) -> SolveResponse:
             if did == d.id
         ]
         cap = max_days
-        if use_fifth_day_optin and getattr(d, "fifth_day_ok", False):
-            cap = max_days + 1
         if flex:
             model.Add(sum(flex) <= max(0, cap - prebaked))
 
