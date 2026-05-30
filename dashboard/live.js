@@ -36571,7 +36571,7 @@ async function renderScheduleWeek() {
       ? "Every branded non-grounded van stays under the 14-day rotation rule this week"
       : `Click for details · ${femRisks.length} branded van${femRisks.length === 1 ? "" : "s"} projected to cross 13+ days unused`;
     kpis.innerHTML =
-      pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, true,
+      pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, _covTier !== "green",
         "Click to see settings that would raise coverage", coverageIcon, coveragePillBg) +
       pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
       pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
@@ -36604,7 +36604,7 @@ async function renderScheduleWeek() {
           navy,
           totalScheduled > 0 ? `${ftPct} / ${ptPct} FT/PT` : "— FT/PT",
           "",
-          true,
+          ftStatus.tier !== "green",  // green = healthy, no drill-down
           totalScheduled > 0
             ? `${ftCount} full-time · ${ptCount} part-time (of ${totalScheduled} scheduled)`
             : "No drivers scheduled this week",
@@ -37741,6 +37741,9 @@ function bindSchedWeekNav() {
     };
 
     const _openCovModal = (anchorEl) => {
+      // Coverage green (≥115%) is healthy — no drill-down needed.
+      const _lc = window._rrLiveSchedCoverage;
+      if (_lc && _lc.weekStart === _schedStart && _lc.pct >= 115) return;
       document.getElementById("rr-cov-kpi-modal")?.remove();
       const payload = _getSfDrillPayload();
       let bodyHtml, curLabel;
@@ -38279,6 +38282,8 @@ function bindSchedWeekNav() {
     window._rrFtptKpiHandlerInstalled = true;
 
     const _openFtptModal = (anchorEl) => {
+      // FT/PT green (healthy 80–90%) needs no drill-down.
+      if ((window._rrLiveFtpt || {}).tier === "green") return;
       document.getElementById("rr-ftpt-kpi-modal")?.remove();
       const live = window._rrLiveFtpt || null;
       const ftPct = live ? live.ftPct : 0;
