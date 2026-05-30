@@ -178,6 +178,9 @@
      setProperty so the colors persist per-browser. */
   --rr-route-c-rescue:#C50F1F;
   --rr-route-c-nursery:#038387;
+  --rr-route-c-other:#5D5A58;
+  /* Legacy route types — retired from the picker but kept so any shift
+     still tagged with one keeps its chip color. */
   --rr-route-c-reduction:#CA5010;
   --rr-route-c-cycle_1:#5C2E91;
   --rr-route-c-cycle_2:#C239B3;
@@ -14988,8 +14991,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
                     <!-- Route color coding · master toggle. When ON,
                          shift chips paint themselves per route_classification:
-                         rescue=red, nursery=teal, reduction=orange,
-                         cycle_1=purple, cycle_2=magenta, backup=gray.
+                         rescue=red, nursery=teal, other=gray.
                          Standard (NULL) keeps the existing brand-blue chip. -->
                     <fieldset class="rr-sched-routecolor-fset" style="border:0;padding:14px 0 0;margin:14px 0 0;border-top:1px solid #E1DFDD">
                       <legend style="font:600 13px/18px var(--rr-font-family,'Segoe UI');color:var(--rr-fg-primary,#242424);margin-bottom:6px">Route color coding</legend>
@@ -15021,21 +15023,9 @@ body.rr-cmdk-open{ overflow:hidden }
                           <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Nursery</span><button type="button" data-rr-route-reset="nursery" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="nursery" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
-                        <div class="rr-rcp-row" data-rr-route="reduction" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Reduction</span><button type="button" data-rr-route-reset="reduction" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="reduction" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="cycle_1"   style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Cycle 1</span><button type="button" data-rr-route-reset="cycle_1" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="cycle_1" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="cycle_2"   style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Cycle 2</span><button type="button" data-rr-route-reset="cycle_2" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="cycle_2" style="display:flex;gap:4px;flex-wrap:wrap"></div>
-                        </div>
-                        <div class="rr-rcp-row" data-rr-route="backup"    style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
-                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Backup</span><button type="button" data-rr-route-reset="backup" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
-                          <div class="rr-rcp-swatches" data-rr-route-swatches="backup" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        <div class="rr-rcp-row" data-rr-route="other"     style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Other</span><button type="button" data-rr-route-reset="other" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="other" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
                       </div>
                       <style>
@@ -15082,13 +15072,13 @@ body.rr-cmdk-open{ overflow:hidden }
                         // first-time DSPs see a sensible default. These
                         // also override the :root --rr-route-c-* vars so
                         // the palette + chip colors stay in sync.
+                        // Route types the operator can color-code. "Other" is
+                        // the catch-all; the legacy reduction / cycle_1 /
+                        // cycle_2 / backup types were retired from the picker.
                         var DEFAULTS = {
-                          rescue:    "#C50F1F",
-                          nursery:   "#038387",
-                          reduction: "#CA5010",
-                          cycle_1:   "#5C2E91",
-                          cycle_2:   "#C239B3",
-                          backup:    "#5D5A58",
+                          rescue:  "#C50F1F",
+                          nursery: "#038387",
+                          other:   "#5D5A58",
                         };
                         function loadHex() {
                           try {

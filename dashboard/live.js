@@ -34789,59 +34789,84 @@ async function openShiftEditModal(arg) {
   const startHM = _drawerDefaults.start;
   const endHM   = _drawerDefaults.end;
   // Route-classification options. Keep value lowercase_snake (matches
-  // the DB CHECK in migration 0332); label is what the operator sees.
+  // the DB CHECK in migration 0332 / 0338); label is what the operator sees.
+  // Trimmed to the set the operator uses + a catch-all "Other".
   const ROUTE_CLASS_OPTIONS = [
     ["",          "Standard"],
     ["rescue",    "Rescue"],
     ["nursery",   "Nursery"],
-    ["reduction", "Reduction"],
-    ["cycle_1",   "Cycle 1"],
-    ["cycle_2",   "Cycle 2"],
-    ["backup",    "Backup"],
+    ["other",     "Other"],
   ];
   const currentClass = (sh.route_classification || "");
-  const classOptionsHTML = ROUTE_CLASS_OPTIONS.map(([v, label]) =>
+  // Preserve a legacy classification (reduction / cycle_1 / cycle_2 / backup)
+  // on an existing shift even though it's no longer offered for new shifts,
+  // so opening that shift's editor doesn't silently change its type on save.
+  const _legacyClassLabel = { standard: "Standard", reduction: "Reduction", cycle_1: "Cycle 1", cycle_2: "Cycle 2", backup: "Backup" };
+  const _classOpts = ROUTE_CLASS_OPTIONS.slice();
+  if (currentClass && !_classOpts.some(([v]) => v === currentClass)) {
+    _classOpts.push([currentClass, (_legacyClassLabel[currentClass] || currentClass) + " (legacy)"]);
+  }
+  const classOptionsHTML = _classOpts.map(([v, label]) =>
     `<option value="${escapeHtml(v)}"${v === currentClass ? " selected" : ""}>${escapeHtml(label)}</option>`
   ).join("");
 
+  // Add mode → a compact centered modal sized to its inputs (no Date /
+  // Shift kind, so just Driver · Route · times · type). Edit mode keeps the
+  // full-height left drawer (history, recognition, unassign/delete live
+  // there). A light backdrop under the Add modal catches outside clicks.
+  let backdrop = null;
+  if (isAdd) {
+    backdrop = document.createElement("div");
+    backdrop.id = "rr-shift-edit-backdrop";
+    backdrop.style.cssText =
+      "position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:9998;" +
+      "opacity:0;transition:opacity 140ms ease-out";
+    document.body.appendChild(backdrop);
+  }
+
   m = document.createElement("div");
   m.id = "rr-shift-edit-modal";
-  // Left-fly drawer · no backdrop blur so the schedule grid stays
-  // visible underneath while the operator edits or adds a shift.
-  m.style.cssText =
-    "position:fixed;top:0;left:0;bottom:0;width:380px;background:var(--surface);" +
-    "border-right:1px solid var(--border);box-shadow:4px 0 16px rgba(15,23,42,.10);" +
-    "z-index:9999;display:flex;flex-direction:column;transform:translateX(-100%);" +
-    "transition:transform 200ms ease-out;";
+  if (isAdd) {
+    // Compact centered card — height is content-driven (only as large as
+    // the inputs need); scrolls if it ever exceeds the viewport.
+    m.style.cssText =
+      "position:fixed;top:50%;left:50%;transform:translate(-50%,-46%);" +
+      "width:340px;max-width:calc(100vw - 32px);max-height:calc(100vh - 64px);" +
+      "background:var(--surface);border:1px solid var(--border);border-radius:12px;" +
+      "box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:9999;display:flex;" +
+      "flex-direction:column;opacity:0;transition:opacity 140ms ease-out, transform 140ms ease-out;";
+  } else {
+    // Left-fly drawer · no backdrop blur so the schedule grid stays
+    // visible underneath while the operator edits a shift.
+    m.style.cssText =
+      "position:fixed;top:0;left:0;bottom:0;width:380px;background:var(--surface);" +
+      "border-right:1px solid var(--border);box-shadow:4px 0 16px rgba(15,23,42,.10);" +
+      "z-index:9999;display:flex;flex-direction:column;transform:translateX(-100%);" +
+      "transition:transform 200ms ease-out;";
+  }
   // Header subtitle differs by mode — in edit mode we show
   // "driver · route · date"; in add mode we show "Pick the details"
   // (date is editable below, driver below, route below).
+  // Add mode shows the clicked day in the subtitle (the date is implied by
+  // the cell the operator clicked, so there's no Date field below).
+  const _addDateLabel = (() => {
+    try { return new Date(sh.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
+    catch (_) { return sh.date; }
+  })();
   const headerSubtitle = isAdd
-    ? "Fill in the shift details"
+    ? escapeHtml(_addDateLabel)
     : `${escapeHtml(driver)} · ${escapeHtml(route)} · ${escapeHtml(sh.date)}`;
   const headerTitle = isAdd ? "Add shift" : "Edit shift";
-  // In add mode show Date, Driver, Shift kind, Route code — these are
-  // all set on creation. In edit mode those fields are baked into the
-  // shift already (changing them post-create gets complicated and we
-  // skip it for now). Route type and times are common to both.
+  // Add mode: Driver + Route are set on creation. Date is implied by the
+  // clicked cell (shown in the subtitle); Shift kind is dropped (Route type
+  // covers the categorization the operator needs). Route type + times are
+  // common to both add and edit.
   const addOnlyFields = isAdd ? `
-        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
-          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Date</span>
-          <input type="date" id="rr-shift-edit-date" value="${escapeHtml(sh.date)}" class="form-input" style="max-width:200px" />
-        </label>
         <label style="display:flex;align-items:center;gap:var(--s-3-5)">
           <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Driver</span>
           <select id="rr-shift-edit-driver" class="form-input" style="max-width:220px">
             <option value="">— Open shift —</option>
             ${(_schedDriverList || []).map(d => `<option value="${d.id}"${sh.driver_id === d.id ? " selected" : ""}>${escapeHtml(displayDriverName(d))}</option>`).join("")}
-          </select>
-        </label>
-        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
-          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Shift kind</span>
-          <select id="rr-shift-edit-kind" class="form-input" style="max-width:200px">
-            <option value="regular">Regular</option>
-            <option value="training">Training</option>
-            <option value="ride_along">Ride-along</option>
           </select>
         </label>
         <label style="display:flex;align-items:center;gap:var(--s-3-5)">
@@ -34912,8 +34937,22 @@ async function openShiftEditModal(arg) {
       </div>
     </div>`;
   document.body.appendChild(m);
-  // Slide in from the left on next frame so the transition fires.
-  requestAnimationFrame(() => { m.style.transform = "translateX(0)"; });
+  // Animate in on next frame so the transition fires. Add mode fades +
+  // settles the centered card; edit mode slides the drawer in from the left.
+  requestAnimationFrame(() => {
+    if (isAdd) {
+      m.style.opacity = "1";
+      m.style.transform = "translate(-50%,-50%)";
+      if (backdrop) backdrop.style.opacity = "1";
+    } else {
+      m.style.transform = "translateX(0)";
+    }
+  });
+  // Autofocus the first field in add mode so the operator can fill it out
+  // without reaching for the mouse.
+  if (isAdd) {
+    requestAnimationFrame(() => { document.getElementById("rr-shift-edit-driver")?.focus(); });
+  }
 
   // Load shift history lazily — fire once the modal is on screen.
   // Skipped in add mode (no shift exists yet).
@@ -34971,17 +35010,27 @@ async function openShiftEditModal(arg) {
   // with the open animation. matchMedia check skips the wait on
   // reduced-motion preference.
   const close = () => {
+    const removeBackdrop = () => { if (backdrop) backdrop.remove(); };
     const noMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (noMotion) { m.remove(); return; }
-    m.style.transform = "translateX(-100%)";
-    setTimeout(() => m.remove(), 200);
+    if (noMotion) { m.remove(); removeBackdrop(); return; }
+    if (isAdd) {
+      // Fade the centered card + backdrop out.
+      m.style.opacity = "0";
+      m.style.transform = "translate(-50%,-46%)";
+      if (backdrop) backdrop.style.opacity = "0";
+      setTimeout(() => { m.remove(); removeBackdrop(); }, 140);
+    } else {
+      m.style.transform = "translateX(-100%)";
+      setTimeout(() => m.remove(), 200);
+    }
   };
-  // Escape key closes the drawer (it doesn't cover the page, so
-  // there's no overlay to click on).
+  // Escape key closes either form. Clicking the backdrop closes the Add
+  // modal (the edit drawer has no backdrop — it doesn't cover the page).
   const escHandler = (ev) => {
     if (ev.key === "Escape") { close(); document.removeEventListener("keydown", escHandler); }
   };
   document.addEventListener("keydown", escHandler);
+  if (backdrop) backdrop.addEventListener("click", () => { close(); document.removeEventListener("keydown", escHandler); });
   m.addEventListener("click", async (e) => {
     if (e.target.closest("[data-rr-shift-edit-cancel]")) { close(); return; }
 
