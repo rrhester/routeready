@@ -35894,42 +35894,47 @@ async function renderScheduleWeek() {
   // operator with "98%" but nothing to assign. Days that have an
   // okami_demand row but no shift rows yet still show up (with 0/N) so
   // they aren't invisibly under-staffed.
+  // Plan (denominator) per date = the route plan INCLUDING the DSP's
+  // cushion buffer. grid.coverage's `needed` is already
+  // ceil(target_routes × (1 + cushion%)) — see migration 0025 — so this
+  // is the planned route ceiling for the day, cushion folded in.
   const plannedByDate = new Map();
   for (const cell of (grid.coverage || [])) {
     plannedByDate.set(cell.date, (plannedByDate.get(cell.date) || 0) + (cell.needed || 0));
   }
+  // Count scheduled shift ROWS and FILLED rows per date separately, so the
+  // denominator can stay the PLAN (not the row count). This makes overage
+  // visible: if a day is planned for 7 but 8 shifts exist, it reads 8/7
+  // (and a fully-staffed over-plan day reads 9/8) instead of hiding the
+  // extra as "8/8".
   const coverageByDate = new Map();
+  const get = (d) => { let a = coverageByDate.get(d); if (!a) { a = { planned: 0, rows: 0, filled: 0 }; coverageByDate.set(d, a); } return a; };
   for (const sh of (grid.shifts || [])) {
     if (!["scheduled", "completed"].includes(sh.status)) continue;
     // Training + ride-along shifts aren't staffing a route — they're
     // onboarding scaffolding (Day 1+2 at the station, Day 3 shadowing a
-    // trainer). Counting them toward "filled" would double-count the
-    // route on Day 3 (the trainer's regular shift already counts).
+    // trainer). Counting them would double-count the route on Day 3.
     if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
-    const a = coverageByDate.get(sh.date) || { needed: 0, filled: 0 };
-    a.needed += 1;  // every shift row counts toward the day's denominator
+    const a = get(sh.date);
+    a.rows += 1;
     const isFilled =
       sh.status === "completed" ||
       (sh.driver_id && visibleDriverIds.has(sh.driver_id));
     if (isFilled) a.filled += 1;
-    coverageByDate.set(sh.date, a);
   }
-  // Surface plan-but-no-shifts days so the operator sees them as 0/N
-  // (these are the ones where Route planning has demand recorded but
-  // shifts haven't been generated yet).
-  for (const [date, planned] of plannedByDate) {
-    if (!coverageByDate.has(date)) {
-      coverageByDate.set(date, { needed: planned, filled: 0 });
-    }
+  // Fold the plan into every date (including plan-but-no-shifts days, which
+  // then read 0/N). Denominator = the plan; on a day with shifts but no
+  // recorded plan, fall back to the row count so it still reads sensibly.
+  for (const [date, planned] of plannedByDate) get(date).planned = planned;
+  for (const a of coverageByDate.values()) {
+    a.needed = a.planned > 0 ? a.planned : a.rows;
   }
   let totalNeeded = 0, totalFilled = 0;
   for (const a of coverageByDate.values()) { totalNeeded += a.needed; totalFilled += a.filled; }
-  // Coverage % is measured against the shifts on the board — which IS the
-  // canonical route plan (Route planning → Save writes the shifts table,
-  // see #530). The okami_demand table is non-canonical and can drift
-  // stale, so it must NOT drive this number — using it leaves the
-  // operator at "98%" with no shift to fill. totalNeeded already folds
-  // in any fully-unstaffed planned day, so a missing day still counts.
+  // Coverage % is measured against the PLAN (route demand + cushion), so
+  // staffing beyond plan can read over 100% (e.g. 9 staffed on an 8-plan
+  // day → 112%) and an over-plan week surfaces as a Capacity-reliability
+  // signal rather than being hidden by a row-count denominator.
   const coverageDenom = totalNeeded;
   const pct = coverageDenom ? Math.round(totalFilled / coverageDenom * 100) : 0;
   // Stash for the Improve Coverage drill-down so its baseline % shows
