@@ -34320,9 +34320,18 @@ async function autoAssignDriversForWeek() {
     // read woc_max_hours, so the operator's cap was silently ignored.
     const _wocEnforce  = !(sfRules && sfRules.woc === false); // "Enforce WOC" (default on)
     const _wocMaxHours = parseInt(sfRules && sfRules.woc_max_hours, 10);
-    const _weeklyHourOut = _sfHourCapAdv != null
-      ? _sfHourCapAdv
-      : (_wocEnforce && Number.isFinite(_wocMaxHours) ? _wocMaxHours : 50);
+    // WOC weekly-hour cap is the operator's HARD ceiling. When Enforce WOC is
+    // on, it is authoritative: the advanced engine "weekly hour cap" override
+    // may only make it STRICTER (min), never looser — otherwise a stale/high
+    // advanced value silently busts the operator's cap and Smart Fill schedules
+    // past it (the "6 days / 60h against a 50h cap" bug). With WOC off, the
+    // advanced override (or the 50h default) applies as before.
+    let _weeklyHourOut;
+    if (_wocEnforce && Number.isFinite(_wocMaxHours)) {
+      _weeklyHourOut = _sfHourCapAdv != null ? Math.min(_wocMaxHours, _sfHourCapAdv) : _wocMaxHours;
+    } else {
+      _weeklyHourOut = _sfHourCapAdv != null ? _sfHourCapAdv : 50;
+    }
     // Zone 3 · Vans → rules.assign_vans (default true). The solver skips
     // van assignment entirely when false. Tiebreaker is no longer emitted
     // (superseded by the Fairness slider in Advanced engine controls).
