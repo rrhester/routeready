@@ -16,7 +16,7 @@
 //
 // target_days_per_week=0 collapses to a single pass (no soft cap).
 
-import type { NormalizedDriver } from "../types.ts";
+import type { NormalizedDriver, ScoreComponents } from "../types.ts";
 import {
   type EngineContext,
   isDotRoute,
@@ -36,6 +36,7 @@ type Phase = "dot" | "standard";
 interface Candidate {
   plan: ShiftPlan;
   score: number;
+  components: ScoreComponents;
 }
 
 function planInPhase(plan: ShiftPlan, phase: Phase): boolean {
@@ -62,9 +63,9 @@ export function bestShiftForDriver(
     const plan = ws.planByShiftId.get(shiftId);
     if (!plan || !plan.open || !planInPhase(plan, phase)) continue;
 
-    const { total } = computeScore(ctx, plan.shift, driver, state, methodRank);
+    const { total, components } = computeScore(ctx, plan.shift, driver, state, methodRank);
     if (best === null || isBetter(plan, total, best, ctx.settings.rotation_start_day)) {
-      best = { plan, score: total };
+      best = { plan, score: total, components };
     }
   }
   return best;
@@ -122,7 +123,7 @@ function runFillCycle(
     const rank = rankMap.get(driver.driver_id) ?? order.length;
     const best = bestShiftForDriver(ctx, ws, matrix, driver, rank, phase);
     if (!best) return false;
-    applyAssignment(ws, best.plan, driver.driver_id, "auto_fill");
+    applyAssignment(ws, best.plan, driver.driver_id, "auto_fill", best.score, best.components);
     matrix.delete(best.plan.shift.shift_id);
     recomputeDriverColumn(ctx, ws, matrix, driver.driver_id);
     return true;

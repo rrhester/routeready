@@ -6,6 +6,7 @@ import type {
   AssignmentSource,
   DriverState,
   NormalizedShift,
+  ScoreComponents,
 } from "./types.ts";
 
 export interface ShiftPlan {
@@ -16,6 +17,10 @@ export interface ShiftPlan {
   open: boolean;
   /** Blackout date with no assignment — reported as closed, not uncovered. */
   closed: boolean;
+  /** Score the winning driver earned (auto_fill only; explains the pick). */
+  score?: number;
+  /** Per-factor breakdown of `score` (preferred, method, target_days, …). */
+  scoreComponents?: ScoreComponents;
 }
 
 export interface WorkingSchedule {
@@ -45,10 +50,14 @@ export function applyAssignment(
   plan: ShiftPlan,
   driverId: string,
   source: AssignmentSource,
+  score?: number,
+  scoreComponents?: ScoreComponents,
 ): void {
   plan.assignedDriverId = driverId;
   plan.source = source;
   plan.open = false;
+  if (score !== undefined) plan.score = score;
+  if (scoreComponents !== undefined) plan.scoreComponents = scoreComponents;
   const state = ws.states.get(driverId);
   if (state) state.assigned.push(assignedRefOf(plan.shift, source));
 }

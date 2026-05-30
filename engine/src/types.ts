@@ -378,6 +378,14 @@ export interface AssignedShiftOut {
   shift_id: string;
   driver_id: string;
   source: AssignmentSource;
+  /** Final score the winning driver earned for this shift (auto_fill only;
+   *  null for locked/preserved/5th-day where no scoring ran). Surfaced so
+   *  the dashboard can explain "why this driver got this shift". */
+  total_score?: number | null;
+  /** Per-factor score breakdown for the winning assignment (see
+   *  ScoreComponents). Lets the operator see which factors influenced the
+   *  pick and by how much. */
+  score_components?: ScoreComponents | null;
 }
 
 export interface BlockReasonAgg {

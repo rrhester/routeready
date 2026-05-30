@@ -243,6 +243,8 @@ export function runEngine(input: EngineInput): ScheduleResult {
       shift_id: plan.shift.shift_id,
       driver_id: plan.assignedDriverId,
       source: plan.source,
+      total_score: plan.score ?? null,
+      score_components: plan.scoreComponents ?? null,
     });
     const pattern = ctx.patterns.get(plan.assignedDriverId);
     if (pattern && pattern.day_of_week_affinity[plan.shift.dow] >= 0.5) {
