@@ -35617,8 +35617,10 @@ document.addEventListener("click", (e) => {
 // Shared KPI status tokens (Coverage + FT/PT). Intentionally LOW
 // saturation — soft, Fluent-inspired tints that read as healthy/caution/
 // action without being loud. Soft pill backgrounds + muted icon fills.
-const RR_KPI_SOFT_BG   = { green: "#EDF3EE", yellow: "#F6F1E6", red: "#F4ECEB" };
-const RR_KPI_ICON_FILL = { green: "#5C9B77", yellow: "#C9A24E", red: "#C57B7E" };
+// Green stays calm/soft; yellow + red are more saturated so caution and
+// action-needed read clearly at a glance.
+const RR_KPI_SOFT_BG   = { green: "#EDF3EE", yellow: "#FBEAB8", red: "#F8D3CF" };
+const RR_KPI_ICON_FILL = { green: "#5C9B77", yellow: "#E6A100", red: "#D5392F" };
 // One status-icon set, reused by both KPIs so they read identically.
 // green → thumbs-up, yellow/red → exclamation dot, in the muted fills.
 function _rrKpiStatusIcon(tier, label) {
