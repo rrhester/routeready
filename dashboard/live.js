@@ -33695,6 +33695,66 @@ async function _rrShowDriverWhyPopover(driverId, x, y) {
 }
 
 // Delegated right-click handler · driver row labels in the Schedule grid.
+// Right-click a driver's avatar/name → a small selection menu with two
+// actions: Pin the driver to their current days, or open the "Why they were
+// scheduled" intelligence card. (Replaces the older right-click explanation
+// popover.)
+const _RR_DI_DOWNUM = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+
+function _rrCloseDriverMenu() { document.getElementById("rr-di-menu")?.remove(); }
+
+async function _rrPinDriverWorkedDays(driverId) {
+  const info = window._rrDriverIntel && window._rrDriverIntel.byId.get(driverId);
+  const dows = (info && info.workedDows) || [];
+  if (!dows.length) { if (typeof toast === "function") toast("No scheduled days to pin for this driver.", "warn"); return; }
+  let ok = 0;
+  for (const k of [...new Set(dows)]) {
+    const dow = _RR_DI_DOWNUM[k];
+    if (dow == null) continue;
+    try {
+      const { error } = await sb.rpc("create_ad_hoc_constraint", {
+        p_name: `${info.name} on ${_RR_DOW_LBL[dow] || "day"}`,
+        p_description: "Pinned from the driver menu",
+        p_kind: "driver_lock_to_day",
+        p_payload: { driver_id: driverId, dow },
+        p_hardness: "hard", p_weight: null, p_scope: {},
+        p_effective_from: null, p_effective_until: null, p_state: "active",
+      });
+      if (!error) ok += 1;
+    } catch (_) { /* skip */ }
+  }
+  if (typeof toast === "function") toast(ok ? `Pinned ${info.name} to ${ok} day${ok === 1 ? "" : "s"}` : "Pin failed", ok ? "ok" : "warn");
+  if (ok && typeof _decorateScheduleChipsWithPins === "function") { try { await _decorateScheduleChipsWithPins(); } catch (_) {} }
+  if (ok && typeof _rrLoadAdHocConstraintsList === "function") { try { _rrLoadAdHocConstraintsList(); } catch (_) {} }
+}
+
+function _rrShowDriverMenu(driverId, x, y) {
+  _rrCloseDriverMenu();
+  const info = window._rrDriverIntel && window._rrDriverIntel.byId.get(driverId);
+  const name = (info && info.name) || "Driver";
+  const m = document.createElement("div");
+  m.id = "rr-di-menu";
+  m.innerHTML = `
+    <div class="rr-di-menu-h">${escapeHtml(name)}</div>
+    <button type="button" class="rr-di-menu-i" data-act="pin">📌 Pin to current days</button>
+    <button type="button" class="rr-di-menu-i" data-act="why">🔍 Why they were scheduled</button>
+    <style>
+      #rr-di-menu{position:fixed;z-index:1001;min-width:210px;background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:8px;box-shadow:0 14px 36px rgba(0,0,0,.18);padding:5px;font-size:13px}
+      #rr-di-menu .rr-di-menu-h{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);padding:6px 9px 4px}
+      #rr-di-menu .rr-di-menu-i{display:block;width:100%;text-align:left;background:transparent;border:0;border-radius:5px;padding:8px 9px;cursor:pointer;color:var(--text);font-size:13px}
+      #rr-di-menu .rr-di-menu-i:hover{background:var(--canvas,#f1f3f5)}
+    </style>`;
+  document.body.appendChild(m);
+  const M = 8, w = m.offsetWidth || 210, h = m.offsetHeight || 96;
+  m.style.left = Math.min(x, window.innerWidth - w - M) + "px";
+  m.style.top = Math.min(y, window.innerHeight - h - M) + "px";
+  m.addEventListener("click", (ev) => {
+    const act = ev.target.closest("[data-act]")?.getAttribute("data-act");
+    if (act === "pin") { _rrCloseDriverMenu(); _rrPinDriverWorkedDays(driverId); }
+    else if (act === "why") { _rrCloseDriverMenu(); if (typeof window._rrOpenDriverIntel === "function") window._rrOpenDriverIntel(driverId, x, y); }
+  });
+}
+
 document.addEventListener("contextmenu", (e) => {
   const label = e.target.closest && e.target.closest("#view-schedule .cal-row-label");
   if (!label) return;
@@ -33707,7 +33767,10 @@ document.addEventListener("contextmenu", (e) => {
   }
   if (!driverId) return; // staff rows / unresolved → let the native menu show
   e.preventDefault();
-  _rrShowDriverWhyPopover(driverId, e.clientX, e.clientY);
+  _rrShowDriverMenu(driverId, e.clientX, e.clientY);
+});
+document.addEventListener("click", (e) => {
+  if (document.getElementById("rr-di-menu") && !e.target.closest?.("#rr-di-menu")) _rrCloseDriverMenu();
 });
 
 // ─── Optimization audit helpers (Workforce Optimization Engine · Step 2) ───
@@ -36397,7 +36460,17 @@ async function renderScheduleWeek() {
         finalCorrective: false,
       });
     }
-    window._rrDriverIntel = { byId: intelById, weekStart: _schedStart, dowKeys: DOWK };
+    // Over-staffing context for the "why these hours" explanation.
+    let _totDays = 0, _withShifts = 0;
+    for (const v of intelById.values()) { if (v.days > 0) { _totDays += v.days; _withShifts += 1; } }
+    window._rrDriverIntel = {
+      byId: intelById, weekStart: _schedStart, dowKeys: DOWK,
+      context: {
+        avgDays: _withShifts ? Math.round((_totDays / _withShifts) * 10) / 10 : 0,
+        coveragePct: (window._rrLiveSchedCoverage && window._rrLiveSchedCoverage.pct) || null,
+        driverCount: intelById.size,
+      },
+    };
   } catch (e) { console.warn("driver intel build failed:", e); }
 
   // Drill-down detail for the Preferences KPI card: who's scheduled off a
@@ -38855,6 +38928,27 @@ function bindSchedWeekNav() {
       const rulesHtml = ruleRows.map(([k, v]) =>
         `<div class="rr-di-rule"><div class="rr-di-rule-k">${esc(k)}</div><div class="rr-di-rule-v">${esc(v)}</div></div>`).join("");
 
+      // Why these hours — lead with the actual outcome and explain a LOW
+      // total (over-staffing + pick-order rank + availability), not just
+      // "they were chosen".
+      const dctx = (window._rrDriverIntel && window._rrDriverIntel.context) || {};
+      const avgD = dctx.avgDays || 0;
+      const covP = dctx.coveragePct;
+      let whyLead, whyDetail;
+      if (info.days === 0) {
+        whyLead = "Not scheduled this week.";
+        whyDetail = 'See "Why Not Scheduled" below for the day-by-day reason.';
+      } else if (avgD && info.days + 0.5 < avgD) {
+        whyLead = `${info.days} day${info.days === 1 ? "" : "s"} (${info.hours}h) — below the team average of ${avgD}.`;
+        whyDetail = (covP != null && covP >= 100
+          ? `The week is over-staffed (${covP}% coverage): more available drivers than routes, so not everyone fills up. `
+          : "") + `Under "${PICK[pick] || pick}", ${pickNote || "drivers fill in the rule's order"}, so higher-ranked drivers took the contested days first and this driver got what was left.`;
+      } else {
+        whyLead = `${info.days} day${info.days === 1 ? "" : "s"} (${info.hours}h) — in line with the team${avgD ? ` (avg ${avgD})` : ""}.`;
+        whyDetail = `Filled per "${PICK[pick] || pick}".`;
+      }
+      const whyHoursHtml = `<div class="rr-di-wh"><div class="rr-di-wh-lead">${esc(whyLead)}</div><div class="rr-di-wh-det">${esc(whyDetail)}</div></div>`;
+
       // Schedule confidence — a transparent blend of preferred-match,
       // affinity, and hours-to-target (clearly a derived heuristic).
       const prefScore = info.preferred.length ? (prefWorked.length / info.preferred.length) : 1;
@@ -38871,6 +38965,7 @@ function bindSchedWeekNav() {
             <button type="button" class="rr-di-x" data-rr-di-close aria-label="Close">✕</button>
           </div>
           <div class="rr-di-chips">${chipsHtml}</div>
+          <div class="rr-di-sec">Why these hours</div>${whyHoursHtml}
           <div class="rr-di-sec">Scheduling Explanation</div>${explHtml}
           <div class="rr-di-sec">Why Not Scheduled</div>${whyHtml}
           <div class="rr-di-sec">Rules that shaped this</div>${rulesHtml}
@@ -38880,8 +38975,11 @@ function bindSchedWeekNav() {
           <button type="button" class="btn btn-sm rr-di-profile" data-rr-di-profile="${esc(info.id)}">View full driver profile</button>
         </div>
         <style>
-          aside.driver-pool{position:relative}
-          .rr-di-card{position:absolute;inset:0;z-index:30;overflow-y:auto;background:var(--surface,#fff);border-radius:var(--r-md,8px);padding:14px 15px;box-shadow:0 1px 0 var(--border,#e5e7eb)}
+          #rr-di-host{position:fixed;z-index:1000;width:330px;max-height:80vh}
+          .rr-di-card{overflow-y:auto;max-height:80vh;background:var(--surface,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:14px 15px;box-shadow:0 18px 44px rgba(0,0,0,.18),0 0 0 1px rgba(0,0,0,.02)}
+          .rr-di-wh{background:var(--canvas,#f6f7f9);border-radius:6px;padding:9px 11px}
+          .rr-di-wh-lead{font-size:13px;font-weight:700;color:var(--text)}
+          .rr-di-wh-det{font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:3px}
           .rr-di-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
           .rr-di-id{display:flex;gap:10px;align-items:center}
           .rr-di-av{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:#1A1F47;color:#fff;font-size:12px;font-weight:700;flex:0 0 auto}
@@ -38909,45 +39007,42 @@ function bindSchedWeekNav() {
         </style>`;
     };
 
-    const openCard = (id) => {
+    // Open the card as a floating popover anchored near (x, y) — the
+    // cursor / avatar — so it appears right next to the driver. Clamped to
+    // the viewport. Exposed on window so the right-click menu can call it.
+    const closeCard = () => { document.getElementById("rr-di-host")?.remove(); };
+    const openCard = (id, x, y) => {
       const intel = window._rrDriverIntel;
-      const rail = document.getElementById("sched-sub-week");
-      const panel = rail && rail.querySelector("aside.driver-pool");
-      if (!intel || !panel) return;
+      if (!intel) return;
       const info = intel.byId.get(id);
       if (!info) return;
-      let host = document.getElementById("rr-di-host");
-      if (!host) { host = document.createElement("div"); host.id = "rr-di-host"; panel.appendChild(host); }
-      if (host.dataset.driver === id) return; // already showing this driver
+      closeCard();
+      const host = document.createElement("div");
+      host.id = "rr-di-host";
       host.dataset.driver = id;
       host.innerHTML = buildCard(info);
+      document.body.appendChild(host);
+      // Position: prefer to the right of the cursor, flip/clamp as needed.
+      const M = 10, w = host.offsetWidth || 330, h = host.offsetHeight || 360;
+      let left = (x ?? 80) + 12;
+      if (left + w > window.innerWidth - M) left = Math.max(M, (x ?? 80) - w - 12);
+      if (left < M) left = M;
+      let top = (y ?? 80) - 10;
+      if (top + h > window.innerHeight - M) top = window.innerHeight - M - h;
+      if (top < M) top = M;
+      host.style.left = left + "px";
+      host.style.top = top + "px";
     };
-    const closeCard = () => { document.getElementById("rr-di-host")?.remove(); };
+    window._rrOpenDriverIntel = openCard;
 
-    let _diOpen = null, _diClose = null;
-    document.addEventListener("mouseover", (e) => {
-      const av = e.target.closest?.('.cal-row-label .avatar-sm[data-rr-driver-id]');
-      const inCard = e.target.closest?.("#rr-di-host");
-      if (inCard) { if (_diClose) { clearTimeout(_diClose); _diClose = null; } return; }
-      if (!av) return;
-      const id = av.getAttribute("data-rr-driver-id");
-      if (_diClose) { clearTimeout(_diClose); _diClose = null; }
-      if (_diOpen) clearTimeout(_diOpen);
-      _diOpen = setTimeout(() => { _diOpen = null; if (av.matches(":hover")) openCard(id); }, 350);
-    });
-    document.addEventListener("mouseout", (e) => {
-      const from = e.target.closest?.('.cal-row-label .avatar-sm[data-rr-driver-id]') || e.target.closest?.("#rr-di-host");
-      if (!from) return;
-      const to = e.relatedTarget;
-      if (to && (to.closest?.('.cal-row-label .avatar-sm[data-rr-driver-id]') || to.closest?.("#rr-di-host"))) return;
-      if (_diOpen) { clearTimeout(_diOpen); _diOpen = null; }
-      _diClose = setTimeout(closeCard, 250);
-    });
     document.addEventListener("click", (e) => {
       if (e.target.closest?.("[data-rr-di-close]")) { closeCard(); return; }
       const prof = e.target.closest?.("[data-rr-di-profile]");
-      if (prof) { const id = prof.getAttribute("data-rr-di-profile"); closeCard(); if (typeof openDriverDrawer === "function") openDriverDrawer(id); }
+      if (prof) { const id = prof.getAttribute("data-rr-di-profile"); closeCard(); if (typeof openDriverDrawer === "function") openDriverDrawer(id); return; }
+      // Click outside the card (and not on the menu) closes it.
+      if (document.getElementById("rr-di-host") && !e.target.closest?.("#rr-di-host") && !e.target.closest?.("#rr-di-menu")) closeCard();
     });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeCard(); });
   }
 
   if (!window._rrFemRotationHandlerInstalled) {
