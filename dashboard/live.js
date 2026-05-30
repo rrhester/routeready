@@ -34810,31 +34810,33 @@ async function openShiftEditModal(arg) {
     `<option value="${escapeHtml(v)}"${v === currentClass ? " selected" : ""}>${escapeHtml(label)}</option>`
   ).join("");
 
-  // Add mode → a compact centered modal sized to its inputs (no Date /
-  // Shift kind, so just Driver · Route · times · type). Edit mode keeps the
-  // full-height left drawer (history, recognition, unassign/delete live
-  // there). A light backdrop under the Add modal catches outside clicks.
+  // Add mode → a compact popover sized to its inputs (no Date / Shift kind,
+  // so just Driver · Route · times · type), positioned next to the cell the
+  // operator clicked so they don't have to move the cursor. Edit mode keeps
+  // the full-height left drawer (history, recognition, unassign/delete).
+  // A fully transparent backdrop catches outside clicks WITHOUT dimming or
+  // blurring the schedule underneath.
   let backdrop = null;
   if (isAdd) {
     backdrop = document.createElement("div");
     backdrop.id = "rr-shift-edit-backdrop";
     backdrop.style.cssText =
-      "position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:9998;" +
-      "opacity:0;transition:opacity 140ms ease-out";
+      "position:fixed;inset:0;background:transparent;z-index:9998";
     document.body.appendChild(backdrop);
   }
 
   m = document.createElement("div");
   m.id = "rr-shift-edit-modal";
   if (isAdd) {
-    // Compact centered card — height is content-driven (only as large as
-    // the inputs need); scrolls if it ever exceeds the viewport.
+    // Compact card — height is content-driven (only as large as the inputs
+    // need); scrolls if it ever exceeds the viewport. left/top are set after
+    // mount (once we can measure it) so it lands next to the click.
     m.style.cssText =
-      "position:fixed;top:50%;left:50%;transform:translate(-50%,-46%);" +
-      "width:340px;max-width:calc(100vw - 32px);max-height:calc(100vh - 64px);" +
-      "background:var(--surface);border:1px solid var(--border);border-radius:12px;" +
+      "position:fixed;top:0;left:0;width:340px;max-width:calc(100vw - 16px);" +
+      "max-height:calc(100vh - 16px);background:var(--surface);" +
+      "border:1px solid var(--border);border-radius:12px;" +
       "box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:9999;display:flex;" +
-      "flex-direction:column;opacity:0;transition:opacity 140ms ease-out, transform 140ms ease-out;";
+      "flex-direction:column;opacity:0;transition:opacity 120ms ease-out;";
   } else {
     // Left-fly drawer · no backdrop blur so the schedule grid stays
     // visible underneath while the operator edits a shift.
@@ -34937,13 +34939,27 @@ async function openShiftEditModal(arg) {
       </div>
     </div>`;
   document.body.appendChild(m);
-  // Animate in on next frame so the transition fires. Add mode fades +
-  // settles the centered card; edit mode slides the drawer in from the left.
+  // Animate in on next frame so the transition fires. Add mode fades the
+  // popover in next to the click; edit mode slides the drawer in from left.
   requestAnimationFrame(() => {
     if (isAdd) {
+      // Anchor the popover to the click point (falls back to viewport
+      // center if no anchor was passed), then clamp it fully on-screen.
+      const pad = 8, gap = 12;
+      const w = m.offsetWidth, h = m.offsetHeight;
+      const ax = Number.isFinite(addOpts.anchorX) ? addOpts.anchorX : window.innerWidth / 2;
+      const ay = Number.isFinite(addOpts.anchorY) ? addOpts.anchorY : window.innerHeight / 2;
+      // Prefer down-right of the cursor; flip to the other side if it would
+      // overflow, so the card always stays close to where they clicked.
+      let left = ax + gap;
+      let top  = ay + gap;
+      if (left + w > window.innerWidth - pad)  left = ax - w - gap;
+      if (top + h  > window.innerHeight - pad) top  = ay - h - gap;
+      left = Math.max(pad, Math.min(left, window.innerWidth - w - pad));
+      top  = Math.max(pad, Math.min(top,  window.innerHeight - h - pad));
+      m.style.left = left + "px";
+      m.style.top  = top + "px";
       m.style.opacity = "1";
-      m.style.transform = "translate(-50%,-50%)";
-      if (backdrop) backdrop.style.opacity = "1";
     } else {
       m.style.transform = "translateX(0)";
     }
@@ -35014,11 +35030,9 @@ async function openShiftEditModal(arg) {
     const noMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (noMotion) { m.remove(); removeBackdrop(); return; }
     if (isAdd) {
-      // Fade the centered card + backdrop out.
+      // Fade the popover out (it stays anchored where it opened).
       m.style.opacity = "0";
-      m.style.transform = "translate(-50%,-46%)";
-      if (backdrop) backdrop.style.opacity = "0";
-      setTimeout(() => { m.remove(); removeBackdrop(); }, 140);
+      setTimeout(() => { m.remove(); removeBackdrop(); }, 120);
     } else {
       m.style.transform = "translateX(-100%)";
       setTimeout(() => m.remove(), 200);
@@ -37563,7 +37577,7 @@ function bindSchedWeekNav() {
         toast(stationId ? "" : "Driver has no station — assign one in the Drivers page", "warn");
         return;
       }
-      openShiftEditModal({ date, stationId, driverId });
+      openShiftEditModal({ date, stationId, driverId, anchorX: e.clientX, anchorY: e.clientY });
     }
   });
 
