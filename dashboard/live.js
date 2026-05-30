@@ -37677,21 +37677,31 @@ function bindSchedWeekNav() {
           ? live.driverTarget115 : Math.ceil(_routes * 2 * 1.15);
         const _scheduledDrivers = (live && live.scheduledDrivers != null)
           ? live.scheduledDrivers : null;
+        const _coverZero = (live && live.weekStart === payload.schedule_week_start)
+          ? (live.filled === 0) : (baseCov === 0);
         if (_routes > 0) {
           const baseDrivers = _routes * 2;
           const shortBy = _scheduledDrivers != null
             ? Math.max(0, _driverTarget - _scheduledDrivers) : null;
-          const headline = (shortBy != null && shortBy === 0)
-            ? `Capacity reliable · ${_driverTarget}+ drivers scheduled`
-            : (shortBy != null
-              ? `Short ${shortBy} driver${shortBy === 1 ? "" : "s"} of the 115% target`
-              : `Target: ${_driverTarget} drivers (115%)`);
+          // 0% coverage → nothing scheduled yet. Lead with a clear,
+          // professional next step (Smart Fill) instead of a "short N
+          // drivers" framing that reads oddly when the week is empty.
+          const headline = _coverZero
+            ? `No shifts staffed yet`
+            : ((shortBy != null && shortBy === 0)
+              ? `Capacity reliable · ${_driverTarget}+ drivers scheduled`
+              : (shortBy != null
+                ? `Short ${shortBy} driver${shortBy === 1 ? "" : "s"} of the 115% target`
+                : `Target: ${_driverTarget} drivers (115%)`));
+          const lead = _coverZero
+            ? `Use <strong>Smart Fill</strong> to staff this week's routes automatically, or assign drivers to open shifts. RouteReady recommends staffing to at least <strong>115%</strong> of route demand to mitigate call-offs and other extenuating circumstances — schedule overtime to meet this threshold and avoid Capacity Reliability Concerns.`
+            : `RouteReady recommends staffing to at least <strong>115%</strong> of route demand to mitigate call-offs and other extenuating circumstances — schedule overtime to meet this threshold and avoid Capacity Reliability Concerns.`;
           const sched = _scheduledDrivers != null
             ? `<strong>${_scheduledDrivers}</strong> scheduled · ` : "";
           neededHtml =
             `<div class="rr-cov-needed">` +
               `<div class="rr-cov-needed-big">${headline}</div>` +
-              `<div class="rr-cov-needed-sub">RouteReady recommends staffing to at least <strong>115%</strong> of route demand to mitigate call-offs and other extenuating circumstances — schedule overtime to meet this threshold and avoid Capacity Reliability Concerns.</div>` +
+              `<div class="rr-cov-needed-sub">${lead}</div>` +
               `<div class="rr-cov-needed-sub" style="margin-top:6px">${_routes} max daily routes × 2 = ${baseDrivers} drivers, +15% buffer = <strong>${_driverTarget}</strong> recommended. ${sched}Target <strong>${_driverTarget}</strong>.</div>` +
             `</div>`;
         } else if (stripUnstaffed != null) {
