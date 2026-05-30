@@ -24134,21 +24134,6 @@ document.addEventListener("click", (e) => {
     if (typeof renderScheduleWeek === "function") renderScheduleWeek();
     return;
   }
-  // Hide / show the Open shifts rail. Unlike Focus mode (full chrome hide),
-  // this only collapses the right rail so the grid fills the space.
-  const osBtn = e.target.closest("#rr-sched-openshifts-toggle");
-  if (osBtn) {
-    e.preventDefault();
-    e.stopPropagation();
-    const hidden = !document.body.classList.contains("rr-sched-hide-openshifts");
-    document.body.classList.toggle("rr-sched-hide-openshifts", hidden);
-    osBtn.setAttribute("aria-pressed", hidden ? "true" : "false");
-    osBtn.title = hidden ? "Show the Open shifts panel" : "Hide the Open shifts panel — the schedule fills the space";
-    const onIc = osBtn.querySelector(".ic-os-hide"), offIc = osBtn.querySelector(".ic-os-show");
-    if (onIc && offIc) { onIc.style.display = hidden ? "none" : ""; offIc.style.display = hidden ? "" : "none"; }
-    try { localStorage.setItem("rr-sched-hide-openshifts", hidden ? "1" : "0"); } catch (_) {}
-    return;
-  }
   // Focus mode — hide page chrome so the grid + open-shifts fill the screen.
   const focusBtn = e.target.closest("#rr-sched-focus-toggle");
   if (focusBtn) {
