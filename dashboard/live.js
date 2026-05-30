@@ -35614,6 +35614,22 @@ document.addEventListener("click", (e) => {
   _rrSchedKpiTogglePopover(false);
 });
 
+// Shared KPI status tokens (Coverage + FT/PT). Intentionally LOW
+// saturation — soft, Fluent-inspired tints that read as healthy/caution/
+// action without being loud. Soft pill backgrounds + muted icon fills.
+const RR_KPI_SOFT_BG   = { green: "#EDF3EE", yellow: "#F6F1E6", red: "#F4ECEB" };
+const RR_KPI_ICON_FILL = { green: "#5C9B77", yellow: "#C9A24E", red: "#C57B7E" };
+// One status-icon set, reused by both KPIs so they read identically.
+// green → thumbs-up, yellow/red → exclamation dot, in the muted fills.
+function _rrKpiStatusIcon(tier, label) {
+  const fill = RR_KPI_ICON_FILL[tier] || RR_KPI_ICON_FILL.red;
+  const al = label ? ` aria-label="${label}"` : "";
+  if (tier === "green") {
+    return `<svg viewBox="0 0 24 24" width="16" height="16"${al}><circle cx="12" cy="12" r="11" fill="${fill}"/><g transform="translate(5.4 5.4) scale(0.55)" fill="#fff"><path d="M2 21h2.5a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H2v11zm19.7-9.3c.2-.3.3-.6.3-1 0-.9-.8-1.7-1.7-1.7h-5.1l.8-3.7v-.3c0-.4-.2-.8-.4-1L14.5 2 8.6 7.9c-.4.4-.6.9-.6 1.5V19c0 1.1.9 2 2 2h7.5c.7 0 1.3-.4 1.6-1l2.6-6.3z"/></g></svg>`;
+  }
+  return `<svg viewBox="0 0 24 24" width="16" height="16"${al}><circle cx="12" cy="12" r="10" fill="${fill}"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>`;
+}
+
 // FT/PT Mix status guardrails (on the Full-Time %). Returns the tier
 // plus the matching status icon + soft pill background, reusing the same
 // SVG style + soft tints as the Coverage KPI so the two read identically.
@@ -35621,18 +35637,18 @@ document.addEventListener("click", (e) => {
 //   yellow : 75–79.9 | 90.1–94.9  (caution / watch)
 //   red    : <75 | ≥95     (outside guardrails)
 function _ftptStatus(ftPct, totalScheduled) {
-  const ICON = {
-    green:  '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="FT/PT balanced"><circle cx="12" cy="12" r="11" fill="#1E8E3E"/><g transform="translate(5.4 5.4) scale(0.55)" fill="#fff"><path d="M2 21h2.5a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H2v11zm19.7-9.3c.2-.3.3-.6.3-1 0-.9-.8-1.7-1.7-1.7h-5.1l.8-3.7v-.3c0-.4-.2-.8-.4-1L14.5 2 8.6 7.9c-.4.4-.6.9-.6 1.5V19c0 1.1.9 2 2 2h7.5c.7 0 1.3-.4 1.6-1l2.6-6.3z"/></g></svg>',
-    yellow: '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="FT/PT caution"><circle cx="12" cy="12" r="10" fill="#F9AB00"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>',
-    red:    '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="FT/PT outside guardrails"><circle cx="12" cy="12" r="10" fill="#D13438"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>',
-  };
-  const BG = { green: "#E6F4EA", yellow: "#FEF7E0", red: "#FCE8E6" };
   let tier;
   if (!totalScheduled) tier = "none";
   else if (ftPct >= 80 && ftPct <= 90) tier = "green";
   else if ((ftPct >= 75 && ftPct < 80) || (ftPct > 90 && ftPct < 95)) tier = "yellow";
   else tier = "red";  // <75 or >=95
-  return { tier, icon: ICON[tier] || null, pillBg: BG[tier] || null };
+  const label = tier === "green" ? "FT/PT balanced"
+    : tier === "yellow" ? "FT/PT caution" : "FT/PT outside guardrails";
+  return {
+    tier,
+    icon: tier === "none" ? null : _rrKpiStatusIcon(tier, label),
+    pillBg: RR_KPI_SOFT_BG[tier] || null,
+  };
 }
 
 async function renderScheduleWeek() {
@@ -36402,11 +36418,11 @@ async function renderScheduleWeek() {
     //   ≥115%   → soft green pill, darker-green circle with a white thumbs-up
     //   105–114 → soft yellow pill, yellow circle with a white warning "!"
     //   <105%   → soft red pill, red circle with a white exclamation point
-    const _thumbUp = '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="Coverage strong"><circle cx="12" cy="12" r="11" fill="#1E8E3E"/><g transform="translate(5.4 5.4) scale(0.55)" fill="#fff"><path d="M2 21h2.5a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H2v11zm19.7-9.3c.2-.3.3-.6.3-1 0-.9-.8-1.7-1.7-1.7h-5.1l.8-3.7v-.3c0-.4-.2-.8-.4-1L14.5 2 8.6 7.9c-.4.4-.6.9-.6 1.5V19c0 1.1.9 2 2 2h7.5c.7 0 1.3-.4 1.6-1l2.6-6.3z"/></g></svg>';
-    const _warnDot = '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="Coverage caution"><circle cx="12" cy="12" r="10" fill="#F9AB00"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>';
-    const _alertDot = '<svg viewBox="0 0 24 24" width="16" height="16" aria-label="Coverage below target"><circle cx="12" cy="12" r="10" fill="#D13438"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>';
-    const coverageIcon = pct >= 115 ? _thumbUp : pct >= 105 ? _warnDot : _alertDot;
-    const coveragePillBg = pct >= 115 ? "#E6F4EA" : pct >= 105 ? "#FEF7E0" : "#FCE8E6";
+    const _covTier = pct >= 115 ? "green" : pct >= 105 ? "yellow" : "red";
+    const _covLabel = _covTier === "green" ? "Coverage strong"
+      : _covTier === "yellow" ? "Coverage caution" : "Coverage below target";
+    const coverageIcon = _rrKpiStatusIcon(_covTier, _covLabel);
+    const coveragePillBg = RR_KPI_SOFT_BG[_covTier];
     // Dots stay in the sidebar's navy family except for OT Risk and
     // Violations when they actually flare — those keep red so the
     // operator sees the alarm. Everything at-rest reads neutral navy.
@@ -37732,11 +37748,24 @@ function bindSchedWeekNav() {
             : `RouteReady recommends staffing to at least <strong>115%</strong> of route demand to mitigate call-offs and other extenuating circumstances — schedule overtime to meet this threshold and avoid Capacity Reliability Concerns.`;
           const sched = _scheduledDrivers != null
             ? `<strong>${_scheduledDrivers}</strong> scheduled · ` : "";
+          // Hiring recommendation: split the shortfall to the 85% FT target
+          // so they hit 115% coverage AND a healthy FT/PT mix. FT = 85% of
+          // the gap, PT = the remainder (they sum to the shortfall).
+          let hireLine = "";
+          if (shortBy != null && shortBy > 0) {
+            const hireFt = Math.round(shortBy * 0.85);
+            const hirePt = shortBy - hireFt;
+            const parts = [];
+            if (hireFt > 0) parts.push(`<strong>${hireFt}</strong> full-time`);
+            if (hirePt > 0) parts.push(`<strong>${hirePt}</strong> part-time`);
+            hireLine = `<div class="rr-cov-needed-sub" style="margin-top:6px">To reach the target, RouteReady recommends hiring ${parts.join(" and ")} driver${shortBy === 1 ? "" : "s"} (85% full-time mix).</div>`;
+          }
           neededHtml =
             `<div class="rr-cov-needed">` +
               `<div class="rr-cov-needed-big">${headline}</div>` +
               `<div class="rr-cov-needed-sub">${lead}</div>` +
               `<div class="rr-cov-needed-sub" style="margin-top:6px">${_routes} max daily routes × 2 = ${baseDrivers} drivers, +15% buffer = <strong>${_driverTarget}</strong> recommended. ${sched}Target <strong>${_driverTarget}</strong>.</div>` +
+              hireLine +
             `</div>`;
         } else if (stripUnstaffed != null) {
           // No Targets route plan recorded — fall back to the shift-gap
@@ -38174,6 +38203,22 @@ function bindSchedWeekNav() {
       } else {
         statusMsg = "No drivers are scheduled yet — the FT/PT mix appears once the week is staffed.";
       }
+      // Hiring recommendation to bring the mix back to the 85% FT target.
+      //   too low  → hire FT: x where (ft+x)/(total+x) = 0.85
+      //   too high → hire PT: y where ft/(total+y) = 0.85
+      let hireMsg = "";
+      if (live && live.totalScheduled > 0 && tier !== "green") {
+        const ft = live.ftCount || 0, total = live.totalScheduled || 0;
+        if (ftPct < 85) {
+          const x = Math.ceil((0.85 * total - ft) / 0.15);
+          if (x > 0) hireMsg = `To reach the 85% target, hire <strong>${x}</strong> more full-time driver${x === 1 ? "" : "s"} (or convert part-time drivers to full-time).`;
+        } else if (ftPct > 85) {
+          const y = Math.ceil(ft / 0.85 - total);
+          if (y > 0) hireMsg = `To reach the 85% target, add <strong>${y}</strong> more part-time driver${y === 1 ? "" : "s"} (or shift full-time drivers to part-time).`;
+        }
+      }
+      const hireHtml = hireMsg
+        ? `<div class="rr-cov-needed-sub" style="margin-top:8px">${hireMsg}</div>` : "";
       const curLine = live && live.totalScheduled > 0
         ? `${ftPct}% Full-Time / ${ptPct}% Part-Time`
         : "—";
@@ -38196,6 +38241,7 @@ function bindSchedWeekNav() {
               <div class="rr-cov-needed-sub"><strong>Target</strong> · 85% Full-Time</div>
               <div class="rr-cov-needed-sub" style="margin-top:4px"><strong>Healthy range</strong> · 80%–90% Full-Time</div>
               <div class="rr-cov-needed-sub" style="margin-top:10px">${statusMsg}</div>
+              ${hireHtml}
             </div>
             <p class="rr-cov-empty" style="margin-top:12px">Target is not 100%. RouteReady treats FT/PT Mix as an optimization metric, not a maximization metric.</p>
           </div>
