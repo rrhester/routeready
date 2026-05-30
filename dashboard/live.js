@@ -35482,14 +35482,14 @@ function _schedShiftChip(sh, extras) {
     const titleText = isClass
       ? "Class training — station-based onboarding day, not route coverage"
       : `Road training${sh.trainer_name ? " with " + escapeHtml(sh.trainer_name) : ""} — riding along, not route coverage`;
-    // If the operator has tagged this training shift with a route
-    // classification (Rescue / Nursery / etc.), omit the inline
-    // background so the route-color CSS can paint it. Inline styles
-    // beat CSS, so without this guard the route color never shows on
-    // training chips. Without a classification, keep the amber/teal
-    // training tint as before.
+    // Omit the inline teal/amber tint when route color-coding is ON so the
+    // DSP-chosen Class/Road-training colors (CSS, keyed off data-rr-shift-kind)
+    // can paint — inline styles beat CSS. Also omit it when the shift carries a
+    // route classification (the route-color CSS paints it). Otherwise keep the
+    // built-in training tint.
     const hasRouteClass = !!(sh.route_classification);
-    const inlineBg = hasRouteClass ? "" : `background:${bg};border-color:${bg};color:${fg};`;
+    const colorRoutesOn = document.body.classList.contains("rr-sched-color-routes");
+    const inlineBg = (hasRouteClass || colorRoutesOn) ? "" : `background:${bg};border-color:${bg};color:${fg};`;
     return `<div class="shift-chip" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" style="${inlineBg}cursor:default" title="${titleText}"><div class="shift-chip-route">${label}</div>${sub ? `<div class="shift-chip-time">${sub}</div>` : ""}</div>`;
   }
   // The DB stores starts_at = wave_time − report_lead (driver clock-in)
