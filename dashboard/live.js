@@ -35501,10 +35501,48 @@ function _rrSchedKpiVisible() {
 function _rrSchedKpiSetVisible(set) {
   try { localStorage.setItem(_RR_SCHED_KPI_VIS_KEY, JSON.stringify([...set])); } catch (_) {}
 }
+// Color-code toggle — when off, the status-coded KPIs (Coverage, FT/PT)
+// render as plain pills (no soft tint / status icon). Default ON.
+const _RR_SCHED_KPI_COLOR_KEY = "rr-sched-kpi-colorcode";
+function _rrSchedKpiColorOn() {
+  try { const v = localStorage.getItem(_RR_SCHED_KPI_COLOR_KEY); return v === null ? true : v === "1"; }
+  catch (_) { return true; }
+}
+function _rrSchedKpiSetColor(on) {
+  try { localStorage.setItem(_RR_SCHED_KPI_COLOR_KEY, on ? "1" : "0"); } catch (_) {}
+}
+// Display order — saved array of keys. Unknown/removed keys are dropped
+// and any new KPI not yet in the saved order is appended, so the list
+// stays complete across releases.
+const _RR_SCHED_KPI_ORDER_KEY = "rr-sched-kpi-order";
+function _rrSchedKpiOrder() {
+  const all = _RR_SCHED_KPI_DEFS.map(d => d.key);
+  try {
+    const raw = localStorage.getItem(_RR_SCHED_KPI_ORDER_KEY);
+    const arr = raw ? JSON.parse(raw) : null;
+    if (!Array.isArray(arr)) return all;
+    const known = new Set(all);
+    const ordered = arr.filter(k => known.has(k));
+    for (const k of all) if (!ordered.includes(k)) ordered.push(k);
+    return ordered;
+  } catch (_) { return all; }
+}
+function _rrSchedKpiSetOrder(arr) {
+  try { localStorage.setItem(_RR_SCHED_KPI_ORDER_KEY, JSON.stringify(arr)); } catch (_) {}
+}
 function _rrSchedKpiApplyVisibility(host) {
   const saved = _rrSchedKpiVisible();
   // Default · everything on if nothing saved.
   const visible = saved || new Set(_RR_SCHED_KPI_DEFS.map(d => d.key));
+  // Apply saved display order by moving each pill to the end in order
+  // (appendChild relocates existing nodes). The gear button is pushed
+  // back to last so it stays on the right edge.
+  for (const key of _rrSchedKpiOrder()) {
+    const pill = host.querySelector(`.sched-kpi-pill[data-rr-kpi="${key}"]`);
+    if (pill) host.appendChild(pill);
+  }
+  const gear = host.querySelector(".sched-kpi-config");
+  if (gear) host.appendChild(gear);
   host.querySelectorAll(".sched-kpi-pill[data-rr-kpi]").forEach(pill => {
     const key = pill.getAttribute("data-rr-kpi");
     pill.style.display = visible.has(key) ? "" : "none";
@@ -35539,6 +35577,42 @@ function _rrMountSchedKpiSelector(host) {
   _rrSchedKpiApplyVisibility(host);
 }
 
+// Render the selector popover's contents: each KPI (in saved order) with
+// a visibility checkbox + up/down reorder buttons, then a "Color-code
+// status" toggle in the footer. Split out so a reorder can re-render the
+// list in place without repositioning the popover.
+function _rrSchedKpiBuildPopoverBody(pop) {
+  const visible = _rrSchedKpiVisible() || new Set(_RR_SCHED_KPI_DEFS.map(d => d.key));
+  const order = _rrSchedKpiOrder();
+  const labelOf = (k) => (_RR_SCHED_KPI_DEFS.find(d => d.key === k) || {}).label || k;
+  const last = order.length - 1;
+  const rows = order.map((key, i) => (
+    '<div class="sched-kpi-config-row" data-rr-kpi-row="' + key + '">' +
+      '<label>' +
+        '<input type="checkbox" data-rr-kpi-toggle="' + key + '"' +
+          (visible.has(key) ? " checked" : "") + '/>' +
+        '<span>' + labelOf(key) + '</span>' +
+      '</label>' +
+      '<span class="sched-kpi-reorder">' +
+        '<button type="button" data-rr-kpi-move="up" data-rr-kpi-key="' + key + '"' +
+          (i === 0 ? " disabled" : "") + ' aria-label="Move ' + labelOf(key) + ' up">▲</button>' +
+        '<button type="button" data-rr-kpi-move="down" data-rr-kpi-key="' + key + '"' +
+          (i === last ? " disabled" : "") + ' aria-label="Move ' + labelOf(key) + ' down">▼</button>' +
+      '</span>' +
+    '</div>'
+  )).join("");
+  pop.innerHTML =
+    '<div class="sched-kpi-config-head">Show &amp; order KPIs</div>' +
+    '<div class="sched-kpi-config-body">' + rows + '</div>' +
+    '<div class="sched-kpi-config-foot">' +
+      '<label class="sched-kpi-config-opt">' +
+        '<input type="checkbox" data-rr-kpi-colortoggle' +
+          (_rrSchedKpiColorOn() ? " checked" : "") + '/>' +
+        '<span>Color-code status</span>' +
+      '</label>' +
+    '</div>';
+}
+
 // Outside-click + gear-click toggle the selector popover. Popover
 // is lazy-mounted into <body> on first open so it's never affected
 // by the kpis innerHTML rebuild.
@@ -35560,19 +35634,7 @@ function _rrSchedKpiTogglePopover(force) {
   const isOpen = pop.style.display === "block";
   const next = (typeof force === "boolean") ? force : !isOpen;
   if (next) {
-    // Build / refresh the checkbox list.
-    const saved = _rrSchedKpiVisible() || new Set(_RR_SCHED_KPI_DEFS.map(d => d.key));
-    pop.innerHTML =
-      '<div class="sched-kpi-config-head">Show in KPI strip</div>' +
-      '<div class="sched-kpi-config-body">' +
-        _RR_SCHED_KPI_DEFS.map(d => (
-          '<label class="sched-kpi-config-opt">' +
-            '<input type="checkbox" data-rr-kpi-toggle="' + d.key + '"' +
-              (saved.has(d.key) ? " checked" : "") + '/>' +
-            '<span>' + d.label + '</span>' +
-          '</label>'
-        )).join("") +
-      '</div>';
+    _rrSchedKpiBuildPopoverBody(pop);
     // Position the popover at the gear button's bottom-right.
     const r = btn.getBoundingClientRect();
     pop.style.display = "block";
@@ -35592,6 +35654,35 @@ document.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     _rrSchedKpiTogglePopover();
+    return;
+  }
+  // Reorder buttons (up/down) inside the popover.
+  const moveBtn = e.target.closest && e.target.closest("[data-rr-kpi-move]");
+  if (moveBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const key = moveBtn.getAttribute("data-rr-kpi-key");
+    const dir = moveBtn.getAttribute("data-rr-kpi-move") === "up" ? -1 : 1;
+    const order = _rrSchedKpiOrder();
+    const i = order.indexOf(key);
+    const j = i + dir;
+    if (i >= 0 && j >= 0 && j < order.length) {
+      order.splice(i, 1);
+      order.splice(j, 0, key);
+      _rrSchedKpiSetOrder(order);
+      const host = document.getElementById("rr-sched-kpis");
+      if (host) _rrSchedKpiApplyVisibility(host);   // reorder the live strip
+      const pop = document.getElementById("rr-sched-kpi-config-popover");
+      if (pop) _rrSchedKpiBuildPopoverBody(pop);     // refresh ▲▼ states
+    }
+    return;
+  }
+  // Color-code on/off toggle.
+  const colorCb = e.target.closest && e.target.closest("[data-rr-kpi-colortoggle]");
+  if (colorCb) {
+    _rrSchedKpiSetColor(colorCb.checked);
+    // Tint + icon are baked into the pill HTML, so re-render the strip.
+    if (typeof renderScheduleWeek === "function") renderScheduleWeek();
     return;
   }
   // Checkbox toggle inside the popover.
@@ -36423,8 +36514,11 @@ async function renderScheduleWeek() {
     const _covTier = pct >= 115 ? "green" : pct >= 105 ? "yellow" : "red";
     const _covLabel = _covTier === "green" ? "Coverage strong"
       : _covTier === "yellow" ? "Coverage caution" : "Coverage below target";
-    const coverageIcon = _rrKpiStatusIcon(_covTier, _covLabel);
-    const coveragePillBg = RR_KPI_SOFT_BG[_covTier];
+    // Respect the operator's "Color-code status" preference — when off,
+    // Coverage + FT/PT render as plain pills (no tint / status icon).
+    const _kpiColorOn = _rrSchedKpiColorOn();
+    const coverageIcon = _kpiColorOn ? _rrKpiStatusIcon(_covTier, _covLabel) : undefined;
+    const coveragePillBg = _kpiColorOn ? RR_KPI_SOFT_BG[_covTier] : undefined;
     // Dots stay in the sidebar's navy family except for OT Risk and
     // Violations when they actually flare — those keep red so the
     // operator sees the alarm. Everything at-rest reads neutral navy.
@@ -36514,8 +36608,8 @@ async function renderScheduleWeek() {
           totalScheduled > 0
             ? `${ftCount} full-time · ${ptCount} part-time (of ${totalScheduled} scheduled)`
             : "No drivers scheduled this week",
-          totalScheduled > 0 ? ftStatus.icon : undefined,
-          totalScheduled > 0 ? ftStatus.pillBg : undefined,
+          totalScheduled > 0 && _kpiColorOn ? ftStatus.icon : undefined,
+          totalScheduled > 0 && _kpiColorOn ? ftStatus.pillBg : undefined,
         );
       })() +
       (() => {
