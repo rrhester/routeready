@@ -2391,6 +2391,22 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
   box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-backup) 22%, transparent) !important;
 }
 
+/* Training shift kinds · class training (shift_kind 'training') + road
+   training ('ride_along'). Keyed off data-rr-shift-kind, and placed AFTER the
+   route-class rules so a training shift shows its training color even if it
+   also carries a route classification. The chip omits its built-in teal/amber
+   inline tint while color-coding is on (see _schedShiftChip) so these paint. */
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-kind="training"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-class_training) 22%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-class_training) 65%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-class_training) 22%, transparent) !important;
+}
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift-kind="ride_along"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-road_training) 22%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-road_training) 65%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-road_training) 22%, transparent) !important;
+}
+
 /* ============================================================
    Crispness · sharper grid lines, tighter chip corners,
    stronger micro-shadow. The base styles use rgba(15,23,42,.05)
