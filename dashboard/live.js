@@ -34570,12 +34570,28 @@ async function autoAssignDriversForWeek() {
                           (cpsatResult?.status || "unknown"));
         }
       } catch (e) {
-        console.warn("CP-SAT dispatch failed, falling back to heuristic:", e);
-        toast("Solver service unreachable — using local engine", "warn");
-        result = planScheduleWeek(sfPayload);
+        // Heuristic fallback is disabled per operator preference: when
+        // CP-SAT can't run we do NOT silently schedule with the local
+        // engine. Surface the failure and leave the schedule unchanged.
+        console.warn("CP-SAT dispatch failed (no heuristic fallback):", e);
+        toast("CP-SAT solver unavailable — schedule was NOT changed. (Heuristic fallback is off.)", "warn");
+        try {
+          if (window._rrLastOptimizationRunId) {
+            await sb.rpc("record_optimization_result", {
+              p_run_id: window._rrLastOptimizationRunId, p_status: "error",
+              p_result: null, p_metrics: null, p_decisions: [],
+              p_error: "cpsat_unavailable · heuristic fallback disabled",
+            });
+          }
+        } catch (_) { /* audit best-effort */ }
+        return { assigned: 0, diagnostics: null };
       }
     } else {
-      result = planScheduleWeek(sfPayload);
+      // "Use CP-SAT solver" is off and the heuristic is disabled → nothing
+      // runs. Tell the operator to re-enable CP-SAT rather than schedule
+      // with the local engine.
+      toast("Heuristic is disabled — turn on 'Use CP-SAT solver' in Smart Fill rules to schedule.", "warn");
+      return { assigned: 0, diagnostics: null };
     }
   } catch (e) {
     console.warn("scheduling engine failed:", e);
