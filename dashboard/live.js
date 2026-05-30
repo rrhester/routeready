@@ -34449,7 +34449,17 @@ async function autoAssignDriversForWeek() {
     const _sfMaxDaysAdv = Number.isFinite(sfRules.maxDaysOverride) ? sfRules.maxDaysOverride : null;
     const _sfHourCapAdv = Number.isFinite(sfRules.weeklyHourCap)   ? sfRules.weeklyHourCap   : null;
     const _maxDaysOut    = _sfMaxDaysAdv != null ? _sfMaxDaysAdv : maxDays;
-    const _weeklyHourOut = _sfHourCapAdv != null ? _sfHourCapAdv : 40;
+    // WOC weekly-hour cap. The operator's "Enforce WOC · Weekly hour cap"
+    // field (woc_max_hours) is the source of truth and is a HARD rule —
+    // wire it to the engine's enforced weekly_hour_cap so the cap they set
+    // actually limits the schedule. Falls back to the advanced override,
+    // then the engine default (50). Previously this hardcoded 40 and never
+    // read woc_max_hours, so the operator's cap was silently ignored.
+    const _wocEnforce  = !(sfRules && sfRules.woc === false); // "Enforce WOC" (default on)
+    const _wocMaxHours = parseInt(sfRules && sfRules.woc_max_hours, 10);
+    const _weeklyHourOut = _sfHourCapAdv != null
+      ? _sfHourCapAdv
+      : (_wocEnforce && Number.isFinite(_wocMaxHours) ? _wocMaxHours : 50);
     // Zone 3 · Vans → rules.assign_vans (default true). The solver skips
     // van assignment entirely when false. Tiebreaker is no longer emitted
     // (superseded by the Fairness slider in Advanced engine controls).
@@ -34465,6 +34475,10 @@ async function autoAssignDriversForWeek() {
         assign_vans: _sfVansAssign,
         affinity_weeks: _sfAffWeeks,
         weights: _sfWeights,
+        // Make the WOC weekly-hour cap a real hard rule: enforce it (and the
+        // consecutive-days cap) whenever "Enforce WOC" is on.
+        weekly_hour_cap_enforcement: _wocEnforce,
+        consecutive_working_days: _wocEnforce,
       },
       drivers: drivers.map(d => ({
         id: d.id,
@@ -38538,41 +38552,13 @@ function bindSchedWeekNav() {
     // the cursor lingers ~350ms (so it never pops while just passing
     // over). Stays open while the pointer is on the pill or inside the
     // box; a short grace delay lets the cursor travel between them.
-    const _COV_OPEN_DELAY = 350;
-    let _covHoverTimer = null;   // pending close
-    let _covOpenTimer = null;    // pending open (hover-intent)
-    const _covCancelClose = () => { if (_covHoverTimer) { clearTimeout(_covHoverTimer); _covHoverTimer = null; } };
-    const _covCancelOpen = () => { if (_covOpenTimer) { clearTimeout(_covOpenTimer); _covOpenTimer = null; } };
-    const _covScheduleClose = () => {
-      _covCancelClose();
-      _covHoverTimer = setTimeout(() => {
-        const modal = document.getElementById("rr-cov-kpi-modal");
-        if (modal && !modal.dataset.rrBusy) modal.remove();
-      }, 220);
-    };
-    document.addEventListener("mouseover", (e) => {
-      const pillEl = e.target.closest('[data-rr-kpi="coverage"]');
-      const inModal = e.target.closest("#rr-cov-kpi-modal");
-      if (pillEl || inModal) {
-        _covCancelClose();
-        if (pillEl && !document.getElementById("rr-cov-kpi-modal") && !_covOpenTimer) {
-          // Hover-intent: only open once the cursor has stopped/lingered.
-          _covOpenTimer = setTimeout(() => {
-            _covOpenTimer = null;
-            if (pillEl.matches(":hover")) _openCovModal(pillEl);
-          }, _COV_OPEN_DELAY);
-        }
-      }
-    });
-    document.addEventListener("mouseout", (e) => {
-      const fromCov = e.target.closest('[data-rr-kpi="coverage"]') || e.target.closest("#rr-cov-kpi-modal");
-      if (!fromCov) return;
-      // Only close if the pointer is actually leaving both the pill and box.
-      const to = e.relatedTarget;
-      if (to && (to.closest?.('[data-rr-kpi="coverage"]') || to.closest?.("#rr-cov-kpi-modal"))) return;
-      // Leaving the pill before the intent delay elapsed → cancel the open.
-      _covCancelOpen();
-      _covScheduleClose();
+    // KPI drill-downs are CLICK-only (no hover-open). Click the pill to open
+    // (handler above); click outside or press Esc to close.
+    document.addEventListener("click", (e) => {
+      const modal = document.getElementById("rr-cov-kpi-modal");
+      if (!modal || modal.dataset.rrBusy) return;
+      if (e.target.closest('[data-rr-kpi="coverage"]') || e.target.closest("#rr-cov-kpi-modal")) return;
+      modal.remove();
     });
   }
 
@@ -38684,34 +38670,12 @@ function bindSchedWeekNav() {
       if (e.key !== "Escape") return;
       document.getElementById("rr-ftpt-kpi-modal")?.remove();
     });
-    const _FT_OPEN_DELAY = 350;
-    let _ftCloseTimer = null, _ftOpenTimer = null;
-    const _ftCancelClose = () => { if (_ftCloseTimer) { clearTimeout(_ftCloseTimer); _ftCloseTimer = null; } };
-    const _ftCancelOpen = () => { if (_ftOpenTimer) { clearTimeout(_ftOpenTimer); _ftOpenTimer = null; } };
-    const _ftScheduleClose = () => {
-      _ftCancelClose();
-      _ftCloseTimer = setTimeout(() => { document.getElementById("rr-ftpt-kpi-modal")?.remove(); }, 220);
-    };
-    document.addEventListener("mouseover", (e) => {
-      const pillEl = e.target.closest('[data-rr-kpi="ftpt"]');
-      const inModal = e.target.closest("#rr-ftpt-kpi-modal");
-      if (pillEl || inModal) {
-        _ftCancelClose();
-        if (pillEl && !document.getElementById("rr-ftpt-kpi-modal") && !_ftOpenTimer) {
-          _ftOpenTimer = setTimeout(() => {
-            _ftOpenTimer = null;
-            if (pillEl.matches(":hover")) _openFtptModal(pillEl);
-          }, _FT_OPEN_DELAY);
-        }
-      }
-    });
-    document.addEventListener("mouseout", (e) => {
-      const fromFt = e.target.closest('[data-rr-kpi="ftpt"]') || e.target.closest("#rr-ftpt-kpi-modal");
-      if (!fromFt) return;
-      const to = e.relatedTarget;
-      if (to && (to.closest?.('[data-rr-kpi="ftpt"]') || to.closest?.("#rr-ftpt-kpi-modal"))) return;
-      _ftCancelOpen();
-      _ftScheduleClose();
+    // Click-only: click the pill to open (handler above), click outside / Esc to close.
+    document.addEventListener("click", (e) => {
+      const modal = document.getElementById("rr-ftpt-kpi-modal");
+      if (!modal) return;
+      if (e.target.closest('[data-rr-kpi="ftpt"]') || e.target.closest("#rr-ftpt-kpi-modal")) return;
+      modal.remove();
     });
   }
 
@@ -38835,34 +38799,12 @@ function bindSchedWeekNav() {
       if (e.key !== "Escape") return;
       document.getElementById("rr-flex-kpi-modal")?.remove();
     });
-    const _FX_OPEN_DELAY = 350;
-    let _fxCloseTimer = null, _fxOpenTimer = null;
-    const _fxCancelClose = () => { if (_fxCloseTimer) { clearTimeout(_fxCloseTimer); _fxCloseTimer = null; } };
-    const _fxCancelOpen = () => { if (_fxOpenTimer) { clearTimeout(_fxOpenTimer); _fxOpenTimer = null; } };
-    const _fxScheduleClose = () => {
-      _fxCancelClose();
-      _fxCloseTimer = setTimeout(() => { document.getElementById("rr-flex-kpi-modal")?.remove(); }, 220);
-    };
-    document.addEventListener("mouseover", (e) => {
-      const pillEl = e.target.closest('[data-rr-kpi="flex"]');
-      const inModal = e.target.closest("#rr-flex-kpi-modal");
-      if (pillEl || inModal) {
-        _fxCancelClose();
-        if (pillEl && !document.getElementById("rr-flex-kpi-modal") && !_fxOpenTimer) {
-          _fxOpenTimer = setTimeout(() => {
-            _fxOpenTimer = null;
-            if (pillEl.matches(":hover")) _openFlexModal(pillEl);
-          }, _FX_OPEN_DELAY);
-        }
-      }
-    });
-    document.addEventListener("mouseout", (e) => {
-      const fromFx = e.target.closest('[data-rr-kpi="flex"]') || e.target.closest("#rr-flex-kpi-modal");
-      if (!fromFx) return;
-      const to = e.relatedTarget;
-      if (to && (to.closest?.('[data-rr-kpi="flex"]') || to.closest?.("#rr-flex-kpi-modal"))) return;
-      _fxCancelOpen();
-      _fxScheduleClose();
+    // Click-only: click the pill to open (handler above), click outside / Esc to close.
+    document.addEventListener("click", (e) => {
+      const modal = document.getElementById("rr-flex-kpi-modal");
+      if (!modal) return;
+      if (e.target.closest('[data-rr-kpi="flex"]') || e.target.closest("#rr-flex-kpi-modal")) return;
+      modal.remove();
     });
   }
 
