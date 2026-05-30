@@ -15632,17 +15632,6 @@ body.rr-cmdk-open{ overflow:hidden }
                         <label class="sf-mode-opt"><input type="radio" name="rr-sf-mode" data-rr-sf-mode="smart" checked> <span class="sf-rule-name"><strong>Smart Fill</strong> · auto-staff the board from the rules below</span></label>
                         <label class="sf-mode-opt"><input type="radio" name="rr-sf-mode" data-rr-sf-mode="manual"> <span class="sf-rule-name"><strong>Manual scheduling</strong> · turn off Smart Fill and all rules — fill the board by hand</span></label>
                       </div>
-                      <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-sf-run-mode">Run mode</label>
-                        <div class="sf2-row-control">
-                          <select id="rr-sf-run-mode" class="sf2-select" data-rr-sf-select="run_mode">
-                            <option value="full_rebuild">Full rebuild — clear and re-fill</option>
-                            <option value="rebuild_unlocked">Rebuild but keep my pinned shifts</option>
-                            <option value="fill_empty_only">Just fill empty gaps</option>
-                          </select>
-                        </div>
-                        <p class="sf2-row-help">Full rebuild reshuffles everything (locked shifts always preserved). "Just fill empty gaps" is the quiet option — never touches assignments you already have.</p>
-                      </div>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preserve_locked_assignments" checked> <span class="sf-rule-name"><strong>Preserve all locked assignments</strong> · keep operator-pinned shifts even on a full rebuild</span></label>
                       <div class="sf2-group-label">Engine &amp; UX</div>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="use_cpsat_solver" checked> <span class="sf-rule-name"><strong>Use CP-SAT engine</strong> · route Smart Fill through the Python optimizer (richer objective + ad-hoc rules)</span></label>
@@ -15766,66 +15755,18 @@ body.rr-cmdk-open{ overflow:hidden }
                     </div>
                   </details>
 
-                  <!-- ── 4 · WHO GETS PICKED FIRST ── driver ordering. -->
+                  <!-- ── 4 · FINAL-CORRECTIVE ── coaching-ladder handling. -->
                   <details class="sf2-section" data-rr-sf-section="ordering">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">4</span>
                       <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Who gets picked first</div>
-                        <div class="sf2-section-sub">Driver ordering &amp; fill strategy</div>
+                        <div class="sf2-section-title">Final-corrective</div>
+                        <div class="sf2-section-sub">Push drivers on a Final coaching ladder to the back</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
                     </div></summary>
                     <div class="sf2-section-body">
-                      <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-sf-method">Pick order</label>
-                        <div class="sf2-row-control">
-                          <select id="rr-sf-method" class="sf2-select" data-rr-sf-select="scheduling_method">
-                            <option value="fair_rotation">Fair rotation — least hours / least days first</option>
-                            <option value="seniority">Seniority — earliest hire date first</option>
-                            <option value="full_time_priority">Full-time first — FT before PT</option>
-                            <option value="availability_first">Widest availability first</option>
-                            <option value="alphabetical">Alphabetical</option>
-                            <option value="attendance_priority">Best attendance first</option>
-                            <option value="random">Random (deterministic per week)</option>
-                          </select>
-                        </div>
-                        <p class="sf2-row-help">Every method tie-breaks seniority → alphabetical, so two drivers with identical numbers still get a stable order.</p>
-                      </div>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="attendance_penalty"> <span class="sf-rule-name"><strong>Penalize Final-corrective drivers</strong> · drivers on a Final coaching/ladder are scheduled last</span></label>
-                      <div class="sf2-group-label">Fill style</div>
-                      <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-set-fill-order">Fill style</label>
-                        <div class="sf2-row-control">
-                          <select id="rr-set-fill-order" class="sf2-select">
-                            <option value="rotational">Spread evenly — rotate drivers (default)</option>
-                            <option value="sequential">One driver at a time until blocked</option>
-                          </select>
-                        </div>
-                        <p class="sf2-row-help">Rotational spreads hours across the team. Sequential gives the top-ranked driver everything they can take before moving on.</p>
-                      </div>
-                      <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-set-rotation-batch">Rotational batch</label>
-                        <div class="sf2-row-control">
-                          <input type="number" class="sf2-number" id="rr-set-rotation-batch" min="1" max="4" step="1" value="1">
-                          <span style="font-size:11px;color:#605E5C">shifts per driver before rotating</span>
-                        </div>
-                      </div>
-                      <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-set-rotation-start-day">Rotation starts on</label>
-                        <div class="sf2-row-control">
-                          <select id="rr-set-rotation-start-day" class="sf2-select">
-                            <option value="0">Sunday</option>
-                            <option value="1">Monday</option>
-                            <option value="2">Tuesday</option>
-                            <option value="3">Wednesday</option>
-                            <option value="4">Thursday</option>
-                            <option value="5">Friday</option>
-                            <option value="6">Saturday</option>
-                          </select>
-                        </div>
-                        <p class="sf2-row-help">Which weekday the shift-fill rotation begins on. Pairs with the Operating week setting.</p>
-                      </div>
                     </div>
                   </details>
 
@@ -15841,18 +15782,6 @@ body.rr-cmdk-open{ overflow:hidden }
                     </div></summary>
                     <div class="sf2-section-body">
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_days" checked> <span class="sf-rule-name"><strong>Reward preferred days</strong> · score drivers higher on the days they marked as preferred</span></label>
-                      <div class="sf2-row">
-                        <label class="sf2-row-label" for="rr-sf-pattern">Historical patterns</label>
-                        <div class="sf2-row-control">
-                          <select id="rr-sf-pattern" class="sf2-select" data-rr-sf-select="historical_pattern_protection">
-                            <option value="off">Off — ignore history</option>
-                            <option value="low">Low — small bonus (up to 10 pts)</option>
-                            <option value="medium">Medium — moderate bonus (up to 25 pts)</option>
-                            <option value="high">High — strong bonus + pre-pass (up to 50 pts)</option>
-                          </select>
-                        </div>
-                        <p class="sf2-row-help">How much yesterday's pattern shapes tomorrow's schedule. "High" also runs a pre-pass that lets each driver claim their highest-affinity shifts before the main pass.</p>
-                      </div>
                       <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-set-affinity-weeks">History window</label>
                         <div class="sf2-row-control">
@@ -15876,7 +15805,6 @@ body.rr-cmdk-open{ overflow:hidden }
                         </div>
                         <p class="sf2-row-help">Scores drivers smoothly by attendance (±25 pts × weight). Different from the binary Final-corrective penalty above.</p>
                       </div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="consecutive_days"> <span class="sf-rule-name"><strong>Reward consecutive days</strong> · prefer placements that fill day-gaps (+15 single-day gaps, +10 adjacent)</span></label>
                     </div>
                   </details>
 
@@ -15886,24 +15814,11 @@ body.rr-cmdk-open{ overflow:hidden }
                       <span class="sf2-section-num">6</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Polish passes</div>
-                        <div class="sf2-section-sub">Extra rounds after the main fill: swaps + 5th-day</div>
+                        <div class="sf2-section-sub">Extra 5th-day shift for opted-in drivers when coverage needs it</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
                     </div></summary>
                     <div class="sf2-section-body">
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_enhancement"> <span class="sf-rule-name"><strong>Preferred Availability Enhancement</strong> · swap pairs of drivers so both land on preferred days</span></label>
-                      <div class="sf2-subrules">
-                        <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="preferred_enhancement_contiguous" checked> <span class="sf-rule-name">Keep day-blocks together — don't break a driver's run into separate days</span></label>
-                        <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="preferred_enhancement_extra"> <span class="sf-rule-name">Allow extra rounds that may scatter day-blocks</span></label>
-                      </div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="affinity_enhancement"> <span class="sf-rule-name"><strong>Driver Affinity Enhancement</strong> · swap drivers onto the weekdays they historically work most</span></label>
-                      <div class="sf2-subrules sched-smartfill-rule-advanced" data-rr-parent="affinity_enhancement">
-                        <div style="font-size:11px;font-weight:600;color:#605E5C;margin:6px 0 4px;letter-spacing:.02em">Weekday priority order — higher first</div>
-                        <div class="sf2-dayorder-help" style="font-size:11px;color:#605E5C;line-height:1.4;margin-bottom:6px">
-                          The affinity sweep settles weekdays in this order. Days higher up are locked in before lower-priority days can swap into them, so a high-priority day's placement is protected.
-                        </div>
-                        <div id="rr-set-affinity-day-order" class="sf-affinity-dayorder"></div>
-                      </div>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="fifth_day_fill"> <span class="sf-rule-name"><strong>5th-day fill</strong> · give opted-in drivers one extra shift if coverage needs it (respects WOC + license)</span></label>
                       <div class="sf2-subrules">
                         <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="fifth_day_override_availability"> <span class="sf-rule-name">Override availability for the 5th day — let it land any day (WOC + license still gate)</span></label>
@@ -16073,24 +15988,6 @@ body.rr-cmdk-open{ overflow:hidden }
                     </div>
                   </details>
 
-                  <!-- ── 10 · DIAGNOSTIC MODES ── boundary modes that strip
-                       the engine to a single behavior. Off by default and
-                       gated behind a confirmation in the JS handler. -->
-                  <details class="sf2-section" data-rr-sf-section="diagnostic">
-                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">10</span>
-                      <span class="sf2-section-titles">
-                        <div class="sf2-section-title">Diagnostic modes</div>
-                        <div class="sf2-section-sub">Strip the engine to one boundary — for triage only</div>
-                      </span>
-                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </div></summary>
-                    <div class="sf2-section-body">
-                      <div class="sf2-diagnostic-warn">⚠ Diagnostic modes disable most other rules. Use them to triage "why is no one eligible for this shift?" — not for regular scheduling.</div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preferred_only" data-rr-sf-confirm="Turn on Preferred-only mode? Most other rules will be disabled."> <span class="sf-rule-name"><strong>Preferred-only mode</strong> · only assign drivers to shifts on their preferred days (disables almost everything else)</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="availability_only" data-rr-sf-confirm="Turn on Availability-only mode? Most other rules will be disabled."> <span class="sf-rule-name"><strong>Availability-only mode</strong> · only assign drivers across their saved availability (disables almost everything else)</span></label>
-                    </div>
-                  </details>
                 </div>
               </div>
             </div>
