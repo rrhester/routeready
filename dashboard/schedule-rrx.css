@@ -1087,6 +1087,37 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   accent-color: var(--rr-brand-primary);
   cursor: pointer;
 }
+/* Reorder row: checkbox+label flex-grow, up/down on the right. */
+.sched-kpi-config-row{
+  display: flex;
+  align-items: center;
+  padding: 4px 8px 4px 14px;
+  border-radius: 4px;
+}
+.sched-kpi-config-row:hover{ background: var(--rr-bg-hover); }
+.sched-kpi-config-row > label{
+  display: flex; align-items: center; gap: 10px;
+  flex: 1 1 auto; cursor: pointer; font-size: 13px;
+  color: var(--rr-fg-primary); min-width: 0;
+}
+.sched-kpi-config-row > label input[type="checkbox"]{
+  width: 14px; height: 14px; accent-color: var(--rr-brand-primary); cursor: pointer;
+}
+.sched-kpi-reorder{ display: inline-flex; gap: 2px; flex: 0 0 auto; }
+.sched-kpi-reorder button{
+  width: 20px; height: 20px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid transparent; border-radius: 4px;
+  color: var(--rr-fg-secondary); cursor: pointer; font-size: 10px; line-height: 1;
+}
+.sched-kpi-reorder button:hover:not(:disabled){
+  background: var(--rr-bg-surface-1); border-color: var(--rr-border-primary); color: var(--rr-fg-primary);
+}
+.sched-kpi-reorder button:disabled{ opacity: .3; cursor: default; }
+.sched-kpi-config-foot{
+  padding: 6px 4px;
+  border-top: 1px solid var(--rr-border-secondary);
+}
 
 /* ============================================================
    Persistent scrollbars on the schedule grid + the open-shifts
