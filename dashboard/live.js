@@ -38824,6 +38824,37 @@ function bindSchedWeekNav() {
         ? `<div class="rr-di-li"><span class="rr-di-ck ok">✓</span>Scheduled every eligible day</div>`
         : whyNot.map(([d, r]) => `<div class="rr-di-why"><div class="rr-di-why-d">${esc(d)}</div><div class="rr-di-why-r">${esc(r)}</div></div>`).join("");
 
+      // Rules that shaped this — the actual Smart Fill rules in effect,
+      // tied to how they affected THIS driver, so the operator sees which
+      // settings drove the hours.
+      const rules = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
+      const PICK = {
+        fair_rotation: "Fair rotation (least hours first)",
+        full_time_priority: "Full-time first",
+        seniority: "Seniority first",
+        alphabetical: "Alphabetical",
+        attendance_priority: "Attendance first",
+        availability_first: "Most-available first",
+        random: "Random",
+      };
+      const ruleRows = [];
+      const pick = rules.scheduling_method || "fair_rotation";
+      const pickNote = pick === "fair_rotation"
+        ? "least-loaded drivers picked first"
+        : (pick === "full_time_priority" || pick === "seniority")
+          ? `tie-breaks by seniority — this driver is #${info.seniority ?? "—"}`
+          : "";
+      ruleRows.push(["Pick order", (PICK[pick] || pick) + (pickNote ? ` — ${pickNote}` : "")]);
+      const seq = rules.spread_evenly === false;
+      const batch = Math.max(1, Math.min(4, parseInt(rules.rotation_batch, 10) || 1));
+      ruleRows.push(["Fill style", seq ? "Sequential (fill each driver fully before moving on)" : `Spread evenly · ${batch} shift${batch === 1 ? "" : "s"} per turn`]);
+      const target = (rules.target_days_per_week != null) ? rules.target_days_per_week : 4;
+      if (target > 0) ruleRows.push(["Target days/week", `${target} — worked ${info.days} (${info.days >= target ? "hit target" : "under target"})`]);
+      if (rules.attendance_penalty) ruleRows.push(["Penalize final-corrective", info.finalCorrective ? "On — this driver is scheduled last" : "On"]);
+      if (rules.weekly_hour_cap != null) ruleRows.push(["Weekly hour cap", `${rules.weekly_hour_cap}h`]);
+      const rulesHtml = ruleRows.map(([k, v]) =>
+        `<div class="rr-di-rule"><div class="rr-di-rule-k">${esc(k)}</div><div class="rr-di-rule-v">${esc(v)}</div></div>`).join("");
+
       // Schedule confidence — a transparent blend of preferred-match,
       // affinity, and hours-to-target (clearly a derived heuristic).
       const prefScore = info.preferred.length ? (prefWorked.length / info.preferred.length) : 1;
@@ -38842,13 +38873,14 @@ function bindSchedWeekNav() {
           <div class="rr-di-chips">${chipsHtml}</div>
           <div class="rr-di-sec">Scheduling Explanation</div>${explHtml}
           <div class="rr-di-sec">Why Not Scheduled</div>${whyHtml}
+          <div class="rr-di-sec">Rules that shaped this</div>${rulesHtml}
           <div class="rr-di-sec">Schedule Confidence</div>
           <div class="rr-di-bar"><span style="width:${confidence}%"></span></div>
           <div class="rr-di-conf">${confidence}%</div>
           <button type="button" class="btn btn-sm rr-di-profile" data-rr-di-profile="${esc(info.id)}">View full driver profile</button>
         </div>
         <style>
-          #sched-sub-week{position:relative}
+          aside.driver-pool{position:relative}
           .rr-di-card{position:absolute;inset:0;z-index:30;overflow-y:auto;background:var(--surface,#fff);border-radius:var(--r-md,8px);padding:14px 15px;box-shadow:0 1px 0 var(--border,#e5e7eb)}
           .rr-di-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
           .rr-di-id{display:flex;gap:10px;align-items:center}
@@ -38867,6 +38899,9 @@ function bindSchedWeekNav() {
           .rr-di-why{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--border-subtle,#f0f0f0)}
           .rr-di-why-d{font-size:12.5px;font-weight:600;color:var(--text)}
           .rr-di-why-r{font-size:12px;color:var(--text-muted);text-align:right}
+          .rr-di-rule{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--border-subtle,#f0f0f0)}
+          .rr-di-rule-k{font-size:12px;font-weight:600;color:var(--text);flex:0 0 auto}
+          .rr-di-rule-v{font-size:12px;color:var(--text-muted);text-align:right}
           .rr-di-bar{height:6px;border-radius:3px;background:var(--canvas,#eef0f2);overflow:hidden;margin-top:4px}
           .rr-di-bar span{display:block;height:100%;background:#1A1F47}
           .rr-di-conf{font-size:12px;font-weight:700;color:var(--text);margin-top:4px;text-align:right}
@@ -38877,11 +38912,12 @@ function bindSchedWeekNav() {
     const openCard = (id) => {
       const intel = window._rrDriverIntel;
       const rail = document.getElementById("sched-sub-week");
-      if (!intel || !rail) return;
+      const panel = rail && rail.querySelector("aside.driver-pool");
+      if (!intel || !panel) return;
       const info = intel.byId.get(id);
       if (!info) return;
       let host = document.getElementById("rr-di-host");
-      if (!host) { host = document.createElement("div"); host.id = "rr-di-host"; rail.appendChild(host); }
+      if (!host) { host = document.createElement("div"); host.id = "rr-di-host"; panel.appendChild(host); }
       if (host.dataset.driver === id) return; // already showing this driver
       host.dataset.driver = id;
       host.innerHTML = buildCard(info);
