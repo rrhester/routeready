@@ -147,6 +147,19 @@ def solve(req: SolveRequest) -> SolveResponse:
     max_days = int(req.max_days or 5)
     woc_on = bool(rules.get("woc", True))
     woc_max_consec = int(rules.get("woc_max_consecutive_days") or DEFAULT_WOC_MAX_CONSECUTIVE_DAYS)
+    # Weekly hour cap as a HARD constraint (not just an OT penalty). OFF by
+    # default — only enforced when the caller explicitly opts in (the
+    # dashboard sends weekly_hour_cap_enforcement from the Enforce-WOC
+    # toggle). Defaulting off preserves the coverage-first soft behavior for
+    # callers that don't request a hard cap.
+    weekly_cap_hard = bool(rules.get("weekly_hour_cap_enforcement", False))
+    # Minimum rest between a driver's shifts (hard). OFF by default; the
+    # dashboard sends min_rest explicitly.
+    min_rest_on = bool(rules.get("min_rest", False))
+    try:
+        min_rest_hours = float(rules.get("min_rest_hours") or 10)
+    except (TypeError, ValueError):
+        min_rest_hours = 10.0
 
     # ── Inputs ────────────────────────────────────────────────────────
     pto_dates_by_driver: dict[str, set[str]] = defaultdict(set)
@@ -274,6 +287,54 @@ def solve(req: SolveRequest) -> SolveResponse:
                 if terms:
                     model.Add(sum(terms) <= cap)
 
+    # Minimum rest between a driver's shifts (HARD). Two shifts the same
+    # driver could hold whose end→start gap is below min_rest_hours are
+    # mutually exclusive. Catches back-to-back late/early pairs across dates
+    # that the one-shift-per-day cap doesn't. A locked shift pins one side:
+    # an open shift too close to a locked one is forbidden outright.
+    if min_rest_on and min_rest_hours > 0:
+        min_rest_secs = min_rest_hours * 3600.0
+
+        def _dt(t):
+            try:
+                return datetime.fromisoformat(t.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                return None
+
+        shift_times: dict[str, tuple] = {}
+        for s in req.shifts:
+            if s.starts_at and s.ends_at:
+                st, en = _dt(s.starts_at), _dt(s.ends_at)
+                if st and en:
+                    shift_times[s.id] = (st, en)
+
+        locked_by_driver: dict[str, list[str]] = defaultdict(list)
+        for ls in locked_shifts:
+            if ls.assigned_driver_id and ls.id in shift_times:
+                locked_by_driver[ls.assigned_driver_id].append(ls.id)
+
+        def _too_close(a_id: str, b_id: str) -> bool:
+            (sa, ea), (sb, eb) = shift_times[a_id], shift_times[b_id]
+            gap = (sb - ea).total_seconds() if sa <= sb else (sa - eb).total_seconds()
+            return gap < min_rest_secs
+
+        for d in req.drivers:
+            open_ids = [
+                sid for sid in eligible_shifts_per_driver.get(d.id, [])
+                if sid in shift_times and (d.id, sid) in assign
+            ]
+            locked_ids = locked_by_driver.get(d.id, [])
+            for i in range(len(open_ids)):
+                for j in range(i + 1, len(open_ids)):
+                    if _too_close(open_ids[i], open_ids[j]):
+                        model.Add(
+                            assign[(d.id, open_ids[i])] + assign[(d.id, open_ids[j])] <= 1
+                        )
+            for o_id in open_ids:
+                for l_id in locked_ids:
+                    if _too_close(o_id, l_id):
+                        model.Add(assign[(d.id, o_id)] == 0)
+
     # ── Objective: weighted soft terms (Step 6) ──────────────────────
     # Weights are tunable per DSP via rules.weights.* (with sane
     # defaults). Coverage dominates by ~100x so uncovered shifts are
@@ -377,7 +438,12 @@ def solve(req: SolveRequest) -> SolveResponse:
         else:
             model.Add(h == 0)
         hours[d.id] = h
-        # ot[d] = max(0, h - cap)
+        # HARD weekly hour cap — a driver's total scheduled hours may not
+        # exceed the cap. Shifts that can only be covered by busting the cap
+        # are left uncovered (heavily penalized) rather than over-scheduled.
+        if weekly_cap_hard and weekly_cap > 0:
+            model.Add(h <= weekly_cap)
+        # ot[d] = max(0, h - cap) — soft OT penalty (0 once the hard cap is on).
         ot = model.NewIntVar(0, max_assignable_hours, f"ot_{d.id}")
         model.AddMaxEquality(ot, [h - weekly_cap, 0])
         ot_hours[d.id] = ot
