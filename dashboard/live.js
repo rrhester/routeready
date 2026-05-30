@@ -35910,7 +35910,8 @@ async function renderScheduleWeek() {
   // Index shifts by driver/date and collect open shifts by date.
   const shiftsByDriverDate = new Map();
   const openShiftsByDate = new Map();
-  const hoursPerDriver = new Map(); // driver_id -> total HOURS this week
+  const hoursPerDriver = new Map(); // driver_id -> total gross HOURS this week
+  const blockHoursPerDriver = new Map(); // driver_id -> total PAID BLOCK hours (FT/PT cutoff)
   const shiftCountPerDriver = new Map(); // driver_id -> shift count (for least-loaded sort)
   // (trainer_driver_id|date) -> trainee_name, for the "+ initials" badge
   // we paint onto the trainer's regular shift chip on a ride-along day.
@@ -35954,6 +35955,7 @@ async function renderScheduleWeek() {
       if (!shiftsByDriverDate.has(k)) shiftsByDriverDate.set(k, []);
       shiftsByDriverDate.get(k).push(sh);
       hoursPerDriver.set(sh.driver_id, (hoursPerDriver.get(sh.driver_id) || 0) + _shiftHours(sh));
+      blockHoursPerDriver.set(sh.driver_id, (blockHoursPerDriver.get(sh.driver_id) || 0) + (Number(sh.block_hours) || 10));
       shiftCountPerDriver.set(sh.driver_id, (shiftCountPerDriver.get(sh.driver_id) || 0) + 1);
       const wIdx = Number.isFinite(sh.wave_index) ? sh.wave_index : 0;
       const wm = waveCountsPerDriver.get(sh.driver_id) || new Map();
@@ -36586,15 +36588,17 @@ async function renderScheduleWeek() {
       pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
       pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
       (() => {
-        // FT/PT mix by scheduled HOURS (operator definition): scheduled 40h
-        // or more = Full-Time, anything below 40h = Part-Time. Counted across
-        // all active drivers, so under-40h and idle drivers correctly land in
-        // PT — the old days-based count (≥4 days) excluded 0-shift drivers and
-        // inflated FT% (e.g. a fully-staffed week read 91%).
+        // FT/PT mix by scheduled PAID BLOCK hours (operator definition):
+        // each shift counts as its block length (e.g. 10h), so 4 days = 40h =
+        // Full-Time, below 40h = Part-Time. Block hours (not gross start→end
+        // or net-of-lunch) so four full 10h blocks land cleanly on 40 — the
+        // report-lead + unpaid-lunch math otherwise tips a full-time driver to
+        // 39.5h. Counted across all active drivers so idle/under-40h drivers
+        // correctly land in PT.
         let ftCount = 0, ptCount = 0;
         for (const d of drivers) {
           if (d.status && d.status !== "active") continue;
-          const h = hoursPerDriver.get(d.id) || 0;
+          const h = blockHoursPerDriver.get(d.id) || 0;
           if (h >= 40) ftCount += 1;
           else ptCount += 1;
         }
