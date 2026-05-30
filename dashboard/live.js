@@ -36578,14 +36578,17 @@ async function renderScheduleWeek() {
       pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
       pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
       (() => {
-        // FT/PT Ratio — drivers with ≥4 scheduled shifts this week count
-        // as full-time, 1-3 shifts as part-time. Drivers with no shifts
-        // are excluded from the ratio entirely.
+        // FT/PT mix by scheduled HOURS (operator definition): scheduled 40h
+        // or more = Full-Time, anything below 40h = Part-Time. Counted across
+        // all active drivers, so under-40h and idle drivers correctly land in
+        // PT — the old days-based count (≥4 days) excluded 0-shift drivers and
+        // inflated FT% (e.g. a fully-staffed week read 91%).
         let ftCount = 0, ptCount = 0;
         for (const d of drivers) {
-          const n = shiftCountPerDriver.get(d.id) || 0;
-          if (n >= 4) ftCount += 1;
-          else if (n >= 1) ptCount += 1;
+          if (d.status && d.status !== "active") continue;
+          const h = hoursPerDriver.get(d.id) || 0;
+          if (h >= 40) ftCount += 1;
+          else ptCount += 1;
         }
         const totalScheduled = ftCount + ptCount;
         const ftPct = totalScheduled > 0 ? Math.round(ftCount / totalScheduled * 100) : 0;
@@ -36608,8 +36611,8 @@ async function renderScheduleWeek() {
           "",
           ftStatus.tier !== "green",  // green = healthy, no drill-down
           totalScheduled > 0
-            ? `${ftCount} full-time · ${ptCount} part-time (of ${totalScheduled} scheduled)`
-            : "No drivers scheduled this week",
+            ? `${ftCount} full-time · ${ptCount} part-time (of ${totalScheduled} active, by 40h)`
+            : "No active drivers",
           totalScheduled > 0 && _kpiColorOn ? ftStatus.icon : undefined,
           totalScheduled > 0 && _kpiColorOn ? ftStatus.pillBg : undefined,
         );
