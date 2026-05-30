@@ -24100,6 +24100,39 @@ let _schedDriverList = [];
 // Session-only — not persisted across reloads.
 let _schedDriverSort = "alpha";
 
+// Unassign every driver from every shift in the visible week. Shifts stay;
+// only driver_id is cleared. Shared by the Open-shifts pool button
+// (#rr-unassign-week) and the driver-header icon (#rr-sched-unassign-week-icon).
+// The text button shows an "Unassigning…" label while in flight; the icon
+// just gets disabled + aria-busy so its SVG isn't clobbered.
+async function _runUnassignAllShiftsForWeek(triggerEl) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !_schedStart) return;
+  if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) return;
+  const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
+  if (!confirm(`Unassign every driver from every shift between ${_schedStart} and ${weekEndIso}?\n\nShifts stay; only the driver assignments are cleared.`)) return;
+  const isTextBtn = triggerEl && triggerEl.id === "rr-unassign-week";
+  if (triggerEl) {
+    triggerEl.disabled = true;
+    triggerEl.setAttribute("aria-busy", "true");
+    if (isTextBtn) triggerEl.textContent = "Unassigning…";
+  }
+  const { error, count } = await sb.from("shifts")
+    .update({ driver_id: null }, { count: "exact" })
+    .eq("dsp_id", dspId)
+    .gte("date", _schedStart)
+    .lte("date", weekEndIso)
+    .not("driver_id", "is", null);
+  if (triggerEl) {
+    triggerEl.disabled = false;
+    triggerEl.removeAttribute("aria-busy");
+    if (isTextBtn) triggerEl.textContent = "Unassign all shifts this week";
+  }
+  if (error) { toast("Unassign failed: " + error.message, "warn"); return; }
+  toast(`Unassigned ${count ?? "all"} shifts for the week`, "success");
+  if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+}
+
 // Click handler for the schedule driver-sort icon — opens a small
 // popover with three options (matches the Turnover KPI pattern).
 document.addEventListener("click", (e) => {
@@ -24165,6 +24198,16 @@ document.addEventListener("click", (e) => {
       showIc.style.display = hidden ? "" : "none";
     }
     try { localStorage.setItem("rr-sched-hide-openshifts", hidden ? "1" : "0"); } catch (_) {}
+    return;
+  }
+  // Unassign all shifts this week — header-icon twin of the Open-shifts
+  // pool button. Same action: clears every driver assignment for the
+  // visible week (shifts stay). Shared logic in _runUnassignAllShiftsForWeek.
+  const unassignBtn = e.target.closest("#rr-sched-unassign-week-icon");
+  if (unassignBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    _runUnassignAllShiftsForWeek(unassignBtn);
     return;
   }
   // Density cycle — Standard → Compact → Ultra-compact → Standard.
@@ -38938,28 +38981,13 @@ function bindSchedWeekNav() {
     renderScheduleWeek();
   });
 
-  // ── Unassign all shifts this week
+  // ── Unassign all shifts this week (Open-shifts pool button)
+  // Shares _runUnassignAllShiftsForWeek with the driver-header icon twin
+  // (#rr-sched-unassign-week-icon, wired in the header-icon click handler).
   sub.addEventListener("click", async (e) => {
     if (e.target.id !== "rr-unassign-week") return;
     e.preventDefault();
-    const dspId = window.RR?.dsp?.id;
-    if (!dspId || !_schedStart) return;
-    if (!_confirmLiveScheduleEdit()) return;
-    const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
-    if (!confirm(`Unassign every driver from every shift between ${_schedStart} and ${weekEndIso}?\n\nShifts stay; only the driver assignments are cleared.`)) return;
-    e.target.disabled = true;
-    e.target.textContent = "Unassigning…";
-    const { error, count } = await sb.from("shifts")
-      .update({ driver_id: null }, { count: "exact" })
-      .eq("dsp_id", dspId)
-      .gte("date", _schedStart)
-      .lte("date", weekEndIso)
-      .not("driver_id", "is", null);
-    e.target.disabled = false;
-    e.target.textContent = "Unassign all shifts this week";
-    if (error) { toast("Unassign failed: " + error.message, "warn"); return; }
-    toast(`Unassigned ${count ?? "all"} shifts for the week`, "success");
-    renderScheduleWeek();
+    _runUnassignAllShiftsForWeek(e.target);
   });
 
   // ── Drag-and-drop: pool SHIFT → driver-day cell.
