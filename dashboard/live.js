@@ -36765,7 +36765,8 @@ async function renderScheduleWeek() {
       pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, _covTier !== "green",
         "Click to see settings that would raise coverage", coverageIcon, coveragePillBg) +
       pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
-      pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
+      pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`,
+        (_kpiColorOn && totalOvertimeHrs > 0) ? _rrKpiStatusIcon("red", "Overtime — driver(s) scheduled over 40h") : undefined) +
       (() => {
         // FT/PT mix by scheduled PAID BLOCK hours (operator definition):
         // each shift counts as its block length (e.g. 10h), so 4 days = 40h =
@@ -37069,6 +37070,13 @@ async function renderScheduleWeek() {
     const netHoursRounded = totalHours > 0 ? Math.round(netHours * 10) / 10 : 0;
     const hoursLabelHTML =
       `<span class="cal-row-label-hours">${netHoursRounded}h<span class="cal-row-label-hours-word"> scheduled</span></span>`;
+    // Overtime warning · the same red status icon as the OT Risk KPI (red
+    // circle, white exclamation). Shows at the far-right-center of the driver
+    // card when the driver's net (on-the-clock) hours exceed 40 — the exact
+    // condition the OT pill counts (gross − 0.5h/shift unpaid lunch).
+    const otIcon = netHours > 40
+      ? `<span class="cal-row-label-ot" title="Scheduled over 40 hours — overtime" aria-label="Overtime: scheduled over 40 hours" style="margin-left:auto;display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrKpiStatusIcon("red", "Over 40 hours — overtime")}</span>`
+      : "";
     // Expired-DL flag — passive visual cue next to the driver name so
     // the operator sees at a glance that scheduling will trigger a warning.
     const todayIsoForDL = fmtIsoDate(new Date());
@@ -37129,7 +37137,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}${prefCls}" ${data}>${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta"><span class="cal-row-label-station">${escapeHtml(station)}</span><span class="cal-row-label-sep"> · </span>${hoursLabelHTML}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div></div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta"><span class="cal-row-label-station">${escapeHtml(station)}</span><span class="cal-row-label-sep"> · </span>${hoursLabelHTML}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div>${otIcon}</div>
       ${cells}
     </div>`;
   }).join("");
