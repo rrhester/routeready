@@ -2407,6 +2407,7 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift
   box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-road_training) 22%, transparent) !important;
 }
 
+<<<<<<< HEAD
 /* PTO / time-off chips. Unlike the route-class rules above (which exclude
    .timeoff), this targets the time-off chip directly so the DSP can recolor
    it. The chip's amber comes from a CSS class (index.html), so these
@@ -2419,6 +2420,8 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
   color: color-mix(in srgb, var(--rr-route-c-pto) 80%, #000) !important;
 }
 
+=======
+>>>>>>> origin/main
 /* ============================================================
    Crispness · sharper grid lines, tighter chip corners,
    stronger micro-shadow. The base styles use rgba(15,23,42,.05)
