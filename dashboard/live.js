@@ -37918,8 +37918,10 @@ function bindSchedWeekNav() {
         const _belowTarget = (_routes > 0 && _scheduledDrivers != null)
           ? (_scheduledDrivers < _driverTarget)
           : (baseCov != null && baseCov < 100);
+        // Skip the Overtime / 5th-day pass entirely at 0% coverage — with
+        // nothing staffed yet, the next step is Smart Fill, not OT.
         let fifthDayHtml = "";
-        if (_belowTarget) {
+        if (_belowTarget && !_coverZero) {
           const fifthVols = (payload.drivers || [])
             .filter((d) => d && d.fifth_day_ok)
             .map((d) => d.full_name || d.id);
