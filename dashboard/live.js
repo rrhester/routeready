@@ -29059,18 +29059,15 @@ async function _paintFleetCalendar() {
     });
   }
 
-  host.innerHTML = `
-    <div class="rr-fc-bar">
-      <div class="rr-fc-title">${escapeHtml(weekLabel)}</div>
-      <div class="rr-fc-monthnav">
-        <button type="button" class="rr-fc-navbtn" data-fc-nav="prev" aria-label="Previous week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-        <button type="button" class="rr-fc-navbtn rr-fc-today" data-fc-nav="today">This week</button>
-        <button type="button" class="rr-fc-navbtn" data-fc-nav="next" aria-label="Next week"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
-      </div>
-      <div class="rr-fc-spacer"></div>
-      <span class="rr-fc-bar-hint">Click a day to add an event</span>
-    </div>
-    <div class="rr-fc-grid">${head}${rows}</div>`;
+  // Week navigation is driven by the dashboard's top-right week scroller
+  // (rr-sched-week-prev/next/today), wired in the nav handler — so the
+  // calendar's own top bar is removed. Keep the range label in sync with
+  // the fleet week whenever this calendar is the visible view.
+  if (host.offsetParent) {
+    const lbl = document.getElementById("rr-sched-week-range-label");
+    if (lbl) lbl.textContent = weekLabel;
+  }
+  host.innerHTML = `<div class="rr-fc-grid">${head}${rows}</div>`;
 
   if (!_fleetCalBound) {
     _fleetCalBound = true;
@@ -38621,15 +38618,32 @@ function bindSchedWeekNav() {
     const shell = document.getElementById("rr-today-plan-shell");
     return !!(shell && shell.offsetParent);
   };
+  // When the Fleet calendar is the visible view, the same top-right
+  // chevrons + Today button walk the fleet calendar's WEEK (its own top
+  // bar was removed). Detect it by the calendar host being on-screen.
+  const _fcCalActive = () => {
+    const host = document.getElementById("rr-fleet-cal-host");
+    return !!(host && host.offsetParent);
+  };
+  const _fcShiftWeek = (deltaDays) => {
+    if (!_fleetCalWeekStart) _fleetCalWeekStart = _fcSunday(new Date());
+    const d = new Date(_fleetCalWeekStart);
+    d.setDate(d.getDate() + deltaDays);
+    _fleetCalWeekStart = d;
+    _paintFleetCalendar();
+  };
   if (prevBtn) prevBtn.addEventListener("click", () => {
+    if (_fcCalActive()) { _fcShiftWeek(-7); return; }
     if (_tpOnTodaySubView() && typeof _tpDateShift === "function") { _tpDateShift(-1); return; }
     _shiftWeek(-1);
   });
   if (nextBtn) nextBtn.addEventListener("click", () => {
+    if (_fcCalActive()) { _fcShiftWeek(7); return; }
     if (_tpOnTodaySubView() && typeof _tpDateShift === "function") { _tpDateShift(1); return; }
     _shiftWeek(1);
   });
   if (todayBtn) todayBtn.addEventListener("click", () => {
+    if (_fcCalActive()) { _fleetCalWeekStart = _fcSunday(new Date()); _paintFleetCalendar(); return; }
     if (_tpOnTodaySubView() && typeof _tpDateGoTo === "function" && typeof _tpToday === "function") {
       _tpDateGoTo(_tpToday()); return;
     }
@@ -38639,6 +38653,7 @@ function bindSchedWeekNav() {
   // shortcut now that there's no fixed cycle to cycle through. On
   // Today view it's a "+7 days" shortcut, matching its week semantics.
   if (rangeBtn) rangeBtn.addEventListener("click", () => {
+    if (_fcCalActive()) { _fcShiftWeek(7); return; }
     if (_tpOnTodaySubView() && typeof _tpDateShift === "function") { _tpDateShift(7); return; }
     _shiftWeek(1);
   });
