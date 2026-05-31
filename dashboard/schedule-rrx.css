@@ -2522,6 +2522,16 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
 #view-schedule.rrx-schedule .shift-chip {
   border-radius: 3px !important;
 }
+/* Pinned-shift marker · small 📌 in the chip's top-right corner. The chip
+   is set position:relative inline when the marker is added. */
+#view-schedule.rrx-schedule .shift-chip .shift-chip-pin {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 10px;
+  line-height: 1;
+  pointer-events: none;
+}
 
 /* Restrained, flush chips · the prior blue-tinted lift shadow added
    to the page's blue wash and made chips feel pillowy. Assigned
