@@ -31903,10 +31903,41 @@ const _RR_PIN_SVG =
   '</svg>';
 
 async function _decorateScheduleChipsWithPins() {
-  // Per-cell pin buttons retired — pinning/unpinning now happens via the
-  // driver right-click menu (Pin / Unpin to current days). Left as a no-op
-  // so existing callers stay safe.
-  return;
+  // Paint a small 📌 on every pinned (is_locked) shift chip so the operator
+  // can see at a glance which shifts Smart Fill won't move. The pin is
+  // toggled from the shift edit card; this is the grid indicator. Queried
+  // client-side since schedule_grid doesn't return is_locked.
+  {
+    const dspId = window.RR?.dsp?.id;
+    if (!dspId || !_schedStart) return;
+    const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
+    let res;
+    try {
+      res = await sb.from("shifts")
+        .select("id, is_locked")
+        .eq("dsp_id", dspId)
+        .gte("date", _schedStart).lte("date", weekEndIso)
+        .eq("is_locked", true);
+    } catch (_) { return; }
+    if (res?.error) return;
+    const lockedIds = new Set((res.data || []).map(r => String(r.id)));
+    document.querySelectorAll('#view-schedule .shift-chip[data-rr-shift-id]').forEach(chip => {
+      const pinned = lockedIds.has(String(chip.dataset.rrShiftId));
+      chip.querySelector(".shift-chip-pin")?.remove();
+      if (pinned) {
+        chip.setAttribute("data-rr-pinned", "1");
+        if (!chip.style.position) chip.style.position = "relative";
+        const mk = document.createElement("span");
+        mk.className = "shift-chip-pin";
+        mk.textContent = "📌";
+        mk.title = "Pinned · Smart Fill won't move this shift";
+        chip.appendChild(mk);
+      } else {
+        chip.removeAttribute("data-rr-pinned");
+      }
+    });
+    return;
+  }
   /* eslint-disable no-unreachable */
   const dspId = window.RR?.dsp?.id;
   if (!dspId || !_schedStart) return;
