@@ -88,6 +88,38 @@ def test_fifth_day_optin_does_not_exceed_max_days():
     assert len(result.uncovered_shifts) == 1
 
 
+def test_pto_counts_toward_weekly_cap():
+    # 40h cap, hard-enforced, with PTO counting toward the cap at 10h/day.
+    # One driver available all week has 2 approved PTO days (Mon, Tue) = 20h,
+    # leaving only 20h = 2 ten-hour shifts of work. There are 5 open shifts on
+    # the 3 non-PTO days + extras; the driver may take at most 2, the rest open.
+    r = _req(
+        weekly_hour_cap=40,
+        rules={
+            "weekly_hour_cap_enforcement": True,
+            "pto_counts_toward_cap": True,
+            "pto_hours_per_day": 10,
+        },
+        drivers=[{"id": "d1", "available_dows": [0, 1, 2, 3, 4, 5, 6]}],
+        # 10h shifts (10:00→20:00) on five distinct non-PTO days.
+        shifts=[
+            {"id": "s3", "date": "2026-06-03", "starts_at": "2026-06-03T10:00:00Z", "ends_at": "2026-06-03T20:00:00Z"},
+            {"id": "s4", "date": "2026-06-04", "starts_at": "2026-06-04T10:00:00Z", "ends_at": "2026-06-04T20:00:00Z"},
+            {"id": "s5", "date": "2026-06-05", "starts_at": "2026-06-05T10:00:00Z", "ends_at": "2026-06-05T20:00:00Z"},
+            {"id": "s6", "date": "2026-06-06", "starts_at": "2026-06-06T10:00:00Z", "ends_at": "2026-06-06T20:00:00Z"},
+            {"id": "s7", "date": "2026-06-07", "starts_at": "2026-06-07T10:00:00Z", "ends_at": "2026-06-07T20:00:00Z"},
+        ],
+        pto=[
+            {"driver_id": "d1", "date": "2026-06-01"},
+            {"driver_id": "d1", "date": "2026-06-02"},
+        ],
+    )
+    result = solve(r)
+    # 20h PTO against a 40h cap leaves room for exactly 2 of the 10h shifts.
+    assert len(result.assigned_shifts) == 2
+    assert len(result.uncovered_shifts) == 3
+
+
 def test_no_double_book_per_day():
     # Two shifts same day, one driver. Only one of them can take her.
     r = _req(

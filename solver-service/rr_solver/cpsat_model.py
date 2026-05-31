@@ -152,6 +152,17 @@ def solve(req: SolveRequest) -> SolveResponse:
     # toggle). Defaulting off preserves the coverage-first soft behavior for
     # callers that don't request a hard cap.
     weekly_cap_hard = bool(rules.get("weekly_hour_cap_enforcement", False))
+    # PTO counts toward the weekly hour cap: an approved-PTO day is treated as
+    # `pto_hours_per_day` worked hours, so it REDUCES how many hours the driver
+    # can still be scheduled that week. ON by default (the dashboard checkbox
+    # ships checked); the operator can turn it off. Without this, PTO only
+    # blocked assignment on the PTO day itself — a driver with 20h PTO + a 40h
+    # cap could still be scheduled the full 40h of work (= 60h effective).
+    pto_counts_toward_cap = bool(rules.get("pto_counts_toward_cap", True))
+    try:
+        pto_hours_per_day = float(rules.get("pto_hours_per_day") or 10)
+    except (TypeError, ValueError):
+        pto_hours_per_day = 10.0
     # Minimum rest between a driver's shifts (hard). OFF by default; the
     # dashboard sends min_rest explicitly.
     min_rest_on = bool(rules.get("min_rest", False))
@@ -439,14 +450,22 @@ def solve(req: SolveRequest) -> SolveResponse:
         else:
             model.Add(h == 0)
         hours[d.id] = h
-        # HARD weekly hour cap — a driver's total scheduled hours may not
-        # exceed the cap. Shifts that can only be covered by busting the cap
-        # are left uncovered (heavily penalized) rather than over-scheduled.
+        # Effective cap for THIS driver. When PTO counts toward the cap, each
+        # approved-PTO day this week consumes pto_hours_per_day of capacity, so
+        # the hours the driver can still be SCHEDULED drop accordingly (floored
+        # at 0). e.g. 40h cap with 2 PTO days @10h → only 20h of work allowed.
+        driver_cap = weekly_cap
+        if pto_counts_toward_cap:
+            pto_days = len(pto_dates_by_driver.get(d.id, set()))
+            driver_cap = max(0, weekly_cap - int(round(pto_days * pto_hours_per_day)))
+        # HARD weekly hour cap — a driver's scheduled (worked) hours may not
+        # exceed the effective cap. Shifts that can only be covered by busting
+        # it are left uncovered (heavily penalized) rather than over-scheduled.
         if weekly_cap_hard and weekly_cap > 0:
-            model.Add(h <= weekly_cap)
+            model.Add(h <= driver_cap)
         # ot[d] = max(0, h - cap) — soft OT penalty (0 once the hard cap is on).
         ot = model.NewIntVar(0, max_assignable_hours, f"ot_{d.id}")
-        model.AddMaxEquality(ot, [h - weekly_cap, 0])
+        model.AddMaxEquality(ot, [h - driver_cap, 0])
         ot_hours[d.id] = ot
         objective_terms.append(-W_OT * ot)
 
