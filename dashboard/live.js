@@ -31665,6 +31665,18 @@ async function _decorateScheduleChipsWithVans() {
     } else {
       el.textContent = `Van ${van}`;
     }
+    // Van unavailable that day (grounded or booked for service on the Fleet
+    // calendar) → paint the pill red so the operator sees the van can't run
+    // and reassigns. Rebuilt live by the fleet_calendar_events / vehicles
+    // realtime push (window._rrVanUnavail is set in renderScheduleWeek).
+    const vehId = byKeyVeh.get(key);
+    if (vehId && window._rrVanUnavail && window._rrVanUnavail.has(`${vehId}|${key.split("|")[1]}`)) {
+      el.classList.add("shift-chip-van-out");
+      el.style.background = "var(--red-soft, #FDE7E7)";
+      el.style.color = "var(--red, #C0322B)";
+      el.style.fontWeight = "700";
+      chip.setAttribute("title", "Van unavailable this day — in service or grounded");
+    }
     chip.appendChild(el);
   });
 }
