@@ -35107,7 +35107,7 @@ async function openShiftEditModal(arg) {
     // `drivers(...)` embed errors out with "more than one relationship".
     const { data, error } = await sb
       .from("shifts")
-      .select("id, date, starts_at, ends_at, driver_id, route_code, route_classification, shift_kind, service_type_id, drivers!driver_id(full_name, preferred_name)")
+      .select("id, date, starts_at, ends_at, driver_id, route_code, route_classification, shift_kind, service_type_id, is_locked, drivers!driver_id(full_name, preferred_name)")
       .eq("id", shiftId)
       .single();
     if (error || !data) {
@@ -35322,10 +35322,17 @@ async function openShiftEditModal(arg) {
   // Footer destructive buttons only in edit mode. In add mode there's
   // nothing to unassign/delete yet — just Cancel + Add shift.
   // Edit footer · just Delete shift (operator asked to drop "Unassign driver").
+  // Pin/Unpin · locks the shift so Smart Fill won't move its driver. The
+  // 📌 marker on the chip + the engine's is_locked handling already exist;
+  // this restores the toggle that was dropped in the modal redesign.
+  const pinButton = (isAdd || isTimeOff) ? ""
+    : sh.is_locked
+      ? `<button class="btn btn-sm" data-rr-shift-edit-pin="0" title="Smart Fill won't move a pinned shift">📌 Unpin</button>`
+      : `<button class="btn btn-sm" data-rr-shift-edit-pin="1" title="Pin so Smart Fill won't move this driver">📌 Pin</button>`;
   const destructiveButtons = isTimeOff
     ? `<button class="btn btn-sm" data-rr-timeoff-delete style="color:var(--red);border-color:rgba(225,29,72,.3)">Remove ${escapeHtml(timeOff.rrPtoLabel || "time off")}</button>`
     : isAdd ? ""
-    : `<button class="btn btn-sm" data-rr-shift-edit-delete style="color:var(--red);border-color:rgba(225,29,72,.3)">Delete shift</button>`;
+    : `${pinButton}<button class="btn btn-sm" data-rr-shift-edit-delete style="color:var(--red);border-color:rgba(225,29,72,.3)">Delete shift</button>`;
   const primaryBtnLabel = isAdd ? "Add shift" : "Save";
   // Time off has no Save/Add — just Remove (left) + Cancel.
   const primaryBtn = isTimeOff ? ""
@@ -35535,6 +35542,20 @@ async function openShiftEditModal(arg) {
   let _ackedViolationsKey = null;
   m.addEventListener("click", async (e) => {
     if (e.target.closest("[data-rr-shift-edit-cancel]")) { close(); return; }
+
+    // Pin / Unpin — toggle is_locked so Smart Fill won't move this shift's
+    // driver. The chip's 📌 marker + engine honoring of is_locked already
+    // exist; this is the restored toggle.
+    const _pinBtn = e.target.closest("[data-rr-shift-edit-pin]");
+    if (_pinBtn) {
+      const _next = _pinBtn.getAttribute("data-rr-shift-edit-pin") === "1";
+      _markLocalShiftMutation();
+      const { error: pinErr } = await sb.from("shifts").update({ is_locked: _next }).eq("id", shiftId);
+      if (pinErr) { toast("Couldn't update pin: " + pinErr.message, "warn"); return; }
+      close();
+      renderScheduleWeek();
+      return;
+    }
 
     // Remove time off — drop just the clicked day from the approved
     // request (trims or splits a multi-day range; deletes a single-day
