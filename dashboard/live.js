@@ -31603,10 +31603,12 @@ async function _decorateScheduleChipsWithVans() {
   const rows = res.data || [];
   if (!rows.length) return;
   const byKey = new Map();
+  const byKeyVeh = new Map();
   for (const r of rows) {
     const van = r.vehicles?.name;
     if (!van) continue;
     byKey.set(`${r.driver_id}|${r.date}`, van);
+    byKeyVeh.set(`${r.driver_id}|${r.date}`, r.vehicle_id);
   }
   // Find every shift chip in the visible schedule grid and append
   // the van pill. Chips render with data-rr-shift-id but no
@@ -31662,6 +31664,18 @@ async function _decorateScheduleChipsWithVans() {
       chip.setAttribute("title", reason.reason || "FEM rotation pick");
     } else {
       el.textContent = `Van ${van}`;
+    }
+    // Van unavailable that day (grounded or booked for service on the Fleet
+    // calendar) → paint the pill red so the operator sees the van can't run
+    // and reassigns. Rebuilt live by the fleet_calendar_events / vehicles
+    // realtime push (window._rrVanUnavail is set in renderScheduleWeek).
+    const vehId = byKeyVeh.get(key);
+    if (vehId && window._rrVanUnavail && window._rrVanUnavail.has(`${vehId}|${key.split("|")[1]}`)) {
+      el.classList.add("shift-chip-van-out");
+      el.style.background = "var(--red-soft, #FDE7E7)";
+      el.style.color = "var(--red, #C0322B)";
+      el.style.fontWeight = "700";
+      chip.setAttribute("title", "Van unavailable this day — in service or grounded");
     }
     chip.appendChild(el);
   });
@@ -36712,25 +36726,59 @@ async function renderScheduleWeek() {
   // (vehicle_day_assignments). Used by the Van assignments KPI + driver card
   // to flag scheduled driver-days with no van.
   const vanByDriverDate = new Set();
+  const vanIdByDriverDate = new Map(); // driver|date → vehicle_id
   for (const r of (femAssignRes?.data || [])) {
     const list = femUsage.get(r.vehicle_id) || [];
     list.push(r.date);
     femUsage.set(r.vehicle_id, list);
-    if (r.driver_id && r.date) vanByDriverDate.add(`${r.driver_id}|${r.date}`);
+    if (r.driver_id && r.date) {
+      vanByDriverDate.add(`${r.driver_id}|${r.date}`);
+      vanIdByDriverDate.set(`${r.driver_id}|${r.date}`, r.vehicle_id);
+    }
   }
   for (const [, list] of femUsage) list.sort();
 
-  // Van assignments · scheduled driver-days with NO van. A driver is
-  // "missing a van" if any of their assigned (non-training) shifts this week
-  // has no vehicle_day_assignment. Computed at function scope so BOTH the
-  // Van assignments KPI and the driver-card warning icon can read it.
+  // Van availability · a van is UNAVAILABLE on a day when it's grounded or
+  // booked for service on the Fleet calendar that day. A driver whose assigned
+  // van is unavailable still has a vehicle_day_assignment row, but the van
+  // can't actually run — so we flag it exactly like "no van" (red "V" warning
+  // + Van assignments KPI). window._rrVanUnavail (vehicleId|date) is read by
+  // the chip decorator to paint that van pill red.
+  const visWeekDates = [];
+  for (let i = 0; i < 7; i++) visWeekDates.push(fmtIsoDate(addDays(weekStart, i)));
+  const vanUnavail = new Set(); // `${vehicleId}|${iso}`
+  for (const v of vehicles) {
+    if ((v.operational_status || "operational") === "grounded") {
+      for (const iso of visWeekDates) vanUnavail.add(`${v.id}|${iso}`);
+    }
+  }
+  try {
+    const svcRes = await sb.rpc("fleet_calendar_events_list", { p_from: _schedStart, p_to: weekEndIso });
+    for (const ev of (svcRes?.data || [])) {
+      if (!ev || !ev.vehicle_id || !ev.event_date) continue;
+      let d = new Date(ev.event_date + "T12:00:00");
+      const endD = new Date((ev.end_date || ev.event_date) + "T12:00:00");
+      for (let i = 0; i < 60 && d <= endD; i++) {
+        vanUnavail.add(`${ev.vehicle_id}|${fmtIsoDate(d)}`);
+        d = addDays(d, 1);
+      }
+    }
+  } catch (_) { /* non-fatal — schedule still renders without service flags */ }
+  window._rrVanUnavail = vanUnavail;
+
+  // Van assignments · a scheduled (non-training) driver-day is a problem when
+  // the driver has NO van, OR the van they have is unavailable that day.
   const driversMissingVan = new Set();
   let dayShiftsMissingVan = 0;
   for (const sh of (grid.shifts || [])) {
     if (!sh.driver_id) continue;
     if (!["scheduled", "completed"].includes(sh.status)) continue;
     if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
-    if (!vanByDriverDate.has(`${sh.driver_id}|${sh.date}`)) {
+    const key = `${sh.driver_id}|${sh.date}`;
+    const vehId = vanIdByDriverDate.get(key);
+    const noVan = !vanByDriverDate.has(key);
+    const vanOut = vehId && vanUnavail.has(`${vehId}|${sh.date}`);
+    if (noVan || vanOut) {
       driversMissingVan.add(sh.driver_id);
       dayShiftsMissingVan += 1;
     }
@@ -36924,8 +36972,8 @@ async function renderScheduleWeek() {
     // driversMissingVan / vanMissCount above) so the driver card can read
     // the same set.
     const vanSub = vanMissCount === 0
-      ? "Every scheduled driver has a van"
-      : `${dayShiftsMissingVan} shift${dayShiftsMissingVan === 1 ? "" : "s"} without a van`;
+      ? "Every scheduled driver has an available van"
+      : `${dayShiftsMissingVan} shift${dayShiftsMissingVan === 1 ? "" : "s"} without an available van`;
 
     kpis.innerHTML =
       pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, _covTier !== "green",
@@ -37676,6 +37724,7 @@ function _subscribeSchedVehicleRealtime() {
   _schedVehicleChannel = sb.channel("rr-sched-veh-" + dspId)
     .on("postgres_changes", { event: "*", schema: "public", table: "vehicles", filter }, kick)
     .on("postgres_changes", { event: "*", schema: "public", table: "vehicle_day_assignments", filter }, kick)
+    .on("postgres_changes", { event: "*", schema: "public", table: "fleet_calendar_events", filter }, kick)
     .subscribe();
 }
 
