@@ -24110,19 +24110,23 @@ async function _runUnassignAllShiftsForWeek(triggerEl) {
   if (!dspId || !_schedStart) return;
   if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) return;
   const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
-  if (!confirm(`Unassign every driver from every shift between ${_schedStart} and ${weekEndIso}?\n\nShifts stay; only the driver assignments are cleared.`)) return;
+  if (!confirm(`Unassign every driver from every route shift between ${_schedStart} and ${weekEndIso}?\n\nShifts stay; only the driver assignments are cleared. Classroom training and ride-alongs keep their drivers.`)) return;
   const isTextBtn = triggerEl && triggerEl.id === "rr-unassign-week";
   if (triggerEl) {
     triggerEl.disabled = true;
     triggerEl.setAttribute("aria-busy", "true");
     if (isTextBtn) triggerEl.textContent = "Unassigning…";
   }
+  // Only clear route shifts. Classroom training + ride-alongs are deliberate
+  // driver↔driver pairings (trainee/trainer) and must survive Unassign all,
+  // same as PTO / time-off (which live in time_off_requests, not shifts).
   const { error, count } = await sb.from("shifts")
     .update({ driver_id: null }, { count: "exact" })
     .eq("dsp_id", dspId)
     .gte("date", _schedStart)
     .lte("date", weekEndIso)
-    .not("driver_id", "is", null);
+    .not("driver_id", "is", null)
+    .not("shift_kind", "in", "(training,ride_along)");
   if (triggerEl) {
     triggerEl.disabled = false;
     triggerEl.removeAttribute("aria-busy");
