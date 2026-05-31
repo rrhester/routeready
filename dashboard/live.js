@@ -30961,7 +30961,7 @@ async function _assignVansForRange(startIso, endIso, dspId) {
   // Pull everything we need in one go. The vehicle_day_assignments
   // query spans [lookback, end] so we get history (for FEM seeding)
   // and overrides (for chain seeding) in a single round-trip.
-  const [shiftsRes, vehRes, chainRes, assignmentsRes] = await Promise.all([
+  const [shiftsRes, vehRes, chainRes, assignmentsRes, fleetEvRes] = await Promise.all([
     sb.from("shifts")
       .select("id, date, driver_id, status, starts_at, station_id, route_code")
       .eq("dsp_id", dspId)
@@ -30978,11 +30978,36 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       .select("driver_id, vehicle_id, date")
       .eq("dsp_id", dspId)
       .gte("date", lookbackIso).lte("date", endIso),
+    // Fleet calendar events that put a van in the shop (service /
+    // maintenance). Any event tied to a vehicle blocks that van for the
+    // days it spans, so the van pass won't assign a van that's out.
+    sb.rpc("fleet_calendar_events_list", { p_from: startIso, p_to: endIso })
+      .then((r) => r, () => ({ data: null })),
   ]);
   if (shiftsRes?.error)      console.warn("assignVans · shifts fetch failed", shiftsRes.error);
   if (vehRes?.error)         console.warn("assignVans · vehicles fetch failed", vehRes.error);
   if (chainRes?.error)       console.warn("assignVans · chain fetch failed", chainRes.error);
   if (assignmentsRes?.error) console.warn("assignVans · assignments fetch failed", assignmentsRes.error);
+
+  // van_id → Set(iso dates the van is out for service). Expands each
+  // event across its [event_date, end_date] span. Days are matched
+  // exactly against the schedule dates, so a van out Tue–Wed is free Mon.
+  const vanOutByDate = new Map(); // iso date → Set(vehicle_id)
+  for (const ev of (fleetEvRes?.data || [])) {
+    if (!ev || !ev.vehicle_id || !ev.event_date) continue;
+    const start = ev.event_date;
+    const end = ev.end_date || ev.event_date;
+    let d = new Date(start + "T12:00:00");
+    const endD = new Date(end + "T12:00:00");
+    // Cap the loop so a malformed event can't spin forever.
+    for (let i = 0; i < 400 && d <= endD; i++) {
+      const iso = fmtIsoDate(d);
+      const set = vanOutByDate.get(iso) || new Set();
+      set.add(ev.vehicle_id);
+      vanOutByDate.set(iso, set);
+      d = addDays(d, 1);
+    }
+  }
 
   const shifts          = shiftsRes?.data      || [];
   const vehicles        = (vehRes?.data        || []).filter(v =>
@@ -31132,6 +31157,16 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     for (const r of overridesByDate.get(date) || []) {
       driverAssigned.set(r.driver_id, r.vehicle_id);
       vanAssigned.set(r.vehicle_id, r.driver_id);
+    }
+
+    // Mark any van that's out for service this date as taken (sentinel
+    // driver) so no chain/pool/rescue phase below can assign it. A van
+    // in the shop on the fleet calendar is unavailable for routes.
+    const outToday = vanOutByDate.get(date);
+    if (outToday) {
+      for (const vid of outToday) {
+        if (!vanAssigned.has(vid)) vanAssigned.set(vid, "__service__");
+      }
     }
 
     const vansToday = sortVansForDate(vehicles, date);
