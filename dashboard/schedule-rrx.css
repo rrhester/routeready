@@ -3037,6 +3037,19 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
   font-weight: 600 !important;
   margin-top: 3px !important;
 }
+/* Raw route target ("Target N") under the day number — the planned route
+   count before cushion. Muted so it reads as a quiet reference next to the
+   colored coverage count. */
+#view-schedule.rrx-schedule .cal-cell-head .day-target {
+  display: block;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: var(--text-subtle) !important;
+  margin-top: 3px !important;
+}
+body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-target {
+  font-size: 9.5px !important;
+}
 
 /* ============================================================
    Faux scrollbar · always visible regardless of OS/browser
