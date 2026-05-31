@@ -32203,6 +32203,10 @@ John,Smith,555-0101,john@example.com</code>
   // ─── TOASTS ────────────────────────────────────────────────
   function toast(msg, kind){
     kind = kind || 'success';
+    // Routine success / info confirmations are suppressed per operator
+    // request — they were too noisy (e.g. "Shift added" on every action).
+    // Warnings and errors still show so failures are never silent.
+    if (kind === 'success' || kind === 'info') return;
     const stack = document.getElementById('toast-stack');
     const el = document.createElement('div');
     el.className = 'toast ' + kind;
