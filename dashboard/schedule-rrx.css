@@ -1045,15 +1045,19 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
+  width: 26px;
   height: 28px;
+  /* Give the gear a clear resting state — a faint chip + full
+     opacity — so operators can actually find the "show/hide metrics"
+     control. It used to sit at opacity .55 with no chrome, which read
+     as decoration and was easy to miss. */
   background: var(--rr-bg-surface-1);
-  border: 0;
+  border: 1px solid var(--rr-border-secondary);
   border-radius: var(--rr-radius-medium);
   color: var(--rr-fg-secondary);
   cursor: pointer;
   flex: 0 0 auto;
-  opacity: .55;
+  opacity: 1;
   transition:
     background var(--rr-motion-fast),
     color var(--rr-motion-fast),
