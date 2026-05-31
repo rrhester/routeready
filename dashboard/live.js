@@ -27558,11 +27558,10 @@ function _refreshSfAdvancedGating() {
 // and the Smart Fill button is disabled; the board is filled by hand.
 // The Smart Fill bolt is lit (amber) only while Smart Fill mode is on.
 function _syncManualMode() {
-  let manual = false;
-  try {
-    const sf = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}");
-    manual = !!(sf && sf.manual_mode === true);
-  } catch (_) { /* ignore */ }
+  // Manual scheduling mode was removed — Smart Fill is the only mode.
+  // This is now a no-op guard that clears any stale is-manual state so
+  // the button always renders as "Smart Fill" and stays enabled.
+  const manual = false;
   const body = document.getElementById("rr-sched-smartfill-rules-body");
   if (body) body.classList.toggle("is-manual", manual);
   const btn = document.getElementById("rr-sched-smartfill-h");
@@ -27589,7 +27588,23 @@ window._rrLoadSfRules = function () {
   let saved;
   try { saved = JSON.parse(localStorage.getItem(_RR_SF_RULES_KEY) || "{}"); }
   catch (_) { saved = {}; }
-  return saved || {};
+  if (!saved || typeof saved !== "object") saved = {};
+  // Normalize rules that no longer have operator toggles so a stale value
+  // in a saved blob can't disable a hard rule or strand the operator.
+  // Manual scheduling mode was removed (Smart Fill is the only mode); the
+  // cert/service-type gates and the PTO/availability protections are
+  // always enforced. (DL-valid + WOC stay operator-controlled, so they're
+  // intentionally NOT forced here.)
+  saved.manual_mode = false;
+  saved.preserve_locked_assignments = true;
+  saved.dot_required = true;
+  saved.xl_required = true;
+  saved.edv_required = true;
+  saved.service_types = true;
+  saved.pto_block = true;
+  saved.availability = true;
+  saved.pto_counts_toward_cap = true;
+  return saved;
 };
 // WOC (Working Hours Compliance) config from the Smart Fill rules store —
 // a single rule capping consecutive scheduled days + weekly scheduled
@@ -34491,6 +34506,13 @@ async function autoAssignDriversForWeek() {
       rules: {
         ...sfRules,
         ..._sfUseFlags,
+        // Eligibility + compliance hard rules are always enforced now —
+        // their operator toggles were removed. Force them on so a stale
+        // `false` in a saved blob can't disable a hard rule for this run.
+        pto_block: true,
+        availability: true,
+        preserve_locked_assignments: true,
+        manual_mode: false,
         assign_vans: _sfVansAssign,
         affinity_weeks: _sfAffWeeks,
         weights: _sfWeights,
@@ -34503,7 +34525,7 @@ async function autoAssignDriversForWeek() {
         // capacity, so the solver schedules them that much less. Sent
         // explicitly (with the HTML defaults) so the rule applies even before
         // the operator opens the Smart Fill rules popover.
-        pto_counts_toward_cap: !(sfRules && sfRules.pto_counts_toward_cap === false),
+        pto_counts_toward_cap: true,
         // How many hours an approved-PTO day consumes from the weekly cap.
         // Operator definition: a PTO day = "the number of hours the block is
         // set to". So read the explicit PTO-hours field if set, else fall back
