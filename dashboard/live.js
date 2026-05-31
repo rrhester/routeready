@@ -55004,6 +55004,12 @@ document.addEventListener("click", async (e) => {
       if (_card) {
         _card.style.position = "fixed";
         _card.style.margin = "0";
+        // Pin an explicit width. The card's CSS is width:100%;max-width:520px,
+        // and once it's position:fixed that 100% resolves to the whole
+        // viewport — which made `left = anchorX - width` go negative and the
+        // card slam to the left edge full-width. Lock it to its intended
+        // width so it actually sits next to the button.
+        _card.style.width = Math.min(520, window.innerWidth - 16) + "px";
         requestAnimationFrame(() => {
           const pad = 8, gap = 10;
           const w = _card.offsetWidth, h = _card.offsetHeight;
