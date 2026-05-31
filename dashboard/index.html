@@ -14969,14 +14969,16 @@ body.rr-cmdk-open{ overflow:hidden }
                           var b = document.body.classList;
                           b.remove("rr-sched-compact");
                           b.remove("rr-sched-ultra-compact");
+                          b.remove("rr-sched-super-compact");
                           if (mode === "compact") b.add("rr-sched-compact");
                           else if (mode === "ultra") b.add("rr-sched-ultra-compact");
+                          else if (mode === "super") b.add("rr-sched-super-compact");
                           // Mirror to the existing binary toggle's
                           // aria-pressed so the icon-strip button still
                           // reflects the right state when density is set
                           // from the popover.
                           var btn = document.getElementById("rr-sched-compact-toggle");
-                          if (btn) btn.setAttribute("aria-pressed", (mode === "compact" || mode === "ultra") ? "true" : "false");
+                          if (btn) btn.setAttribute("aria-pressed", (mode === "standard") ? "false" : "true");
                         }
                         function syncRadios(mode) {
                           var ins = document.querySelectorAll('input[name="rr-sched-density"]');
@@ -14984,14 +14986,14 @@ body.rr-cmdk-open{ overflow:hidden }
                         }
                         var stored = null;
                         try { stored = localStorage.getItem(KEY); } catch (e) {}
-                        if (stored !== "standard" && stored !== "compact" && stored !== "ultra") stored = "standard";
+                        if (stored !== "standard" && stored !== "compact" && stored !== "ultra" && stored !== "super") stored = "standard";
                         apply(stored);
                         setTimeout(function () { syncRadios(stored); }, 0);
                         document.addEventListener("change", function (e) {
                           var t = e.target;
                           if (!t || t.name !== "rr-sched-density") return;
                           var v = t.value;
-                          if (v !== "standard" && v !== "compact" && v !== "ultra") return;
+                          if (v !== "standard" && v !== "compact" && v !== "ultra" && v !== "super") return;
                           try { localStorage.setItem(KEY, v); } catch (er) {}
                           apply(v);
                           syncRadios(v);
@@ -15267,6 +15269,13 @@ body.rr-cmdk-open{ overflow:hidden }
                           <span class="rr-sched-density-opt-sub">Slimmest rows. Maximum drivers per screen for a planning-week overview.</span>
                         </span>
                       </label>
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-density" value="super" />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">Super-compact</span>
+                          <span class="rr-sched-density-opt-sub">Tightest rows — the most drivers on screen at once. Keeps every shift detail (time, wave, van).</span>
+                        </span>
+                      </label>
                     </fieldset>
                   </div>
                 </div>
@@ -15325,6 +15334,13 @@ body.rr-cmdk-open{ overflow:hidden }
                         <span class="rr-sched-density-opt-body">
                           <span class="rr-sched-density-opt-title">Ultra-compact</span>
                           <span class="rr-sched-density-opt-sub">Slimmest rows. Maximum drivers per screen for a planning-week overview.</span>
+                        </span>
+                      </label>
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-density" value="super" />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">Super-compact</span>
+                          <span class="rr-sched-density-opt-sub">Tightest rows — the most drivers on screen at once. Keeps every shift detail (time, wave, van).</span>
                         </span>
                       </label>
                     </fieldset>
