@@ -1017,6 +1017,15 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    wrap, and no pill renders underneath it. */
 #view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills{
   position: relative;
+}
+/* Only reserve the gear's 40px when the gear is actually mounted. The
+   same #rr-sched-kpis host is reused by the Today and Requests
+   subviews, which repaint its contents WITHOUT the gear. Reserving
+   space there would just shrink the flex content width and — given the
+   strip's flex-wrap + overflow:hidden + 46px height lock — could wrap
+   the last KPI onto the clipped second row. :has scopes the padding to
+   the week view, the only subview that mounts .sched-kpi-config. */
+#view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills:has(.sched-kpi-config){
   padding-right: 40px;
 }
 
