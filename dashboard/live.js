@@ -36719,6 +36719,24 @@ async function renderScheduleWeek() {
     if (r.driver_id && r.date) vanByDriverDate.add(`${r.driver_id}|${r.date}`);
   }
   for (const [, list] of femUsage) list.sort();
+
+  // Van assignments · scheduled driver-days with NO van. A driver is
+  // "missing a van" if any of their assigned (non-training) shifts this week
+  // has no vehicle_day_assignment. Computed at function scope so BOTH the
+  // Van assignments KPI and the driver-card warning icon can read it.
+  const driversMissingVan = new Set();
+  let dayShiftsMissingVan = 0;
+  for (const sh of (grid.shifts || [])) {
+    if (!sh.driver_id) continue;
+    if (!["scheduled", "completed"].includes(sh.status)) continue;
+    if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
+    if (!vanByDriverDate.has(`${sh.driver_id}|${sh.date}`)) {
+      driversMissingVan.add(sh.driver_id);
+      dayShiftsMissingVan += 1;
+    }
+  }
+  const vanMissCount = driversMissingVan.size;
+
   const femWeekDates = [];
   for (let i = 0; i < 7; i++) femWeekDates.push(fmtIsoDate(addDays(weekStart, i)));
   // For each branded van we collect two things across the visible
@@ -36902,22 +36920,9 @@ async function renderScheduleWeek() {
       ? "Every branded non-grounded van stays under the 14-day rotation rule this week"
       : `Click for details · ${femRisks.length} branded van${femRisks.length === 1 ? "" : "s"} projected to cross 13+ days unused`;
 
-    // ── Van assignments KPI ──────────────────────────────────────────
-    // Count scheduled driver-days with NO van. A driver counts as missing
-    // a van if any of their assigned (non-training) shifts this week has no
-    // vehicle_day_assignment. Training / ride-along days don't need a van.
-    const driversMissingVan = new Set();
-    let dayShiftsMissingVan = 0;
-    for (const sh of (grid.shifts || [])) {
-      if (!sh.driver_id) continue;
-      if (!["scheduled", "completed"].includes(sh.status)) continue;
-      if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
-      if (!vanByDriverDate.has(`${sh.driver_id}|${sh.date}`)) {
-        driversMissingVan.add(sh.driver_id);
-        dayShiftsMissingVan += 1;
-      }
-    }
-    const vanMissCount = driversMissingVan.size;
+    // Van assignments KPI · counts computed at the function scope (see
+    // driversMissingVan / vanMissCount above) so the driver card can read
+    // the same set.
     const vanSub = vanMissCount === 0
       ? "Every scheduled driver has a van"
       : `${dayShiftsMissingVan} shift${dayShiftsMissingVan === 1 ? "" : "s"} without a van`;
