@@ -35262,11 +35262,19 @@ async function openShiftEditModal(arg) {
     const w = m.offsetWidth, h = m.offsetHeight;
     const ax = Number.isFinite(addOpts.anchorX) ? addOpts.anchorX : window.innerWidth / 2;
     const ay = Number.isFinite(addOpts.anchorY) ? addOpts.anchorY : window.innerHeight / 2;
-    // Prefer down-right of the cursor; flip to the other side if it would
-    // overflow, so the card always stays close to where they clicked.
-    let left = ax + gap;
+    // Add mode opens to the LEFT of the click; edit / time-off open to the
+    // right (the existing-shift behavior the operator already knows). Each
+    // flips to the other side only if it would run off that edge, so the
+    // card always stays on-screen and close to where they clicked.
+    let left;
+    if (isAdd) {
+      left = ax - w - gap;
+      if (left < pad) left = ax + gap;            // not enough room left → go right
+    } else {
+      left = ax + gap;
+      if (left + w > window.innerWidth - pad) left = ax - w - gap;  // overflow right → go left
+    }
     let top  = ay + gap;
-    if (left + w > window.innerWidth - pad)  left = ax - w - gap;
     if (top + h  > window.innerHeight - pad) top  = ay - h - gap;
     left = Math.max(pad, Math.min(left, window.innerWidth - w - pad));
     top  = Math.max(pad, Math.min(top,  window.innerHeight - h - pad));
