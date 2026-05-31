@@ -25570,7 +25570,13 @@ async function loadServiceTypes() {
   const types = data || [];
   _okamiServiceTypes = types;
   if (!wrap) return;
-  wrap.innerHTML = types.map(t => `
+  // EDV / Step Van are vehicle types, not service types (Van type lives on
+  // the vehicle now), so hide them from the Service Types manager. The rows
+  // stay in the DB (and in _okamiServiceTypes) so nothing referencing them
+  // breaks — they're just not shown/editable here.
+  wrap.innerHTML = types
+    .filter(t => !["EDV", "STEP"].includes(String(t.code || "").toUpperCase()))
+    .map(t => `
     <div data-rr-st="${t.id}" class="rr-drawer-st-row">
       <label class="rr-toggle" title="Active in OKAMI">
         <input type="checkbox" data-rr-st-active ${t.active ? "checked" : ""}/>
