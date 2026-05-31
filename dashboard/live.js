@@ -35426,9 +35426,18 @@ async function openShiftEditModal(arg) {
         }
       } catch (_) {}
       if (!document.getElementById("rr-shift-edit-service")) return; // modal closed
-      const curId = isAdd ? "" : (sh.service_type_id || "");
-      sel.innerHTML = `<option value="">Standard (SP)</option>` + svcs.map(s =>
-        `<option value="${escapeHtml(s.id)}"${String(s.id) === String(curId) ? " selected" : ""}>${escapeHtml(s.code ? (s.label ? s.code + " · " + s.label : s.code) : (s.label || s.id))}</option>`
+      // List the DSP's real service types only — no hardcoded "Standard (SP)"
+      // option (that duplicated the DSP's own SP / Standard Parcel type).
+      // Default selection: the shift's current type, else the SP ("standard")
+      // type if the DSP defines one, else the first.
+      if (!svcs.length) { sel.innerHTML = `<option value="">Standard</option>`; return; }
+      let selId = isAdd ? "" : (sh.service_type_id || "");
+      if (!selId) {
+        const sp = svcs.find(s => String(s.code || "").toUpperCase() === "SP");
+        selId = sp ? sp.id : svcs[0].id;
+      }
+      sel.innerHTML = svcs.map(s =>
+        `<option value="${escapeHtml(s.id)}"${String(s.id) === String(selId) ? " selected" : ""}>${escapeHtml(s.code ? (s.label ? s.code + " · " + s.label : s.code) : (s.label || s.id))}</option>`
       ).join("");
     })();
   }
