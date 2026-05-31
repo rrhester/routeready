@@ -37565,6 +37565,12 @@ async function renderScheduleWeek() {
   // ── Driver rows + Unassigned + Coverage strip
   const wrap = sub.querySelector(".cal-wrap");
   if (!wrap) return;
+  // Preserve the operator's scroll position across the row rebuild below.
+  // We strip and re-add every driver row, which resets the grid's
+  // scrollTop to 0 and makes it "jump" to the top after add/delete/edit.
+  // Capture before stripping; restore once the rows are back.
+  const _prevScrollTop  = wrap.scrollTop;
+  const _prevScrollLeft = wrap.scrollLeft;
   Array.from(wrap.children).forEach(el => {
     if (!el.classList.contains("head")) el.remove();
   });
@@ -37773,7 +37779,15 @@ async function renderScheduleWeek() {
   // PD rows removed — Open Shifts pool on the right covers the same need
   // without taking grid real estate. Coverage strip stays.
   wrap.insertAdjacentHTML("beforeend", driverRowsHtml + coverageStripHtml + emptyHtml);
-  requestAnimationFrame(_schedFitGrid);
+  // Put the operator back where they were before the rebuild — and again
+  // after fit-sizing, since changing maxHeight can clamp scrollTop.
+  wrap.scrollTop  = _prevScrollTop;
+  wrap.scrollLeft = _prevScrollLeft;
+  requestAnimationFrame(() => {
+    _schedFitGrid();
+    wrap.scrollTop  = _prevScrollTop;
+    wrap.scrollLeft = _prevScrollLeft;
+  });
 
   // Strip mockup-injected banners that reference fake RR_DRIVERS data.
   const lic = document.getElementById("sched-license-banner");
