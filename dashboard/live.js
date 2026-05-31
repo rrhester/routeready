@@ -36758,14 +36758,6 @@ async function renderScheduleWeek() {
   for (const cell of (grid.coverage || [])) {
     plannedByDate.set(cell.date, (plannedByDate.get(cell.date) || 0) + (cell.needed || 0));
   }
-  // Raw route target per date (okami_demand.target_routes, BEFORE cushion) —
-  // surfaced under the day-of-week number as "Target N" so the operator sees
-  // the route count they keyed into the plan, distinct from the
-  // cushion-inflated coverage denominator.
-  const targetByDate = new Map();
-  for (const cell of (grid.coverage || [])) {
-    targetByDate.set(cell.date, (targetByDate.get(cell.date) || 0) + (cell.target_routes || 0));
-  }
   // Count scheduled shift ROWS and FILLED rows per date separately, so the
   // denominator can stay the PLAN (not the row count). This makes overage
   // visible: if a day is planned for 7 but 8 shifts exist, it reads 8/7
@@ -37687,10 +37679,7 @@ async function renderScheduleWeek() {
         const color = c.filled >= c.needed ? "var(--green)" : "var(--red)";
         coverageLine = `<span class="day-coverage" style="color:${color}">${c.filled}/${c.needed}</span>`;
       }
-      // Raw plan target (before cushion), under the day number.
-      const _tgt = targetByDate.get(iso) || 0;
-      const targetLine = _tgt > 0 ? `<span class="day-target">Target ${_tgt}</span>` : "";
-      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${targetLine}${coverageLine}`;
+      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${coverageLine}`;
     }
   }
 
