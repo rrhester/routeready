@@ -2515,6 +2515,27 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
   border-radius: 3px !important;
 }
 
+/* XL-route corner badge · a small black circle with white "XL" pinned to
+   the chip's bottom-right corner so XL routes read at a glance. */
+#view-schedule.rrx-schedule .shift-chip-xl-badge {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #000;
+  color: #fff;
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  pointer-events: none;
+}
+
 /* Restrained, flush chips · the prior blue-tinted lift shadow added
    to the page's blue wash and made chips feel pillowy. Assigned
    chips now sit flush as defined tiles, leaning on their clearer
