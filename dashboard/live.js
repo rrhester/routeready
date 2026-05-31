@@ -28724,15 +28724,20 @@ document.addEventListener("click", async (e) => {
   if (e.target.closest("#schedule-cta, #rr-sched-finalize-h")) {
     e.preventDefault();
     const target = !window._rrWeekFinalized;
-    if (target) {
-      const ok = await _rrConfirmDialog({
-        title: "Finalize this week?",
-        body: "This marks the schedule live for drivers. Edits after this will trigger a warning prompt.",
-        confirmLabel: "Finalize",
-        cancelLabel: "Cancel",
-      });
-      if (!ok) return;
-    }
+    const ok = target
+      ? await _rrConfirmDialog({
+          title: "Finalize this week?",
+          body: "This marks the schedule live for drivers. Edits after this will trigger a warning prompt.",
+          confirmLabel: "Finalize",
+          cancelLabel: "Cancel",
+        })
+      : await _rrConfirmDialog({
+          title: "Unfinalize this week?",
+          body: "This returns the week to draft. Drivers will no longer see it as their live schedule until you finalize again.",
+          confirmLabel: "Unfinalize",
+          cancelLabel: "Cancel",
+        });
+    if (!ok) return;
     await _setWeekFinalized(target);
   }
 });
@@ -29778,19 +29783,12 @@ document.addEventListener("click", (e) => {
         }
       }
 
-      // Finalize — toggle the Draft / Live status pill next to the
-      // Schedule title. The forwarded click still runs the existing
-      // finalize / live workflow on #rr-sched-finalize-h.
-      if (isTile && key === "finalize") {
-        const pill = document.getElementById("rr-sched-v2-status");
-        if (pill) {
-          const now = pill.getAttribute("data-state");
-          const next = now === "live" ? "draft" : "live";
-          pill.setAttribute("data-state", next);
-          const lbl = pill.querySelector(".sched-v2-status-label");
-          if (lbl) lbl.textContent = next === "live" ? "Live" : "Draft";
-        }
-      }
+      // Finalize tile: do NOT optimistically flip the Draft/Live pill here.
+      // The forwarded click now opens a confirm dialog that can be
+      // cancelled — flipping early would leave the pill showing the wrong
+      // state on Cancel. _updateFinalizeButton() (called by
+      // _setWeekFinalized after the dialog is confirmed) syncs the pill
+      // from the real finalized state.
 
       if (sel) {
         const target = document.querySelector(sel);
