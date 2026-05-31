@@ -24117,6 +24117,20 @@ async function _runUnassignAllShiftsForWeek(triggerEl) {
     triggerEl.setAttribute("aria-busy", "true");
     if (isTextBtn) triggerEl.textContent = "Unassigning…";
   }
+  // Snapshot the assignments we're about to clear so the bulk action can
+  // be undone (restores each shift's prior driver). Same filter as the
+  // clear below so the snapshot matches exactly what gets unassigned.
+  let _priorAssign = [];
+  try {
+    const { data: _pa } = await sb.from("shifts")
+      .select("id, driver_id")
+      .eq("dsp_id", dspId)
+      .gte("date", _schedStart)
+      .lte("date", weekEndIso)
+      .not("driver_id", "is", null)
+      .not("shift_kind", "in", "(training,ride_along)");
+    _priorAssign = _pa || [];
+  } catch (_) {}
   // Only clear route shifts. Classroom training + ride-alongs are deliberate
   // driver↔driver pairings (trainee/trainer) and must survive Unassign all,
   // same as PTO / time-off (which live in time_off_requests, not shifts).
@@ -24142,6 +24156,21 @@ async function _runUnassignAllShiftsForWeek(triggerEl) {
     reverted = ok !== false;
   }
   toast(`Unassigned ${count ?? "all"} shifts for the week${reverted ? " · schedule back to draft" : ""}`, "success");
+  if (_priorAssign.length && typeof _rrPushUndo === "function") {
+    _rrPushUndo({
+      label: `Unassigned all · ${_priorAssign.length} shift${_priorAssign.length === 1 ? "" : "s"}`,
+      undo: async () => {
+        // Restore each shift's prior driver. (Re-finalizing the week, if it
+        // auto-reverted to draft, is left to the operator.)
+        for (const row of _priorAssign) {
+          const { error: e2 } = await sb.from("shifts")
+            .update({ driver_id: row.driver_id }).eq("id", row.id);
+          if (e2) throw new Error(e2.message);
+        }
+        if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+      },
+    });
+  }
   if (typeof renderScheduleWeek === "function") renderScheduleWeek();
 }
 
@@ -35429,7 +35458,7 @@ async function openShiftEditModal(arg) {
           status.textContent = ""; return;
         }
         _markLocalShiftMutation();
-        const { error: createErr } = await sb.rpc("create_shift", {
+        const { data: createdRow, error: createErr } = await sb.rpc("create_shift", {
           p_payload: {
             date: addDate,
             station_id: addOpts.stationId,
@@ -35447,6 +35476,19 @@ async function openShiftEditModal(arg) {
           return;
         }
         toast("Shift added", "success");
+        // Undo an add by deleting the row create_shift returned.
+        const _createdId = createdRow && createdRow.id;
+        if (_createdId && typeof _rrPushUndo === "function") {
+          _rrPushUndo({
+            label: `Shift added${addDate ? " · " + addDate : ""}`,
+            undo: async () => {
+              _markLocalShiftMutation();
+              const { error: undoErr } = await sb.from("shifts").delete().eq("id", _createdId);
+              if (undoErr) throw new Error(undoErr.message);
+              if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+            },
+          });
+        }
         close();
         if (typeof loadScheduleView === "function") loadScheduleView();
         else renderScheduleWeek();
@@ -35472,6 +35514,8 @@ async function openShiftEditModal(arg) {
 
       status.textContent = "Saving…";
       status.style.color = "var(--text-subtle)";
+      // Capture the pre-edit times + route type so the change can be undone.
+      const _prevStart = sh.starts_at, _prevEnd = sh.ends_at, _prevClass = sh.route_classification;
       const { error: upErr } = await sb
         .from("shifts")
         .update({
@@ -35486,6 +35530,19 @@ async function openShiftEditModal(arg) {
         return;
       }
       toast("Shift updated", "success");
+      if (typeof _rrPushUndo === "function") {
+        _rrPushUndo({
+          label: `Shift time changed${sh.date ? " · " + sh.date : ""}`,
+          undo: async () => {
+            _markLocalShiftMutation();
+            const { error: undoErr } = await sb.from("shifts")
+              .update({ starts_at: _prevStart, ends_at: _prevEnd, route_classification: _prevClass })
+              .eq("id", shiftId);
+            if (undoErr) throw new Error(undoErr.message);
+            if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+          },
+        });
+      }
       close();
       renderScheduleWeek();
     }
@@ -40176,9 +40233,22 @@ async function materializeVirtualShiftToDriver(payload, driverId, cell) {
     source: "manual",
   };
   _markLocalShiftMutation();
-  const { error } = await sb.rpc("create_shift", { p_payload: insertPayload });
+  const { data: createdRow, error } = await sb.rpc("create_shift", { p_payload: insertPayload });
   if (error) { toast("Create + assign failed: " + error.message, "warn"); return; }
   toast(violations.length > 0 ? "Created (override)" : "Shift created and assigned", "success");
+  // Undo a drag-create by deleting the row it produced.
+  const _createdId = createdRow && createdRow.id;
+  if (_createdId && typeof _rrPushUndo === "function") {
+    _rrPushUndo({
+      label: `Shift created${date ? " · " + date : ""}`,
+      undo: async () => {
+        _markLocalShiftMutation();
+        const { error: undoErr } = await sb.from("shifts").delete().eq("id", _createdId);
+        if (undoErr) throw new Error(undoErr.message);
+        if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+      },
+    });
+  }
   renderScheduleWeek();
 }
 
