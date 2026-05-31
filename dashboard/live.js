@@ -28984,12 +28984,32 @@ async function _paintFleetCalendar() {
   }
 
   // Header row · Van label + 7 day headers.
+  // Per-day availability (mirrors the Schedule grid's coverage line):
+  // available = total fleet − vans out for service/grounding that day.
+  // Only count events for ACTIVE (non-archived) vans — totalVans excludes
+  // archived ones, so an archived van with a lingering event must not be
+  // subtracted (would understate / go negative). (Codex review.)
+  const activeVanIds = new Set(vans.map(v => v.id));
+  const outByDay = dayIsos.map(() => new Set());
+  for (const ev of events) {
+    if (!ev.vehicle_id || !activeVanIds.has(ev.vehicle_id)) continue;
+    const evEnd = ev.end_date || ev.event_date;
+    dayIsos.forEach((iso, i) => {
+      if (iso >= ev.event_date && iso <= evEnd) outByDay[i].add(ev.vehicle_id);
+    });
+  }
+  const totalVans = vans.length;
   let head = `<div class="rr-fc-cell-head rr-fc-vancol-head" style="grid-row:1;grid-column:1">Van</div>`;
   days.forEach((d, di) => {
     const cls = (fmtIsoDate(d) === todayIso ? " is-today" : "") + (di === 6 ? " rr-fc-col-last" : "");
+    const avail = totalVans - outByDay[di].size;
+    const covColor = totalVans === 0 ? "" : avail >= totalVans ? "#16a34a" : avail <= 0 ? "#dc2626" : "#d97706";
+    const covLine = totalVans > 0
+      ? `<span class="rr-fc-cov" style="color:${covColor}">${avail} / ${totalVans}</span>`
+      : "";
     head += `<div class="rr-fc-cell-head${cls}" style="grid-row:1;grid-column:${di + 2}">`
       + `<span class="rr-fc-dow">${escapeHtml(d.toLocaleDateString(undefined, { weekday: "short" }).toUpperCase())}</span>`
-      + `<span class="rr-fc-dnum">${d.getDate()}</span></div>`;
+      + `<span class="rr-fc-dnum">${d.getDate()}</span>${covLine}</div>`;
   });
 
   // One row per van · empty day cells (click targets) plus a layer of
