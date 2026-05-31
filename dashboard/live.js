@@ -28724,15 +28724,20 @@ document.addEventListener("click", async (e) => {
   if (e.target.closest("#schedule-cta, #rr-sched-finalize-h")) {
     e.preventDefault();
     const target = !window._rrWeekFinalized;
-    if (target) {
-      const ok = await _rrConfirmDialog({
-        title: "Finalize this week?",
-        body: "This marks the schedule live for drivers. Edits after this will trigger a warning prompt.",
-        confirmLabel: "Finalize",
-        cancelLabel: "Cancel",
-      });
-      if (!ok) return;
-    }
+    const ok = target
+      ? await _rrConfirmDialog({
+          title: "Finalize this week?",
+          body: "This marks the schedule live for drivers. Edits after this will trigger a warning prompt.",
+          confirmLabel: "Finalize",
+          cancelLabel: "Cancel",
+        })
+      : await _rrConfirmDialog({
+          title: "Unfinalize this week?",
+          body: "This returns the week to draft. Drivers will no longer see it as their live schedule until you finalize again.",
+          confirmLabel: "Unfinalize",
+          cancelLabel: "Cancel",
+        });
+    if (!ok) return;
     await _setWeekFinalized(target);
   }
 });
