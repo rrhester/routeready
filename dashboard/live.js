@@ -36747,7 +36747,11 @@ async function renderScheduleWeek() {
   const visWeekDates = [];
   for (let i = 0; i < 7; i++) visWeekDates.push(fmtIsoDate(addDays(weekStart, i)));
   const vanUnavail = new Set(); // `${vehicleId}|${iso}`
+<<<<<<< HEAD
   for (const v of (femVehRes?.data || [])) {
+=======
+  for (const v of vehicles) {
+>>>>>>> origin/main
     if ((v.operational_status || "operational") === "grounded") {
       for (const iso of visWeekDates) vanUnavail.add(`${v.id}|${iso}`);
     }
