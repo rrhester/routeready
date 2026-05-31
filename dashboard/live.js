@@ -54956,6 +54956,30 @@ document.addEventListener("click", async (e) => {
     m.innerHTML = _kudosBuildPanel(opts || {}, picks);
     document.body.appendChild(m);
 
+    // When the caller passes anchor coords (e.g. the Kudos ribbon button),
+    // open the card next to the button instead of dead-centering it.
+    if (Number.isFinite(opts?.anchorX) || Number.isFinite(opts?.anchorY)) {
+      const _card = m.querySelector(".rr-kudos-card");
+      if (_card) {
+        _card.style.position = "fixed";
+        _card.style.margin = "0";
+        requestAnimationFrame(() => {
+          const pad = 8, gap = 10;
+          const w = _card.offsetWidth, h = _card.offsetHeight;
+          const ax = Number.isFinite(opts.anchorX) ? opts.anchorX : window.innerWidth / 2;
+          const ay = Number.isFinite(opts.anchorY) ? opts.anchorY : 80;
+          // Drop down from the button, right edge aligned to it; clamp/flip
+          // so the card always stays on-screen.
+          let left = ax - w;
+          let top  = ay + gap;
+          left = Math.max(pad, Math.min(left, window.innerWidth - w - pad));
+          if (top + h > window.innerHeight - pad) top = Math.max(pad, ay - h - gap);
+          _card.style.left = left + "px";
+          _card.style.top  = top + "px";
+        });
+      }
+    }
+
     let selectedPick = 0;
     let driverId = opts?.driver?.id || null;
 
@@ -55078,9 +55102,11 @@ document.addEventListener("click", async (e) => {
 
   // Kudos icon click · global send (no driver pre-selected).
   document.addEventListener("click", (e) => {
-    if (e.target.closest("#rr-sched-kudos-h")) {
+    const _kbtn = e.target.closest("#rr-sched-kudos-h");
+    if (_kbtn) {
       e.preventDefault();
-      openKudosModal({});
+      const r = _kbtn.getBoundingClientRect();
+      openKudosModal({ anchorX: r.right, anchorY: r.bottom });
     }
   });
 })();
