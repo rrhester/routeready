@@ -22371,6 +22371,13 @@ body.rr-cmdk-open{ overflow:hidden }
               font-variant-numeric:tabular-nums;
             }
             .rr-fc-cell-head.is-today .rr-fc-dnum{color:var(--sch-blue)}
+            /* Per-day availability line — mirrors the Schedule grid's
+               .day-coverage (vans available / total fleet that day). */
+            .rr-fc-cov{
+              display:block;margin-top:1px;
+              font-size:12px;font-weight:700;letter-spacing:0;
+              font-variant-numeric:tabular-nums;
+            }
             .rr-fc-vancol{
               padding:6px 14px;
               display:flex;align-items:center;
@@ -22449,6 +22456,7 @@ body.rr-cmdk-open{ overflow:hidden }
             body.rr-sched-super-compact .rr-fc-dnum{ font-size:16px; }
             body.rr-sched-super-compact .rr-fc-cell{ min-height:30px !important; padding:0 3px; }
             body.rr-sched-super-compact .rr-fc-vancol{ min-height:30px; }
+            body.rr-sched-super-compact .rr-fc-cov{ display:none; }
             body.rr-sched-ultra-compact .rr-fc-event-bar,
             body.rr-sched-super-compact .rr-fc-event-bar{ height:30px; }
           </style>
