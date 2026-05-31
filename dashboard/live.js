@@ -28726,6 +28726,11 @@ async function _paintFleetCalendar() {
   const host = document.getElementById("rr-fleet-cal-host");
   if (!host) return;
 
+  // Activate any service groundings whose window now includes today
+  // (best-effort — never blocks the paint). No cron needed; this fires
+  // whenever the operator views the calendar.
+  try { await sb.rpc("fleet_apply_service_groundings"); } catch (_) {}
+
   const days = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(_fleetCalWeekStart);
@@ -29208,6 +29213,15 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId, anchorEv) {
           </div>
           <div id="rr-fc-f-repeat-hint" style="display:none;font-size:var(--fs-xs);color:var(--text-subtle)"></div>
         </div>`}
+        <div style="display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--border);padding-top:var(--s-3-5);margin-top:var(--s-1)">
+          <label style="display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);font-weight:600;cursor:pointer">
+            <input type="checkbox" id="rr-fc-f-ground" ${ev.service_grounds_vehicle ? "checked" : ""} />
+            Ground this van while it's in the shop
+          </label>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4">
+            Grounds the van on the Fleet roster on the day this service starts, so scheduling won't assign it. When the window ends, the roster shows an alert asking you to confirm un-grounding.
+          </div>
+        </div>
         <label style="display:flex;flex-direction:column;gap:4px">
           <span style="font-size:var(--fs-sm);font-weight:600">Notes</span>
           <textarea id="rr-fc-f-notes" class="form-input" rows="3" maxlength="500" placeholder="Optional">${escapeHtml(ev.notes || "")}</textarea>
@@ -29316,8 +29330,10 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId, anchorEv) {
     const start  = m.querySelector("#rr-fc-f-start").value || null;
     const end    = m.querySelector("#rr-fc-f-end").value || null;
     const notes  = m.querySelector("#rr-fc-f-notes").value.trim() || null;
+    const groundVan = !!m.querySelector("#rr-fc-f-ground")?.checked;
     if (!title) { status.textContent = "Add a title."; return; }
     if (!van)   { status.textContent = "Pick a van.";  return; }
+    if (groundVan && !van) { status.textContent = "Grounding needs a van."; return; }
     if (!date)  { status.textContent = "Pick a start date."; return; }
     if (endDate && endDate < date) { status.textContent = "End date can't be before the start date."; return; }
     const saveBtn = m.querySelector("#rr-fc-save");
@@ -29337,6 +29353,7 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId, anchorEv) {
           const { error } = await sb.rpc("fleet_calendar_event_upsert", {
             p_id: null, p_title: title, p_event_date: occ.date, p_end_date: occ.endDate,
             p_vehicle_id: van, p_vendor_id: vendor, p_start_time: start, p_end_time: end, p_notes: notes,
+            p_service_grounds: groundVan,
           });
           if (error) throw error;
         }
@@ -29345,8 +29362,13 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId, anchorEv) {
         const { error } = await sb.rpc("fleet_calendar_event_upsert", {
           p_id: ev.id, p_title: title, p_event_date: date, p_end_date: endDate,
           p_vehicle_id: van, p_vendor_id: vendor, p_start_time: start, p_end_time: end, p_notes: notes,
+          p_service_grounds: groundVan,
         });
         if (error) throw error;
+      }
+      // If any saved window includes today, ground the van now (best-effort).
+      if (groundVan) {
+        try { await sb.rpc("fleet_apply_service_groundings"); } catch (_) {}
       }
       close();
       _paintFleetCalendar();
@@ -47766,7 +47788,34 @@ async function _flLoadRoster() {
   _flPopulateStationFilter(_fleetRows);
   _flRenderRoster();
   _flPaintTabCounts();
+  _flRenderUngroundAlerts();
 }
+
+// Service-grounding un-ground alerts. A van grounded for a scheduled service
+// window whose window has now ended surfaces here so the DSP can confirm
+// putting it back in service (the back end only ungrounds if it's still
+// grounded for THAT service event — a real breakdown ground is left alone).
+async function _flRenderUngroundAlerts() {
+  const host = document.getElementById("rr-fleet-unground-alerts");
+  if (!host) return;
+  let rows = [];
+  try {
+    const { data, error } = await sb.rpc("fleet_service_unground_alerts");
+    if (error) throw error;
+    rows = Array.isArray(data) ? data : [];
+  } catch (e) { host.innerHTML = ""; return; }
+  if (!rows.length) { host.innerHTML = ""; return; }
+  host.innerHTML = rows.map((r) => `
+    <div class="fl-unground-alert" data-rr-unground-event="${escapeHtml(r.event_id)}"
+         style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:8px;border:1px solid var(--amber,#E6A100);background:var(--amber-soft,#FFF7E6);border-radius:var(--r-md,8px)">
+      <span style="flex:1;font-size:var(--fs-sm)">
+        <strong>${escapeHtml(r.vehicle_name || "Van")}</strong> was grounded for ${escapeHtml(r.title || "service")} (through ${escapeHtml(r.end_date)}). Its service window has ended — return it to service?
+      </span>
+      <button type="button" class="btn btn-sm" data-rr-unground-dismiss="${escapeHtml(r.event_id)}">Keep grounded</button>
+      <button type="button" class="btn btn-sm btn-primary" data-rr-unground-confirm="${escapeHtml(r.event_id)}">Un-ground</button>
+    </div>`).join("");
+}
+window._flRenderUngroundAlerts = _flRenderUngroundAlerts;
 
 // ─── Fleet Execution KPIs (FEM + VORR) ───────────────────────────────
 // One RPC powers both cards, both drill-downs, and the recommendations
@@ -48872,7 +48921,35 @@ document.addEventListener("change", (e) => {
   }
 });
 
-document.addEventListener("click", (e) => {
+document.addEventListener("click", async (e) => {
+  // Service-grounding un-ground alert · confirm / dismiss.
+  const ugConfirm = e.target.closest("[data-rr-unground-confirm]");
+  if (ugConfirm) {
+    e.preventDefault(); e.stopPropagation();
+    const eventId = ugConfirm.getAttribute("data-rr-unground-confirm");
+    ugConfirm.disabled = true;
+    try {
+      const { data, error } = await sb.rpc("fleet_confirm_service_unground", { p_event_id: eventId });
+      if (error) throw error;
+      if (data && data.ungrounded) toast("Van returned to service", "success");
+      else toast("Van stayed grounded — it's grounded for another reason now", "warn");
+    } catch (err) {
+      toast("Couldn't un-ground: " + (err?.message || "try again"), "warn");
+      ugConfirm.disabled = false;
+      return;
+    }
+    if (typeof loadFleetView === "function") loadFleetView();
+    return;
+  }
+  const ugDismiss = e.target.closest("[data-rr-unground-dismiss]");
+  if (ugDismiss) {
+    e.preventDefault(); e.stopPropagation();
+    // Just hide this alert for now; it returns on next load until ungrounded.
+    const card = ugDismiss.closest(".fl-unground-alert");
+    if (card) card.remove();
+    return;
+  }
+
   // Doc-exception chip on the roster — open drawer directly to Documents
   const docChip = e.target.closest("#fleet-tbody [data-rr-veh-doc]");
   if (docChip) {
