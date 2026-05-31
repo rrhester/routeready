@@ -28664,12 +28664,74 @@ function _confirmLiveScheduleEdit() {
   return confirm("This week's schedule is LIVE — drivers may have already seen it.\n\nMake the change anyway?");
 }
 
+// Lightweight in-app confirm dialog — replaces window.confirm() so we don't
+// get the browser's page-dimming native prompt. Transparent backdrop (no
+// blur/scrim), a small card with the app's chrome, returns a Promise<bool>.
+function _rrConfirmDialog(opts) {
+  opts = opts || {};
+  return new Promise((resolve) => {
+    document.getElementById("rr-confirm-backdrop")?.remove();
+    document.getElementById("rr-confirm-modal")?.remove();
+    const backdrop = document.createElement("div");
+    backdrop.id = "rr-confirm-backdrop";
+    backdrop.style.cssText = "position:fixed;inset:0;background:transparent;z-index:10000";
+    document.body.appendChild(backdrop);
+    const m = document.createElement("div");
+    m.id = "rr-confirm-modal";
+    m.setAttribute("role", "dialog");
+    m.setAttribute("aria-modal", "true");
+    m.style.cssText =
+      "position:fixed;left:50%;top:84px;transform:translateX(-50%);width:380px;" +
+      "max-width:calc(100vw - 24px);background:var(--surface,#fff);" +
+      "border:1px solid var(--border,#E1DFDD);border-radius:12px;" +
+      "box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:10001;opacity:0;" +
+      "transition:opacity 120ms ease-out;overflow:hidden";
+    m.innerHTML =
+      '<div style="padding:16px 18px 14px">' +
+        (opts.title ? '<div style="font-size:15px;font-weight:700;margin-bottom:6px;color:var(--text,#201F1E)">' + escapeHtml(opts.title) + '</div>' : '') +
+        '<div style="font-size:13px;line-height:1.5;color:var(--text-subtle,#605E5C)">' + escapeHtml(opts.body || '') + '</div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border,#E1DFDD);background:var(--canvas,#FAF9F8)">' +
+        '<button type="button" class="btn btn-sm" data-rr-confirm-cancel>' + escapeHtml(opts.cancelLabel || "Cancel") + '</button>' +
+        '<button type="button" class="btn btn-sm btn-primary" data-rr-confirm-ok>' + escapeHtml(opts.confirmLabel || "Confirm") + '</button>' +
+      '</div>';
+    document.body.appendChild(m);
+    requestAnimationFrame(() => { m.style.opacity = "1"; });
+    let done = false;
+    const finish = (val) => {
+      if (done) return; done = true;
+      document.removeEventListener("keydown", onKey);
+      m.style.opacity = "0";
+      setTimeout(() => { m.remove(); backdrop.remove(); }, 120);
+      resolve(val);
+    };
+    const onKey = (ev) => {
+      if (ev.key === "Escape") finish(false);
+      else if (ev.key === "Enter") finish(true);
+    };
+    document.addEventListener("keydown", onKey);
+    backdrop.addEventListener("click", () => finish(false));
+    m.addEventListener("click", (ev) => {
+      if (ev.target.closest("[data-rr-confirm-cancel]")) finish(false);
+      else if (ev.target.closest("[data-rr-confirm-ok]")) finish(true);
+    });
+    requestAnimationFrame(() => m.querySelector("[data-rr-confirm-ok]")?.focus());
+  });
+}
+window._rrConfirmDialog = _rrConfirmDialog;
+
 document.addEventListener("click", async (e) => {
   if (e.target.closest("#schedule-cta, #rr-sched-finalize-h")) {
     e.preventDefault();
     const target = !window._rrWeekFinalized;
     if (target) {
-      if (!confirm("Finalize this week and mark it as live for drivers? Edits after this will trigger a warning prompt.")) return;
+      const ok = await _rrConfirmDialog({
+        title: "Finalize this week?",
+        body: "This marks the schedule live for drivers. Edits after this will trigger a warning prompt.",
+        confirmLabel: "Finalize",
+        cancelLabel: "Cancel",
+      });
+      if (!ok) return;
     }
     await _setWeekFinalized(target);
   }
@@ -35490,55 +35552,55 @@ async function openShiftEditModal(arg) {
         // violate per-driver rules. The shift doesn't exist yet, so pass a
         // synthesized candidate (id:null + date + times), exactly like the
         // drag-create path does.
+        let _violations = [];
         if (addDriver && typeof _checkAssignViolations === "function") {
           status.textContent = "Checking rules…";
           status.style.color = "var(--text-subtle)";
-          let _violations = [];
           try {
             _violations = await _checkAssignViolations(null, addDate, addDriver, {
               id: null, date: addDate, starts_at: startsAtIso, ends_at: endsAtIso,
             });
           } catch (_) { _violations = []; }
-          if (_violations && _violations.length) {
-            // Show the violations INLINE on the card (not a browser confirm)
-            // and turn the primary button into "Add anyway" so a second
-            // click schedules despite them. We key the acknowledgement to
-            // the exact violation set, so changing the driver/day/time
-            // re-checks and re-warns instead of silently slipping through.
-            // Key the acknowledgement to the selected driver/day/times too,
-            // not just the message text — otherwise switching to a different
-            // driver whose violation reads identically (e.g. two drivers both
-            // "no availability set") would reuse the prior ack and create the
-            // shift without re-warning for the new driver.
-            const _key = [addDriver, addDate, startsAtIso, endsAtIso, _violations.join("|")].join("§");
-            if (_ackedViolationsKey !== _key) {
-              _ackedViolationsKey = _key;
-              status.innerHTML =
-                '<div style="background:var(--red-soft,#FDE7E7);border:1px solid var(--red-border,#F3B5B5);'
-                + 'border-radius:8px;padding:8px 10px;color:var(--red-dark,#B42318);font-size:12px;line-height:1.45;text-align:left">'
-                + '<div style="font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px">'
-                + '<span aria-hidden="true">&#9888;</span>Rule violation' + (_violations.length > 1 ? "s" : "") + '</div>'
-                + '<ul style="margin:0;padding-left:18px">' + _violations.map(v => '<li>' + escapeHtml(v) + '</li>').join("") + '</ul>'
-                + '<div style="margin-top:5px">Press <strong>Add anyway</strong> to schedule despite this.</div>'
-                + '</div>';
-              status.style.color = "";
-              const _saveBtn = m.querySelector("[data-rr-shift-edit-save]");
-              if (_saveBtn) _saveBtn.textContent = "Add anyway";
-              return;
-            }
-            // Same violations already shown — the operator clicked
-            // "Add anyway", so fall through and create.
-          } else {
-            // Cleared (driver/day/time changed to something valid) — drop
-            // any prior acknowledgement so a later violation warns again.
-            _ackedViolationsKey = null;
+        }
+        // Surface BOTH gates inline on the card (no browser popups): editing
+        // a LIVE/finalized week, and any rule violations for the chosen
+        // driver. The primary button becomes "Add anyway" and a second click
+        // schedules despite them. The acknowledgement is keyed to the
+        // driver/day/times + the exact warning set, so any change re-checks
+        // and re-warns instead of slipping through.
+        const _warnings = [];
+        if (window._rrWeekFinalized) {
+          _warnings.push("This week's schedule is live — drivers may have already seen it.");
+        }
+        for (const v of (_violations || [])) _warnings.push(v);
+        if (_warnings.length) {
+          const _key = [addDriver, addDate, startsAtIso, endsAtIso, _warnings.join("|")].join("§");
+          if (_ackedViolationsKey !== _key) {
+            _ackedViolationsKey = _key;
+            const _head = _violations.length
+              ? ("Rule violation" + (_violations.length > 1 ? "s" : ""))
+              : "Heads up";
+            status.innerHTML =
+              '<div style="background:var(--red-soft,#FDE7E7);border:1px solid var(--red-border,#F3B5B5);'
+              + 'border-radius:8px;padding:8px 10px;color:var(--red-dark,#B42318);font-size:12px;line-height:1.45;text-align:left">'
+              + '<div style="font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px">'
+              + '<span aria-hidden="true">&#9888;</span>' + _head + '</div>'
+              + '<ul style="margin:0;padding-left:18px">' + _warnings.map(v => '<li>' + escapeHtml(v) + '</li>').join("") + '</ul>'
+              + '<div style="margin-top:5px">Press <strong>Add anyway</strong> to schedule despite this.</div>'
+              + '</div>';
+            status.style.color = "";
+            const _saveBtn = m.querySelector("[data-rr-shift-edit-save]");
+            if (_saveBtn) _saveBtn.textContent = "Add anyway";
+            return;
           }
+          // Same set already shown — operator clicked "Add anyway" → create.
+        } else {
+          // Nothing to warn about now (valid selection, draft week) — clear
+          // any prior acknowledgement so a later warning shows again.
+          _ackedViolationsKey = null;
         }
         status.textContent = "Saving…";
         status.style.color = "var(--text-subtle)";
-        if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) {
-          status.textContent = ""; return;
-        }
         _markLocalShiftMutation();
         const { data: createdRow, error: createErr } = await sb.rpc("create_shift", {
           p_payload: {
