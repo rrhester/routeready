@@ -2379,7 +2379,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
    Scoped to Standard only: Compact (34px) and Ultra-compact (24px)
    deliberately keep empty cells short for a denser heat-map grid. */
-body:not(.rr-sched-compact):not(.rr-sched-ultra-compact)
+body:not(.rr-sched-compact):not(.rr-sched-ultra-compact):not(.rr-sched-super-compact)
   #view-schedule.rrx-schedule .cal-cell:not(.cal-row-label) {
   aspect-ratio: auto !important;
   min-height: 68px !important;
