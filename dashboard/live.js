@@ -36187,12 +36187,7 @@ function _schedShiftChip(sh, extras) {
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';
   const trainingCls = extras?.traineeName ? ' shift-chip-training' : '';
-  // XL route → a small black circle with white "XL" pinned to the chip's
-  // bottom-right corner so XL routes stand out at a glance.
-  const xlCorner = (String(sh.service_type_code || "").toUpperCase() === "XL")
-    ? `<span class="shift-chip-xl-badge" aria-label="XL route" title="XL route">XL</span>`
-    : "";
-  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" style="position:relative;${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}${vanLine}${xlCorner}</div>`;
+  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" style="${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}${vanLine}</div>`;
 }
 
 function _schedDriverInitials(name) {
