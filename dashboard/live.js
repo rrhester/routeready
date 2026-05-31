@@ -31199,13 +31199,13 @@ async function _assignVansForRange(startIso, endIso, dspId) {
   // and overrides (for chain seeding) in a single round-trip.
   const [shiftsRes, vehRes, chainRes, assignmentsRes, fleetEvRes] = await Promise.all([
     sb.from("shifts")
-      .select("id, date, driver_id, status, starts_at, station_id, route_code")
+      .select("id, date, driver_id, status, starts_at, station_id, route_code, service_type_id")
       .eq("dsp_id", dspId)
       .gte("date", startIso).lte("date", endIso)
       .in("status", ["scheduled", "completed", "late"])
       .not("driver_id", "is", null),
     sb.from("vehicles")
-      .select("id, name, plate, status, operational_status, is_branded, archived_at")
+      .select("id, name, plate, status, operational_status, is_branded, archived_at, van_type")
       .eq("dsp_id", dspId)
       .is("archived_at", null),
     sb.from("vehicle_driver_assignments")
@@ -31286,6 +31286,45 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     list.push(r);
     overridesByDate.set(r.date, list);
   }
+
+  // ── Box-truck ↔ route compatibility ───────────────────────────────────
+  // Operator rule: a Box Truck (vehicles.van_type='box_truck') runs ONLY
+  // XL or ASU routes, and an XL route runs ONLY a Box Truck. To enforce it
+  // the engine needs each shift's service type (by code) and each van's
+  // type. We resolve the DSP's service types once, classify every
+  // driver-day as "xl" / "asu" / "other", and gate every van write.
+  let _stById = new Map();
+  try {
+    const { data: _sts } = await sb.from("service_types")
+      .select("id, code").eq("dsp_id", dspId);
+    for (const s of (_sts || [])) _stById.set(s.id, String(s.code || "").toUpperCase());
+  } catch (_) {}
+  // `${driver_id}|${date}` → route kind for that driver-day. A driver only
+  // holds one shift/day here, so the first non-other code wins.
+  const routeKindByDriverDate = new Map();
+  for (const s of shifts) {
+    if (!s.driver_id) continue;
+    const code = s.service_type_id ? (_stById.get(s.service_type_id) || "") : "";
+    const kind = code === "XL" ? "xl" : code === "ASU" ? "asu" : "other";
+    const key = `${s.driver_id}|${s.date}`;
+    if (kind !== "other" || !routeKindByDriverDate.has(key)) {
+      routeKindByDriverDate.set(key, kind);
+    }
+  }
+  const vanTypeOf = (vehId) => (vehById.get(vehId) || {}).van_type || null;
+  // Is this van allowed on the route the driver runs that date?
+  //   • Box truck → only XL or ASU.
+  //   • XL route  → only a box truck.
+  //   • ASU route → box truck or anything else (no restriction beyond the
+  //     box-truck-only-XL/ASU rule, which a box truck already satisfies).
+  //   • Other routes → any non-box-truck.
+  const vanCompatible = (vehId, driverId, date) => {
+    const kind = routeKindByDriverDate.get(`${driverId}|${date}`) || "other";
+    const isBox = vanTypeOf(vehId) === "box_truck";
+    if (kind === "xl")  return isBox;          // XL needs a box truck
+    if (kind === "asu") return true;           // ASU: box truck or anything
+    return !isBox;                              // SP/other: never a box truck
+  };
 
   // ── FEM (Fleet Execution / 14-day rotation) helpers — branded only ──
   //
@@ -31448,6 +31487,7 @@ async function _assignVansForRange(startIso, endIso, dspId) {
         if (!primary) continue;
         if (!scheduled.has(primary.driver_id)) continue;
         if (driverAssigned.has(primary.driver_id)) continue;
+        if (!vanCompatible(v.id, primary.driver_id, date)) continue;
         recordWrite(primary.driver_id, v.id, "primary");
       }
     }
@@ -31464,6 +31504,7 @@ async function _assignVansForRange(startIso, endIso, dspId) {
         for (const b of backups) {
           if (!scheduled.has(b.driver_id)) continue;
           if (driverAssigned.has(b.driver_id)) continue;
+          if (!vanCompatible(v.id, b.driver_id, date)) continue;
           recordWrite(b.driver_id, v.id, "secondary");
           break;
         }
@@ -31479,16 +31520,36 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     let poolDrivers = [];
     let poolVans    = [];
     if (rules.pool_fill) {
+      // Order by route restrictiveness FIRST: XL drivers can ONLY take a
+      // box truck, so they must claim before flexible ASU drivers (who
+      // accept any van) — otherwise an ASU driver could grab the only box
+      // truck and leave an XL route open. xl → asu → other, alphabetical
+      // within each. (Codex review: don't let driver-id order waste a
+      // scarce box truck on a flexible ASU route.)
+      const _kindRank = (d) => {
+        const k = routeKindByDriverDate.get(`${d}|${date}`) || "other";
+        return k === "xl" ? 0 : k === "asu" ? 1 : 2;
+      };
       poolDrivers = Array.from(scheduled)
         .filter(d => !driverAssigned.has(d))
-        .sort();
+        .sort((a, b) => (_kindRank(a) - _kindRank(b)) || (a < b ? -1 : a > b ? 1 : 0));
       poolVans = vansToday.filter(v => !vanAssigned.has(v.id));
-      const pair = Math.min(poolDrivers.length, poolVans.length);
-      for (let i = 0; i < pair; i++) {
-        recordWrite(poolDrivers[i], poolVans[i].id, "pool");
+      // Compatibility-aware greedy match (can't index-pair: a box truck
+      // only fits an XL/ASU driver, an XL driver only fits a box truck).
+      // Vans stay FEM-sorted; for each driver take the first still-free
+      // van that's compatible with their route that day.
+      const claimed = new Set();
+      let matched = 0;
+      for (const d of poolDrivers) {
+        const van = poolVans.find(v => !claimed.has(v.id) && vanCompatible(v.id, d, date));
+        if (!van) continue;  // no compatible van → driver stays open
+        claimed.add(van.id);
+        recordWrite(d, van.id, "pool");
+        matched++;
       }
-      if (poolDrivers.length > poolVans.length) {
-        unassigned += poolDrivers.length - poolVans.length;
+      // Anyone who couldn't be matched to a compatible van is unassigned.
+      if (poolDrivers.length > matched) {
+        unassigned += poolDrivers.length - matched;
       }
     } else {
       // When pool fill is off, the chain-less scheduled drivers
@@ -31548,7 +31609,12 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     // Returns the freshest donor or null. Skips donor vans that
     // are themselves in the risk/violation tier — pushing those
     // an extra day idle would just move the problem.
-    const _pickDonor = (rankWanted) => {
+    // fitFn (optional): only consider donors whose driver is compatible
+    // with the at-risk van being rescued. Scans ALL candidates and returns
+    // the freshest that fits — so an incompatible freshest donor doesn't
+    // make rescue give up when a later compatible donor exists. (Codex
+    // review.)
+    const _pickDonor = (rankWanted, fitFn) => {
       const candidates = [];
       for (const [drvId, vehId] of driverAssigned) {
         if (!scheduled.has(drvId)) continue; // override-pinned, not on shift
@@ -31557,6 +31623,7 @@ async function _assignVansForRange(startIso, endIso, dspId) {
         const isPrimary = (chainEntry.rank | 0) === 0;
         if (rankWanted === 0 && !isPrimary) continue;
         if (rankWanted > 0 && isPrimary) continue;
+        if (fitFn && !fitFn(drvId)) continue; // incompatible with the rescue van
         const last = lastUsedAsOf(vehId, date);
         const days = last ? daysBetween(date, last) : Infinity;
         if (days >= 11) continue; // donor van too close to risk — would worsen FEM
@@ -31566,15 +31633,18 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       return candidates[0] || null;
     };
     for (const v of atRiskUnassigned) {
+      // A driver can only be rotated onto this at-risk van if their route
+      // that day is compatible with the van's type (box-truck rule).
+      const fits = (drvId) => vanCompatible(v.id, drvId, date);
       // (a) Pool — likely empty after phase 2, but check anyway.
-      const poolLeft = Array.from(scheduled).find(d => !driverAssigned.has(d));
+      const poolLeft = Array.from(scheduled).find(d => !driverAssigned.has(d) && fits(d));
       if (poolLeft) {
         recordWrite(poolLeft, v.id, "rescue-from-pool");
         continue;
       }
       // (b) Displace a secondary (guarded by rescue_secondary rule).
       if (rules.rescue_secondary) {
-        const sec = _pickDonor(1);
+        const sec = _pickDonor(1, fits);
         if (sec) {
           driverAssigned.delete(sec.drvId);
           vanAssigned.delete(sec.vehId);
@@ -31585,7 +31655,7 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       }
       // (c) Displace a primary (guarded by rescue_primary rule).
       if (rules.rescue_primary) {
-        const pri = _pickDonor(0);
+        const pri = _pickDonor(0, fits);
         if (pri) {
           driverAssigned.delete(pri.drvId);
           vanAssigned.delete(pri.vehId);
