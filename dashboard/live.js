@@ -25570,7 +25570,13 @@ async function loadServiceTypes() {
   const types = data || [];
   _okamiServiceTypes = types;
   if (!wrap) return;
-  wrap.innerHTML = types.map(t => `
+  // EDV / Step Van are vehicle types, not service types (Van type lives on
+  // the vehicle now), so hide them from the Service Types manager. The rows
+  // stay in the DB (and in _okamiServiceTypes) so nothing referencing them
+  // breaks — they're just not shown/editable here.
+  wrap.innerHTML = types
+    .filter(t => !["EDV", "STEP"].includes(String(t.code || "").toUpperCase()))
+    .map(t => `
     <div data-rr-st="${t.id}" class="rr-drawer-st-row">
       <label class="rr-toggle" title="Active in OKAMI">
         <input type="checkbox" data-rr-st-active ${t.active ? "checked" : ""}/>
@@ -35421,8 +35427,20 @@ async function openShiftEditModal(arg) {
       try {
         if (dspId) {
           const { data } = await sb.from("service_types")
-            .select("id, code, label").eq("dsp_id", dspId).eq("active", true).order("code");
-          svcs = data || [];
+            .select("id, code, label").eq("dsp_id", dspId).order("code");
+          // EDV / Step Van are vehicle types, not service types (Van type
+          // lives on the vehicle now), so hide just those two from the
+          // picker. Every other service type is shown, active or not — the
+          // earlier active-only filter wrongly hid ASU/HUB/XL too.
+          const all = data || [];
+          svcs = all.filter(s => !["EDV", "STEP"].includes(String(s.code || "").toUpperCase()));
+          // But if THIS shift is already on a hidden (EDV/STEP) type, keep
+          // that option in the list so editing the time/route doesn't
+          // silently convert it to another service type on save.
+          if (!isAdd && sh.service_type_id) {
+            const cur = all.find(s => String(s.id) === String(sh.service_type_id));
+            if (cur && !svcs.some(s => String(s.id) === String(cur.id))) svcs.push(cur);
+          }
         }
       } catch (_) {}
       if (!document.getElementById("rr-shift-edit-service")) return; // modal closed
