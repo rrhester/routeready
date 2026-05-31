@@ -1084,8 +1084,19 @@ function _schedFitGrid() {
   // Snapshot and restore the scroll position around the resize so the
   // operator stays exactly where they were.
   const _st = wrap.scrollTop, _sl = wrap.scrollLeft;
+  // Size against the actual scroll parent (.tcp-body), NOT the viewport.
+  // window.innerHeight is fixed, so `innerHeight - grid.top` changed every
+  // time chrome above the grid (KPI strip filling in, a banner appearing,
+  // the page settling on navigation) shifted the grid's viewport `top` —
+  // and it runs 2-3 times per render (sync + rAF + body ResizeObserver),
+  // so the grid stepped through heights = the "grows then shrinks" bounce.
+  // Measuring the gap between the grid's top and its container's bottom is
+  // invariant to that: when the chrome shifts the whole block, top and
+  // bottom move together, so the height stays put.
   const top = wrap.getBoundingClientRect().top;
-  const h = Math.max(320, window.innerHeight - top - 36);
+  const scroller = wrap.closest(".tcp-body");
+  const bottom = scroller ? scroller.getBoundingClientRect().bottom : window.innerHeight - 36;
+  const h = Math.max(320, bottom - top - 12);
   wrap.style.maxHeight = h + "px";
   // The right rail (Open shifts) shares the row — cap it to the same
   // height so it can't stretch the page taller than the viewport.
