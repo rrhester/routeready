@@ -3052,6 +3052,90 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-targ
 }
 
 /* ============================================================
+   SUPER-COMPACT density · tighter than ultra-compact. Goal: the
+   most driver rows on screen at once WITHOUT dropping any shift
+   detail — time range, wave, and van all stay visible, just
+   smaller. Empty ("Off") rows clamp to a 30px floor; staffed
+   cells grow to fit the chip (height:auto), so the chip's font +
+   line-height drive how tight a staffed row packs.
+   ============================================================ */
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-cell:not(.cal-row-label) {
+  aspect-ratio: auto !important;
+  min-height: 30px !important;
+  padding: 0 3px !important;
+}
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  min-height: 30px !important;
+}
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
+  width: 15px !important;
+  height: 15px !important;
+  font-size: 8px !important;
+}
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label-name {
+  font-size: 10px !important;
+  line-height: 1.05 !important;
+  font-weight: 600 !important;
+}
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label-meta {
+  font-size: 9px !important;
+  line-height: 1.05 !important;
+  margin-top: 0 !important;
+  font-weight: 600 !important;
+  color: var(--text-muted) !important;
+}
+/* Same as ultra-compact: drop the station code + the word "scheduled";
+   keep the hours number itself. */
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label-station,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label-sep,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label-hours-word {
+  display: none !important;
+}
+body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip {
+  padding: 0 3px !important;
+  line-height: 1 !important;
+  min-height: 0 !important;
+  border-radius: 3px !important;
+}
+/* KEEP every shift detail visible — time range, wave, and van — just
+   shrink them. This is the whole point of the tier: max drivers, no
+   lost van/time info. */
+body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-route,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-route-code,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-primary,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-secondary,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-time,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-wave,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-van {
+  display: block !important;
+  font-size: 9.5px !important;
+  line-height: 1.08 !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-van-tag,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip .badge-st,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip .badge-trainee {
+  display: revert !important;
+}
+/* Staffed cells grow to fit the chip; empty cells clamp to the 30px floor. */
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-cell:not(.cal-row-label):has(.shift-chip) {
+  height: auto !important;
+}
+body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-fifth-day::after {
+  display: none !important;
+}
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
+  display: none !important;
+}
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-cell-head .day-coverage,
+body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-cell-head .day-target {
+  font-size: 9px !important;
+}
+
+/* ============================================================
    Faux scrollbar · always visible regardless of OS/browser
    ------------------------------------------------------------
    Rendered by live.js into the parent of any container marked

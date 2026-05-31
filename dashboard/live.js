@@ -24287,16 +24287,19 @@ document.addEventListener("click", (e) => {
   if (compactBtn) {
     e.preventDefault();
     e.stopPropagation();
-    const ORDER = ["standard", "compact", "ultra"];
-    const cur = document.body.classList.contains("rr-sched-ultra-compact")
-      ? "ultra"
-      : document.body.classList.contains("rr-sched-compact")
-        ? "compact"
-        : "standard";
+    const ORDER = ["standard", "compact", "ultra", "super"];
+    const cur = document.body.classList.contains("rr-sched-super-compact")
+      ? "super"
+      : document.body.classList.contains("rr-sched-ultra-compact")
+        ? "ultra"
+        : document.body.classList.contains("rr-sched-compact")
+          ? "compact"
+          : "standard";
     const next = ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length];
-    document.body.classList.remove("rr-sched-compact", "rr-sched-ultra-compact");
+    document.body.classList.remove("rr-sched-compact", "rr-sched-ultra-compact", "rr-sched-super-compact");
     if (next === "compact")      document.body.classList.add("rr-sched-compact");
     else if (next === "ultra")   document.body.classList.add("rr-sched-ultra-compact");
+    else if (next === "super")   document.body.classList.add("rr-sched-super-compact");
     try { localStorage.setItem("rr-sched-density", next); } catch (_) {}
     // Keep the Week-rules density radios in sync.
     document.querySelectorAll('input[name="rr-sched-density"]').forEach((r) => {
@@ -24305,7 +24308,8 @@ document.addEventListener("click", (e) => {
     const TITLE = {
       standard: "Grid density: Standard — click for Compact",
       compact:  "Grid density: Compact — click for Ultra-compact",
-      ultra:    "Grid density: Ultra-compact — click for Standard",
+      ultra:    "Grid density: Ultra-compact — click for Super-compact",
+      super:    "Grid density: Super-compact — click for Standard",
     };
     compactBtn.setAttribute("aria-pressed", next === "standard" ? "false" : "true");
     compactBtn.title = TITLE[next];
