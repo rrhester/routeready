@@ -36139,7 +36139,7 @@ function _schedShiftChip(sh, extras) {
   const stCode = sh.service_type_code;
   const stColor = sh.service_type_color || "#0F6CBD";
   const stBadge = (stCode && stCode !== "SP")
-    ? `<span style="display:inline-block;background:${escapeHtml(stColor)};color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
+    ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
     : "";
   // Trainee badge — when a ride-along shift exists on the same date with
   // trainer_driver_id pointing at this driver, surface it so the trainer
@@ -36187,7 +36187,7 @@ function _schedShiftChip(sh, extras) {
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';
   const trainingCls = extras?.traineeName ? ' shift-chip-training' : '';
-  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" style="${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}${vanLine}</div>`;
+  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}${vanLine}</div>`;
 }
 
 function _schedDriverInitials(name) {
