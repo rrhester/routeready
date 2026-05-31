@@ -2441,6 +2441,15 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift
   box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-road_training) 22%, transparent) !important;
 }
 
+/* PTO / time-off chips are clickable — clicking one offers to remove the
+   approved time off (driver changed their mind). Signal that affordance
+   with a pointer cursor and a faint hover outline. */
+#view-schedule.rrx-schedule .shift-chip.timeoff[data-rr-pto-id]{ cursor: pointer; }
+#view-schedule.rrx-schedule .shift-chip.timeoff[data-rr-pto-id]:hover{
+  outline: 2px solid color-mix(in srgb, var(--rr-route-c-pto) 55%, transparent);
+  outline-offset: -1px;
+}
+
 /* PTO / time-off chips. Unlike the route-class rules above (which exclude
    .timeoff), this targets the time-off chip directly so the DSP can recolor
    it. The chip's amber comes from a CSS class (index.html), so these

@@ -35346,6 +35346,25 @@ async function openShiftEditModal(arg) {
         const addKind   = selKind; // from the Route type selection (training vs regular)
         const addRoute  = document.getElementById("rr-shift-edit-routecode")?.value?.trim() || "";
         if (!addDate) { status.textContent = "Date is required."; status.style.color = "var(--red)"; return; }
+        // Backstop the grid guard: never schedule a driver on a day they
+        // already have approved time off (PTO or unpaid). Covers any
+        // entry point into this modal. RLS scopes the query to the
+        // current DSP, so no dsp_id filter is needed.
+        if (addDriver) {
+          const { data: ptoHit } = await sb.from("time_off_requests")
+            .select("id, is_pto")
+            .eq("driver_id", addDriver)
+            .eq("status", "approved")
+            .lte("start_date", addDate)
+            .gte("end_date", addDate)
+            .limit(1);
+          if (ptoHit && ptoHit.length) {
+            const kind = ptoHit[0].is_pto ? "PTO" : "approved time off";
+            status.textContent = `This driver has ${kind} on ${addDate}. Remove it first to schedule a shift.`;
+            status.style.color = "var(--red)";
+            return;
+          }
+        }
         const startsAtIso = new Date(`${addDate}T${newStart}:00`).toISOString();
         let endsAtIso     = new Date(`${addDate}T${newEnd}:00`).toISOString();
         if (new Date(endsAtIso) <= new Date(startsAtIso)) {
@@ -35836,6 +35855,47 @@ function _rrSchedKpiApplyVisibility(host) {
     const key = pill.getAttribute("data-rr-kpi");
     pill.style.display = visible.has(key) ? "" : "none";
   });
+}
+
+// Remove an approved PTO / time-off entry straight from the schedule
+// grid. A driver may change their mind, and a DSP needs to take the
+// time off back. We hard-delete the time_off_requests row (mirroring
+// the shift-delete flow: snapshot → delete → undo re-inserts), which
+// removes it from the grid, from Smart Fill's constraints, AND from the
+// PTO payroll report — all of which read live from the table filtered
+// to status='approved'. Any underlying shift that was hidden behind the
+// PTO chip becomes visible (and deletable) again once the PTO is gone.
+async function _rrRemoveSchedulePto(ds) {
+  if (!ds || !ds.rrPtoId) return;
+  const id    = ds.rrPtoId;
+  const label = ds.rrPtoLabel || "Time off";
+  const name  = ds.rrPtoDriverName || "this driver";
+  const start = ds.rrPtoStart || "";
+  const end   = ds.rrPtoEnd || "";
+  const range = (start && end && start !== end) ? `${start} – ${end}` : (start || "");
+  if (!confirm(
+    `Remove approved ${label} for ${name}${range ? ` (${range})` : ""}?\n\n`
+    + `This frees the day on the schedule and removes it from the PTO payroll report.`
+  )) return;
+  let snapshot = null;
+  try {
+    const { data: snap } = await sb.from("time_off_requests").select("*").eq("id", id).single();
+    snapshot = snap || null;
+  } catch (_) {}
+  const { error } = await sb.from("time_off_requests").delete().eq("id", id);
+  if (error) { toast("Couldn't remove time off: " + error.message, "warn"); return; }
+  toast(`${label} removed`, "success");
+  if (snapshot && typeof _rrPushUndo === "function") {
+    _rrPushUndo({
+      label: `${label} removed${range ? " · " + range : ""}`,
+      undo: async () => {
+        const { error: undoErr } = await sb.from("time_off_requests").insert(snapshot);
+        if (undoErr) throw new Error(undoErr.message);
+        if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+      },
+    });
+  }
+  if (typeof renderScheduleWeek === "function") renderScheduleWeek();
 }
 
 function _rrMountSchedKpiSelector(host) {
@@ -37415,7 +37475,15 @@ async function renderScheduleWeek() {
           const isPto = !!toMatch.is_pto;
           const label = isPto ? "PTO" : "Time off";
           const sub   = isPto ? "Approved · paid" : "Approved · unpaid";
-          return `<div class="${cls}" ${data} title="${escapeHtml(sub)}"><div class="shift-chip timeoff"><div class="shift-chip-route">${label}</div><div class="shift-chip-time" style="font-size:9px">${isPto ? "PTO" : "Unpaid"}</div></div></div>`;
+          // PTO chips are clickable so a DSP can take the time off back
+          // when a driver changes their mind. Removing it clears the day
+          // on the grid AND drops it from the PTO payroll report. Carry
+          // the request id + range so the click handler can confirm and
+          // delete without re-fetching.
+          const ptoName = d.preferred_name || d.full_name
+            || [d.first_name, d.last_name].filter(Boolean).join(" ").trim()
+            || "this driver";
+          return `<div class="${cls}" ${data} title="${escapeHtml(sub + " · click to remove")}"><div class="shift-chip timeoff" data-rr-pto-id="${toMatch.id}" data-rr-pto-label="${label}" data-rr-pto-driver-name="${escapeHtml(ptoName)}" data-rr-pto-start="${toMatch.start_date}" data-rr-pto-end="${toMatch.end_date}"><div class="shift-chip-route">${label}</div><div class="shift-chip-time" style="font-size:9px">${isPto ? "PTO" : "Unpaid"}</div></div></div>`;
         }
       }
       const list = shiftsByDriverDate.get(`${d.id}|${iso}`) || [];
@@ -37915,6 +37983,17 @@ function bindSchedWeekNav() {
     }
     if (e.target.closest("[data-rr-goto-drivers]")) { if (typeof window.goto === "function") window.goto("drivers"); return; }
 
+    // Click a PTO / time-off chip → offer to remove it. A driver may
+    // change their mind; the DSP takes the time off back here, which
+    // clears the day on the grid and drops it from the PTO payroll
+    // report (reporting reads live from approved time_off_requests).
+    const ptoChip = e.target.closest(".shift-chip.timeoff[data-rr-pto-id]");
+    if (ptoChip) {
+      e.stopPropagation();
+      if (typeof _rrRemoveSchedulePto === "function") _rrRemoveSchedulePto(ptoChip.dataset);
+      return;
+    }
+
     // Click an ASSIGNED shift chip (not open, off, or timeoff) → open
     // edit modal with start/end inputs + a Remove option, instead of
     // the old confirm-and-delete flow. Operators wanted to nudge a
@@ -37947,6 +38026,13 @@ function bindSchedWeekNav() {
     // Click empty driver-row cell → open add-shift modal pre-filled.
     const cell = e.target.closest('[data-rr-cell="driver-day"]');
     if (cell) {
+      // Approved time off blocks a manual add — a driver can't be both
+      // off and working the same day. (Clicking the PTO chip itself is
+      // handled above and offers to remove the time off.)
+      if (cell.querySelector(".shift-chip.timeoff")) {
+        toast("This driver has approved time off this day — remove it to schedule a shift.", "warn");
+        return;
+      }
       const hasShift = cell.querySelector(".shift-chip:not(.off):not(.timeoff)");
       if (hasShift) return;
       const date = cell.dataset.rrCellDate;
