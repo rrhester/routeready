@@ -376,8 +376,17 @@ def solve(req: SolveRequest) -> SolveResponse:
     objective_terms: list = []
 
     # 1. Coverage — bonus per covered open shift (= 1 - uncovered[s]).
+    # XL routes are prioritized: a covered XL shift earns W_COV * the XL
+    # multiplier, so when there aren't enough drivers to cover everything
+    # the solver leaves STANDARD routes open before XL ones (operator: "XL
+    # routes should be filled before other routes"). Covering both still
+    # beats covering either alone, so this only changes which routes lose
+    # out under genuine scarcity. Tunable via
+    # rules.weights.coverage_xl_multiplier (default 2).
+    W_COV_XL_MULT = int(weights.get("coverage_xl_multiplier", 2))
     for s in open_shifts:
-        objective_terms.append(W_COV * (1 - uncovered[s.id]))
+        w_cov_s = W_COV * W_COV_XL_MULT if s.route_type == "xl" else W_COV
+        objective_terms.append(w_cov_s * (1 - uncovered[s.id]))
 
     # 2. Affinity — bonus per assignment where the driver historically
     # works that DOW. weekday_affinity is 7 ints in [0, 100] from the
