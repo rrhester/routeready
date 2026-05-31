@@ -376,14 +376,17 @@ def solve(req: SolveRequest) -> SolveResponse:
     objective_terms: list = []
 
     # 1. Coverage — bonus per covered open shift (= 1 - uncovered[s]).
-    # XL routes are prioritized: a covered XL shift earns W_COV * the XL
-    # multiplier, so when there aren't enough drivers to cover everything
-    # the solver leaves STANDARD routes open before XL ones (operator: "XL
-    # routes should be filled before other routes"). Covering both still
-    # beats covering either alone, so this only changes which routes lose
-    # out under genuine scarcity. Tunable via
-    # rules.weights.coverage_xl_multiplier (default 2).
-    W_COV_XL_MULT = int(weights.get("coverage_xl_multiplier", 2))
+    # XL routes are prioritized hard: a covered XL shift earns W_COV * the
+    # XL multiplier. The default (1000) is large enough that ONE covered XL
+    # route outweighs covering every standard route combined, so the solver
+    # always fills XL before any standard route when drivers are scarce
+    # (operator: "XL routes should be filled before other routes"). It's
+    # still finite, so once all XL routes are covered the solver fills
+    # standard routes normally — XL priority never leaves a coverable
+    # standard route open. W_COV is 1e6 and soft terms are ≤100, so 1e9 per
+    # XL stays far under CP-SAT's int64 range. Tunable via
+    # rules.weights.coverage_xl_multiplier.
+    W_COV_XL_MULT = int(weights.get("coverage_xl_multiplier", 1000))
     for s in open_shifts:
         w_cov_s = W_COV * W_COV_XL_MULT if s.route_type == "xl" else W_COV
         objective_terms.append(w_cov_s * (1 - uncovered[s.id]))
