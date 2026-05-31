@@ -34358,8 +34358,12 @@ async function autoAssignDriversForWeek() {
         // explicitly (with the HTML defaults) so the rule applies even before
         // the operator opens the Smart Fill rules popover.
         pto_counts_toward_cap: !(sfRules && sfRules.pto_counts_toward_cap === false),
-        pto_hours_per_day: (Number.isFinite(parseFloat(sfRules && sfRules.pto_hours_per_day))
-          ? parseFloat(sfRules.pto_hours_per_day) : 10),
+        // The UI field saves under pto_default_hours (data-rr-sf-num); read it
+        // (fall back to the legacy/explicit pto_hours_per_day, then 10).
+        pto_hours_per_day: (() => {
+          const v = parseFloat(sfRules && (sfRules.pto_default_hours ?? sfRules.pto_hours_per_day));
+          return Number.isFinite(v) ? v : 10;
+        })(),
         // Minimum rest is a hard rule too — send it explicitly (default on)
         // so the CP-SAT solver enforces it even if the key wasn't toggled.
         min_rest: !(sfRules && sfRules.min_rest === false),
