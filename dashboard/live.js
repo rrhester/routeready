@@ -35497,7 +35497,12 @@ async function openShiftEditModal(arg) {
             // click schedules despite them. We key the acknowledgement to
             // the exact violation set, so changing the driver/day/time
             // re-checks and re-warns instead of silently slipping through.
-            const _key = _violations.join("|");
+            // Key the acknowledgement to the selected driver/day/times too,
+            // not just the message text — otherwise switching to a different
+            // driver whose violation reads identically (e.g. two drivers both
+            // "no availability set") would reuse the prior ack and create the
+            // shift without re-warning for the new driver.
+            const _key = [addDriver, addDate, startsAtIso, endsAtIso, _violations.join("|")].join("§");
             if (_ackedViolationsKey !== _key) {
               _ackedViolationsKey = _key;
               status.innerHTML =
