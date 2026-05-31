@@ -35684,6 +35684,7 @@ const _RR_SCHED_KPI_DEFS = [
   { key: "preferred",  label: "Preferred-day rate" },
   { key: "affinity",   label: "Affinity match" },
   { key: "rotation",   label: "Fleet rotation" },
+  { key: "vanassign",  label: "Van assignments" },
 ];
 const _RR_SCHED_KPI_VIS_KEY = "rr-sched-kpi-visible";
 
@@ -35934,6 +35935,18 @@ function _rrKpiStatusIcon(tier, label) {
   return `<svg viewBox="0 0 24 24" width="16" height="16"${al}>${grad}<circle cx="12" cy="12" r="10" fill="url(#${gid})" stroke="${p.edge}" stroke-width="1"/><rect x="11" y="6.5" width="2" height="7" rx="1" fill="#fff"/><circle cx="12" cy="16.7" r="1.2" fill="#fff"/></svg>`;
 }
 
+// Van-assignment warning icon · red circle (same family as the alert
+// status icon) with a white capital "V" glyph in the center. Used by the
+// Van assignments KPI and the driver card when a scheduled driver has no
+// van for one of their days.
+function _rrVanWarnIcon(label) {
+  const al = label ? ` aria-label="${label}"` : "";
+  const p = RR_KPI_ICON_PALETTE.red;
+  const gid = "rrVanGrad-" + Math.random().toString(36).slice(2, 8);
+  const grad = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${p.from}"/><stop offset="1" stop-color="${p.to}"/></linearGradient></defs>`;
+  return `<svg viewBox="0 0 24 24" width="16" height="16"${al}>${grad}<circle cx="12" cy="12" r="10" fill="url(#${gid})" stroke="${p.edge}" stroke-width="1"/><text x="12" y="16.6" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#fff">V</text></svg>`;
+}
+
 // FT/PT Mix status guardrails (on the Full-Time %). Returns the tier
 // plus the matching status icon + soft pill background, reusing the same
 // SVG style + soft tints as the Coverage KPI so the two read identically.
@@ -35997,7 +36010,7 @@ async function renderScheduleWeek() {
       .eq("dsp_id", dspId)
       .is("archived_at", null),
     sb.from("vehicle_day_assignments")
-      .select("vehicle_id, date")
+      .select("vehicle_id, driver_id, date")
       .eq("dsp_id", dspId)
       .gte("date", femLookbackIso).lte("date", weekEndIso),
   ]);
@@ -36695,10 +36708,15 @@ async function renderScheduleWeek() {
     && v.is_branded !== false
   );
   const femUsage = new Map(); // vehicle_id → sorted list of usage dates
+  // driver|date → true for every day a driver actually has a van assigned
+  // (vehicle_day_assignments). Used by the Van assignments KPI + driver card
+  // to flag scheduled driver-days with no van.
+  const vanByDriverDate = new Set();
   for (const r of (femAssignRes?.data || [])) {
     const list = femUsage.get(r.vehicle_id) || [];
     list.push(r.date);
     femUsage.set(r.vehicle_id, list);
+    if (r.driver_id && r.date) vanByDriverDate.add(`${r.driver_id}|${r.date}`);
   }
   for (const [, list] of femUsage) list.sort();
   const femWeekDates = [];
@@ -36883,6 +36901,27 @@ async function renderScheduleWeek() {
     const rotationTitle = femRisks.length === 0
       ? "Every branded non-grounded van stays under the 14-day rotation rule this week"
       : `Click for details · ${femRisks.length} branded van${femRisks.length === 1 ? "" : "s"} projected to cross 13+ days unused`;
+
+    // ── Van assignments KPI ──────────────────────────────────────────
+    // Count scheduled driver-days with NO van. A driver counts as missing
+    // a van if any of their assigned (non-training) shifts this week has no
+    // vehicle_day_assignment. Training / ride-along days don't need a van.
+    const driversMissingVan = new Set();
+    let dayShiftsMissingVan = 0;
+    for (const sh of (grid.shifts || [])) {
+      if (!sh.driver_id) continue;
+      if (!["scheduled", "completed"].includes(sh.status)) continue;
+      if (sh.shift_kind === "training" || sh.shift_kind === "ride_along") continue;
+      if (!vanByDriverDate.has(`${sh.driver_id}|${sh.date}`)) {
+        driversMissingVan.add(sh.driver_id);
+        dayShiftsMissingVan += 1;
+      }
+    }
+    const vanMissCount = driversMissingVan.size;
+    const vanSub = vanMissCount === 0
+      ? "Every scheduled driver has a van"
+      : `${dayShiftsMissingVan} shift${dayShiftsMissingVan === 1 ? "" : "s"} without a van`;
+
     kpis.innerHTML =
       pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, _covTier !== "green",
         "Click to see settings that would raise coverage", coverageIcon, coveragePillBg) +
@@ -37048,7 +37087,12 @@ async function renderScheduleWeek() {
           "Average driver affinity for their assigned weekdays, over the rolling period",
         );
       })() +
-      pill("rotation",   rotationDotRed ? msRed : navy, rotationLabel, rotationSub, femRisks.length > 0, rotationTitle);
+      pill("rotation",   rotationDotRed ? msRed : navy, rotationLabel, rotationSub, femRisks.length > 0, rotationTitle) +
+      pill("vanassign",  vanMissCount > 0 ? msRed : navy,
+        vanMissCount === 0 ? "Vans assigned" : `${vanMissCount} No van`,
+        vanSub, vanMissCount > 0,
+        vanMissCount === 0 ? "Every scheduled driver has a van this week" : "Driver(s) scheduled without a van — assign vans or check the fleet",
+        (_kpiColorOn && vanMissCount > 0) ? _rrVanWarnIcon("Driver(s) scheduled without a van") : undefined);
   }
   kpis.dataset.rrFemRisks    = JSON.stringify(femRisks);
   kpis.dataset.rrFemUpcoming = JSON.stringify(femUpcoming);
@@ -37199,6 +37243,12 @@ async function renderScheduleWeek() {
     const otIcon = netHours > 40
       ? `<span class="cal-row-label-ot" title="Scheduled over 40 hours — overtime" aria-label="Overtime: scheduled over 40 hours" style="margin-left:auto;display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrKpiStatusIcon("red", "Over 40 hours — overtime")}</span>`
       : "";
+    // No-van warning · red circle with a white "V" when this driver has any
+    // scheduled day this week without a van assigned. Sits at the card's
+    // right edge (after OT if both apply).
+    const vanWarnIcon = driversMissingVan.has(d.id)
+      ? `<span class="cal-row-label-vanwarn" title="Scheduled without a van" aria-label="Scheduled without a van" style="${otIcon ? "" : "margin-left:auto;"}display:inline-flex;align-items:center;flex-shrink:0;line-height:0;margin-left:6px">${_rrVanWarnIcon("Scheduled without a van")}</span>`
+      : "";
     // Expired-DL flag — passive visual cue next to the driver name so
     // the operator sees at a glance that scheduling will trigger a warning.
     const todayIsoForDL = fmtIsoDate(new Date());
@@ -37259,7 +37309,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}${prefCls}" ${data}>${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta"><span class="cal-row-label-station">${escapeHtml(station)}</span><span class="cal-row-label-sep"> · </span>${hoursLabelHTML}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div>${otIcon}</div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta"><span class="cal-row-label-station">${escapeHtml(station)}</span><span class="cal-row-label-sep"> · </span>${hoursLabelHTML}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div>${otIcon}${vanWarnIcon}</div>
       ${cells}
     </div>`;
   }).join("");
