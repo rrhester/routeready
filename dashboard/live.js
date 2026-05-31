@@ -35506,8 +35506,8 @@ async function openShiftEditModal(arg) {
             if (_ackedViolationsKey !== _key) {
               _ackedViolationsKey = _key;
               status.innerHTML =
-                '<div style="background:var(--amber-soft,#FEF3C7);border:1px solid var(--amber-border,#FCD34D);'
-                + 'border-radius:8px;padding:8px 10px;color:var(--amber-dark,#92400E);font-size:12px;line-height:1.45;text-align:left">'
+                '<div style="background:var(--red-soft,#FDE7E7);border:1px solid var(--red-border,#F3B5B5);'
+                + 'border-radius:8px;padding:8px 10px;color:var(--red-dark,#B42318);font-size:12px;line-height:1.45;text-align:left">'
                 + '<div style="font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px">'
                 + '<span aria-hidden="true">&#9888;</span>Rule violation' + (_violations.length > 1 ? "s" : "") + '</div>'
                 + '<ul style="margin:0;padding-left:18px">' + _violations.map(v => '<li>' + escapeHtml(v) + '</li>').join("") + '</ul>'
