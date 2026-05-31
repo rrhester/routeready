@@ -35421,7 +35421,7 @@ async function openShiftEditModal(arg) {
       try {
         if (dspId) {
           const { data } = await sb.from("service_types")
-            .select("id, code, label").eq("dsp_id", dspId).order("code");
+            .select("id, code, label").eq("dsp_id", dspId).eq("active", true).order("code");
           svcs = data || [];
         }
       } catch (_) {}
@@ -50404,6 +50404,13 @@ function _fdProfileHtml(v) {
         { value: "out_of_service", label: "Out of service" },
         { value: "retired", label: "Retired" },
       ]})}
+      ${_fdField("van_type", "Van type", "select", { options: [
+        { value: "", label: "—" },
+        { value: "edv", label: "EDV" },
+        { value: "step_van", label: "Step Van" },
+        { value: "cargo_van", label: "Cargo Van" },
+        { value: "box_truck", label: "Box Truck" },
+      ]})}
       <!-- Operational status is governed by the Fleet roster, not the
            drawer.  Show it read-only with a hint to the operator. -->
       <div class="fd-field">
@@ -50867,6 +50874,11 @@ async function _fdSaveProfile() {
   if (!args.p_name) { toast("Van name is required.", "warn"); return; }
   const { data, error } = await sb.rpc("vehicle_record_save", args);
   if (error) { toast("Save failed: " + error.message, "warn"); return; }
+  // Van type isn't a param on vehicle_record_save — persist it with a
+  // direct update (vehicles RLS allows dispatcher writes).
+  if (data && data.id) {
+    try { await sb.from("vehicles").update({ van_type: m.van_type || null }).eq("id", data.id); } catch (_) {}
+  }
   toast(cur.id ? "Van updated." : "Van created.", "ok");
   _fdPending = {};
   await loadFleetDrawer(data.id);
