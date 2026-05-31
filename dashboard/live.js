@@ -35421,8 +35421,12 @@ async function openShiftEditModal(arg) {
       try {
         if (dspId) {
           const { data } = await sb.from("service_types")
-            .select("id, code, label").eq("dsp_id", dspId).eq("active", true).order("code");
-          svcs = data || [];
+            .select("id, code, label").eq("dsp_id", dspId).order("code");
+          // EDV / Step Van are vehicle types, not service types (Van type
+          // lives on the vehicle now), so hide just those two from the
+          // picker. Every other service type is shown, active or not — the
+          // earlier active-only filter wrongly hid ASU/HUB/XL too.
+          svcs = (data || []).filter(s => !["EDV", "STEP"].includes(String(s.code || "").toUpperCase()));
         }
       } catch (_) {}
       if (!document.getElementById("rr-shift-edit-service")) return; // modal closed
