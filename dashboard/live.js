@@ -35473,10 +35473,11 @@ async function openShiftEditModal(arg) {
     // itself shouldn't exist (cancelled, mis-planned), not when a
     // driver just needs to come off.
     if (e.target.closest("[data-rr-shift-edit-delete]")) {
-      // Confirm inline on the card (no browser popup): first click surfaces
-      // a red warning and flips the button to "Confirm delete"; a second
-      // click removes the shift. Matches the add/edit inline-warning flow.
-      if (_ackedViolationsKey !== "delete-shift") {
+      // Only confirm on a LIVE (finalized) week — drivers may have seen it.
+      // On a draft, just delete; no warning needed. When confirming, the
+      // first click surfaces an inline warning and flips the button to
+      // "Confirm delete"; a second click removes the shift.
+      if (window._rrWeekFinalized && _ackedViolationsKey !== "delete-shift") {
         _ackedViolationsKey = "delete-shift";
         const _delStatus = document.getElementById("rr-shift-edit-status");
         if (_delStatus) {
@@ -35485,7 +35486,7 @@ async function openShiftEditModal(arg) {
             + 'border-radius:8px;padding:8px 10px;color:var(--red-dark,#B42318);font-size:12px;line-height:1.45;text-align:left">'
             + '<div style="font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px">'
             + '<span aria-hidden="true">&#9888;</span>Delete this shift?</div>'
-            + '<div>The planned slot will be removed from the day\'s count. Press <strong>Confirm delete</strong> to remove it.</div>'
+            + '<div>This week is live — drivers may have seen it. The planned slot will be removed from the day\'s count. Press <strong>Confirm delete</strong> to remove it.</div>'
             + '</div>';
           _delStatus.style.color = "";
         }
