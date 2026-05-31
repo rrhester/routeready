@@ -35490,8 +35490,13 @@ async function openShiftEditModal(arg) {
           });
         }
         close();
-        if (typeof loadScheduleView === "function") loadScheduleView();
-        else renderScheduleWeek();
+        // Repaint in place like delete/edit/unassign do. loadScheduleView()
+        // runs _clearScheduleMockup() (wipes the grid to a skeleton, then
+        // repaints), which resets the scroll position and makes the screen
+        // "bounce" on the first add. renderScheduleWeek() repaints the grid
+        // AND the open-shifts rail (loadOpenShifts is retired) without the
+        // wipe, so the view stays put.
+        if (typeof renderScheduleWeek === "function") renderScheduleWeek();
         return;
       }
 
