@@ -22437,18 +22437,18 @@ body.rr-cmdk-open{ overflow:hidden }
             /* Density — match the Schedule week grid so flipping
                Standard / Compact / Ultra / Super tightens the fleet
                calendar the same way. Unscoped (body class) so it applies
-               wherever the shared fleet-calendar node is mounted. */
-            body.rr-sched-compact .rr-fc-cell,
+               wherever the shared fleet-calendar node is mounted.
+               .rr-fc-cell carries an INLINE min-height from
+               renderFleetCalendar() (it drives the CSS grid row height), so
+               the cell rules use !important to win over it. */
+            body.rr-sched-compact .rr-fc-cell{ min-height:56px !important; padding:3px 6px; }
             body.rr-sched-compact .rr-fc-vancol{ min-height:56px; }
-            body.rr-sched-compact .rr-fc-cell{ padding:3px 6px; }
-            body.rr-sched-ultra-compact .rr-fc-cell,
+            body.rr-sched-ultra-compact .rr-fc-cell{ min-height:44px !important; padding:1px 4px; }
             body.rr-sched-ultra-compact .rr-fc-vancol{ min-height:44px; }
-            body.rr-sched-ultra-compact .rr-fc-cell{ padding:1px 4px; }
             body.rr-sched-ultra-compact .rr-fc-dnum,
             body.rr-sched-super-compact .rr-fc-dnum{ font-size:16px; }
-            body.rr-sched-super-compact .rr-fc-cell,
+            body.rr-sched-super-compact .rr-fc-cell{ min-height:30px !important; padding:0 3px; }
             body.rr-sched-super-compact .rr-fc-vancol{ min-height:30px; }
-            body.rr-sched-super-compact .rr-fc-cell{ padding:0 3px; }
             body.rr-sched-ultra-compact .rr-fc-event-bar,
             body.rr-sched-super-compact .rr-fc-event-bar{ height:30px; }
           </style>
