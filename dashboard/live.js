@@ -48616,10 +48616,6 @@ function _flOwnershipLabel(o) {
   return { amazon_owned: "Amazon-owned", dsp_owned: "DSP-owned", rental: "Rental", leased: "Leased" }[o] || "—";
 }
 
-function _flVanTypeLabel(t) {
-  return { edv: "EDV", step_van: "Step Van", cargo_van: "Cargo Van", box_truck: "Box Truck" }[t] || "";
-}
-
 // ─── Sub-tab routing ─────────────────────────────────────────────────
 window.fleetSub = function (sub) {
   _fleetSub = sub;
@@ -49155,7 +49151,7 @@ function _flRenderRoster() {
   }
   tbody.innerHTML = rows.map((v) => {
     const yearModel = [v.year, v.make, v.model].filter(Boolean).join(" ") || "";
-    const ownershipLine = `${_flOwnershipLabel(v.ownership)}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
+    const ownershipLine = `${_flOwnershipLabel(v.ownership)}${_flVanTypeLabel(v.van_type) ? ` · ${_flVanTypeLabel(v.van_type)}` : ""}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
     const vehSub = v.station_code || "";
     return `<tr data-rr-vehicle-id="${escapeHtml(v.id)}">
       <td><div style="display:flex;align-items:center;gap:var(--s-2-5)">${_flVehThumb(v)}<div>
@@ -49349,7 +49345,7 @@ function _flRenderVanRotation() {
   }
   tbody.innerHTML = rows.map((v) => {
     const yearModel = [v.year, v.make, v.model].filter(Boolean).join(" ") || "";
-    const ownershipLine = `${_flOwnershipLabel(v.ownership)}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
+    const ownershipLine = `${_flOwnershipLabel(v.ownership)}${_flVanTypeLabel(v.van_type) ? ` · ${_flVanTypeLabel(v.van_type)}` : ""}${yearModel ? ` · ${escapeHtml(yearModel)}` : ""}`;
     const vehSub = v.station_code || "";
     return `<tr data-rr-vehicle-id="${escapeHtml(v.id)}" data-rr-rotation-row>
       <td><div style="display:flex;align-items:center;gap:var(--s-2-5)">${_flVehThumb(v)}<div>
