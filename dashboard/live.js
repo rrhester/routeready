@@ -35426,7 +35426,15 @@ async function openShiftEditModal(arg) {
           // lives on the vehicle now), so hide just those two from the
           // picker. Every other service type is shown, active or not — the
           // earlier active-only filter wrongly hid ASU/HUB/XL too.
-          svcs = (data || []).filter(s => !["EDV", "STEP"].includes(String(s.code || "").toUpperCase()));
+          const all = data || [];
+          svcs = all.filter(s => !["EDV", "STEP"].includes(String(s.code || "").toUpperCase()));
+          // But if THIS shift is already on a hidden (EDV/STEP) type, keep
+          // that option in the list so editing the time/route doesn't
+          // silently convert it to another service type on save.
+          if (!isAdd && sh.service_type_id) {
+            const cur = all.find(s => String(s.id) === String(sh.service_type_id));
+            if (cur && !svcs.some(s => String(s.id) === String(cur.id))) svcs.push(cur);
+          }
         }
       } catch (_) {}
       if (!document.getElementById("rr-shift-edit-service")) return; // modal closed
