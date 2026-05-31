@@ -35101,7 +35101,7 @@ async function openShiftEditModal(arg) {
     // `drivers(...)` embed errors out with "more than one relationship".
     const { data, error } = await sb
       .from("shifts")
-      .select("id, date, starts_at, ends_at, driver_id, route_code, route_classification, drivers!driver_id(full_name, preferred_name)")
+      .select("id, date, starts_at, ends_at, driver_id, route_code, route_classification, shift_kind, drivers!driver_id(full_name, preferred_name)")
       .eq("id", shiftId)
       .single();
     if (error || !data) {
@@ -35712,12 +35712,19 @@ async function openShiftEditModal(arg) {
       status.textContent = "Saving…";
       status.style.color = "var(--text-subtle)";
       // Capture the pre-edit times + route type so the change can be undone.
-      const _prevStart = sh.starts_at, _prevEnd = sh.ends_at, _prevClass = sh.route_classification;
+      const _prevStart = sh.starts_at, _prevEnd = sh.ends_at, _prevClass = sh.route_classification, _prevKind = sh.shift_kind;
       const { error: upErr } = await sb
         .from("shifts")
         .update({
           starts_at: newStartIso,
           ends_at: endIso,
+          // Persist BOTH the route classification and the shift_kind the
+          // Route type maps to. Without shift_kind, selecting "Class
+          // training" / "Road training" silently didn't take — the shift
+          // stayed 'regular', so it never recolored and still counted as a
+          // filled route. shift_kind=training/ride_along recolors the chip
+          // and drops it from the coverage (filled) count.
+          shift_kind: selKind,
           route_classification: classValue,
         })
         .eq("id", shiftId);
@@ -35729,11 +35736,11 @@ async function openShiftEditModal(arg) {
       toast("Shift updated", "success");
       if (typeof _rrPushUndo === "function") {
         _rrPushUndo({
-          label: `Shift time changed${sh.date ? " · " + sh.date : ""}`,
+          label: `Shift updated${sh.date ? " · " + sh.date : ""}`,
           undo: async () => {
             _markLocalShiftMutation();
             const { error: undoErr } = await sb.from("shifts")
-              .update({ starts_at: _prevStart, ends_at: _prevEnd, route_classification: _prevClass })
+              .update({ starts_at: _prevStart, ends_at: _prevEnd, route_classification: _prevClass, shift_kind: _prevKind })
               .eq("id", shiftId);
             if (undoErr) throw new Error(undoErr.message);
             if (typeof renderScheduleWeek === "function") renderScheduleWeek();
