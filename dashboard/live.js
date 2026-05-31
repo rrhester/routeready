@@ -34942,7 +34942,9 @@ async function openShiftEditModal(arg) {
   // Both add and edit render the same compact, click-anchored popover.
   const opts    = (typeof arg === "string") ? { shiftId: arg } : (arg || {});
   const shiftId = opts.shiftId || null;
-  const isAdd   = !shiftId;
+  const timeOff = opts.timeOff || null;   // set when a PTO / time-off chip is clicked
+  const isTimeOff = !!timeOff;
+  const isAdd   = !shiftId && !isTimeOff;
   const addOpts = opts;
 
   // In edit mode we load the existing row; in add mode we synthesize
@@ -34959,6 +34961,21 @@ async function openShiftEditModal(arg) {
       route_code: "",
       route_classification: "",
       drivers: null,
+    };
+  } else if (isTimeOff) {
+    // Time off has no shift row — synthesize a stub from the clicked
+    // chip's dataset so the shared render code doesn't have to branch on
+    // every field. `date` is the specific day the operator clicked (used
+    // for per-day removal); start/end carry the request's full range.
+    sh = {
+      id: null,
+      date: timeOff.rrPtoDate || timeOff.rrPtoStart,
+      starts_at: null,
+      ends_at: null,
+      driver_id: timeOff.rrPtoDriver || null,
+      route_code: "",
+      route_classification: "",
+      drivers: { full_name: timeOff.rrPtoDriverName || "Driver", preferred_name: null },
     };
   } else {
     // Disambiguate the drivers embed — `shifts` now has two FKs to
@@ -35083,8 +35100,37 @@ async function openShiftEditModal(arg) {
   })();
   const headerSubtitle = isAdd
     ? escapeHtml(_addDateLabel)
+    : isTimeOff
+    ? `${escapeHtml(driver)} · ${escapeHtml(_addDateLabel)}`
     : `${escapeHtml(driver)} · ${escapeHtml(route)} · ${escapeHtml(sh.date)}`;
-  const headerTitle = isAdd ? "Add shift" : "Edit shift";
+  const headerTitle = isTimeOff ? escapeHtml(timeOff.rrPtoLabel || "Time off")
+    : isAdd ? "Add shift" : "Edit shift";
+  // Multi-day requests: make it explicit that only the clicked day comes
+  // off, not the whole range (the prior whole-row delete surprised the
+  // operator by removing both days of a Tue–Wed request).
+  const rangeNote = (isTimeOff && timeOff.rrPtoStart && timeOff.rrPtoEnd && timeOff.rrPtoStart !== timeOff.rrPtoEnd)
+    ? `This time off covers ${escapeHtml(timeOff.rrPtoStart)} – ${escapeHtml(timeOff.rrPtoEnd)}; only ${escapeHtml(sh.date)} will be removed.`
+    : "";
+  // Time-off body: no time/route fields — just a short summary + status.
+  const timeOffInfo = isTimeOff ? `
+        <div style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5">
+          Approved ${escapeHtml(timeOff.rrPtoLabel || "time off")} for <strong>${escapeHtml(driver)}</strong>.${rangeNote ? `<br/>${rangeNote}` : ""}
+          <br/>Removing it frees this day on the schedule and drops it from the PTO payroll report.
+        </div>` : "";
+  // Shift time/route fields are irrelevant to a time-off entry.
+  const shiftTimeFields = isTimeOff ? "" : `
+        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Start time</span>
+          <input type="time" id="rr-shift-edit-start" value="${escapeHtml(startHM)}" class="form-input" style="max-width:160px" />
+        </label>
+        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">End time</span>
+          <input type="time" id="rr-shift-edit-end" value="${escapeHtml(endHM)}" class="form-input" style="max-width:160px" />
+        </label>
+        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Route type</span>
+          <select id="rr-shift-edit-class" class="form-input" style="max-width:200px">${classOptionsHTML}</select>
+        </label>`;
   // Add mode: Driver + Route are set on creation. Date is implied by the
   // clicked cell (shown in the subtitle); Shift kind is dropped (Route type
   // covers the categorization the operator needs). Route type + times are
@@ -35103,7 +35149,7 @@ async function openShiftEditModal(arg) {
         </label>` : "";
   // Edit-only: Recognition + History + Unassign/Delete. None of these
   // make sense before the shift exists.
-  const editExtras = isAdd ? "" : `
+  const editExtras = (isAdd || isTimeOff) ? "" : `
         <!-- Recognition · per-shift entry point. -->
         <div class="rr-shift-edit-recognition" data-rr-driver-id="${escapeHtml(sh.driver_id || '')}">
           <div class="rr-shift-edit-recognition-row">
@@ -35121,9 +35167,14 @@ async function openShiftEditModal(arg) {
   // Footer destructive buttons only in edit mode. In add mode there's
   // nothing to unassign/delete yet — just Cancel + Add shift.
   // Edit footer · just Delete shift (operator asked to drop "Unassign driver").
-  const destructiveButtons = isAdd ? ""
+  const destructiveButtons = isTimeOff
+    ? `<button class="btn btn-sm" data-rr-timeoff-delete style="color:var(--red);border-color:rgba(225,29,72,.3)">Remove ${escapeHtml(timeOff.rrPtoLabel || "time off")}</button>`
+    : isAdd ? ""
     : `<button class="btn btn-sm" data-rr-shift-edit-delete style="color:var(--red);border-color:rgba(225,29,72,.3)">Delete shift</button>`;
   const primaryBtnLabel = isAdd ? "Add shift" : "Save";
+  // Time off has no Save/Add — just Remove (left) + Cancel.
+  const primaryBtn = isTimeOff ? ""
+    : `<button class="btn btn-sm btn-primary" data-rr-shift-edit-save>${primaryBtnLabel}</button>`;
 
   m.innerHTML = `
     <div style="display:flex;flex-direction:column;height:100%">
@@ -35138,18 +35189,8 @@ async function openShiftEditModal(arg) {
       </div>
       <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5);overflow-y:auto;flex:1">
         ${addOnlyFields}
-        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
-          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Start time</span>
-          <input type="time" id="rr-shift-edit-start" value="${escapeHtml(startHM)}" class="form-input" style="max-width:160px" />
-        </label>
-        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
-          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">End time</span>
-          <input type="time" id="rr-shift-edit-end" value="${escapeHtml(endHM)}" class="form-input" style="max-width:160px" />
-        </label>
-        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
-          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Route type</span>
-          <select id="rr-shift-edit-class" class="form-input" style="max-width:200px">${classOptionsHTML}</select>
-        </label>
+        ${shiftTimeFields}
+        ${timeOffInfo}
         <div id="rr-shift-edit-status" style="font-size:var(--fs-xs);color:var(--text-subtle);min-height:14px"></div>
         ${editExtras}
       </div>
@@ -35159,7 +35200,7 @@ async function openShiftEditModal(arg) {
         </div>
         <div style="display:flex;gap:var(--s-2)">
           <button class="btn btn-sm" data-rr-shift-edit-cancel>Cancel</button>
-          <button class="btn btn-sm btn-primary" data-rr-shift-edit-save>${primaryBtnLabel}</button>
+          ${primaryBtn}
         </div>
       </div>
     </div>`;
@@ -35192,10 +35233,10 @@ async function openShiftEditModal(arg) {
 
   // Load shift history lazily — fire once the modal is on screen.
   // Skipped in add mode (no shift exists yet).
-  if (!isAdd) _loadShiftHistory(shiftId);
+  if (!isAdd && !isTimeOff) _loadShiftHistory(shiftId);
   // Load recent recognition for this shift's driver (1 line summary).
-  // Skipped in add mode (no shift exists yet).
-  if (!isAdd && sh.driver_id) {
+  // Skipped in add mode (no shift exists yet) and for time-off entries.
+  if (!isAdd && !isTimeOff && sh.driver_id) {
     (async () => {
       try {
         const { data } = await sb
@@ -35260,6 +35301,18 @@ async function openShiftEditModal(arg) {
   if (backdrop) backdrop.addEventListener("click", () => { close(); document.removeEventListener("keydown", escHandler); });
   m.addEventListener("click", async (e) => {
     if (e.target.closest("[data-rr-shift-edit-cancel]")) { close(); return; }
+
+    // Remove time off — drop just the clicked day from the approved
+    // request (trims or splits a multi-day range; deletes a single-day
+    // request). Clears the day on the grid and from the PTO payroll
+    // report, with undo.
+    if (e.target.closest("[data-rr-timeoff-delete]")) {
+      if (typeof _rrRemoveSchedulePtoDay === "function") {
+        await _rrRemoveSchedulePtoDay({ id: timeOff.rrPtoId, day: sh.date, label: timeOff.rrPtoLabel });
+      }
+      close();
+      return;
+    }
 
     // Unassign — drop the driver but keep the planned slot open so it
     // shows up in the open-shifts pool and the day's planned count
@@ -35857,40 +35910,86 @@ function _rrSchedKpiApplyVisibility(host) {
   });
 }
 
-// Remove an approved PTO / time-off entry straight from the schedule
-// grid. A driver may change their mind, and a DSP needs to take the
-// time off back. We hard-delete the time_off_requests row (mirroring
-// the shift-delete flow: snapshot → delete → undo re-inserts), which
-// removes it from the grid, from Smart Fill's constraints, AND from the
-// PTO payroll report — all of which read live from the table filtered
-// to status='approved'. Any underlying shift that was hidden behind the
-// PTO chip becomes visible (and deletable) again once the PTO is gone.
-async function _rrRemoveSchedulePto(ds) {
-  if (!ds || !ds.rrPtoId) return;
-  const id    = ds.rrPtoId;
-  const label = ds.rrPtoLabel || "Time off";
-  const name  = ds.rrPtoDriverName || "this driver";
-  const start = ds.rrPtoStart || "";
-  const end   = ds.rrPtoEnd || "";
-  const range = (start && end && start !== end) ? `${start} – ${end}` : (start || "");
-  if (!confirm(
-    `Remove approved ${label} for ${name}${range ? ` (${range})` : ""}?\n\n`
-    + `This frees the day on the schedule and removes it from the PTO payroll report.`
-  )) return;
-  let snapshot = null;
+// Remove a single day of approved PTO / time off from the schedule. A
+// driver may change their mind about one day, so we only take that day
+// off the request rather than the whole range:
+//   • single-day request           → delete the row
+//   • clicked day is the start/end  → trim start_date / end_date
+//   • clicked day is in the middle  → shrink the row + insert the tail
+// The grid, Smart Fill, and the PTO payroll report all read live from
+// approved time_off_requests, so this clears the day on the grid AND
+// drops it from reporting. Undo restores the original range (mirroring
+// the shift-delete undo). Any shift that was hidden behind the chip
+// becomes visible (and deletable) again once the day is freed.
+async function _rrRemoveSchedulePtoDay(req) {
+  if (!req || !req.id || !req.day) return;
+  const id  = req.id;
+  const day = req.day;
+  // Pull the full row first so we can split/trim accurately and restore
+  // it on undo.
+  let snap = null;
   try {
-    const { data: snap } = await sb.from("time_off_requests").select("*").eq("id", id).single();
-    snapshot = snap || null;
+    const { data } = await sb.from("time_off_requests").select("*").eq("id", id).single();
+    snap = data || null;
   } catch (_) {}
-  const { error } = await sb.from("time_off_requests").delete().eq("id", id);
-  if (error) { toast("Couldn't remove time off: " + error.message, "warn"); return; }
-  toast(`${label} removed`, "success");
-  if (snapshot && typeof _rrPushUndo === "function") {
+  if (!snap) { toast("Couldn't load that time off", "warn"); return; }
+  const label = req.label || (snap.is_pto ? "PTO" : "Time off");
+  const start = snap.start_date, end = snap.end_date;
+  const isoAddDays = (iso, n) => {
+    const dt = new Date(iso + "T12:00:00");
+    dt.setDate(dt.getDate() + n);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  };
+  const dPrev = isoAddDays(day, -1);
+  const dNext = isoAddDays(day, 1);
+
+  let action = null;       // "deleted" | "trimmed" | "split"
+  let insertedId = null;   // the tail row created by a middle split
+  if (start === day && end === day) {
+    const { error } = await sb.from("time_off_requests").delete().eq("id", id);
+    if (error) { toast("Couldn't remove time off: " + error.message, "warn"); return; }
+    action = "deleted";
+  } else if (day === start) {
+    const { error } = await sb.from("time_off_requests").update({ start_date: dNext }).eq("id", id);
+    if (error) { toast("Couldn't remove time off: " + error.message, "warn"); return; }
+    action = "trimmed";
+  } else if (day === end) {
+    const { error } = await sb.from("time_off_requests").update({ end_date: dPrev }).eq("id", id);
+    if (error) { toast("Couldn't remove time off: " + error.message, "warn"); return; }
+    action = "trimmed";
+  } else {
+    // Middle day: keep start…dPrev on the original row, add dNext…end as
+    // a new row so the days either side of the removed one survive.
+    const { error: upErr } = await sb.from("time_off_requests").update({ end_date: dPrev }).eq("id", id);
+    if (upErr) { toast("Couldn't remove time off: " + upErr.message, "warn"); return; }
+    const tail = { ...snap };
+    delete tail.id; delete tail.created_at; delete tail.updated_at;
+    tail.start_date = dNext; tail.end_date = end;
+    const { data: ins, error: insErr } = await sb.from("time_off_requests").insert(tail).select("id").single();
+    if (insErr) {
+      // Roll the shrink back so we don't silently lose the tail days.
+      await sb.from("time_off_requests").update({ end_date: end }).eq("id", id);
+      toast("Couldn't remove that day: " + insErr.message, "warn");
+      return;
+    }
+    insertedId = ins?.id || null;
+    action = "split";
+  }
+
+  toast(`${label} removed · ${day}`, "success");
+  if (typeof _rrPushUndo === "function") {
     _rrPushUndo({
-      label: `${label} removed${range ? " · " + range : ""}`,
+      label: `${label} restored · ${day}`,
       undo: async () => {
-        const { error: undoErr } = await sb.from("time_off_requests").insert(snapshot);
-        if (undoErr) throw new Error(undoErr.message);
+        if (action === "deleted") {
+          const { error } = await sb.from("time_off_requests").insert(snap);
+          if (error) throw new Error(error.message);
+        } else {
+          const { error } = await sb.from("time_off_requests")
+            .update({ start_date: start, end_date: end }).eq("id", id);
+          if (error) throw new Error(error.message);
+          if (insertedId) await sb.from("time_off_requests").delete().eq("id", insertedId);
+        }
         if (typeof renderScheduleWeek === "function") renderScheduleWeek();
       },
     });
@@ -37483,7 +37582,7 @@ async function renderScheduleWeek() {
           const ptoName = d.preferred_name || d.full_name
             || [d.first_name, d.last_name].filter(Boolean).join(" ").trim()
             || "this driver";
-          return `<div class="${cls}" ${data} title="${escapeHtml(sub + " · click to remove")}"><div class="shift-chip timeoff" data-rr-pto-id="${toMatch.id}" data-rr-pto-label="${label}" data-rr-pto-driver-name="${escapeHtml(ptoName)}" data-rr-pto-start="${toMatch.start_date}" data-rr-pto-end="${toMatch.end_date}"><div class="shift-chip-route">${label}</div><div class="shift-chip-time" style="font-size:9px">${isPto ? "PTO" : "Unpaid"}</div></div></div>`;
+          return `<div class="${cls}" ${data} title="${escapeHtml(sub + " · click to remove")}"><div class="shift-chip timeoff" data-rr-pto-id="${toMatch.id}" data-rr-pto-label="${label}" data-rr-pto-driver="${d.id}" data-rr-pto-driver-name="${escapeHtml(ptoName)}" data-rr-pto-date="${iso}" data-rr-pto-start="${toMatch.start_date}" data-rr-pto-end="${toMatch.end_date}"><div class="shift-chip-route">${label}</div><div class="shift-chip-time" style="font-size:9px">${isPto ? "PTO" : "Unpaid"}</div></div></div>`;
         }
       }
       const list = shiftsByDriverDate.get(`${d.id}|${iso}`) || [];
@@ -37990,7 +38089,8 @@ function bindSchedWeekNav() {
     const ptoChip = e.target.closest(".shift-chip.timeoff[data-rr-pto-id]");
     if (ptoChip) {
       e.stopPropagation();
-      if (typeof _rrRemoveSchedulePto === "function") _rrRemoveSchedulePto(ptoChip.dataset);
+      if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) return;
+      openShiftEditModal({ timeOff: { ...ptoChip.dataset }, anchorX: e.clientX, anchorY: e.clientY });
       return;
     }
 
