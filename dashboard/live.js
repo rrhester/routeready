@@ -35742,6 +35742,7 @@ async function openShiftEditModal(arg) {
             route_code: addRoute || null,
             shift_kind: addKind,
             route_classification: classValue,
+            service_type_id: (document.getElementById("rr-shift-edit-service")?.value || null),
             starts_at: startsAtIso,
             ends_at:   endsAtIso,
           },
@@ -35754,12 +35755,6 @@ async function openShiftEditModal(arg) {
         toast("Shift added", "success");
         // Undo an add by deleting the row create_shift returned.
         const _createdId = createdRow && createdRow.id;
-        // create_shift doesn't take service_type_id — apply the picked
-        // service type as a follow-up update on the new row.
-        const _addSvcId = document.getElementById("rr-shift-edit-service")?.value || "";
-        if (_createdId && _addSvcId) {
-          try { await sb.from("shifts").update({ service_type_id: _addSvcId }).eq("id", _createdId); } catch (_) {}
-        }
         if (_createdId && typeof _rrPushUndo === "function") {
           _rrPushUndo({
             label: `Shift added${addDate ? " · " + addDate : ""}`,
@@ -40620,6 +40615,7 @@ async function materializeVirtualShiftToDriver(payload, driverId, cell) {
     driver_id: driverId,
     starts_at: startsAt.toISOString(),
     ends_at:   endsAt.toISOString(),
+    service_type_id: payload.service_type_id || null,
     source: "manual",
   };
   _markLocalShiftMutation();
