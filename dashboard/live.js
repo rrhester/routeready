@@ -31520,9 +31520,19 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     let poolDrivers = [];
     let poolVans    = [];
     if (rules.pool_fill) {
+      // Order by route restrictiveness FIRST: XL drivers can ONLY take a
+      // box truck, so they must claim before flexible ASU drivers (who
+      // accept any van) — otherwise an ASU driver could grab the only box
+      // truck and leave an XL route open. xl → asu → other, alphabetical
+      // within each. (Codex review: don't let driver-id order waste a
+      // scarce box truck on a flexible ASU route.)
+      const _kindRank = (d) => {
+        const k = routeKindByDriverDate.get(`${d}|${date}`) || "other";
+        return k === "xl" ? 0 : k === "asu" ? 1 : 2;
+      };
       poolDrivers = Array.from(scheduled)
         .filter(d => !driverAssigned.has(d))
-        .sort();
+        .sort((a, b) => (_kindRank(a) - _kindRank(b)) || (a < b ? -1 : a > b ? 1 : 0));
       poolVans = vansToday.filter(v => !vanAssigned.has(v.id));
       // Compatibility-aware greedy match (can't index-pair: a box truck
       // only fits an XL/ASU driver, an XL driver only fits a box truck).
@@ -31599,7 +31609,12 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     // Returns the freshest donor or null. Skips donor vans that
     // are themselves in the risk/violation tier — pushing those
     // an extra day idle would just move the problem.
-    const _pickDonor = (rankWanted) => {
+    // fitFn (optional): only consider donors whose driver is compatible
+    // with the at-risk van being rescued. Scans ALL candidates and returns
+    // the freshest that fits — so an incompatible freshest donor doesn't
+    // make rescue give up when a later compatible donor exists. (Codex
+    // review.)
+    const _pickDonor = (rankWanted, fitFn) => {
       const candidates = [];
       for (const [drvId, vehId] of driverAssigned) {
         if (!scheduled.has(drvId)) continue; // override-pinned, not on shift
@@ -31608,6 +31623,7 @@ async function _assignVansForRange(startIso, endIso, dspId) {
         const isPrimary = (chainEntry.rank | 0) === 0;
         if (rankWanted === 0 && !isPrimary) continue;
         if (rankWanted > 0 && isPrimary) continue;
+        if (fitFn && !fitFn(drvId)) continue; // incompatible with the rescue van
         const last = lastUsedAsOf(vehId, date);
         const days = last ? daysBetween(date, last) : Infinity;
         if (days >= 11) continue; // donor van too close to risk — would worsen FEM
@@ -31628,8 +31644,8 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       }
       // (b) Displace a secondary (guarded by rescue_secondary rule).
       if (rules.rescue_secondary) {
-        const sec = _pickDonor(1);
-        if (sec && fits(sec.drvId)) {
+        const sec = _pickDonor(1, fits);
+        if (sec) {
           driverAssigned.delete(sec.drvId);
           vanAssigned.delete(sec.vehId);
           _unrecord(sec.drvId);
@@ -31639,8 +31655,8 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       }
       // (c) Displace a primary (guarded by rescue_primary rule).
       if (rules.rescue_primary) {
-        const pri = _pickDonor(0);
-        if (pri && fits(pri.drvId)) {
+        const pri = _pickDonor(0, fits);
+        if (pri) {
           driverAssigned.delete(pri.drvId);
           vanAssigned.delete(pri.vehId);
           _unrecord(pri.drvId);
