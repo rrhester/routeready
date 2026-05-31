@@ -9516,10 +9516,12 @@ body.rr-cmdk-open{ overflow:hidden }
    surface; that lives in the driver app. */
 .rr-kudos-overlay{
   position:fixed;inset:0;z-index:9999;
-  background:rgba(15,23,42,.34);
+  /* Transparent, no blur — the card just floats over the page (it opens
+     anchored near the Kudos button). The full-screen layer only catches
+     outside-clicks to close. */
+  background:transparent;
   display:flex;align-items:center;justify-content:center;
   padding:var(--s-6);
-  backdrop-filter:blur(2px);
 }
 .rr-kudos-overlay .rr-kudos-card{
   background:#fff;
