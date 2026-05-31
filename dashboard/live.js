@@ -48616,6 +48616,10 @@ function _flOwnershipLabel(o) {
   return { amazon_owned: "Amazon-owned", dsp_owned: "DSP-owned", rental: "Rental", leased: "Leased" }[o] || "—";
 }
 
+function _flVanTypeLabel(t) {
+  return { edv: "EDV", step_van: "Step Van", cargo_van: "Cargo Van", box_truck: "Box Truck" }[t] || "";
+}
+
 // ─── Sub-tab routing ─────────────────────────────────────────────────
 window.fleetSub = function (sub) {
   _fleetSub = sub;
