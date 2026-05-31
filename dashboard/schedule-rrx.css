@@ -1007,27 +1007,57 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   margin-top: 0;
 }
 
+/* The schedule strip is the only KPI bar with the customize gear.
+   The bar is flex-wrap with a hard 46px height + overflow:hidden,
+   so a last-child gear in normal flow wraps onto the clipped second
+   row the moment the pills (e.g. the wide "Vans assigned" pill) fill
+   one line — making the menu unreachable. Pin the gear instead:
+   make the strip a positioning context and reserve room on the right
+   so the gear always sits at the right edge no matter how the pills
+   wrap, and no pill renders underneath it. */
+#view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills{
+  position: relative;
+}
+/* Only reserve the gear's 40px when the gear is actually mounted. The
+   same #rr-sched-kpis host is reused by the Today and Requests
+   subviews, which repaint its contents WITHOUT the gear. Reserving
+   space there would just shrink the flex content width and — given the
+   strip's flex-wrap + overflow:hidden + 46px height lock — could wrap
+   the last KPI onto the clipped second row. :has scopes the padding to
+   the week view, the only subview that mounts .sched-kpi-config. */
+#view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills:has(.sched-kpi-config){
+  padding-right: 40px;
+}
+
 /* KPI selector · subtle 3-dot kebab on the right edge of the KPI
    strip. No chrome at rest — just a muted dot trio that lifts to
    a faint hover tint when the cursor is on it. Opens a popover
    with checkboxes for each pill so the DSP can hide ones they
-   don't care about. */
+   don't care about. Absolutely pinned (see strip rule above) so it
+   never wraps off the height-locked strip. */
 #view-schedule.rrx-schedule .sched-kpi-config{
-  margin-left: auto;
+  position: absolute;
+  right: var(--rr-space-80);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  margin: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
+  width: 26px;
   height: 28px;
-  align-self: center;
-  margin-right: var(--rr-space-80);
-  background: transparent;
-  border: 0;
+  /* Give the gear a clear resting state — a faint chip + full
+     opacity — so operators can actually find the "show/hide metrics"
+     control. It used to sit at opacity .55 with no chrome, which read
+     as decoration and was easy to miss. */
+  background: var(--rr-bg-surface-1);
+  border: 1px solid var(--rr-border-secondary);
   border-radius: var(--rr-radius-medium);
   color: var(--rr-fg-secondary);
   cursor: pointer;
   flex: 0 0 auto;
-  opacity: .55;
+  opacity: 1;
   transition:
     background var(--rr-motion-fast),
     color var(--rr-motion-fast),
@@ -1046,7 +1076,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 .sched-kpi-config-popover{
   position: fixed;
-  z-index: 120;
+  /* Sit above the TCP chrome (z:20) and every KPI pill — including
+     the wide "Vans assigned" fleet pill, which was painting over the
+     old z:120 popover and made the menu look like it wouldn't open.
+     Kept below the app modal layer (9999). */
+  z-index: 4000;
   display: none;
   width: 220px;
   background: var(--rr-bg-surface-1);
