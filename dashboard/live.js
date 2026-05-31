@@ -34352,6 +34352,14 @@ async function autoAssignDriversForWeek() {
         // consecutive-days cap) whenever "Enforce WOC" is on.
         weekly_hour_cap_enforcement: _wocEnforce,
         consecutive_working_days: _wocEnforce,
+        // PTO counts toward the weekly hour cap (checkbox ships ON). Each
+        // approved-PTO day consumes pto_hours_per_day of the driver's weekly
+        // capacity, so the solver schedules them that much less. Sent
+        // explicitly (with the HTML defaults) so the rule applies even before
+        // the operator opens the Smart Fill rules popover.
+        pto_counts_toward_cap: !(sfRules && sfRules.pto_counts_toward_cap === false),
+        pto_hours_per_day: (Number.isFinite(parseFloat(sfRules && sfRules.pto_hours_per_day))
+          ? parseFloat(sfRules.pto_hours_per_day) : 10),
         // Minimum rest is a hard rule too — send it explicitly (default on)
         // so the CP-SAT solver enforces it even if the key wasn't toggled.
         min_rest: !(sfRules && sfRules.min_rest === false),
