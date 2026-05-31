@@ -34358,11 +34358,16 @@ async function autoAssignDriversForWeek() {
         // explicitly (with the HTML defaults) so the rule applies even before
         // the operator opens the Smart Fill rules popover.
         pto_counts_toward_cap: !(sfRules && sfRules.pto_counts_toward_cap === false),
-        // The UI field saves under pto_default_hours (data-rr-sf-num); read it
-        // (fall back to the legacy/explicit pto_hours_per_day, then 10).
+        // How many hours an approved-PTO day consumes from the weekly cap.
+        // Operator definition: a PTO day = "the number of hours the block is
+        // set to". So read the explicit PTO-hours field if set, else fall back
+        // to the DSP's default block hours, else 10. (The UI field saves under
+        // pto_default_hours; pto_hours_per_day kept as a legacy alias.)
         pto_hours_per_day: (() => {
-          const v = parseFloat(sfRules && (sfRules.pto_default_hours ?? sfRules.pto_hours_per_day));
-          return Number.isFinite(v) ? v : 10;
+          const explicit = parseFloat(sfRules && (sfRules.pto_default_hours ?? sfRules.pto_hours_per_day));
+          if (Number.isFinite(explicit) && explicit > 0) return explicit;
+          const block = parseFloat(window.RR?.dsp?.metadata?.scheduling?.default_block_hours);
+          return Number.isFinite(block) && block > 0 ? block : 10;
         })(),
         // Minimum rest is a hard rule too — send it explicitly (default on)
         // so the CP-SAT solver enforces it even if the key wasn't toggled.
