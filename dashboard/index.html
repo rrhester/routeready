@@ -15653,38 +15653,22 @@ body.rr-cmdk-open{ overflow:hidden }
                     </div>
                   </div>
 
-                  <!-- ── 1 · HOW IT RUNS ── mode + engine. -->
-                  <details class="sf2-section" data-rr-sf-section="mode" open>
+                  <!-- ── 1 · WHO CAN WORK ── eligibility. The license/cert/
+                       service-type gates are ALWAYS enforced (the engine
+                       never auto-assigns an unqualified driver), so they no
+                       longer have on/off toggles — only the genuine choices
+                       (include onboarding drivers, license buffer) remain. -->
+                  <details class="sf2-section" data-rr-sf-section="eligibility" open>
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
                       <span class="sf2-section-num">1</span>
                       <span class="sf2-section-titles">
-                        <div class="sf2-section-title">How it runs</div>
-                        <div class="sf2-section-sub">Auto-staff or fill by hand</div>
-                      </span>
-                      <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
-                    </div></summary>
-                    <div class="sf2-section-body">
-                      <div class="sched-smartfill-rule sched-smartfill-mode">
-                        <label class="sf-mode-opt"><input type="radio" name="rr-sf-mode" data-rr-sf-mode="smart" checked> <span class="sf-rule-name"><strong>Smart Fill</strong> · auto-staff the board from the rules below</span></label>
-                        <label class="sf-mode-opt"><input type="radio" name="rr-sf-mode" data-rr-sf-mode="manual"> <span class="sf-rule-name"><strong>Fill by hand</strong> · turn Smart Fill off and place drivers yourself</span></label>
-                      </div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="preserve_locked_assignments" checked> <span class="sf-rule-name"><strong>Keep my pinned shifts</strong> · never move shifts you've locked, even on a full rebuild</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="show_results_popup" checked> <span class="sf-rule-name"><strong>Show a summary when done</strong> · who got scheduled, who didn't, and why</span></label>
-                      <label class="sched-smartfill-rule sched-smartfill-rule-advanced"><input type="checkbox" data-rr-sf-rule="use_cpsat_solver" checked> <span class="sf-rule-name"><strong>Use the CP-SAT engine</strong> · the optimizer that powers every rule here — leave on</span></label>
-                    </div>
-                  </details>
-
-                  <!-- ── 2 · WHO'S ELIGIBLE ── hard gates that exclude drivers entirely. -->
-                  <details class="sf2-section" data-rr-sf-section="eligibility">
-                    <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">2</span>
-                      <span class="sf2-section-titles">
                         <div class="sf2-section-title">Who can work</div>
-                        <div class="sf2-section-sub">Hard gates — license, certs, active drivers</div>
+                        <div class="sf2-section-sub">License, certs &amp; service types — always enforced</div>
                       </span>
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
                     </div></summary>
                     <div class="sf2-section-body">
+                      <p class="sf2-row-help" style="margin:2px 10px 6px">The right certs (DOT / XL / EDV) for each route's service type and an active service type are always required — the engine never auto-assigns a driver who doesn't qualify.</p>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="include_onboarding" checked> <span class="sf-rule-name"><strong>Include onboarding drivers</strong> · activated trainees can take regular shifts</span></label>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dl_valid" checked> <span class="sf-rule-name"><strong>DL valid required</strong> · skip drivers with an expired license</span></label>
                       <div class="sf2-row">
@@ -15695,17 +15679,13 @@ body.rr-cmdk-open{ overflow:hidden }
                         </div>
                         <p class="sf2-row-help">Block drivers within N days of their license expiring (0 = only block once expired). Catches expirations before they bite.</p>
                       </div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="dot_required" checked> <span class="sf-rule-name"><strong>DOT cert required</strong> · skip drivers without an active DOT card for DOT-required service types</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="xl_required" checked> <span class="sf-rule-name"><strong>XL cert required</strong> · skip drivers without an XL cert for XL service types</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="edv_required" checked> <span class="sf-rule-name"><strong>EDV cert required</strong> · skip drivers without an EDV cert for EDV service types</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="service_types" checked> <span class="sf-rule-name"><strong>Only active service types</strong> · skip open shifts on a retired service type</span></label>
                     </div>
                   </details>
 
                   <!-- ── 3 · PROTECTIONS ── per-shift / per-driver protections. -->
                   <details class="sf2-section" data-rr-sf-section="protections">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">3</span>
+                      <span class="sf2-section-num">2</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Limits &amp; compliance</div>
                         <div class="sf2-section-sub">Time off, rest, day &amp; hour caps, WOC</div>
@@ -15713,8 +15693,7 @@ body.rr-cmdk-open{ overflow:hidden }
                       <svg class="sf2-section-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 2 8 6 4 10"/></svg>
                     </div></summary>
                     <div class="sf2-section-body">
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="pto_block" checked> <span class="sf-rule-name"><strong>Block approved PTO</strong> · don't assign a driver on a date they have approved time off</span></label>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="availability" checked> <span class="sf-rule-name"><strong>Respect saved availability</strong> · don't assign drivers on days they marked unavailable</span></label>
+                      <p class="sf2-row-help" style="margin:2px 10px 6px">Approved PTO and each driver's saved availability are always respected — the engine never auto-assigns a driver on a day they're off or marked unavailable.</p>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="min_rest" checked> <span class="sf-rule-name"><strong>Min rest between shifts</strong> · enforce a minimum gap between two consecutive shifts</span></label>
                       <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-sf-min-rest-hours">Min rest hours</label>
@@ -15751,7 +15730,6 @@ body.rr-cmdk-open{ overflow:hidden }
                           </div>
                         </div>
                       </div>
-                      <label class="sched-smartfill-rule"><input type="checkbox" data-rr-sf-rule="pto_counts_toward_cap" checked> <span class="sf-rule-name"><strong>PTO counts toward weekly hour cap</strong> · approved time off is treated as worked hours for the cap</span></label>
                       <div class="sf2-row">
                         <label class="sf2-row-label" for="rr-sf-pto-default-hours">PTO hours per day</label>
                         <div class="sf2-row-control">
@@ -15794,7 +15772,7 @@ body.rr-cmdk-open{ overflow:hidden }
                   <!-- ── 4 · PREFERENCES ── soft nudges; never block. -->
                   <details class="sf2-section" data-rr-sf-section="prefs">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">4</span>
+                      <span class="sf2-section-num">3</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Preferences</div>
                         <div class="sf2-section-sub">Soft nudges — who to favor when there's a choice</div>
@@ -15836,7 +15814,7 @@ body.rr-cmdk-open{ overflow:hidden }
                   <!-- ── 5 · VANS ── van-assignment rules. -->
                   <details class="sf2-section sf-zone--vans" data-rr-sf-section="vans">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">5</span>
+                      <span class="sf2-section-num">4</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Vans</div>
                         <div class="sf2-section-sub">When &amp; how vans are assigned alongside drivers</div>
@@ -15856,16 +15834,13 @@ body.rr-cmdk-open{ overflow:hidden }
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="fem_priority" checked> <span class="sf-rule-name">Prioritize branded vans approaching the 14-day rotation rule</span></label>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_secondary" checked> <span class="sf-rule-name">Move a backup driver onto an at-risk van to prevent a VERO defect</span></label>
                       <label class="sched-smartfill-rule"><input type="checkbox" data-rr-van-rule="rescue_primary" checked> <span class="sf-rule-name">Move a primary driver onto an at-risk van as a last resort</span></label>
-                      <div class="sf-vans-subzone-label">Always enforced</div>
-                      <label class="sched-smartfill-rule is-locked"><input type="checkbox" data-rr-sf-vans="type_match" checked disabled> <span class="sf-rule-name"><strong>Match van type to route</strong> · always on <span class="sf-locked-hint">— solver hard rule</span></span></label>
-                      <label class="sched-smartfill-rule is-locked"><input type="checkbox" data-rr-sf-vans="skip_inactive" checked disabled> <span class="sf-rule-name"><strong>Skip vans in repair / inactive</strong> · always on <span class="sf-locked-hint">— solver hard rule</span></span></label>
                     </div>
                   </details>
 
                   <!-- ── 6 · CUSTOM RULES ── ad-hoc constraints (preserved). -->
                   <details class="sf2-section sf-zone--adhoc" id="rr-sf-adhoc-disclosure" data-rr-sf-section="custom">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">6</span>
+                      <span class="sf2-section-num">5</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Custom rules</div>
                         <div class="sf2-section-sub">DSP-specific constraints (pair-forbidden, lock-to-day, blackouts)</div>
@@ -15883,7 +15858,7 @@ body.rr-cmdk-open{ overflow:hidden }
                   <!-- ── 7 · ADVANCED ── CP-SAT controls (preserved). -->
                   <details class="sf2-section sf-zone--engine" id="rr-sf-engine-expander" data-rr-sf-section="engine">
                     <summary class="sf2-section-head"><div class="sf2-section-head-inner">
-                      <span class="sf2-section-num">7</span>
+                      <span class="sf2-section-num">6</span>
                       <span class="sf2-section-titles">
                         <div class="sf2-section-title">Advanced</div>
                         <div class="sf2-section-sub">Priorities, data sources &amp; compute — fine-tuning</div>
