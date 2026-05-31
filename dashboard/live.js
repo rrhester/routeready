@@ -35348,6 +35348,9 @@ async function openShiftEditModal(arg) {
   };
   document.addEventListener("keydown", escHandler);
   if (backdrop) backdrop.addEventListener("click", () => { close(); document.removeEventListener("keydown", escHandler); });
+  // Tracks the rule-violation set the operator has acknowledged on this
+  // card, so the inline "Add anyway" flow knows whether to warn or proceed.
+  let _ackedViolationsKey = null;
   m.addEventListener("click", async (e) => {
     if (e.target.closest("[data-rr-shift-edit-cancel]")) { close(); return; }
 
@@ -35489,8 +35492,33 @@ async function openShiftEditModal(arg) {
             });
           } catch (_) { _violations = []; }
           if (_violations && _violations.length) {
-            const ok = confirm("Rule violations:\n\n• " + _violations.join("\n• ") + "\n\nSchedule anyway?");
-            if (!ok) { status.textContent = ""; return; }
+            // Show the violations INLINE on the card (not a browser confirm)
+            // and turn the primary button into "Add anyway" so a second
+            // click schedules despite them. We key the acknowledgement to
+            // the exact violation set, so changing the driver/day/time
+            // re-checks and re-warns instead of silently slipping through.
+            const _key = _violations.join("|");
+            if (_ackedViolationsKey !== _key) {
+              _ackedViolationsKey = _key;
+              status.innerHTML =
+                '<div style="background:var(--amber-soft,#FEF3C7);border:1px solid var(--amber-border,#FCD34D);'
+                + 'border-radius:8px;padding:8px 10px;color:var(--amber-dark,#92400E);font-size:12px;line-height:1.45;text-align:left">'
+                + '<div style="font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px">'
+                + '<span aria-hidden="true">&#9888;</span>Rule violation' + (_violations.length > 1 ? "s" : "") + '</div>'
+                + '<ul style="margin:0;padding-left:18px">' + _violations.map(v => '<li>' + escapeHtml(v) + '</li>').join("") + '</ul>'
+                + '<div style="margin-top:5px">Press <strong>Add anyway</strong> to schedule despite this.</div>'
+                + '</div>';
+              status.style.color = "";
+              const _saveBtn = m.querySelector("[data-rr-shift-edit-save]");
+              if (_saveBtn) _saveBtn.textContent = "Add anyway";
+              return;
+            }
+            // Same violations already shown — the operator clicked
+            // "Add anyway", so fall through and create.
+          } else {
+            // Cleared (driver/day/time changed to something valid) — drop
+            // any prior acknowledgement so a later violation warns again.
+            _ackedViolationsKey = null;
           }
         }
         status.textContent = "Saving…";
