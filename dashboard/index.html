@@ -22344,40 +22344,47 @@ body.rr-cmdk-open{ overflow:hidden }
               grid-template-columns:200px repeat(7,minmax(0,1fr));
             }
             .rr-fc-grid > .rr-fc-col-last{border-right:0}
+            /* Day header — mirrors the Schedule week grid's .cal-cell-head:
+               small uppercase day name + a large bold date number, with the
+               same crisp border + today accent underline. */
             .rr-fc-cell-head{
-              padding:8px 8px 9px;text-align:center;
-              font-size:11px;font-weight:600;letter-spacing:.05em;
+              position:relative;
+              padding:10px 8px 11px;text-align:center;
+              font-size:10px;font-weight:600;letter-spacing:.07em;
               text-transform:uppercase;color:var(--text-subtle);
-              background:var(--sch-surface-2);
-              border-bottom:1px solid var(--sch-line);
-              border-right:1px solid var(--sch-line-subtle);
+              background:#fff;
+              border-bottom:1px solid rgba(15,23,42,.26);
+              border-right:1px solid rgba(15,23,42,.12);
             }
             .rr-fc-cell-head.rr-fc-vancol-head{
               text-align:left;padding-left:14px;color:var(--text);
             }
-            .rr-fc-cell-head.is-today{
-              background:var(--sch-blue-tint);color:var(--sch-blue);
+            .rr-fc-cell-head.is-today{ color:var(--sch-blue); }
+            .rr-fc-cell-head.is-today::after{
+              content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
+              background:var(--sch-blue, #0078D4);
             }
             .rr-fc-dow{display:block}
             .rr-fc-dnum{
               display:block;margin-top:2px;
-              font-size:16px;font-weight:600;color:var(--text);
+              font-size:21px;font-weight:700;color:var(--text);
+              font-variant-numeric:tabular-nums;
             }
             .rr-fc-cell-head.is-today .rr-fc-dnum{color:var(--sch-blue)}
             .rr-fc-vancol{
-              padding:9px 14px;
+              padding:6px 14px;
               display:flex;align-items:center;
               font-size:var(--fs-sm);font-weight:600;color:var(--text);
-              background:var(--sch-surface);
-              border-right:1px solid var(--sch-line);
-              border-bottom:1px solid var(--sch-line-subtle);
+              background:#fff;
+              border-right:1px solid rgba(15,23,42,.26);
+              border-bottom:1px solid rgba(15,23,42,.12);
             }
             .rr-fc-cell{
-              min-height:62px;
-              padding:6px 7px;
-              border-right:1px solid var(--sch-line-subtle);
-              border-bottom:1px solid var(--sch-line-subtle);
-              background:var(--sch-surface);
+              min-height:64px;
+              padding:6px;
+              border-right:1px solid rgba(15,23,42,.12);
+              border-bottom:1px solid rgba(15,23,42,.12);
+              background:#fff;
               cursor:pointer;
               display:flex;flex-direction:column;gap:3px;
               transition:background var(--t-fast);
@@ -22427,6 +22434,23 @@ body.rr-cmdk-open{ overflow:hidden }
             .rr-fc-err{
               padding:22px 16px;font-size:var(--fs-sm);color:var(--sch-red);
             }
+            /* Density — match the Schedule week grid so flipping
+               Standard / Compact / Ultra / Super tightens the fleet
+               calendar the same way. Unscoped (body class) so it applies
+               wherever the shared fleet-calendar node is mounted. */
+            body.rr-sched-compact .rr-fc-cell,
+            body.rr-sched-compact .rr-fc-vancol{ min-height:56px; }
+            body.rr-sched-compact .rr-fc-cell{ padding:3px 6px; }
+            body.rr-sched-ultra-compact .rr-fc-cell,
+            body.rr-sched-ultra-compact .rr-fc-vancol{ min-height:44px; }
+            body.rr-sched-ultra-compact .rr-fc-cell{ padding:1px 4px; }
+            body.rr-sched-ultra-compact .rr-fc-dnum,
+            body.rr-sched-super-compact .rr-fc-dnum{ font-size:16px; }
+            body.rr-sched-super-compact .rr-fc-cell,
+            body.rr-sched-super-compact .rr-fc-vancol{ min-height:30px; }
+            body.rr-sched-super-compact .rr-fc-cell{ padding:0 3px; }
+            body.rr-sched-ultra-compact .rr-fc-event-bar,
+            body.rr-sched-super-compact .rr-fc-event-bar{ height:30px; }
           </style>
           <div class="rr-fc-shell">
             <div id="rr-fleet-cal-host" class="rr-fleet-cal">
