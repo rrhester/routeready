@@ -35101,7 +35101,7 @@ async function openShiftEditModal(arg) {
     // `drivers(...)` embed errors out with "more than one relationship".
     const { data, error } = await sb
       .from("shifts")
-      .select("id, date, starts_at, ends_at, driver_id, route_code, route_classification, shift_kind, drivers!driver_id(full_name, preferred_name)")
+      .select("id, date, starts_at, ends_at, driver_id, route_code, route_classification, shift_kind, service_type_id, drivers!driver_id(full_name, preferred_name)")
       .eq("id", shiftId)
       .single();
     if (error || !data) {
@@ -35236,7 +35236,37 @@ async function openShiftEditModal(arg) {
           <br/>Removing it frees this day on the schedule and drops it from the PTO payroll report.
         </div>` : "";
   // Shift time/route fields are irrelevant to a time-off entry.
+  // Wave + Service type dropdowns. Waves come from the DSP's effective
+  // settings; picking a wave auto-fills Start/End (clock-in = wave − report
+  // lead, clock-out = + block). Service type is populated async after mount
+  // (see below) and pre-selected to the shift's current type in edit mode.
+  const _effWaves = window._rrEffectiveSettings || {};
+  const _waveLead  = Math.max(0, parseInt(_effWaves.report_lead_minutes, 10) || 0);
+  const _waveList  = (Array.isArray(_effWaves.waves) && _effWaves.waves.length)
+    ? _effWaves.waves : [{ start: "07:00" }];
+  const _fmtWave12 = (hhmm) => {
+    const m2 = /^(\d\d):(\d\d)$/.exec(hhmm || "");
+    if (!m2) return hhmm || "";
+    let h = parseInt(m2[1], 10); const mn = m2[2];
+    const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12;
+    return `${h}:${mn} ${ap}`;
+  };
+  // Current wave for pre-select (edit mode): wave = starts_at + report lead.
+  let _curWave = "";
+  if (!isAdd && !isTimeOff && sh.starts_at) {
+    const d0 = new Date(sh.starts_at);
+    const wm = (d0.getHours() * 60 + d0.getMinutes() + _waveLead) % 1440;
+    _curWave = `${String(Math.floor(wm / 60)).padStart(2, "0")}:${String(wm % 60).padStart(2, "0")}`;
+  }
+  const _waveOptionsHTML = _waveList.map(w => {
+    const v = w.start;
+    return `<option value="${escapeHtml(v)}"${v === _curWave ? " selected" : ""}>${escapeHtml(_fmtWave12(v))}</option>`;
+  }).join("");
   const shiftTimeFields = isTimeOff ? "" : `
+        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Wave</span>
+          <select id="rr-shift-edit-wave" class="form-input" style="max-width:200px">${_waveOptionsHTML}</select>
+        </label>
         <label style="display:flex;align-items:center;gap:var(--s-3-5)">
           <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Start time</span>
           <input type="time" id="rr-shift-edit-start" value="${escapeHtml(startHM)}" class="form-input" style="max-width:160px" />
@@ -35244,6 +35274,10 @@ async function openShiftEditModal(arg) {
         <label style="display:flex;align-items:center;gap:var(--s-3-5)">
           <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">End time</span>
           <input type="time" id="rr-shift-edit-end" value="${escapeHtml(endHM)}" class="form-input" style="max-width:160px" />
+        </label>
+        <label style="display:flex;align-items:center;gap:var(--s-3-5)">
+          <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Service type</span>
+          <select id="rr-shift-edit-service" class="form-input" style="max-width:200px"><option value="">Loading…</option></select>
         </label>
         <label style="display:flex;align-items:center;gap:var(--s-3-5)">
           <span style="flex:0 0 90px;font-size:var(--fs-sm);font-weight:600">Route type</span>
@@ -35268,13 +35302,10 @@ async function openShiftEditModal(arg) {
   // Edit-only: Recognition + History + Unassign/Delete. None of these
   // make sense before the shift exists.
   const editExtras = (isAdd || isTimeOff) ? "" : `
-        <!-- Recognition · per-shift entry point. -->
+        <!-- Recognition · just the Send Kudos action (the history line was
+             dropped per operator — too noisy). -->
         <div class="rr-shift-edit-recognition" data-rr-driver-id="${escapeHtml(sh.driver_id || '')}">
-          <div class="rr-shift-edit-recognition-row">
-            <div>
-              <div class="rr-shift-edit-recognition-label">Recognition</div>
-              <div class="rr-shift-edit-recognition-help" id="rr-shift-edit-recognition-help">Loading…</div>
-            </div>
+          <div class="rr-shift-edit-recognition-row" style="justify-content:flex-end">
             <button type="button" class="btn btn-sm" id="rr-shift-edit-send-kudos">Send Kudos</button>
           </div>
         </div>
@@ -35357,12 +35388,59 @@ async function openShiftEditModal(arg) {
     requestAnimationFrame(() => { document.getElementById("rr-shift-edit-driver")?.focus(); });
   }
 
+  // Wave dropdown → auto-fill Start/End. Clock-in = wave − report lead,
+  // clock-out = clock-in + block hours (same math as the add-mode default).
+  if (!isTimeOff) {
+    const _waveSel = document.getElementById("rr-shift-edit-wave");
+    if (_waveSel) {
+      _waveSel.addEventListener("change", () => {
+        const m2 = /^(\d\d):(\d\d)$/.exec(_waveSel.value || "");
+        if (!m2) return;
+        const blockMin = Math.round(Math.max(1, parseFloat(_effWaves.default_block_hours) || 10) * 60);
+        const waveMin  = parseInt(m2[1], 10) * 60 + parseInt(m2[2], 10);
+        const startMin = (waveMin - _waveLead + 1440) % 1440;
+        const endMin   = (startMin + blockMin) % 1440;
+        const fmt = (mm) => `${String(Math.floor(mm / 60)).padStart(2, "0")}:${String(mm % 60).padStart(2, "0")}`;
+        const sIn = document.getElementById("rr-shift-edit-start");
+        const eIn = document.getElementById("rr-shift-edit-end");
+        if (sIn) sIn.value = fmt(startMin);
+        if (eIn) eIn.value = fmt(endMin);
+      });
+    }
+  }
+
+  // Service type dropdown — populate async from the DSP's service types and
+  // pre-select the shift's current type (edit). Empty option = the default
+  // SP type (no explicit service_type_id).
+  if (!isTimeOff) {
+    (async () => {
+      const sel = document.getElementById("rr-shift-edit-service");
+      if (!sel) return;
+      const dspId = window.RR?.dsp?.id;
+      let svcs = [];
+      try {
+        if (dspId) {
+          const { data } = await sb.from("service_types")
+            .select("id, code, label").eq("dsp_id", dspId).order("code");
+          svcs = data || [];
+        }
+      } catch (_) {}
+      if (!document.getElementById("rr-shift-edit-service")) return; // modal closed
+      const curId = isAdd ? "" : (sh.service_type_id || "");
+      sel.innerHTML = `<option value="">Standard (SP)</option>` + svcs.map(s =>
+        `<option value="${escapeHtml(s.id)}"${String(s.id) === String(curId) ? " selected" : ""}>${escapeHtml(s.code ? (s.label ? s.code + " · " + s.label : s.code) : (s.label || s.id))}</option>`
+      ).join("");
+    })();
+  }
+
   // Load shift history lazily — fire once the modal is on screen.
   // Skipped in add mode (no shift exists yet).
   if (!isAdd && !isTimeOff) _loadShiftHistory(shiftId);
   // Load recent recognition for this shift's driver (1 line summary).
   // Skipped in add mode (no shift exists yet) and for time-off entries.
-  if (!isAdd && !isTimeOff && sh.driver_id) {
+  // Also skipped now that the recognition-help line was removed — only run
+  // if that element is actually present.
+  if (!isAdd && !isTimeOff && sh.driver_id && document.getElementById("rr-shift-edit-recognition-help")) {
     (async () => {
       try {
         const { data } = await sb
@@ -35649,6 +35727,12 @@ async function openShiftEditModal(arg) {
         toast("Shift added", "success");
         // Undo an add by deleting the row create_shift returned.
         const _createdId = createdRow && createdRow.id;
+        // create_shift doesn't take service_type_id — apply the picked
+        // service type as a follow-up update on the new row.
+        const _addSvcId = document.getElementById("rr-shift-edit-service")?.value || "";
+        if (_createdId && _addSvcId) {
+          try { await sb.from("shifts").update({ service_type_id: _addSvcId }).eq("id", _createdId); } catch (_) {}
+        }
         if (_createdId && typeof _rrPushUndo === "function") {
           _rrPushUndo({
             label: `Shift added${addDate ? " · " + addDate : ""}`,
@@ -35712,7 +35796,8 @@ async function openShiftEditModal(arg) {
       status.textContent = "Saving…";
       status.style.color = "var(--text-subtle)";
       // Capture the pre-edit times + route type so the change can be undone.
-      const _prevStart = sh.starts_at, _prevEnd = sh.ends_at, _prevClass = sh.route_classification, _prevKind = sh.shift_kind;
+      const _prevStart = sh.starts_at, _prevEnd = sh.ends_at, _prevClass = sh.route_classification, _prevKind = sh.shift_kind, _prevSvc = sh.service_type_id || null;
+      const _editSvcId = document.getElementById("rr-shift-edit-service")?.value || null;
       const { error: upErr } = await sb
         .from("shifts")
         .update({
@@ -35726,6 +35811,7 @@ async function openShiftEditModal(arg) {
           // and drops it from the coverage (filled) count.
           shift_kind: selKind,
           route_classification: classValue,
+          service_type_id: _editSvcId,
         })
         .eq("id", shiftId);
       if (upErr) {
@@ -35740,7 +35826,7 @@ async function openShiftEditModal(arg) {
           undo: async () => {
             _markLocalShiftMutation();
             const { error: undoErr } = await sb.from("shifts")
-              .update({ starts_at: _prevStart, ends_at: _prevEnd, route_classification: _prevClass, shift_kind: _prevKind })
+              .update({ starts_at: _prevStart, ends_at: _prevEnd, route_classification: _prevClass, shift_kind: _prevKind, service_type_id: _prevSvc })
               .eq("id", shiftId);
             if (undoErr) throw new Error(undoErr.message);
             if (typeof renderScheduleWeek === "function") renderScheduleWeek();
