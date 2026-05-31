@@ -28880,7 +28880,7 @@ function _onFleetCalDrop(e) {
   const vendorId = _fcDragVendorId;
   _fcDragVendorId = null;
   if (_fcDropCell) { _fcDropCell.classList.remove("rr-fc-drop"); _fcDropCell = null; }
-  _openFleetCalEventModal(null, cell.getAttribute("data-fc-date"), cell.getAttribute("data-fc-van"), vendorId);
+  _openFleetCalEventModal(null, cell.getAttribute("data-fc-date"), cell.getAttribute("data-fc-van"), vendorId, e);
 }
 
 // Service-providers rail · vendors the operator drags onto the grid.
@@ -29105,19 +29105,19 @@ function _onFleetCalClick(e) {
   const evBtn = e.target.closest("[data-fc-event]");
   if (evBtn) {
     e.stopPropagation();
-    _openFleetCalEventModal(evBtn.getAttribute("data-fc-event"), null, null);
+    _openFleetCalEventModal(evBtn.getAttribute("data-fc-event"), null, null, null, e);
     return;
   }
   const cell = e.target.closest("[data-fc-date]");
   if (cell) {
-    _openFleetCalEventModal(null, cell.getAttribute("data-fc-date"), cell.getAttribute("data-fc-van"));
+    _openFleetCalEventModal(null, cell.getAttribute("data-fc-date"), cell.getAttribute("data-fc-van"), null, e);
   }
 }
 
 // Add / edit / delete one event. eventId null → new event; dateIso /
 // vanId / vendorId prefill the day, van + service provider (the last
 // set when the event is created by dragging a provider onto a cell).
-function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId) {
+function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId, anchorEv) {
   const existing = eventId ? (_fleetCalEvents.find(e => e.id === eventId) || null) : null;
   const dropVendor = vendorId ? (_fleetCalProviders.find(v => v.id === vendorId) || null) : null;
   const ev = existing || {
@@ -29132,9 +29132,11 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId) {
 
   const old = document.getElementById("rr-fc-event-modal");
   if (old) old.remove();
+  // Transparent backdrop (no dim/blur) that just catches outside clicks;
+  // the card itself is positioned next to the clicked day after mount.
   const m = document.createElement("div");
   m.id = "rr-fc-event-modal";
-  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.style.cssText = "position:fixed;inset:0;background:transparent;z-index:9999";
   const vanOpts = _fleetCalVans
     .map(v => `<option value="${escapeHtml(v.id)}"${v.id === ev.vehicle_id ? " selected" : ""}>${escapeHtml(v.name || "—")}</option>`)
     .join("");
@@ -29148,7 +29150,7 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId) {
     .map(v => `<option value="${escapeHtml(v.id)}"${v.id === ev.vendor_id ? " selected" : ""}>${escapeHtml(v.name || "—")}</option>`)
     .join("");
   m.innerHTML = `
-    <div role="dialog" aria-label="Calendar event" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:420px;overflow:hidden">
+    <div role="dialog" aria-label="Calendar event" id="rr-fc-event-card" style="position:fixed;top:0;left:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:380px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow-y:auto;box-shadow:0 16px 48px rgba(15,23,42,.24);opacity:0;transition:opacity 120ms ease-out">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);font-size:var(--fs-lg);font-weight:600">${existing ? "Edit event" : "New event"}</div>
       <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3-5)">
         <label style="display:flex;flex-direction:column;gap:4px">
@@ -29220,6 +29222,24 @@ function _openFleetCalEventModal(eventId, dateIso, vanId, vendorId) {
       </div>
     </div>`;
   document.body.appendChild(m);
+
+  // Position the card next to the clicked day, then clamp on-screen and
+  // fade in. Falls back to viewport-center when there's no anchor.
+  const card = m.querySelector("#rr-fc-event-card");
+  requestAnimationFrame(() => {
+    const pad = 8, gap = 12;
+    const w = card.offsetWidth, h = card.offsetHeight;
+    const ax = (anchorEv && Number.isFinite(anchorEv.clientX)) ? anchorEv.clientX : window.innerWidth / 2;
+    const ay = (anchorEv && Number.isFinite(anchorEv.clientY)) ? anchorEv.clientY : window.innerHeight / 2;
+    let left = ax + gap, top = ay + gap;
+    if (left + w > window.innerWidth - pad)  left = ax - w - gap;
+    if (top + h  > window.innerHeight - pad) top  = ay - h - gap;
+    left = Math.max(pad, Math.min(left, window.innerWidth - w - pad));
+    top  = Math.max(pad, Math.min(top,  window.innerHeight - h - pad));
+    card.style.left = left + "px";
+    card.style.top  = top + "px";
+    card.style.opacity = "1";
+  });
 
   const onKey = (e) => { if (e.key === "Escape") close(); };
   const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
