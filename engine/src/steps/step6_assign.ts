@@ -4,7 +4,9 @@
 // filled before any DOT-certified driver is spent on a standard route
 // (SPEC Route Fill Order):
 //   Phase 1 — DOT-required shifts only.
-//   Phase 2 — standard shifts only.
+//   Phase 2 — XL shifts (fill before standard so scarce drivers go to XL
+//             first and standard routes are the ones left open).
+//   Phase 3 — standard shifts only.
 //
 // Within each route phase, runs TWO target-aware passes:
 //   Pass A — only drivers under target_days_per_week claim shifts.
@@ -31,7 +33,7 @@ import {
   recomputeDriverColumn,
 } from "./step3_eligibility.ts";
 
-type Phase = "dot" | "standard";
+type Phase = "dot" | "xl" | "standard";
 
 interface Candidate {
   plan: ShiftPlan;
@@ -41,7 +43,13 @@ interface Candidate {
 
 function planInPhase(plan: ShiftPlan, phase: Phase): boolean {
   const dot = isDotRoute(plan.shift);
-  return phase === "dot" ? dot : !dot;
+  if (phase === "dot") return dot;
+  // DOT routes are handled in the dot phase; exclude them from the rest.
+  if (dot) return false;
+  // XL routes fill before standard routes, so when drivers are scarce the
+  // standard routes are the ones left open (operator: "XL first").
+  const xl = plan.shift.route_type === "xl";
+  return phase === "xl" ? xl : !xl;
 }
 
 /** Best eligible open shift for one driver within a phase, or null. */
@@ -186,5 +194,6 @@ export function runMainPass(
   matrix: EligibilityMatrix,
 ): void {
   runPhase(ctx, ws, matrix, "dot");
+  runPhase(ctx, ws, matrix, "xl");
   runPhase(ctx, ws, matrix, "standard");
 }

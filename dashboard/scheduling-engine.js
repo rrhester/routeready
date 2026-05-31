@@ -1578,7 +1578,10 @@ function computeScore(ctx, shift, driver, state, methodRank) {
 // src/steps/step6_assign.ts
 function planInPhase(plan, phase) {
   const dot = isDotRoute(plan.shift);
-  return phase === "dot" ? dot : !dot;
+  if (phase === "dot") return dot;
+  if (dot) return false;
+  const xl = plan.shift.route_type === "xl";
+  return phase === "xl" ? xl : !xl;
 }
 function bestShiftForDriver(ctx, ws, matrix, driver, methodRank, phase) {
   const state = ws.states.get(driver.driver_id);
@@ -1672,6 +1675,7 @@ function runPhase(ctx, ws, matrix, phase) {
 }
 function runMainPass(ctx, ws, matrix) {
   runPhase(ctx, ws, matrix, "dot");
+  runPhase(ctx, ws, matrix, "xl");
   runPhase(ctx, ws, matrix, "standard");
 }
 
