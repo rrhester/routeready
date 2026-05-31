@@ -35887,10 +35887,20 @@ function _schedShiftChip(sh, extras) {
   const waveLine = waveStr
     ? `<div class="shift-chip-secondary">Wave ${waveStr}</div>`
     : "";
+  // Van line, rendered INLINE (synchronously) from the van name passed in
+  // via extras.van. It used to be appended ~150ms after paint by the async
+  // _decorateScheduleChipsWithVans pass — which grew every chip and made
+  // the whole grid visibly bounce (grow/shrink) on every render. Emitting
+  // it here means the chip is full height at first paint; the async
+  // decorator still runs to add rotation / van-unavailable styling, but the
+  // line (and its height) is already present, so it no longer reflows.
+  const vanLine = (extras && extras.van)
+    ? `<div class="shift-chip-van">Van ${escapeHtml(String(extras.van))}</div>`
+    : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';
   const trainingCls = extras?.traineeName ? ' shift-chip-training' : '';
-  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" style="${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}</div>`;
+  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" style="${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}${vanLine}</div>`;
 }
 
 function _schedDriverInitials(name) {
@@ -37055,6 +37065,17 @@ async function renderScheduleWeek() {
     }
   }
   for (const [, list] of femUsage) list.sort();
+  // driver|date → van NAME, resolved synchronously from the vehicles +
+  // assignments already loaded above. Lets each chip render its "Van N"
+  // line at first paint (see _schedShiftChip) instead of growing when the
+  // async van decorator lands — the cause of the grid's grow/shrink bounce.
+  const _vehNameById = new Map();
+  for (const v of (femVehRes?.data || [])) _vehNameById.set(v.id, v.name);
+  const vanNameByDriverDate = new Map();
+  for (const [k, vid] of vanIdByDriverDate) {
+    const nm = _vehNameById.get(vid);
+    if (nm) vanNameByDriverDate.set(k, nm);
+  }
 
   // Van availability · a van is UNAVAILABLE on a day when it's grounded or
   // booked for service on the Fleet calendar that day. A driver whose assigned
@@ -37687,8 +37708,13 @@ async function renderScheduleWeek() {
           ? `${sh.starts_at.slice(11,16)}|${sh.ends_at.slice(11,16)}`
           : "";
         const routine = sh.shift_kind === "regular" && _rowDefaultKey !== "" && key === _rowDefaultKey;
-        const extras = (sh.shift_kind === "regular" && traineeName) ? { traineeName } : {};
+        const extras = {};
+        if (sh.shift_kind === "regular" && traineeName) extras.traineeName = traineeName;
         if (routine) extras.routine = true;
+        // Inline the van so the chip is full height at first paint (no
+        // post-render grow/shrink bounce). Async decorator still refines it.
+        const _van = vanNameByDriverDate.get(`${d.id}|${iso}`);
+        if (_van) extras.van = _van;
         return _schedShiftChip(sh, Object.keys(extras).length ? extras : null);
       }).join("");
       return `<div class="${cls}${prefCls}" ${data}>${chips}</div>`;
