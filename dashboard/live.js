@@ -35472,6 +35472,27 @@ async function openShiftEditModal(arg) {
         if (new Date(endsAtIso) <= new Date(startsAtIso)) {
           endsAtIso = new Date(new Date(endsAtIso).getTime() + 24 * 60 * 60 * 1000).toISOString();
         }
+        // Warn on rule violations before creating — the same engine-driven
+        // check the drag-to-assign path runs (max days, weekly hours,
+        // consecutive days, availability, license window, certs, etc.).
+        // Only when a driver is chosen; an open shift has no driver to
+        // violate per-driver rules. The shift doesn't exist yet, so pass a
+        // synthesized candidate (id:null + date + times), exactly like the
+        // drag-create path does.
+        if (addDriver && typeof _checkAssignViolations === "function") {
+          status.textContent = "Checking rules…";
+          status.style.color = "var(--text-subtle)";
+          let _violations = [];
+          try {
+            _violations = await _checkAssignViolations(null, addDate, addDriver, {
+              id: null, date: addDate, starts_at: startsAtIso, ends_at: endsAtIso,
+            });
+          } catch (_) { _violations = []; }
+          if (_violations && _violations.length) {
+            const ok = confirm("Rule violations:\n\n• " + _violations.join("\n• ") + "\n\nSchedule anyway?");
+            if (!ok) { status.textContent = ""; return; }
+          }
+        }
         status.textContent = "Saving…";
         status.style.color = "var(--text-subtle)";
         if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) {
