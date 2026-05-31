@@ -36139,7 +36139,7 @@ function _schedShiftChip(sh, extras) {
   const stCode = sh.service_type_code;
   const stColor = sh.service_type_color || "#0F6CBD";
   const stBadge = (stCode && stCode !== "SP")
-    ? `<span style="display:inline-block;background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)};font-size:9px;font-weight:700;padding:0 4px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
+    ? `<span style="display:inline-block;background:${escapeHtml(stColor)};color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:var(--r-sm);margin-left:4px;letter-spacing:.04em" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
     : "";
   // Trainee badge — when a ride-along shift exists on the same date with
   // trainer_driver_id pointing at this driver, surface it so the trainer
