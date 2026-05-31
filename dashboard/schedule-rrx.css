@@ -1063,7 +1063,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 .sched-kpi-config-popover{
   position: fixed;
-  z-index: 120;
+  /* Sit above the TCP chrome (z:20) and every KPI pill — including
+     the wide "Vans assigned" fleet pill, which was painting over the
+     old z:120 popover and made the menu look like it wouldn't open.
+     Kept below the app modal layer (9999). */
+  z-index: 4000;
   display: none;
   width: 220px;
   background: var(--rr-bg-surface-1);
