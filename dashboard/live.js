@@ -37647,7 +37647,42 @@ function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shif
 }
 
 let _schedNavBound = false;
+// Realtime · push the schedule when a van's status changes (or a van-day
+// assignment is added/removed), so the operator sees "this van is now
+// grounded / unavailable" without re-running Assign Vans. A grounded van
+// also affects the Van assignments KPI + the no-van warning, so a light
+// re-render keeps the whole strip honest. Subscribed once; the channel
+// lives for the session (same lifetime pattern as the other dashboard
+// realtime channels). Debounced so a burst of changes coalesces.
+let _schedVehicleChannel = null;
+let _schedVehicleDebounce = null;
+function _subscribeSchedVehicleRealtime() {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || typeof sb.channel !== "function") return;
+  if (_schedVehicleChannel) return; // already subscribed
+  const kick = () => {
+    if (_schedVehicleDebounce) clearTimeout(_schedVehicleDebounce);
+    _schedVehicleDebounce = setTimeout(() => {
+      _schedVehicleDebounce = null;
+      // Only repaint when the schedule week is actually on screen.
+      const onSchedule = document.getElementById("view-schedule")?.classList.contains("active");
+      const weekVisible = document.getElementById("sched-sub-week");
+      if (onSchedule && weekVisible && !document.hidden && typeof renderScheduleWeek === "function") {
+        renderScheduleWeek();
+      }
+    }, 350);
+  };
+  const filter = "dsp_id=eq." + dspId;
+  _schedVehicleChannel = sb.channel("rr-sched-veh-" + dspId)
+    .on("postgres_changes", { event: "*", schema: "public", table: "vehicles", filter }, kick)
+    .on("postgres_changes", { event: "*", schema: "public", table: "vehicle_day_assignments", filter }, kick)
+    .subscribe();
+}
+
 function bindSchedWeekNav() {
+  // Install the van-status realtime push (idempotent) every time the
+  // schedule view loads, so it's live even if the nav binding already ran.
+  try { _subscribeSchedVehicleRealtime(); } catch (_) { /* non-fatal */ }
   if (_schedNavBound) return;
   const sub = document.getElementById("sched-sub-week");
   if (!sub) return;
