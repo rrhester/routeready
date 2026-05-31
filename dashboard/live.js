@@ -1077,6 +1077,13 @@ window.addEventListener("resize", _pipeFitList);
 function _schedFitGrid() {
   const wrap = document.querySelector("#sched-sub-week .cal-wrap");
   if (!wrap || !wrap.offsetParent) return;
+  // Reassigning maxHeight on an overflow:scroll element briefly shrinks
+  // its scrollable area and clamps scrollTop — which made the grid
+  // "bounce" back toward the top after a re-render (this runs on render,
+  // on resize, and via the body ResizeObserver ~60ms after rows re-add).
+  // Snapshot and restore the scroll position around the resize so the
+  // operator stays exactly where they were.
+  const _st = wrap.scrollTop, _sl = wrap.scrollLeft;
   const top = wrap.getBoundingClientRect().top;
   const h = Math.max(320, window.innerHeight - top - 36);
   wrap.style.maxHeight = h + "px";
@@ -1084,6 +1091,8 @@ function _schedFitGrid() {
   // height so it can't stretch the page taller than the viewport.
   const rail = document.querySelector("#sched-sub-week .sched-right-rail");
   if (rail) rail.style.maxHeight = h + "px";
+  if (wrap.scrollTop !== _st)  wrap.scrollTop  = _st;
+  if (wrap.scrollLeft !== _sl) wrap.scrollLeft = _sl;
 }
 window.addEventListener("resize", _schedFitGrid);
 
@@ -37779,8 +37788,16 @@ async function renderScheduleWeek() {
   // PD rows removed — Open Shifts pool on the right covers the same need
   // without taking grid real estate. Coverage strip stays.
   wrap.insertAdjacentHTML("beforeend", driverRowsHtml + coverageStripHtml + emptyHtml);
+  // Clamp the grid height in THIS frame, synchronously. Deferring it to
+  // requestAnimationFrame let the grid paint once at full content height
+  // and then snap down to the viewport a frame later — that snap is the
+  // "bounce" the operator sees on every render and on navigating to the
+  // page. Fitting now means it's never painted tall. (_schedFitGrid
+  // preserves scroll internally.)
+  _schedFitGrid();
   // Put the operator back where they were before the rebuild — and again
-  // after fit-sizing, since changing maxHeight can clamp scrollTop.
+  // after layout settles (KPI strip / banners above can shift the grid's
+  // top and trigger another fit).
   wrap.scrollTop  = _prevScrollTop;
   wrap.scrollLeft = _prevScrollLeft;
   requestAnimationFrame(() => {
