@@ -15106,15 +15106,34 @@ body.rr-cmdk-open{ overflow:hidden }
                           pto:            "#CA5010",
                         };
                         function loadHex() {
+                          // Account (dsps.metadata.route_colors) wins so the
+                          // palette syncs across devices; localStorage is a
+                          // fast per-device cache; DEFAULTS underpin both.
+                          var acct = (window.RR && window.RR.dsp && window.RR.dsp.metadata && window.RR.dsp.metadata.route_colors) || null;
+                          var local = null;
                           try {
                             var raw = localStorage.getItem(HEX_KEY);
-                            if (!raw) return Object.assign({}, DEFAULTS);
-                            var parsed = JSON.parse(raw);
-                            return Object.assign({}, DEFAULTS, parsed && typeof parsed === "object" ? parsed : {});
-                          } catch (e) { return Object.assign({}, DEFAULTS); }
+                            if (raw) local = JSON.parse(raw);
+                          } catch (e) {}
+                          return Object.assign({}, DEFAULTS,
+                            (local && typeof local === "object") ? local : {},
+                            (acct && typeof acct === "object") ? acct : {});
                         }
                         function saveHex(map) {
+                          // Per-device cache for instant paint on next load.
                           try { localStorage.setItem(HEX_KEY, JSON.stringify(map)); } catch (e) {}
+                          // Persist to the DSP account so the colors follow the
+                          // operator across devices (same pattern as the other
+                          // dsps.metadata settings).
+                          try {
+                            var dsp = window.RR && window.RR.dsp;
+                            if (dsp && dsp.id && window.sb) {
+                              var newMeta = Object.assign({}, dsp.metadata || {}, { route_colors: map });
+                              dsp.metadata = newMeta;
+                              window.sb.from("dsps").update({ metadata: newMeta }).eq("id", dsp.id)
+                                .then(function (r) { if (r && r.error) console.warn("route color save:", r.error.message); });
+                            }
+                          } catch (e) {}
                         }
                         function applyColor(route, hex) {
                           document.documentElement.style.setProperty("--rr-route-c-" + route, hex);
@@ -15154,6 +15173,14 @@ body.rr-cmdk-open{ overflow:hidden }
                         }
                         var current = loadHex();
                         applyAll(current);
+                        // Re-apply once the DSP account loads (this IIFE runs
+                        // at parse time, before window.RR.dsp exists) so the
+                        // account's saved colors win over local/defaults.
+                        window._rrReapplyRouteColors = function () {
+                          current = loadHex();
+                          applyAll(current);
+                          renderAllSwatches(current);
+                        };
                         var stored = null;
                         try { stored = localStorage.getItem(ON_KEY); } catch (e) {}
                         var on = stored === "1";
