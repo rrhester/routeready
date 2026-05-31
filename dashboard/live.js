@@ -227,6 +227,11 @@ if (dspErr || !dspRow || !dspRow.id) {
   _forceRelogin(_isAuthError(dspErr) ? "session_expired" : "dsp_unresolved");
 }
 window.RR.dsp = dspRow;
+// Route color-coding choices live on dsps.metadata.route_colors so they
+// follow the operator across devices. The picker IIFE (index.html) paints
+// from localStorage/defaults at parse time (before the DSP is loaded);
+// now that the account is in memory, re-apply so account colors win.
+try { if (typeof window._rrReapplyRouteColors === "function") window._rrReapplyRouteColors(); } catch (_) {}
 
 // ─── Brand · paint DSP name + station code into the sidebar chip ────────
 // The chip in dashboard/index.html is a static placeholder ("Cardinal
