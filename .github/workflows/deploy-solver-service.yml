@@ -1,0 +1,39 @@
+name: Deploy solver-service (Fly.io)
+#
+# Auto-deploys the rr-solve-ready CP-SAT solver to Fly.io whenever its
+# source changes on main. This is the engine the dashboard's Smart Fill
+# button calls (CP-SAT is the default scheduler), and it lives outside
+# the dashboard's Netlify pipeline — without this workflow it only ships
+# via a manual `fly deploy`, so solver changes silently never reached
+# production. Mirrors the hands-off, no-local-machine pattern of the
+# other deploy-*.yml workflows.
+#
+# Required repo secret:
+#   FLY_API_TOKEN — a Fly.io deploy token (flyctl tokens create deploy)
+#                   with access to the rr-solve-ready app.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'solver-service/**'
+      - '.github/workflows/deploy-solver-service.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: solver-service-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: solver-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy to Fly.io
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only
