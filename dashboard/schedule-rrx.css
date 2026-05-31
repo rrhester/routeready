@@ -1180,6 +1180,19 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   max-height: 240px !important;
 }
 
+/* Baseline height cap for the week grid so it is a constrained,
+   scrollable region from the very first paint — even before
+   _schedFitGrid() measures the layout and writes the exact inline
+   max-height, and even if that fit early-returns while the view is
+   mid-transition (e.g. navigating to the page). Without this the grid
+   briefly renders at full content height and then snaps down to the
+   viewport, which reads as a "grows then shrinks" bounce on every render
+   and on navigation. _schedFitGrid()'s inline max-height overrides this
+   the moment it runs, so the final height is still measured exactly. */
+#view-schedule.rrx-schedule .cal-wrap {
+  max-height: calc(100vh - 300px);
+}
+
 #view-schedule.rrx-schedule .cal-wrap,
 #view-schedule.rrx-schedule .pool-openshifts-body,
 #view-schedule.rrx-schedule .pool-openshifts-foot,
