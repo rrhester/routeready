@@ -2407,6 +2407,14 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route
   border-color: color-mix(in srgb, var(--rr-route-c-nursery) 65%, transparent) !important;
   box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-nursery) 22%, transparent) !important;
 }
+/* XL is a SERVICE type (not a route_classification), so it's keyed on the
+   chip's data-rr-service-code instead. Placed after the route-class rules
+   so an XL shift colors by XL even if it also carries a classification. */
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-service-code="XL"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-xl) 22%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-xl) 65%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-xl) 22%, transparent) !important;
+}
 
 body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-route-class="other"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: color-mix(in srgb, var(--rr-route-c-other) 22%, transparent) !important;
