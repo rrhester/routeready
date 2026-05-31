@@ -35659,6 +35659,27 @@ async function openShiftEditModal(arg) {
         endIso = new Date(new Date(endIso).getTime() + 24 * 60 * 60 * 1000).toISOString();
       }
 
+      // Live-schedule warning shown INLINE on the edit card (no browser
+      // popup) — like the add flow. First Save on a finalized week surfaces
+      // the notice and flips the button to "Save anyway"; a second click
+      // goes through.
+      if (window._rrWeekFinalized) {
+        if (_ackedViolationsKey !== "live-edit") {
+          _ackedViolationsKey = "live-edit";
+          status.innerHTML =
+            '<div style="background:var(--red-soft,#FDE7E7);border:1px solid var(--red-border,#F3B5B5);'
+            + 'border-radius:8px;padding:8px 10px;color:var(--red-dark,#B42318);font-size:12px;line-height:1.45;text-align:left">'
+            + '<div style="font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px">'
+            + '<span aria-hidden="true">&#9888;</span>Schedule is live</div>'
+            + '<div>This week is live — drivers may have already seen it. Press <strong>Save anyway</strong> to make the change.</div>'
+            + '</div>';
+          status.style.color = "";
+          const _saveBtn = m.querySelector("[data-rr-shift-edit-save]");
+          if (_saveBtn) _saveBtn.textContent = "Save anyway";
+          return;
+        }
+      }
+
       status.textContent = "Saving…";
       status.style.color = "var(--text-subtle)";
       // Capture the pre-edit times + route type so the change can be undone.
@@ -38369,7 +38390,8 @@ function bindSchedWeekNav() {
       e.stopPropagation();
       const id = assignedChip.dataset.rrShiftId;
       if (!id) return;
-      if (!_confirmLiveScheduleEdit()) return;
+      // No browser popup on open — the live-schedule warning shows inline
+      // in the edit card itself (on Save), like the add-shift flow.
       openShiftEditModal({ shiftId: id, anchorX: e.clientX, anchorY: e.clientY });
       return;
     }
