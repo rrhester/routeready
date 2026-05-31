@@ -2522,6 +2522,22 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
 #view-schedule.rrx-schedule .shift-chip {
   border-radius: 3px !important;
 }
+/* Service-type badge (XL / HUB / ASU …) pinned to the chip's top-right
+   corner. Absolute so it never adds to the chip's height — XL chips stay
+   the same size as standard ones on the grid. Colors are set inline from
+   the service type. */
+#view-schedule.rrx-schedule .shift-chip-st-badge {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.3;
+  padding: 0 3px;
+  border-radius: var(--r-sm);
+  letter-spacing: .04em;
+  pointer-events: none;
+}
 /* Pinned-shift marker · small 📌 in the chip's top-right corner. The chip
    is set position:relative inline when the marker is added. */
 #view-schedule.rrx-schedule .shift-chip .shift-chip-pin {
