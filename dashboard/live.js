@@ -28986,9 +28986,13 @@ async function _paintFleetCalendar() {
   // Header row · Van label + 7 day headers.
   // Per-day availability (mirrors the Schedule grid's coverage line):
   // available = total fleet − vans out for service/grounding that day.
+  // Only count events for ACTIVE (non-archived) vans — totalVans excludes
+  // archived ones, so an archived van with a lingering event must not be
+  // subtracted (would understate / go negative). (Codex review.)
+  const activeVanIds = new Set(vans.map(v => v.id));
   const outByDay = dayIsos.map(() => new Set());
   for (const ev of events) {
-    if (!ev.vehicle_id) continue;
+    if (!ev.vehicle_id || !activeVanIds.has(ev.vehicle_id)) continue;
     const evEnd = ev.end_date || ev.event_date;
     dayIsos.forEach((iso, i) => {
       if (iso >= ev.event_date && iso <= evEnd) outByDay[i].add(ev.vehicle_id);
