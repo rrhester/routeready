@@ -28845,6 +28845,7 @@ let _fleetCalBound     = false; // host click delegation installed once
 let _fleetCalProviders = [];    // service providers (vendors)
 let _fcDragVendorId    = null;  // vendor id mid-drag, null otherwise
 let _fcDropCell        = null;  // day cell currently under the drag
+let _fleetCalSort      = "alpha"; // van row order: alpha | events
 let _fleetProvBound    = false; // providers rail delegation installed once
 
 // Sunday on/before the given date, at local midnight.
@@ -28927,6 +28928,13 @@ async function _paintFleetCalendar() {
   const host = document.getElementById("rr-fleet-cal-host");
   if (!host) return;
 
+  // Restore the Hide-sidebar preference (persisted across sessions).
+  try {
+    if (localStorage.getItem("rr-fc-hide-rail") === "1") {
+      document.body.classList.add("rr-fc-hide-rail");
+    }
+  } catch (_) {}
+
   // Activate any service groundings whose window now includes today
   // (best-effort — never blocks the paint). No cron needed; this fires
   // whenever the operator views the calendar.
@@ -28958,10 +28966,20 @@ async function _paintFleetCalendar() {
     return;
   }
 
-  // Van rows sorted numeric-aware (van "9" before "10").
-  vans.sort((a, b) =>
-    String(a.name || "").localeCompare(String(b.name || ""), undefined, { numeric: true })
-  );
+  // Van rows · default numeric-aware alpha ("9" before "10"); the VAN
+  // header Sort tool can switch to "most events first".
+  const _alphaCmp = (a, b) =>
+    String(a.name || "").localeCompare(String(b.name || ""), undefined, { numeric: true });
+  if (_fleetCalSort === "events") {
+    const cnt = new Map();
+    for (const ev of events) {
+      if (!ev.vehicle_id) continue;
+      cnt.set(ev.vehicle_id, (cnt.get(ev.vehicle_id) || 0) + 1);
+    }
+    vans.sort((a, b) => ((cnt.get(b.id) || 0) - (cnt.get(a.id) || 0)) || _alphaCmp(a, b));
+  } else {
+    vans.sort(_alphaCmp);
+  }
   _fleetCalVans   = vans;
   _fleetCalEvents = events;
 
@@ -28999,7 +29017,36 @@ async function _paintFleetCalendar() {
     });
   }
   const totalVans = vans.length;
-  let head = `<div class="rr-fc-cell-head rr-fc-vancol-head" style="grid-row:1;grid-column:1">Van</div>`;
+  // VAN header · "Van" label + the four schedule Driver-header tools,
+  // wired through _onFleetCalClick via data-fc-tool. Density + focus reuse
+  // the shared body classes; hide-rail collapses the providers rail;
+  // sort reorders the van rows.
+  const _dens = document.body.classList.contains("rr-sched-super-compact") ? "super"
+    : document.body.classList.contains("rr-sched-ultra-compact") ? "ultra"
+    : document.body.classList.contains("rr-sched-compact") ? "compact" : "standard";
+  const _focusOn = document.body.classList.contains("rr-sched-focus");
+  const _railHidden = document.body.classList.contains("rr-fc-hide-rail");
+  const _svg = (p) => `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const vanTools =
+      `<div class="rr-fc-vancol-actions" style="display:grid;grid-template-columns:repeat(4,auto);gap:4px;margin-left:auto;align-items:center;justify-items:center">`
+    + `<button class="rr-tf-icon" type="button" data-fc-tool="focus" aria-pressed="${_focusOn}" title="Expand screen — hide chrome, expand the calendar" aria-label="Expand screen">`
+      + _svg(_focusOn
+        ? '<polyline points="3 9 9 9 9 3"/><polyline points="21 9 15 9 15 3"/><polyline points="15 21 15 15 21 15"/><polyline points="3 15 9 15 9 21"/>'
+        : '<polyline points="9 3 3 3 3 9"/><polyline points="15 3 21 3 21 9"/><polyline points="21 15 21 21 15 21"/><polyline points="3 15 3 21 9 21"/>')
+    + `</button>`
+    + `<button class="rr-tf-icon" type="button" data-fc-tool="hiderail" aria-pressed="${_railHidden}" title="${_railHidden ? "Show the Service providers panel" : "Hide the Service providers panel — the calendar fills the space"}" aria-label="${_railHidden ? "Show sidebar" : "Hide sidebar"}">`
+      + _svg(_railHidden
+        ? '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/><polyline points="7 9 10 12 7 15"/>'
+        : '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/><polyline points="10 9 7 12 10 15"/>')
+    + `</button>`
+    + `<button class="rr-tf-icon" type="button" data-fc-tool="sort" title="Sort vans" aria-label="Sort vans">`
+      + _svg('<line x1="3" y1="6" x2="13" y2="6"/><line x1="3" y1="12" x2="11" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 8 21 12 17 16"/><line x1="14" y1="12" x2="21" y2="12"/>')
+    + `</button>`
+    + `<button class="rr-tf-icon" type="button" data-fc-tool="density" aria-pressed="${_dens !== "standard"}" title="Grid density: ${_dens} — click to cycle" aria-label="Grid density (click to cycle)">`
+      + _svg('<line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="15" x2="20" y2="15"/>')
+    + `</button>`
+    + `</div>`;
+  let head = `<div class="rr-fc-cell-head rr-fc-vancol-head" style="grid-row:1;grid-column:1;display:flex;align-items:center;gap:6px;position:relative"><span>Van</span>${vanTools}</div>`;
   days.forEach((d, di) => {
     const cls = (fmtIsoDate(d) === todayIso ? " is-today" : "") + (di === 6 ? " rr-fc-col-last" : "");
     const avail = totalVans - outByDay[di].size;
@@ -29315,6 +29362,63 @@ function _openFleetProviderModal(vendorId) {
 }
 
 function _onFleetCalClick(e) {
+  // VAN-header tools (Expand screen / Hide sidebar / Sort / Grid density).
+  const tool = e.target.closest("[data-fc-tool]");
+  if (tool) {
+    e.preventDefault();
+    e.stopPropagation();
+    const which = tool.getAttribute("data-fc-tool");
+    if (which === "focus") {
+      const on = !document.body.classList.contains("rr-sched-focus");
+      document.body.classList.toggle("rr-sched-focus", on);
+      _paintFleetCalendar();
+      return;
+    }
+    if (which === "hiderail") {
+      const hidden = !document.body.classList.contains("rr-fc-hide-rail");
+      document.body.classList.toggle("rr-fc-hide-rail", hidden);
+      try { localStorage.setItem("rr-fc-hide-rail", hidden ? "1" : "0"); } catch (_) {}
+      _paintFleetCalendar();
+      return;
+    }
+    if (which === "density") {
+      const ORDER = ["standard", "compact", "ultra", "super"];
+      const cur = document.body.classList.contains("rr-sched-super-compact") ? "super"
+        : document.body.classList.contains("rr-sched-ultra-compact") ? "ultra"
+        : document.body.classList.contains("rr-sched-compact") ? "compact" : "standard";
+      const next = ORDER[(ORDER.indexOf(cur) + 1) % ORDER.length];
+      document.body.classList.remove("rr-sched-compact", "rr-sched-ultra-compact", "rr-sched-super-compact");
+      if (next === "compact")    document.body.classList.add("rr-sched-compact");
+      else if (next === "ultra") document.body.classList.add("rr-sched-ultra-compact");
+      else if (next === "super") document.body.classList.add("rr-sched-super-compact");
+      try { localStorage.setItem("rr-sched-density", next); } catch (_) {}
+      document.querySelectorAll('input[name="rr-sched-density"]').forEach((r) => { r.checked = (r.value === next); });
+      _paintFleetCalendar();
+      return;
+    }
+    if (which === "sort") {
+      const head = tool.parentElement;
+      if (head.querySelector(".rr-tf-popover")) { head.querySelector(".rr-tf-popover").remove(); return; }
+      document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
+      const opts = [{ v: "alpha", l: "Van number (A–Z)" }, { v: "events", l: "Most events first" }];
+      const pop = document.createElement("div");
+      pop.className = "rr-tf-popover";
+      pop.style.top = "26px";
+      pop.style.right = "0";
+      pop.innerHTML = opts.map(o => `<button data-fc-sort="${o.v}" class="${o.v === _fleetCalSort ? "active" : ""}">${o.l}</button>`).join("");
+      head.appendChild(pop);
+      return;
+    }
+    return;
+  }
+  const sortOpt = e.target.closest("[data-fc-sort]");
+  if (sortOpt) {
+    e.stopPropagation();
+    _fleetCalSort = sortOpt.getAttribute("data-fc-sort") || "alpha";
+    document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
+    _paintFleetCalendar();
+    return;
+  }
   const nav = e.target.closest("[data-fc-nav]");
   if (nav) {
     const a = nav.getAttribute("data-fc-nav");
