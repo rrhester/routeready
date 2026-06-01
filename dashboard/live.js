@@ -55989,9 +55989,19 @@ document.addEventListener("click", (e) => {
       if (!childrenByParent.has(key)) childrenByParent.set(key, []);
       childrenByParent.get(key).push(f);
     }
+    // Cycle/depth guard · parent_id comes straight from fb_folders with
+    // no DB-side validation, so a custom folder that's its own ancestor
+    // (self-parent, or A↔B made subfolders of each other via "Add
+    // subfolder") would make this recurse forever and HARD-FREEZE the
+    // main thread — not even a refresh recovers. Track visited ids and
+    // cap depth so a bad row degrades to a truncated tree, not a lock-up.
+    const _seenFolders = new Set();
     const renderBranch = (parentId, depth) => {
+      if (depth > 50) return "";
       const kids = childrenByParent.get(parentId) || [];
       return kids.map(f => {
+        if (_seenFolders.has(f.id)) return ""; // break cycle / self-parent
+        _seenFolders.add(f.id);
         const childHtml = renderBranch(f.id, depth + 1);
         return folderHtml(f, depth) + childHtml;
       }).join("");
@@ -56002,6 +56012,8 @@ document.addEventListener("click", (e) => {
     if (builtins.length) {
       html += `<div class="em-folder-section">System</div>`;
       for (const f of builtins) {
+        if (_seenFolders.has(f.id)) continue;
+        _seenFolders.add(f.id); // mark tops so a child can't loop back to them
         html += folderHtml(f, 0);
         html += renderBranch(f.id, 1);
       }
@@ -56009,6 +56021,8 @@ document.addEventListener("click", (e) => {
     if (customTops.length) {
       html += `<div class="em-folder-section">My folders</div>`;
       for (const f of customTops) {
+        if (_seenFolders.has(f.id)) continue;
+        _seenFolders.add(f.id);
         html += folderHtml(f, 0);
         html += renderBranch(f.id, 1);
       }
