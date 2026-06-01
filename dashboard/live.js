@@ -19346,10 +19346,26 @@ window.addEventListener("resize", () => { _fitMsgShell(); });
 // Run whenever the Messages view becomes active (the goto wrapper
 // adds 'active' to the corresponding .view).  MutationObserver
 // avoids touching every goto site.
-new MutationObserver(() => {
-  if (document.getElementById("view-messages")?.classList.contains("active")) {
-    _fitMsgShell();
+// PERF · only react when a top-level `.view` container's own class
+// changes (i.e. a view became .active). The old `subtree:true` watcher
+// fired _fitMsgShell() — which forces a synchronous reflow via
+// getBoundingClientRect — on EVERY class mutation of EVERY element in
+// the whole body. Coming from the Schedule page (whose huge grid of
+// .cal-cell/.shift-chip/.avatar-sm nodes stays mounted behind the
+// hidden view), a burst of class flips triggered a reflow storm that
+// hard-froze the tab. Filtering to `.view` targets + dropping subtree
+// makes the callback fire a handful of times instead of thousands.
+const _onViewClassMutation = (mutations, fn) => {
+  for (const m of mutations) {
+    if (m.target instanceof Element && m.target.classList.contains("view")) { fn(); return; }
   }
+};
+new MutationObserver((muts) => {
+  _onViewClassMutation(muts, () => {
+    if (document.getElementById("view-messages")?.classList.contains("active")) {
+      _fitMsgShell();
+    }
+  });
 }).observe(document.body, { attributes: true, subtree: true, attributeFilter: ["class"] });
 // First paint pass.
 setTimeout(_fitMsgShell, 0);
@@ -19357,9 +19373,11 @@ setTimeout(_fitMsgShell, 0);
 // Belt-and-suspenders: if the CmdK overflow:hidden ever leaks
 // (e.g. tab close with palette open, navigation while open), strip
 // it on Messages-view enter so the body can scroll if the layout
-// math somehow still leaves the composer below the fold.
+// math somehow still leaves the composer below the fold. Guarded with
+// a contains() check so removing an absent class is a true no-op.
 new MutationObserver(() => {
-  if (document.getElementById("view-messages")?.classList.contains("active")) {
+  if (document.getElementById("view-messages")?.classList.contains("active")
+      && document.body.classList.contains("rr-cmdk-open")) {
     document.body.classList.remove("rr-cmdk-open");
   }
 }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
