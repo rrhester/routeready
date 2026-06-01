@@ -37018,6 +37018,12 @@ function _rrSchedKpiTogglePopover(force) {
     pop.style.top  = (r.bottom + 6) + "px";
     pop.style.left = Math.max(8, r.right - 220) + "px";
     btn.setAttribute("aria-expanded", "true");
+    // Scale+fade in from the top-right (near the gear), matching the
+    // app's standard pop-out motion. One-shot class, cleared on end.
+    pop.classList.remove("rr-pop-anim");
+    void pop.offsetWidth;
+    pop.classList.add("rr-pop-anim");
+    pop.addEventListener("animationend", () => pop.classList.remove("rr-pop-anim"), { once: true });
   } else {
     pop.style.display = "none";
     btn.setAttribute("aria-expanded", "false");
