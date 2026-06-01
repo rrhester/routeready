@@ -22457,6 +22457,11 @@ body.rr-cmdk-open{ overflow:hidden }
             body.rr-sched-super-compact .rr-fc-cell{ min-height:30px !important; padding:0 3px; }
             body.rr-sched-super-compact .rr-fc-vancol{ min-height:30px; }
             body.rr-sched-super-compact .rr-fc-cov{ display:none; }
+            /* Hide-sidebar tool — collapse the Service providers rail so
+               the calendar fills the width (twin of the schedule's
+               hide-open-shifts). */
+            body.rr-fc-hide-rail .rr-fc-shell{ grid-template-columns:minmax(0,1fr); }
+            body.rr-fc-hide-rail .rr-fc-rail-space{ display:none; }
             body.rr-sched-ultra-compact .rr-fc-event-bar,
             body.rr-sched-super-compact .rr-fc-event-bar{ height:30px; }
           </style>
