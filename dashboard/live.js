@@ -29029,20 +29029,20 @@ async function _paintFleetCalendar() {
   const _svg = (p) => `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const vanTools =
       `<div class="rr-fc-vancol-actions" style="display:grid;grid-template-columns:repeat(4,auto);gap:4px;margin-left:auto;align-items:center;justify-items:center">`
-    + `<button class="rr-tf-icon" type="button" data-fc-tool="focus" aria-pressed="${_focusOn}" title="Expand screen — hide chrome, expand the calendar" aria-label="Expand screen">`
+    + `<button class="rr-tf-icon" type="button" data-fc-tool="focus" aria-pressed="${_focusOn}" style="position:relative;top:0;right:0" title="Expand screen — hide chrome, expand the calendar" aria-label="Expand screen">`
       + _svg(_focusOn
         ? '<polyline points="3 9 9 9 9 3"/><polyline points="21 9 15 9 15 3"/><polyline points="15 21 15 15 21 15"/><polyline points="3 15 9 15 9 21"/>'
         : '<polyline points="9 3 3 3 3 9"/><polyline points="15 3 21 3 21 9"/><polyline points="21 15 21 21 15 21"/><polyline points="3 15 3 21 9 21"/>')
     + `</button>`
-    + `<button class="rr-tf-icon" type="button" data-fc-tool="hiderail" aria-pressed="${_railHidden}" title="${_railHidden ? "Show the Service providers panel" : "Hide the Service providers panel — the calendar fills the space"}" aria-label="${_railHidden ? "Show sidebar" : "Hide sidebar"}">`
+    + `<button class="rr-tf-icon" type="button" data-fc-tool="hiderail" aria-pressed="${_railHidden}" style="position:relative;top:0;right:0" title="${_railHidden ? "Show the Service providers panel" : "Hide the Service providers panel — the calendar fills the space"}" aria-label="${_railHidden ? "Show sidebar" : "Hide sidebar"}">`
       + _svg(_railHidden
         ? '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/><polyline points="7 9 10 12 7 15"/>'
         : '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="15" y1="4" x2="15" y2="20"/><polyline points="10 9 7 12 10 15"/>')
     + `</button>`
-    + `<button class="rr-tf-icon" type="button" data-fc-tool="sort" title="Sort vans" aria-label="Sort vans">`
+    + `<button class="rr-tf-icon" type="button" data-fc-tool="sort" style="position:relative;top:0;right:0" title="Sort vans" aria-label="Sort vans">`
       + _svg('<line x1="3" y1="6" x2="13" y2="6"/><line x1="3" y1="12" x2="11" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 8 21 12 17 16"/><line x1="14" y1="12" x2="21" y2="12"/>')
     + `</button>`
-    + `<button class="rr-tf-icon" type="button" data-fc-tool="density" aria-pressed="${_dens !== "standard"}" title="Grid density: ${_dens} — click to cycle" aria-label="Grid density (click to cycle)">`
+    + `<button class="rr-tf-icon" type="button" data-fc-tool="density" aria-pressed="${_dens !== "standard"}" style="position:relative;top:0;right:0" title="Grid density: ${_dens} — click to cycle" aria-label="Grid density (click to cycle)">`
       + _svg('<line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="15" x2="20" y2="15"/>')
     + `</button>`
     + `</div>`;
