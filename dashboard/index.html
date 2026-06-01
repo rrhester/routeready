@@ -13349,6 +13349,44 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .rr-row-action svg{width:16px;height:16px;stroke-width:1.6}
 
+          /* Driver Separation Review modal */
+          .sep-review .sep-intro{font-size:var(--fs-sm);color:var(--text-muted);margin:0 0 var(--s-3)}
+          .sep-review .sep-section{
+            font-size:var(--fs-sm);font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+            color:var(--text-subtle);margin:var(--s-4) 0 var(--s-2);
+            padding-bottom:4px;border-bottom:1px solid var(--border);
+          }
+          .sep-review .sep-q{margin-bottom:var(--s-3)}
+          .sep-review .sep-q-label{font-size:var(--fs-sm);font-weight:600;margin-bottom:6px}
+          .sep-review .sep-hint{font-size:var(--fs-xs);color:var(--text-subtle);margin:0 0 6px}
+          .sep-review .sep-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
+          .sep-review .sep-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 14px}
+          .sep-review .sep-opt{
+            display:flex;align-items:center;gap:7px;font-size:var(--fs-sm);
+            padding:3px 0;cursor:pointer;color:var(--text);
+          }
+          .sep-review .sep-opt input{flex-shrink:0;accent-color:var(--accent)}
+          .sep-review .sep-input{
+            width:100%;font:inherit;font-size:var(--fs-sm);
+            padding:7px 9px;border:1px solid var(--border);border-radius:var(--r-md);
+            background:var(--surface);color:var(--text);
+          }
+          .sep-review textarea.sep-input{resize:vertical;line-height:1.45}
+          .sep-review .sep-findings{
+            background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-md);
+            padding:var(--s-2) var(--s-3);
+          }
+          .sep-review .sep-finding{display:flex;gap:8px;align-items:baseline;padding:3px 0}
+          .sep-review .sep-finding-mark{width:14px;text-align:center;flex-shrink:0}
+          .sep-review .sep-finding-label{font-size:var(--fs-sm);font-weight:600}
+          .sep-review .sep-finding-detail{font-size:var(--fs-xs);color:var(--text-subtle)}
+          .sep-review .sep-certify{
+            display:flex;align-items:flex-start;gap:9px;margin-top:var(--s-4);
+            padding:var(--s-3);border:1px solid var(--border);border-radius:var(--r-md);
+            background:var(--canvas);font-size:var(--fs-sm);cursor:pointer;
+          }
+          .sep-review .sep-certify input{margin-top:2px;flex-shrink:0;accent-color:var(--accent)}
+
           /* Sort caret · idle (clickable but not the active sort)
              is a faded dual-arrow; active is a solid up/down. */
           #rr-roster-thead .rr-sort-caret{

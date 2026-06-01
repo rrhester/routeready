@@ -6976,6 +6976,16 @@ document.addEventListener("click", async (e) => {
     const id = opt.getAttribute("data-rr-driver-id");
     const nextStatus = opt.getAttribute("data-rr-status-pick");
     if (!id || !nextStatus) return;
+    // Terminating a driver routes through the Driver Separation Review,
+    // which collects the factual record and then commits the status +
+    // generates the separation packet. Don't flip status directly here.
+    if (nextStatus === "terminated") {
+      _rrCloseStatusPicker();
+      const drv = (_rosterRows || []).find((r) => r.id === id);
+      if (drv) _openSeparationReview(drv);
+      else toast("Driver not found", "warn");
+      return;
+    }
     opt.disabled = true;
     const { error } = await sb.from("drivers").update({ status: nextStatus }).eq("id", id);
     _rrCloseStatusPicker();
@@ -7586,6 +7596,7 @@ async function _textToPdfBytes(text) {
   const newPage = () => { page = pdf.addPage([pageW, pageH]); y = pageH - margin - fontSize; count = 0; };
   newPage();
   for (const ln of lines) {
+    if (ln === "\f") { newPage(); continue; }   // explicit page break between packet sections
     if (count >= maxLines) newPage();
     if (ln.length) page.drawText(ln, { x: margin, y, size: fontSize, font });
     y -= lineH; count++;
@@ -7625,6 +7636,317 @@ async function _downloadTerminationReport(driverId, kind) {
     console.warn("PDF generation failed; falling back to text:", e);
     _downloadBlob(`${slug}-${suffix}.txt`, new Blob([text], { type: "text/plain;charset=utf-8" }));
     toast("Downloaded as text (PDF unavailable)", "warn");
+  }
+}
+
+// ── Driver Separation Review ────────────────────────────────────────
+// Toggling a driver to Terminated opens this guided review before any
+// separation record is written. It auto-detects the compliance records
+// already on file, collects a factual employer statement + the standard
+// separation questions, then (on submit) persists the answers to the
+// driver record, flips status to terminated, and generates + downloads
+// + files a combined separation packet PDF in the employee file.
+
+const _SEP_TYPES = ["Employer Termination", "Employee Resignation", "Job Abandonment",
+  "End of Seasonal Employment", "Layoff / Reduction in Force", "Mutual Separation", "Other"];
+const _SEP_REASONS = ["Attendance Policy Violation", "No Call / No Show", "Safety Violation",
+  "Amazon Compliance Violation", "Performance Deficiency", "Conduct / Behavior",
+  "Theft / Dishonesty", "Failed Drug Screen", "Failed Background Check", "Job Abandonment",
+  "Voluntary Resignation", "Layoff / Business Need", "Other"];
+const _SEP_POLICIES = ["Attendance Policy", "Safety Policy", "Conduct Policy", "Vehicle Policy",
+  "Uniform Policy", "Device Usage Policy", "Amazon Delivery Standards", "Other"];
+const _SEP_PROTECTED = ["FMLA", "ADA Accommodation", "Military Leave", "Jury Duty",
+  "Workers Compensation", "Protected Medical Leave", "None of the Above"];
+const _SEP_ATTENDEES = ["Owner", "Operations Manager", "HR Representative", "Witness", "Other"];
+
+// Detect which compliance records already exist for the driver so the
+// Documentation Review section reflects the real file.
+async function _separationFindings(driverId) {
+  const dspId = window.RR.dsp.id;
+  const [shiftsRes, coachRes, envRes] = await Promise.all([
+    sb.from("shifts").select("id,status").eq("dsp_id", dspId).eq("driver_id", driverId)
+      .in("status", ["late", "called_off", "no_show"]).then((r) => r, () => ({ data: [] })),
+    sb.from("coachings").select("id,severity").eq("dsp_id", dspId).eq("driver_id", driverId)
+      .is("archived_at", null).then((r) => r, () => ({ data: [] })),
+    sb.from("document_envelopes").select("id,status,signed_at,document_templates(title)")
+      .eq("recipient_driver_id", driverId).then((r) => r, () => ({ data: [] })),
+  ]);
+  const shifts = shiftsRes?.data || [];
+  const coachings = coachRes?.data || [];
+  const envs = (envRes?.data || []).filter((e) => e.status === "signed" || e.signed_at);
+  const isHandbook = (e) => /handbook/i.test(e.document_templates?.title || "");
+  return {
+    handbook: envs.filter(isHandbook).length,
+    policy: envs.filter((e) => !isHandbook(e)).length,
+    attendance: shifts.length,
+    coaching: coachings.length,
+    corrective: coachings.filter((c) => ["written", "final", "termination"].includes(c.severity)).length,
+  };
+}
+
+function _sepOptList(name, opts, type) {
+  return opts.map((o) =>
+    `<label class="sep-opt"><input type="${type}" name="${name}" value="${escapeHtml(o)}"><span>${escapeHtml(o)}</span></label>`
+  ).join("");
+}
+function _sepFindingRow(ok, label, detail) {
+  const mark = ok ? `<span style="color:#137C43;font-weight:700">✓</span>`
+                  : `<span style="color:var(--text-subtle)">—</span>`;
+  return `<div class="sep-finding"><span class="sep-finding-mark">${mark}</span>`
+    + `<span class="sep-finding-label">${escapeHtml(label)}</span>`
+    + `<span class="sep-finding-detail">${escapeHtml(detail || "")}</span></div>`;
+}
+
+async function _openSeparationReview(driver) {
+  const name = displayDriverName(driver);
+  const today = fmtIsoDate(new Date());
+  let findings;
+  try { findings = await _separationFindings(driver.id); }
+  catch (e) { findings = { handbook: 0, policy: 0, attendance: 0, coaching: 0, corrective: 0 }; }
+
+  const docReview =
+    _sepFindingRow(findings.handbook > 0, "Handbook Acknowledgment", findings.handbook > 0 ? `${findings.handbook} signed` : "None on file") +
+    _sepFindingRow(findings.policy > 0, "Policy Acknowledgments", findings.policy > 0 ? `${findings.policy} signed` : "None on file") +
+    _sepFindingRow(findings.attendance > 0, "Attendance Records", findings.attendance > 0 ? `${findings.attendance} occurrence(s)` : "None on file") +
+    _sepFindingRow(findings.coaching > 0, "Coaching Records", findings.coaching > 0 ? `${findings.coaching} record(s)` : "None on file") +
+    _sepFindingRow(findings.corrective > 0, "Corrective Actions", findings.corrective > 0 ? `${findings.corrective} action(s)` : "None on file");
+
+  const modal = document.createElement("div");
+  modal.className = "modal-backdrop";
+  modal.style.cssText = "display:flex;position:fixed;inset:0;z-index:9999;align-items:flex-start;justify-content:center;padding:24px;overflow:auto;background:var(--overlay,rgba(15,23,42,.45))";
+  modal.innerHTML = `
+    <div class="modal sep-review" style="max-width:660px;width:100%;margin:auto;display:flex;flex-direction:column;max-height:92vh">
+      <div class="modal-header">
+        <div>
+          <p class="modal-title">Driver Separation Review</p>
+          <p class="modal-sub" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(name)} — responses should be factual and based on documented events.</p>
+        </div>
+        <button class="modal-close" data-sep-close aria-label="Cancel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body sep-body" style="overflow:auto;padding:var(--s-4) var(--s-5)">
+        <p class="sep-intro">Before RouteReady generates separation records, please answer the following. This will also set the driver's status to <strong>Terminated</strong>.</p>
+
+        <h4 class="sep-section">Separation Details</h4>
+        <div class="sep-q"><div class="sep-q-label">1. What type of separation occurred?</div><div class="sep-grid">${_sepOptList("sep-type", _SEP_TYPES, "radio")}</div></div>
+        <div class="sep-q sep-row">
+          <div><div class="sep-q-label">2. Effective separation date</div><input type="date" id="sep-eff" class="sep-input" value="${today}"></div>
+          <div><div class="sep-q-label">3. Last day worked</div><input type="date" id="sep-last" class="sep-input" value="${today}"></div>
+        </div>
+
+        <h4 class="sep-section">Separation Reason</h4>
+        <div class="sep-q"><div class="sep-q-label">4. What was the primary reason for separation?</div><div class="sep-grid">${_sepOptList("sep-reason", _SEP_REASONS, "radio")}</div></div>
+
+        <h4 class="sep-section">Policy Verification</h4>
+        <div class="sep-q"><div class="sep-q-label">5. Which policy or expectation was violated? (Select all that apply)</div><div class="sep-grid">${_sepOptList("sep-policy", _SEP_POLICIES, "checkbox")}</div></div>
+
+        <h4 class="sep-section">Documentation Review</h4>
+        <p class="sep-hint">RouteReady identified the following records on file:</p>
+        <div class="sep-findings">${docReview}</div>
+        <div class="sep-q" style="margin-top:var(--s-3)"><div class="sep-q-label">6. Do additional supporting documents exist that are not stored in RouteReady?</div>
+          <div class="sep-grid">${_sepOptList("sep-additional", ["No", "Yes"], "radio")}</div>
+          <div id="sep-upload-wrap" style="display:none;margin-top:var(--s-2)"><input type="file" id="sep-files" multiple class="sep-input"></div>
+        </div>
+
+        <h4 class="sep-section">Protected Leave Review</h4>
+        <div class="sep-q"><div class="sep-q-label">7. Were any events related to the separation associated with protected leave or status?</div><div class="sep-grid">${_sepOptList("sep-protected", _SEP_PROTECTED, "checkbox")}</div></div>
+
+        <h4 class="sep-section">Consistency Verification</h4>
+        <div class="sep-q"><div class="sep-q-label">8. Was company policy applied consistently in this situation?</div><div class="sep-grid">${_sepOptList("sep-consistency", ["Yes", "No", "Unsure"], "radio")}</div></div>
+
+        <h4 class="sep-section">Final Employer Statement</h4>
+        <div class="sep-q"><div class="sep-q-label">9. Provide a factual summary of the separation.</div>
+          <p class="sep-hint">Facts only · include dates · no opinions, speculation, or legal conclusions.</p>
+          <textarea id="sep-statement" class="sep-input" rows="5" placeholder="e.g. Employee failed to report for scheduled shifts on May 12 and May 15. No contact was received prior to shift start. Attendance warnings were issued on May 5 and May 10."></textarea>
+        </div>
+
+        <h4 class="sep-section">Separation Meeting</h4>
+        <div class="sep-q"><div class="sep-q-label">10. Was a separation meeting conducted?</div>
+          <div class="sep-grid">${_sepOptList("sep-meeting", ["Yes", "No"], "radio")}</div>
+          <div id="sep-attendees-wrap" style="display:none;margin-top:var(--s-2)"><div class="sep-q-label" style="font-weight:500">Who attended?</div><div class="sep-grid">${_sepOptList("sep-attendee", _SEP_ATTENDEES, "checkbox")}</div></div>
+        </div>
+
+        <label class="sep-certify"><input type="checkbox" id="sep-certify"><span>I certify that the information provided above is accurate to the best of my knowledge and based on company records.</span></label>
+      </div>
+      <div class="modal-actions" style="display:flex;justify-content:space-between;gap:var(--s-2);padding:var(--s-3) var(--s-5);border-top:1px solid var(--border)">
+        <button class="btn btn-sm" data-sep-close>Cancel</button>
+        <button class="btn btn-sm btn-primary" data-sep-generate disabled title="Complete the certification to enable">Generate Packet</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  // Conditional sections + certification gate.
+  modal.addEventListener("change", (ev) => {
+    const t = ev.target;
+    if (t.name === "sep-additional") {
+      modal.querySelector("#sep-upload-wrap").style.display = t.value === "Yes" ? "block" : "none";
+    } else if (t.name === "sep-meeting") {
+      modal.querySelector("#sep-attendees-wrap").style.display = t.value === "Yes" ? "block" : "none";
+    } else if (t.id === "sep-certify") {
+      modal.querySelector("[data-sep-generate]").disabled = !t.checked;
+    }
+  });
+  modal.addEventListener("click", (ev) => {
+    if (ev.target === modal || ev.target.closest("[data-sep-close]")) { modal.remove(); return; }
+    if (ev.target.closest("[data-sep-generate]")) { _submitSeparationReview(driver, modal, findings); }
+  });
+}
+
+async function _uploadSeparationFiles(driver, files) {
+  const dspId = window.RR.dsp.id;
+  const out = [];
+  for (const file of files) {
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `${dspId}/${driver.id}/separation-${Date.now()}-${safe}`;
+    const { error: upErr } = await sb.storage.from("driver-documents")
+      .upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
+    if (upErr) { console.warn("separation file upload failed:", upErr); continue; }
+    await sb.from("driver_documents").insert({
+      dsp_id: dspId, driver_id: driver.id, kind: "separation_support",
+      label: file.name, file_path: path, file_size: file.size, mime_type: file.type,
+    }).then((r) => r, (e) => console.warn("driver_documents insert failed:", e));
+    out.push({ label: file.name, path });
+  }
+  return out;
+}
+
+async function _storeSeparationPacket(driver, bytes) {
+  const dspId = window.RR.dsp.id;
+  const path = `${dspId}/${driver.id}/separation-packet-${Date.now()}.pdf`;
+  const blob = new Blob([bytes], { type: "application/pdf" });
+  const { error: upErr } = await sb.storage.from("driver-documents")
+    .upload(path, blob, { contentType: "application/pdf", upsert: false });
+  if (upErr) { console.warn("packet store failed:", upErr); return null; }
+  await sb.from("driver_documents").insert({
+    dsp_id: dspId, driver_id: driver.id, kind: "separation_packet",
+    label: `Separation Packet · ${new Date().toLocaleDateString("en-US")}`,
+    file_path: path, file_size: blob.size, mime_type: "application/pdf",
+  }).then((r) => r, (e) => console.warn("driver_documents insert failed:", e));
+  return path;
+}
+
+function _buildSeparationCoverText(driver, sep, findings) {
+  const dsp = (window.RR && window.RR.dsp) || {};
+  const name = displayDriverName(driver);
+  const station = driver.station?.code || dsp.short_code || "—";
+  const yn = (v) => v == null || v === "" ? "—" : v;
+  const list = (arr, empty) => (arr && arr.length) ? arr.join(", ") : (empty || "None indicated");
+  const L = [];
+  L.push(_rptHeader(driver, "DRIVER SEPARATION PACKET"));
+  L.push(`    RE:               ${name}`);
+  L.push(`    STATION:          ${station}`);
+  L.push(`    DATE PREPARED:    ${_rptDate(new Date().toISOString())}`);
+  L.push(`    EMPLOYER FILE:    RR-${String(driver.id).slice(0, 8).toUpperCase()}`);
+  L.push(_rptRule("-"));
+  L.push("");
+  L.push("I.  SEPARATION DETAILS");
+  L.push(`        Type of separation:        ${yn(sep.type)}`);
+  L.push(`        Effective separation date: ${_rptDate(sep.effective_date)}`);
+  L.push(`        Last day worked:           ${_rptDate(sep.last_day_worked)}`);
+  L.push("");
+  L.push("II.  SEPARATION REASON");
+  L.push(`        Primary reason:            ${yn(sep.primary_reason)}`);
+  L.push(`        Policy/expectation(s) violated: ${list(sep.policies_violated)}`);
+  L.push("");
+  L.push("III.  DOCUMENTATION ON FILE (auto-detected)");
+  const mk = (ok) => ok ? "[X]" : "[ ]";
+  L.push(`        ${mk(findings.handbook > 0)} Handbook Acknowledgment      (${findings.handbook} signed)`);
+  L.push(`        ${mk(findings.policy > 0)} Policy Acknowledgments       (${findings.policy} signed)`);
+  L.push(`        ${mk(findings.attendance > 0)} Attendance Records           (${findings.attendance} occurrence(s))`);
+  L.push(`        ${mk(findings.coaching > 0)} Coaching Records             (${findings.coaching} record(s))`);
+  L.push(`        ${mk(findings.corrective > 0)} Corrective Actions           (${findings.corrective} action(s))`);
+  L.push(`        Additional supporting documents: ${sep.additional_docs ? `Yes (${(sep.uploaded_docs || []).length} uploaded)` : "No"}`);
+  L.push("");
+  L.push("IV.  PROTECTED LEAVE / STATUS REVIEW");
+  L.push(_rptWrap(`Associated protected leave/status: ${list(sep.protected_leave, "None of the above")}`, "        "));
+  L.push("");
+  L.push("V.  CONSISTENCY VERIFICATION");
+  L.push(`        Policy applied consistently: ${yn(sep.consistency)}`);
+  L.push("");
+  L.push("VI.  SEPARATION MEETING");
+  L.push(`        Meeting conducted: ${sep.meeting_conducted ? "Yes" : "No"}`);
+  if (sep.meeting_conducted) L.push(`        Attendees:         ${list(sep.meeting_attendees)}`);
+  L.push("");
+  L.push("VII.  EMPLOYER STATEMENT OF FACTS");
+  L.push("");
+  L.push(_rptWrap(sep.statement || "—", "        "));
+  L.push("");
+  L.push("VIII.  CERTIFICATION");
+  L.push("");
+  L.push(_rptWrap(`Certified accurate to the best of the preparer's knowledge, based on company `
+    + `records, on ${_rptDate(sep.certified_at)}.`, "    "));
+  L.push("");
+  L.push("    Prepared by: ______________________________   Date: ________________");
+  L.push("");
+  L.push(_rptRule("-"));
+  L.push(_rptWrap("The following records are appended to this packet: "
+    + "A. Unemployment Separation Statement;  B. Attendance Record.", ""));
+  L.push(_rptRule("="));
+  return L.join("\n");
+}
+
+async function _submitSeparationReview(driver, modal, findings) {
+  const radio = (n) => { const el = modal.querySelector(`input[name="${n}"]:checked`); return el ? el.value : ""; };
+  const checks = (n) => Array.from(modal.querySelectorAll(`input[name="${n}"]:checked`)).map((e) => e.value);
+  const type = radio("sep-type");
+  const eff = modal.querySelector("#sep-eff").value;
+  const last = modal.querySelector("#sep-last").value;
+  const reason = radio("sep-reason");
+  const statement = modal.querySelector("#sep-statement").value.trim();
+  const certified = modal.querySelector("#sep-certify").checked;
+
+  const missing = [];
+  if (!type) missing.push("separation type");
+  if (!eff) missing.push("effective date");
+  if (!reason) missing.push("primary reason");
+  if (!statement) missing.push("employer statement");
+  if (!certified) missing.push("certification");
+  if (missing.length) { toast("Please complete: " + missing.join(", "), "warn"); return; }
+
+  const btn = modal.querySelector("[data-sep-generate]");
+  if (btn) { btn.disabled = true; btn.textContent = "Generating…"; }
+  try {
+    const additional = radio("sep-additional") === "Yes";
+    const files = additional ? Array.from(modal.querySelector("#sep-files").files || []) : [];
+    const uploaded = files.length ? await _uploadSeparationFiles(driver, files) : [];
+    const sep = {
+      type, effective_date: eff, last_day_worked: last || null, primary_reason: reason,
+      policies_violated: checks("sep-policy"), additional_docs: additional, uploaded_docs: uploaded,
+      protected_leave: checks("sep-protected"), consistency: radio("sep-consistency"),
+      statement, meeting_conducted: radio("sep-meeting") === "Yes",
+      meeting_attendees: checks("sep-attendee"), certified: true, certified_at: new Date().toISOString(),
+    };
+    const meta = Object.assign({}, driver.metadata || {});
+    meta.separation = sep;
+    meta.separation_date = eff;
+    meta.separation_note = statement;
+    meta.last_day_worked = last || null;
+    const { error: upErr } = await sb.from("drivers").update({ status: "terminated", metadata: meta }).eq("id", driver.id);
+    if (upErr) throw upErr;
+    driver.status = "terminated"; driver.metadata = meta;
+
+    const data = await _fetchTerminationReportData(driver);
+    const packet = [
+      _buildSeparationCoverText(driver, sep, findings), "\f",
+      _buildUnemploymentReportText(driver, data), "\f",
+      _buildAttendanceReportText(driver, data),
+    ].join("\n");
+    const slug = displayDriverName(driver).toLowerCase().replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "") || "driver";
+    let stored = null;
+    try {
+      const bytes = await _textToPdfBytes(packet);
+      _downloadBlob(`${slug}-separation-packet.pdf`, new Blob([bytes], { type: "application/pdf" }));
+      stored = await _storeSeparationPacket(driver, bytes);
+    } catch (e) {
+      console.warn("packet PDF failed; downloading text:", e);
+      _downloadBlob(`${slug}-separation-packet.txt`, new Blob([packet], { type: "text/plain;charset=utf-8" }));
+    }
+    modal.remove();
+    toast("Separation packet generated" + (stored ? " · saved to employee file" : ""), "success");
+    if (typeof loadDriversRoster === "function") loadDriversRoster();
+  } catch (e) {
+    console.warn("separation submit failed:", e);
+    toast("Could not complete separation: " + (e.message || ""), "error");
+    if (btn) { btn.disabled = false; btn.textContent = "Generate Packet"; }
   }
 }
 
