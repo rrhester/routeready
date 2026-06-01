@@ -472,8 +472,11 @@
    icons (it overrode the inline index.html rules with !important). */
 #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-tab-wrap > .subnav-item svg,
 #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item svg {
-  width: 28px !important;
-  height: 28px !important;
+  /* Match the Schedule command-strip tiles exactly — those are
+     .sched-v2-tile svg at 38px (schedule-rrx.css), not the 28px
+     view-tabs. Grey #605E5C, 1.6 stroke, very square caps/miter. */
+  width: 38px !important;
+  height: 38px !important;
   color: #605E5C !important;
   stroke-width: 1.6 !important;
   stroke-linecap: square !important;
