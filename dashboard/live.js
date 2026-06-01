@@ -31581,10 +31581,26 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     // preserve the very mismatch it's meant to fix. We free those so
     // the chain/pool phases can reassign a compatible van, and track
     // them so a stale row gets cleared if no replacement is found.
-    const incompatibleFreed = [];
     for (const r of overridesByDate.get(date) || []) {
       if (!vanCompatible(r.vehicle_id, r.driver_id, date)) {
-        incompatibleFreed.push(r.driver_id);
+        // Queue a null-clear NOW (not just when the driver ends up
+        // unassigned). The DB's vehicle_day_assignment_set rejects any
+        // write whose target van is still owned by another driver on
+        // this date (errcode vehicle_already_assigned), so in the
+        // classic swap — box truck on parcel driver A, regular van on
+        // XL driver B, who need to trade vans — both reassignment RPCs
+        // would fail unless the stale rows are cleared first. The
+        // persistence step below runs all null-clears before any sets.
+        writes.push({ driver_id: r.driver_id, date, vehicle_id: null, _clear: true });
+        // Also drop this stale row from FEM usage — usageByVan was
+        // seeded from every existing row before the loop, so without
+        // this the wrongly-assigned van would still count as "used"
+        // today and could hide an at-risk van or skew the sort.
+        const ul = usageByVan.get(r.vehicle_id);
+        if (ul) {
+          const idx = ul.indexOf(date);
+          if (idx >= 0) { ul.splice(idx, 1); if (ul.length === 0) usageByVan.delete(r.vehicle_id); }
+        }
         continue; // leave both maps open so the van + driver re-resolve
       }
       driverAssigned.set(r.driver_id, r.vehicle_id);
@@ -31756,7 +31772,13 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     // Helper: remove the pending (date, drvId) write so the
     // displaced driver doesn't get persisted on their old van.
     const _unrecord = (drvId) => {
-      const wIdx = writes.findIndex(w => w.date === date && w.driver_id === drvId);
+      // Remove the driver's SET write for this date (the assignment
+      // being displaced), NOT their null-clear. A driver freed from an
+      // incompatible override has both a null-clear and (if reassigned)
+      // a set write; findIndex would otherwise delete the clear first,
+      // leaving the stale van in setWrites with no clear before it. Skip
+      // _clear rows so the clear always survives to free the donor van.
+      const wIdx = writes.findIndex(w => w.date === date && w.driver_id === drvId && w.vehicle_id);
       if (wIdx >= 0) writes.splice(wIdx, 1);
       const rIdx = reasons.findIndex(r => r.date === date && r.driver_id === drvId);
       if (rIdx >= 0) reasons.splice(rIdx, 1);
@@ -31826,15 +31848,11 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       // the operator's rule choices).
     }
 
-    // Clear stale incompatible rows · any driver we freed above
-    // (their pre-existing van broke the box-truck rule) who didn't
-    // pick up a new compatible van this date needs the wrong row
-    // removed from the DB — otherwise the mismatch would persist.
-    // p_vehicle_id:null is the upsert's clear path.
-    for (const drvId of incompatibleFreed) {
-      if (driverAssigned.has(drvId)) continue; // got a compatible van
-      writes.push({ driver_id: drvId, date, vehicle_id: null });
-    }
+    // (Stale incompatible rows were already queued as null-clears at
+    // the top of this date's pass, so every freed van is cleared in the
+    // DB before any reassignment reuses it; the driver's compatible
+    // replacement, if any, is an ordinary recordWrite that the
+    // clears-before-sets persistence ordering lands after the clear.)
 
     // Promote today's writes into usageByVan so the NEXT date's
     // FEM sort sees them as recently used (no re-sort needed —
@@ -31893,24 +31911,37 @@ async function _assignVansForRange(startIso, endIso, dspId) {
   // briefly, nothing happened."
   let assigned = 0;
   const chunkSize = 10;
-  for (let i = 0; i < writes.length; i += chunkSize) {
-    const chunk = writes.slice(i, i + chunkSize);
-    const res = await Promise.all(chunk.map(async (w) => {
-      try {
-        return await sb.rpc("vehicle_day_assignment_set", {
-          p_driver_id:  w.driver_id,
-          p_date:       w.date,
-          p_vehicle_id: w.vehicle_id,
-          p_source:     "auto",
-          p_notes:      null,
-        });
-      } catch (err) {
-        return { error: err };
-      }
-    }));
-    res.forEach(r => { if (!(r && r.error)) assigned += 1; else console.warn("vehicle_day_assignment_set:", r.error); });
-  }
-  console.log(`assignVans writes complete · ${assigned}/${writes.length} succeeded`);
+  // Order matters: every null-clear (freed incompatible row) must land
+  // BEFORE any set that reuses that vehicle, or the DB rejects the set
+  // with vehicle_already_assigned (the box-truck/regular-van swap case).
+  // Run all clears first, await them fully, then run the sets.
+  const clearWrites = writes.filter(w => !w.vehicle_id);
+  const setWrites   = writes.filter(w => w.vehicle_id);
+  const runWrites = async (list, countAsPlacement) => {
+    for (let i = 0; i < list.length; i += chunkSize) {
+      const chunk = list.slice(i, i + chunkSize);
+      const res = await Promise.all(chunk.map(async (w) => {
+        try {
+          return await sb.rpc("vehicle_day_assignment_set", {
+            p_driver_id:  w.driver_id,
+            p_date:       w.date,
+            p_vehicle_id: w.vehicle_id,
+            p_source:     "auto",
+            p_notes:      null,
+          });
+        } catch (err) {
+          return { error: err };
+        }
+      }));
+      res.forEach(r => {
+        if (r && r.error) { console.warn("vehicle_day_assignment_set:", r.error); }
+        else if (countAsPlacement) { assigned += 1; }
+      });
+    }
+  };
+  await runWrites(clearWrites, false); // clears first — frees the vans
+  await runWrites(setWrites, true);    // then the (re)assignments
+  console.log(`assignVans writes complete · ${assigned}/${setWrites.length} placement${setWrites.length === 1 ? "" : "s"} · ${clearWrites.length} cleared`);
   console.log(
     `assignVans FEM @ ${summaryAsOf} · branded: never=${fem.brandedNeverUsed} watch=${fem.brandedAtWatch} risk=${fem.brandedAtRisk} critical=${fem.brandedAtCritical} violation=${fem.brandedAtViolation} · unused 7+/11+/13+/14+ = ${fem.unusedSevenPlus}/${fem.unusedElevenPlus}/${fem.unusedThirteenPlus}/${fem.unusedFourteenPlus}`
   );
