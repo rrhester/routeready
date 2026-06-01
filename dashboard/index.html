@@ -12090,13 +12090,12 @@ body.rr-cmdk-open{ overflow:hidden }
           color:var(--rr-brand-pressed);background:var(--rr-bg-selected);font-weight:600;
         }
         #view-onboarding-ops .sched-nav-heading .subnav-item.active svg{color:var(--rr-brand-primary)}
-        /* Roster-strip icons · thinner, darker, sharp corners
-           (rx removed in the SVG markup itself). Scoped to the
-           roster actions block so the rest of the onboarding strip
-           keeps its existing weight. */
+        /* Roster-strip icons · match the Schedule ribbon icons exactly —
+           Fluent secondary grey (#605E5C), 1.6 stroke weight, 28px (set
+           above). Rounded ends/corners come from the SVG markup. */
         #view-onboarding-ops .ob-v2-roster-actions .subnav-item svg{
-          color:var(--text) !important;
-          stroke-width:1.4 !important;
+          color:#605E5C !important;
+          stroke-width:1.6 !important;
         }
         #view-onboarding-ops .sched-nav-heading .subnav-item:focus,
         #view-onboarding-ops .sched-nav-heading .subnav-item:focus-visible{outline:none}
@@ -12246,7 +12245,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="subnav" data-rr-tabbar="onboarding-roster">
                 <div class="ob-tab-wrap" data-rr-tile="roster-roster">
                   <button class="subnav-item active" type="button" title="Driver roster" onclick="if(typeof _obMountDriverSub==='function') _obMountDriverSub('roster');">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="16"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
                     <span>Roster</span>
                   </button>
                   <button type="button" class="ob-rules-foot" id="rr-roster-rules-toggle"
@@ -12308,7 +12307,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="subnav" data-rr-tabbar="onboarding-roster">
                 <div class="ob-tab-wrap" data-rr-tile="roster-attendance">
                   <button class="subnav-item" type="button" title="Driver attendance" onclick="if(typeof _obMountDriverSub==='function') _obMountDriverSub('attendance');">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 15 11 17 16 12"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 15 11 17 16 12"/></svg>
                     <span>Attendance</span>
                   </button>
                   <button type="button" class="ob-rules-foot" id="rr-att-rules-toggle"
@@ -12342,7 +12341,7 @@ body.rr-cmdk-open{ overflow:hidden }
                 </div>
                 <div class="ob-tab-wrap" data-rr-tile="roster-coaching">
                   <button class="subnav-item" type="button" title="Coaching feed" onclick="if(typeof _obMountDriverSub==='function') _obMountDriverSub('coaching');">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M3 5h18v12H7l-4 4z"/><line x1="7" y1="10" x2="17" y2="10"/><line x1="7" y1="13" x2="14" y2="13"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18v12H7l-4 4z"/><line x1="7" y1="10" x2="17" y2="10"/><line x1="7" y1="13" x2="14" y2="13"/></svg>
                     <span>Coaching</span>
                   </button>
                   <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Coaching rules — coming soon">
@@ -12357,7 +12356,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="subnav" data-rr-tabbar="onboarding-roster">
                 <div class="ob-tab-wrap" data-rr-tile="roster-licences">
                   <button class="subnav-item" type="button" title="Driver licences" onclick="if(typeof _obMountDriverSub==='function') _obMountDriverSub('licences');">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="2" y="5" width="20" height="14"/><circle cx="8" cy="12" r="2.5"/><line x1="13" y1="10" x2="19" y2="10"/><line x1="13" y1="13" x2="19" y2="13"/><line x1="13" y1="16" x2="17" y2="16"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2.5"/><line x1="13" y1="10" x2="19" y2="10"/><line x1="13" y1="13" x2="19" y2="13"/><line x1="13" y1="16" x2="17" y2="16"/></svg>
                     <span>Licences</span>
                   </button>
                   <button type="button" class="ob-rules-foot" id="rr-lic-rules-toggle"
