@@ -3941,6 +3941,10 @@ async function loadDriversRoster() {
   // points. Best-effort; a fetch failure just leaves the column at 0.
   try {
     const _attEval = (typeof _evalPolicy === "function") ? _evalPolicy() : null;
+    // Policy OFF → no points accumulate. Leave the column blank (—).
+    if (!_attEval || _attEval.enabled === false) {
+      _rosterAttPoints = new Map();
+    } else {
     const _ptsCallout = _attEval?.events?.callout ? Number(_attEval.events.callout.points) || 0 : 0;
     const _ptsNoshow  = _attEval?.events?.no_show ? Number(_attEval.events.no_show.points) || 0 : 0;
     const _ptsLate    = _attEval?.events?.late    ? Number(_attEval.events.late.points)    || 0 : 0;
@@ -3967,6 +3971,7 @@ async function loadDriversRoster() {
       if (w) _pts.set(sh.driver_id, (_pts.get(sh.driver_id) || 0) + w);
     }
     _rosterAttPoints = _pts;
+    }
   } catch (e) {
     console.warn("attendance points load failed:", e);
     _rosterAttPoints = new Map();
@@ -9570,7 +9575,7 @@ function _renderPolicyEditor() {
     <div class="pol-section" style="display:flex;align-items:center;gap:var(--s-3-5)">
       <span style="flex:1">
         <h3 class="pol-section-title">Attendance policy</h3>
-        <p class="pol-section-sub" style="margin:0">When ON, the dashboard scores every driver against the rules below. When OFF, attendance is logged but not flagged or coached.</p>
+        <p class="pol-section-sub" style="margin:0">When ON, points accumulate against the rules below and every driver is scored. When OFF, <strong>no points accumulate</strong> — attendance is still logged, but never scored, flagged, or coached.</p>
       </span>
       <label class="toggle">
         <input type="checkbox" id="rr-pol-master-enabled" ${s.master.policy_enabled ? "checked" : ""}/>
@@ -9600,7 +9605,7 @@ function _renderPolicyEditor() {
       <div style="display:flex;align-items:center;gap:var(--s-3-5);margin-bottom:10px">
         <span style="flex:1">
           <h3 class="pol-section-title" style="margin:0">Coaching ladder</h3>
-          <p class="pol-section-sub" style="margin:2px 0 0">Each level fires when accumulated points cross its threshold.</p>
+          <p class="pol-section-sub" style="margin:2px 0 0">Each level has a points threshold. With <strong>Auto-coach ON</strong>, the coaching sends automatically the moment a driver's points cross a level (Termination never auto-fires). With <strong>Auto-coach OFF</strong>, the crossing waits in the Report as a “Send coaching” action for you to review and send.</p>
         </span>
         <span style="display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-sm);color:var(--text-muted)">
           Auto-coach
