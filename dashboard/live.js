@@ -3881,6 +3881,23 @@ async function _submitBulkDrivers() {
 let _driverStage = "active";
 // Roster filter / sort state (set by the toolbar dropdowns + search).
 let _rosterFilters = { station: "", tenure: "", score: "", q: "", sort: "score-asc" };
+
+// Status-header filter options · the Status column dropdown switches
+// _driverStage so the roster can show non-active drivers (On leave /
+// Inactive / Terminated). Onboarding is intentionally omitted — that
+// stage swaps the table to the milestone columns (and the page surfaces
+// onboarding separately), which would hide this very control.
+const _RR_ROSTER_STATUS_FILTERS = [
+  { stage: "all",          label: "All statuses", dot: null },
+  { stage: "active",       label: "Active",       dot: "active" },
+  { stage: "onleave",      label: "On leave",     dot: "leave" },
+  { stage: "inactiveonly", label: "Inactive",     dot: "inactive" },
+  { stage: "terminated",   label: "Terminated",   dot: "terminated" },
+];
+function _rrRosterStatusFilterLabel() {
+  const f = _RR_ROSTER_STATUS_FILTERS.find(o => o.stage === _driverStage);
+  return f ? f.label : "Active";
+}
 // Cached roster rows so filter/sort changes don't refetch.
 let _rosterRows = [];
 
@@ -3942,6 +3959,10 @@ function _rowsForStage(rows, stage) {
     case "atrisk":     return rows.filter(r => r.status === "active" && (r.score ?? 999) < 70);
     case "onleave":    return rows.filter(r => r.status === "leave");
     case "inactive":   return rows.filter(r => ["inactive","terminated"].includes(r.status));
+    // Granular status filters driven by the Status-header dropdown.
+    case "inactiveonly": return rows.filter(r => r.status === "inactive");
+    case "terminated":   return rows.filter(r => r.status === "terminated");
+    case "all":          return rows;
     default:           return rows;
   }
 }
@@ -4146,7 +4167,13 @@ function renderDriverTable(rows, error) {
         <span class="rr-roster-th-search-slot" data-rr-no-drawer></span>
       </th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
-      <th data-rr-roster-sort="status" style="cursor:pointer;user-select:none">Status${caret("status")}</th>
+      <th class="rr-roster-th-status">
+        <span class="rr-roster-th-status-sort" data-rr-roster-sort="status" style="cursor:pointer;user-select:none">Status${caret("status")}</span>
+        <button type="button" class="rr-roster-status-filter-btn${_driverStage !== "active" ? " is-set" : ""}" data-rr-roster-status-filter data-rr-no-drawer aria-haspopup="menu" aria-expanded="false" title="Filter by status">
+          <span class="rr-roster-status-filter-label">${escapeHtml(_rrRosterStatusFilterLabel())}</span>
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:3px;opacity:.7"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </th>
       <th data-rr-roster-sort="score"  style="cursor:pointer;user-select:none">Score <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;opacity:.6" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${caret("score")}</th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th>App</th>
@@ -4202,6 +4229,10 @@ function renderDriverTable(rows, error) {
       ? { title: "No at-risk drivers", body: "Drivers whose score drops below 70 surface here so you can intervene early." }
       : _driverStage === "onleave"
       ? { title: "No one on leave", body: "Drivers marked on leave appear here." }
+      : _driverStage === "inactiveonly"
+      ? { title: "No inactive drivers", body: "Drivers set to Inactive appear here." }
+      : _driverStage === "terminated"
+      ? { title: "No terminated drivers", body: "Drivers set to Terminated appear here." }
       : { title: "No drivers in this stage", body: "Nothing to show here right now." };
     tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:0">${_rosterEmpty(cfg)}</td></tr>`;
     _updateRosterHint(0, stageTotal); _rosterBulkRefresh();
@@ -6892,6 +6923,87 @@ document.addEventListener("keydown", (e) => {
 });
 window.addEventListener("scroll", _rrCloseStatusPicker, true);
 window.addEventListener("resize", _rrCloseStatusPicker);
+
+// ── Status-header filter dropdown ─────────────────────────────────────
+// A second popover (separate from the per-row status picker above) that
+// lets the operator switch which driver statuses the roster shows. It
+// drives _driverStage and re-renders the table. Reuses the .rr-status-
+// picker styling for a consistent menu look.
+function _rrEnsureRosterStatusFilterPop() {
+  let pop = document.getElementById("rr-roster-status-filter-pop");
+  if (pop) return pop;
+  pop = document.createElement("div");
+  pop.id = "rr-roster-status-filter-pop";
+  pop.className = "rr-status-picker";
+  pop.setAttribute("role", "menu");
+  pop.hidden = true;
+  document.body.appendChild(pop);
+  return pop;
+}
+function _rrCloseRosterStatusFilter() {
+  const pop = document.getElementById("rr-roster-status-filter-pop");
+  if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  pop.innerHTML = "";
+  const t = document.querySelector('[data-rr-roster-status-filter][aria-expanded="true"]');
+  if (t) t.setAttribute("aria-expanded", "false");
+}
+function _rrOpenRosterStatusFilter(trigger) {
+  if (!trigger) return;
+  const pop = _rrEnsureRosterStatusFilterPop();
+  pop.innerHTML = _RR_ROSTER_STATUS_FILTERS.map((o) => {
+    const isCur = o.stage === _driverStage;
+    const dot = o.dot
+      ? `<span class="rr-status-picker-dot rr-status-dot-${o.dot}"></span>`
+      : `<span class="rr-status-picker-dot" style="background:var(--text-subtle)"></span>`;
+    return `<button type="button" role="menuitem" class="rr-status-picker-item${isCur ? " is-current" : ""}" data-rr-roster-status-pick="${o.stage}">`
+      + dot
+      + `<span class="rr-status-picker-label">${escapeHtml(o.label)}</span>`
+      + (isCur ? `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg>` : ``)
+      + `</button>`;
+  }).join("");
+  const r = trigger.getBoundingClientRect();
+  pop.style.position = "fixed";
+  pop.style.left = `${Math.max(8, r.left)}px`;
+  pop.style.top  = `${r.bottom + 6}px`;
+  pop.style.minWidth = `${Math.max(180, r.width)}px`;
+  pop.hidden = false;
+  trigger.setAttribute("aria-expanded", "true");
+}
+document.addEventListener("click", (e) => {
+  // Open / toggle on the Status-header filter button.
+  const trigger = e.target.closest("[data-rr-roster-status-filter]");
+  if (trigger) {
+    e.preventDefault();
+    e.stopPropagation();
+    _rrCloseStatusPicker();
+    const pop = document.getElementById("rr-roster-status-filter-pop");
+    const isOpen = pop && !pop.hidden && trigger.getAttribute("aria-expanded") === "true";
+    _rrCloseRosterStatusFilter();
+    if (!isOpen) _rrOpenRosterStatusFilter(trigger);
+    return;
+  }
+  // Pick a status → set the stage and re-render.
+  const opt = e.target.closest("[data-rr-roster-status-pick]");
+  if (opt) {
+    e.preventDefault();
+    e.stopPropagation();
+    const stage = opt.getAttribute("data-rr-roster-status-pick");
+    _rrCloseRosterStatusFilter();
+    if (!stage || stage === _driverStage) return;
+    _driverStage = stage;
+    if (typeof renderDriverTable === "function") renderDriverTable(_rosterRows, null);
+    return;
+  }
+  // Outside click → close.
+  const pop = document.getElementById("rr-roster-status-filter-pop");
+  if (pop && !pop.hidden && !e.target.closest("#rr-roster-status-filter-pop")) {
+    _rrCloseRosterStatusFilter();
+  }
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") _rrCloseRosterStatusFilter(); });
+window.addEventListener("scroll", _rrCloseRosterStatusFilter, true);
+window.addEventListener("resize", _rrCloseRosterStatusFilter);
 
 // Compact status helpers for the dr-app-btn — paints the small
 // indicator dot on the phone-shaped button + sets a useful title

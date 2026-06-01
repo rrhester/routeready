@@ -13495,6 +13495,30 @@ body.rr-cmdk-open{ overflow:hidden }
             height:79px !important;
             vertical-align:middle !important;
           }
+          /* Status-header filter dropdown · sits next to the sortable
+             "Status" label; opens the status-filter menu so the operator
+             can view On leave / Inactive / Terminated drivers. Reads as a
+             quiet pill at rest, accent-tinted when a non-default filter
+             is applied. text-transform/letter-spacing reset so the status
+             label inside reads naturally, not in the header's all-caps. */
+          .rr-roster-th-status{white-space:nowrap}
+          .rr-roster-th-status .rr-roster-th-status-sort{margin-right:8px}
+          .rr-roster-status-filter-btn{
+            appearance:none;cursor:pointer;vertical-align:middle;
+            display:inline-flex;align-items:center;gap:2px;
+            font:inherit;font-size:var(--fs-xs);font-weight:600;
+            letter-spacing:0;text-transform:none;
+            color:var(--text-muted);
+            padding:2px 6px;border:1px solid rgba(15,23,42,.14);
+            border-radius:var(--r-pill);background:#fff;
+            transition:background var(--t-fast),color var(--t-fast),
+                       border-color var(--t-fast),box-shadow var(--t-fast);
+          }
+          .rr-roster-status-filter-btn:hover{border-color:rgba(15,23,42,.26);color:var(--text)}
+          .rr-roster-status-filter-btn:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+          .rr-roster-status-filter-btn.is-set{
+            color:var(--accent-text);background:var(--accent-soft);border-color:var(--accent-border);
+          }
           /* Row hover · light-blue wash + left-edge bar in the Schedule
              view's communication blue (#0F6CBD), so the roster hover
              highlight matches the Schedule page rather than the global
