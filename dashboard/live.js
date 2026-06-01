@@ -31772,7 +31772,13 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     // Helper: remove the pending (date, drvId) write so the
     // displaced driver doesn't get persisted on their old van.
     const _unrecord = (drvId) => {
-      const wIdx = writes.findIndex(w => w.date === date && w.driver_id === drvId);
+      // Remove the driver's SET write for this date (the assignment
+      // being displaced), NOT their null-clear. A driver freed from an
+      // incompatible override has both a null-clear and (if reassigned)
+      // a set write; findIndex would otherwise delete the clear first,
+      // leaving the stale van in setWrites with no clear before it. Skip
+      // _clear rows so the clear always survives to free the donor van.
+      const wIdx = writes.findIndex(w => w.date === date && w.driver_id === drvId && w.vehicle_id);
       if (wIdx >= 0) writes.splice(wIdx, 1);
       const rIdx = reasons.findIndex(r => r.date === date && r.driver_id === drvId);
       if (rIdx >= 0) reasons.splice(rIdx, 1);
