@@ -22464,6 +22464,10 @@ body.rr-cmdk-open{ overflow:hidden }
               gap:0 !important;
             }
             body.rr-fc-hide-rail .rr-fc-rail-space{ display:none !important; }
+            /* Belt-and-suspenders: force the calendar card to span every
+               grid track so it fills the reclaimed rail space even if the
+               column-count override is ever out-specified. */
+            body.rr-fc-hide-rail .rr-fleet-cal{ grid-column:1 / -1 !important; }
             /* VAN-header tools — hidden until you hover the header cell
                (focus-within keeps them up while a popover is open). */
             .rr-fc-vancol-actions{

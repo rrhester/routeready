@@ -29369,8 +29369,8 @@ function _onFleetCalClick(e) {
     e.stopPropagation();
     const which = tool.getAttribute("data-fc-tool");
     if (which === "focus") {
-      const on = !document.body.classList.contains("rr-sched-focus");
-      document.body.classList.toggle("rr-sched-focus", on);
+      const on = !document.body.classList.contains("rr-fc-focus");
+      document.body.classList.toggle("rr-fc-focus", on);
       _paintFleetCalendar();
       return;
     }
