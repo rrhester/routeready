@@ -4822,7 +4822,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
    its trigger), matching the shift-popover's premium feel. */
 .popover.open{display:block;transform-origin:top right;animation:rrPopIn 170ms cubic-bezier(0.2,0.8,0.25,1)}
 @keyframes rrPopIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
-@media (prefers-reduced-motion: reduce){.popover.open{animation:none}}
+/* One-shot class added by the hidden-popover observer in live.js when a
+   rules/settings popover becomes visible. transform-origin top so it
+   grows from near its trigger button. */
+.rr-pop-anim{transform-origin:top center;animation:rrPopIn 170ms cubic-bezier(0.2,0.8,0.25,1)}
+@media (prefers-reduced-motion: reduce){.popover.open,.rr-pop-anim{animation:none}}
 .popover-section{padding:6px}
 .popover-section + .popover-section{border-top:1px solid var(--border)}
 .popover-item{
@@ -35090,7 +35094,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260601-shift-modal-scale"></script>
+<script type="module" src="./live.js?v=20260601-rules-pop-anim"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

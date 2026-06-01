@@ -19382,6 +19382,39 @@ new MutationObserver(() => {
   }
 }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
 
+// Animate the [hidden]-toggled rules/settings popovers (Smart Fill rules,
+// quick settings, vans rules, attendance/license/roster/funnel/onboarding
+// rules, milestone rules) with the same scale+fade as the other pop-out
+// surfaces. These are shown by flipping `pop.hidden = false` across ~10
+// callsites, and they re-render their contents while open — so instead of
+// a CSS animation on the base class (which would re-fire on every repaint)
+// or editing every callsite, one observer watches the `hidden` attribute
+// and adds a ONE-SHOT animation class when a popover becomes visible,
+// cleared on animationend. attributeFilter:["hidden"] keeps it cheap —
+// hidden flips are rare (unlike class churn), so no reflow-storm risk.
+(function () {
+  const SEL = ".ob-att-rules-popover, .ob-rules-popover, .sched-vans-rules-popover, " +
+              ".sched-smartfill-rules-popover, .sched-quick-settings-popover, " +
+              ".sched-milestone-rules-popover";
+  const animateIn = (el) => {
+    if (!el || el.hidden) return;
+    el.classList.remove("rr-pop-anim");
+    // Force reflow so re-adding the class restarts the animation.
+    void el.offsetWidth;
+    el.classList.add("rr-pop-anim");
+    el.addEventListener("animationend", () => el.classList.remove("rr-pop-anim"), { once: true });
+  };
+  const mo = new MutationObserver((muts) => {
+    for (const m of muts) {
+      const t = m.target;
+      if (t instanceof Element && t.matches && t.matches(SEL) && !t.hidden) {
+        animateIn(t);
+      }
+    }
+  });
+  mo.observe(document.body, { attributes: true, subtree: true, attributeFilter: ["hidden"] });
+})();
+
 
 // One conversation per DSP with RouteReady Support — pinned at the top
 // of the Messages inbox so help is one click away without bolting on a
