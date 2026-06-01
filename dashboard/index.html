@@ -13222,6 +13222,16 @@ body.rr-cmdk-open{ overflow:hidden }
           #ob-roster-mount #rr-roster-table-wrap > .table{
             margin-top:0 !important;padding-top:0 !important;
           }
+          /* Attendance sub-view · sit its table header in the SAME spot as
+             the Roster table header — zero the pane + table-wrap top space
+             so the thead lands right under the KPI strip (the Insights /
+             Event log row above it is hidden). */
+          #ob-roster-mount #dr-sub-attendance,
+          #ob-roster-mount #dr-sub-attendance .att-pane,
+          #ob-roster-mount #dr-sub-attendance .table-wrap,
+          #ob-roster-mount #dr-sub-attendance .table-wrap > .table{
+            margin-top:0 !important;padding-top:0 !important;
+          }
           #view-onboarding-ops #rr-ob-cmd.is-roster ~ #rr-ob-kpis{
             margin-bottom:25px !important;
           }
@@ -14073,7 +14083,10 @@ body.rr-cmdk-open{ overflow:hidden }
             <div id="rr-att-filters" role="tablist" hidden>
               <button type="button" class="att-filter-chip active" data-rr-att-filter="all" hidden>All drivers</button>
             </div>
-            <div style="display:flex;justify-content:flex-end;align-items:center;gap:var(--s-2);margin-bottom:var(--s-2)">
+            <!-- Insights / Event log text links removed per operator
+                 request. Kept in DOM (display:none) so the existing
+                 toggle handlers don't hit null. -->
+            <div style="display:none">
               <a href="#" role="button" class="rr-text-link" id="rr-att-insights-toggle" aria-pressed="false">Insights</a>
               <a href="#" role="button" class="rr-text-link" id="rr-att-log-toggle" aria-pressed="false">Event log</a>
             </div>
