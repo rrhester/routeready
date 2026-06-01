@@ -6869,14 +6869,14 @@ function _i9OnboardCell(driverId) {
 }
 
 const _RR_STATUS_MAP = {
-  active:     { label: "Active",     cls: "status-pill-success"  },
-  onboarding: { label: "Onboarding", cls: "status-pill-info"     },
-  leave:      { label: "On leave",   cls: "status-pill-pending"  },
-  inactive:   { label: "Inactive",   cls: "status-pill-neutral"  },
-  terminated: { label: "Terminated", cls: "status-pill-danger"   },
+  active:     { label: "Active",     cls: "rr-dstatus-active"     },
+  onboarding: { label: "Onboarding", cls: "rr-dstatus-onboarding" },
+  leave:      { label: "On leave",   cls: "rr-dstatus-leave"      },
+  inactive:   { label: "Inactive",   cls: "rr-dstatus-inactive"   },
+  terminated: { label: "Terminated", cls: "rr-dstatus-terminated" },
 };
 function _statusPillCell(status, driverId) {
-  const m = _RR_STATUS_MAP[status] || { label: status || "—", cls: "status-pill-neutral" };
+  const m = _RR_STATUS_MAP[status] || { label: status || "—", cls: "rr-dstatus-inactive" };
   // Pill is now a button that opens a status-picker popover. The
   // surrounding TD is marked data-rr-no-drawer in renderDriverRow
   // so clicking here doesn't also open the driver detail drawer.
