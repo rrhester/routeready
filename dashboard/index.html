@@ -13407,9 +13407,7 @@ body.rr-cmdk-open{ overflow:hidden }
             position:sticky !important;top:0 !important;z-index:3 !important;
           }
           #att-report-thead th{
-            background:rgba(15, 23, 42, 0.05) !important;
-            -webkit-backdrop-filter:saturate(180%) blur(20px) !important;
-            backdrop-filter:saturate(180%) blur(20px) !important;
+            background:#EEF1F5 !important;
             border-bottom:1px solid rgba(15,23,42,.26) !important;
             color:var(--text) !important;
             font-size:var(--fs-xs) !important;font-weight:600 !important;
@@ -13417,9 +13415,6 @@ body.rr-cmdk-open{ overflow:hidden }
             padding:10px var(--s-4) 11px !important;
             height:79px !important;
             vertical-align:middle !important;
-          }
-          @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-            #att-report-thead th{background:#EEF1F5 !important}
           }
           /* Match Roster's KPI → table-header gap parity rules so
              Attendance reads at the same vertical rhythm. */
@@ -35151,7 +35146,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260601-autocoach"></script>
+<script type="module" src="./live.js?v=20260601-att-defrost"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
