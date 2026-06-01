@@ -11344,7 +11344,11 @@ document.addEventListener("click", async (e) => {
     p_outcome:   outcome,
     p_decision:  decision,
     p_notes:     notes,
-    p_auto_fire: ap ? autoFire : false,
+    // Auto-fire is owned by the DB trigger (trg_shift_autocoach) now — it
+    // recomputes points from real shift data when the shift is approved, so
+    // it can't miss the way the old JS-computed p_auto_fire could. Pass false
+    // here so attendance_decide doesn't ALSO fire and double-coach.
+    p_auto_fire: false,
     p_level:     level,
     p_delivery:  ap ? delivery : null,
   });
@@ -11359,8 +11363,10 @@ document.addEventListener("click", async (e) => {
   const tone = ap ? "var(--green)" : "var(--text-subtle)";
   btnCell.innerHTML = `<span style="font-size:var(--fs-xs);font-weight:700;color:${tone};letter-spacing:.04em;text-transform:uppercase">${escapeHtml(verb)}</span>`;
   const tailParts = [];
-  if (data?.auto_fired) tailParts.push("driver coached");
-  else if (ap)          tailParts.push("queued for coaching drawer");
+  // The trigger coaches on approve when the crossed rung auto-fires; reflect
+  // that intent here (data.auto_fired no longer comes from attendance_decide).
+  if (ap && autoFire) tailParts.push("driver coached");
+  else if (ap)        tailParts.push("queued for coaching drawer");
   const tail = tailParts.length ? " · " + tailParts.join(" · ") : "";
   toast(`${verb}${tail}`, "success");
   // Fade + remove the row so the operator's queue visibly shrinks.
