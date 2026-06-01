@@ -22458,10 +22458,43 @@ body.rr-cmdk-open{ overflow:hidden }
             body.rr-sched-super-compact .rr-fc-vancol{ min-height:30px; }
             body.rr-sched-super-compact .rr-fc-cov{ display:none; }
             /* Hide-sidebar tool — collapse the Service providers rail so
-               the calendar fills the width (twin of the schedule's
-               hide-open-shifts). */
-            body.rr-fc-hide-rail .rr-fc-shell{ grid-template-columns:minmax(0,1fr); }
-            body.rr-fc-hide-rail .rr-fc-rail-space{ display:none; }
+               the calendar fills the width all the way to the right. */
+            body.rr-fc-hide-rail .rr-fc-shell{
+              grid-template-columns:minmax(0,1fr) !important;
+              gap:0 !important;
+            }
+            body.rr-fc-hide-rail .rr-fc-rail-space{ display:none !important; }
+            /* VAN-header tools — hidden until you hover the header cell
+               (focus-within keeps them up while a popover is open). */
+            .rr-fc-vancol-actions{
+              opacity:0;pointer-events:none;
+              transition:opacity var(--t-fast);
+            }
+            .rr-fc-vancol-head:hover .rr-fc-vancol-actions,
+            .rr-fc-vancol-actions:focus-within{ opacity:1;pointer-events:auto; }
+            /* Focus / Expand mode — also expand the FLEET view (was
+               schedule-only) so Expand on the fleet calendar stays on a
+               full-screen fleet calendar instead of bouncing to schedule.
+               Hide the fleet chrome (header + tabs) and let the calendar
+               subview take the full height + its own scroll, so tall
+               fleets stay fully reachable. (Codex review.) */
+            body.rr-sched-focus #view-fleet{
+              height:100vh !important;min-height:0 !important;
+              padding:8px 12px !important;overflow:hidden !important;
+              display:flex !important;flex-direction:column !important;
+            }
+            body.rr-sched-focus #view-fleet .page,
+            body.rr-sched-focus #view-fleet .rr-fleet-shell{
+              flex:1 1 auto !important;min-height:0 !important;
+              display:flex !important;flex-direction:column !important;
+            }
+            body.rr-sched-focus #view-fleet .fl-ribbon,
+            body.rr-sched-focus #view-fleet .fl-subnav-wrap,
+            body.rr-sched-focus #view-fleet .fl-roster-kpis{ display:none !important; }
+            body.rr-sched-focus #view-fleet #fl-sub-calendar{
+              flex:1 1 auto !important;min-height:0 !important;
+              max-width:none !important;overflow:auto !important;
+            }
             body.rr-sched-ultra-compact .rr-fc-event-bar,
             body.rr-sched-super-compact .rr-fc-event-bar{ height:30px; }
           </style>
