@@ -31573,8 +31573,20 @@ async function _assignVansForRange(startIso, endIso, dspId) {
     const vanAssigned    = new Map(); // vehicle_id → driver_id
 
     // Seed with any existing overrides for this date (manual pins
-    // the operator already made). We don't re-write these.
+    // the operator already made). We don't re-write these — EXCEPT
+    // when the existing van violates the box-truck ↔ route rule
+    // (e.g. Smart Fill's solver placed a box truck on a parcel route,
+    // or a regular van on an XL route). A pre-existing incompatible
+    // assignment must NOT be locked in, or the corrective pass would
+    // preserve the very mismatch it's meant to fix. We free those so
+    // the chain/pool phases can reassign a compatible van, and track
+    // them so a stale row gets cleared if no replacement is found.
+    const incompatibleFreed = [];
     for (const r of overridesByDate.get(date) || []) {
+      if (!vanCompatible(r.vehicle_id, r.driver_id, date)) {
+        incompatibleFreed.push(r.driver_id);
+        continue; // leave both maps open so the van + driver re-resolve
+      }
       driverAssigned.set(r.driver_id, r.vehicle_id);
       vanAssigned.set(r.vehicle_id, r.driver_id);
     }
@@ -31814,11 +31826,22 @@ async function _assignVansForRange(startIso, endIso, dspId) {
       // the operator's rule choices).
     }
 
+    // Clear stale incompatible rows · any driver we freed above
+    // (their pre-existing van broke the box-truck rule) who didn't
+    // pick up a new compatible van this date needs the wrong row
+    // removed from the DB — otherwise the mismatch would persist.
+    // p_vehicle_id:null is the upsert's clear path.
+    for (const drvId of incompatibleFreed) {
+      if (driverAssigned.has(drvId)) continue; // got a compatible van
+      writes.push({ driver_id: drvId, date, vehicle_id: null });
+    }
+
     // Promote today's writes into usageByVan so the NEXT date's
     // FEM sort sees them as recently used (no re-sort needed —
     // dates iterate ascending so we always append in order).
     for (const w of writes) {
       if (w.date !== date) continue;
+      if (!w.vehicle_id) continue; // null-clear write — no usage to record
       const list = usageByVan.get(w.vehicle_id) || [];
       list.push(date);
       usageByVan.set(w.vehicle_id, list);
