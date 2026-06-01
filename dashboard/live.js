@@ -7715,8 +7715,8 @@ async function _openSeparationReview(driver) {
   modal.className = "modal-backdrop";
   modal.style.cssText = "display:flex;position:fixed;inset:0;z-index:9999;align-items:flex-start;justify-content:center;padding:24px;overflow:auto;background:var(--overlay,rgba(15,23,42,.45))";
   modal.innerHTML = `
-    <div class="modal sep-review" style="max-width:660px;width:100%;margin:auto;display:flex;flex-direction:column;max-height:92vh">
-      <div class="modal-header">
+    <div class="modal-card sep-review" style="max-width:660px;width:100%;margin:auto;display:flex;flex-direction:column;max-height:92vh;overflow:hidden">
+      <div class="modal-head">
         <div>
           <p class="modal-title">Driver Separation Review</p>
           <p class="modal-sub" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(name)} — responses should be factual and based on documented events.</p>
@@ -7767,7 +7767,7 @@ async function _openSeparationReview(driver) {
 
         <label class="sep-certify"><input type="checkbox" id="sep-certify"><span>I certify that the information provided above is accurate to the best of my knowledge and based on company records.</span></label>
       </div>
-      <div class="modal-actions" style="display:flex;justify-content:space-between;gap:var(--s-2);padding:var(--s-3) var(--s-5);border-top:1px solid var(--border)">
+      <div class="modal-foot" style="display:flex;justify-content:space-between;align-items:center;gap:var(--s-2)">
         <button class="btn btn-sm" data-sep-close>Cancel</button>
         <button class="btn btn-sm btn-primary" data-sep-generate disabled title="Complete the certification to enable">Generate Packet</button>
       </div>
