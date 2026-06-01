@@ -2204,6 +2204,9 @@ window.filterPipelineStage = function (btn) {
 
 const _legacyGoto = window.goto;
 window.goto = function (view) {
+  // Clear the fleet-calendar Expand overlay so its body class (and the
+  // overflow:hidden it sets) can't linger and pin the next view.
+  document.body.classList.remove("rr-fc-focus");
   if (typeof _closeAttKpiDetail === "function")     _closeAttKpiDetail();
   if (typeof _closeAvailKpiDetail === "function")   _closeAvailKpiDetail();
   if (typeof _closeRosterKpiDetail === "function")  _closeRosterKpiDetail();
@@ -29030,7 +29033,7 @@ async function _paintFleetCalendar() {
   const _dens = document.body.classList.contains("rr-sched-super-compact") ? "super"
     : document.body.classList.contains("rr-sched-ultra-compact") ? "ultra"
     : document.body.classList.contains("rr-sched-compact") ? "compact" : "standard";
-  const _focusOn = document.body.classList.contains("rr-sched-focus");
+  const _focusOn = document.body.classList.contains("rr-fc-focus");
   const _railHidden = document.body.classList.contains("rr-fc-hide-rail");
   const _svg = (p) => `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const vanTools =
