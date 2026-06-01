@@ -24138,7 +24138,8 @@ async function _runUnassignAllShiftsForWeek(triggerEl) {
   if (!dspId || !_schedStart) return;
   if (typeof _confirmLiveScheduleEdit === "function" && !_confirmLiveScheduleEdit()) return;
   const weekEndIso = fmtIsoDate(addDays(new Date(_schedStart + "T12:00:00"), 6));
-  if (!confirm(`Unassign every driver from every route shift between ${_schedStart} and ${weekEndIso}?\n\nShifts stay; only the driver assignments are cleared. Classroom training and ride-alongs keep their drivers.`)) return;
+  // No confirm() prompt — the action is fully undoable (we snapshot the
+  // prior assignments below for Undo), so it runs immediately on click.
   const isTextBtn = triggerEl && triggerEl.id === "rr-unassign-week";
   if (triggerEl) {
     triggerEl.disabled = true;
