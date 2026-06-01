@@ -15648,6 +15648,10 @@ async function openDriverDrawer(driverId, opts) {
   requestAnimationFrame(() => drawer.classList.add("rr-dd-open"));
   // Animate out before unmount so closing slides back to the edge.
   const _ddClose = () => {
+    // Mark as closing so an in-flight loadDriverDrawer() bails instead of
+    // rendering into a drawer that's mid-close-animation (the node lingers
+    // 240ms during the slide-out). (Codex review.)
+    drawer.dataset.rrClosing = "1";
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) { drawer.remove(); return; }
     drawer.classList.remove("rr-dd-open");
     setTimeout(() => drawer.remove(), 240);
@@ -15687,10 +15691,17 @@ async function loadDriverDrawer(driverId) {
   if (document.getElementById("rr-cd-drawer") && !document.getElementById("rr-dd-drawer")) {
     return openCoachingDrawer(driverId);
   }
-  if (!document.getElementById("rr-dd-drawer")) return;
+  // Treat a closing drawer (mid slide-out, still in the DOM for ~240ms) as
+  // already gone, so a slow RPC can't render into it. (Codex review.)
+  const _ddLive = () => {
+    const d = document.getElementById("rr-dd-drawer");
+    return d && d.dataset.rrClosing !== "1" ? d : null;
+  };
+  if (!_ddLive()) return;
 
   const { data, error } = await sb.rpc("driver_record", { p_id: driverId });
   if (error) { toast("Couldn't load driver: " + error.message, "warn"); return; }
+  if (!_ddLive()) return; // closed while the RPC was in flight
   _ddDriver = data;
   if (typeof getDriverStationsCached === "function") getDriverStationsCached();   // warm the station-name cache for the Overview tab
   const reportBtn = document.getElementById("rr-dd-report-btn");
@@ -15780,6 +15791,7 @@ async function loadDriverDrawer(driverId) {
     _paintDriverAvatars(avEl.parentElement || document);
   }
 
+  if (!_ddLive()) return; // closed during the doc/envelope/report loads
   renderDriverDrawerTab();
 }
 
@@ -15793,6 +15805,10 @@ function _ddCaptureVisibleFields() {
 }
 
 function renderDriverDrawerTab() {
+  // Bail if the drawer is gone or closing — a stale async load could call
+  // this after the node was removed/closed (Codex review).
+  const _dd = document.getElementById("rr-dd-drawer");
+  if (!_dd || _dd.dataset.rrClosing === "1") return;
   _ddCaptureVisibleFields();
   document.querySelectorAll("#rr-dd-drawer .dd-tab").forEach(t => {
     t.classList.toggle("active", t.getAttribute("data-rr-dd-tab") === _ddTab);
