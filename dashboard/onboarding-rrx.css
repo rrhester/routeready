@@ -461,6 +461,33 @@
   display: none !important;
 }
 
+/* ── Roster ribbon · match the Schedule ribbon icons + no blue ──────────
+   The rules above style the whole onboarding strip at 33px with a
+   brand-blue active tile. The operator wants the ROSTER strip specifically
+   to mirror the Schedule ribbon — 28px, Fluent grey #605E5C, 1.6 stroke,
+   very square (square caps + miter joins) — and the active tile to carry
+   NO blue highlight. Scoped to .ob-v2-roster-actions so the Onboarding
+   strip keeps its own treatment; placed after the rules above so it wins
+   on equal specificity. This is the file that actually controls these
+   icons (it overrode the inline index.html rules with !important). */
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-tab-wrap > .subnav-item svg,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item svg {
+  width: 28px !important;
+  height: 28px !important;
+  color: #605E5C !important;
+  stroke-width: 1.6 !important;
+  stroke-linecap: square !important;
+  stroke-linejoin: miter !important;
+}
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item.active {
+  color: var(--text-muted) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item.active svg {
+  color: #605E5C !important;
+}
+
 /* ob-tab-wrap is the column-flex wrapper that lets a tile own a
    Rules footer underneath. Keep its vertical stack but neutralize
    any background / border so the tile itself owns appearance. */
