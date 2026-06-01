@@ -483,12 +483,31 @@
   stroke-linejoin: miter !important;
 }
 #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item.active {
-  color: var(--text-muted) !important;
+  /* Selected tile stays the SAME near-black as the rest (no grey-out) —
+     distinguished only by a 600 weight. No blue, no grey. */
+  color: var(--text) !important;
   background: transparent !important;
   box-shadow: none !important;
+  font-weight: 600 !important;
 }
 #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item.active svg {
   color: var(--text) !important;
+}
+/* Tactile push-button press — mirror the Schedule command-strip tiles:
+   the tile dips + shrinks slightly on click, then springs back. */
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item {
+  transition: transform 0.12s cubic-bezier(0.2, 0.7, 0.2, 1),
+              box-shadow 0.12s cubic-bezier(0.2, 0.7, 0.2, 1),
+              background 0.12s ease !important;
+}
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item:active {
+  transform: translateY(1px) scale(0.97) !important;
+  transition-duration: 0.04s !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item:active {
+    transform: none !important;
+  }
 }
 
 /* ob-tab-wrap is the column-flex wrapper that lets a tile own a
