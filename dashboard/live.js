@@ -36058,9 +36058,10 @@ async function openShiftEditModal(arg) {
               ends_at:    snapshot.ends_at,
               source:     "undo",
             };
-            const { error: undoErr } = await sb.rpc("create_shift", { p_payload: payload });
+            const { data: reAdded, error: undoErr } = await sb.rpc("create_shift", { p_payload: payload });
             if (undoErr) throw new Error(undoErr.message);
-            _rrRevealNextRender = true; // re-created shift fades back in
+            // Reveal only the re-created card (undo of a delete).
+            _rrRevealCardId = (reAdded && reAdded.id) || null;
             if (typeof renderScheduleWeek === "function") renderScheduleWeek();
           },
         });
@@ -36216,9 +36217,9 @@ async function openShiftEditModal(arg) {
         // "bounce" on the first add. renderScheduleWeek() repaints the grid
         // AND the open-shifts rail (loadOpenShifts is retired) without the
         // wipe, so the view stays put.
-        // Fade/scale the cards in on this repaint so the new shift reads
-        // as "landing" rather than blinking into place.
-        _rrRevealNextRender = true;
+        // Fade/scale in ONLY the newly added card so it reads as
+        // "landing" without re-staggering an already-populated week.
+        _rrRevealCardId = _createdId || null;
         if (typeof renderScheduleWeek === "function") renderScheduleWeek();
         return;
       }
@@ -36536,16 +36537,38 @@ let _rrSmartFillStaging = false;
 // the build — suppresses renderScheduleWeek's normal scroll-restore so it
 // can't yank the view back to the top mid-animation.
 let _rrStageScrollActive = false;
-// One-shot flag · set before a render that should fade/scale its shift
-// cards in (single add, unassign-all), WITHOUT the Smart Fill scroll-
-// follow. Cleared by renderScheduleWeek after it consumes it.
+// One-shot flag · set before a render that should fade/scale ALL its
+// shift cards in (e.g. unassign-all re-settling the board), WITHOUT the
+// Smart Fill scroll-follow. Cleared by renderScheduleWeek after consume.
 let _rrRevealNextRender = false;
+// One-shot · set to a shift id before a render to fade/scale in ONLY
+// that one newly-added card, leaving the rest of the populated week
+// readable (Codex: don't re-stagger the whole grid for a single add).
+let _rrRevealCardId = null;
 
 // Reveal the freshly-rendered shift cards one at a time with a short
 // stagger + fade/slide, so a Smart Fill run reads as the schedule being
 // constructed in real time. Driver-by-driver, day-by-day order (the DOM
 // order) so the build sweeps left-to-right, top-to-bottom. Honors
 // prefers-reduced-motion (reveals everything at once, no transition).
+// Reveal a single freshly-added shift card (the add/undo paths), fading
+// + scaling just that one chip in via the standard card-reveal classes —
+// the rest of the grid stays put and readable.
+function _rrRevealOneCard(wrap, shiftId) {
+  if (!shiftId) return;
+  const reduce = window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) return;
+  const card = wrap.querySelector(`.shift-chip[data-rr-shift-id="${shiftId}"]`);
+  if (!card) return;
+  card.classList.add("rr-sf-card-pending");
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (!card.isConnected) return;
+    card.classList.add("rr-sf-card-in");
+    card.classList.remove("rr-sf-card-pending");
+  }));
+}
+
 function _rrStageShiftCards(wrap, opts) {
   const scrollFollow = !opts || opts.scrollFollow !== false; // default true (Smart Fill)
   const cards = Array.from(
@@ -38666,9 +38689,15 @@ async function renderScheduleWeek() {
   // skip this entirely — they paint instantly as before.
   if (_rrSmartFillStaging) {
     try { _rrStageShiftCards(wrap); } catch (_) { /* never block the paint */ }
+  } else if (_rrRevealCardId) {
+    // Single-card reveal — animate ONLY the newly added shift so the
+    // rest of a populated week stays readable. (Codex review.)
+    const _id = _rrRevealCardId;
+    _rrRevealCardId = null;
+    try { _rrRevealOneCard(wrap, _id); } catch (_) {}
   } else if (_rrRevealNextRender) {
-    // Lighter one-shot reveal for a single add / unassign-all — same
-    // card motion, but no scroll-follow (keep the operator's view).
+    // Full-grid reveal (unassign-all re-settling) — same card motion,
+    // no scroll-follow so the operator's view stays put.
     _rrRevealNextRender = false;
     try { _rrStageShiftCards(wrap, { scrollFollow: false }); } catch (_) {}
   }
