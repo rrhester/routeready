@@ -13033,6 +13033,15 @@ async function refreshDriverStatRow(rows) {
   const attnSub = attnCoachedPct == null
     ? "&nbsp;"
     : `${attnCoachedCount} of ${totalActive} · any level`;
+  // On-attendance-coaching guardrail · ≤10% green, 11–19% yellow, >19%
+  // red — same Schedule KPI status glyphs the % Tenured card uses.
+  const attnTier = attnCoachedPct == null ? null
+    : (attnCoachedPct <= 10 ? "green"
+      : attnCoachedPct <= 19 ? "yellow"
+      : "red");
+  const attnIcon = (attnTier == null || typeof _rrKpiStatusIcon !== "function")
+    ? undefined
+    : _rrKpiStatusIcon(attnTier, `${attnCoachedPct}% on attendance coaching`);
   const rosterKpisHtml =
     rosterPill("active", navy, `${counts.active} Active driver${counts.active === 1 ? "" : "s"}`,
       counts.onboarding ? `${counts.onboarding} onboarding` : "&nbsp;", false) +
@@ -13041,7 +13050,7 @@ async function refreshDriverStatRow(rows) {
       (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
     rosterPill("tenure", navy, tenureLabel, tenureSub, true) +
     rosterPill("tenured", navy, tenuredLabel, tenuredSub, false, tenuredIcon) +
-    rosterPill("attncoach", (attnCoachedCount > 0 ? amber : navy), attnLabel, attnSub, false);
+    rosterPill("attncoach", navy, attnLabel, attnSub, false, attnIcon);
 
   const rosterHost = document.getElementById("rr-roster-kpis");
   if (rosterHost) rosterHost.innerHTML = rosterKpisHtml;
