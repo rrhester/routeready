@@ -7076,12 +7076,6 @@ function _rowBadgesFor(d) {
   if (d.status === "active" && d.score != null && d.score < 70) {
     out.push(`<span class="rr-row-badge rr-badge-risk" title="Score ${Math.round(d.score)} — below the 70 threshold">Risk</span>`);
   }
-  if (d.hire_date) {
-    const days = Math.floor((Date.now() - new Date(d.hire_date).getTime()) / 86400000);
-    if (days >= 0 && days <= 30) {
-      out.push(`<span class="rr-row-badge rr-badge-new" title="Hired ${days} day${days === 1 ? "" : "s"} ago">New</span>`);
-    }
-  }
   if (d.status === "active") {
     const s = _rosterAppStatus && _rosterAppStatus.get ? _rosterAppStatus.get(d.id) : null;
     if (!s || (!s.signed_in_at && !s.invited)) {
