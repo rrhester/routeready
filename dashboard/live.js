@@ -35539,7 +35539,8 @@ async function openShiftEditModal(arg) {
     "max-height:calc(100vh - 16px);background:var(--surface);" +
     "border:1px solid var(--border);border-radius:12px;" +
     "box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:9999;display:flex;" +
-    "flex-direction:column;opacity:0;transition:opacity 120ms ease-out;";
+    "flex-direction:column;opacity:0;transform:scale(0.92);" +
+    "transition:opacity 200ms ease-out, transform 200ms cubic-bezier(0.2,0.8,0.25,1);";
   // Header subtitle differs by mode — in edit mode we show
   // "driver · route · date"; in add mode we show "Pick the details"
   // (date is editable below, driver below, route below).
@@ -35720,7 +35721,18 @@ async function openShiftEditModal(arg) {
     top  = Math.max(pad, Math.min(top,  window.innerHeight - h - pad));
     m.style.left = left + "px";
     m.style.top  = top + "px";
-    m.style.opacity = "1";
+    // Anchored radial scale · grow the card FROM the clicked cell. The
+    // transform-origin is the click point expressed relative to the
+    // card's final box (clamped to the card so the origin stays on the
+    // nearest corner/edge when the click is outside the placed card).
+    const ox = Math.max(0, Math.min(w, ax - left));
+    const oy = Math.max(0, Math.min(h, ay - top));
+    m.style.transformOrigin = `${ox}px ${oy}px`;
+    // Next frame so the origin + start state commit before we animate in.
+    requestAnimationFrame(() => {
+      m.style.opacity = "1";
+      m.style.transform = "scale(1)";
+    });
   });
   // Autofocus the first field in add mode so the operator can fill it out
   // without reaching for the mouse.
@@ -35854,8 +35866,11 @@ async function openShiftEditModal(arg) {
     const removeBackdrop = () => { if (backdrop) backdrop.remove(); };
     const noMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (noMotion) { m.remove(); removeBackdrop(); return; }
+    // Reverse the anchored radial scale — fade + ease back down toward
+    // the originating cell (transform-origin set on open).
     m.style.opacity = "0";
-    setTimeout(() => { m.remove(); removeBackdrop(); }, 120);
+    m.style.transform = "scale(0.92)";
+    setTimeout(() => { m.remove(); removeBackdrop(); }, 200);
   };
   // Escape closes the popover; clicking the (transparent) backdrop closes it
   // too.
