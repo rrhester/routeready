@@ -473,11 +473,11 @@
 #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-tab-wrap > .subnav-item svg,
 #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item svg {
   /* Match the Schedule command-strip tiles exactly — those are
-     .sched-v2-tile svg at 38px (schedule-rrx.css), not the 28px
-     view-tabs. Grey #605E5C, 1.6 stroke, very square caps/miter. */
+     .sched-v2-tile svg at 38px and var(--text) (near-black), not the
+     28px grey view-tabs. 1.6 stroke, very square caps/miter. */
   width: 38px !important;
   height: 38px !important;
-  color: #605E5C !important;
+  color: var(--text) !important;
   stroke-width: 1.6 !important;
   stroke-linecap: square !important;
   stroke-linejoin: miter !important;
@@ -488,7 +488,7 @@
   box-shadow: none !important;
 }
 #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item.active svg {
-  color: #605E5C !important;
+  color: var(--text) !important;
 }
 
 /* ob-tab-wrap is the column-flex wrapper that lets a tile own a
