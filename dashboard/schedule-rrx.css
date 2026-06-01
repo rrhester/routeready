@@ -2168,7 +2168,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .shift-chip.rr-sf-card-in {
   opacity: 1;
   transform: translateY(0) scale(1);
-  transition: opacity 0.26s ease, transform 0.26s cubic-bezier(0.2, 0.7, 0.2, 1);
+  /* opacity + transform keep the staged-reveal timing; box-shadow +
+     border-color are appended so a card that still carries this class
+     after the build also gets the 180ms hover-lift settle. */
+  transition: opacity 0.26s ease, transform 0.26s cubic-bezier(0.2, 0.7, 0.2, 1),
+              box-shadow 0.18s ease, border-color 0.18s ease;
 }
 /* Delete · fade + scale the chip OUT before the grid repaints. */
 #view-schedule.rrx-schedule .shift-chip.rr-sf-card-out {
@@ -2590,6 +2594,10 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
    crisp Excel/Outlook scheduling cells, not soft pills. */
 #view-schedule.rrx-schedule .shift-chip {
   border-radius: 3px !important;
+  /* Resting transition for the hover-lift. Lower specificity than the
+     .rr-sf-card-in reveal rule, so the staged build keeps its own timing;
+     for normally-rendered cards this is the transition the hover uses. */
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 /* Service-type badge (XL / HUB / ASU …) pinned to the chip's top-right
    corner. Absolute so it never adds to the chip's height — XL chips stay
@@ -2713,6 +2721,27 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: #B3CFEC !important;
   border-color: rgba(15, 108, 189, 0.48) !important;
+}
+
+/* Hover-lift · when the cursor is over an assigned card, raise it 2px,
+   deepen the shadow a step, and firm up the border. Restrained on purpose:
+   the card reads as interactive without the motion calling attention to
+   itself. Settles over 180ms (see the base .shift-chip + .rr-sf-card-in
+   transitions). Scoped under .cal-cell:hover and ending in :hover so it
+   outranks the cell-tint rule above and only lifts the card under the
+   cursor, not every card in the cell. */
+#view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12) !important;
+  border-color: rgba(15, 108, 189, 0.62) !important;
+}
+
+/* Reduced motion · keep the shadow/border feedback but drop the travel. */
+@media (prefers-reduced-motion: reduce) {
+  #view-schedule.rrx-schedule .shift-chip { transition: none; }
+  #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here):hover {
+    transform: none;
+  }
 }
 
 /* ============================================================
