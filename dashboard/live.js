@@ -7372,17 +7372,10 @@ async function loadAttendanceLive() {
       .gte("date", sinceIso)
       .lte("date", todayIso),
     sb.from("coachings")
-      .select("id, driver_id, severity, occurred_at, acknowledged_at, signed_at, delivery_required")
+      .select("id, driver_id, severity, occurred_at, acknowledged_at, signed_at, delivery_required, triggering_shift_id, metadata")
       .eq("dsp_id", dspId)
       .eq("topic", "attendance")
       .eq("driver_visible", true)
-      // Only coachings the attendance policy actually produced — every
-      // policy path (approval auto-fire, auto-accrual trigger, the
-      // report's "Send coaching") stamps the originating occurrence on
-      // triggering_shift_id. Manually-issued / seeded coachings have
-      // none, so this hides standalone Finals that aren't tied to any
-      // attendance event.
-      .not("triggering_shift_id", "is", null)
       .gte("occurred_at", sinceDate.toISOString())
       .is("archived_at", null)
       .order("occurred_at", { ascending: false }),
@@ -7404,7 +7397,15 @@ async function loadAttendanceLive() {
 
   const drivers   = driversRes.data || [];
   const shifts    = shiftsRes.data  || [];
-  const coachings = coachingsRes?.data || [];
+  // Only coachings the attendance policy produced — identified by a policy
+  // source tag OR a triggering occurrence. Every policy path qualifies:
+  // the approval auto-fire and report "Send coaching" stamp both; the
+  // auto-accrual trigger stamps the shift; the older catch-up backfill
+  // stamped only the source. Manually-issued / seeded coachings have
+  // neither, so standalone Finals with no attendance event stay hidden.
+  const _POLICY_COACH_SOURCES = new Set(["auto_accrual", "attendance_decide", "report"]);
+  const coachings = (coachingsRes?.data || []).filter(c =>
+    c.triggering_shift_id != null || _POLICY_COACH_SOURCES.has(c.metadata?.source));
   const decisions = decisionsRes?.data || [];
 
   // Excused-decision count per driver. A shift with decision='deny'
