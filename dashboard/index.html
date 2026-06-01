@@ -1445,6 +1445,18 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .status-pill-followup{background:var(--accent-soft);color:var(--accent-text)}
 .status-pill-neutral{background:var(--canvas);color:var(--text-muted);border-color:var(--border)}
 
+/* Driver-status pills — colored to match the KPI dashboard status
+   palette (the same green/amber/red the roster KPI strip uses) so a
+   status reads identically in the table and in the KPI cards. Active →
+   KPI green, On leave → KPI amber, Terminated → KPI red, Onboarding →
+   KPI navy, Inactive → neutral. Scoped to these classes so the shared
+   .status-pill-* tokens (approvals, coaching acks) are unaffected. */
+.rr-dstatus-active{background:#EDF3EE;color:#137C43}
+.rr-dstatus-onboarding{background:rgba(26,31,71,.08);color:#1A1F47}
+.rr-dstatus-leave{background:#FBEAB8;color:#8A5D00}
+.rr-dstatus-inactive{background:var(--canvas);color:var(--text-muted);border-color:var(--border)}
+.rr-dstatus-terminated{background:#F8D3CF;color:#B8281E}
+
 .status-dot{
   display:inline-block;width:8px;height:8px;border-radius:50%;
   background:var(--text-subtle);flex-shrink:0;
@@ -13390,11 +13402,12 @@ body.rr-cmdk-open{ overflow:hidden }
           .rr-status-picker-dot{
             width:8px;height:8px;border-radius:50%;flex-shrink:0;
           }
-          .rr-status-dot-active{background:var(--green)}
-          .rr-status-dot-onboarding{background:var(--accent)}
-          .rr-status-dot-leave{background:var(--amber)}
+          /* Match the KPI dashboard status palette (see .rr-dstatus-*). */
+          .rr-status-dot-active{background:#137C43}
+          .rr-status-dot-onboarding{background:#1A1F47}
+          .rr-status-dot-leave{background:#C7860B}
           .rr-status-dot-inactive{background:var(--text-subtle)}
-          .rr-status-dot-terminated{background:var(--red)}
+          .rr-status-dot-terminated{background:#D5392F}
 
           /* Attendance table header · same treatment as the Roster
              driver-table header (frosted-glass blue, sticky top,
