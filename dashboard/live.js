@@ -36434,6 +36434,10 @@ window._rrRefreshTodayAttBadge = _rrRefreshTodayAttBadge;
 // in progressively; every other render path leaves it false and paints
 // instantly.
 let _rrSmartFillStaging = false;
+// True while the staged reveal is auto-scrolling the grid down to follow
+// the build — suppresses renderScheduleWeek's normal scroll-restore so it
+// can't yank the view back to the top mid-animation.
+let _rrStageScrollActive = false;
 
 // Reveal the freshly-rendered shift cards one at a time with a short
 // stagger + fade/slide, so a Smart Fill run reads as the schedule being
@@ -36451,8 +36455,15 @@ function _rrStageShiftCards(wrap) {
   // Prime: hide each card before paint so there's no flash of the final
   // state. A class drives the start state + transition (see CSS).
   for (const c of cards) c.classList.add("rr-sf-card-pending");
+  // Start the build at the top of the grid and follow the reveal down,
+  // so the DSP watches the schedule populate row by row. The render's
+  // usual scroll-restore is suppressed while staging (see _rrStageScrollActive
+  // guard in renderScheduleWeek) so it can't yank us back.
+  _rrStageScrollActive = true;
+  try { wrap.scrollTop = 0; } catch (_) {}
   // Stagger the reveal. 24ms/card sits in the requested 20–30ms band.
   const STEP = 24;
+  let _lastScrolledRow = -1;
   cards.forEach((c, i) => {
     setTimeout(() => {
       // Guard: the grid may have been re-rendered out from under us
@@ -36460,17 +36471,33 @@ function _rrStageShiftCards(wrap) {
       if (!c.isConnected) return;
       c.classList.add("rr-sf-card-in");
       c.classList.remove("rr-sf-card-pending");
+      // Scroll-follow · if the just-revealed card sits below the visible
+      // area, ease the grid down so it comes into view. Keyed off the
+      // card's row so we scroll at most once per driver row (smooth, not
+      // jittery). A small bottom margin keeps the active row off the very
+      // edge.
+      const row = c.closest(".cal-grid, .cal-row, [data-iso]")?.parentElement || c.parentElement;
+      const rowKey = row ? (row.style.gridRow || row.offsetTop) : i;
+      if (rowKey === _lastScrolledRow) return;
+      const cr = c.getBoundingClientRect();
+      const wr = wrap.getBoundingClientRect();
+      const margin = 72;
+      if (cr.bottom > wr.bottom - margin) {
+        _lastScrolledRow = rowKey;
+        wrap.scrollTo({ top: wrap.scrollTop + (cr.bottom - wr.bottom) + margin, behavior: "smooth" });
+      }
     }, i * STEP);
   });
   // Safety net: clear any lingering pending state after the whole
   // sequence should have completed, so a dropped timer can't leave a
-  // card invisible.
+  // card invisible. Also release the scroll-follow guard.
   setTimeout(() => {
     wrap.querySelectorAll(".rr-sf-card-pending").forEach((c) => {
       c.classList.remove("rr-sf-card-pending");
       c.classList.add("rr-sf-card-in");
     });
-  }, cards.length * STEP + 400);
+    _rrStageScrollActive = false;
+  }, cards.length * STEP + 600);
 }
 
 function _schedShiftChip(sh, extras) {
@@ -38547,13 +38574,19 @@ async function renderScheduleWeek() {
   _schedFitGrid();
   // Put the operator back where they were before the rebuild — and again
   // after layout settles (KPI strip / banners above can shift the grid's
-  // top and trigger another fit).
-  wrap.scrollTop  = _prevScrollTop;
-  wrap.scrollLeft = _prevScrollLeft;
-  requestAnimationFrame(() => {
-    _schedFitGrid();
+  // top and trigger another fit). Skipped while a Smart Fill staged
+  // reveal is auto-scrolling the grid down (it owns scrollTop then), so
+  // the restore can't fight the build-follow animation.
+  if (!_rrStageScrollActive) {
     wrap.scrollTop  = _prevScrollTop;
     wrap.scrollLeft = _prevScrollLeft;
+  }
+  requestAnimationFrame(() => {
+    _schedFitGrid();
+    if (!_rrStageScrollActive) {
+      wrap.scrollTop  = _prevScrollTop;
+      wrap.scrollLeft = _prevScrollLeft;
+    }
   });
 
   // Strip mockup-injected banners that reference fake RR_DRIVERS data.
