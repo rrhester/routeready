@@ -29085,7 +29085,7 @@ async function _paintFleetCalendar() {
       + _svg('<line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="15" x2="20" y2="15"/>')
     + `</button>`
     + `</div>`;
-  let head = `<div class="rr-fc-cell-head rr-fc-vancol-head" style="grid-row:1;grid-column:1;display:flex;align-items:center;gap:6px;position:relative"><span>Van</span>${vanTools}</div>`;
+  let head = `<div class="rr-fc-cell-head rr-fc-vancol-head" style="grid-row:1;grid-column:1;display:flex;align-items:center;gap:6px;position:sticky;top:0;left:0;z-index:7"><span>Van</span>${vanTools}</div>`;
   days.forEach((d, di) => {
     const cls = (fmtIsoDate(d) === todayIso ? " is-today" : "") + (di === 6 ? " rr-fc-col-last" : "");
     const avail = totalVans - outByDay[di].size;
