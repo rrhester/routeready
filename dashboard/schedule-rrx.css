@@ -1907,6 +1907,23 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   font-size: 13px;
   font-weight: 500;
   line-height: 1.2;
+  /* Tactile press feedback on every command-strip tile — the spring
+     transition powers the :active sink below. */
+  transition: transform 0.12s cubic-bezier(0.2, 0.7, 0.2, 1),
+              box-shadow 0.12s cubic-bezier(0.2, 0.7, 0.2, 1),
+              background 0.12s ease;
+}
+
+/* Press / sink — real-button feedback on click for ALL strip tiles.
+   The tile dips + shrinks slightly, then springs back on release. */
+#view-schedule.rrx-schedule .sched-v2-tile:active {
+  transform: translateY(1px) scale(0.97);
+  transition-duration: 0.04s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #view-schedule.rrx-schedule .sched-v2-tile { transition: none; }
+  #view-schedule.rrx-schedule .sched-v2-tile:active { transform: none; }
 }
 
 #view-schedule.rrx-schedule .sched-v2-tile svg {
@@ -2095,46 +2112,32 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    surface, and pushed the icon color from indigo-500 to
    indigo-600 so the bolt punches harder against the gradient. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile {
-  /* AI vibe — Google/Gemini purple (blue → purple) gradient, bumped
-     richer with a soft outer glow so the tile reads as "special" at
-     rest. The transition gives the press/sink + hover a real spring. */
-  background: linear-gradient(135deg, rgba(66, 133, 244, 0.20), rgba(147, 52, 230, 0.26));
-  color: #7B27C7;
-  box-shadow: 0 1px 2px rgba(91, 26, 158, 0.12),
-              0 0 0 1px rgba(147, 52, 230, 0.10) inset;
-  transition: transform 0.12s cubic-bezier(0.2, 0.7, 0.2, 1),
-              box-shadow 0.12s cubic-bezier(0.2, 0.7, 0.2, 1),
-              background 0.12s ease;
+  /* AI vibe — Google/Gemini purple (blue → purple) gradient, pushed
+     richer with a stronger outer glow + inset ring so the tile reads
+     as clearly "special" at rest. The base .sched-v2-tile transition
+     powers the press/sink + hover spring. */
+  background: linear-gradient(135deg, rgba(66, 133, 244, 0.28), rgba(147, 52, 230, 0.36));
+  color: #6D1FB8;
+  box-shadow: 0 2px 6px rgba(91, 26, 158, 0.20),
+              0 0 0 1px rgba(147, 52, 230, 0.16) inset;
 }
 
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:hover {
-  background: linear-gradient(135deg, rgba(66, 133, 244, 0.30), rgba(147, 52, 230, 0.38));
+  background: linear-gradient(135deg, rgba(66, 133, 244, 0.40), rgba(147, 52, 230, 0.50));
   color: #5B1A9E;
-  box-shadow: 0 2px 8px rgba(91, 26, 158, 0.22),
-              0 0 0 1px rgba(147, 52, 230, 0.18) inset;
+  box-shadow: 0 4px 14px rgba(91, 26, 158, 0.30),
+              0 0 0 1px rgba(147, 52, 230, 0.24) inset;
 }
 
-/* Press / sink — tactile "real button" feedback on click. The tile
-   dips down + shrinks slightly and the shadow tucks in, then springs
-   back via the transition above on release. */
+/* Press / sink — deeper purple tint + tucked shadow on click, on top
+   of the base tile's translateY/scale sink. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:active {
-  transform: translateY(1px) scale(0.97);
-  background: linear-gradient(135deg, rgba(66, 133, 244, 0.34), rgba(147, 52, 230, 0.42));
-  box-shadow: 0 0 0 1px rgba(147, 52, 230, 0.22) inset;
-  transition-duration: 0.04s;
+  background: linear-gradient(135deg, rgba(66, 133, 244, 0.46), rgba(147, 52, 230, 0.56));
+  box-shadow: 0 0 0 1px rgba(147, 52, 230, 0.30) inset;
 }
 
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile svg {
   color: #9334E6;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile {
-    transition: none;
-  }
-  #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:active {
-    transform: none;
-  }
 }
 
 /* ── Spin animation (Smart Fill + Unassign click feedback) ── */
