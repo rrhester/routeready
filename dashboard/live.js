@@ -24494,6 +24494,12 @@ document.addEventListener("keydown", (e) => {
     const btn = document.getElementById("rr-ob-focus-toggle");
     if (btn) btn.setAttribute("aria-pressed", "false");
   }
+  // Fleet-calendar Expand overlay — exit on Escape; repaint so the
+  // VAN-header Expand icon flips back to its collapsed glyph.
+  if (document.body.classList.contains("rr-fc-focus")) {
+    document.body.classList.remove("rr-fc-focus");
+    if (typeof _paintFleetCalendar === "function") _paintFleetCalendar();
+  }
 });
 
 // Onboarding readiness-board focus toggle. Delegated so it survives
