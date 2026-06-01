@@ -2140,6 +2140,41 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   color: #9334E6;
 }
 
+/* ── Smart Fill · staged scheduling animation ──────────────────────
+   While a Smart Fill run is in flight the tile gets a soft pulsing glow
+   ("Optimizing Schedule…"), and the freshly-assigned shift cards fade +
+   slide into the grid one at a time (JS adds .rr-sf-card-pending then
+   .rr-sf-card-in with a ~24ms per-card stagger). Reads as the schedule
+   being constructed in real time, not a flat repaint. */
+#view-schedule.rrx-schedule .sched-v2-tile.rr-sf-optimizing {
+  animation: rr-sf-optimize-glow 1.1s ease-in-out infinite;
+}
+@keyframes rr-sf-optimize-glow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(147, 52, 230, 0.20) inset,
+                         0 0 0 rgba(147, 52, 230, 0); }
+  50%      { box-shadow: 0 0 0 1px rgba(147, 52, 230, 0.45) inset,
+                         0 0 14px 2px rgba(147, 52, 230, 0.40); }
+}
+/* Shift-card staged reveal. Pending = hidden start state; -in animates
+   to resting. Transition (not @keyframes) so adding .rr-sf-card-in just
+   lets it settle to the chip's normal state. */
+#view-schedule.rrx-schedule .shift-chip.rr-sf-card-pending {
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+}
+#view-schedule.rrx-schedule .shift-chip.rr-sf-card-in {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 0.26s ease, transform 0.26s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  #view-schedule.rrx-schedule .sched-v2-tile.rr-sf-optimizing { animation: none; }
+  #view-schedule.rrx-schedule .shift-chip.rr-sf-card-pending {
+    opacity: 1; transform: none;
+  }
+  #view-schedule.rrx-schedule .shift-chip.rr-sf-card-in { transition: none; }
+}
+
 /* ── Spin animation (Smart Fill + Unassign click feedback) ── */
 
 @keyframes rr-v2-spin {
