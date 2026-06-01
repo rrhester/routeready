@@ -22386,12 +22386,28 @@ body.rr-cmdk-open{ overflow:hidden }
             }
             .rr-fc-vancol{
               padding:6px 14px;
-              display:flex;align-items:center;
+              display:flex;flex-direction:column;align-items:flex-start;
+              justify-content:center;gap:3px;
               font-size:var(--fs-sm);font-weight:600;color:var(--text);
               background:#fff;
               border-right:1px solid rgba(15,23,42,.26);
               border-bottom:1px solid rgba(15,23,42,.12);
             }
+            .rr-fc-vanname{line-height:1.2}
+            /* Operational-status pill beneath the van name — twin of the
+               Fleet roster pill, sized down for the calendar column. */
+            .rr-fc-opstat{
+              display:inline-flex;align-items:center;gap:5px;
+              font-size:10px;font-weight:600;line-height:1.3;
+              letter-spacing:.02em;white-space:nowrap;
+            }
+            .rr-fc-opstat-dot{
+              width:7px;height:7px;border-radius:50%;flex:0 0 auto;
+            }
+            .rr-fc-opstat.operational{color:#16a34a}
+            .rr-fc-opstat.operational .rr-fc-opstat-dot{background:#16a34a}
+            .rr-fc-opstat.grounded{color:#dc2626}
+            .rr-fc-opstat.grounded .rr-fc-opstat-dot{background:#dc2626}
             .rr-fc-cell{
               min-height:64px;
               padding:6px;

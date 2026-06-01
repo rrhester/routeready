@@ -28919,6 +28919,17 @@ function renderFleetCalendar() {
 }
 window.renderFleetCalendar = renderFleetCalendar;
 
+// Operational-status pill for the calendar's van column — a compact
+// twin of the Fleet roster's _flOpStatPill (grounded = red, otherwise
+// operational = green). Scoped CSS lives on .rr-fc-shell so it renders
+// the same whether the calendar is mounted under Schedule or Fleet.
+function _fcOpStatusPill(s) {
+  const grounded = s === "grounded";
+  const label = grounded ? "Grounded" : "Operational";
+  return `<span class="rr-fc-opstat ${grounded ? "grounded" : "operational"}" title="${label}">`
+    + `<span class="rr-fc-opstat-dot"></span>${label}</span>`;
+}
+
 // Friendly labels for the vendor.kind column (free text in the DB).
 const _FC_VENDOR_KINDS = {
   repair:     "Repair shop",
@@ -28959,7 +28970,7 @@ async function _paintFleetCalendar() {
   let vans = [], events = [];
   try {
     const [vRes, eRes] = await Promise.all([
-      sb.from("vehicles").select("id, name").is("archived_at", null),
+      sb.from("vehicles").select("id, name, operational_status").is("archived_at", null),
       sb.rpc("fleet_calendar_events_list", {
         p_from: fmtIsoDate(days[0]),
         p_to:   fmtIsoDate(days[6]),
@@ -29089,7 +29100,10 @@ async function _paintFleetCalendar() {
       const laneCount = Math.max(1, laneEnd.length);
       const rowH = Math.max(62, 6 + (laneCount - 1) * 42 + 38 + 8);
 
-      rows += `<div class="rr-fc-vancol" style="grid-row:${vi + 2};grid-column:1">${escapeHtml(v.name || "—")}</div>`;
+      rows += `<div class="rr-fc-vancol" style="grid-row:${vi + 2};grid-column:1">`
+        + `<span class="rr-fc-vanname">${escapeHtml(v.name || "—")}</span>`
+        + _fcOpStatusPill(v.operational_status)
+        + `</div>`;
       for (let di = 0; di < 7; di++) {
         const iso = dayIsos[di];
         const cls = (iso === todayIso ? " is-today" : "") + (di === 6 ? " rr-fc-col-last" : "");
