@@ -22474,12 +22474,25 @@ body.rr-cmdk-open{ overflow:hidden }
             .rr-fc-vancol-actions:focus-within{ opacity:1;pointer-events:auto; }
             /* Focus / Expand mode — also expand the FLEET view (was
                schedule-only) so Expand on the fleet calendar stays on a
-               full-screen fleet calendar instead of bouncing to schedule. */
+               full-screen fleet calendar instead of bouncing to schedule.
+               Hide the fleet chrome (header + tabs) and let the calendar
+               subview take the full height + its own scroll, so tall
+               fleets stay fully reachable. (Codex review.) */
             body.rr-sched-focus #view-fleet{
-              height:100% !important;min-height:0 !important;
-              overflow:hidden !important;padding:8px 12px !important;
+              height:100vh !important;min-height:0 !important;
+              padding:8px 12px !important;overflow:hidden !important;
+              display:flex !important;flex-direction:column !important;
             }
-            body.rr-sched-focus #view-fleet .fl-sub{ max-width:none !important; }
+            body.rr-sched-focus #view-fleet .page,
+            body.rr-sched-focus #view-fleet .rr-fleet-shell{
+              flex:1 1 auto !important;min-height:0 !important;
+              display:flex !important;flex-direction:column !important;
+            }
+            body.rr-sched-focus #view-fleet .fl-head{ display:none !important; }
+            body.rr-sched-focus #view-fleet #fl-sub-calendar{
+              flex:1 1 auto !important;min-height:0 !important;
+              max-width:none !important;overflow:auto !important;
+            }
             body.rr-sched-ultra-compact .rr-fc-event-bar,
             body.rr-sched-super-compact .rr-fc-event-bar{ height:30px; }
           </style>
