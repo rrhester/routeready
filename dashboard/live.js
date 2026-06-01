@@ -15535,8 +15535,14 @@ async function openDriverDrawer(driverId, opts) {
   drawer.id = "rr-dd-drawer";
   drawer.innerHTML = `
     <style>
-      #rr-dd-drawer{position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;justify-content:flex-end}
-      #rr-dd-panel{width:760px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column}
+      /* Backdrop fades; panel slides in from the right. Start state is
+         the un-.open form; .open (added a frame after append) animates
+         it in. Close reverses it before the node is removed. */
+      #rr-dd-drawer{position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;justify-content:flex-end;opacity:0;transition:opacity 220ms ease-out}
+      #rr-dd-drawer.rr-dd-open{opacity:1}
+      #rr-dd-panel{width:760px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1)}
+      #rr-dd-drawer.rr-dd-open #rr-dd-panel{transform:translateX(0)}
+      @media (prefers-reduced-motion: reduce){#rr-dd-drawer,#rr-dd-panel{transition:none}}
       .dd-chrome{position:sticky;top:0;z-index:2;background:var(--surface)}
       .dd-head{padding:var(--s-5) 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
       .dd-head h3{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
@@ -15635,9 +15641,20 @@ async function openDriverDrawer(driverId, opts) {
       <div class="dd-foot" id="rr-dd-foot"></div>
     </div>`;
   document.body.appendChild(drawer);
+  // Slide in · the panel is appended off-screen (translateX(100%));
+  // adding .rr-dd-open on the next frame triggers the transition so it
+  // glides in instead of popping. Reduced-motion users skip straight to
+  // open (the CSS disables the transition).
+  requestAnimationFrame(() => drawer.classList.add("rr-dd-open"));
+  // Animate out before unmount so closing slides back to the edge.
+  const _ddClose = () => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { drawer.remove(); return; }
+    drawer.classList.remove("rr-dd-open");
+    setTimeout(() => drawer.remove(), 240);
+  };
 
   drawer.addEventListener("click", (e) => {
-    if (e.target === drawer || e.target.id === "rr-dd-close" || e.target.closest("[data-rr-dd-close]")) { drawer.remove(); return; }
+    if (e.target === drawer || e.target.id === "rr-dd-close" || e.target.closest("[data-rr-dd-close]")) { _ddClose(); return; }
     if (e.target.closest("[data-rr-dd-report]")) {
       e.preventDefault(); e.stopPropagation();
       const id = _ddDriver && _ddDriver.driver && _ddDriver.driver.id;
