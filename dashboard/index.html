@@ -12092,9 +12092,22 @@ body.rr-cmdk-open{ overflow:hidden }
         #view-onboarding-ops .sched-nav-heading .subnav-item.active svg{color:var(--rr-brand-primary)}
         /* Roster-strip icons · match the Schedule ribbon icons exactly —
            Fluent secondary grey (#605E5C), 1.6 stroke weight, 28px (set
-           above). Rounded ends/corners come from the SVG markup. */
-        #view-onboarding-ops .ob-v2-roster-actions .subnav-item svg{
+           above), rounded ends/corners from the SVG markup. Scoped to
+           :not(.active) so the active tile can take the Schedule blue. */
+        #view-onboarding-ops .ob-v2-roster-actions .subnav-item:not(.active) svg{
           color:#605E5C !important;
+          stroke-width:1.6 !important;
+        }
+        /* Active roster tile · same highlight as the Schedule ribbon —
+           NO filled box, just Microsoft brand blue (#0078D4) text + icon
+           and a 600 weight, instead of the old blue background pill. */
+        #view-onboarding-ops .ob-v2-roster-actions .subnav-item.active{
+          color:#0078D4 !important;
+          background:transparent !important;
+          font-weight:600;
+        }
+        #view-onboarding-ops .ob-v2-roster-actions .subnav-item.active svg{
+          color:#0078D4 !important;
           stroke-width:1.6 !important;
         }
         #view-onboarding-ops .sched-nav-heading .subnav-item:focus,
