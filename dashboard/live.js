@@ -3903,6 +3903,7 @@ let _rosterRows = [];
 
 let _rosterAppStatus = new Map();   // driver_id -> { invited, signed_in_at, last_seen_at, has_push }
 let _rosterAttPoints = new Map();   // driver_id -> active attendance points within the policy window
+let _rosterAttnCoached = new Set(); // driver_ids with ≥1 active attendance-topic coaching (any level)
 let _rosterI9 = new Map();          // driver_id -> i9_list row (status, first_day_of_employment, …)
 let _rosterProg = new Map();        // driver_id -> onboarding_progress row
 let _rosterState = new Map();        // driver_id -> driver_onboarding_state.steps  ({ step_key: { status, at } })
@@ -3924,7 +3925,7 @@ async function loadDriversRoster() {
       .limit(500),
     sb.rpc("driver_app_status"),
     sb.from("coachings")
-      .select("driver_id, occurred_at")
+      .select("driver_id, occurred_at, topic")
       .eq("dsp_id", window.RR.dsp.id)
       .is("archived_at", null)
       .order("occurred_at", { ascending: false })
@@ -3978,8 +3979,12 @@ async function loadDriversRoster() {
   }
 
   _rosterLastCoached = new Map();
+  _rosterAttnCoached = new Set();
   for (const c of (coachRows ?? [])) {
     if (!_rosterLastCoached.has(c.driver_id)) _rosterLastCoached.set(c.driver_id, c.occurred_at);
+    // "On attendance coaching" = has at least one active (non-archived)
+    // coaching whose topic is attendance, at any level/severity.
+    if (c.topic && /attend/i.test(c.topic)) _rosterAttnCoached.add(c.driver_id);
   }
   _rosterRows = rows ?? [];
   refreshDriverStatRow(_rosterRows);
@@ -12911,6 +12916,15 @@ async function refreshDriverStatRow(rows) {
     ? Math.round((tenuredCount / totalActive) * 100)
     : null;
 
+  // % on attendance coaching · share of the team (active + onboarding)
+  // with at least one active coaching on the attendance topic, at any
+  // level (verbal → termination). Denominator matches % Tenured so the
+  // "X of N" rollups read consistently across the KPI strip.
+  const attnCoachedCount = active.filter(d => _rosterAttnCoached.has(d.id)).length;
+  const attnCoachedPct = totalActive > 0
+    ? Math.round((attnCoachedCount / totalActive) * 100)
+    : null;
+
   // Turnover — terminations in the rolling window. The schema doesn't
   // track a terminated_at column; updated_at on a status='terminated'
   // row is the closest proxy.
@@ -12967,6 +12981,7 @@ async function refreshDriverStatRow(rows) {
     scoreBuckets, topFive, botFive,
     tenureMonths, avgTenure, medianTenure, longestMonths,
     tenuredCount, tenuredPct,
+    attnCoachedCount, attnCoachedPct,
     tenureBuckets,
     winDays,
     termsLastWin, termsPriorWin,
@@ -13012,6 +13027,12 @@ async function refreshDriverStatRow(rows) {
     : (tenuredPct >= 90
         ? _rrKpiStatusIcon("green", `${tenuredPct}% tenured — at or above the 90% target`)
         : _rrKpiStatusIcon("red", `${tenuredPct}% tenured — below the 90% target`));
+  const attnLabel = attnCoachedPct == null
+    ? "— On attendance coaching"
+    : `${attnCoachedPct}% On attendance coaching`;
+  const attnSub = attnCoachedPct == null
+    ? "&nbsp;"
+    : `${attnCoachedCount} of ${totalActive} · any level`;
   const rosterKpisHtml =
     rosterPill("active", navy, `${counts.active} Active driver${counts.active === 1 ? "" : "s"}`,
       counts.onboarding ? `${counts.onboarding} onboarding` : "&nbsp;", false) +
@@ -13019,7 +13040,8 @@ async function refreshDriverStatRow(rows) {
       `${counts.leave || 0} on LOA`,
       (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
     rosterPill("tenure", navy, tenureLabel, tenureSub, true) +
-    rosterPill("tenured", navy, tenuredLabel, tenuredSub, false, tenuredIcon);
+    rosterPill("tenured", navy, tenuredLabel, tenuredSub, false, tenuredIcon) +
+    rosterPill("attncoach", (attnCoachedCount > 0 ? amber : navy), attnLabel, attnSub, false);
 
   const rosterHost = document.getElementById("rr-roster-kpis");
   if (rosterHost) rosterHost.innerHTML = rosterKpisHtml;
