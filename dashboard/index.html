@@ -12098,13 +12098,25 @@ body.rr-cmdk-open{ overflow:hidden }
           color:#605E5C !important;
           stroke-width:1.6 !important;
         }
-        /* Active roster tile · NO blue highlight — no filled box and no
-           blue text/icon. Distinguished only by a 600 weight, so it reads
-           the same grey as the rest of the strip. */
+        /* Active roster tile · NO blue highlight — strip every possible
+           highlight property (background in all forms, box-shadow, border,
+           outline) so it reads identical to the inactive tiles. The
+           [data-rr-tile] attribute bumps specificity above any competing
+           rule; !important covers the rest. Distinguished only by weight. */
+        #view-onboarding-ops .ob-v2-roster-actions [data-rr-tile^="roster-"] .subnav-item.active,
         #view-onboarding-ops .ob-v2-roster-actions .subnav-item.active{
-          color:var(--text) !important;
+          color:var(--text-muted) !important;
           background:transparent !important;
+          background-color:transparent !important;
+          background-image:none !important;
+          box-shadow:none !important;
+          border-color:transparent !important;
+          outline:none !important;
           font-weight:600;
+        }
+        #view-onboarding-ops .ob-v2-roster-actions [data-rr-tile^="roster-"] .subnav-item.active svg,
+        #view-onboarding-ops .ob-v2-roster-actions .subnav-item.active svg{
+          color:#605E5C !important;
         }
         #view-onboarding-ops .sched-nav-heading .subnav-item:focus,
         #view-onboarding-ops .sched-nav-heading .subnav-item:focus-visible{outline:none}
@@ -35121,7 +35133,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260601-unassign-out"></script>
+<script type="module" src="./live.js?v=20260601-roster-icons"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
