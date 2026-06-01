@@ -1242,12 +1242,59 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .icon-btn:hover{
   background:var(--surface-hover);color:var(--text);
 }
-.icon-btn:active{transform:translateY(.5px);background:var(--surface-pressed)}
+.icon-btn:active{transform:translateY(1px) scale(.97);background:var(--surface-pressed)}
 .icon-btn:focus-visible{
   outline:none;border-color:var(--accent);
   box-shadow:var(--ring-focus);color:var(--text);
 }
 .icon-btn svg{width:16px;height:16px;stroke-width:2}
+/* ── Uniform tactile press/sink on every clickable icon control ──────
+   Operator request: all dashboard icon buttons should feel like real
+   buttons — dip + shrink slightly on click, then spring back. One
+   consolidated block so the feedback is consistent across the sidebar
+   nav, top bar, fleet ribbon, calendar tools, settings nav and the
+   schedule tool/page buttons. (The schedule command-strip .sched-v2-tile
+   already has its own identical press in schedule-rrx.css.) */
+.nav-item,
+.sidebar-collapse-btn,
+.sidebar-theme-btn,
+.btn-icon,
+.rr-tf-icon,
+.settings-nav-item,
+#view-fleet .fl-ribbon-btn,
+#view-schedule .sched-tool-btn,
+#view-schedule .sched-page-btn{
+  /* Comprehensive list so this doesn't drop each class's existing
+     hover easing (bg/color/border/shadow); adds the transform spring. */
+  transition:background var(--t-fast), color var(--t-fast),
+             border-color var(--t-fast), box-shadow var(--t-fast),
+             transform .12s cubic-bezier(.2,.7,.2,1);
+}
+.nav-item:active,
+.sidebar-collapse-btn:active,
+.sidebar-theme-btn:active,
+.btn-icon:active,
+.rr-tf-icon:active,
+.settings-nav-item:active,
+#view-fleet .fl-ribbon-btn:active,
+#view-schedule .sched-tool-btn:active,
+#view-schedule .sched-page-btn:active{
+  transform:translateY(1px) scale(.97);
+}
+@media (prefers-reduced-motion: reduce){
+  .nav-item:active,
+  .sidebar-collapse-btn:active,
+  .sidebar-theme-btn:active,
+  .btn-icon:active,
+  .rr-tf-icon:active,
+  .settings-nav-item:active,
+  .icon-btn:active,
+  #view-fleet .fl-ribbon-btn:active,
+  #view-schedule .sched-tool-btn:active,
+  #view-schedule .sched-page-btn:active{
+    transform:none;
+  }
+}
 .icon-btn .dot{
   position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;
   background:var(--red);border:2px solid var(--surface);
