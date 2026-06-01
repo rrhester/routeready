@@ -12706,6 +12706,18 @@ async function refreshDriverStatRow(rows) {
     : 0;
   const longestMonths = tenureMonths.length ? tenureMonths[tenureMonths.length - 1] : 0;
 
+  // % Tenured · share of the team (active + onboarding) who have been with
+  // the company 30+ days. A driver with no hire date can't be counted as
+  // tenured. Denominator is the full team so it reads as a workforce-
+  // stability percentage (e.g. 9 of 10 → 90% tenured).
+  const tenuredCount = active.filter(d =>
+    d.hire_date &&
+    (todayMs - new Date(d.hire_date + "T12:00:00").getTime()) / 86400000 >= 30
+  ).length;
+  const tenuredPct = totalActive > 0
+    ? Math.round((tenuredCount / totalActive) * 100)
+    : null;
+
   // Turnover — terminations in the rolling window. The schema doesn't
   // track a terminated_at column; updated_at on a status='terminated'
   // row is the closest proxy.
@@ -12761,6 +12773,7 @@ async function refreshDriverStatRow(rows) {
     avgScore, scoredCount: scored.length,
     scoreBuckets, topFive, botFive,
     tenureMonths, avgTenure, medianTenure, longestMonths,
+    tenuredCount, tenuredPct,
     tenureBuckets,
     winDays,
     termsLastWin, termsPriorWin,
@@ -12789,13 +12802,18 @@ async function refreshDriverStatRow(rows) {
   const tenureSub = avgTenure == null
     ? "Set hire dates to see tenure"
     : `Median ${medianTenure.toFixed(0)} mo · longest ${(longestMonths / 12).toFixed(1)} yr`;
+  const tenuredLabel = tenuredPct == null ? "— Tenured" : `${tenuredPct}% Tenured`;
+  const tenuredSub = tenuredPct == null
+    ? "Set hire dates to see tenure"
+    : `${tenuredCount} of ${totalActive} · 30+ days`;
   const rosterKpisHtml =
     rosterPill("active", navy, `${counts.active} Active driver${counts.active === 1 ? "" : "s"}`,
       counts.onboarding ? `${counts.onboarding} onboarding` : "&nbsp;", false) +
     rosterPill("loa",    (counts.leave || 0) > 0 ? amber : navy,
       `${counts.leave || 0} on LOA`,
       (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
-    rosterPill("tenure", navy, tenureLabel, tenureSub, true);
+    rosterPill("tenure", navy, tenureLabel, tenureSub, true) +
+    rosterPill("tenured", navy, tenuredLabel, tenuredSub, false);
 
   const rosterHost = document.getElementById("rr-roster-kpis");
   if (rosterHost) rosterHost.innerHTML = rosterKpisHtml;
