@@ -586,7 +586,7 @@ textarea,
   border:1px solid var(--border);
   border-radius:var(--r-xl);
   box-shadow:var(--shadow-xl);
-  animation:rrModalRise var(--t-spring) both;
+  animation:rrModalRise 200ms cubic-bezier(0.2,0.8,0.25,1) both;
 }
 .rr-modal-head{
   display:flex;align-items:flex-start;gap:var(--s-3-5);
@@ -651,8 +651,8 @@ textarea,
 .rr-modal-foot .rr-modal-btn.danger:hover{background:var(--red-dark)}
 @keyframes rrModalFade{from{opacity:0}to{opacity:1}}
 @keyframes rrModalRise{
-  from{opacity:0;transform:translateY(6px) scale(.985)}
-  to  {opacity:1;transform:translateY(0)    scale(1)}
+  from{opacity:0;transform:scale(0.92)}
+  to  {opacity:1;transform:scale(1)}
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -4574,10 +4574,18 @@ select.form-input{
   border-radius:var(--r-xl);
   width:100%;max-width:480px;max-height:88vh;overflow-y:auto;
   box-shadow:var(--shadow-xl);
-  animation:modalUp var(--t-spring);
+  /* Anchored radial scale (grows from center) — 200ms to match the
+     shift-edit popover's crisp premium feel. */
+  animation:modalUp 200ms cubic-bezier(0.2,0.8,0.25,1);
 }
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes modalUp{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+/* Radial scale pop — matches the shift-edit popover's premium feel.
+   Center modals grow from their own center (default transform-origin).
+   scale(0.92)->1 + fade over the spring timing. */
+@keyframes modalUp{from{transform:scale(0.92);opacity:0}to{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion: reduce){
+  .modal-backdrop, .modal-card{animation:none !important}
+}
 .modal-head{padding:var(--s-4) var(--s-5) var(--s-3-5);border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3-5)}
 .modal-title{
   font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
