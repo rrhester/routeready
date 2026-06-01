@@ -1445,17 +1445,18 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
 .status-pill-followup{background:var(--accent-soft);color:var(--accent-text)}
 .status-pill-neutral{background:var(--canvas);color:var(--text-muted);border-color:var(--border)}
 
-/* Driver-status pills — the same vibrant 135° gradient + warm-edge
-   treatment as the Schedule "Draft"/"Live" status pill, tinted per
-   status with the KPI dashboard palette. Active → green (the Live-pill
-   twin), On leave → gold (the Draft pill), Terminated → red, Onboarding
-   → navy, Inactive → muted slate. Scoped to these classes so the shared
+/* Driver-status pills — colored to match the KPI dashboard status
+   palette (the same green/amber/red the roster KPI strip uses) so a
+   status reads identically in the table and in the KPI cards. Active →
+   KPI green, On leave → KPI amber, Terminated → KPI red, Onboarding →
+   KPI navy, Inactive → neutral. Soft tints (not the Draft-pill gradient
+   — that read too strong). Scoped to these classes so the shared
    .status-pill-* tokens (approvals, coaching acks) are unaffected. */
-.rr-dstatus-active{background:linear-gradient(135deg,#22C55E 0%,#107C41 100%);color:#fff;border-color:rgba(13,92,49,.55)}
-.rr-dstatus-onboarding{background:linear-gradient(135deg,#2A3170 0%,#1A1F47 100%);color:#fff;border-color:rgba(26,31,71,.55)}
-.rr-dstatus-leave{background:linear-gradient(135deg,#FFC528 0%,#FFA000 100%);color:#5A3E00;border-color:rgba(214,140,0,.55)}
-.rr-dstatus-inactive{background:linear-gradient(135deg,#8A93A3 0%,#566173 100%);color:#fff;border-color:rgba(86,97,115,.55)}
-.rr-dstatus-terminated{background:linear-gradient(135deg,#FF978F 0%,#D5392F 100%);color:#fff;border-color:rgba(184,40,30,.55)}
+.rr-dstatus-active{background:#EDF3EE;color:#137C43}
+.rr-dstatus-onboarding{background:rgba(26,31,71,.08);color:#1A1F47}
+.rr-dstatus-leave{background:#FBEAB8;color:#8A5D00}
+.rr-dstatus-inactive{background:var(--canvas);color:var(--text-muted);border-color:var(--border)}
+.rr-dstatus-terminated{background:#F8D3CF;color:#B8281E}
 
 .status-dot{
   display:inline-block;width:8px;height:8px;border-radius:50%;
@@ -13402,13 +13403,12 @@ body.rr-cmdk-open{ overflow:hidden }
           .rr-status-picker-dot{
             width:8px;height:8px;border-radius:50%;flex-shrink:0;
           }
-          /* Same 135° Draft-pill gradients as the row status pills
-             (see .rr-dstatus-*) so the dropdown echoes the table. */
-          .rr-status-dot-active{background:linear-gradient(135deg,#22C55E 0%,#107C41 100%)}
-          .rr-status-dot-onboarding{background:linear-gradient(135deg,#2A3170 0%,#1A1F47 100%)}
-          .rr-status-dot-leave{background:linear-gradient(135deg,#FFC528 0%,#FFA000 100%)}
-          .rr-status-dot-inactive{background:linear-gradient(135deg,#8A93A3 0%,#566173 100%)}
-          .rr-status-dot-terminated{background:linear-gradient(135deg,#FF978F 0%,#D5392F 100%)}
+          /* Match the KPI dashboard status palette (see .rr-dstatus-*). */
+          .rr-status-dot-active{background:#137C43}
+          .rr-status-dot-onboarding{background:#1A1F47}
+          .rr-status-dot-leave{background:#C7860B}
+          .rr-status-dot-inactive{background:var(--text-subtle)}
+          .rr-status-dot-terminated{background:#D5392F}
 
           /* Attendance table header · same treatment as the Roster
              driver-table header (frosted-glass blue, sticky top,
