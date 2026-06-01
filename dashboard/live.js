@@ -15535,8 +15535,14 @@ async function openDriverDrawer(driverId, opts) {
   drawer.id = "rr-dd-drawer";
   drawer.innerHTML = `
     <style>
-      #rr-dd-drawer{position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;justify-content:flex-end}
-      #rr-dd-panel{width:760px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column}
+      /* Backdrop fades; panel slides in from the right. Start state is
+         the un-.open form; .open (added a frame after append) animates
+         it in. Close reverses it before the node is removed. */
+      #rr-dd-drawer{position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;justify-content:flex-end;opacity:0;transition:opacity 220ms ease-out}
+      #rr-dd-drawer.rr-dd-open{opacity:1}
+      #rr-dd-panel{width:760px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1)}
+      #rr-dd-drawer.rr-dd-open #rr-dd-panel{transform:translateX(0)}
+      @media (prefers-reduced-motion: reduce){#rr-dd-drawer,#rr-dd-panel{transition:none}}
       .dd-chrome{position:sticky;top:0;z-index:2;background:var(--surface)}
       .dd-head{padding:var(--s-5) 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
       .dd-head h3{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
@@ -15635,9 +15641,24 @@ async function openDriverDrawer(driverId, opts) {
       <div class="dd-foot" id="rr-dd-foot"></div>
     </div>`;
   document.body.appendChild(drawer);
+  // Slide in · the panel is appended off-screen (translateX(100%));
+  // adding .rr-dd-open on the next frame triggers the transition so it
+  // glides in instead of popping. Reduced-motion users skip straight to
+  // open (the CSS disables the transition).
+  requestAnimationFrame(() => drawer.classList.add("rr-dd-open"));
+  // Animate out before unmount so closing slides back to the edge.
+  const _ddClose = () => {
+    // Mark as closing so an in-flight loadDriverDrawer() bails instead of
+    // rendering into a drawer that's mid-close-animation (the node lingers
+    // 240ms during the slide-out). (Codex review.)
+    drawer.dataset.rrClosing = "1";
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { drawer.remove(); return; }
+    drawer.classList.remove("rr-dd-open");
+    setTimeout(() => drawer.remove(), 240);
+  };
 
   drawer.addEventListener("click", (e) => {
-    if (e.target === drawer || e.target.id === "rr-dd-close" || e.target.closest("[data-rr-dd-close]")) { drawer.remove(); return; }
+    if (e.target === drawer || e.target.id === "rr-dd-close" || e.target.closest("[data-rr-dd-close]")) { _ddClose(); return; }
     if (e.target.closest("[data-rr-dd-report]")) {
       e.preventDefault(); e.stopPropagation();
       const id = _ddDriver && _ddDriver.driver && _ddDriver.driver.id;
@@ -15670,10 +15691,17 @@ async function loadDriverDrawer(driverId) {
   if (document.getElementById("rr-cd-drawer") && !document.getElementById("rr-dd-drawer")) {
     return openCoachingDrawer(driverId);
   }
-  if (!document.getElementById("rr-dd-drawer")) return;
+  // Treat a closing drawer (mid slide-out, still in the DOM for ~240ms) as
+  // already gone, so a slow RPC can't render into it. (Codex review.)
+  const _ddLive = () => {
+    const d = document.getElementById("rr-dd-drawer");
+    return d && d.dataset.rrClosing !== "1" ? d : null;
+  };
+  if (!_ddLive()) return;
 
   const { data, error } = await sb.rpc("driver_record", { p_id: driverId });
   if (error) { toast("Couldn't load driver: " + error.message, "warn"); return; }
+  if (!_ddLive()) return; // closed while the RPC was in flight
   _ddDriver = data;
   if (typeof getDriverStationsCached === "function") getDriverStationsCached();   // warm the station-name cache for the Overview tab
   const reportBtn = document.getElementById("rr-dd-report-btn");
@@ -15763,6 +15791,7 @@ async function loadDriverDrawer(driverId) {
     _paintDriverAvatars(avEl.parentElement || document);
   }
 
+  if (!_ddLive()) return; // closed during the doc/envelope/report loads
   renderDriverDrawerTab();
 }
 
@@ -15776,6 +15805,10 @@ function _ddCaptureVisibleFields() {
 }
 
 function renderDriverDrawerTab() {
+  // Bail if the drawer is gone or closing — a stale async load could call
+  // this after the node was removed/closed (Codex review).
+  const _dd = document.getElementById("rr-dd-drawer");
+  if (!_dd || _dd.dataset.rrClosing === "1") return;
   _ddCaptureVisibleFields();
   document.querySelectorAll("#rr-dd-drawer .dd-tab").forEach(t => {
     t.classList.toggle("active", t.getAttribute("data-rr-dd-tab") === _ddTab);
