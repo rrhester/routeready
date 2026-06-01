@@ -510,6 +510,29 @@
   }
 }
 
+/* No grey on ANY interaction — keep the roster icon + label near-black
+   (var(--text)) and the tile background transparent across hover / focus
+   / press / selected, so clicking never greys the icon. The push-button
+   transform above is the only click feedback. (The hover rules higher up
+   set var(--rr-fg-primary) + var(--rr-bg-hover), which is the grey the
+   operator was seeing.) */
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item:hover,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item:focus,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item:focus-visible,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item:active,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item.active {
+  color: var(--text) !important;
+  background: transparent !important;
+}
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item svg,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item:hover svg,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item:focus svg,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item:active svg,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item.active svg {
+  color: var(--text) !important;
+}
+
 /* ob-tab-wrap is the column-flex wrapper that lets a tile own a
    Rules footer underneath. Keep its vertical stack but neutralize
    any background / border so the tile itself owns appearance. */
