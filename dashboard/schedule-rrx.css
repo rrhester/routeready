@@ -1091,6 +1091,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   color: var(--rr-fg-primary);
   overflow: hidden;
 }
+/* Grow from the top-right corner (near the gear it opens under) when the
+   one-shot .rr-pop-anim class is applied on open. */
+.sched-kpi-config-popover.rr-pop-anim{ transform-origin: top right; }
 .sched-kpi-config-head{
   padding: 10px 14px 8px;
   font: var(--rr-font-caption);
