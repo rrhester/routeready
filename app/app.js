@@ -167,6 +167,43 @@ async function refreshChatBadge() {
   } catch {}
 }
 
+// In-app badge on the Forms tab · count of pending (unacknowledged)
+// coachings the dispatcher has sent. Mirrors the Chat tab badge so a new
+// Coaching alerts the driver on the Forms tab from any screen, without
+// having to open Forms first.
+function _setFormsTabBadge(n) {
+  document.querySelectorAll('.tab[data-c="tasks"]').forEach((tab) => {
+    const ic = tab.querySelector(".tab-ic");
+    if (!ic) return;
+    let badge = ic.querySelector(".rr-tab-badge");
+    if (n > 0) {
+      if (getComputedStyle(ic).position === "static") ic.style.position = "relative";
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "rr-tab-badge";
+        badge.style.cssText = "position:absolute;top:-4px;right:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--bg, #fff);box-sizing:border-box";
+        ic.appendChild(badge);
+      }
+      badge.textContent = n > 99 ? "99+" : String(n);
+    } else if (badge) {
+      badge.remove();
+    }
+  });
+}
+
+async function refreshFormsBadge() {
+  if (PREVIEW) return;
+  const session = readSession();
+  if (!session?.token) { _setFormsTabBadge(0); return; }
+  try {
+    // driver_list_coachings already returns only pending (unacknowledged)
+    // rows server-side, so its length is the "new Coaching" count.
+    const { data, error } = await sb.rpc("driver_list_coachings", { p_token: session.token });
+    if (error) return;
+    _setFormsTabBadge(Array.isArray(data) ? data.length : 0);
+  } catch {}
+}
+
 // Any time the driver app becomes visible (open from home screen, tab
 // focus, etc.) drop the badge to zero on the server side too — the
 // driver is clearly looking at the app, so unread should reset.
@@ -187,6 +224,7 @@ async function clearBadgeOnFocus() {
     }
   } else {
     refreshChatBadge();
+    refreshFormsBadge();
   }
 }
 if (typeof window !== "undefined") {
@@ -874,6 +912,8 @@ function render() {
   // the welcome message from migration 0266) shows up on the icon
   // without the driver having to open Chat first.
   refreshChatBadge();
+  // Forms tab badge · surface a freshly-sent Coaching on app open.
+  refreshFormsBadge();
   // Check for queued Recognition Celebration Events.  Fires immediately
   // so the celebration is the first thing the driver sees on app open
   // — no perceptible shell flash before the overlay lands.
@@ -2545,8 +2585,11 @@ function renderTasksHub() {
       route: "/tasks/coaching",
       title: "Coaching",
       sub,
+      badge: list.length,   // red count pill — signals a new Coaching to review
       icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
     }));
+    // Keep the Forms tab badge in sync with what we just rendered.
+    if (typeof _setFormsTabBadge === "function") _setFormsTabBadge(list.length);
     slot.querySelectorAll("[data-task-route]").forEach(el => {
       if (el.dataset.rrBound) return;
       el.dataset.rrBound = "1";
@@ -2642,11 +2685,16 @@ function renderTasksHub() {
   }).catch(() => {}).finally(rpcSettled);
 }
 function taskCardHtml(c) {
+  // Optional alert signal next to the title — a red count pill (number)
+  // or a "NEW" pill (boolean). Used to flag a freshly-sent Coaching.
+  const badge = c.badge
+    ? `<span class="task-card-badge" aria-label="New" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;margin-left:8px;border-radius:9px;background:#dc2626;color:#fff;font-size:10px;font-weight:800;letter-spacing:.02em;vertical-align:middle">${(typeof c.badge === "number" && c.badge > 0) ? (c.badge > 99 ? "99+" : c.badge) : "NEW"}</span>`
+    : "";
   return `
     <div class="task-card" data-task-route="${c.route}">
       <span class="task-icon">${c.icon}</span>
       <div class="task-text">
-        <div class="task-title">${escapeHtml(c.title)}</div>
+        <div class="task-title">${escapeHtml(c.title)}${badge}</div>
         <div class="task-sub">${escapeHtml(c.sub)}</div>
       </div>
       <svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -5565,6 +5613,8 @@ async function _submitCoachingAck(coaching, needsSign) {
   // Drop the cached list so the next feed load is fresh.
   window._rrCoachings = null;
   toast("Acknowledged", "ok");
+  // Update the Forms tab badge now that one coaching is cleared.
+  if (typeof refreshFormsBadge === "function") refreshFormsBadge();
   navigate("/tasks/coaching");
 }
 
