@@ -12901,11 +12901,16 @@ async function refreshDriverStatRow(rows) {
   // Both hosts get painted; the hidden one is invisible.
   const navy = "#1A1F47";
   const amber = "#C7860B";
-  const rosterPill = (key, color, label, sub, clickable) => {
+  const rosterPill = (key, color, label, sub, clickable, iconHtml) => {
     const cl = clickable ? ' data-clickable="true"' : "";
     const subHtml = `<span class="sched-kpi-sub">${sub || "&nbsp;"}</span>`;
+    // An iconHtml (a status icon) replaces the plain status dot — same
+    // pattern the Schedule KPI strip uses.
+    const marker = iconHtml
+      ? `<span class="sched-kpi-icon">${iconHtml}</span>`
+      : `<span class="sched-kpi-dot" style="background:${color}"></span>`;
     return `<span class="sched-kpi-pill" data-rr-roster-kpi="${key}"${cl}>`
-      + `<span class="sched-kpi-dot" style="background:${color}"></span>`
+      + marker
       + `<span class="sched-kpi-text">`
       + `<span class="sched-kpi-val">${label}</span>${subHtml}`
       + `</span></span>`;
@@ -12918,6 +12923,14 @@ async function refreshDriverStatRow(rows) {
   const tenuredSub = tenuredPct == null
     ? "Set hire dates to see tenure"
     : `${tenuredCount} of ${totalActive} · 30+ days`;
+  // % Tenured guardrail · ≥90% shows the Schedule "all good" (green
+  // thumbs-up) icon, below 90% shows the red warning icon — the same
+  // _rrKpiStatusIcon glyphs the Schedule KPI strip uses.
+  const tenuredIcon = (tenuredPct == null || typeof _rrKpiStatusIcon !== "function")
+    ? undefined
+    : (tenuredPct >= 90
+        ? _rrKpiStatusIcon("green", `${tenuredPct}% tenured — at or above the 90% target`)
+        : _rrKpiStatusIcon("red", `${tenuredPct}% tenured — below the 90% target`));
   const rosterKpisHtml =
     rosterPill("active", navy, `${counts.active} Active driver${counts.active === 1 ? "" : "s"}`,
       counts.onboarding ? `${counts.onboarding} onboarding` : "&nbsp;", false) +
@@ -12925,7 +12938,7 @@ async function refreshDriverStatRow(rows) {
       `${counts.leave || 0} on LOA`,
       (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
     rosterPill("tenure", navy, tenureLabel, tenureSub, true) +
-    rosterPill("tenured", navy, tenuredLabel, tenuredSub, false);
+    rosterPill("tenured", navy, tenuredLabel, tenuredSub, false, tenuredIcon);
 
   const rosterHost = document.getElementById("rr-roster-kpis");
   if (rosterHost) rosterHost.innerHTML = rosterKpisHtml;
