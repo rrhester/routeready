@@ -2928,9 +2928,11 @@ body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label {
   min-height: 56px !important;
 }
 body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
-  width: 24px !important;
-  height: 24px !important;
-  font-size: 10px !important;
+  /* Keep the driver photo full-size across density modes — operator
+     doesn't want the avatar shrinking as the grid compresses. */
+  width: 30px !important;
+  height: 30px !important;
+  font-size: 12px !important;
 }
 body.rr-sched-compact #view-schedule.rrx-schedule .cal-row-label-name {
   font-size: 12px !important;
@@ -3005,9 +3007,10 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label {
   min-height: 44px !important;
 }
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
-  width: 18px !important;
-  height: 18px !important;
-  font-size: 8.5px !important;
+  /* Keep the driver photo full-size across density modes. */
+  width: 30px !important;
+  height: 30px !important;
+  font-size: 12px !important;
 }
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-label-name {
   font-size: 11px !important;
@@ -3131,9 +3134,10 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label {
   min-height: 30px !important;
 }
 body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label .avatar-sm {
-  width: 15px !important;
-  height: 15px !important;
-  font-size: 8px !important;
+  /* Keep the driver photo full-size across density modes. */
+  width: 30px !important;
+  height: 30px !important;
+  font-size: 12px !important;
 }
 body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-label-name {
   font-size: 10px !important;
