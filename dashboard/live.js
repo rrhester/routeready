@@ -3902,6 +3902,7 @@ function _rrRosterStatusFilterLabel() {
 let _rosterRows = [];
 
 let _rosterAppStatus = new Map();   // driver_id -> { invited, signed_in_at, last_seen_at, has_push }
+let _rosterAttPoints = new Map();   // driver_id -> active attendance points within the policy window
 let _rosterI9 = new Map();          // driver_id -> i9_list row (status, first_day_of_employment, …)
 let _rosterProg = new Map();        // driver_id -> onboarding_progress row
 let _rosterState = new Map();        // driver_id -> driver_onboarding_state.steps  ({ step_key: { status, at } })
@@ -3933,6 +3934,44 @@ async function loadDriversRoster() {
 
   _rosterAppStatus = new Map((appStatus ?? []).map((s) => [s.driver_id, s]));
   _rosterI9 = new Map((Array.isArray(i9Rows) ? i9Rows : []).map((r) => [r.driver_id, r]));
+
+  // Active attendance points per driver — same math as the Attendance
+  // report: count called_off / no_show / late shifts in the policy decay
+  // window, drop operator-excused ones, weight by the policy's per-event
+  // points. Best-effort; a fetch failure just leaves the column at 0.
+  try {
+    const _attEval = (typeof _evalPolicy === "function") ? _evalPolicy() : null;
+    const _ptsCallout = _attEval?.events?.callout ? Number(_attEval.events.callout.points) || 0 : 0;
+    const _ptsNoshow  = _attEval?.events?.no_show ? Number(_attEval.events.no_show.points) || 0 : 0;
+    const _ptsLate    = _attEval?.events?.late    ? Number(_attEval.events.late.points)    || 0 : 0;
+    const _decay = Number(_attEval?.decay_days) || 90;
+    const _since = new Date(); _since.setDate(_since.getDate() - _decay);
+    const _sinceIso = fmtIsoDate(_since);
+    const _todayIso = fmtIsoDate(new Date());
+    const [attShiftsRes, attDecisionsRes] = await Promise.all([
+      sb.from("shifts").select("id, driver_id, status, date")
+        .eq("dsp_id", window.RR.dsp.id)
+        .in("status", ["late", "called_off", "no_show"])
+        .gte("date", _sinceIso).lte("date", _todayIso),
+      sb.from("attendance_decisions").select("shift_id")
+        .eq("dsp_id", window.RR.dsp.id).eq("decision", "deny")
+        .gte("created_at", _since.toISOString()),
+    ]);
+    const _excused = new Set((attDecisionsRes?.data || []).map((d) => d.shift_id));
+    const _pts = new Map();
+    for (const sh of (attShiftsRes?.data || [])) {
+      if (!sh.driver_id || _excused.has(sh.id)) continue;
+      const w = sh.status === "late" ? _ptsLate
+        : sh.status === "called_off" ? _ptsCallout
+        : sh.status === "no_show" ? _ptsNoshow : 0;
+      if (w) _pts.set(sh.driver_id, (_pts.get(sh.driver_id) || 0) + w);
+    }
+    _rosterAttPoints = _pts;
+  } catch (e) {
+    console.warn("attendance points load failed:", e);
+    _rosterAttPoints = new Map();
+  }
+
   _rosterLastCoached = new Map();
   for (const c of (coachRows ?? [])) {
     if (!_rosterLastCoached.has(c.driver_id)) _rosterLastCoached.set(c.driver_id, c.occurred_at);
@@ -4174,11 +4213,12 @@ function renderDriverTable(rows, error) {
           <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:3px;opacity:.7"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
       </th>
+      <th class="rr-roster-th-attpoints" title="Active attendance points within the policy window">Attendance Points</th>
       <th data-rr-roster-sort="score"  style="cursor:pointer;user-select:none">Score <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;opacity:.6" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${caret("score")}</th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th>App</th>
       <th></th>`;
-    thead.dataset.rrColCount = "8";
+    thead.dataset.rrColCount = "9";
 
     // Re-attach the search wrapper into the new search slot. Fall
     // back to the still-hidden .dr-roster-bar source on the very
@@ -4196,7 +4236,7 @@ function renderDriverTable(rows, error) {
 
   _obSetStrip(error ? null : rows);
 
-  const colspan = _driverStage === "onboarding" ? 7 : 8;
+  const colspan = _driverStage === "onboarding" ? 7 : 9;
   if (error) {
     tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:0">${_rosterEmpty({
       error: true, title: "Couldn't load drivers", body: escapeHtml(error.message),
@@ -7073,6 +7113,7 @@ function renderDriverRow(d) {
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${tenure}</td>
       <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
+      <td class="rr-att-points-cell">${_attPointsCell(d.id)}</td>
       <td>${_scoreCell(d.score)}</td>
       <td>${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer class="u-center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" data-rr-app-state="${_appBtnState(d.id)}" title="${escapeHtml(_appBtnTitle(d.id))}" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
@@ -7147,6 +7188,26 @@ function _scoreCell(s) {
           : v < 85 ? ["var(--amber-dark)", "var(--amber-soft)"]
           :          ["var(--green)", "var(--green-soft)"];
   return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:${c[1]};color:${c[0]}" title="Driver score">${v}</span>`;
+}
+
+// Active attendance points within the policy decay window (computed in
+// loadDriversRoster). 0 reads as a muted dash; any points read as a
+// pill tinted by how close the driver is to a ladder rung — amber once
+// they're scoring, red at the lowest coaching rung's threshold or above.
+function _attPointsCell(driverId) {
+  const p = (_rosterAttPoints && _rosterAttPoints.get) ? (_rosterAttPoints.get(driverId) || 0) : 0;
+  if (!p) return '<span class="u-subtle">—</span>';
+  const val = (p % 1 === 0) ? String(p) : p.toFixed(1);
+  // Lowest ladder threshold → "at a coaching rung" = red; below it = amber.
+  let firstThreshold = Infinity;
+  try {
+    const ev = (typeof _evalPolicy === "function") ? _evalPolicy() : null;
+    const rungs = ev && Array.isArray(ev.ladder) ? ev.ladder : [];
+    if (rungs.length) firstThreshold = Number(rungs[0].threshold) || Infinity;
+  } catch (_) {}
+  const tone = p >= firstThreshold ? ["var(--red)", "var(--red-soft)"]
+                                   : ["var(--amber-dark)", "var(--amber-soft)"];
+  return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:${tone[1]};color:${tone[0]}" title="Active attendance points in the policy window">${val}</span>`;
 }
 
 // "Last coached" — pulled from the per-driver latest coaching loaded
