@@ -2147,13 +2147,13 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    .rr-sf-card-in with a ~24ms per-card stagger). Reads as the schedule
    being constructed in real time, not a flat repaint. */
 #view-schedule.rrx-schedule .sched-v2-tile.rr-sf-optimizing {
-  animation: rr-sf-optimize-glow 1.1s ease-in-out infinite;
+  animation: rr-sf-optimize-glow 1.8s ease-in-out infinite;
 }
 @keyframes rr-sf-optimize-glow {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(147, 52, 230, 0.20) inset,
+  0%, 100% { box-shadow: 0 0 0 1px rgba(147, 52, 230, 0.16) inset,
                          0 0 0 rgba(147, 52, 230, 0); }
-  50%      { box-shadow: 0 0 0 1px rgba(147, 52, 230, 0.45) inset,
-                         0 0 14px 2px rgba(147, 52, 230, 0.40); }
+  50%      { box-shadow: 0 0 0 1px rgba(147, 52, 230, 0.24) inset,
+                         0 0 7px 1px rgba(147, 52, 230, 0.18); }
 }
 /* Shift-card staged reveal. Pending = hidden start state; -in animates
    to resting. Transition (not @keyframes) so adding .rr-sf-card-in just
