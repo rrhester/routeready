@@ -7376,6 +7376,13 @@ async function loadAttendanceLive() {
       .eq("dsp_id", dspId)
       .eq("topic", "attendance")
       .eq("driver_visible", true)
+      // Only coachings the attendance policy actually produced — every
+      // policy path (approval auto-fire, auto-accrual trigger, the
+      // report's "Send coaching") stamps the originating occurrence on
+      // triggering_shift_id. Manually-issued / seeded coachings have
+      // none, so this hides standalone Finals that aren't tied to any
+      // attendance event.
+      .not("triggering_shift_id", "is", null)
       .gte("occurred_at", sinceDate.toISOString())
       .is("archived_at", null)
       .order("occurred_at", { ascending: false }),
