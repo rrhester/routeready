@@ -22217,7 +22217,11 @@ body.rr-cmdk-open{ overflow:hidden }
               background:var(--sch-surface);
               border:1px solid var(--sch-line);
               border-radius:var(--sch-radius-lg);
-              overflow:hidden;
+              /* Card scrolls vertically; the day-header row stays pinned
+                 (position:sticky on .rr-fc-cell-head) while van rows
+                 scroll under it. */
+              overflow:auto;
+              max-height:calc(100vh - 320px);
             }
             @media (max-width:1180px){
               .rr-fc-shell{grid-template-columns:1fr}
@@ -22348,7 +22352,9 @@ body.rr-cmdk-open{ overflow:hidden }
                small uppercase day name + a large bold date number, with the
                same crisp border + today accent underline. */
             .rr-fc-cell-head{
-              position:relative;
+              /* Pinned to the top of the scrolling card so the vans
+                 scroll beneath a fixed day-header row. */
+              position:sticky;top:0;z-index:6;
               padding:10px 8px 11px;text-align:center;
               font-size:10px;font-weight:600;letter-spacing:.07em;
               text-transform:uppercase;color:var(--text-subtle);
