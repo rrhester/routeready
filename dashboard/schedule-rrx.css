@@ -2147,21 +2147,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   to   { transform: rotate(360deg); }
 }
 
-#view-schedule.rrx-schedule .sched-v2-tile.is-v2-spin svg {
-  /* Loop continuously (linear) while the .is-v2-spin class is applied.
-     The class is removed in live.js only once Smart Fill's work
-     actually finishes — a one-shot animation stopped after 0.9s while
-     the fill kept running, so the button looked dead even though work
-     was ongoing. Infinite spin keeps the control visibly "working". */
-  animation: rr-v2-spin 0.8s linear infinite;
-  transform-origin: 50% 50%;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #view-schedule.rrx-schedule .sched-v2-tile.is-v2-spin svg {
-    animation: none;
-  }
-}
+/* NOTE: the effective .is-v2-spin animation is defined later (the
+   rr-v2-spin-pulse rule with !important), which is where the
+   infinite-loop "keep spinning until the fill finishes" behavior
+   lives. The plain rr-v2-spin keyframes above are retained only as a
+   fallback reference. */
 
 /* V2 strip — no divider before Week. Today / Weekly / Monthly are
    one group, so Weekly sits flush next to Today (the old hairline +
@@ -2721,19 +2711,23 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
 /* ============================================================
    Smart Fill bolt · more visible spin
    ------------------------------------------------------------
-   The existing 0.9s rotate is correct but subtle. Add a slight
-   scale pulse and bump to two rotations so the bolt clearly
-   "engages" on click.
+   The existing rotate is correct but subtle. Add a slight scale
+   pulse so the bolt clearly "engages". This is the effective
+   .is-v2-spin rule (later + !important wins over the base one
+   above), so it loops INFINITELY: live.js holds .is-v2-spin until
+   Smart Fill's work actually finishes, so the bolt must keep
+   spinning the whole time — a one-shot stopped after 0.9s while
+   the long fill kept running and the button looked dead.
    ============================================================ */
 
 @keyframes rr-v2-spin-pulse {
   0%   { transform: rotate(0deg)   scale(1);    }
-  50%  { transform: rotate(360deg) scale(1.18); }
+  50%  { transform: rotate(360deg) scale(1.12); }
   100% { transform: rotate(720deg) scale(1);    }
 }
 
 #view-schedule.rrx-schedule .sched-v2-tile.is-v2-spin svg {
-  animation: rr-v2-spin-pulse 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) !important;
+  animation: rr-v2-spin-pulse 1.4s cubic-bezier(0.4, 0.0, 0.4, 1) infinite !important;
   transform-origin: 50% 50% !important;
 }
 
