@@ -33433,18 +33433,11 @@ window.openAiSchedule = async function () {
     _markTileBusy(btn);
     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg><span class="sf-btn-label">Smart Fill</span>`;
   }
-  // Glow + "Optimizing Schedule…" on the visible V2 command-strip tile
-  // so the run reads as active analysis, not a plain refresh. The tile
-  // label lives in its own <span> (last child); swap it and restore on
-  // finish. Belt-and-suspenders: collect every smartfill tile.
+  // Glow on the visible V2 command-strip tile so the run reads as active
+  // analysis, not a plain refresh. (Label text is intentionally left
+  // unchanged per operator — no "Optimizing Schedule…" swap.)
   const sfTiles = Array.from(document.querySelectorAll('.sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile'));
-  const sfLabelRestore = sfTiles.map((t) => {
-    const span = t.querySelector("span");
-    const prev = span ? span.textContent : null;
-    t.classList.add("rr-sf-optimizing");
-    if (span) span.textContent = "Optimizing Schedule…";
-    return { t, span, prev };
-  });
+  sfTiles.forEach((t) => t.classList.add("rr-sf-optimizing"));
   // Stage the upcoming Smart Fill render's card reveal.
   _rrSmartFillStaging = true;
   try {
@@ -33457,10 +33450,7 @@ window.openAiSchedule = async function () {
       _clearTileBusy(btn);
       btn.innerHTML = orig;
     }
-    sfLabelRestore.forEach(({ t, span, prev }) => {
-      t.classList.remove("rr-sf-optimizing");
-      if (span && prev != null) span.textContent = prev;
-    });
+    sfTiles.forEach((t) => t.classList.remove("rr-sf-optimizing"));
   }
 };
 
