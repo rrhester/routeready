@@ -22153,53 +22153,10 @@ async function openCoachingForm(driverId) {
     const { data: inserted, error } = await sb.from("coachings").insert(payload).select("id").single();
     if (error) { toast("Save failed: " + error.message, "warn"); return; }
 
-    // When the operator checked "Driver can view this", post a chat
-    // message to the driver in their RouteReady app so they actually
-    // know a new coaching landed on their record.  Same delivery path
-    // as auto-coached attendance events — uses dispatch_chat_send
-    // which inserts a driver_messages row + triggers the existing
-    // web-push pipeline.  Without this the coaching just sits silently
-    // on the driver's record until they happen to open the app.
-    if (payload.driver_visible) {
-      const dspName = window.RR?.dsp?.name || "Dispatch";
-      const sevWord = (() => {
-        const s = (payload.metadata?.level || payload.severity || "").toLowerCase();
-        if (s === "verbal_attendance"   || s === "verbal")  return "coaching note";
-        if (s === "written_attendance"  || s === "written") return "written warning";
-        if (s === "final_attendance")                        return "final written warning";
-        if (s === "termination")                             return "termination notice";
-        return "coaching";
-      })();
-      const headline = payload.summary || (payload.topic ? `${payload.topic} ${sevWord}` : "New coaching");
-
-      // Pull the driver's public coaching-view token so we can paste
-      // a clickable link in the message.  The driver taps it → public
-      // coaching page opens in their browser → they read the full
-      // record and tap to sign-acknowledge.  Without the URL, the
-      // existing message just told the driver to "open the app" but
-      // the coaching record isn't actually rendered anywhere in the
-      // PWA today, so they had no way to acknowledge it.
-      const { data: tokRow } = await sb.from("drivers")
-        .select("coaching_view_token")
-        .eq("id", driverId)
-        .single();
-      const base = window.RR?.dsp?.metadata?.public_base_url
-        || window.RR_CONFIG?.PUBLIC_BASE_URL
-        || location.origin;
-      const link = tokRow?.coaching_view_token
-        ? `${base.replace(/\/$/, "")}/c/${encodeURIComponent(tokRow.coaching_view_token)}`
-        : null;
-
-      const body = link
-        ? `New ${sevWord} from ${dspName}: ${headline}.\n\nReview and sign here: ${link}`
-        : `New ${sevWord} from ${dspName}: ${headline}.  Reach out to dispatch to review and sign.`;
-
-      const { error: msgErr } = await sb.rpc("dispatch_chat_send", {
-        p_driver_id: driverId,
-        p_body:      body,
-      });
-      if (msgErr) console.warn("coaching · driver notify failed:", msgErr.message);
-    }
+    // Driver notification (chat DM + Web Push + Forms-tab badge) is now
+    // handled by the AFTER INSERT trigger on coachings (migration 0350),
+    // so every coaching path — manual, auto-from-attendance, seeded —
+    // notifies uniformly. No per-path DM here (it would double-notify).
 
     // Upload attachments → storage and write rows in coaching_attachments.
     const fileInput = document.getElementById("rr-coach-files");
