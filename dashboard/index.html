@@ -12266,7 +12266,11 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="subnav" data-rr-tabbar="onboarding-roster">
                 <div class="ob-tab-wrap" data-rr-tile="roster-roster">
                   <button class="subnav-item active" type="button" title="Driver roster" onclick="if(typeof _obMountDriverSub==='function') _obMountDriverSub('roster');">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="16"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
+                    <!-- Roster icon filled with the same purple gradient as
+                         the Funnel icon (#A78BFA → #5B21B6). Fill only — the
+                         outline/grid stay dark (currentColor); the card is
+                         untouched. -->
+                    <svg viewBox="0 0 24 24" fill="url(#rr-roster-icon-gradient)" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><defs><linearGradient id="rr-roster-icon-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A78BFA"/><stop offset="100%" stop-color="#5B21B6"/></linearGradient></defs><rect x="3" y="4" width="18" height="16"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
                     <span>Roster</span>
                   </button>
                   <button type="button" class="ob-rules-foot" id="rr-roster-rules-toggle"
