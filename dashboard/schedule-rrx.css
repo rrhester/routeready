@@ -2095,18 +2095,46 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    surface, and pushed the icon color from indigo-500 to
    indigo-600 so the bolt punches harder against the gradient. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile {
-  /* AI vibe — Google/Gemini purple (blue → purple) soft gradient. */
-  background: linear-gradient(135deg, rgba(66, 133, 244, 0.14), rgba(147, 52, 230, 0.18));
+  /* AI vibe — Google/Gemini purple (blue → purple) gradient, bumped
+     richer with a soft outer glow so the tile reads as "special" at
+     rest. The transition gives the press/sink + hover a real spring. */
+  background: linear-gradient(135deg, rgba(66, 133, 244, 0.20), rgba(147, 52, 230, 0.26));
   color: #7B27C7;
+  box-shadow: 0 1px 2px rgba(91, 26, 158, 0.12),
+              0 0 0 1px rgba(147, 52, 230, 0.10) inset;
+  transition: transform 0.12s cubic-bezier(0.2, 0.7, 0.2, 1),
+              box-shadow 0.12s cubic-bezier(0.2, 0.7, 0.2, 1),
+              background 0.12s ease;
 }
 
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:hover {
-  background: linear-gradient(135deg, rgba(66, 133, 244, 0.24), rgba(147, 52, 230, 0.30));
+  background: linear-gradient(135deg, rgba(66, 133, 244, 0.30), rgba(147, 52, 230, 0.38));
   color: #5B1A9E;
+  box-shadow: 0 2px 8px rgba(91, 26, 158, 0.22),
+              0 0 0 1px rgba(147, 52, 230, 0.18) inset;
+}
+
+/* Press / sink — tactile "real button" feedback on click. The tile
+   dips down + shrinks slightly and the shadow tucks in, then springs
+   back via the transition above on release. */
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:active {
+  transform: translateY(1px) scale(0.97);
+  background: linear-gradient(135deg, rgba(66, 133, 244, 0.34), rgba(147, 52, 230, 0.42));
+  box-shadow: 0 0 0 1px rgba(147, 52, 230, 0.22) inset;
+  transition-duration: 0.04s;
 }
 
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile svg {
   color: #9334E6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile {
+    transition: none;
+  }
+  #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile:active {
+    transform: none;
+  }
 }
 
 /* ── Spin animation (Smart Fill + Unassign click feedback) ── */
@@ -2328,15 +2356,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 #view-schedule.rrx-schedule .sched-v2-status-pill[data-state="live"] {
-  /* Solid bright green to match the "All shifts assigned"
-     medallion in the Open shifts rail — same #107C41 hue at full
-     saturation, white text. Operator's prior request to make
-     these two surfaces match by color was applied to the wrong
-     pill class (.sched-status-pill); this is the actual visible
-     Live pill on the V2 chrome. */
-  background: var(--rr-success, #107C41);
+  /* Vibrant green gradient — the green twin of the gold "Draft" pill
+     (matching its 135deg vibrant→deep treatment) so the two states
+     read as the same component in different states. */
+  background: linear-gradient(135deg, #22C55E 0%, #107C41 100%);
   color: #ffffff;
-  border: 1px solid var(--rr-success, #107C41);
+  border: 1px solid rgba(13, 92, 49, 0.55);
 }
 
 #view-schedule.rrx-schedule .sched-v2-status-pill .sched-v2-status-check {
