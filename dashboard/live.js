@@ -2204,6 +2204,9 @@ window.filterPipelineStage = function (btn) {
 
 const _legacyGoto = window.goto;
 window.goto = function (view) {
+  // Clear the fleet-calendar Expand overlay so its body class (and the
+  // overflow:hidden it sets) can't linger and pin the next view.
+  document.body.classList.remove("rr-fc-focus");
   if (typeof _closeAttKpiDetail === "function")     _closeAttKpiDetail();
   if (typeof _closeAvailKpiDetail === "function")   _closeAvailKpiDetail();
   if (typeof _closeRosterKpiDetail === "function")  _closeRosterKpiDetail();
@@ -24494,6 +24497,12 @@ document.addEventListener("keydown", (e) => {
     const btn = document.getElementById("rr-ob-focus-toggle");
     if (btn) btn.setAttribute("aria-pressed", "false");
   }
+  // Fleet-calendar Expand overlay — exit on Escape; repaint so the
+  // VAN-header Expand icon flips back to its collapsed glyph.
+  if (document.body.classList.contains("rr-fc-focus")) {
+    document.body.classList.remove("rr-fc-focus");
+    if (typeof _paintFleetCalendar === "function") _paintFleetCalendar();
+  }
 });
 
 // Onboarding readiness-board focus toggle. Delegated so it survives
@@ -29024,7 +29033,7 @@ async function _paintFleetCalendar() {
   const _dens = document.body.classList.contains("rr-sched-super-compact") ? "super"
     : document.body.classList.contains("rr-sched-ultra-compact") ? "ultra"
     : document.body.classList.contains("rr-sched-compact") ? "compact" : "standard";
-  const _focusOn = document.body.classList.contains("rr-sched-focus");
+  const _focusOn = document.body.classList.contains("rr-fc-focus");
   const _railHidden = document.body.classList.contains("rr-fc-hide-rail");
   const _svg = (p) => `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const vanTools =
@@ -29369,8 +29378,8 @@ function _onFleetCalClick(e) {
     e.stopPropagation();
     const which = tool.getAttribute("data-fc-tool");
     if (which === "focus") {
-      const on = !document.body.classList.contains("rr-sched-focus");
-      document.body.classList.toggle("rr-sched-focus", on);
+      const on = !document.body.classList.contains("rr-fc-focus");
+      document.body.classList.toggle("rr-fc-focus", on);
       _paintFleetCalendar();
       return;
     }
