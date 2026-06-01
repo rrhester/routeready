@@ -13484,9 +13484,7 @@ body.rr-cmdk-open{ overflow:hidden }
             position:sticky !important;top:0 !important;z-index:3 !important;
           }
           #rr-roster-thead th{
-            background:rgba(15, 23, 42, 0.05) !important;
-            -webkit-backdrop-filter:saturate(180%) blur(20px) !important;
-            backdrop-filter:saturate(180%) blur(20px) !important;
+            background:#EEF1F5 !important;
             border-bottom:1px solid rgba(15,23,42,.26) !important;
             color:var(--text) !important;
             font-size:var(--fs-xs) !important;font-weight:600 !important;
@@ -13496,11 +13494,6 @@ body.rr-cmdk-open{ overflow:hidden }
                .cal-grid.head (live measurement: 79px). */
             height:79px !important;
             vertical-align:middle !important;
-          }
-          /* Solid-color fallback for browsers without backdrop-filter
-             so the sticky header never reads as transparent. */
-          @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-            #rr-roster-thead th{background:#EEF1F5 !important}
           }
           /* Neutral row hover · a clean gray wash (no blue tint) so
              roster rows read as a crisp operational table, matching
