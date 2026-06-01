@@ -24285,10 +24285,24 @@ async function _runUnassignAllShiftsForWeek(triggerEl) {
       },
     });
   }
-  // Animate the surviving cards back in so an unassign-all reads as the
-  // board re-settling, matching the Smart Fill reveal motion.
-  _rrRevealNextRender = true;
-  if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+  // Animate the cleared shift chips OUT first (fade + scale-down), so the
+  // operator watches the assignments leave, THEN repaint and re-settle
+  // the surviving cards back in. We have the exact ids from _priorAssign.
+  const _reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const _leaving = _reduce ? [] : _priorAssign
+    .map(r => document.querySelector(`.shift-chip[data-rr-shift-id="${r.id}"]`))
+    .filter(Boolean);
+  const _repaint = () => {
+    // Surviving cards re-settle in on the repaint, matching Smart Fill.
+    _rrRevealNextRender = true;
+    if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+  };
+  if (_leaving.length) {
+    _leaving.forEach(c => c.classList.add("rr-sf-card-out"));
+    setTimeout(_repaint, 200);
+  } else {
+    _repaint();
+  }
 }
 
 // Click handler for the schedule driver-sort icon — opens a small
