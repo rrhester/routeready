@@ -33433,15 +33433,34 @@ window.openAiSchedule = async function () {
     _markTileBusy(btn);
     btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="rr-sf-spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg><span class="sf-btn-label">Smart Fill</span>`;
   }
+  // Glow + "Optimizing Schedule…" on the visible V2 command-strip tile
+  // so the run reads as active analysis, not a plain refresh. The tile
+  // label lives in its own <span> (last child); swap it and restore on
+  // finish. Belt-and-suspenders: collect every smartfill tile.
+  const sfTiles = Array.from(document.querySelectorAll('.sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile'));
+  const sfLabelRestore = sfTiles.map((t) => {
+    const span = t.querySelector("span");
+    const prev = span ? span.textContent : null;
+    t.classList.add("rr-sf-optimizing");
+    if (span) span.textContent = "Optimizing Schedule…";
+    return { t, span, prev };
+  });
+  // Stage the upcoming Smart Fill render's card reveal.
+  _rrSmartFillStaging = true;
   try {
     // No toast — the spinning bolt icon is enough feedback per
     // the operator's request.
     await autoFillScheduleWeek();
   } finally {
+    _rrSmartFillStaging = false;
     if (btn) {
       _clearTileBusy(btn);
       btn.innerHTML = orig;
     }
+    sfLabelRestore.forEach(({ t, span, prev }) => {
+      t.classList.remove("rr-sf-optimizing");
+      if (span && prev != null) span.textContent = prev;
+    });
   }
 };
 
@@ -36420,6 +36439,50 @@ window._rrRefreshTodayAttBadge = _rrRefreshTodayAttBadge;
   });
 })();
 
+// Smart Fill staged-reveal flag. openAiSchedule sets this true for the
+// duration of its render so renderScheduleWeek animates the shift cards
+// in progressively; every other render path leaves it false and paints
+// instantly.
+let _rrSmartFillStaging = false;
+
+// Reveal the freshly-rendered shift cards one at a time with a short
+// stagger + fade/slide, so a Smart Fill run reads as the schedule being
+// constructed in real time. Driver-by-driver, day-by-day order (the DOM
+// order) so the build sweeps left-to-right, top-to-bottom. Honors
+// prefers-reduced-motion (reveals everything at once, no transition).
+function _rrStageShiftCards(wrap) {
+  const cards = Array.from(
+    wrap.querySelectorAll(".cal-cell .shift-chip:not(.off)")
+  );
+  if (!cards.length) return;
+  const reduce = window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) return; // leave cards as-is (instant)
+  // Prime: hide each card before paint so there's no flash of the final
+  // state. A class drives the start state + transition (see CSS).
+  for (const c of cards) c.classList.add("rr-sf-card-pending");
+  // Stagger the reveal. 24ms/card sits in the requested 20–30ms band.
+  const STEP = 24;
+  cards.forEach((c, i) => {
+    setTimeout(() => {
+      // Guard: the grid may have been re-rendered out from under us
+      // (rapid re-run / navigation) — bail if the node is detached.
+      if (!c.isConnected) return;
+      c.classList.add("rr-sf-card-in");
+      c.classList.remove("rr-sf-card-pending");
+    }, i * STEP);
+  });
+  // Safety net: clear any lingering pending state after the whole
+  // sequence should have completed, so a dropped timer can't leave a
+  // card invisible.
+  setTimeout(() => {
+    wrap.querySelectorAll(".rr-sf-card-pending").forEach((c) => {
+      c.classList.remove("rr-sf-card-pending");
+      c.classList.add("rr-sf-card-in");
+    });
+  }, cards.length * STEP + 400);
+}
+
 function _schedShiftChip(sh, extras) {
   // Training (Day 1+2 at the station) and ride-along (Day 3 shadowing a
   // trainer) shifts get their own visual treatment so the operator can
@@ -38476,6 +38539,15 @@ async function renderScheduleWeek() {
   // PD rows removed — Open Shifts pool on the right covers the same need
   // without taking grid real estate. Coverage strip stays.
   wrap.insertAdjacentHTML("beforeend", driverRowsHtml + coverageStripHtml + emptyHtml);
+  // Smart Fill · staged reveal. When this render is the result of a
+  // Smart Fill run (_rrSmartFillStaging set by openAiSchedule), animate
+  // the shift cards into the grid one at a time with a small stagger so
+  // the operator watches the optimized schedule being built rather than
+  // a single flat repaint. Plain renders (navigation, edits, realtime)
+  // skip this entirely — they paint instantly as before.
+  if (_rrSmartFillStaging) {
+    try { _rrStageShiftCards(wrap); } catch (_) { /* never block the paint */ }
+  }
   // Clamp the grid height in THIS frame, synchronously. Deferring it to
   // requestAnimationFrame let the grid paint once at full content height
   // and then snap down to the viewport a frame later — that snap is the
