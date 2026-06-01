@@ -13328,6 +13328,9 @@ body.rr-cmdk-open{ overflow:hidden }
           #rr-roster-table-wrap tbody tr:focus-within .rr-row-actions-bar{
             opacity:1;
           }
+          /* Terminated-driver report buttons stay visible so the
+             downloads are discoverable without hovering. */
+          .rr-row-actions-bar.is-persistent{opacity:1}
           .rr-row-action{
             appearance:none;cursor:pointer;
             width:24px;height:24px;border-radius:6px;

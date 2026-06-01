@@ -7096,9 +7096,18 @@ function _rowBadgesFor(d) {
 // noise — operator already gets click-to-call on the phone-number
 // text in the driver subcell.)
 function _rowActionsFor(d) {
-  const noteIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>';
-  const noteBtn = `<button type="button" class="rr-row-action" data-rr-driver-note="${escapeHtml(d.id)}" title="Open driver notes" aria-label="Open driver notes">${noteIcon}</button>`;
-  return `<div class="rr-row-actions-bar">${noteBtn}</div>`;
+  // Terminated drivers get two downloadable, court-ready plain-text
+  // documents next to the App column — an Unemployment Separation
+  // Statement and an itemized Attendance Record. Every other row shows
+  // no row-end action. (The old per-row notes icon was removed; the
+  // driver drawer is still reachable by clicking anywhere on the row.)
+  if (d.status !== "terminated") return `<div class="rr-row-actions-bar"></div>`;
+  const ueIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>';
+  const attIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>';
+  const id = escapeHtml(d.id);
+  const ueBtn = `<button type="button" class="rr-row-action" data-rr-term-report="unemployment" data-rr-driver-id="${id}" title="Download Unemployment Separation Statement (.txt)" aria-label="Download Unemployment Separation Statement">${ueIcon}</button>`;
+  const attBtn = `<button type="button" class="rr-row-action" data-rr-term-report="attendance" data-rr-driver-id="${id}" title="Download Attendance Record (.txt)" aria-label="Download Attendance Record">${attIcon}</button>`;
+  return `<div class="rr-row-actions-bar is-persistent">${ueBtn}${attBtn}</div>`;
 }
 
 function renderDriverRow(d) {
@@ -7161,13 +7170,14 @@ document.addEventListener("click", (e) => {
     _rrApplyRosterView(chip.getAttribute("data-rr-view") || "all");
     return;
   }
-  // Hover-action: Note button → open driver drawer
-  const noteBtn = e.target.closest("[data-rr-driver-note]");
-  if (noteBtn) {
+  // Row-end action: download a court-ready report for a terminated driver.
+  const termBtn = e.target.closest("[data-rr-term-report]");
+  if (termBtn) {
     e.preventDefault();
     e.stopPropagation();
-    const id = noteBtn.getAttribute("data-rr-driver-note");
-    if (id && typeof openDriverDrawer === "function") openDriverDrawer(id);
+    const id = termBtn.getAttribute("data-rr-driver-id");
+    const kind = termBtn.getAttribute("data-rr-term-report");
+    if (id) _downloadTerminationReport(id, kind);
   }
 });
 // Rehydrate the saved view on first paint.
@@ -7183,6 +7193,373 @@ document.addEventListener("click", (e) => {
     setTimeout(apply, 0);
   }
 })();
+
+// ── Terminated-driver reports ───────────────────────────────────────
+// Two plain-text, court-ready documents a DSP can download from the
+// roster when a driver is separated: an Unemployment Separation
+// Statement and an itemized Attendance Record. Formatting follows a
+// legal-brief idiom — fixed 80-column width, a caption block, numbered
+// paragraphs, and a certification footer — so the output is ready to
+// hand to an adjudicator without further editing.
+const _RR_RPT_W = 80;
+function _rptRule(ch) { return (ch || "=").repeat(_RR_RPT_W); }
+function _rptCenter(s) {
+  s = String(s == null ? "" : s);
+  if (s.length >= _RR_RPT_W) return s;
+  return " ".repeat(Math.floor((_RR_RPT_W - s.length) / 2)) + s;
+}
+function _rptDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d) ? "—" : d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+}
+function _rptDateShort(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d) ? "—" : fmtIsoDate(d);
+}
+function _rptPad(s, n) {
+  s = String(s == null ? "" : s);
+  return s.length >= n ? s.slice(0, n) : s + " ".repeat(n - s.length);
+}
+// Wrap `text` to the report width with an optional leading indent on
+// every line. Returns a single newline-joined string.
+function _rptWrap(text, indent) {
+  indent = indent || "";
+  const width = Math.max(20, _RR_RPT_W - indent.length);
+  const words = String(text == null ? "" : text).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const w of words) {
+    if (line && (line.length + 1 + w.length) > width) { lines.push(indent + line); line = w; }
+    else line = line ? line + " " + w : w;
+  }
+  lines.push(indent + line);
+  return lines.join("\n");
+}
+// Numbered legal paragraph with a hanging indent so wrapped lines align
+// under the body text, not the number.
+function _rptPara(n, text) {
+  const head = `    ${n < 10 ? " " : ""}${n}.  `;
+  const indent = " ".repeat(head.length);
+  const width = _RR_RPT_W - head.length;
+  const words = String(text == null ? "" : text).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const w of words) {
+    if (line && (line.length + 1 + w.length) > width) { lines.push(line); line = w; }
+    else line = line ? line + " " + w : w;
+  }
+  lines.push(line);
+  return lines.map((ln, i) => (i === 0 ? head : indent) + ln).join("\n");
+}
+const _RR_SEV_LABEL = {
+  verbal: "Verbal Warning", written: "Written Warning",
+  final: "Final Written Warning", termination: "Notice of Termination",
+};
+
+// Pull the attendance facts for one driver straight from the source
+// tables so the reports reflect the record on file, not a cached view.
+async function _fetchTerminationReportData(driver) {
+  const dspId = window.RR.dsp.id;
+  const did = driver.id;
+  const [shiftsRes, decisionsRes, coachRes] = await Promise.all([
+    sb.from("shifts").select("id, status, date, route_code")
+      .eq("dsp_id", dspId).eq("driver_id", did)
+      .in("status", ["late", "called_off", "no_show"])
+      .order("date", { ascending: true }),
+    sb.from("attendance_decisions").select("shift_id, decision, notes, created_at")
+      .eq("dsp_id", dspId).eq("driver_id", did),
+    sb.from("coachings")
+      .select("id, severity, topic, occurred_at, acknowledged_at, signed_at, summary, coached_by_name")
+      .eq("dsp_id", dspId).eq("driver_id", did)
+      .is("archived_at", null)
+      .order("occurred_at", { ascending: true }),
+  ]);
+  const policy = (typeof _evalPolicy === "function") ? _evalPolicy() : null;
+  const denials = (decisionsRes?.data || []).filter((x) => x.decision === "deny");
+  const excused = new Set(denials.map((x) => x.shift_id));
+  const excuseNote = new Map(denials.map((x) => [x.shift_id, x.notes || ""]));
+  const ptFor = (st) => {
+    if (!policy) return 0;
+    const k = st === "no_show" ? "no_show" : st === "called_off" ? "callout" : st === "late" ? "late" : null;
+    return k && policy.events[k] ? Number(policy.events[k].points) || 0 : 0;
+  };
+  const labelFor = (st) => st === "no_show" ? "No-call / no-show"
+    : st === "called_off" ? "Unexcused absence (call-out)"
+    : st === "late" ? "Late / tardy" : st;
+  const occurrences = (shiftsRes?.data || []).map((s) => ({
+    date: s.date, type: s.status, label: labelFor(s.status),
+    excused: excused.has(s.id), excuseNote: excuseNote.get(s.id) || "",
+    points: excused.has(s.id) ? 0 : ptFor(s.status),
+  }));
+  const coachings = (coachRes?.data || []).filter((c) => !c.topic || /attend/i.test(c.topic));
+  return { policy, occurrences, coachings };
+}
+
+function _rptHeader(driver, title) {
+  const dsp = (window.RR && window.RR.dsp) || {};
+  const company = (dsp.name || "Delivery Service Partner").toUpperCase();
+  const L = [];
+  L.push(_rptRule("="));
+  L.push(_rptCenter(company));
+  L.push(_rptCenter("Authorized Amazon Delivery Service Partner"));
+  if (dsp.business_address) L.push(_rptCenter(String(dsp.business_address)));
+  L.push(_rptRule("="));
+  L.push("");
+  L.push(_rptCenter(title));
+  L.push(_rptCenter("(Prepared for Unemployment Compensation Review)"));
+  L.push("");
+  return L.join("\n");
+}
+
+function _rptCertification() {
+  const dsp = (window.RR && window.RR.dsp) || {};
+  const L = [];
+  L.push(_rptWrap("The undersigned certifies that the foregoing is true and correct to "
+    + "the best of their knowledge and information, and that it is drawn from the "
+    + "Employer's contemporaneous business records maintained in the ordinary "
+    + "course of business within the RouteReady workforce system.", "    "));
+  L.push("");
+  L.push("    Prepared by: ______________________________   Date: ________________");
+  L.push("                 (Authorized Representative)");
+  L.push("");
+  L.push("    Title: ____________________________________");
+  if (dsp.name) { L.push(""); L.push(`    On behalf of: ${dsp.name}`); }
+  L.push("");
+  L.push(_rptRule("-"));
+  L.push(_rptWrap(`Generated by RouteReady on ${new Date().toLocaleString("en-US")}. `
+    + "This document reflects the records on file as of the generation date.", ""));
+  L.push(_rptRule("="));
+  return L.join("\n");
+}
+
+function _buildUnemploymentReportText(driver, data) {
+  const dsp = (window.RR && window.RR.dsp) || {};
+  const name = displayDriverName(driver);
+  const station = driver.station?.code || dsp.short_code || "—";
+  const contact = driver.phone || driver.email || "Not on file";
+  const hire = driver.hire_date;
+  const sep = driver.metadata?.separation_date || driver.updated_at;
+  const charged = data.occurrences.filter((o) => !o.excused);
+  const totalPts = charged.reduce((s, o) => s + o.points, 0);
+  const lastCharged = charged.length ? charged[charged.length - 1] : null;
+
+  // Length of service.
+  let los = "—";
+  if (hire) {
+    const days = Math.max(0, Math.floor(((sep ? new Date(sep) : new Date()) - new Date(hire)) / 86400000));
+    const yrs = Math.floor(days / 365), mos = Math.floor((days % 365) / 30);
+    const parts = [];
+    if (yrs) parts.push(`${yrs} year${yrs === 1 ? "" : "s"}`);
+    if (mos) parts.push(`${mos} month${mos === 1 ? "" : "s"}`);
+    los = (parts.length ? parts.join(", ") : "less than one month") + ` (${days} days)`;
+  }
+  const reason = driver.metadata?.separation_note
+    || "Violation of the Employer's published attendance policy through repeated "
+     + "unexcused absences, as itemized in the accompanying Attendance Record.";
+
+  const L = [];
+  L.push(_rptHeader(driver, "STATEMENT IN SUPPORT OF SEPARATION"));
+  L.push(`    RE:               ${name}`);
+  L.push(`    STATION:          ${station}`);
+  L.push(`    DATE PREPARED:    ${_rptDate(new Date().toISOString())}`);
+  L.push(`    EMPLOYER FILE:    RR-${String(driver.id).slice(0, 8).toUpperCase()}`);
+  L.push(_rptRule("-"));
+  L.push("");
+
+  let n = 0;
+  L.push("I.  PARTIES AND IDENTIFICATION");
+  L.push("");
+  L.push(_rptPara(++n, `The Employer is ${dsp.name || "the Delivery Service Partner"}, `
+    + `an authorized Amazon Delivery Service Partner operating from Station ${station}.`));
+  L.push(_rptPara(++n, `The Claimant, ${name}, was employed by the Employer as a Delivery `
+    + `Associate. Contact of record: ${contact}.`));
+  L.push("");
+  L.push("II.  DATES OF EMPLOYMENT");
+  L.push("");
+  L.push(_rptPara(++n, `Date of hire: ${_rptDate(hire)}.`));
+  L.push(_rptPara(++n, `Date of separation: ${_rptDate(sep)}.`));
+  L.push(_rptPara(++n, `Length of service: ${los}.`));
+  L.push("");
+  L.push("III.  NATURE OF THE SEPARATION");
+  L.push("");
+  L.push(_rptPara(++n, "The separation was involuntary and was initiated by the Employer "
+    + "for cause."));
+  L.push(_rptPara(++n, `Stated reason for separation: ${reason}`));
+  L.push("");
+  L.push("IV.  STATEMENT OF FACTS");
+  L.push("");
+  L.push(_rptPara(++n, "The Employer maintains a written, progressive attendance policy that "
+    + "is published to all Delivery Associates. Under that policy, chargeable "
+    + "attendance occurrences accrue points, and defined point thresholds trigger "
+    + "progressive corrective action up to and including termination."));
+  L.push(_rptPara(++n, `Over the course of employment the Claimant accrued ${totalPts} `
+    + `attendance point${totalPts === 1 ? "" : "s"} from ${charged.length} chargeable `
+    + `occurrence${charged.length === 1 ? "" : "s"}. The itemized log of every occurrence `
+    + `is provided in the accompanying Attendance Record.`));
+  if (data.coachings.length) {
+    L.push(_rptPara(++n, "The Claimant received progressive corrective action as follows:"));
+    L.push("");
+    for (const c of data.coachings) {
+      const lvl = _RR_SEV_LABEL[c.severity] || (c.severity || "Corrective action");
+      const ack = c.acknowledged_at ? `acknowledged ${_rptDateShort(c.acknowledged_at)}`
+        : (c.signed_at ? `signed ${_rptDateShort(c.signed_at)}` : "delivered; no acknowledgment of record");
+      // Hanging indent: first line "        - text", continuations align
+      // under the text at column 10.
+      L.push(_rptWrap(`${_rptDateShort(c.occurred_at)}: ${lvl} (${ack}).`, "          ")
+        .replace(/^ {10}/, "        - "));
+    }
+    L.push("");
+  } else {
+    L.push(_rptPara(++n, "Records of progressive corrective action are itemized in the "
+      + "accompanying Attendance Record."));
+  }
+  if (lastCharged) {
+    L.push(_rptPara(++n, `The final chargeable occurrence took place on `
+      + `${_rptDate(lastCharged.date)} (${lastCharged.label}). This occurrence brought the `
+      + `Claimant to or above the termination threshold under the policy and resulted in the `
+      + `separation that is the subject of this statement.`));
+  }
+  L.push("");
+  L.push("V.  CERTIFICATION");
+  L.push("");
+  L.push(_rptCertification());
+  L.push("");
+  return L.join("\n");
+}
+
+function _buildAttendanceReportText(driver, data) {
+  const dsp = (window.RR && window.RR.dsp) || {};
+  const name = displayDriverName(driver);
+  const station = driver.station?.code || dsp.short_code || "—";
+  const hire = driver.hire_date;
+  const sep = driver.metadata?.separation_date || driver.updated_at;
+  const policy = data.policy;
+  const charged = data.occurrences.filter((o) => !o.excused);
+  const totalPts = charged.reduce((s, o) => s + o.points, 0);
+
+  const L = [];
+  L.push(_rptHeader(driver, "ATTENDANCE RECORD"));
+  L.push(`    RE:               ${name}`);
+  L.push(`    STATION:          ${station}`);
+  L.push(`    DATE PREPARED:    ${_rptDate(new Date().toISOString())}`);
+  L.push(`    PERIOD COVERED:   ${_rptDate(hire)} through ${_rptDate(sep)}`);
+  L.push(`    EMPLOYER FILE:    RR-${String(driver.id).slice(0, 8).toUpperCase()}`);
+  L.push(_rptRule("-"));
+  L.push("");
+
+  L.push("I.  APPLICABLE ATTENDANCE POLICY");
+  L.push("");
+  if (policy && policy.enabled !== false) {
+    L.push(_rptWrap("The Employer applies a points-based progressive attendance policy. "
+      + "Points are assessed per chargeable occurrence as follows:", "    "));
+    L.push("");
+    const ev = policy.events || {};
+    if (ev.no_show) L.push(`        No-call / no-show ............ ${ev.no_show.points} point(s)`);
+    if (ev.callout) L.push(`        Unexcused absence (call-out) . ${ev.callout.points} point(s)`);
+    if (ev.late)    L.push(`        Late / tardy ................. ${ev.late.points} point(s)`);
+    L.push("");
+    L.push(_rptWrap(`Points remain active for ${policy.decay_days} days from the date of the `
+      + "occurrence. The progressive discipline ladder is as follows:", "    "));
+    L.push("");
+    for (const r of (policy.ladder || [])) {
+      const lvl = _RR_SEV_LABEL[r.severity] || r.severity;
+      L.push(`        ${_rptPad(lvl, 24)} at ${r.threshold} point(s)`);
+    }
+    if (policy.ncns_terminates) {
+      L.push("");
+      L.push(_rptWrap("In addition, a single no-call/no-show is grounds for immediate "
+        + "termination under the policy.", "    "));
+    }
+  } else {
+    L.push(_rptWrap("A formal points-based attendance policy was not enabled in the system "
+      + "for the period covered. The occurrences below are presented as a factual record.", "    "));
+  }
+  L.push("");
+
+  L.push("II.  CHRONOLOGICAL RECORD OF OCCURRENCES");
+  L.push("");
+  L.push("    " + _rptPad("DATE", 14) + _rptPad("OCCURRENCE", 32) + _rptPad("POINTS", 9) + "STATUS");
+  L.push("    " + _rptPad("----", 14) + _rptPad("----------", 32) + _rptPad("------", 9) + "------");
+  if (data.occurrences.length) {
+    for (const o of data.occurrences) {
+      const status = o.excused ? "Excused" : "Charged";
+      L.push("    " + _rptPad(_rptDateShort(o.date), 14) + _rptPad(o.label, 32)
+        + _rptPad(o.excused ? "0" : String(o.points), 9) + status);
+      if (o.excused && o.excuseNote) {
+        L.push(_rptWrap(`reason: ${o.excuseNote}`, "                  "));
+      }
+    }
+  } else {
+    L.push("    " + _rptPad("—", 14) + "No chargeable attendance occurrences on record.");
+  }
+  L.push("");
+  L.push(`    Total chargeable occurrences: ${charged.length}`);
+  L.push(`    Total points assessed:        ${totalPts}`);
+  L.push("");
+
+  L.push("III.  PROGRESSIVE DISCIPLINE ISSUED");
+  L.push("");
+  L.push("    " + _rptPad("DATE", 14) + _rptPad("LEVEL", 26) + _rptPad("ACKNOWLEDGED", 16) + "SIGNED");
+  L.push("    " + _rptPad("----", 14) + _rptPad("-----", 26) + _rptPad("------------", 16) + "------");
+  if (data.coachings.length) {
+    for (const c of data.coachings) {
+      const lvl = _RR_SEV_LABEL[c.severity] || (c.severity || "—");
+      const ack = c.acknowledged_at ? _rptDateShort(c.acknowledged_at) : "No";
+      const sgn = c.signed_at ? _rptDateShort(c.signed_at) : "—";
+      L.push("    " + _rptPad(_rptDateShort(c.occurred_at), 14) + _rptPad(lvl, 26)
+        + _rptPad(ack, 16) + sgn);
+    }
+  } else {
+    L.push("    " + _rptPad("—", 14) + "No progressive discipline on record.");
+  }
+  L.push("");
+
+  L.push("IV.  CERTIFICATION");
+  L.push("");
+  L.push(_rptCertification());
+  L.push("");
+  return L.join("\n");
+}
+
+function _downloadTextFile(filename, text) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function _downloadTerminationReport(driverId, kind) {
+  const driver = (_rosterRows || []).find((r) => r.id === driverId);
+  if (!driver) { toast("Driver not found", "warn"); return; }
+  toast("Preparing report…", "info");
+  let data;
+  try {
+    data = await _fetchTerminationReportData(driver);
+  } catch (e) {
+    console.warn("termination report data load failed:", e);
+    toast("Could not load report data", "error");
+    return;
+  }
+  const name = displayDriverName(driver);
+  const slug = name.toLowerCase().replace(/[^\w]+/g, "-").replace(/^-+|-+$/g, "") || "driver";
+  let text, suffix;
+  if (kind === "attendance") {
+    text = _buildAttendanceReportText(driver, data);
+    suffix = "attendance-record";
+  } else {
+    text = _buildUnemploymentReportText(driver, data);
+    suffix = "unemployment-statement";
+  }
+  _downloadTextFile(`${slug}-${suffix}.txt`, text);
+  toast("Report downloaded", "success");
+}
 
 // Driver score → small colored pill (red < 70, amber 70–84, green 85+).
 function _scoreCell(s) {
