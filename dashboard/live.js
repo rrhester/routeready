@@ -6875,15 +6875,36 @@ const _RR_STATUS_MAP = {
   inactive:   { label: "Inactive",   cls: "rr-dstatus-inactive"   },
   terminated: { label: "Terminated", cls: "rr-dstatus-terminated" },
 };
+// Compact date for the status pill, e.g. "5/20/26".
+function _statusPillDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d) ? "" : d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "2-digit" });
+}
 function _statusPillCell(status, driverId) {
   const m = _RR_STATUS_MAP[status] || { label: status || "—", cls: "rr-dstatus-inactive" };
+  // Terminated / on-leave pills carry the effective date so the operator
+  // sees when it took effect without opening the drawer. We don't model
+  // an explicit column, so use the separation/leave date from metadata
+  // when present, falling back to updated_at (when the status flipped).
+  let label = m.label;
+  if (status === "terminated" || status === "leave") {
+    const drv = (_rosterRows || []).find((r) => r.id === driverId);
+    if (drv) {
+      const iso = status === "terminated"
+        ? (drv.metadata?.separation_date || drv.updated_at)
+        : (drv.metadata?.leave_date || drv.metadata?.leave_start || drv.updated_at);
+      const ds = _statusPillDate(iso);
+      if (ds) label = `${m.label} · ${ds}`;
+    }
+  }
   // Pill is now a button that opens a status-picker popover. The
   // surrounding TD is marked data-rr-no-drawer in renderDriverRow
   // so clicking here doesn't also open the driver detail drawer.
   const did = driverId ? ` data-rr-driver-id="${escapeHtml(driverId)}"` : "";
   const cur = status ? ` data-rr-current-status="${escapeHtml(status)}"` : "";
   return `<button type="button" class="status-pill ${m.cls} rr-status-trigger" data-rr-no-drawer${did}${cur} title="Change status" aria-haspopup="menu" aria-expanded="false">`
-    + `<span class="rr-status-trigger-label">${escapeHtml(m.label)}</span>`
+    + `<span class="rr-status-trigger-label">${escapeHtml(label)}</span>`
     + `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:4px;opacity:.7"><polyline points="6 9 12 15 18 9"/></svg>`
     + `</button>`;
 }
@@ -7105,8 +7126,8 @@ function _rowActionsFor(d) {
   const ueIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>';
   const attIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>';
   const id = escapeHtml(d.id);
-  const ueBtn = `<button type="button" class="rr-row-action" data-rr-term-report="unemployment" data-rr-driver-id="${id}" title="Download Unemployment Separation Statement (.txt)" aria-label="Download Unemployment Separation Statement">${ueIcon}</button>`;
-  const attBtn = `<button type="button" class="rr-row-action" data-rr-term-report="attendance" data-rr-driver-id="${id}" title="Download Attendance Record (.txt)" aria-label="Download Attendance Record">${attIcon}</button>`;
+  const ueBtn = `<button type="button" class="rr-row-action" data-rr-term-report="unemployment" data-rr-driver-id="${id}" title="Download Unemployment Separation Statement (PDF)" aria-label="Download Unemployment Separation Statement">${ueIcon}</button>`;
+  const attBtn = `<button type="button" class="rr-row-action" data-rr-term-report="attendance" data-rr-driver-id="${id}" title="Download Attendance Record (PDF)" aria-label="Download Attendance Record">${attIcon}</button>`;
   return `<div class="rr-row-actions-bar is-persistent">${ueBtn}${attBtn}</div>`;
 }
 
@@ -7523,8 +7544,7 @@ function _buildAttendanceReportText(driver, data) {
   return L.join("\n");
 }
 
-function _downloadTextFile(filename, text) {
-  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+function _downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -7533,6 +7553,44 @@ function _downloadTextFile(filename, text) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Lazily pull pdf-lib from the same CDN the doc tools already use, so
+// the bundle isn't loaded until an operator actually downloads a report.
+let _pdfLibPromise = null;
+function _loadPdfLib() {
+  if (!_pdfLibPromise) _pdfLibPromise = import("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm");
+  return _pdfLibPromise;
+}
+// Standard PDF fonts use WinAnsi encoding; fold the few typographic
+// glyphs the reports use down to ASCII so embedding never throws.
+function _pdfSafe(s) {
+  return String(s == null ? "" : s)
+    .replace(/[—–]/g, "-")
+    .replace(/[·•]/g, "-")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/…/g, "...")
+    .replace(/[^\x09\x0A\x0D\x20-\xFF]/g, "?");
+}
+// Render the plain-text report into a real PDF, preserving the fixed
+// 80-column legal-brief layout by typesetting it in monospace Courier.
+async function _textToPdfBytes(text) {
+  const { PDFDocument, StandardFonts } = await _loadPdfLib();
+  const pdf = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Courier);
+  const fontSize = 9, lineH = 11.6, margin = 54, pageW = 612, pageH = 792;
+  const maxLines = Math.floor((pageH - margin * 2) / lineH);
+  const lines = _pdfSafe(text).split("\n");
+  let page = null, y = 0, count = 0;
+  const newPage = () => { page = pdf.addPage([pageW, pageH]); y = pageH - margin - fontSize; count = 0; };
+  newPage();
+  for (const ln of lines) {
+    if (count >= maxLines) newPage();
+    if (ln.length) page.drawText(ln, { x: margin, y, size: fontSize, font });
+    y -= lineH; count++;
+  }
+  return pdf.save();
 }
 
 async function _downloadTerminationReport(driverId, kind) {
@@ -7557,8 +7615,17 @@ async function _downloadTerminationReport(driverId, kind) {
     text = _buildUnemploymentReportText(driver, data);
     suffix = "unemployment-statement";
   }
-  _downloadTextFile(`${slug}-${suffix}.txt`, text);
-  toast("Report downloaded", "success");
+  try {
+    const bytes = await _textToPdfBytes(text);
+    _downloadBlob(`${slug}-${suffix}.pdf`, new Blob([bytes], { type: "application/pdf" }));
+    toast("Report downloaded", "success");
+  } catch (e) {
+    // If pdf-lib can't load (e.g. offline), still hand back the document
+    // as plain text rather than failing the download outright.
+    console.warn("PDF generation failed; falling back to text:", e);
+    _downloadBlob(`${slug}-${suffix}.txt`, new Blob([text], { type: "text/plain;charset=utf-8" }));
+    toast("Downloaded as text (PDF unavailable)", "warn");
+  }
 }
 
 // Driver score → small colored pill (red < 70, amber 70–84, green 85+).
