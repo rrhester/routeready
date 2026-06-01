@@ -13497,10 +13497,14 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           /* Neutral row hover · a clean gray wash (no blue tint) so
              roster rows read as a crisp operational table, matching
-             the rest of the product's neutral hover surfaces. */
+             the rest of the product's neutral hover surfaces. The
+             left-edge highlight bar uses the Schedule view's
+             communication blue (#0F6CBD) rather than the global accent
+             (#2563EB), so the hover line matches the Schedule page. */
           #dr-sub-roster .table tbody tr:hover,
           #dr-sub-roster .table-clickable tbody tr:hover{
             background:rgba(15, 23, 42, 0.05) !important;
+            box-shadow:inset 3px 0 0 #0F6CBD !important;
           }
 
           /* Density modes · Standard / Compact / Ultra-compact.
