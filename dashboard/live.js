@@ -36473,11 +36473,13 @@ function _rrStageShiftCards(wrap) {
       c.classList.remove("rr-sf-card-pending");
       // Scroll-follow · if the just-revealed card sits below the visible
       // area, ease the grid down so it comes into view. Keyed off the
-      // card's row so we scroll at most once per driver row (smooth, not
-      // jittery). A small bottom margin keeps the active row off the very
-      // edge.
-      const row = c.closest(".cal-grid, .cal-row, [data-iso]")?.parentElement || c.parentElement;
-      const rowKey = row ? (row.style.gridRow || row.offsetTop) : i;
+      // card's driver row (.cal-grid) so we scroll at most once per row
+      // (smooth, not jittery). A small bottom margin keeps the active row
+      // off the very edge. (Codex: use the .cal-grid row itself, not its
+      // parent .cal-wrap, or every card collapses to one key and the
+      // follow stops after the first scroll.)
+      const row = c.closest(".cal-grid") || c.parentElement;
+      const rowKey = row ? (row.offsetTop || row.style.gridRow) : i;
       if (rowKey === _lastScrolledRow) return;
       const cr = c.getBoundingClientRect();
       const wr = wrap.getBoundingClientRect();
