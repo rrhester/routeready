@@ -17532,15 +17532,17 @@ async function _sawLoadData(driver, firstDate, pair) {
     const [drvRes, stRes, shRes, otRes, ownRes, effRes, tmplRes] = await Promise.all([
       sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, status, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, hire_date, station_id").eq("id", driver.id).maybeSingle().then(r => r, () => ({ data: null })),
       sb.from("service_types").select("id, code, label, requires_dot, requires_xl, requires_edv, active").eq("dsp_id", dspId).then(r => r, () => ({ data: [] })),
-      // "Open" = unassigned and not a terminal/cancelled row. Matches the
-      // main Smart Fill's open-shift detection (don't require status
-      // "scheduled" — freshly-generated open shifts can carry another
-      // non-terminal status and would otherwise be missed).
-      sb.from("shifts").select("id, date, status, station_id, route_code, service_type_id, starts_at, ends_at, block_hours, shift_kind, is_cushion").eq("dsp_id", dspId).is("driver_id", null).not("status", "in", "(completed,no_show,called_off,cancelled)").gte("date", firstDate).lte("date", endDate).then(r => r, () => ({ data: [] })),
+      // "Open" = unassigned and not a terminal/cancelled row. We mirror the
+      // proven-working schedule-grid query EXACTLY (select * + dsp_id + date
+      // range, no exotic column list, no server-side status filter) so a
+      // column the DB doesn't have or an enum value it doesn't recognize
+      // can't 400 the request and silently zero out the open-shift list.
+      // Terminal statuses are filtered client-side below.
+      sb.from("shifts").select("*").eq("dsp_id", dspId).is("driver_id", null).gte("date", firstDate).lte("date", endDate).then(r => r, () => ({ data: [] })),
       sb.rpc("overtime_intelligence", { p_week_start: firstDate }).then(r => r, () => ({ data: null })),
       // The driver's OWN shifts (training / ride-along / anything already
       // on the books) so we never place a route on a day they're occupied.
-      sb.from("shifts").select("id, date, shift_kind, starts_at, ends_at, station_id, route_code, service_type_id, status").eq("dsp_id", dspId).eq("driver_id", driver.id).not("status", "in", "(no_show,called_off,cancelled)").gte("date", _sawAddDaysIso(firstDate, -7)).lte("date", endDate).then(r => r, () => ({ data: [] })),
+      sb.from("shifts").select("*").eq("dsp_id", dspId).eq("driver_id", driver.id).gte("date", _sawAddDaysIso(firstDate, -7)).lte("date", endDate).then(r => r, () => ({ data: [] })),
       // Effective availability per date — folds in approved availability
       // requests (e.g. a Saturday opened up this week) the static metadata
       // default doesn't carry.
@@ -17550,18 +17552,21 @@ async function _sawLoadData(driver, firstDate, pair) {
       // service-type / times / route from these so a newly-created open
       // seat looks like a real one for that day, even when the hire's own
       // forward window has no shift yet.
-      sb.from("shifts").select("id, date, station_id, route_code, service_type_id, starts_at, ends_at, block_hours, shift_kind").eq("dsp_id", dspId).not("status", "in", "(no_show,called_off,cancelled)").gte("date", tmplStart).lte("date", endDate).then(r => r, () => ({ data: [] })),
+      sb.from("shifts").select("*").eq("dsp_id", dspId).gte("date", tmplStart).lte("date", endDate).then(r => r, () => ({ data: [] })),
     ]);
     if (drvRes?.data) drvRow = drvRes.data;
     for (const stp of (stRes?.data || [])) stMap.set(stp.id, stp);
+    // Terminal statuses excluded client-side (was a server filter, moved here
+    // so the query can't 400 on an enum value the DB doesn't define).
+    const TERMINAL = new Set(["completed", "no_show", "called_off", "cancelled"]);
     // Any open regular/cushion seat is fillable (the main engine fills
     // cushion seats too — they're planned capacity, not over-staffing).
-    openShifts = (shRes?.data || []).filter(s => !["training", "ride_along"].includes(s.shift_kind));
-    driverShifts = ownRes?.data || [];
+    openShifts = (shRes?.data || []).filter(s => !TERMINAL.has(s.status) && !["training", "ride_along"].includes(s.shift_kind));
+    driverShifts = (ownRes?.data || []).filter(s => !["no_show", "called_off", "cancelled"].includes(s.status));
     effRows = Array.isArray(effRes?.data) ? effRes.data : [];
     // Only real productive shifts make good templates (skip training /
     // ride-along rows — they carry no route/service-type to copy).
-    templateShifts = (tmplRes?.data || []).filter(s => !["training", "ride_along"].includes(s.shift_kind) && s.starts_at && s.ends_at);
+    templateShifts = (tmplRes?.data || []).filter(s => !["no_show", "called_off", "cancelled"].includes(s.status) && !["training", "ride_along"].includes(s.shift_kind) && s.starts_at && s.ends_at);
     const otd = otRes?.data?.drivers || [];
     const otThreshold = Number(window.RR?.dsp?.metadata?.scheduling?.overtime_threshold_hours) || 40;
     teamOtRisk = otd.some(d => d.ot_risk || (Number(d.projected_hours) || 0) > otThreshold);
@@ -17683,10 +17688,13 @@ async function _sawGenerateSeats(st) {
 }
 async function _sawReloadOpen(st) {
   try {
-    const r = await sb.from("shifts").select("id, date, status, station_id, route_code, service_type_id, starts_at, ends_at, block_hours, shift_kind, is_cushion")
-      .eq("dsp_id", window.RR.dsp.id).is("driver_id", null).not("status", "in", "(completed,no_show,called_off,cancelled)")
+    // select * + no server status filter (mirrors the working grid query) so
+    // a missing column / unknown enum value can't 400 and zero out the list.
+    const TERMINAL = new Set(["completed", "no_show", "called_off", "cancelled"]);
+    const r = await sb.from("shifts").select("*")
+      .eq("dsp_id", window.RR.dsp.id).is("driver_id", null)
       .gte("date", st.firstDate).lte("date", st.endDate);
-    if (Array.isArray(r?.data)) st.openShifts = r.data.filter(s => !["training", "ride_along"].includes(s.shift_kind));
+    if (Array.isArray(r?.data)) st.openShifts = r.data.filter(s => !TERMINAL.has(s.status) && !["training", "ride_along"].includes(s.shift_kind));
   } catch (_) {}
 }
 
@@ -17829,10 +17837,14 @@ async function _sawDirectFillSeats(st) {
     days.push(d);
   }
   const targetDays = days.slice(0, st.maxDays);
+  // Always record what the seat-creator is working with, so the diagnostic
+  // shows the real runtime values (station resolved? which days?) even when
+  // no per-day error fires.
+  st._seatDiag.push(`station ${st.stationId ? "resolved" : "MISSING"}; candidate days: ${targetDays.length ? targetDays.join(", ") : "none"} (window ${st.firstDate}→${wkEnd}, ${st.maxDays} max)`);
   const created = [];
   for (const d of targetDays) {
     const row = await _sawCreateOpenSeat(st, d);
-    if (row && row.id) created.push(row);
+    if (row && row.id) { created.push(row); st._seatDiag.push(`${d}: created seat ✓`); }
   }
   if (created.length) { try { await _sawReloadOpen(st); } catch (_) {} }
   return created.map(r => r.id);
@@ -17982,8 +17994,8 @@ function _sawDiagnostic(st) {
     : "";
   const seatErrs = Array.isArray(st._seatDiag) ? st._seatDiag : [];
   const seatLine = seatErrs.length
-    ? `<div style="margin-top:4px;color:#B8281E">Tried to create seats but couldn't:${seatErrs.map(e => `<div style="padding-left:10px">· ${escapeHtml(String(e))}</div>`).join("")}</div>`
-    : "";
+    ? `<div style="margin-top:4px;color:#8A5D00">Seat-creator trace:${seatErrs.map(e => `<div style="padding-left:10px">· ${escapeHtml(String(e))}</div>`).join("")}</div>`
+    : `<div style="margin-top:4px;color:#B8281E">Seat-creator did not run (fallback not reached).</div>`;
   return `<div class="saw-empty" style="text-align:left;font-size:11px;line-height:1.65;color:var(--text)">
     <strong>Smart Fill placed nothing — here's exactly what it sees:</strong><br>
     Window: <b>${escapeHtml(st.firstDate)} → ${escapeHtml(st.endDate)}</b> (${escapeHtml(name)} can't work before this — training/ride-along runs through ${escapeHtml(st.rideDate || "—")}).<br>
