@@ -17382,12 +17382,14 @@ function _renderTrainingPairingModal() {
 
   m.addEventListener("click", (e) => {
     if (e.target === m || e.target.closest("[data-rr-tp-close]")) { m.remove(); _tpModalState = null; _sawState = null; return; }
-    if (_sawHandleClick(e, s.driver)) { e.preventDefault(); return; }
-    if (e.target.closest("[data-rr-tp-pick]"))     { e.preventDefault(); _tpOpenPickerPane(); }
-    if (e.target.closest("[data-rr-tp-clear]"))    { e.preventDefault(); _tpClear(); }
-    if (e.target.closest("[data-rr-tp-activate]")) { e.preventDefault(); _tpActivate(); }
+    // Training controls take priority and always run — never gated by the
+    // schedule-placement section's handler (which only acts on data-saw-*).
+    if (e.target.closest("[data-rr-tp-pick]"))     { e.preventDefault(); _tpOpenPickerPane(); return; }
+    if (e.target.closest("[data-rr-tp-clear]"))    { e.preventDefault(); _tpClear(); return; }
+    if (e.target.closest("[data-rr-tp-activate]")) { e.preventDefault(); _tpActivate(); return; }
     const row = e.target.closest("[data-rr-tp-row]");
-    if (row) _tpPick(row.getAttribute("data-driver-id"), row.getAttribute("data-is-trainer") === "1");
+    if (row) { _tpPick(row.getAttribute("data-driver-id"), row.getAttribute("data-is-trainer") === "1"); return; }
+    if (_sawHandleClick(e, s.driver)) { e.preventDefault(); return; }
   });
   m.addEventListener("change", (e) => {
     if (e.target.matches("[data-rr-tp-start], [data-rr-tp-ride]")) { _tpDatesChanged(); return; }
@@ -17920,12 +17922,13 @@ async function _sawSave(driver) {
 }
 
 async function _tpOpenPickerPane() {
-  const s = _tpModalState; if (!s) return;
+  const s = _tpModalState; if (!s) { toast("Reopen the Schedule step and try again", "warn"); return; }
   const rideDate = document.querySelector("[data-rr-tp-ride]")?.value || (s.pair && s.pair.ride_along_date);
-  if (!rideDate) { toast("Pick a ride-along date first", "warn"); return; }
+  if (!rideDate) { toast("Set the ride-along day first", "warn"); return; }
   const pane = document.getElementById("rr-tp-picker-pane");
-  if (!pane) return;
-  pane.style.display = "";
+  if (!pane) { toast("Couldn't open the trainer list — reopen the step", "warn"); return; }
+  pane.style.display = "block";
+  try { pane.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) {}
   pane.innerHTML = `
     <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:8px">Available drivers on ${escapeHtml(new Date(rideDate + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }))}</div>
     <div id="rr-tp-results"><div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:8px 0">Loading…</div></div>
