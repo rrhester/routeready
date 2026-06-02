@@ -17488,9 +17488,14 @@ async function _sawLoadData(driver, firstDate, pair) {
   // new hire can only work AFTER it. firstDate already = ride + 1, but we
   // keep rideDate so eligibility can hard-exclude on/before it too.
   const rideDate = (pair && pair.ride_along_date) || null;
-  let drvRow = driver, stMap = new Map(), openShifts = [], teamOtRisk = false, driverShifts = [];
+  // Candidate dates for the window — also feeds the effective-availability
+  // lookup so approved availability requests (not just the static default)
+  // are respected, exactly like the main Smart Fill.
+  const windowDates = [];
+  for (let i = 0; i <= 13; i++) windowDates.push(_sawAddDaysIso(firstDate, i));
+  let drvRow = driver, stMap = new Map(), openShifts = [], teamOtRisk = false, driverShifts = [], effRows = [];
   try {
-    const [drvRes, stRes, shRes, otRes, ownRes] = await Promise.all([
+    const [drvRes, stRes, shRes, otRes, ownRes, effRes] = await Promise.all([
       sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, status, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, hire_date").eq("id", driver.id).maybeSingle().then(r => r, () => ({ data: null })),
       sb.from("service_types").select("id, code, label, requires_dot, requires_xl, requires_edv, active").eq("dsp_id", dspId).then(r => r, () => ({ data: [] })),
       // "Open" = unassigned and not a terminal/cancelled row. Matches the
@@ -17502,11 +17507,18 @@ async function _sawLoadData(driver, firstDate, pair) {
       // The driver's OWN shifts (training / ride-along / anything already
       // on the books) so we never place a route on a day they're occupied.
       sb.from("shifts").select("id, date, shift_kind, starts_at, ends_at, station_id, route_code, service_type_id, status").eq("dsp_id", dspId).eq("driver_id", driver.id).not("status", "in", "(no_show,called_off,cancelled)").gte("date", _sawAddDaysIso(firstDate, -7)).lte("date", endDate).then(r => r, () => ({ data: [] })),
+      // Effective availability per date — folds in approved availability
+      // requests (e.g. a Saturday opened up this week) the static metadata
+      // default doesn't carry.
+      sb.rpc("driver_effective_days_for_drivers", { p_driver_ids: [driver.id], p_dates: windowDates }).then(r => r, () => ({ data: [] })),
     ]);
     if (drvRes?.data) drvRow = drvRes.data;
     for (const stp of (stRes?.data || [])) stMap.set(stp.id, stp);
-    openShifts = (shRes?.data || []).filter(s => !["training", "ride_along"].includes(s.shift_kind) && !s.is_cushion);
+    // Any open regular/cushion seat is fillable (the main engine fills
+    // cushion seats too — they're planned capacity, not over-staffing).
+    openShifts = (shRes?.data || []).filter(s => !["training", "ride_along"].includes(s.shift_kind));
     driverShifts = ownRes?.data || [];
+    effRows = Array.isArray(effRes?.data) ? effRes.data : [];
     const otd = otRes?.data?.drivers || [];
     const otThreshold = Number(window.RR?.dsp?.metadata?.scheduling?.overtime_threshold_hours) || 40;
     teamOtRisk = otd.some(d => d.ot_risk || (Number(d.projected_hours) || 0) > otThreshold);
@@ -17519,10 +17531,19 @@ async function _sawLoadData(driver, firstDate, pair) {
   if (rideDate) busyDates.add(rideDate);
 
   const av = (drvRow.metadata && drvRow.metadata.availability) || {};
+  // Per-date effective availability from the RPC (DOW codes that apply on
+  // that date). Falls back to the static metadata default when the RPC
+  // has no row for a date.
+  const effByDate = new Map();
+  for (const r of effRows) { if (r && r.on_date) effByDate.set(String(r.on_date).slice(0, 10), Array.isArray(r.days) ? r.days.map(c => String(c).slice(0, 3).toLowerCase()) : []); }
   const availSet = Array.isArray(av.days) && av.days.length ? new Set(av.days.map(d => String(d).slice(0, 3).toLowerCase())) : null;
   const prefSet = new Set((Array.isArray(av.preferred_days) ? av.preferred_days : []).map(d => String(d).slice(0, 3).toLowerCase()));
   const dowKey = (iso) => _SAW_DOW[_sawDow(iso)].toLowerCase();
-  const dowOk = (iso) => !availSet || availSet.has(dowKey(iso));
+  const dowOk = (iso) => {
+    const eff = effByDate.get(iso);
+    if (Array.isArray(eff)) return eff.includes(dowKey(iso));  // effective set for this date
+    return !availSet || availSet.has(dowKey(iso));             // fall back to default
+  };
   const isPref = (iso) => prefSet.has(dowKey(iso));
   const hourly = Number(drvRow.metadata?.pay?.hourly_rate) || Number(window.RR?.dsp?.metadata?.pay?.hourly_rate) || 22;
   const openByDate = new Map();
@@ -17612,7 +17633,7 @@ async function _sawReloadOpen(st) {
     const r = await sb.from("shifts").select("id, date, status, station_id, route_code, service_type_id, starts_at, ends_at, block_hours, shift_kind, is_cushion")
       .eq("dsp_id", window.RR.dsp.id).is("driver_id", null).not("status", "in", "(completed,no_show,called_off,cancelled)")
       .gte("date", st.firstDate).lte("date", st.endDate);
-    if (Array.isArray(r?.data)) st.openShifts = r.data.filter(s => !["training", "ride_along"].includes(s.shift_kind) && !s.is_cushion);
+    if (Array.isArray(r?.data)) st.openShifts = r.data.filter(s => !["training", "ride_along"].includes(s.shift_kind));
   } catch (_) {}
 }
 
