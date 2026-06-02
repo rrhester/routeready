@@ -17392,6 +17392,7 @@ function _renderTrainingPairingModal() {
       <div style="display:flex;gap:var(--s-2);justify-content:flex-end;align-items:center;border-top:1px solid var(--border);padding:14px 22px;flex:0 0 auto;background:var(--surface)">
         ${has ? `<button type="button" class="btn btn-ghost" data-rr-tp-clear>Clear match</button>` : ""}
         <button type="button" class="btn" data-rr-tp-close>Close</button>
+        <button type="button" class="btn" data-rr-tp-sched-training ${canActivate ? "" : "disabled"} title="${canActivate ? "Puts only the classroom days + ride-along on the schedule — no other shifts; driver stays in onboarding" : "Set the classroom days, ride-along day, and trainer first"}">Schedule training only</button>
         <button type="button" class="btn btn-primary" data-rr-tp-activate ${canActivate ? "" : "disabled"} title="${canActivate ? "Materializes shifts and flips driver to active" : "Set first training day, ride-along day, and trainer before activating"}">Activate driver</button>
       </div>
     </div>`;
@@ -17415,6 +17416,7 @@ function _renderTrainingPairingModal() {
       return;
     }
     if (e.target.closest("[data-rr-tp-clear]"))    { e.preventDefault(); _tpClear(); return; }
+    if (e.target.closest("[data-rr-tp-sched-training]")) { e.preventDefault(); _tpScheduleTraining(); return; }
     if (e.target.closest("[data-rr-tp-activate]")) { e.preventDefault(); _tpActivate(); return; }
     const row = e.target.closest("[data-rr-tp-row]");
     if (row) { _tpPick(row.getAttribute("data-driver-id"), row.getAttribute("data-is-trainer") === "1"); return; }
@@ -17480,6 +17482,19 @@ async function _tpClear() {
   if (typeof loadOnboardingOps === "function") loadOnboardingOps({ keepTab: true });
 }
 
+// Schedule ONLY the training (2 classroom days + ride-along) without adding
+// productive shifts and without activating the driver — they stay in
+// onboarding. Activate driver can finalize later.
+async function _tpScheduleTraining() {
+  const s = _tpModalState; if (!s) return;
+  const { error } = await sb.rpc("schedule_training_shifts", { p_driver_id: s.driverId });
+  if (error) { toast("Couldn't schedule training: " + (error.message || ""), "warn"); return; }
+  toast("Training scheduled — driver stays in onboarding", "success");
+  document.getElementById("rr-tp-modal")?.remove();
+  _tpModalState = null; _sawState = null;
+  if (typeof renderScheduleWeek === "function") { try { renderScheduleWeek(); } catch (_) {} }
+  if (typeof loadOnboardingOps === "function") loadOnboardingOps({ keepTab: true });
+}
 async function _tpActivate() {
   const s = _tpModalState; if (!s) return;
   // Activating commits everything in one step: first save any staged Smart
