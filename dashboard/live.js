@@ -17360,14 +17360,14 @@ function _renderTrainingPairingModal() {
       <div style="flex:1 1 auto;overflow-y:auto;min-height:0;padding:0 22px 4px">
         ${repairBanner}
 
-        <div id="rr-tp-dayrows" style="border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;margin-bottom:14px">
-          ${_tpDayRowsHtml(pair)}
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3);margin-bottom:12px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--s-3);margin-bottom:14px">
           <div>
-            <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">First training day</label>
+            <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">1st classroom day</label>
             <input type="date" data-rr-tp-start class="form-input" style="width:100%" value="${escapeHtml(start || "")}"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">2nd classroom day</label>
+            <input type="date" data-rr-tp-day2 class="form-input" style="width:100%;color:var(--text-muted)" value="${start ? escapeHtml(fmtIsoDate(addDays(new Date(start + 'T12:00:00'), 1))) : ''}" disabled title="Auto-set to the day after the first classroom day"/>
           </div>
           <div>
             <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">Ride-along day</label>
@@ -17376,7 +17376,7 @@ function _renderTrainingPairingModal() {
         </div>
 
         <div style="margin-bottom:14px">
-          <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">Trainer for Day 3</label>
+          <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">Trainer for the ride-along</label>
           <button type="button" class="btn" data-rr-tp-pick style="width:100%;justify-content:flex-start;text-align:left">
             ${has && pair.trainer_id
               ? `★ ${escapeHtml(trainerName || "Selected")}${pair.source === "fallback" ? " · fallback" : ""}`
@@ -17463,8 +17463,9 @@ async function _tpDatesChanged() {
   // the "Pick a trainer" button mid-press (the date input's change fires on
   // blur as the user clicks the button), so the click never landed and the
   // picker silently did nothing. Updating in place keeps the button alive.
-  const rows = document.getElementById("rr-tp-dayrows");
-  if (rows) rows.innerHTML = _tpDayRowsHtml(s.pair);
+  // Keep the read-only 2nd-classroom-day box in sync (always start + 1).
+  const day2El = document.querySelector("[data-rr-tp-day2]");
+  if (day2El) day2El.value = start ? fmtIsoDate(addDays(new Date(start + "T12:00:00"), 1)) : "";
   _sawEnsureSection(s.driver, s.pair);
 }
 
