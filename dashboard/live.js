@@ -17489,7 +17489,11 @@ async function _sawLoadData(driver, firstDate) {
     const [drvRes, stRes, shRes, otRes] = await Promise.all([
       sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, status, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, hire_date").eq("id", driver.id).maybeSingle().then(r => r, () => ({ data: null })),
       sb.from("service_types").select("id, code, label, requires_dot, requires_xl, requires_edv, active").eq("dsp_id", dspId).then(r => r, () => ({ data: [] })),
-      sb.from("shifts").select("id, date, station_id, route_code, service_type_id, starts_at, ends_at, block_hours, shift_kind, is_cushion").eq("dsp_id", dspId).is("driver_id", null).eq("status", "scheduled").gte("date", firstDate).lte("date", endDate).then(r => r, () => ({ data: [] })),
+      // "Open" = unassigned and not a terminal/cancelled row. Matches the
+      // main Smart Fill's open-shift detection (don't require status
+      // "scheduled" — freshly-generated open shifts can carry another
+      // non-terminal status and would otherwise be missed).
+      sb.from("shifts").select("id, date, status, station_id, route_code, service_type_id, starts_at, ends_at, block_hours, shift_kind, is_cushion").eq("dsp_id", dspId).is("driver_id", null).not("status", "in", "(completed,no_show,called_off,cancelled)").gte("date", firstDate).lte("date", endDate).then(r => r, () => ({ data: [] })),
       sb.rpc("overtime_intelligence", { p_week_start: firstDate }).then(r => r, () => ({ data: null })),
     ]);
     if (drvRes?.data) drvRow = drvRes.data;
@@ -17551,11 +17555,20 @@ async function _sawSmartFill() {
   const st = _sawState; if (!st) return;
   st.running = true; _sawRenderSection();
   try {
-    const fd = new Date(st.firstDate + "T12:00:00");
-    const weekStart = fmtIsoDate(addDays(fd, -fd.getDay()));
+    // Anchor to the first week that actually has eligible open shifts —
+    // a mid-week or future first-available date (or a sparse first week)
+    // then still finds candidates instead of coming up empty.
+    const eligibleOpen = st.openShifts.filter(s => s.date >= st.firstDate && st.eligibility(s).ok)
+      .sort((a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : 0));
+    if (!eligibleOpen.length) {
+      st.running = false; st.ran = true; _sawRenderSection();
+      toast(`No open (unassigned) shifts for ${st.driver.full_name || "this hire"} between ${st.firstDate} and ${st.endDate}. The week may be fully staffed or not built yet — generate routes on the Schedule page, or use Add manually.`, "warn");
+      return;
+    }
+    const anchor = new Date(eligibleOpen[0].date + "T12:00:00");
+    const weekStart = fmtIsoDate(addDays(anchor, -anchor.getDay()));
     const weekEnd = fmtIsoDate(addDays(new Date(weekStart + "T12:00:00"), 6));
-    const inWeek = st.openShifts.filter(s => s.date >= st.firstDate && s.date >= weekStart && s.date <= weekEnd && st.eligibility(s).ok);
-    if (!inWeek.length) { st.running = false; _sawRenderSection(); toast("No eligible open shifts in the first week — try Add manually", "warn"); return; }
+    const inWeek = eligibleOpen.filter(s => s.date >= weekStart && s.date <= weekEnd);
     const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     const routeType = (sh) => { const c = st.stMap.get(sh.service_type_id); if (c && c.requires_edv) return "edv"; if (c && c.requires_xl) return "xl"; if (c && c.requires_dot) return "step_van"; return "standard"; };
     const dur = (sh) => sh.starts_at && sh.ends_at ? (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000 : null;
