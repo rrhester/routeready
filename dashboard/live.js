@@ -17653,7 +17653,7 @@ async function _sawSmartFill() {
           : d.cells === 0 ? "no OKAMI targets are set for that week"
           : d.eligibleDays === 0 ? `none of ${name}'s available days in that week have demand (${d.inWindow} day-stations checked)`
           : d.generated === 0 ? "those days are already fully staffed (nothing to open)"
-          : "the generated seats didn't come back as open";
+          : "their available days are already staffed to target — only over-target (cushion) seats are open, which would over-staff. Raise those days' targets to add them, or use Add manually";
         msg = `Couldn't open route seats for ${name} (${st.firstDate}–${st.endDate}): ${why}. Set targets on the Schedule page, or use Add manually.`;
       } else {
         // Open shifts exist but none are eligible — say exactly why.
@@ -17914,10 +17914,13 @@ async function _tpOpenPickerPane() {
       <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4">Drivers without a scheduled shift on this day will show up tagged "Not scheduled this day" — you'll need to set the ride-along date to a day they're working before you can pick them.</div>
     </div>`;
   // Eligible candidates (with their shift info on the ride-along date).
+  // If the lookup fails, don't blank the picker — fall back to an empty
+  // candidate set so the full roster (trainers + search) still renders,
+  // and note the failure rather than leaving the operator stuck.
   if (s.candidatesDate !== rideDate) {
     const { data, error } = await sb.rpc("eligible_ride_along_drivers", { p_trainee_id: s.driverId, p_date: rideDate });
-    if (error) { document.getElementById("rr-tp-results").innerHTML = `<div style="color:#991b1b;font-size:var(--fs-sm);padding:8px 0">${escapeHtml(error.message || "Failed to load")}</div>`; return; }
-    s.candidates = data || [];
+    if (error) { console.warn("eligible_ride_along_drivers:", error); s.candidates = []; s.candidatesError = error.message || "lookup failed"; }
+    else { s.candidates = data || []; s.candidatesError = null; }
     s.candidatesDate = rideDate;
   }
   // Full active-driver roster — date-independent, fetched once per
@@ -17948,10 +17951,24 @@ function _tpRenderResults() {
   const q = (document.getElementById("rr-tp-search")?.value || "").toLowerCase().trim();
   const fmtT = (iso) => iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
 
-  const trainers = s.candidates.filter(r => r.is_trainer);
-  const trainerSection = trainers.length
-    ? trainers.map(r => _tpRowHtml(r, true, true)).join("")
-    : `<div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:6px 0">No trainers available this day — fall back to another driver below.</div>`;
+  const eligibleById = new Map(s.candidates.map(r => [r.driver_id, r]));
+  // Always list every DESIGNATED trainer (from the full active roster),
+  // not only those the day-scheduled query returned — a trainer working
+  // the ride-along day is pickable; one who isn't shows tagged + disabled
+  // so the operator knows to pick a day they're working. This guarantees
+  // trainers always appear even if the eligible-candidates query is empty.
+  const allTrainers = (s.allDrivers || []).filter(d => d.is_trainer);
+  const trainerRows = allTrainers.length
+    ? allTrainers.map(d => {
+        const e = eligibleById.get(d.id);
+        return e ? _tpRowHtml(e, true, true)
+                 : _tpRowHtml({ driver_id: d.id, full_name: d.full_name, is_trainer: true }, true, false);
+      })
+    : s.candidates.filter(r => r.is_trainer).map(r => _tpRowHtml(r, true, true));
+  const trainerSection = trainerRows.length
+    ? trainerRows.join("")
+    : `<div style="color:var(--text-subtle);font-size:var(--fs-sm);padding:6px 0">No designated trainers on the roster — search any active driver below.</div>`;
+  const trainers = allTrainers.length ? allTrainers : s.candidates.filter(r => r.is_trainer);
 
   // OTHER DRIVERS section: default-populate with every non-trainer
   // driver scheduled this day, so the operator sees their full set of
@@ -17959,7 +17976,6 @@ function _tpRenderResults() {
   // narrows results AND broadens to anyone in the DSP — drivers not
   // scheduled this day appear tagged "Not scheduled this day" and
   // disabled, so the operator knows to pick another ride-along date.
-  const eligibleById = new Map(s.candidates.map(r => [r.driver_id, r]));
   const nonTrainerScheduled = s.candidates.filter(r => !r.is_trainer);
   let othersSection;
   if (!q) {
@@ -17986,8 +18002,12 @@ function _tpRenderResults() {
     }
   }
 
+  const errNote = s.candidatesError
+    ? `<div style="color:#b45309;font-size:var(--fs-xs);padding:4px 0 6px">Couldn't check who's scheduled this day (${escapeHtml(s.candidatesError)}). Showing the roster — pick a trainer working the ride-along day.</div>`
+    : "";
   root.innerHTML = `
-    <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin:4px 0 6px">Trainers (${trainers.length} available)</div>
+    ${errNote}
+    <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin:4px 0 6px">Trainers (${trainers.length})</div>
     ${trainerSection}
     <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin:14px 0 6px;padding-top:10px;border-top:1px solid var(--border)">Other drivers</div>
     ${othersSection}`;
