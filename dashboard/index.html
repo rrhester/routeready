@@ -190,6 +190,10 @@
   /* XL is a service type (not a route_classification); chips key off
      data-rr-service-code="XL". Default mirrors XL's service color. */
   --rr-route-c-xl:#CA5010;
+  /* Trainer hosting a ride-along trainee (a regular shift that gets the
+     .shift-chip-training class). Default forest green matches the chip's
+     built-in trainee accent. */
+  --rr-route-c-trainer_trainee:#498205;
   /* Legacy route types — retired from the picker but kept so any shift
      still tagged with one keeps its chip color. */
   --rr-route-c-reduction:#CA5010;
@@ -15246,6 +15250,10 @@ body.rr-cmdk-open{ overflow:hidden }
                           <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">XL</span><button type="button" data-rr-route-reset="xl" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
                           <div class="rr-rcp-swatches" data-rr-route-swatches="xl" style="display:flex;gap:4px;flex-wrap:wrap"></div>
                         </div>
+                        <div class="rr-rcp-row" data-rr-route="trainer_trainee" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid #E1DFDD;border-radius:4px;background:#FFF">
+                          <div style="display:flex;align-items:center;gap:8px"><span style="flex:1;font-weight:600;color:#242424">Trainer (trainee riding along)</span><button type="button" data-rr-route-reset="trainer_trainee" style="background:none;border:0;color:#0078D4;font-size:11px;cursor:pointer">Reset</button></div>
+                          <div class="rr-rcp-swatches" data-rr-route-swatches="trainer_trainee" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+                        </div>
                       </div>
                       <style>
                         /* Each swatch is a small clickable color tile.
@@ -15302,6 +15310,7 @@ body.rr-cmdk-open{ overflow:hidden }
                           road_training:  "#CA5010",
                           pto:            "#CA5010",
                           xl:             "#CA5010",
+                          trainer_trainee:"#498205",
                         };
                         function loadHex() {
                           // Account (dsps.metadata.route_colors) wins so the
