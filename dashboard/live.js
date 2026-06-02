@@ -3890,6 +3890,7 @@ let _rosterFilters = { station: "", tenure: "", score: "", q: "", sort: "score-a
 const _RR_ROSTER_STATUS_FILTERS = [
   { stage: "all",          label: "All statuses", dot: null },
   { stage: "active",       label: "Active",       dot: "active" },
+  { stage: "seasonal",     label: "Seasonal",     dot: "seasonal" },
   { stage: "onleave",      label: "On leave",     dot: "leave" },
   { stage: "inactiveonly", label: "Inactive",     dot: "inactive" },
   { stage: "terminated",   label: "Terminated",   dot: "terminated" },
@@ -4005,6 +4006,7 @@ function _rowsForStage(rows, stage) {
   switch (stage) {
     case "onboarding": return rows.filter(r => r.status === "onboarding");
     case "active":     return rows.filter(r => r.status === "active");
+    case "seasonal":   return rows.filter(r => r.status === "seasonal");
     case "atrisk":     return rows.filter(r => r.status === "active" && (r.score ?? 999) < 70);
     case "onleave":    return rows.filter(r => r.status === "leave");
     case "inactive":   return rows.filter(r => ["inactive","terminated"].includes(r.status));
@@ -4061,7 +4063,7 @@ function _applyRosterFiltersAndSort(rows) {
   }
   const dispName = (r) => (r.preferred_name?.trim() || r.full_name || "").toLowerCase();
   // Status priority for status-asc sort (active first, terminated last).
-  const statusPri = { active: 0, onboarding: 1, leave: 2, inactive: 3, terminated: 4 };
+  const statusPri = { active: 0, seasonal: 1, onboarding: 2, leave: 3, inactive: 4, terminated: 5 };
   const statusRank = (r) => (statusPri[r.status] ?? 99);
   // Last-active timestamp from the in-memory roster app-session
   // cache. Drivers with no app session sort to the end on asc, to
@@ -4277,6 +4279,8 @@ function renderDriverTable(rows, error) {
       ? { title: "No active drivers yet", body: "Hire someone in Interview Day, or use Add driver / Bulk import to build the roster." }
       : _driverStage === "atrisk"
       ? { title: "No at-risk drivers", body: "Drivers whose score drops below 70 surface here so you can intervene early." }
+      : _driverStage === "seasonal"
+      ? { title: "No seasonal drivers", body: "Drivers set to Seasonal appear here." }
       : _driverStage === "onleave"
       ? { title: "No one on leave", body: "Drivers marked on leave appear here." }
       : _driverStage === "inactiveonly"
@@ -6871,6 +6875,7 @@ function _i9OnboardCell(driverId) {
 const _RR_STATUS_MAP = {
   active:     { label: "Active",     cls: "rr-dstatus-active"     },
   onboarding: { label: "Onboarding", cls: "rr-dstatus-onboarding" },
+  seasonal:   { label: "Seasonal",   cls: "rr-dstatus-seasonal"   },
   leave:      { label: "On leave",   cls: "rr-dstatus-leave"      },
   inactive:   { label: "Inactive",   cls: "rr-dstatus-inactive"   },
   terminated: { label: "Terminated", cls: "rr-dstatus-terminated" },
@@ -6912,7 +6917,7 @@ function _statusPillCell(status, driverId) {
 // Status-picker popover · single floating menu reused across all
 // driver rows. Click any pill → menu opens anchored under that
 // pill; pick a value → drivers.status update + roster refresh.
-const _RR_STATUS_OPTIONS = ["active", "onboarding", "leave", "inactive", "terminated"];
+const _RR_STATUS_OPTIONS = ["active", "onboarding", "seasonal", "leave", "inactive", "terminated"];
 function _rrEnsureStatusPicker() {
   let pop = document.getElementById("rr-roster-status-picker");
   if (pop) return pop;
