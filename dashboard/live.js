@@ -6201,7 +6201,8 @@ async function loadOnboardingOps(opts) {
   // text bars in the Driver col, hollow rings in each step col, a
   // hollow ring in Active, ghost icons in Actions) — same line-height
   // as a real row so adding a real applicant just replaces a skeleton.
-  try { _fillObMatrixSkeletonRows(body); } catch (_) { /* non-fatal */ }
+  // Ghost/skeleton filler rows removed by request — the table now ends after
+  // the real applicants instead of padding to the viewport bottom.
   // Paint the dynamic KPI bar above the matrix with one pill per
   // blueprint stage (Drug clear / BG clear / Job offer / …) plus
   // a leftmost "Onboarding drivers" total and a rightmost "Active"
@@ -17338,14 +17339,20 @@ function _renderTrainingPairingModal() {
     : "";
 
   const canActivate = has && pair.trainer_id && pair.ride_along_date && pair.training_start_date && status === "proposed";
+  // Scheduling training only is idempotent and doesn't flip status, so allow
+  // it for any complete, non-cleared pairing (proposed, needs_repair, or
+  // already materialized) — not just proposed like Activate.
+  const canScheduleTraining = has && pair.trainer_id && pair.ride_along_date && pair.training_start_date && status !== null;
 
   let m = document.getElementById("rr-tp-modal");
   if (m) m.remove();
   m = document.createElement("div");
   m.id = "rr-tp-modal";
-  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10001;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  // Transparent backdrop (no dim/blur — the background stays visible) and a
+  // pop-in animation matching the Schedule page pop-outs (rrPopIn).
+  m.style.cssText = "position:fixed;inset:0;background:transparent;z-index:10001;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);max-width:620px;width:100%;height:min(88vh,720px);display:flex;flex-direction:column;overflow:hidden">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);max-width:620px;width:100%;height:min(88vh,720px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px -16px rgba(15,23,42,.45);transform-origin:center;animation:rrPopIn 170ms cubic-bezier(0.2,0.8,0.25,1)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);padding:22px 22px 12px;flex:0 0 auto">
         <div>
           <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Schedule</h3>
@@ -17392,7 +17399,7 @@ function _renderTrainingPairingModal() {
       <div style="display:flex;gap:var(--s-2);justify-content:flex-end;align-items:center;border-top:1px solid var(--border);padding:14px 22px;flex:0 0 auto;background:var(--surface)">
         ${has ? `<button type="button" class="btn btn-ghost" data-rr-tp-clear>Clear match</button>` : ""}
         <button type="button" class="btn" data-rr-tp-close>Close</button>
-        <button type="button" class="btn" data-rr-tp-sched-training ${canActivate ? "" : "disabled"} title="${canActivate ? "Puts only the classroom days + ride-along on the schedule — no other shifts; driver stays in onboarding" : "Set the classroom days, ride-along day, and trainer first"}">Schedule training only</button>
+        <button type="button" class="btn" data-rr-tp-sched-training ${canScheduleTraining ? "" : "disabled"} title="${canScheduleTraining ? "Puts only the classroom days + ride-along on the schedule — no other shifts; driver stays in onboarding" : "Set the classroom days, ride-along day, and trainer first"}">Schedule training only</button>
         <button type="button" class="btn btn-primary" data-rr-tp-activate ${canActivate ? "" : "disabled"} title="${canActivate ? "Materializes shifts and flips driver to active" : "Set first training day, ride-along day, and trainer before activating"}">Activate driver</button>
       </div>
     </div>`;
@@ -18409,7 +18416,6 @@ async function _tpPick(trainerId, isTrainer) {
                       return dt.toISOString().slice(0, 10);
                     })();
   if (!rideDate) { toast("Pick a ride-along date first", "warn"); return; }
-  if (!isTrainer && !confirm("This driver isn't marked as a trainer. They'll be notified to mentor for the day. Proceed?")) return;
   const { data, error } = await sb.rpc("propose_training_pairing", {
     p_trainee_id:          s.driverId,
     p_trainer_id:          trainerId,
