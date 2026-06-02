@@ -5439,7 +5439,7 @@ const _OB_DEFAULT_BLUEPRINT = [
   { key: "job_offer",    type: "document",         title: "Job offer",                enabled: true, blocking: true,  required: true,  owner: "driver", document_template_id: null },
   { key: "handbook",     type: "document",         title: "Employment handbook",      enabled: true, blocking: true,  required: true,  owner: "driver", document_template_id: null },
   { key: "i9",           type: "i9",               title: "Form I-9",                 enabled: true, blocking: true,  required: true,  owner: "driver" },
-  { key: "trainer_pair", type: "task",             title: "Trainer pairing",          enabled: true, blocking: false, required: false, owner: "dsp" },
+  { key: "trainer_pair", type: "task",             title: "Schedule Assignment",      enabled: true, blocking: false, required: false, owner: "dsp" },
 ];
 let _obBlueprint = null;   // array of step objects from onboarding_blueprint_get (or _OB_DEFAULT_BLUEPRINT)
 function _obSteps() { return Array.isArray(_obBlueprint) && _obBlueprint.length ? _obBlueprint : _OB_DEFAULT_BLUEPRINT; }
@@ -5658,7 +5658,7 @@ const _OB_ADD_TYPES = [
   { type: "background_check",owner: "dsp",    coreKey: "bg_check",  title: "Background check cleared", label: "Background check",           blurb: "Record the result once the check clears. Required for hire." },
   { type: "drug_test",       owner: "dsp",    coreKey: "drug_test", title: "Drug test cleared",        label: "Drug test",                  blurb: "Record the result once the test clears. Required for hire." },
   { type: "task",            owner: "dsp",    isGate: true,         title: "New compliance gate",      label: "Custom compliance gate",     blurb: "Any dashboard-recorded check that must clear before onboarding finishes — MVR, DOT card, etc." },
-  { type: "task",            owner: "dsp",    isTrainerPair: true,  title: "Trainer pairing",          label: "Trainer pairing",            blurb: "Pair the driver with a trainer for a ride-along; mark it done from the dashboard." },
+  { type: "task",            owner: "dsp",    isTrainerPair: true,  title: "Schedule Assignment",      label: "Schedule Assignment",        blurb: "Set training (Day 1+2 station, Day 3 ride-along), then place the new hire into the schedule with recommended shifts." },
   { type: "document",        owner: "driver", title: "New document", label: "Document",                 blurb: "Attach a PDF — informational docs are acknowledged, secure docs run e-signature." },
   { type: "acknowledgement", owner: "driver", title: "New acknowledgement", label: "Acknowledgement",   blurb: "A short statement the driver reads and confirms. No PDF." },
   { type: "video",          owner: "driver", title: "New video", label: "Watch a video",               blurb: "Link a video the driver watches, then confirms." },
@@ -17320,7 +17320,7 @@ function _renderTrainingPairingModal() {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:560px;width:100%;max-height:90vh;display:flex;flex-direction:column">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);margin-bottom:12px">
         <div>
-          <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Training schedule</h3>
+          <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Schedule Assignment</h3>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">${escapeHtml(displayDriverName(d) || "Driver")} · Day 1+2 station, Day 3 ride-along</div>
         </div>
         <div style="display:flex;align-items:center;gap:var(--s-2)">${pill}<button data-rr-tp-close style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 4px;line-height:1">×</button></div>
@@ -17357,7 +17357,8 @@ function _renderTrainingPairingModal() {
 
       <div id="rr-tp-picker-pane" style="display:none;border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px;max-height:36vh;overflow-y:auto"></div>
 
-      <div style="display:flex;gap:var(--s-2);justify-content:flex-end;border-top:1px solid var(--border);padding-top:14px">
+      <div style="display:flex;gap:var(--s-2);justify-content:flex-end;align-items:center;border-top:1px solid var(--border);padding-top:14px">
+        <button type="button" class="btn" data-rr-tp-wizard style="margin-right:auto" title="Recommend and assign the new hire's first shifts after training">Schedule shifts →</button>
         ${has ? `<button type="button" class="btn btn-ghost" data-rr-tp-clear>Clear match</button>` : ""}
         <button type="button" class="btn" data-rr-tp-close>Close</button>
         <button type="button" class="btn btn-primary" data-rr-tp-activate ${canActivate ? "" : "disabled"} title="${canActivate ? "Materializes shifts and flips driver to active" : "Set first training day, ride-along day, and trainer before activating"}">Activate driver</button>
@@ -17370,6 +17371,7 @@ function _renderTrainingPairingModal() {
     if (e.target.closest("[data-rr-tp-pick]"))     { e.preventDefault(); _tpOpenPickerPane(); }
     if (e.target.closest("[data-rr-tp-clear]"))    { e.preventDefault(); _tpClear(); }
     if (e.target.closest("[data-rr-tp-activate]")) { e.preventDefault(); _tpActivate(); }
+    if (e.target.closest("[data-rr-tp-wizard]"))   { e.preventDefault(); _openScheduleAssignmentWizard(s.driver, s.pair); }
     const row = e.target.closest("[data-rr-tp-row]");
     if (row) _tpPick(row.getAttribute("data-driver-id"), row.getAttribute("data-is-trainer") === "1");
   });
@@ -17424,6 +17426,294 @@ async function _tpActivate() {
   toast("Driver activated · shifts created · messages queued", "success");
   document.getElementById("rr-tp-modal")?.remove();
   _tpModalState = null;
+  if (typeof loadOnboardingOps === "function") loadOnboardingOps({ keepTab: true });
+}
+
+// ── Schedule Assignment Wizard ──────────────────────────────────────
+// After training is set, help HR place a new hire into the schedule:
+// analyze open shifts from the first available work date, score them
+// against coverage need / overtime / availability / compliance, and let
+// HR auto-assign the recommended week or hand-pick shifts. Writes draft
+// shift assignments via assign_shift after a compliance check. Does NOT
+// touch any training scheduling logic.
+let _sawState = null;
+const _SAW_DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function _sawDow(iso) { const d = new Date(iso + "T12:00:00"); return isNaN(d) ? 0 : d.getDay(); }
+function _sawAddDaysIso(iso, n) { return fmtIsoDate(addDays(new Date(iso + "T12:00:00"), n)); }
+function _sawShiftHours(sh, defBlock) {
+  if (sh.block_hours != null && Number(sh.block_hours) > 0) return Number(sh.block_hours);
+  if (sh.starts_at && sh.ends_at) {
+    const h = (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000;
+    if (h > 0 && h < 24) return Math.round(h * 10) / 10;
+  }
+  return defBlock;
+}
+
+async function _openScheduleAssignmentWizard(driver, pair) {
+  if (!driver) return;
+  const dspId = window.RR?.dsp?.id;
+  // Mount a loading shell immediately.
+  document.getElementById("rr-saw-modal")?.remove();
+  const m = document.createElement("div");
+  m.id = "rr-saw-modal";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10002;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow:auto";
+  m.innerHTML = `<div class="modal-card saw" style="max-width:780px;width:100%;margin:auto;display:flex;flex-direction:column;max-height:92vh;overflow:hidden"><div class="modal-body" style="padding:40px;text-align:center;color:var(--text-subtle)">Analyzing the schedule…</div></div>`;
+  document.body.appendChild(m);
+
+  // First available work date = day after the ride-along (training done).
+  const rideIso = pair && pair.ride_along_date;
+  const startIso = pair && pair.training_start_date;
+  const firstDate = rideIso ? _sawAddDaysIso(rideIso, 1)
+    : startIso ? _sawAddDaysIso(startIso, 3)
+    : fmtIsoDate(new Date());
+  const endDate = _sawAddDaysIso(firstDate, 13); // two-week recommendation window
+
+  const defBlock = parseFloat(window._rrEffectiveSettings?.default_block_hours) || 10;
+  const maxDays = parseInt(window._rrEffectiveSettings?.max_days_per_week, 10) || 5;
+  const weeklyCap = maxDays * defBlock;
+  const minRest = 10;
+  const otThreshold = Number(window.RR?.dsp?.metadata?.scheduling?.overtime_threshold_hours) || 40;
+
+  let drvRow = driver, stMap = new Map(), openShifts = [], teamOtRisk = false, trainerName = "";
+  try {
+    const [drvRes, stRes, shRes, otRes, trRes] = await Promise.all([
+      sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, status, metadata, dot_certified, xl_certified, edv_certified, hire_date").eq("id", driver.id).maybeSingle().then(r => r, () => ({ data: null })),
+      sb.from("service_types").select("id, code, label, requires_dot, requires_xl, requires_edv, active").eq("dsp_id", dspId).then(r => r, () => ({ data: [] })),
+      sb.from("shifts").select("id, date, station_id, route_code, service_type_id, starts_at, ends_at, block_hours, shift_kind, is_cushion").eq("dsp_id", dspId).is("driver_id", null).eq("status", "scheduled").gte("date", firstDate).lte("date", endDate).then(r => r, () => ({ data: [] })),
+      sb.rpc("overtime_intelligence", { p_week_start: firstDate }).then(r => r, () => ({ data: null })),
+      pair && pair.trainer_id ? sb.from("drivers").select("full_name").eq("id", pair.trainer_id).maybeSingle().then(r => r, () => ({ data: null })) : Promise.resolve({ data: null }),
+    ]);
+    if (drvRes?.data) drvRow = drvRes.data;
+    for (const st of (stRes?.data || [])) stMap.set(st.id, st);
+    openShifts = (shRes?.data || []).filter(s => !["training", "ride_along"].includes(s.shift_kind) && !s.is_cushion);
+    const otDrivers = otRes?.data?.drivers || [];
+    teamOtRisk = otDrivers.some(d => d.ot_risk || (Number(d.projected_hours) || 0) > otThreshold);
+    trainerName = trRes?.data?.full_name || "";
+  } catch (e) { console.warn("schedule assignment load failed:", e); }
+
+  // Availability / certs.
+  const av = (drvRow.metadata && drvRow.metadata.availability) || {};
+  const availSet = Array.isArray(av.days) && av.days.length ? new Set(av.days.map(d => String(d).slice(0, 3).toLowerCase())) : null;
+  const prefSet = new Set((Array.isArray(av.preferred_days) ? av.preferred_days : []).map(d => String(d).slice(0, 3).toLowerCase()));
+  const dowKey = (iso) => _SAW_DOW[_sawDow(iso)].toLowerCase();
+  const dowOk = (iso) => !availSet || availSet.has(dowKey(iso));
+  const isPref = (iso) => prefSet.has(dowKey(iso));
+  const hourly = Number(drvRow.metadata?.pay?.hourly_rate) || Number(window.RR?.dsp?.metadata?.pay?.hourly_rate) || 22;
+
+  const openByDate = new Map();
+  for (const sh of openShifts) openByDate.set(sh.date, (openByDate.get(sh.date) || 0) + 1);
+
+  const eligibility = (sh) => {
+    if (sh.date < firstDate) return { ok: false, why: "Before first available work date" };
+    const st = stMap.get(sh.service_type_id);
+    if (st) {
+      if (st.requires_dot && !drvRow.dot_certified) return { ok: false, why: "Needs DOT certification" };
+      if (st.requires_xl && !drvRow.xl_certified) return { ok: false, why: "Needs XL certification" };
+      if (st.requires_edv && !drvRow.edv_certified) return { ok: false, why: "Needs EDV certification" };
+    }
+    if (!dowOk(sh.date)) return { ok: false, why: "Outside the driver's availability" };
+    return { ok: true };
+  };
+  const scoreOf = (sh) => {
+    let s = 50; const reasons = [];
+    if (teamOtRisk) { s += 14; reasons.push("Eliminates scheduled overtime"); }
+    const gap = openByDate.get(sh.date) || 1;
+    if (gap >= 3) { s += 18; reasons.push("Fills critical coverage gap"); }
+    else { s += 9; reasons.push("Fills open coverage need"); }
+    if (isPref(sh.date)) { s += 12; reasons.push("Matches preferred availability"); }
+    else { s += 5; reasons.push("Matches employee availability"); }
+    s += 4; reasons.push("Supports route targets");
+    s = Math.max(0, Math.min(100, Math.round(s)));
+    return { score: s, reasons, reason: reasons[0], otOpp: teamOtRisk, hours: _sawShiftHours(sh, defBlock) };
+  };
+
+  const recs = openShifts.map(sh => ({ sh, elig: eligibility(sh), ...scoreOf(sh) }))
+    .filter(r => r.elig.ok)
+    .sort((a, b) => b.score - a.score || (a.sh.date < b.sh.date ? -1 : 1));
+  // Best-per-date for the suggested first week.
+  const byDate = new Map();
+  for (const r of recs) { const ex = byDate.get(r.sh.date); if (!ex || r.score > ex.score) byDate.set(r.sh.date, r); }
+  const firstWeek = [...byDate.values()].sort((a, b) => a.sh.date < b.sh.date ? -1 : 1).slice(0, maxDays);
+
+  _sawState = {
+    driver: drvRow, pair, firstDate, endDate, defBlock, maxDays, weeklyCap, minRest, hourly, otThreshold,
+    stMap, openShifts, recs, firstWeek, eligibility, scoreOf, teamOtRisk, trainerName,
+    staged: new Set(), filters: { date: "", st: "", route: "", start: "" }, view: "recommend",
+  };
+  _sawRender();
+}
+
+function _sawStLabel(sh) {
+  const st = _sawState.stMap.get(sh.service_type_id);
+  return (st && (st.label || st.code)) || "Standard";
+}
+function _sawShiftRow(rec) {
+  const sh = rec.sh;
+  const st = _sawState;
+  const staged = st.staged.has(sh.id);
+  const dow = _SAW_DOW[_sawDow(sh.date)];
+  const time = sh.starts_at ? fmtTimeShort(sh.starts_at) : "—";
+  const tone = rec.score >= 80 ? "#137C43" : rec.score >= 60 ? "#8A5D00" : "#566173";
+  const bg = rec.score >= 80 ? "#EDF3EE" : rec.score >= 60 ? "#FBEAB8" : "#EEF1F5";
+  return `<div class="saw-row${staged ? " is-staged" : ""}">
+    <div class="saw-row-main">
+      <div class="saw-row-top"><strong>${dow} ${escapeHtml(sh.date)}</strong> · ${escapeHtml(_sawStLabel(sh))}${sh.route_code ? " · " + escapeHtml(sh.route_code) : ""}</div>
+      <div class="saw-row-sub">${escapeHtml(time)} · ${rec.hours}h · <span style="color:${tone}">${escapeHtml(rec.reason)}</span></div>
+    </div>
+    <span class="saw-score" style="background:${bg};color:${tone}">${rec.score}</span>
+    <button type="button" class="btn btn-sm${staged ? " btn-ghost" : " btn-primary"}" data-saw-toggle="${escapeHtml(sh.id)}">${staged ? "Remove" : "Add"}</button>
+  </div>`;
+}
+function _sawGroup(title, sub, rows) {
+  return `<div class="saw-group"><div class="saw-group-head"><span>${escapeHtml(title)}</span>${sub ? `<span class="saw-group-sub">${escapeHtml(sub)}</span>` : ""}</div>${rows || `<div class="saw-empty">No matching shifts.</div>`}</div>`;
+}
+function _sawValidate(list) {
+  const st = _sawState; const v = [];
+  const byDate = new Map();
+  for (const sh of list) byDate.set(sh.date, (byDate.get(sh.date) || 0) + 1);
+  for (const [d, n] of byDate) if (n > 1) v.push(`Two shifts on ${d} — one shift per day`);
+  if (byDate.size > st.maxDays) v.push(`${byDate.size} days exceeds the ${st.maxDays}-day weekly limit`);
+  const hours = list.reduce((s, sh) => s + _sawShiftHours(sh, st.defBlock), 0);
+  if (hours > st.weeklyCap) v.push(`${hours}h exceeds the ${st.weeklyCap}h weekly cap`);
+  for (const sh of list) { const e = st.eligibility(sh); if (!e.ok) v.push(`${sh.date}: ${e.why}`); }
+  // Minimum rest between consecutive-day shifts with known times.
+  const timed = list.filter(s => s.starts_at && s.ends_at).sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+  for (let i = 1; i < timed.length; i++) {
+    const restH = (new Date(timed[i].starts_at) - new Date(timed[i - 1].ends_at)) / 3600000;
+    if (restH >= 0 && restH < st.minRest) { v.push(`Less than ${st.minRest}h rest before ${timed[i].date}`); break; }
+  }
+  return { ok: v.length === 0, violations: v };
+}
+function _sawImpact() {
+  const st = _sawState;
+  const list = st.openShifts.filter(s => st.staged.has(s.id));
+  const routes = new Set(list.map(s => s.route_code).filter(Boolean));
+  const otHours = st.teamOtRisk ? list.reduce((s, sh) => s + _sawShiftHours(sh, st.defBlock), 0) : 0;
+  const savings = Math.round(otHours * st.hourly * 0.5);
+  const days = new Set(list.map(s => s.date)).size;
+  const val = _sawValidate(list);
+  return { filled: list.length, routes: routes.size, otHours, savings, days, val };
+}
+function _sawManualList() {
+  const st = _sawState; const f = st.filters;
+  const q = (f.route || "").toLowerCase();
+  let list = st.openShifts.filter(sh => st.eligibility(sh).ok);
+  if (f.date) list = list.filter(sh => sh.date === f.date);
+  if (f.st) list = list.filter(sh => String(sh.service_type_id) === f.st);
+  if (f.start) list = list.filter(sh => sh.starts_at && fmtTimeShort(sh.starts_at).replace(/\s/g, "").toLowerCase().startsWith(f.start.toLowerCase()));
+  if (q) list = list.filter(sh => (sh.route_code || "").toLowerCase().includes(q) || _sawStLabel(sh).toLowerCase().includes(q) || sh.date.includes(q));
+  return list.map(sh => ({ sh, ...st.scoreOf(sh) })).sort((a, b) => a.sh.date < b.sh.date ? -1 : (a.sh.date > b.sh.date ? 1 : b.score - a.score));
+}
+function _sawRender() {
+  const st = _sawState; if (!st) return;
+  const m = document.getElementById("rr-saw-modal"); if (!m) return;
+  const d = st.driver;
+  const imp = _sawImpact();
+  const compTone = imp.val.ok ? "#137C43" : "#B8281E";
+
+  const trainingStatus = `<div class="saw-status">
+    <div><span class="saw-k">Classroom training</span><span class="saw-v">${st.pair?.training_start_date ? escapeHtml(st.pair.training_start_date) + " (Day 1–2)" : "—"}</span></div>
+    <div><span class="saw-k">On-road training</span><span class="saw-v">${st.pair?.ride_along_date ? escapeHtml(st.pair.ride_along_date) + " (Day 3)" : "—"}</span></div>
+    <div><span class="saw-k">Trainer</span><span class="saw-v">${escapeHtml(st.trainerName || "—")}</span></div>
+    <div><span class="saw-k">First available work date</span><span class="saw-v" style="font-weight:700;color:#137C43">${escapeHtml(st.firstDate)}</span></div>
+  </div>`;
+
+  let body;
+  if (st.view === "manual") {
+    const sts = [...st.stMap.values()];
+    const stOpts = sts.map(s => `<option value="${escapeHtml(String(s.id))}">${escapeHtml(s.label || s.code)}</option>`).join("");
+    const rows = _sawManualList().map(_sawShiftRow).join("") || `<div class="saw-empty">No open shifts match these filters.</div>`;
+    body = `<div class="saw-filters">
+        <input type="date" data-saw-f="date" class="form-input" value="${escapeHtml(st.filters.date)}" title="Filter by date">
+        <select data-saw-f="st" class="form-input"><option value="">Any service type</option>${stOpts}</select>
+        <input type="text" data-saw-f="start" class="form-input" placeholder="Start (e.g. 10)" value="${escapeHtml(st.filters.start)}" style="max-width:120px">
+        <input type="text" data-saw-f="route" class="form-input" placeholder="Search route / type…" value="${escapeHtml(st.filters.route)}">
+      </div>
+      <div class="saw-list">${rows}</div>`;
+  } else {
+    const grp = (arr) => arr.map(_sawShiftRow).join("");
+    const otSub = st.teamOtRisk ? `~${st.firstWeek.reduce((s, r) => s + (r.otOpp ? r.hours : 0), 0)}h OT avoidable · est. $${Math.round(st.recs.filter(r => r.otOpp).slice(0, st.maxDays).reduce((s, r) => s + r.hours, 0) * st.hourly * 0.5)} saved` : "No team overtime risk this window";
+    body = `${_sawGroup("Best overall placement", "Highest-value shift", st.recs[0] ? _sawShiftRow(st.recs[0]) : "")}
+      ${_sawGroup("Best overtime-reduction opportunities", otSub, grp(st.recs.filter(r => r.otOpp).slice(0, 4)))}
+      ${_sawGroup("Best open-shift opportunities", `${st.openShifts.length} open in window`, grp(st.recs.slice(0, 6)))}
+      ${_sawGroup("Suggested first week", `${st.firstWeek.length} day${st.firstWeek.length === 1 ? "" : "s"} from ${st.firstDate}`, grp(st.firstWeek))}`;
+  }
+
+  m.innerHTML = `<div class="modal-card saw" style="max-width:820px;width:100%;margin:auto;display:flex;flex-direction:column;max-height:92vh;overflow:hidden">
+    <div class="modal-head">
+      <div>
+        <p class="modal-title">Schedule Assignment Wizard</p>
+        <p class="modal-sub" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(displayDriverName(d) || "Driver")} · place into the schedule after training</p>
+      </div>
+      <button class="modal-close" data-saw-close aria-label="Cancel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body saw-body" style="overflow:auto;padding:var(--s-4) var(--s-5)">
+      <h4 class="saw-h">Training status</h4>
+      ${trainingStatus}
+      <div class="saw-tabs">
+        <button type="button" class="saw-tab${st.view === "recommend" ? " is-active" : ""}" data-saw-view="recommend">Recommended placements</button>
+        <button type="button" class="saw-tab${st.view === "manual" ? " is-active" : ""}" data-saw-view="manual">Manual assignment</button>
+      </div>
+      ${st.recs.length === 0 && st.view === "recommend" ? `<div class="saw-empty" style="margin:14px 0">No eligible open shifts between ${st.firstDate} and ${st.endDate}. Generate routes on the Schedule page, then reopen this wizard — or use Manual assignment.</div>` : ""}
+      ${body}
+      <h4 class="saw-h" style="margin-top:18px">Placement impact</h4>
+      <div class="saw-impact">
+        <div><span class="saw-k">Open shifts filled</span><span class="saw-v">${imp.filled}</span></div>
+        <div><span class="saw-k">Routes covered</span><span class="saw-v">${imp.routes}</span></div>
+        <div><span class="saw-k">Scheduled days</span><span class="saw-v">${imp.days} / ${st.maxDays}</span></div>
+        <div><span class="saw-k">Overtime reduced</span><span class="saw-v">${imp.otHours ? imp.otHours + "h · est. $" + imp.savings : "—"}</span></div>
+        <div><span class="saw-k">FT/PT pattern</span><span class="saw-v">${imp.days >= 5 ? "Full-time" : imp.days ? imp.days + "-day (part-time)" : "—"}</span></div>
+        <div><span class="saw-k">Compliance</span><span class="saw-v" style="color:${compTone};font-weight:700">${imp.val.ok ? "All checks pass" : imp.val.violations.length + " issue(s)"}</span></div>
+      </div>
+      ${!imp.val.ok ? `<div class="saw-violations">${imp.val.violations.map(x => `<div>• ${escapeHtml(x)}</div>`).join("")}</div>` : ""}
+    </div>
+    <div class="modal-foot" style="display:flex;justify-content:space-between;align-items:center;gap:var(--s-2)">
+      <button type="button" class="btn btn-sm" data-saw-auto title="Stage the suggested first week">Assign recommended schedule</button>
+      <div style="display:flex;gap:var(--s-2)">
+        <button type="button" class="btn btn-sm" data-saw-close>Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" data-saw-save ${imp.filled === 0 ? "disabled" : ""} title="${imp.filled === 0 ? "Add at least one shift" : "Write the staged shifts to the schedule"}">Save schedule (${imp.filled})</button>
+      </div>
+    </div>
+  </div>`;
+
+  if (!m._sawWired) {
+    m._sawWired = true;
+    m.addEventListener("click", (e) => {
+      if (e.target === m || e.target.closest("[data-saw-close]")) { m.remove(); _sawState = null; return; }
+      const tog = e.target.closest("[data-saw-toggle]");
+      if (tog) { const id = tog.getAttribute("data-saw-toggle"); if (_sawState.staged.has(id)) _sawState.staged.delete(id); else _sawState.staged.add(id); _sawRender(); return; }
+      const view = e.target.closest("[data-saw-view]");
+      if (view) { _sawState.view = view.getAttribute("data-saw-view"); _sawRender(); return; }
+      if (e.target.closest("[data-saw-auto]")) { _sawState.staged = new Set(_sawState.firstWeek.map(r => r.sh.id)); _sawState.view = "recommend"; _sawRender(); return; }
+      if (e.target.closest("[data-saw-save]")) { _sawSave(); return; }
+    });
+    m.addEventListener("input", (e) => {
+      const f = e.target.closest("[data-saw-f]");
+      if (f) { _sawState.filters[f.getAttribute("data-saw-f")] = f.value; _sawRender(); }
+    });
+    m.addEventListener("change", (e) => {
+      const f = e.target.closest("[data-saw-f]");
+      if (f) { _sawState.filters[f.getAttribute("data-saw-f")] = f.value; _sawRender(); }
+    });
+  }
+}
+async function _sawSave() {
+  const st = _sawState; if (!st) return;
+  const list = st.openShifts.filter(s => st.staged.has(s.id));
+  if (!list.length) { toast("Add at least one shift first", "warn"); return; }
+  const val = _sawValidate(list);
+  if (!val.ok) { toast("Resolve compliance issues first: " + val.violations[0], "warn"); return; }
+  const btn = document.querySelector("[data-saw-save]");
+  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  let ok = 0;
+  for (const sh of list) {
+    const { error } = await sb.rpc("assign_shift", { p_id: sh.id, p_driver_id: st.driver.id });
+    if (error) console.warn("assign_shift failed:", error); else ok += 1;
+  }
+  document.getElementById("rr-saw-modal")?.remove();
+  _sawState = null;
+  toast(`Scheduled ${ok} shift${ok === 1 ? "" : "s"} for the new hire`, ok ? "success" : "warn");
+  if (typeof renderScheduleWeek === "function") { try { renderScheduleWeek(); } catch (_) {} }
   if (typeof loadOnboardingOps === "function") loadOnboardingOps({ keepTab: true });
 }
 

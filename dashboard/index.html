@@ -13392,6 +13392,30 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           .sep-review .sep-certify input{margin-top:2px;flex-shrink:0;accent-color:var(--accent)}
 
+          /* Schedule Assignment Wizard */
+          .saw .saw-h{font-size:var(--fs-sm);font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-subtle);margin:0 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+          .saw .saw-status,.saw .saw-impact{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 16px;margin-bottom:6px}
+          .saw .saw-status>div,.saw .saw-impact>div{display:flex;justify-content:space-between;gap:10px;font-size:var(--fs-sm);padding:4px 0;border-bottom:1px dashed var(--border-subtle,rgba(15,23,42,.06))}
+          .saw .saw-k{color:var(--text-subtle)}
+          .saw .saw-v{font-weight:600;text-align:right}
+          .saw .saw-tabs{display:flex;gap:6px;margin:16px 0 12px}
+          .saw .saw-tab{appearance:none;border:1px solid var(--border);background:var(--surface);font:inherit;font-size:var(--fs-sm);font-weight:600;padding:6px 12px;border-radius:var(--r-md);cursor:pointer;color:var(--text-muted)}
+          .saw .saw-tab.is-active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
+          .saw .saw-group{margin-bottom:14px}
+          .saw .saw-group-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:var(--fs-sm);font-weight:700;margin-bottom:6px}
+          .saw .saw-group-sub{font-size:var(--fs-xs);font-weight:400;color:var(--text-subtle)}
+          .saw .saw-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-md);margin-bottom:6px;background:var(--surface)}
+          .saw .saw-row.is-staged{border-color:var(--accent-border);background:var(--accent-soft)}
+          .saw .saw-row-main{flex:1;min-width:0}
+          .saw .saw-row-top{font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .saw .saw-row-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .saw .saw-score{flex-shrink:0;font-size:var(--fs-xs);font-weight:700;padding:2px 8px;border-radius:var(--r-pill);font-variant-numeric:tabular-nums}
+          .saw .saw-empty{font-size:var(--fs-sm);color:var(--text-subtle);padding:8px 2px}
+          .saw .saw-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+          .saw .saw-filters .form-input{flex:1;min-width:120px}
+          .saw .saw-list{max-height:38vh;overflow:auto}
+          .saw .saw-violations{margin-top:6px;font-size:var(--fs-xs);color:#B8281E;background:#F8D3CF;border-radius:var(--r-md);padding:8px 10px}
+
           /* Sort caret · idle (clickable but not the active sort)
              is a faded dual-arrow; active is a solid up/down. */
           #rr-roster-thead .rr-sort-caret{
