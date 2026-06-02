@@ -6169,9 +6169,10 @@ async function loadOnboardingOps(opts) {
         ${cells}
         <td>${(() => { const a = d.status === "active"; return `<button type="button" class="ob-mxdot${a ? " done" : ""}" data-rr-ob-mxdot data-driver-id="${escapeHtml(d.id)}" data-kind="status" data-field="" data-state="${a ? "done" : "todo"}" title="${a ? "Active" : "Not active yet"}" aria-label="${a ? "Active" : "Not active yet"}"></button>`; })()}</td>
         <td class="ob-mx-toolcell"><div class="ob-mx-toolbar">
-          <button type="button" class="ob-tb-btn onb-msg-btn${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? " has-unread" : ""}" data-rr-ob-msg="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? `Message this driver — ${_onbUnreadByDriver.get(d.id)} unread` : "Message this driver"}" aria-label="Message this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6" fill="currentColor" fill-opacity="0.2" stroke="currentColor"/></svg><span class="ob-tb-btn-label">Message</span><span class="onb-msg-dot" aria-hidden="true"></span></button>
+          <button type="button" class="ob-tb-btn" data-rr-ob-email="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" data-email="${escapeHtml(d.email || "")}" ${d.email ? "" : "disabled"} title="${d.email ? "Email this driver" : "No email on file"}" aria-label="Email this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6" fill="currentColor" fill-opacity="0.2" stroke="currentColor"/></svg><span class="ob-tb-btn-label">Email</span></button>
+          <button type="button" class="ob-tb-btn onb-msg-btn${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? " has-unread" : ""}" data-rr-ob-msg="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="${(_onbUnreadByDriver && _onbUnreadByDriver.has(d.id)) ? `Message this driver — ${_onbUnreadByDriver.get(d.id)} unread` : "Message this driver"}" aria-label="Message this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="ob-tb-btn-label">Message</span><span class="onb-msg-dot" aria-hidden="true"></span></button>
           <button type="button" class="ob-tb-btn" data-rr-ob-send="${escapeHtml(d.id)}" title="Send documents…" aria-label="Send documents to this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span class="ob-tb-btn-label">Documents</span></button>
-          <button type="button" class="ob-tb-btn" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span class="ob-tb-btn-label">Notes</span></button>
+          <button type="button" class="ob-tb-btn" data-rr-ob-notes="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Internal notes" aria-label="Open internal notes for this driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><span class="ob-tb-btn-label">Notes</span></button>
           <button type="button" class="ob-tb-btn" data-rr-driver-app="${escapeHtml(d.id)}" title="See this driver's app view" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg><span class="ob-tb-btn-label">Phone</span></button>
           <button type="button" class="ob-tb-btn ob-tb-remove" data-rr-ob-remove="${escapeHtml(d.id)}" data-name="${escapeHtml(displayDriverName(d))}" title="Remove from onboarding" aria-label="Remove this driver from onboarding"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg><span class="ob-tb-btn-label">Delete</span></button>
         </div></td>
@@ -6811,6 +6812,19 @@ document.addEventListener("click", (e) => {
   if (!b) return;
   e.preventDefault(); e.stopPropagation();
   openOnbChatDrawer(b.getAttribute("data-rr-ob-msg"), b.getAttribute("data-name") || "");
+});
+// Email button — opens the email thread modal for this driver.
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-rr-ob-email]");
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  const email = b.getAttribute("data-email") || "";
+  if (!email) { toast("No email on file for this driver", "warn"); return; }
+  if (typeof openEmailThreadModal === "function") {
+    openEmailThreadModal(b.getAttribute("data-rr-ob-email"), b.getAttribute("data-name") || "", email);
+  } else {
+    window.location.href = "mailto:" + email;
+  }
 });
 // Close (× / backdrop) and quick-reply chips.
 document.addEventListener("click", (e) => {
