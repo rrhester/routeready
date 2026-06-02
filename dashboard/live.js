@@ -18064,13 +18064,11 @@ function _sawShiftRow(sh) {
   const dow = _SAW_DOW[_sawDow(sh.date)];
   const time = sh.starts_at ? fmtTimeShort(sh.starts_at) : "—";
   const tone = sc.score >= 80 ? "#137C43" : sc.score >= 60 ? "#8A5D00" : "#566173";
-  const bg = sc.score >= 80 ? "#EDF3EE" : sc.score >= 60 ? "#FBEAB8" : "#EEF1F5";
   return `<div class="saw-row${staged ? " is-staged" : ""}">
     <div class="saw-row-main">
       <div class="saw-row-top"><strong>${dow} ${escapeHtml(sh.date)}</strong> · ${escapeHtml(_sawStLabel(sh))}${sh.route_code ? " · " + escapeHtml(sh.route_code) : ""}</div>
       <div class="saw-row-sub">${escapeHtml(time)} · ${sc.hours}h · <span style="color:${tone}">${escapeHtml(sc.reason)}</span></div>
     </div>
-    <span class="saw-score" style="background:${bg};color:${tone}">${sc.score}</span>
     <button type="button" class="btn btn-sm${staged ? " btn-ghost" : " btn-primary"}" data-saw-toggle="${escapeHtml(sh.id)}">${staged ? "Remove" : "Add"}</button>
   </div>`;
 }
