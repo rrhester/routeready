@@ -32441,7 +32441,7 @@ async function _assignVansForRange(startIso, endIso, dspId) {
   // and overrides (for chain seeding) in a single round-trip.
   const [shiftsRes, vehRes, chainRes, assignmentsRes, fleetEvRes] = await Promise.all([
     sb.from("shifts")
-      .select("id, date, driver_id, status, starts_at, station_id, route_code, service_type_id")
+      .select("id, date, driver_id, status, starts_at, station_id, route_code, service_type_id, shift_kind")
       .eq("dsp_id", dspId)
       .gte("date", startIso).lte("date", endIso)
       .in("status", ["scheduled", "completed", "late"])
@@ -32512,10 +32512,14 @@ async function _assignVansForRange(startIso, endIso, dspId) {
   }
   for (const [, list] of vanChain) list.sort((a, b) => (a.rank | 0) - (b.rank | 0));
 
-  // Index scheduled drivers per date.
+  // Index scheduled drivers per date. Training shifts don't consume a van
+  // from the pool: classroom training ('training') is station-based, and a
+  // road-training ride-along ('ride_along') inherits the trainer's van.
+  // Mirrors the training exclusion used for coverage counts.
   const scheduledByDate = new Map();
   for (const s of shifts) {
     if (!s.driver_id) continue;
+    if (s.shift_kind === "training" || s.shift_kind === "ride_along") continue;
     const set = scheduledByDate.get(s.date) || new Set();
     set.add(s.driver_id);
     scheduledByDate.set(s.date, set);
@@ -33203,6 +33207,14 @@ async function _decorateScheduleChipsWithVans() {
   }
   sub.querySelectorAll(".shift-chip[data-rr-shift-id]").forEach(chip => {
     const id = chip.dataset.rrShiftId;
+    // Training shifts never carry a van line: classroom training
+    // ('training') is station-based, and a road-training ride-along
+    // ('ride_along') rides in the trainer's van. Strip any stale van pill.
+    const kind = chip.dataset.rrShiftKind || "";
+    if (kind === "training" || kind === "ride_along") {
+      chip.querySelector(".shift-chip-van")?.remove();
+      return;
+    }
     const key = shiftIdToKey.get(String(id));
     if (!key) return;
     const van = byKey.get(key);
