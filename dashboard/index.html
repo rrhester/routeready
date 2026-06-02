@@ -787,6 +787,21 @@ textarea,
   color:var(--text);
 }
 
+/* Onboarding icons: black + crisp round strokes to match the Schedule page
+   (overrides the shared muted icon color and the onboarding SVGs' square
+   caps; stroke-width/size already match Schedule at 1.6). */
+#view-onboarding-ops svg{
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+#view-onboarding-ops .subnav-item svg,
+#view-onboarding-ops .ob-cmd-tab svg,
+#view-onboarding-ops .ob-rules-foot svg,
+#view-onboarding-ops .ob-tb-btn svg{
+  color:var(--text);
+}
+#view-onboarding-ops .ob-tb-btn:disabled{opacity:.38;cursor:default}
+
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
   /* Driver-app communication blue — same gradient as the app header
@@ -35238,7 +35253,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260602-actionicons"></script>
+<script type="module" src="./live.js?v=20260602-blackicons"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
