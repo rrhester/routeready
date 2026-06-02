@@ -17937,17 +17937,33 @@ async function _sawSmartFill() {
       drivers: [{ id: st.driver.id, full_name: st.driver.full_name, status: st.driver.status, hire_date: st.driver.hire_date, dl_expires_on: st.driver.dl_expires_on || null, dot_certified: !!st.driver.dot_certified, xl_certified: !!st.driver.xl_certified, edv_certified: !!st.driver.edv_certified, available_dows: availDows, preferred_dows: prefDows, final_corrective_action: false, weekday_affinity: null, fifth_day_ok: av.fifth_day_ok === true }],
       shifts: engineShifts, pto: [], ad_hoc_constraints: [],
     };
+    // IDs of the real eligible open shifts we offered the engine, so we can
+    // validate whatever it returns maps back to an actual row we can stage.
+    const openIds = new Set(inWeek.map(s => String(s.id)));
+    // Deterministic best-per-day pick over the eligible open shifts — used
+    // both as the engine-offline fallback AND whenever the engine returns
+    // nothing we can actually stage (e.g. IDs that don't match real rows).
+    const bestPerDay = () => {
+      const byDate = new Map();
+      for (const sh of inWeek) { const sc = st.scoreOf(sh).score; const ex = byDate.get(sh.date); if (!ex || sc > ex.score) byDate.set(sh.date, { id: sh.id, score: sc }); }
+      return [...byDate.values()].sort((a, b) => b.score - a.score).slice(0, st.maxDays).map(x => x.id);
+    };
+    st._seatDiag = st._seatDiag || [];
     let picked;
     try {
       const { data, error } = await sb.functions.invoke("dispatch-optimization-run", { body: { payload } });
       if (error) throw error;
       if (!data || (data.status !== "ok" && data.status !== "infeasible")) throw new Error(data && data.status || "engine error");
-      picked = new Set((data.assigned_shifts || []).filter(a => a.driver_id === st.driver.id && a.source !== "locked" && a.source !== "preserved").map(a => a.shift_id));
+      const fromEngine = (data.assigned_shifts || []).filter(a => a.driver_id === st.driver.id && a.source !== "locked" && a.source !== "preserved").map(a => String(a.shift_id));
+      // Keep only engine picks that map to a real eligible open shift this
+      // week; if the engine returned nothing usable, fall back to best-per-day.
+      const usable = fromEngine.filter(id => openIds.has(id));
+      st._seatDiag.push(`engine status=${data.status}; returned ${fromEngine.length} pick(s) for hire, ${usable.length} usable`);
+      picked = new Set(usable.length ? usable : bestPerDay());
     } catch (e) {
       console.warn("single-driver Smart Fill engine failed; using local heuristic:", e);
-      const byDate = new Map();
-      for (const sh of inWeek) { const sc = st.scoreOf(sh).score; const ex = byDate.get(sh.date); if (!ex || sc > ex.score) byDate.set(sh.date, { id: sh.id, score: sc }); }
-      picked = new Set([...byDate.values()].sort((a, b) => b.score - a.score).slice(0, st.maxDays).map(x => x.id));
+      st._seatDiag.push(`engine call failed (${e?.message || e}); used best-per-day`);
+      picked = new Set(bestPerDay());
       toast("Used built-in placement (engine unavailable)", "info");
     }
     // GUARANTEE: if the engine/heuristic staged nothing (e.g. every eligible
