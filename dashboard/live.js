@@ -17770,8 +17770,8 @@ async function _sawCreateOpenSeat(st, date) {
     const ends = new Date(starts.getTime() + (st.defBlock || 10) * 3600000);
     times = isNaN(starts) ? { starts_at: null, ends_at: null } : { starts_at: starts.toISOString(), ends_at: ends.toISOString() };
   }
-  if (!stationId) return null;
-  if (!times.starts_at || !times.ends_at) return null;
+  if (!stationId) { if (st._seatDiag) st._seatDiag.push(`${date}: no station to create against`); return null; }
+  if (!times.starts_at || !times.ends_at) { if (st._seatDiag) st._seatDiag.push(`${date}: couldn't compute shift times`); return null; }
   // create_shift (migration 0344) reads: station_id, driver_id, date,
   // starts_at, ends_at, route_code, status, source, shift_kind,
   // route_classification, service_type_id. driver_id null = OPEN seat the
@@ -17795,6 +17795,7 @@ async function _sawCreateOpenSeat(st, date) {
     return (row && row.id) ? row : { id: `new-${date}-${Math.random().toString(36).slice(2, 7)}`, ...payload, block_hours: blockHours };
   } catch (e) {
     console.warn("_sawCreateOpenSeat failed:", e);
+    if (st._seatDiag) st._seatDiag.push(`${date}: create failed — ${e?.message || e?.code || e}`);
     return null;
   }
 }
@@ -17805,6 +17806,16 @@ async function _sawCreateOpenSeat(st, date) {
 // open) or has no demand rows at all. Refreshes the open-shift pool and
 // returns the created open-seat IDs to stage. Never throws.
 async function _sawDirectFillSeats(st) {
+  st._seatDiag = [];
+  // Hard station fallback: if nothing has resolved a station yet (driver has
+  // none, no nearby shift, no OKAMI cell), pull the DSP's first active
+  // station directly so seat creation always has a place to build.
+  if (!st.stationId) {
+    try {
+      const r = await sb.from("stations").select("id").eq("dsp_id", window.RR?.dsp?.id).eq("active", true).limit(1).maybeSingle();
+      if (r?.data?.id) st.stationId = r.data.id;
+    } catch (_) {}
+  }
   const wkEnd = _sawAddDaysIso(st.firstDate, 6);
   const haveByDate = new Set((st.openShifts || []).filter(s => st.eligibility(s).ok).map(s => s.date));
   const days = [];
@@ -17969,6 +17980,10 @@ function _sawDiagnostic(st) {
   const genLine = (d.cells != null)
     ? `Route targets (OKAMI) in that week: <b>${d.cells || 0}</b> day-stations; your available days with demand: <b>${d.eligibleDays != null ? d.eligibleDays : "—"}</b>; seats generated: <b>${d.generated != null ? d.generated : "—"}</b>${d.okamiErr ? ` <span style="color:#B8281E">(targets error: ${escapeHtml(String(d.okamiErr))})</span>` : ""}.<br>`
     : "";
+  const seatErrs = Array.isArray(st._seatDiag) ? st._seatDiag : [];
+  const seatLine = seatErrs.length
+    ? `<div style="margin-top:4px;color:#B8281E">Tried to create seats but couldn't:${seatErrs.map(e => `<div style="padding-left:10px">· ${escapeHtml(String(e))}</div>`).join("")}</div>`
+    : "";
   return `<div class="saw-empty" style="text-align:left;font-size:11px;line-height:1.65;color:var(--text)">
     <strong>Smart Fill placed nothing — here's exactly what it sees:</strong><br>
     Window: <b>${escapeHtml(st.firstDate)} → ${escapeHtml(st.endDate)}</b> (${escapeHtml(name)} can't work before this — training/ride-along runs through ${escapeHtml(st.rideDate || "—")}).<br>
@@ -17976,6 +17991,7 @@ function _sawDiagnostic(st) {
     Of those, eligible for ${escapeHtml(name)}: <b>${elig.length}</b>.<br>
     ${reasonRows ? `Why the rest were skipped:${reasonRows}` : ""}
     ${genLine}
+    ${seatLine}
     ${inWin.length === 0 ? `<div style="margin-top:6px"><em>Note: if you see open shifts on the Schedule page, they're either dated <b>before ${escapeHtml(st.firstDate)}</b> or in a different week — ${escapeHtml(name)} is only placeable on/after ${escapeHtml(st.firstDate)}. Use the date picker in <b>Add manually</b> to check a specific day.</em></div>` : ""}
   </div>`;
 }
