@@ -1,0 +1,24 @@
+# Cloudflare Pages redirects — translated from netlify.toml.
+# Format: <from> <to> <status>   (200 = internal rewrite, URL bar
+# keeps the short path; 301 = permanent redirect).
+
+# Short-path rewrites for applicant/driver-facing links. The original
+# /dashboard/*.html?...=token paths still resolve, so previously
+# emailed/SMS'd links keep working.
+/s/:token        /dashboard/screening.html?t=:token   200
+/c/:token        /dashboard/coaching.html?t=:token     200
+/r/:token        /dashboard/refer.html?r=:token        200
+
+# Public document-verification page. /verify/<token> and bare /verify
+# both resolve to verify.html (which also reads ?token=).
+/verify/:token   /verify.html?token=:token             200
+/verify          /verify.html                          200
+
+# Pretty URLs for the download + getting-started pages.
+/download        /download.html                        200
+/installed       /installed.html                       200
+
+# Old marketing pages consolidated into the landing (permanent).
+/about.html          /              301
+/how-it-works.html   /#how          301
+/privacy-policy.html /privacy.html  301

@@ -31,9 +31,11 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function deriveToken() {
-  // Netlify sets COMMIT_REF on every build; preview deploys get the
-  // PR head SHA so previews also bust caches against each other.
+  // Netlify sets COMMIT_REF on every build; Cloudflare Pages sets
+  // CF_PAGES_COMMIT_SHA. Preview deploys on both get the PR head SHA
+  // so previews also bust caches against each other.
   if (process.env.COMMIT_REF) return process.env.COMMIT_REF;
+  if (process.env.CF_PAGES_COMMIT_SHA) return process.env.CF_PAGES_COMMIT_SHA;
   try {
     return execSync("git rev-parse HEAD", { cwd: ROOT }).toString().trim();
   } catch {
