@@ -17520,6 +17520,7 @@ async function _tpActivate() {
   const s = _tpModalState; if (!s) return;
   // Activating commits everything in one step: first save any staged Smart
   // Fill shifts onto the driver (no separate Save button), then activate.
+  const assignedDates = [];
   try {
     const st = _sawState;
     if (st && st.loaded && st.staged && st.staged.size) {
@@ -17529,6 +17530,7 @@ async function _tpActivate() {
       for (const sh of list) {
         const { error } = await sb.rpc("assign_shift", { p_id: sh.id, p_driver_id: s.driverId });
         if (error) console.warn("assign_shift on activate failed:", error);
+        else if (sh.date) assignedDates.push(sh.date);
       }
     }
   } catch (e) { console.warn("schedule save on activate failed:", e); }
@@ -17536,10 +17538,28 @@ async function _tpActivate() {
   // already spells out what happens) is the confirmation.
   const { error } = await sb.rpc("activate_driver_with_pairing", { p_driver_id: s.driverId });
   if (error) { toast("Activation failed: " + (error.message || ""), "warn"); return; }
+  // Re-run van assignment for each week we just placed the hire into, so the
+  // newly-assigned shifts get vans (same routine as the schedule's Add-shift
+  // and Fill-vans tile). Non-destructive — keeps existing vans, fills gaps.
+  try {
+    const dsp = window.RR?.dsp?.id;
+    if (dsp && assignedDates.length && typeof _assignVansForRange === "function") {
+      const weeks = new Set();
+      for (const d of assignedDates) {
+        const dt = new Date(d + "T12:00:00");
+        if (!isNaN(dt)) weeks.add(fmtIsoDate(addDays(dt, -dt.getDay())));
+      }
+      for (const wkStart of weeks) {
+        const wkEnd = fmtIsoDate(addDays(new Date(wkStart + "T12:00:00"), 6));
+        await _assignVansForRange(wkStart, wkEnd, dsp);
+      }
+    }
+  } catch (e) { console.warn("van re-assign on activate failed:", e); }
   toast("Driver activated · schedule saved · messages queued", "success");
   document.getElementById("rr-tp-modal")?.remove();
   _tpModalState = null;
   if (typeof loadOnboardingOps === "function") loadOnboardingOps({ keepTab: true });
+  if (typeof renderScheduleWeek === "function") { try { renderScheduleWeek(); } catch (_) {} }
 }
 
 // ── Schedule Assignment Wizard ──────────────────────────────────────
