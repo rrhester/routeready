@@ -18126,16 +18126,11 @@ function _sawSectionHtml() {
     </div>
     ${recList}
     ${manualBlock}
-    <div class="saw-impact" style="margin-top:12px">
-      <div><span class="saw-k">Open shifts filled</span><span class="saw-v">${imp.filled}</span></div>
-      <div><span class="saw-k">Routes covered</span><span class="saw-v">${imp.routes}</span></div>
-      <div><span class="saw-k">Scheduled days</span><span class="saw-v">${imp.days} / ${maxDays}</span></div>
-      <div><span class="saw-k">Overtime reduced</span><span class="saw-v">${imp.otHours ? imp.otHours + "h · est. $" + imp.savings : "—"}</span></div>
-      <div><span class="saw-k">FT/PT pattern</span><span class="saw-v">${imp.days >= 5 ? "Full-time" : imp.days ? imp.days + "-day (part-time)" : "—"}</span></div>
-      <div><span class="saw-k">Compliance</span><span class="saw-v" style="color:${compTone};font-weight:700">${imp.val.ok ? "All checks pass" : imp.val.violations.length + " issue(s)"}</span></div>
+    ${(loaded && !imp.val.ok) ? `<div class="saw-violations" style="margin-top:10px">${imp.val.violations.map(x => `<div>• ${escapeHtml(x)}</div>`).join("")}</div>` : ""}
+    <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+      <button type="button" class="btn btn-sm btn-primary" data-saw-save ${imp.filled === 0 ? "disabled" : ""}>Save schedule (${imp.filled})</button>
+      ${imp.filled ? `<span class="saw-hint">${imp.days} day${imp.days === 1 ? "" : "s"} · <span style="color:${compTone};font-weight:700">${imp.val.ok ? "Compliant" : imp.val.violations.length + " issue" + (imp.val.violations.length === 1 ? "" : "s")}</span></span>` : ""}
     </div>
-    ${!imp.val.ok ? `<div class="saw-violations">${imp.val.violations.map(x => `<div>• ${escapeHtml(x)}</div>`).join("")}</div>` : ""}
-    <div style="margin-top:12px"><button type="button" class="btn btn-sm btn-primary" data-saw-save ${imp.filled === 0 ? "disabled" : ""}>Save schedule (${imp.filled})</button></div>
   </div>`;
 }
 function _sawRenderSection() {
