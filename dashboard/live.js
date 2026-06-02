@@ -17343,9 +17343,11 @@ function _renderTrainingPairingModal() {
   if (m) m.remove();
   m = document.createElement("div");
   m.id = "rr-tp-modal";
-  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10001;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  // Transparent backdrop (no dim/blur — the background stays visible) and a
+  // pop-in animation matching the Schedule page pop-outs (rrPopIn).
+  m.style.cssText = "position:fixed;inset:0;background:transparent;z-index:10001;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);max-width:620px;width:100%;height:min(88vh,720px);display:flex;flex-direction:column;overflow:hidden">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);max-width:620px;width:100%;height:min(88vh,720px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px -16px rgba(15,23,42,.45);transform-origin:center;animation:rrPopIn 170ms cubic-bezier(0.2,0.8,0.25,1)">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);padding:22px 22px 12px;flex:0 0 auto">
         <div>
           <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Schedule</h3>
