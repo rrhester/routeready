@@ -38112,7 +38112,21 @@ async function openShiftEditModal(arg) {
         // Fade/scale in ONLY the newly added card so it reads as
         // "landing" without re-staggering an already-populated week.
         _rrRevealCardId = _createdId || null;
-        if (typeof renderScheduleWeek === "function") renderScheduleWeek();
+        // Re-run van assignment for the new shift's week so a manually-added,
+        // driver-assigned shift gets a van — same routine as the Fill-vans
+        // tile. Non-destructive: keeps existing assignments, fills only gaps.
+        (async () => {
+          try {
+            if (addDriver && typeof _assignVansForRange === "function") {
+              const dsp = window.RR?.dsp?.id;
+              const ad = new Date(addDate + "T12:00:00");
+              const wkStart = fmtIsoDate(addDays(ad, -ad.getDay()));
+              const wkEnd = fmtIsoDate(addDays(new Date(wkStart + "T12:00:00"), 6));
+              if (dsp && !isNaN(ad)) await _assignVansForRange(wkStart, wkEnd, dsp);
+            }
+          } catch (e) { console.warn("van re-assign after manual add failed:", e); }
+          if (typeof renderScheduleWeek === "function") { try { renderScheduleWeek(); } catch (_) {} }
+        })();
         return;
       }
 
