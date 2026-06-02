@@ -17477,16 +17477,20 @@ function _sawComputeFirstDate(pair, rideInputVal) {
 }
 
 // Load the data the scheduling section needs for one driver + window.
-async function _sawLoadData(driver, firstDate) {
+async function _sawLoadData(driver, firstDate, pair) {
   const dspId = window.RR?.dsp?.id;
   const endDate = _sawAddDaysIso(firstDate, 13);
   const defBlock = parseFloat(window._rrEffectiveSettings?.default_block_hours) || 10;
   const maxDays = parseInt(window._rrEffectiveSettings?.max_days_per_week, 10) || 5;
   const weeklyCap = maxDays * defBlock;
   const minRest = 10;
-  let drvRow = driver, stMap = new Map(), openShifts = [], teamOtRisk = false;
+  // The on-road (ride-along) training day is the last training day; the
+  // new hire can only work AFTER it. firstDate already = ride + 1, but we
+  // keep rideDate so eligibility can hard-exclude on/before it too.
+  const rideDate = (pair && pair.ride_along_date) || null;
+  let drvRow = driver, stMap = new Map(), openShifts = [], teamOtRisk = false, driverShifts = [];
   try {
-    const [drvRes, stRes, shRes, otRes] = await Promise.all([
+    const [drvRes, stRes, shRes, otRes, ownRes] = await Promise.all([
       sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, status, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, hire_date").eq("id", driver.id).maybeSingle().then(r => r, () => ({ data: null })),
       sb.from("service_types").select("id, code, label, requires_dot, requires_xl, requires_edv, active").eq("dsp_id", dspId).then(r => r, () => ({ data: [] })),
       // "Open" = unassigned and not a terminal/cancelled row. Matches the
@@ -17495,14 +17499,24 @@ async function _sawLoadData(driver, firstDate) {
       // non-terminal status and would otherwise be missed).
       sb.from("shifts").select("id, date, status, station_id, route_code, service_type_id, starts_at, ends_at, block_hours, shift_kind, is_cushion").eq("dsp_id", dspId).is("driver_id", null).not("status", "in", "(completed,no_show,called_off,cancelled)").gte("date", firstDate).lte("date", endDate).then(r => r, () => ({ data: [] })),
       sb.rpc("overtime_intelligence", { p_week_start: firstDate }).then(r => r, () => ({ data: null })),
+      // The driver's OWN shifts (training / ride-along / anything already
+      // on the books) so we never place a route on a day they're occupied.
+      sb.from("shifts").select("id, date, shift_kind, starts_at, ends_at, station_id, route_code, service_type_id, status").eq("dsp_id", dspId).eq("driver_id", driver.id).not("status", "in", "(no_show,called_off,cancelled)").gte("date", _sawAddDaysIso(firstDate, -7)).lte("date", endDate).then(r => r, () => ({ data: [] })),
     ]);
     if (drvRes?.data) drvRow = drvRes.data;
     for (const stp of (stRes?.data || [])) stMap.set(stp.id, stp);
     openShifts = (shRes?.data || []).filter(s => !["training", "ride_along"].includes(s.shift_kind) && !s.is_cushion);
+    driverShifts = ownRes?.data || [];
     const otd = otRes?.data?.drivers || [];
     const otThreshold = Number(window.RR?.dsp?.metadata?.scheduling?.overtime_threshold_hours) || 40;
     teamOtRisk = otd.some(d => d.ot_risk || (Number(d.projected_hours) || 0) > otThreshold);
   } catch (e) { console.warn("schedule section load failed:", e); }
+
+  // Days the driver is already occupied (training, ride-along, or any
+  // existing shift) — never place a productive shift on these.
+  const busyDates = new Set(driverShifts.map(s => s.date));
+  if (pair && pair.training_start_date) { busyDates.add(pair.training_start_date); busyDates.add(_sawAddDaysIso(pair.training_start_date, 1)); }
+  if (rideDate) busyDates.add(rideDate);
 
   const av = (drvRow.metadata && drvRow.metadata.availability) || {};
   const availSet = Array.isArray(av.days) && av.days.length ? new Set(av.days.map(d => String(d).slice(0, 3).toLowerCase())) : null;
@@ -17516,6 +17530,8 @@ async function _sawLoadData(driver, firstDate) {
 
   const eligibility = (sh) => {
     if (sh.date < firstDate) return { ok: false, why: "Before first available work date" };
+    if (rideDate && sh.date <= rideDate) return { ok: false, why: "On or before on-road training" };
+    if (busyDates.has(sh.date)) return { ok: false, why: "In training / already scheduled that day" };
     const stp = stMap.get(sh.service_type_id);
     if (stp) {
       if (stp.requires_dot && !drvRow.dot_certified) return { ok: false, why: "Needs DOT certification" };
@@ -17539,8 +17555,8 @@ async function _sawLoadData(driver, firstDate) {
   };
 
   _sawState = {
-    driver: drvRow, driverId: driver.id, firstDate, endDate, defBlock, maxDays, weeklyCap, minRest, hourly,
-    stMap, openShifts, eligibility, scoreOf, teamOtRisk,
+    driver: drvRow, driverId: driver.id, pair: pair || null, firstDate, endDate, rideDate, defBlock, maxDays, weeklyCap, minRest, hourly,
+    stMap, openShifts, driverShifts, busyDates, eligibility, scoreOf, teamOtRisk,
     staged: new Set(), filters: { date: "", st: "", route: "", start: "" }, manualOpen: false, running: false, ran: false,
   };
 }
@@ -17573,12 +17589,19 @@ async function _sawSmartFill() {
     const routeType = (sh) => { const c = st.stMap.get(sh.service_type_id); if (c && c.requires_edv) return "edv"; if (c && c.requires_xl) return "xl"; if (c && c.requires_dot) return "step_van"; return "standard"; };
     const dur = (sh) => sh.starts_at && sh.ends_at ? (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000 : null;
     const engineShifts = inWeek.map(sh => ({ id: sh.id, date: sh.date, starts_at: sh.starts_at, ends_at: sh.ends_at, duration_hours: dur(sh), route_type: routeType(sh), assigned_driver_id: null, is_locked: false, station_id: sh.station_id || null, route_code: sh.route_code || null }));
+    // The driver's existing shifts (training / ride-along / anything) that
+    // fall in this engine week go in LOCKED, so the engine knows those days
+    // are taken and won't double-book a route on a training day.
+    for (const sh of (st.driverShifts || [])) {
+      if (sh.date < weekStart || sh.date > weekEnd) continue;
+      engineShifts.push({ id: sh.id, date: sh.date, starts_at: sh.starts_at, ends_at: sh.ends_at, duration_hours: dur(sh), route_type: routeType(sh), assigned_driver_id: st.driver.id, is_locked: true, station_id: sh.station_id || null, route_code: sh.route_code || null });
+    }
     const av = st.driver.metadata?.availability || {};
     const availDows = Array.isArray(av.days) && av.days.length ? av.days.map(c => DOW.indexOf(String(c).slice(0, 3).toLowerCase())).filter(i => i >= 0) : null;
     const prefDows = Array.isArray(av.preferred_days) ? av.preferred_days.map(c => DOW.indexOf(String(c).slice(0, 3).toLowerCase())).filter(i => i >= 0) : null;
     const payload = {
       schedule_week_start: weekStart, max_days: st.maxDays, weekly_hour_cap: st.weeklyCap, time_budget_ms: 8000,
-      rules: { availability: true, pto_block: true, preserve_locked_assignments: true, manual_mode: false, assign_vans: false, weekly_hour_cap_enforcement: true, consecutive_working_days: true, min_rest: true, min_rest_hours: st.minRest },
+      rules: { availability: true, pto_block: true, preserve_locked_assignments: true, manual_mode: false, assign_vans: false, weekly_hour_cap_enforcement: true, consecutive_working_days: true, min_rest: true, min_rest_hours: st.minRest, same_day_multi_shift: "block" },
       drivers: [{ id: st.driver.id, full_name: st.driver.full_name, status: st.driver.status, hire_date: st.driver.hire_date, dl_expires_on: st.driver.dl_expires_on || null, dot_certified: !!st.driver.dot_certified, xl_certified: !!st.driver.xl_certified, edv_certified: !!st.driver.edv_certified, available_dows: availDows, preferred_dows: prefDows, final_corrective_action: false, weekday_affinity: null, fifth_day_ok: av.fifth_day_ok === true }],
       shifts: engineShifts, pto: [], ad_hoc_constraints: [],
     };
@@ -17743,7 +17766,7 @@ async function _sawEnsureSection(driver, pair) {
   }
   if (!_sawState || _sawState.driverId !== driver.id || _sawState.firstDate !== firstDate) {
     host.innerHTML = `<div class="saw-sched"><h4 class="saw-h">Schedule placement</h4><div class="saw-empty">Loading the schedule…</div></div>`;
-    await _sawLoadData(driver, firstDate);
+    await _sawLoadData(driver, firstDate, pair);
   }
   _sawRenderSection();
 }
@@ -17763,7 +17786,7 @@ async function _sawSave(driver) {
   toast(`Scheduled ${ok} shift${ok === 1 ? "" : "s"} for the new hire`, ok ? "success" : "warn");
   if (typeof renderScheduleWeek === "function") { try { renderScheduleWeek(); } catch (_) {} }
   // Reload the section so the just-assigned shifts drop out of "open".
-  await _sawLoadData(driver, st.firstDate);
+  await _sawLoadData(driver, st.firstDate, st.pair);
   _sawRenderSection();
 }
 
