@@ -6201,7 +6201,8 @@ async function loadOnboardingOps(opts) {
   // text bars in the Driver col, hollow rings in each step col, a
   // hollow ring in Active, ghost icons in Actions) — same line-height
   // as a real row so adding a real applicant just replaces a skeleton.
-  try { _fillObMatrixSkeletonRows(body); } catch (_) { /* non-fatal */ }
+  // Ghost/skeleton filler rows removed by request — the table now ends after
+  // the real applicants instead of padding to the viewport bottom.
   // Paint the dynamic KPI bar above the matrix with one pill per
   // blueprint stage (Drug clear / BG clear / Job offer / …) plus
   // a leftmost "Onboarding drivers" total and a rightmost "Active"
