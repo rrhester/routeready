@@ -17574,11 +17574,26 @@ async function _sawSmartFill() {
     // Anchor to the first week that actually has eligible open shifts —
     // a mid-week or future first-available date (or a sparse first week)
     // then still finds candidates instead of coming up empty.
-    const eligibleOpen = st.openShifts.filter(s => s.date >= st.firstDate && st.eligibility(s).ok)
+    const rawOpen = st.openShifts.filter(s => s.date >= st.firstDate);
+    const eligibleOpen = rawOpen.filter(s => st.eligibility(s).ok)
       .sort((a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : 0));
     if (!eligibleOpen.length) {
       st.running = false; st.ran = true; _sawRenderSection();
-      toast(`No open (unassigned) shifts for ${st.driver.full_name || "this hire"} between ${st.firstDate} and ${st.endDate}. The week may be fully staffed or not built yet — generate routes on the Schedule page, or use Add manually.`, "warn");
+      const name = st.driver.full_name || "this hire";
+      let msg;
+      if (!rawOpen.length) {
+        // No unassigned shift rows at all → the gap is unmet demand, not
+        // open seats. The driver-centric grid's "X/Y staffed" usually
+        // means routes still need to be generated for that week.
+        msg = `No open (unassigned) shifts exist between ${st.firstDate} and ${st.endDate}. If the Schedule shows a coverage gap, those routes haven't been generated yet — generate routes for that week on the Schedule page (the green "X / Y staffed" gap is unmet demand, not open seats). Then re-run Smart Fill, or use Add manually.`;
+      } else {
+        // Open shifts exist but none are eligible — say exactly why.
+        const reasons = {};
+        for (const s of rawOpen) { const e = st.eligibility(s); if (!e.ok) reasons[e.why] = (reasons[e.why] || 0) + 1; }
+        const top = Object.entries(reasons).sort((a, b) => b[1] - a[1])[0];
+        msg = `${rawOpen.length} open shift${rawOpen.length === 1 ? "" : "s"} exist between ${st.firstDate} and ${st.endDate}, but none fit ${name}${top ? ` — ${top[1]} ${top[0].toLowerCase()}` : ""}. Use Add manually to review.`;
+      }
+      toast(msg, "warn");
       return;
     }
     const anchor = new Date(eligibleOpen[0].date + "T12:00:00");
