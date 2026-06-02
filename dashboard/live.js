@@ -17417,7 +17417,8 @@ async function _tpClear() {
 
 async function _tpActivate() {
   const s = _tpModalState; if (!s) return;
-  if (!confirm("Activate this driver? Day 1+2 training shifts and the ride-along will be created and both drivers will be texted.")) return;
+  // No extra confirm() — clicking "Activate driver" in the modal (which
+  // already spells out what happens) is the confirmation.
   const { error } = await sb.rpc("activate_driver_with_pairing", { p_driver_id: s.driverId });
   if (error) { toast("Activation failed: " + (error.message || ""), "warn"); return; }
   toast("Driver activated · shifts created · messages queued", "success");
