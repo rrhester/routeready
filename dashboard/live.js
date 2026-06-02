@@ -17521,10 +17521,10 @@ async function _sawLoadData(driver, firstDate, pair) {
   // are respected, exactly like the main Smart Fill.
   const windowDates = [];
   for (let i = 0; i <= 13; i++) windowDates.push(_sawAddDaysIso(firstDate, i));
-  let drvRow = driver, stMap = new Map(), openShifts = [], teamOtRisk = false, driverShifts = [], effRows = [], templateShifts = [];
+  let drvRow = driver, stMap = new Map(), openShifts = [], teamOtRisk = false, driverShifts = [], effRows = [];
   try {
-    const [drvRes, stRes, shRes, otRes, ownRes, effRes, tmplRes] = await Promise.all([
-      sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, status, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, hire_date, station_id").eq("id", driver.id).maybeSingle().then(r => r, () => ({ data: null })),
+    const [drvRes, stRes, shRes, otRes, ownRes, effRes] = await Promise.all([
+      sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, status, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, hire_date").eq("id", driver.id).maybeSingle().then(r => r, () => ({ data: null })),
       sb.from("service_types").select("id, code, label, requires_dot, requires_xl, requires_edv, active").eq("dsp_id", dspId).then(r => r, () => ({ data: [] })),
       // "Open" = unassigned and not a terminal/cancelled row. Matches the
       // main Smart Fill's open-shift detection (don't require status
@@ -17539,11 +17539,6 @@ async function _sawLoadData(driver, firstDate, pair) {
       // requests (e.g. a Saturday opened up this week) the static metadata
       // default doesn't carry.
       sb.rpc("driver_effective_days_for_drivers", { p_driver_ids: [driver.id], p_dates: windowDates }).then(r => r, () => ({ data: [] })),
-      // Template shifts — ANY driver's real, productive shifts in the
-      // window. Direct placement copies station/service-type/times/route
-      // from these so a newly-created shift looks exactly like a real one
-      // for that day/station, even when no OPEN row exists to assign.
-      sb.from("shifts").select("id, date, station_id, route_code, service_type_id, starts_at, ends_at, block_hours, shift_kind").eq("dsp_id", dspId).not("status", "in", "(no_show,called_off,cancelled)").gte("date", firstDate).lte("date", endDate).then(r => r, () => ({ data: [] })),
     ]);
     if (drvRes?.data) drvRow = drvRes.data;
     for (const stp of (stRes?.data || [])) stMap.set(stp.id, stp);
@@ -17552,9 +17547,6 @@ async function _sawLoadData(driver, firstDate, pair) {
     openShifts = (shRes?.data || []).filter(s => !["training", "ride_along"].includes(s.shift_kind));
     driverShifts = ownRes?.data || [];
     effRows = Array.isArray(effRes?.data) ? effRes.data : [];
-    // Only real productive shifts make good templates (skip training /
-    // ride-along rows — they carry no route/service-type to copy).
-    templateShifts = (tmplRes?.data || []).filter(s => !["training", "ride_along"].includes(s.shift_kind) && (s.starts_at && s.ends_at));
     const otd = otRes?.data?.drivers || [];
     const otThreshold = Number(window.RR?.dsp?.metadata?.scheduling?.overtime_threshold_hours) || 40;
     teamOtRisk = otd.some(d => d.ot_risk || (Number(d.projected_hours) || 0) > otThreshold);
@@ -17616,8 +17608,7 @@ async function _sawLoadData(driver, firstDate, pair) {
   const prev = (_sawState && _sawState.driverId === driver.id) ? _sawState : null;
   _sawState = {
     driver: drvRow, driverId: driver.id, pair: pair || null, firstDate, endDate, rideDate, defBlock, maxDays, weeklyCap, minRest, hourly,
-    stMap, openShifts, driverShifts, templateShifts, stationId: drvRow.station_id || null, busyDates, eligibility, scoreOf, teamOtRisk, dayAvailable: dowOk, loaded: true,
-    placed: prev?.placed || [],
+    stMap, openShifts, driverShifts, busyDates, eligibility, scoreOf, teamOtRisk, dayAvailable: dowOk, loaded: true,
     staged: prev?.staged || new Set(), filters: prev?.filters || { date: "", st: "", route: "", start: "" },
     manualOpen: prev?.manualOpen || false, running: false, ran: prev?.ran || false,
   };
@@ -17680,8 +17671,21 @@ async function _sawReloadOpen(st) {
 // template in the window, whose time-of-day is shifted onto `date`. When
 // the driver has a station, templates at that station are preferred.
 function _sawPickTemplate(st, date) {
-  const pool = (st.templateShifts || []).filter(s => s.starts_at && s.ends_at);
+  let pool = (st.templateShifts || []).filter(s => s.starts_at && s.ends_at);
   if (!pool.length) return null;
+  // Prefer templates whose service type the hire is cert-eligible for, so a
+  // created seat is always assignable (won't be rejected by validation on
+  // Save). Fall back to the full pool if none qualify.
+  const certOk = (s) => {
+    const c = st.stMap.get(s.service_type_id);
+    if (!c) return true;
+    if (c.requires_dot && !st.driver.dot_certified) return false;
+    if (c.requires_xl && !st.driver.xl_certified) return false;
+    if (c.requires_edv && !st.driver.edv_certified) return false;
+    return true;
+  };
+  const eligiblePool = pool.filter(certOk);
+  if (eligiblePool.length) pool = eligiblePool;
   const stationOf = (s) => s.station_id || null;
   const pref = st.stationId
     ? (arr) => { const m = arr.filter(s => stationOf(s) === st.stationId); return m.length ? m : arr; }
@@ -17704,45 +17708,31 @@ function _sawTemplateTimesForDate(tmpl, date) {
     return { starts_at: starts.toISOString(), ends_at: ends.toISOString() };
   } catch (_) { return { starts_at: null, ends_at: null }; }
 }
-// Place the hire on ONE shift for `date`: assign an existing eligible open
-// shift if one is free, otherwise CREATE a shift from a template and
-// assign it (create_shift writes driver_id directly). Returns a result
-// object { ok, shift, why } — never throws. Touches only this driver.
-async function _sawPlaceOnDay(st, date) {
-  // 1) Assign an existing eligible OPEN shift on this date if available.
-  const open = (st.openShifts || []).filter(s => s.date === date && st.eligibility(s).ok)
-    .sort((a, b) => st.scoreOf(b).score - st.scoreOf(a).score);
-  if (open.length) {
-    const sh = open[0];
-    try {
-      const { error } = await sb.rpc("assign_shift", { p_id: sh.id, p_driver_id: st.driver.id });
-      if (error) throw error;
-      return { ok: true, shift: { ...sh, driver_id: st.driver.id }, created: false };
-    } catch (e) {
-      console.warn("_sawPlaceOnDay assign failed:", e);
-      return { ok: false, why: `assign failed (${e?.message || e})` };
-    }
-  }
-  // 2) Otherwise CREATE a shift from a template and assign it.
+// Create an OPEN (unassigned) route seat on `date`, modelled on a real
+// template shift, so the hire has an eligible opening to be staged into
+// even when that day is already staffed to OKAMI target (only cushion
+// seats open) or carries no demand rows at all. Returns the created open
+// shift row (driver_id null) or null. Never throws.
+async function _sawCreateOpenSeat(st, date) {
   const pick = _sawPickTemplate(st, date);
-  if (!pick) return { ok: false, why: "no template shift to copy" };
+  if (!pick) return null;
   const tmpl = pick.tmpl;
   const stationId = (st.stationId || tmpl.station_id) || null;
-  if (!stationId) return { ok: false, why: "no station to create against" };
+  if (!stationId) return null;
   // Same-day template keeps its exact times; cross-day template has its
   // time-of-day shifted onto the target date.
   const times = pick.sameDay
     ? { starts_at: tmpl.starts_at, ends_at: tmpl.ends_at }
     : _sawTemplateTimesForDate(tmpl, date);
-  if (!times.starts_at || !times.ends_at) return { ok: false, why: "couldn't compute shift times" };
+  if (!times.starts_at || !times.ends_at) return null;
   // create_shift (migration 0344) reads: station_id, driver_id, date,
   // starts_at, ends_at, route_code, status, source, shift_kind,
-  // route_classification, service_type_id. driver_id set = created
-  // pre-assigned to the hire (one round-trip, no separate assign).
+  // route_classification, service_type_id. driver_id null = OPEN seat the
+  // operator stages and Saves onto the hire (keeps the staging UX intact).
   const payload = {
     date,
     station_id: stationId,
-    driver_id: st.driver.id,
+    driver_id: null,
     route_code: tmpl.route_code || null,
     service_type_id: tmpl.service_type_id || null,
     shift_kind: "regular",
@@ -17753,188 +17743,157 @@ async function _sawPlaceOnDay(st, date) {
   };
   try {
     if (typeof _markLocalShiftMutation === "function") { try { _markLocalShiftMutation(); } catch (_) {} }
-    const { data: createdRow, error } = await sb.rpc("create_shift", { p_payload: payload });
+    const { data: row, error } = await sb.rpc("create_shift", { p_payload: payload });
     if (error) throw error;
-    const row = createdRow && createdRow.id ? createdRow : { id: `new-${date}`, ...payload };
-    return { ok: true, shift: { id: row.id, date, station_id: stationId, route_code: payload.route_code, service_type_id: payload.service_type_id, starts_at: payload.starts_at, ends_at: payload.ends_at, block_hours: tmpl.block_hours || null, shift_kind: "regular", driver_id: st.driver.id }, created: true };
+    return (row && row.id) ? row : { id: `new-${date}-${Math.random().toString(36).slice(2, 7)}`, ...payload, block_hours: tmpl.block_hours || null };
   } catch (e) {
-    console.warn("_sawPlaceOnDay create_shift failed:", e);
-    return { ok: false, why: `create failed (${e?.message || e})` };
+    console.warn("_sawCreateOpenSeat failed:", e);
+    return null;
   }
 }
-
-// Engine pre-pass — the OPTIMIZED path. Generates real demand seats on the
-// hire's available days, then runs the CP-SAT engine (dispatch-optimization-
-// run) for THIS ONE driver against the schedule that already exists, with
-// every other assignment locked. The engine picks the best subset of open
-// seats; we assign only the seats it chose to the hire. Single-driver and
-// non-destructive: locked rows are never moved. Fully guarded — ANY failure
-// (no seats, edge function down, empty result) returns [] so the caller
-// falls back to direct create-placement. Returns the placed shift rows.
-async function _sawEnginePlace(st, targetDays) {
-  try {
-    // 1) Generate real demand seats on the hire's available days, then
-    // refresh the open-shift pool so the engine has seats to choose from.
-    try { await _sawGenerateSeats(st); await _sawReloadOpen(st); } catch (_) {}
-    const wkEnd = _sawAddDaysIso(st.firstDate, 6);
-    const dayset = new Set(targetDays);
-    // Open seats the hire is actually eligible for, within the first week.
-    const inWeek = (st.openShifts || []).filter(s =>
-      s.date >= st.firstDate && s.date <= wkEnd && dayset.has(s.date) &&
-      st.eligibility(s).ok && s.starts_at && s.ends_at);
-    if (!inWeek.length) return [];
-    const fd = new Date(st.firstDate + "T12:00:00");
-    const weekStart = fmtIsoDate(addDays(fd, -fd.getDay()));
-    const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-    const routeType = (sh) => {
-      const c = st.stMap.get(sh.service_type_id);
-      if (c && c.requires_edv) return "edv";
-      if (c && c.requires_xl) return "xl";
-      if (c && c.requires_dot) return "step_van";
-      return "standard";
-    };
-    const dur = (sh) => sh.starts_at && sh.ends_at ? (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000 : null;
-    const engineShifts = inWeek.map(sh => ({
-      id: String(sh.id), date: sh.date, starts_at: sh.starts_at, ends_at: sh.ends_at,
-      duration_hours: dur(sh), route_type: routeType(sh), assigned_driver_id: null,
-      is_locked: false, station_id: sh.station_id || st.stationId || null, route_code: sh.route_code || null,
-    }));
-    // The hire's OWN shifts in the week ride in LOCKED so the engine counts
-    // their hours/rest but never moves them.
-    for (const ds of (st.driverShifts || [])) {
-      if (!ds.starts_at || !ds.ends_at) continue;
-      if (ds.date < weekStart || ds.date > _sawAddDaysIso(weekStart, 6)) continue;
-      engineShifts.push({
-        id: String(ds.id), date: ds.date, starts_at: ds.starts_at, ends_at: ds.ends_at,
-        duration_hours: dur(ds), route_type: routeType(ds), assigned_driver_id: st.driver.id,
-        is_locked: true, station_id: ds.station_id || st.stationId || null, route_code: ds.route_code || null,
-      });
-    }
-    const av = (st.driver.metadata && st.driver.metadata.availability) || {};
-    const availDows = (Array.isArray(av.days) && av.days.length ? av.days : DOW).map(d => String(d).slice(0, 3).toLowerCase());
-    const prefDows = (Array.isArray(av.preferred_days) ? av.preferred_days : []).map(d => String(d).slice(0, 3).toLowerCase());
-    const payload = {
-      schedule_week_start: weekStart,
-      max_days: st.maxDays,
-      weekly_hour_cap: st.weeklyCap,
-      time_budget_ms: 8000,
-      rules: {
-        availability: true, pto_block: true, preserve_locked_assignments: true,
-        manual_mode: false, assign_vans: false, weekly_hour_cap_enforcement: true,
-        consecutive_working_days: true, min_rest: true, min_rest_hours: st.minRest,
-        same_day_multi_shift: "block",
-      },
-      drivers: [{
-        id: st.driver.id, full_name: st.driver.full_name || "", status: st.driver.status || "active",
-        hire_date: st.driver.hire_date || null, dl_expires_on: st.driver.dl_expires_on || null,
-        dot_certified: !!st.driver.dot_certified, xl_certified: !!st.driver.xl_certified,
-        edv_certified: !!st.driver.edv_certified, available_dows: availDows, preferred_dows: prefDows,
-        final_corrective_action: false, weekday_affinity: null, fifth_day_ok: true,
-      }],
-      shifts: engineShifts, pto: [], ad_hoc_constraints: [],
-    };
-    let result = null;
-    try {
-      const { data, error } = await sb.functions.invoke("dispatch-optimization-run", { body: { payload } });
-      if (error) throw error;
-      result = data;
-    } catch (e) { console.warn("_sawEnginePlace engine call failed:", e); return []; }
-    const assigned = Array.isArray(result?.assigned_shifts) ? result.assigned_shifts : [];
-    // Seats the engine chose for THIS hire that aren't already locked/preserved.
-    const lockedIds = new Set(engineShifts.filter(s => s.is_locked).map(s => s.id));
-    const pick = assigned.filter(a => a && String(a.driver_id) === String(st.driver.id) &&
-      a.shift_id != null && !lockedIds.has(String(a.shift_id)) &&
-      !(a.source === "locked" || a.source === "preserved"));
-    if (!pick.length) return [];
-    const openById = new Map(inWeek.map(s => [String(s.id), s]));
-    const placed = [];
-    for (const a of pick) {
-      const sh = openById.get(String(a.shift_id));
-      if (!sh) continue;
-      try {
-        const { error } = await sb.rpc("assign_shift", { p_id: sh.id, p_driver_id: st.driver.id });
-        if (error) throw error;
-        placed.push({ ...sh, driver_id: st.driver.id });
-      } catch (e) { console.warn("_sawEnginePlace assign failed:", e); }
-    }
-    return placed;
-  } catch (e) { console.warn("_sawEnginePlace failed:", e); return []; }
+// Direct-create fallback — the GUARANTEE. For each of the hire's eligible
+// days in their first week that has no existing eligible open seat, CREATE
+// an open seat from a real template. Lets Smart Fill place the hire even
+// when every available day is already staffed to target (only cushion seats
+// open) or has no demand rows at all. Refreshes the open-shift pool and
+// returns the created open-seat IDs to stage. Never throws.
+async function _sawDirectFillSeats(st) {
+  const wkEnd = _sawAddDaysIso(st.firstDate, 6);
+  const haveByDate = new Set((st.openShifts || []).filter(s => st.eligibility(s).ok).map(s => s.date));
+  const days = [];
+  for (let i = 0; i <= 6; i++) {
+    const d = _sawAddDaysIso(st.firstDate, i);
+    if (d < st.firstDate || d > wkEnd) continue;
+    if (st.rideDate && d <= st.rideDate) continue;
+    if (st.busyDates.has(d)) continue;
+    if (st.dayAvailable && !st.dayAvailable(d)) continue;
+    if (haveByDate.has(d)) continue; // already an eligible open seat that day
+    days.push(d);
+  }
+  const targetDays = days.slice(0, st.maxDays);
+  const created = [];
+  for (const d of targetDays) {
+    const row = await _sawCreateOpenSeat(st, d);
+    if (row && row.id) created.push(row);
+  }
+  if (created.length) { try { await _sawReloadOpen(st); } catch (_) {} }
+  return created.map(r => r.id);
 }
 
-// Single-driver Smart Fill — HYBRID. First runs the CP-SAT engine
-// (_sawEnginePlace) for this one hire against the existing schedule (the
-// OPTIMIZED path), then for any eligible day the engine couldn't cover,
-// falls back to DIRECT PLACEMENT: assign an open seat or CREATE one from a
-// real template and assign it. Single-driver only: it assigns/creates rows
-// for THIS driver and never touches anyone else's assignment. Applied
-// immediately (no separate Save needed).
+// Single-driver Smart Fill — runs the real scheduling engine for THIS
+// driver only, against the open shifts in their first-available week. We
+// send just this one driver + the open shifts, so the engine cannot move
+// or alter anyone else's assignment; it only picks the best subset for
+// the new hire (availability, certs, max-days, weekly cap, min-rest).
+// First generates seats on the hire's available under-target days so an
+// under-staffed week still has openings to place them into; if no eligible
+// opening exists on their available days, directly CREATES open seats from
+// a template so the hire is always placeable. Falls back to a local
+// best-per-day heuristic if the engine is offline.
 async function _sawSmartFill() {
   let st = _sawState; if (!st || !st.firstDate) return;
   st.running = true; _sawRenderSection();
   try {
     // Lazy-load scheduling data on first run.
     if (!st.loaded) { await _sawLoadData(st.driver, st.firstDate, st.pair); st = _sawState; st.running = true; }
-    const name = displayDriverName(st.driver) || st.driver.full_name || "this hire";
-    // Eligible days in the first week: dates after the ride-along, on/after
-    // firstDate, not already busy (training/ride/existing shift), and the
-    // driver is available that date (effective-availability-aware). Cap at
-    // maxDays distinct days, earliest first.
-    const wkEnd = _sawAddDaysIso(st.firstDate, 6);
-    const days = [];
-    for (let i = 0; i <= 6; i++) {
-      const d = _sawAddDaysIso(st.firstDate, i);
-      if (d > wkEnd) break;
-      if (d < st.firstDate) continue;
-      if (st.rideDate && d <= st.rideDate) continue;
-      if (st.busyDates.has(d)) continue;
-      if (st.dayAvailable && !st.dayAvailable(d)) continue;
-      days.push(d);
-    }
-    const targetDays = days.slice(0, st.maxDays);
-    if (!targetDays.length) {
+    // Generate seats on the hire's available under-target days first, so an
+    // under-staffed week (gap = unmet demand, no open rows) still has
+    // openings to fill. Best-effort; never over-staffs (RPC fills to
+    // OKAMI demand only).
+    try { const gen = await _sawGenerateSeats(st); if (gen) await _sawReloadOpen(st); } catch (e) { console.warn("seat generation failed:", e); }
+    // Anchor to the first week that actually has eligible open shifts —
+    // a mid-week or future first-available date (or a sparse first week)
+    // then still finds candidates instead of coming up empty.
+    const rawOpen = st.openShifts.filter(s => s.date >= st.firstDate);
+    const eligibleOpen = rawOpen.filter(s => st.eligibility(s).ok)
+      .sort((a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : 0));
+    if (!eligibleOpen.length) {
+      const name = st.driver.full_name || "this hire";
+      // GUARANTEE: no existing eligible opening on the hire's available days
+      // (already staffed to target / only cushion seats / no demand rows).
+      // Directly CREATE real open seats on their available days from a
+      // template and stage them, so Smart Fill still places the hire.
+      const createdIds = await _sawDirectFillSeats(st);
+      if (createdIds.length) {
+        st.staged = new Set(createdIds); st.ran = true; st.running = false;
+        if (typeof renderScheduleWeek === "function") { try { renderScheduleWeek(); } catch (_) {} }
+        _sawRenderSection();
+        toast(`Smart Fill placed ${createdIds.length} shift${createdIds.length === 1 ? "" : "s"} for ${name} — review and Save.`, "success");
+        return;
+      }
       st.running = false; st.ran = true; _sawRenderSection();
-      toast(`No eligible days to place ${name} in their first week (${st.firstDate}–${wkEnd}) — every day is training, already scheduled, or outside their availability. Use Add manually.`, "warn");
+      let msg;
+      if (!rawOpen.length) {
+        // No openings and nothing we could create (no template to copy).
+        // Surface the generation diagnostic so the real blocker is visible.
+        const d = st._genDiag || {};
+        const why = d.okamiErr ? `targets lookup failed (${d.okamiErr})`
+          : d.cells === 0 ? "no OKAMI targets are set for that week"
+          : d.eligibleDays === 0 ? `none of ${name}'s available days in that week have demand (${d.inWindow} day-stations checked)`
+          : d.generated === 0 ? "those days are already fully staffed (nothing to open)"
+          : "their available days are already staffed to target and there's no existing shift to model a new seat on";
+        msg = `Couldn't open route seats for ${name} (${st.firstDate}–${st.endDate}): ${why}. Add a shift on the Schedule page first, or use Add manually.`;
+      } else {
+        // Open shifts exist but none are eligible — say exactly why.
+        const reasons = {};
+        for (const s of rawOpen) { const e = st.eligibility(s); if (!e.ok) reasons[e.why] = (reasons[e.why] || 0) + 1; }
+        const top = Object.entries(reasons).sort((a, b) => b[1] - a[1])[0];
+        msg = `${rawOpen.length} open shift${rawOpen.length === 1 ? "" : "s"} exist between ${st.firstDate} and ${st.endDate}, but none fit ${name}${top ? ` — ${top[1]} ${top[0].toLowerCase()}` : ""}. Use Add manually to review.`;
+      }
+      toast(msg, "warn");
       return;
     }
-    // Engine first (optimized): let CP-SAT place this hire against the
-    // existing schedule. Then direct-fill only the days it couldn't cover.
-    const placed = []; const skipped = [];
-    let hours = 0;
-    let enginePlaced = [];
-    try { enginePlaced = await _sawEnginePlace(st, targetDays); } catch (_) { enginePlaced = []; }
-    const covered = new Set();
-    for (const sh of enginePlaced) {
-      covered.add(sh.date);
-      hours += _sawShiftHours(sh, st.defBlock);
-      placed.push(sh);
+    const anchor = new Date(eligibleOpen[0].date + "T12:00:00");
+    const weekStart = fmtIsoDate(addDays(anchor, -anchor.getDay()));
+    const weekEnd = fmtIsoDate(addDays(new Date(weekStart + "T12:00:00"), 6));
+    const inWeek = eligibleOpen.filter(s => s.date >= weekStart && s.date <= weekEnd);
+    const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+    const routeType = (sh) => { const c = st.stMap.get(sh.service_type_id); if (c && c.requires_edv) return "edv"; if (c && c.requires_xl) return "xl"; if (c && c.requires_dot) return "step_van"; return "standard"; };
+    const dur = (sh) => sh.starts_at && sh.ends_at ? (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000 : null;
+    const engineShifts = inWeek.map(sh => ({ id: sh.id, date: sh.date, starts_at: sh.starts_at, ends_at: sh.ends_at, duration_hours: dur(sh), route_type: routeType(sh), assigned_driver_id: null, is_locked: false, station_id: sh.station_id || null, route_code: sh.route_code || null }));
+    // The driver's existing shifts (training / ride-along / anything) that
+    // fall in this engine week go in LOCKED, so the engine knows those days
+    // are taken and won't double-book a route on a training day.
+    for (const sh of (st.driverShifts || [])) {
+      if (sh.date < weekStart || sh.date > weekEnd) continue;
+      engineShifts.push({ id: sh.id, date: sh.date, starts_at: sh.starts_at, ends_at: sh.ends_at, duration_hours: dur(sh), route_type: routeType(sh), assigned_driver_id: st.driver.id, is_locked: true, station_id: sh.station_id || null, route_code: sh.route_code || null });
     }
-    // Engine placements may have consumed open seats; refresh the pool so
-    // direct placement sees an accurate open-shift picture for the rest.
-    if (enginePlaced.length) { try { await _sawReloadOpen(st); } catch (_) {} }
-    // Place one shift per remaining eligible day. Skip a day that would push
-    // the driver over their weekly hour cap (maxDays already bounds count).
-    for (const d of targetDays) {
-      if (covered.has(d)) continue;
-      const res = await _sawPlaceOnDay(st, d);
-      if (!res.ok) { skipped.push(`${d}: ${res.why}`); continue; }
-      const h = _sawShiftHours(res.shift, st.defBlock);
-      if (hours + h > st.weeklyCap + 0.01) { skipped.push(`${d}: would exceed the ${st.weeklyCap}h weekly cap`); continue; }
-      hours += h;
-      placed.push(res.shift);
+    const av = st.driver.metadata?.availability || {};
+    const availDows = Array.isArray(av.days) && av.days.length ? av.days.map(c => DOW.indexOf(String(c).slice(0, 3).toLowerCase())).filter(i => i >= 0) : null;
+    const prefDows = Array.isArray(av.preferred_days) ? av.preferred_days.map(c => DOW.indexOf(String(c).slice(0, 3).toLowerCase())).filter(i => i >= 0) : null;
+    const payload = {
+      schedule_week_start: weekStart, max_days: st.maxDays, weekly_hour_cap: st.weeklyCap, time_budget_ms: 8000,
+      rules: { availability: true, pto_block: true, preserve_locked_assignments: true, manual_mode: false, assign_vans: false, weekly_hour_cap_enforcement: true, consecutive_working_days: true, min_rest: true, min_rest_hours: st.minRest, same_day_multi_shift: "block" },
+      drivers: [{ id: st.driver.id, full_name: st.driver.full_name, status: st.driver.status, hire_date: st.driver.hire_date, dl_expires_on: st.driver.dl_expires_on || null, dot_certified: !!st.driver.dot_certified, xl_certified: !!st.driver.xl_certified, edv_certified: !!st.driver.edv_certified, available_dows: availDows, preferred_dows: prefDows, final_corrective_action: false, weekday_affinity: null, fifth_day_ok: av.fifth_day_ok === true }],
+      shifts: engineShifts, pto: [], ad_hoc_constraints: [],
+    };
+    let picked;
+    try {
+      const { data, error } = await sb.functions.invoke("dispatch-optimization-run", { body: { payload } });
+      if (error) throw error;
+      if (!data || (data.status !== "ok" && data.status !== "infeasible")) throw new Error(data && data.status || "engine error");
+      picked = new Set((data.assigned_shifts || []).filter(a => a.driver_id === st.driver.id && a.source !== "locked" && a.source !== "preserved").map(a => a.shift_id));
+    } catch (e) {
+      console.warn("single-driver Smart Fill engine failed; using local heuristic:", e);
+      const byDate = new Map();
+      for (const sh of inWeek) { const sc = st.scoreOf(sh).score; const ex = byDate.get(sh.date); if (!ex || sc > ex.score) byDate.set(sh.date, { id: sh.id, score: sc }); }
+      picked = new Set([...byDate.values()].sort((a, b) => b.score - a.score).slice(0, st.maxDays).map(x => x.id));
+      toast("Used built-in placement (engine unavailable)", "info");
     }
-    // Reload the section so just-placed shifts move out of "open" and into
-    // the driver's books, then render the result from fresh data.
-    try { await _sawLoadData(st.driver, st.firstDate, st.pair); st = _sawState; } catch (e) { console.warn("reload after Smart Fill failed:", e); }
-    st.placed = placed; st.staged = new Set(); st.ran = true; st.running = false;
+    // GUARANTEE: if the engine/heuristic staged nothing (e.g. every eligible
+    // open seat collides with the cap or rest rules), directly CREATE seats
+    // on the hire's other available days and stage those instead.
+    if (!picked.size) {
+      const createdIds = await _sawDirectFillSeats(st);
+      if (createdIds.length) picked = new Set(createdIds);
+    }
+    st.staged = picked; st.ran = true; st.running = false;
     if (typeof renderScheduleWeek === "function") { try { renderScheduleWeek(); } catch (_) {} }
     _sawRenderSection();
-    if (placed.length) {
-      const extra = skipped.length ? ` (${skipped.length} day${skipped.length === 1 ? "" : "s"} skipped)` : "";
-      toast(`Smart Fill placed ${name} on ${placed.length} shift${placed.length === 1 ? "" : "s"}${extra}`, "success");
-    } else {
-      const why = skipped.length ? ` — ${skipped[0]}` : "";
-      toast(`Smart Fill couldn't place ${name}${why}. Use Add manually.`, "warn");
-    }
+    const name = st.driver.full_name || "this hire";
+    toast(picked.size
+      ? `Smart Fill placed ${picked.size} shift${picked.size === 1 ? "" : "s"} for ${name} — review and Save.`
+      : `Smart Fill couldn't place ${name}. Use Add manually.`, picked.size ? "success" : "warn");
   } catch (e) {
     console.warn("Smart Fill failed:", e);
     st.running = false; _sawRenderSection();
@@ -17948,25 +17907,19 @@ function _sawStLabel(sh) {
 }
 function _sawShiftRow(sh) {
   const st = _sawState;
-  const isPlaced = (st.placed || []).some(p => p && p.id === sh.id);
   const sc = st.scoreOf(sh);
   const staged = st.staged.has(sh.id);
   const dow = _SAW_DOW[_sawDow(sh.date)];
   const time = sh.starts_at ? fmtTimeShort(sh.starts_at) : "—";
   const tone = sc.score >= 80 ? "#137C43" : sc.score >= 60 ? "#8A5D00" : "#566173";
   const bg = sc.score >= 80 ? "#EDF3EE" : sc.score >= 60 ? "#FBEAB8" : "#EEF1F5";
-  // Placed shifts are already assigned to the hire (no toggle); manual
-  // open rows keep the Add/Remove stage toggle.
-  const action = isPlaced
-    ? `<span class="saw-score" style="background:#EDF3EE;color:#137C43">Assigned</span>`
-    : `<button type="button" class="btn btn-sm${staged ? " btn-ghost" : " btn-primary"}" data-saw-toggle="${escapeHtml(sh.id)}">${staged ? "Remove" : "Add"}</button>`;
-  return `<div class="saw-row${isPlaced ? " is-staged" : staged ? " is-staged" : ""}">
+  return `<div class="saw-row${staged ? " is-staged" : ""}">
     <div class="saw-row-main">
       <div class="saw-row-top"><strong>${dow} ${escapeHtml(sh.date)}</strong> · ${escapeHtml(_sawStLabel(sh))}${sh.route_code ? " · " + escapeHtml(sh.route_code) : ""}</div>
       <div class="saw-row-sub">${escapeHtml(time)} · ${sc.hours}h · <span style="color:${tone}">${escapeHtml(sc.reason)}</span></div>
     </div>
     <span class="saw-score" style="background:${bg};color:${tone}">${sc.score}</span>
-    ${action}
+    <button type="button" class="btn btn-sm${staged ? " btn-ghost" : " btn-primary"}" data-saw-toggle="${escapeHtml(sh.id)}">${staged ? "Remove" : "Add"}</button>
   </div>`;
 }
 function _sawValidate(list) {
@@ -17988,12 +17941,7 @@ function _sawValidate(list) {
 }
 function _sawImpact() {
   const st = _sawState;
-  // Smart Fill applies shifts immediately (st.placed). The manual list
-  // still stages open rows for Save (st.staged). Show both, de-duped by id.
-  const seen = new Set();
-  const list = [];
-  for (const s of (st.placed || [])) { if (s && !seen.has(s.id)) { seen.add(s.id); list.push(s); } }
-  for (const s of st.openShifts.filter(s => st.staged.has(s.id))) { if (!seen.has(s.id)) { seen.add(s.id); list.push(s); } }
+  const list = st.openShifts.filter(s => st.staged.has(s.id));
   const routes = new Set(list.map(s => s.route_code).filter(Boolean));
   const otHours = st.teamOtRisk ? list.reduce((s, sh) => s + _sawShiftHours(sh, st.defBlock), 0) : 0;
   const savings = Math.round(otHours * st.hourly * 0.5);
@@ -18027,15 +17975,10 @@ function _sawSectionHtml() {
 
   let recList, manualBlock = "";
   if (loaded) {
-    // Show what Smart Fill PLACED (already assigned) plus any open rows
-    // staged manually for Save, de-duped, earliest first.
-    const seen = new Set();
-    const placedShifts = (st.placed || []).filter(s => s && !seen.has(s.id) && seen.add(s.id));
-    const stagedShifts = st.openShifts.filter(s => st.staged.has(s.id) && !seen.has(s.id) && seen.add(s.id));
-    const recShifts = [...placedShifts, ...stagedShifts].sort((a, b) => a.date < b.date ? -1 : 1);
-    recList = recShifts.length
-      ? recShifts.map(_sawShiftRow).join("")
-      : (st.ran ? `<div class="saw-empty">Smart Fill couldn't place ${escapeHtml(name)} on any eligible day — try Add manually.</div>` : `<div class="saw-empty">Run Smart Fill or add manually to place ${escapeHtml(name)}.</div>`);
+    const stagedShifts = st.openShifts.filter(s => st.staged.has(s.id)).sort((a, b) => a.date < b.date ? -1 : 1);
+    recList = stagedShifts.length
+      ? stagedShifts.map(_sawShiftRow).join("")
+      : (st.ran ? `<div class="saw-empty">Smart Fill found no shifts to place — try Add manually.</div>` : `<div class="saw-empty">Run Smart Fill or add manually to place ${escapeHtml(name)}.</div>`);
     if (st.manualOpen) {
       const stOpts = [...st.stMap.values()].map(s => `<option value="${escapeHtml(String(s.id))}">${escapeHtml(s.label || s.code)}</option>`).join("");
       const manualRows = _sawManualList().map(_sawShiftRow).join("") || `<div class="saw-empty">No open shifts match.</div>`;
@@ -18053,7 +17996,7 @@ function _sawSectionHtml() {
   return `<div class="saw-sched">
     <h4 class="saw-h">Schedule placement</h4>
     <div class="saw-status"><div><span class="saw-k">First available work date</span><span class="saw-v" style="color:#137C43;font-weight:700">${ready ? escapeHtml(st.firstDate) : "—"}</span></div></div>
-    <div class="saw-hint" style="margin:6px 0 10px">Smart Fill places ${escapeHtml(name)} on a shift each of their available days in the first week (up to ${maxDays}) and assigns it immediately — filling an open route if one's free, otherwise creating one from that day's real route shape. It won't change anyone else's schedule.</div>
+    <div class="saw-hint" style="margin:6px 0 10px">Smart Fill runs the scheduling engine for ${escapeHtml(name)} only — it opens route seats on their available, under-target days (never over target) and places them into the best ones. It won't change anyone else's schedule.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
       <button type="button" class="btn btn-sm btn-primary" data-saw-smartfill ${(!ready || st.running) ? "disabled" : ""} title="${ready ? "" : "Set the ride-along day first"}">${st.running ? "Running…" : "⚡ Smart Fill"}</button>
       <button type="button" class="btn btn-sm" data-saw-manual-toggle ${!ready ? "disabled" : ""}>${st.manualOpen ? "Hide manual" : "Add manually"}</button>
@@ -18062,7 +18005,7 @@ function _sawSectionHtml() {
     ${recList}
     ${manualBlock}
     <div class="saw-impact" style="margin-top:12px">
-      <div><span class="saw-k">Shifts placed</span><span class="saw-v">${imp.filled}</span></div>
+      <div><span class="saw-k">Open shifts filled</span><span class="saw-v">${imp.filled}</span></div>
       <div><span class="saw-k">Routes covered</span><span class="saw-v">${imp.routes}</span></div>
       <div><span class="saw-k">Scheduled days</span><span class="saw-v">${imp.days} / ${maxDays}</span></div>
       <div><span class="saw-k">Overtime reduced</span><span class="saw-v">${imp.otHours ? imp.otHours + "h · est. $" + imp.savings : "—"}</span></div>
@@ -18070,10 +18013,7 @@ function _sawSectionHtml() {
       <div><span class="saw-k">Compliance</span><span class="saw-v" style="color:${compTone};font-weight:700">${imp.val.ok ? "All checks pass" : imp.val.violations.length + " issue(s)"}</span></div>
     </div>
     ${!imp.val.ok ? `<div class="saw-violations">${imp.val.violations.map(x => `<div>• ${escapeHtml(x)}</div>`).join("")}</div>` : ""}
-    <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      ${st.staged.size ? `<button type="button" class="btn btn-sm btn-primary" data-saw-save>Assign manual picks (${st.staged.size})</button>` : ""}
-      ${st.placed && st.placed.length ? `<span class="saw-v" style="color:#137C43;font-weight:700">✓ ${st.placed.length} shift${st.placed.length === 1 ? "" : "s"} assigned</span>` : ""}
-    </div>
+    <div style="margin-top:12px"><button type="button" class="btn btn-sm btn-primary" data-saw-save ${imp.filled === 0 ? "disabled" : ""}>Save schedule (${imp.filled})</button></div>
   </div>`;
 }
 function _sawRenderSection() {
@@ -18113,7 +18053,7 @@ function _sawEnsureSection(driver, pair) {
     const maxDays = parseInt(window._rrEffectiveSettings?.max_days_per_week, 10) || 5;
     _sawState = {
       driver, driverId: driver.id, pair: pair || null, firstDate, maxDays, loaded: false,
-      placed: [], staged: new Set(), filters: { date: "", st: "", route: "", start: "" }, manualOpen: false, running: false, ran: false,
+      staged: new Set(), filters: { date: "", st: "", route: "", start: "" }, manualOpen: false, running: false, ran: false,
     };
   }
   _sawRenderSection();
