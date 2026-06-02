@@ -36589,8 +36589,21 @@ async function autoAssignDriversForWeek() {
   // Availability Enhancement), and pattern_pass are all fresh engine
   // placements that need persisting — skipping "swap" here is what made
   // the Enhancement appear to fill fewer shifts.
+  // Guard: never write a regular assignment onto a day the driver is
+  // already in training. The engine receives training / ride-along shifts
+  // as locked, but can still emit a same-day double-book — so drop any
+  // assignment that lands on a (driver, date) already holding a training
+  // or ride-along shift. Keeps a new hire off a route during training.
+  const _trainBusy = new Set();
+  for (const sh of allShiftsForDateLookup) {
+    if (sh.driver_id && (sh.shift_kind === "training" || sh.shift_kind === "ride_along")) {
+      _trainBusy.add(`${sh.driver_id}|${sh.date}`);
+    }
+  }
+  const _shiftDate = new Map(allShiftsForDateLookup.map(s => [s.id, s.date]));
   const toWrite = result.assigned_shifts
     .filter(a => a.source !== "locked" && a.source !== "preserved")
+    .filter(a => !_trainBusy.has(`${a.driver_id}|${_shiftDate.get(a.shift_id)}`))
     .map(a => ({ id: a.shift_id, driverId: a.driver_id }));
   // What-if mode never writes back to the shifts table. Synthesize a
   // wr.assigned == toWrite.length, failed == 0 so downstream code
