@@ -17556,9 +17556,52 @@ async function _sawLoadData(driver, firstDate, pair) {
 
   _sawState = {
     driver: drvRow, driverId: driver.id, pair: pair || null, firstDate, endDate, rideDate, defBlock, maxDays, weeklyCap, minRest, hourly,
-    stMap, openShifts, driverShifts, busyDates, eligibility, scoreOf, teamOtRisk,
+    stMap, openShifts, driverShifts, busyDates, eligibility, scoreOf, teamOtRisk, dayAvailable: dowOk,
     staged: new Set(), filters: { date: "", st: "", route: "", start: "" }, manualOpen: false, running: false, ran: false,
   };
+}
+
+// Generate route seats on the new hire's available, under-target days in
+// their first week, then those become open shifts to fill. Uses the same
+// generate_shifts_for_date RPC as the main schedule sync, which only
+// creates up to OKAMI demand (target × cushion) — so it fills real gaps
+// and never pushes a day above target. Returns how many day-stations were
+// generated.
+async function _sawGenerateSeats(st) {
+  let cells = [];
+  try {
+    const fd = new Date(st.firstDate + "T12:00:00");
+    const wkStart = fmtIsoDate(addDays(fd, -fd.getDay()));
+    const r = await sb.rpc("okami_grid", { p_start: wkStart, p_weeks: 1 });
+    cells = Array.isArray(r?.data) ? r.data : [];
+  } catch (_) { return 0; }
+  const wkEnd = _sawAddDaysIso(st.firstDate, 6);
+  // One (date, station) per eligible day with real demand; cap at maxDays
+  // distinct days (the most-demanded) so we don't build the whole week.
+  const byDate = new Map();
+  for (const c of cells) {
+    if (!c.station_id || !c.date) continue;
+    if (c.date < st.firstDate || c.date > wkEnd) continue;
+    if (st.rideDate && c.date <= st.rideDate) continue;
+    if (st.busyDates.has(c.date)) continue;
+    if (st.dayAvailable && !st.dayAvailable(c.date)) continue;
+    const target = Array.isArray(c.targets_by_wave) ? c.targets_by_wave.reduce((s, w) => s + (w?.target_routes || 0), 0) : 0;
+    if (target <= 0) continue;
+    if (!byDate.has(c.date)) byDate.set(c.date, { date: c.date, station_id: c.station_id, target });
+  }
+  const days = [...byDate.values()].sort((a, b) => b.target - a.target || (a.date < b.date ? -1 : 1)).slice(0, st.maxDays);
+  if (!days.length) return 0;
+  if (typeof _markLocalShiftMutation === "function") { try { _markLocalShiftMutation(); } catch (_) {} }
+  const res = await Promise.all(days.map(d => sb.rpc("generate_shifts_for_date", { p_date: d.date, p_station_id: d.station_id }).then(r => r, () => ({ error: true }))));
+  return res.filter(r => !r.error).length;
+}
+async function _sawReloadOpen(st) {
+  try {
+    const r = await sb.from("shifts").select("id, date, status, station_id, route_code, service_type_id, starts_at, ends_at, block_hours, shift_kind, is_cushion")
+      .eq("dsp_id", window.RR.dsp.id).is("driver_id", null).not("status", "in", "(completed,no_show,called_off,cancelled)")
+      .gte("date", st.firstDate).lte("date", st.endDate);
+    if (Array.isArray(r?.data)) st.openShifts = r.data.filter(s => !["training", "ride_along"].includes(s.shift_kind) && !s.is_cushion);
+  } catch (_) {}
 }
 
 // Single-driver Smart Fill — runs the real scheduling engine for THIS
@@ -17566,11 +17609,18 @@ async function _sawLoadData(driver, firstDate, pair) {
 // send just this one driver + the open shifts, so the engine cannot move
 // or alter anyone else's assignment; it only picks the best subset for
 // the new hire (availability, certs, max-days, weekly cap, min-rest).
-// Falls back to a local best-per-day heuristic if the engine is offline.
+// First generates seats on the hire's available under-target days so an
+// under-staffed week still has openings to place them into. Falls back to
+// a local best-per-day heuristic if the engine is offline.
 async function _sawSmartFill() {
   const st = _sawState; if (!st) return;
   st.running = true; _sawRenderSection();
   try {
+    // Generate seats on the hire's available under-target days first, so an
+    // under-staffed week (gap = unmet demand, no open rows) still has
+    // openings to fill. Best-effort; never over-staffs (RPC fills to
+    // OKAMI demand only).
+    try { const gen = await _sawGenerateSeats(st); if (gen) await _sawReloadOpen(st); } catch (e) { console.warn("seat generation failed:", e); }
     // Anchor to the first week that actually has eligible open shifts —
     // a mid-week or future first-available date (or a sparse first week)
     // then still finds candidates instead of coming up empty.
@@ -17582,10 +17632,10 @@ async function _sawSmartFill() {
       const name = st.driver.full_name || "this hire";
       let msg;
       if (!rawOpen.length) {
-        // No unassigned shift rows at all → the gap is unmet demand, not
-        // open seats. The driver-centric grid's "X/Y staffed" usually
-        // means routes still need to be generated for that week.
-        msg = `No open (unassigned) shifts exist between ${st.firstDate} and ${st.endDate}. If the Schedule shows a coverage gap, those routes haven't been generated yet — generate routes for that week on the Schedule page (the green "X / Y staffed" gap is unmet demand, not open seats). Then re-run Smart Fill, or use Add manually.`;
+        // Even after generating seats there are no openings — there's no
+        // OKAMI demand on the hire's available days in this week (or no
+        // targets set), so nothing could be opened to place them into.
+        msg = `Couldn't open any route seats on ${name}'s available days between ${st.firstDate} and ${st.endDate} — there's no OKAMI demand on those days (or targets aren't set for that week). Set targets on the Schedule page, or use Add manually.`;
       } else {
         // Open shifts exist but none are eligible — say exactly why.
         const reasons = {};
@@ -17724,7 +17774,7 @@ function _sawSectionHtml() {
   return `<div class="saw-sched">
     <h4 class="saw-h">Schedule placement</h4>
     <div class="saw-status"><div><span class="saw-k">First available work date</span><span class="saw-v" style="color:#137C43;font-weight:700">${escapeHtml(st.firstDate)}</span></div></div>
-    <div class="saw-hint" style="margin:6px 0 10px">Smart Fill runs the scheduling engine for ${escapeHtml(name)} only — it places them into the best open shifts and won't change anyone else's schedule.</div>
+    <div class="saw-hint" style="margin:6px 0 10px">Smart Fill runs the scheduling engine for ${escapeHtml(name)} only — it opens route seats on their available, under-target days (up to OKAMI demand, never over target), then places them into the best ones. It won't change anyone else's schedule.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
       <button type="button" class="btn btn-sm btn-primary" data-saw-smartfill ${st.running ? "disabled" : ""}>${st.running ? "Running…" : "⚡ Smart Fill"}</button>
       <button type="button" class="btn btn-sm" data-saw-manual-toggle>${st.manualOpen ? "Hide manual" : "Add manually"}</button>
