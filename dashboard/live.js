@@ -5439,7 +5439,7 @@ const _OB_DEFAULT_BLUEPRINT = [
   { key: "job_offer",    type: "document",         title: "Job offer",                enabled: true, blocking: true,  required: true,  owner: "driver", document_template_id: null },
   { key: "handbook",     type: "document",         title: "Employment handbook",      enabled: true, blocking: true,  required: true,  owner: "driver", document_template_id: null },
   { key: "i9",           type: "i9",               title: "Form I-9",                 enabled: true, blocking: true,  required: true,  owner: "driver" },
-  { key: "trainer_pair", type: "task",             title: "Schedule Assignment",      enabled: true, blocking: false, required: false, owner: "dsp" },
+  { key: "trainer_pair", type: "task",             title: "Schedule",                 enabled: true, blocking: false, required: false, owner: "dsp" },
 ];
 let _obBlueprint = null;   // array of step objects from onboarding_blueprint_get (or _OB_DEFAULT_BLUEPRINT)
 function _obSteps() { return Array.isArray(_obBlueprint) && _obBlueprint.length ? _obBlueprint : _OB_DEFAULT_BLUEPRINT; }
@@ -5447,15 +5447,20 @@ const _obShortHead = (t) => { t = String(t || "Step").trim(); return t.length > 
 // Matrix-column descriptor for one enabled blueprint step: a canonical
 // underlying-field mapping (_OB_STEP_FIELDS) if it has one, else a
 // state-backed column (driver_onboarding_state, migration 0179).
-function _obStepColumn(s) {
-  // The trainer_pair step was renamed "Trainer pairing" → "Schedule
-  // Assignment". A DSP's blueprint is persisted in the DB, so an existing
-  // tenant still carries the old title; override the display label for
-  // that step unless the operator set a custom one. (Internal key stays
-  // trainer_pair; no migration needed.)
-  if (s && s.key === "trainer_pair" && (!s.title || /^trainer pairing$/i.test(String(s.title).trim()))) {
-    s = { ...s, title: "Schedule Assignment" };
+// The trainer_pair step is shown as "Schedule". A DSP's blueprint is
+// persisted in the DB, so existing tenants still carry the old default
+// title ("Trainer pairing" — or the interim "Schedule Assignment");
+// normalize those legacy defaults for display while preserving any
+// custom title the operator set. Internal key stays trainer_pair.
+function _obStepDisplayTitle(s) {
+  if (s && s.key === "trainer_pair") {
+    const t = (s.title || "").trim();
+    if (!t || /^(trainer pairing|schedule assignment)$/i.test(t)) return "Schedule";
   }
+  return (s && s.title) || "";
+}
+function _obStepColumn(s) {
+  if (s && s.key === "trainer_pair") s = { ...s, title: _obStepDisplayTitle(s) };
   const m = _OB_STEP_FIELDS[s.key];
   if (m) return { ...s, map: m };
   return { ...s, map: { kind: "state", done: s.key, doneLabel: "Done", head: _obShortHead(s.title), todoLabel: `${s.title || "Step"} — not yet` } };
@@ -5490,7 +5495,7 @@ async function loadOnboardingBuilder() {
   // and treat everything as on.
   _obBuilderSteps = (Array.isArray(data) && data.length ? data : _OB_DEFAULT_BLUEPRINT)
     .filter(s => s && s.enabled !== false)
-    .map(s => ({ ...s, enabled: true }));
+    .map(s => ({ ...s, enabled: true, title: s.key === "trainer_pair" ? _obStepDisplayTitle(s) : s.title }));
   // Note: we used to defensively re-seed core compliance steps here, but
   // that race-conditioned with custom-typed equivalents and re-added a
   // step after every delete. Core steps are now offered explicitly in
@@ -5666,7 +5671,7 @@ const _OB_ADD_TYPES = [
   { type: "background_check",owner: "dsp",    coreKey: "bg_check",  title: "Background check cleared", label: "Background check",           blurb: "Record the result once the check clears. Required for hire." },
   { type: "drug_test",       owner: "dsp",    coreKey: "drug_test", title: "Drug test cleared",        label: "Drug test",                  blurb: "Record the result once the test clears. Required for hire." },
   { type: "task",            owner: "dsp",    isGate: true,         title: "New compliance gate",      label: "Custom compliance gate",     blurb: "Any dashboard-recorded check that must clear before onboarding finishes — MVR, DOT card, etc." },
-  { type: "task",            owner: "dsp",    isTrainerPair: true,  title: "Schedule Assignment",      label: "Schedule Assignment",        blurb: "Set training (Day 1+2 station, Day 3 ride-along), then place the new hire into the schedule with recommended shifts." },
+  { type: "task",            owner: "dsp",    isTrainerPair: true,  title: "Schedule",                 label: "Schedule",                   blurb: "Set training (Day 1+2 station, Day 3 ride-along), then place the new hire into the schedule with recommended shifts." },
   { type: "document",        owner: "driver", title: "New document", label: "Document",                 blurb: "Attach a PDF — informational docs are acknowledged, secure docs run e-signature." },
   { type: "acknowledgement", owner: "driver", title: "New acknowledgement", label: "Acknowledgement",   blurb: "A short statement the driver reads and confirms. No PDF." },
   { type: "video",          owner: "driver", title: "New video", label: "Watch a video",               blurb: "Link a video the driver watches, then confirms." },
@@ -17328,7 +17333,7 @@ function _renderTrainingPairingModal() {
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:560px;width:100%;max-height:90vh;display:flex;flex-direction:column">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);margin-bottom:12px">
         <div>
-          <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Schedule Assignment</h3>
+          <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Schedule</h3>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">${escapeHtml(displayDriverName(d) || "Driver")} · Day 1+2 station, Day 3 ride-along</div>
         </div>
         <div style="display:flex;align-items:center;gap:var(--s-2)">${pill}<button data-rr-tp-close style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 4px;line-height:1">×</button></div>
@@ -17650,7 +17655,7 @@ function _sawRender() {
   m.innerHTML = `<div class="modal-card saw" style="max-width:820px;width:100%;margin:auto;display:flex;flex-direction:column;max-height:92vh;overflow:hidden">
     <div class="modal-head">
       <div>
-        <p class="modal-title">Schedule Assignment Wizard</p>
+        <p class="modal-title">Schedule Wizard</p>
         <p class="modal-sub" style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${escapeHtml(displayDriverName(d) || "Driver")} · place into the schedule after training</p>
       </div>
       <button class="modal-close" data-saw-close aria-label="Cancel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
