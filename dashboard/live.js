@@ -17554,10 +17554,14 @@ async function _sawLoadData(driver, firstDate, pair) {
     return { score: s, reason: reasons[0], otOpp: teamOtRisk, hours: _sawShiftHours(sh, defBlock) };
   };
 
+  // Preserve UI state (staged picks, filters, manual toggle) across a
+  // reload so saving/regenerating doesn't reset the operator's screen.
+  const prev = (_sawState && _sawState.driverId === driver.id) ? _sawState : null;
   _sawState = {
     driver: drvRow, driverId: driver.id, pair: pair || null, firstDate, endDate, rideDate, defBlock, maxDays, weeklyCap, minRest, hourly,
-    stMap, openShifts, driverShifts, busyDates, eligibility, scoreOf, teamOtRisk, dayAvailable: dowOk,
-    staged: new Set(), filters: { date: "", st: "", route: "", start: "" }, manualOpen: false, running: false, ran: false,
+    stMap, openShifts, driverShifts, busyDates, eligibility, scoreOf, teamOtRisk, dayAvailable: dowOk, loaded: true,
+    staged: prev?.staged || new Set(), filters: prev?.filters || { date: "", st: "", route: "", start: "" },
+    manualOpen: prev?.manualOpen || false, running: false, ran: prev?.ran || false,
   };
 }
 
@@ -17568,32 +17572,40 @@ async function _sawLoadData(driver, firstDate, pair) {
 // and never pushes a day above target. Returns how many day-stations were
 // generated.
 async function _sawGenerateSeats(st) {
+  const diag = { cells: 0, inWindow: 0, eligibleDays: 0, generated: 0, okamiErr: null };
+  st._genDiag = diag;
   let cells = [];
   try {
     const fd = new Date(st.firstDate + "T12:00:00");
     const wkStart = fmtIsoDate(addDays(fd, -fd.getDay()));
     const r = await sb.rpc("okami_grid", { p_start: wkStart, p_weeks: 1 });
+    if (r?.error) diag.okamiErr = r.error.message || String(r.error);
     cells = Array.isArray(r?.data) ? r.data : [];
-  } catch (_) { return 0; }
+  } catch (e) { diag.okamiErr = e?.message || String(e); return 0; }
+  diag.cells = cells.length;
   const wkEnd = _sawAddDaysIso(st.firstDate, 6);
   // One (date, station) per eligible day with real demand; cap at maxDays
   // distinct days (the most-demanded) so we don't build the whole week.
   const byDate = new Map();
   for (const c of cells) {
-    if (!c.station_id || !c.date) continue;
-    if (c.date < st.firstDate || c.date > wkEnd) continue;
-    if (st.rideDate && c.date <= st.rideDate) continue;
-    if (st.busyDates.has(c.date)) continue;
-    if (st.dayAvailable && !st.dayAvailable(c.date)) continue;
-    const target = Array.isArray(c.targets_by_wave) ? c.targets_by_wave.reduce((s, w) => s + (w?.target_routes || 0), 0) : 0;
+    const cd = c.date ? String(c.date).slice(0, 10) : "";
+    if (!c.station_id || !cd) continue;
+    if (cd < st.firstDate || cd > wkEnd) continue;
+    diag.inWindow += 1;
+    if (st.rideDate && cd <= st.rideDate) continue;
+    if (st.busyDates.has(cd)) continue;
+    if (st.dayAvailable && !st.dayAvailable(cd)) continue;
+    const target = Array.isArray(c.targets_by_wave) ? c.targets_by_wave.reduce((s, w) => s + (w?.target_routes || 0), 0) : (Number(c.target_routes) || Number(c.needed) || 0);
     if (target <= 0) continue;
-    if (!byDate.has(c.date)) byDate.set(c.date, { date: c.date, station_id: c.station_id, target });
+    if (!byDate.has(cd)) byDate.set(cd, { date: cd, station_id: c.station_id, target });
   }
   const days = [...byDate.values()].sort((a, b) => b.target - a.target || (a.date < b.date ? -1 : 1)).slice(0, st.maxDays);
+  diag.eligibleDays = days.length;
   if (!days.length) return 0;
   if (typeof _markLocalShiftMutation === "function") { try { _markLocalShiftMutation(); } catch (_) {} }
   const res = await Promise.all(days.map(d => sb.rpc("generate_shifts_for_date", { p_date: d.date, p_station_id: d.station_id }).then(r => r, () => ({ error: true }))));
-  return res.filter(r => !r.error).length;
+  diag.generated = res.filter(r => !r.error).length;
+  return diag.generated;
 }
 async function _sawReloadOpen(st) {
   try {
@@ -17613,9 +17625,11 @@ async function _sawReloadOpen(st) {
 // under-staffed week still has openings to place them into. Falls back to
 // a local best-per-day heuristic if the engine is offline.
 async function _sawSmartFill() {
-  const st = _sawState; if (!st) return;
+  let st = _sawState; if (!st || !st.firstDate) return;
   st.running = true; _sawRenderSection();
   try {
+    // Lazy-load scheduling data on first run.
+    if (!st.loaded) { await _sawLoadData(st.driver, st.firstDate, st.pair); st = _sawState; st.running = true; }
     // Generate seats on the hire's available under-target days first, so an
     // under-staffed week (gap = unmet demand, no open rows) still has
     // openings to fill. Best-effort; never over-staffs (RPC fills to
@@ -17632,10 +17646,15 @@ async function _sawSmartFill() {
       const name = st.driver.full_name || "this hire";
       let msg;
       if (!rawOpen.length) {
-        // Even after generating seats there are no openings — there's no
-        // OKAMI demand on the hire's available days in this week (or no
-        // targets set), so nothing could be opened to place them into.
-        msg = `Couldn't open any route seats on ${name}'s available days between ${st.firstDate} and ${st.endDate} — there's no OKAMI demand on those days (or targets aren't set for that week). Set targets on the Schedule page, or use Add manually.`;
+        // Even after generating seats there are no openings. Surface the
+        // generation diagnostic so the real blocker is visible.
+        const d = st._genDiag || {};
+        const why = d.okamiErr ? `targets lookup failed (${d.okamiErr})`
+          : d.cells === 0 ? "no OKAMI targets are set for that week"
+          : d.eligibleDays === 0 ? `none of ${name}'s available days in that week have demand (${d.inWindow} day-stations checked)`
+          : d.generated === 0 ? "those days are already fully staffed (nothing to open)"
+          : "the generated seats didn't come back as open";
+        msg = `Couldn't open route seats for ${name} (${st.firstDate}–${st.endDate}): ${why}. Set targets on the Schedule page, or use Add manually.`;
       } else {
         // Open shifts exist but none are eligible — say exactly why.
         const reasons = {};
@@ -17752,32 +17771,46 @@ function _sawManualList() {
   return list.sort((a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : st.scoreOf(b).score - st.scoreOf(a).score));
 }
 // The scheduling section that lives inside the Schedule (training) modal.
+// Always renders the FULL card (stable height) — scheduling data only
+// loads when the operator runs Smart Fill / Add manually, so the modal
+// (and the trainer picker) open instantly and the card doesn't reflow.
 function _sawSectionHtml() {
   const st = _sawState;
   if (!st) return `<div class="saw-sched"><h4 class="saw-h">Schedule placement</h4><div class="saw-empty">Loading…</div></div>`;
   const name = displayDriverName(st.driver) || "this hire";
-  const imp = _sawImpact();
+  const ready = !!st.firstDate;
+  const loaded = !!st.loaded;
+  const maxDays = st.maxDays || 5;
+  const imp = loaded ? _sawImpact() : { filled: 0, routes: 0, otHours: 0, savings: 0, days: 0, val: { ok: true, violations: [] } };
   const compTone = imp.val.ok ? "#137C43" : "#B8281E";
-  const stagedShifts = st.openShifts.filter(s => st.staged.has(s.id)).sort((a, b) => a.date < b.date ? -1 : 1);
-  const recList = stagedShifts.length
-    ? stagedShifts.map(_sawShiftRow).join("")
-    : (st.ran ? `<div class="saw-empty">Smart Fill found no shifts to place — try Add manually.</div>` : `<div class="saw-empty">No shifts staged yet — run Smart Fill or add manually.</div>`);
-  const sts = [...st.stMap.values()];
-  const stOpts = sts.map(s => `<option value="${escapeHtml(String(s.id))}">${escapeHtml(s.label || s.code)}</option>`).join("");
-  const manualRows = _sawManualList().map(_sawShiftRow).join("") || `<div class="saw-empty">No open shifts match.</div>`;
-  const manualBlock = st.manualOpen ? `<div class="saw-filters">
-      <input type="date" data-saw-f="date" class="form-input" value="${escapeHtml(st.filters.date)}">
-      <select data-saw-f="st" class="form-input"><option value="">Any service type</option>${stOpts}</select>
-      <input type="text" data-saw-f="start" class="form-input" placeholder="Start (e.g. 10)" value="${escapeHtml(st.filters.start)}" style="max-width:120px">
-      <input type="text" data-saw-f="route" class="form-input" placeholder="Search route / type…" value="${escapeHtml(st.filters.route)}">
-    </div><div class="saw-list">${manualRows}</div>` : "";
+
+  let recList, manualBlock = "";
+  if (loaded) {
+    const stagedShifts = st.openShifts.filter(s => st.staged.has(s.id)).sort((a, b) => a.date < b.date ? -1 : 1);
+    recList = stagedShifts.length
+      ? stagedShifts.map(_sawShiftRow).join("")
+      : (st.ran ? `<div class="saw-empty">Smart Fill found no shifts to place — try Add manually.</div>` : `<div class="saw-empty">Run Smart Fill or add manually to place ${escapeHtml(name)}.</div>`);
+    if (st.manualOpen) {
+      const stOpts = [...st.stMap.values()].map(s => `<option value="${escapeHtml(String(s.id))}">${escapeHtml(s.label || s.code)}</option>`).join("");
+      const manualRows = _sawManualList().map(_sawShiftRow).join("") || `<div class="saw-empty">No open shifts match.</div>`;
+      manualBlock = `<div class="saw-filters">
+        <input type="date" data-saw-f="date" class="form-input" value="${escapeHtml(st.filters.date)}">
+        <select data-saw-f="st" class="form-input"><option value="">Any service type</option>${stOpts}</select>
+        <input type="text" data-saw-f="start" class="form-input" placeholder="Start (e.g. 10)" value="${escapeHtml(st.filters.start)}" style="max-width:120px">
+        <input type="text" data-saw-f="route" class="form-input" placeholder="Search route / type…" value="${escapeHtml(st.filters.route)}">
+      </div><div class="saw-list">${manualRows}</div>`;
+    }
+  } else {
+    recList = `<div class="saw-empty">${ready ? `Run Smart Fill to place ${escapeHtml(name)}, or add manually.` : "Set the ride-along day above first."}</div>`;
+  }
+
   return `<div class="saw-sched">
     <h4 class="saw-h">Schedule placement</h4>
-    <div class="saw-status"><div><span class="saw-k">First available work date</span><span class="saw-v" style="color:#137C43;font-weight:700">${escapeHtml(st.firstDate)}</span></div></div>
-    <div class="saw-hint" style="margin:6px 0 10px">Smart Fill runs the scheduling engine for ${escapeHtml(name)} only — it opens route seats on their available, under-target days (up to OKAMI demand, never over target), then places them into the best ones. It won't change anyone else's schedule.</div>
+    <div class="saw-status"><div><span class="saw-k">First available work date</span><span class="saw-v" style="color:#137C43;font-weight:700">${ready ? escapeHtml(st.firstDate) : "—"}</span></div></div>
+    <div class="saw-hint" style="margin:6px 0 10px">Smart Fill runs the scheduling engine for ${escapeHtml(name)} only — it opens route seats on their available, under-target days (never over target) and places them into the best ones. It won't change anyone else's schedule.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-      <button type="button" class="btn btn-sm btn-primary" data-saw-smartfill ${st.running ? "disabled" : ""}>${st.running ? "Running…" : "⚡ Smart Fill"}</button>
-      <button type="button" class="btn btn-sm" data-saw-manual-toggle>${st.manualOpen ? "Hide manual" : "Add manually"}</button>
+      <button type="button" class="btn btn-sm btn-primary" data-saw-smartfill ${(!ready || st.running) ? "disabled" : ""} title="${ready ? "" : "Set the ride-along day first"}">${st.running ? "Running…" : "⚡ Smart Fill"}</button>
+      <button type="button" class="btn btn-sm" data-saw-manual-toggle ${!ready ? "disabled" : ""}>${st.manualOpen ? "Hide manual" : "Add manually"}</button>
       ${st.staged.size ? `<button type="button" class="btn btn-sm btn-ghost" data-saw-clear style="margin-left:auto">Clear</button>` : ""}
     </div>
     ${recList}
@@ -17785,7 +17818,7 @@ function _sawSectionHtml() {
     <div class="saw-impact" style="margin-top:12px">
       <div><span class="saw-k">Open shifts filled</span><span class="saw-v">${imp.filled}</span></div>
       <div><span class="saw-k">Routes covered</span><span class="saw-v">${imp.routes}</span></div>
-      <div><span class="saw-k">Scheduled days</span><span class="saw-v">${imp.days} / ${st.maxDays}</span></div>
+      <div><span class="saw-k">Scheduled days</span><span class="saw-v">${imp.days} / ${maxDays}</span></div>
       <div><span class="saw-k">Overtime reduced</span><span class="saw-v">${imp.otHours ? imp.otHours + "h · est. $" + imp.savings : "—"}</span></div>
       <div><span class="saw-k">FT/PT pattern</span><span class="saw-v">${imp.days >= 5 ? "Full-time" : imp.days ? imp.days + "-day (part-time)" : "—"}</span></div>
       <div><span class="saw-k">Compliance</span><span class="saw-v" style="color:${compTone};font-weight:700">${imp.val.ok ? "All checks pass" : imp.val.violations.length + " issue(s)"}</span></div>
@@ -17806,7 +17839,7 @@ function _sawHandleClick(e, driver) {
   const tog = e.target.closest("[data-saw-toggle]");
   if (tog) { const id = tog.getAttribute("data-saw-toggle"); if (_sawState.staged.has(id)) _sawState.staged.delete(id); else _sawState.staged.add(id); _sawRenderSection(); return true; }
   if (e.target.closest("[data-saw-smartfill]")) { _sawSmartFill(); return true; }
-  if (e.target.closest("[data-saw-manual-toggle]")) { _sawState.manualOpen = !_sawState.manualOpen; _sawRenderSection(); return true; }
+  if (e.target.closest("[data-saw-manual-toggle]")) { _sawToggleManual(); return true; }
   if (e.target.closest("[data-saw-clear]")) { _sawState.staged = new Set(); _sawRenderSection(); return true; }
   if (e.target.closest("[data-saw-save]")) { _sawSave(driver); return true; }
   return false;
@@ -17817,26 +17850,36 @@ function _sawHandleInput(e) {
   if (f) { _sawState.filters[f.getAttribute("data-saw-f")] = f.value; _sawRenderSection(); return true; }
   return false;
 }
-// Ensure the scheduling section is loaded + rendered for the current
-// driver / ride-along date. Called after the training modal (re)renders.
-async function _sawEnsureSection(driver, pair) {
+// Seed a light state and render the full card. Synchronous — scheduling
+// data loads lazily on Smart Fill / Add manually, so opening the modal
+// (and the trainer picker) stays instant and the card keeps a stable
+// height (no reflow after dates are set). Called after each modal render.
+function _sawEnsureSection(driver, pair) {
   const host = document.getElementById("rr-tp-sched-host");
   if (!host) return;
   const rideVal = document.querySelector("[data-rr-tp-ride]")?.value;
-  const firstDate = _sawComputeFirstDate(pair, rideVal);
-  if (!firstDate) {
-    _sawState = null;
-    host.innerHTML = `<div class="saw-sched"><h4 class="saw-h">Schedule placement</h4><div class="saw-hint">Set the ride-along day above, then Smart Fill can place this hire into the schedule starting the next day.</div></div>`;
-    return;
-  }
-  if (!_sawState || _sawState.driverId !== driver.id || _sawState.firstDate !== firstDate) {
-    host.innerHTML = `<div class="saw-sched"><h4 class="saw-h">Schedule placement</h4><div class="saw-empty">Loading the schedule…</div></div>`;
-    await _sawLoadData(driver, firstDate, pair);
+  const firstDate = _sawComputeFirstDate(pair, rideVal); // "" until ride-along set
+  const matches = _sawState && _sawState.driverId === driver.id && _sawState.firstDate === firstDate;
+  if (!matches) {
+    const maxDays = parseInt(window._rrEffectiveSettings?.max_days_per_week, 10) || 5;
+    _sawState = {
+      driver, driverId: driver.id, pair: pair || null, firstDate, maxDays, loaded: false,
+      staged: new Set(), filters: { date: "", st: "", route: "", start: "" }, manualOpen: false, running: false, ran: false,
+    };
   }
   _sawRenderSection();
 }
+// Toggle the manual list, loading scheduling data on first use.
+async function _sawToggleManual() {
+  const st = _sawState; if (!st || !st.firstDate) return;
+  if (st.loaded) { st.manualOpen = !st.manualOpen; _sawRenderSection(); return; }
+  st.running = true; _sawRenderSection();
+  await _sawLoadData(st.driver, st.firstDate, st.pair);
+  _sawState.manualOpen = true; _sawState.running = false;
+  _sawRenderSection();
+}
 async function _sawSave(driver) {
-  const st = _sawState; if (!st) return;
+  const st = _sawState; if (!st || !st.loaded) return;
   const list = st.openShifts.filter(s => st.staged.has(s.id));
   if (!list.length) { toast("Add at least one shift first", "warn"); return; }
   const val = _sawValidate(list);
