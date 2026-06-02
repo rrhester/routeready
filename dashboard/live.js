@@ -17281,6 +17281,33 @@ async function openTrainingPairingModal(driverId) {
   _renderTrainingPairingModal();
 }
 
+// Day 1/2/3 summary rows for the training modal. Factored out so a date
+// change can refresh them IN PLACE (see _tpDatesChanged) without tearing
+// down and rebuilding the whole modal — rebuilding mid-click destroys the
+// "Pick a trainer" button before its click lands, so the picker silently
+// no-ops. Keeping the modal element stable fixes that.
+function _tpDayRowsHtml(pair) {
+  const has = pair && pair.id;
+  const status = has ? pair.status : null;
+  const start = (pair && pair.training_start_date) || "";
+  const ride  = (pair && pair.ride_along_date)     || "";
+  const fmtD = (x) => x ? new Date(x + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "—";
+  const day2 = start ? (() => { const dt = new Date(start + "T12:00:00"); dt.setDate(dt.getDate() + 1); return dt.toISOString().slice(0, 10); })() : "";
+  const dot = (done, warn) => `<span style="width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:${warn ? "#d97706" : done ? "#16a34a" : "var(--border)"}"></span>`;
+  const dayRow = (lbl, dateStr, sub, done, warn) => `
+    <div style="display:flex;align-items:center;gap:9px;padding:7px 0;font-size:var(--fs-sm);${lbl !== "Day 1" ? "border-top:1px solid var(--border)" : ""}">
+      ${dot(done, warn)}
+      <span style="font-weight:600;width:48px;flex:0 0 auto">${escapeHtml(lbl)}</span>
+      <span style="color:var(--text-muted);width:140px;flex:0 0 auto">${escapeHtml(dateStr ? fmtD(dateStr) : "—")}</span>
+      <span style="color:var(--text-subtle);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(sub)}</span>
+    </div>`;
+  const trainerName = (pair && pair._trainer_name) || (has && pair.trainer_id ? "Trainer selected" : "");
+  const trainerSub = has && pair.trainer_id ? `Riding with ${trainerName || "trainer"}` : "Pick a trainer";
+  return dayRow("Day 1", start, "Station training", !!start, false)
+       + dayRow("Day 2", day2,  "Station training", !!start, false)
+       + dayRow("Day 3", ride,  trainerSub, !!(ride && has && pair.trainer_id), status === "needs_repair");
+}
+
 function _renderTrainingPairingModal() {
   const s = _tpModalState;
   if (!s) return;
@@ -17297,20 +17324,9 @@ function _renderTrainingPairingModal() {
   const status = has ? pair.status : null;
   const start = (pair && pair.training_start_date) || "";
   const ride  = (pair && pair.ride_along_date)     || "";
-  const fmtD = (x) => x ? new Date(x + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "—";
-  const day2 = start ? (() => { const dt = new Date(start + "T12:00:00"); dt.setDate(dt.getDate() + 1); return dt.toISOString().slice(0, 10); })() : "";
-
-  const dot = (done, warn) => `<span style="width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:${warn ? "#d97706" : done ? "#16a34a" : "var(--border)"}"></span>`;
-  const dayRow = (lbl, dateStr, sub, done, warn) => `
-    <div style="display:flex;align-items:center;gap:9px;padding:7px 0;font-size:var(--fs-sm);${lbl !== "Day 1" ? "border-top:1px solid var(--border)" : ""}">
-      ${dot(done, warn)}
-      <span style="font-weight:600;width:48px;flex:0 0 auto">${escapeHtml(lbl)}</span>
-      <span style="color:var(--text-muted);width:140px;flex:0 0 auto">${escapeHtml(dateStr ? fmtD(dateStr) : "—")}</span>
-      <span style="color:var(--text-subtle);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(sub)}</span>
-    </div>`;
-
+  // Day 1/2/3 rows are built by _tpDayRowsHtml so a date change can refresh
+  // them in place without rebuilding the modal (see _tpDatesChanged).
   const trainerName = (pair && pair._trainer_name) || (has && pair.trainer_id ? "Trainer selected" : "");
-  const trainerSub = has && pair.trainer_id ? `Riding with ${trainerName || "trainer"}` : "Pick a trainer";
 
   const pill =
     status === "materialized" ? `<span style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-pill);background:var(--green-soft);color:var(--green)">Materialized</span>` :
@@ -17341,10 +17357,8 @@ function _renderTrainingPairingModal() {
 
       ${repairBanner}
 
-      <div style="border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;margin-bottom:14px">
-        ${dayRow("Day 1", start, "Station training", !!start, false)}
-        ${dayRow("Day 2", day2,  "Station training", !!start, false)}
-        ${dayRow("Day 3", ride,  trainerSub, !!(ride && has && pair.trainer_id), status === "needs_repair")}
+      <div id="rr-tp-dayrows" style="border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;margin-bottom:14px">
+        ${_tpDayRowsHtml(pair)}
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3);margin-bottom:12px">
@@ -17411,7 +17425,7 @@ async function _tpDatesChanged() {
   const pair = s.pair;
   if (pair && pair.training_start_date === start && pair.ride_along_date === ride) return;
   // Stash locally; persist only once a trainer is also chosen (the RPC
-  // requires trainer_id). Re-render the modal to refresh the day rows.
+  // requires trainer_id).
   s.pair = Object.assign({}, pair || {}, { training_start_date: start, ride_along_date: ride });
   if (pair && pair.trainer_id) {
     const { data, error } = await sb.rpc("propose_training_pairing", {
@@ -17423,8 +17437,20 @@ async function _tpDatesChanged() {
     });
     if (error) { toast("Couldn't save dates: " + error.message, "warn"); return; }
     s.pair = Object.assign({}, data, { _trainer_name: pair._trainer_name });
+    // A trainer is already chosen, so the status pill / repair banner can
+    // change — do a full re-render. (No picker interaction is in flight on
+    // this path, so rebuilding the modal is safe.)
+    _renderTrainingPairingModal();
+    return;
   }
-  _renderTrainingPairingModal();
+  // Pre-pick (no trainer yet): refresh the affected pieces IN PLACE instead
+  // of tearing down + rebuilding the modal. Rebuilding here used to destroy
+  // the "Pick a trainer" button mid-press (the date input's change fires on
+  // blur as the user clicks the button), so the click never landed and the
+  // picker silently did nothing. Updating in place keeps the button alive.
+  const rows = document.getElementById("rr-tp-dayrows");
+  if (rows) rows.innerHTML = _tpDayRowsHtml(s.pair);
+  _sawEnsureSection(s.driver, s.pair);
 }
 
 async function _tpClear() {
@@ -17495,10 +17521,10 @@ async function _sawLoadData(driver, firstDate, pair) {
   // are respected, exactly like the main Smart Fill.
   const windowDates = [];
   for (let i = 0; i <= 13; i++) windowDates.push(_sawAddDaysIso(firstDate, i));
-  let drvRow = driver, stMap = new Map(), openShifts = [], teamOtRisk = false, driverShifts = [], effRows = [];
+  let drvRow = driver, stMap = new Map(), openShifts = [], teamOtRisk = false, driverShifts = [], effRows = [], templateShifts = [];
   try {
-    const [drvRes, stRes, shRes, otRes, ownRes, effRes] = await Promise.all([
-      sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, status, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, hire_date").eq("id", driver.id).maybeSingle().then(r => r, () => ({ data: null })),
+    const [drvRes, stRes, shRes, otRes, ownRes, effRes, tmplRes] = await Promise.all([
+      sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, status, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, hire_date, station_id").eq("id", driver.id).maybeSingle().then(r => r, () => ({ data: null })),
       sb.from("service_types").select("id, code, label, requires_dot, requires_xl, requires_edv, active").eq("dsp_id", dspId).then(r => r, () => ({ data: [] })),
       // "Open" = unassigned and not a terminal/cancelled row. Matches the
       // main Smart Fill's open-shift detection (don't require status
@@ -17513,6 +17539,11 @@ async function _sawLoadData(driver, firstDate, pair) {
       // requests (e.g. a Saturday opened up this week) the static metadata
       // default doesn't carry.
       sb.rpc("driver_effective_days_for_drivers", { p_driver_ids: [driver.id], p_dates: windowDates }).then(r => r, () => ({ data: [] })),
+      // Template shifts — ANY driver's real, productive shifts in the
+      // window. Direct placement copies station/service-type/times/route
+      // from these so a newly-created shift looks exactly like a real one
+      // for that day/station, even when no OPEN row exists to assign.
+      sb.from("shifts").select("id, date, station_id, route_code, service_type_id, starts_at, ends_at, block_hours, shift_kind").eq("dsp_id", dspId).not("status", "in", "(no_show,called_off,cancelled)").gte("date", firstDate).lte("date", endDate).then(r => r, () => ({ data: [] })),
     ]);
     if (drvRes?.data) drvRow = drvRes.data;
     for (const stp of (stRes?.data || [])) stMap.set(stp.id, stp);
@@ -17521,6 +17552,9 @@ async function _sawLoadData(driver, firstDate, pair) {
     openShifts = (shRes?.data || []).filter(s => !["training", "ride_along"].includes(s.shift_kind));
     driverShifts = ownRes?.data || [];
     effRows = Array.isArray(effRes?.data) ? effRes.data : [];
+    // Only real productive shifts make good templates (skip training /
+    // ride-along rows — they carry no route/service-type to copy).
+    templateShifts = (tmplRes?.data || []).filter(s => !["training", "ride_along"].includes(s.shift_kind) && (s.starts_at && s.ends_at));
     const otd = otRes?.data?.drivers || [];
     const otThreshold = Number(window.RR?.dsp?.metadata?.scheduling?.overtime_threshold_hours) || 40;
     teamOtRisk = otd.some(d => d.ot_risk || (Number(d.projected_hours) || 0) > otThreshold);
@@ -17582,7 +17616,8 @@ async function _sawLoadData(driver, firstDate, pair) {
   const prev = (_sawState && _sawState.driverId === driver.id) ? _sawState : null;
   _sawState = {
     driver: drvRow, driverId: driver.id, pair: pair || null, firstDate, endDate, rideDate, defBlock, maxDays, weeklyCap, minRest, hourly,
-    stMap, openShifts, driverShifts, busyDates, eligibility, scoreOf, teamOtRisk, dayAvailable: dowOk, loaded: true,
+    stMap, openShifts, driverShifts, templateShifts, stationId: drvRow.station_id || null, busyDates, eligibility, scoreOf, teamOtRisk, dayAvailable: dowOk, loaded: true,
+    placed: prev?.placed || [],
     staged: prev?.staged || new Set(), filters: prev?.filters || { date: "", st: "", route: "", start: "" },
     manualOpen: prev?.manualOpen || false, running: false, ran: prev?.ran || false,
   };
@@ -17639,95 +17674,154 @@ async function _sawReloadOpen(st) {
   } catch (_) {}
 }
 
-// Single-driver Smart Fill — runs the real scheduling engine for THIS
-// driver only, against the open shifts in their first-available week. We
-// send just this one driver + the open shifts, so the engine cannot move
-// or alter anyone else's assignment; it only picks the best subset for
-// the new hire (availability, certs, max-days, weekly cap, min-rest).
-// First generates seats on the hire's available under-target days so an
-// under-staffed week still has openings to place them into. Falls back to
-// a local best-per-day heuristic if the engine is offline.
+// Pick the best template shift to model a new shift on for `date`.
+// Prefers a real productive shift ON that date (so the new row matches
+// that day's actual route shape); otherwise falls back to ANY day's
+// template in the window, whose time-of-day is shifted onto `date`. When
+// the driver has a station, templates at that station are preferred.
+function _sawPickTemplate(st, date) {
+  const pool = (st.templateShifts || []).filter(s => s.starts_at && s.ends_at);
+  if (!pool.length) return null;
+  const stationOf = (s) => s.station_id || null;
+  const pref = st.stationId
+    ? (arr) => { const m = arr.filter(s => stationOf(s) === st.stationId); return m.length ? m : arr; }
+    : (arr) => arr;
+  const sameDay = pref(pool.filter(s => s.date === date));
+  if (sameDay.length) return { tmpl: sameDay[0], sameDay: true };
+  const any = pref(pool.slice().sort((a, b) => (a.date < b.date ? -1 : 1)));
+  return any.length ? { tmpl: any[0], sameDay: false } : null;
+}
+// Shift a template's start/end timestamps onto `date`, preserving the
+// template's time-of-day and duration. Returns ISO start/end strings.
+function _sawTemplateTimesForDate(tmpl, date) {
+  try {
+    const s = new Date(tmpl.starts_at), e = new Date(tmpl.ends_at);
+    if (isNaN(s) || isNaN(e)) return { starts_at: null, ends_at: null };
+    const startsLocal = `${date}T${String(s.getHours()).padStart(2, "0")}:${String(s.getMinutes()).padStart(2, "0")}:00`;
+    const starts = new Date(startsLocal);
+    const durMs = Math.max(0, e.getTime() - s.getTime()) || (10 * 3600000);
+    const ends = new Date(starts.getTime() + durMs);
+    return { starts_at: starts.toISOString(), ends_at: ends.toISOString() };
+  } catch (_) { return { starts_at: null, ends_at: null }; }
+}
+// Place the hire on ONE shift for `date`: assign an existing eligible open
+// shift if one is free, otherwise CREATE a shift from a template and
+// assign it (create_shift writes driver_id directly). Returns a result
+// object { ok, shift, why } — never throws. Touches only this driver.
+async function _sawPlaceOnDay(st, date) {
+  // 1) Assign an existing eligible OPEN shift on this date if available.
+  const open = (st.openShifts || []).filter(s => s.date === date && st.eligibility(s).ok)
+    .sort((a, b) => st.scoreOf(b).score - st.scoreOf(a).score);
+  if (open.length) {
+    const sh = open[0];
+    try {
+      const { error } = await sb.rpc("assign_shift", { p_id: sh.id, p_driver_id: st.driver.id });
+      if (error) throw error;
+      return { ok: true, shift: { ...sh, driver_id: st.driver.id }, created: false };
+    } catch (e) {
+      console.warn("_sawPlaceOnDay assign failed:", e);
+      return { ok: false, why: `assign failed (${e?.message || e})` };
+    }
+  }
+  // 2) Otherwise CREATE a shift from a template and assign it.
+  const pick = _sawPickTemplate(st, date);
+  if (!pick) return { ok: false, why: "no template shift to copy" };
+  const tmpl = pick.tmpl;
+  const stationId = (st.stationId || tmpl.station_id) || null;
+  if (!stationId) return { ok: false, why: "no station to create against" };
+  // Same-day template keeps its exact times; cross-day template has its
+  // time-of-day shifted onto the target date.
+  const times = pick.sameDay
+    ? { starts_at: tmpl.starts_at, ends_at: tmpl.ends_at }
+    : _sawTemplateTimesForDate(tmpl, date);
+  if (!times.starts_at || !times.ends_at) return { ok: false, why: "couldn't compute shift times" };
+  // create_shift (migration 0344) reads: station_id, driver_id, date,
+  // starts_at, ends_at, route_code, status, source, shift_kind,
+  // route_classification, service_type_id. driver_id set = created
+  // pre-assigned to the hire (one round-trip, no separate assign).
+  const payload = {
+    date,
+    station_id: stationId,
+    driver_id: st.driver.id,
+    route_code: tmpl.route_code || null,
+    service_type_id: tmpl.service_type_id || null,
+    shift_kind: "regular",
+    status: "scheduled",
+    source: "manual",
+    starts_at: times.starts_at,
+    ends_at: times.ends_at,
+  };
+  try {
+    if (typeof _markLocalShiftMutation === "function") { try { _markLocalShiftMutation(); } catch (_) {} }
+    const { data: createdRow, error } = await sb.rpc("create_shift", { p_payload: payload });
+    if (error) throw error;
+    const row = createdRow && createdRow.id ? createdRow : { id: `new-${date}`, ...payload };
+    return { ok: true, shift: { id: row.id, date, station_id: stationId, route_code: payload.route_code, service_type_id: payload.service_type_id, starts_at: payload.starts_at, ends_at: payload.ends_at, block_hours: tmpl.block_hours || null, shift_kind: "regular", driver_id: st.driver.id }, created: true };
+  } catch (e) {
+    console.warn("_sawPlaceOnDay create_shift failed:", e);
+    return { ok: false, why: `create failed (${e?.message || e})` };
+  }
+}
+
+// Single-driver Smart Fill — DIRECT PLACEMENT. Deterministically places
+// the new hire on a shift each of their eligible days in the first week,
+// CREATING the shift from a real template when no open row exists, and
+// assigning it. Single-driver only: it assigns/creates rows for THIS
+// driver and never touches anyone else's assignment. The placement is
+// applied immediately (no separate Save needed for these).
 async function _sawSmartFill() {
   let st = _sawState; if (!st || !st.firstDate) return;
   st.running = true; _sawRenderSection();
   try {
     // Lazy-load scheduling data on first run.
     if (!st.loaded) { await _sawLoadData(st.driver, st.firstDate, st.pair); st = _sawState; st.running = true; }
-    // Generate seats on the hire's available under-target days first, so an
-    // under-staffed week (gap = unmet demand, no open rows) still has
-    // openings to fill. Best-effort; never over-staffs (RPC fills to
-    // OKAMI demand only).
-    try { const gen = await _sawGenerateSeats(st); if (gen) await _sawReloadOpen(st); } catch (e) { console.warn("seat generation failed:", e); }
-    // Anchor to the first week that actually has eligible open shifts —
-    // a mid-week or future first-available date (or a sparse first week)
-    // then still finds candidates instead of coming up empty.
-    const rawOpen = st.openShifts.filter(s => s.date >= st.firstDate);
-    const eligibleOpen = rawOpen.filter(s => st.eligibility(s).ok)
-      .sort((a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : 0));
-    if (!eligibleOpen.length) {
+    const name = displayDriverName(st.driver) || st.driver.full_name || "this hire";
+    // Eligible days in the first week: dates after the ride-along, on/after
+    // firstDate, not already busy (training/ride/existing shift), and the
+    // driver is available that date (effective-availability-aware). Cap at
+    // maxDays distinct days, earliest first.
+    const wkEnd = _sawAddDaysIso(st.firstDate, 6);
+    const days = [];
+    for (let i = 0; i <= 6; i++) {
+      const d = _sawAddDaysIso(st.firstDate, i);
+      if (d > wkEnd) break;
+      if (d < st.firstDate) continue;
+      if (st.rideDate && d <= st.rideDate) continue;
+      if (st.busyDates.has(d)) continue;
+      if (st.dayAvailable && !st.dayAvailable(d)) continue;
+      days.push(d);
+    }
+    const targetDays = days.slice(0, st.maxDays);
+    if (!targetDays.length) {
       st.running = false; st.ran = true; _sawRenderSection();
-      const name = st.driver.full_name || "this hire";
-      let msg;
-      if (!rawOpen.length) {
-        // Even after generating seats there are no openings. Surface the
-        // generation diagnostic so the real blocker is visible.
-        const d = st._genDiag || {};
-        const why = d.okamiErr ? `targets lookup failed (${d.okamiErr})`
-          : d.cells === 0 ? "no OKAMI targets are set for that week"
-          : d.eligibleDays === 0 ? `none of ${name}'s available days in that week have demand (${d.inWindow} day-stations checked)`
-          : d.generated === 0 ? "those days are already fully staffed (nothing to open)"
-          : "their available days are already staffed to target — only over-target (cushion) seats are open, which would over-staff. Raise those days' targets to add them, or use Add manually";
-        msg = `Couldn't open route seats for ${name} (${st.firstDate}–${st.endDate}): ${why}. Set targets on the Schedule page, or use Add manually.`;
-      } else {
-        // Open shifts exist but none are eligible — say exactly why.
-        const reasons = {};
-        for (const s of rawOpen) { const e = st.eligibility(s); if (!e.ok) reasons[e.why] = (reasons[e.why] || 0) + 1; }
-        const top = Object.entries(reasons).sort((a, b) => b[1] - a[1])[0];
-        msg = `${rawOpen.length} open shift${rawOpen.length === 1 ? "" : "s"} exist between ${st.firstDate} and ${st.endDate}, but none fit ${name}${top ? ` — ${top[1]} ${top[0].toLowerCase()}` : ""}. Use Add manually to review.`;
-      }
-      toast(msg, "warn");
+      toast(`No eligible days to place ${name} in their first week (${st.firstDate}–${wkEnd}) — every day is training, already scheduled, or outside their availability. Use Add manually.`, "warn");
       return;
     }
-    const anchor = new Date(eligibleOpen[0].date + "T12:00:00");
-    const weekStart = fmtIsoDate(addDays(anchor, -anchor.getDay()));
-    const weekEnd = fmtIsoDate(addDays(new Date(weekStart + "T12:00:00"), 6));
-    const inWeek = eligibleOpen.filter(s => s.date >= weekStart && s.date <= weekEnd);
-    const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-    const routeType = (sh) => { const c = st.stMap.get(sh.service_type_id); if (c && c.requires_edv) return "edv"; if (c && c.requires_xl) return "xl"; if (c && c.requires_dot) return "step_van"; return "standard"; };
-    const dur = (sh) => sh.starts_at && sh.ends_at ? (new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000 : null;
-    const engineShifts = inWeek.map(sh => ({ id: sh.id, date: sh.date, starts_at: sh.starts_at, ends_at: sh.ends_at, duration_hours: dur(sh), route_type: routeType(sh), assigned_driver_id: null, is_locked: false, station_id: sh.station_id || null, route_code: sh.route_code || null }));
-    // The driver's existing shifts (training / ride-along / anything) that
-    // fall in this engine week go in LOCKED, so the engine knows those days
-    // are taken and won't double-book a route on a training day.
-    for (const sh of (st.driverShifts || [])) {
-      if (sh.date < weekStart || sh.date > weekEnd) continue;
-      engineShifts.push({ id: sh.id, date: sh.date, starts_at: sh.starts_at, ends_at: sh.ends_at, duration_hours: dur(sh), route_type: routeType(sh), assigned_driver_id: st.driver.id, is_locked: true, station_id: sh.station_id || null, route_code: sh.route_code || null });
+    // Place one shift per eligible day. Skip a day that would push the
+    // driver over their weekly hour cap (maxDays already bounds the count).
+    const placed = []; const skipped = [];
+    let hours = 0;
+    for (const d of targetDays) {
+      const res = await _sawPlaceOnDay(st, d);
+      if (!res.ok) { skipped.push(`${d}: ${res.why}`); continue; }
+      const h = _sawShiftHours(res.shift, st.defBlock);
+      if (hours + h > st.weeklyCap + 0.01) { skipped.push(`${d}: would exceed the ${st.weeklyCap}h weekly cap`); continue; }
+      hours += h;
+      placed.push(res.shift);
     }
-    const av = st.driver.metadata?.availability || {};
-    const availDows = Array.isArray(av.days) && av.days.length ? av.days.map(c => DOW.indexOf(String(c).slice(0, 3).toLowerCase())).filter(i => i >= 0) : null;
-    const prefDows = Array.isArray(av.preferred_days) ? av.preferred_days.map(c => DOW.indexOf(String(c).slice(0, 3).toLowerCase())).filter(i => i >= 0) : null;
-    const payload = {
-      schedule_week_start: weekStart, max_days: st.maxDays, weekly_hour_cap: st.weeklyCap, time_budget_ms: 8000,
-      rules: { availability: true, pto_block: true, preserve_locked_assignments: true, manual_mode: false, assign_vans: false, weekly_hour_cap_enforcement: true, consecutive_working_days: true, min_rest: true, min_rest_hours: st.minRest, same_day_multi_shift: "block" },
-      drivers: [{ id: st.driver.id, full_name: st.driver.full_name, status: st.driver.status, hire_date: st.driver.hire_date, dl_expires_on: st.driver.dl_expires_on || null, dot_certified: !!st.driver.dot_certified, xl_certified: !!st.driver.xl_certified, edv_certified: !!st.driver.edv_certified, available_dows: availDows, preferred_dows: prefDows, final_corrective_action: false, weekday_affinity: null, fifth_day_ok: av.fifth_day_ok === true }],
-      shifts: engineShifts, pto: [], ad_hoc_constraints: [],
-    };
-    let picked;
-    try {
-      const { data, error } = await sb.functions.invoke("dispatch-optimization-run", { body: { payload } });
-      if (error) throw error;
-      if (!data || (data.status !== "ok" && data.status !== "infeasible")) throw new Error(data && data.status || "engine error");
-      picked = new Set((data.assigned_shifts || []).filter(a => a.driver_id === st.driver.id && a.source !== "locked" && a.source !== "preserved").map(a => a.shift_id));
-    } catch (e) {
-      console.warn("single-driver Smart Fill engine failed; using local heuristic:", e);
-      const byDate = new Map();
-      for (const sh of inWeek) { const sc = st.scoreOf(sh).score; const ex = byDate.get(sh.date); if (!ex || sc > ex.score) byDate.set(sh.date, { id: sh.id, score: sc }); }
-      picked = new Set([...byDate.values()].sort((a, b) => b.score - a.score).slice(0, st.maxDays).map(x => x.id));
-      toast("Used built-in placement (engine unavailable)", "info");
-    }
-    st.staged = picked; st.ran = true; st.running = false;
+    // Reload the section so just-placed shifts move out of "open" and into
+    // the driver's books, then render the result from fresh data.
+    try { await _sawLoadData(st.driver, st.firstDate, st.pair); st = _sawState; } catch (e) { console.warn("reload after Smart Fill failed:", e); }
+    st.placed = placed; st.staged = new Set(); st.ran = true; st.running = false;
+    if (typeof renderScheduleWeek === "function") { try { renderScheduleWeek(); } catch (_) {} }
     _sawRenderSection();
-    toast(`Smart Fill placed ${picked.size} shift${picked.size === 1 ? "" : "s"}`, picked.size ? "success" : "warn");
+    if (placed.length) {
+      const extra = skipped.length ? ` (${skipped.length} day${skipped.length === 1 ? "" : "s"} skipped)` : "";
+      toast(`Smart Fill placed ${name} on ${placed.length} shift${placed.length === 1 ? "" : "s"}${extra}`, "success");
+    } else {
+      const why = skipped.length ? ` — ${skipped[0]}` : "";
+      toast(`Smart Fill couldn't place ${name}${why}. Use Add manually.`, "warn");
+    }
   } catch (e) {
     console.warn("Smart Fill failed:", e);
     st.running = false; _sawRenderSection();
@@ -17741,19 +17835,25 @@ function _sawStLabel(sh) {
 }
 function _sawShiftRow(sh) {
   const st = _sawState;
+  const isPlaced = (st.placed || []).some(p => p && p.id === sh.id);
   const sc = st.scoreOf(sh);
   const staged = st.staged.has(sh.id);
   const dow = _SAW_DOW[_sawDow(sh.date)];
   const time = sh.starts_at ? fmtTimeShort(sh.starts_at) : "—";
   const tone = sc.score >= 80 ? "#137C43" : sc.score >= 60 ? "#8A5D00" : "#566173";
   const bg = sc.score >= 80 ? "#EDF3EE" : sc.score >= 60 ? "#FBEAB8" : "#EEF1F5";
-  return `<div class="saw-row${staged ? " is-staged" : ""}">
+  // Placed shifts are already assigned to the hire (no toggle); manual
+  // open rows keep the Add/Remove stage toggle.
+  const action = isPlaced
+    ? `<span class="saw-score" style="background:#EDF3EE;color:#137C43">Assigned</span>`
+    : `<button type="button" class="btn btn-sm${staged ? " btn-ghost" : " btn-primary"}" data-saw-toggle="${escapeHtml(sh.id)}">${staged ? "Remove" : "Add"}</button>`;
+  return `<div class="saw-row${isPlaced ? " is-staged" : staged ? " is-staged" : ""}">
     <div class="saw-row-main">
       <div class="saw-row-top"><strong>${dow} ${escapeHtml(sh.date)}</strong> · ${escapeHtml(_sawStLabel(sh))}${sh.route_code ? " · " + escapeHtml(sh.route_code) : ""}</div>
       <div class="saw-row-sub">${escapeHtml(time)} · ${sc.hours}h · <span style="color:${tone}">${escapeHtml(sc.reason)}</span></div>
     </div>
     <span class="saw-score" style="background:${bg};color:${tone}">${sc.score}</span>
-    <button type="button" class="btn btn-sm${staged ? " btn-ghost" : " btn-primary"}" data-saw-toggle="${escapeHtml(sh.id)}">${staged ? "Remove" : "Add"}</button>
+    ${action}
   </div>`;
 }
 function _sawValidate(list) {
@@ -17775,7 +17875,12 @@ function _sawValidate(list) {
 }
 function _sawImpact() {
   const st = _sawState;
-  const list = st.openShifts.filter(s => st.staged.has(s.id));
+  // Smart Fill applies shifts immediately (st.placed). The manual list
+  // still stages open rows for Save (st.staged). Show both, de-duped by id.
+  const seen = new Set();
+  const list = [];
+  for (const s of (st.placed || [])) { if (s && !seen.has(s.id)) { seen.add(s.id); list.push(s); } }
+  for (const s of st.openShifts.filter(s => st.staged.has(s.id))) { if (!seen.has(s.id)) { seen.add(s.id); list.push(s); } }
   const routes = new Set(list.map(s => s.route_code).filter(Boolean));
   const otHours = st.teamOtRisk ? list.reduce((s, sh) => s + _sawShiftHours(sh, st.defBlock), 0) : 0;
   const savings = Math.round(otHours * st.hourly * 0.5);
@@ -17809,10 +17914,15 @@ function _sawSectionHtml() {
 
   let recList, manualBlock = "";
   if (loaded) {
-    const stagedShifts = st.openShifts.filter(s => st.staged.has(s.id)).sort((a, b) => a.date < b.date ? -1 : 1);
-    recList = stagedShifts.length
-      ? stagedShifts.map(_sawShiftRow).join("")
-      : (st.ran ? `<div class="saw-empty">Smart Fill found no shifts to place — try Add manually.</div>` : `<div class="saw-empty">Run Smart Fill or add manually to place ${escapeHtml(name)}.</div>`);
+    // Show what Smart Fill PLACED (already assigned) plus any open rows
+    // staged manually for Save, de-duped, earliest first.
+    const seen = new Set();
+    const placedShifts = (st.placed || []).filter(s => s && !seen.has(s.id) && seen.add(s.id));
+    const stagedShifts = st.openShifts.filter(s => st.staged.has(s.id) && !seen.has(s.id) && seen.add(s.id));
+    const recShifts = [...placedShifts, ...stagedShifts].sort((a, b) => a.date < b.date ? -1 : 1);
+    recList = recShifts.length
+      ? recShifts.map(_sawShiftRow).join("")
+      : (st.ran ? `<div class="saw-empty">Smart Fill couldn't place ${escapeHtml(name)} on any eligible day — try Add manually.</div>` : `<div class="saw-empty">Run Smart Fill or add manually to place ${escapeHtml(name)}.</div>`);
     if (st.manualOpen) {
       const stOpts = [...st.stMap.values()].map(s => `<option value="${escapeHtml(String(s.id))}">${escapeHtml(s.label || s.code)}</option>`).join("");
       const manualRows = _sawManualList().map(_sawShiftRow).join("") || `<div class="saw-empty">No open shifts match.</div>`;
@@ -17830,7 +17940,7 @@ function _sawSectionHtml() {
   return `<div class="saw-sched">
     <h4 class="saw-h">Schedule placement</h4>
     <div class="saw-status"><div><span class="saw-k">First available work date</span><span class="saw-v" style="color:#137C43;font-weight:700">${ready ? escapeHtml(st.firstDate) : "—"}</span></div></div>
-    <div class="saw-hint" style="margin:6px 0 10px">Smart Fill runs the scheduling engine for ${escapeHtml(name)} only — it opens route seats on their available, under-target days (never over target) and places them into the best ones. It won't change anyone else's schedule.</div>
+    <div class="saw-hint" style="margin:6px 0 10px">Smart Fill places ${escapeHtml(name)} on a shift each of their available days in the first week (up to ${maxDays}) and assigns it immediately — filling an open route if one's free, otherwise creating one from that day's real route shape. It won't change anyone else's schedule.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
       <button type="button" class="btn btn-sm btn-primary" data-saw-smartfill ${(!ready || st.running) ? "disabled" : ""} title="${ready ? "" : "Set the ride-along day first"}">${st.running ? "Running…" : "⚡ Smart Fill"}</button>
       <button type="button" class="btn btn-sm" data-saw-manual-toggle ${!ready ? "disabled" : ""}>${st.manualOpen ? "Hide manual" : "Add manually"}</button>
@@ -17839,7 +17949,7 @@ function _sawSectionHtml() {
     ${recList}
     ${manualBlock}
     <div class="saw-impact" style="margin-top:12px">
-      <div><span class="saw-k">Open shifts filled</span><span class="saw-v">${imp.filled}</span></div>
+      <div><span class="saw-k">Shifts placed</span><span class="saw-v">${imp.filled}</span></div>
       <div><span class="saw-k">Routes covered</span><span class="saw-v">${imp.routes}</span></div>
       <div><span class="saw-k">Scheduled days</span><span class="saw-v">${imp.days} / ${maxDays}</span></div>
       <div><span class="saw-k">Overtime reduced</span><span class="saw-v">${imp.otHours ? imp.otHours + "h · est. $" + imp.savings : "—"}</span></div>
@@ -17847,7 +17957,10 @@ function _sawSectionHtml() {
       <div><span class="saw-k">Compliance</span><span class="saw-v" style="color:${compTone};font-weight:700">${imp.val.ok ? "All checks pass" : imp.val.violations.length + " issue(s)"}</span></div>
     </div>
     ${!imp.val.ok ? `<div class="saw-violations">${imp.val.violations.map(x => `<div>• ${escapeHtml(x)}</div>`).join("")}</div>` : ""}
-    <div style="margin-top:12px"><button type="button" class="btn btn-sm btn-primary" data-saw-save ${imp.filled === 0 ? "disabled" : ""}>Save schedule (${imp.filled})</button></div>
+    <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      ${st.staged.size ? `<button type="button" class="btn btn-sm btn-primary" data-saw-save>Assign manual picks (${st.staged.size})</button>` : ""}
+      ${st.placed && st.placed.length ? `<span class="saw-v" style="color:#137C43;font-weight:700">✓ ${st.placed.length} shift${st.placed.length === 1 ? "" : "s"} assigned</span>` : ""}
+    </div>
   </div>`;
 }
 function _sawRenderSection() {
@@ -17887,7 +18000,7 @@ function _sawEnsureSection(driver, pair) {
     const maxDays = parseInt(window._rrEffectiveSettings?.max_days_per_week, 10) || 5;
     _sawState = {
       driver, driverId: driver.id, pair: pair || null, firstDate, maxDays, loaded: false,
-      staged: new Set(), filters: { date: "", st: "", route: "", start: "" }, manualOpen: false, running: false, ran: false,
+      placed: [], staged: new Set(), filters: { date: "", st: "", route: "", start: "" }, manualOpen: false, running: false, ran: false,
     };
   }
   _sawRenderSection();
