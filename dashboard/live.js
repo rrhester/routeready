@@ -17466,11 +17466,25 @@ async function _tpClear() {
 
 async function _tpActivate() {
   const s = _tpModalState; if (!s) return;
+  // Activating commits everything in one step: first save any staged Smart
+  // Fill shifts onto the driver (no separate Save button), then activate.
+  try {
+    const st = _sawState;
+    if (st && st.loaded && st.staged && st.staged.size) {
+      const list = (st.openShifts || []).filter(x => st.staged.has(x.id));
+      const val = _sawValidate(list);
+      if (!val.ok) { toast("Resolve the schedule issue first: " + val.violations[0], "warn"); return; }
+      for (const sh of list) {
+        const { error } = await sb.rpc("assign_shift", { p_id: sh.id, p_driver_id: s.driverId });
+        if (error) console.warn("assign_shift on activate failed:", error);
+      }
+    }
+  } catch (e) { console.warn("schedule save on activate failed:", e); }
   // No extra confirm() — clicking "Activate driver" in the modal (which
   // already spells out what happens) is the confirmation.
   const { error } = await sb.rpc("activate_driver_with_pairing", { p_driver_id: s.driverId });
   if (error) { toast("Activation failed: " + (error.message || ""), "warn"); return; }
-  toast("Driver activated · shifts created · messages queued", "success");
+  toast("Driver activated · schedule saved · messages queued", "success");
   document.getElementById("rr-tp-modal")?.remove();
   _tpModalState = null;
   if (typeof loadOnboardingOps === "function") loadOnboardingOps({ keepTab: true });
@@ -17888,7 +17902,7 @@ async function _sawSmartFill() {
         st.staged = new Set(createdIds); st.ran = true; st.running = false;
         if (typeof renderScheduleWeek === "function") { try { renderScheduleWeek(); } catch (_) {} }
         _sawRenderSection();
-        toast(`Smart Fill placed ${createdIds.length} shift${createdIds.length === 1 ? "" : "s"} for ${name} — review and Save.`, "success");
+        toast(`Smart Fill staged ${createdIds.length} shift${createdIds.length === 1 ? "" : "s"} for ${name} — saved when you activate.`, "success");
         return;
       }
       st.running = false; st.ran = true; _sawRenderSection();
@@ -17978,7 +17992,7 @@ async function _sawSmartFill() {
     _sawRenderSection();
     const name = st.driver.full_name || "this hire";
     toast(picked.size
-      ? `Smart Fill placed ${picked.size} shift${picked.size === 1 ? "" : "s"} for ${name} — review and Save.`
+      ? `Smart Fill staged ${picked.size} shift${picked.size === 1 ? "" : "s"} for ${name} — saved when you activate.`
       : `Smart Fill couldn't place ${name}. Use Add manually.`, picked.size ? "success" : "warn");
   } catch (e) {
     console.warn("Smart Fill failed:", e);
@@ -18118,8 +18132,7 @@ function _sawSectionHtml() {
   return `<div class="saw-sched">
     <h4 class="saw-h">Schedule placement</h4>
     <div class="saw-status"><div><span class="saw-k">First available work date</span><span class="saw-v" style="color:#137C43;font-weight:700">${ready ? escapeHtml(st.firstDate) : "—"}</span></div></div>
-    <div class="saw-hint" style="margin:6px 0 10px">Smart Fill runs the scheduling engine for ${escapeHtml(name)} only — it opens route seats on their available, under-target days (never over target) and places them into the best ones. It won't change anyone else's schedule.</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
       <button type="button" class="btn btn-sm btn-primary" data-saw-smartfill ${(!ready || st.running) ? "disabled" : ""} title="${ready ? "" : "Set the ride-along day first"}">${st.running ? "Running…" : "⚡ Smart Fill"}</button>
       <button type="button" class="btn btn-sm" data-saw-manual-toggle ${!ready ? "disabled" : ""}>${st.manualOpen ? "Hide manual" : "Add manually"}</button>
       ${st.staged.size ? `<button type="button" class="btn btn-sm btn-ghost" data-saw-clear style="margin-left:auto">Clear</button>` : ""}
@@ -18127,10 +18140,7 @@ function _sawSectionHtml() {
     ${recList}
     ${manualBlock}
     ${(loaded && !imp.val.ok) ? `<div class="saw-violations" style="margin-top:10px">${imp.val.violations.map(x => `<div>• ${escapeHtml(x)}</div>`).join("")}</div>` : ""}
-    <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
-      <button type="button" class="btn btn-sm btn-primary" data-saw-save ${imp.filled === 0 ? "disabled" : ""}>Save schedule (${imp.filled})</button>
-      ${imp.filled ? `<span class="saw-hint">${imp.days} day${imp.days === 1 ? "" : "s"} · <span style="color:${compTone};font-weight:700">${imp.val.ok ? "Compliant" : imp.val.violations.length + " issue" + (imp.val.violations.length === 1 ? "" : "s")}</span></span>` : ""}
-    </div>
+    ${imp.filled ? `<div class="saw-hint" style="margin-top:10px">${imp.filled} shift${imp.filled === 1 ? "" : "s"} · ${imp.days} day${imp.days === 1 ? "" : "s"} staged — <strong>saved when you activate the driver.</strong> <span style="color:${compTone};font-weight:700">${imp.val.ok ? "Compliant" : imp.val.violations.length + " issue" + (imp.val.violations.length === 1 ? "" : "s")}</span></div>` : ""}
   </div>`;
 }
 function _sawRenderSection() {
