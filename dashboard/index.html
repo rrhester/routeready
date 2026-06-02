@@ -817,10 +817,13 @@ textarea,
   stroke-linecap:round !important;stroke-linejoin:round !important;
 }
 
-/* ── No blue "selected" highlight on any command-ribbon / strip tile ──
-   Operator preference, every page, every icon: the active/selected tile
-   gets NO blue background box and NO blue icon — it's marked by bold
-   weight only. Overrides every per-view active rule. */
+/* ── Command-ribbon / strip tiles · uniform selected + hover ──────────
+   Operator preference, every page, every icon:
+   • Selected/active tile: NO blue background, NO blue icon, and NOT bold —
+     it reads the same as the inactive tiles (active state is otherwise
+     unmarked, per request). Overrides every per-view active rule.
+   • Hover: a subtle gray highlight (the Schedule ribbon's --sch-hover),
+     same on every page, with no blue icon. */
 .view .subnav-item.active,
 .view .fl-ribbon-btn.active,
 .view .fl-ribbon-view.active,
@@ -832,13 +835,29 @@ textarea,
   box-shadow:none !important;
   border-color:transparent !important;
   color:var(--text) !important;
-  font-weight:600;
+  font-weight:500 !important;
 }
 .view .subnav-item.active svg,
 .view .fl-ribbon-btn.active svg,
 .view .fl-ribbon-view.active svg,
 .view .wf-strip-tile.active svg,
 .view .ws-strip-tile.active svg{
+  color:var(--text) !important;
+}
+.view .subnav-item:hover,
+.view .fl-ribbon-btn:hover,
+.view .fl-ribbon-view:hover,
+.view .wf-strip-tile:hover,
+.view .ws-strip-tile:hover{
+  background:rgba(15,23,42,.04) !important;
+  border-radius:10px;
+  color:var(--text) !important;
+}
+.view .subnav-item:hover svg,
+.view .fl-ribbon-btn:hover svg,
+.view .fl-ribbon-view:hover svg,
+.view .wf-strip-tile:hover svg,
+.view .ws-strip-tile:hover svg{
   color:var(--text) !important;
 }
 
@@ -35293,7 +35312,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260602-vanonactivate"></script>
+<script type="module" src="./live.js?v=20260602-tileselecthover"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
