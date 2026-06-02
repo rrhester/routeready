@@ -817,6 +817,31 @@ textarea,
   stroke-linecap:round !important;stroke-linejoin:round !important;
 }
 
+/* ── No blue "selected" highlight on any command-ribbon / strip tile ──
+   Operator preference, every page, every icon: the active/selected tile
+   gets NO blue background box and NO blue icon — it's marked by bold
+   weight only. Overrides every per-view active rule. */
+.view .subnav-item.active,
+.view .fl-ribbon-btn.active,
+.view .fl-ribbon-view.active,
+.view .wf-strip-tile.active,
+.view .ws-strip-tile.active{
+  background:transparent !important;
+  background-color:transparent !important;
+  background-image:none !important;
+  box-shadow:none !important;
+  border-color:transparent !important;
+  color:var(--text) !important;
+  font-weight:600;
+}
+.view .subnav-item.active svg,
+.view .fl-ribbon-btn.active svg,
+.view .fl-ribbon-view.active svg,
+.view .wf-strip-tile.active svg,
+.view .ws-strip-tile.active svg{
+  color:var(--text) !important;
+}
+
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
   /* Driver-app communication blue — same gradient as the app header
@@ -35268,7 +35293,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260602-icon33r"></script>
+<script type="module" src="./live.js?v=20260602-noactiveblue"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
