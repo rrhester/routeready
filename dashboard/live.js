@@ -18411,7 +18411,6 @@ async function _tpPick(trainerId, isTrainer) {
                       return dt.toISOString().slice(0, 10);
                     })();
   if (!rideDate) { toast("Pick a ride-along date first", "warn"); return; }
-  if (!isTrainer && !confirm("This driver isn't marked as a trainer. They'll be notified to mentor for the day. Proceed?")) return;
   const { data, error } = await sb.rpc("propose_training_pairing", {
     p_trainee_id:          s.driverId,
     p_trainer_id:          trainerId,
