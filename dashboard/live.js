@@ -5448,6 +5448,14 @@ const _obShortHead = (t) => { t = String(t || "Step").trim(); return t.length > 
 // underlying-field mapping (_OB_STEP_FIELDS) if it has one, else a
 // state-backed column (driver_onboarding_state, migration 0179).
 function _obStepColumn(s) {
+  // The trainer_pair step was renamed "Trainer pairing" → "Schedule
+  // Assignment". A DSP's blueprint is persisted in the DB, so an existing
+  // tenant still carries the old title; override the display label for
+  // that step unless the operator set a custom one. (Internal key stays
+  // trainer_pair; no migration needed.)
+  if (s && s.key === "trainer_pair" && (!s.title || /^trainer pairing$/i.test(String(s.title).trim()))) {
+    s = { ...s, title: "Schedule Assignment" };
+  }
   const m = _OB_STEP_FIELDS[s.key];
   if (m) return { ...s, map: m };
   return { ...s, map: { kind: "state", done: s.key, doneLabel: "Done", head: _obShortHead(s.title), todoLabel: `${s.title || "Step"} — not yet` } };
