@@ -48,12 +48,13 @@ begin
     raise exception 'driver not found' using errcode = 'P0002';
   end if;
 
-  -- Fetch the active pairing.
+  -- Fetch the latest pairing for this trainee, regardless of status — this
+  -- RPC is idempotent and never flips status, so it's safe to (re)schedule
+  -- training for a proposed, needs_repair, OR already-materialized pairing.
   select * into v_pair
     from public.training_pairings
    where trainee_id = p_driver_id
      and dsp_id     = v_dsp
-     and status in ('proposed', 'needs_repair')
    order by created_at desc
    limit 1;
 

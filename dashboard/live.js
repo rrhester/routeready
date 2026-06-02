@@ -17338,6 +17338,10 @@ function _renderTrainingPairingModal() {
     : "";
 
   const canActivate = has && pair.trainer_id && pair.ride_along_date && pair.training_start_date && status === "proposed";
+  // Scheduling training only is idempotent and doesn't flip status, so allow
+  // it for any complete, non-cleared pairing (proposed, needs_repair, or
+  // already materialized) — not just proposed like Activate.
+  const canScheduleTraining = has && pair.trainer_id && pair.ride_along_date && pair.training_start_date && status !== null;
 
   let m = document.getElementById("rr-tp-modal");
   if (m) m.remove();
@@ -17394,7 +17398,7 @@ function _renderTrainingPairingModal() {
       <div style="display:flex;gap:var(--s-2);justify-content:flex-end;align-items:center;border-top:1px solid var(--border);padding:14px 22px;flex:0 0 auto;background:var(--surface)">
         ${has ? `<button type="button" class="btn btn-ghost" data-rr-tp-clear>Clear match</button>` : ""}
         <button type="button" class="btn" data-rr-tp-close>Close</button>
-        <button type="button" class="btn" data-rr-tp-sched-training ${canActivate ? "" : "disabled"} title="${canActivate ? "Puts only the classroom days + ride-along on the schedule — no other shifts; driver stays in onboarding" : "Set the classroom days, ride-along day, and trainer first"}">Schedule training only</button>
+        <button type="button" class="btn" data-rr-tp-sched-training ${canScheduleTraining ? "" : "disabled"} title="${canScheduleTraining ? "Puts only the classroom days + ride-along on the schedule — no other shifts; driver stays in onboarding" : "Set the classroom days, ride-along day, and trainer first"}">Schedule training only</button>
         <button type="button" class="btn btn-primary" data-rr-tp-activate ${canActivate ? "" : "disabled"} title="${canActivate ? "Materializes shifts and flips driver to active" : "Set first training day, ride-along day, and trainer before activating"}">Activate driver</button>
       </div>
     </div>`;
