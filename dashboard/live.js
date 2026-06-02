@@ -17829,10 +17829,14 @@ async function _sawDirectFillSeats(st) {
     days.push(d);
   }
   const targetDays = days.slice(0, st.maxDays);
+  // Always record what the seat-creator is working with, so the diagnostic
+  // shows the real runtime values (station resolved? which days?) even when
+  // no per-day error fires.
+  st._seatDiag.push(`station ${st.stationId ? "resolved" : "MISSING"}; candidate days: ${targetDays.length ? targetDays.join(", ") : "none"} (window ${st.firstDate}→${wkEnd}, ${st.maxDays} max)`);
   const created = [];
   for (const d of targetDays) {
     const row = await _sawCreateOpenSeat(st, d);
-    if (row && row.id) created.push(row);
+    if (row && row.id) { created.push(row); st._seatDiag.push(`${d}: created seat ✓`); }
   }
   if (created.length) { try { await _sawReloadOpen(st); } catch (_) {} }
   return created.map(r => r.id);
@@ -17982,8 +17986,8 @@ function _sawDiagnostic(st) {
     : "";
   const seatErrs = Array.isArray(st._seatDiag) ? st._seatDiag : [];
   const seatLine = seatErrs.length
-    ? `<div style="margin-top:4px;color:#B8281E">Tried to create seats but couldn't:${seatErrs.map(e => `<div style="padding-left:10px">· ${escapeHtml(String(e))}</div>`).join("")}</div>`
-    : "";
+    ? `<div style="margin-top:4px;color:#8A5D00">Seat-creator trace:${seatErrs.map(e => `<div style="padding-left:10px">· ${escapeHtml(String(e))}</div>`).join("")}</div>`
+    : `<div style="margin-top:4px;color:#B8281E">Seat-creator did not run (fallback not reached).</div>`;
   return `<div class="saw-empty" style="text-align:left;font-size:11px;line-height:1.65;color:var(--text)">
     <strong>Smart Fill placed nothing — here's exactly what it sees:</strong><br>
     Window: <b>${escapeHtml(st.firstDate)} → ${escapeHtml(st.endDate)}</b> (${escapeHtml(name)} can't work before this — training/ride-along runs through ${escapeHtml(st.rideDate || "—")}).<br>
