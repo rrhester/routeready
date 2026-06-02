@@ -17330,7 +17330,7 @@ function _renderTrainingPairingModal() {
   m.id = "rr-tp-modal";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10001;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:620px;width:100%;max-height:92vh;display:flex;flex-direction:column;overflow-y:auto">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:620px;width:100%;max-height:92vh;overflow-y:auto">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);margin-bottom:12px">
         <div>
           <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Schedule</h3>
