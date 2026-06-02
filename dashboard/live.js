@@ -17374,15 +17374,18 @@ function _renderTrainingPairingModal() {
 
       <div style="margin-bottom:14px">
         <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">Trainer for Day 3</label>
-        <button type="button" class="btn" data-rr-tp-pick style="width:100%;justify-content:flex-start;text-align:left">
-          ${has && pair.trainer_id
-            ? `★ ${escapeHtml(trainerName || "Selected")}${pair.source === "fallback" ? " · fallback" : ""}`
-            : "Pick a trainer…"}
-        </button>
+        <div style="position:relative">
+          <button type="button" class="btn" data-rr-tp-pick style="width:100%;justify-content:flex-start;text-align:left">
+            ${has && pair.trainer_id
+              ? `★ ${escapeHtml(trainerName || "Selected")}${pair.source === "fallback" ? " · fallback" : ""}`
+              : "Pick a trainer…"}
+          </button>
+          <!-- Floating dropdown: overlays the content below so opening the
+               trainer list never changes the card's height. -->
+          <div id="rr-tp-picker-pane" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg,10px);box-shadow:0 18px 44px -14px rgba(15,23,42,.4);padding:12px 14px;max-height:340px;overflow-y:auto"></div>
+        </div>
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:5px">Designated trainers shown first; fall back to any active driver if no trainer fits. Set the ride-along day first so the list filters to drivers scheduled that day.</div>
       </div>
-
-      <div id="rr-tp-picker-pane" style="display:none;border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px;max-height:36vh;overflow-y:auto"></div>
 
       <div id="rr-tp-sched-host" class="saw" style="border-top:1px solid var(--border);margin-bottom:14px;padding-top:14px"></div>
 
@@ -17396,9 +17399,21 @@ function _renderTrainingPairingModal() {
 
   m.addEventListener("click", (e) => {
     if (e.target === m || e.target.closest("[data-rr-tp-close]")) { m.remove(); _tpModalState = null; _sawState = null; return; }
+    // Dismiss the floating trainer dropdown on any click outside it (and not
+    // on the toggle button). Doesn't return — the actual click still runs.
+    const _pane = document.getElementById("rr-tp-picker-pane");
+    if (_pane && _pane.style.display !== "none" && !e.target.closest("#rr-tp-picker-pane") && !e.target.closest("[data-rr-tp-pick]")) {
+      _pane.style.display = "none";
+    }
     // Training controls take priority and always run — never gated by the
     // schedule-placement section's handler (which only acts on data-saw-*).
-    if (e.target.closest("[data-rr-tp-pick]"))     { e.preventDefault(); _tpOpenPickerPane(); return; }
+    if (e.target.closest("[data-rr-tp-pick]")) {
+      e.preventDefault();
+      // Toggle the dropdown open/closed.
+      if (_pane && _pane.style.display !== "none") { _pane.style.display = "none"; }
+      else { _tpOpenPickerPane(); }
+      return;
+    }
     if (e.target.closest("[data-rr-tp-clear]"))    { e.preventDefault(); _tpClear(); return; }
     if (e.target.closest("[data-rr-tp-activate]")) { e.preventDefault(); _tpActivate(); return; }
     const row = e.target.closest("[data-rr-tp-row]");
