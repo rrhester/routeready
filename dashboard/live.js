@@ -17948,6 +17948,37 @@ async function _sawSmartFill() {
   }
 }
 
+// Persistent, on-screen diagnostic for when Smart Fill places nothing — so
+// the real blocker is visible instead of a vague "no shifts" message. Shows
+// exactly what the wizard's query sees in the hire's window: how many open
+// (unassigned) shifts exist, how many are eligible, and the per-reason
+// breakdown of why the rest were skipped.
+function _sawDiagnostic(st) {
+  const name = displayDriverName(st.driver) || st.driver.full_name || "this hire";
+  const open = st.openShifts || [];
+  const inWin = open.filter(s => s.date >= st.firstDate && s.date <= st.endDate);
+  const elig = inWin.filter(s => st.eligibility(s).ok);
+  const reasons = {};
+  for (const s of inWin) { const e = st.eligibility(s); if (!e.ok) reasons[e.why] = (reasons[e.why] || 0) + 1; }
+  const reasonRows = Object.entries(reasons).sort((a, b) => b[1] - a[1])
+    .map(([w, n]) => `<div style="padding-left:10px">· ${n} × ${escapeHtml(w)}</div>`).join("");
+  const byDate = {};
+  for (const s of inWin) byDate[s.date] = (byDate[s.date] || 0) + 1;
+  const dateRows = Object.keys(byDate).sort().map(d => `${d} (${byDate[d]})`).join(", ");
+  const d = st._genDiag || {};
+  const genLine = (d.cells != null)
+    ? `Route targets (OKAMI) in that week: <b>${d.cells || 0}</b> day-stations; your available days with demand: <b>${d.eligibleDays != null ? d.eligibleDays : "—"}</b>; seats generated: <b>${d.generated != null ? d.generated : "—"}</b>${d.okamiErr ? ` <span style="color:#B8281E">(targets error: ${escapeHtml(String(d.okamiErr))})</span>` : ""}.<br>`
+    : "";
+  return `<div class="saw-empty" style="text-align:left;font-size:11px;line-height:1.65;color:var(--text)">
+    <strong>Smart Fill placed nothing — here's exactly what it sees:</strong><br>
+    Window: <b>${escapeHtml(st.firstDate)} → ${escapeHtml(st.endDate)}</b> (${escapeHtml(name)} can't work before this — training/ride-along runs through ${escapeHtml(st.rideDate || "—")}).<br>
+    Open (unassigned) shifts in that window: <b>${inWin.length}</b>${inWin.length ? ` — on ${escapeHtml(dateRows)}` : ""}.<br>
+    Of those, eligible for ${escapeHtml(name)}: <b>${elig.length}</b>.<br>
+    ${reasonRows ? `Why the rest were skipped:${reasonRows}` : ""}
+    ${genLine}
+    ${inWin.length === 0 ? `<div style="margin-top:6px"><em>Note: if you see open shifts on the Schedule page, they're either dated <b>before ${escapeHtml(st.firstDate)}</b> or in a different week — ${escapeHtml(name)} is only placeable on/after ${escapeHtml(st.firstDate)}. Use the date picker in <b>Add manually</b> to check a specific day.</em></div>` : ""}
+  </div>`;
+}
 function _sawStLabel(sh) {
   const st = _sawState.stMap.get(sh.service_type_id);
   return (st && (st.label || st.code)) || "Standard";
@@ -18025,7 +18056,7 @@ function _sawSectionHtml() {
     const stagedShifts = st.openShifts.filter(s => st.staged.has(s.id)).sort((a, b) => a.date < b.date ? -1 : 1);
     recList = stagedShifts.length
       ? stagedShifts.map(_sawShiftRow).join("")
-      : (st.ran ? `<div class="saw-empty">Smart Fill found no shifts to place — try Add manually.</div>` : `<div class="saw-empty">Run Smart Fill or add manually to place ${escapeHtml(name)}.</div>`);
+      : (st.ran ? _sawDiagnostic(st) : `<div class="saw-empty">Run Smart Fill or add manually to place ${escapeHtml(name)}.</div>`);
     if (st.manualOpen) {
       const stOpts = [...st.stMap.values()].map(s => `<option value="${escapeHtml(String(s.id))}">${escapeHtml(s.label || s.code)}</option>`).join("");
       const manualRows = _sawManualList().map(_sawShiftRow).join("") || `<div class="saw-empty">No open shifts match.</div>`;
