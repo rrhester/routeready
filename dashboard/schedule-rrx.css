@@ -2534,6 +2534,16 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip[data-rr-shift
   border-color: color-mix(in srgb, var(--rr-route-c-road_training) 65%, transparent) !important;
   box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-road_training) 22%, transparent) !important;
 }
+/* Trainer hosting a ride-along trainee — a regular shift that earns the
+   .shift-chip-training class (extras.traineeName in _schedShiftChip). The
+   extra [data-rr-shift-kind="regular"] qualifier raises specificity so this
+   wins over the route-class rules above when a trainer's shift also carries
+   a Rescue/Nursery/etc. classification. */
+body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.shift-chip-training[data-rr-shift-kind="regular"]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: color-mix(in srgb, var(--rr-route-c-trainer_trainee) 22%, transparent) !important;
+  border-color: color-mix(in srgb, var(--rr-route-c-trainer_trainee) 65%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--rr-route-c-trainer_trainee) 22%, transparent) !important;
+}
 
 /* PTO / time-off chips are clickable — clicking one offers to remove the
    approved time off (driver changed their mind). Signal that affordance
