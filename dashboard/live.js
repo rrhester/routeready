@@ -17294,18 +17294,17 @@ function _tpDayRowsHtml(pair) {
   const fmtD = (x) => x ? new Date(x + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "—";
   const day2 = start ? (() => { const dt = new Date(start + "T12:00:00"); dt.setDate(dt.getDate() + 1); return dt.toISOString().slice(0, 10); })() : "";
   const dot = (done, warn) => `<span style="width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:${warn ? "#d97706" : done ? "#16a34a" : "var(--border)"}"></span>`;
-  const dayRow = (lbl, dateStr, sub, done, warn) => `
-    <div style="display:flex;align-items:center;gap:9px;padding:7px 0;font-size:var(--fs-sm);${lbl !== "Day 1" ? "border-top:1px solid var(--border)" : ""}">
+  const dayRow = (lbl, dateStr, sub, done, warn, first) => `
+    <div style="display:flex;align-items:center;gap:9px;padding:8px 0;font-size:var(--fs-sm);${first ? "" : "border-top:1px solid var(--border)"}">
       ${dot(done, warn)}
-      <span style="font-weight:600;width:48px;flex:0 0 auto">${escapeHtml(lbl)}</span>
-      <span style="color:var(--text-muted);width:140px;flex:0 0 auto">${escapeHtml(dateStr ? fmtD(dateStr) : "—")}</span>
-      <span style="color:var(--text-subtle);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(sub)}</span>
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="font-weight:600">${escapeHtml(lbl)}</span>${sub ? ` <span style="color:var(--text-subtle)">· ${escapeHtml(sub)}</span>` : ""}</span>
+      <span style="color:var(--text-muted);flex:0 0 auto">${escapeHtml(dateStr ? fmtD(dateStr) : "—")}</span>
     </div>`;
   const trainerName = (pair && pair._trainer_name) || (has && pair.trainer_id ? "Trainer selected" : "");
-  const trainerSub = has && pair.trainer_id ? `Riding with ${trainerName || "trainer"}` : "Pick a trainer";
-  return dayRow("Day 1", start, "Station training", !!start, false)
-       + dayRow("Day 2", day2,  "Station training", !!start, false)
-       + dayRow("Day 3", ride,  trainerSub, !!(ride && has && pair.trainer_id), status === "needs_repair");
+  const trainerSub = has && pair.trainer_id ? `Riding with ${trainerName || "trainer"}` : "";
+  return dayRow("1st day of classroom training", start, "", !!start, false, true)
+       + dayRow("2nd day of classroom training", day2,  "", !!start, false, false)
+       + dayRow("Ride-along day", ride, trainerSub, !!(ride && has && pair.trainer_id), status === "needs_repair", false);
 }
 
 function _renderTrainingPairingModal() {
