@@ -12116,13 +12116,13 @@ body.rr-cmdk-open{ overflow:hidden }
         #view-onboarding-ops .sched-nav-heading .subnav-item:hover{
           color:var(--text);background:rgba(0,0,0,.04);
         }
-        /* Operator preference · no blue highlight on active tile.
-           Only the font-weight bumps to 600 for a subtle indicator;
-           color + svg color stay matching the inactive tiles. */
+        /* Operator preference · NO blue highlight on the active tile — no
+           selected background, no blue text/icon. Only the font-weight bump
+           to 600 marks the active tile; color stays matching the others. */
         #view-onboarding-ops .sched-nav-heading .subnav-item.active{
-          color:var(--rr-brand-pressed);background:var(--rr-bg-selected);font-weight:600;
+          color:var(--text);background:transparent;font-weight:600;
         }
-        #view-onboarding-ops .sched-nav-heading .subnav-item.active svg{color:var(--rr-brand-primary)}
+        #view-onboarding-ops .sched-nav-heading .subnav-item.active svg{color:var(--text)}
         /* Roster-strip icons · Schedule's grey (#605E5C) at 1.6 stroke
            weight and 28px (set above), but VERY SQUARE glyphs (square
            caps + miter joins + no rounded corners, in the SVG markup).
@@ -35253,7 +35253,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260602-blackicons"></script>
+<script type="module" src="./live.js?v=20260602-noblueactive"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
