@@ -802,6 +802,20 @@ textarea,
 }
 #view-onboarding-ops .ob-tb-btn:disabled{opacity:.38;cursor:default}
 
+/* ── Uniform dashboard command-ribbon icons ──────────────────
+   Every page's command-strip icon renders at the Schedule strip's
+   size (28px), 1.6 stroke, round caps — overriding each page's
+   per-view sizes and responsive (@media) shrinks so Onboarding,
+   Roster, Fleet, and Workflows all match the Schedule page. */
+.view .subnav-item svg,
+.view .fl-ribbon-btn svg,
+.view .wf-strip-tile svg,
+.view .ws-strip-tile svg{
+  width:28px !important;height:28px !important;flex-shrink:0;
+  stroke-width:1.6 !important;
+  stroke-linecap:round;stroke-linejoin:round;
+}
+
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
   /* Driver-app communication blue — same gradient as the app header
@@ -35253,7 +35267,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260602-noblueactive"></script>
+<script type="module" src="./live.js?v=20260602-iconsize"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
