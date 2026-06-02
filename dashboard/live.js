@@ -6886,20 +6886,25 @@ function _statusPillDate(iso) {
   const d = new Date(iso);
   return isNaN(d) ? "" : d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "2-digit" });
 }
+// Effective date for the driver's current status. We don't keep a status
+// history, so: terminated → separation date, on leave → leave date, and
+// every other status → an explicit status-change stamp when present, then
+// hire date as a stable proxy, then updated_at.
+function _statusEffectiveIso(drv, status) {
+  const md = (drv && drv.metadata) || {};
+  if (status === "terminated") return md.separation_date || md.status_effective_date || drv.updated_at;
+  if (status === "leave")      return md.leave_date || md.leave_start || md.status_effective_date || drv.updated_at;
+  return md.status_effective_date || drv.hire_date || drv.updated_at;
+}
 function _statusPillCell(status, driverId) {
   const m = _RR_STATUS_MAP[status] || { label: status || "—", cls: "rr-dstatus-inactive" };
-  // Terminated / on-leave pills carry the effective date so the operator
-  // sees when it took effect without opening the drawer. We don't model
-  // an explicit column, so use the separation/leave date from metadata
-  // when present, falling back to updated_at (when the status flipped).
+  // Every status pill carries its effective date so the operator sees
+  // when it took effect without opening the drawer.
   let label = m.label;
-  if (status === "terminated" || status === "leave") {
+  {
     const drv = (_rosterRows || []).find((r) => r.id === driverId);
     if (drv) {
-      const iso = status === "terminated"
-        ? (drv.metadata?.separation_date || drv.updated_at)
-        : (drv.metadata?.leave_date || drv.metadata?.leave_start || drv.updated_at);
-      const ds = _statusPillDate(iso);
+      const ds = _statusPillDate(_statusEffectiveIso(drv, status));
       if (ds) label = `${m.label} · ${ds}`;
     }
   }
@@ -6992,7 +6997,14 @@ document.addEventListener("click", async (e) => {
       return;
     }
     opt.disabled = true;
-    const { error } = await sb.from("drivers").update({ status: nextStatus }).eq("id", id);
+    // Stamp the effective date of the change so the status pill can show
+    // "Active · 6/1/26" etc. (and leave/leave_date for on-leave).
+    const drv = (_rosterRows || []).find((r) => r.id === id);
+    const meta = Object.assign({}, (drv && drv.metadata) || {});
+    const todayIso = fmtIsoDate(new Date());
+    meta.status_effective_date = todayIso;
+    if (nextStatus === "leave") meta.leave_date = todayIso;
+    const { error } = await sb.from("drivers").update({ status: nextStatus, metadata: meta }).eq("id", id);
     _rrCloseStatusPicker();
     if (error) { toast("Couldn't update status: " + (error.message || ""), "warn"); return; }
     if (typeof loadDriversRoster === "function") loadDriversRoster();
