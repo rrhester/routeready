@@ -17653,6 +17653,10 @@ async function _sawGenerateSeats(st) {
     cells = Array.isArray(r?.data) ? r.data : [];
   } catch (e) { diag.okamiErr = e?.message || String(e); return 0; }
   diag.cells = cells.length;
+  // Capture a station to fall back on when the hire has none and there's no
+  // nearby shift to borrow one from — OKAMI cells carry a station even for a
+  // week with zero built shifts, so seat-creation can always proceed.
+  if (!st.stationId) { const ws = cells.find(c => c.station_id); if (ws) st.stationId = ws.station_id; }
   const wkEnd = _sawAddDaysIso(st.firstDate, 6);
   // One (date, station) per eligible day with real demand; cap at maxDays
   // distinct days (the most-demanded) so we don't build the whole week.
