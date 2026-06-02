@@ -17521,10 +17521,16 @@ async function _sawLoadData(driver, firstDate, pair) {
   // are respected, exactly like the main Smart Fill.
   const windowDates = [];
   for (let i = 0; i <= 13; i++) windowDates.push(_sawAddDaysIso(firstDate, i));
-  let drvRow = driver, stMap = new Map(), openShifts = [], teamOtRisk = false, driverShifts = [], effRows = [];
+  // Template lookback — pull real productive shifts from recent weeks too,
+  // not just the hire's forward window. The forward window is often empty
+  // (their first week hasn't been built yet), but the DSP's recurring
+  // schedule lives in prior weeks, giving us a real route shape to model a
+  // created seat on.
+  const tmplStart = _sawAddDaysIso(firstDate, -28);
+  let drvRow = driver, stMap = new Map(), openShifts = [], teamOtRisk = false, driverShifts = [], effRows = [], templateShifts = [];
   try {
-    const [drvRes, stRes, shRes, otRes, ownRes, effRes] = await Promise.all([
-      sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, status, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, hire_date").eq("id", driver.id).maybeSingle().then(r => r, () => ({ data: null })),
+    const [drvRes, stRes, shRes, otRes, ownRes, effRes, tmplRes] = await Promise.all([
+      sb.from("drivers").select("id, full_name, first_name, last_name, preferred_name, status, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, hire_date, station_id").eq("id", driver.id).maybeSingle().then(r => r, () => ({ data: null })),
       sb.from("service_types").select("id, code, label, requires_dot, requires_xl, requires_edv, active").eq("dsp_id", dspId).then(r => r, () => ({ data: [] })),
       // "Open" = unassigned and not a terminal/cancelled row. Matches the
       // main Smart Fill's open-shift detection (don't require status
@@ -17539,6 +17545,12 @@ async function _sawLoadData(driver, firstDate, pair) {
       // requests (e.g. a Saturday opened up this week) the static metadata
       // default doesn't carry.
       sb.rpc("driver_effective_days_for_drivers", { p_driver_ids: [driver.id], p_dates: windowDates }).then(r => r, () => ({ data: [] })),
+      // Template shifts — ANY driver's real, productive shifts from recent
+      // weeks through the window. Direct seat-creation copies station /
+      // service-type / times / route from these so a newly-created open
+      // seat looks like a real one for that day, even when the hire's own
+      // forward window has no shift yet.
+      sb.from("shifts").select("id, date, station_id, route_code, service_type_id, starts_at, ends_at, block_hours, shift_kind").eq("dsp_id", dspId).not("status", "in", "(no_show,called_off,cancelled)").gte("date", tmplStart).lte("date", endDate).then(r => r, () => ({ data: [] })),
     ]);
     if (drvRes?.data) drvRow = drvRes.data;
     for (const stp of (stRes?.data || [])) stMap.set(stp.id, stp);
@@ -17547,6 +17559,9 @@ async function _sawLoadData(driver, firstDate, pair) {
     openShifts = (shRes?.data || []).filter(s => !["training", "ride_along"].includes(s.shift_kind));
     driverShifts = ownRes?.data || [];
     effRows = Array.isArray(effRes?.data) ? effRes.data : [];
+    // Only real productive shifts make good templates (skip training /
+    // ride-along rows — they carry no route/service-type to copy).
+    templateShifts = (tmplRes?.data || []).filter(s => !["training", "ride_along"].includes(s.shift_kind) && s.starts_at && s.ends_at);
     const otd = otRes?.data?.drivers || [];
     const otThreshold = Number(window.RR?.dsp?.metadata?.scheduling?.overtime_threshold_hours) || 40;
     teamOtRisk = otd.some(d => d.ot_risk || (Number(d.projected_hours) || 0) > otThreshold);
@@ -17606,9 +17621,15 @@ async function _sawLoadData(driver, firstDate, pair) {
   // Preserve UI state (staged picks, filters, manual toggle) across a
   // reload so saving/regenerating doesn't reset the operator's screen.
   const prev = (_sawState && _sawState.driverId === driver.id) ? _sawState : null;
+  // A station to create against when synthesizing a seat: the hire's own
+  // station, else the station of any nearby real shift.
+  const stationId = drvRow.station_id
+    || (templateShifts.find(s => s.station_id) || {}).station_id
+    || (openShifts.find(s => s.station_id) || {}).station_id
+    || null;
   _sawState = {
     driver: drvRow, driverId: driver.id, pair: pair || null, firstDate, endDate, rideDate, defBlock, maxDays, weeklyCap, minRest, hourly,
-    stMap, openShifts, driverShifts, busyDates, eligibility, scoreOf, teamOtRisk, dayAvailable: dowOk, loaded: true,
+    stMap, openShifts, driverShifts, templateShifts, stationId, busyDates, eligibility, scoreOf, teamOtRisk, dayAvailable: dowOk, loaded: true,
     staged: prev?.staged || new Set(), filters: prev?.filters || { date: "", st: "", route: "", start: "" },
     manualOpen: prev?.manualOpen || false, running: false, ran: prev?.ran || false,
   };
@@ -17715,15 +17736,37 @@ function _sawTemplateTimesForDate(tmpl, date) {
 // shift row (driver_id null) or null. Never throws.
 async function _sawCreateOpenSeat(st, date) {
   const pick = _sawPickTemplate(st, date);
-  if (!pick) return null;
-  const tmpl = pick.tmpl;
-  const stationId = (st.stationId || tmpl.station_id) || null;
+  // Template (real shift to copy) is preferred; if the DSP has no shift at
+  // all to model on, synthesize a seat from sensible defaults so the hire
+  // is still placeable (standard route, default block hours, ~10:15 start).
+  let stationId, routeCode, serviceTypeId, blockHours, times;
+  if (pick) {
+    const tmpl = pick.tmpl;
+    stationId = (st.stationId || tmpl.station_id) || null;
+    routeCode = tmpl.route_code || null;
+    serviceTypeId = tmpl.service_type_id || null;
+    blockHours = tmpl.block_hours || null;
+    // Same-day template keeps its exact times; cross-day template has its
+    // time-of-day shifted onto the target date.
+    times = pick.sameDay
+      ? { starts_at: tmpl.starts_at, ends_at: tmpl.ends_at }
+      : _sawTemplateTimesForDate(tmpl, date);
+  } else {
+    stationId = st.stationId || null;
+    // Pick a standard (no extra cert) active service type the hire qualifies
+    // for, so the synthesized seat passes validation on Save.
+    const certOk = (c) => !(c.requires_dot && !st.driver.dot_certified) && !(c.requires_xl && !st.driver.xl_certified) && !(c.requires_edv && !st.driver.edv_certified);
+    const svc = [...st.stMap.values()].filter(c => c.active !== false && certOk(c))
+      .sort((a, b) => (a.requires_dot || a.requires_xl || a.requires_edv ? 1 : 0) - (b.requires_dot || b.requires_xl || b.requires_edv ? 1 : 0))[0] || null;
+    routeCode = null;
+    serviceTypeId = svc ? svc.id : null;
+    blockHours = st.defBlock || 10;
+    const startH = 10, startM = 15;
+    const starts = new Date(`${date}T${String(startH).padStart(2, "0")}:${String(startM).padStart(2, "0")}:00`);
+    const ends = new Date(starts.getTime() + (st.defBlock || 10) * 3600000);
+    times = isNaN(starts) ? { starts_at: null, ends_at: null } : { starts_at: starts.toISOString(), ends_at: ends.toISOString() };
+  }
   if (!stationId) return null;
-  // Same-day template keeps its exact times; cross-day template has its
-  // time-of-day shifted onto the target date.
-  const times = pick.sameDay
-    ? { starts_at: tmpl.starts_at, ends_at: tmpl.ends_at }
-    : _sawTemplateTimesForDate(tmpl, date);
   if (!times.starts_at || !times.ends_at) return null;
   // create_shift (migration 0344) reads: station_id, driver_id, date,
   // starts_at, ends_at, route_code, status, source, shift_kind,
@@ -17733,8 +17776,8 @@ async function _sawCreateOpenSeat(st, date) {
     date,
     station_id: stationId,
     driver_id: null,
-    route_code: tmpl.route_code || null,
-    service_type_id: tmpl.service_type_id || null,
+    route_code: routeCode,
+    service_type_id: serviceTypeId,
     shift_kind: "regular",
     status: "scheduled",
     source: "manual",
@@ -17745,7 +17788,7 @@ async function _sawCreateOpenSeat(st, date) {
     if (typeof _markLocalShiftMutation === "function") { try { _markLocalShiftMutation(); } catch (_) {} }
     const { data: row, error } = await sb.rpc("create_shift", { p_payload: payload });
     if (error) throw error;
-    return (row && row.id) ? row : { id: `new-${date}-${Math.random().toString(36).slice(2, 7)}`, ...payload, block_hours: tmpl.block_hours || null };
+    return (row && row.id) ? row : { id: `new-${date}-${Math.random().toString(36).slice(2, 7)}`, ...payload, block_hours: blockHours };
   } catch (e) {
     console.warn("_sawCreateOpenSeat failed:", e);
     return null;
