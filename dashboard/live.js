@@ -17346,8 +17346,8 @@ function _renderTrainingPairingModal() {
   m.id = "rr-tp-modal";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:10001;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
   m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:620px;width:100%;max-height:92vh;overflow-y:auto">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);margin-bottom:12px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);max-width:620px;width:100%;height:min(88vh,720px);display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3);padding:22px 22px 12px;flex:0 0 auto">
         <div>
           <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Schedule</h3>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:3px">${escapeHtml(displayDriverName(d) || "Driver")} · Day 1+2 station, Day 3 ride-along</div>
@@ -17355,41 +17355,42 @@ function _renderTrainingPairingModal() {
         <div style="display:flex;align-items:center;gap:var(--s-2)">${pill}<button data-rr-tp-close style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 4px;line-height:1">×</button></div>
       </div>
 
-      ${repairBanner}
+      <!-- Scroll body: the card has a FIXED height; only this middle section
+           scrolls, so adding shift rows / opening the trainer list never
+           changes the modal's size. -->
+      <div style="flex:1 1 auto;overflow-y:auto;min-height:0;padding:0 22px 4px">
+        ${repairBanner}
 
-      <div id="rr-tp-dayrows" style="border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;margin-bottom:14px">
-        ${_tpDayRowsHtml(pair)}
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3);margin-bottom:12px">
-        <div>
-          <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">First training day</label>
-          <input type="date" data-rr-tp-start class="form-input" style="width:100%" value="${escapeHtml(start || "")}"/>
+        <div id="rr-tp-dayrows" style="border:1px solid var(--border);border-radius:var(--r-md);padding:10px 14px;margin-bottom:14px">
+          ${_tpDayRowsHtml(pair)}
         </div>
-        <div>
-          <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">Ride-along day</label>
-          <input type="date" data-rr-tp-ride class="form-input" style="width:100%" value="${escapeHtml(ride || "")}"/>
-        </div>
-      </div>
 
-      <div style="margin-bottom:14px">
-        <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">Trainer for Day 3</label>
-        <div style="position:relative">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3);margin-bottom:12px">
+          <div>
+            <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">First training day</label>
+            <input type="date" data-rr-tp-start class="form-input" style="width:100%" value="${escapeHtml(start || "")}"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">Ride-along day</label>
+            <input type="date" data-rr-tp-ride class="form-input" style="width:100%" value="${escapeHtml(ride || "")}"/>
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px">
+          <label style="display:block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle);margin-bottom:5px">Trainer for Day 3</label>
           <button type="button" class="btn" data-rr-tp-pick style="width:100%;justify-content:flex-start;text-align:left">
             ${has && pair.trainer_id
               ? `★ ${escapeHtml(trainerName || "Selected")}${pair.source === "fallback" ? " · fallback" : ""}`
               : "Pick a trainer…"}
           </button>
-          <!-- Floating dropdown: overlays the content below so opening the
-               trainer list never changes the card's height. -->
-          <div id="rr-tp-picker-pane" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg,10px);box-shadow:0 18px 44px -14px rgba(15,23,42,.4);padding:12px 14px;max-height:340px;overflow-y:auto"></div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:5px">Designated trainers shown first; fall back to any active driver if no trainer fits. Set the ride-along day first so the list filters to drivers scheduled that day.</div>
+          <div id="rr-tp-picker-pane" style="display:none;border-top:1px solid var(--border);padding-top:14px;margin-top:10px;max-height:36vh;overflow-y:auto"></div>
         </div>
-        <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:5px">Designated trainers shown first; fall back to any active driver if no trainer fits. Set the ride-along day first so the list filters to drivers scheduled that day.</div>
+
+        <div id="rr-tp-sched-host" class="saw" style="border-top:1px solid var(--border);margin-bottom:4px;padding-top:14px"></div>
       </div>
 
-      <div id="rr-tp-sched-host" class="saw" style="border-top:1px solid var(--border);margin-bottom:14px;padding-top:14px"></div>
-
-      <div style="display:flex;gap:var(--s-2);justify-content:flex-end;align-items:center;border-top:1px solid var(--border);padding-top:14px">
+      <div style="display:flex;gap:var(--s-2);justify-content:flex-end;align-items:center;border-top:1px solid var(--border);padding:14px 22px;flex:0 0 auto;background:var(--surface)">
         ${has ? `<button type="button" class="btn btn-ghost" data-rr-tp-clear>Clear match</button>` : ""}
         <button type="button" class="btn" data-rr-tp-close>Close</button>
         <button type="button" class="btn btn-primary" data-rr-tp-activate ${canActivate ? "" : "disabled"} title="${canActivate ? "Materializes shifts and flips driver to active" : "Set first training day, ride-along day, and trainer before activating"}">Activate driver</button>
