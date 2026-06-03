@@ -40159,11 +40159,9 @@ async function renderScheduleWeek() {
       // is the same two-line height.
       const subHtml = `<span class="sched-kpi-sub">${sub || "&nbsp;"}</span>`;
       const t = TIER_COLOR[tier] ? tier : "green";
-      // Only the Coverage KPI keeps a colored status bar (now 4× thicker
-      // = 6px). Every other KPI drops the colored bar; the cells are
-      // separated by the faint hairline divider (border-right) instead.
-      const barStyle = key === "coverage" ? ` style="border-left:6px solid ${TIER_COLOR[t]}"` : "";
-      return `<span class="sched-kpi-pill" data-rr-kpi="${key}" data-tier="${t}"${cl}${barStyle}><span class="sched-kpi-text"><span class="sched-kpi-val">${label}</span>${subHtml}</span></span>`;
+      // No colored status bar on any KPI (Coverage included) — the cells
+      // are separated by the faint hairline divider (border-right) only.
+      return `<span class="sched-kpi-pill" data-rr-kpi="${key}" data-tier="${t}"${cl}><span class="sched-kpi-text"><span class="sched-kpi-val">${label}</span>${subHtml}</span></span>`;
     };
     // Coverage status — three tiers:
     //   ≥115%   → soft green pill, darker-green circle with a white thumbs-up
