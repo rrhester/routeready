@@ -40029,9 +40029,9 @@ async function renderScheduleWeek() {
   // Coverage pill carrying a subtle "X / Y shifts" sub-line.
   if (kpis) {
     kpis.classList.add("sched-kpi-pills");
-    // Status is communicated by a 6px left accent border (no dots / icons /
-    // badges). Three colours only, borrowed from the Live/Draft pill
-    // palette: green = healthy, yellow = attention, red = action required.
+    // Status is communicated by a 1.5px left accent border (no dots /
+    // icons / badges). Three colours only, borrowed from the Live/Draft
+    // pill palette: green = healthy, yellow = attention, red = action.
     const TIER_COLOR = { green: "#107C41", yellow: "#FFA000", red: "#D13438" };
     const pill = (key, tier, label, sub, clickable, title) => {
       const cl = clickable ? ' data-clickable="true"' : "";
@@ -40042,7 +40042,7 @@ async function renderScheduleWeek() {
       // is the same two-line height.
       const subHtml = `<span class="sched-kpi-sub">${sub || "&nbsp;"}</span>`;
       const t = TIER_COLOR[tier] ? tier : "green";
-      return `<span class="sched-kpi-pill" data-rr-kpi="${key}" data-tier="${t}"${cl} style="border-left:6px solid ${TIER_COLOR[t]}"><span class="sched-kpi-text"><span class="sched-kpi-val">${label}</span>${subHtml}</span></span>`;
+      return `<span class="sched-kpi-pill" data-rr-kpi="${key}" data-tier="${t}"${cl} style="border-left:1.5px solid ${TIER_COLOR[t]}"><span class="sched-kpi-text"><span class="sched-kpi-val">${label}</span>${subHtml}</span></span>`;
     };
     // Coverage status — three tiers:
     //   ≥115%   → soft green pill, darker-green circle with a white thumbs-up
@@ -40102,7 +40102,7 @@ async function renderScheduleWeek() {
       ? "Every scheduled driver has an available van"
       : `${dayShiftsMissingVan} shift${dayShiftsMissingVan === 1 ? "" : "s"} without an available van`;
 
-    // Status tier per KPI → drives the 6px left accent border.
+    // Status tier per KPI → drives the 1.5px left accent border.
     //   Coverage: ≥100% fully staffed (green) · ≥90% slightly under
     //             (yellow) · below that significantly under (red).
     const coverageTier = pct >= 100 ? "green" : pct >= 90 ? "yellow" : "red";
