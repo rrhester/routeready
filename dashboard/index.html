@@ -4308,6 +4308,10 @@ select.form-input{
   transition:background var(--t-fast);
 }
 .cal-grid:hover .cal-row-label{background:var(--surface-hover)}
+/* Driver-card warning circles (OT / DL / no-van) rendered 2x for legibility
+   — the helper SVGs ship at 16px; this overrides them on the card cluster
+   only (KPIs that reuse the glyphs keep their own size). */
+.cal-row-label-warns svg{width:32px;height:32px}
 .cal-row-label-name{font-size:var(--fs-md);font-weight:600;color:var(--text);line-height:1.2}
 .cal-row-label-meta{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;letter-spacing:.01em}
 .cal-cell{
