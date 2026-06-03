@@ -16757,7 +16757,9 @@ async function openDriverDrawer(driverId, opts) {
   // dropped in favor of routing operators straight to the actual
   // record details.  Callers still passing those names land on the
   // Profile tab so their existing entry points keep working.
-  const requestedTab = (opts && opts.tab) || "profile";
+  // Attendance is the operational home — it's the default landing tab when a
+  // driver is opened. (Legacy "overview"/"activity" callers fold into Profile.)
+  const requestedTab = (opts && opts.tab) || "attendance";
   const initialTab = (requestedTab === "overview" || requestedTab === "activity") ? "profile" : requestedTab;
   let drawer = document.getElementById("rr-dd-drawer");
   if (drawer) drawer.remove();
@@ -16901,12 +16903,12 @@ async function openDriverDrawer(driverId, opts) {
            their facts already live in Profile/Employment, and the
            merged chronology is in the Employment Documentation Report. -->
       <div class="dd-tabs">
-        <button type="button" class="dd-tab active" data-rr-dd-tab="profile">Profile</button>
+        <button type="button" class="dd-tab active" data-rr-dd-tab="attendance">Attendance</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="profile">Profile</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="employment">Employment</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="license">Credentials</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="documents">Documents</button>
-        <button type="button" class="dd-tab" data-rr-dd-tab="attendance">Attendance</button>
       </div>
       <div class="dd-tab-note" id="rr-dd-tab-note"></div>
       </div><!-- /.dd-chrome -->
@@ -21351,89 +21353,149 @@ async function renderAttendanceTab(body, d) {
     standingLabel = "Policy off";
   }
 
-  // Build per-shift event rows so the timeline shows the coaching
-  // (if any) that each event triggered.
-  const coachByShift = new Map();
-  for (const c of coachings) {
-    if (c.triggering_shift_id && !coachByShift.has(c.triggering_shift_id)) coachByShift.set(c.triggering_shift_id, c);
+  // ── Canonical level map + coaching lookup for the progression ladder ──
+  const SEV_CANON = { note: "note", info: "note", verbal: "verbal", concern: "verbal", written: "written", warning: "written", final: "final", termination: "termination" };
+  const coachByLevel = new Map();
+  for (const c of coachings) {            // coachings are sorted newest-first
+    const lvl = SEV_CANON[c.severity] || c.severity;
+    if (!coachByLevel.has(lvl)) coachByLevel.set(lvl, c);
   }
-  const eventRows = shifts
-    .filter(s => ["called_off", "no_show", "late"].includes(s.status))
-    .map(s => {
-      const label  = s.status === "called_off" ? "Callout" : s.status === "no_show" ? "No-show" : "Late";
-      const color  = s.status === "called_off" ? "var(--amber)" : s.status === "no_show" ? "var(--red)" : "var(--text-muted)";
-      const points = s.status === "called_off" ? ptsCallout : s.status === "no_show" ? ptsNoshow : ptsLate;
-      const c = coachByShift.get(s.id);
-      const triggered = c
-        ? ` <span style="color:var(--text-subtle);font-size:var(--fs-xs)">→ triggered ${escapeHtml(_COACHING_SEV_LABEL?.[c.severity] || c.severity)}</span>`
-        : "";
-      return `
-        <div class="att-tl-row">
-          <div class="att-tl-date">${new Date(s.date + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
-          <div class="att-tl-event"><span style="color:${color};font-weight:600">${escapeHtml(label)}</span>${triggered}</div>
-          <div class="att-tl-pts" style="color:var(--text-subtle);font-size:var(--fs-xs)">${points > 0 ? "+" + points + " pt" + (points === 1 ? "" : "s") : "—"}</div>
-        </div>`;
-    }).join("");
+  const ptsFor = (status) => status === "called_off" ? ptsCallout : status === "no_show" ? ptsNoshow : status === "late" ? ptsLate : 0;
+  const fmtPts = (p) => (p % 1 === 0) ? String(p) : p.toFixed(1);
 
-  const coachRows = coachings.map(c => {
-    const sevLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[c.severity]) || c.severity;
-    const ack = c.acknowledged_at
-      ? `<span class="att-coach-chip done">✓ ${c.signed_at ? "Signed" : "Acknowledged"}</span>`
-      : (c.delivery_required && c.delivery_required !== "none"
-          ? `<span class="att-coach-chip pending">Awaiting ack</span>`
-          : `<span class="att-coach-chip">Sent</span>`);
-    return `
-      <div class="att-tl-row">
-        <div class="att-tl-date">${new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
-        <div class="att-tl-event"><span style="font-weight:600">${escapeHtml(sevLabel)}</span>${c.summary ? ` <span class="u-subtle">· ${escapeHtml(c.summary)}</span>` : ""}</div>
-        <div class="att-tl-pts">${ack}</div>
-      </div>`;
+  // Current ladder rung (drives the Current Standing tone).
+  const curRung = (evalP && evalP.enabled && typeof _evalLadderRung === "function") ? _evalLadderRung(evalP, points) : null;
+  standingLabel = curRung ? (_COACHING_SEV_LABEL?.[curRung.severity] || curRung.severity)
+                : (evalP && evalP.enabled ? "Clear" : "Policy off");
+  const standingTone = !curRung ? "ok" : (SEV_CANON[curRung.severity] === "verbal" ? "warn" : "bad");
+
+  // Stash for the coaching-record slide-over + attendance-event detail popover.
+  _rrAttState = {
+    driverId: d.id, driverName: displayDriverName(d) || "Driver",
+    coachings, shifts, decay,
+    pts: { called_off: ptsCallout, no_show: ptsNoshow, late: ptsLate },
+  };
+
+  const checkSvg = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  const docSvg   = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`;
+  const chevSvg  = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4"><polyline points="9 18 15 12 9 6"/></svg>`;
+
+  // ── Section 2: progression ladder (the primary anchor) ──
+  const ladder = (evalP && evalP.ladder && evalP.ladder.length) ? evalP.ladder : [];
+  const progRows = ladder.map(r => {
+    const lvl = SEV_CANON[r.severity] || r.severity;
+    const c = coachByLevel.get(lvl);
+    const label = (_COACHING_SEV_LABEL?.[r.severity] || r.severity);
+    if (c) {
+      const dateStr = new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+      return `<button type="button" class="att-prog-row done" data-rr-coaching-record="${escapeHtml(c.id)}">
+        <span class="att-prog-mark done">${checkSvg}</span>
+        <span class="att-prog-label">${escapeHtml(label)} Coaching</span>
+        <span class="att-prog-date">${dateStr}</span>
+        <span class="att-prog-doc" title="Open coaching record">${docSvg}</span>
+      </button>`;
+    }
+    return `<div class="att-prog-row future">
+      <span class="att-prog-mark"></span>
+      <span class="att-prog-label">${escapeHtml(label)} Coaching</span>
+      <span class="att-prog-date"></span>
+      <span class="att-prog-doc"></span>
+    </div>`;
   }).join("");
 
-  const forecast = evalP && evalP.enabled && nextRung
-    ? `<div class="dd-callout warn u-mt-2">
-         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-         <div><strong>${pointsToNext} more point${pointsToNext === 1 ? "" : "s"}</strong> until ${escapeHtml(_COACHING_SEV_LABEL?.[nextRung.severity] || nextRung.severity)} (${escapeHtml(String(nextRung.threshold))} pts).</div>
-       </div>`
-    : "";
+  // ── Section 4: unified history (attendance events + coachings, newest first) ──
+  const tl = [];
+  for (const s of shifts) {
+    if (!["called_off", "no_show", "late"].includes(s.status)) continue;
+    const lab = s.status === "called_off" ? "Callout" : s.status === "no_show" ? "No Show" : "Late Arrival";
+    const p = ptsFor(s.status);
+    tl.push({ t: new Date(s.date + "T12:00:00").getTime(), html:
+      `<button type="button" class="att-hist-row" data-rr-att-event="1" data-att-date="${escapeHtml(s.date)}" data-att-type="${escapeHtml(lab)}" data-att-pts="${p}">
+        <span class="att-hist-date">${new Date(s.date + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+        <span class="att-hist-label">${escapeHtml(lab)}${p > 0 ? ` <span class="att-hist-pts">+${fmtPts(p)}</span>` : ""}</span>
+        <span class="att-hist-chev">${chevSvg}</span>
+      </button>` });
+  }
+  for (const c of coachings) {
+    const lab = (_COACHING_SEV_LABEL?.[c.severity] || c.severity);
+    tl.push({ t: new Date(c.occurred_at).getTime(), html:
+      `<button type="button" class="att-hist-row coach" data-rr-coaching-record="${escapeHtml(c.id)}">
+        <span class="att-hist-date">${new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+        <span class="att-hist-label"><strong>${escapeHtml(lab)} Coaching Issued</strong></span>
+        <span class="att-hist-chev">${docSvg}</span>
+      </button>` });
+  }
+  tl.sort((a, b) => b.t - a.t);
+  const timelineRows = tl.map(x => x.html).join("");
+
+  // ── Section 3: current standing copy ──
+  const nextLabel = nextRung ? (_COACHING_SEV_LABEL?.[nextRung.severity] || nextRung.severity) : null;
+  const standingNext = nextLabel
+    ? `<strong>${fmtPts(pointsToNext)}</strong> point${pointsToNext === 1 ? "" : "s"} until ${escapeHtml(nextLabel)} Coaching`
+    : (evalP && evalP.enabled ? "At the top of the policy ladder." : "Attendance policy is off.");
 
   body.innerHTML = `
+    <style>
+      #rr-dd-body .att-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s-2)}
+      #rr-dd-body .att-sum{background:var(--canvas);border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:8px 6px;text-align:center}
+      #rr-dd-body .att-sum-val{font-size:17px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1}
+      #rr-dd-body .att-sum-lbl{font-size:10px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--text-subtle);margin-top:3px;line-height:1.2}
+      #rr-dd-body .att-prog{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+      #rr-dd-body .att-prog-row{display:grid;grid-template-columns:24px 1fr auto 20px;gap:11px;align-items:center;width:100%;text-align:left;padding:13px 15px;background:var(--surface);border:0;border-top:1px solid var(--border-subtle);font:inherit;margin:0}
+      #rr-dd-body .att-prog-row:first-child{border-top:0}
+      #rr-dd-body button.att-prog-row.done{cursor:pointer;transition:background var(--t-fast)}
+      #rr-dd-body button.att-prog-row.done:hover{background:var(--canvas)}
+      #rr-dd-body .att-prog-mark{width:22px;height:22px;border-radius:50%;border:2px solid var(--border-strong);display:inline-flex;align-items:center;justify-content:center;color:#fff;box-sizing:border-box}
+      #rr-dd-body .att-prog-mark.done{background:var(--green);border-color:var(--green)}
+      #rr-dd-body .att-prog-label{font-size:var(--fs-md);font-weight:600;color:var(--text)}
+      #rr-dd-body .att-prog-row.future .att-prog-label{color:var(--text-subtle);font-weight:500}
+      #rr-dd-body .att-prog-date{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+      #rr-dd-body .att-prog-doc{color:var(--text-muted);display:inline-flex}
+      #rr-dd-body .att-standing{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);padding:14px 16px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--canvas)}
+      #rr-dd-body .att-standing-level{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;color:var(--text)}
+      #rr-dd-body .att-standing-sub{font-size:var(--fs-sm);color:var(--text-muted);margin-top:3px}
+      #rr-dd-body .att-standing-chip{flex:0 0 auto}
+      #rr-dd-body .att-hist{display:flex;flex-direction:column}
+      #rr-dd-body button.att-hist-row{display:grid;grid-template-columns:64px 1fr 18px;gap:var(--s-3);align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--border-subtle);background:transparent;font:inherit;padding:11px 6px;cursor:pointer;transition:background var(--t-fast)}
+      #rr-dd-body button.att-hist-row:first-child{border-top:0}
+      #rr-dd-body button.att-hist-row:hover{background:var(--canvas)}
+      #rr-dd-body .att-hist-date{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+      #rr-dd-body .att-hist-label{font-size:var(--fs-sm);color:var(--text);min-width:0}
+      #rr-dd-body .att-hist-row.coach .att-hist-label{color:var(--text)}
+      #rr-dd-body .att-hist-pts{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)}
+      #rr-dd-body .att-hist-chev{color:var(--text-muted);display:inline-flex;justify-content:flex-end}
+    </style>
+
     <div class="dd-section">
-      <div class="dd-section-head">
+      <div class="dd-section-head"><div><div class="dd-section-title">Attendance summary</div><div class="dd-section-sub">Last ${decay} days</div></div></div>
+      <div class="att-summary">
+        <div class="att-sum"><div class="att-sum-val">${attRate}%</div><div class="att-sum-lbl">Rate</div></div>
+        <div class="att-sum"><div class="att-sum-val">${sched}</div><div class="att-sum-lbl">Scheduled</div></div>
+        <div class="att-sum"><div class="att-sum-val">${callout}</div><div class="att-sum-lbl">Callouts</div></div>
+        <div class="att-sum"><div class="att-sum-val">${late}</div><div class="att-sum-lbl">Late</div></div>
+        <div class="att-sum"><div class="att-sum-val">${noshow}</div><div class="att-sum-lbl">No Shows</div></div>
+      </div>
+    </div>
+
+    <div class="dd-section">
+      <div class="dd-section-head"><div><div class="dd-section-title">Attendance progression</div><div class="dd-section-sub">Policy ladder · completed coachings are clickable</div></div></div>
+      ${progRows ? `<div class="att-prog">${progRows}</div>` : '<div class="rr-empty-inline">No attendance policy ladder configured.</div>'}
+    </div>
+
+    <div class="dd-section">
+      <div class="dd-section-head"><div><div class="dd-section-title">Current standing</div></div></div>
+      <div class="att-standing">
         <div>
-          <div class="dd-section-title">Current standing</div>
-          <div class="dd-section-sub">Last ${decay} days · per the active attendance policy</div>
+          <div class="att-standing-level">${escapeHtml(standingLabel)}${curRung ? " Coaching" : ""}</div>
+          <div class="att-standing-sub">${standingNext}</div>
         </div>
-        <span class="status-pill status-pill-${standingClass === "warn" ? "warning" : standingClass === "bad" ? "danger" : "neutral"}">${escapeHtml(standingLabel)}</span>
+        <span class="att-standing-chip status-pill status-pill-${standingTone === "warn" ? "warning" : standingTone === "bad" ? "danger" : "neutral"}">${points} pt${points === 1 ? "" : "s"}</span>
       </div>
-      <div class="att-stat-grid">
-        <div class="att-stat"><div class="att-stat-label">Points</div><div class="att-stat-value">${points}</div></div>
-        <div class="att-stat"><div class="att-stat-label">Attendance</div><div class="att-stat-value">${attRate}%</div></div>
-        <div class="att-stat"><div class="att-stat-label">Scheduled</div><div class="att-stat-value">${sched}</div></div>
-        <div class="att-stat"><div class="att-stat-label">Callouts</div><div class="att-stat-value">${callout}</div></div>
-        <div class="att-stat"><div class="att-stat-label">No-shows</div><div class="att-stat-value">${noshow}</div></div>
-        <div class="att-stat"><div class="att-stat-label">Late</div><div class="att-stat-value">${late}</div></div>
-        <div class="att-stat"><div class="att-stat-label">VTO</div><div class="att-stat-value">${vto}</div></div>
-      </div>
-      ${forecast}
     </div>
 
     <div class="dd-section">
       <div class="dd-section-head">
-        <div>
-          <div class="dd-section-title">Attendance timeline</div>
-          <div class="dd-section-sub">Every counted event in the window.</div>
-        </div>
-      </div>
-      ${eventRows || '<div class="rr-empty-inline">No callouts, no-shows, or late arrivals in the last ' + decay + ' days.</div>'}
-    </div>
-
-    <div class="dd-section">
-      <div class="dd-section-head">
-        <div>
-          <div class="dd-section-title">Coachings</div>
-          <div class="dd-section-sub">Sent under the attendance policy.</div>
-        </div>
+        <div><div class="dd-section-title">Attendance history</div><div class="dd-section-sub">Events &amp; coachings · newest first</div></div>
         <button type="button" class="btn btn-sm" data-rr-coach-report="1"
           data-rr-coach-driver="${escapeHtml(d.id)}"
           data-rr-coach-driver-name="${escapeHtml(displayDriverName(d) || "")}"
@@ -21445,9 +21507,164 @@ async function renderAttendanceTab(body, d) {
           data-rr-coach-late="${late}"
           data-rr-coach-occ="${callout + noshow + late}">Send coaching</button>
       </div>
-      ${coachRows || '<div class="rr-empty-inline">No coachings yet.</div>'}
+      ${timelineRows ? `<div class="att-hist">${timelineRows}</div>` : '<div class="rr-empty-inline">No attendance events or coachings in the last ' + decay + ' days.</div>'}
     </div>`;
 }
+
+// ── Coaching record slide-over ────────────────────────────────────────────
+// Opens a right-side drawer (house slide-over pattern) for a single coaching,
+// reusing the attendance-tab data already in _rrAttState. No modal.
+let _rrAttState = null;
+function _rrOpenCoachingRecord(coachingId) {
+  const st = _rrAttState;
+  if (!st) return;
+  const c = (st.coachings || []).find(x => x.id === coachingId);
+  if (!c) return;
+  const level = (_COACHING_SEV_LABEL?.[c.severity] || c.severity);
+  const cTime = new Date(c.occurred_at).getTime();
+  // Previous coaching (older) → the trigger window for THIS coaching.
+  let prevTime = 0;
+  for (const o of (st.coachings || [])) {
+    const ot = new Date(o.occurred_at).getTime();
+    if (ot < cTime && ot > prevTime) prevTime = ot;
+  }
+  const ptsFor = (status) => status === "called_off" ? st.pts.called_off : status === "no_show" ? st.pts.no_show : status === "late" ? st.pts.late : 0;
+  const fmtPts = (p) => (p % 1 === 0) ? String(p) : p.toFixed(1);
+  const trig = (st.shifts || [])
+    .filter(s => ["called_off", "no_show", "late"].includes(s.status))
+    .filter(s => { const t = new Date(s.date + "T12:00:00").getTime(); return t <= cTime && t > prevTime; })
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const totalPts = trig.reduce((sum, s) => sum + (ptsFor(s.status) || 0), 0);
+  const trigList = trig.length
+    ? trig.map(s => { const lab = s.status === "called_off" ? "Callout" : s.status === "no_show" ? "No Show" : "Late Arrival"; return `<li>${escapeHtml(lab)} — ${new Date(s.date + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</li>`; }).join("")
+    : `<li class="u-subtle">No counted events recorded in this window.</li>`;
+  const statusTxt = c.signed_at ? "Signed" : c.acknowledged_at ? "Acknowledged" : (c.delivery_required && c.delivery_required !== "none" ? "Awaiting acknowledgement" : "Sent");
+  const dateStr = new Date(c.occurred_at).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+
+  document.getElementById("rr-att-cr-drawer")?.remove();
+  const drawer = document.createElement("div");
+  drawer.id = "rr-att-cr-drawer";
+  const field = (label, value) => `<div class="cr-field"><div class="cr-field-label">${label}</div><div class="cr-field-value">${value}</div></div>`;
+  drawer.innerHTML = `
+    <style>
+      #rr-att-cr-drawer{position:fixed;inset:0;background:var(--overlay);z-index:10000;display:flex;justify-content:flex-end;opacity:0;transition:opacity 200ms ease-out}
+      #rr-att-cr-drawer.open{opacity:1}
+      #rr-att-cr-drawer .cr-panel{background:var(--surface);width:min(540px,100%);height:100%;display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,.18);transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1)}
+      #rr-att-cr-drawer.open .cr-panel{transform:translateX(0)}
+      @media (prefers-reduced-motion: reduce){#rr-att-cr-drawer,#rr-att-cr-drawer .cr-panel{transition:none}}
+      #rr-att-cr-drawer .cr-head{padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3)}
+      #rr-att-cr-drawer .cr-eyebrow{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+      #rr-att-cr-drawer .cr-title{font-size:20px;font-weight:700;letter-spacing:-.01em;margin:2px 0 0}
+      #rr-att-cr-drawer .cr-sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
+      #rr-att-cr-drawer .cr-close{background:transparent;border:0;font-size:26px;line-height:1;color:var(--text-subtle);cursor:pointer;padding:0 4px}
+      #rr-att-cr-drawer .cr-body{flex:1;overflow-y:auto;padding:var(--s-5)}
+      #rr-att-cr-drawer .cr-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-4) var(--s-5);margin-bottom:var(--s-4)}
+      #rr-att-cr-drawer .cr-field-label{font-size:var(--fs-xs);font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--text-muted);margin-bottom:3px}
+      #rr-att-cr-drawer .cr-field-value{font-size:var(--fs-md);font-weight:600;color:var(--text)}
+      #rr-att-cr-drawer .cr-block{padding-top:var(--s-4);margin-top:var(--s-4);border-top:1px solid var(--border-subtle)}
+      #rr-att-cr-drawer .cr-block-title{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:var(--s-2)}
+      #rr-att-cr-drawer ul.cr-trig{margin:0;padding-left:18px;font-size:var(--fs-sm);color:var(--text);line-height:1.9}
+      #rr-att-cr-drawer .cr-notes{font-size:var(--fs-sm);color:var(--text);line-height:1.6;white-space:pre-wrap;background:var(--canvas);border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:var(--s-3)}
+      #rr-att-cr-drawer .cr-foot{padding:var(--s-3-5) var(--s-5);border-top:1px solid var(--border);display:flex;gap:var(--s-2);flex-wrap:wrap;background:var(--surface)}
+    </style>
+    <div class="cr-panel" role="dialog" aria-modal="true" aria-label="Coaching record">
+      <div class="cr-head">
+        <div>
+          <div class="cr-eyebrow">Coaching record</div>
+          <div class="cr-title">${escapeHtml(level)} Coaching</div>
+          <div class="cr-sub">${escapeHtml(st.driverName)}</div>
+        </div>
+        <button type="button" class="cr-close" data-rr-cr-close aria-label="Close">×</button>
+      </div>
+      <div class="cr-body">
+        <div class="cr-grid">
+          ${field("Date", escapeHtml(dateStr))}
+          ${field("Policy level", escapeHtml(level) + " Coaching")}
+          ${field("Manager", escapeHtml(c.coached_by_name || "—"))}
+          ${field("Reason", "Attendance Policy")}
+        </div>
+        <div class="cr-block">
+          <div class="cr-block-title">Trigger events</div>
+          <ul class="cr-trig">${trigList}</ul>
+        </div>
+        <div class="cr-block">
+          <div class="cr-block-title">Total points at time of coaching</div>
+          <div class="cr-field-value">${fmtPts(totalPts)}</div>
+        </div>
+        <div class="cr-block">
+          <div class="cr-block-title">Notes</div>
+          ${c.notes ? `<div class="cr-notes">${escapeHtml(c.notes)}</div>` : `<div class="u-subtle" style="font-size:var(--fs-sm)">No notes recorded.</div>`}
+        </div>
+        <div class="cr-block">
+          <div class="cr-block-title">Status</div>
+          <div class="cr-field-value">${escapeHtml(statusTxt)}</div>
+        </div>
+      </div>
+      <div class="cr-foot">
+        <button type="button" class="btn btn-sm" data-rr-cr-print>Print coaching</button>
+        <button type="button" class="btn btn-sm" data-rr-cr-print>Download PDF</button>
+        <button type="button" class="btn btn-sm" data-rr-cr-edit>Edit notes</button>
+      </div>
+    </div>`;
+  document.body.appendChild(drawer);
+  requestAnimationFrame(() => drawer.classList.add("open"));
+  const close = () => { drawer.classList.remove("open"); document.removeEventListener("keydown", esc, true); setTimeout(() => drawer.remove(), 240); };
+  function esc(ev) { if (ev.key === "Escape") { ev.stopPropagation(); close(); } }
+  document.addEventListener("keydown", esc, true);
+  drawer.addEventListener("click", (e) => {
+    if (e.target === drawer || e.target.closest("[data-rr-cr-close]")) { close(); return; }
+    if (e.target.closest("[data-rr-cr-print]")) { e.preventDefault(); if (typeof openCoachingPrintView === "function") openCoachingPrintView(st.driverId); return; }
+    if (e.target.closest("[data-rr-cr-edit]")) { e.preventDefault(); if (typeof toast === "function") toast("Open Print coaching to review/amend the full record.", "info"); return; }
+  });
+}
+
+// Attendance-event detail · small emerging popover anchored at the click.
+function _rrOpenAttEvent(el, ev) {
+  document.getElementById("rr-att-ev-pop")?.remove();
+  document.getElementById("rr-att-ev-back")?.remove();
+  const type = el.getAttribute("data-att-type") || "Event";
+  const iso  = el.getAttribute("data-att-date") || "";
+  const pts  = parseFloat(el.getAttribute("data-att-pts")) || 0;
+  const when = iso ? new Date(iso + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", month: "long", day: "numeric", year: "numeric" }) : "—";
+  const back = document.createElement("div");
+  back.id = "rr-att-ev-back";
+  back.style.cssText = "position:fixed;inset:0;background:transparent;z-index:10001";
+  document.body.appendChild(back);
+  const pop = document.createElement("div");
+  pop.id = "rr-att-ev-pop";
+  pop.style.cssText = "position:fixed;z-index:10002;min-width:220px;max-width:280px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-pop);padding:14px 16px;opacity:0;transform:scale(.94);transition:opacity 160ms ease-out, transform 160ms cubic-bezier(.34,1.2,.45,1)";
+  pop.innerHTML =
+    `<div style="font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Attendance event</div>
+     <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);margin-top:4px">${escapeHtml(type)}</div>
+     <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-top:2px">${escapeHtml(when)}</div>
+     <div style="font-size:var(--fs-sm);font-weight:600;color:${pts > 0 ? "var(--amber-dark, var(--amber))" : "var(--text-subtle)"};margin-top:6px">${pts > 0 ? "+" + ((pts % 1 === 0) ? pts : pts.toFixed(1)) + " point" + (pts === 1 ? "" : "s") : "No points"}</div>`;
+  document.body.appendChild(pop);
+  requestAnimationFrame(() => {
+    const pad = 8, gap = 8;
+    const w = pop.offsetWidth, h = pop.offsetHeight;
+    const r = el.getBoundingClientRect();
+    const ax = ev && Number.isFinite(ev.clientX) ? ev.clientX : r.left + 20;
+    const ay = ev && Number.isFinite(ev.clientY) ? ev.clientY : r.bottom;
+    let left = ax + gap; if (left + w > window.innerWidth - pad) left = ax - w - gap;
+    let top  = ay + gap; if (top + h > window.innerHeight - pad) top = ay - h - gap;
+    pop.style.left = Math.max(pad, Math.min(left, window.innerWidth - w - pad)) + "px";
+    pop.style.top  = Math.max(pad, Math.min(top, window.innerHeight - h - pad)) + "px";
+    pop.style.transformOrigin = "top left";
+    requestAnimationFrame(() => { pop.style.opacity = "1"; pop.style.transform = "scale(1)"; });
+  });
+  const close = () => { back.remove(); pop.remove(); document.removeEventListener("keydown", esc, true); };
+  function esc(e2) { if (e2.key === "Escape") { e2.stopPropagation(); close(); } }
+  document.addEventListener("keydown", esc, true);
+  back.addEventListener("click", close);
+}
+
+// Delegated openers for the attendance-tab coaching rows + event rows.
+document.addEventListener("click", (e) => {
+  const cr = e.target.closest && e.target.closest("[data-rr-coaching-record]");
+  if (cr) { e.preventDefault(); e.stopPropagation(); _rrOpenCoachingRecord(cr.getAttribute("data-rr-coaching-record")); return; }
+  const av = e.target.closest && e.target.closest("[data-rr-att-event]");
+  if (av) { e.preventDefault(); e.stopPropagation(); _rrOpenAttEvent(av, e); return; }
+});
 
 // ─── Driver chat inbox · Messages view ────────────────────────────────
 // Unified view of every driver's thread. Left list is fed by
