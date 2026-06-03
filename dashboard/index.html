@@ -7955,6 +7955,14 @@ body.rr-cmdk-open{ overflow:hidden }
 .roster-split .rr-att-points-cell,
 .roster-split th[data-rr-roster-sort="lastactive"],
 .roster-split .rr-lastactive-cell{display:none}
+/* Tighten the condensed roster so the kept columns — including the App
+   view-icon (far right) — fit the narrow pane without being pushed off into
+   a horizontal scroll. Trim cell padding and drop the name's contact
+   sub-line (that detail lives in the open record). */
+.roster-split #rr-roster-table-wrap th,
+.roster-split #rr-roster-table-wrap td{padding-left:var(--s-2);padding-right:var(--s-2)}
+.roster-split #rr-roster-table-wrap .cell-name-sub{display:none}
+.roster-split #rr-roster-table-wrap .rr-app-cell{width:1%;white-space:nowrap}
 /* Neutralise the fixed-overlay drawer styling when the record lives
    in the inline mount, so it reads as a static workspace card that
    matches the Schedule / roster cards — no backdrop, no blur, no
