@@ -37525,10 +37525,16 @@ async function openShiftEditModal(arg) {
   // cell/chip the operator clicked so they don't have to move the cursor. A
   // fully transparent backdrop catches outside clicks WITHOUT dimming or
   // blurring the schedule underneath.
+  // Premium edit workspace · the driver-centric redesign applies only to
+  // the edit-an-existing-shift mode. Add / time-off keep the quick,
+  // click-anchored popover. In premium mode the backdrop dims + softly
+  // blurs the schedule so the modal reads as a focused workspace.
+  const isPremiumEdit = !isAdd && !isTimeOff;
   const backdrop = document.createElement("div");
   backdrop.id = "rr-shift-edit-backdrop";
-  backdrop.style.cssText =
-    "position:fixed;inset:0;background:transparent;z-index:9998";
+  backdrop.style.cssText = isPremiumEdit
+    ? "position:fixed;inset:0;background:rgba(15,23,42,.40);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);z-index:9998"
+    : "position:fixed;inset:0;background:transparent;z-index:9998";
   document.body.appendChild(backdrop);
 
   m = document.createElement("div");
@@ -37537,10 +37543,12 @@ async function openShiftEditModal(arg) {
   // scrolls if it ever exceeds the viewport. left/top are set after mount
   // (once we can measure it) so it lands next to the click.
   m.style.cssText =
-    "position:fixed;top:0;left:0;width:340px;max-width:calc(100vw - 16px);" +
+    "position:fixed;top:0;left:0;width:" + (isPremiumEdit ? "452px" : "340px") + ";max-width:calc(100vw - 16px);" +
     "max-height:calc(100vh - 16px);background:var(--surface);" +
-    "border:1px solid var(--border);border-radius:12px;" +
-    "box-shadow:0 16px 48px rgba(15,23,42,.24);z-index:9999;display:flex;" +
+    "border:1px solid var(--border);border-radius:" + (isPremiumEdit ? "18px" : "12px") + ";" +
+    "box-shadow:" + (isPremiumEdit
+      ? "0 32px 72px -16px rgba(15,23,42,.45), 0 10px 28px -10px rgba(15,23,42,.28)"
+      : "0 16px 48px rgba(15,23,42,.24)") + ";z-index:9999;display:flex;" +
     "flex-direction:column;opacity:0;transform:scale(0.92);" +
     "transition:opacity 200ms ease-out, transform 200ms cubic-bezier(0.2,0.8,0.25,1);";
   // Header subtitle differs by mode — in edit mode we show
@@ -37668,7 +37676,108 @@ async function openShiftEditModal(arg) {
   const primaryBtn = isTimeOff ? ""
     : `<button class="btn btn-sm btn-primary" data-rr-shift-edit-save>${primaryBtnLabel}</button>`;
 
-  m.innerHTML = `
+  // ── Premium edit workspace ────────────────────────────────────────
+  // Driver-centric hero + situational-awareness summary + grouped form
+  // sections + collapsed history + tiered actions + danger zone. Reuses
+  // every existing field id (rr-shift-edit-wave/-start/-end/-service/
+  // -class) and action attribute (data-rr-shift-edit-save/-cancel/-pin/
+  // -delete, #rr-shift-edit-send-kudos, #rr-shift-edit-history,
+  // #rr-shift-edit-status) so all wiring/logic below is unchanged.
+  const _seInitials = _schedDriverInitials(driver);
+  const _seDateLong = (() => {
+    try { return new Date(sh.date + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }); }
+    catch (_) { return sh.date; }
+  })();
+  const _seLenH = (sh.starts_at && sh.ends_at)
+    ? Math.round(((new Date(sh.ends_at) - new Date(sh.starts_at)) / 3600000) * 10) / 10
+    : null;
+  const _seStartEnd = (startHM && endHM) ? `${_fmtWave12(startHM)} → ${_fmtWave12(endHM)}` : "";
+  const _seTrainChip = sh.shift_kind === "training"
+    ? `<span class="rr-se-chip rr-se-chip--train">Class training</span>`
+    : sh.shift_kind === "ride_along"
+      ? `<span class="rr-se-chip rr-se-chip--road">Road training</span>`
+      : "";
+  const premiumEditHTML = `
+    <div class="rr-se">
+      <button type="button" data-rr-shift-edit-cancel class="rr-se-close" aria-label="Close">×</button>
+      <div class="rr-se-hero">
+        <div class="rr-se-avatar">${escapeHtml(_seInitials)}</div>
+        <div class="rr-se-hero-main">
+          <div class="rr-se-hero-name">${escapeHtml(driver)}</div>
+          <div class="rr-se-hero-date">${escapeHtml(_seDateLong)}</div>
+          <div class="rr-se-hero-chips">
+            <span class="rr-se-chip rr-se-chip--svc" id="rr-se-svc-chip" hidden></span>
+            ${_seTrainChip}
+            <span class="rr-se-chip rr-se-chip--pin" id="rr-se-pin-chip"${sh.is_locked ? "" : " hidden"}>📌 Pinned</span>
+          </div>
+        </div>
+        <div class="rr-se-hours" title="Scheduled hours this week">
+          <span class="rr-se-hours-num" id="rr-se-week-hours">—</span>
+          <span class="rr-se-hours-lbl">this week</span>
+        </div>
+      </div>
+      <div class="rr-se-body">
+        <div class="rr-se-summary">
+          ${_seStartEnd ? `<div class="rr-se-sum-time">${escapeHtml(_seStartEnd)}</div>` : ""}
+          <div class="rr-se-sum-chips">
+            ${_seLenH != null ? `<span class="rr-se-sum-chip">${_seLenH}h</span>` : ""}
+            ${_curWave ? `<span class="rr-se-sum-chip">Wave ${escapeHtml(_curWave)}</span>` : ""}
+            <span class="rr-se-sum-chip rr-se-sum-chip--van" id="rr-se-van-chip" hidden></span>
+          </div>
+        </div>
+        <details class="rr-se-history">
+          <summary>History</summary>
+          <div id="rr-shift-edit-history" class="rr-se-history-body">Loading…</div>
+        </details>
+        <div class="rr-se-section">
+          <div class="rr-se-section-label">Shift Details</div>
+          <div class="rr-se-grid">
+            <label class="rr-se-field rr-se-field--full">
+              <span class="rr-se-field-lbl">Wave</span>
+              <select id="rr-shift-edit-wave" class="form-input rr-se-input">${_waveOptionsHTML}</select>
+            </label>
+            <label class="rr-se-field">
+              <span class="rr-se-field-lbl">Start time</span>
+              <input type="time" id="rr-shift-edit-start" value="${escapeHtml(startHM)}" class="form-input rr-se-input" />
+            </label>
+            <label class="rr-se-field">
+              <span class="rr-se-field-lbl">End time</span>
+              <input type="time" id="rr-shift-edit-end" value="${escapeHtml(endHM)}" class="form-input rr-se-input" />
+            </label>
+          </div>
+        </div>
+        <div class="rr-se-section">
+          <div class="rr-se-section-label">Assignment</div>
+          <div class="rr-se-grid">
+            <label class="rr-se-field rr-se-field--full">
+              <span class="rr-se-field-lbl">Service type</span>
+              <select id="rr-shift-edit-service" class="form-input rr-se-input"><option value="">Loading…</option></select>
+            </label>
+            <label class="rr-se-field rr-se-field--full">
+              <span class="rr-se-field-lbl">Route type</span>
+              <select id="rr-shift-edit-class" class="form-input rr-se-input">${classOptionsHTML}</select>
+            </label>
+          </div>
+        </div>
+        <div id="rr-shift-edit-status" class="rr-se-status"></div>
+      </div>
+      <div class="rr-se-actions">
+        <div class="rr-se-utility">
+          ${pinButton}
+          <button type="button" class="btn btn-sm" id="rr-shift-edit-send-kudos">🏆 Send Kudos</button>
+        </div>
+        <div class="rr-se-primary-row">
+          <button class="btn btn-sm" data-rr-shift-edit-cancel>Cancel</button>
+          <button class="btn btn-sm btn-primary" data-rr-shift-edit-save>Save Changes</button>
+        </div>
+      </div>
+      <div class="rr-se-danger">
+        <span class="rr-se-danger-lbl">Danger zone</span>
+        <button class="btn btn-sm rr-se-danger-btn" data-rr-shift-edit-delete>Delete shift</button>
+      </div>
+    </div>`;
+
+  m.innerHTML = isPremiumEdit ? premiumEditHTML : `
     <div style="display:flex;flex-direction:column;height:100%">
       <div style="padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s-3)">
@@ -37805,6 +37914,48 @@ async function openShiftEditModal(arg) {
       sel.innerHTML = svcs.map(s =>
         `<option value="${escapeHtml(s.id)}"${String(s.id) === String(selId) ? " selected" : ""}>${escapeHtml(s.code ? (s.label ? s.code + " · " + s.label : s.code) : (s.label || s.id))}</option>`
       ).join("");
+      // Premium hero · fill the service-type chip from the selected type.
+      const _svcChip = document.getElementById("rr-se-svc-chip");
+      if (_svcChip) {
+        const _cur = svcs.find(s => String(s.id) === String(selId));
+        const _txt = _cur ? (_cur.code || _cur.label) : "";
+        if (_txt) { _svcChip.textContent = _txt; _svcChip.hidden = false; }
+      }
+    })();
+  }
+
+  // Premium hero · scheduled hours this week (display-only; mirrors the
+  // grid's net "Xh scheduled" — gross minus 0.5h/shift unpaid lunch).
+  if (isPremiumEdit && sh.driver_id) {
+    (async () => {
+      try {
+        const wkStart = (typeof _schedStart === "string" && _schedStart) ? _schedStart : sh.date;
+        const wkEnd = fmtIsoDate(addDays(new Date(wkStart + "T12:00:00"), 6));
+        const { data } = await sb.from("shifts")
+          .select("starts_at, ends_at")
+          .eq("driver_id", sh.driver_id).gte("date", wkStart).lte("date", wkEnd);
+        const el = document.getElementById("rr-se-week-hours");
+        if (!el || !Array.isArray(data)) return;
+        let gross = 0, n = 0;
+        for (const r of data) {
+          if (r.starts_at && r.ends_at) { gross += (new Date(r.ends_at) - new Date(r.starts_at)) / 3600000; n++; }
+        }
+        const net = Math.max(0, gross - n * 0.5);
+        el.textContent = (Math.round(net * 10) / 10) + "h";
+      } catch (_) {}
+    })();
+    // Premium summary · assigned van for this driver/day (display-only).
+    (async () => {
+      try {
+        const dspId = window.RR?.dsp?.id;
+        if (!dspId) return;
+        const { data } = await sb.from("vehicle_day_assignments")
+          .select("vehicles:vehicle_id(name)")
+          .eq("dsp_id", dspId).eq("driver_id", sh.driver_id).eq("date", sh.date).limit(1);
+        const van = data && data[0] && data[0].vehicles && data[0].vehicles.name;
+        const el = document.getElementById("rr-se-van-chip");
+        if (el && van) { el.textContent = "Van " + van; el.hidden = false; }
+      } catch (_) {}
     })();
   }
 
