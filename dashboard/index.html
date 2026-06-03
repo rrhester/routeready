@@ -18101,6 +18101,29 @@ body.rr-cmdk-open{ overflow:hidden }
             box-shadow:none !important;
             margin-bottom:1px !important;
           }
+          /* Roster + Onboarding KPI strips inherit Schedule's crisp, flat
+             treatment exactly. The "byte-identical strips" intent above was
+             only half-applied: Schedule's #rr-sched-kpis got the shadow
+             dropped (rule just above) but #rr-ob-kpis / #rr-roster-kpis kept
+             the heavy --kpi-shadow. Console parity confirmed the gap —
+             Schedule renders box-shadow:none while the Roster strip carried
+             the full 0 2px 6px / 0 14px 34px haze, which read as a dark line
+             around the card and made it sit visually lower. Mirror the exact
+             pure-white + hairline-border + no-shadow recipe here. */
+          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills,
+          #view-drivers #rr-roster-kpis.sched-kpi-pills{
+            background:#FFFFFF !important;
+            border-color:rgba(15,23,42,.10) !important;
+            box-shadow:none !important;
+          }
+          /* Roster mode · align the KPI strip's top with Schedule's exactly.
+             Console: Schedule rect_top 189 vs Roster 192 — the roster header
+             chrome is 3px taller. The strip is opaque white and currently
+             abuts #rr-ob-cmd with a 0px gap, so a -3px top nudge closes the
+             difference cleanly without overlapping any header content. */
+          #view-onboarding-ops #rr-ob-cmd.is-roster ~ #rr-ob-kpis{
+            margin-top:-3px !important;
+          }
           /* Icon card -> KPI gap matches the measured KPI -> grid gap (17px). */
           #view-schedule.rrx-schedule .sched-v2-strip{margin-bottom:17px !important}
           #view-schedule .sched-cmd-shell .sched-nav-heading{margin-bottom:0}
