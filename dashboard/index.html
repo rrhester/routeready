@@ -8026,11 +8026,11 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-dd-empty .rr-dd-empty-sub{font-size:var(--fs-xs);max-width:230px;line-height:1.5}
 #driver-record-mount.is-filled #rr-dd-empty{display:none}
 /* Condense the roster for the narrower pane — drop the secondary columns
-   (Attendance Points · Last active). The App column stays so operators keep
-   the "view this driver's app" icon. Targeted by class so the onboarding-
-   stage columns (which lack these classes) are untouched. */
-.roster-split .rr-roster-th-attpoints,
-.roster-split .rr-att-points-cell,
+   (Last active). Attendance Points now stays (it replaced the old Score
+   column, so it's the roster's primary at-a-glance metric). The App
+   column stays so operators keep the "view this driver's app" icon.
+   Targeted by class so the onboarding-stage columns (which lack these
+   classes) are untouched. */
 .roster-split th[data-rr-roster-sort="lastactive"],
 .roster-split .rr-lastactive-cell,
 .roster-split .rr-roster-th-app,

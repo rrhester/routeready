@@ -3880,7 +3880,7 @@ async function _submitBulkDrivers() {
 // Driver stage state — what the operator has filtered to.
 let _driverStage = "active";
 // Roster filter / sort state (set by the toolbar dropdowns + search).
-let _rosterFilters = { station: "", tenure: "", score: "", q: "", sort: "score-asc" };
+let _rosterFilters = { station: "", tenure: "", score: "", q: "", sort: "attpoints-desc" };
 
 // Status-header filter options · the Status column dropdown switches
 // _driverStage so the roster can show non-active drivers (On leave /
@@ -4073,9 +4073,14 @@ function _applyRosterFiltersAndSort(rows) {
     const iso = s ? (s.last_seen_at || s.signed_in_at) : null;
     return iso ? new Date(iso).getTime() : null;
   };
+  // Active attendance points within the policy window, from the map the
+  // roster loader fills. Missing = 0 (no infractions / policy off).
+  const attPts = (r) => (_rosterAttPoints && _rosterAttPoints.get ? (_rosterAttPoints.get(r.id) || 0) : 0);
   switch (f.sort) {
     case "score-asc":      out = [...out].sort((a, b) => (a.score ?? 999) - (b.score ?? 999)); break;
     case "score-desc":     out = [...out].sort((a, b) => (b.score ?? -1)  - (a.score ?? -1));  break;
+    case "attpoints-desc": out = [...out].sort((a, b) => attPts(b) - attPts(a)); break;
+    case "attpoints-asc":  out = [...out].sort((a, b) => attPts(a) - attPts(b)); break;
     case "name":           out = [...out].sort((a, b) => dispName(a).localeCompare(dispName(b))); break;
     case "name-desc":      out = [...out].sort((a, b) => dispName(b).localeCompare(dispName(a))); break;
     case "tenure-desc":    out = [...out].sort((a, b) => new Date(a.hire_date || 0) - new Date(b.hire_date || 0)); break;
@@ -4145,6 +4150,7 @@ document.addEventListener("click", (e) => {
   if (col === "name")            next = cur === "name" ? "name-desc" : "name";
   else if (col === "tenure")     next = cur === "tenure-desc" ? "tenure-asc" : "tenure-desc";
   else if (col === "score")      next = cur === "score-asc"   ? "score-desc" : "score-asc";
+  else if (col === "attpoints")  next = cur === "attpoints-desc" ? "attpoints-asc" : "attpoints-desc";
   else if (col === "status")     next = cur === "status-asc"  ? "status-desc": "status-asc";
   else if (col === "lastactive") next = cur === "lastactive-desc" ? "lastactive-asc" : "lastactive-desc";
   if (!next) return;
@@ -4167,6 +4173,7 @@ function renderDriverTable(rows, error) {
       name:       ["name", "name-desc"],
       tenure:     ["tenure-asc", "tenure-desc"],
       score:      ["score-asc", "score-desc"],
+      attpoints:  ["attpoints-asc", "attpoints-desc"],
       status:     ["status-asc", "status-desc"],
       lastactive: ["lastactive-asc", "lastactive-desc"],
     };
@@ -4225,12 +4232,11 @@ function renderDriverTable(rows, error) {
           <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:3px;opacity:.7"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
       </th>
-      <th class="rr-roster-th-attpoints" title="Active attendance points within the policy window">Attendance Points</th>
-      <th data-rr-roster-sort="score"  style="cursor:pointer;user-select:none">Score <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;opacity:.6" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${caret("score")}</th>
+      <th class="rr-roster-th-attpoints" data-rr-roster-sort="attpoints" style="cursor:pointer;user-select:none" title="Active attendance points within the policy window">Attendance Points${caret("attpoints")}</th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th class="rr-roster-th-app">App</th>
       <th></th>`;
-    thead.dataset.rrColCount = "9";
+    thead.dataset.rrColCount = "8";
 
     // Re-attach the search wrapper into the new search slot. Fall
     // back to the still-hidden .dr-roster-bar source on the very
@@ -4506,7 +4512,7 @@ function _wireRosterBulk() {
   document.getElementById("rr-roster-bulk-export")?.addEventListener("click", () => {
     const picks = new Set(_rosterBulkPicks());
     const rows = (picks.size ? _rosterRows.filter((r) => picks.has(r.id)) : visibleDriversForStage(_rosterRows, _driverStage));
-    const cols = ["Name","Preferred name","Email","Phone","Station","Status","Hire date","Tenure (days)","Score","On the app","App invited","Last active (UTC)","Driver ID"];
+    const cols = ["Name","Preferred name","Email","Phone","Station","Status","Hire date","Tenure (days)","Attendance points","Score","On the app","App invited","Last active (UTC)","Driver ID"];
     const cell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; };
     const lines = [cols.join(",")];
     for (const r of rows) {
@@ -4516,7 +4522,7 @@ function _wireRosterBulk() {
         r.full_name || "", r.preferred_name || "", r.email || "", r.phone || "",
         r.station?.code || "", r.status || "",
         r.hire_date ? new Date(r.hire_date).toISOString().slice(0,10) : "",
-        days, (r.score ?? ""),
+        days, (_rosterAttPoints.get(r.id) ?? ""), (r.score ?? ""),
         app.signed_in_at ? "yes" : "no", app.invited ? "yes" : "no",
         app.last_seen_at ? new Date(app.last_seen_at).toISOString() : "",
         r.id,
@@ -7241,7 +7247,6 @@ function renderDriverRow(d) {
       <td>${tenure}</td>
       <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
       <td class="rr-att-points-cell">${_attPointsCell(d.id)}</td>
-      <td>${_scoreCell(d.score)}</td>
       <td class="rr-lastactive-cell">${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer class="u-center rr-app-cell"></td>
       <td data-rr-no-drawer class="rr-row-actions">${actions}</td>
