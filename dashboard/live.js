@@ -39533,6 +39533,115 @@ function _rrDlNoticeDays() {
   return win > 0 ? win : 30;
 }
 
+// Driver-license popover · clicking the "DL" circle on a driver card opens a
+// small card that EMERGES from the click point (same scale-from-origin + fade
+// as the add/edit-shift box) showing the license expiry date plus a button
+// that jumps to that driver's thread on the Messages page.
+function _rrOpenDlPopover(opts) {
+  document.getElementById("rr-dl-pop")?.remove();
+  document.getElementById("rr-dl-pop-backdrop")?.remove();
+
+  const backdrop = document.createElement("div");
+  backdrop.id = "rr-dl-pop-backdrop";
+  backdrop.style.cssText = "position:fixed;inset:0;background:transparent;z-index:9998";
+  document.body.appendChild(backdrop);
+
+  const when = new Date(opts.expISO + "T12:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+  const absDays = Math.abs(opts.days);
+  const rel = opts.expired
+    ? `Expired ${absDays} day${absDays === 1 ? "" : "s"} ago`
+    : (opts.days === 0 ? "Expires today" : `in ${opts.days} day${opts.days === 1 ? "" : "s"}`);
+  const accent = (opts.expired || opts.days <= 21) ? "var(--red)" : "var(--amber)";
+  const safeName = opts.name ? (typeof escapeHtml === "function" ? escapeHtml(opts.name) : opts.name) : "";
+
+  const m = document.createElement("div");
+  m.id = "rr-dl-pop";
+  m.setAttribute("role", "dialog");
+  m.setAttribute("aria-label", "Driver license");
+  m.style.cssText =
+    "position:fixed;z-index:9999;min-width:240px;max-width:300px;" +
+    "background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);" +
+    "box-shadow:var(--shadow-pop);padding:14px 16px;" +
+    "opacity:0;transform:scale(0.92);" +
+    "transition:opacity 200ms ease-out, transform 200ms cubic-bezier(0.2,0.8,0.25,1)";
+  m.innerHTML =
+    `<div style="display:flex;align-items:flex-start;gap:10px">
+       <div style="flex:1;min-width:0">
+         <div style="font-size:var(--fs-xs);font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted)">Driver license</div>
+         ${safeName ? `<div style="font-size:var(--fs-sm);font-weight:600;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${safeName}</div>` : ""}
+         <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);margin-top:6px">${opts.expired ? "Expired" : "Expires"} ${when}</div>
+         <div style="font-size:var(--fs-xs);font-weight:600;color:${accent};margin-top:2px">${rel}</div>
+       </div>
+       <button type="button" data-dl-msg title="Message this driver" aria-label="Message this driver"
+         style="flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--surface);color:var(--accent);cursor:pointer">
+         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+       </button>
+     </div>`;
+  document.body.appendChild(m);
+
+  // Position near the click, growing from the icon (flip to stay on-screen).
+  requestAnimationFrame(() => {
+    const pad = 8, gap = 10;
+    const w = m.offsetWidth, h = m.offsetHeight;
+    const ax = Number.isFinite(opts.anchorX) ? opts.anchorX : window.innerWidth / 2;
+    const ay = Number.isFinite(opts.anchorY) ? opts.anchorY : window.innerHeight / 2;
+    let left = ax + gap;
+    if (left + w > window.innerWidth - pad) left = ax - w - gap;
+    let top = ay + gap;
+    if (top + h > window.innerHeight - pad) top = ay - h - gap;
+    left = Math.max(pad, Math.min(left, window.innerWidth - w - pad));
+    top  = Math.max(pad, Math.min(top,  window.innerHeight - h - pad));
+    m.style.left = left + "px";
+    m.style.top  = top + "px";
+    m.style.transformOrigin = `${Math.max(0, Math.min(w, ax - left))}px ${Math.max(0, Math.min(h, ay - top))}px`;
+    requestAnimationFrame(() => { m.style.opacity = "1"; m.style.transform = "scale(1)"; });
+  });
+
+  const close = () => {
+    document.removeEventListener("keydown", esc, true);
+    backdrop.remove();
+    m.style.opacity = "0"; m.style.transform = "scale(0.92)";
+    setTimeout(() => m.remove(), 200);
+  };
+  function esc(ev) { if (ev.key === "Escape") { ev.stopPropagation(); close(); } }
+  document.addEventListener("keydown", esc, true);
+  backdrop.addEventListener("click", close);
+  const msgBtn = m.querySelector("[data-dl-msg]");
+  if (msgBtn) msgBtn.addEventListener("click", () => {
+    close();
+    try { if (typeof goto === "function") goto("messages"); } catch (_) {}
+    // Let the inbox paint, then select this driver's thread.
+    setTimeout(() => { try { if (typeof openDriverChatThread === "function") openDriverChatThread(opts.driverId); } catch (_) {} }, 80);
+  });
+}
+// Open the DL popover from the card circle (click or keyboard).
+function _rrDlPopFromEl(el, ev) {
+  if (!el) return;
+  _rrOpenDlPopover({
+    driverId: el.getAttribute("data-dl-driver"),
+    name:     el.getAttribute("data-dl-name") || "",
+    expISO:   el.getAttribute("data-dl-exp"),
+    days:     parseInt(el.getAttribute("data-dl-days"), 10) || 0,
+    expired:  el.getAttribute("data-dl-expired") === "1",
+    anchorX:  ev && Number.isFinite(ev.clientX) ? ev.clientX : el.getBoundingClientRect().left,
+    anchorY:  ev && Number.isFinite(ev.clientY) ? ev.clientY : el.getBoundingClientRect().bottom,
+  });
+}
+document.addEventListener("click", (e) => {
+  const el = e.target.closest && e.target.closest("[data-rr-dl-pop]");
+  if (!el) return;
+  e.preventDefault();
+  e.stopPropagation();
+  _rrDlPopFromEl(el, e);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const el = e.target.closest && e.target.closest("[data-rr-dl-pop]");
+  if (!el) return;
+  e.preventDefault();
+  _rrDlPopFromEl(el, null);
+});
+
 // FT/PT Mix status guardrails (on the Full-Time %). Returns the tier
 // plus the matching status icon + soft pill background, reusing the same
 // SVG style + soft tints as the Coverage KPI so the two read identically.
@@ -40939,7 +41048,7 @@ async function renderScheduleWeek() {
         const dlTitle = dlExpired
           ? `Driver's license expired ${dlWhen}`
           : `Driver's license expires ${dlWhen} (in ${dlDays}d)`;
-        dlWarnIcon = `<span class="cal-row-label-dlwarn" title="${dlTitle}" aria-label="${dlTitle}" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrDlWarnIcon(dlTitle, dlCritical)}</span>`;
+        dlWarnIcon = `<span class="cal-row-label-dlwarn" data-rr-dl-pop data-rr-no-drawer data-dl-driver="${d.id}" data-dl-exp="${d.dl_expires_on}" data-dl-days="${dlDays}" data-dl-expired="${dlExpired ? "1" : "0"}" data-dl-name="${escapeHtml(display)}" role="button" tabindex="0" title="${dlTitle}" aria-label="${dlTitle}" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0;cursor:pointer">${_rrDlWarnIcon(dlTitle, dlCritical)}</span>`;
       }
     }
     // Right-edge warning cluster (DL + no-van), pushed to the card's right.
