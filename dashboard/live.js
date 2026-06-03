@@ -16646,13 +16646,14 @@ async function openDriverDrawer(driverId, opts) {
          transform, which reads as a clean slide in on open and slide out
          on close (the panel starts off-screen and is clipped by the split,
          so there's no flash before it slides in). */
-      #rr-dd-drawer.rr-dd-inline{position:static;inset:auto;background:none;display:block;z-index:auto;opacity:1}
-      /* Full-height card (matches the roster list's vertical budget so
-         the record extends to the bottom of the page) that slides in from
-         the right edge and back out on close. The split clips horizontally
-         so the off-screen panel never adds a page scrollbar. */
+      #rr-dd-drawer.rr-dd-inline{position:static;inset:auto;background:none;display:flex;flex-direction:column;flex:1;min-height:0;z-index:auto;opacity:1}
+      /* The card fills the mount (which stretches to the roster list's
+         height), so it always extends to the same bottom as the roster.
+         It slides in from the right edge on open and back out on close;
+         the split clips horizontally so the off-screen panel never adds a
+         page scrollbar. Only the panel body scrolls internally. */
       #rr-dd-drawer.rr-dd-inline #rr-dd-panel{
-        width:100%;max-width:none;height:calc(100vh - 360px);
+        width:100%;max-width:none;height:auto;flex:1;min-height:0;
         border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-md);
         transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1);
       }
@@ -16671,9 +16672,10 @@ async function openDriverDrawer(driverId, opts) {
       #rr-dd-drawer.rr-dd-inline .dd-row{grid-template-columns:130px 1fr;gap:var(--s-2-5);padding:8px 0}
       #rr-dd-drawer.rr-dd-inline .dd-foot{padding:var(--s-3) 20px}
       /* Tablet / mobile — the pane stacks full width beneath the roster
-         and sizes to its content (no fixed viewport height). */
+         and sizes to its content (no fixed/flex-filled height). */
       @media (max-width:1024px){
-        #rr-dd-drawer.rr-dd-inline #rr-dd-panel{height:auto}
+        #rr-dd-drawer.rr-dd-inline,
+        #rr-dd-drawer.rr-dd-inline #rr-dd-panel{flex:none;height:auto;min-height:0}
       }
       .dd-chrome{position:sticky;top:0;z-index:2;background:var(--surface)}
       .dd-head{padding:var(--s-5) 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
