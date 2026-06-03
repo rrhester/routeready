@@ -30937,7 +30937,12 @@ window.schedSub = function (sub) {
     // Planning view — explicitly clear the KPI strip; no auto-repaint.
     const kpisHost = document.getElementById("rr-sched-kpis");
     if (kpisHost) kpisHost.innerHTML = "";
-  } else if (sub !== "today" && sub !== "requests" && sub !== "calendar") {
+  } else if (sub !== "today" && sub !== "requests" && sub !== "calendar"
+             && sub !== "roster" && sub !== "attendance") {
+    // Roster / Attendance own the KPI board with the ROSTER pills
+    // (painted by schedSub + refreshDriverStatRow). Skip the schedule
+    // repaint for them — otherwise renderScheduleWeek's async paint
+    // overwrites the roster pills ~0.5s after the click (the flicker).
     const kpisHost = document.getElementById("rr-sched-kpis");
     if (kpisHost) kpisHost.innerHTML = "";
     if (typeof renderScheduleWeek === "function") {
