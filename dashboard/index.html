@@ -31517,15 +31517,14 @@ John,Smith,555-0101,john@example.com</code>
     }
     // Targets sub-view swaps the schedule KPI strip for its own
     // Block / Cushion / Report-time KPI strip (same size + spot).
+    // Roster / Attendance swap in the ROSTER KPI strip (#rr-roster-kpis,
+    // relocated into this slot by _schedMountRosterSub). Either way the
+    // default schedule KPI strip is hidden so only one board shows.
     var kpisSched   = document.getElementById('rr-sched-kpis');
     var kpisTargets = document.getElementById('rr-sched-targets-kpis');
-    if (sub === 'targets'){
-      if (kpisSched)   kpisSched.style.display   = 'none';
-      if (kpisTargets) kpisTargets.style.display = '';
-    } else {
-      if (kpisSched)   kpisSched.style.display   = '';
-      if (kpisTargets) kpisTargets.style.display = 'none';
-    }
+    var isRosterSub = (sub === 'roster' || sub === 'attendance');
+    if (kpisTargets) kpisTargets.style.display = (sub === 'targets') ? '' : 'none';
+    if (kpisSched)   kpisSched.style.display   = (sub === 'targets' || isRosterSub) ? 'none' : '';
   }
 
   // ─── DRIVERS SUB-NAV ───────────────────────────────────────

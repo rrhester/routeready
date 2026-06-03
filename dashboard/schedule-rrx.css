@@ -67,6 +67,40 @@
   min-height: 0 !important;
 }
 
+/* Roster / Attendance embedded as Schedule sub-views · cascade the
+   sub-view's flex-fill down to the scrollable table so it stretches to
+   the bottom of the page (no trailing gap — "feels finished"). Each level
+   below is a direct parent/child, all bounded by the sub-view, so the
+   table keeps its own internal scroll and the page can never overflow.
+   The inline max-height:calc(100vh-360px) on #rr-roster-table-wrap was
+   tuned for the Drivers view chrome and ends short inside Schedule; drop
+   it here and let flex own the height. */
+#view-schedule.rrx-schedule #sched-sub-roster[style*="block"],
+#view-schedule.rrx-schedule #sched-sub-attendance[style*="block"] {
+  display: flex !important;
+  flex-direction: column;
+  min-height: 0;
+}
+#view-schedule.rrx-schedule #sched-sub-roster > #ob-roster-mount,
+#view-schedule.rrx-schedule #sched-sub-attendance > #ob-roster-mount {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+#view-schedule.rrx-schedule #ob-roster-mount > [id^="dr-sub-"] {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+#view-schedule.rrx-schedule #ob-roster-mount #rr-roster-table-wrap,
+#view-schedule.rrx-schedule #ob-roster-mount #dr-sub-attendance .table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none !important;
+}
+
 /* ── Title block ────────────────────────────────────────────── */
 
 #view-schedule.rrx-schedule .sched-nav-heading .page-title {
