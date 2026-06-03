@@ -7930,15 +7930,20 @@ body.rr-cmdk-open{ overflow:hidden }
    Reuses existing tokens only — no new colors, shadows, radii,
    typography, button, badge or spacing systems are introduced.
    ───────────────────────────────────────────────────────────── */
-.roster-split{display:flex;gap:var(--s-4);align-items:stretch;overflow-x:clip}
-.roster-split-list{flex:1 1 58%;min-width:0}
-/* Keep the roster table self-scrolling so the split's overflow-x:clip never
-   clips table columns. */
-.roster-split-list .table-wrap{overflow-x:auto}
+/* Cap the split to the viewport so the PAGE never scrolls — each pane
+   scrolls internally instead, which keeps the roster column header and the
+   record card header/tabs pinned in place. */
+.roster-split{display:flex;gap:var(--s-4);align-items:stretch;overflow:hidden;max-height:calc(100vh - 360px)}
+.roster-split-list{flex:1 1 58%;min-width:0;min-height:0;display:flex;flex-direction:column}
+/* The table-wrap fills the list pane and scrolls internally (override its
+   own inline max-height so the split's cap governs the height). */
+.roster-split-list .table-wrap{flex:1;min-height:0;max-height:none !important;overflow:auto}
+/* Roster column header stays pinned while the rows scroll under it. */
+.roster-split #rr-roster-table-wrap thead th{position:sticky;top:0;z-index:3}
 /* Persistent master–detail: the record pane is ALWAYS present so it never
    collapses; the roster list condenses to ~58% alongside it. */
 #driver-record-mount{
-  display:flex;flex-direction:column;flex:0 0 42%;min-width:340px;
+  display:flex;flex-direction:column;flex:0 0 42%;min-width:340px;min-height:0;
   container-type:inline-size;
 }
 /* "Select a driver" placeholder — shown until a record is docked. */
@@ -8009,9 +8014,10 @@ body.rr-cmdk-open{ overflow:hidden }
 
 /* Tablet / mobile — the record stacks full width beneath the roster. */
 @media (max-width:1024px){
-  .roster-split{flex-direction:column}
+  .roster-split{flex-direction:column;max-height:none;overflow:visible}
   .roster-split .roster-split-list,
   .roster-split #driver-record-mount{flex:1 1 auto;width:100%;position:static}
+  .roster-split-list .table-wrap{max-height:calc(100vh - 240px) !important}
   #driver-record-mount .detail-drawer{max-height:none}
 }
 
