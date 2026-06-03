@@ -39340,7 +39340,12 @@ function _schedShiftChip(sh, extras) {
     rescue:   { t: "RE", c: "#C50F1F", label: "Rescue" },
     nursery:  { t: "NU", c: "#038387", label: "Nursery" },
   };
-  const _rcDef = _isTrainingChip ? null : RC_BADGE[_rc];
+  let _rcDef = _isTrainingChip ? null : RC_BADGE[_rc];
+  // A service-type badge (XL / HUB / …) already marks the route, so the
+  // redundant "SP" standard tag is suppressed on those chips — an XL
+  // route reads just "XL", not "SP XL". Rescue / Nursery still tag
+  // regardless, since those classifications carry extra meaning.
+  if (_rcDef && _rcDef.t === "SP" && stCorner) _rcDef = null;
   const classCorner = _rcDef
     ? `<span class="shift-chip-class-badge" style="background:${_rcDef.c}20;color:${_rcDef.c}" title="${escapeHtml(_rcDef.label)} route">${_rcDef.t}</span>`
     : "";
