@@ -2298,38 +2298,35 @@ function shiftCardHtml(s, isToday, vanInfo, opts) {
   const isRideAlong = s.shiftKind === "ride_along";
   const isOnboardingShift = isTraining || isRideAlong;
 
-  // ── Badge row · the unified ShiftCard contract ────────────────────
-  // Secondary metadata reads as scannable pills instead of stacked text
-  // lines. Order is deliberate: Wave (when it differs from clock-in) →
-  // Van (the key operational fact) → Rotation → Service type → training
-  // → cushion → completed. Restrained tones; see .sc-badge in styles.css.
-  const badges = [];
-  if (waveTxt) {
-    badges.push(`<span class="sc-badge sc-badge--wave"><span class="sc-badge-lbl">Wave</span> ${escapeHtml(waveTxt)}</span>`);
-  }
+  // ── Meta row · the unified ShiftCard contract ─────────────────────
+  // Secondary metadata reads as a tidy data record — a small uppercase
+  // label over its value — rather than bordered pills. Order is
+  // deliberate: Van (the key operational fact) → Wave → Service type →
+  // Training → Cushion → Completed. Color is reserved for meaning only;
+  // see .sc-meta / .sc-cell in styles.css.
+  const cells = [];
   if (vanName) {
-    badges.push(`<span class="sc-badge sc-badge--van">Van ${escapeHtml(vanName)}</span>`);
+    const rot = isRotation ? ` <span class="sc-cell-rotation">Rotation</span>` : "";
+    cells.push(`<div class="sc-cell"><div class="sc-cell-l">Van</div><div class="sc-cell-v sc-cell-v--van">${escapeHtml(vanName)}${rot}</div></div>`);
   }
-  if (isRotation) {
-    badges.push(`<span class="sc-badge sc-badge--rotation">Rotation</span>`);
+  if (waveTxt) {
+    cells.push(`<div class="sc-cell"><div class="sc-cell-l">Wave</div><div class="sc-cell-v">${escapeHtml(waveTxt)}</div></div>`);
   }
   if (s.type && s.type !== "SP") {
-    const stStyle = s.typeColor
-      ? `background:${escapeHtml(s.typeColor)}1A;border-color:${escapeHtml(s.typeColor)}40;color:${escapeHtml(s.typeColor)}`
-      : "";
-    badges.push(`<span class="sc-badge sc-badge--service"${stStyle ? ` style="${stStyle}"` : ""}>${escapeHtml(s.type)}</span>`);
+    const stStyle = s.typeColor ? ` style="color:${escapeHtml(s.typeColor)}"` : "";
+    cells.push(`<div class="sc-cell"><div class="sc-cell-l">Type</div><div class="sc-cell-v"${stStyle}>${escapeHtml(s.type)}</div></div>`);
   }
   if (isTraining) {
-    badges.push(`<span class="sc-badge sc-badge--train">Class · Day ${escapeHtml(String(s.trainingDay || 1))}</span>`);
+    cells.push(`<div class="sc-cell"><div class="sc-cell-l">Training</div><div class="sc-cell-v sc-cell-v--train">Class · Day ${escapeHtml(String(s.trainingDay || 1))}</div></div>`);
   } else if (isRideAlong) {
     const tn = s.trainerName ? s.trainerName.split(/\s+/)[0] : "";
-    badges.push(`<span class="sc-badge sc-badge--road">${tn ? `Road · ${escapeHtml(tn)}` : "Road training"}</span>`);
+    cells.push(`<div class="sc-cell"><div class="sc-cell-l">Training</div><div class="sc-cell-v sc-cell-v--road">${tn ? `Road · ${escapeHtml(tn)}` : "Road"}</div></div>`);
   }
   if (s.isCushion) {
-    badges.push(`<span class="sc-badge sc-badge--ex" title="Extra / cushion shift">EX</span>`);
+    cells.push(`<div class="sc-cell"><div class="sc-cell-l">Shift</div><div class="sc-cell-v sc-cell-v--ex" title="Extra / cushion shift">Cushion</div></div>`);
   }
   if (s.status === "completed") {
-    badges.push(`<span class="sc-badge sc-badge--done">Completed</span>`);
+    cells.push(`<div class="sc-cell"><div class="sc-cell-l">Status</div><div class="sc-cell-v sc-cell-v--done">Completed</div></div>`);
   }
 
   // Weather chip is filled in async after render — see _hydrateShiftWeather.
@@ -2353,7 +2350,7 @@ function shiftCardHtml(s, isToday, vanInfo, opts) {
           </div>
         </div>
         ${s.station ? `<div class="meta-station">${escapeHtml(s.station)}</div>` : ""}
-        ${badges.length ? `<div class="sc-badges">${badges.join("")}</div>` : ""}
+        ${cells.length ? `<div class="sc-meta">${cells.join("")}</div>` : ""}
         ${wxSlot}
         ${opts?.swappable && s.status === "scheduled" && !isOnboardingShift ? `
           <div style="margin-top:8px"><a href="#" class="rr-text-link" data-rr-swap-from="${escapeHtml(s.id)}" style="font-size:var(--fs-xs);color:var(--text-subtle);text-decoration:none;cursor:pointer">Offer swap</a></div>
@@ -4250,11 +4247,11 @@ async function renderUpNext(session) {
     && s.wave_starts_at
     && new Date(s.wave_starts_at).getTime() !== new Date(s.starts_at).getTime();
 
-  // Same badge contract as the schedule cards — Wave + Van read as pills
-  // so the "Up next" hero feels like one product with the list below.
-  const upBadges = [];
-  if (hasLead) upBadges.push(`<span class="sc-badge sc-badge--wave"><span class="sc-badge-lbl">Wave</span> ${escapeHtml(fmtTime(s.wave_starts_at))}</span>`);
-  if (vehicle) upBadges.push(`<span class="sc-badge sc-badge--van">Van ${escapeHtml(vehicle)}</span>`);
+  // Same meta contract as the schedule cards — Van + Wave read as
+  // labeled values so the "Up next" hero feels like one product.
+  const upCells = [];
+  if (vehicle) upCells.push(`<div class="sc-cell"><div class="sc-cell-l">Van</div><div class="sc-cell-v sc-cell-v--van">${escapeHtml(vehicle)}</div></div>`);
+  if (hasLead) upCells.push(`<div class="sc-cell"><div class="sc-cell-l">Wave</div><div class="sc-cell-v">${escapeHtml(fmtTime(s.wave_starts_at))}</div></div>`);
 
   slot.hidden = false;
   slot.innerHTML = `
@@ -4268,7 +4265,7 @@ async function renderUpNext(session) {
       <div class="up-next-body">
         <div class="up-next-time">${escapeHtml(timeRange)}</div>
         ${s.station_code ? `<div class="up-next-meta">${escapeHtml(s.station_code)}</div>` : ""}
-        ${upBadges.length ? `<div class="sc-badges">${upBadges.join("")}</div>` : ""}
+        ${upCells.length ? `<div class="sc-meta">${upCells.join("")}</div>` : ""}
         <div class="up-next-weather" id="rr-upnext-wx" hidden></div>
       </div>
     </div>`;

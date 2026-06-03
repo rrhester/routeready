@@ -571,51 +571,40 @@ select.field{
 .shift-card .tag-status-confirmed{background:var(--green-soft);border-color:rgba(16,124,65,.22);color:var(--green-dark)}
 .shift-card .chev{color:var(--text-subtle)}
 
-/* ── Unified ShiftCard badge contract ───────────────────────────────
-   One pill language shared by the driver app's shift cards and the
-   operator grid chips (dashboard/schedule-rrx.css mirrors these tones).
-   Calm, tonal, hairline-bordered — metadata reads as scannable chips,
-   not stacked text. Restrained palette: van leans accent (the key
-   operational fact), everything else stays neutral unless it carries a
-   real status (training = teal/amber, cushion = indigo, completed =
-   green, rotation = clay). */
-.shift-card .sc-badges{
-  display:flex;flex-wrap:wrap;gap:var(--s-1);
-  align-items:center;margin-top:9px;
+/* ── Unified ShiftCard meta contract · labeled values ───────────────
+   One layout language shared by the driver app's shift cards and the
+   operator grid chips. Metadata reads as a tidy data record — a small
+   uppercase label over its value — instead of bordered pills, which
+   read as visually busy "stripes". No boxes, no separators: hierarchy
+   comes from the hero time above and the calm label/value pairs below.
+   Color is reserved for meaning only — van leans accent (the key
+   operational fact), service type keeps its own color, status/training
+   carry a settled tint (green / teal / amber / indigo / clay). */
+.sc-meta{
+  display:flex;flex-wrap:wrap;
+  gap:12px 22px;margin-top:11px;
 }
-.sc-badge{
-  display:inline-flex;align-items:center;gap:4px;
-  height:21px;padding:0 9px;border-radius:999px;
-  font-size:11px;font-weight:650;line-height:1;
-  letter-spacing:.005em;white-space:nowrap;
-  background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);
-  font-variant-numeric:tabular-nums;
+.sc-cell{min-width:0}
+.sc-cell-l{
+  font-size:9px;font-weight:700;line-height:1;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--text-subtle);
 }
-.sc-badge b{font-weight:750;color:inherit}
-.sc-badge .sc-badge-lbl{
-  font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-  opacity:.72;
+.sc-cell-v{
+  font-size:14px;font-weight:700;line-height:1.1;margin-top:4px;
+  color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:-.005em;
+  display:flex;align-items:baseline;gap:6px;
 }
 /* Van · the one operational fact worth a touch of accent. */
-.sc-badge--van{
-  background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent-text);
-  font-weight:750;
-}
-/* Wave · neutral with a firmer edge so the dispatch time still registers. */
-.sc-badge--wave{ background:var(--surface);border-color:var(--border-strong);color:var(--text); }
-/* Service type · colored inline from the service-type color. */
-.sc-badge--service{ font-weight:750;text-transform:uppercase;letter-spacing:.03em; }
-/* Trainer / trainee · shared with the operator grid's training tones. */
-.sc-badge--train{ background:rgba(13,148,136,.10);border-color:rgba(13,148,136,.26);color:#0F766E;font-weight:700; }
-.sc-badge--road{  background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.30);color:#B45309;font-weight:700; }
-/* Cushion (EX) · calm indigo, matching the amber-token family in :root. */
-.sc-badge--ex{ background:var(--amber-soft);border-color:rgba(99,102,241,.26);color:var(--amber-dark);font-weight:700; }
-/* Completed · settled green. */
-.sc-badge--done{ background:var(--green-soft);border-color:rgba(16,124,65,.24);color:var(--green-dark);font-weight:700; }
-/* Rotation · clay status, mirrors the grid's FEM-rescue marker. */
-.sc-badge--rotation{
-  background:rgba(180,83,9,.10);border-color:rgba(180,83,9,.24);color:#B45309;
-  font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:.05em;height:21px;padding:0 7px;
+.sc-cell-v--van{color:var(--accent-text)}
+/* Status / training tints — value-only, no chrome. */
+.sc-cell-v--train{color:#0F766E}
+.sc-cell-v--road{color:#B45309}
+.sc-cell-v--ex{color:var(--amber-dark)}
+.sc-cell-v--done{color:var(--green-dark)}
+/* Rotation · small clay qualifier riding alongside the van value. */
+.sc-cell-rotation{
+  font-size:9px;font-weight:700;line-height:1;
+  letter-spacing:.05em;text-transform:uppercase;color:#B45309;
 }
 
 /* ── Task / hub cards (Tasks + Profile screens) ─────────────── */
