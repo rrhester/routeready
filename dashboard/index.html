@@ -24341,29 +24341,33 @@ body.rr-cmdk-open{ overflow:hidden }
           /* KPI strip · brought to the TCP --tcp-kpi-h (46px) spec
              so Fleet's KPI bar reads identical to Schedule's joined-
              pill row. Tokens match #rr-sched-kpis.sched-kpi-pills. */
+          /* KPI CONTRACT · standardized onto the --kpi-* tokens
+             (app/rr-system.css) so Fleet is pixel-identical to the
+             Schedule master: same shadow, border, radius, height,
+             padding, gap, dot size, and value/sub typography. */
           #view-fleet .fl-kpi-pills{
             display:flex;flex-wrap:wrap;align-items:stretch;
             gap:0;padding:0;
-            margin:0 0 var(--rr-space-80);
-            background:var(--rr-bg-surface-1);
-            border:1px solid var(--rr-border-primary);
-            border-radius:var(--rr-radius-medium);
-            box-shadow:none;
+            margin:0 0 var(--kpi-margin-bottom);
+            background:var(--kpi-bg);
+            border:1px solid var(--kpi-border);
+            border-radius:var(--kpi-radius);
+            box-shadow:var(--kpi-shadow);
             font:var(--rr-font-body);
-            min-height:var(--tcp-kpi-h);
+            min-height:var(--kpi-height);
             overflow:hidden;
           }
           #view-fleet .fl-kpi-pills[hidden]{display:none}
           #view-fleet .fl-kpi-pill{
             display:inline-flex;align-items:center;
-            gap:var(--rr-space-100);
-            padding:var(--rr-space-120) var(--rr-space-240);
-            border-right:1px solid var(--rr-border-secondary);
+            gap:var(--kpi-gap);
+            padding:var(--kpi-pad-y) var(--kpi-pad-x);
+            border-right:1px solid var(--kpi-divider);
             font:var(--rr-font-body);font-weight:600;
-            color:var(--rr-fg-primary);
+            color:var(--kpi-text-primary);
             font-variant-numeric:tabular-nums;
             line-height:1.2;
-            min-height:var(--tcp-kpi-h);
+            min-height:var(--kpi-height);
             cursor:pointer;
             transition:background var(--t-fast);
           }
@@ -24373,24 +24377,25 @@ body.rr-cmdk-open{ overflow:hidden }
             outline:none;box-shadow:inset 0 0 0 2px var(--accent);
           }
           #view-fleet .fl-kpi-dot{
-            width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:#1A1F47;
+            width:var(--kpi-dot-size);height:var(--kpi-dot-size);
+            border-radius:50%;flex:0 0 auto;background:var(--kpi-dot-neutral);
           }
-          #view-fleet .fl-kpi-dot.green{background:#107C41}
+          #view-fleet .fl-kpi-dot.green{background:var(--kpi-success)}
           #view-fleet .fl-kpi-dot.amber{background:#B45309}
-          #view-fleet .fl-kpi-dot.red{background:#D13438}
+          #view-fleet .fl-kpi-dot.red{background:var(--kpi-danger)}
           #view-fleet .fl-kpi-text{
             display:inline-flex;flex-direction:column;gap:1px;
             line-height:1.2;min-width:0;
           }
           #view-fleet .fl-kpi-line{
-            font-size:var(--fs-sm);font-weight:600;color:var(--text);
+            font:var(--kpi-value-font);color:var(--kpi-text-primary);
             font-variant-numeric:tabular-nums;
           }
-          #view-fleet .fl-kpi-value{font-weight:700}
-          #view-fleet .fl-kpi-frac{color:var(--text-subtle);font-weight:500}
-          #view-fleet .fl-kpi-name{color:var(--text-muted);font-weight:600;margin-left:4px}
+          #view-fleet .fl-kpi-value{font-weight:600}
+          #view-fleet .fl-kpi-frac{color:var(--kpi-text-secondary);font-weight:500}
+          #view-fleet .fl-kpi-name{color:var(--rr-fg-secondary);font-weight:600;margin-left:4px}
           #view-fleet .fl-kpi-sub{
-            font-size:var(--fs-xs);font-weight:500;color:var(--text-subtle);
+            font:var(--kpi-label-font);color:var(--kpi-text-secondary);
           }
 
           /* Drill-down slide-over — reuses the Fleet drawer cosmetics
@@ -25463,16 +25468,19 @@ body.rr-cmdk-open{ overflow:hidden }
              default; live.js can populate it with workspace counts
              later. .is-empty keeps the layout footprint while
              hiding the visual band. */
+          /* KPI CONTRACT · standardized onto the --kpi-* tokens so the
+             Workspaces strip matches the Schedule master the moment it
+             is populated (shadow, border, radius, height, margin). */
           #view-workspaces .ws-kpis{
             display:flex;flex-wrap:wrap;align-items:stretch;
             gap:0;padding:0;
-            margin:var(--rr-space-160) 0 var(--rr-space-160);
-            background:var(--rr-bg-surface-1);
-            border:1px solid var(--rr-border-primary);
-            border-radius:var(--rr-radius-medium);
-            box-shadow:none;
+            margin:0 0 var(--kpi-margin-bottom);
+            background:var(--kpi-bg);
+            border:1px solid var(--kpi-border);
+            border-radius:var(--kpi-radius);
+            box-shadow:var(--kpi-shadow);
             font:var(--rr-font-body);
-            min-height:var(--tcp-kpi-h);
+            min-height:var(--kpi-height);
             overflow:hidden;
           }
           #view-workspaces .ws-kpis.is-empty{visibility:hidden}
