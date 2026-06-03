@@ -2643,25 +2643,28 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
 #view-schedule.rrx-schedule .cal-cell-head,
 #view-schedule.rrx-schedule .cal-grid,
 #view-schedule.rrx-schedule .cal-grid.head {
-  border-color: rgba(15, 23, 42, 0.26) !important;
+  border-color: rgba(15, 23, 42, 0.14) !important;
 }
 
 /* Right-divider between day columns + bottom border below each
    driver row. These selectors target the specific properties
    so we don't accidentally also recolor the .today bottom
-   indicator (which uses var(--accent)). Bumped from 20% → 26%
-   for a crisper, more authoritative grid. */
+   indicator (which uses var(--accent)). Lightened ~45% (0.26 → 0.14)
+   to cut grid noise — structure now leans on whitespace + alignment,
+   Linear / Notion / Google-Calendar style, rather than heavy rules. */
 #view-schedule.rrx-schedule .cal-cell {
-  border-right-color: rgba(15, 23, 42, 0.26) !important;
+  border-right-color: rgba(15, 23, 42, 0.14) !important;
 }
 #view-schedule.rrx-schedule .cal-cell-head:not(.today) {
-  border-right-color: rgba(15, 23, 42, 0.26) !important;
+  border-right-color: rgba(15, 23, 42, 0.14) !important;
 }
 #view-schedule.rrx-schedule .cal-grid {
-  border-bottom-color: rgba(15, 23, 42, 0.26) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.14) !important;
 }
+/* The day-of-week header keeps a touch more presence than the inner
+   rules so the grid still reads as anchored (0.32 → 0.18, ~44%). */
 #view-schedule.rrx-schedule .cal-grid.head {
-  border-bottom-color: rgba(15, 23, 42, 0.32) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.18) !important;
 }
 
 /* Tighter corners on shift chips · 3px tile-style corners read as
