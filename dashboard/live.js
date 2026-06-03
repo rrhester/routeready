@@ -35407,13 +35407,14 @@ window._rrToggleSchedPinnedOnly = function (force) {
   try { localStorage.setItem("rr-sched-pinned-only", next ? "1" : "0"); } catch (_) {}
   return next;
 };
-// Apply persisted state on load.
+// The "Show pinned only" header-card icon was removed per operator
+// request, so there's no longer a UI control to turn the dim-only
+// filter back off. Don't auto-restore a persisted "on" state (it would
+// strand the schedule dimmed with no toggle) — clear the stale flag so
+// the grid always boots un-dimmed. The _rrToggleSchedPinnedOnly() API
+// stays available for programmatic use.
 document.addEventListener("DOMContentLoaded", () => {
-  try {
-    if (localStorage.getItem("rr-sched-pinned-only") === "1") {
-      window._rrToggleSchedPinnedOnly(true);
-    }
-  } catch (_) {}
+  try { localStorage.removeItem("rr-sched-pinned-only"); } catch (_) {}
 }, { once: true });
 
 // Show-pinned-only toggle CSS · the button itself now lives in the
