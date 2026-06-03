@@ -41158,6 +41158,26 @@ function bindSchedWeekNav() {
   });
   setTimeout(_syncNavButtons, 0);
 
+  // ── Operator request · relocate the week navigator INTO the grid's
+  // DRIVER header cell, restructured as [Today] [<] [>]. We move the same
+  // button nodes, so the click listeners bound above stay attached; the
+  // DRIVER cell is static (renderScheduleWeek skips header cell 0), so this
+  // runs once and persists across week re-renders. The "This week" range
+  // button is dropped per the request (Today + chevrons only).
+  (() => {
+    const nav = document.getElementById("rr-sched-week-nav");
+    const driverCell = document.querySelector("#view-schedule .cal-wrap .cal-grid.head .cal-cell-head");
+    const label = document.getElementById("rr-sched-row-label");
+    if (!nav || !driverCell || driverCell.contains(nav)) return;
+    if (rangeBtn) rangeBtn.style.display = "none";
+    if (todayBtn) nav.appendChild(todayBtn);   // reorder → Today, then < , then >
+    if (prevBtn)  nav.appendChild(prevBtn);
+    if (nextBtn)  nav.appendChild(nextBtn);
+    driverCell.classList.add("rr-has-week-nav");
+    if (label && label.nextSibling) driverCell.insertBefore(nav, label.nextSibling);
+    else driverCell.appendChild(nav);
+  })();
+
   sub.addEventListener("click", (e) => {
     // 4-week tab strip — replaces the prev/next/Today buttons.
     const tab = e.target.closest(".sched-week-tab");

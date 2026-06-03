@@ -17538,6 +17538,23 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--surface);border:1px solid var(--border);
             border-radius:var(--r-md);padding:3px;
           }
+          /* Week navigator relocated into the grid's DRIVER header cell
+             (live.js moves #rr-sched-week-nav here as [Today] [<] [>]).
+             The cell wraps so the nav sits on the top row beside "Driver",
+             and the small action icons drop to a second row beneath it. */
+          #view-schedule .cal-grid.head .cal-cell-head.rr-has-week-nav{
+            flex-wrap:wrap;
+            row-gap:5px;
+          }
+          #view-schedule .cal-cell-head.rr-has-week-nav #rr-sched-week-nav{
+            margin-left:8px;
+          }
+          #view-schedule .cal-cell-head.rr-has-week-nav .rr-sched-driver-actions{
+            flex-basis:100%;
+            margin-left:0 !important;
+            justify-content:flex-start;
+            justify-items:start;
+          }
           #view-schedule .sched-week-nav-btn{
             appearance:none;background:transparent;border:0;cursor:pointer;
             color:var(--text-muted);
