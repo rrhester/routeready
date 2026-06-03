@@ -2139,7 +2139,7 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    left-border on the tile that starts each functional group;
    right-border on Kudos for the trailing divider after it. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="today"]),
-#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-nav="roster"]),
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="roster"]),
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="targets"]),
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="calendar"]),
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="kudos"]) {
