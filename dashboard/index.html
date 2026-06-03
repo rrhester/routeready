@@ -22041,13 +22041,9 @@ body.rr-cmdk-open{ overflow:hidden }
                      5 icons render as 4 on top + 1 on the bottom
                      until more are added. -->
                 <div class="rr-sched-driver-actions" style="display:grid;grid-template-columns:repeat(4, auto);grid-auto-rows:auto;gap:4px;margin-left:auto;align-items:center;justify-items:center">
-                  <button class="rr-tf-icon" id="rr-sched-focus-toggle" type="button"
-                          title="Focus mode — hide chrome, expand schedule + open shifts"
-                          aria-label="Focus mode" aria-pressed="false"
-                          style="position:relative;top:0;right:0">
-                    <svg class="ic-focus-on" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 3 3 3 3 9"/><polyline points="15 3 21 3 21 9"/><polyline points="21 15 21 21 15 21"/><polyline points="3 15 3 21 9 21"/></svg>
-                    <svg class="ic-focus-off" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polyline points="3 9 9 9 9 3"/><polyline points="21 9 15 9 15 3"/><polyline points="15 21 15 15 21 15"/><polyline points="3 15 9 15 9 21"/></svg>
-                  </button>
+                  <!-- Focus-mode toggle moved to the Quick Access
+                       Toolbar (top-left of the topbar); the header-card
+                       icon was removed per operator request. -->
                   <!-- Hide / show the Open shifts rail. Unlike Focus mode
                        (which hides all page chrome), this only collapses the
                        right-hand Open shifts box so the grid fills that space.
@@ -22071,20 +22067,8 @@ body.rr-cmdk-open{ overflow:hidden }
                           style="position:relative;top:0;right:0">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="13" y2="6"/><line x1="3" y1="12" x2="11" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><polyline points="17 8 21 12 17 16"/><line x1="14" y1="12" x2="21" y2="12"/></svg>
                   </button>
-                  <!-- Show pinned only · same subtile-icon row as the
-                       focus / compact / sort buttons. Toggles a class on
-                       #view-schedule that dims every cell without an
-                       active pin. Click handler lives in live.js via
-                       window._rrToggleSchedPinnedOnly(). The standalone
-                       button this used to live in is no longer injected.
-                       -->
-                  <button class="rr-tf-icon" id="rr-sched-pinned-only-btn" type="button"
-                          title="Dim cells without an active pin so you can see your pinned coverage at a glance."
-                          aria-label="Show pinned only" aria-pressed="false"
-                          style="position:relative;top:0;right:0"
-                          onclick="window._rrToggleSchedPinnedOnly && window._rrToggleSchedPinnedOnly()">
-                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76V6h6v4.76l3 3.24-1 2H7l-1-2z"/></svg>
-                  </button>
+                  <!-- "Show pinned only" pin icon removed from the
+                       header card per operator request. -->
                   <!-- Staff view toggle · flips the grid from "every
                        driver" to "only drivers with at least one
                        assigned shift this week" so the operator can
