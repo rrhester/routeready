@@ -3304,12 +3304,10 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-milestone {
   display: none !important;
 }
 
-/* Day-coverage pill in the header row also tightens up so the
-   thead doesn't tower over the body rows at this density. */
-body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-coverage {
-  font-size: 13px !important;
-  padding: 1px 5px !important;
-}
+/* Header info stays full-size at EVERY density (operator request): the
+   day number / completion / target never shrink with the grid — only the
+   driver rows densify. So there are deliberately no per-density overrides
+   on .cal-cell-head .day-coverage / .day-target. */
 
 /* ── Header shade · neutral, one step darker than the canvas.
    Replaced the blue-tinted strip with a low-alpha neutral so the
@@ -3347,15 +3345,6 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
   font-weight: 600 !important;
   color: var(--text-subtle) !important;
   margin-top: 3px !important;
-}
-body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-target {
-  font-size: 9.5px !important;
-}
-/* Compact density · scale the big completion number down so the denser
-   grid stays denser (ultra / super shrink it further, above). */
-body.rr-sched-compact #view-schedule.rrx-schedule .cal-cell-head .day-coverage {
-  font-size: 19px !important;
-  margin-top: 2px !important;
 }
 
 /* ============================================================
@@ -3437,10 +3426,6 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .shift-chip-fifth-day::a
 }
 body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
   display: none !important;
-}
-body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-cell-head .day-coverage,
-body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-cell-head .day-target {
-  font-size: 9px !important;
 }
 
 /* ============================================================
