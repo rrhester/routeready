@@ -4296,6 +4296,25 @@ function renderDriverTable(rows, error) {
   const renderer = _driverStage === "onboarding" ? renderOnboardingRow : renderDriverRow;
   tbody.innerHTML = visible.map(renderer).join("");
   _updateRosterHint(visible.length, stageTotal); _rosterBulkRefresh();
+  _rrMaybeRestoreLastDriver(rows);
+}
+
+// Restore the last-viewed driver into the persistent record pane (instead of
+// the "no driver selected" placeholder) the first time the roster renders
+// while visible. Runs at most once per page load so it never fights an
+// in-session close.
+let _rrLastDriverRestored = false;
+function _rrMaybeRestoreLastDriver(rows) {
+  if (_rrLastDriverRestored) return;
+  const mount = document.getElementById("driver-record-mount");
+  if (!mount || mount.offsetParent === null) return;          // roster pane not visible yet
+  if (mount.classList.contains("is-filled")) { _rrLastDriverRestored = true; return; }
+  let lastId = null;
+  try { lastId = localStorage.getItem("rr-roster-last-driver"); } catch (_) {}
+  if (!lastId) return;
+  if (!Array.isArray(rows) || !rows.some((r) => r && r.id === lastId)) return; // not in the current set
+  _rrLastDriverRestored = true;
+  if (typeof openDriverDrawer === "function") openDriverDrawer(lastId);
 }
 
 function _rosterEmpty({ icon, title, body, error }) {
@@ -16892,6 +16911,9 @@ async function openDriverDrawer(driverId, opts) {
     // the "select a driver" placeholder while a record is docked.
     _ddMount.classList.add("is-filled");
     _ddSplit.classList.add("has-record");
+    // Remember the last driver viewed on the roster so we can restore it
+    // (instead of the placeholder) next time the roster is shown.
+    if (driverId) { try { localStorage.setItem("rr-roster-last-driver", driverId); } catch (_) {} }
   } else {
     document.body.appendChild(drawer);
     if (_ddMount) _ddMount.classList.remove("is-filled"); // roster pane (if any) shows its placeholder
