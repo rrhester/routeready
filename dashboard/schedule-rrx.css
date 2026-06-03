@@ -976,6 +976,15 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   min-height: var(--kpi-height);
 }
 
+/* KPI status accent border — every metric cell carries a 6px vertical
+   bar on its far-left edge (color set inline: green = healthy,
+   yellow = warning, red = critical). It replaces the old status
+   dot/icon. Nudge the left padding so the text clears the bar with a
+   comfortable, enterprise-grade gutter. */
+#view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills .sched-kpi-pill[data-tier] {
+  padding-left: 28px;
+}
+
 #view-schedule.rrx-schedule .sched-kpi-pill:last-child,
 #view-schedule.rrx-schedule .tp-kpi-pill:last-child,
 #view-schedule.rrx-schedule .tp-kpis .tp-kpi-pill:last-child,

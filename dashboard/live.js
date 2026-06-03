@@ -40029,48 +40029,28 @@ async function renderScheduleWeek() {
   // Coverage pill carrying a subtle "X / Y shifts" sub-line.
   if (kpis) {
     kpis.classList.add("sched-kpi-pills");
-    const pill = (key, color, label, sub, clickable, title, iconHtml, pillBg) => {
+    // Status is communicated by a 6px left accent border (no dots / icons /
+    // badges). Three colours only, borrowed from the Live/Draft pill
+    // palette: green = healthy, yellow = attention, red = action required.
+    const TIER_COLOR = { green: "#107C41", yellow: "#FFA000", red: "#D13438" };
+    const pill = (key, tier, label, sub, clickable, title) => {
       const cl = clickable ? ' data-clickable="true"' : "";
-      // Title attribute intentionally omitted — the native browser
-      // tooltip on hover was reading as an unwanted "info toast"
-      // over the KPI strip. The explanatory text is still available
-      // to screen readers via the clickable detail modal.
+      // Title attribute intentionally omitted — the native browser tooltip
+      // read as an unwanted info-toast; detail lives in the click-through.
       void title;
-      const tt = "";
       // Always render the sub line (blank → spacer) so every KPI cell
       // is the same two-line height.
       const subHtml = `<span class="sched-kpi-sub">${sub || "&nbsp;"}</span>`;
-      // When an iconHtml is supplied, it replaces the standard status dot.
-      const marker = iconHtml
-        ? `<span class="sched-kpi-icon">${iconHtml}</span>`
-        : `<span class="sched-kpi-dot" style="background:${color}"></span>`;
-      const bg = pillBg ? ` style="background:${pillBg}"` : "";
-      return `<span class="sched-kpi-pill" data-rr-kpi="${key}"${cl}${tt}${bg}>${marker}<span class="sched-kpi-text"><span class="sched-kpi-val">${label}</span>${subHtml}</span></span>`;
+      const t = TIER_COLOR[tier] ? tier : "green";
+      return `<span class="sched-kpi-pill" data-rr-kpi="${key}" data-tier="${t}"${cl} style="border-left:6px solid ${TIER_COLOR[t]}"><span class="sched-kpi-text"><span class="sched-kpi-val">${label}</span>${subHtml}</span></span>`;
     };
     // Coverage status — three tiers:
     //   ≥115%   → soft green pill, darker-green circle with a white thumbs-up
     //   105–114 → soft yellow pill, yellow circle with a white warning "!"
     //   <105%   → soft red pill, red circle with a white exclamation point
+    // Coverage drill-down affordance only — the visible status now rides
+    // on the left accent border (see coverageTier below), not a tint/icon.
     const _covTier = pct >= 115 ? "green" : pct >= 105 ? "yellow" : "red";
-    const _covLabel = _covTier === "green" ? "Coverage strong"
-      : _covTier === "yellow" ? "Coverage caution" : "Coverage below target";
-    // Respect the operator's "Color-code status" preference — when off,
-    // Coverage + FT/PT render as plain pills (no tint / status icon).
-    const _kpiColorOn = _rrSchedKpiColorOn();
-    const coverageIcon = _kpiColorOn ? _rrKpiStatusIcon(_covTier, _covLabel) : undefined;
-    // KPI color-coding retired — show the status icon only, never a soft pill tint.
-    const coveragePillBg = undefined;
-    // Dots stay in the sidebar's navy family at rest. Color is spent on
-    // meaning only: RED is reserved for compliance / rule violations
-    // (something is wrong); GOLD/AMBER means labor cost / overtime (this
-    // costs money — not an error). Everything else reads neutral navy.
-    const navy = "#1A1F47";
-    // Microsoft / Fluent 2 alert red — used ONLY for hard problems
-    // (violations, sub-100% coverage). Never for overtime.
-    const msRed = "#D13438";
-    // Overtime gold/amber — a premium "labor cost" signal, deliberately
-    // NOT red. Matches the driver-row OT badge tones.
-    const otAmber = "#B45309";
     // Fleet-rotation pill — Fluent voice:
     //   Healthy → "Fleet rotation healthy" + forecast sub-line of
     //             the next van projected into Watch/Risk this week.
@@ -40122,11 +40102,20 @@ async function renderScheduleWeek() {
       ? "Every scheduled driver has an available van"
       : `${dayShiftsMissingVan} shift${dayShiftsMissingVan === 1 ? "" : "s"} without an available van`;
 
+    // Status tier per KPI → drives the 6px left accent border.
+    //   Coverage: ≥100% fully staffed (green) · ≥90% slightly under
+    //             (yellow) · below that significantly under (red).
+    const coverageTier = pct >= 100 ? "green" : pct >= 90 ? "yellow" : "red";
+    //   Violations: 0 (green) · 1 approaching (yellow) · ≥2 exceeded (red).
+    const violationsTier = violations.length === 0 ? "green" : violations.length === 1 ? "yellow" : "red";
+    //   OT Risk: nobody over 40h (green) · 1–2 drivers elevated (yellow) ·
+    //            3+ drivers excessive (red).
+    const overtimeTier = driversInOt === 0 ? "green" : driversInOt <= 2 ? "yellow" : "red";
     kpis.innerHTML =
-      pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, _covTier !== "green",
-        "Click to see settings that would raise coverage", coverageIcon, coveragePillBg) +
-      pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
-      pill("overtime", totalOvertimeHrs > 0 ? otAmber : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
+      pill("coverage", coverageTier, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, _covTier !== "green",
+        "Click to see settings that would raise coverage") +
+      pill("violations", violationsTier, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
+      pill("overtime", overtimeTier, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
       (() => {
         // FT/PT mix by scheduled PAID BLOCK hours (operator definition):
         // each shift counts as its block length (e.g. 10h), so 4 days = 40h =
@@ -40158,15 +40147,13 @@ async function renderScheduleWeek() {
         };
         return pill(
           "ftpt",
-          navy,
+          totalScheduled > 0 ? ftStatus.tier : "green",
           totalScheduled > 0 ? `${ftPct} / ${ptPct} FT/PT` : "— FT/PT",
           "",
           ftStatus.tier !== "green",  // green = healthy, no drill-down
           totalScheduled > 0
             ? `${ftCount} full-time · ${ptCount} part-time (of ${totalScheduled} active, by 40h)`
             : "No active drivers",
-          totalScheduled > 0 && _kpiColorOn ? ftStatus.icon : undefined,
-          undefined,  // color-coding retired — status icon only, no soft pill tint
         );
       })() +
       (() => {
@@ -40220,7 +40207,7 @@ async function renderScheduleWeek() {
               };
             });
           if (routes.length === 0 || flexDrivers.length === 0) {
-            return pill("flex", navy, "— Flex", "", false, "No route plan yet");
+            return pill("flex", "green", "— Flex", "", false, "No route plan yet");
           }
           const flexRes = computeFlexCapacity({ weekStart: _schedStart, drivers: flexDrivers, routes });
           const fa = flexRes.kpi.comfortableRoutesAvailable;
@@ -40243,13 +40230,11 @@ async function renderScheduleWeek() {
           const label = peak40 === peak50all ? `${peak40}` : `${peak40}–${peak50all}`;
           return pill(
             "flex",
-            navy,
+            flexTier,
             `${label} Max/day`,
             "",
             true,
             `Max routes/day · ≤40h peak ${peak40} → ≤50h peak ${peak50all}`,
-            _kpiColorOn ? _rrKpiStatusIcon(flexTier, "Flex capacity") : undefined,
-            undefined,  // color-coding retired — status icon only, no soft pill tint
           );
         } catch (err) {
           console.warn("flex capacity KPI:", err);
@@ -40260,9 +40245,11 @@ async function renderScheduleWeek() {
         // Preferred % — of shifts assigned to drivers who have preferred
         // days set, how many landed on one of those days.
         const prefPct = prefDenom > 0 ? Math.round(prefHonored / prefDenom * 100) : 0;
+        // Preferred: strong ≥80% (green) · moderate ≥60% (yellow) · poor (red).
+        const preferredTier = prefDenom === 0 ? "green" : prefPct >= 80 ? "green" : prefPct >= 60 ? "yellow" : "red";
         return pill(
           "preferred",
-          navy,
+          preferredTier,
           prefDenom > 0 ? `${prefPct}% Preferred` : "— Preferred",
           prefDenom > 0
             ? `${prefHonored} / ${prefDenom} shifts on a preferred day`
@@ -40275,9 +40262,11 @@ async function renderScheduleWeek() {
         // Driver Affinity % — average affinity drivers have for the
         // weekdays they were assigned, over the DSP's rolling period.
         const affPct = affDenom > 0 ? Math.round(affSum / affDenom) : 0;
+        // Affinity: strong ≥75% (green) · moderate ≥50% (yellow) · poor (red).
+        const affinityTier = affDenom === 0 ? "green" : affPct >= 75 ? "green" : affPct >= 50 ? "yellow" : "red";
         return pill(
           "affinity",
-          navy,
+          affinityTier,
           affDenom > 0 ? `${affPct}% Affinity` : "— Affinity",
           affDenom > 0
             ? `${affDenom} shift${affDenom === 1 ? "" : "s"} measured`
@@ -40286,12 +40275,11 @@ async function renderScheduleWeek() {
           "Average driver affinity for their assigned weekdays, over the rolling period",
         );
       })() +
-      pill("rotation",   rotationDotRed ? msRed : navy, rotationLabel, rotationSub, femRisks.length > 0, rotationTitle) +
-      pill("vanassign",  vanMissCount > 0 ? msRed : navy,
+      pill("rotation",   rotationDotRed ? "red" : "green", rotationLabel, rotationSub, femRisks.length > 0, rotationTitle) +
+      pill("vanassign",  vanMissCount > 0 ? "red" : "green",
         vanMissCount === 0 ? "Vans assigned" : `${vanMissCount} No van`,
         vanSub, vanMissCount > 0,
-        vanMissCount === 0 ? "Every scheduled driver has a van this week" : "Driver(s) scheduled without a van — assign vans or check the fleet",
-        (_kpiColorOn && vanMissCount > 0) ? _rrVanWarnIcon("Driver(s) scheduled without a van") : undefined);
+        vanMissCount === 0 ? "Every scheduled driver has a van this week" : "Driver(s) scheduled without a van — assign vans or check the fleet");
   }
   kpis.dataset.rrFemRisks    = JSON.stringify(femRisks);
   kpis.dataset.rrFemUpcoming = JSON.stringify(femUpcoming);
