@@ -26266,7 +26266,9 @@ document.addEventListener("click", (e) => {
   if (compactBtn) {
     e.preventDefault();
     e.stopPropagation();
-    const ORDER = ["standard", "compact", "ultra", "super"];
+    // "standard" (the largest grid size) removed from the cycle per
+    // operator request — the toggle now cycles Compact → Ultra → Super.
+    const ORDER = ["compact", "ultra", "super"];
     const cur = document.body.classList.contains("rr-sched-super-compact")
       ? "super"
       : document.body.classList.contains("rr-sched-ultra-compact")
@@ -26288,7 +26290,7 @@ document.addEventListener("click", (e) => {
       standard: "Grid density: Standard — click for Compact",
       compact:  "Grid density: Compact — click for Ultra-compact",
       ultra:    "Grid density: Ultra-compact — click for Super-compact",
-      super:    "Grid density: Super-compact — click for Standard",
+      super:    "Grid density: Super-compact — click for Compact",
     };
     compactBtn.setAttribute("aria-pressed", next === "standard" ? "false" : "true");
     compactBtn.title = TITLE[next];
