@@ -7926,19 +7926,36 @@ body.rr-cmdk-open{ overflow:hidden }
    typography, button, badge or spacing systems are introduced.
    ───────────────────────────────────────────────────────────── */
 .roster-split{display:flex;gap:var(--s-4);align-items:stretch;overflow-x:clip}
-.roster-split-list{flex:1 1 auto;min-width:0}
-/* Keep the roster table self-scrolling so the split's overflow-x:clip
-   (which hides the record pane while it slides in/out from the edge)
-   never clips table columns. */
+.roster-split-list{flex:1 1 58%;min-width:0}
+/* Keep the roster table self-scrolling so the split's overflow-x:clip never
+   clips table columns. */
 .roster-split-list .table-wrap{overflow-x:auto}
-.roster-split.has-record .roster-split-list{flex:1 1 58%}
-#driver-record-mount{display:none;container-type:inline-size}
-/* The mount stretches to the roster list's height (align-items:stretch on
-   the split) and is a column flex container so the record card fills it —
-   so the card always extends to the same bottom as the roster list. */
-.roster-split.has-record #driver-record-mount{
+/* Persistent master–detail: the record pane is ALWAYS present so it never
+   collapses; the roster list condenses to ~58% alongside it. */
+#driver-record-mount{
   display:flex;flex-direction:column;flex:0 0 42%;min-width:340px;
+  container-type:inline-size;
 }
+/* "Select a driver" placeholder — shown until a record is docked. */
+#rr-dd-empty{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;text-align:center;padding:28px 24px;
+  border:1px dashed var(--border-strong);border-radius:var(--r-lg);
+  background:var(--canvas);color:var(--text-subtle);
+}
+#rr-dd-empty svg{width:34px;height:34px;opacity:.45}
+#rr-dd-empty .rr-dd-empty-title{font-size:var(--fs-md);font-weight:600;color:var(--text-muted)}
+#rr-dd-empty .rr-dd-empty-sub{font-size:var(--fs-xs);max-width:230px;line-height:1.5}
+#driver-record-mount.is-filled #rr-dd-empty{display:none}
+/* Condense the roster for the narrower pane — drop the secondary columns
+   (Attendance Points · Last active · App). Targeted by class so the
+   onboarding-stage columns (which lack these classes) are untouched. */
+.roster-split .rr-roster-th-attpoints,
+.roster-split .rr-att-points-cell,
+.roster-split th[data-rr-roster-sort="lastactive"],
+.roster-split .rr-lastactive-cell,
+.roster-split .rr-roster-th-app,
+.roster-split .rr-app-cell{display:none}
 /* Neutralise the fixed-overlay drawer styling when the record lives
    in the inline mount, so it reads as a static workspace card that
    matches the Schedule / roster cards — no backdrop, no blur, no
@@ -7980,8 +7997,8 @@ body.rr-cmdk-open{ overflow:hidden }
 /* Tablet / mobile — the record stacks full width beneath the roster. */
 @media (max-width:1024px){
   .roster-split{flex-direction:column}
-  .roster-split.has-record .roster-split-list,
-  .roster-split.has-record #driver-record-mount{flex:1 1 auto;width:100%;position:static}
+  .roster-split .roster-split-list,
+  .roster-split #driver-record-mount{flex:1 1 auto;width:100%;position:static}
   #driver-record-mount .detail-drawer{max-height:none}
 }
 
@@ -14206,7 +14223,13 @@ body.rr-cmdk-open{ overflow:hidden }
           </table>
         </div>
         </div><!-- /roster-split-list -->
-        <aside class="roster-record-pane" id="driver-record-mount" aria-label="Driver record" aria-live="polite"></aside>
+        <aside class="roster-record-pane" id="driver-record-mount" aria-label="Driver record" aria-live="polite">
+          <div id="rr-dd-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M14 9h4"/><path d="M14 13h4"/><path d="M6 16c.8-1.4 2-2 3-2s2.2.6 3 2"/></svg>
+            <div class="rr-dd-empty-title">No driver selected</div>
+            <div class="rr-dd-empty-sub">Pick a driver from the roster to view and edit their record here.</div>
+          </div>
+        </aside>
         </div><!-- /roster-split -->
 
         </div><!-- /dr-sub-roster -->

@@ -4228,7 +4228,7 @@ function renderDriverTable(rows, error) {
       <th class="rr-roster-th-attpoints" title="Active attendance points within the policy window">Attendance Points</th>
       <th data-rr-roster-sort="score"  style="cursor:pointer;user-select:none">Score <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;opacity:.6" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>${caret("score")}</th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
-      <th>App</th>
+      <th class="rr-roster-th-app">App</th>
       <th></th>`;
     thead.dataset.rrColCount = "9";
 
@@ -7204,8 +7204,8 @@ function renderDriverRow(d) {
       <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
       <td class="rr-att-points-cell">${_attPointsCell(d.id)}</td>
       <td>${_scoreCell(d.score)}</td>
-      <td>${_appStatusCell(d.id)}</td>
-      <td data-rr-no-drawer class="u-center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" data-rr-app-state="${_appBtnState(d.id)}" title="${escapeHtml(_appBtnTitle(d.id))}" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
+      <td class="rr-lastactive-cell">${_appStatusCell(d.id)}</td>
+      <td data-rr-no-drawer class="u-center rr-app-cell"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" data-rr-app-state="${_appBtnState(d.id)}" title="${escapeHtml(_appBtnTitle(d.id))}" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
       <td data-rr-no-drawer class="rr-row-actions">${actions}</td>
     </tr>`;
 }
@@ -16888,10 +16888,13 @@ async function openDriverDrawer(driverId, opts) {
   if (_ddInline) {
     drawer.classList.add("rr-dd-inline");
     _ddMount.appendChild(drawer);
+    // The record pane is persistent (always visible); `is-filled` just hides
+    // the "select a driver" placeholder while a record is docked.
+    _ddMount.classList.add("is-filled");
     _ddSplit.classList.add("has-record");
   } else {
     document.body.appendChild(drawer);
-    if (_ddSplit) _ddSplit.classList.remove("has-record"); // clear any stale inline state
+    if (_ddMount) _ddMount.classList.remove("is-filled"); // roster pane (if any) shows its placeholder
   }
   // Slide in (overlay) / fade in (inline) · the panel is appended in its
   // un-.open form; adding .rr-dd-open on the next frame triggers the
@@ -16904,10 +16907,11 @@ async function openDriverDrawer(driverId, opts) {
     // rendering into a drawer that's mid-close-animation (the node lingers
     // 240ms during the slide-out). (Codex review.)
     drawer.dataset.rrClosing = "1";
-    // Collapse the inline split only after the node is gone, so the pane
-    // doesn't vanish mid-animation (removing .has-record hides the mount).
+    // Persistent pane: just drop the record node (after the slide-out) and
+    // re-show the placeholder — the pane itself never collapses.
     const finish = () => {
       drawer.remove();
+      if (_ddMount) _ddMount.classList.remove("is-filled");
       if (_ddSplit) _ddSplit.classList.remove("has-record");
     };
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) { finish(); return; }
