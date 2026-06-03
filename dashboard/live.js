@@ -32289,6 +32289,20 @@ function _schedMountRosterSub(subKey) {
   // any other Drivers sub currently in the mount, moves in the requested
   // one, and fires its data loader.
   if (typeof _obMountDriverSub === "function") _obMountDriverSub(subKey);
+  // Swap the schedule KPI board for the ROSTER KPI strip (Active drivers /
+  // on LOA / Avg tenure). #rr-roster-kpis is a single element painted by
+  // refreshDriverStatRow; relocate it into the schedule KPI slot (right
+  // before #rr-sched-kpis) and show it. schedSub() hides #rr-sched-kpis
+  // for the roster/attendance subs, so only the roster strip shows.
+  const schedKpis  = document.getElementById("rr-sched-kpis");
+  const rosterKpis = document.getElementById("rr-roster-kpis");
+  if (schedKpis && rosterKpis) {
+    if (!rosterKpis.__obOrigParent) _obStashOriginalPosition(rosterKpis);
+    if (rosterKpis.parentNode !== schedKpis.parentNode) {
+      schedKpis.parentNode.insertBefore(rosterKpis, schedKpis);
+    }
+    rosterKpis.style.display = "";
+  }
 }
 // Called when leaving a schedule roster/attendance sub-view (or leaving
 // the Schedule view). Returns the embedded Drivers node to #view-drivers
@@ -32309,6 +32323,13 @@ function _schedUnmountRosterSub() {
   if (typeof _obUnmountDriverRoster === "function") _obUnmountDriverRoster();
   // Park the mount back in Onboarding (it was borrowed → __obOrigParent set).
   if (mount.__obOrigParent) _obRestoreToOriginalPosition(mount);
+  // Return the borrowed roster KPI strip to its #view-drivers home so the
+  // Drivers page and onboarding roster mode find it where they expect.
+  const rosterKpis = document.getElementById("rr-roster-kpis");
+  if (rosterKpis && rosterKpis.__obOrigParent) {
+    rosterKpis.style.display = "";
+    _obRestoreToOriginalPosition(rosterKpis);
+  }
 }
 window._schedMountRosterSub   = _schedMountRosterSub;
 window._schedUnmountRosterSub = _schedUnmountRosterSub;
