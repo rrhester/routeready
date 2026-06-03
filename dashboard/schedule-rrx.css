@@ -3132,6 +3132,18 @@ body.rr-sched-focus #view-schedule.rrx-schedule .pool-openshifts-body {
   min-height: 0 !important;
 }
 
+/* Hide Open shifts WHILE in focus / fullscreen mode · the focus-mode
+   rules above force the rail back to 320px with higher specificity than
+   the normal hide-openshifts rule, so the "Hide open shifts" toggle did
+   nothing in fullscreen. These combined-class selectors out-rank focus
+   mode, so the rail collapses and the grid fills the full width here too. */
+body.rr-sched-focus.rr-sched-hide-openshifts #view-schedule.rrx-schedule .sched-right-rail {
+  display: none !important;
+}
+body.rr-sched-focus.rr-sched-hide-openshifts #view-schedule.rrx-schedule .builder-shell {
+  grid-template-columns: 1fr !important;
+}
+
 /* ── Compact rows · much shorter rectangles ───────────────────
    Aggressive height reduction so the operator can see many more
    drivers on screen at once. Cells become slim rectangles and
