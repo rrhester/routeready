@@ -3919,7 +3919,7 @@ async function loadDriversRoster() {
     sb.from("drivers")
       .select(`id, full_name, first_name, last_name, preferred_name, email, phone, status, hire_date, tier, score, updated_at, metadata,
                background_check_completed_at, drug_test_completed_at,
-               training_scheduled_at, training_date,
+               training_scheduled_at, training_date, dl_expires_on,
                station:station_id (code)`)
       .eq("dsp_id", window.RR.dsp.id)
       .order("hire_date", { ascending: false })
@@ -13727,6 +13727,15 @@ async function refreshDriverStatRow(rows) {
     ? Math.round((tenuredCount / totalActive) * 100)
     : null;
 
+  // # of active/onboarding drivers whose driver's license expires within
+  // the next 30 days (already-expired included — most urgent). Matches the
+  // Licenses tab's `days <= 30` rule.
+  const dlExpiringSoonCount = active.filter(d => {
+    if (!d.dl_expires_on) return false;
+    const days = Math.floor((new Date(d.dl_expires_on + "T12:00:00").getTime() - todayMs) / 86400000);
+    return days <= 30;
+  }).length;
+
   // % on attendance coaching · share of the team (active + onboarding)
   // with at least one active coaching on the attendance topic, at any
   // level (verbal → termination). Denominator matches % Tenured so the
@@ -13826,10 +13835,14 @@ async function refreshDriverStatRow(rows) {
   const tenureSub = avgTenure == null
     ? "Set hire dates to see tenure"
     : `Median ${medianTenure.toFixed(0)} mo · longest ${(longestMonths / 12).toFixed(1)} yr`;
-  const tenuredLabel = tenuredPct == null ? "— Tenured" : `${tenuredPct}% Tenured`;
+  const tenuredLabel = tenuredPct == null ? "— > 30 days" : `${tenuredPct}% > 30 days`;
   const tenuredSub = tenuredPct == null
     ? "Set hire dates to see tenure"
-    : `${tenuredCount} of ${totalActive} · 30+ days`;
+    : `${tenuredCount} of ${totalActive} drivers`;
+  // # of drivers' licenses expiring within 30 days (incl. expired).
+  const dlExpColor = dlExpiringSoonCount > 0 ? amber : navy;
+  const dlExpLabel = `${dlExpiringSoonCount} DL expiring`;
+  const dlExpSub   = dlExpiringSoonCount > 0 ? "Within 30 days" : "None within 30 days";
   // % Tenured guardrail · ≥90% shows the Schedule "all good" (green
   // thumbs-up) icon, below 90% shows the red warning icon — the same
   // _rrKpiStatusIcon glyphs the Schedule KPI strip uses.
@@ -13860,8 +13873,8 @@ async function refreshDriverStatRow(rows) {
       `${counts.leave || 0} on LOA`,
       (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
     rosterPill("tenure", navy, tenureLabel, tenureSub, true) +
-    rosterPill("tenured", navy, tenuredLabel, tenuredSub, false, tenuredIcon) +
-    rosterPill("attncoach", navy, attnLabel, attnSub, false, attnIcon);
+    rosterPill("tenured", navy, tenuredLabel, tenuredSub, false) +
+    rosterPill("dlexp", dlExpColor, dlExpLabel, dlExpSub, false);
 
   const rosterHost = document.getElementById("rr-roster-kpis");
   if (rosterHost) rosterHost.innerHTML = rosterKpisHtml;
