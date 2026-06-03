@@ -2541,12 +2541,15 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   transform-origin: center;
 }
 
-/* Phase 3 — validation sweep: a very soft green wash fades up and out
-   over each element in turn. No glow, no neon — just a quiet tint. */
-@keyframes rr-fin-wash-kf {
-  0%   { opacity: 0; }
-  35%  { opacity: 1; }
-  100% { opacity: 0; }
+/* Phase 3 — validation sweep: a single slow green wave that washes down
+   through the schedule region over ~3s. The feathered band travels from
+   just above the region to just below it, fading in/out at the edges.
+   No glow, no neon — just a quiet swell of green moving through. */
+@keyframes rr-fin-wave {
+  0%   { transform: translateY(var(--rr-wave-from)); opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { transform: translateY(var(--rr-wave-to)); opacity: 0; }
 }
 
 /* Respect reduced-motion: the JS already routes around the kinetic
