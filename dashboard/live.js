@@ -30722,6 +30722,139 @@ function _rrConfirmDialog(opts) {
 }
 window._rrConfirmDialog = _rrConfirmDialog;
 
+// ─── Finalize · premium in-context completion experience ───────────────
+// When a Draft week is finalized to Live, run a calm, non-blocking
+// "this plan is now official" moment. Pure presentation — the schedule
+// is already finalized (RPC done, state flipped) before any of this
+// runs. Nothing here blocks clicks, scroll, or input: every effect is a
+// CSS animation or a pointer-events:none overlay that self-removes.
+//
+//   Phase 1 · the Finalize button compresses → a confident checkmark →
+//             settles back to its finalized appearance.
+//   Phase 2 · the Draft→Live status pill scales up with a gentle green
+//             success emphasis.
+//   Phase 3 · a very soft green validation sweep flows pill → KPI strip
+//             → schedule grid (under 1s).
+//   Phase 4 · the title subtitle briefly becomes "✓ Schedule Ready for
+//             Dispatch", then restores the "Week of …" line.
+function _rrFinalizeCelebrate() {
+  const btn  = document.getElementById("rr-sched-finalize-h") || document.getElementById("schedule-cta");
+  const pill = document.getElementById("rr-sched-v2-status");
+  const kpis = document.getElementById("rr-sched-kpis");
+  const grid = document.querySelector("#view-schedule.rrx-schedule .cal-wrap");
+  const sub  = document.getElementById("rr-sched-page-sub");
+
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Honor reduced-motion: skip the kinetic phases, keep the readable
+  // "ready" confirmation (it's a simple fade, the gentlest signal).
+  if (reduce) { _rrFinalizeReadyMoment(sub); return; }
+
+  _rrFinalizeButtonConfirm(btn);     // Phase 1
+  _rrFinalizePillPop(pill);          // Phase 2
+  _rrFinalizeValidationSweep([pill, kpis, grid]); // Phase 3
+  _rrFinalizeReadyMoment(sub);       // Phase 4
+}
+window._rrFinalizeCelebrate = _rrFinalizeCelebrate;
+
+// Phase 1 — button: brief compress, a confident checkmark overlay held
+// ~500ms, then a clean settle back to the finalized button.
+function _rrFinalizeButtonConfirm(btn) {
+  if (!btn) return;
+  const r = btn.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  btn.style.transition = "transform 150ms cubic-bezier(.4,0,.2,1)";
+  btn.style.transform = "scale(.94)";
+  const ov = document.createElement("div");
+  ov.className = "rr-fin-btn-confirm";
+  ov.style.cssText =
+    `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;` +
+    "display:flex;align-items:center;justify-content:center;border-radius:8px;" +
+    "background:linear-gradient(135deg,#22C55E 0%,#107C41 100%);color:#fff;" +
+    "box-shadow:0 1px 3px rgba(16,124,65,.30);pointer-events:none;z-index:60;opacity:0;" +
+    "transition:opacity 150ms ease-out";
+  ov.innerHTML =
+    '<svg class="rr-fin-check-draw" viewBox="0 0 24 24" width="18" height="18" fill="none" ' +
+    'stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">' +
+    '<polyline points="20 6 9 17 4 12"/></svg>';
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => { ov.style.opacity = "1"; });
+  setTimeout(() => { btn.style.transform = "scale(1)"; }, 160);
+  setTimeout(() => {
+    ov.style.opacity = "0";
+    setTimeout(() => {
+      ov.remove();
+      btn.style.transition = "";
+      btn.style.transform = "";
+    }, 200);
+  }, 650);
+}
+
+// Phase 2 — status pill: scale-up with a soft green emphasis ring. The
+// pill is already in its Live (green + check) state at this point.
+function _rrFinalizePillPop(pill) {
+  if (!pill) return;
+  pill.classList.add("rr-fin-pill-pop");
+  setTimeout(() => pill.classList.remove("rr-fin-pill-pop"), 700);
+}
+
+// Phase 3 — validation sweep: a very soft green wash flows through the
+// status pill, the KPI strip, then the schedule grid. Body-level
+// pointer-events:none overlays positioned over each element's rect, so
+// nothing in the page layout or interactivity is touched.
+function _rrFinalizeValidationSweep(targets) {
+  targets.forEach((el, i) => {
+    if (!el) return;
+    setTimeout(() => _rrFinalizeWash(el), i * 150);
+  });
+}
+function _rrFinalizeWash(el) {
+  const r = el.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const pad = 3;
+  const ov = document.createElement("div");
+  ov.className = "rr-fin-wash";
+  ov.style.cssText =
+    `position:fixed;left:${r.left - pad}px;top:${r.top - pad}px;` +
+    `width:${r.width + pad * 2}px;height:${r.height + pad * 2}px;` +
+    "border-radius:8px;pointer-events:none;z-index:55;background:rgba(16,124,65,.07)";
+  document.body.appendChild(ov);
+  // Force the keyframe to start from a clean frame.
+  requestAnimationFrame(() => { ov.style.animation = "rr-fin-wash-kf 460ms ease-out forwards"; });
+  setTimeout(() => ov.remove(), 560);
+}
+
+// Phase 4 — "ready" moment: temporarily swap the "Week of …" subtitle
+// for "✓ Schedule Ready for Dispatch" (fade in 200ms · hold 1.6s ·
+// fade out 200ms), then restore the original subtitle.
+function _rrFinalizeReadyMoment(sub) {
+  if (!sub || sub.dataset.rrReadyActive === "1") return;
+  const original = sub.innerHTML;
+  sub.dataset.rrReadyActive = "1";
+  const span = document.createElement("span");
+  span.className = "rr-fin-ready";
+  span.innerHTML =
+    '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" ' +
+    'style="vertical-align:-2px;margin-right:6px;flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>' +
+    "Schedule Ready for Dispatch";
+  span.style.cssText =
+    "display:inline-flex;align-items:center;color:#107C41;font-weight:600;" +
+    "opacity:0;transition:opacity 200ms ease-out";
+  sub.innerHTML = "";
+  sub.appendChild(span);
+  requestAnimationFrame(() => { span.style.opacity = "1"; });
+  setTimeout(() => {
+    span.style.opacity = "0";
+    setTimeout(() => {
+      // Only restore if a re-render hasn't already replaced our content.
+      if (sub.dataset.rrReadyActive === "1") {
+        sub.innerHTML = original;
+        delete sub.dataset.rrReadyActive;
+      }
+    }, 200);
+  }, 1800);
+}
+
 document.addEventListener("click", async (e) => {
   if (e.target.closest("#schedule-cta, #rr-sched-finalize-h")) {
     e.preventDefault();
@@ -30740,7 +30873,11 @@ document.addEventListener("click", async (e) => {
           cancelLabel: "Cancel",
         });
     if (!ok) return;
-    await _setWeekFinalized(target);
+    const applied = await _setWeekFinalized(target);
+    // Premium completion moment — only when flipping Draft → Live.
+    if (applied && target) {
+      try { _rrFinalizeCelebrate(); } catch (_) { /* presentation only */ }
+    }
   }
 });
 
