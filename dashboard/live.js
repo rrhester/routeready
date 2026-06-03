@@ -40058,14 +40058,17 @@ async function renderScheduleWeek() {
     const coverageIcon = _kpiColorOn ? _rrKpiStatusIcon(_covTier, _covLabel) : undefined;
     // KPI color-coding retired — show the status icon only, never a soft pill tint.
     const coveragePillBg = undefined;
-    // Dots stay in the sidebar's navy family except for OT Risk and
-    // Violations when they actually flare — those keep red so the
-    // operator sees the alarm. Everything at-rest reads neutral navy.
+    // Dots stay in the sidebar's navy family at rest. Color is spent on
+    // meaning only: RED is reserved for compliance / rule violations
+    // (something is wrong); GOLD/AMBER means labor cost / overtime (this
+    // costs money — not an error). Everything else reads neutral navy.
     const navy = "#1A1F47";
-    // Microsoft / Fluent 2 alert red — every KPI dot uses this one
-    // red when its metric is in an alert state, so the strip reads
-    // as consistent mission-status indicators.
+    // Microsoft / Fluent 2 alert red — used ONLY for hard problems
+    // (violations, sub-100% coverage). Never for overtime.
     const msRed = "#D13438";
+    // Overtime gold/amber — a premium "labor cost" signal, deliberately
+    // NOT red. Matches the driver-row OT badge tones.
+    const otAmber = "#B45309";
     // Fleet-rotation pill — Fluent voice:
     //   Healthy → "Fleet rotation healthy" + forecast sub-line of
     //             the next van projected into Watch/Risk this week.
@@ -40121,8 +40124,7 @@ async function renderScheduleWeek() {
       pill("coverage", pct < 100 ? msRed : navy, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, _covTier !== "green",
         "Click to see settings that would raise coverage", coverageIcon, coveragePillBg) +
       pill("violations", violations.length > 0 ? msRed : navy, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
-      pill("overtime", totalOvertimeHrs > 0 ? msRed : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`,
-        (_kpiColorOn && totalOvertimeHrs > 0) ? _rrKpiStatusIcon("red", "Overtime — driver(s) scheduled over 40h") : undefined) +
+      pill("overtime", totalOvertimeHrs > 0 ? otAmber : navy, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
       (() => {
         // FT/PT mix by scheduled PAID BLOCK hours (operator definition):
         // each shift counts as its block length (e.g. 10h), so 4 days = 40h =
@@ -40440,13 +40442,21 @@ async function renderScheduleWeek() {
     const netHoursRounded = totalHours > 0 ? Math.round(netHours * 10) / 10 : 0;
     const hoursLabelHTML =
       `<span class="cal-row-label-hours">${netHoursRounded}h<span class="cal-row-label-hours-word"> scheduled</span></span>`;
-    // Overtime warning · the same red status icon as the OT Risk KPI (red
-    // circle, white exclamation). Shows at the far-right-center of the driver
-    // card when the driver's net (on-the-clock) hours exceed 40 — the exact
-    // condition the OT pill counts (gross − 0.5h/shift unpaid lunch).
-    const otIcon = netHours > 40
-      ? `<span class="cal-row-label-ot" title="Scheduled over 40 hours — overtime" aria-label="Overtime: scheduled over 40 hours" style="margin-left:auto;display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrKpiStatusIcon("red", "Over 40 hours — overtime")}</span>`
-      : "";
+    // Overtime · a premium amber/gold BADGE, never a red error state — red
+    // is reserved for compliance / rule violations. Two tiers (net,
+    // on-the-clock hours = gross − 0.5h/shift lunch, the same number the OT
+    // pill counts) communicate "this costs money", not "something is broken":
+    //   • 36–39.9h → subtle amber "Near OT"   (approaching labor cost)
+    //   • 40h+     → richer gold "OT +Xh"      (premium labor cost)
+    // Variable kept as `otIcon` so the van-warn margin logic below is unchanged.
+    let otIcon = "";
+    if (netHours >= 40) {
+      const _otRaw = Math.round((netHours - 40) * 10) / 10;
+      const _otTxt = _otRaw % 1 === 0 ? String(_otRaw) : _otRaw.toFixed(1);
+      otIcon = `<span class="rr-ot-badge rr-ot-badge--over" title="Scheduled ${netHours.toFixed(1)}h — ${_otTxt}h overtime (premium labor cost)" aria-label="Overtime: ${_otTxt} hours over 40">OT +${_otTxt}h</span>`;
+    } else if (netHours >= 36) {
+      otIcon = `<span class="rr-ot-badge rr-ot-badge--near" title="Scheduled ${netHours.toFixed(1)}h — approaching overtime (additional labor cost)" aria-label="Approaching overtime">Near OT</span>`;
+    }
     // No-van warning · red circle with a white "V" when this driver has any
     // scheduled day this week without a van assigned. Sits at the card's
     // right edge (after OT if both apply).
