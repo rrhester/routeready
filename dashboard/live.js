@@ -30722,163 +30722,104 @@ function _rrConfirmDialog(opts) {
 }
 window._rrConfirmDialog = _rrConfirmDialog;
 
-// ─── Finalize · premium in-context completion experience ───────────────
-// When a Draft week is finalized to Live, run a calm, non-blocking
-// "this plan is now official" moment. Pure presentation — the schedule
-// is already finalized (RPC done, state flipped) before any of this
-// runs. Nothing here blocks clicks, scroll, or input: every effect is a
-// CSS animation or a pointer-events:none overlay that self-removes.
+// ─── Finalize · premium Draft → Live state transition ──────────────────
+// Treats Finalize as a ~2-second publish animation that communicates the
+// schedule has officially moved from Draft to Live. Calm, enterprise,
+// operational — no toasts / banners / confetti / modals.
 //
-//   Phase 1 · the Finalize button compresses → a confident checkmark →
-//             settles back to its finalized appearance.
-//   Phase 2 · the Draft→Live status pill scales up with a gentle green
-//             success emphasis.
-//   Phase 3 · a single slow, soft green wave washes down through the
-//             schedule (pill → KPI strip → grid) over ~3s.
-//   Phase 4 · the title subtitle briefly becomes "✓ Schedule Ready for
-//             Dispatch", then restores the "Week of …" line.
-function _rrFinalizeCelebrate() {
-  const btn  = document.getElementById("rr-sched-finalize-h") || document.getElementById("schedule-cta");
+//   1. Button depresses, icon → spinner, label → "Finalizing Schedule…".
+//   2. The schedule WORKSPACE (KPI strip · grid · week toolbar) fades to
+//      85% with a 1–2px blur — it recedes while staying readable. The
+//      sidebar, title, status pill, and the active button stay crisp.
+//   3. A restrained light shimmer sweeps across the KPI strip.
+//   4. At ~1.5s the status pill animates Draft → Live (amber → green,
+//      scale 0.9 → 1.15 → 1.0) with a soft green radial glow that fades.
+//   5. Blur/opacity restore, shimmer stops, spinner clears, the button
+//      settles, and the schedule rests in its Live state.
+const _rrDelay = (ms) => new Promise((r) => setTimeout(r, ms));
+const _RR_FIN_SPINNER =
+  '<svg class="rr-fin-spinner" viewBox="0 0 24 24" width="15" height="15" fill="none" ' +
+  'stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">' +
+  '<path d="M12 3a9 9 0 0 1 9 9"/></svg>';
+
+async function _rrFinalizePublish() {
+  if (window._rrFinalizePublishing) return;
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId || !_schedStart) { await _setWeekFinalized(true); return; }
+
+  const btn  = document.getElementById("rr-sched-finalize-h");
   const pill = document.getElementById("rr-sched-v2-status");
-  const kpis = document.getElementById("rr-sched-kpis");
-  const grid = document.querySelector("#view-schedule.rrx-schedule .cal-wrap");
-  const sub  = document.getElementById("rr-sched-page-sub");
-
   const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  // Honor reduced-motion: skip the kinetic phases, keep the readable
-  // "ready" confirmation (it's a simple fade, the gentlest signal).
-  if (reduce) { _rrFinalizeReadyMoment(sub); return; }
 
-  _rrFinalizeButtonConfirm(btn);     // Phase 1
-  _rrFinalizePillPop(pill);          // Phase 2
-  _rrFinalizeValidationSweep([pill, kpis, grid]); // Phase 3
-  _rrFinalizeReadyMoment(sub);       // Phase 4
+  // Reduced motion → publish without theatrics.
+  if (reduce) { await _setWeekFinalized(true); return; }
+
+  window._rrFinalizePublishing = true;
+
+  // Phase 1 — button: depress + spinner + "Finalizing Schedule…".
+  let btnPrevHTML = null;
+  if (btn) {
+    btnPrevHTML = btn.innerHTML;
+    btn.classList.add("rr-fin-btn-busy");
+    btn.setAttribute("aria-busy", "true");
+    btn.innerHTML = `${_RR_FIN_SPINNER} Finalizing Schedule…`;
+  }
+
+  // Phases 2 + 3 — recede the workspace (fade + blur) and run the KPI
+  // shimmer. Both are pure CSS driven off this one body-level class.
+  document.body.classList.add("rr-sched-publishing");
+
+  // Commit the change now; gate the pill activation on BOTH the write
+  // landing and a ~1.5s beat so the transition feels deliberate.
+  const rpcPromise = sb.rpc("set_schedule_finalized", { p_week_start: _schedStart, p_finalized: true });
+  const [rpcRes] = await Promise.all([rpcPromise, _rrDelay(1500)]);
+
+  if (rpcRes && rpcRes.error) {
+    // Roll the visuals back and surface the failure (this is an error
+    // path, not a success notification).
+    document.body.classList.remove("rr-sched-publishing");
+    if (btn) {
+      btn.classList.remove("rr-fin-btn-busy");
+      btn.removeAttribute("aria-busy");
+      if (btnPrevHTML != null) btn.innerHTML = btnPrevHTML;
+    }
+    window._rrFinalizePublishing = false;
+    toast("Failed: " + rpcRes.error.message, "warn");
+    return;
+  }
+
+  // State is officially Live.
+  window._rrWeekFinalized = true;
+
+  // Phase 4 — pill Draft → Live: amber→green swap, scale pop, radial glow.
+  if (pill) {
+    pill.setAttribute("data-state", "live");
+    const lbl = pill.querySelector(".sched-v2-status-label");
+    if (lbl) lbl.textContent = "Live";
+    pill.classList.add("rr-fin-activate");
+    setTimeout(() => pill.classList.remove("rr-fin-activate"), 1300);
+  }
+
+  // Hold the published beat (~0.5s → ~2s total) then settle.
+  await _rrDelay(500);
+
+  // Phase 5 — settle: lift blur/opacity, stop shimmer, clear spinner, and
+  // render the canonical finalized button (Live / Unfinalize).
+  document.body.classList.remove("rr-sched-publishing");
+  if (btn) {
+    btn.classList.remove("rr-fin-btn-busy");
+    btn.removeAttribute("aria-busy");
+  }
+  _updateFinalizeButton();
+  window._rrFinalizePublishing = false;
 }
-window._rrFinalizeCelebrate = _rrFinalizeCelebrate;
-
-// Phase 1 — button: brief compress, a confident checkmark overlay held
-// ~500ms, then a clean settle back to the finalized button.
-function _rrFinalizeButtonConfirm(btn) {
-  if (!btn) return;
-  const r = btn.getBoundingClientRect();
-  if (!r.width || !r.height) return;
-  btn.style.transition = "transform 150ms cubic-bezier(.4,0,.2,1)";
-  btn.style.transform = "scale(.94)";
-  const ov = document.createElement("div");
-  ov.className = "rr-fin-btn-confirm";
-  ov.style.cssText =
-    `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;` +
-    "display:flex;align-items:center;justify-content:center;border-radius:8px;" +
-    "background:linear-gradient(135deg,#22C55E 0%,#107C41 100%);color:#fff;" +
-    "box-shadow:0 1px 3px rgba(16,124,65,.30);pointer-events:none;z-index:60;opacity:0;" +
-    "transition:opacity 150ms ease-out";
-  ov.innerHTML =
-    '<svg class="rr-fin-check-draw" viewBox="0 0 24 24" width="18" height="18" fill="none" ' +
-    'stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">' +
-    '<polyline points="20 6 9 17 4 12"/></svg>';
-  document.body.appendChild(ov);
-  requestAnimationFrame(() => { ov.style.opacity = "1"; });
-  setTimeout(() => { btn.style.transform = "scale(1)"; }, 160);
-  setTimeout(() => {
-    ov.style.opacity = "0";
-    setTimeout(() => {
-      ov.remove();
-      btn.style.transition = "";
-      btn.style.transform = "";
-    }, 200);
-  }, 650);
-}
-
-// Phase 2 — status pill: scale-up with a soft green emphasis ring. The
-// pill is already in its Live (green + check) state at this point.
-function _rrFinalizePillPop(pill) {
-  if (!pill) return;
-  pill.classList.add("rr-fin-pill-pop");
-  setTimeout(() => pill.classList.remove("rr-fin-pill-pop"), 700);
-}
-
-// Phase 3 — validation sweep: a single slow, soft green wave that washes
-// DOWN through the schedule region (status pill → KPI strip → grid)
-// over ~3 seconds. One body-level, pointer-events:none overlay spans the
-// union rect of the three targets; a broad, feathered green band travels
-// from just above the region to just below it, so it passes over each
-// surface in top-to-bottom order. Nothing in the page layout or
-// interactivity is touched.
-function _rrFinalizeValidationSweep(targets) {
-  const rects = targets
-    .filter(Boolean)
-    .map((el) => el.getBoundingClientRect())
-    .filter((r) => r.width && r.height);
-  if (!rects.length) return;
-
-  const pad = 4;
-  const left = Math.min(...rects.map((r) => r.left)) - pad;
-  const right = Math.max(...rects.map((r) => r.right)) + pad;
-  const top = Math.min(...rects.map((r) => r.top)) - pad;
-  const bottom = Math.max(...rects.map((r) => r.bottom)) + pad;
-  const w = right - left;
-  const h = bottom - top;
-
-  const wrap = document.createElement("div");
-  wrap.className = "rr-fin-wave-wrap";
-  wrap.style.cssText =
-    `position:fixed;left:${left}px;top:${top}px;width:${w}px;height:${h}px;` +
-    "overflow:hidden;pointer-events:none;z-index:55;border-radius:8px";
-
-  // Broad, feathered band — ~60% of the region tall so the wash reads as
-  // a soft swell rather than a thin line.
-  const bandH = Math.round(h * 0.6);
-  const band = document.createElement("div");
-  band.className = "rr-fin-wave-band";
-  band.style.cssText =
-    `position:absolute;left:0;right:0;top:0;height:${bandH}px;` +
-    "background:linear-gradient(to bottom, rgba(16,124,65,0) 0%, rgba(16,124,65,.10) 50%, rgba(16,124,65,0) 100%)";
-  band.style.setProperty("--rr-wave-from", `${-bandH}px`);
-  band.style.setProperty("--rr-wave-to", `${h}px`);
-
-  wrap.appendChild(band);
-  document.body.appendChild(wrap);
-  requestAnimationFrame(() => {
-    band.style.animation = "rr-fin-wave 3000ms cubic-bezier(.45,0,.55,1) forwards";
-  });
-  setTimeout(() => wrap.remove(), 3200);
-}
-
-// Phase 4 — "ready" moment: temporarily swap the "Week of …" subtitle
-// for "✓ Schedule Ready for Dispatch" (fade in 200ms · hold 1.6s ·
-// fade out 200ms), then restore the original subtitle.
-function _rrFinalizeReadyMoment(sub) {
-  if (!sub || sub.dataset.rrReadyActive === "1") return;
-  const original = sub.innerHTML;
-  sub.dataset.rrReadyActive = "1";
-  const span = document.createElement("span");
-  span.className = "rr-fin-ready";
-  span.innerHTML =
-    '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" ' +
-    'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" ' +
-    'style="vertical-align:-2px;margin-right:6px;flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>' +
-    "Schedule Ready for Dispatch";
-  span.style.cssText =
-    "display:inline-flex;align-items:center;color:#107C41;font-weight:600;" +
-    "opacity:0;transition:opacity 200ms ease-out";
-  sub.innerHTML = "";
-  sub.appendChild(span);
-  requestAnimationFrame(() => { span.style.opacity = "1"; });
-  setTimeout(() => {
-    span.style.opacity = "0";
-    setTimeout(() => {
-      // Only restore if a re-render hasn't already replaced our content.
-      if (sub.dataset.rrReadyActive === "1") {
-        sub.innerHTML = original;
-        delete sub.dataset.rrReadyActive;
-      }
-    }, 200);
-  }, 1800);
-}
+window._rrFinalizePublish = _rrFinalizePublish;
 
 document.addEventListener("click", async (e) => {
   if (e.target.closest("#schedule-cta, #rr-sched-finalize-h")) {
     e.preventDefault();
+    // Ignore re-clicks while a publish animation is in flight.
+    if (window._rrFinalizePublishing) return;
     const target = !window._rrWeekFinalized;
     const ok = target
       ? await _rrConfirmDialog({
@@ -30894,10 +30835,12 @@ document.addEventListener("click", async (e) => {
           cancelLabel: "Cancel",
         });
     if (!ok) return;
-    const applied = await _setWeekFinalized(target);
-    // Premium completion moment — only when flipping Draft → Live.
-    if (applied && target) {
-      try { _rrFinalizeCelebrate(); } catch (_) { /* presentation only */ }
+    // Draft → Live runs the premium publish transition; Unfinalize keeps
+    // the plain path.
+    if (target) {
+      await _rrFinalizePublish();
+    } else {
+      await _setWeekFinalized(target);
     }
   }
 });

@@ -2501,64 +2501,115 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 /* ============================================================
-   Finalize · premium completion experience (presentational)
+   Finalize · premium Draft → Live state transition
    ------------------------------------------------------------
-   Calm, enterprise activation feedback when a Draft week is
-   finalized to Live. Every effect here is non-blocking and
-   self-removing — see _rrFinalizeCelebrate() in live.js.
+   A calm ~2s publish animation: the schedule workspace recedes
+   (fade + blur) while the status pill activates from Draft to
+   Live. Driven by body.rr-sched-publishing + a few classes —
+   see _rrFinalizePublish() in live.js. The sidebar, page title,
+   status pill, and active button stay crisp throughout.
    ============================================================ */
 
-/* Phase 2 — status pill: a gentle scale-up + soft green emphasis ring
-   the moment it becomes Live. Subtle, not bouncy. */
-@keyframes rr-fin-pill-pop {
-  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(16, 124, 65, 0); }
-  35%  { transform: scale(1.10); box-shadow: 0 0 0 4px rgba(16, 124, 65, .14); }
-  70%  { transform: scale(1.02); box-shadow: 0 0 0 6px rgba(16, 124, 65, 0); }
-  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(16, 124, 65, 0); }
+/* Phase 1 — Finalize button: depress while publishing; icon spins. */
+#view-schedule.rrx-schedule .sched-ribbon-actions--grouped > #rr-sched-finalize-h.rr-fin-btn-busy {
+  transform: translateY(1px) scale(.97);
+  transition: transform 160ms cubic-bezier(.4, 0, .2, 1);
+  pointer-events: none;
+  cursor: default;
 }
-#view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-pill-pop {
-  animation: rr-fin-pill-pop 600ms cubic-bezier(.34, 1.4, .64, 1) both;
-}
-/* The check draws in with the pop rather than snapping on. */
-@keyframes rr-fin-check-in {
-  0%   { transform: scale(.2); opacity: 0; }
-  60%  { transform: scale(1.05); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
-}
-#view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-pill-pop .sched-v2-status-check {
-  animation: rr-fin-check-in 420ms cubic-bezier(.34, 1.4, .64, 1) both;
-}
-
-/* Phase 1 — Finalize button checkmark overlay: the check strokes in
-   confidently. The overlay's container fade is handled inline in JS. */
-@keyframes rr-fin-check-draw {
-  0%   { transform: scale(.4); opacity: 0; }
-  55%  { transform: scale(1.08); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
-}
-.rr-fin-btn-confirm .rr-fin-check-draw {
-  animation: rr-fin-check-draw 320ms cubic-bezier(.34, 1.4, .64, 1) 60ms both;
+@keyframes rr-fin-spin { to { transform: rotate(360deg); } }
+.rr-fin-spinner {
+  animation: rr-fin-spin .7s linear infinite;
   transform-origin: center;
 }
 
-/* Phase 3 — validation sweep: a single slow green wave that washes down
-   through the schedule region over ~3s. The feathered band travels from
-   just above the region to just below it, fading in/out at the edges.
-   No glow, no neon — just a quiet swell of green moving through. */
-@keyframes rr-fin-wave {
-  0%   { transform: translateY(var(--rr-wave-from)); opacity: 0; }
-  12%  { opacity: 1; }
-  88%  { opacity: 1; }
-  100% { transform: translateY(var(--rr-wave-to)); opacity: 0; }
+/* Phase 2 — the schedule workspace recedes: KPI strip, grid, and week
+   toolbar fade to 85% with a soft 1.3px blur. The transition lives on
+   the elements (scoped to the schedule) so the settle eases back just as
+   smoothly when the class is removed. */
+#view-schedule.rrx-schedule #rr-sched-kpis,
+#view-schedule.rrx-schedule .builder-shell,
+#view-schedule.rrx-schedule #rr-sched-week-nav {
+  transition: opacity 500ms ease-in-out, filter 500ms ease-in-out;
+}
+body.rr-sched-publishing #view-schedule.rrx-schedule #rr-sched-kpis,
+body.rr-sched-publishing #view-schedule.rrx-schedule .builder-shell,
+body.rr-sched-publishing #view-schedule.rrx-schedule #rr-sched-week-nav {
+  opacity: .85;
+  filter: blur(1.3px);
 }
 
-/* Respect reduced-motion: the JS already routes around the kinetic
-   phases, but belt-and-suspenders kill any animation here too. */
+/* Phase 3 — a restrained light shimmer sweeps across the KPI strip while
+   publishing. Soft white band, no flash. */
+body.rr-sched-publishing #view-schedule.rrx-schedule #rr-sched-kpis {
+  position: relative;
+  overflow: hidden;
+}
+body.rr-sched-publishing #view-schedule.rrx-schedule #rr-sched-kpis::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(100deg,
+    rgba(255, 255, 255, 0) 35%,
+    rgba(255, 255, 255, .38) 50%,
+    rgba(255, 255, 255, 0) 65%);
+  transform: translateX(-120%);
+  animation: rr-fin-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes rr-fin-shimmer {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+/* Phase 4 — status pill activates Draft → Live: scale 0.9 → 1.15 → 1.0
+   with a soft green radial glow behind it that fades naturally. */
+@keyframes rr-fin-pill-activate {
+  0%   { transform: scale(.9); }
+  55%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+#view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-activate {
+  animation: rr-fin-pill-activate 600ms cubic-bezier(.34, 1.32, .64, 1) both;
+  position: relative;
+  z-index: 1;
+}
+#view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-activate::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 200%;
+  height: 380%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center,
+    rgba(16, 124, 65, .38) 0%,
+    rgba(16, 124, 65, .14) 38%,
+    rgba(16, 124, 65, 0) 70%);
+  border-radius: 50%;
+  z-index: -1;
+  pointer-events: none;
+  animation: rr-fin-pill-glow 1200ms ease-out both;
+}
+@keyframes rr-fin-pill-glow {
+  0%   { opacity: 0; }
+  28%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Reduced motion — the JS already publishes without theatrics; kill any
+   residual animation/blur here too. */
 @media (prefers-reduced-motion: reduce) {
-  #view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-pill-pop,
-  #view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-pill-pop .sched-v2-status-check,
-  .rr-fin-btn-confirm .rr-fin-check-draw {
+  #view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-activate,
+  #view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-activate::before,
+  body.rr-sched-publishing #view-schedule.rrx-schedule #rr-sched-kpis::after,
+  .rr-fin-spinner {
     animation: none !important;
+  }
+  body.rr-sched-publishing #view-schedule.rrx-schedule #rr-sched-kpis,
+  body.rr-sched-publishing #view-schedule.rrx-schedule .builder-shell,
+  body.rr-sched-publishing #view-schedule.rrx-schedule #rr-sched-week-nav {
+    filter: none;
   }
 }
 
