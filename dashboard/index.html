@@ -149,15 +149,17 @@
   --sidebar-hover:rgba(255,255,255,.10);
   --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.18) 0%, rgba(255,255,255,.04) 100%);
   --sidebar-divider:rgba(255,255,255,0.06);
-  /* Sidebar rail · deep navy-blue surface, structural and grounded.
-     Translucent-white icon states; brighter blue active accent.
-     Tweak these to retune the rail. */
-  --sidebar-bg:#13294B;
-  --sidebar-icon-idle:rgba(255,255,255,0.75);
-  --sidebar-icon-hover:#FFFFFF;
+  /* Sidebar rail · soft enterprise slate — a quiet structural frame, not
+     a dominant element. Translucent-white icon states; the active item
+     is a subtle elevated tile (faint white fill + edge + blue glow), no
+     selection bar. Tweak these to retune the rail. */
+  --sidebar-bg:#202833;
+  --sidebar-icon-idle:rgba(255,255,255,0.72);
+  --sidebar-icon-hover:rgba(255,255,255,0.95);
   --sidebar-icon-active:#ffffff;
-  --sidebar-active-accent:#2563EB;
-  --sidebar-active-pill:rgba(255,255,255,0.06);
+  --sidebar-active-pill:rgba(255,255,255,0.08);
+  --sidebar-active-border:rgba(255,255,255,0.06);
+  --sidebar-active-glow:rgba(59,130,246,0.15);
   --glass:rgba(255,255,255,.80);
   --glass-strong:rgba(255,255,255,.90);
 
@@ -895,7 +897,7 @@ textarea,
      Operator-specified palette (Tailwind slate / blue family). */
   --sidebar:#0F172A;
   --sidebar-grad:none;
-  --sidebar-hover:#1E293B;
+  --sidebar-hover:rgba(255,255,255,0.04);
   --sidebar-active:#2563EB;
   /* divider inherits the :root --sidebar-divider hairline (rgba white .06) */
 
@@ -928,16 +930,16 @@ html:not(.rr-sidebar-light) .sidebar .nav-item:hover .nav-icon{color:var(--sideb
 html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon,
 html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon-color{
   color:var(--sidebar-icon-active);
-  /* No icon tile — the blue accent rail is the active indicator. */
   background:transparent;
 }
-/* Active = location state. Signalled by a subtle blue (#2563EB) left
-   accent rail + a faint neutral row highlight and a white icon — calm
-   and structural, never branded/purple. The light-theme toggle keeps
-   its own active row below. */
+/* Active = location state. A subtle elevated tile — faint white fill,
+   a hairline white edge, and a very soft blue glow ring — with a white
+   icon. No selection bar; calm and structural. The light-theme toggle
+   keeps its own active row below. */
 .sidebar .nav-item.active{
   background:var(--sidebar-active-pill);
-  box-shadow:inset 3px 0 0 var(--sidebar-active-accent);
+  border-color:var(--sidebar-active-border);
+  box-shadow:0 0 0 1px var(--sidebar-active-glow);
 }
 .sidebar .nav-item.active .nav-badge{color:var(--accent);background:#fff}
 .brand{
@@ -955,18 +957,19 @@ html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon-color{
 .brand-name{font-weight:600;font-size:var(--fs-base);letter-spacing:-.005em;color:var(--text-inverse)}
 .brand-name em{font-style:normal;font-weight:400;color:var(--text-inverse-muted)}
 
-.nav{display:flex;flex-direction:column;gap:3px;flex:1;min-height:0;overflow-y:auto}
+.nav{display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;overflow-y:auto}
 .nav-item{
   position:relative;
   display:flex;align-items:center;gap:var(--s-3);
-  /* Operator-requested · selected/hovered nav items render with
-     straight 90° corners, not the previous --r-md rounding. */
-  padding:8px var(--s-3);border-radius:0;
+  /* Rounded tile language (Linear / Fluent) · a touch more internal
+     padding for breathing room. The 1px transparent border reserves
+     space so the active tile's edge never shifts the layout. */
+  padding:10px var(--s-3);border-radius:var(--r-md);
   color:#E2E8F0;
   font-size:var(--fs-sm);font-weight:500;letter-spacing:0;
   cursor:pointer;
-  transition:background var(--t-smooth), color var(--t-smooth);
-  border:none;background:transparent;text-align:left;width:100%;
+  transition:background var(--t-smooth), color var(--t-smooth), border-color var(--t-smooth), box-shadow var(--t-smooth);
+  border:1px solid transparent;background:transparent;text-align:left;width:100%;
 }
 .nav-item:hover{
   background:var(--sidebar-hover);
