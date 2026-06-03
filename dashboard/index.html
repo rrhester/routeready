@@ -12248,21 +12248,31 @@ body.rr-cmdk-open{ overflow:hidden }
           display:inline-flex;flex-direction:column;align-items:center;
         }
         #view-onboarding-ops .ob-tab-wrap .subnav-item{padding-bottom:3px}
+        /* Density · Rules footer pulled out of the tile column's flow and
+           shown as a hover/focus caret (also opened by right-clicking the
+           tile — contextmenu handler in live.js), matching the Schedule
+           strip. Lets the shared --tcp-strip-h drop without clipping. */
+        #view-onboarding-ops .ob-tab-wrap{position:relative}
         #view-onboarding-ops .ob-rules-foot{
-          display:inline-flex;align-items:center;justify-content:center;gap:4px;
-          margin:0 auto 6px;padding:3px 9px;border-radius:4px;
+          display:inline-flex;align-items:center;justify-content:center;gap:0;
+          position:absolute;left:50%;bottom:1px;transform:translateX(-50%);
+          margin:0;padding:1px 5px;border-radius:999px;
           background:transparent;border:0;cursor:pointer;font-family:inherit;
-          font-size:11px;font-weight:500;letter-spacing:.01em;
+          font-size:0;font-weight:500;letter-spacing:0;
           color:var(--text-subtle);
-          transition:background var(--t-fast),color var(--t-fast);
+          opacity:0;pointer-events:none;
+          transition:opacity var(--t-fast),background var(--t-fast),color var(--t-fast);
         }
-        #view-onboarding-ops .ob-rules-foot svg{width:9px;height:9px;display:block;stroke-width:2}
+        #view-onboarding-ops .ob-tab-wrap:hover .ob-rules-foot,
+        #view-onboarding-ops .ob-tab-wrap:focus-within .ob-rules-foot,
+        #view-onboarding-ops .ob-rules-foot:focus-visible{opacity:.6;pointer-events:auto}
+        #view-onboarding-ops .ob-rules-foot svg{width:11px;height:11px;display:block;stroke-width:2}
         #view-onboarding-ops .ob-rules-foot:hover,
         #view-onboarding-ops .ob-rules-foot:focus-visible{
-          color:var(--sch-blue);background:var(--sch-blue-softer);outline:none;
+          opacity:1;color:var(--sch-blue);background:var(--sch-blue-softer);outline:none;
         }
         #view-onboarding-ops .ob-rules-foot[aria-expanded="true"]{
-          color:var(--sch-blue);background:var(--sch-blue-soft);
+          opacity:1;color:var(--sch-blue);background:var(--sch-blue-soft);
         }
         /* Attendance policy popover · anchored to the Attendance
            tile's Rules footer. Same Fluent acrylic chrome as the

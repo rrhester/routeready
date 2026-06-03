@@ -31824,6 +31824,24 @@ const _RR_V2_POPOVER_ID = {
   kudos:     "rr-sched-milestone-rules-popover",
 };
 
+// Right-click a command-strip icon → open its Rules popover. The Rules
+// footer was pulled out of the strip's vertical flow (now a hover caret)
+// to shrink the strip; right-click is the power-user shortcut. Reuses
+// each footer's existing click wiring so the popover opens + anchors
+// exactly as a footer click would. Schedule (v2 tiles) + Onboarding.
+document.addEventListener("contextmenu", (e) => {
+  const v2Tile = e.target.closest("#view-schedule .sched-v2-tile");
+  if (v2Tile) {
+    const foot = v2Tile.closest(".sched-v2-split")?.querySelector(".sched-v2-rules-foot");
+    if (foot) { e.preventDefault(); foot.click(); return; }
+  }
+  const obWrap = e.target.closest("#view-onboarding-ops .ob-tab-wrap");
+  if (obWrap) {
+    const foot = obWrap.querySelector(".ob-rules-foot");
+    if (foot) { e.preventDefault(); foot.click(); return; }
+  }
+});
+
 document.addEventListener("click", (e) => {
   const v2Split = e.target.closest(".sched-v2-split");
   if (v2Split) {
