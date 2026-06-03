@@ -13885,7 +13885,11 @@ async function refreshDriverStatRow(rows) {
       (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
     rosterPill("tenure", navy, tenureLabel, tenureSub, true) +
     rosterPill("tenured", navy, tenuredLabel, tenuredSub, false) +
-    rosterPill("dlexp", dlExpColor, dlExpLabel, dlExpSub, true);
+    // The DL-expiring pill only shows when driver-license tracking is on
+    // (Roster icon → Rules). Default ON when the flag is unset.
+    ((window.RR?.dsp?.metadata?.licenses?.tracking_enabled !== false)
+      ? rosterPill("dlexp", dlExpColor, dlExpLabel, dlExpSub, true)
+      : "");
 
   const rosterHost = document.getElementById("rr-roster-kpis");
   if (rosterHost) rosterHost.innerHTML = rosterKpisHtml;
@@ -30203,6 +30207,84 @@ document.addEventListener("click", (e) => {
   _toggleLicRules(false);
 });
 
+// ── Schedule · Roster tile "Rules" popover · driver-license tracking ──
+// Mirrors the other command-strip icons' rules flyouts. The V2 strip click
+// handler relocates #rr-sched-roster-rules-popover into the Roster split and
+// forwards the click to the hidden #rr-sched-roster-rules-toggle, handled
+// below. Toggles persist to dsps.metadata.licenses and re-paint the KPI strip.
+function _rrPrefillSchedRosterRules() {
+  const lic = window.RR?.dsp?.metadata?.licenses || {};
+  const track  = document.getElementById("rr-sched-roster-lic-track");
+  const remind = document.getElementById("rr-sched-roster-lic-remind");
+  const trackOn = lic.tracking_enabled !== false;   // default ON
+  if (track)  track.checked  = trackOn;
+  if (remind) { remind.checked = lic.auto_reminders !== false; remind.disabled = !trackOn; }
+}
+function _toggleSchedRosterRules(force) {
+  const pop = document.getElementById("rr-sched-roster-rules-popover");
+  const toggle = document.getElementById("rr-sched-roster-rules-toggle");
+  if (!pop) return false;
+  const next = (typeof force === "boolean") ? force : pop.hidden;
+  pop.hidden = !next;
+  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  if (next) _rrPrefillSchedRosterRules();
+  return next;
+}
+window._rrToggleSchedRosterRules = _toggleSchedRosterRules;
+document.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("#rr-sched-roster-rules-toggle")) {
+    e.preventDefault(); e.stopPropagation(); _toggleSchedRosterRules(); return;
+  }
+  if (e.target.closest && e.target.closest("#rr-sched-roster-rules-close")) {
+    e.preventDefault(); _toggleSchedRosterRules(false); return;
+  }
+  const pop = document.getElementById("rr-sched-roster-rules-popover");
+  if (!pop || pop.hidden) return;
+  if (e.target.closest && (e.target.closest("#rr-sched-roster-rules-popover") || e.target.closest("#rr-sched-roster-rules-toggle"))) return;
+  // The Roster Rules chevron opens it (via the forward target above); don't
+  // let that same click immediately close it.
+  const foot = e.target.closest && e.target.closest(".sched-v2-rules-foot");
+  if (foot && foot.closest(".sched-v2-split") && foot.closest(".sched-v2-split").querySelector('[data-rr-v2="roster"]')) return;
+  _toggleSchedRosterRules(false);
+});
+// Persist the license-tracking toggles on change, then re-paint the roster
+// KPI strip so the "DL expiring" pill shows / hides immediately.
+document.addEventListener("change", async (e) => {
+  const t = e.target;
+  if (!t || (t.id !== "rr-sched-roster-lic-track" && t.id !== "rr-sched-roster-lic-remind")) return;
+  const track  = document.getElementById("rr-sched-roster-lic-track");
+  const remind = document.getElementById("rr-sched-roster-lic-remind");
+  const status = document.getElementById("rr-sched-roster-rules-status");
+  const setStatus = (txt, ok) => {
+    if (!status) return;
+    status.textContent = txt;
+    status.style.color = ok === false ? "var(--red)" : ok ? "var(--green)" : "var(--text-subtle)";
+  };
+  if (remind && track) remind.disabled = !track.checked;
+  setStatus("Saving…");
+  try {
+    const { data: dsp, error: rErr } = await sb.from("dsps").select("metadata").eq("id", window.RR.dsp.id).single();
+    if (rErr) throw rErr;
+    const md = dsp.metadata || {};
+    md.licenses = {
+      ...(md.licenses || {}),
+      tracking_enabled: !!(track && track.checked),
+      auto_reminders:   !!(remind && remind.checked),
+    };
+    const { error: wErr } = await sb.from("dsps").update({ metadata: md }).eq("id", window.RR.dsp.id);
+    if (wErr) throw wErr;
+    window.RR.dsp.metadata = md;
+    setStatus("Saved", true);
+    if (typeof refreshDriverStatRow === "function" && Array.isArray(_rosterRows)) refreshDriverStatRow(_rosterRows);
+    // Tracking turned off while its KPI drilldown was open → collapse it.
+    if (!(track && track.checked) && _rosterKpiDetail === "dlexp" && typeof _closeRosterKpiDetail === "function") {
+      _closeRosterKpiDetail();
+    }
+  } catch (err) {
+    setStatus((err && err.message) || "Couldn't save", false);
+  }
+});
+
 // Roster display rules popover · table density picker
 // (Standard / Compact / Ultra-compact) wired to the same body-class
 // pattern as the Schedule density picker. Persisted in
@@ -32086,6 +32168,7 @@ const _RR_V2_FORWARD = {
     targets:   '#rr-sched-settings-toggle',
     unassign:  '#rr-sched-vans-rules-toggle',
     kudos:     '#rr-sched-milestone-rules-toggle',
+    roster:    '#rr-sched-roster-rules-toggle',
   },
 };
 
@@ -32105,6 +32188,7 @@ const _RR_V2_POPOVER_ID = {
   targets:   "rr-sched-quick-settings-popover",
   unassign:  "rr-sched-vans-rules-popover",
   kudos:     "rr-sched-milestone-rules-popover",
+  roster:    "rr-sched-roster-rules-popover",
 };
 
 // Right-click a command-strip icon → open its Rules popover. The Rules
@@ -40851,7 +40935,9 @@ async function renderScheduleWeek() {
     // Expired-DL flag — passive visual cue next to the driver name so
     // the operator sees at a glance that scheduling will trigger a warning.
     const todayIsoForDL = fmtIsoDate(new Date());
-    const dlExpired = d.dl_expires_on && d.dl_expires_on < todayIsoForDL;
+    // Suppressed when driver-license tracking is turned off (Roster → Rules).
+    const _licTrackOn = (window.RR?.dsp?.metadata?.licenses?.tracking_enabled) !== false;
+    const dlExpired = _licTrackOn && d.dl_expires_on && d.dl_expires_on < todayIsoForDL;
     const dlFlag = dlExpired
       ? `<span title="Driver's license expired ${new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString()}" style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,.12);color:var(--red);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>DL EXP</span>`
       : "";
