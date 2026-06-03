@@ -13634,6 +13634,35 @@ document.addEventListener("click", async (e) => {
   setStatus(`Saved at ${new Date().toLocaleTimeString()}`, "ok");
 });
 
+// Driver-message controls in the Smart Fill ("Who can work") rules · persist
+// to dsps.metadata.licenses (server-side) on change so a reminder job can
+// read them, and so the same values drive the DL flag's notice window.
+document.addEventListener("change", async (e) => {
+  const t = e.target;
+  if (!t || (t.id !== "rr-sf-dl-msg-enable" && t.id !== "rr-sf-dl-msg-days")) return;
+  const enableEl = document.getElementById("rr-sf-dl-msg-enable");
+  const daysEl   = document.getElementById("rr-sf-dl-msg-days");
+  let n = parseInt(daysEl && daysEl.value, 10);
+  if (!Number.isFinite(n) || n < 1) n = 30;
+  if (n > 365) n = 365;
+  if (daysEl) daysEl.value = String(n);
+  try {
+    const { data: dsp, error: rErr } = await sb.from("dsps").select("metadata").eq("id", window.RR.dsp.id).single();
+    if (rErr) throw rErr;
+    const md = dsp.metadata || {};
+    md.licenses = {
+      ...(md.licenses || {}),
+      auto_reminders: !!(enableEl && enableEl.checked),
+      reminder_days:  [n],
+    };
+    const { error: wErr } = await sb.from("dsps").update({ metadata: md }).eq("id", window.RR.dsp.id);
+    if (wErr) throw wErr;
+    window.RR.dsp.metadata = md;
+  } catch (err) {
+    console.warn("Save DL message settings:", err && err.message);
+  }
+});
+
 // Block-past-expiry toggle on the scheduling rules page is a one-shot
 // save — flip and persist.
 document.addEventListener("change", async (e) => {
@@ -13885,11 +13914,7 @@ async function refreshDriverStatRow(rows) {
       (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
     rosterPill("tenure", navy, tenureLabel, tenureSub, true) +
     rosterPill("tenured", navy, tenuredLabel, tenuredSub, false) +
-    // The DL-expiring pill only shows when driver-license tracking is on
-    // (Roster icon → Rules). Default ON when the flag is unset.
-    ((window.RR?.dsp?.metadata?.licenses?.tracking_enabled !== false)
-      ? rosterPill("dlexp", dlExpColor, dlExpLabel, dlExpSub, true)
-      : "");
+    rosterPill("dlexp", dlExpColor, dlExpLabel, dlExpSub, true);
 
   const rosterHost = document.getElementById("rr-roster-kpis");
   if (rosterHost) rosterHost.innerHTML = rosterKpisHtml;
@@ -28512,6 +28537,17 @@ function _restoreSmartFillRules() {
   // Restore the license protection-window field.
   const dlEl = document.getElementById("rr-set-dl-protection-days");
   if (dlEl) dlEl.value = String(Math.max(0, Math.min(365, parseInt(saved.dl_protection_days, 10) || 0)));
+  // Restore the driver-message settings — these live server-side on the DSP
+  // (dsps.metadata.licenses) so a reminder job can read them, not in the
+  // per-browser Smart Fill rules store. Messaging defaults OFF (opt-in).
+  const lic = (window.RR && window.RR.dsp && window.RR.dsp.metadata && window.RR.dsp.metadata.licenses) || {};
+  const dlMsgEl = document.getElementById("rr-sf-dl-msg-enable");
+  if (dlMsgEl) dlMsgEl.checked = lic.auto_reminders === true;
+  const dlMsgDaysEl = document.getElementById("rr-sf-dl-msg-days");
+  if (dlMsgDaysEl) {
+    const rd = Array.isArray(lic.reminder_days) ? lic.reminder_days.filter(n => Number.isFinite(n) && n > 0) : [];
+    dlMsgDaysEl.value = String(rd.length ? Math.max.apply(null, rd) : 30);
+  }
   // Restore the WOC limits (max consecutive days, max weekly hours).
   const wocDaysEl = document.getElementById("rr-set-woc-max-days");
   if (wocDaysEl) wocDaysEl.value = String(Math.max(1, Math.min(7, parseInt(saved.woc_max_consecutive_days, 10) || 6)));
@@ -30205,84 +30241,6 @@ document.addEventListener("click", (e) => {
   if (!pop || pop.hidden) return;
   if (e.target.closest && (e.target.closest("#rr-lic-rules-popover") || e.target.closest("#rr-lic-rules-toggle"))) return;
   _toggleLicRules(false);
-});
-
-// ── Schedule · Roster tile "Rules" popover · driver-license tracking ──
-// Mirrors the other command-strip icons' rules flyouts. The V2 strip click
-// handler relocates #rr-sched-roster-rules-popover into the Roster split and
-// forwards the click to the hidden #rr-sched-roster-rules-toggle, handled
-// below. Toggles persist to dsps.metadata.licenses and re-paint the KPI strip.
-function _rrPrefillSchedRosterRules() {
-  const lic = window.RR?.dsp?.metadata?.licenses || {};
-  const track  = document.getElementById("rr-sched-roster-lic-track");
-  const remind = document.getElementById("rr-sched-roster-lic-remind");
-  const trackOn = lic.tracking_enabled !== false;   // default ON
-  if (track)  track.checked  = trackOn;
-  if (remind) { remind.checked = lic.auto_reminders !== false; remind.disabled = !trackOn; }
-}
-function _toggleSchedRosterRules(force) {
-  const pop = document.getElementById("rr-sched-roster-rules-popover");
-  const toggle = document.getElementById("rr-sched-roster-rules-toggle");
-  if (!pop) return false;
-  const next = (typeof force === "boolean") ? force : pop.hidden;
-  pop.hidden = !next;
-  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
-  if (next) _rrPrefillSchedRosterRules();
-  return next;
-}
-window._rrToggleSchedRosterRules = _toggleSchedRosterRules;
-document.addEventListener("click", (e) => {
-  if (e.target.closest && e.target.closest("#rr-sched-roster-rules-toggle")) {
-    e.preventDefault(); e.stopPropagation(); _toggleSchedRosterRules(); return;
-  }
-  if (e.target.closest && e.target.closest("#rr-sched-roster-rules-close")) {
-    e.preventDefault(); _toggleSchedRosterRules(false); return;
-  }
-  const pop = document.getElementById("rr-sched-roster-rules-popover");
-  if (!pop || pop.hidden) return;
-  if (e.target.closest && (e.target.closest("#rr-sched-roster-rules-popover") || e.target.closest("#rr-sched-roster-rules-toggle"))) return;
-  // The Roster Rules chevron opens it (via the forward target above); don't
-  // let that same click immediately close it.
-  const foot = e.target.closest && e.target.closest(".sched-v2-rules-foot");
-  if (foot && foot.closest(".sched-v2-split") && foot.closest(".sched-v2-split").querySelector('[data-rr-v2="roster"]')) return;
-  _toggleSchedRosterRules(false);
-});
-// Persist the license-tracking toggles on change, then re-paint the roster
-// KPI strip so the "DL expiring" pill shows / hides immediately.
-document.addEventListener("change", async (e) => {
-  const t = e.target;
-  if (!t || (t.id !== "rr-sched-roster-lic-track" && t.id !== "rr-sched-roster-lic-remind")) return;
-  const track  = document.getElementById("rr-sched-roster-lic-track");
-  const remind = document.getElementById("rr-sched-roster-lic-remind");
-  const status = document.getElementById("rr-sched-roster-rules-status");
-  const setStatus = (txt, ok) => {
-    if (!status) return;
-    status.textContent = txt;
-    status.style.color = ok === false ? "var(--red)" : ok ? "var(--green)" : "var(--text-subtle)";
-  };
-  if (remind && track) remind.disabled = !track.checked;
-  setStatus("Saving…");
-  try {
-    const { data: dsp, error: rErr } = await sb.from("dsps").select("metadata").eq("id", window.RR.dsp.id).single();
-    if (rErr) throw rErr;
-    const md = dsp.metadata || {};
-    md.licenses = {
-      ...(md.licenses || {}),
-      tracking_enabled: !!(track && track.checked),
-      auto_reminders:   !!(remind && remind.checked),
-    };
-    const { error: wErr } = await sb.from("dsps").update({ metadata: md }).eq("id", window.RR.dsp.id);
-    if (wErr) throw wErr;
-    window.RR.dsp.metadata = md;
-    setStatus("Saved", true);
-    if (typeof refreshDriverStatRow === "function" && Array.isArray(_rosterRows)) refreshDriverStatRow(_rosterRows);
-    // Tracking turned off while its KPI drilldown was open → collapse it.
-    if (!(track && track.checked) && _rosterKpiDetail === "dlexp" && typeof _closeRosterKpiDetail === "function") {
-      _closeRosterKpiDetail();
-    }
-  } catch (err) {
-    setStatus((err && err.message) || "Couldn't save", false);
-  }
 });
 
 // Roster display rules popover · table density picker
@@ -32168,7 +32126,6 @@ const _RR_V2_FORWARD = {
     targets:   '#rr-sched-settings-toggle',
     unassign:  '#rr-sched-vans-rules-toggle',
     kudos:     '#rr-sched-milestone-rules-toggle',
-    roster:    '#rr-sched-roster-rules-toggle',
   },
 };
 
@@ -32188,7 +32145,6 @@ const _RR_V2_POPOVER_ID = {
   targets:   "rr-sched-quick-settings-popover",
   unassign:  "rr-sched-vans-rules-popover",
   kudos:     "rr-sched-milestone-rules-popover",
-  roster:    "rr-sched-roster-rules-popover",
 };
 
 // Right-click a command-strip icon → open its Rules popover. The Rules
@@ -39547,6 +39503,36 @@ function _rrVanWarnIcon(label) {
   return `<svg viewBox="0 0 24 24" width="16" height="16"${al}>${grad}<circle cx="12" cy="12" r="10" fill="url(#${gid})" stroke="${p.edge}" stroke-width="1"/><text x="12" y="16.6" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#fff">V</text></svg>`;
 }
 
+// Driver-license warning icon · same glossy circle family as the van-warn
+// icon, with a white "DL" glyph. Amber when the license is expiring soon,
+// red when already expired. Shown on the driver card when a license is
+// inside the DSP's notice window (see _rrDlNoticeDays).
+function _rrDlWarnIcon(label, expired) {
+  const al = label ? ` aria-label="${label}"` : "";
+  const p = expired ? RR_KPI_ICON_PALETTE.red : RR_KPI_ICON_PALETTE.yellow;
+  const gid = "rrDlGrad-" + Math.random().toString(36).slice(2, 8);
+  const grad = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${p.from}"/><stop offset="1" stop-color="${p.to}"/></linearGradient></defs>`;
+  return `<svg viewBox="0 0 24 24" width="16" height="16"${al}>${grad}<circle cx="12" cy="12" r="10" fill="url(#${gid})" stroke="${p.edge}" stroke-width="1"/><text x="12" y="15.6" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="8.5" font-weight="700" letter-spacing="-0.5" fill="#fff">DL</text></svg>`;
+}
+
+// The DSP's driver-license notice window, in days. The "DL" card flag and
+// any pre-expiry messaging fire when a license is this close to expiring.
+// Takes the larger of the operator's message window (dsps.metadata.licenses
+// .reminder_days) and the engine's license protection window
+// (Smart Fill rules · dl_protection_days); falls back to 30 when neither is
+// configured so the heads-up is still useful out of the box.
+function _rrDlNoticeDays() {
+  const lic = (window.RR && window.RR.dsp && window.RR.dsp.metadata && window.RR.dsp.metadata.licenses) || {};
+  const rd = Array.isArray(lic.reminder_days) ? lic.reminder_days.filter(n => Number.isFinite(n) && n > 0) : [];
+  let win = rd.length ? Math.max.apply(null, rd) : 0;
+  try {
+    const sf = (typeof window._rrLoadSfRules === "function") ? window._rrLoadSfRules() : {};
+    const prot = Math.max(0, Math.min(365, parseInt(sf.dl_protection_days, 10) || 0));
+    if (prot > win) win = prot;
+  } catch (_) {}
+  return win > 0 ? win : 30;
+}
+
 // FT/PT Mix status guardrails (on the Full-Time %). Returns the tier
 // plus the matching status icon + soft pill background, reusing the same
 // SVG style + soft tints as the Coverage KPI so the two read identically.
@@ -40930,16 +40916,31 @@ async function renderScheduleWeek() {
     // scheduled day this week without a van assigned. Sits at the card's
     // right edge (after OT if both apply).
     const vanWarnIcon = driversMissingVan.has(d.id)
-      ? `<span class="cal-row-label-vanwarn" title="Scheduled without a van" aria-label="Scheduled without a van" style="${otIcon ? "" : "margin-left:auto;"}display:inline-flex;align-items:center;flex-shrink:0;line-height:0;margin-left:6px">${_rrVanWarnIcon("Scheduled without a van")}</span>`
+      ? `<span class="cal-row-label-vanwarn" title="Scheduled without a van" aria-label="Scheduled without a van" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrVanWarnIcon("Scheduled without a van")}</span>`
       : "";
-    // Expired-DL flag — passive visual cue next to the driver name so
-    // the operator sees at a glance that scheduling will trigger a warning.
+    // DL flag · a small "DL" circle (same family as the van-warn icon) when
+    // the driver's license is expired (red) or expiring within the DSP's
+    // notice window (amber). The license text badge that used to sit by the
+    // name is replaced by this right-edge circle. No name-inline flag now.
+    const dlFlag = "";
     const todayIsoForDL = fmtIsoDate(new Date());
-    // Suppressed when driver-license tracking is turned off (Roster → Rules).
-    const _licTrackOn = (window.RR?.dsp?.metadata?.licenses?.tracking_enabled) !== false;
-    const dlExpired = _licTrackOn && d.dl_expires_on && d.dl_expires_on < todayIsoForDL;
-    const dlFlag = dlExpired
-      ? `<span title="Driver's license expired ${new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString()}" style="display:inline-flex;align-items:center;gap:3px;background:rgba(239,68,68,.12);color:var(--red);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>DL EXP</span>`
+    let dlWarnIcon = "";
+    if (d.dl_expires_on) {
+      const dlDays = Math.round(
+        (new Date(d.dl_expires_on + "T12:00:00") - new Date(todayIsoForDL + "T12:00:00")) / 86400000);
+      const dlWin = _rrDlNoticeDays();
+      const dlExpired = dlDays < 0;
+      if (dlExpired || dlDays <= dlWin) {
+        const dlWhen = new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString();
+        const dlTitle = dlExpired
+          ? `Driver's license expired ${dlWhen}`
+          : `Driver's license expires ${dlWhen} (in ${dlDays}d)`;
+        dlWarnIcon = `<span class="cal-row-label-dlwarn" title="${dlTitle}" aria-label="${dlTitle}" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrDlWarnIcon(dlTitle, dlExpired)}</span>`;
+      }
+    }
+    // Right-edge warning cluster (DL + no-van), pushed to the card's right.
+    const rightCluster = (dlWarnIcon || vanWarnIcon)
+      ? `<span class="cal-row-label-warns" style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0">${dlWarnIcon}${vanWarnIcon}</span>`
       : "";
     const prefSet = _prefByDriver.get(d.id) || null;
     // Row-default time pattern — when most of this driver's shifts share
@@ -41007,7 +41008,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}${prefCls}" ${data}>${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${dlFlag}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta"><span class="cal-row-label-station">${escapeHtml(station)}</span><span class="cal-row-label-sep"> · </span>${hoursLabelHTML}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div>${otIcon}${vanWarnIcon}</div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta"><span class="cal-row-label-station">${escapeHtml(station)}</span><span class="cal-row-label-sep"> · </span>${hoursLabelHTML}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div>${otIcon}${rightCluster}</div>
       ${cells}
     </div>`;
   }).join("");
