@@ -13972,6 +13972,42 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--canvas);border-color:var(--border-strong);
           }
           #view-drivers #dr-sub-coaching .rr-coach-hint{display:none}
+
+          /* ─── Schedule-parity polish · Roster ─────────────────────────
+             Final alignment so the Roster reads as Schedule's data-
+             management twin. The KPI strip (--kpi-* contract), card
+             elevation, frosted sticky header, blue row hover and shared
+             .status-pill chrome are already inherited from Schedule
+             above; these three rules close the remaining typography +
+             density + interaction gaps.
+             ─────────────────────────────────────────────────────────── */
+          /* Row density · Schedule's grid cells sit at 10px vertical;
+             the roster was at 11px. Tighten ~14% so more drivers fit on
+             screen at the same readability (Standard density only —
+             Compact / Ultra-compact keep their own !important overrides). */
+          #dr-sub-roster .table tbody td{
+            padding-top:9.5px;padding-bottom:9.5px;
+          }
+          /* Driver identity · match Schedule's .cal-row-label-name exactly
+             (13px / 600 / 1.2) so the driver name carries the same weight
+             and scale as the Schedule grid's row label. The secondary
+             phone/email line (.cell-name-sub) stays muted (--text-subtle),
+             mirroring Schedule's .cal-row-label-meta, so the name/detail
+             hierarchy is identical across both screens. */
+          #dr-sub-roster .cell-name{
+            font-size:var(--fs-md);font-weight:600;line-height:1.2;color:var(--text);
+          }
+          #dr-sub-roster .cell-name-sub{
+            color:var(--text-subtle);
+          }
+          /* Hover · the blue left-edge accent bar (inset box-shadow) was
+             snapping in because only background was transitioned. Add
+             box-shadow to the transition so the hover eases in smoothly,
+             matching Schedule's .tp-roster-table row interaction. */
+          #dr-sub-roster .table tbody tr,
+          #dr-sub-roster .table-compact tbody tr{
+            transition:background var(--t-fast),box-shadow var(--t-fast);
+          }
         </style>
 
         <div class="dr-roster-bar">
