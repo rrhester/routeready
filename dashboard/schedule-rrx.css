@@ -2467,6 +2467,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   margin-left: var(--rr-space-80);
   white-space: nowrap;
   vertical-align: middle;
+  /* Finalize · let colour, border and emphasis settle smoothly when the
+     pill flips Draft → Live (see _rrFinalizePillPop). */
+  transition: background-color 320ms ease, color 320ms ease,
+              border-color 320ms ease, transform 220ms ease, box-shadow 320ms ease;
+  transform-origin: center;
 }
 
 #view-schedule.rrx-schedule .sched-v2-status-pill[data-state="draft"] {
@@ -2493,6 +2498,65 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-v2-status-pill[data-state="live"] .sched-v2-status-check {
   display: inline-block;
+}
+
+/* ============================================================
+   Finalize · premium completion experience (presentational)
+   ------------------------------------------------------------
+   Calm, enterprise activation feedback when a Draft week is
+   finalized to Live. Every effect here is non-blocking and
+   self-removing — see _rrFinalizeCelebrate() in live.js.
+   ============================================================ */
+
+/* Phase 2 — status pill: a gentle scale-up + soft green emphasis ring
+   the moment it becomes Live. Subtle, not bouncy. */
+@keyframes rr-fin-pill-pop {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(16, 124, 65, 0); }
+  35%  { transform: scale(1.10); box-shadow: 0 0 0 4px rgba(16, 124, 65, .14); }
+  70%  { transform: scale(1.02); box-shadow: 0 0 0 6px rgba(16, 124, 65, 0); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(16, 124, 65, 0); }
+}
+#view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-pill-pop {
+  animation: rr-fin-pill-pop 600ms cubic-bezier(.34, 1.4, .64, 1) both;
+}
+/* The check draws in with the pop rather than snapping on. */
+@keyframes rr-fin-check-in {
+  0%   { transform: scale(.2); opacity: 0; }
+  60%  { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+#view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-pill-pop .sched-v2-status-check {
+  animation: rr-fin-check-in 420ms cubic-bezier(.34, 1.4, .64, 1) both;
+}
+
+/* Phase 1 — Finalize button checkmark overlay: the check strokes in
+   confidently. The overlay's container fade is handled inline in JS. */
+@keyframes rr-fin-check-draw {
+  0%   { transform: scale(.4); opacity: 0; }
+  55%  { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.rr-fin-btn-confirm .rr-fin-check-draw {
+  animation: rr-fin-check-draw 320ms cubic-bezier(.34, 1.4, .64, 1) 60ms both;
+  transform-origin: center;
+}
+
+/* Phase 3 — validation sweep: a very soft green wash fades up and out
+   over each element in turn. No glow, no neon — just a quiet tint. */
+@keyframes rr-fin-wash-kf {
+  0%   { opacity: 0; }
+  35%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Respect reduced-motion: the JS already routes around the kinetic
+   phases, but belt-and-suspenders kill any animation here too. */
+@media (prefers-reduced-motion: reduce) {
+  #view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-pill-pop,
+  #view-schedule.rrx-schedule .sched-v2-status-pill.rr-fin-pill-pop .sched-v2-status-check,
+  .rr-fin-btn-confirm .rr-fin-check-draw {
+    animation: none !important;
+  }
 }
 
 /* ============================================================
