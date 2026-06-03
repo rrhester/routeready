@@ -23996,7 +23996,9 @@ body.rr-cmdk-open{ overflow:hidden }
             justify-content:flex-start;
             gap:var(--s-3);flex-wrap:nowrap;
             padding:11px 18px;
-            margin-bottom:var(--s-4);
+            /* Density pass · strip→KPI gap tracks the shared
+               --tcp-strip-gap (16→12) so Fleet tightens with the rest. */
+            margin-bottom:var(--tcp-strip-gap, 12px);
             background:var(--rr-bg-surface-1);
             border:1px solid var(--rr-border-primary);
             border-radius:var(--rr-radius-medium);
