@@ -16641,15 +16641,25 @@ async function openDriverDrawer(driverId, opts) {
          overlay — the header / KPI strip / sub-nav stay visible, and
          only the panel body scrolls so the page shell stays put.
          Reuses existing tokens only. */
-      #rr-dd-drawer.rr-dd-inline{position:static;inset:auto;background:none;display:block;z-index:auto;opacity:0;transition:opacity 200ms ease-out}
-      #rr-dd-drawer.rr-dd-inline.rr-dd-open{opacity:1}
+      /* Inline container is a plain block (no overlay, no backdrop). It
+         stays opaque — the slide is carried entirely by the panel's
+         transform, which reads as a clean slide in on open and slide out
+         on close (the panel starts off-screen and is clipped by the split,
+         so there's no flash before it slides in). */
+      #rr-dd-drawer.rr-dd-inline{position:static;inset:auto;background:none;display:block;z-index:auto;opacity:1}
+      /* Full-height card (matches the roster list's vertical budget so
+         the record extends to the bottom of the page) that slides in from
+         the right edge and back out on close. The split clips horizontally
+         so the off-screen panel never adds a page scrollbar. */
       #rr-dd-drawer.rr-dd-inline #rr-dd-panel{
-        width:100%;max-width:none;height:auto;max-height:calc(100vh - 360px);
+        width:100%;max-width:none;height:calc(100vh - 360px);
         border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-md);
-        transform:none;
+        transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1);
       }
-      /* Compact summary header — smaller avatar, tighter padding. */
-      #rr-dd-drawer.rr-dd-inline .dd-head{padding:var(--s-3-5) 20px}
+      #rr-dd-drawer.rr-dd-inline.rr-dd-open #rr-dd-panel{transform:translateX(0)}
+      /* Compact summary header — smaller avatar, tighter padding, and the
+         same surface tint as the roster table header. */
+      #rr-dd-drawer.rr-dd-inline .dd-head{padding:var(--s-3-5) 20px;background:var(--canvas)}
       #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:var(--fs-base)}
       #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:40px!important;height:40px!important;font-size:var(--fs-md)!important}
       #rr-dd-drawer.rr-dd-inline .dd-tabs{margin:12px 20px 0}
@@ -16660,9 +16670,10 @@ async function openDriverDrawer(driverId, opts) {
       #rr-dd-drawer.rr-dd-inline .dd-section + .dd-section{margin-top:16px;padding-top:14px}
       #rr-dd-drawer.rr-dd-inline .dd-row{grid-template-columns:130px 1fr;gap:var(--s-2-5);padding:8px 0}
       #rr-dd-drawer.rr-dd-inline .dd-foot{padding:var(--s-3) 20px}
-      /* Tablet / mobile — the pane stacks full width beneath the roster. */
+      /* Tablet / mobile — the pane stacks full width beneath the roster
+         and sizes to its content (no fixed viewport height). */
       @media (max-width:1024px){
-        #rr-dd-drawer.rr-dd-inline #rr-dd-panel{max-height:none}
+        #rr-dd-drawer.rr-dd-inline #rr-dd-panel{height:auto}
       }
       .dd-chrome{position:sticky;top:0;z-index:2;background:var(--surface)}
       .dd-head{padding:var(--s-5) 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
