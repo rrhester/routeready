@@ -7921,8 +7921,12 @@ body.rr-cmdk-open{ overflow:hidden }
    Reuses existing tokens only — no new colors, shadows, radii,
    typography, button, badge or spacing systems are introduced.
    ───────────────────────────────────────────────────────────── */
-.roster-split{display:flex;gap:var(--s-4);align-items:flex-start}
+.roster-split{display:flex;gap:var(--s-4);align-items:flex-start;overflow-x:clip}
 .roster-split-list{flex:1 1 auto;min-width:0}
+/* Keep the roster table self-scrolling so the split's overflow-x:clip
+   (which hides the record pane while it slides in/out from the edge)
+   never clips table columns. */
+.roster-split-list .table-wrap{overflow-x:auto}
 .roster-split.has-record .roster-split-list{flex:1 1 58%}
 #driver-record-mount{display:none;container-type:inline-size}
 .roster-split.has-record #driver-record-mount{
