@@ -13931,7 +13931,7 @@ let _rosterKpiDetail = null;   // 'tenure' | 'turnover' | null
 function _closeRosterKpiDetail() {
   _rosterKpiDetail = null;
   const panel = document.getElementById("rr-roster-kpi-detail");
-  if (panel) { panel.style.display = "none"; panel.innerHTML = ""; }
+  if (panel) { panel.style.display = "none"; panel.innerHTML = ""; panel.classList.remove("is-popout"); }
   document.querySelectorAll("[data-rr-roster-kpi]").forEach(el => el.classList.remove("active"));
   // Close any open time-frame popover too.
   document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
@@ -13948,14 +13948,18 @@ function _renderRosterKpiDetail() {
     return;
   }
   panel.style.display = "block";
+  // The DL-expiring drilldown renders as a floating pop-out card (see the
+  // .is-popout styles); the others stay as full-width in-flow cards.
+  panel.classList.toggle("is-popout", _rosterKpiDetail === "dlexp");
 
   const s = _rosterStats;
 
   if (_rosterKpiDetail === "dlexp") {
     // Drivers whose license expires within 30 days (already-expired
-    // included), soonest first — name, station and expiry date. Clicking a
-    // row opens that driver's record inline. This is an in-flow panel, not
-    // an overlay, so the page behind it stays sharp (no dim / blur).
+    // included), soonest first — name, station and expiry date, in a
+    // floating card that emerges from near the KPI tile and overlays the
+    // content (no layout shift, no backdrop/dim/blur). A close button sits
+    // in the card header; clicking a row opens that driver's record inline.
     const list = s.dlExpiring || [];
     const fmtDate = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
     const relTxt  = (days) => days < 0 ? `Expired ${-days}d ago` : days === 0 ? "Expires today" : `in ${days}d`;
@@ -13969,16 +13973,32 @@ function _renderRosterKpiDetail() {
         <div style="text-align:right;font-variant-numeric:tabular-nums"><span style="font-weight:600;color:${dateColor}">${fmtDate(d.dl_expires_on)}</span><div class="u-xs-subtle">${relTxt(d.days)}</div></div>
       </div>`;
     }).join("");
-    panel.innerHTML = `<div class="card" style="padding:var(--s-5)">
-      <div class="u-mb-3" style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
-        <div>
-          <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Driver licenses expiring</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${list.length} active driver${list.length === 1 ? "" : "s"} with a license expiring within 30 days (already-expired included). Soonest first — click a driver to open their record.</div>
+    panel.innerHTML = `<div class="rr-kpi-popcard card" style="padding:var(--s-4) var(--s-5)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3);margin-bottom:var(--s-2)">
+        <div style="min-width:0">
+          <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.01em">Driver licenses expiring</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${list.length} active driver${list.length === 1 ? "" : "s"} with a license expiring within 30 days. Soonest first — click a driver to open their record.</div>
         </div>
-        <button class="btn btn-sm" type="button" onclick="drSub('licenses')">Open Licenses tab</button>
+        <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
+          <button class="btn btn-sm" type="button" onclick="drSub('licenses')">Open Licenses tab</button>
+          <button class="cd-close" type="button" data-rr-roster-kpi-close aria-label="Close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
       </div>
-      ${list.length ? rowsHtml : '<div class="rr-empty-inline" style="padding:var(--s-3-5) 0">No licenses expiring within 30 days.</div>'}
+      <div style="max-height:340px;overflow-y:auto;margin:0 calc(var(--s-5) * -1) calc(var(--s-4) * -1);padding:0 var(--s-5) var(--s-4)">${list.length ? rowsHtml : '<div class="rr-empty-inline" style="padding:var(--s-3-5) 0">No licenses expiring within 30 days.</div>'}</div>
     </div>`;
+    // Anchor the card horizontally under its KPI tile (the visible host —
+    // the strip is mirrored into several hosts) so it appears to emerge
+    // from the tile rather than from the content edge.
+    const tile = [...document.querySelectorAll('[data-rr-roster-kpi="dlexp"]')].find(t => t.offsetParent !== null);
+    const popcard = panel.querySelector(".rr-kpi-popcard");
+    if (tile && popcard) {
+      const tr = tile.getBoundingClientRect();
+      const pr = panel.getBoundingClientRect();
+      const maxLeft = Math.max(0, panel.clientWidth - popcard.offsetWidth);
+      popcard.style.left = Math.max(0, Math.min(tr.left - pr.left, maxLeft)) + "px";
+    }
     return;
   }
 
@@ -14230,9 +14250,20 @@ document.addEventListener("click", (e) => {
     }
     return;
   }
+  // Close button inside the DL pop-out card.
+  if (e.target.closest("[data-rr-roster-kpi-close]")) { _closeRosterKpiDetail(); return; }
   // Click outside any popover closes them.
   if (!e.target.closest(".rr-tf-icon, .rr-tf-popover")) {
     document.querySelectorAll(".rr-tf-popover").forEach(el => el.remove());
+  }
+  // The DL drilldown is a floating pop-out — dismiss it on any click that
+  // lands outside the card and isn't on a KPI tile (a tile click is handled
+  // by the toggle below). A click on a driver row inside the card is inside
+  // the card, so it opens the record without closing first.
+  if (_rosterKpiDetail === "dlexp"
+      && !e.target.closest(".rr-kpi-popcard")
+      && !e.target.closest("[data-rr-roster-kpi]")) {
+    _closeRosterKpiDetail();
   }
   // KPI tile click → open / toggle drilldown.
   const card = e.target.closest("[data-rr-roster-kpi]");
@@ -14242,6 +14273,8 @@ document.addEventListener("click", (e) => {
   _renderRosterKpiDetail();
 });
 document.addEventListener("keydown", (e) => {
+  // Escape closes the floating DL pop-out.
+  if (e.key === "Escape" && _rosterKpiDetail === "dlexp") { _closeRosterKpiDetail(); return; }
   if (e.key !== "Enter" && e.key !== " ") return;
   const card = e.target.closest("[data-rr-roster-kpi]");
   if (!card) return;

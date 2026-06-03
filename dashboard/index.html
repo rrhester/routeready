@@ -7982,6 +7982,24 @@ body.rr-cmdk-open{ overflow:hidden }
 }
 
 /* ─────────────────────────────────────────────────────────────
+   ROSTER KPI DRILL-DOWN — pop-out card variant (DL expiring)
+   The DL-expiring drilldown opens as a floating card that emerges
+   from near its KPI tile, overlaying the content (no layout shift)
+   with a close button — NOT a full-width in-flow strip, and with no
+   backdrop/dim/blur. Reuses existing tokens. -->
+   ───────────────────────────────────────────────────────────── */
+#rr-roster-kpi-detail{margin-bottom:var(--s-4)}
+#rr-roster-kpi-detail.is-popout{position:relative;height:0;margin-bottom:0;overflow:visible}
+#rr-roster-kpi-detail.is-popout .rr-kpi-popcard{
+  position:absolute;top:8px;left:0;width:min(560px,92vw);z-index:40;
+  border:1px solid var(--border);box-shadow:var(--shadow-pop);
+  transform-origin:top left;
+  animation:rrKpiEmerge 240ms cubic-bezier(.34,1.2,.45,1);
+}
+@keyframes rrKpiEmerge{from{opacity:0;transform:translateY(-10px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media (prefers-reduced-motion: reduce){#rr-roster-kpi-detail.is-popout .rr-kpi-popcard{animation:none}}
+
+/* ─────────────────────────────────────────────────────────────
    FINANCES — INVOICE FORENSICS + AUTO-DISPUTE
    ───────────────────────────────────────────────────────────── */
 .fin-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
@@ -13361,7 +13379,7 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <!-- Roster KPI drill-down panel · opens when an operator clicks
              one of the clickable KPI tiles above. -->
-        <div id="rr-roster-kpi-detail" style="display:none;margin-bottom:var(--s-4)"></div>
+        <div id="rr-roster-kpi-detail" style="display:none"></div>
 
         <style>
           /* Roster header · operator wants only the driver table
