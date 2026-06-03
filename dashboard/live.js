@@ -32303,7 +32303,37 @@ function _schedMountRosterSub(subKey) {
   // the actual Schedule KPI board (#rr-sched-kpis) — handled by schedSub()
   // + refreshDriverStatRow via _schedRosterKpiActive(), not here.
   if (typeof _obMountDriverSub === "function") _obMountDriverSub(subKey);
+  // Bound the embedded scroll-table to the exact space below the KPI board
+  // so it fills to the bottom AND stays a scroll container (sticky header
+  // stays pinned). Two rAFs so the embedded layout + KPI swap have settled.
+  requestAnimationFrame(function () {
+    requestAnimationFrame(_schedSizeEmbeddedRosterTable);
+  });
 }
+// Measure the available height below the embedded roster/attendance table
+// and publish it as --rr-embed-table-maxh on #view-schedule. The CSS caps
+// the table-wrap at this height (overflow-y:auto), so the rows scroll
+// inside and the sticky thead pins to the top of the wrap.
+function _schedSizeEmbeddedRosterTable() {
+  const mount = document.getElementById("ob-roster-mount");
+  if (!mount) return;
+  const host = mount.parentElement;
+  if (!host || (host.id !== "sched-sub-roster" && host.id !== "sched-sub-attendance")) return;
+  const wrap = mount.querySelector("#rr-roster-table-wrap")
+            || mount.querySelector("#dr-sub-attendance .table-wrap")
+            || mount.querySelector(".table-wrap");
+  if (!wrap) return;
+  const top   = wrap.getBoundingClientRect().top;
+  const avail = Math.max(220, Math.round(window.innerHeight - top - 16));
+  const v = document.getElementById("view-schedule");
+  if (v) v.style.setProperty("--rr-embed-table-maxh", avail + "px");
+}
+window._schedSizeEmbeddedRosterTable = _schedSizeEmbeddedRosterTable;
+window.addEventListener("resize", function () {
+  if (window._schedRosterKpiActive && window._schedRosterKpiActive()) {
+    _schedSizeEmbeddedRosterTable();
+  }
+});
 // True when a Schedule roster/attendance sub-view is the visible content,
 // so refreshDriverStatRow knows to (also) paint the roster pills onto the
 // real Schedule KPI board.
