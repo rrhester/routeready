@@ -4297,7 +4297,25 @@ function renderDriverTable(rows, error) {
   tbody.innerHTML = visible.map(renderer).join("");
   _updateRosterHint(visible.length, stageTotal); _rosterBulkRefresh();
   _rrMaybeRestoreLastDriver(rows);
+  requestAnimationFrame(_rrSizeRosterSplit);
 }
+
+// Size the roster split so its cards (the list + the record pane) extend to
+// the bottom of the viewport — measure the split's actual top so we don't
+// depend on a hand-tuned offset for the chrome height. Each pane scrolls
+// internally within this height, so the page itself never scrolls.
+function _rrSizeRosterSplit() {
+  const split = document.getElementById("rr-roster-split");
+  if (!split || split.offsetParent === null) return;            // not on a visible roster
+  if (window.matchMedia && window.matchMedia("(max-width:1024px)").matches) {
+    split.style.maxHeight = "";                                 // mobile stacks + flows
+    return;
+  }
+  const top = split.getBoundingClientRect().top;
+  const h = Math.max(280, Math.round(window.innerHeight - top - 12)); // ~12px bottom gap
+  split.style.maxHeight = h + "px";
+}
+window.addEventListener("resize", () => { try { _rrSizeRosterSplit(); } catch (_) {} });
 
 // Restore the last-viewed driver into the persistent record pane (instead of
 // the "no driver selected" placeholder) the first time the roster renders
