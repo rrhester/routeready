@@ -40453,9 +40453,11 @@ async function renderScheduleWeek() {
         const color = c.filled >= c.needed ? "var(--green)" : "var(--red)";
         coverageLine = `<span class="day-coverage" style="color:${color}">${c.filled}/${c.needed}</span>`;
       }
-      // Raw plan target (before cushion), under the day number.
+      // Actual routes planned for the day in the Targets tool (raw
+      // target_routes, BEFORE cushion — distinct from the cushion-inflated
+      // X/Y coverage denominator above).
       const _tgt = targetByDate.get(iso) || 0;
-      const targetLine = _tgt > 0 ? `<span class="day-target">Target ${_tgt}</span>` : "";
+      const targetLine = _tgt > 0 ? `<span class="day-target">Routes ${_tgt}</span>` : "";
       cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${coverageLine}${targetLine}`;
     }
   }
