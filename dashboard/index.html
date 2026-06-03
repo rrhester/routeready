@@ -18158,13 +18158,62 @@ body.rr-cmdk-open{ overflow:hidden }
             overflow:hidden !important;
             text-overflow:ellipsis !important;
           }
-          /* Roster mode · align the KPI strip's top with Schedule's exactly.
-             Console: Schedule rect_top 189 vs Roster 192 — the roster header
-             chrome is 3px taller. The strip is opaque white and currently
-             abuts #rr-ob-cmd with a 0px gap, so a -3px top nudge closes the
-             difference cleanly without overlapping any header content. */
-          #view-onboarding-ops #rr-ob-cmd.is-roster ~ #rr-ob-kpis{
-            margin-top:-3px !important;
+          /* ── Roster-mode header-stack parity with Schedule ─────────────
+             ROOT CAUSE of the "roster header + KPI bar sits lower" bug:
+             the Schedule view's cmd-tabs (.sched-cmd-tabs) are
+             position:absolute;bottom:100% (index.html:18172) so they take
+             ZERO vertical flow space, and Schedule's in-shell title card is
+             display:none (schedule-rrx.css:2857), so Schedule's flow stack
+             from the .page content top is:
+               pad-top 20 + cmd-shell 0 + cmd-shell mb 17
+               + .sched-v2-strip 96 (--tcp-strip-h) + strip mb 17
+               = title-card top 37px, KPI top 150px.
+             The roster shell (#rr-ob-cmd.is-roster) instead renders its
+             .ob-cmd-tabs IN NORMAL FLOW (onboarding-rrx.css:743,
+             position:static, ~28px tall) ABOVE the title card, which pushed
+             the whole stack — title card AND KPI bar — down. The old -3px
+             margin nudge only clawed back 3px of that ~28px and was wrong.
+             Fix = mirror Schedule structurally: float the roster cmd-tabs
+             out of flow (zero height) and re-pad the .page top so the title
+             card top (37px) and KPI top (150px) land EXACTLY where Schedule
+             puts them. Scoped to .is-roster so Onboarding mode is untouched. */
+
+          /* 1 · Roster cmd-tabs out of normal flow — match Schedule's
+                 absolute .sched-cmd-tabs so they consume 0 flow height.
+                 Pinned to the top edge of the (position:relative) shell,
+                 hanging up into the .page top padding exactly like
+                 Schedule's tabs hang above its v2-strip. */
+          #view-onboarding-ops #rr-ob-cmd.is-roster .ob-cmd-tabs{
+            position:absolute !important;
+            left:4px !important;
+            bottom:100% !important;
+            margin:0 0 -1px 0 !important;
+            z-index:2;
+          }
+          /* 2 · Re-pad the page top in roster mode so the title card's top
+                 lands at Schedule's 37px (was 12px to compensate for the
+                 in-flow tabs that no longer take space). :has() keys this to
+                 roster mode only; specificity (2 classes in :has + the view
+                 class) + !important beats onboarding-rrx.css:67. */
+          #view-onboarding-ops.rrx-onboarding > .page:has(> .ob-cmd-shell.is-roster){
+            padding-top:37px !important;
+          }
+          /* 3 · Title-card → KPI gap = Schedule's 17px (roster default is the
+                 20px --rr-space-200 from onboarding-rrx.css:167). Lands the
+                 roster KPI bar at the same 150px top as Schedule's. */
+          #view-onboarding-ops #rr-ob-cmd.is-roster .sched-nav-heading{
+            margin-bottom:17px !important;
+          }
+          /* 4 · Border + edge parity · Schedule's title card (.sched-v2-strip)
+                 uses border rgba(15,23,42,.07) (--sch-line-subtle resolves to
+                 .07 under #view-schedule) + a soft floating shadow
+                 (schedule-rrx.css:1883/1887). The roster card was #E1DFDD with
+                 no shadow, which read as a different (warmer/heavier) edge.
+                 Hardcode Schedule's resolved values (the onboarding scope's
+                 --sch-line-subtle is .04, so the token can't be reused). */
+          #view-onboarding-ops #rr-ob-cmd.is-roster .sched-nav-heading{
+            border-color:rgba(15,23,42,.07) !important;
+            box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10) !important;
           }
           /* Icon card -> KPI gap matches the measured KPI -> grid gap (17px). */
           #view-schedule.rrx-schedule .sched-v2-strip{margin-bottom:17px !important}
