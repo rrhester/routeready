@@ -39503,6 +39503,17 @@ function _rrVanWarnIcon(label) {
   return `<svg viewBox="0 0 24 24" width="16" height="16"${al}>${grad}<circle cx="12" cy="12" r="10" fill="url(#${gid})" stroke="${p.edge}" stroke-width="1"/><text x="12" y="16.6" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#fff">V</text></svg>`;
 }
 
+// Overtime warning icon · gold circle (same glossy family) with a white "OT"
+// glyph. Shown on the driver card when a driver is scheduled into overtime
+// (50+ hours this week).
+function _rrOtWarnIcon(label) {
+  const al = label ? ` aria-label="${label}"` : "";
+  const p = RR_KPI_ICON_PALETTE.yellow;
+  const gid = "rrOtGrad-" + Math.random().toString(36).slice(2, 8);
+  const grad = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${p.from}"/><stop offset="1" stop-color="${p.to}"/></linearGradient></defs>`;
+  return `<svg viewBox="0 0 24 24" width="16" height="16"${al}>${grad}<circle cx="12" cy="12" r="10" fill="url(#${gid})" stroke="${p.edge}" stroke-width="1"/><text x="12" y="15.6" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="8.5" font-weight="700" letter-spacing="-0.5" fill="#fff">OT</text></svg>`;
+}
+
 // Driver-license warning icon · same glossy circle family as the van-warn
 // icon, with a white "DL" glyph. Red when the license needs urgent action
 // (critical), amber otherwise. Shown on the driver card when a license is
@@ -41016,11 +41027,13 @@ async function renderScheduleWeek() {
     const netHoursRounded = totalHours > 0 ? Math.round(netHours * 10) / 10 : 0;
     const hoursLabelHTML =
       `<span class="cal-row-label-hours">${netHoursRounded}h<span class="cal-row-label-hours-word"> scheduled</span></span>`;
-    // Overtime indicator removed from the driver row per operator
-    // direction — the OT signal lives in the OT Risk KPI (gold) instead.
-    // Kept as an empty `otIcon` so the van-warn margin logic below is
-    // unchanged (it falls back to margin-left:auto when this is empty).
-    const otIcon = "";
+    // Overtime warning · gold circle with a white "OT" when this driver is
+    // scheduled 50+ hours this week. Lives in the right-edge warning cluster
+    // alongside the DL + no-van circles.
+    const otWarnIcon = (netHoursRounded >= 50)
+      ? `<span class="cal-row-label-otwarn" title="Scheduled ${netHoursRounded}h this week — overtime" aria-label="Scheduled ${netHoursRounded} hours this week — overtime" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrOtWarnIcon("Overtime — " + netHoursRounded + "h scheduled")}</span>`
+      : "";
+    const otIcon = ""; // legacy placeholder kept in the row template below
     // No-van warning · red circle with a white "V" when this driver has any
     // scheduled day this week without a van assigned. Sits at the card's
     // right edge (after OT if both apply).
@@ -41051,9 +41064,9 @@ async function renderScheduleWeek() {
         dlWarnIcon = `<span class="cal-row-label-dlwarn" data-rr-dl-pop data-rr-no-drawer data-dl-driver="${d.id}" data-dl-exp="${d.dl_expires_on}" data-dl-days="${dlDays}" data-dl-expired="${dlExpired ? "1" : "0"}" data-dl-name="${escapeHtml(display)}" role="button" tabindex="0" title="${dlTitle}" aria-label="${dlTitle}" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0;cursor:pointer">${_rrDlWarnIcon(dlTitle, dlCritical)}</span>`;
       }
     }
-    // Right-edge warning cluster (DL + no-van), pushed to the card's right.
-    const rightCluster = (dlWarnIcon || vanWarnIcon)
-      ? `<span class="cal-row-label-warns" style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0">${dlWarnIcon}${vanWarnIcon}</span>`
+    // Right-edge warning cluster (OT + DL + no-van), pushed to the card's right.
+    const rightCluster = (otWarnIcon || dlWarnIcon || vanWarnIcon)
+      ? `<span class="cal-row-label-warns" style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0">${otWarnIcon}${dlWarnIcon}${vanWarnIcon}</span>`
       : "";
     const prefSet = _prefByDriver.get(d.id) || null;
     // Row-default time pattern — when most of this driver's shifts share
