@@ -927,21 +927,26 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills,
 #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills,
 #view-drivers #rr-roster-kpis.sched-kpi-pills {
+  /* ── KPI CONTRACT · master container ──────────────────────────
+     Wired to the --kpi-* tokens in app/rr-system.css so this strip
+     IS the source of truth. Values are exact equivalents of the
+     prior hard-coded ones — no visual change. Every other KPI
+     strip standardizes onto these same tokens. */
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
   gap: 0;
   padding: 0;
-  background: var(--rr-bg-surface-1);
-  border: 1px solid var(--rr-border-primary);
-  border-radius: var(--rr-radius-medium);
+  background: var(--kpi-bg);
+  border: 1px solid var(--kpi-border);
+  border-radius: var(--kpi-radius);
   /* Float the KPI card off the canvas. Shared by the Schedule
      (#rr-sched-kpis) and Onboarding/Roster (#rr-ob-kpis) strips so
      both lift identically. */
-  box-shadow: 0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
+  box-shadow: var(--kpi-shadow);
   font: var(--rr-font-body);
-  min-height: 46px;
-  margin: 0 0 var(--rr-space-80);
+  min-height: var(--kpi-height);
+  margin: 0 0 var(--kpi-margin-bottom);
   overflow: hidden;
 }
 
@@ -954,17 +959,18 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .tp-kpis .tp-kpi-pill,
 #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill,
 #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill {
+  /* KPI CONTRACT · master cell — see --kpi-* tokens. */
   display: inline-flex;
   align-items: center;
-  gap: var(--rr-space-100);
-  padding: var(--rr-space-120) var(--rr-space-240);
-  border-right: 1px solid var(--rr-border-secondary);
+  gap: var(--kpi-gap);
+  padding: var(--kpi-pad-y) var(--kpi-pad-x);
+  border-right: 1px solid var(--kpi-divider);
   font: var(--rr-font-body);
   font-weight: 600;
-  color: var(--rr-fg-primary);
+  color: var(--kpi-text-primary);
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
-  min-height: 46px;
+  min-height: var(--kpi-height);
 }
 
 #view-schedule.rrx-schedule .sched-kpi-pill:last-child,
@@ -979,10 +985,35 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .tp-kpi-dot,
 #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-dot,
 #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-dot {
-  width: 7px;
-  height: 7px;
+  width: var(--kpi-dot-size);
+  height: var(--kpi-dot-size);
   border-radius: 50%;
   flex-shrink: 0;
+}
+/* KPI CONTRACT · status icon (replaces the dot in an alert state) and
+   the value headline. Made explicit so every strip's value typography
+   is governed by the contract, not pill inheritance alone. */
+#view-schedule.rrx-schedule .sched-kpi-icon,
+#view-schedule.rrx-schedule .tp-kpi-icon,
+#view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-icon,
+#view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+#view-schedule.rrx-schedule .sched-kpi-icon svg,
+#view-schedule.rrx-schedule .tp-kpi-icon svg {
+  width: var(--kpi-icon-size);
+  height: var(--kpi-icon-size);
+}
+#view-schedule.rrx-schedule .sched-kpi-val,
+#view-schedule.rrx-schedule .tp-kpi-val,
+#view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-val,
+#view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-val {
+  font: var(--kpi-value-font);
+  color: var(--kpi-text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 #view-schedule.rrx-schedule .sched-kpi-text,
@@ -999,9 +1030,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .tp-kpi-sub,
 #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-sub,
 #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-sub {
-  font: var(--rr-font-caption);
-  font-weight: 500;
-  color: var(--rr-fg-secondary);
+  font: var(--kpi-label-font);
+  color: var(--kpi-text-secondary);
   letter-spacing: 0;
   text-transform: none;
   margin-top: 0;

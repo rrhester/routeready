@@ -110,6 +110,42 @@
   /* ─── MOTION ─────────────────────────────────────────────── */
   --rr-motion-fast:     120ms ease-out;
   --rr-motion-standard: 180ms ease-out;
+
+  /* ─── KPI CONTRACT ───────────────────────────────────────────
+     Single source of truth for every KPI strip in RouteReady,
+     reverse-engineered from the Schedule KPI strip (the master:
+     #rr-sched-kpis .sched-kpi-pills / .sched-kpi-pill). The
+     Schedule / Roster / Onboarding / Today strips already render
+     from these measurements; other strips standardize onto them.
+     Values are exact equivalents of the master so wiring these in
+     changes nothing visually — they just name the contract.
+
+       Layout    one rounded surface card, hairline-divided cells,
+                 height-locked at 46px, content-sized cells, wraps.
+       Anatomy   [status dot|icon] + [value (bold) / sub (muted)].
+       Voice     worded headline + numeric sub, tabular figures,
+                 colour reserved for status only (no tint noise). */
+  --kpi-bg:             var(--rr-bg-surface-1);        /* #FFFFFF  surface-1            */
+  --kpi-border:         rgba(15, 23, 42, .22);         /* outer strip border (strong)   */
+  --kpi-divider:        rgba(15, 23, 42, .18);         /* inter-cell hairline           */
+  --kpi-radius:         var(--rr-radius-medium);       /* 4px                           */
+  --kpi-shadow:         0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
+  --kpi-height:         46px;                          /* = --tcp-kpi-h (locked)        */
+  --kpi-pad-y:          var(--rr-space-120);           /* 12px                          */
+  --kpi-pad-x:          var(--rr-space-240);           /* 24px                          */
+  --kpi-gap:            var(--rr-space-100);           /* 10px  dot ↔ text              */
+  --kpi-margin-bottom:  var(--rr-space-80);            /* 8px                           */
+  --kpi-text-primary:   var(--rr-fg-primary);          /* #323130  value               */
+  --kpi-text-secondary: var(--rr-fg-secondary);        /* #605E5C  sub / label          */
+  --kpi-value-font:     600 14px/1.15 var(--rr-font-family);
+  --kpi-label-font:     500 12px/16px var(--rr-font-family);
+  --kpi-dot-size:       7px;                           /* status dot                    */
+  --kpi-icon-size:      16px;                          /* status icon (replaces dot)    */
+  --kpi-dot-neutral:    #1A1F47;                       /* at-rest navy status dot       */
+  --kpi-success:        var(--rr-success);             /* #107C41                       */
+  --kpi-warning:        var(--rr-warning);             /* #FFB900                       */
+  --kpi-danger:         var(--rr-danger);              /* #D13438                       */
+  --kpi-brand:          var(--rr-brand-primary);       /* #0078D4                       */
 }
 
 /* ============================================================
