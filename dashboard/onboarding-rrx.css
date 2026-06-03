@@ -402,7 +402,7 @@
   /* Match Schedule's strip icons exactly — darker + thicker stroke
      so the glyphs read sharp/crisp, not faint. */
   color: var(--text-muted) !important;
-  stroke-width: 1.9 !important;
+  stroke-width: 1.1 !important;   /* EXACT match to Schedule .sched-v2-tile svg (index.html:17514 forces 1.1) */
   /* Lock cap/join to match Schedule's .sched-v2-tile svg rule.
      Without these, the inline stroke-linecap="square" on the
      Roster SVGs extends each line-end by 0.8px, making the
@@ -474,11 +474,13 @@
 #view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .subnav-item svg {
   /* Match the Schedule command-strip tiles exactly — those are
      .sched-v2-tile svg at 38px and var(--text) (near-black), not the
-     28px grey view-tabs. 1.6 stroke, very square caps/miter. */
+     28px grey view-tabs. Stroke matched EXACTLY to Schedule's
+     .sched-v2-tile svg rendered weight — index.html:17514 forces
+     1.1 !important there, so 1.6 here read heavier than Schedule. */
   width: 38px !important;
   height: 38px !important;
   color: var(--text) !important;
-  stroke-width: 1.6 !important;
+  stroke-width: 1.1 !important;
   stroke-linecap: square !important;
   stroke-linejoin: miter !important;
 }
