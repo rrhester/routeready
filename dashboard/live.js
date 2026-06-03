@@ -13979,12 +13979,9 @@ function _renderRosterKpiDetail() {
           <div style="font-size:var(--fs-md);font-weight:700;color:var(--text);letter-spacing:-.01em">Driver licenses expiring</div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${list.length} active driver${list.length === 1 ? "" : "s"} with a license expiring within 30 days. Soonest first — click a driver to open their record.</div>
         </div>
-        <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
-          <button class="btn btn-sm" type="button" onclick="drSub('licenses')">Open Licenses tab</button>
-          <button class="cd-close" type="button" data-rr-roster-kpi-close aria-label="Close">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
+        <button class="cd-close" type="button" data-rr-roster-kpi-close aria-label="Close" style="flex:0 0 auto">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
       <div style="max-height:340px;overflow-y:auto;margin:0 calc(var(--s-5) * -1) calc(var(--s-4) * -1);padding:0 var(--s-5) var(--s-4)">${list.length ? rowsHtml : '<div class="rr-empty-inline" style="padding:var(--s-3-5) 0">No licenses expiring within 30 days.</div>'}</div>
     </div>`;
