@@ -39559,15 +39559,13 @@ async function renderScheduleWeek() {
   // recorded plan, fall back to the row count so it still reads sensibly.
   for (const [date, planned] of plannedByDate) get(date).planned = planned;
   for (const a of coverageByDate.values()) {
-    const plan = a.planned > 0 ? a.planned : a.rows;
-    const open = Math.max(0, a.rows - a.filled);
-    // If the day has OPEN shifts, the denominator must include them even
-    // when they exceed the plan — otherwise over-plan unfilled routes (e.g.
-    // XL routes that aren't in the demand plan) are invisible and the day
-    // reads 100% staffed while routes sit open. With no open shifts, keep
-    // the plan as the denominator so a fully/over-staffed day still shows
-    // its over-plan % (8 filled on a 7-plan day = 114%).
-    a.needed = open > 0 ? Math.max(plan, a.rows) : plan;
+    // Denominator = the day's planned routes + cushion (a.planned =
+    // plannedByDate, the route demand with the cushion already folded in).
+    // It is FIXED to that plan: adding or deleting shift rows must NOT
+    // change it, so the day always reads X/(routes+cushion) where X is the
+    // number of shifts actually scheduled. Falls back to the row count
+    // only on days that have no route plan at all.
+    a.needed = a.planned > 0 ? a.planned : a.rows;
   }
   let totalNeeded = 0, totalFilled = 0;
   for (const a of coverageByDate.values()) { totalNeeded += a.needed; totalFilled += a.filled; }
