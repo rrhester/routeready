@@ -2000,30 +2000,56 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   position: relative;
 }
 
+/* Density · the "Rules" footer no longer sits in the tile column's
+   vertical flow (that footer is what forced the 115px strip). It is
+   pulled out of flow and revealed as a small caret on hover / focus of
+   the tile, and is also opened by right-clicking the icon (contextmenu
+   handler in live.js). Reuses the existing click→forward→open wiring;
+   the popover still anchors to .sched-v2-split. Column is now just the
+   icon tile, so --tcp-strip-h drops (tcp.css). */
 #view-schedule.rrx-schedule .sched-v2-rules-foot {
   appearance: none;
   cursor: pointer;
-  /* Rules footer is now wired — clicks forward to the original
-     Rules popover toggles via the _RR_V2_FORWARD map. */
   font: inherit;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  margin: 4px auto 0;
-  padding: 3px 8px;
+  gap: 0;
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 1px 5px;
   background: transparent;
   border: 0;
-  border-radius: 4px;
+  border-radius: 999px;
   color: var(--rr-fg-secondary);
-  font-size: 11px;
+  font-size: 0;           /* hide the "Rules" word — caret only */
   font-weight: 500;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--rr-motion-fast, 120ms ease-out),
+              background var(--rr-motion-fast, 120ms ease-out),
+              color var(--rr-motion-fast, 120ms ease-out);
+}
+#view-schedule.rrx-schedule .sched-v2-split:hover .sched-v2-rules-foot,
+#view-schedule.rrx-schedule .sched-v2-split:focus-within .sched-v2-rules-foot,
+#view-schedule.rrx-schedule .sched-v2-rules-foot:focus-visible {
+  opacity: 0.6;
+  pointer-events: auto;
+}
+#view-schedule.rrx-schedule .sched-v2-rules-foot:hover,
+#view-schedule.rrx-schedule .sched-v2-rules-foot:focus-visible {
+  opacity: 1;
+  color: var(--sch-blue, var(--rr-brand-primary));
+  background: var(--sch-blue-softer, var(--rr-brand-soft));
 }
 
 #view-schedule.rrx-schedule .sched-v2-rules-foot svg {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   flex: 0 0 auto;
   color: currentColor;
   stroke-linecap: butt;
