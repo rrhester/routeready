@@ -7948,14 +7948,13 @@ body.rr-cmdk-open{ overflow:hidden }
 #rr-dd-empty .rr-dd-empty-sub{font-size:var(--fs-xs);max-width:230px;line-height:1.5}
 #driver-record-mount.is-filled #rr-dd-empty{display:none}
 /* Condense the roster for the narrower pane — drop the secondary columns
-   (Attendance Points · Last active · App). Targeted by class so the
-   onboarding-stage columns (which lack these classes) are untouched. */
+   (Attendance Points · Last active). The App column stays so operators keep
+   the "view this driver's app" icon. Targeted by class so the onboarding-
+   stage columns (which lack these classes) are untouched. */
 .roster-split .rr-roster-th-attpoints,
 .roster-split .rr-att-points-cell,
 .roster-split th[data-rr-roster-sort="lastactive"],
-.roster-split .rr-lastactive-cell,
-.roster-split .rr-roster-th-app,
-.roster-split .rr-app-cell{display:none}
+.roster-split .rr-lastactive-cell{display:none}
 /* Neutralise the fixed-overlay drawer styling when the record lives
    in the inline mount, so it reads as a static workspace card that
    matches the Schedule / roster cards — no backdrop, no blur, no
