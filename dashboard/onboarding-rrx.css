@@ -602,6 +602,63 @@
   color: currentColor !important;
 }
 
+/* ── Rules footer · ROSTER strip — EXACT match to Schedule ───────
+   The rules above are the Onboarding/hiring treatment (in-flow, visible
+   "Rules" text). The Roster strip must match Schedule's .sched-v2-rules-foot
+   exactly: ICON-ONLY (font-size:0 hides the word), pulled out of flow and
+   centered at the tile's bottom edge, hidden until the tile is hovered/
+   focused, with an 11px caret. (index.html:12225 already defines this but
+   loses the cascade to the base rule above — this higher-specificity,
+   roster-scoped block wins.) Mirrors schedule-rrx.css:2014-2060. */
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-rules-foot {
+  position: absolute !important;
+  left: 50% !important;
+  bottom: 1px !important;
+  transform: translateX(-50%) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 1px 5px !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  color: var(--rr-fg-secondary) !important;
+  font-size: 0 !important;           /* hide the "Rules" word — caret only */
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 120ms ease-out, background 120ms ease-out,
+              color 120ms ease-out !important;
+}
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-tab-wrap:hover .ob-rules-foot,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-tab-wrap:focus-within .ob-rules-foot,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-rules-foot:focus-visible {
+  opacity: 0.6 !important;
+  pointer-events: auto !important;
+}
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-rules-foot:hover,
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-rules-foot:focus-visible {
+  opacity: 1 !important;
+  color: var(--sch-blue, var(--rr-brand-primary)) !important;
+  background: var(--sch-blue-softer, var(--rr-brand-soft)) !important;
+}
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-rules-foot[aria-expanded="true"] {
+  opacity: 1 !important;
+  color: var(--sch-blue, var(--rr-brand-primary)) !important;
+  background: var(--sch-blue-soft, var(--rr-brand-soft)) !important;
+}
+#view-onboarding-ops.rrx-onboarding .ob-v2-roster-actions .ob-rules-foot svg {
+  width: 11px !important;
+  height: 11px !important;
+  flex: 0 0 auto !important;
+  color: currentColor !important;
+  stroke-linecap: butt !important;
+  stroke-linejoin: miter !important;
+}
+
 /* ── Rules popover (.ob-rules-popover) ──────────────────────── */
 
 #view-onboarding-ops.rrx-onboarding .ob-rules-popover {
