@@ -4276,7 +4276,7 @@ select.form-input{
 }
 .cal-cell-head .day-num{
   display:block;font-size:21px;color:var(--text);text-transform:none;letter-spacing:-.02em;
-  margin-top:4px;font-weight:700;font-variant-numeric:tabular-nums;
+  margin-top:2px;font-weight:700;font-variant-numeric:tabular-nums;
 }
 .cal-cell-head.today .day-num{color:var(--accent-text)}
 .cal-row-label{
@@ -17016,9 +17016,10 @@ body.rr-cmdk-open{ overflow:hidden }
              below so vertical rhythm stays even. */
           #view-schedule .cal-row-label{padding:var(--s-4) var(--s-4)}
 
-          /* Day-header in the calendar — symmetric vertical rhythm so
-             "SUN / 17 / 5/6" doesn't read top-heavy. */
-          #view-schedule .cal-cell-head{padding:var(--s-4) var(--s-2-5)}
+          /* Day-header in the calendar — compressed vertical rhythm
+             (16px → 10px top/bottom) so the header gives more room to the
+             grid below without losing the SUN / 17 / 5/6 stack. */
+          #view-schedule .cal-cell-head{padding:var(--s-2-5) var(--s-2-5)}
 
           /* Cells in the grid get extra vertical room so each chip
              reads as a deliberate object rather than a packed list
@@ -20601,13 +20602,16 @@ body.rr-cmdk-open{ overflow:hidden }
             position:sticky;left:0;z-index:1;
             transition:background var(--t-fast);
           }
+          /* Driver column hierarchy · the name is the row's anchor, so it
+             reads a step larger + heavier; the station/hours meta recedes
+             (smaller + lighter). Colors unchanged — weight/size only. */
           #view-schedule .cal-row-label-name{
-            font-size:var(--fs-sm);font-weight:600;
-            color:var(--text);line-height:1.25;
+            font-size:var(--fs-md);font-weight:700;
+            color:var(--text);line-height:1.25;letter-spacing:-.005em;
           }
           #view-schedule .cal-row-label-meta{
-            font-size:11px;color:var(--text-subtle);
-            margin-top:1px;letter-spacing:0;font-weight:500;
+            font-size:10px;color:var(--text-subtle);
+            margin-top:2px;letter-spacing:0;font-weight:400;
           }
 
           /* Whole-row hover · Outlook-style scan band */
@@ -20918,13 +20922,16 @@ body.rr-cmdk-open{ overflow:hidden }
           }
 
           /* Off · faint Outlook-style "out" marker, no chip border */
+          /* Noise reduction · a non-working day reads as WHITESPACE, not a
+             repeated "Off" label, so assigned shifts become the primary
+             focus and the grid scans faster. The chip stays in the DOM
+             and in flow (cell click / add-shift behavior unchanged) — its
+             text is just made invisible. */
           #view-schedule .shift-chip.off{
-            background:transparent;border:0;
-            color:var(--text-disabled);
-            font-size:11px;font-weight:500;
-            text-align:center;justify-content:center;align-items:center;
-            letter-spacing:.02em;font-style:normal;
-            box-shadow:none;
+            background:transparent;border:0;box-shadow:none;
+            font-size:0;          /* hide the "Off" text → empty cell */
+            color:transparent;
+            min-height:0;
           }
           #view-schedule .shift-chip.off:empty{color:transparent}
 
