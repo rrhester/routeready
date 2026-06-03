@@ -40442,21 +40442,11 @@ async function renderScheduleWeek() {
     const netHoursRounded = totalHours > 0 ? Math.round(netHours * 10) / 10 : 0;
     const hoursLabelHTML =
       `<span class="cal-row-label-hours">${netHoursRounded}h<span class="cal-row-label-hours-word"> scheduled</span></span>`;
-    // Overtime · a premium amber/gold BADGE, never a red error state — red
-    // is reserved for compliance / rule violations. Two tiers (net,
-    // on-the-clock hours = gross − 0.5h/shift lunch, the same number the OT
-    // pill counts) communicate "this costs money", not "something is broken":
-    //   • 36–39.9h → subtle amber "Near OT"   (approaching labor cost)
-    //   • 40h+     → richer gold "OT +Xh"      (premium labor cost)
-    // Variable kept as `otIcon` so the van-warn margin logic below is unchanged.
-    let otIcon = "";
-    if (netHours >= 40) {
-      const _otRaw = Math.round((netHours - 40) * 10) / 10;
-      const _otTxt = _otRaw % 1 === 0 ? String(_otRaw) : _otRaw.toFixed(1);
-      otIcon = `<span class="rr-ot-badge rr-ot-badge--over" title="Scheduled ${netHours.toFixed(1)}h — ${_otTxt}h overtime (premium labor cost)" aria-label="Overtime: ${_otTxt} hours over 40">OT +${_otTxt}h</span>`;
-    } else if (netHours >= 36) {
-      otIcon = `<span class="rr-ot-badge rr-ot-badge--near" title="Scheduled ${netHours.toFixed(1)}h — approaching overtime (additional labor cost)" aria-label="Approaching overtime">Near OT</span>`;
-    }
+    // Overtime indicator removed from the driver row per operator
+    // direction — the OT signal lives in the OT Risk KPI (gold) instead.
+    // Kept as an empty `otIcon` so the van-warn margin logic below is
+    // unchanged (it falls back to margin-left:auto when this is empty).
+    const otIcon = "";
     // No-van warning · red circle with a white "V" when this driver has any
     // scheduled day this week without a van assigned. Sits at the card's
     // right edge (after OT if both apply).
