@@ -148,7 +148,14 @@
   --sidebar-grad:linear-gradient(180deg, #0F6CBD 0%, #0B5394 100%);
   --sidebar-hover:rgba(255,255,255,.10);
   --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.18) 0%, rgba(255,255,255,.04) 100%);
-  --sidebar-divider:rgba(255,255,255,.12);
+  --sidebar-divider:rgba(255,255,255,0.06);
+  /* Sidebar rail restyle · graphite surface, translucent-white icon
+     states, and a subtle active pill. Tweak these to retune the rail. */
+  --sidebar-bg:#15171E;
+  --sidebar-icon-idle:rgba(255,255,255,0.55);
+  --sidebar-icon-hover:rgba(255,255,255,0.80);
+  --sidebar-icon-active:#ffffff;
+  --sidebar-active-pill:rgba(255,255,255,0.06);
   --glass:rgba(255,255,255,.80);
   --glass-strong:rgba(255,255,255,.90);
 
@@ -888,9 +895,9 @@ textarea,
   --sidebar-grad:none;
   --sidebar-hover:#1E293B;
   --sidebar-active:#2563EB;
-  --sidebar-divider:rgba(255,255,255,.10);
+  /* divider inherits the :root --sidebar-divider hairline (rgba white .06) */
 
-  background:var(--sidebar);
+  background-color:var(--sidebar-bg);
   background-image:var(--sidebar-grad);
   color:var(--text-inverse);
   display:flex;flex-direction:column;
@@ -911,12 +918,24 @@ textarea,
    span, so selected icons stay bright on the blue active background.
    Scoped to the default (dark) sidebar so the light-theme toggle keeps
    its own category icon colors. */
-html:not(.rr-sidebar-light) .sidebar .nav-item .nav-icon{color:#CBD5E1}
-/* Active = location state, not a button — a calm tinted row with a
-   soft left-edge indicator, no ring. */
+html:not(.rr-sidebar-light) .sidebar .nav-item .nav-icon{color:var(--sidebar-icon-idle)}
+/* Hover brightens the idle icon; the active/current icon goes solid
+   white and sits on a small rounded pill. Scoped to the dark rail so the
+   light-theme toggle keeps its own icon palette. */
+html:not(.rr-sidebar-light) .sidebar .nav-item:hover .nav-icon{color:var(--sidebar-icon-hover)}
+html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon,
+html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon-color{
+  color:var(--sidebar-icon-active);
+  background:var(--sidebar-active-pill);
+  border-radius:6px;
+  padding:4px;
+}
+/* Active = location state. Signalled by the white icon pill (see the
+   .nav-icon rules above), not a filled row — the row itself stays flat
+   and calm. The light-theme toggle keeps its own active row below. */
 .sidebar .nav-item.active{
-  background:var(--sidebar-active);
-  box-shadow:inset 3px 0 0 rgba(255,255,255,.88);
+  background:transparent;
+  box-shadow:none;
 }
 .sidebar .nav-item.active .nav-badge{color:var(--accent);background:#fff}
 .brand{
