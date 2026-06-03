@@ -976,14 +976,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   min-height: var(--kpi-height);
 }
 
-/* KPI status accent: only the Coverage cell carries a colored vertical
-   bar (6px, set inline by tier). Every other cell has no bar and is
-   separated by the faint hairline cell divider (border-right) instead.
-   The 6px bar lives in Coverage's border-box, so trim its left padding
-   by 6px (24 → 18) to keep its text aligned with the other cells. */
-#view-schedule.rrx-schedule #rr-sched-kpis.sched-kpi-pills .sched-kpi-pill[data-rr-kpi="coverage"] {
-  padding-left: 18px;
-}
+/* KPI cells carry no colored status bar; they're separated by the faint
+   hairline cell divider (border-right) only, with the contract's default
+   left padding. */
 
 #view-schedule.rrx-schedule .sched-kpi-pill:last-child,
 #view-schedule.rrx-schedule .tp-kpi-pill:last-child,
