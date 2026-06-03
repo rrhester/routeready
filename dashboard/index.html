@@ -149,17 +149,16 @@
   --sidebar-hover:rgba(255,255,255,.10);
   --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.18) 0%, rgba(255,255,255,.04) 100%);
   --sidebar-divider:rgba(255,255,255,0.06);
-  /* Sidebar rail · soft enterprise slate — a quiet structural frame, not
-     a dominant element. Translucent-white icon states; the active item
-     is a subtle elevated tile (faint white fill + edge + blue glow), no
-     selection bar. Tweak these to retune the rail. */
-  --sidebar-bg:#202833;
+  /* Sidebar rail · deep architectural navy — the structural foundation
+     of the app. White iconography; the active item is a restrained
+     elevated tile (faint white fill + hairline edge), no glow / gradient
+     / bright accent. Tweak these to retune the rail. */
+  --sidebar-bg:#203A5B;
   --sidebar-icon-idle:rgba(255,255,255,0.72);
   --sidebar-icon-hover:rgba(255,255,255,0.95);
   --sidebar-icon-active:#ffffff;
   --sidebar-active-pill:rgba(255,255,255,0.08);
-  --sidebar-active-border:rgba(255,255,255,0.06);
-  --sidebar-active-glow:rgba(59,130,246,0.15);
+  --sidebar-active-border:rgba(255,255,255,0.12);
   --glass:rgba(255,255,255,.80);
   --glass-strong:rgba(255,255,255,.90);
 
@@ -932,14 +931,14 @@ html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon-color{
   color:var(--sidebar-icon-active);
   background:transparent;
 }
-/* Active = location state. A subtle elevated tile — faint white fill,
-   a hairline white edge, and a very soft blue glow ring — with a white
-   icon. No selection bar; calm and structural. The light-theme toggle
-   keeps its own active row below. */
+/* Active = location state. A restrained elevated tile — faint white
+   fill + a hairline white edge, with a white icon. No selection bar, no
+   glow / gradient / colour accent: the navy ground and white content do
+   the work. The light-theme toggle keeps its own active row below. */
 .sidebar .nav-item.active{
   background:var(--sidebar-active-pill);
   border-color:var(--sidebar-active-border);
-  box-shadow:0 0 0 1px var(--sidebar-active-glow);
+  box-shadow:none;
 }
 .sidebar .nav-item.active .nav-badge{color:var(--accent);background:#fff}
 .brand{
