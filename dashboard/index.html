@@ -3604,6 +3604,11 @@ body[data-rr-onboarding="1"] #view-onboarding{display:block !important}
 .avatar-sm.tier-d{background:linear-gradient(135deg,var(--red),var(--red-dark))}
 
 .cell-driver{display:flex;align-items:center;gap:var(--s-2-5)}
+/* Name text block flexes (so the name truncates) and the app-view icon
+   pins to the right of the Driver cell — always visible, never clipped by
+   the narrow pane's edge. */
+.cell-driver-text{min-width:0}
+.cell-driver-app{margin-left:auto;flex:0 0 auto;display:inline-flex;align-items:center;padding-left:var(--s-2)}
 .score-bar{
   display:inline-block;width:40px;height:6px;background:var(--canvas);border-radius:var(--r-sm);overflow:hidden;vertical-align:middle;margin-right:6px;
 }
@@ -7954,15 +7959,16 @@ body.rr-cmdk-open{ overflow:hidden }
 .roster-split .rr-roster-th-attpoints,
 .roster-split .rr-att-points-cell,
 .roster-split th[data-rr-roster-sort="lastactive"],
-.roster-split .rr-lastactive-cell{display:none}
-/* Tighten the condensed roster so the kept columns — including the App
-   view-icon (far right) — fit the narrow pane without being pushed off into
-   a horizontal scroll. Trim cell padding and drop the name's contact
-   sub-line (that detail lives in the open record). */
+.roster-split .rr-lastactive-cell,
+.roster-split .rr-roster-th-app,
+.roster-split .rr-app-cell{display:none}
+/* Tighten the condensed roster. The app-view icon now lives next to the
+   driver name (.cell-driver-app) so it's always visible; the old far-right
+   App column is hidden. Trim padding and drop the name's contact sub-line
+   (that detail lives in the open record). */
 .roster-split #rr-roster-table-wrap th,
 .roster-split #rr-roster-table-wrap td{padding-left:var(--s-2);padding-right:var(--s-2)}
 .roster-split #rr-roster-table-wrap .cell-name-sub{display:none}
-.roster-split #rr-roster-table-wrap .rr-app-cell{width:1%;white-space:nowrap}
 /* Neutralise the fixed-overlay drawer styling when the record lives
    in the inline mount, so it reads as a static workspace card that
    matches the Schedule / roster cards — no backdrop, no blur, no

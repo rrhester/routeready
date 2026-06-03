@@ -7217,14 +7217,15 @@ function renderDriverRow(d) {
     <tr data-driver-id="${d.id}" data-rr-open-driver>
       <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
-        <div><div class="cell-name">${escapeHtml(display)}${badges}</div>
-        <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
+        <div class="cell-driver-text"><div class="cell-name">${escapeHtml(display)}${badges}</div>
+        <div class="cell-name-sub">${escapeHtml(contact)}</div></div>
+        <span class="cell-driver-app" data-rr-no-drawer><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" data-rr-app-state="${_appBtnState(d.id)}" title="${escapeHtml(_appBtnTitle(d.id))}" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></span></div></td>
       <td>${tenure}</td>
       <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
       <td class="rr-att-points-cell">${_attPointsCell(d.id)}</td>
       <td>${_scoreCell(d.score)}</td>
       <td class="rr-lastactive-cell">${_appStatusCell(d.id)}</td>
-      <td data-rr-no-drawer class="u-center rr-app-cell"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" data-rr-app-state="${_appBtnState(d.id)}" title="${escapeHtml(_appBtnTitle(d.id))}" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
+      <td data-rr-no-drawer class="u-center rr-app-cell"></td>
       <td data-rr-no-drawer class="rr-row-actions">${actions}</td>
     </tr>`;
 }
