@@ -882,13 +882,13 @@ textarea,
 
 /* ── Sidebar (inset · floating · subtle gradient) ─────────── */
 .sidebar{
-  /* Driver-app communication blue — same gradient as the app header
-     (#0F6CBD -> #0B5394), white text/icons on top. */
-  --sidebar:#0F6CBD;
-  --sidebar-grad:linear-gradient(180deg, #0F6CBD 0%, #0B5394 100%);
-  --sidebar-hover:rgba(255,255,255,.12);
-  --sidebar-active:rgba(255,255,255,.16);
-  --sidebar-divider:rgba(255,255,255,.16);
+  /* Slate navy sidebar · flat #0F172A with a blue selected state.
+     Operator-specified palette (Tailwind slate / blue family). */
+  --sidebar:#0F172A;
+  --sidebar-grad:none;
+  --sidebar-hover:#1E293B;
+  --sidebar-active:#2563EB;
+  --sidebar-divider:rgba(255,255,255,.10);
 
   background:var(--sidebar);
   background-image:var(--sidebar-grad);
@@ -906,6 +906,12 @@ textarea,
   --ni-bg:rgba(255,255,255,.12);
   --ni-bg-strong:rgba(255,255,255,.22);
 }
+/* Resting nav icons read as slate-300 (#CBD5E1) — a step quieter than
+   the #E2E8F0 label. The active row swaps to the white .nav-icon-color
+   span, so selected icons stay bright on the blue active background.
+   Scoped to the default (dark) sidebar so the light-theme toggle keeps
+   its own category icon colors. */
+html:not(.rr-sidebar-light) .sidebar .nav-item .nav-icon{color:#CBD5E1}
 /* Active = location state, not a button — a calm tinted row with a
    soft left-edge indicator, no ring. */
 .sidebar .nav-item.active{
@@ -935,7 +941,7 @@ textarea,
   /* Operator-requested · selected/hovered nav items render with
      straight 90° corners, not the previous --r-md rounding. */
   padding:8px var(--s-3);border-radius:0;
-  color:rgba(226,232,240,.72);
+  color:#E2E8F0;
   font-size:var(--fs-sm);font-weight:500;letter-spacing:0;
   cursor:pointer;
   transition:background var(--t-smooth), color var(--t-smooth);
