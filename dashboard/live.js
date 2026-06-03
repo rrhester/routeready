@@ -4232,7 +4232,7 @@ function renderDriverTable(rows, error) {
           <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:3px;opacity:.7"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
       </th>
-      <th class="rr-roster-th-attpoints" data-rr-roster-sort="attpoints" style="cursor:pointer;user-select:none" title="Active attendance points within the policy window">Attendance Points${caret("attpoints")}</th>
+      <th class="rr-roster-th-attpoints" data-rr-roster-sort="attpoints" style="cursor:pointer;user-select:none" title="Active attendance points within the policy window"><span class="rr-th-lbl-full">Attendance Points</span><span class="rr-th-lbl-short">Points</span>${caret("attpoints")}</th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th class="rr-roster-th-app">App</th>
       <th></th>`;

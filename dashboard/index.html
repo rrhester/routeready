@@ -8035,6 +8035,13 @@ body.rr-cmdk-open{ overflow:hidden }
 .roster-split .rr-lastactive-cell,
 .roster-split .rr-roster-th-app,
 .roster-split .rr-app-cell{display:none}
+/* Attendance Points header is too wide for the condensed split pane and
+   clips behind the open driver drawer — show the short "Points" label
+   there instead. The full label shows in the wide roster; the th's
+   title tooltip carries the full meaning in both. */
+.rr-th-lbl-short{display:none}
+.roster-split .rr-roster-th-attpoints .rr-th-lbl-full{display:none}
+.roster-split .rr-roster-th-attpoints .rr-th-lbl-short{display:inline}
 /* Tighten the condensed roster. The app-view icon now lives next to the
    driver name (.cell-driver-app) so it's always visible; the old far-right
    App column is hidden. Trim padding and drop the name's contact sub-line
