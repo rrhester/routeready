@@ -7921,7 +7921,7 @@ body.rr-cmdk-open{ overflow:hidden }
    Reuses existing tokens only — no new colors, shadows, radii,
    typography, button, badge or spacing systems are introduced.
    ───────────────────────────────────────────────────────────── */
-.roster-split{display:flex;gap:var(--s-4);align-items:flex-start;overflow-x:clip}
+.roster-split{display:flex;gap:var(--s-4);align-items:stretch;overflow-x:clip}
 .roster-split-list{flex:1 1 auto;min-width:0}
 /* Keep the roster table self-scrolling so the split's overflow-x:clip
    (which hides the record pane while it slides in/out from the edge)
@@ -7929,9 +7929,11 @@ body.rr-cmdk-open{ overflow:hidden }
 .roster-split-list .table-wrap{overflow-x:auto}
 .roster-split.has-record .roster-split-list{flex:1 1 58%}
 #driver-record-mount{display:none;container-type:inline-size}
+/* The mount stretches to the roster list's height (align-items:stretch on
+   the split) and is a column flex container so the record card fills it —
+   so the card always extends to the same bottom as the roster list. */
 .roster-split.has-record #driver-record-mount{
-  display:block;flex:0 0 42%;min-width:340px;
-  position:sticky;top:var(--s-4);align-self:flex-start;
+  display:flex;flex-direction:column;flex:0 0 42%;min-width:340px;
 }
 /* Neutralise the fixed-overlay drawer styling when the record lives
    in the inline mount, so it reads as a static workspace card that
