@@ -1269,6 +1269,74 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
   animation:hdr-refresh-spin .6s ease;
 }
 @keyframes hdr-refresh-spin{ from{transform:rotate(0)} to{transform:rotate(360deg)} }
+
+/* ── Quick Access Toolbar (customizable) ─────────────────────────────
+   Office-style QAT at the far top-left. The launcher (a horizontal bar
+   with a down chevron under it) opens a small popover where the DSP
+   ticks which controls ride the bar. Ticked controls populate the rail
+   left → right in the order they were enabled, each emerging with a
+   slight scale/slide rather than popping in. The popover floats over
+   the page with NO backdrop blur, so the content behind stays crisp
+   and fully interactive. */
+.rr-qat{display:flex;align-items:center;gap:var(--s-2);flex:0 0 auto;position:relative}
+.rr-qat-launcher{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:32px;padding:0;
+  background:transparent;border:0;cursor:pointer;color:var(--text-subtle);
+  border-radius:6px;flex:0 0 auto;
+  transition:background var(--t-fast,150ms),color var(--t-fast,150ms);
+}
+.rr-qat-launcher:hover{background:var(--accent-soft);color:var(--accent-text)}
+.rr-qat-launcher:focus-visible{outline:none;background:var(--accent-soft);color:var(--accent-text);box-shadow:var(--ring-focus)}
+.rr-qat-launcher[aria-expanded="true"]{background:var(--accent-soft);color:var(--accent-text)}
+
+/* Rail · hosts the enabled controls. Collapses to nothing when empty. */
+.rr-qat-rail{display:flex;align-items:center;gap:var(--s-2)}
+.rr-qat-rail:empty{display:none}
+/* Controls emerge (scale + drift in) rather than snapping onto the bar. */
+@keyframes rr-qat-emerge{
+  from{opacity:0;transform:scale(.55) translateX(-7px)}
+  to{opacity:1;transform:none}
+}
+.rr-qat-rail > *{animation:rr-qat-emerge .26s cubic-bezier(.34,1.56,.64,1) both}
+
+/* Popover menu · floats below the launcher, no blur behind it. */
+.rr-qat-menu{
+  position:absolute;top:calc(100% + 6px);left:0;z-index:70;
+  min-width:232px;padding:5px;
+  background:var(--surface);border:1px solid var(--border-strong);
+  border-radius:10px;box-shadow:var(--shadow-pop);
+  transform-origin:top left;
+  animation:rr-qat-menu-in .18s ease both;
+}
+@keyframes rr-qat-menu-in{
+  from{opacity:0;transform:translateY(-6px) scale(.96)}
+  to{opacity:1;transform:none}
+}
+.rr-qat-menu[hidden]{display:none}
+.rr-qat-menu-head{
+  font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--text-subtle);padding:6px 8px 5px;
+}
+.rr-qat-opt{
+  display:flex;align-items:center;gap:9px;width:100%;
+  padding:8px;border:0;border-radius:6px;background:transparent;
+  font:inherit;font-size:var(--fs-sm);color:var(--text);cursor:pointer;text-align:left;
+}
+.rr-qat-opt:hover{background:var(--surface-hover)}
+.rr-qat-opt:focus-visible{outline:none;background:var(--surface-hover);box-shadow:var(--ring-focus)}
+/* Check sits to the LEFT of the label; shown only when the item is on. */
+.rr-qat-opt-check{
+  flex:0 0 auto;width:16px;height:16px;
+  display:inline-flex;align-items:center;justify-content:center;
+  color:var(--accent,#2563EB);opacity:0;transition:opacity var(--t-fast);
+}
+.rr-qat-opt[aria-checked="true"] .rr-qat-opt-check{opacity:1}
+.rr-qat-opt-lbl{flex:1;min-width:0}
+/* Disabled controls park here — kept in the DOM (so their delegated
+   live.js wiring stays live) but off the bar. */
+.rr-qat-park{display:none !important}
+
 .topbar-context{font-size:var(--fs-sm);color:var(--text-subtle);margin-left:var(--s-3)}
 .topbar-spacer{flex:1}
 
@@ -10202,6 +10270,24 @@ body.rr-cmdk-open{ overflow:hidden }
 
     <!-- Top bar -->
     <header class="topbar">
+      <!-- Quick Access Toolbar · operator-customizable strip pinned at
+           the far left. The launcher (a horizontal bar with a down
+           chevron) opens a popover where the DSP ticks which controls
+           ride the bar; ticked controls populate the rail left → right.
+           Page Refresh and Undo are the existing topbar controls,
+           relocated here; Focus Mode is a QAT-owned button. Wired by
+           the inline QAT script near </body>. -->
+      <div id="rr-qat" class="rr-qat">
+        <button type="button" id="rr-qat-launcher" class="rr-qat-launcher"
+                aria-haspopup="true" aria-expanded="false"
+                aria-label="Customize quick access toolbar"
+                title="Customize Quick Access Toolbar">
+          <svg viewBox="0 0 24 24" width="19" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="7" x2="19" y2="7"/><polyline points="7 12 12 17 17 12"/></svg>
+        </button>
+        <div id="rr-qat-rail" class="rr-qat-rail" role="toolbar" aria-label="Quick access toolbar"></div>
+        <div id="rr-qat-menu" class="rr-qat-menu" role="menu" hidden></div>
+        <div id="rr-qat-park" class="rr-qat-park" aria-hidden="true"></div>
+      </div>
       <!-- Hard-refresh · forces a fresh fetch of the dashboard
            (HTML + cache-busted live.js) so the operator can pick
            up a deploy when their browser is sitting on a cached
@@ -35868,6 +35954,167 @@ John,Smith,555-0101,john@example.com</code>
       hideInstallBtn();
     });
   });
+})();
+</script>
+
+<!-- ─── Quick Access Toolbar (customizable) ───────────────────────────
+     Office-style QAT. The launcher opens a popover of toggleable
+     controls; enabling one drops the live control onto the rail (left
+     → right in enable order) with a slight emerge animation and ticks a
+     checkmark to the LEFT of its label. Disabling parks the control
+     off-bar (kept in the DOM so its existing delegated wiring in
+     live.js stays live). Choices persist in localStorage. The popover
+     has no backdrop, so the page behind it stays un-blurred. -->
+<script>
+(function () {
+  var LS_ORDER = "rr-qat-order";            // ordered enabled ids, left → right
+  var DEFAULT_ORDER = ["refresh", "undo"];  // refresh + undo already lived here
+
+  var focusBtn = null;
+  function ensureFocusBtn() {
+    if (focusBtn) return focusBtn;
+    focusBtn = document.createElement("button");
+    focusBtn.type = "button";
+    focusBtn.id = "rr-qat-focus-btn";
+    focusBtn.className = "hdr-refresh";
+    focusBtn.setAttribute("aria-label", "Focus mode");
+    focusBtn.setAttribute("aria-pressed",
+      document.body.classList.contains("rr-sched-focus") ? "true" : "false");
+    focusBtn.title = "Focus mode — hide page chrome";
+    focusBtn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/></svg>';
+    focusBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      // Toggle the SAME body class the schedule's own focus icon uses,
+      // and keep that icon's pressed-state in sync.
+      var on = !document.body.classList.contains("rr-sched-focus");
+      document.body.classList.toggle("rr-sched-focus", on);
+      focusBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      var sched = document.getElementById("rr-sched-focus-toggle");
+      if (sched) sched.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    return focusBtn;
+  }
+
+  // Registry. node() returns the live DOM element the rail should host.
+  // Refresh + Undo reuse the existing topbar controls — their click
+  // handlers are delegated on `document`, so relocating them is safe.
+  var ITEMS = [
+    { id: "refresh", label: "Page Refresh",
+      node: function () { return document.getElementById("rr-hdr-refresh"); } },
+    { id: "undo", label: "Undo / Go Back",
+      node: function () { return document.querySelector(".hdr-undo-wrap"); } },
+    { id: "focus", label: "Focus Mode", lazy: true, node: ensureFocusBtn },
+  ];
+
+  function itemById(id) {
+    for (var i = 0; i < ITEMS.length; i++) if (ITEMS[i].id === id) return ITEMS[i];
+    return null;
+  }
+  function loadOrder() {
+    try {
+      var raw = localStorage.getItem(LS_ORDER);
+      if (raw == null) return DEFAULT_ORDER.slice();
+      var arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return DEFAULT_ORDER.slice();
+      return arr.filter(itemById); // drop unknown ids, keep saved order
+    } catch (e) { return DEFAULT_ORDER.slice(); }
+  }
+  function saveOrder(order) {
+    try { localStorage.setItem(LS_ORDER, JSON.stringify(order)); } catch (e) {}
+  }
+
+  function init() {
+    var launcher = document.getElementById("rr-qat-launcher");
+    var rail = document.getElementById("rr-qat-rail");
+    var menu = document.getElementById("rr-qat-menu");
+    var park = document.getElementById("rr-qat-park");
+    if (!launcher || !rail || !menu || !park) return;
+
+    var order = loadOrder();
+    function isOn(id) { return order.indexOf(id) !== -1; }
+
+    // Move a control onto the rail (appends → rightmost, matching the
+    // enable order) or off to the park. Appending re-inserts the node,
+    // which (re)triggers its emerge animation — only the node that
+    // actually moved animates.
+    function place(id) { var it = itemById(id), el = it && it.node(); if (el) rail.appendChild(el); }
+    function park_(id) {
+      var it = itemById(id);
+      if (!it || (it.lazy && !focusBtn)) return; // never-created lazy control: nothing to park
+      var el = it.node();
+      if (el) park.appendChild(el);
+    }
+
+    function renderMenu() {
+      menu.innerHTML = "";
+      var head = document.createElement("div");
+      head.className = "rr-qat-menu-head";
+      head.textContent = "Quick access";
+      menu.appendChild(head);
+      ITEMS.forEach(function (it) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "rr-qat-opt";
+        b.setAttribute("role", "menuitemcheckbox");
+        b.setAttribute("aria-checked", isOn(it.id) ? "true" : "false");
+        b.dataset.qatId = it.id;
+        b.innerHTML =
+          '<span class="rr-qat-opt-check" aria-hidden="true">' +
+            '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+          '</span><span class="rr-qat-opt-lbl"></span>';
+        b.querySelector(".rr-qat-opt-lbl").textContent = it.label;
+        menu.appendChild(b);
+      });
+    }
+
+    function toggle(id) {
+      var i = order.indexOf(id);
+      if (i === -1) { order.push(id); place(id); }   // enable → rightmost
+      else { order.splice(i, 1); park_(id); }        // disable → park
+      saveOrder(order);
+      renderMenu();
+    }
+
+    function openMenu() { renderMenu(); menu.hidden = false; launcher.setAttribute("aria-expanded", "true"); }
+    function closeMenu() { menu.hidden = true; launcher.setAttribute("aria-expanded", "false"); }
+
+    launcher.addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (menu.hidden) openMenu(); else closeMenu();
+    });
+    menu.addEventListener("click", function (e) {
+      var opt = e.target.closest(".rr-qat-opt");
+      if (!opt) return;
+      e.preventDefault();
+      toggle(opt.dataset.qatId);
+    });
+    // Click-away closes the popover (no backdrop → page stays interactive).
+    document.addEventListener("click", function (e) {
+      if (menu.hidden) return;
+      if (e.target.closest("#rr-qat")) return;
+      closeMenu();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      if (!menu.hidden) closeMenu();
+      // The global Escape handler may clear focus mode — re-sync the
+      // QAT focus button on the next tick (after that handler runs).
+      if (focusBtn) setTimeout(function () {
+        focusBtn.setAttribute("aria-pressed",
+          document.body.classList.contains("rr-sched-focus") ? "true" : "false");
+      }, 0);
+    });
+
+    // Initial layout: place enabled controls in order, park the rest.
+    order.forEach(place);
+    ITEMS.forEach(function (it) { if (!isOn(it.id)) park_(it.id); });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
 })();
 </script>
 
