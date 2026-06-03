@@ -149,12 +149,14 @@
   --sidebar-hover:rgba(255,255,255,.10);
   --sidebar-active:linear-gradient(90deg, rgba(255,255,255,.18) 0%, rgba(255,255,255,.04) 100%);
   --sidebar-divider:rgba(255,255,255,0.06);
-  /* Sidebar rail restyle · graphite surface, translucent-white icon
-     states, and a subtle active pill. Tweak these to retune the rail. */
-  --sidebar-bg:#15171E;
-  --sidebar-icon-idle:rgba(255,255,255,0.55);
-  --sidebar-icon-hover:rgba(255,255,255,0.80);
+  /* Sidebar rail · neutral, structural Slate-800 surface that recedes
+     into the chrome. Translucent-white icon states; blue (not purple)
+     active accent. Tweak these to retune the rail. */
+  --sidebar-bg:#1F2937;
+  --sidebar-icon-idle:rgba(255,255,255,0.75);
+  --sidebar-icon-hover:#FFFFFF;
   --sidebar-icon-active:#ffffff;
+  --sidebar-active-accent:#2563EB;
   --sidebar-active-pill:rgba(255,255,255,0.06);
   --glass:rgba(255,255,255,.80);
   --glass-strong:rgba(255,255,255,.90);
@@ -919,23 +921,23 @@ textarea,
    Scoped to the default (dark) sidebar so the light-theme toggle keeps
    its own category icon colors. */
 html:not(.rr-sidebar-light) .sidebar .nav-item .nav-icon{color:var(--sidebar-icon-idle)}
-/* Hover brightens the idle icon; the active/current icon goes solid
-   white and sits on a small rounded pill. Scoped to the dark rail so the
-   light-theme toggle keeps its own icon palette. */
+/* Hover brightens the idle icon to solid white; the active/current icon
+   stays white. Scoped to the dark rail so the light-theme toggle keeps
+   its own icon palette. */
 html:not(.rr-sidebar-light) .sidebar .nav-item:hover .nav-icon{color:var(--sidebar-icon-hover)}
 html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon,
 html:not(.rr-sidebar-light) .sidebar .nav-item.active .nav-icon-color{
   color:var(--sidebar-icon-active);
-  background:var(--sidebar-active-pill);
-  border-radius:6px;
-  padding:4px;
-}
-/* Active = location state. Signalled by the white icon pill (see the
-   .nav-icon rules above), not a filled row — the row itself stays flat
-   and calm. The light-theme toggle keeps its own active row below. */
-.sidebar .nav-item.active{
+  /* No icon tile — the blue accent rail is the active indicator. */
   background:transparent;
-  box-shadow:none;
+}
+/* Active = location state. Signalled by a subtle blue (#2563EB) left
+   accent rail + a faint neutral row highlight and a white icon — calm
+   and structural, never branded/purple. The light-theme toggle keeps
+   its own active row below. */
+.sidebar .nav-item.active{
+  background:var(--sidebar-active-pill);
+  box-shadow:inset 3px 0 0 var(--sidebar-active-accent);
 }
 .sidebar .nav-item.active .nav-badge{color:var(--accent);background:#fff}
 .brand{
