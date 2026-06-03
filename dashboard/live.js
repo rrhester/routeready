@@ -30733,8 +30733,8 @@ window._rrConfirmDialog = _rrConfirmDialog;
 //             settles back to its finalized appearance.
 //   Phase 2 · the Draft→Live status pill scales up with a gentle green
 //             success emphasis.
-//   Phase 3 · a very soft green validation sweep flows pill → KPI strip
-//             → schedule grid (under 1s).
+//   Phase 3 · a single slow, soft green wave washes down through the
+//             schedule (pill → KPI strip → grid) over ~3s.
 //   Phase 4 · the title subtitle briefly becomes "✓ Schedule Ready for
 //             Dispatch", then restores the "Week of …" line.
 function _rrFinalizeCelebrate() {
@@ -30797,30 +30797,51 @@ function _rrFinalizePillPop(pill) {
   setTimeout(() => pill.classList.remove("rr-fin-pill-pop"), 700);
 }
 
-// Phase 3 — validation sweep: a very soft green wash flows through the
-// status pill, the KPI strip, then the schedule grid. Body-level
-// pointer-events:none overlays positioned over each element's rect, so
-// nothing in the page layout or interactivity is touched.
+// Phase 3 — validation sweep: a single slow, soft green wave that washes
+// DOWN through the schedule region (status pill → KPI strip → grid)
+// over ~3 seconds. One body-level, pointer-events:none overlay spans the
+// union rect of the three targets; a broad, feathered green band travels
+// from just above the region to just below it, so it passes over each
+// surface in top-to-bottom order. Nothing in the page layout or
+// interactivity is touched.
 function _rrFinalizeValidationSweep(targets) {
-  targets.forEach((el, i) => {
-    if (!el) return;
-    setTimeout(() => _rrFinalizeWash(el), i * 150);
+  const rects = targets
+    .filter(Boolean)
+    .map((el) => el.getBoundingClientRect())
+    .filter((r) => r.width && r.height);
+  if (!rects.length) return;
+
+  const pad = 4;
+  const left = Math.min(...rects.map((r) => r.left)) - pad;
+  const right = Math.max(...rects.map((r) => r.right)) + pad;
+  const top = Math.min(...rects.map((r) => r.top)) - pad;
+  const bottom = Math.max(...rects.map((r) => r.bottom)) + pad;
+  const w = right - left;
+  const h = bottom - top;
+
+  const wrap = document.createElement("div");
+  wrap.className = "rr-fin-wave-wrap";
+  wrap.style.cssText =
+    `position:fixed;left:${left}px;top:${top}px;width:${w}px;height:${h}px;` +
+    "overflow:hidden;pointer-events:none;z-index:55;border-radius:8px";
+
+  // Broad, feathered band — ~60% of the region tall so the wash reads as
+  // a soft swell rather than a thin line.
+  const bandH = Math.round(h * 0.6);
+  const band = document.createElement("div");
+  band.className = "rr-fin-wave-band";
+  band.style.cssText =
+    `position:absolute;left:0;right:0;top:0;height:${bandH}px;` +
+    "background:linear-gradient(to bottom, rgba(16,124,65,0) 0%, rgba(16,124,65,.10) 50%, rgba(16,124,65,0) 100%)";
+  band.style.setProperty("--rr-wave-from", `${-bandH}px`);
+  band.style.setProperty("--rr-wave-to", `${h}px`);
+
+  wrap.appendChild(band);
+  document.body.appendChild(wrap);
+  requestAnimationFrame(() => {
+    band.style.animation = "rr-fin-wave 3000ms cubic-bezier(.45,0,.55,1) forwards";
   });
-}
-function _rrFinalizeWash(el) {
-  const r = el.getBoundingClientRect();
-  if (!r.width || !r.height) return;
-  const pad = 3;
-  const ov = document.createElement("div");
-  ov.className = "rr-fin-wash";
-  ov.style.cssText =
-    `position:fixed;left:${r.left - pad}px;top:${r.top - pad}px;` +
-    `width:${r.width + pad * 2}px;height:${r.height + pad * 2}px;` +
-    "border-radius:8px;pointer-events:none;z-index:55;background:rgba(16,124,65,.07)";
-  document.body.appendChild(ov);
-  // Force the keyframe to start from a clean frame.
-  requestAnimationFrame(() => { ov.style.animation = "rr-fin-wash-kf 460ms ease-out forwards"; });
-  setTimeout(() => ov.remove(), 560);
+  setTimeout(() => wrap.remove(), 3200);
 }
 
 // Phase 4 — "ready" moment: temporarily swap the "Week of …" subtitle
