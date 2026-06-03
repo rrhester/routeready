@@ -32260,6 +32260,59 @@ function _obUnmountDriverRoster() {
   mount.hidden = true;
 }
 
+// ── Schedule roster/attendance sub-views · share the portable mount ──
+// The Schedule view hosts the SAME #ob-roster-mount that Onboarding-ops
+// roster mode uses, so the embedded Drivers sub-view + its CSS alias
+// (keyed on #ob-roster-mount) come along for free. #ob-roster-mount is a
+// single relocatable node, so it can only ever live in one host at a
+// time — moving it into the Schedule host implicitly pulls it out of
+// Onboarding (and vice-versa), which prevents the node from ending up
+// in two places. We stash the mount's home position the first time we
+// borrow it so it can always be parked back in Onboarding.
+const _SCHED_ROSTER_SUB_HOST = {
+  roster:     "sched-sub-roster",
+  attendance: "sched-sub-attendance",
+};
+function _schedMountRosterSub(subKey) {
+  const hostId = _SCHED_ROSTER_SUB_HOST[subKey];
+  const host   = hostId && document.getElementById(hostId);
+  const mount  = document.getElementById("ob-roster-mount");
+  if (!host || !mount) return;
+  // Record the mount's original home (in #view-onboarding-ops) once so
+  // we can always restore it when leaving the schedule sub-view.
+  if (!mount.__obOrigParent) _obStashOriginalPosition(mount);
+  // Relocate the shared mount into the schedule host. Moving the node
+  // implicitly removes it from wherever it was (Onboarding or the other
+  // schedule host).
+  if (mount.parentNode !== host) host.appendChild(mount);
+  // Reuse the existing embed path: it injects the style alias, restores
+  // any other Drivers sub currently in the mount, moves in the requested
+  // one, and fires its data loader.
+  if (typeof _obMountDriverSub === "function") _obMountDriverSub(subKey);
+}
+// Called when leaving a schedule roster/attendance sub-view (or leaving
+// the Schedule view). Returns the embedded Drivers node to #view-drivers
+// and parks #ob-roster-mount back in its Onboarding home so onboarding
+// roster mode finds it where it expects.
+function _schedUnmountRosterSub() {
+  const mount = document.getElementById("ob-roster-mount");
+  if (!mount) return;
+  // Only act when the mount is currently borrowed BY a Schedule host —
+  // otherwise (e.g. it's parked in Onboarding for onboarding-ops roster
+  // mode, or already home) this must be a no-op so we don't unmount the
+  // onboarding roster out from under it. Safe to call from goto() and
+  // schedSub() on every navigation / sub-view switch.
+  const inSchedHost = !!(mount.parentNode &&
+    (mount.parentNode.id === "sched-sub-roster" ||
+     mount.parentNode.id === "sched-sub-attendance"));
+  if (!inSchedHost) return;
+  if (typeof _obUnmountDriverRoster === "function") _obUnmountDriverRoster();
+  // Park the mount back in Onboarding (it was borrowed → __obOrigParent set).
+  if (mount.__obOrigParent) _obRestoreToOriginalPosition(mount);
+}
+window._schedMountRosterSub   = _schedMountRosterSub;
+window._schedUnmountRosterSub = _schedUnmountRosterSub;
+
 // Drivers CSS is scoped with `#view-drivers X` selectors — they
 // won't match the roster after it's moved into #ob-roster-mount.
 // Walk every parsed stylesheet once and emit a parallel rule

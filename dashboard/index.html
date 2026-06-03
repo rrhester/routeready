@@ -16731,25 +16731,31 @@ body.rr-cmdk-open{ overflow:hidden }
           </button>
             <button type="button" class="sched-v2-rules-foot" tabindex="-1">Rules <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg></button>
           </div>
-          <!-- Roster + Attendance · relocated from the roster page strip.
-               They open the Onboarding-ops roster view with the matching
-               sub-tab. data-rr-nav (NOT data-rr-v2) so the V2 tile dispatch
-               ignores them; navigation runs via the inline onclick. The
-               leading group hairline now sits on Roster (see the divider
-               rule in schedule-rrx.css ~2142). No rules-foot so the click
-               isn't forwarded to a (non-existent) rules popover. -->
+          <!-- Roster + Attendance · in-page Schedule sub-views.
+               They stay ON the Schedule view and swap only the content
+               area below the command + KPI strips (exactly like Week /
+               Today / Requests), routing through the canonical schedule
+               sub-view switcher schedSub(). schedSub('roster' /
+               'attendance') hides the other #sched-sub-* panels, shows
+               #sched-sub-roster / #sched-sub-attendance, and mounts the
+               shared portable Drivers node into it via _schedMountRosterSub.
+               data-rr-v2 carries the key so the V2 dispatch + right-click
+               machinery treats them like the other tiles; the inline
+               onclick is what drives the switch. The leading group
+               hairline sits on Roster (divider rule in schedule-rrx.css
+               ~2142). No rules-foot — no rules popover for these. -->
           <div class="sched-v2-split">
-            <button type="button" class="sched-v2-tile" data-rr-nav="roster" tabindex="-1"
+            <button type="button" class="sched-v2-tile" data-rr-v2="roster" tabindex="-1"
                     title="Driver roster"
-                    onclick="var t=document.querySelector('#view-schedule .sched-cmd-tab[data-cmd-tab=roster]');t&amp;&amp;t.click();setTimeout(function(){typeof _obMountDriverSub==='function'&amp;&amp;_obMountDriverSub('roster');},80);">
+                    onclick="if(typeof schedSub==='function')schedSub('roster');">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><defs><linearGradient id="rr-roster-icon-gradient-sched" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A78BFA"/><stop offset="100%" stop-color="#5B21B6"/></linearGradient></defs><rect x="3" y="4" width="18" height="6" fill="url(#rr-roster-icon-gradient-sched)" stroke="none"/><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/><line x1="7" y1="18" x2="13" y2="18"/></svg>
             <span>Roster</span>
           </button>
           </div>
           <div class="sched-v2-split">
-            <button type="button" class="sched-v2-tile" data-rr-nav="attendance" tabindex="-1"
+            <button type="button" class="sched-v2-tile" data-rr-v2="attendance" tabindex="-1"
                     title="Driver attendance"
-                    onclick="var t=document.querySelector('#view-schedule .sched-cmd-tab[data-cmd-tab=roster]');t&amp;&amp;t.click();setTimeout(function(){typeof _obMountDriverSub==='function'&amp;&amp;_obMountDriverSub('attendance');},80);">
+                    onclick="if(typeof schedSub==='function')schedSub('attendance');">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 15 11 17 16 12"/></svg>
             <span>Attendance</span>
           </button>
@@ -22471,6 +22477,21 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </div>
         </div><!-- /sched-sub-requests -->
+
+        <!-- ROSTER + ATTENDANCE · in-page schedule sub-views.
+             These host the same portable Drivers sub-views
+             (#dr-sub-roster / #dr-sub-attendance) that the
+             Onboarding-ops roster mode embeds. On schedSub('roster')
+             / schedSub('attendance') the shared #ob-roster-mount node
+             is relocated into the matching host below and
+             _obMountDriverSub() moves the live Drivers sub-view into
+             it (with its CSS alias intact). Switching to any other
+             schedule sub-view (or leaving Schedule) restores the
+             Drivers node and parks #ob-roster-mount back in
+             Onboarding. The mount itself is a single relocatable node,
+             so it can never live in two places at once. -->
+        <div class="sched-subview" id="sched-sub-roster" style="display:none"></div>
+        <div class="sched-subview" id="sched-sub-attendance" style="display:none"></div>
 
         <!-- (Legacy time-off sub-view, kept hidden so any older callers
              that still target #sched-sub-time-off don't throw.) -->
@@ -31286,6 +31307,14 @@ John,Smith,555-0101,john@example.com</code>
     if (view === 'drivers' && typeof window._obUnmountDriverRoster === 'function') {
       try { window._obUnmountDriverRoster(); } catch (_) {}
     }
+    // Leaving any view: if the shared roster mount is currently borrowed
+    // by a Schedule roster/attendance sub-view, return the embedded
+    // Drivers node to #view-drivers and park #ob-roster-mount back in its
+    // Onboarding home, so the single relocatable node isn't left inside a
+    // now-hidden Schedule host. No-op when it was never borrowed.
+    if (typeof window._schedUnmountRosterSub === 'function') {
+      try { window._schedUnmountRosterSub(); } catch (_) {}
+    }
     document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
     var target = document.getElementById('view-' + view);
     if (target) target.classList.add('active');
@@ -31475,6 +31504,17 @@ John,Smith,555-0101,john@example.com</code>
     document.querySelectorAll('.sched-subview').forEach(function(v){ v.style.display = 'none'; });
     var panel = document.getElementById('sched-sub-' + sub);
     if (panel) panel.style.display = 'block';
+    // Roster / Attendance sub-views host the shared portable Drivers
+    // node (#ob-roster-mount). Mount it into the matching schedule host
+    // when entering, and restore it to its Onboarding home (returning
+    // the embedded Drivers sub-view to #view-drivers) when switching to
+    // any other schedule sub-view — so the single relocatable node is
+    // never orphaned or left in two places.
+    if (sub === 'roster' || sub === 'attendance') {
+      if (typeof window._schedMountRosterSub === 'function') window._schedMountRosterSub(sub);
+    } else if (typeof window._schedUnmountRosterSub === 'function') {
+      window._schedUnmountRosterSub();
+    }
     // Targets sub-view swaps the schedule KPI strip for its own
     // Block / Cushion / Report-time KPI strip (same size + spot).
     var kpisSched   = document.getElementById('rr-sched-kpis');
