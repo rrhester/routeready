@@ -16634,6 +16634,36 @@ async function openDriverDrawer(driverId, opts) {
       #rr-dd-panel{width:760px;max-width:100%;background:var(--surface);height:100%;overflow-y:auto;border-left:1px solid var(--border);display:flex;flex-direction:column;transform:translateX(100%);transition:transform 240ms cubic-bezier(.32,.72,.4,1)}
       #rr-dd-drawer.rr-dd-open #rr-dd-panel{transform:translateX(0)}
       @media (prefers-reduced-motion: reduce){#rr-dd-drawer,#rr-dd-panel{transition:none}}
+      /* ── Inline workspace mode ──────────────────────────────────
+         When the roster is on-screen the record docks into the
+         #driver-record-mount pane beside the roster list instead of
+         overlaying the page. No backdrop, no blur, no page-blocking
+         overlay — the header / KPI strip / sub-nav stay visible, and
+         only the panel body scrolls so the page shell stays put.
+         Reuses existing tokens only. */
+      #rr-dd-drawer.rr-dd-inline{position:static;inset:auto;background:none;display:block;z-index:auto;opacity:0;transition:opacity 200ms ease-out}
+      #rr-dd-drawer.rr-dd-inline.rr-dd-open{opacity:1}
+      #rr-dd-drawer.rr-dd-inline #rr-dd-panel{
+        width:100%;max-width:none;height:auto;max-height:calc(100vh - 360px);
+        border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-md);
+        transform:none;
+      }
+      /* Compact summary header — smaller avatar, tighter padding. */
+      #rr-dd-drawer.rr-dd-inline .dd-head{padding:var(--s-3-5) 20px}
+      #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:var(--fs-base)}
+      #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:40px!important;height:40px!important;font-size:var(--fs-md)!important}
+      #rr-dd-drawer.rr-dd-inline .dd-tabs{margin:12px 20px 0}
+      #rr-dd-drawer.rr-dd-inline .dd-tab-note{margin:8px 20px 0}
+      #rr-dd-drawer.rr-dd-inline .dd-body{padding:18px 20px}
+      /* Lighter section rhythm — slimmer separators + less vertical waste. */
+      #rr-dd-drawer.rr-dd-inline .dd-section{margin:0 0 14px}
+      #rr-dd-drawer.rr-dd-inline .dd-section + .dd-section{margin-top:16px;padding-top:14px}
+      #rr-dd-drawer.rr-dd-inline .dd-row{grid-template-columns:130px 1fr;gap:var(--s-2-5);padding:8px 0}
+      #rr-dd-drawer.rr-dd-inline .dd-foot{padding:var(--s-3) 20px}
+      /* Tablet / mobile — the pane stacks full width beneath the roster. */
+      @media (max-width:1024px){
+        #rr-dd-drawer.rr-dd-inline #rr-dd-panel{max-height:none}
+      }
       .dd-chrome{position:sticky;top:0;z-index:2;background:var(--surface)}
       .dd-head{padding:var(--s-5) 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
       .dd-head h3{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
@@ -16731,11 +16761,28 @@ async function openDriverDrawer(driverId, opts) {
       <div class="dd-body" id="rr-dd-body"><div class="rr-loading">Loading</div></div>
       <div class="dd-foot" id="rr-dd-foot"></div>
     </div>`;
-  document.body.appendChild(drawer);
-  // Slide in · the panel is appended off-screen (translateX(100%));
-  // adding .rr-dd-open on the next frame triggers the transition so it
-  // glides in instead of popping. Reduced-motion users skip straight to
-  // open (the CSS disables the transition).
+  // Inline workspace vs. overlay. When the roster split is on-screen we
+  // dock the record into #driver-record-mount beside the roster list (no
+  // backdrop / blur / page-blocking overlay); otherwise — e.g. opened from
+  // an Attendance deep-link, Onboarding, or global search on another page —
+  // we fall back to the slide-over drawer. offsetParent is null while the
+  // roster sub-view is display:none, so this is true only when the inline
+  // pane is actually visible.
+  const _ddSplit = document.getElementById("rr-roster-split");
+  const _ddMount = document.getElementById("driver-record-mount");
+  const _ddInline = !!(_ddSplit && _ddMount && _ddSplit.offsetParent !== null);
+  if (_ddInline) {
+    drawer.classList.add("rr-dd-inline");
+    _ddMount.appendChild(drawer);
+    _ddSplit.classList.add("has-record");
+  } else {
+    document.body.appendChild(drawer);
+    if (_ddSplit) _ddSplit.classList.remove("has-record"); // clear any stale inline state
+  }
+  // Slide in (overlay) / fade in (inline) · the panel is appended in its
+  // un-.open form; adding .rr-dd-open on the next frame triggers the
+  // transition so it glides/fades in instead of popping. Reduced-motion
+  // users skip straight to open (the CSS disables the transition).
   requestAnimationFrame(() => drawer.classList.add("rr-dd-open"));
   // Animate out before unmount so closing slides back to the edge.
   const _ddClose = () => {
@@ -16743,10 +16790,18 @@ async function openDriverDrawer(driverId, opts) {
     // rendering into a drawer that's mid-close-animation (the node lingers
     // 240ms during the slide-out). (Codex review.)
     drawer.dataset.rrClosing = "1";
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { drawer.remove(); return; }
+    // Collapse the inline split only after the node is gone, so the pane
+    // doesn't vanish mid-animation (removing .has-record hides the mount).
+    const finish = () => {
+      drawer.remove();
+      if (_ddSplit) _ddSplit.classList.remove("has-record");
+    };
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) { finish(); return; }
     drawer.classList.remove("rr-dd-open");
-    setTimeout(() => drawer.remove(), 240);
+    setTimeout(finish, 240);
   };
+  // Expose the closer so the shared Escape handler can reach it.
+  drawer._ddClose = _ddClose;
 
   drawer.addEventListener("click", (e) => {
     if (e.target === drawer || e.target.id === "rr-dd-close" || e.target.closest("[data-rr-dd-close]")) { _ddClose(); return; }
@@ -16775,6 +16830,16 @@ async function openDriverDrawer(driverId, opts) {
     renderDriverDrawerTab();
   }
 }
+
+// Escape closes the driver record (it has no backdrop to click in inline
+// mode). Bubble phase + no stopPropagation, and we bail when a modal or
+// command-palette is layered on top so Escape keeps closing those first.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (document.querySelector(".modal-backdrop.open, .rr-cmdk-backdrop.open, .rr-okami-backdrop.open")) return;
+  const d = document.getElementById("rr-dd-drawer");
+  if (d && d.dataset.rrClosing !== "1" && typeof d._ddClose === "function") d._ddClose();
+});
 
 async function loadDriverDrawer(driverId) {
   // Coaching-only drawer doesn't have rr-dd-* elements — refresh that
