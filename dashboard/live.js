@@ -39220,7 +39220,7 @@ async function renderScheduleWeek() {
   // the visible week (see `femRisks` computation further below).
   const femLookbackIso = fmtIsoDate(addDays(weekStart, -14));
 
-  const [gridRes, driversRes, toRes, femVehRes, femAssignRes] = await Promise.all([
+  const [gridRes, driversRes, toRes, femVehRes, femAssignRes, settingsRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, birthday, tier, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, is_trainer, role, station:station_id (code)")
@@ -39245,6 +39245,9 @@ async function renderScheduleWeek() {
       .select("vehicle_id, driver_id, date")
       .eq("dsp_id", dspId)
       .gte("date", femLookbackIso).lte("date", weekEndIso),
+    // Week's cushion % (route-plan buffer) — drives the coverage
+    // denominator: ceil(target_routes × (1 + cushion%)).
+    sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart }),
   ]);
 
   if (gridRes.error)    { console.warn("schedule_grid:", gridRes.error.message); return; }
@@ -39256,6 +39259,13 @@ async function renderScheduleWeek() {
   const grid    = gridRes.data    || { coverage: [], shifts: [] };
   const drivers = driversRes.data || [];
   const timeOff = toRes.data      || [];
+  // Route-plan cushion % for this week (falls back to the app default of
+  // 10 when no setting is stored). Used to compute the FIXED coverage
+  // denominator = ceil(target_routes × (1 + cushion%)).
+  const _cushionPct = (() => {
+    const v = Number(settingsRes?.data?.cushion_pct);
+    return Number.isFinite(v) ? v : 10;
+  })();
 
   _schedDriverList = drivers; // existing add-shift modal reads this list
   // Mirror onto window so cross-module consumers (milestone send-
@@ -39534,6 +39544,15 @@ async function renderScheduleWeek() {
   for (const cell of (grid.coverage || [])) {
     targetByDate.set(cell.date, (targetByDate.get(cell.date) || 0) + (cell.target_routes || 0));
   }
+  // Coverage denominator per date = route target PLUS the cushion:
+  // ceil(target_routes × (1 + cushion%)). e.g. 10 routes @ 20% → 12.
+  // This is the FIXED plan ceiling — it is computed from the keyed target
+  // and the cushion %, never from the live shift-row count, so it does NOT
+  // change as shifts are added or deleted.
+  const denomByDate = new Map();
+  for (const [date, tgt] of targetByDate) {
+    denomByDate.set(date, Math.ceil(tgt * (1 + _cushionPct / 100)));
+  }
   // Count scheduled shift ROWS and FILLED rows per date separately, so the
   // denominator can stay the PLAN (not the row count). This makes overage
   // visible: if a day is planned for 7 but 8 shifts exist, it reads 8/7
@@ -39557,14 +39576,13 @@ async function renderScheduleWeek() {
   // Fold the plan into every date (including plan-but-no-shifts days, which
   // then read 0/N). Denominator = the plan; on a day with shifts but no
   // recorded plan, fall back to the row count so it still reads sensibly.
-  for (const [date, planned] of plannedByDate) get(date).planned = planned;
+  for (const [date, denom] of denomByDate) get(date).planned = denom;
   for (const a of coverageByDate.values()) {
-    // Denominator = the day's planned routes + cushion (a.planned =
-    // plannedByDate, the route demand with the cushion already folded in).
-    // It is FIXED to that plan: adding or deleting shift rows must NOT
-    // change it, so the day always reads X/(routes+cushion) where X is the
-    // number of shifts actually scheduled. Falls back to the row count
-    // only on days that have no route plan at all.
+    // Denominator = the day's route target + cushion (denomByDate =
+    // ceil(target_routes × (1 + cushion%))). It is FIXED to that plan:
+    // adding or deleting shift rows must NOT change it, so the day always
+    // reads X/(routes+cushion) where X is the number of shifts actually
+    // scheduled. Falls back to the row count only on days with no plan.
     a.needed = a.planned > 0 ? a.planned : a.rows;
   }
   let totalNeeded = 0, totalFilled = 0;
@@ -39586,7 +39604,7 @@ async function renderScheduleWeek() {
   // Per-date plan ceiling (route demand + cushion) so edit paths can
   // tell when a day is already at/over plan before creating a new shift.
   window._rrSchedPlanByDate = {};
-  for (const [d, p] of plannedByDate) window._rrSchedPlanByDate[d] = p;
+  for (const [d, p] of denomByDate) window._rrSchedPlanByDate[d] = p;
   window._rrLiveSchedCoverage = {
     pct,
     filled: totalFilled,
