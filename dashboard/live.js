@@ -13730,11 +13730,21 @@ async function refreshDriverStatRow(rows) {
   // # of active/onboarding drivers whose driver's license expires within
   // the next 30 days (already-expired included — most urgent). Matches the
   // Licenses tab's `days <= 30` rule.
-  const dlExpiringSoonCount = active.filter(d => {
-    if (!d.dl_expires_on) return false;
-    const days = Math.floor((new Date(d.dl_expires_on + "T12:00:00").getTime() - todayMs) / 86400000);
-    return days <= 30;
-  }).length;
+  const dlExpiringList = active
+    .filter(d => {
+      if (!d.dl_expires_on) return false;
+      const days = Math.floor((new Date(d.dl_expires_on + "T12:00:00").getTime() - todayMs) / 86400000);
+      return days <= 30;
+    })
+    .map(d => ({
+      id: d.id,
+      name: rrTitleCaseName(displayDriverName(d) || d.full_name || "Driver"),
+      station: d.station?.code || "—",
+      dl_expires_on: d.dl_expires_on,
+      days: Math.floor((new Date(d.dl_expires_on + "T12:00:00").getTime() - todayMs) / 86400000),
+    }))
+    .sort((a, b) => a.days - b.days);   // soonest / already-expired first
+  const dlExpiringSoonCount = dlExpiringList.length;
 
   // % on attendance coaching · share of the team (active + onboarding)
   // with at least one active coaching on the attendance topic, at any
@@ -13803,6 +13813,7 @@ async function refreshDriverStatRow(rows) {
     tenuredCount, tenuredPct,
     attnCoachedCount, attnCoachedPct,
     tenureBuckets,
+    dlExpiring: dlExpiringList,
     winDays,
     termsLastWin, termsPriorWin,
     turnoverPct, turnoverPriorPct, turnoverDelta,
@@ -13874,7 +13885,7 @@ async function refreshDriverStatRow(rows) {
       (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
     rosterPill("tenure", navy, tenureLabel, tenureSub, true) +
     rosterPill("tenured", navy, tenuredLabel, tenuredSub, false) +
-    rosterPill("dlexp", dlExpColor, dlExpLabel, dlExpSub, false);
+    rosterPill("dlexp", dlExpColor, dlExpLabel, dlExpSub, true);
 
   const rosterHost = document.getElementById("rr-roster-kpis");
   if (rosterHost) rosterHost.innerHTML = rosterKpisHtml;
@@ -13939,6 +13950,37 @@ function _renderRosterKpiDetail() {
   panel.style.display = "block";
 
   const s = _rosterStats;
+
+  if (_rosterKpiDetail === "dlexp") {
+    // Drivers whose license expires within 30 days (already-expired
+    // included), soonest first — name, station and expiry date. Clicking a
+    // row opens that driver's record inline. This is an in-flow panel, not
+    // an overlay, so the page behind it stays sharp (no dim / blur).
+    const list = s.dlExpiring || [];
+    const fmtDate = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    const relTxt  = (days) => days < 0 ? `Expired ${-days}d ago` : days === 0 ? "Expires today" : `in ${days}d`;
+    const rowsHtml = list.map(d => {
+      const urgent    = d.days <= 14;                 // includes already-expired
+      const barStyle  = urgent ? "box-shadow:inset 3px 0 0 var(--red);" : "";
+      const dateColor = d.days < 0 ? "var(--red)" : urgent ? "var(--amber)" : "var(--text)";
+      return `<div data-rr-open-driver data-driver-id="${d.id}" style="${barStyle}display:grid;grid-template-columns:1fr 70px 150px;gap:var(--s-3);align-items:center;padding:8px 10px;border-top:1px solid var(--border);font-size:var(--fs-sm);cursor:pointer">
+        <div style="font-weight:600;color:var(--text)">${escapeHtml(d.name)}</div>
+        <div class="u-muted">${escapeHtml(d.station)}</div>
+        <div style="text-align:right;font-variant-numeric:tabular-nums"><span style="font-weight:600;color:${dateColor}">${fmtDate(d.dl_expires_on)}</span><div class="u-xs-subtle">${relTxt(d.days)}</div></div>
+      </div>`;
+    }).join("");
+    panel.innerHTML = `<div class="card" style="padding:var(--s-5)">
+      <div class="u-mb-3" style="display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-3)">
+        <div>
+          <div style="font-size:var(--fs-lg);font-weight:700;color:var(--text);letter-spacing:-.01em">Driver licenses expiring</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${list.length} active driver${list.length === 1 ? "" : "s"} with a license expiring within 30 days (already-expired included). Soonest first — click a driver to open their record.</div>
+        </div>
+        <button class="btn btn-sm" type="button" onclick="drSub('licenses')">Open Licenses tab</button>
+      </div>
+      ${list.length ? rowsHtml : '<div class="rr-empty-inline" style="padding:var(--s-3-5) 0">No licenses expiring within 30 days.</div>'}
+    </div>`;
+    return;
+  }
 
   if (_rosterKpiDetail === "score") {
     // Score-distribution buckets + top + bottom drivers.  Score is a
