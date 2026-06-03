@@ -12422,7 +12422,6 @@ body.rr-cmdk-open{ overflow:hidden }
                removed, this strip is the way operators move between
                Schedule and the Roster / Onboarding ribbons. -->
           <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="schedule" role="tab" aria-selected="false">Schedule</button>
-          <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
           <button class="ob-cmd-tab active" type="button" data-ob-cmd-tab="ops" role="tab" aria-selected="true">Onboarding</button>
           <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="fleet" role="tab" aria-selected="false">Fleet</button>
           <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="workflows" role="tab" aria-selected="false">Workflows</button>
@@ -16648,11 +16647,11 @@ body.rr-cmdk-open{ overflow:hidden }
                unchanged. -->
           <div class="sched-cmd-tabs sched-v2-cmd-tabs" role="tablist" aria-label="Command strip mode">
             <button class="sched-cmd-tab active" type="button" data-cmd-tab="schedule" role="tab" aria-selected="true">Schedule</button>
-            <!-- Roster + Onboarding · navigation tabs (not mode-switches).
-                 Clicking goes to the Onboarding-ops view with the right
-                 sub-mode preselected. Handled inline in the cmd-tab click
-                 listener (live.js ~line 1532). -->
-            <button class="sched-cmd-tab" type="button" data-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
+            <!-- Onboarding · navigation tab (not a mode-switch). Clicking
+                 goes to the Onboarding-ops view. Handled inline in the
+                 cmd-tab click listener (live.js ~line 1532). The Roster
+                 nav tab was removed — the roster lives on the Schedule
+                 page's own Roster icon-strip tile. -->
             <button class="sched-cmd-tab" type="button" data-cmd-tab="onboarding" role="tab" aria-selected="false">Onboarding</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="fleet" role="tab" aria-selected="false">Fleet</button>
             <button class="sched-cmd-tab" type="button" data-cmd-tab="workflows" role="tab" aria-selected="false">Workflows</button>
@@ -23848,7 +23847,6 @@ body.rr-cmdk-open{ overflow:hidden }
                  strips so operators can hop anywhere without
                  touching the sidebar. -->
             <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="schedule" role="tab" aria-selected="false">Schedule</button>
-            <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
             <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="onboarding" role="tab" aria-selected="false">Onboarding</button>
             <button class="fl-cmd-tab active" type="button" data-fl-cmd-tab="fleet" role="tab" aria-selected="true">Fleet</button>
             <button class="fl-cmd-tab" type="button" data-fl-cmd-tab="workflows" role="tab" aria-selected="false">Workflows</button>
@@ -26037,7 +26035,6 @@ body.rr-cmdk-open{ overflow:hidden }
                  the Schedule hub. Workflows + Print stay as local
                  mode-switches. -->
             <button class="wf-cmd-tab" type="button" data-wf-cmd-tab="schedule" role="tab" aria-selected="false">Schedule</button>
-            <button class="wf-cmd-tab" type="button" data-wf-cmd-tab="roster" role="tab" aria-selected="false">Roster</button>
             <button class="wf-cmd-tab" type="button" data-wf-cmd-tab="onboarding" role="tab" aria-selected="false">Onboarding</button>
             <button class="wf-cmd-tab" type="button" data-wf-cmd-tab="fleet" role="tab" aria-selected="false">Fleet</button>
             <button class="wf-cmd-tab active" type="button" data-wf-cmd-tab="workflows" role="tab" aria-selected="true">Workflows</button>
