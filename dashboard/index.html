@@ -18116,6 +18116,17 @@ body.rr-cmdk-open{ overflow:hidden }
             border-color:rgba(15,23,42,.10) !important;
             box-shadow:none !important;
           }
+          /* Fill the strip edge-to-edge. The Roster/Onboarding strips show
+             fewer metrics than Schedule (which also has the customize gear
+             anchoring its right edge), so content-width pills left a dead
+             gap on the right that made the bar look unfinished next to
+             Schedule even though the card chrome is now identical. Let the
+             pills share the row evenly so the strip reads full and balanced
+             like Schedule's. */
+          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill,
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill{
+            flex:1 1 0 !important;
+          }
           /* Roster mode · align the KPI strip's top with Schedule's exactly.
              Console: Schedule rect_top 189 vs Roster 192 — the roster header
              chrome is 3px taller. The strip is opaque white and currently
