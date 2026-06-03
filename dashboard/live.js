@@ -39504,12 +39504,12 @@ function _rrVanWarnIcon(label) {
 }
 
 // Driver-license warning icon · same glossy circle family as the van-warn
-// icon, with a white "DL" glyph. Amber when the license is expiring soon,
-// red when already expired. Shown on the driver card when a license is
+// icon, with a white "DL" glyph. Red when the license needs urgent action
+// (critical), amber otherwise. Shown on the driver card when a license is
 // inside the DSP's notice window (see _rrDlNoticeDays).
-function _rrDlWarnIcon(label, expired) {
+function _rrDlWarnIcon(label, critical) {
   const al = label ? ` aria-label="${label}"` : "";
-  const p = expired ? RR_KPI_ICON_PALETTE.red : RR_KPI_ICON_PALETTE.yellow;
+  const p = critical ? RR_KPI_ICON_PALETTE.red : RR_KPI_ICON_PALETTE.yellow;
   const gid = "rrDlGrad-" + Math.random().toString(36).slice(2, 8);
   const grad = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${p.from}"/><stop offset="1" stop-color="${p.to}"/></linearGradient></defs>`;
   return `<svg viewBox="0 0 24 24" width="16" height="16"${al}>${grad}<circle cx="12" cy="12" r="10" fill="url(#${gid})" stroke="${p.edge}" stroke-width="1"/><text x="12" y="15.6" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="8.5" font-weight="700" letter-spacing="-0.5" fill="#fff">DL</text></svg>`;
@@ -40928,14 +40928,18 @@ async function renderScheduleWeek() {
     if (d.dl_expires_on) {
       const dlDays = Math.round(
         (new Date(d.dl_expires_on + "T12:00:00") - new Date(todayIsoForDL + "T12:00:00")) / 86400000);
-      const dlWin = _rrDlNoticeDays();
+      // Show within the DSP notice window (at least 30 days). Colour: red at
+      // 21 days or fewer (including already expired), amber from 22 days up to
+      // the window edge.
+      const dlWin = Math.max(_rrDlNoticeDays(), 30);
       const dlExpired = dlDays < 0;
       if (dlExpired || dlDays <= dlWin) {
+        const dlCritical = dlDays <= 21;
         const dlWhen = new Date(d.dl_expires_on + "T12:00:00").toLocaleDateString();
         const dlTitle = dlExpired
           ? `Driver's license expired ${dlWhen}`
           : `Driver's license expires ${dlWhen} (in ${dlDays}d)`;
-        dlWarnIcon = `<span class="cal-row-label-dlwarn" title="${dlTitle}" aria-label="${dlTitle}" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrDlWarnIcon(dlTitle, dlExpired)}</span>`;
+        dlWarnIcon = `<span class="cal-row-label-dlwarn" title="${dlTitle}" aria-label="${dlTitle}" style="display:inline-flex;align-items:center;flex-shrink:0;line-height:0">${_rrDlWarnIcon(dlTitle, dlCritical)}</span>`;
       }
     }
     // Right-edge warning cluster (DL + no-van), pushed to the card's right.
