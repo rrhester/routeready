@@ -40,11 +40,11 @@
   /* ── Heights ────────────────────────────────────────────── */
   --tcp-topbar-h:      56px;
   --tcp-cmd-tabs-h:    28px;   /* the absolute tab band above the strip card */
-  --tcp-strip-h:       115px;  /* the Header+IconStrip card */
+  --tcp-strip-h:       115px;  /* the Header+IconStrip card — sized to its content (icon tile + Rules footer) with ~0 slack; do not lower without shrinking the tiles */
   --tcp-kpi-h:         46px;   /* the KPI band content height (excl. borders) */
   --tcp-kpi-border-h:  2px;    /* 1px top + 1px bottom */
   --tcp-kpi-gap:       8px;    /* between KPI band and body */
-  --tcp-strip-gap:     16px;   /* between strip card and KPI band */
+  --tcp-strip-gap:     12px;   /* between strip card and KPI band — density pass: 16→12 */
 
   /* Composite — the full TCP block height, including the
      cmd-tabs overhang above the card. Use for any internal

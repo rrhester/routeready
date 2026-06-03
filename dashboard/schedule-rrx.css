@@ -86,7 +86,10 @@
        structured command surface. ──────────────────────────── */
 
 #view-schedule.rrx-schedule .sched-cmd-shell {
-  margin-bottom: var(--rr-space-200);
+  /* Density pass · tighten the gap between the command ribbon and the
+     KPI band (20px → 12px). Pure whitespace — gives the grid ~8px back
+     without touching the parity-locked ribbon/KPI geometry. */
+  margin-bottom: var(--rr-space-120);
 }
 
 #view-schedule.rrx-schedule .sched-nav-heading {
@@ -1866,7 +1869,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   /* Exact match for #view-fleet .fl-ribbon dimensions:
      11px 18px padding. */
   padding: 11px 18px;
-  margin: 0 0 var(--rr-space-160) 0;
+  /* Density pass · strip→KPI gap tracks the shared --tcp-strip-gap
+     (16→12) so every TCP view tightens together. */
+  margin: 0 0 var(--tcp-strip-gap, 12px) 0;
   background: var(--rr-bg-surface-1);
   /* Match the KPI card's border + radius (not the heavier V2 --rr-
      tokens) so the icon strip floats exactly like the KPI / grid /
@@ -1889,9 +1894,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
      in onboarding-rrx.css. Operator complaint was Schedule was
      "slightly taller" than Onboarding even after the min-height
      change; equal hard locks guarantee identical heights. */
-  min-height: 115px;
-  height: 115px;
-  max-height: 115px;
+  /* Bound to the TCP single-source-of-truth token (was a hardcoded
+     115px) so the Schedule strip moves in lockstep with Onboarding /
+     Fleet / Workspaces / Recruiting and can never drift apart again. */
+  min-height: var(--tcp-strip-h, 115px);
+  height: var(--tcp-strip-h, 115px);
+  max-height: var(--tcp-strip-h, 115px);
   overflow: visible;
   /* Stretch the strip to the full page width so margin-left:auto
      on the week navigator pushes it to the FAR right of the
