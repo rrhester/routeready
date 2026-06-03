@@ -18197,6 +18197,18 @@ body.rr-cmdk-open{ overflow:hidden }
                  class) + !important beats onboarding-rrx.css:67. */
           #view-onboarding-ops.rrx-onboarding > .page:has(> .ob-cmd-shell.is-roster){
             padding-top:37px !important;
+            /* Token parity · the #view-onboarding-ops scope redefines
+               Schedule's design tokens with LIGHTER values (line-strong .10
+               vs Schedule's .20, line-subtle .04 vs .07, hover .04 vs .03),
+               so every border/edge/hover in roster mode rendered different
+               from Schedule. Re-pin them to Schedule's exact values for the
+               roster .page subtree (title card, KPI strip, dividers, hover)
+               so the chrome is byte-identical. Scoped to roster mode via
+               :has(), so Onboarding mode keeps its own palette. */
+            --sch-line:rgba(15,23,42,.07) !important;
+            --sch-line-strong:rgba(15,23,42,.20) !important;
+            --sch-line-subtle:rgba(15,23,42,.07) !important;
+            --sch-hover:rgba(15,23,42,.03) !important;
           }
           /* 3 · Title-card → KPI gap = Schedule's 17px (roster default is the
                  20px --rr-space-200 from onboarding-rrx.css:167). Lands the
