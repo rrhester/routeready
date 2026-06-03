@@ -18116,16 +18116,24 @@ body.rr-cmdk-open{ overflow:hidden }
             border-color:rgba(15,23,42,.10) !important;
             box-shadow:none !important;
           }
-          /* Fill the strip edge-to-edge. The Roster/Onboarding strips show
-             fewer metrics than Schedule (which also has the customize gear
-             anchoring its right edge), so content-width pills left a dead
-             gap on the right that made the bar look unfinished next to
-             Schedule even though the card chrome is now identical. Let the
-             pills share the row evenly so the strip reads full and balanced
-             like Schedule's. */
-          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-pill,
-          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-pill{
-            flex:1 1 0 !important;
+          /* Pill sizing · use Schedule's intrinsic sizing exactly. Schedule's
+             week-view KPI cells size from their own content and pack to the
+             left (live.js:40164 — "no dots / icons / badges"); the shared
+             container provides the full-width bar. Do NOT stretch the smaller
+             roster KPI set across the row — that made the pills wider and more
+             spread-out than Schedule's. Default flex (0 1 auto) keeps them
+             content-width so size, dividers, and spacing match Schedule when
+             switching pages. */
+          /* Dots · Schedule's week-view KPI pills render with NO leading dot
+             (the renderer omits it). The roster/onboarding renderers inject a
+             colored .sched-kpi-dot (live.js:6012 / 13818), which was the last
+             visible difference — Schedule had clean text, the roster had a
+             colored dot before each value. Hide the dot so the pills read
+             identically. (Status is already carried by the KPI values + the
+             status pills in the table, exactly as on Schedule.) */
+          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-dot,
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-dot{
+            display:none !important;
           }
           /* Roster mode · align the KPI strip's top with Schedule's exactly.
              Console: Schedule rect_top 189 vs Roster 192 — the roster header
