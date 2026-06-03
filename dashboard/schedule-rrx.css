@@ -3307,7 +3307,7 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-row-milestone {
 /* Day-coverage pill in the header row also tightens up so the
    thead doesn't tower over the body rows at this density. */
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-coverage {
-  font-size: 9.5px !important;
+  font-size: 13px !important;
   padding: 1px 5px !important;
 }
 
@@ -3354,7 +3354,7 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-targ
 /* Compact density · scale the big completion number down so the denser
    grid stays denser (ultra / super shrink it further, above). */
 body.rr-sched-compact #view-schedule.rrx-schedule .cal-cell-head .day-coverage {
-  font-size: 14px !important;
+  font-size: 19px !important;
   margin-top: 2px !important;
 }
 
