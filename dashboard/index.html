@@ -12181,6 +12181,16 @@ body.rr-cmdk-open{ overflow:hidden }
           color:#605E5C !important;
           stroke-width:1.1 !important;
         }
+        /* Roster + Attendance tiles relocated to the Schedule command
+           strip (operator request) — hide them here so they live in one
+           place. The Roster tile is the whole "roster" ribbon group;
+           Attendance is one tile inside the "daily" group (Coaching stays).
+           In-page switching still works via the text subnav (Roster /
+           Licenses / Attendance / Coaching) and the new Schedule tiles. */
+        #view-onboarding-ops .ob-v2-roster-actions .sched-ribbon-group[data-group="roster"],
+        #view-onboarding-ops .ob-v2-roster-actions [data-rr-tile="roster-attendance"]{
+          display:none !important;
+        }
         /* Active roster tile · NO blue highlight — strip every possible
            highlight property (background in all forms, box-shadow, border,
            outline) so it reads identical to the inactive tiles. The
@@ -16720,6 +16730,29 @@ body.rr-cmdk-open{ overflow:hidden }
             <span>Monthly</span>
           </button>
             <button type="button" class="sched-v2-rules-foot" tabindex="-1">Rules <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg></button>
+          </div>
+          <!-- Roster + Attendance · relocated from the roster page strip.
+               They open the Onboarding-ops roster view with the matching
+               sub-tab. data-rr-nav (NOT data-rr-v2) so the V2 tile dispatch
+               ignores them; navigation runs via the inline onclick. The
+               leading group hairline now sits on Roster (see the divider
+               rule in schedule-rrx.css ~2142). No rules-foot so the click
+               isn't forwarded to a (non-existent) rules popover. -->
+          <div class="sched-v2-split">
+            <button type="button" class="sched-v2-tile" data-rr-nav="roster" tabindex="-1"
+                    title="Driver roster"
+                    onclick="var t=document.querySelector('#view-schedule .sched-cmd-tab[data-cmd-tab=roster]');t&amp;&amp;t.click();setTimeout(function(){typeof _obMountDriverSub==='function'&amp;&amp;_obMountDriverSub('roster');},80);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><defs><linearGradient id="rr-roster-icon-gradient-sched" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#A78BFA"/><stop offset="100%" stop-color="#5B21B6"/></linearGradient></defs><rect x="3" y="4" width="18" height="6" fill="url(#rr-roster-icon-gradient-sched)" stroke="none"/><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="7" y1="14" x2="17" y2="14"/><line x1="7" y1="18" x2="13" y2="18"/></svg>
+            <span>Roster</span>
+          </button>
+          </div>
+          <div class="sched-v2-split">
+            <button type="button" class="sched-v2-tile" data-rr-nav="attendance" tabindex="-1"
+                    title="Driver attendance"
+                    onclick="var t=document.querySelector('#view-schedule .sched-cmd-tab[data-cmd-tab=roster]');t&amp;&amp;t.click();setTimeout(function(){typeof _obMountDriverSub==='function'&amp;&amp;_obMountDriverSub('attendance');},80);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 15 11 17 16 12"/></svg>
+            <span>Attendance</span>
+          </button>
           </div>
           <div class="sched-v2-split">
             <button type="button" class="sched-v2-tile" data-rr-v2="requests" tabindex="-1">
