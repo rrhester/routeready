@@ -3127,9 +3127,36 @@ body.rr-sched-focus #rr-sched-focus-toggle .ic-focus-off { display: inline !impo
 }
 
 /* ── Focus mode ────────────────────────────────────────────── */
-body.rr-sched-focus .sidebar,
-body.rr-sched-focus .topbar {
+body.rr-sched-focus .sidebar {
   display: none !important;
+}
+/* Focus mode hides the dashboard chrome, but the Quick Access
+   Toolbar stays reachable: instead of hiding the topbar outright we
+   collapse it to a transparent strip pinned at the top-left that
+   shows ONLY the QAT (Refresh / Undo / Focus). The operator keeps
+   those tools while the rest of the header is gone. The strip itself
+   is click-through; only the QAT inside it is interactive. */
+body.rr-sched-focus .topbar {
+  display: flex !important;
+  position: fixed !important;
+  top: 6px;
+  left: 8px;
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  z-index: 200;
+  pointer-events: none;
+}
+body.rr-sched-focus .topbar > :not(#rr-qat) {
+  display: none !important;
+}
+body.rr-sched-focus .topbar > #rr-qat {
+  pointer-events: auto;
 }
 /* For height:100% to cascade down the focus-mode tree, every
    ancestor needs a *definite* height. .app defaults to min-height
