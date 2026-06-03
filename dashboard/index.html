@@ -18135,6 +18135,29 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-dot{
             display:none !important;
           }
+          /* Single-line truncation parity · the Schedule strip's value and
+             sub-line are clamped to one line with an ellipsis
+             (#view-schedule .sched-kpi-val index.html:17315 /
+             .sched-kpi-sub index.html:17326), and .sched-kpi-text carries
+             min-width:0 (index.html:17312) so the ellipsis can engage inside
+             the flex column. Those rules are scoped to #view-schedule only, so
+             the Roster/Onboarding strips inherited browser defaults — their
+             tenure/loa sub-lines wrapped to a second line, making the pills
+             taller and the text read differently from Schedule. Mirror the
+             exact Schedule clamp here so every pill is the same height and the
+             text truncates identically. */
+          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-text,
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-text{
+            min-width:0 !important;
+          }
+          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-val,
+          #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-sub,
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-val,
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-sub{
+            white-space:nowrap !important;
+            overflow:hidden !important;
+            text-overflow:ellipsis !important;
+          }
           /* Roster mode · align the KPI strip's top with Schedule's exactly.
              Console: Schedule rect_top 189 vs Roster 192 — the roster header
              chrome is 3px taller. The strip is opaque white and currently
