@@ -13876,6 +13876,18 @@ async function refreshDriverStatRow(rows) {
     if (obHost) obHost.innerHTML = rosterKpisHtml;
   }
 
+  // Schedule's embedded roster/attendance sub-view · paint the roster
+  // pills onto the REAL Schedule KPI board (#rr-sched-kpis) so the board
+  // itself shows the roster KPIs. The board's own schedule pills are
+  // cached on first overwrite (here or in schedSub) and restored on exit.
+  if (typeof window._schedRosterKpiActive === "function" && window._schedRosterKpiActive()) {
+    const schedHost = document.getElementById("rr-sched-kpis");
+    if (schedHost) {
+      if (window._schedKpiSavedHtml == null) window._schedKpiSavedHtml = schedHost.innerHTML;
+      schedHost.innerHTML = rosterKpisHtml;
+    }
+  }
+
   // Re-render the open drilldown if one was active.
   if (_rosterKpiDetail) _renderRosterKpiDetail();
 }
@@ -32287,23 +32299,23 @@ function _schedMountRosterSub(subKey) {
   if (mount.parentNode !== host) host.appendChild(mount);
   // Reuse the existing embed path: it injects the style alias, restores
   // any other Drivers sub currently in the mount, moves in the requested
-  // one, and fires its data loader.
+  // one, and fires its data loader. The roster KPI pills are painted into
+  // the actual Schedule KPI board (#rr-sched-kpis) — handled by schedSub()
+  // + refreshDriverStatRow via _schedRosterKpiActive(), not here.
   if (typeof _obMountDriverSub === "function") _obMountDriverSub(subKey);
-  // Swap the schedule KPI board for the ROSTER KPI strip (Active drivers /
-  // on LOA / Avg tenure). #rr-roster-kpis is a single element painted by
-  // refreshDriverStatRow; relocate it into the schedule KPI slot (right
-  // before #rr-sched-kpis) and show it. schedSub() hides #rr-sched-kpis
-  // for the roster/attendance subs, so only the roster strip shows.
-  const schedKpis  = document.getElementById("rr-sched-kpis");
-  const rosterKpis = document.getElementById("rr-roster-kpis");
-  if (schedKpis && rosterKpis) {
-    if (!rosterKpis.__obOrigParent) _obStashOriginalPosition(rosterKpis);
-    if (rosterKpis.parentNode !== schedKpis.parentNode) {
-      schedKpis.parentNode.insertBefore(rosterKpis, schedKpis);
-    }
-    rosterKpis.style.display = "";
-  }
 }
+// True when a Schedule roster/attendance sub-view is the visible content,
+// so refreshDriverStatRow knows to (also) paint the roster pills onto the
+// real Schedule KPI board.
+window._schedRosterKpiActive = function () {
+  const v = document.getElementById("view-schedule");
+  if (!v || !v.classList.contains("active")) return false;
+  const shown = (id) => {
+    const el = document.getElementById(id);
+    return !!el && getComputedStyle(el).display !== "none";
+  };
+  return shown("sched-sub-roster") || shown("sched-sub-attendance");
+};
 // Called when leaving a schedule roster/attendance sub-view (or leaving
 // the Schedule view). Returns the embedded Drivers node to #view-drivers
 // and parks #ob-roster-mount back in its Onboarding home so onboarding
@@ -32323,12 +32335,12 @@ function _schedUnmountRosterSub() {
   if (typeof _obUnmountDriverRoster === "function") _obUnmountDriverRoster();
   // Park the mount back in Onboarding (it was borrowed → __obOrigParent set).
   if (mount.__obOrigParent) _obRestoreToOriginalPosition(mount);
-  // Return the borrowed roster KPI strip to its #view-drivers home so the
-  // Drivers page and onboarding roster mode find it where they expect.
-  const rosterKpis = document.getElementById("rr-roster-kpis");
-  if (rosterKpis && rosterKpis.__obOrigParent) {
-    rosterKpis.style.display = "";
-    _obRestoreToOriginalPosition(rosterKpis);
+  // Restore the Schedule KPI board's own pills if we swapped roster pills
+  // onto it (e.g. leaving Schedule entirely from a roster/attendance sub).
+  const schedKpis = document.getElementById("rr-sched-kpis");
+  if (schedKpis && window._schedKpiSavedHtml != null) {
+    schedKpis.innerHTML = window._schedKpiSavedHtml;
+    window._schedKpiSavedHtml = null;
   }
 }
 window._schedMountRosterSub   = _schedMountRosterSub;
