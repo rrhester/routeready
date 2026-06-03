@@ -18190,7 +18190,13 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-dot,
           #view-onboarding-ops #rr-ob-kpis.sched-kpi-pills .sched-kpi-icon,
           #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-dot,
-          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-icon{
+          #view-drivers #rr-roster-kpis.sched-kpi-pills .sched-kpi-icon,
+          /* When the roster pills are painted onto the Schedule board for
+             the embedded Roster/Attendance sub-views, drop their dots +
+             warning icons too — the Schedule board is dotless (its own
+             pills carry neither), so this only affects the roster pills. */
+          #view-schedule #rr-sched-kpis.sched-kpi-pills .sched-kpi-dot,
+          #view-schedule #rr-sched-kpis.sched-kpi-pills .sched-kpi-icon{
             display:none !important;
           }
           /* Single-line truncation parity · the Schedule strip's value and
@@ -31517,14 +31523,30 @@ John,Smith,555-0101,john@example.com</code>
     }
     // Targets sub-view swaps the schedule KPI strip for its own
     // Block / Cushion / Report-time KPI strip (same size + spot).
-    // Roster / Attendance swap in the ROSTER KPI strip (#rr-roster-kpis,
-    // relocated into this slot by _schedMountRosterSub). Either way the
-    // default schedule KPI strip is hidden so only one board shows.
     var kpisSched   = document.getElementById('rr-sched-kpis');
     var kpisTargets = document.getElementById('rr-sched-targets-kpis');
     var isRosterSub = (sub === 'roster' || sub === 'attendance');
     if (kpisTargets) kpisTargets.style.display = (sub === 'targets') ? '' : 'none';
-    if (kpisSched)   kpisSched.style.display   = (sub === 'targets' || isRosterSub) ? 'none' : '';
+    // The Schedule KPI board (#rr-sched-kpis) stays visible for Roster /
+    // Attendance — the ROSTER pills are rendered directly ONTO it
+    // (operator request) instead of swapping in a separate strip. Only
+    // Targets hides it (it shows its own board).
+    if (kpisSched) kpisSched.style.display = (sub === 'targets') ? 'none' : '';
+    if (isRosterSub) {
+      // Paint the roster pills onto the board now (data is usually already
+      // loaded from a prior mount); refreshDriverStatRow keeps it live on
+      // any later data refresh. Cache the board's own pills on first swap.
+      var rosterKpisEl = document.getElementById('rr-roster-kpis');
+      if (kpisSched && rosterKpisEl && rosterKpisEl.innerHTML.trim()) {
+        if (window._schedKpiSavedHtml == null) window._schedKpiSavedHtml = kpisSched.innerHTML;
+        kpisSched.innerHTML = rosterKpisEl.innerHTML;
+      }
+    } else if (kpisSched && window._schedKpiSavedHtml != null) {
+      // Leaving roster/attendance for another schedule sub · restore the
+      // board's own schedule pills.
+      kpisSched.innerHTML = window._schedKpiSavedHtml;
+      window._schedKpiSavedHtml = null;
+    }
   }
 
   // ─── DRIVERS SUB-NAV ───────────────────────────────────────
