@@ -39325,6 +39325,31 @@ function _schedShiftChip(sh, extras) {
     ? `<span class="shift-chip-st-badge" style="background:${escapeHtml(stColor)}20;color:${escapeHtml(stColor)}" title="${escapeHtml(sh.service_type_label || stCode)}">${escapeHtml(stCode)}</span>`
     : "";
   const stBadge = "";  // no longer rendered inline (moved to corner)
+  // Route-classification corner badge — every delivery route gets a
+  // 2-letter tag in the top-right: Standard → SP, Rescue → RE,
+  // Nursery → NU. Keyed off route_classification (an empty / "standard"
+  // value is a standard parcel route). Colors come from the shared
+  // route palette (SP blue, Rescue red, Nursery teal). Training /
+  // ride-along chips aren't delivery routes, so they're skipped, as are
+  // "other" / legacy classifications the operator didn't ask to tag.
+  const _rc = String(sh.route_classification || "").toLowerCase();
+  const _isTrainingChip = sh.shift_kind === "training" || sh.shift_kind === "ride_along";
+  const RC_BADGE = {
+    "":       { t: "SP", c: "#0F6CBD", label: "Standard Parcel" },
+    standard: { t: "SP", c: "#0F6CBD", label: "Standard Parcel" },
+    rescue:   { t: "RE", c: "#C50F1F", label: "Rescue" },
+    nursery:  { t: "NU", c: "#038387", label: "Nursery" },
+  };
+  const _rcDef = _isTrainingChip ? null : RC_BADGE[_rc];
+  const classCorner = _rcDef
+    ? `<span class="shift-chip-class-badge" style="background:${_rcDef.c}20;color:${_rcDef.c}" title="${escapeHtml(_rcDef.label)} route">${_rcDef.t}</span>`
+    : "";
+  // Both corner tags share one flex wrapper pinned top-right so an XL
+  // standard route reads "SP XL" without the two badges overlapping;
+  // the service-type badge stays rightmost (where XL has always sat).
+  const cornerBadges = (classCorner || stCorner)
+    ? `<div class="shift-chip-badges">${classCorner}${stCorner}</div>`
+    : "";
   // Trainee badge — when a ride-along shift exists on the same date with
   // trainer_driver_id pointing at this driver, surface it so the trainer
   // (Charlie) can see at a glance who's riding along with him.
@@ -39371,7 +39396,7 @@ function _schedShiftChip(sh, extras) {
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
   const routineCls = extras?.routine ? ' is-routine' : '';
   const trainingCls = extras?.traineeName ? ' shift-chip-training' : '';
-  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}${vanLine}${stCorner}</div>`;
+  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}${vanLine}${cornerBadges}</div>`;
 }
 
 function _schedDriverInitials(name) {
