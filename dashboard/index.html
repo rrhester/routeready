@@ -7916,6 +7916,66 @@ body.rr-cmdk-open{ overflow:hidden }
 .dr-section-title{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase;margin:0 0 8px 0}
 
 /* ─────────────────────────────────────────────────────────────
+   ROSTER INLINE WORKSPACE — driver record docked beside the roster
+   list as a split-view pane (replaces the modal/drawer overlay).
+   Reuses existing tokens only — no new colors, shadows, radii,
+   typography, button, badge or spacing systems are introduced.
+   ───────────────────────────────────────────────────────────── */
+.roster-split{display:flex;gap:var(--s-4);align-items:flex-start}
+.roster-split-list{flex:1 1 auto;min-width:0}
+.roster-split.has-record .roster-split-list{flex:1 1 58%}
+#driver-record-mount{display:none;container-type:inline-size}
+.roster-split.has-record #driver-record-mount{
+  display:block;flex:0 0 42%;min-width:340px;
+  position:sticky;top:var(--s-4);align-self:flex-start;
+}
+/* Neutralise the fixed-overlay drawer styling when the record lives
+   in the inline mount, so it reads as a static workspace card that
+   matches the Schedule / roster cards — no backdrop, no blur, no
+   page-blocking overlay. */
+#driver-record-mount .detail-drawer{
+  position:static;transform:none;opacity:1;visibility:visible;pointer-events:auto;
+  width:100%;max-width:none;border:1px solid var(--border);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-md);background:var(--surface);
+  max-height:calc(100vh - 360px);overflow:hidden;
+  animation:drInlineIn 200ms cubic-bezier(.32,.72,.4,1);
+}
+@keyframes drInlineIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion: reduce){#driver-record-mount .detail-drawer{animation:none}}
+/* Only the record body scrolls; the page shell + chrome stay put. */
+#driver-record-mount .detail-body{overflow-y:auto;padding:var(--s-4);gap:var(--s-3-5)}
+/* Compact summary header — smaller avatar, tighter padding. */
+#driver-record-mount .detail-head{padding:var(--s-3-5) var(--s-4)}
+#driver-record-mount .detail-avatar{width:40px;height:40px;font-size:var(--fs-base)}
+#driver-record-mount .detail-name{font-size:var(--fs-base);margin-bottom:2px}
+#driver-record-mount .detail-meta{font-size:var(--fs-xs)}
+/* Lightweight sections — swap the heavy canvas card for a hairline
+   divider + whitespace; tighten field rhythm for higher density. */
+#driver-record-mount .detail-section{
+  background:transparent;border-radius:0;padding:0 0 var(--s-3) 0;
+  border-bottom:1px solid var(--border-subtle);
+}
+#driver-record-mount .detail-section:last-child{border-bottom:none;padding-bottom:0}
+#driver-record-mount .dr-field-row{padding:6px 0}
+#driver-record-mount .detail-foot{flex-wrap:wrap}
+/* 2-column field grid for the dense personal / employment / pay
+   blocks — only once the pane is wide enough to keep label + value
+   readable (container query on the record pane). */
+@container (min-width:560px){
+  #driver-record-mount .dr-fields-2col{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--s-5)}
+  #driver-record-mount .dr-fields-2col > .dr-section-title{grid-column:1 / -1}
+  #driver-record-mount .dr-fields-2col > .dr-field-row{grid-template-columns:120px 1fr;border-bottom:none}
+}
+
+/* Tablet / mobile — the record stacks full width beneath the roster. */
+@media (max-width:1024px){
+  .roster-split{flex-direction:column}
+  .roster-split.has-record .roster-split-list,
+  .roster-split.has-record #driver-record-mount{flex:1 1 auto;width:100%;position:static}
+  #driver-record-mount .detail-drawer{max-height:none}
+}
+
+/* ─────────────────────────────────────────────────────────────
    FINANCES — INVOICE FORENSICS + AUTO-DISPUTE
    ───────────────────────────────────────────────────────────── */
 .fin-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-3);margin-bottom:var(--s-5)}
@@ -14095,6 +14155,12 @@ body.rr-cmdk-open{ overflow:hidden }
           <button type="button" class="rr-roster-view-chip" data-rr-view="onleave" aria-pressed="false" title="Drivers on leave of absence">On leave</button>
         </div>
 
+        <!-- Split workspace · roster list (left) + inline driver record
+             pane (right). The record docks here instead of opening as a
+             modal/drawer overlay, so the header, KPI strip, sub-nav and
+             roster stay visible and usable while editing a driver. -->
+        <div class="roster-split" id="rr-roster-split">
+        <div class="roster-split-list">
         <div class="table-wrap" id="rr-roster-table-wrap" style="max-height:calc(100vh - 360px);overflow-y:auto">
           <table class="table table-clickable">
             <thead id="rr-roster-thead">
@@ -14112,6 +14178,9 @@ body.rr-cmdk-open{ overflow:hidden }
             </tbody>
           </table>
         </div>
+        </div><!-- /roster-split-list -->
+        <aside class="roster-record-pane" id="driver-record-mount" aria-label="Driver record" aria-live="polite"></aside>
+        </div><!-- /roster-split -->
 
         </div><!-- /dr-sub-roster -->
 
@@ -29921,7 +29990,7 @@ Evidence attached:
 <aside class="detail-drawer xwide" id="driver-drawer" aria-label="Driver record">
   <div class="detail-head">
     <div style="display:flex;gap:var(--s-3-5);align-items:flex-start;flex:1;min-width:0">
-      <div class="detail-avatar" id="dr-initials" style="width:56px;height:56px;font-size:var(--fs-lg)">??</div>
+      <div class="detail-avatar" id="dr-initials">??</div>
       <div style="min-width:0;flex:1">
         <h2 class="detail-name" id="dr-name">Driver</h2>
         <div class="detail-meta" id="dr-meta">—</div>
@@ -29991,7 +30060,7 @@ Evidence attached:
 
     <!-- ── PAY & HR ── -->
     <div class="dr-tabview" id="dr-tabview-hr">
-      <div class="detail-section">
+      <div class="detail-section dr-fields-2col">
         <h3 class="dr-section-title">Personal information</h3>
         <div class="dr-field-row"><span class="dr-field-label">Full legal name</span><span class="dr-field-value" id="dr-fullname">Marcus James Davidson</span></div>
         <div class="dr-field-row"><span class="dr-field-label">Date of birth</span><span class="dr-field-value">Mar 14, 1991 · 34 yrs</span></div>
@@ -30001,7 +30070,7 @@ Evidence attached:
         <div class="dr-field-row"><span class="dr-field-label">Emergency contact</span><span class="dr-field-value">Sarah Davidson (spouse) · 417-555-0145</span></div>
       </div>
 
-      <div class="detail-section">
+      <div class="detail-section dr-fields-2col">
         <h3 class="dr-section-title">Employment</h3>
         <div class="dr-field-row"><span class="dr-field-label">Hire date</span><span class="dr-field-value">Nov 12, 2023 · 18 mo tenure</span></div>
         <div class="dr-field-row"><span class="dr-field-label">Status</span><span class="dr-field-value" style="color:var(--green)">Active · full-time</span></div>
@@ -30013,7 +30082,7 @@ Evidence attached:
         <div class="dr-field-row"><span class="dr-field-label">I-9 status</span><span class="dr-field-value" style="color:var(--green)">Verified · Nov 12, 2023</span></div>
       </div>
 
-      <div class="detail-section">
+      <div class="detail-section dr-fields-2col">
         <h3 class="dr-section-title">Pay &amp; tax</h3>
         <div class="dr-field-row"><span class="dr-field-label">Base pay rate</span><span class="dr-field-value">$18.00 / hr</span></div>
         <div class="dr-field-row"><span class="dr-field-label">OT rate</span><span class="dr-field-value">$27.00 / hr (1.5×)</span></div>
@@ -32372,6 +32441,10 @@ John,Smith,555-0101,john@example.com</code>
     });
     document.getElementById('ap-backdrop').classList.remove('open');
     document.body.style.overflow = '';
+    // The driver record is an inline pane, not a backdrop overlay —
+    // collapse the split too so it closes alongside the other drawers.
+    var drSplit = document.getElementById('rr-roster-split');
+    if (drSplit) drSplit.classList.remove('has-record');
   }
 
   // ─── FINANCES sub-nav + reconciliation drawer ───────────
@@ -32426,9 +32499,34 @@ John,Smith,555-0101,john@example.com</code>
     document.querySelectorAll('.dr-tabview').forEach(function(v){ v.classList.remove('active'); });
     const overviewView = document.getElementById('dr-tabview-overview');
     if (overviewView) overviewView.classList.add('active');
-    document.getElementById('driver-drawer').classList.add('open');
-    document.getElementById('ap-backdrop').classList.add('open');
-    document.body.style.overflow = 'hidden';
+    // Inline workspace: dock the record beside the roster list instead
+    // of opening a page-blocking overlay. No backdrop, no blur, no body
+    // scroll-lock — the header / KPI strip / sub-nav stay usable.
+    var drEl = document.getElementById('driver-drawer');
+    var drMount = document.getElementById('driver-record-mount');
+    var rosterSub = document.getElementById('dr-sub-roster');
+    // Only navigate to Drivers → Roster when the roster (and thus the
+    // inline mount) isn't already on-screen — e.g. opening a driver from
+    // global search on another page. offsetParent is null while the
+    // sub-view is display:none. When the roster is visible (including the
+    // onboarding-embedded copy) we dock in place without switching views.
+    if (!(rosterSub && rosterSub.offsetParent !== null)) {
+      var driversView = document.getElementById('view-drivers');
+      if (driversView && !driversView.classList.contains('active') && typeof goto === 'function') {
+        try { goto('drivers'); } catch (_e) {}
+      }
+      if (rosterSub && !rosterSub.classList.contains('active') && typeof drSub === 'function') {
+        try { drSub('roster'); } catch (_e) {}
+      }
+    }
+    if (drMount && drEl && drEl.parentNode !== drMount) drMount.appendChild(drEl);
+    var drSplit = document.getElementById('rr-roster-split');
+    if (drSplit) drSplit.classList.add('has-record');
+    if (drEl) {
+      drEl.classList.add('open');
+      var drBody = drEl.querySelector('.detail-body');
+      if (drBody) drBody.scrollTop = 0;
+    }
     // Topbar reflects the driver in focus
     var tbTitle = document.getElementById('tb-title');
     var tbContext = document.getElementById('tb-context');
@@ -32443,8 +32541,8 @@ John,Smith,555-0101,john@example.com</code>
   }
   function closeDriverDetail(){
     document.getElementById('driver-drawer').classList.remove('open');
-    document.getElementById('ap-backdrop').classList.remove('open');
-    document.body.style.overflow = '';
+    var drSplit = document.getElementById('rr-roster-split');
+    if (drSplit) drSplit.classList.remove('has-record');
     // Restore topbar
     var tbTitle = document.getElementById('tb-title');
     var tbContext = document.getElementById('tb-context');
@@ -32945,6 +33043,9 @@ John,Smith,555-0101,john@example.com</code>
   // when there's an .open backdrop in the DOM.
   document.addEventListener('keydown', function(e){
     if (e.key !== 'Escape') return;
+    // Inline driver record closes on Escape too (it has no backdrop to click).
+    var drSplit = document.getElementById('rr-roster-split');
+    if (drSplit && drSplit.classList.contains('has-record')) { closeDriverDetail(); return; }
     var open = document.querySelectorAll('.modal-backdrop.open');
     if (!open.length) return;
     var top = open[open.length - 1];
