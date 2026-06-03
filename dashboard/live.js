@@ -40367,7 +40367,7 @@ async function renderScheduleWeek() {
       // Raw plan target (before cushion), under the day number.
       const _tgt = targetByDate.get(iso) || 0;
       const targetLine = _tgt > 0 ? `<span class="day-target">Target ${_tgt}</span>` : "";
-      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${targetLine}${coverageLine}`;
+      cellHead.innerHTML = `${RR_DAY_SHORT[dt.getDay()]}<span class="day-num">${dt.getDate()}</span>${coverageLine}${targetLine}`;
     }
   }
 

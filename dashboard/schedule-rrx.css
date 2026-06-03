@@ -3324,17 +3324,23 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
   background: #FFFFFF !important;
 }
 
-/* ── Day-coverage count · -25% from previous 15px ─────────────
-   15px → 11px so the "6/7" line is readable without dominating
-   the date number above it. */
+/* ── Day-coverage completion · the header's hero number ───────
+   The filled/needed count is the largest, boldest element so the eye
+   instantly reads coverage across the week. Its colour is set inline —
+   green (var(--green), the same Microsoft-Fluent green as the "Live"
+   pill) when the day is fully staffed, red when short. */
 #view-schedule.rrx-schedule .cal-cell-head .day-coverage {
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  margin-top: 3px !important;
+  display: block;
+  font-size: 23px !important;
+  font-weight: 800 !important;
+  line-height: 1.05 !important;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px !important;
 }
-/* Raw route target ("Target N") under the day number — the planned route
-   count before cushion. Muted so it reads as a quiet reference next to the
-   colored coverage count. */
+/* Raw route target ("Target N") under the completion — the planned route
+   count before cushion. Muted + small so it reads as a quiet reference
+   beneath the big coverage number. */
 #view-schedule.rrx-schedule .cal-cell-head .day-target {
   display: block;
   font-size: 11px !important;
@@ -3344,6 +3350,12 @@ body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-cove
 }
 body.rr-sched-ultra-compact #view-schedule.rrx-schedule .cal-cell-head .day-target {
   font-size: 9.5px !important;
+}
+/* Compact density · scale the big completion number down so the denser
+   grid stays denser (ultra / super shrink it further, above). */
+body.rr-sched-compact #view-schedule.rrx-schedule .cal-cell-head .day-coverage {
+  font-size: 14px !important;
+  margin-top: 2px !important;
 }
 
 /* ============================================================
