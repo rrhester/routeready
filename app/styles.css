@@ -484,13 +484,24 @@ select.field{
    hairline borders, a single tight shadow, and a denser row rhythm
    give the schedule structural authority while keeping Fluent calm. */
 .shift-card{
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-card);
-  padding:12px 16px;margin-bottom:8px;display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-3-5);
-  align-items:center;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:14px 16px;margin-bottom:10px;display:grid;grid-template-columns:auto 1fr auto;gap:var(--s-4);
+  align-items:start;
   box-shadow:var(--shadow-card);
-  transition:transform 140ms var(--ease-out), box-shadow 160ms var(--ease-out), border-color 160ms var(--ease-out);
+  transition:transform 160ms var(--ease-out), box-shadow 180ms var(--ease-out), border-color 180ms var(--ease-out);
 }
-.shift-card:active{ transform:scale(.995) }
+/* Hover-lift · only on hover-capable pointers so touch devices don't get
+   a stuck hover state. The lift + deeper shadow read as a polished, tappable
+   SaaS card without disturbing the calm grid at rest. */
+@media (hover:hover){
+  .shift-card:hover{
+    transform:translateY(-1px);
+    box-shadow:var(--shadow-md);
+    border-color:var(--border-strong);
+  }
+  .shift-card.is-today:hover{ border-color:var(--accent); }
+}
+.shift-card:active{ transform:translateY(0) scale(.995) }
 .shift-card.is-today{
   border-color:var(--accent-border);
   box-shadow:inset 3px 0 0 var(--accent), var(--shadow-card);
@@ -511,10 +522,10 @@ select.field{
   display:grid;
   grid-template-columns:max-content 1fr;
   align-items:baseline;
-  gap:0 6px;
-  font-size:var(--fs-md);font-weight:600;color:var(--text);
-  font-variant-numeric:tabular-nums;letter-spacing:-.005em;
-  line-height:1.25;
+  gap:0 7px;
+  font-size:var(--fs-lg);font-weight:700;color:var(--text);
+  font-variant-numeric:tabular-nums;letter-spacing:-.012em;
+  line-height:1.2;
 }
 .shift-card .meta-time-lbl{
   font-size:10px;font-weight:700;color:var(--text-subtle);
@@ -559,6 +570,53 @@ select.field{
 }
 .shift-card .tag-status-confirmed{background:var(--green-soft);border-color:rgba(16,124,65,.22);color:var(--green-dark)}
 .shift-card .chev{color:var(--text-subtle)}
+
+/* ── Unified ShiftCard badge contract ───────────────────────────────
+   One pill language shared by the driver app's shift cards and the
+   operator grid chips (dashboard/schedule-rrx.css mirrors these tones).
+   Calm, tonal, hairline-bordered — metadata reads as scannable chips,
+   not stacked text. Restrained palette: van leans accent (the key
+   operational fact), everything else stays neutral unless it carries a
+   real status (training = teal/amber, cushion = indigo, completed =
+   green, rotation = clay). */
+.shift-card .sc-badges{
+  display:flex;flex-wrap:wrap;gap:var(--s-1);
+  align-items:center;margin-top:9px;
+}
+.sc-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  height:21px;padding:0 9px;border-radius:999px;
+  font-size:11px;font-weight:650;line-height:1;
+  letter-spacing:.005em;white-space:nowrap;
+  background:var(--canvas);border:1px solid var(--border);color:var(--text-muted);
+  font-variant-numeric:tabular-nums;
+}
+.sc-badge b{font-weight:750;color:inherit}
+.sc-badge .sc-badge-lbl{
+  font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  opacity:.72;
+}
+/* Van · the one operational fact worth a touch of accent. */
+.sc-badge--van{
+  background:var(--accent-soft);border-color:var(--accent-border);color:var(--accent-text);
+  font-weight:750;
+}
+/* Wave · neutral with a firmer edge so the dispatch time still registers. */
+.sc-badge--wave{ background:var(--surface);border-color:var(--border-strong);color:var(--text); }
+/* Service type · colored inline from the service-type color. */
+.sc-badge--service{ font-weight:750;text-transform:uppercase;letter-spacing:.03em; }
+/* Trainer / trainee · shared with the operator grid's training tones. */
+.sc-badge--train{ background:rgba(13,148,136,.10);border-color:rgba(13,148,136,.26);color:#0F766E;font-weight:700; }
+.sc-badge--road{  background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.30);color:#B45309;font-weight:700; }
+/* Cushion (EX) · calm indigo, matching the amber-token family in :root. */
+.sc-badge--ex{ background:var(--amber-soft);border-color:rgba(99,102,241,.26);color:var(--amber-dark);font-weight:700; }
+/* Completed · settled green. */
+.sc-badge--done{ background:var(--green-soft);border-color:rgba(16,124,65,.24);color:var(--green-dark);font-weight:700; }
+/* Rotation · clay status, mirrors the grid's FEM-rescue marker. */
+.sc-badge--rotation{
+  background:rgba(180,83,9,.10);border-color:rgba(180,83,9,.24);color:#B45309;
+  font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:.05em;height:21px;padding:0 7px;
+}
 
 /* ── Task / hub cards (Tasks + Profile screens) ─────────────── */
 .task-card{

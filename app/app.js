@@ -2291,24 +2291,47 @@ function shiftCardHtml(s, isToday, vanInfo, opts) {
     && new Date(s.wave_starts_at).getTime() !== new Date(s.starts_at).getTime();
   const waveTxt = hasLead ? fmtTime(s.wave_starts_at) : "";
 
-  const tags = [];
-  if (s.status === "completed") tags.push(`<span class="tag" style="background:var(--canvas)">Completed</span>`);
-  if (s.type && s.type !== "SP") tags.push(`<span class="tag" style="background:${escapeHtml(s.typeColor)}20;color:${escapeHtml(s.typeColor)}">${escapeHtml(s.type)}</span>`);
-  if (s.isCushion) tags.push(`<span class="tag" style="background:rgba(245,158,11,.12);color:var(--amber)">EX</span>`);
-  // Onboarding shift labels — Day 1+2 station training and Day 3
-  // ride-along get a distinct top label so the trainee sees what kind
-  // of day it is at a glance instead of a blank station line.
-  // Class training = Day 1+2 at the station; Road training = Day 3
-  // shadowing a trainer's route.
+  // Onboarding shift kind — Day 1+2 station training and Day 3 ride-along.
+  // These now surface as a badge (below) rather than a label baked into the
+  // station line, so the station code stays the station code.
   const isTraining = s.shiftKind === "training";
   const isRideAlong = s.shiftKind === "ride_along";
-  const onboardingLabel = isTraining
-    ? `Class training · Day ${s.trainingDay || 1}`
-    : isRideAlong
-      ? (s.trainerName ? `Road training with ${s.trainerName.split(/\s+/)[0]}` : "Road training")
-      : "";
-  const stationLine = onboardingLabel || s.station;
   const isOnboardingShift = isTraining || isRideAlong;
+
+  // ── Badge row · the unified ShiftCard contract ────────────────────
+  // Secondary metadata reads as scannable pills instead of stacked text
+  // lines. Order is deliberate: Wave (when it differs from clock-in) →
+  // Van (the key operational fact) → Rotation → Service type → training
+  // → cushion → completed. Restrained tones; see .sc-badge in styles.css.
+  const badges = [];
+  if (waveTxt) {
+    badges.push(`<span class="sc-badge sc-badge--wave"><span class="sc-badge-lbl">Wave</span> ${escapeHtml(waveTxt)}</span>`);
+  }
+  if (vanName) {
+    badges.push(`<span class="sc-badge sc-badge--van">Van ${escapeHtml(vanName)}</span>`);
+  }
+  if (isRotation) {
+    badges.push(`<span class="sc-badge sc-badge--rotation">Rotation</span>`);
+  }
+  if (s.type && s.type !== "SP") {
+    const stStyle = s.typeColor
+      ? `background:${escapeHtml(s.typeColor)}1A;border-color:${escapeHtml(s.typeColor)}40;color:${escapeHtml(s.typeColor)}`
+      : "";
+    badges.push(`<span class="sc-badge sc-badge--service"${stStyle ? ` style="${stStyle}"` : ""}>${escapeHtml(s.type)}</span>`);
+  }
+  if (isTraining) {
+    badges.push(`<span class="sc-badge sc-badge--train">Class · Day ${escapeHtml(String(s.trainingDay || 1))}</span>`);
+  } else if (isRideAlong) {
+    const tn = s.trainerName ? s.trainerName.split(/\s+/)[0] : "";
+    badges.push(`<span class="sc-badge sc-badge--road">${tn ? `Road · ${escapeHtml(tn)}` : "Road training"}</span>`);
+  }
+  if (s.isCushion) {
+    badges.push(`<span class="sc-badge sc-badge--ex" title="Extra / cushion shift">EX</span>`);
+  }
+  if (s.status === "completed") {
+    badges.push(`<span class="sc-badge sc-badge--done">Completed</span>`);
+  }
+
   // Weather chip is filled in async after render — see _hydrateShiftWeather.
   // We emit a dated placeholder slot so the chip can appear without a
   // full re-render once NWS responds.
@@ -2329,11 +2352,9 @@ function shiftCardHtml(s, isToday, vanInfo, opts) {
             <span class="meta-time-val">${escapeHtml(startTxt && endTxt ? `${startTxt} – ${endTxt}` : (startTxt || endTxt || ""))}</span>
           </div>
         </div>
-        ${waveTxt ? `<div class="meta-wave-line"><span class="meta-time-lbl">Wave</span> <span class="meta-time-val">${escapeHtml(waveTxt)}</span></div>` : ""}
-        <div class="meta-station">${escapeHtml(stationLine)}${isOnboardingShift && s.station ? ` · ${escapeHtml(s.station)}` : ""}</div>
-        ${vanName ? `<div style="margin-top:4px;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)">Vehicle ${escapeHtml(vanName)}${isRotation ? ` <span style="font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#B45309;background:rgba(180,83,9,.10);border:1px solid rgba(180,83,9,.20);border-radius:3px;padding:1px 5px;margin-left:5px">Rotation</span>` : ""}</div>` : ""}
+        ${s.station ? `<div class="meta-station">${escapeHtml(s.station)}</div>` : ""}
+        ${badges.length ? `<div class="sc-badges">${badges.join("")}</div>` : ""}
         ${wxSlot}
-        ${tags.length ? `<div class="meta-tags">${tags.join("")}</div>` : ""}
         ${opts?.swappable && s.status === "scheduled" && !isOnboardingShift ? `
           <div style="margin-top:8px"><a href="#" class="rr-text-link" data-rr-swap-from="${escapeHtml(s.id)}" style="font-size:var(--fs-xs);color:var(--text-subtle);text-decoration:none;cursor:pointer">Offer swap</a></div>
         ` : ""}
@@ -4228,8 +4249,12 @@ async function renderUpNext(session) {
   const hasLead = (s.report_lead_minutes || 0) > 0
     && s.wave_starts_at
     && new Date(s.wave_starts_at).getTime() !== new Date(s.starts_at).getTime();
-  const metaParts = [s.station_code || ""].filter(Boolean);
-  if (hasLead) metaParts.push(`Wave ${fmtTime(s.wave_starts_at)}`);
+
+  // Same badge contract as the schedule cards — Wave + Van read as pills
+  // so the "Up next" hero feels like one product with the list below.
+  const upBadges = [];
+  if (hasLead) upBadges.push(`<span class="sc-badge sc-badge--wave"><span class="sc-badge-lbl">Wave</span> ${escapeHtml(fmtTime(s.wave_starts_at))}</span>`);
+  if (vehicle) upBadges.push(`<span class="sc-badge sc-badge--van">Van ${escapeHtml(vehicle)}</span>`);
 
   slot.hidden = false;
   slot.innerHTML = `
@@ -4242,8 +4267,8 @@ async function renderUpNext(session) {
       </div>
       <div class="up-next-body">
         <div class="up-next-time">${escapeHtml(timeRange)}</div>
-        ${metaParts.length ? `<div class="up-next-meta">${escapeHtml(metaParts.join(" · "))}</div>` : ""}
-        ${vehicle ? `<div class="up-next-vehicle">Vehicle ${escapeHtml(vehicle)}</div>` : ""}
+        ${s.station_code ? `<div class="up-next-meta">${escapeHtml(s.station_code)}</div>` : ""}
+        ${upBadges.length ? `<div class="sc-badges">${upBadges.join("")}</div>` : ""}
         <div class="up-next-weather" id="rr-upnext-wx" hidden></div>
       </div>
     </div>`;
