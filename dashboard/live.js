@@ -36457,6 +36457,55 @@ let _rrForecastTarget = (() => {
   const v = parseFloat(localStorage.getItem("rr-forecast-staffing-target"));
   return Number.isFinite(v) && v >= 1 && v <= 2 ? v : 1.2;
 })();
+// Amazon locks the near-term forecast (you can't hire fast enough to fix those
+// weeks — only OT can). Default 3 weeks; configurable later.
+let _rrForecastLockWeeks = 3;
+// Stash of the live Schedule KPI strip while the Forecast view overwrites it
+// with workforce KPIs, so it's restored on the way out.
+let _rrSchedKpiStash = null;
+
+// Render the Forecast workforce KPIs into the shared Schedule KPI strip,
+// reusing the exact .sched-kpi-pill component. gaps[] = capacity − required per
+// week (negative = short). Locked weeks (the first _rrForecastLockWeeks) can
+// only be solved with OT; later weeks can still be solved by hiring.
+function _rrRenderForecastKpis(gaps) {
+  const host = document.getElementById("rr-sched-kpis");
+  if (!host) return;
+  if (_rrSchedKpiStash == null) _rrSchedKpiStash = host.innerHTML;   // keep the schedule strip
+  const pill = (key, tier, val, sub) =>
+    `<span class="sched-kpi-pill" data-rr-kpi="${key}" data-tier="${["green","yellow","red"].includes(tier) ? tier : "green"}">`
+    + `<span class="sched-kpi-text"><span class="sched-kpi-val">${escapeHtml(val)}</span>`
+    + `<span class="sched-kpi-sub">${sub ? escapeHtml(sub) : "&nbsp;"}</span></span></span>`;
+
+  const valid = gaps.map((g, i) => ({ g, i })).filter((x) => x.g != null);
+  if (!valid.length) { host.innerHTML = pill("fc-empty", "green", "No forecast", "Set OKAMI route targets"); return; }
+
+  const LOCK = Math.max(0, Math.min(_rrForecastLockWeeks, gaps.length));
+  let worst = valid[0];
+  for (const x of valid) if (x.g < worst.g) worst = x;
+  const currentGap = worst.g;                 // most negative weekly gap
+  const peakWeek   = worst.i + 1;
+  // Hire Need — the worst shortfall among ADJUSTABLE (non-locked) weeks; hiring
+  // N raises capacity in every week, so covering the worst adjustable week
+  // covers them all.
+  let hireNeed = 0;
+  for (const x of valid) if (x.i >= LOCK && x.g < 0) hireNeed = Math.max(hireNeed, -x.g);
+  // OT Needed — hours to cover the LOCKED weeks' shortfall (hiring can't help
+  // those). ~10h OT per short driver-week (first-pass estimate; the Model Your
+  // Plan slider will refine it).
+  let otHours = 0;
+  for (const x of valid) if (x.i < LOCK && x.g < 0) otHours += (-x.g) * 10;
+
+  const tone = (g) => g >= 0 ? "green" : (g >= -9 ? "yellow" : "red");
+  host.innerHTML = [
+    pill("fc-gap",      tone(currentGap),               (currentGap > 0 ? "+" : "") + currentGap + " Drivers", "Largest projected gap"),
+    pill("fc-hire",     hireNeed > 0 ? "yellow" : "green", "+" + hireNeed + " Drivers", "To cover demand"),
+    pill("fc-ot",       otHours > 0 ? "yellow" : "green",  otHours + " Hours", "OT for locked weeks"),
+    pill("fc-balanced", "green",                            "+" + hireNeed + " Drivers", otHours + " OT Hours"),
+    pill("fc-locked",   "green",                            String(LOCK), "Amazon locked"),
+    pill("fc-peak",     tone(currentGap),                   "Week " + peakWeek, "Worst projected"),
+  ].join("");
+}
 
 // Forecast = 13-week workforce-planning table. Columns = the next 13 weeks
 // (Amazon's OKAMI horizon); rows compare forecasted route demand against
@@ -36560,6 +36609,11 @@ async function renderSchedMonthlyView() {
   });
 
   gridEl.innerHTML = html;
+
+  // Forecast KPI bar (reuses the Schedule KPI strip).
+  const gaps = [];
+  for (let w = 0; w < WEEKS; w++) gaps.push(gapForWeek(addDays(gridStart, w * 7)));
+  _rrRenderForecastKpis(gaps);
 }
 window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
 window.renderSchedMonthlyView    = renderSchedMonthlyView;
@@ -36680,6 +36734,12 @@ function _rrSetSchedHeaderMode(isMonthly) {
   if (titleEl) titleEl.textContent = isMonthly ? "Forecast" : "Schedule";
   const pill = document.getElementById("rr-sched-v2-status");
   if (pill) pill.style.display = isMonthly ? "none" : "";
+  // Leaving Forecast → restore the live Schedule KPI strip we stashed.
+  if (!isMonthly && _rrSchedKpiStash != null) {
+    const kpi = document.getElementById("rr-sched-kpis");
+    if (kpi) kpi.innerHTML = _rrSchedKpiStash;
+    _rrSchedKpiStash = null;
+  }
 }
 
 // Simulated month-wide Smart Fill — runs the real engine, week by week, across
