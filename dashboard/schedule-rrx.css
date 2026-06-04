@@ -2284,27 +2284,27 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    The Smart Fill tile becomes "Forecast" on the Monthly view (the
    _rrSetSmartFillTileMode toggle adds .rr-sf-forecast-mode). Same
    "special tile" vibe as Smart Fill — gradient + glow + inset ring —
-   but in teal, so the simulated staffing forecast reads as its own
-   thing. Higher specificity (base selector + the class) so it wins
-   over the purple rest-state above. */
+   but in the sidebar blue (#0F6CBD → #0B5394), so the simulated staffing
+   forecast reads as its own thing. Higher specificity (base selector +
+   the class) so it wins over the purple rest-state above. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode {
-  background: linear-gradient(135deg, rgba(45, 212, 191, 0.28), rgba(13, 148, 136, 0.40));
-  color: #0F766E;
-  box-shadow: 0 2px 6px rgba(13, 148, 136, 0.22),
-              0 0 0 1px rgba(13, 148, 136, 0.18) inset;
+  background: linear-gradient(135deg, rgba(15, 108, 189, 0.30), rgba(11, 83, 148, 0.42));
+  color: #0B5394;
+  box-shadow: 0 2px 6px rgba(11, 83, 148, 0.22),
+              0 0 0 1px rgba(11, 83, 148, 0.18) inset;
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode:hover {
-  background: linear-gradient(135deg, rgba(45, 212, 191, 0.42), rgba(13, 148, 136, 0.54));
-  color: #115E59;
-  box-shadow: 0 4px 14px rgba(13, 148, 136, 0.32),
-              0 0 0 1px rgba(13, 148, 136, 0.26) inset;
+  background: linear-gradient(135deg, rgba(15, 108, 189, 0.44), rgba(11, 83, 148, 0.56));
+  color: #0A4A82;
+  box-shadow: 0 4px 14px rgba(11, 83, 148, 0.32),
+              0 0 0 1px rgba(11, 83, 148, 0.26) inset;
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode:active {
-  background: linear-gradient(135deg, rgba(45, 212, 191, 0.48), rgba(13, 148, 136, 0.60));
-  box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.32) inset;
+  background: linear-gradient(135deg, rgba(15, 108, 189, 0.50), rgba(11, 83, 148, 0.62));
+  box-shadow: 0 0 0 1px rgba(11, 83, 148, 0.32) inset;
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg {
-  color: #0D9488;
+  color: #0F6CBD;
 }
 
 /* ── Smart Fill · staged scheduling animation ──────────────────────
@@ -4205,6 +4205,21 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-clear:hover {
   color: var(--red); background: var(--red-soft);
 }
+/* Left group inside the week cell: the week date stacked over the Live pill. */
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-weekcell-l {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0;
+}
+/* Green "Live" pill for finalized weeks — matches the header Live pill's
+   vibrant green → deep green gradient. */
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-live {
+  display: inline-flex; align-items: center; gap: 3px;
+  height: 18px; padding: 0 8px; border-radius: var(--rr-radius-pill, 9999px);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.01em; line-height: 1;
+  color: #fff;
+  background: linear-gradient(135deg, #22C55E 0%, #107C41 100%);
+  border: 1px solid rgba(13, 92, 49, 0.55);
+}
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-live svg { width: 11px; height: 11px; }
 /* Day cells: date number + coverage, top-aligned like a regular
    calendar. Override the base square aspect-ratio so each cell fills
    its flexed week-row height. */
