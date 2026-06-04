@@ -4368,3 +4368,62 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
    dashboard/index.html (today, week, monthly, requests, targets,
    smartfill, finalize, calendar, unassign, kudos). No per-tile
    `order` anywhere — title stays order:-1, week nav order:100. */
+
+/* ============================================================
+   FORECAST · two-column workforce planner
+   Left = the 13-week table (dominant); right = Model Your Plan.
+   Reuses RouteReady card/surface/spacing tokens — no new design
+   language, no dashboard widgets.
+   ============================================================ */
+#view-schedule.rrx-schedule .rr-fc-layout {
+  display: flex; gap: var(--s-4, 16px); align-items: stretch;
+}
+#view-schedule.rrx-schedule .rr-fc-layout .sched-monthly-shell { flex: 1 1 auto; min-width: 0; }
+#view-schedule.rrx-schedule .rr-fc-model {
+  flex: 0 0 320px; min-width: 0;
+  display: flex; flex-direction: column; overflow-y: auto;
+  background: #fff; border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: var(--sch-radius, 8px); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+#view-schedule.rrx-schedule .rr-fc-model-empty { padding: 16px; color: var(--text-subtle); font-size: var(--fs-sm); }
+#view-schedule.rrx-schedule .rr-fc-model-head {
+  padding: 12px 16px; border-bottom: 1px solid rgba(15, 23, 42, 0.10);
+  font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: -0.01em;
+}
+#view-schedule.rrx-schedule .rr-fc-model-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 16px; }
+/* Scenario selector — vertical list of selectable rows. */
+#view-schedule.rrx-schedule .rr-fc-scns { display: flex; flex-direction: column; gap: 6px; }
+#view-schedule.rrx-schedule .rr-fc-scn {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  text-align: left; font: inherit; font-size: var(--fs-sm); font-weight: 600; color: var(--text);
+  padding: 9px 12px; border: 1px solid var(--sch-line); border-radius: var(--r-md);
+  background: var(--sch-surface, #fff); cursor: pointer; transition: background .12s, border-color .12s;
+}
+#view-schedule.rrx-schedule .rr-fc-scn:hover { background: var(--sch-hover); }
+#view-schedule.rrx-schedule .rr-fc-scn.is-active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+#view-schedule.rrx-schedule .rr-fc-scn-rec { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--green); }
+/* OT slider. */
+#view-schedule.rrx-schedule .rr-fc-field-row { display: flex; align-items: baseline; justify-content: space-between; }
+#view-schedule.rrx-schedule .rr-fc-field-row label { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
+#view-schedule.rrx-schedule .rr-fc-ot-val { font-size: var(--fs-md); font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+#view-schedule.rrx-schedule #rr-fc-ot-slider { width: 100%; margin: 8px 0 2px; accent-color: var(--accent); cursor: pointer; }
+#view-schedule.rrx-schedule .rr-fc-slider-ends { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-subtle); }
+/* Results + balanced — small stat tiles, restrained color only. */
+#view-schedule.rrx-schedule .rr-fc-results,
+#view-schedule.rrx-schedule .rr-fc-balanced-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#view-schedule.rrx-schedule .rr-fc-stat {
+  background: var(--canvas, #FAFBFC); border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: var(--r-md); padding: 9px 10px;
+}
+#view-schedule.rrx-schedule .rr-fc-stat-val { font-size: 18px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1; }
+#view-schedule.rrx-schedule .rr-fc-stat-lbl { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .02em; color: var(--text-subtle); margin-top: 3px; }
+#view-schedule.rrx-schedule .rr-fc-stat.ok    .rr-fc-stat-val { color: #0B5A30; }
+#view-schedule.rrx-schedule .rr-fc-stat.watch .rr-fc-stat-val { color: #7A5E0C; }
+#view-schedule.rrx-schedule .rr-fc-stat.bad   .rr-fc-stat-val { color: #9A2D2D; }
+#view-schedule.rrx-schedule .rr-fc-balanced { border-top: 1px solid rgba(15, 23, 42, 0.10); padding-top: 14px; }
+#view-schedule.rrx-schedule .rr-fc-balanced-head { font-size: var(--fs-sm); font-weight: 700; color: var(--text); margin-bottom: 8px; }
+/* Stack the planner below the table on narrow widths. */
+@media (max-width: 1100px) {
+  #view-schedule.rrx-schedule .rr-fc-layout { flex-direction: column; }
+  #view-schedule.rrx-schedule .rr-fc-model { flex: 0 0 auto; }
+}

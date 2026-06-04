@@ -36460,6 +36460,14 @@ let _rrForecastTarget = (() => {
 // Amazon locks the near-term forecast (you can't hire fast enough to fix those
 // weeks — only OT can). Default 3 weeks; configurable later.
 let _rrForecastLockWeeks = 3;
+// Per-week model inputs ({ required, capacity, locked }) stashed by the table
+// render so the "Model Your Plan" panel can recompute scenarios in place.
+let _rrForecastWeeks = [];
+// Current plan being modeled. scenario is a key into _RR_FC_SCENARIOS.
+let _rrModelPlan = { scenario: "current", hire: 0, ot: 0 };
+// ~Weekly hours one driver covers — used to convert an OT-hour budget into
+// driver-equivalents of added capacity. First-pass; tune as needed.
+const _RR_FC_OT_HOURS_PER_DRIVER = 40;
 // Stash of the live Schedule KPI strip while the Forecast view overwrites it
 // with workforce KPIs, so it's restored on the way out.
 let _rrSchedKpiStash = null;
@@ -36505,6 +36513,99 @@ function _rrRenderForecastKpis(gaps) {
     pill("fc-locked",   "green",                            String(LOCK), "Amazon locked"),
     pill("fc-peak",     tone(currentGap),                   "Week " + peakWeek, "Worst projected"),
   ].join("");
+}
+
+// ── Model Your Plan ────────────────────────────────────────────────────────
+// Scenarios are data-driven (extensible — add an entry, no other change).
+// Each returns the plan levers {hire, ot} given the current forecast context.
+const _RR_FC_SCENARIOS = [
+  { key: "current",  label: "Current Plan",            plan: () => ({ hire: 0, ot: 0 }) },
+  { key: "fifth",    label: "Everyone Works 5th Day",  plan: (ctx) => ({ hire: 0, ot: Math.min(200, Math.round(ctx.activeDrivers * 10)) }) },
+  { key: "hire",     label: "Hire To Demand",          plan: (ctx) => ({ hire: ctx.hireToDemand, ot: 0 }) },
+  { key: "balanced", label: "Balanced Plan",           plan: (ctx) => ({ hire: ctx.balancedHire, ot: ctx.balancedOt }), rec: true },
+];
+
+// Worst shortfall in driver terms across weeks, given hire + OT levers.
+// Hiring lifts capacity in non-locked weeks only; OT lifts every week.
+function _rrModelCompute(hire, ot) {
+  const weeks = _rrForecastWeeks || [];
+  const otDriverEquiv = (Number(ot) || 0) / _RR_FC_OT_HOURS_PER_DRIVER;
+  let weeksAtRisk = 0, worstDeficit = 0, lockedWorst = 0, adjWorst = 0;
+  for (const wk of weeks) {
+    if (wk.required == null || wk.capacity == null) continue;
+    const eff = wk.capacity + (wk.locked ? 0 : (Number(hire) || 0)) + otDriverEquiv;
+    const gap = eff - wk.required;
+    if (gap < -0.5) {
+      weeksAtRisk++;
+      worstDeficit = Math.max(worstDeficit, -gap);
+      if (wk.locked) lockedWorst = Math.max(lockedWorst, -gap);
+      else adjWorst = Math.max(adjWorst, -gap);
+    }
+  }
+  const driversStillNeeded = Math.ceil(worstDeficit - 1e-6);
+  const outlook = weeksAtRisk === 0 ? "Healthy" : weeksAtRisk <= 2 ? "Watch" : weeksAtRisk <= 5 ? "At Risk" : "Critical";
+  return { weeksAtRisk, driversStillNeeded, outlook, lockedWorst, adjWorst };
+}
+
+function _rrRenderModelPanel() {
+  const host = document.getElementById("rr-forecast-model");
+  if (!host) return;
+  const weeks = _rrForecastWeeks || [];
+  if (!weeks.some((w) => w.required != null)) {
+    host.innerHTML = `<div class="rr-fc-model-empty">Set OKAMI route targets to model a plan.</div>`;
+    return;
+  }
+  // Context for scenarios: how many to hire to clear adjustable weeks, and the
+  // balanced split (hire the adjustable shortfall, OT the locked shortfall).
+  const base = _rrModelCompute(0, 0);
+  const activeDrivers = weeks.find((w) => w.capacity != null)?.capacity || 0;
+  const hireToDemand  = Math.ceil(base.adjWorst - 1e-6);
+  const balancedHire  = hireToDemand;
+  const balancedOt    = Math.min(200, Math.ceil(base.lockedWorst) * _RR_FC_OT_HOURS_PER_DRIVER);
+  const ctx = { activeDrivers, hireToDemand, balancedHire, balancedOt };
+
+  // If the active scenario isn't "custom", derive its levers.
+  const scen = _RR_FC_SCENARIOS.find((s) => s.key === _rrModelPlan.scenario);
+  if (scen) { const p = scen.plan(ctx); _rrModelPlan.hire = p.hire; _rrModelPlan.ot = p.ot; }
+
+  const res = _rrModelCompute(_rrModelPlan.hire, _rrModelPlan.ot);
+  const bal = _rrModelCompute(balancedHire, balancedOt);
+  const outlookTone = { Healthy: "ok", Watch: "watch", "At Risk": "bad", Critical: "bad" }[res.outlook] || "watch";
+
+  const scenBtns = _RR_FC_SCENARIOS.map((s) =>
+    `<button type="button" class="rr-fc-scn${s.key === _rrModelPlan.scenario ? " is-active" : ""}" data-rr-fc-scn="${s.key}">${escapeHtml(s.label)}${s.rec ? ' <span class="rr-fc-scn-rec">Recommended</span>' : ""}</button>`
+  ).join("");
+
+  const stat = (label, val, tone) => `<div class="rr-fc-stat${tone ? " " + tone : ""}"><div class="rr-fc-stat-val">${escapeHtml(String(val))}</div><div class="rr-fc-stat-lbl">${escapeHtml(label)}</div></div>`;
+
+  host.innerHTML = `
+    <div class="rr-fc-model-head">Model Your Plan</div>
+    <div class="rr-fc-model-body">
+      <div class="rr-fc-scns">${scenBtns}</div>
+
+      <div class="rr-fc-field">
+        <div class="rr-fc-field-row"><label for="rr-fc-ot-slider">Weekly OT Budget</label><span class="rr-fc-ot-val">${_rrModelPlan.ot}h</span></div>
+        <input type="range" id="rr-fc-ot-slider" min="0" max="200" step="5" value="${_rrModelPlan.ot}">
+        <div class="rr-fc-slider-ends"><span>0h</span><span>200h</span></div>
+      </div>
+
+      <div class="rr-fc-results">
+        ${stat("OT Budget", _rrModelPlan.ot + "h")}
+        ${stat("Drivers Still Needed", res.driversStillNeeded, res.driversStillNeeded > 0 ? "bad" : "ok")}
+        ${stat("Weeks At Risk", res.weeksAtRisk, res.weeksAtRisk > 0 ? "watch" : "ok")}
+        ${stat("Coverage Outlook", res.outlook, outlookTone)}
+      </div>
+
+      <div class="rr-fc-balanced">
+        <div class="rr-fc-balanced-head">Balanced Plan</div>
+        <div class="rr-fc-balanced-grid">
+          ${stat("Hire", "+" + balancedHire)}
+          ${stat("Overtime", balancedOt + "h")}
+          ${stat("Expected Coverage", (bal.weeksAtRisk === 0 ? 100 : Math.max(0, 100 - bal.weeksAtRisk * 5)) + "%", bal.weeksAtRisk === 0 ? "ok" : "watch")}
+          ${stat("Weeks At Risk", bal.weeksAtRisk, bal.weeksAtRisk === 0 ? "ok" : "watch")}
+        </div>
+      </div>
+    </div>`;
 }
 
 // Forecast = 13-week workforce-planning table. Columns = the next 13 weeks
@@ -36610,10 +36711,20 @@ async function renderSchedMonthlyView() {
 
   gridEl.innerHTML = html;
 
+  // Stash the per-week model inputs so the "Model Your Plan" panel can
+  // recompute scenarios without re-querying. locked = the near-term weeks
+  // Amazon has locked (hiring can't help them; only OT).
+  const LOCK = Math.max(0, Math.min(_rrForecastLockWeeks, WEEKS));
+  _rrForecastWeeks = [];
+  for (let w = 0; w < WEEKS; w++) {
+    const wkStart = addDays(gridStart, w * 7);
+    _rrForecastWeeks.push({ required: requiredForWeek(wkStart), capacity: capacityForWeek(), locked: w < LOCK });
+  }
+
   // Forecast KPI bar (reuses the Schedule KPI strip).
-  const gaps = [];
-  for (let w = 0; w < WEEKS; w++) gaps.push(gapForWeek(addDays(gridStart, w * 7)));
+  const gaps = _rrForecastWeeks.map((wk) => (wk.required == null || wk.capacity == null) ? null : wk.capacity - wk.required);
   _rrRenderForecastKpis(gaps);
+  _rrRenderModelPanel();
 }
 window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
 window.renderSchedMonthlyView    = renderSchedMonthlyView;
@@ -36626,6 +36737,36 @@ document.addEventListener("change", (e) => {
       try { localStorage.setItem("rr-forecast-staffing-target", String(_rrForecastTarget)); } catch (_) {}
       renderSchedMonthlyView();
     }
+  }
+});
+// Model Your Plan — scenario buttons (full re-render of the panel).
+document.addEventListener("click", (e) => {
+  const scn = e.target.closest && e.target.closest("[data-rr-fc-scn]");
+  if (scn) {
+    e.preventDefault();
+    _rrModelPlan.scenario = scn.getAttribute("data-rr-fc-scn");
+    _rrRenderModelPanel();
+  }
+});
+// OT slider — live update of the results block only (don't rebuild the slider
+// mid-drag). Switching the slider puts the plan into "custom" mode.
+document.addEventListener("input", (e) => {
+  if (!e.target || e.target.id !== "rr-fc-ot-slider") return;
+  _rrModelPlan.scenario = "custom";
+  _rrModelPlan.ot = parseInt(e.target.value, 10) || 0;
+  const host = document.getElementById("rr-forecast-model");
+  if (!host) return;
+  const valEl = host.querySelector(".rr-fc-ot-val");
+  if (valEl) valEl.textContent = _rrModelPlan.ot + "h";
+  const results = host.querySelector(".rr-fc-results");
+  if (results) {
+    const r = _rrModelCompute(_rrModelPlan.hire, _rrModelPlan.ot);
+    const tone = { Healthy: "ok", Watch: "watch", "At Risk": "bad", Critical: "bad" }[r.outlook] || "watch";
+    const stat = (label, val, t) => `<div class="rr-fc-stat${t ? " " + t : ""}"><div class="rr-fc-stat-val">${escapeHtml(String(val))}</div><div class="rr-fc-stat-lbl">${escapeHtml(label)}</div></div>`;
+    results.innerHTML = stat("OT Budget", _rrModelPlan.ot + "h")
+      + stat("Drivers Still Needed", r.driversStillNeeded, r.driversStillNeeded > 0 ? "bad" : "ok")
+      + stat("Weeks At Risk", r.weeksAtRisk, r.weeksAtRisk > 0 ? "watch" : "ok")
+      + stat("Coverage Outlook", r.outlook, tone);
   }
 });
 // Navigation handlers — prev/next month + this-month.
