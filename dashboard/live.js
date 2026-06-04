@@ -36481,33 +36481,8 @@ async function renderSchedMonthlyView() {
     subEl.textContent = `${fmtShort(gridStart)} – ${fmtShort(gridEnd)}`;
   }
 
-  gridEl.innerHTML = '<div class="sched-monthly-loading">Loading month…</div>';
-  // Per-week ISO starts (Sunday) for the live-status lookup.
-  const weekIsos = Array.from({ length: weeks }, (_, w) => fmtIsoDate(addDays(gridStart, w * 7)));
-  const [{ data, error }, ...wkSettings] = await Promise.all([
-    sb.rpc("schedule_grid", { p_start: gridStartIso, p_weeks: weeks }),
-    ...weekIsos.map((iso) => sb.rpc("scheduling_settings_for_week", { p_week_start: iso })
-      .then((r) => r, () => ({ data: null }))),
-  ]);
-  if (error) {
-    gridEl.innerHTML = `<div class="sched-monthly-loading" style="color:var(--red)">Couldn't load: ${escapeHtml(error.message)}</div>`;
-    return;
-  }
-  // A week is "Live" when its schedule is finalized.
-  const liveByWeek = new Map();
-  weekIsos.forEach((iso, i) => { liveByWeek.set(iso, !!(wkSettings[i] && wkSettings[i].data && wkSettings[i].data.finalized)); });
-  const covByDate = new Map();
-  for (const c of ((data && data.coverage) || [])) {
-    covByDate.set(c.date, { needed: c.needed || 0, filled: c.filled || 0 });
-  }
-
-  // Active staffing forecast for THIS month? (projected fill overlay)
-  const forecast = (_rrMonthForecast && _rrMonthForecastAnchor === _rrMonthlyAnchor) ? _rrMonthForecast : null;
-  const weekHasForecast = (wkStart) => {
-    if (!forecast) return false;
-    for (let i = 0; i < 7; i++) if (forecast.has(fmtIsoDate(addDays(wkStart, i)))) return true;
-    return false;
-  };
+  // Weeks-as-columns with a blank body needs no data fetch — week ranges are
+  // derived from dates. (Live pills were removed from this view per request.)
 
   // Compact month nav + title for the grid's top-left corner cell. Button ids
   // are preserved so the existing prev/next/this-month handlers keep working.
@@ -36523,17 +36498,14 @@ async function renderSchedMonthlyView() {
   // label column, intentionally blank for now (metric labels land here in a
   // later step). Override the base 7-day column template with one per week.
   const colTemplate = `grid-template-columns:220px repeat(${weeks}, minmax(0, 1fr))`;
-  const liveSvg = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 12 10 17 19 7"/></svg>`;
 
   // Header row: corner (month + nav) + one column header per week.
   let head = `<div class="cal-cell-head cal-row-label sched-mw-corner">${cornerHtml}</div>`;
   for (let w = 0; w < weeks; w++) {
     const wkStart = addDays(gridStart, w * 7);
     const wkEnd   = addDays(wkStart, 6);
-    const wkStartIso = fmtIsoDate(wkStart);
     const wkLabel = `${wkStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${wkEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-    const livePill = liveByWeek.get(wkStartIso) ? `<span class="sched-mw-live">${liveSvg}Live</span>` : "";
-    head += `<div class="cal-cell-head sched-mw-wkhead">${escapeHtml(wkLabel)}${livePill}</div>`;
+    head += `<div class="cal-cell-head sched-mw-wkhead">${escapeHtml(wkLabel)}</div>`;
   }
   let html = `<div class="cal-grid head sched-mw-row" style="${colTemplate}">${head}</div>`;
 
