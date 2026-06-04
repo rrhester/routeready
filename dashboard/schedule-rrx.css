@@ -4236,6 +4236,17 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 }
 #view-schedule.rrx-schedule .sched-month-cell-cov.is-full { color: var(--green) }
 #view-schedule.rrx-schedule .sched-month-cell-cov.is-open { color: var(--red) }
+/* Projected staffing forecast — a tinted pill marks the numbers as simulated
+   (not saved), and a red −N badge calls out the remaining gap per day. */
+#view-schedule.rrx-schedule .sched-month-cell-cov.is-forecast {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 6px; border-radius: var(--r-pill, 9999px);
+  background: var(--accent-soft); color: var(--accent-text);
+}
+#view-schedule.rrx-schedule .sched-month-cell-cov.is-forecast.is-full { background: var(--green-soft); color: var(--green) }
+#view-schedule.rrx-schedule .sched-month-cell-cov.is-forecast.is-open { background: var(--red-soft); color: var(--red) }
+#view-schedule.rrx-schedule .sched-month-cell-gap { font-weight: 700; color: var(--red); font-size: 9.5px }
+#view-schedule.rrx-schedule .sched-monthly-nav-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px }
 
 #view-schedule.rrx-schedule .sched-monthly-loading {
   grid-column: 1 / -1; grid-row: 1 / -1;

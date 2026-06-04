@@ -36427,6 +36427,12 @@ async function _assignShiftsParallel(items, concurrency = 12) {
 // the date number and a small filled/needed coverage line; click
 // a cell to drop into the Today view for that date.
 let _rrMonthlyAnchor = null;   // ISO of the first day of the visible month
+// Monthly staffing forecast (simulated Smart Fill). When set, it's a Map of
+// ISO date → { needed, filled } holding the *projected* coverage after a
+// no-write engine run; _rrMonthForecastAnchor records which month it's for so
+// a stale forecast never paints onto a different month.
+let _rrMonthForecast = null;
+let _rrMonthForecastAnchor = null;
 // Monthly view · renders the SAME driver-row × day grid as the Weekly
 // view (operator request), one week-block per week of the displayed
 // month, stacked vertically inside a scroll container so the whole
@@ -36471,6 +36477,15 @@ async function renderSchedMonthlyView() {
     covByDate.set(c.date, { needed: c.needed || 0, filled: c.filled || 0 });
   }
 
+  // Active staffing forecast for THIS month? (projected fill overlay)
+  const forecast = (_rrMonthForecast && _rrMonthForecastAnchor === _rrMonthlyAnchor) ? _rrMonthForecast : null;
+  const clrBtn = document.getElementById("rr-sched-monthly-forecast-clear");
+  if (clrBtn) clrBtn.style.display = forecast ? "" : "none";
+  const subEl = document.querySelector("#rr-sched-monthly-head .sched-monthly-sub");
+  if (subEl) subEl.textContent = forecast
+    ? "Projected staffing · simulated Smart Fill (not saved) · click a day to drill in"
+    : "Month-at-a-glance · click a day to drill in";
+
   const todayIso = fmtIsoDate(today);
   const DOW = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 
@@ -36497,8 +36512,18 @@ async function renderSchedMonthlyView() {
       const isOther = d.getMonth() !== monthIdx;
       const isToday = iso === todayIso;
       const c = covByDate.get(iso);
+      // When a forecast is active, show the projected fill for the day (and a
+      // gap badge) instead of the saved coverage. The forecast carries its own
+      // needed (from the generated/demand shifts) so it stays self-consistent.
+      const fc = forecast ? forecast.get(iso) : null;
       let cov = "";
-      if (c && c.needed > 0) {
+      if (fc && fc.needed > 0) {
+        const gap = Math.max(0, fc.needed - fc.filled);
+        const cls = fc.filled >= fc.needed ? "is-full" : (fc.filled > 0 ? "" : "is-open");
+        cov = `<div class="sched-month-cell-cov is-forecast ${cls}">${fc.filled}/${fc.needed}`
+          + (gap > 0 ? `<span class="sched-month-cell-gap">−${gap}</span>` : "")
+          + `</div>`;
+      } else if (c && c.needed > 0) {
         const cls = c.filled >= c.needed ? "is-full" : (c.filled > 0 ? "" : "is-open");
         cov = `<div class="sched-month-cell-cov ${cls}">${c.filled}/${c.needed}</div>`;
       }
@@ -36519,6 +36544,7 @@ document.addEventListener("click", (e) => {
     const a = _rrMonthlyAnchor ? new Date(_rrMonthlyAnchor + "T12:00:00") : new Date();
     a.setMonth(a.getMonth() - 1, 1);
     _rrMonthlyAnchor = fmtIsoDate(a);
+    _rrClearMonthForecast();
     renderSchedMonthlyView();
     return;
   }
@@ -36528,6 +36554,7 @@ document.addEventListener("click", (e) => {
     const a = _rrMonthlyAnchor ? new Date(_rrMonthlyAnchor + "T12:00:00") : new Date();
     a.setMonth(a.getMonth() + 1, 1);
     _rrMonthlyAnchor = fmtIsoDate(a);
+    _rrClearMonthForecast();
     renderSchedMonthlyView();
     return;
   }
@@ -36536,6 +36563,19 @@ document.addEventListener("click", (e) => {
     e.preventDefault();
     const now = new Date();
     _rrMonthlyAnchor = fmtIsoDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    _rrClearMonthForecast();
+    renderSchedMonthlyView();
+    return;
+  }
+  // Run / clear the simulated staffing forecast for the visible month.
+  if (e.target.closest("#rr-sched-monthly-forecast")) {
+    e.preventDefault();
+    _rrForecastMonthCoverage(e.target.closest("#rr-sched-monthly-forecast"));
+    return;
+  }
+  if (e.target.closest("#rr-sched-monthly-forecast-clear")) {
+    e.preventDefault();
+    _rrClearMonthForecast();
     renderSchedMonthlyView();
     return;
   }
@@ -36548,6 +36588,161 @@ document.addEventListener("click", (e) => {
     if (typeof schedSub === "function") schedSub("today");
   }
 });
+
+function _rrClearMonthForecast() {
+  _rrMonthForecast = null;
+  _rrMonthForecastAnchor = null;
+  const clr = document.getElementById("rr-sched-monthly-forecast-clear");
+  if (clr) clr.style.display = "none";
+}
+
+// Simulated month-wide Smart Fill — runs the real engine, week by week, across
+// the visible month grid to project staffing coverage WITHOUT committing any
+// driver assignments. For each week that still has a gap (and isn't finalized)
+// we generate the week's shifts from OKAMI demand (a planning write that
+// mirrors the plan, same as the weekly Smart Fill sync) and then run the
+// engine in what-if mode (_rrWhatIfOptions set → no assignment writes). The
+// engine's per-date projection paints onto the grid so the operator can see
+// exactly which days can't be staffed. Fully-covered and finalized weeks keep
+// their saved numbers and are skipped.
+async function _rrForecastMonthCoverage(btn) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { toast("DSP not loaded", "warn"); return; }
+  if (btn && btn.dataset.busy === "1") return;
+
+  // Same grid bounds as renderSchedMonthlyView so the forecast lines up 1:1.
+  const anchorIso = _rrMonthlyAnchor
+    || fmtIsoDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const anchor     = new Date(anchorIso + "T12:00:00");
+  const monthStart = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const monthEnd   = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+  const gridStart  = addDays(monthStart, -monthStart.getDay());
+  const gridEnd    = addDays(monthEnd, 6 - monthEnd.getDay());
+  const gridStartIso = fmtIsoDate(gridStart);
+  const weeks = Math.round((gridEnd - gridStart) / 86400000 + 1) / 7;
+
+  const origLabel = btn ? btn.innerHTML : "";
+  const setProg = (txt) => { if (btn) btn.innerHTML = escapeHtml(txt); };
+  if (btn) { btn.dataset.busy = "1"; btn.disabled = true; }
+  setProg("Forecasting…");
+
+  // Baseline coverage — finds the gap weeks and provides the fallback numbers
+  // for weeks we skip (fully covered / finalized / no demand).
+  const { data: baseGrid, error: baseErr } =
+    await sb.rpc("schedule_grid", { p_start: gridStartIso, p_weeks: weeks });
+  if (baseErr) {
+    toast("Couldn't load coverage: " + baseErr.message, "warn");
+    if (btn) { btn.dataset.busy = ""; btn.disabled = false; btn.innerHTML = origLabel; }
+    return;
+  }
+  const baseCov = new Map();
+  for (const c of ((baseGrid && baseGrid.coverage) || [])) {
+    baseCov.set(c.date, { needed: c.needed || 0, filled: c.filled || 0 });
+  }
+
+  const proj = new Map();      // iso → { needed, filled }
+  const keepBaseline = (wkStart) => {
+    for (let i = 0; i < 7; i++) {
+      const iso = fmtIsoDate(addDays(wkStart, i));
+      const c = baseCov.get(iso);
+      if (c && c.needed > 0) proj.set(iso, { needed: c.needed, filled: c.filled });
+    }
+  };
+
+  // Force simulation; restore globals no matter what.
+  const _savedWhatIf = _rrWhatIfOptions;
+  const _savedSchedStart = _schedStart;
+  let simWeeks = 0;
+  try {
+    _rrWhatIfOptions = { source: "month_forecast" };   // truthy → engine skips writes
+    for (let w = 0; w < weeks; w++) {
+      const wkStart = addDays(gridStart, w * 7);
+      const wkStartIso = fmtIsoDate(wkStart);
+      setProg(`Forecasting… week ${w + 1}/${weeks}`);
+
+      // Demand + gap scan for the week.
+      let hasDemand = false, hasGap = false;
+      for (let i = 0; i < 7; i++) {
+        const c = baseCov.get(fmtIsoDate(addDays(wkStart, i)));
+        if (c && c.needed > 0) { hasDemand = true; if (c.filled < c.needed) hasGap = true; }
+      }
+      if (!hasDemand) continue;            // nothing to plan this week
+      if (!hasGap) { keepBaseline(wkStart); continue; }   // already fully staffed
+
+      // Don't rebuild a finalized week — keep its saved numbers.
+      let finalized = false;
+      try {
+        const { data: ws } = await sb.rpc("scheduling_settings_for_week", { p_week_start: wkStartIso });
+        finalized = !!(ws && ws.finalized);
+      } catch (_) { /* treat as not finalized */ }
+      if (finalized) { keepBaseline(wkStart); continue; }
+
+      _schedStart = wkStartIso;
+      // 1) Generate the week's shifts from OKAMI demand (planning write).
+      const { data: cells, error: okErr } = await sb.rpc("okami_grid", { p_start: wkStartIso, p_weeks: 1 });
+      if (okErr || !Array.isArray(cells) || !cells.length) { keepBaseline(wkStart); continue; }
+      const dateStations = new Map();
+      for (const cc of cells) {
+        if (cc.station_id) dateStations.set(`${cc.date}|${cc.station_id}`, { date: cc.date, station_id: cc.station_id });
+      }
+      if (typeof _markLocalShiftMutation === "function") _markLocalShiftMutation();
+      await Promise.all(Array.from(dateStations.values()).map(d =>
+        sb.rpc("generate_shifts_for_date", { p_date: d.date, p_station_id: d.station_id })));
+
+      // 2) Simulate assignments (no writes) and read the per-date projection.
+      const { diagnostics } = await autoAssignDriversForWeek();
+      const byDate = (diagnostics && diagnostics.byDate) || {};
+      for (let i = 0; i < 7; i++) {
+        const iso = fmtIsoDate(addDays(wkStart, i));
+        const bd = byDate[iso];
+        if (bd && bd.shifts > 0) proj.set(iso, { needed: bd.shifts, filled: bd.assigned });
+        else {
+          const c = baseCov.get(iso);
+          if (c && c.needed > 0) proj.set(iso, { needed: c.needed, filled: c.filled });
+        }
+      }
+      simWeeks++;
+    }
+  } catch (err) {
+    toast("Forecast failed: " + (err?.message || err), "warn");
+    if (btn) { btn.dataset.busy = ""; btn.disabled = false; btn.innerHTML = origLabel; }
+    _rrWhatIfOptions = _savedWhatIf;
+    _schedStart = _savedSchedStart;
+    return;
+  } finally {
+    _rrWhatIfOptions = _savedWhatIf;
+    _schedStart = _savedSchedStart;
+  }
+
+  if (btn) { btn.dataset.busy = ""; btn.disabled = false; btn.innerHTML = origLabel; }
+
+  // No gap weeks were simulated — nothing to overlay; the month is already
+  // covered (or has no demand). Leave the saved view as-is.
+  if (simWeeks === 0) {
+    _rrClearMonthForecast();
+    toast("No open staffing gaps to forecast this month", "success");
+    return;
+  }
+
+  // Publish the projection + repaint the month with the overlay.
+  _rrMonthForecast = proj;
+  _rrMonthForecastAnchor = _rrMonthlyAnchor;
+  const clr = document.getElementById("rr-sched-monthly-forecast-clear");
+  if (clr) clr.style.display = "";
+  await renderSchedMonthlyView();
+
+  // Summarize the gap (uncovered shifts across days that still fall short).
+  let gapShifts = 0, gapDays = 0;
+  for (const v of proj.values()) {
+    const g = Math.max(0, (v.needed || 0) - (v.filled || 0));
+    if (g > 0) { gapShifts += g; gapDays++; }
+  }
+  if (gapShifts === 0) {
+    toast("Forecast complete · every day can be fully staffed", "success");
+  } else {
+    toast(`Forecast complete · ${gapShifts} shift${gapShifts === 1 ? "" : "s"} short across ${gapDays} day${gapDays === 1 ? "" : "s"}`, "warn");
+  }
+}
 
 async function autoFillScheduleWeek() {
   const dspId = window.RR?.dsp?.id;
@@ -37930,9 +38125,11 @@ async function autoAssignDriversForWeek() {
 
   // 5th-day notifications — when the DSP opted in, message each driver
   // who picked up an extra day via the Fifth-Day Fill pass. Deduped per
-  // week so re-running Smart Fill doesn't re-message anyone.
+  // week so re-running Smart Fill doesn't re-message anyone. Never fires in
+  // what-if/simulation (e.g. the Monthly staffing forecast) — those
+  // assignments aren't saved, so messaging drivers about them would be wrong.
   try {
-    if (sfRules.fifth_day_notify === true) {
+    if (sfRules.fifth_day_notify === true && !_rrWhatIfOptions) {
       const fifthDayDrivers = [...new Set(
         (result.assigned_shifts || [])
           .filter(a => a.source === "fifth_day")
@@ -38071,6 +38268,20 @@ async function autoAssignDriversForWeek() {
     pinYields: (result.warnings || [])
       .filter(w => w && w.type === "pin_not_applied")
       .map(w => w.message),
+    // Per-date coverage projection (used by the Monthly staffing forecast).
+    // shifts = schedulable shifts the engine saw that day; assigned = those
+    // the engine placed a driver on (incl. locked/preserved). In what-if
+    // mode nothing is written, so this is the *projected* fill.
+    byDate: (() => {
+      const m = {};
+      for (const es of engineShifts) {
+        if (!es || !es.date) continue;
+        if (!m[es.date]) m[es.date] = { shifts: 0, assigned: 0 };
+        m[es.date].shifts++;
+        if (assignedShiftIds.has(es.id)) m[es.date].assigned++;
+      }
+      return m;
+    })(),
   };
   // Audit: record the final result. Best-effort — wrapped so an audit
   // failure never disrupts the operator's flow. Decision rows + metrics
