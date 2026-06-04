@@ -36827,7 +36827,49 @@ async function renderSchedMonthlyView() {
   const gaps = _rrForecastWeeks.map((wk) => (wk.required == null || wk.capacity == null) ? null : wk.capacity - wk.required);
   _rrRenderForecastKpis(gaps);
   _rrRenderModelPanel();
+  _rrRenderForecastChart();
   _rrRenderForecastTabs();
+}
+
+// Secondary visual — Driver Gap by week as a small SVG bar chart (green
+// surplus / red shortfall), with locked + peak weeks tagged. Minimal weight;
+// the table stays the primary tool.
+function _rrRenderForecastChart() {
+  const host = document.getElementById("rr-fc-chart");
+  if (!host) return;
+  const weeks = _rrForecastWeeks || [];
+  const gaps = weeks.map((w) => (w.required == null || w.capacity == null) ? null : w.capacity - w.required);
+  if (!gaps.some((g) => g != null)) { host.innerHTML = ""; return; }
+  const n = gaps.length;
+  let maxAbs = 10, worst = 0, worstIdx = -1;
+  gaps.forEach((g, i) => { if (g != null) { maxAbs = Math.max(maxAbs, Math.abs(g)); if (g < worst) { worst = g; worstIdx = i; } } });
+  const step = maxAbs <= 20 ? 5 : maxAbs <= 50 ? 10 : 20;
+  maxAbs = Math.ceil(maxAbs / step) * step;
+  const W = 820, H = 230, padL = 34, padR = 10, padT = 12, padB = 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB, y0 = padT + plotH / 2;
+  const yFor = (v) => y0 - (v / maxAbs) * (plotH / 2);
+  const slot = plotW / n, barW = Math.min(34, slot * 0.56);
+  const LOCK = Math.max(0, Math.min(_rrForecastLockWeeks, n));
+
+  let grid = "";
+  for (let t = -maxAbs; t <= maxAbs + 0.001; t += step) {
+    const y = yFor(t);
+    grid += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" class="rr-fcc-grid${t === 0 ? " zero" : ""}"/>`;
+    grid += `<text x="${padL - 6}" y="${(y + 3).toFixed(1)}" class="rr-fcc-ylbl" text-anchor="end">${Math.round(t)}</text>`;
+  }
+  let bars = "";
+  for (let i = 0; i < n; i++) {
+    const g = gaps[i], cx = padL + slot * i + slot / 2;
+    if (g != null) {
+      const y = yFor(g), top = Math.min(y, y0), h = Math.max(1, Math.abs(y - y0));
+      bars += `<rect x="${(cx - barW / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2" class="rr-fcc-bar ${g >= 0 ? "pos" : "neg"}"><title>Week ${i + 1}: ${g > 0 ? "+" : ""}${g}</title></rect>`;
+    }
+    bars += `<text x="${cx.toFixed(1)}" y="${(H - 22).toFixed(1)}" class="rr-fcc-xlbl" text-anchor="middle">W${i + 1}</text>`;
+    const tag = i < LOCK ? "LOCKED" : (i === worstIdx ? "PEAK" : "");
+    if (tag) bars += `<text x="${cx.toFixed(1)}" y="${(H - 10).toFixed(1)}" class="rr-fcc-tag" text-anchor="middle">${tag}</text>`;
+  }
+  host.innerHTML = `<div class="rr-fcc-title">Driver Gap to ${Math.round(_rrForecastTarget * 100)}% Buffer</div>`
+    + `<svg viewBox="0 0 ${W} ${H}" class="rr-fcc-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Driver gap by week">${grid}${bars}</svg>`;
 }
 window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
 window.renderSchedMonthlyView    = renderSchedMonthlyView;

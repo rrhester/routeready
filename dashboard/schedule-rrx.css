@@ -4468,3 +4468,22 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .rr-fc-cap-wk { font-weight: 600; color: var(--text); }
 #view-schedule.rrx-schedule .rr-fc-cap-range { color: var(--text-subtle); font-weight: 500; font-size: 11px; }
 #view-schedule.rrx-schedule .rr-fc-cap-capcell { font-weight: 700; color: var(--text); }
+
+/* ── Forecast · Driver Gap chart (secondary, minimal weight) ──
+   Also lets the table/shell size to content so the chart sits right
+   under it (the 13-week table is short — no full-viewport stretch). */
+#view-schedule.rrx-schedule .rr-fc-layout .sched-monthly-shell { height: auto; min-height: 0; }
+#view-schedule.rrx-schedule .rr-fc-layout .sched-monthly-grid { flex: 0 0 auto; overflow: visible; }
+#view-schedule.rrx-schedule .rr-fc-chart { margin-top: 14px; }
+#view-schedule.rrx-schedule .rr-fcc-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-muted); margin-bottom: 4px;
+}
+#view-schedule.rrx-schedule .rr-fcc-svg { width: 100%; height: auto; display: block; }
+#view-schedule.rrx-schedule .rr-fcc-grid { stroke: rgba(15, 23, 42, 0.08); stroke-width: 1; }
+#view-schedule.rrx-schedule .rr-fcc-grid.zero { stroke: rgba(15, 23, 42, 0.22); }
+#view-schedule.rrx-schedule .rr-fcc-ylbl { font-size: 10px; fill: var(--text-subtle); }
+#view-schedule.rrx-schedule .rr-fcc-xlbl { font-size: 11px; font-weight: 600; fill: var(--text-muted); }
+#view-schedule.rrx-schedule .rr-fcc-tag { font-size: 8px; font-weight: 700; letter-spacing: .04em; fill: var(--text-subtle); text-transform: uppercase; }
+#view-schedule.rrx-schedule .rr-fcc-bar.pos { fill: #2E9E5B; }
+#view-schedule.rrx-schedule .rr-fcc-bar.neg { fill: #D6493F; }
