@@ -10374,17 +10374,32 @@ async function loadAttendancePolicy() {
   const pane = document.getElementById("att-pane-policy");
   if (!pane) return;
   const dspId = window.RR?.dsp?.id;
-  if (!dspId) return;
-
-  const [{ data: dspRow, error: dspErr }, { data: setRow }] = await Promise.all([
-    sb.from("dsps").select("metadata").eq("id", dspId).single(),
-    sb.from("scheduling_settings")
-      .select("checkin_lead_minutes, tardy_grace_minutes, ncns_after_minutes")
-      .eq("dsp_id", dspId).is("week_start", null).maybeSingle(),
-  ]);
-  if (dspErr) { console.warn("policy load:", dspErr.message); return; }
-  const meta = dspRow?.metadata || {};
-  if (window.RR?.dsp) window.RR.dsp.metadata = meta;
+  // Start from the metadata already in memory (the schedule loads it for
+  // the attendance-points column / _evalPolicy), so the editor can ALWAYS
+  // render — even if the freshness re-fetch below fails or is blocked.
+  // Previously a failed/rejected query returned early and left the
+  // popover stuck on the "Loading policy" spinner.
+  let meta = window.RR?.dsp?.metadata || {};
+  let setRow = null;
+  if (dspId) {
+    try {
+      const [dspRes, setRes] = await Promise.all([
+        sb.from("dsps").select("metadata").eq("id", dspId).single(),
+        sb.from("scheduling_settings")
+          .select("checkin_lead_minutes, tardy_grace_minutes, ncns_after_minutes")
+          .eq("dsp_id", dspId).is("week_start", null).maybeSingle(),
+      ]);
+      if (!dspRes.error && dspRes.data && dspRes.data.metadata) {
+        meta = dspRes.data.metadata;
+        if (window.RR?.dsp) window.RR.dsp.metadata = meta;
+      } else if (dspRes.error) {
+        console.warn("policy load (using cached metadata):", dspRes.error.message);
+      }
+      setRow = setRes.data || null;
+    } catch (err) {
+      console.warn("policy load (using cached metadata):", err);
+    }
+  }
 
   const fromMeta = _polStateFromMeta(meta);
   Object.assign(_polState, fromMeta);

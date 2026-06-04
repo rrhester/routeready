@@ -2102,23 +2102,27 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   from { opacity: 0; transform: translateY(-6px) scale(.97); }
   to   { opacity: 1; transform: none; }
 }
+/* Softer blue header — matches the Smart Fill / Week rules popovers
+   (light bar, schedule-blue text + icon, hairline divider) rather than
+   a heavy saturated-blue bar with white text. */
 #view-schedule.rrx-schedule #rr-sched-roster-rules-popover .rr-srr-head {
   display: flex;
   align-items: center;
-  gap: 9px;
-  background: linear-gradient(135deg, #0078D4, #005A9E);
-  color: #fff;
-  font-size: 14px;
+  gap: 8px;
+  background: rgba(15, 108, 189, .08);
+  color: var(--sch-blue, #0F6CBD);
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: .005em;
-  padding: 13px 18px;
+  letter-spacing: .01em;
+  padding: 11px 16px 9px;
+  border-bottom: 1px solid rgba(15, 23, 42, .08);
   border-radius: 8px 8px 0 0;
 }
 #view-schedule.rrx-schedule #rr-sched-roster-rules-popover .rr-srr-head svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   flex: 0 0 auto;
-  color: #fff;
+  color: var(--sch-blue, #0F6CBD);
   stroke-width: 2;
 }
 #view-schedule.rrx-schedule #rr-sched-roster-rules-popover .rr-srr-body {
