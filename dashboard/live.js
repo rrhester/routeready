@@ -16877,7 +16877,6 @@ async function openDriverDrawer(driverId, opts) {
       #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:var(--fs-base)}
       #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:40px!important;height:40px!important;font-size:var(--fs-md)!important}
       #rr-dd-drawer.rr-dd-inline .dd-tabs{margin:12px 20px 0}
-      #rr-dd-drawer.rr-dd-inline .dd-quickfacts{margin:12px 20px 0}
       #rr-dd-drawer.rr-dd-inline .dd-tab-note{margin:8px 20px 0}
       #rr-dd-drawer.rr-dd-inline .dd-body{padding:18px 20px}
       /* Lighter section rhythm — slimmer separators + less vertical waste. */
@@ -16913,15 +16912,6 @@ async function openDriverDrawer(driverId, opts) {
       .dd-health-healthy{color:var(--green);background:var(--green-soft)}
       .dd-health-watch{color:var(--amber);background:var(--amber-soft)}
       .dd-health-risk{color:var(--red);background:var(--red-soft)}
-      /* Quick Facts — compact, read-only context strip under the header so
-         the operator has the essentials before switching tabs. */
-      .dd-quickfacts{display:none;flex-wrap:wrap;gap:6px 16px;margin:14px 28px 0;padding:9px 14px;background:var(--canvas);border:1px solid var(--border-subtle);border-radius:var(--r-lg)}
-      .dd-quickfacts.show{display:flex}
-      .dd-qf{display:inline-flex;align-items:baseline;gap:5px;font-size:var(--fs-xs);white-space:nowrap}
-      .dd-qf-l{color:var(--text-subtle);font-weight:600}
-      .dd-qf-v{color:var(--text);font-weight:700}
-      .dd-qf-v.warn{color:var(--amber)}
-      .dd-qf-v.bad{color:var(--red)}
       .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:var(--r-lg);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
       .dd-tabs::-webkit-scrollbar{display:none}
       .dd-tab{flex:0 0 auto;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:var(--s-2) 14px;border-radius:var(--r-md);cursor:pointer;transition:background var(--t-fast),color var(--t-fast);white-space:nowrap}
@@ -16975,7 +16965,6 @@ async function openDriverDrawer(driverId, opts) {
       @media (max-width:640px){
         .dd-head{padding:var(--s-4) 18px}
         .dd-tabs{margin:14px 18px 0}
-        .dd-quickfacts{margin:12px 18px 0}
         .dd-tab-note{margin:9px 18px 0}
         .dd-body{padding:18px}
         .dd-foot{padding:var(--s-3) 18px}
@@ -17002,10 +16991,6 @@ async function openDriverDrawer(driverId, opts) {
           <button type="button" id="rr-dd-close" class="dd-act" data-rr-dd-close aria-label="Close record"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Close</button>
         </div>
       </div>
-      <!-- Quick Facts — compact, read-only context strip (populated in
-           loadDriverDrawer). Lives in the sticky chrome so the operator has
-           the essentials before switching tabs. -->
-      <div class="dd-quickfacts" id="rr-dd-quickfacts"></div>
       <!-- Tabs grouped by what they hold: identity → employment record →
            credentials → availability → docs → attendance history.
            Overview + Activity were dashboard-flavored and are dropped —
@@ -17209,34 +17194,6 @@ async function loadDriverDrawer(driverId) {
   // Driver health pill (UI component — see _rrDriverHealth).
   const healthEl = document.getElementById("rr-dd-health");
   if (healthEl) healthEl.innerHTML = renderDriverHealthPill(_rrDriverHealth(drv));
-
-  // ── Quick Facts strip ──
-  const qf = [];
-  // Tenure
-  qf.push({ l: "Tenure", v: daysSinceHire == null ? "—" : (daysSinceHire < 45 ? `${daysSinceHire} Days` : tenureLabel(drv.hire_date)) });
-  // Attendance — qualitative read off the cached active-points balance.
-  const attPts = (_rosterAttPoints && _rosterAttPoints.get) ? (_rosterAttPoints.get(drv.id) || 0) : 0;
-  qf.push(attPts >= 6 ? { l: "Attendance", v: "At risk", cls: "bad" }
-        : attPts >= 3 ? { l: "Attendance", v: "Watch", cls: "warn" }
-        : { l: "Attendance", v: "Good" });
-  // License expiry
-  if (drv.dl_expires_on) {
-    const ld = Math.floor((new Date(drv.dl_expires_on).getTime() - Date.now()) / 86400000);
-    qf.push(ld < 0 ? { l: "License Expires", v: "Expired", cls: "bad" }
-          : { l: "License Expires", v: `${ld} Days`, cls: ld <= 30 ? "warn" : "" });
-  } else {
-    qf.push({ l: "License Expires", v: "Not on file", cls: "warn" });
-  }
-  // Availability
-  const availDays = ((drv.metadata || {}).availability || {}).days;
-  qf.push({ l: "Availability", v: (Array.isArray(availDays) && availDays.length) ? "Open" : "Not set" });
-  // Next PTO — placeholder until PTO data is wired in.
-  qf.push({ l: "Next PTO", v: "None" });
-  const qfEl = document.getElementById("rr-dd-quickfacts");
-  if (qfEl) {
-    qfEl.innerHTML = qf.map(f => `<span class="dd-qf"><span class="dd-qf-l">${escapeHtml(f.l)}:</span><span class="dd-qf-v ${f.cls || ""}">${escapeHtml(f.v)}</span></span>`).join("");
-    qfEl.classList.add("show");
-  }
 
   // Avatar in the drawer header — initials by default; the photo
   // painter (boot-time MutationObserver) replaces them with the
