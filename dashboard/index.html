@@ -94,7 +94,7 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=1">
-<link rel="stylesheet" href="schedule-rrx.css?v=79">
+<link rel="stylesheet" href="schedule-rrx.css?v=80">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -22967,23 +22967,10 @@ body.rr-cmdk-open{ overflow:hidden }
              flex evenly within the available row height. -->
         <div class="sched-subview" id="sched-sub-monthly" style="display:none">
           <div class="sched-monthly-shell" id="rr-sched-monthly-shell">
-            <div class="sched-monthly-head" id="rr-sched-monthly-head">
-              <div class="sched-monthly-title">
-                <div class="sched-monthly-month" id="rr-sched-monthly-month">—</div>
-                <div class="sched-monthly-sub">Month-at-a-glance · click a day to drill in</div>
-              </div>
-              <div class="sched-monthly-nav">
-                <button type="button" class="btn btn-sm" id="rr-sched-monthly-forecast" title="Simulate Smart Fill across the month to project staffing gaps (no assignments are saved)">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                  Forecast staffing
-                </button>
-                <button type="button" class="btn btn-sm" id="rr-sched-monthly-forecast-clear" style="display:none" title="Clear the staffing forecast and show saved coverage">Clear forecast</button>
-                <span class="sched-monthly-nav-sep" aria-hidden="true"></span>
-                <button type="button" class="sched-monthly-nav-btn" id="rr-sched-monthly-prev" aria-label="Previous month"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
-                <button type="button" class="sched-monthly-nav-today" id="rr-sched-monthly-today">This month</button>
-                <button type="button" class="sched-monthly-nav-btn" id="rr-sched-monthly-next" aria-label="Next month"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
-              </div>
-            </div>
+            <!-- Month title + month nav now live in the grid's top-left corner
+                 cell (rendered by renderSchedMonthlyView). The Forecast action
+                 moved to the Smart Fill command tile (relabels to "Forecast" on
+                 this view); per-week forecast clearing lives on each week row. -->
             <div class="sched-monthly-grid" id="rr-sched-monthly-grid">
               <div class="sched-monthly-loading">Loading month…</div>
             </div>
@@ -35896,7 +35883,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260604-forecast"></script>
+<script type="module" src="./live.js?v=20260604-monthly"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

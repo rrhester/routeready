@@ -31417,6 +31417,8 @@ document.addEventListener("click", async (e) => {
 const _legacySchedSub = window.schedSub;
 window.schedSub = function (sub) {
   if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
+  // The Smart Fill command tile doubles as "Forecast" on the Monthly view.
+  if (typeof _rrSetSmartFillTileMode === "function") _rrSetSmartFillTileMode(sub === "monthly");
   if (sub === "insights")  loadScheduleInsights();
   if (sub === "rules")     { loadStationGeofences(); loadAttendanceWindows(); }
   if (sub === "templates") loadScheduleTemplates();
@@ -33278,6 +33280,13 @@ document.addEventListener("click", (e) => {
   // operator saw every time they clicked the chevron.
   if (e.target.closest("#rr-sched-smartfill-h") && !e.target.closest("#rr-sched-smartfill-rules-toggle")) {
     e.preventDefault();
+    // On the Monthly sub-view this tile is "Forecast": run the simulated
+    // month-wide staffing projection instead of the weekly auto-fill.
+    if (typeof _rrMonthlyViewActive === "function" && _rrMonthlyViewActive()
+        && typeof _rrForecastMonthCoverage === "function") {
+      _rrForecastMonthCoverage(e.target.closest("#rr-sched-smartfill-h"));
+      return;
+    }
     // Manual scheduling: the button is "Fill Shifts" — carry forward
     // last week's schedule rather than running the auto-fill engine.
     let manual = false;
@@ -36441,7 +36450,6 @@ let _rrMonthForecastAnchor = null;
 // (_rrRenderStaffInWeekGrid) for the same pattern. Self-contained so
 // it can't regress the heavy renderScheduleWeek().
 async function renderSchedMonthlyView() {
-  const monthEl = document.getElementById("rr-sched-monthly-month");
   const gridEl  = document.getElementById("rr-sched-monthly-grid");
   if (!gridEl) return;
   const today = new Date();
@@ -36449,9 +36457,7 @@ async function renderSchedMonthlyView() {
     _rrMonthlyAnchor = fmtIsoDate(new Date(today.getFullYear(), today.getMonth(), 1));
   }
   const anchor = new Date(_rrMonthlyAnchor + "T12:00:00");
-  if (monthEl) {
-    monthEl.textContent = anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  }
+  const monthLabel = anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { gridEl.innerHTML = '<div class="sched-monthly-loading">DSP not loaded</div>'; return; }
 
@@ -36479,23 +36485,41 @@ async function renderSchedMonthlyView() {
 
   // Active staffing forecast for THIS month? (projected fill overlay)
   const forecast = (_rrMonthForecast && _rrMonthForecastAnchor === _rrMonthlyAnchor) ? _rrMonthForecast : null;
-  const clrBtn = document.getElementById("rr-sched-monthly-forecast-clear");
-  if (clrBtn) clrBtn.style.display = forecast ? "" : "none";
-  const subEl = document.querySelector("#rr-sched-monthly-head .sched-monthly-sub");
-  if (subEl) subEl.textContent = forecast
-    ? "Projected staffing · simulated Smart Fill (not saved) · click a day to drill in"
-    : "Month-at-a-glance · click a day to drill in";
+  const weekHasForecast = (wkStart) => {
+    if (!forecast) return false;
+    for (let i = 0; i < 7; i++) if (forecast.has(fmtIsoDate(addDays(wkStart, i)))) return true;
+    return false;
+  };
 
   const todayIso = fmtIsoDate(today);
   const DOW = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 
-  // Regular month calendar formatted with the Weekly grid chrome:
-  // rows = weeks (left label column), columns = days of the week
-  // (header row). Reuses .cal-grid / .cal-cell / .cal-cell-head so it
-  // is visually identical to the Weekly view.
+  // Coverage cell — big number, no pill. Red when under 100% staffed, green
+  // when at/over. The same treatment for saved vs. projected (forecast) so
+  // they read identically.
+  const covCell = (filled, needed) => {
+    if (!needed || needed <= 0) return "";
+    const cls = filled >= needed ? "is-full" : "is-open";
+    return `<div class="sched-month-cell-cov ${cls}">${filled}/${needed}</div>`;
+  };
+
+  // Compact month nav + title for the grid's top-left corner cell. Button ids
+  // are preserved so the existing prev/next/this-month handlers keep working.
+  const navSvg = (pts) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="${pts}"/></svg>`;
+  const cornerHtml = `<div class="sched-mw-corner-month">${escapeHtml(monthLabel)}</div>`
+    + `<div class="sched-monthly-nav">`
+    +   `<button type="button" class="sched-monthly-nav-btn" id="rr-sched-monthly-prev" aria-label="Previous month">${navSvg("15 18 9 12 15 6")}</button>`
+    +   `<button type="button" class="sched-monthly-nav-today" id="rr-sched-monthly-today">This month</button>`
+    +   `<button type="button" class="sched-monthly-nav-btn" id="rr-sched-monthly-next" aria-label="Next month">${navSvg("9 18 15 12 9 6")}</button>`
+    + `</div>`;
+
+  // Clear-this-week's-forecast icon (modeled on the weekly "unassign" icon),
+  // shown on a week's label cell only while that week carries a forecast.
+  const clearWkSvg = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11l4 4m0-4l-4 4"/></svg>`;
+
   let html = "";
-  // Header row: corner cell ("Week" axis) + 7 day-of-week columns.
-  let head = `<div class="cal-cell-head cal-row-label sched-mw-corner">Week</div>`;
+  // Header row: corner cell (month title + nav) + 7 day-of-week columns.
+  let head = `<div class="cal-cell-head cal-row-label sched-mw-corner">${cornerHtml}</div>`;
   for (const w of DOW) head += `<div class="cal-cell-head sched-mw-dayhead">${w}</div>`;
   html += `<div class="cal-grid head sched-mw-row">${head}</div>`;
 
@@ -36503,30 +36527,22 @@ async function renderSchedMonthlyView() {
   for (let w = 0; w < weeks; w++) {
     const wkStart = addDays(gridStart, w * 7);
     const wkEnd   = addDays(wkStart, 6);
+    const wkStartIso = fmtIsoDate(wkStart);
     const wkLabel = `${wkStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – `
       + `${wkEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-    let cells = `<div class="cal-cell-head cal-row-label sched-mw-weekcell">${escapeHtml(wkLabel)}</div>`;
+    const clearBtn = weekHasForecast(wkStart)
+      ? `<button type="button" class="rr-tf-icon sched-mw-clear" data-rr-monthly-clear-week="${wkStartIso}" title="Clear this week's forecast" aria-label="Clear this week's forecast">${clearWkSvg}</button>`
+      : "";
+    let cells = `<div class="cal-cell-head cal-row-label sched-mw-weekcell"><span class="sched-mw-weeklabel">${escapeHtml(wkLabel)}</span>${clearBtn}</div>`;
     for (let i = 0; i < 7; i++) {
       const d = addDays(wkStart, i);
       const iso = fmtIsoDate(d);
       const isOther = d.getMonth() !== monthIdx;
       const isToday = iso === todayIso;
-      const c = covByDate.get(iso);
-      // When a forecast is active, show the projected fill for the day (and a
-      // gap badge) instead of the saved coverage. The forecast carries its own
-      // needed (from the generated/demand shifts) so it stays self-consistent.
       const fc = forecast ? forecast.get(iso) : null;
-      let cov = "";
-      if (fc && fc.needed > 0) {
-        const gap = Math.max(0, fc.needed - fc.filled);
-        const cls = fc.filled >= fc.needed ? "is-full" : (fc.filled > 0 ? "" : "is-open");
-        cov = `<div class="sched-month-cell-cov is-forecast ${cls}">${fc.filled}/${fc.needed}`
-          + (gap > 0 ? `<span class="sched-month-cell-gap">−${gap}</span>` : "")
-          + `</div>`;
-      } else if (c && c.needed > 0) {
-        const cls = c.filled >= c.needed ? "is-full" : (c.filled > 0 ? "" : "is-open");
-        cov = `<div class="sched-month-cell-cov ${cls}">${c.filled}/${c.needed}</div>`;
-      }
+      const c = covByDate.get(iso);
+      // Forecast (projected) takes precedence when present for the day.
+      const cov = fc ? covCell(fc.filled, fc.needed) : (c ? covCell(c.filled, c.needed) : "");
       cells += `<div class="cal-cell sched-mw-daycell${isOther ? " is-other-month" : ""}${isToday ? " is-today" : ""}" data-rr-monthly-iso="${iso}">`
         + `<div class="sched-month-cell-num">${d.getDate()}</div>${cov}</div>`;
     }
@@ -36567,16 +36583,12 @@ document.addEventListener("click", (e) => {
     renderSchedMonthlyView();
     return;
   }
-  // Run / clear the simulated staffing forecast for the visible month.
-  if (e.target.closest("#rr-sched-monthly-forecast")) {
+  // Clear one week's forecast (per-week icon on the week-label cell).
+  const clrWk = e.target.closest("[data-rr-monthly-clear-week]");
+  if (clrWk) {
     e.preventDefault();
-    _rrForecastMonthCoverage(e.target.closest("#rr-sched-monthly-forecast"));
-    return;
-  }
-  if (e.target.closest("#rr-sched-monthly-forecast-clear")) {
-    e.preventDefault();
-    _rrClearMonthForecast();
-    renderSchedMonthlyView();
+    e.stopPropagation();   // don't also drill into a day cell
+    _rrClearWeekForecast(clrWk.getAttribute("data-rr-monthly-clear-week"));
     return;
   }
   // Click any day cell → drop into Today view for that date.
@@ -36592,8 +36604,41 @@ document.addEventListener("click", (e) => {
 function _rrClearMonthForecast() {
   _rrMonthForecast = null;
   _rrMonthForecastAnchor = null;
-  const clr = document.getElementById("rr-sched-monthly-forecast-clear");
-  if (clr) clr.style.display = "none";
+}
+
+// Clear just one week's worth of forecast (the per-week trash icon). Drops the
+// week's 7 days from the projection; if nothing's left, the whole forecast is
+// cleared. Re-renders so the affected days revert to saved coverage.
+function _rrClearWeekForecast(wkStartIso) {
+  if (!_rrMonthForecast || !wkStartIso) return;
+  const wkStart = new Date(wkStartIso + "T12:00:00");
+  for (let i = 0; i < 7; i++) _rrMonthForecast.delete(fmtIsoDate(addDays(wkStart, i)));
+  if (_rrMonthForecast.size === 0) _rrClearMonthForecast();
+  renderSchedMonthlyView();
+}
+
+// On the Monthly sub-view the Smart Fill command tile acts as "Forecast"
+// (simulated month-wide fill). Swap its label + title; the click handler reads
+// the same monthly-active check to route to the forecast. Restores on exit.
+function _rrSetSmartFillTileMode(isMonthly) {
+  const tile = document.getElementById("rr-sched-smartfill-h");
+  if (!tile) return;
+  const lbl = tile.querySelector(".sf-btn-label");
+  if (isMonthly) {
+    if (!tile.dataset.sfOrigTitle) tile.dataset.sfOrigTitle = tile.getAttribute("title") || "";
+    if (lbl && !tile.dataset.sfOrigLabel) tile.dataset.sfOrigLabel = lbl.textContent;
+    if (lbl) lbl.textContent = "Forecast";
+    tile.setAttribute("title", "Forecast staffing across the month — simulated Smart Fill, nothing is saved");
+    tile.classList.add("rr-sf-forecast-mode");
+  } else {
+    if (lbl && tile.dataset.sfOrigLabel != null) lbl.textContent = tile.dataset.sfOrigLabel;
+    if (tile.dataset.sfOrigTitle != null) tile.setAttribute("title", tile.dataset.sfOrigTitle);
+    tile.classList.remove("rr-sf-forecast-mode");
+  }
+}
+function _rrMonthlyViewActive() {
+  const v = document.getElementById("sched-sub-monthly");
+  return !!(v && v.style.display !== "none" && v.offsetParent !== null);
 }
 
 // Simulated month-wide Smart Fill — runs the real engine, week by week, across
@@ -36625,8 +36670,12 @@ async function _rrForecastMonthCoverage(btn) {
   const gridStartIso = fmtIsoDate(gridStart);
   const weeks = Math.round((gridEnd - gridStart) / 86400000 + 1) / 7;
 
-  const origLabel = btn ? btn.innerHTML : "";
-  const setProg = (txt) => { if (btn) btn.innerHTML = escapeHtml(txt); };
+  // Progress shows on the tile's label span (so its icon isn't clobbered);
+  // falls back to the button's text for any other trigger.
+  const lblEl = btn ? btn.querySelector(".sf-btn-label") : null;
+  const origLabel = lblEl ? lblEl.textContent : (btn ? btn.innerHTML : "");
+  const setProg = (txt) => { if (lblEl) lblEl.textContent = txt; else if (btn) btn.innerHTML = escapeHtml(txt); };
+  const restoreLabel = () => { if (lblEl) lblEl.textContent = origLabel; else if (btn) btn.innerHTML = origLabel; };
   if (btn) { btn.dataset.busy = "1"; btn.disabled = true; }
   setProg("Forecasting…");
 
@@ -36636,7 +36685,7 @@ async function _rrForecastMonthCoverage(btn) {
     await sb.rpc("schedule_grid", { p_start: gridStartIso, p_weeks: weeks });
   if (baseErr) {
     toast("Couldn't load coverage: " + baseErr.message, "warn");
-    if (btn) { btn.dataset.busy = ""; btn.disabled = false; btn.innerHTML = origLabel; }
+    if (btn) { btn.dataset.busy = ""; btn.disabled = false; restoreLabel(); }
     return;
   }
   const baseCov = new Map();
@@ -36709,7 +36758,7 @@ async function _rrForecastMonthCoverage(btn) {
     }
   } catch (err) {
     toast("Forecast failed: " + (err?.message || err), "warn");
-    if (btn) { btn.dataset.busy = ""; btn.disabled = false; btn.innerHTML = origLabel; }
+    if (btn) { btn.dataset.busy = ""; btn.disabled = false; restoreLabel(); }
     _rrWhatIfOptions = _savedWhatIf;
     _schedStart = _savedSchedStart;
     return;
@@ -36718,7 +36767,7 @@ async function _rrForecastMonthCoverage(btn) {
     _schedStart = _savedSchedStart;
   }
 
-  if (btn) { btn.dataset.busy = ""; btn.disabled = false; btn.innerHTML = origLabel; }
+  if (btn) { btn.dataset.busy = ""; btn.disabled = false; restoreLabel(); }
 
   // No gap weeks were simulated — nothing to overlay; the month is already
   // covered (or has no demand). Leave the saved view as-is.
@@ -36728,11 +36777,10 @@ async function _rrForecastMonthCoverage(btn) {
     return;
   }
 
-  // Publish the projection + repaint the month with the overlay.
+  // Publish the projection + repaint the month with the overlay (per-week
+  // clear icons appear on the weeks that now carry a forecast).
   _rrMonthForecast = proj;
   _rrMonthForecastAnchor = _rrMonthlyAnchor;
-  const clr = document.getElementById("rr-sched-monthly-forecast-clear");
-  if (clr) clr.style.display = "";
   await renderSchedMonthlyView();
 
   // Summarize the gap (uncovered shifts across days that still fall short).

@@ -4150,15 +4150,34 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   text-transform: uppercase; color: var(--text-muted);
 }
 /* Left "Week" gutter — corner cell + each week-range label. */
+/* Corner cell now hosts the month title + the month nav (moved out of the
+   old header bar). Stacked, left-aligned, with the calendar's natural padding. */
 #view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-corner {
-  align-items: center;
-  font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.06em;
-  text-transform: uppercase; color: var(--text-muted);
+  flex-direction: column; align-items: flex-start; justify-content: center;
+  gap: 7px; padding: 8px 12px;
+  text-transform: none; letter-spacing: normal;
 }
+#view-schedule.rrx-schedule .sched-mw-corner-month {
+  font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.01em;
+}
+/* Compact the month nav so it fits the corner cell. */
+#view-schedule.rrx-schedule .sched-mw-corner .sched-monthly-nav-btn { width: 28px }
+#view-schedule.rrx-schedule .sched-mw-corner .sched-monthly-nav-btn,
+#view-schedule.rrx-schedule .sched-mw-corner .sched-monthly-nav-today { height: 28px }
+#view-schedule.rrx-schedule .sched-mw-corner .sched-monthly-nav-today { padding: 0 10px; font-size: var(--fs-xs) }
+/* Week-label cell: label on the left, a per-week "clear forecast" icon on the
+   right (only shown while that week carries a forecast). */
 #view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-weekcell {
-  align-items: center;
+  align-items: center; justify-content: space-between; gap: 6px; padding: 8px 12px;
   font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted);
   letter-spacing: -0.01em;
+}
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-clear {
+  position: static; flex: 0 0 auto; width: 22px; height: 22px;
+  color: var(--text-subtle);
+}
+#view-schedule.rrx-schedule .sched-monthly-grid .sched-mw-clear:hover {
+  color: var(--red); background: var(--red-soft);
 }
 /* Day cells: date number + coverage, top-aligned like a regular
    calendar. Override the base square aspect-ratio so each cell fills
@@ -4229,24 +4248,16 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .sched-month-cell.is-other-month .sched-month-cell-num {
   color: var(--text-subtle); font-weight: 500;
 }
+/* Daily coverage number — large, no pill. Binary status: red when the day is
+   under 100% staffed, green when fully staffed (or over). Saved + projected
+   (forecast) coverage read identically. */
 #view-schedule.rrx-schedule .sched-month-cell-cov {
-  font-size: 10.5px; font-weight: 600; color: var(--text-muted);
-  margin-top: 2px;
+  font-size: 21px; font-weight: 700; color: var(--text-muted);
+  margin-top: 3px; line-height: 1.05; letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 #view-schedule.rrx-schedule .sched-month-cell-cov.is-full { color: var(--green) }
 #view-schedule.rrx-schedule .sched-month-cell-cov.is-open { color: var(--red) }
-/* Projected staffing forecast — a tinted pill marks the numbers as simulated
-   (not saved), and a red −N badge calls out the remaining gap per day. */
-#view-schedule.rrx-schedule .sched-month-cell-cov.is-forecast {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 1px 6px; border-radius: var(--r-pill, 9999px);
-  background: var(--accent-soft); color: var(--accent-text);
-}
-#view-schedule.rrx-schedule .sched-month-cell-cov.is-forecast.is-full { background: var(--green-soft); color: var(--green) }
-#view-schedule.rrx-schedule .sched-month-cell-cov.is-forecast.is-open { background: var(--red-soft); color: var(--red) }
-#view-schedule.rrx-schedule .sched-month-cell-gap { font-weight: 700; color: var(--red); font-size: 9.5px }
-#view-schedule.rrx-schedule .sched-monthly-nav-sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px }
 
 #view-schedule.rrx-schedule .sched-monthly-loading {
   grid-column: 1 / -1; grid-row: 1 / -1;
