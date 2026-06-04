@@ -8049,6 +8049,20 @@ body.rr-cmdk-open{ overflow:hidden }
 .roster-split #rr-roster-table-wrap th,
 .roster-split #rr-roster-table-wrap td{padding-left:var(--s-2);padding-right:var(--s-2)}
 .roster-split #rr-roster-table-wrap .cell-name-sub{display:none}
+/* ── Reduce roster table visual weight (the record pane is the workspace;
+   the roster reads as navigation). Trim row height ~12%, lighten the
+   dividers, and shrink the avatar a notch — no color/token changes. */
+.roster-split #rr-roster-table-wrap tbody td{padding-top:12px;padding-bottom:12px}
+.roster-split #rr-roster-table-wrap tbody td{border-bottom-color:rgba(15,23,42,.08)}
+.roster-split #rr-roster-table-wrap .avatar-sm{width:24px;height:24px}
+/* ── Selected driver row — 4px primary-blue left accent + a slightly
+   darker row tint so the open driver feels tied to the detail panel.
+   Hover behavior is untouched; this layers on top of it. The accent is
+   painted with inset box-shadow so it never shifts the cell layout, and
+   the first cell rounds with the table edge. */
+.roster-split #drivers-tbody tr.is-record-open > td{background:var(--accent-soft)}
+.roster-split #drivers-tbody tr.is-record-open > td:first-child{box-shadow:inset 4px 0 0 var(--accent)}
+.roster-split #drivers-tbody tr.is-record-open:hover > td{background:var(--accent-soft)}
 /* Neutralise the fixed-overlay drawer styling when the record lives
    in the inline mount, so it reads as a static workspace card that
    matches the Schedule / roster cards — no backdrop, no blur, no
