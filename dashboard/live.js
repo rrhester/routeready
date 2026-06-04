@@ -36476,6 +36476,23 @@ let _rrForecastTurnoverPct = (() => {
   const v = parseFloat(localStorage.getItem("rr-forecast-turnover-pct"));
   return Number.isFinite(v) && v >= 0 && v <= 20 ? v : 0;
 })();
+// Per-week planning inputs the operator edits directly in the forecast table.
+// Capacity Buffer (%) raises Required Drivers to a staffing target
+// (Required × (1 + buffer%)); OT Budget (hrs) adds capacity (⌊hrs ÷ 40⌋
+// drivers). Both persist as 13-week arrays.
+const _RR_FC_WEEKS = 13;
+const _rrFcLoadArr = (key, def, lo, hi) => {
+  try {
+    const a = JSON.parse(localStorage.getItem(key) || "null");
+    if (Array.isArray(a)) return Array.from({ length: _RR_FC_WEEKS }, (_, i) => {
+      const v = Number(a[i]);
+      return Number.isFinite(v) && v >= lo && v <= hi ? v : def;
+    });
+  } catch (_) { /* fall through to defaults */ }
+  return Array(_RR_FC_WEEKS).fill(def);
+};
+let _rrForecastBufferByWeek = _rrFcLoadArr("rr-forecast-buffer-by-week", 15, 0, 100);
+let _rrForecastOtByWeek     = _rrFcLoadArr("rr-forecast-ot-by-week", 0, 0, 400);
 // Required Drivers (Smart Fill demand) — computed on demand by the Forecast
 // button across 13 weeks. Map(weekStartIso → drivers to cover all routes).
 let _rrRequiredByWeek = null;
@@ -36711,10 +36728,32 @@ async function renderSchedMonthlyView() {
     const turn = Math.round(active * turnoverWeekly * (weekIndex(wkStart) + 1));
     return Math.max(0, active - ptoForWeek(wkStart) - expectedCallOffs - turn);
   };
+
+  // Operator-edited per-week inputs.
+  const bufForWeek = (wkStart) => Number(_rrForecastBufferByWeek[weekIndex(wkStart)]) || 0;
+  const otForWeek  = (wkStart) => Number(_rrForecastOtByWeek[weekIndex(wkStart)]) || 0;
+  // Capacity Buffer raises Required to a staffing target; OT Budget converts to
+  // ⌊hrs ÷ 40⌋ driver-equivalents of extra capacity. Driver Gap is sized off
+  // both: (capacity + OT drivers) − buffered required.
+  const otGainForWeek    = (wkStart) => Math.floor(otForWeek(wkStart) / _RR_FC_OT_HOURS_PER_DRIVER);
+  const targetReqForWeek = (wkStart) => {
+    const r = requiredForWeek(wkStart);
+    return r == null ? null : Math.ceil(r * (1 + bufForWeek(wkStart) / 100));
+  };
+  const effCapForWeek = (wkStart) => {
+    const c = capacityForWeek(wkStart);
+    return c == null ? null : c + otGainForWeek(wkStart);
+  };
+  // Cushion = how many drivers the buffer adds on top of raw demand. On the
+  // chart it marks the raw-demand break-even (at y = −cushion below zero).
+  const cushionForWeek = (wkStart) => {
+    const r = requiredForWeek(wkStart), t = targetReqForWeek(wkStart);
+    return (r == null || t == null) ? 0 : (t - r);
+  };
   const gapForWeek = (wkStart) => {
-    const req = requiredForWeek(wkStart), cap = capacityForWeek(wkStart);
-    if (req == null || cap == null) return null;
-    return cap - req;   // negative = short of demand
+    const t = targetReqForWeek(wkStart), e = effCapForWeek(wkStart);
+    if (t == null || e == null) return null;
+    return e - t;   // negative = short of the buffered target
   };
 
   const colTemplate = `grid-template-columns:210px repeat(${WEEKS}, minmax(62px, 1fr))`;
@@ -36745,17 +36784,40 @@ async function renderSchedMonthlyView() {
     return `<div class="cal-grid sched-mw-row sched-fc-row ${rowCls}" style="${colTemplate}">${cells}</div>`;
   };
 
-  // Driver Gap = capacity − required. Surplus/0 reads green, small shortfall
-  // amber, large shortfall red — all very subtle.
-  const gapTone = (g) => g == null ? "" : (g >= 0 ? "sched-fc-ok" : (g >= -9 ? "sched-fc-watch" : "sched-fc-bad"));
+  // Editable per-week input row (Capacity Buffer %, OT Budget hrs). The label
+  // can carry a "?" hint; each week cell is a compact number input.
+  const inputRow = (label, dataAttr, valueFn, step, help) => {
+    let cells = `<div class="cal-cell-head cal-row-label sched-mw-rowlabel sched-fc-inputlabel">`
+      + `${escapeHtml(label)}${help ? ` <span class="sched-fc-help" title="${escapeHtml(help)}">?</span>` : ""}</div>`;
+    for (let w = 0; w < WEEKS; w++) {
+      const wkStart = addDays(gridStart, w * 7);
+      cells += `<div class="cal-cell sched-mw-bodycell sched-fc-inputcell">`
+        + `<input type="number" class="sched-fc-input" ${dataAttr}="${w}" value="${valueFn(wkStart)}" min="0" step="${step}" inputmode="numeric"></div>`;
+    }
+    return `<div class="cal-grid sched-mw-row sched-fc-row sched-fc-inputrow" style="${colTemplate}">${cells}</div>`;
+  };
+
+  // Driver Gap = (capacity + OT) − buffered required. Meeting the buffered
+  // target reads green; covering raw demand but short of the buffer cushion
+  // reads amber; short of raw demand reads red.
+  const gapTone = (wkStart) => {
+    const g = gapForWeek(wkStart);
+    if (g == null) return "";
+    if (g >= 0) return "sched-fc-ok";
+    return g >= -cushionForWeek(wkStart) ? "sched-fc-watch" : "sched-fc-bad";
+  };
   const fmtGap  = (g) => g == null ? "—" : (g > 0 ? "+" + g : String(g));
 
+  html += inputRow("Capacity Buffer (%)", "data-rr-fc-buf", bufForWeek, 5,
+    "Staffing cushion above Smart Fill demand. Required is raised to Required × (1 + buffer%) when sizing the gap.");
   html += metricRow("Forecasted Routes", routesForWeek);
   html += metricRow("Required Drivers", requiredForWeek);
   html += metricRow("Projected Capacity", capacityForWeek);
+  html += inputRow("OT Budget (HRS)", "data-rr-fc-ot", otForWeek, 10,
+    "Weekly overtime hours. Adds ⌊hours ÷ 40⌋ drivers of capacity when sizing the gap.");
   html += metricRow("Driver Gap", (wk) => fmtGap(gapForWeek(wk)), {
     rowCls: "sched-fc-gaprow",
-    cellClassFn: (wk) => gapTone(gapForWeek(wk)),
+    cellClassFn: (wk) => gapTone(wk),
   });
 
   gridEl.innerHTML = html;
@@ -36767,59 +36829,96 @@ async function renderSchedMonthlyView() {
   _rrForecastWeeks = [];
   for (let w = 0; w < WEEKS; w++) {
     const wkStart = addDays(gridStart, w * 7);
-    const cap = capacityForWeek(wkStart);
-    _rrForecastWeeks.push({ required: requiredForWeek(wkStart), capacity: cap, locked: w < LOCK });
+    _rrForecastWeeks.push({
+      required: requiredForWeek(wkStart),
+      capacity: capacityForWeek(wkStart),
+      gap: gapForWeek(wkStart),
+      cushion: cushionForWeek(wkStart),
+      locked: w < LOCK,
+    });
   }
 
   // Forecast KPI bar (reuses the Schedule KPI strip).
-  const gaps = _rrForecastWeeks.map((wk) => (wk.required == null || wk.capacity == null) ? null : wk.capacity - wk.required);
+  const gaps = _rrForecastWeeks.map((wk) => wk.gap == null ? null : wk.gap);
   _rrRenderForecastKpis(gaps);
   _rrRenderModelPanel();
   _rrRenderForecastChart();
 }
 
-// Secondary visual — Driver Gap by week as a small SVG bar chart (green
-// surplus / red shortfall), with locked + peak weeks tagged. Minimal weight;
-// the table stays the primary tool.
+// Secondary visual — Driver Gap by week (green surplus / red shortfall) with a
+// dashed buffer-target line. Built as an HTML grid that reuses the table's
+// column template, so each bar lines up exactly under its week column above.
 function _rrRenderForecastChart() {
   const host = document.getElementById("rr-fc-chart");
   if (!host) return;
   const weeks = _rrForecastWeeks || [];
-  const gaps = weeks.map((w) => (w.required == null || w.capacity == null) ? null : w.capacity - w.required);
-  if (!gaps.some((g) => g != null)) { host.innerHTML = ""; return; }
-  const n = gaps.length;
-  let maxAbs = 10, worst = 0, worstIdx = -1;
-  gaps.forEach((g, i) => { if (g != null) { maxAbs = Math.max(maxAbs, Math.abs(g)); if (g < worst) { worst = g; worstIdx = i; } } });
+  if (!weeks.some((w) => w.gap != null)) { host.innerHTML = ""; return; }
+  const n = weeks.length;
+
+  // Symmetric scale that covers the gaps and the (negative) buffer line.
+  let maxAbs = 6, worst = 0, worstIdx = -1;
+  weeks.forEach((w, i) => {
+    if (w.gap != null) { maxAbs = Math.max(maxAbs, Math.abs(w.gap)); if (w.gap < worst) { worst = w.gap; worstIdx = i; } }
+    maxAbs = Math.max(maxAbs, Number(w.cushion) || 0);
+  });
   const step = maxAbs <= 20 ? 5 : maxAbs <= 50 ? 10 : 20;
   maxAbs = Math.ceil(maxAbs / step) * step;
-  const W = 820, H = 230, padL = 34, padR = 10, padT = 12, padB = 40;
-  const plotW = W - padL - padR, plotH = H - padT - padB, y0 = padT + plotH / 2;
-  const yFor = (v) => y0 - (v / maxAbs) * (plotH / 2);
-  const slot = plotW / n, barW = Math.min(34, slot * 0.56);
-  const LOCK = Math.max(0, Math.min(_rrForecastLockWeeks, n));
 
-  let grid = "";
-  for (let t = -maxAbs; t <= maxAbs + 0.001; t += step) {
-    const y = yFor(t);
-    grid += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - padR}" y2="${y.toFixed(1)}" class="rr-fcc-grid${t === 0 ? " zero" : ""}"/>`;
-    grid += `<text x="${padL - 6}" y="${(y + 3).toFixed(1)}" class="rr-fcc-ylbl" text-anchor="end">${Math.round(t)}</text>`;
-  }
-  let bars = "";
+  const PLOT = 168, HALF = PLOT / 2;
+  const px = (v) => Math.round(Math.abs(v) / maxAbs * HALF);   // value → pixels from the zero line
+  const LOCK = Math.max(0, Math.min(_rrForecastLockWeeks, n));
+  // Same column template as the table so columns line up 1:1.
+  const colTemplate = `grid-template-columns:210px repeat(${n}, minmax(62px, 1fr))`;
+
+  // Left (label-column) cell carries the +max / 0 / −max scale.
+  const axis = `<div class="rr-fcc-axis"><div class="rr-fcc-axis-scale" style="height:${PLOT}px">`
+    + `<span>+${maxAbs}</span><span>0</span><span>−${maxAbs}</span></div></div>`;
+
+  let cols = "";
   for (let i = 0; i < n; i++) {
-    const g = gaps[i], cx = padL + slot * i + slot / 2;
+    const w = weeks[i], g = w.gap, c = Number(w.cushion) || 0;
+    let bar = "";
     if (g != null) {
-      const y = yFor(g), top = Math.min(y, y0), h = Math.max(1, Math.abs(y - y0));
-      bars += `<rect x="${(cx - barW / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2" class="rr-fcc-bar ${g >= 0 ? "pos" : "neg"}"><title>Week ${i + 1}: ${g > 0 ? "+" : ""}${g}</title></rect>`;
+      const h = Math.max(2, px(g));
+      bar = g >= 0
+        ? `<div class="rr-fcc-bar pos" style="height:${h}px;bottom:${HALF}px"></div>`
+        : `<div class="rr-fcc-bar neg" style="height:${h}px;top:${HALF}px"></div>`;
     }
-    bars += `<text x="${cx.toFixed(1)}" y="${(H - 22).toFixed(1)}" class="rr-fcc-xlbl" text-anchor="middle">W${i + 1}</text>`;
-    const tag = i < LOCK ? "LOCKED" : (i === worstIdx ? "PEAK" : "");
-    if (tag) bars += `<text x="${cx.toFixed(1)}" y="${(H - 10).toFixed(1)}" class="rr-fcc-tag" text-anchor="middle">${tag}</text>`;
+    // Buffer target = raw-demand break-even, which sits at y = −cushion (below
+    // the zero line). Clearing it means raw demand is covered; reaching zero
+    // means the buffer is covered too.
+    const bline = c > 0
+      ? `<div class="rr-fcc-bufline" style="top:${HALF + px(-c)}px" title="Week ${i + 1}: demand break-even (buffer cushion ${c})"></div>`
+      : "";
+    const tag = i < LOCK ? `<div class="rr-fcc-tag locked">LOCKED</div>`
+      : (i === worstIdx ? `<div class="rr-fcc-tag peak">PEAK</div>` : `<div class="rr-fcc-tag"></div>`);
+    const tip = g == null ? "" : ` title="Week ${i + 1}: gap ${g > 0 ? "+" : ""}${g}"`;
+    cols += `<div class="rr-fcc-col"${tip}>`
+      + `<div class="rr-fcc-plot" style="height:${PLOT}px"><div class="rr-fcc-zero" style="top:${HALF}px"></div>${bline}${bar}</div>`
+      + `<div class="rr-fcc-xlbl">W${i + 1}</div>${tag}</div>`;
   }
-  host.innerHTML = `<div class="rr-fcc-title">Driver Gap</div>`
-    + `<svg viewBox="0 0 ${W} ${H}" class="rr-fcc-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Driver gap by week">${grid}${bars}</svg>`;
+  host.innerHTML = `<div class="rr-fcc-title">Driver Gap`
+    + ` <span class="rr-fcc-legend"><span class="rr-fcc-legend-line"></span>buffer target</span></div>`
+    + `<div class="rr-fcc-grid-row" style="${colTemplate}">${axis}${cols}</div>`;
 }
 window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
 window.renderSchedMonthlyView    = renderSchedMonthlyView;
+// Per-week Capacity Buffer (%) / OT Budget (hrs) inputs → persist + re-render.
+// `change` fires on blur/Enter, so re-rendering doesn't fight the operator's
+// typing.
+document.addEventListener("change", (e) => {
+  const t = e.target;
+  if (!t || !t.matches) return;
+  const apply = (arr, key, lo, hi, idxAttr) => {
+    const w = parseInt(t.getAttribute(idxAttr), 10);
+    if (!Number.isInteger(w) || w < 0 || w >= _RR_FC_WEEKS) return;
+    arr[w] = Math.max(lo, Math.min(hi, Math.round(parseFloat(t.value) || 0)));
+    try { localStorage.setItem(key, JSON.stringify(arr)); } catch (_) {}
+    renderSchedMonthlyView();
+  };
+  if (t.matches("[data-rr-fc-buf]")) apply(_rrForecastBufferByWeek, "rr-forecast-buffer-by-week", 0, 100, "data-rr-fc-buf");
+  else if (t.matches("[data-rr-fc-ot]")) apply(_rrForecastOtByWeek, "rr-forecast-ot-by-week", 0, 400, "data-rr-fc-ot");
+});
 // Model Your Plan scenario buttons.
 document.addEventListener("click", (e) => {
   const scn = e.target.closest && e.target.closest("[data-rr-fc-scn]");
