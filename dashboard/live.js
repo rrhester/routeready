@@ -30468,6 +30468,43 @@ document.addEventListener("click", (e) => {
   _toggleAttRules(false);
 });
 
+// Attendance policy popover · anchored under the SCHEDULE ribbon's
+// Roster (V2) tile Rules chevron. The builder DOM (#att-pane-policy)
+// lives in this popover now; loadAttendancePolicy() lazy-fires on first
+// open so the controls populate without a trip to Settings. Self-
+// contained (its own toggle id) so it sits alongside the generic V2
+// rules-foot machinery without needing a legacy twin in #rr-sched-cmd.
+// Outside-click closes it.
+let _schedRosterPolicyLoaded = false;
+function _toggleSchedRosterRules(force) {
+  const pop = document.getElementById("rr-sched-roster-rules-popover");
+  const toggle = document.getElementById("rr-sched-roster-rules-toggle");
+  if (!pop) return false;
+  const next = (typeof force === "boolean") ? force : pop.hidden;
+  pop.hidden = !next;
+  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  if (next && !_schedRosterPolicyLoaded) {
+    _schedRosterPolicyLoaded = true;
+    if (typeof loadAttendancePolicy === "function") {
+      try { loadAttendancePolicy(); } catch (err) { console.warn("loadAttendancePolicy:", err); }
+    }
+  }
+  return next;
+}
+window._rrToggleSchedRosterRules = _toggleSchedRosterRules;
+document.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("#rr-sched-roster-rules-toggle")) {
+    e.preventDefault();
+    e.stopPropagation();
+    _toggleSchedRosterRules();
+    return;
+  }
+  const pop = document.getElementById("rr-sched-roster-rules-popover");
+  if (!pop || pop.hidden) return;
+  if (e.target.closest && (e.target.closest("#rr-sched-roster-rules-popover") || e.target.closest("#rr-sched-roster-rules-toggle"))) return;
+  _toggleSchedRosterRules(false);
+});
+
 // License renewals rules popover · same flyout pattern as the
 // Attendance policy popover. Moved here from Settings → License
 // renewals. Prefills the form (rr-lic-* fields) on first open via the
@@ -30515,7 +30552,6 @@ document.addEventListener("click", (e) => {
 // pattern as the Schedule density picker. Persisted in
 // localStorage('rr-roster-density'). Anchored under the Roster
 // tile's Rules footer button.
-let _rosterRulesPolicyLoaded = false;
 function _toggleRosterRules(force) {
   const pop = document.getElementById("rr-roster-rules-popover");
   const toggle = document.getElementById("rr-roster-rules-toggle");
@@ -30523,15 +30559,6 @@ function _toggleRosterRules(force) {
   const next = (typeof force === "boolean") ? force : pop.hidden;
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
-  // The Roster Rules popover now hosts the Attendance policy builder —
-  // lazy-load it on first open so the controls populate without a trip
-  // to Settings (same pattern the Attendance tile used before the move).
-  if (next && !_rosterRulesPolicyLoaded) {
-    _rosterRulesPolicyLoaded = true;
-    if (typeof loadAttendancePolicy === "function") {
-      try { loadAttendancePolicy(); } catch (err) { console.warn("loadAttendancePolicy:", err); }
-    }
-  }
   return next;
 }
 window._rrToggleRosterRules = _toggleRosterRules;
