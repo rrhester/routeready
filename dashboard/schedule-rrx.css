@@ -2076,6 +2076,55 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   stroke-linejoin: miter;
 }
 
+/* Attendance policy popover · opens from the Roster tile's Rules
+   chevron. Anchored beneath the tile (the .sched-v2-split is
+   position:relative). Per operator request it is OPAQUE — no
+   backdrop blur, so the schedule behind stays crisp — and it
+   EMERGES with a slight rise + scale rather than snapping open. */
+#view-schedule.rrx-schedule #rr-sched-roster-rules-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  width: 720px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, .12);
+  border-radius: 8px;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, .18), 0 0 10px rgba(0, 0, 0, .10);
+  transform-origin: top left;
+  animation: rr-sched-roster-rules-emerge .18s ease both;
+}
+#view-schedule.rrx-schedule #rr-sched-roster-rules-popover[hidden] { display: none; }
+@keyframes rr-sched-roster-rules-emerge {
+  from { opacity: 0; transform: translateY(-6px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+#view-schedule.rrx-schedule #rr-sched-roster-rules-popover .rr-srr-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: linear-gradient(135deg, #0078D4, #005A9E);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .005em;
+  padding: 13px 18px;
+  border-radius: 8px 8px 0 0;
+}
+#view-schedule.rrx-schedule #rr-sched-roster-rules-popover .rr-srr-head svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: #fff;
+  stroke-width: 2;
+}
+#view-schedule.rrx-schedule #rr-sched-roster-rules-popover .rr-srr-body {
+  padding: 14px 18px 16px;
+}
+
 /* ============================================================
    V2 strip — title (far left) + tile order + hairline dividers
    ------------------------------------------------------------
