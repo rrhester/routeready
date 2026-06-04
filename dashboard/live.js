@@ -36509,18 +36509,6 @@ async function renderSchedMonthlyView() {
     return false;
   };
 
-  const todayIso = fmtIsoDate(today);
-  const DOW = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
-
-  // Coverage cell — big number, no pill. Red when under 100% staffed, green
-  // when at/over. The same treatment for saved vs. projected (forecast) so
-  // they read identically.
-  const covCell = (filled, needed) => {
-    if (!needed || needed <= 0) return "";
-    const cls = filled >= needed ? "is-full" : "is-open";
-    return `<div class="sched-month-cell-cov ${cls}">${filled}/${needed}</div>`;
-  };
-
   // Compact month nav + title for the grid's top-left corner cell. Button ids
   // are preserved so the existing prev/next/this-month handlers keep working.
   const navSvg = (pts) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="${pts}"/></svg>`;
@@ -36531,44 +36519,30 @@ async function renderSchedMonthlyView() {
     +   `<button type="button" class="sched-monthly-nav-btn" id="rr-sched-monthly-next" aria-label="Next month">${navSvg("9 18 15 12 9 6")}</button>`
     + `</div>`;
 
-  // Clear-this-week's-forecast icon (modeled on the weekly "unassign" icon),
-  // shown on a week's label cell only while that week carries a forecast.
-  const clearWkSvg = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11l4 4m0-4l-4 4"/></svg>`;
+  // Weeks are the COLUMNS now (one per week of the month). The left gutter is a
+  // label column, intentionally blank for now (metric labels land here in a
+  // later step). Override the base 7-day column template with one per week.
+  const colTemplate = `grid-template-columns:220px repeat(${weeks}, minmax(0, 1fr))`;
+  const liveSvg = `<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 12 10 17 19 7"/></svg>`;
 
-  let html = "";
-  // Header row: corner cell (month title + nav) + 7 day-of-week columns.
+  // Header row: corner (month + nav) + one column header per week.
   let head = `<div class="cal-cell-head cal-row-label sched-mw-corner">${cornerHtml}</div>`;
-  for (const w of DOW) head += `<div class="cal-cell-head sched-mw-dayhead">${w}</div>`;
-  html += `<div class="cal-grid head sched-mw-row">${head}</div>`;
-
-  // One row per week of the month.
   for (let w = 0; w < weeks; w++) {
     const wkStart = addDays(gridStart, w * 7);
     const wkEnd   = addDays(wkStart, 6);
     const wkStartIso = fmtIsoDate(wkStart);
-    const wkLabel = `${wkStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – `
-      + `${wkEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-    const clearBtn = weekHasForecast(wkStart)
-      ? `<button type="button" class="rr-tf-icon sched-mw-clear" data-rr-monthly-clear-week="${wkStartIso}" title="Clear this week's forecast" aria-label="Clear this week's forecast">${clearWkSvg}</button>`
-      : "";
-    // Green "Live" pill for any finalized (live) week, alongside the week date.
-    const livePill = liveByWeek.get(wkStartIso)
-      ? `<span class="sched-mw-live"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 12 10 17 19 7"/></svg>Live</span>`
-      : "";
-    let cells = `<div class="cal-cell-head cal-row-label sched-mw-weekcell"><div class="sched-mw-weekcell-l"><span class="sched-mw-weeklabel">${escapeHtml(wkLabel)}</span>${livePill}</div>${clearBtn}</div>`;
-    for (let i = 0; i < 7; i++) {
-      const d = addDays(wkStart, i);
-      const iso = fmtIsoDate(d);
-      const isOther = d.getMonth() !== monthIdx;
-      const isToday = iso === todayIso;
-      const fc = forecast ? forecast.get(iso) : null;
-      const c = covByDate.get(iso);
-      // Forecast (projected) takes precedence when present for the day.
-      const cov = fc ? covCell(fc.filled, fc.needed) : (c ? covCell(c.filled, c.needed) : "");
-      cells += `<div class="cal-cell sched-mw-daycell${isOther ? " is-other-month" : ""}${isToday ? " is-today" : ""}" data-rr-monthly-iso="${iso}">`
-        + `<div class="sched-month-cell-num">${d.getDate()}</div>${cov}</div>`;
-    }
-    html += `<div class="cal-grid sched-mw-row sched-mw-weekrow">${cells}</div>`;
+    const wkLabel = `${wkStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${wkEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+    const livePill = liveByWeek.get(wkStartIso) ? `<span class="sched-mw-live">${liveSvg}Live</span>` : "";
+    head += `<div class="cal-cell-head sched-mw-wkhead">${escapeHtml(wkLabel)}${livePill}</div>`;
+  }
+  let html = `<div class="cal-grid head sched-mw-row" style="${colTemplate}">${head}</div>`;
+
+  // Blank body rows for now — metric rows (Drivers Needed, Scheduled, …) will
+  // fill these and the left gutter labels in a later step.
+  for (let r = 0; r < 4; r++) {
+    let cells = `<div class="cal-cell-head cal-row-label sched-mw-rowlabel"></div>`;
+    for (let w = 0; w < weeks; w++) cells += `<div class="cal-cell sched-mw-bodycell"></div>`;
+    html += `<div class="cal-grid sched-mw-row sched-mw-weekrow" style="${colTemplate}">${cells}</div>`;
   }
   gridEl.innerHTML = html;
 }
