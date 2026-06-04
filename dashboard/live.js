@@ -36500,21 +36500,23 @@ async function renderSchedMonthlyView() {
     return sum;
   };
 
-  // Coverage % = the best coverage the ENGINE can achieve without overtime ÷
-  // total routes, capped at 100. Driven by the forecast engine projection
-  // (_rrMonthForecast.filled = routes the engine could fill within hour caps).
-  // Run "Forecast" to populate it; shows "—" until then.
+  // Coverage % = the best coverage the ENGINE can achieve without overtime.
+  // Both numerator and denominator come from the engine projection
+  // (_rrMonthForecast): filled = shifts it could staff within hour caps,
+  // needed = the actual shifts that must be covered (cushioned demand — this
+  // is NOT the raw "Total Routes" count, which excludes the cushion). Using
+  // filled/needed keeps the ratio honest (filled ≤ needed → ≤100%). Run
+  // "Forecast" to populate it; shows "—" until then.
   const forecast = (_rrMonthForecast && _rrMonthForecastAnchor === _rrMonthlyAnchor) ? _rrMonthForecast : null;
   const coverageForWeek = (wkStart) => {
     if (!forecast) return null;
-    let filled = 0, any = false;
+    let filled = 0, needed = 0, any = false;
     for (let i = 0; i < 7; i++) {
       const c = forecast.get(fmtIsoDate(addDays(wkStart, i)));
-      if (c) { filled += (c.filled || 0); any = true; }
+      if (c && c.needed > 0) { filled += (c.filled || 0); needed += c.needed; any = true; }
     }
-    const total = totalRoutesForWeek(wkStart);
-    if (!any || !total) return null;
-    return Math.min(100, Math.round((filled / total) * 100)) + "%";
+    if (!any || !needed) return null;
+    return Math.min(100, Math.round((filled / needed) * 100)) + "%";
   };
 
   // Compact month nav + title for the grid's top-left corner cell. Button ids
@@ -36741,9 +36743,21 @@ async function _rrForecastMonthCoverage(btn) {
   // Force simulation; restore globals no matter what.
   const _savedWhatIf = _rrWhatIfOptions;
   const _savedSchedStart = _schedStart;
+  const _savedSfRules = window._rrSfRulesOverride;
+  // No-overtime run: cap every driver at the OT threshold so the engine's
+  // "filled" is the MAX coverage achievable WITHOUT overtime. We override the
+  // saved Smart Fill rules' weekly-hour cap (and WOC ceiling) to the OT
+  // threshold just for this forecast; restored in finally.
+  const _otThreshold = Number(window.RR?.dsp?.metadata?.scheduling?.overtime_threshold_hours) || 40;
+  const _baseRules = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
+  const _restoreSfRules = () => {
+    if (_savedSfRules === undefined) delete window._rrSfRulesOverride;
+    else window._rrSfRulesOverride = _savedSfRules;
+  };
   let simWeeks = 0;
   try {
     _rrWhatIfOptions = { source: "month_forecast" };   // truthy → engine skips writes
+    window._rrSfRulesOverride = { ..._baseRules, woc: true, woc_max_hours: _otThreshold, weeklyHourCap: _otThreshold };
     for (let w = 0; w < weeks; w++) {
       const wkStart = addDays(gridStart, w * 7);
       const wkStartIso = fmtIsoDate(wkStart);
@@ -36797,10 +36811,12 @@ async function _rrForecastMonthCoverage(btn) {
     if (btn) { btn.dataset.busy = ""; btn.dataset.rrBusy = ""; btn.disabled = false; restoreLabel(); }
     _rrWhatIfOptions = _savedWhatIf;
     _schedStart = _savedSchedStart;
+    _restoreSfRules();
     return;
   } finally {
     _rrWhatIfOptions = _savedWhatIf;
     _schedStart = _savedSchedStart;
+    _restoreSfRules();
   }
 
   if (btn) { btn.dataset.busy = ""; btn.dataset.rrBusy = ""; btn.disabled = false; restoreLabel(); }
