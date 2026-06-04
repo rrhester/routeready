@@ -36474,12 +36474,28 @@ async function renderSchedMonthlyView() {
   const gridStartIso = fmtIsoDate(gridStart);
   const weeks = Math.round((gridEnd - gridStart) / 86400000 + 1) / 7;    // 5 or 6
 
+  // Header subtitle (Forecast view) — span the whole month grid, not one week.
+  const subEl = document.getElementById("rr-sched-page-sub");
+  if (subEl) {
+    const fmtShort = (d) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    subEl.textContent = `${fmtShort(gridStart)} – ${fmtShort(gridEnd)}`;
+  }
+
   gridEl.innerHTML = '<div class="sched-monthly-loading">Loading month…</div>';
-  const { data, error } = await sb.rpc("schedule_grid", { p_start: gridStartIso, p_weeks: weeks });
+  // Per-week ISO starts (Sunday) for the live-status lookup.
+  const weekIsos = Array.from({ length: weeks }, (_, w) => fmtIsoDate(addDays(gridStart, w * 7)));
+  const [{ data, error }, ...wkSettings] = await Promise.all([
+    sb.rpc("schedule_grid", { p_start: gridStartIso, p_weeks: weeks }),
+    ...weekIsos.map((iso) => sb.rpc("scheduling_settings_for_week", { p_week_start: iso })
+      .then((r) => r, () => ({ data: null }))),
+  ]);
   if (error) {
     gridEl.innerHTML = `<div class="sched-monthly-loading" style="color:var(--red)">Couldn't load: ${escapeHtml(error.message)}</div>`;
     return;
   }
+  // A week is "Live" when its schedule is finalized.
+  const liveByWeek = new Map();
+  weekIsos.forEach((iso, i) => { liveByWeek.set(iso, !!(wkSettings[i] && wkSettings[i].data && wkSettings[i].data.finalized)); });
   const covByDate = new Map();
   for (const c of ((data && data.coverage) || [])) {
     covByDate.set(c.date, { needed: c.needed || 0, filled: c.filled || 0 });
@@ -36535,7 +36551,11 @@ async function renderSchedMonthlyView() {
     const clearBtn = weekHasForecast(wkStart)
       ? `<button type="button" class="rr-tf-icon sched-mw-clear" data-rr-monthly-clear-week="${wkStartIso}" title="Clear this week's forecast" aria-label="Clear this week's forecast">${clearWkSvg}</button>`
       : "";
-    let cells = `<div class="cal-cell-head cal-row-label sched-mw-weekcell"><span class="sched-mw-weeklabel">${escapeHtml(wkLabel)}</span>${clearBtn}</div>`;
+    // Green "Live" pill for any finalized (live) week, alongside the week date.
+    const livePill = liveByWeek.get(wkStartIso)
+      ? `<span class="sched-mw-live"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 12 10 17 19 7"/></svg>Live</span>`
+      : "";
+    let cells = `<div class="cal-cell-head cal-row-label sched-mw-weekcell"><div class="sched-mw-weekcell-l"><span class="sched-mw-weeklabel">${escapeHtml(wkLabel)}</span>${livePill}</div>${clearBtn}</div>`;
     for (let i = 0; i < 7; i++) {
       const d = addDays(wkStart, i);
       const iso = fmtIsoDate(d);
@@ -36634,16 +36654,25 @@ function _rrSmartFillLabelEls() {
     .map((t) => t.querySelector(".sf-btn-label") || t.querySelector("span"))
     .filter(Boolean);
 }
+// Graph (line-chart) icon shown on the Forecast tile — axis + trend line.
+const _RR_FORECAST_ICON = '<path d="M3 3v18h18"/><polyline points="7 14 11 10 15 13 20 6"/>';
 function _rrSetSmartFillTileMode(isMonthly) {
   for (const tile of _rrSmartFillTiles()) {
     const lbl = tile.querySelector(".sf-btn-label") || tile.querySelector("span");
-    if (!lbl) continue;
+    const svg = tile.querySelector("svg");
     if (isMonthly) {
-      if (tile.dataset.sfOrigLabel == null) tile.dataset.sfOrigLabel = lbl.textContent;
-      lbl.textContent = "Forecast";
+      if (lbl) {
+        if (tile.dataset.sfOrigLabel == null) tile.dataset.sfOrigLabel = lbl.textContent;
+        lbl.textContent = "Forecast";
+      }
+      if (svg) {
+        if (svg.dataset.sfOrigIcon == null) svg.dataset.sfOrigIcon = svg.innerHTML;
+        svg.innerHTML = _RR_FORECAST_ICON;   // bolt → graph
+      }
       tile.classList.add("rr-sf-forecast-mode");
     } else {
-      if (tile.dataset.sfOrigLabel != null) { lbl.textContent = tile.dataset.sfOrigLabel; delete tile.dataset.sfOrigLabel; }
+      if (lbl && tile.dataset.sfOrigLabel != null) { lbl.textContent = tile.dataset.sfOrigLabel; delete tile.dataset.sfOrigLabel; }
+      if (svg && svg.dataset.sfOrigIcon != null) { svg.innerHTML = svg.dataset.sfOrigIcon; delete svg.dataset.sfOrigIcon; }
       tile.classList.remove("rr-sf-forecast-mode");
     }
   }
