@@ -2315,6 +2315,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg {
   color: #FFFFFF;
 }
+/* Draw the bolt as a solid white glyph (the SVG ships fill="none" stroke-only,
+   which renders a hollow outline). Filling the polygon makes it read as a
+   filled white bolt against the steel-blue tile. */
+#view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg polygon {
+  fill: #FFFFFF;
+}
 
 /* ── Forecast · progress popover ───────────────────────────────────
    The 13-week required-drivers run reports "Computing… week N/13" in a
