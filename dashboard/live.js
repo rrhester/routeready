@@ -6901,7 +6901,7 @@ function renderOnboardingRow(d) {
   const pips = ob.milestones.map(m => `<span title="${escapeHtml(m.label)}${m.done ? " — done" : ""}" style="width:6px;height:6px;border-radius:50%;flex:0 0 auto;background:${m.done ? "#16a34a" : "var(--border)"}"></span>`).join("");
   const nextColor = ob.key === "blocked" ? "var(--red)" : ob.tone === "amber" ? "var(--amber-dark)" : ob.key === "ready" ? "var(--green)" : "var(--text-subtle)";
   return `
-    <tr data-driver-id="${d.id}" data-rr-open-driver>
+    <tr data-driver-id="${d.id}" data-rr-open-driver class="${(_ddOpenDriverId && d.id === _ddOpenDriverId) ? "is-record-open" : ""}">
       <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
         <div><div class="cell-name">${escapeHtml(display)}</div>
@@ -7238,7 +7238,7 @@ function renderDriverRow(d) {
   const badges = _rowBadgesFor(d);
   const actions = _rowActionsFor(d);
   return `
-    <tr data-driver-id="${d.id}" data-rr-open-driver>
+    <tr data-driver-id="${d.id}" data-rr-open-driver class="${(_ddOpenDriverId && d.id === _ddOpenDriverId) ? "is-record-open" : ""}">
       <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
         <div class="cell-driver-text"><div class="cell-name">${escapeHtml(display)}${badges}</div>
@@ -13747,6 +13747,46 @@ function renderDriverStatusBadge(s) {
   return `<span class="tag" style="${v.style}">${v.label}</span>`;
 }
 
+// Status → label + text-color token, preserving the roster/KPI status
+// palette. Used for the inline status word in the driver-record header
+// metadata line ("DCA1 • Active") so the status keeps its color without a
+// full badge pill (reduces the badge clutter in the header).
+function _rrDriverStatusMeta(s) {
+  const map = {
+    onboarding: { label: "Onboarding", color: "#7C3AED" },
+    active:     { label: "Active",     color: "var(--green)" },
+    leave:      { label: "On leave",   color: "var(--amber)" },
+    inactive:   { label: "Inactive",   color: "var(--text-subtle)" },
+    terminated: { label: "Terminated", color: "var(--red)" },
+  };
+  return map[s] || { label: s ? String(s) : "—", color: "var(--text-muted)" };
+}
+
+// Driver operational health — a single glanceable state for the record
+// header (🟢 Healthy / 🟡 Watch / 🔴 At Risk). UI component only for now;
+// the real scoring (attendance, credential expirations, coaching status,
+// schedule adherence) lands later. This light heuristic just keeps the pill
+// meaningful in the meantime, using what the roster already has cached.
+function _rrDriverHealth(drv) {
+  if (!drv) return { key: "healthy", label: "Healthy" };
+  if (drv.status === "terminated" || drv.status === "inactive") return { key: "risk", label: "At Risk" };
+  if (drv.status === "leave") return { key: "watch", label: "Watch" };
+  const pts = (_rosterAttPoints && _rosterAttPoints.get) ? (_rosterAttPoints.get(drv.id) || 0) : 0;
+  if (pts >= 6) return { key: "risk", label: "At Risk" };
+  if (drv.dl_expires_on) {
+    const days = Math.floor((new Date(drv.dl_expires_on).getTime() - Date.now()) / 86400000);
+    if (days < 0) return { key: "risk", label: "At Risk" };
+    if (days <= 30 || pts >= 3) return { key: "watch", label: "Watch" };
+  } else if (pts >= 3) {
+    return { key: "watch", label: "Watch" };
+  }
+  return { key: "healthy", label: "Healthy" };
+}
+function renderDriverHealthPill(h) {
+  const v = h || { key: "healthy", label: "Healthy" };
+  return `<span class="dd-health dd-health-${v.key}" title="Driver health — ${escapeHtml(v.label)}"><i class="dd-health-dot"></i>${escapeHtml(v.label)}</span>`;
+}
+
 // Roster turnover window — operator can switch via the small clock
 // icon on the Turnover KPI tile. Persisted to localStorage so the
 // choice carries across sessions.
@@ -16498,6 +16538,18 @@ let _ddTab = "profile";
 // Employment.  Save merges _ddPending with the currently visible inputs.
 let _ddPending = {};
 let _ddActivityFilter = "all";   // driver-record Activity tab filter chip
+// Id of the driver whose record is currently open in the docked pane. Drives
+// the selected-row accent on the roster (so the open driver reads as visually
+// connected to the detail panel). Re-applied by renderDriverRow on every
+// table re-render and synced live by _rrMarkActiveRosterRow when a record
+// opens/closes without a full roster re-render.
+let _ddOpenDriverId = null;
+function _rrMarkActiveRosterRow(id) {
+  _ddOpenDriverId = id || null;
+  document.querySelectorAll('#drivers-tbody tr[data-driver-id]').forEach((tr) => {
+    tr.classList.toggle('is-record-open', !!id && tr.getAttribute('data-driver-id') === id);
+  });
+}
 
 // Coaching-only drawer. Opens from the global Coaching feed when an
 // operator clicks a driver row. Shows just that driver's coaching
@@ -16825,6 +16877,7 @@ async function openDriverDrawer(driverId, opts) {
       #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:var(--fs-base)}
       #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:40px!important;height:40px!important;font-size:var(--fs-md)!important}
       #rr-dd-drawer.rr-dd-inline .dd-tabs{margin:12px 20px 0}
+      #rr-dd-drawer.rr-dd-inline .dd-quickfacts{margin:12px 20px 0}
       #rr-dd-drawer.rr-dd-inline .dd-tab-note{margin:8px 20px 0}
       #rr-dd-drawer.rr-dd-inline .dd-body{padding:18px 20px}
       /* Lighter section rhythm — slimmer separators + less vertical waste. */
@@ -16839,9 +16892,36 @@ async function openDriverDrawer(driverId, opts) {
         #rr-dd-drawer.rr-dd-inline #rr-dd-panel{flex:none;height:auto;min-height:0}
       }
       .dd-chrome{position:sticky;top:0;z-index:2;background:var(--surface)}
-      .dd-head{padding:var(--s-5) 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+      .dd-head{padding:var(--s-5) 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:var(--s-3)}
       .dd-head h3{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
       .dd-head .sub{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:2px}
+      /* Identity block — avatar + name/health/metadata. Name is the strongest
+         element; the two metadata lines read as quiet secondary text. */
+      .dd-head-id{display:flex;align-items:center;gap:var(--s-3-5);min-width:0}
+      .dd-head-idtext{min-width:0}
+      .dd-head-nameline{display:flex;align-items:center;gap:var(--s-2-5);min-width:0;flex-wrap:wrap}
+      .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.35}
+      .dd-meta-sub{font-size:var(--fs-xs);margin-top:1px}
+      .dd-head-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+      /* Header action buttons — quiet ghost icon+label pair (Documents / Close). */
+      .dd-act{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer;line-height:1;white-space:nowrap;transition:color var(--t-fast),border-color .12s,background .12s}
+      .dd-act:hover{color:var(--text);border-color:var(--text-subtle);background:var(--canvas)}
+      .dd-act svg{flex:0 0 auto}
+      /* Driver health pill — glanceable operational state beside the name. */
+      .dd-health{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;padding:2px 9px;border-radius:var(--r-pill);white-space:nowrap;line-height:1.5}
+      .dd-health-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto}
+      .dd-health-healthy{color:var(--green);background:var(--green-soft)}
+      .dd-health-watch{color:var(--amber);background:var(--amber-soft)}
+      .dd-health-risk{color:var(--red);background:var(--red-soft)}
+      /* Quick Facts — compact, read-only context strip under the header so
+         the operator has the essentials before switching tabs. */
+      .dd-quickfacts{display:none;flex-wrap:wrap;gap:6px 16px;margin:14px 28px 0;padding:9px 14px;background:var(--canvas);border:1px solid var(--border-subtle);border-radius:var(--r-lg)}
+      .dd-quickfacts.show{display:flex}
+      .dd-qf{display:inline-flex;align-items:baseline;gap:5px;font-size:var(--fs-xs);white-space:nowrap}
+      .dd-qf-l{color:var(--text-subtle);font-weight:600}
+      .dd-qf-v{color:var(--text);font-weight:700}
+      .dd-qf-v.warn{color:var(--amber)}
+      .dd-qf-v.bad{color:var(--red)}
       .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:var(--r-lg);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
       .dd-tabs::-webkit-scrollbar{display:none}
       .dd-tab{flex:0 0 auto;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:var(--s-2) 14px;border-radius:var(--r-md);cursor:pointer;transition:background var(--t-fast),color var(--t-fast);white-space:nowrap}
@@ -16895,6 +16975,7 @@ async function openDriverDrawer(driverId, opts) {
       @media (max-width:640px){
         .dd-head{padding:var(--s-4) 18px}
         .dd-tabs{margin:14px 18px 0}
+        .dd-quickfacts{margin:12px 18px 0}
         .dd-tab-note{margin:9px 18px 0}
         .dd-body{padding:18px}
         .dd-foot{padding:var(--s-3) 18px}
@@ -16905,18 +16986,26 @@ async function openDriverDrawer(driverId, opts) {
     <div id="rr-dd-panel">
       <div class="dd-chrome">
       <div class="dd-head">
-        <div style="display:flex;align-items:center;gap:var(--s-3-5);min-width:0">
+        <div class="dd-head-id">
           <div class="avatar-sm" id="rr-dd-avatar" data-rr-driver-id="" style="width:48px;height:48px;font-size:var(--fs-lg);flex-shrink:0">--</div>
-          <div style="min-width:0">
-            <h3 id="rr-dd-title">Driver record</h3>
-            <div class="sub" id="rr-dd-sub"></div>
+          <div class="dd-head-idtext">
+            <div class="dd-head-nameline">
+              <h3 id="rr-dd-title">Driver record</h3>
+              <span id="rr-dd-health"></span>
+            </div>
+            <div class="dd-meta" id="rr-dd-sub"></div>
+            <div class="dd-meta dd-meta-sub" id="rr-dd-sub2"></div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto">
-          <button type="button" id="rr-dd-report-btn" data-rr-dd-report title="Open employment report" aria-label="Employment report" style="display:none;background:none;border:1px solid var(--border);border-radius:8px;padding:6px 8px;cursor:pointer;color:var(--text-muted);line-height:0;transition:color var(--t-fast),border-color .12s,background .12s" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--text-subtle)'" onmouseout="this.style.color='var(--text-muted)';this.style.borderColor='var(--border)'"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></button>
-          <button id="rr-dd-close" style="background:none;border:0;font-size:var(--fs-xl);cursor:pointer;color:var(--text-muted);padding:0 6px">×</button>
+        <div class="dd-head-actions">
+          <button type="button" id="rr-dd-report-btn" class="dd-act" data-rr-dd-tab="documents" title="Open documents" aria-label="Documents" style="display:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>Documents</button>
+          <button type="button" id="rr-dd-close" class="dd-act" data-rr-dd-close aria-label="Close record"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Close</button>
         </div>
       </div>
+      <!-- Quick Facts — compact, read-only context strip (populated in
+           loadDriverDrawer). Lives in the sticky chrome so the operator has
+           the essentials before switching tabs. -->
+      <div class="dd-quickfacts" id="rr-dd-quickfacts"></div>
       <!-- Tabs grouped by what they hold: identity → employment record →
            credentials → availability → docs → attendance history.
            Overview + Activity were dashboard-flavored and are dropped —
@@ -16929,6 +17018,7 @@ async function openDriverDrawer(driverId, opts) {
         <button type="button" class="dd-tab" data-rr-dd-tab="license">Credentials</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="availability">Availability</button>
         <button type="button" class="dd-tab" data-rr-dd-tab="documents">Documents</button>
+        <button type="button" class="dd-tab" data-rr-dd-tab="timeline">Timeline</button>
       </div>
       <div class="dd-tab-note" id="rr-dd-tab-note"></div>
       </div><!-- /.dd-chrome -->
@@ -16955,6 +17045,8 @@ async function openDriverDrawer(driverId, opts) {
     // Remember the last driver viewed on the roster so we can restore it
     // (instead of the placeholder) next time the roster is shown.
     if (driverId) { try { localStorage.setItem("rr-roster-last-driver", driverId); } catch (_) {} }
+    // Accent the selected roster row so it reads as connected to the panel.
+    _rrMarkActiveRosterRow(driverId);
   } else {
     document.body.appendChild(drawer);
     if (_ddMount) _ddMount.classList.remove("is-filled"); // roster pane (if any) shows its placeholder
@@ -16976,6 +17068,7 @@ async function openDriverDrawer(driverId, opts) {
       drawer.remove();
       if (_ddMount) _ddMount.classList.remove("is-filled");
       if (_ddSplit) _ddSplit.classList.remove("has-record");
+      _rrMarkActiveRosterRow(null);   // drop the selected-row accent
     };
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) { finish(); return; }
     drawer.classList.remove("rr-dd-open");
@@ -17090,28 +17183,60 @@ async function loadDriverDrawer(driverId) {
   const titleEl = document.getElementById("rr-dd-title");
   if (!titleEl) return;
   titleEl.textContent = displayDriverName(drv) || "—";
-  // Header chips — status pill (lead), station code (resolved from the
-  // cached station list), hire-date + tenure, tier, and (when known)
-  // app presence. Replaces the flat "Station — · Hired … · Tier …" line.
+
+  // ── Header rebuild — name (above) is the anchor; everything else reads as
+  // quiet secondary metadata. Line 1: "STATION • Status" (status keeps its
+  // palette color); line 2: "Hired N days ago". A driver-health pill sits
+  // beside the name, and a compact Quick Facts strip sits below.
   const stationCode = (_driverStationsCache || []).find(s => s.id === drv.station_id)?.code;
-  const tenureTxt = drv.hire_date ? (() => {
-    const days = Math.max(0, Math.floor((Date.now() - new Date(drv.hire_date).getTime()) / 86400000));
-    if (days < 45) return `${days}d`;
-    const mo = Math.round(days / 30.4);
-    return mo < 24 ? `${mo} mo` : `${(days / 365.25).toFixed(1)} yr`;
-  })() : null;
-  const appS = _rosterAppStatus ? _rosterAppStatus.get(drv.id) : null;
-  const headChips = [];
-  headChips.push(renderDriverStatusBadge(drv.status));
-  if (stationCode) headChips.push(`<span class="dd-hchip">${escapeHtml(stationCode)}</span>`);
-  else if (drv.station_id) headChips.push(`<span class="dd-hchip">Station assigned</span>`);
-  else headChips.push(`<span class="dd-hchip">Unassigned</span>`);
-  if (drv.hire_date) headChips.push(`<span class="dd-hchip">Hired ${escapeHtml(new Date(drv.hire_date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }))}${tenureTxt ? " · " + escapeHtml(tenureTxt) : ""}</span>`);
-  if (drv.tier) headChips.push(`<span class="dd-hchip">Tier ${escapeHtml(String(drv.tier))}</span>`);
-  if (appS && appS.signed_in_at) headChips.push(`<span class="dd-hchip dd-hchip-on"><i class="dot"></i>On the app</span>`);
-  else if (appS && appS.invited)  headChips.push(`<span class="dd-hchip">App invited</span>`);
+  const daysSinceHire = drv.hire_date
+    ? Math.max(0, Math.floor((Date.now() - new Date(drv.hire_date).getTime()) / 86400000))
+    : null;
+  const sm = _rrDriverStatusMeta(drv.status);
+  const metaParts = [];
+  metaParts.push(escapeHtml(stationCode || (drv.station_id ? "Station assigned" : "No station")));
+  metaParts.push(`<span style="color:${sm.color};font-weight:600">${escapeHtml(sm.label)}</span>`);
+  if (drv.tier) metaParts.push(`Tier ${escapeHtml(String(drv.tier))}`);
   const subEl = document.getElementById("rr-dd-sub");
-  if (subEl) subEl.innerHTML = `<div class="dd-head-chips">${headChips.join("")}</div>`;
+  if (subEl) subEl.innerHTML = metaParts.join(' <span style="opacity:.5">•</span> ');
+  const sub2El = document.getElementById("rr-dd-sub2");
+  if (sub2El) {
+    sub2El.textContent = daysSinceHire == null
+      ? "Hire date not set"
+      : daysSinceHire === 0 ? "Hired today" : `Hired ${daysSinceHire} day${daysSinceHire === 1 ? "" : "s"} ago`;
+  }
+
+  // Driver health pill (UI component — see _rrDriverHealth).
+  const healthEl = document.getElementById("rr-dd-health");
+  if (healthEl) healthEl.innerHTML = renderDriverHealthPill(_rrDriverHealth(drv));
+
+  // ── Quick Facts strip ──
+  const qf = [];
+  // Tenure
+  qf.push({ l: "Tenure", v: daysSinceHire == null ? "—" : (daysSinceHire < 45 ? `${daysSinceHire} Days` : tenureLabel(drv.hire_date)) });
+  // Attendance — qualitative read off the cached active-points balance.
+  const attPts = (_rosterAttPoints && _rosterAttPoints.get) ? (_rosterAttPoints.get(drv.id) || 0) : 0;
+  qf.push(attPts >= 6 ? { l: "Attendance", v: "At risk", cls: "bad" }
+        : attPts >= 3 ? { l: "Attendance", v: "Watch", cls: "warn" }
+        : { l: "Attendance", v: "Good" });
+  // License expiry
+  if (drv.dl_expires_on) {
+    const ld = Math.floor((new Date(drv.dl_expires_on).getTime() - Date.now()) / 86400000);
+    qf.push(ld < 0 ? { l: "License Expires", v: "Expired", cls: "bad" }
+          : { l: "License Expires", v: `${ld} Days`, cls: ld <= 30 ? "warn" : "" });
+  } else {
+    qf.push({ l: "License Expires", v: "Not on file", cls: "warn" });
+  }
+  // Availability
+  const availDays = ((drv.metadata || {}).availability || {}).days;
+  qf.push({ l: "Availability", v: (Array.isArray(availDays) && availDays.length) ? "Open" : "Not set" });
+  // Next PTO — placeholder until PTO data is wired in.
+  qf.push({ l: "Next PTO", v: "None" });
+  const qfEl = document.getElementById("rr-dd-quickfacts");
+  if (qfEl) {
+    qfEl.innerHTML = qf.map(f => `<span class="dd-qf"><span class="dd-qf-l">${escapeHtml(f.l)}:</span><span class="dd-qf-v ${f.cls || ""}">${escapeHtml(f.v)}</span></span>`).join("");
+    qfEl.classList.add("show");
+  }
 
   // Avatar in the drawer header — initials by default; the photo
   // painter (boot-time MutationObserver) replaces them with the
@@ -17185,6 +17310,7 @@ function renderDriverDrawerTab() {
   if (_ddTab === "availability") renderAvailabilityTab(body, _ddDriver.driver, _ddDriver);
   if (_ddTab === "coaching")     body.innerHTML = renderCoachingTab(_ddDriver.coachings, _ddDriver.driver);
   if (_ddTab === "documents")    body.innerHTML = renderDocumentsTab(_ddDriver.documents, _ddDriver.envelopes);
+  if (_ddTab === "timeline")     body.innerHTML = renderTimelineTab(_ddDriver);
   setDriverDrawerFoot();
 }
 
@@ -21448,6 +21574,37 @@ async function renderAttendanceTab(body, d) {
   tl.sort((a, b) => b.t - a.t);
   const timelineRows = tl.map(x => x.html).join("");
 
+  // ── Attendance score (letter grade) + current step for the summary KPIs.
+  // Operational standing at a glance — the rate/no-shows drive the grade. ──
+  const attGrade = (() => {
+    if (sched === 0) return "—";
+    if (attRate >= 99 && noshow === 0 && callout === 0) return "A+";
+    if (attRate >= 97) return "A";
+    if (attRate >= 94) return "A-";
+    if (attRate >= 90) return "B+";
+    if (attRate >= 86) return "B";
+    if (attRate >= 82) return "B-";
+    if (attRate >= 76) return "C+";
+    if (attRate >= 70) return "C";
+    if (attRate >= 60) return "D";
+    return "F";
+  })();
+  const currentStepLabel = curRung ? standingLabel : "None";
+
+  // ── Recent Attendance Actions — completed coachings, newest first. The
+  // row (and its doc icon) open the coaching record in place (no nav). This
+  // is the primary way managers review attendance history. ──
+  const recentActionRows = coachings.map(c => {
+    const lab = (_COACHING_SEV_LABEL?.[c.severity] || c.severity);
+    const dateStr = new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return `<button type="button" class="att-action-row" data-rr-coaching-record="${escapeHtml(c.id)}">
+      <span class="att-action-mark">${checkSvg}</span>
+      <span class="att-action-label">${escapeHtml(lab)} Coaching</span>
+      <span class="att-action-date">${dateStr}</span>
+      <span class="att-action-doc" title="Open coaching record">${docSvg}</span>
+    </button>`;
+  }).join("");
+
   // ── Section 3: current standing copy ──
   const nextLabel = nextRung ? (_COACHING_SEV_LABEL?.[nextRung.severity] || nextRung.severity) : null;
   const standingNext = nextLabel
@@ -21456,21 +21613,35 @@ async function renderAttendanceTab(body, d) {
 
   body.innerHTML = `
     <style>
-      #rr-dd-body .att-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s-2)}
+      #rr-dd-body .att-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2)}
       #rr-dd-body .att-sum{background:var(--canvas);border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:8px 6px;text-align:center}
       #rr-dd-body .att-sum-val{font-size:17px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1}
+      #rr-dd-body .att-sum-val.grade{color:var(--green)}
+      #rr-dd-body .att-sum-val.step{font-size:13px;text-transform:uppercase;letter-spacing:.02em}
+      #rr-dd-body .att-sum-val.step.on{color:var(--amber)}
       #rr-dd-body .att-sum-lbl{font-size:10px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--text-subtle);margin-top:3px;line-height:1.2}
+      /* Progression = a scannable policy ladder, not a form. Square check
+         boxes read as a disciplinary checklist (□ pending / ✓ reached). */
       #rr-dd-body .att-prog{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
-      #rr-dd-body .att-prog-row{display:grid;grid-template-columns:24px 1fr auto 20px;gap:11px;align-items:center;width:100%;text-align:left;padding:13px 15px;background:var(--surface);border:0;border-top:1px solid var(--border-subtle);font:inherit;margin:0}
+      #rr-dd-body .att-prog-row{display:grid;grid-template-columns:24px 1fr auto 20px;gap:11px;align-items:center;width:100%;text-align:left;padding:11px 15px;background:var(--surface);border:0;border-top:1px solid var(--border-subtle);font:inherit;margin:0}
       #rr-dd-body .att-prog-row:first-child{border-top:0}
       #rr-dd-body button.att-prog-row.done{cursor:pointer;transition:background var(--t-fast)}
       #rr-dd-body button.att-prog-row.done:hover{background:var(--canvas)}
-      #rr-dd-body .att-prog-mark{width:22px;height:22px;border-radius:50%;border:2px solid var(--border-strong);display:inline-flex;align-items:center;justify-content:center;color:#fff;box-sizing:border-box}
+      #rr-dd-body .att-prog-mark{width:20px;height:20px;border-radius:5px;border:2px solid var(--border-strong);display:inline-flex;align-items:center;justify-content:center;color:#fff;box-sizing:border-box}
       #rr-dd-body .att-prog-mark.done{background:var(--green);border-color:var(--green)}
       #rr-dd-body .att-prog-label{font-size:var(--fs-md);font-weight:600;color:var(--text)}
       #rr-dd-body .att-prog-row.future .att-prog-label{color:var(--text-subtle);font-weight:500}
       #rr-dd-body .att-prog-date{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
       #rr-dd-body .att-prog-doc{color:var(--text-muted);display:inline-flex}
+      /* Recent Attendance Actions — compact, clickable coaching list. */
+      #rr-dd-body .att-actions{display:flex;flex-direction:column}
+      #rr-dd-body button.att-action-row{display:grid;grid-template-columns:20px 1fr auto 18px;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--border-subtle);background:transparent;font:inherit;padding:9px 6px;cursor:pointer;transition:background var(--t-fast)}
+      #rr-dd-body button.att-action-row:first-child{border-top:0}
+      #rr-dd-body button.att-action-row:hover{background:var(--canvas)}
+      #rr-dd-body .att-action-mark{width:18px;height:18px;border-radius:5px;background:var(--green);color:#fff;display:inline-flex;align-items:center;justify-content:center}
+      #rr-dd-body .att-action-label{font-size:var(--fs-sm);font-weight:600;color:var(--text);min-width:0}
+      #rr-dd-body .att-action-date{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+      #rr-dd-body .att-action-doc{color:var(--text-muted);display:inline-flex;justify-content:flex-end}
       #rr-dd-body .att-standing{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);padding:14px 16px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--canvas)}
       #rr-dd-body .att-standing-level{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;color:var(--text)}
       #rr-dd-body .att-standing-sub{font-size:var(--fs-sm);color:var(--text-muted);margin-top:3px}
@@ -21489,17 +21660,21 @@ async function renderAttendanceTab(body, d) {
     <div class="dd-section">
       <div class="dd-section-head"><div><div class="dd-section-title">Attendance summary</div><div class="dd-section-sub">Last ${decay} days</div></div></div>
       <div class="att-summary">
-        <div class="att-sum"><div class="att-sum-val">${attRate}%</div><div class="att-sum-lbl">Rate</div></div>
+        <div class="att-sum"><div class="att-sum-val grade">${escapeHtml(attGrade)}</div><div class="att-sum-lbl">Score</div></div>
         <div class="att-sum"><div class="att-sum-val">${sched}</div><div class="att-sum-lbl">Scheduled</div></div>
         <div class="att-sum"><div class="att-sum-val">${callout}</div><div class="att-sum-lbl">Callouts</div></div>
-        <div class="att-sum"><div class="att-sum-val">${late}</div><div class="att-sum-lbl">Late</div></div>
-        <div class="att-sum"><div class="att-sum-val">${noshow}</div><div class="att-sum-lbl">No Shows</div></div>
+        <div class="att-sum"><div class="att-sum-val step${curRung ? " on" : ""}">${escapeHtml(currentStepLabel)}</div><div class="att-sum-lbl">Current Step</div></div>
       </div>
     </div>
 
     <div class="dd-section">
       <div class="dd-section-head"><div><div class="dd-section-title">Attendance progression</div><div class="dd-section-sub">Policy ladder · completed coachings are clickable</div></div></div>
       ${progRows ? `<div class="att-prog">${progRows}</div>` : '<div class="rr-empty-inline">No attendance policy ladder configured.</div>'}
+    </div>
+
+    <div class="dd-section">
+      <div class="dd-section-head"><div><div class="dd-section-title">Recent attendance actions</div><div class="dd-section-sub">Coachings issued · open the record to review</div></div></div>
+      ${recentActionRows ? `<div class="att-actions">${recentActionRows}</div>` : '<div class="rr-empty-inline">No coaching actions recorded yet.</div>'}
     </div>
 
     <div class="dd-section">
@@ -23786,6 +23961,96 @@ function renderDocumentsTab(docs, envelopes) {
         <button class="btn btn-primary" data-rr-doc-upload>Upload</button>
       </div>
       <div>${list || `<div class="rr-empty-inline">No personnel-file documents on file.</div>`}</div>
+    </div>`;
+}
+
+// ── Driver Timeline tab ────────────────────────────────────────────────────
+// Reverse-chronological history of the driver record, stitched from the data
+// already on _ddDriver (hire, coachings, signed documents, employment
+// reports). Designed to be the single source of truth for driver history —
+// new event types slot straight into the `events` list as they're wired in.
+// Read-only (no navigation away from the page).
+function renderTimelineTab(record) {
+  const drv = (record && record.driver) || {};
+  const events = [];
+  const push = (when, label, opts) => {
+    if (!when) return;
+    const t = (when instanceof Date) ? when.getTime() : new Date(when).getTime();
+    if (isNaN(t)) return;
+    events.push({ t, label, sub: (opts && opts.sub) || "", tone: (opts && opts.tone) || "neutral" });
+  };
+
+  // Hire — anchored at noon so a date-only value lands on the right day.
+  if (drv.hire_date) push(new Date(drv.hire_date + "T12:00:00"), "Hired", { tone: "green" });
+
+  // Coachings (all topics) — severity drives the tone.
+  for (const c of (record.coachings || [])) {
+    if (c.archived_at) continue;
+    const lvl = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[c.severity]) || c.severity || "Coaching";
+    const sev = String(c.severity || "").toLowerCase();
+    const tone = (sev === "final" || sev === "termination") ? "red" : "amber";
+    const topic = c.topic ? c.topic.replace(/_/g, " ") : "";
+    push(c.occurred_at, `${lvl} Coaching`, { tone, sub: topic ? topic.charAt(0).toUpperCase() + topic.slice(1) : "" });
+  }
+
+  // Signed documents (e-signature envelopes).
+  for (const e of (record.envelopes || [])) {
+    const title = e.document_templates?.title || "Document";
+    if (e.signed_at)        push(e.signed_at,   `Signed ${title}`,   { tone: "blue" });
+    else if (e.declined_at) push(e.declined_at, `Declined ${title}`, { tone: "red" });
+  }
+
+  // Uploaded personnel-file documents (when a created date is present).
+  for (const x of (record.documents || [])) {
+    const when = x.created_at || x.uploaded_at;
+    if (when) push(when, `Uploaded ${x.label || (x.kind || "document").replace(/_/g, " ")}`, { tone: "blue" });
+  }
+
+  // Employment reports generated.
+  for (const r of (record.empReports || [])) {
+    push(r.generated_at, "Employment report generated", { tone: "blue", sub: r.generated_by_name || "" });
+  }
+
+  events.sort((a, b) => b.t - a.t);   // reverse chronological
+
+  if (!events.length) {
+    return `<div class="dd-section"><div class="dd-section-head"><div><div class="dd-section-title">Timeline</div><div class="dd-section-sub">Driver history · newest first</div></div></div>
+      <div class="rr-empty-inline">No timeline events yet. Hire date, coachings, signed documents, and reports will appear here.</div></div>`;
+  }
+
+  const rows = events.map((ev, i) => {
+    const dateStr = new Date(ev.t).toLocaleDateString(undefined, { month: "short", day: "2-digit" });
+    return `<div class="tl-row${i === events.length - 1 ? " last" : ""}">
+      <span class="tl-date">${escapeHtml(dateStr)}</span>
+      <span class="tl-track"><span class="tl-dot tl-dot-${ev.tone}"></span></span>
+      <div class="tl-body">
+        <div class="tl-label">${escapeHtml(ev.label)}</div>
+        ${ev.sub ? `<div class="tl-sub">${escapeHtml(ev.sub)}</div>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+
+  return `
+    <style>
+      #rr-dd-body .tl{display:flex;flex-direction:column}
+      #rr-dd-body .tl-row{display:grid;grid-template-columns:52px 14px 1fr;gap:var(--s-2-5);align-items:start}
+      #rr-dd-body .tl-date{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+      #rr-dd-body .tl-track{position:relative;display:flex;justify-content:center}
+      #rr-dd-body .tl-track::before{content:"";position:absolute;top:6px;bottom:-2px;left:50%;width:2px;background:var(--border-subtle);transform:translateX(-50%)}
+      #rr-dd-body .tl-row.last .tl-track::before{display:none}
+      #rr-dd-body .tl-dot{position:relative;z-index:1;width:9px;height:9px;border-radius:50%;margin-top:4px;background:var(--text-subtle);box-shadow:0 0 0 3px var(--surface)}
+      #rr-dd-body .tl-dot-blue{background:var(--accent)}
+      #rr-dd-body .tl-dot-green{background:var(--green)}
+      #rr-dd-body .tl-dot-amber{background:var(--amber)}
+      #rr-dd-body .tl-dot-red{background:var(--red)}
+      #rr-dd-body .tl-body{padding-bottom:16px;min-width:0}
+      #rr-dd-body .tl-row.last .tl-body{padding-bottom:0}
+      #rr-dd-body .tl-label{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+      #rr-dd-body .tl-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
+    </style>
+    <div class="dd-section">
+      <div class="dd-section-head"><div><div class="dd-section-title">Timeline</div><div class="dd-section-sub">Driver history · newest first</div></div></div>
+      <div class="tl">${rows}</div>
     </div>`;
 }
 
