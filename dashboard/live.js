@@ -36481,16 +36481,21 @@ async function renderSchedMonthlyView() {
     subEl.textContent = `${fmtShort(gridStart)} – ${fmtShort(gridEnd)}`;
   }
 
-  // Routes planned per day, from OKAMI demand (target_routes summed across
-  // stations for each date). Feeds the "Max Route Count" metric row.
+  // Routes planned per day (OKAMI target_routes summed across stations) and
+  // the current active-team headcount — both feed the metric rows.
   const routesByDate = new Map();
+  let activeDrivers = 0;
   try {
-    const { data: okRows } = await sb.rpc("okami_grid", { p_start: gridStartIso, p_weeks: weeks });
+    const [{ data: okRows }, { count }] = await Promise.all([
+      sb.rpc("okami_grid", { p_start: gridStartIso, p_weeks: weeks }),
+      sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).eq("status", "active"),
+    ]);
     for (const r of (okRows || [])) {
       if (!r || !r.date) continue;
       routesByDate.set(r.date, (routesByDate.get(r.date) || 0) + (Number(r.target_routes) || 0));
     }
-  } catch (_) { /* leave routesByDate empty → cells show — */ }
+    activeDrivers = count || 0;
+  } catch (_) { /* leave empty → cells show — */ }
   const totalRoutesForWeek = (wkStart) => {
     let sum = null;
     for (let i = 0; i < 7; i++) {
@@ -36500,20 +36505,15 @@ async function renderSchedMonthlyView() {
     return sum;
   };
 
-  // Forecast engine projection for this month (populated after a Forecast run).
-  // Coverage % = routes the engine could fill within hour caps (no OT) ÷ total
-  // routes, capped at 100. Shows "—" until a forecast has been run.
-  const forecast = (_rrMonthForecast && _rrMonthForecastAnchor === _rrMonthlyAnchor) ? _rrMonthForecast : null;
+  // Coverage % = best coverage achievable with the current team WITHOUT
+  // overtime ÷ total routes, capped at 100. No-OT capacity = active drivers ×
+  // working days/driver (5). (Adjust _NO_OT_DAYS if your no-OT week differs.)
+  const _NO_OT_DAYS = 5;
   const coverageForWeek = (wkStart) => {
-    if (!forecast) return null;
-    let filled = 0, any = false;
-    for (let i = 0; i < 7; i++) {
-      const c = forecast.get(fmtIsoDate(addDays(wkStart, i)));
-      if (c) { filled += (c.filled || 0); any = true; }
-    }
     const total = totalRoutesForWeek(wkStart);
-    if (!any || !total) return null;
-    return Math.min(100, Math.round((filled / total) * 100)) + "%";
+    if (!total || !activeDrivers) return null;
+    const capacity = activeDrivers * _NO_OT_DAYS;
+    return Math.min(100, Math.round((capacity / total) * 100)) + "%";
   };
 
   // Compact month nav + title for the grid's top-left corner cell. Button ids
