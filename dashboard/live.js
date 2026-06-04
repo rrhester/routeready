@@ -36606,9 +36606,13 @@ function _rrClearMonthForecast() {
 // exactly which days can't be staffed. Fully-covered and finalized weeks keep
 // their saved numbers and are skipped.
 async function _rrForecastMonthCoverage(btn) {
+  console.info("[RouteReady] Staffing forecast: button clicked");
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { toast("DSP not loaded", "warn"); return; }
-  if (btn && btn.dataset.busy === "1") return;
+  if (btn && btn.dataset.busy === "1") { toast("Forecast already running…"); return; }
+  // Immediate, unmistakable feedback that the engine kicked off — the per-week
+  // solve can take a while, so make it obvious the click registered.
+  toast("Running staffing forecast… this can take up to a minute");
 
   // Same grid bounds as renderSchedMonthlyView so the forecast lines up 1:1.
   const anchorIso = _rrMonthlyAnchor
