@@ -4287,6 +4287,26 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
 #view-schedule.rrx-schedule .sched-mw-bodycell.sched-fc-ok    { background: rgba(16, 124, 65, 0.08);  color: #0B5A30; }
 #view-schedule.rrx-schedule .sched-mw-bodycell.sched-fc-watch { background: rgba(202, 168, 17, 0.16);  color: #7A5E0C; }
 #view-schedule.rrx-schedule .sched-mw-bodycell.sched-fc-bad   { background: rgba(193, 40, 40, 0.09);   color: #9A2D2D; }
+/* Editable rows — Capacity Buffer (%) and OT Budget (hrs). */
+#view-schedule.rrx-schedule .sched-fc-inputrow { background: rgba(32, 82, 133, 0.035); }
+#view-schedule.rrx-schedule .sched-fc-inputlabel { display: inline-flex; align-items: center; gap: 5px; }
+#view-schedule.rrx-schedule .sched-fc-help {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto; cursor: help;
+  font-size: 9px; font-weight: 700; color: var(--text-subtle);
+  background: rgba(15, 23, 42, 0.06); border: 1px solid rgba(15, 23, 42, 0.14);
+}
+#view-schedule.rrx-schedule .sched-fc-inputcell { padding: 3px 4px; }
+#view-schedule.rrx-schedule .sched-fc-input {
+  width: 100%; max-width: 54px; box-sizing: border-box;
+  font: inherit; font-size: var(--fs-xs); font-weight: 600; font-variant-numeric: tabular-nums;
+  text-align: center; color: var(--text); background: var(--sch-surface, #fff);
+  border: 1px solid var(--sch-line); border-radius: var(--r-md); padding: 3px 4px;
+}
+#view-schedule.rrx-schedule .sched-fc-input:focus {
+  outline: none; border-color: var(--accent, #205285);
+  box-shadow: 0 0 0 2px rgba(32, 82, 133, 0.18);
+}
 /* Left "Week" gutter — corner cell + each week-range label. */
 /* Corner cell now hosts the month title + the month nav (moved out of the
    old header bar). Stacked, left-aligned, with the calendar's natural padding. */
@@ -4497,16 +4517,50 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
    under it (the 13-week table is short — no full-viewport stretch). */
 #view-schedule.rrx-schedule .rr-fc-layout .sched-monthly-shell { height: auto; min-height: 0; }
 #view-schedule.rrx-schedule .rr-fc-layout .sched-monthly-grid { flex: 0 0 auto; overflow: visible; }
-#view-schedule.rrx-schedule .rr-fc-chart { margin-top: 14px; }
+/* Chart sits snug under the table. Transparent 1px side borders mirror the
+   table grid's 1px border so the chart's columns inset identically and line
+   up 1:1 with the week columns above. */
+#view-schedule.rrx-schedule .rr-fc-chart {
+  margin-top: 4px; box-sizing: border-box;
+  border-left: 1px solid transparent; border-right: 1px solid transparent;
+}
 #view-schedule.rrx-schedule .rr-fcc-title {
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--text-muted); margin-bottom: 4px;
+  color: var(--text-muted); margin-bottom: 2px; padding-left: 210px;
+  display: flex; align-items: center; gap: 10px;
 }
-#view-schedule.rrx-schedule .rr-fcc-svg { width: 100%; height: auto; display: block; }
-#view-schedule.rrx-schedule .rr-fcc-grid { stroke: rgba(15, 23, 42, 0.08); stroke-width: 1; }
-#view-schedule.rrx-schedule .rr-fcc-grid.zero { stroke: rgba(15, 23, 42, 0.22); }
-#view-schedule.rrx-schedule .rr-fcc-ylbl { font-size: 10px; fill: var(--text-subtle); }
-#view-schedule.rrx-schedule .rr-fcc-xlbl { font-size: 11px; font-weight: 600; fill: var(--text-muted); }
-#view-schedule.rrx-schedule .rr-fcc-tag { font-size: 8px; font-weight: 700; letter-spacing: .04em; fill: var(--text-subtle); text-transform: uppercase; }
-#view-schedule.rrx-schedule .rr-fcc-bar.pos { fill: #2E9E5B; }
-#view-schedule.rrx-schedule .rr-fcc-bar.neg { fill: #D6493F; }
+#view-schedule.rrx-schedule .rr-fcc-legend {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text-subtle);
+}
+#view-schedule.rrx-schedule .rr-fcc-legend-line {
+  width: 16px; height: 0; border-top: 2px dashed #205285; display: inline-block;
+}
+/* HTML grid chart — same column template as the table so bars align 1:1. */
+#view-schedule.rrx-schedule .rr-fcc-grid-row { display: grid; align-items: start; }
+#view-schedule.rrx-schedule .rr-fcc-axis { display: flex; justify-content: flex-end; }
+#view-schedule.rrx-schedule .rr-fcc-axis-scale {
+  display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end;
+  padding-right: 10px; font-size: 10px; font-weight: 600; color: var(--text-subtle); font-variant-numeric: tabular-nums;
+}
+#view-schedule.rrx-schedule .rr-fcc-col { display: flex; flex-direction: column; align-items: stretch; min-width: 0; }
+#view-schedule.rrx-schedule .rr-fcc-plot { position: relative; width: 100%; }
+#view-schedule.rrx-schedule .rr-fcc-zero {
+  position: absolute; left: 0; right: 0; height: 0; border-top: 1.5px solid rgba(15, 23, 42, 0.22);
+}
+#view-schedule.rrx-schedule .rr-fcc-bar {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  width: 58%; max-width: 40px; border-radius: 3px;
+}
+#view-schedule.rrx-schedule .rr-fcc-bar.pos { background: #2E9E5B; }
+#view-schedule.rrx-schedule .rr-fcc-bar.neg { background: #D6493F; }
+#view-schedule.rrx-schedule .rr-fcc-bufline {
+  position: absolute; left: 8%; right: 8%; height: 0; border-top: 2px dashed #205285;
+}
+#view-schedule.rrx-schedule .rr-fcc-xlbl {
+  text-align: center; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-top: 5px;
+}
+#view-schedule.rrx-schedule .rr-fcc-tag {
+  text-align: center; font-size: 8px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--text-subtle); min-height: 11px;
+}
