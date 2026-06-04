@@ -4062,17 +4062,21 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
    grid never scrolls — every cell flexes to fill its track.
    ============================================================ */
 
+/* The monthly sub-view fills the exact space the chrome leaves (it's a flex
+   item in the schedule body) and the shell fills it in turn — so the grid is
+   bounded precisely with NO page overshoot/scroll, and the grid's header row
+   stays pinned at the top. (Replaces a hand-tuned `calc(100vh - 260px)` that
+   slightly overshot and left a small scroll.) */
+#view-schedule.rrx-schedule #sched-sub-monthly[style*="block"] {
+  display: flex !important;
+  flex-direction: column;
+  overflow: hidden;
+}
 #view-schedule.rrx-schedule .sched-monthly-shell {
   display: flex;
   flex-direction: column;
-  /* Fit the entire 6×7 grid + the month header strip on screen
-     without scrolling. Buffer = topbar (44px) + page header
-     (~80px) + KPI strip (~70px) + cmd ribbon (~70px) + gap.
-     The dynamic viewport unit (dvh) handles mobile chrome
-     correctly; the vh fallback keeps older browsers sensible. */
-  height: calc(100vh - 260px);
-  height: calc(100dvh - 260px);
-  min-height: 420px;
+  flex: 1 1 auto;
+  min-height: 0;
   gap: 8px;
   padding-bottom: 8px;
 }
