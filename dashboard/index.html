@@ -22973,6 +22973,12 @@ body.rr-cmdk-open{ overflow:hidden }
                 <div class="sched-monthly-sub">Month-at-a-glance · click a day to drill in</div>
               </div>
               <div class="sched-monthly-nav">
+                <button type="button" class="btn btn-sm" id="rr-sched-monthly-forecast" title="Simulate Smart Fill across the month to project staffing gaps (no assignments are saved)">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                  Forecast staffing
+                </button>
+                <button type="button" class="btn btn-sm" id="rr-sched-monthly-forecast-clear" style="display:none" title="Clear the staffing forecast and show saved coverage">Clear forecast</button>
+                <span class="sched-monthly-nav-sep" aria-hidden="true"></span>
                 <button type="button" class="sched-monthly-nav-btn" id="rr-sched-monthly-prev" aria-label="Previous month"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
                 <button type="button" class="sched-monthly-nav-today" id="rr-sched-monthly-today">This month</button>
                 <button type="button" class="sched-monthly-nav-btn" id="rr-sched-monthly-next" aria-label="Next month"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
