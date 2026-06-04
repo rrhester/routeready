@@ -4310,6 +4310,12 @@ function renderDriverTable(rows, error) {
 // the bottom of the viewport — measure the split's actual top so we don't
 // depend on a hand-tuned offset for the chrome height. Each pane scrolls
 // internally within this height, so the page itself never scrolls.
+//
+// The split lives inside `.page`, which carries a bottom padding (--s-8).
+// We subtract that real padding (read from the computed style) so the split
+// bottom + the page's bottom padding land flush with the viewport edge —
+// otherwise the leftover padding overflows the scroll container and the
+// whole page creeps a few px. floor() avoids a sub-pixel rounding overshoot.
 function _rrSizeRosterSplit() {
   const split = document.getElementById("rr-roster-split");
   if (!split || split.offsetParent === null) return;            // not on a visible roster
@@ -4317,8 +4323,10 @@ function _rrSizeRosterSplit() {
     split.style.maxHeight = "";                                 // mobile stacks + flows
     return;
   }
+  const page = split.closest(".page");
+  const padBottom = page ? (parseFloat(getComputedStyle(page).paddingBottom) || 0) : 12;
   const top = split.getBoundingClientRect().top;
-  const h = Math.max(280, Math.round(window.innerHeight - top - 12)); // ~12px bottom gap
+  const h = Math.max(280, Math.floor(window.innerHeight - top - padBottom));
   split.style.maxHeight = h + "px";
 }
 window.addEventListener("resize", () => { try { _rrSizeRosterSplit(); } catch (_) {} });
