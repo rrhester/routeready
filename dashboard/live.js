@@ -37136,6 +37136,46 @@ async function _rrForecastMonthCoverage(btn) {
   }
 }
 
+// Small progress popover anchored just below the Forecast button. The 13-week
+// run takes a moment, so it reports "Computing… week N/13" here instead of
+// rewriting the tile label (which would resize the button).
+const _rrForecastProgress = {
+  _el: null, _onMove: null,
+  _anchor() {
+    return document.querySelector('#view-schedule [data-rr-v2="smartfill"]')
+      || document.getElementById("rr-sched-smartfill-h");
+  },
+  _place() {
+    const a = this._anchor();
+    if (!a || !this._el) return;
+    const r = a.getBoundingClientRect();
+    this._el.style.top  = `${Math.round(r.bottom + 8)}px`;
+    this._el.style.left = `${Math.round(r.left + r.width / 2)}px`;
+  },
+  show(text) {
+    if (!this._el) {
+      this._el = document.createElement("div");
+      this._el.className = "rr-fc-progress-pop";
+      this._el.setAttribute("role", "status");
+      this._el.innerHTML = `<span class="rr-fc-progress-dot"></span><span class="rr-fc-progress-txt"></span>`;
+      document.body.appendChild(this._el);
+      this._onMove = () => this._place();
+      window.addEventListener("scroll", this._onMove, true);
+      window.addEventListener("resize", this._onMove);
+    }
+    this._el.querySelector(".rr-fc-progress-txt").textContent = text;
+    this._place();
+  },
+  hide() {
+    if (this._onMove) {
+      window.removeEventListener("scroll", this._onMove, true);
+      window.removeEventListener("resize", this._onMove);
+      this._onMove = null;
+    }
+    if (this._el) { this._el.remove(); this._el = null; }
+  },
+};
+
 // On-demand: compute "Required Drivers" across the 13-week horizon by running
 // Smart Fill week by week. For each week we generate the OKAMI shifts and run
 // the engine (no-OT cap) — the distinct drivers it placed plus the inverse of
@@ -37147,17 +37187,15 @@ async function _rrRunRequiredDrivers(btn) {
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { toast("DSP not loaded", "warn"); return; }
   if (btn && btn.dataset.busy === "1") { toast("Required-drivers run already in progress…"); return; }
-  toast("Computing required drivers across 13 weeks… this can take a minute");
 
   const WEEKS = 13;
   const today = new Date();
   const gridStart = new Date(fmtIsoDate(addDays(today, -today.getDay())) + "T12:00:00");
   const gridStartIso = fmtIsoDate(gridStart);
 
-  const lblEls = _rrSmartFillLabelEls();
-  const origLabel = lblEls.length ? lblEls[0].textContent : "";
-  const setProg = (t) => { if (lblEls.length) lblEls.forEach((el) => { el.textContent = t; }); else if (btn) btn.innerHTML = escapeHtml(t); };
-  const restore = () => { if (lblEls.length) lblEls.forEach((el) => { el.textContent = origLabel; }); else if (btn) btn.innerHTML = origLabel; };
+  // Progress reports into a small popover under the button (no label resize).
+  const setProg = (t) => _rrForecastProgress.show(t);
+  const restore = () => _rrForecastProgress.hide();
   if (btn) { btn.dataset.busy = "1"; btn.dataset.rrBusy = "1"; btn.disabled = true; }
   setProg("Computing…");
 
@@ -37198,13 +37236,12 @@ async function _rrRunRequiredDrivers(btn) {
     }
   } catch (err) {
     toast("Required-drivers run failed: " + (err?.message || err), "warn");
-    if (btn) { btn.dataset.busy = ""; btn.dataset.rrBusy = ""; btn.disabled = false; restore(); }
-    _rrWhatIfOptions = _savedWhatIf; _schedStart = _savedSchedStart; restoreRules();
-    return;
+    return;   // finally still runs: re-enables the button, dismisses the popover, restores state
   } finally {
+    if (btn) { btn.dataset.busy = ""; btn.dataset.rrBusy = ""; btn.disabled = false; }
+    restore();   // always dismiss the progress popover
     _rrWhatIfOptions = _savedWhatIf; _schedStart = _savedSchedStart; restoreRules();
   }
-  if (btn) { btn.dataset.busy = ""; btn.dataset.rrBusy = ""; btn.disabled = false; restore(); }
   _rrRequiredByWeek = reqByWeek;
   _rrRequiredAnchorIso = gridStartIso;
   toast("Required drivers computed", "success");
