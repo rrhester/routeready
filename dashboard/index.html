@@ -12498,6 +12498,22 @@ body.rr-cmdk-open{ overflow:hidden }
         #view-onboarding-ops .ob-att-rules-body{
           padding:14px 18px 16px;
         }
+        /* The Attendance policy lives under the Roster icon's Rules
+           chevron. Per operator request this popover does NOT blur the
+           page behind it — opaque surface instead of the acrylic blur the
+           other rules popovers use — and EMERGES (slight rise + scale)
+           rather than snapping open. */
+        #view-onboarding-ops #rr-roster-rules-popover{
+          background:#fff;
+          -webkit-backdrop-filter:none;backdrop-filter:none;
+          border:1px solid rgba(15,23,42,.12);
+          transform-origin:top left;
+          animation:rr-roster-rules-emerge .18s ease both;
+        }
+        @keyframes rr-roster-rules-emerge{
+          from{opacity:0;transform:translateY(-6px) scale(.97)}
+          to{opacity:1;transform:none}
+        }
         /* Onboarding-steps blueprint editor · popover flyout. */
         #view-onboarding-ops .ob-rules-popover{
           /* Anchored to the tab's left edge — the ribbon is left-aligned,
@@ -12596,50 +12612,30 @@ body.rr-cmdk-open{ overflow:hidden }
                   <button type="button" class="ob-rules-foot" id="rr-roster-rules-toggle"
                           aria-haspopup="dialog" aria-expanded="false"
                           aria-controls="rr-roster-rules-popover"
-                          title="Roster display rules · table density">
+                          title="Attendance policy · occurrence rules, thresholds, auto-coaching">
                     Rules
                     <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
-                  <!-- Roster display rules · table density picker.
-                       Mirrors the Schedule grid's density popover
-                       (Standard / Compact / Ultra-compact), persisted
-                       in localStorage('rr-roster-density') and applied
-                       via body classes rr-roster-compact /
-                       rr-roster-ultra-compact. -->
-                  <div id="rr-roster-rules-popover" class="ob-att-rules-popover" role="dialog" aria-modal="false" aria-label="Roster display" hidden>
+                  <!-- Attendance policy builder · occurrence rules, point
+                       weights, thresholds, auto-coaching ladder. Lives under
+                       the Roster icon's Rules chevron (replacing the old
+                       table-density picker) per operator request. The builder
+                       DOM (#att-pane-policy) is loaded by loadAttendancePolicy();
+                       _toggleRosterRules() lazy-fires it on first open. This
+                       popover is opaque (NO backdrop blur) and emerges — see
+                       the #rr-roster-rules-popover CSS override. -->
+                  <div id="rr-roster-rules-popover" class="ob-att-rules-popover" role="dialog" aria-modal="false" aria-label="Attendance policy" hidden>
                     <div class="ob-att-rules-head">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
-                      <span class="ob-att-rules-head-title">Roster display</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                      <span class="ob-att-rules-head-title">Attendance policy</span>
                     </div>
                     <div class="ob-att-rules-body">
-                      <fieldset class="rr-sched-density-fset" role="radiogroup" aria-label="Table density">
-                        <legend style="font:600 13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-primary, #242424);margin-bottom:6px">Table density</legend>
-                        <p style="font:13px/18px var(--rr-font-family, 'Segoe UI');color:var(--rr-fg-secondary, #605E5C);margin:0 0 12px">Pick how many drivers you want on screen at once.</p>
-
-                        <label class="rr-sched-density-opt">
-                          <input type="radio" name="rr-roster-density" value="standard" checked />
-                          <span class="rr-sched-density-opt-body">
-                            <span class="rr-sched-density-opt-title">Standard</span>
-                            <span class="rr-sched-density-opt-sub">Roomy rows with avatars at full size. Easiest to scan.</span>
-                          </span>
-                        </label>
-
-                        <label class="rr-sched-density-opt">
-                          <input type="radio" name="rr-roster-density" value="compact" />
-                          <span class="rr-sched-density-opt-body">
-                            <span class="rr-sched-density-opt-title">Compact</span>
-                            <span class="rr-sched-density-opt-sub">~25% shorter rows. ~50% more drivers visible at once.</span>
-                          </span>
-                        </label>
-
-                        <label class="rr-sched-density-opt">
-                          <input type="radio" name="rr-roster-density" value="ultra" />
-                          <span class="rr-sched-density-opt-body">
-                            <span class="rr-sched-density-opt-title">Ultra-compact</span>
-                            <span class="rr-sched-density-opt-sub">Slimmest rows. Maximum drivers per screen for an overview read.</span>
-                          </span>
-                        </label>
-                      </fieldset>
+                      <div style="font-size:var(--fs-sm);color:var(--text-subtle);margin:0 0 12px;line-height:1.5">
+                        Master toggle, occurrence rules (callout / no-show / late point weights), thresholds, auto-coaching ladder, and tardy / NCNS timing.
+                      </div>
+                      <div id="att-pane-policy">
+                        <div class="rr-loading">Loading policy</div>
+                      </div>
                     </div>
                   </div>
                 </div>

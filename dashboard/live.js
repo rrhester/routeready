@@ -30567,6 +30567,7 @@ document.addEventListener("click", (e) => {
 // pattern as the Schedule density picker. Persisted in
 // localStorage('rr-roster-density'). Anchored under the Roster
 // tile's Rules footer button.
+let _rosterRulesPolicyLoaded = false;
 function _toggleRosterRules(force) {
   const pop = document.getElementById("rr-roster-rules-popover");
   const toggle = document.getElementById("rr-roster-rules-toggle");
@@ -30574,6 +30575,15 @@ function _toggleRosterRules(force) {
   const next = (typeof force === "boolean") ? force : pop.hidden;
   pop.hidden = !next;
   if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  // The Roster Rules popover now hosts the Attendance policy builder —
+  // lazy-load it on first open so the controls populate without a trip
+  // to Settings (same pattern the Attendance tile used before the move).
+  if (next && !_rosterRulesPolicyLoaded) {
+    _rosterRulesPolicyLoaded = true;
+    if (typeof loadAttendancePolicy === "function") {
+      try { loadAttendancePolicy(); } catch (err) { console.warn("loadAttendancePolicy:", err); }
+    }
+  }
   return next;
 }
 window._rrToggleRosterRules = _toggleRosterRules;
