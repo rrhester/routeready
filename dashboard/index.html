@@ -94,7 +94,7 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=1">
-<link rel="stylesheet" href="schedule-rrx.css?v=85">
+<link rel="stylesheet" href="schedule-rrx.css?v=86">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -22967,6 +22967,9 @@ body.rr-cmdk-open{ overflow:hidden }
              sized to fill the viewport without scrolling — cells
              flex evenly within the available row height. -->
         <div class="sched-subview" id="sched-sub-monthly" style="display:none">
+          <!-- Primary Forecast view · weekly-column staffing table (populated
+               by _rrRenderForecastTable). The month calendar follows below. -->
+          <div id="rr-sched-forecast-table"></div>
           <div class="sched-monthly-shell" id="rr-sched-monthly-shell">
             <!-- Month title + month nav now live in the grid's top-left corner
                  cell (rendered by renderSchedMonthlyView). The Forecast action
@@ -35884,7 +35887,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260604-fcast5"></script>
+<script type="module" src="./live.js?v=20260604-fctable"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
