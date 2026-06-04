@@ -36481,8 +36481,24 @@ async function renderSchedMonthlyView() {
     subEl.textContent = `${fmtShort(gridStart)} – ${fmtShort(gridEnd)}`;
   }
 
-  // Weeks-as-columns with a blank body needs no data fetch — week ranges are
-  // derived from dates. (Live pills were removed from this view per request.)
+  // Routes planned per day, from OKAMI demand (target_routes summed across
+  // stations for each date). Feeds the "Max Route Count" metric row.
+  const routesByDate = new Map();
+  try {
+    const { data: okRows } = await sb.rpc("okami_grid", { p_start: gridStartIso, p_weeks: weeks });
+    for (const r of (okRows || [])) {
+      if (!r || !r.date) continue;
+      routesByDate.set(r.date, (routesByDate.get(r.date) || 0) + (Number(r.target_routes) || 0));
+    }
+  } catch (_) { /* leave routesByDate empty → cells show — */ }
+  const maxRoutesForWeek = (wkStart) => {
+    let mx = null;
+    for (let i = 0; i < 7; i++) {
+      const v = routesByDate.get(fmtIsoDate(addDays(wkStart, i)));
+      if (v != null) mx = Math.max(mx == null ? 0 : mx, v);
+    }
+    return mx;
+  };
 
   // Compact month nav + title for the grid's top-left corner cell. Button ids
   // are preserved so the existing prev/next/this-month handlers keep working.
@@ -36509,13 +36525,25 @@ async function renderSchedMonthlyView() {
   }
   let html = `<div class="cal-grid head sched-mw-row" style="${colTemplate}">${head}</div>`;
 
-  // Blank body rows for now — metric rows (Drivers Needed, Scheduled, …) will
-  // fill these and the left gutter labels in a later step.
-  for (let r = 0; r < 4; r++) {
+  // Metric rows. Each = a left-gutter label + one value per week column.
+  const metricRow = (label, valueFn) => {
+    let cells = `<div class="cal-cell-head cal-row-label sched-mw-rowlabel">${escapeHtml(label)}</div>`;
+    for (let w = 0; w < weeks; w++) {
+      const v = valueFn(addDays(gridStart, w * 7));
+      cells += `<div class="cal-cell sched-mw-bodycell">${v == null ? "—" : escapeHtml(String(v))}</div>`;
+    }
+    return `<div class="cal-grid sched-mw-row sched-mw-weekrow" style="${colTemplate}">${cells}</div>`;
+  };
+  const blankRow = () => {
     let cells = `<div class="cal-cell-head cal-row-label sched-mw-rowlabel"></div>`;
     for (let w = 0; w < weeks; w++) cells += `<div class="cal-cell sched-mw-bodycell"></div>`;
-    html += `<div class="cal-grid sched-mw-row sched-mw-weekrow" style="${colTemplate}">${cells}</div>`;
-  }
+    return `<div class="cal-grid sched-mw-row sched-mw-weekrow" style="${colTemplate}">${cells}</div>`;
+  };
+
+  // Row 1 · Max Route Count — peak daily planned routes within the week.
+  html += metricRow("Max Route Count", maxRoutesForWeek);
+  // Remaining metric rows land here in later steps; blank placeholders for now.
+  for (let r = 0; r < 3; r++) html += blankRow();
   gridEl.innerHTML = html;
 }
 window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
