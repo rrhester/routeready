@@ -36618,22 +36618,32 @@ function _rrClearWeekForecast(wkStartIso) {
 }
 
 // On the Monthly sub-view the Smart Fill command tile acts as "Forecast"
-// (simulated month-wide fill). Swap its label + title; the click handler reads
-// the same monthly-active check to route to the forecast. Restores on exit.
+// (simulated month-wide fill). The visible tile is the V2 tile
+// ([data-rr-v2="smartfill"]); the legacy #rr-sched-smartfill-h is hidden but
+// carries the click logic, so we relabel BOTH. Restores on exit.
+function _rrSmartFillTiles() {
+  return [
+    document.getElementById("rr-sched-smartfill-h"),
+    document.querySelector('#view-schedule [data-rr-v2="smartfill"]'),
+  ].filter(Boolean);
+}
+function _rrSmartFillLabelEls() {
+  return _rrSmartFillTiles()
+    .map((t) => t.querySelector(".sf-btn-label") || t.querySelector("span"))
+    .filter(Boolean);
+}
 function _rrSetSmartFillTileMode(isMonthly) {
-  const tile = document.getElementById("rr-sched-smartfill-h");
-  if (!tile) return;
-  const lbl = tile.querySelector(".sf-btn-label");
-  if (isMonthly) {
-    if (!tile.dataset.sfOrigTitle) tile.dataset.sfOrigTitle = tile.getAttribute("title") || "";
-    if (lbl && !tile.dataset.sfOrigLabel) tile.dataset.sfOrigLabel = lbl.textContent;
-    if (lbl) lbl.textContent = "Forecast";
-    tile.setAttribute("title", "Forecast staffing across the month — simulated Smart Fill, nothing is saved");
-    tile.classList.add("rr-sf-forecast-mode");
-  } else {
-    if (lbl && tile.dataset.sfOrigLabel != null) lbl.textContent = tile.dataset.sfOrigLabel;
-    if (tile.dataset.sfOrigTitle != null) tile.setAttribute("title", tile.dataset.sfOrigTitle);
-    tile.classList.remove("rr-sf-forecast-mode");
+  for (const tile of _rrSmartFillTiles()) {
+    const lbl = tile.querySelector(".sf-btn-label") || tile.querySelector("span");
+    if (!lbl) continue;
+    if (isMonthly) {
+      if (tile.dataset.sfOrigLabel == null) tile.dataset.sfOrigLabel = lbl.textContent;
+      lbl.textContent = "Forecast";
+      tile.classList.add("rr-sf-forecast-mode");
+    } else {
+      if (tile.dataset.sfOrigLabel != null) { lbl.textContent = tile.dataset.sfOrigLabel; delete tile.dataset.sfOrigLabel; }
+      tile.classList.remove("rr-sf-forecast-mode");
+    }
   }
 }
 function _rrMonthlyViewActive() {
@@ -36670,13 +36680,15 @@ async function _rrForecastMonthCoverage(btn) {
   const gridStartIso = fmtIsoDate(gridStart);
   const weeks = Math.round((gridEnd - gridStart) / 86400000 + 1) / 7;
 
-  // Progress shows on the tile's label span (so its icon isn't clobbered);
-  // falls back to the button's text for any other trigger.
-  const lblEl = btn ? btn.querySelector(".sf-btn-label") : null;
-  const origLabel = lblEl ? lblEl.textContent : (btn ? btn.innerHTML : "");
-  const setProg = (txt) => { if (lblEl) lblEl.textContent = txt; else if (btn) btn.innerHTML = escapeHtml(txt); };
-  const restoreLabel = () => { if (lblEl) lblEl.textContent = origLabel; else if (btn) btn.innerHTML = origLabel; };
-  if (btn) { btn.dataset.busy = "1"; btn.disabled = true; }
+  // Progress shows on BOTH Smart Fill tile labels (the visible V2 tile + the
+  // hidden legacy), so the operator sees "Forecasting… week N/total" on the
+  // real button. rrBusy keeps the V2 tile's spin animation running for the
+  // whole run (its spinner watches that flag).
+  const lblEls = _rrSmartFillLabelEls();
+  const origLabel = lblEls.length ? lblEls[0].textContent : "";
+  const setProg = (txt) => { if (lblEls.length) lblEls.forEach((el) => { el.textContent = txt; }); else if (btn) btn.innerHTML = escapeHtml(txt); };
+  const restoreLabel = () => { if (lblEls.length) lblEls.forEach((el) => { el.textContent = origLabel; }); else if (btn) btn.innerHTML = origLabel; };
+  if (btn) { btn.dataset.busy = "1"; btn.dataset.rrBusy = "1"; btn.disabled = true; }
   setProg("Forecasting…");
 
   // Baseline coverage — finds the gap weeks and provides the fallback numbers
@@ -36685,7 +36697,7 @@ async function _rrForecastMonthCoverage(btn) {
     await sb.rpc("schedule_grid", { p_start: gridStartIso, p_weeks: weeks });
   if (baseErr) {
     toast("Couldn't load coverage: " + baseErr.message, "warn");
-    if (btn) { btn.dataset.busy = ""; btn.disabled = false; restoreLabel(); }
+    if (btn) { btn.dataset.busy = ""; btn.dataset.rrBusy = ""; btn.disabled = false; restoreLabel(); }
     return;
   }
   const baseCov = new Map();
@@ -36758,7 +36770,7 @@ async function _rrForecastMonthCoverage(btn) {
     }
   } catch (err) {
     toast("Forecast failed: " + (err?.message || err), "warn");
-    if (btn) { btn.dataset.busy = ""; btn.disabled = false; restoreLabel(); }
+    if (btn) { btn.dataset.busy = ""; btn.dataset.rrBusy = ""; btn.disabled = false; restoreLabel(); }
     _rrWhatIfOptions = _savedWhatIf;
     _schedStart = _savedSchedStart;
     return;
@@ -36767,7 +36779,7 @@ async function _rrForecastMonthCoverage(btn) {
     _schedStart = _savedSchedStart;
   }
 
-  if (btn) { btn.dataset.busy = ""; btn.disabled = false; restoreLabel(); }
+  if (btn) { btn.dataset.busy = ""; btn.dataset.rrBusy = ""; btn.disabled = false; restoreLabel(); }
 
   // No gap weeks were simulated — nothing to overlay; the month is already
   // covered (or has no demand). Leave the saved view as-is.
