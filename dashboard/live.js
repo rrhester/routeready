@@ -33283,11 +33283,12 @@ document.addEventListener("click", (e) => {
   // operator saw every time they clicked the chevron.
   if (e.target.closest("#rr-sched-smartfill-h") && !e.target.closest("#rr-sched-smartfill-rules-toggle")) {
     e.preventDefault();
-    // On the Monthly sub-view this tile is "Forecast": run the simulated
-    // month-wide staffing projection instead of the weekly auto-fill.
+    // On the Forecast view this tile computes "Required Drivers" — runs Smart
+    // Fill across the 13-week horizon to size the headcount needed to cover
+    // every route. (Replaces the old month coverage projection.)
     if (typeof _rrMonthlyViewActive === "function" && _rrMonthlyViewActive()
-        && typeof _rrForecastMonthCoverage === "function") {
-      _rrForecastMonthCoverage(e.target.closest("#rr-sched-smartfill-h"));
+        && typeof _rrRunRequiredDrivers === "function") {
+      _rrRunRequiredDrivers(e.target.closest("#rr-sched-smartfill-h"));
       return;
     }
     // Manual scheduling: the button is "Fill Shifts" — carry forward
@@ -36479,6 +36480,10 @@ let _rrForecastTurnoverPct = (() => {
 })();
 // Capacity breakdown stashed by the table render for the Capacity Details tab.
 let _rrCapacityModel = null;
+// Required Drivers (Smart Fill demand) — computed on demand by the Forecast
+// button across 13 weeks. Map(weekStartIso → drivers to cover all routes).
+let _rrRequiredByWeek = null;
+let _rrRequiredAnchorIso = null;
 // Stash of the live Schedule KPI strip while the Forecast view overwrites it
 // with workforce KPIs, so it's restored on the way out.
 let _rrSchedKpiStash = null;
@@ -36717,19 +36722,28 @@ async function renderSchedMonthlyView() {
     callOffRate = tot > 0 ? off / tot : 0;
   } catch (_) { /* leave empty → cells show — */ }
 
-  const target = _rrForecastTarget;
-  const targetPct = Math.round(target * 100);
-  // Forecasted routes for a week = peak daily route count that week (you staff
-  // headcount to the busiest day).
+  // Forecasted Routes = the week's TOTAL routes: sum the week's daily OKAMI
+  // inputs. When a week has only a single day populated, that's the planned
+  // daily route count for the week → multiply by 7 for the weekly estimate.
   const routesForWeek = (wkStart) => {
-    let mx = null;
+    const vals = [];
     for (let i = 0; i < 7; i++) {
       const v = routesByDate.get(fmtIsoDate(addDays(wkStart, i)));
-      if (v != null && v > 0) mx = Math.max(mx == null ? 0 : mx, v);
+      if (v != null && v > 0) vals.push(v);
     }
-    return mx;
+    if (!vals.length) return null;
+    if (vals.length === 1) return vals[0] * 7;
+    return vals.reduce((a, b) => a + b, 0);
   };
-  const requiredForWeek = (wkStart) => { const r = routesForWeek(wkStart); return r == null ? null : Math.ceil(r * target); };
+  // Required Drivers = Smart Fill demand (drivers to cover ALL daily routes),
+  // computed on demand by the Forecast button (_rrRunRequiredDrivers) and keyed
+  // to this 13-week window. "—" until it's been run.
+  const reqReady = _rrRequiredByWeek && _rrRequiredAnchorIso === gridStartIso;
+  const requiredForWeek = (wkStart) => {
+    if (!reqReady) return null;
+    const v = _rrRequiredByWeek.get(fmtIsoDate(wkStart));
+    return (v == null) ? null : v;
+  };
 
   // ── Projected capacity per week ──
   // Start from the active headcount, then subtract: approved PTO that week,
@@ -36758,11 +36772,9 @@ async function renderSchedMonthlyView() {
 
   const colTemplate = `grid-template-columns:210px repeat(${WEEKS}, minmax(62px, 1fr))`;
 
-  // Corner cell — table title + the staffing-target control.
+  // Corner cell — table title + a hint to run the Required-Drivers engine.
   const cornerHtml = `<div class="sched-fc-title">13 Week Workforce Forecast</div>`
-    + `<label class="sched-fc-target">Staffing target`
-    +   `<select id="rr-fc-target">${[110,115,120,125].map(p => `<option value="${p}"${p === targetPct ? " selected" : ""}>${p}%</option>`).join("")}</select>`
-    + `</label>`;
+    + `<div class="sched-fc-corner-sub">${reqReady ? "Required drivers from Smart Fill" : "Click Forecast to size required drivers"}</div>`;
 
   // Header row: corner + one column per week (Week N + date range).
   let head = `<div class="cal-cell-head cal-row-label sched-mw-corner sched-fc-corner">${cornerHtml}</div>`;
@@ -36792,7 +36804,7 @@ async function renderSchedMonthlyView() {
   const fmtGap  = (g) => g == null ? "—" : (g > 0 ? "+" + g : String(g));
 
   html += metricRow("Forecasted Routes", routesForWeek);
-  html += metricRow(`Required Drivers (${targetPct}%)`, requiredForWeek);
+  html += metricRow("Required Drivers", requiredForWeek);
   html += metricRow("Projected Capacity", capacityForWeek);
   html += metricRow("Driver Gap", (wk) => fmtGap(gapForWeek(wk)), {
     rowCls: "sched-fc-gaprow",
@@ -36868,21 +36880,14 @@ function _rrRenderForecastChart() {
     const tag = i < LOCK ? "LOCKED" : (i === worstIdx ? "PEAK" : "");
     if (tag) bars += `<text x="${cx.toFixed(1)}" y="${(H - 10).toFixed(1)}" class="rr-fcc-tag" text-anchor="middle">${tag}</text>`;
   }
-  host.innerHTML = `<div class="rr-fcc-title">Driver Gap to ${Math.round(_rrForecastTarget * 100)}% Buffer</div>`
+  host.innerHTML = `<div class="rr-fcc-title">Driver Gap</div>`
     + `<svg viewBox="0 0 ${W} ${H}" class="rr-fcc-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Driver gap by week">${grid}${bars}</svg>`;
 }
 window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
 window.renderSchedMonthlyView    = renderSchedMonthlyView;
-// Staffing-target + turnover controls → persist + re-render.
+// Turnover control → persist + re-render.
 document.addEventListener("change", (e) => {
-  if (e.target && e.target.id === "rr-fc-target") {
-    const p = parseInt(e.target.value, 10);
-    if (Number.isFinite(p)) {
-      _rrForecastTarget = p / 100;
-      try { localStorage.setItem("rr-forecast-staffing-target", String(_rrForecastTarget)); } catch (_) {}
-      renderSchedMonthlyView();
-    }
-  } else if (e.target && e.target.id === "rr-fc-turnover") {
+  if (e.target && e.target.id === "rr-fc-turnover") {
     const v = parseFloat(e.target.value);
     if (Number.isFinite(v) && v >= 0 && v <= 20) {
       _rrForecastTurnoverPct = v;
@@ -37212,6 +37217,81 @@ async function _rrForecastMonthCoverage(btn) {
   } else {
     toast(`Forecast complete · ${gapShifts} shift${gapShifts === 1 ? "" : "s"} short across ${gapDays} day${gapDays === 1 ? "" : "s"}`, "warn");
   }
+}
+
+// On-demand: compute "Required Drivers" across the 13-week horizon by running
+// Smart Fill week by week. For each week we generate the OKAMI shifts and run
+// the engine (no-OT cap) — the distinct drivers it placed plus the inverse of
+// its coverage extrapolates to the headcount needed to cover ALL routes
+// (Required = round(distinct × needed ÷ filled)). Finalized weeks aren't
+// rebuilt — they fall back to a ceil(weekly shifts ÷ 5) estimate. No driver
+// assignments are written (what-if mode); only OKAMI shift generation persists.
+async function _rrRunRequiredDrivers(btn) {
+  const dspId = window.RR?.dsp?.id;
+  if (!dspId) { toast("DSP not loaded", "warn"); return; }
+  if (btn && btn.dataset.busy === "1") { toast("Required-drivers run already in progress…"); return; }
+  toast("Computing required drivers across 13 weeks… this can take a minute");
+
+  const WEEKS = 13;
+  const today = new Date();
+  const gridStart = new Date(fmtIsoDate(addDays(today, -today.getDay())) + "T12:00:00");
+  const gridStartIso = fmtIsoDate(gridStart);
+
+  const lblEls = _rrSmartFillLabelEls();
+  const origLabel = lblEls.length ? lblEls[0].textContent : "";
+  const setProg = (t) => { if (lblEls.length) lblEls.forEach((el) => { el.textContent = t; }); else if (btn) btn.innerHTML = escapeHtml(t); };
+  const restore = () => { if (lblEls.length) lblEls.forEach((el) => { el.textContent = origLabel; }); else if (btn) btn.innerHTML = origLabel; };
+  if (btn) { btn.dataset.busy = "1"; btn.dataset.rrBusy = "1"; btn.disabled = true; }
+  setProg("Computing…");
+
+  const reqByWeek = new Map();
+  const _NO_OT = 40;
+  const _savedWhatIf = _rrWhatIfOptions, _savedSchedStart = _schedStart, _savedSfRules = window._rrSfRulesOverride;
+  const _baseRules = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
+  const restoreRules = () => { if (_savedSfRules === undefined) delete window._rrSfRulesOverride; else window._rrSfRulesOverride = _savedSfRules; };
+  try {
+    _rrWhatIfOptions = { source: "required_drivers" };  // truthy → no assignment writes
+    window._rrSfRulesOverride = { ..._baseRules, woc: true, woc_max_hours: _NO_OT, weeklyHourCap: _NO_OT };
+    for (let w = 0; w < WEEKS; w++) {
+      const wkStart = addDays(gridStart, w * 7);
+      const wkStartIso = fmtIsoDate(wkStart);
+      setProg(`Computing… week ${w + 1}/${WEEKS}`);
+      const { data: cells, error: okErr } = await sb.rpc("okami_grid", { p_start: wkStartIso, p_weeks: 1 });
+      if (okErr || !Array.isArray(cells) || !cells.length) { reqByWeek.set(wkStartIso, null); continue; }
+      let finalized = false;
+      try { const { data: ws } = await sb.rpc("scheduling_settings_for_week", { p_week_start: wkStartIso }); finalized = !!(ws && ws.finalized); } catch (_) {}
+      if (finalized) {
+        let needed = 0;
+        for (const cc of cells) needed += Math.round(Number(cc.needed) || Number(cc.target_routes) || 0);
+        reqByWeek.set(wkStartIso, needed > 0 ? Math.ceil(needed / 5) : null);
+        continue;
+      }
+      const dateStations = new Map();
+      for (const cc of cells) if (cc.station_id) dateStations.set(`${cc.date}|${cc.station_id}`, { date: cc.date, station_id: cc.station_id });
+      if (typeof _markLocalShiftMutation === "function") _markLocalShiftMutation();
+      await Promise.all(Array.from(dateStations.values()).map((d) => sb.rpc("generate_shifts_for_date", { p_date: d.date, p_station_id: d.station_id })));
+      _schedStart = wkStartIso;
+      const { diagnostics } = await autoAssignDriversForWeek();
+      const byDate = (diagnostics && diagnostics.byDate) || {};
+      let needed = 0, filled = 0;
+      for (let i = 0; i < 7; i++) { const bd = byDate[fmtIsoDate(addDays(wkStart, i))]; if (bd) { needed += bd.shifts; filled += bd.assigned; } }
+      const distinct = (diagnostics && diagnostics.distinctDrivers) || 0;
+      const required = filled > 0 ? Math.round(distinct * needed / filled) : (needed > 0 ? Math.ceil(needed / 5) : null);
+      reqByWeek.set(wkStartIso, required);
+    }
+  } catch (err) {
+    toast("Required-drivers run failed: " + (err?.message || err), "warn");
+    if (btn) { btn.dataset.busy = ""; btn.dataset.rrBusy = ""; btn.disabled = false; restore(); }
+    _rrWhatIfOptions = _savedWhatIf; _schedStart = _savedSchedStart; restoreRules();
+    return;
+  } finally {
+    _rrWhatIfOptions = _savedWhatIf; _schedStart = _savedSchedStart; restoreRules();
+  }
+  if (btn) { btn.dataset.busy = ""; btn.dataset.rrBusy = ""; btn.disabled = false; restore(); }
+  _rrRequiredByWeek = reqByWeek;
+  _rrRequiredAnchorIso = gridStartIso;
+  toast("Required drivers computed", "success");
+  renderSchedMonthlyView();
 }
 
 async function autoFillScheduleWeek() {
@@ -38751,6 +38831,13 @@ async function autoAssignDriversForWeek() {
         if (assignedShiftIds.has(es.id)) m[es.date].assigned++;
       }
       return m;
+    })(),
+    // Distinct drivers the engine placed this week (used by the workforce
+    // forecast to size "Required Drivers" = drivers to cover all routes).
+    distinctDrivers: (() => {
+      const ids = new Set();
+      for (const a of (result.assigned_shifts || [])) if (a && a.driver_id) ids.add(a.driver_id);
+      return ids.size;
     })(),
   };
   // Audit: record the final result. Best-effort — wrapped so an audit
