@@ -13762,31 +13762,6 @@ function _rrDriverStatusMeta(s) {
   return map[s] || { label: s ? String(s) : "—", color: "var(--text-muted)" };
 }
 
-// Driver operational health — a single glanceable state for the record
-// header (🟢 Healthy / 🟡 Watch / 🔴 At Risk). UI component only for now;
-// the real scoring (attendance, credential expirations, coaching status,
-// schedule adherence) lands later. This light heuristic just keeps the pill
-// meaningful in the meantime, using what the roster already has cached.
-function _rrDriverHealth(drv) {
-  if (!drv) return { key: "healthy", label: "Healthy" };
-  if (drv.status === "terminated" || drv.status === "inactive") return { key: "risk", label: "At Risk" };
-  if (drv.status === "leave") return { key: "watch", label: "Watch" };
-  const pts = (_rosterAttPoints && _rosterAttPoints.get) ? (_rosterAttPoints.get(drv.id) || 0) : 0;
-  if (pts >= 6) return { key: "risk", label: "At Risk" };
-  if (drv.dl_expires_on) {
-    const days = Math.floor((new Date(drv.dl_expires_on).getTime() - Date.now()) / 86400000);
-    if (days < 0) return { key: "risk", label: "At Risk" };
-    if (days <= 30 || pts >= 3) return { key: "watch", label: "Watch" };
-  } else if (pts >= 3) {
-    return { key: "watch", label: "Watch" };
-  }
-  return { key: "healthy", label: "Healthy" };
-}
-function renderDriverHealthPill(h) {
-  const v = h || { key: "healthy", label: "Healthy" };
-  return `<span class="dd-health dd-health-${v.key}" title="Driver health — ${escapeHtml(v.label)}"><i class="dd-health-dot"></i>${escapeHtml(v.label)}</span>`;
-}
-
 // Roster turnover window — operator can switch via the small clock
 // icon on the Turnover KPI tile. Persisted to localStorage so the
 // choice carries across sessions.
@@ -16902,16 +16877,10 @@ async function openDriverDrawer(driverId, opts) {
       .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.35}
       .dd-meta-sub{font-size:var(--fs-xs);margin-top:1px}
       .dd-head-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto}
-      /* Header action buttons — quiet ghost icon+label pair (Documents / Close). */
+      /* Header action button — quiet ghost icon+label (Close). */
       .dd-act{display:inline-flex;align-items:center;gap:6px;background:none;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font:inherit;font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);cursor:pointer;line-height:1;white-space:nowrap;transition:color var(--t-fast),border-color .12s,background .12s}
       .dd-act:hover{color:var(--text);border-color:var(--text-subtle);background:var(--canvas)}
       .dd-act svg{flex:0 0 auto}
-      /* Driver health pill — glanceable operational state beside the name. */
-      .dd-health{display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.01em;padding:2px 9px;border-radius:var(--r-pill);white-space:nowrap;line-height:1.5}
-      .dd-health-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:0 0 auto}
-      .dd-health-healthy{color:var(--green);background:var(--green-soft)}
-      .dd-health-watch{color:var(--amber);background:var(--amber-soft)}
-      .dd-health-risk{color:var(--red);background:var(--red-soft)}
       .dd-tabs{display:flex;gap:2px;background:var(--canvas);padding:3px;border-radius:var(--r-lg);margin:16px 28px 0;overflow-x:auto;scrollbar-width:none}
       .dd-tabs::-webkit-scrollbar{display:none}
       .dd-tab{flex:0 0 auto;background:transparent;border:0;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-subtle);padding:var(--s-2) 14px;border-radius:var(--r-md);cursor:pointer;transition:background var(--t-fast),color var(--t-fast);white-space:nowrap}
@@ -16980,14 +16949,12 @@ async function openDriverDrawer(driverId, opts) {
           <div class="dd-head-idtext">
             <div class="dd-head-nameline">
               <h3 id="rr-dd-title">Driver record</h3>
-              <span id="rr-dd-health"></span>
             </div>
             <div class="dd-meta" id="rr-dd-sub"></div>
             <div class="dd-meta dd-meta-sub" id="rr-dd-sub2"></div>
           </div>
         </div>
         <div class="dd-head-actions">
-          <button type="button" id="rr-dd-report-btn" class="dd-act" data-rr-dd-tab="documents" title="Open documents" aria-label="Documents" style="display:none"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>Documents</button>
           <button type="button" id="rr-dd-close" class="dd-act" data-rr-dd-close aria-label="Close record"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Close</button>
         </div>
       </div>
@@ -17119,8 +17086,6 @@ async function loadDriverDrawer(driverId) {
   if (!_ddLive()) return; // closed while the RPC was in flight
   _ddDriver = data;
   if (typeof getDriverStationsCached === "function") getDriverStationsCached();   // warm the station-name cache for the Overview tab
-  const reportBtn = document.getElementById("rr-dd-report-btn");
-  if (reportBtn) reportBtn.style.display = "inline-flex";
 
   // Make sure any document steps the blueprint attaches have an envelope
   // for this driver (best-effort) before we list them below.
@@ -17190,10 +17155,6 @@ async function loadDriverDrawer(driverId) {
       ? "Hire date not set"
       : daysSinceHire === 0 ? "Hired today" : `Hired ${daysSinceHire} day${daysSinceHire === 1 ? "" : "s"} ago`;
   }
-
-  // Driver health pill (UI component — see _rrDriverHealth).
-  const healthEl = document.getElementById("rr-dd-health");
-  if (healthEl) healthEl.innerHTML = renderDriverHealthPill(_rrDriverHealth(drv));
 
   // Avatar in the drawer header — initials by default; the photo
   // painter (boot-time MutationObserver) replaces them with the
@@ -21423,38 +21384,11 @@ async function renderAttendanceTab(body, d) {
   const shifts    = shiftsRes?.data    || [];
   const coachings = coachRes?.data     || [];
 
-  // Stats over the policy window.
-  const sched   = shifts.length;
-  const present = shifts.filter(s => s.status === "completed").length;
-  const late    = shifts.filter(s => s.status === "late").length;
-  const callout = shifts.filter(s => s.status === "called_off").length;
-  const noshow  = shifts.filter(s => s.status === "no_show").length;
-  const vto     = shifts.filter(s => s.status === "vto").length;
-  const attRate = sched > 0 ? Math.round(((present + late) / sched) * 100) : 0;
-
-  // Points & ladder rung from the policy blocks.
+  // Points per event from the policy blocks — stashed for the coaching
+  // slide-over opened from the progression ladder.
   const ptsCallout = evalP?.events?.callout ? Number(evalP.events.callout.points) || 0 : 0;
   const ptsNoshow  = evalP?.events?.no_show ? Number(evalP.events.no_show.points) || 0 : 0;
   const ptsLate    = evalP?.events?.late    ? Number(evalP.events.late.points)    || 0 : 0;
-  const points = (callout * ptsCallout) + (noshow * ptsNoshow) + (late * ptsLate);
-
-  let standingLabel = "Clear";
-  let standingClass = "ok";
-  let nextRung = null;
-  let pointsToNext = 0;
-  if (evalP && evalP.enabled) {
-    const rung = (typeof _evalLadderRung === "function") ? _evalLadderRung(evalP, points) : null;
-    if (rung) {
-      standingLabel = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[rung.severity]) || rung.severity;
-      standingClass = rung.severity === "verbal" ? "warn" : "bad";
-    }
-    // Forecast — find the next-higher unreached rung.
-    for (const r of (evalP.ladder || [])) {
-      if (r.threshold > points) { nextRung = r; pointsToNext = r.threshold - points; break; }
-    }
-  } else {
-    standingLabel = "Policy off";
-  }
 
   // ── Canonical level map + coaching lookup for the progression ladder ──
   const SEV_CANON = { note: "note", info: "note", verbal: "verbal", concern: "verbal", written: "written", warning: "written", final: "final", termination: "termination" };
@@ -21463,16 +21397,8 @@ async function renderAttendanceTab(body, d) {
     const lvl = SEV_CANON[c.severity] || c.severity;
     if (!coachByLevel.has(lvl)) coachByLevel.set(lvl, c);
   }
-  const ptsFor = (status) => status === "called_off" ? ptsCallout : status === "no_show" ? ptsNoshow : status === "late" ? ptsLate : 0;
-  const fmtPts = (p) => (p % 1 === 0) ? String(p) : p.toFixed(1);
 
-  // Current ladder rung (drives the Current Standing tone).
-  const curRung = (evalP && evalP.enabled && typeof _evalLadderRung === "function") ? _evalLadderRung(evalP, points) : null;
-  standingLabel = curRung ? (_COACHING_SEV_LABEL?.[curRung.severity] || curRung.severity)
-                : (evalP && evalP.enabled ? "Clear" : "Policy off");
-  const standingTone = !curRung ? "ok" : (SEV_CANON[curRung.severity] === "verbal" ? "warn" : "bad");
-
-  // Stash for the coaching-record slide-over + attendance-event detail popover.
+  // Stash for the coaching-record slide-over (opened from the ladder rows).
   _rrAttState = {
     driverId: d.id, driverName: displayDriverName(d) || "Driver",
     coachings, shifts, decay,
@@ -21481,7 +21407,6 @@ async function renderAttendanceTab(body, d) {
 
   const checkSvg = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
   const docSvg   = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`;
-  const chevSvg  = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.4"><polyline points="9 18 15 12 9 6"/></svg>`;
 
   // ── Section 2: progression ladder (the primary anchor) ──
   const ladder = (evalP && evalP.ladder && evalP.ladder.length) ? evalP.ladder : [];
@@ -21506,51 +21431,6 @@ async function renderAttendanceTab(body, d) {
     </div>`;
   }).join("");
 
-  // ── Section 4: unified history (attendance events + coachings, newest first) ──
-  const tl = [];
-  for (const s of shifts) {
-    if (!["called_off", "no_show", "late"].includes(s.status)) continue;
-    const lab = s.status === "called_off" ? "Callout" : s.status === "no_show" ? "No Show" : "Late Arrival";
-    const p = ptsFor(s.status);
-    tl.push({ t: new Date(s.date + "T12:00:00").getTime(), html:
-      `<button type="button" class="att-hist-row" data-rr-att-event="1" data-att-date="${escapeHtml(s.date)}" data-att-type="${escapeHtml(lab)}" data-att-pts="${p}">
-        <span class="att-hist-date">${new Date(s.date + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-        <span class="att-hist-label">${escapeHtml(lab)}${p > 0 ? ` <span class="att-hist-pts">+${fmtPts(p)}</span>` : ""}</span>
-        <span class="att-hist-chev">${chevSvg}</span>
-      </button>` });
-  }
-  for (const c of coachings) {
-    const lab = (_COACHING_SEV_LABEL?.[c.severity] || c.severity);
-    tl.push({ t: new Date(c.occurred_at).getTime(), html:
-      `<button type="button" class="att-hist-row coach" data-rr-coaching-record="${escapeHtml(c.id)}">
-        <span class="att-hist-date">${new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-        <span class="att-hist-label"><strong>${escapeHtml(lab)} Coaching Issued</strong></span>
-        <span class="att-hist-chev">${docSvg}</span>
-      </button>` });
-  }
-  tl.sort((a, b) => b.t - a.t);
-  const timelineRows = tl.map(x => x.html).join("");
-
-  // ── Recent Attendance Actions — completed coachings, newest first. The
-  // row (and its doc icon) open the coaching record in place (no nav). This
-  // is the primary way managers review attendance history. ──
-  const recentActionRows = coachings.map(c => {
-    const lab = (_COACHING_SEV_LABEL?.[c.severity] || c.severity);
-    const dateStr = new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    return `<button type="button" class="att-action-row" data-rr-coaching-record="${escapeHtml(c.id)}">
-      <span class="att-action-mark">${checkSvg}</span>
-      <span class="att-action-label">${escapeHtml(lab)} Coaching</span>
-      <span class="att-action-date">${dateStr}</span>
-      <span class="att-action-doc" title="Open coaching record">${docSvg}</span>
-    </button>`;
-  }).join("");
-
-  // ── Section 3: current standing copy ──
-  const nextLabel = nextRung ? (_COACHING_SEV_LABEL?.[nextRung.severity] || nextRung.severity) : null;
-  const standingNext = nextLabel
-    ? `<strong>${fmtPts(pointsToNext)}</strong> point${pointsToNext === 1 ? "" : "s"} until ${escapeHtml(nextLabel)} Coaching`
-    : (evalP && evalP.enabled ? "At the top of the policy ladder." : "Attendance policy is off.");
-
   body.innerHTML = `
     <style>
       /* Progression = a scannable policy ladder, not a form. Square check
@@ -21566,66 +21446,11 @@ async function renderAttendanceTab(body, d) {
       #rr-dd-body .att-prog-row.future .att-prog-label{color:var(--text-subtle);font-weight:500}
       #rr-dd-body .att-prog-date{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
       #rr-dd-body .att-prog-doc{color:var(--text-muted);display:inline-flex}
-      /* Recent Attendance Actions — compact, clickable coaching list. */
-      #rr-dd-body .att-actions{display:flex;flex-direction:column}
-      #rr-dd-body button.att-action-row{display:grid;grid-template-columns:20px 1fr auto 18px;gap:10px;align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--border-subtle);background:transparent;font:inherit;padding:9px 6px;cursor:pointer;transition:background var(--t-fast)}
-      #rr-dd-body button.att-action-row:first-child{border-top:0}
-      #rr-dd-body button.att-action-row:hover{background:var(--canvas)}
-      #rr-dd-body .att-action-mark{width:18px;height:18px;border-radius:5px;background:var(--green);color:#fff;display:inline-flex;align-items:center;justify-content:center}
-      #rr-dd-body .att-action-label{font-size:var(--fs-sm);font-weight:600;color:var(--text);min-width:0}
-      #rr-dd-body .att-action-date{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
-      #rr-dd-body .att-action-doc{color:var(--text-muted);display:inline-flex;justify-content:flex-end}
-      #rr-dd-body .att-standing{display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);padding:14px 16px;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--canvas)}
-      #rr-dd-body .att-standing-level{font-size:var(--fs-lg);font-weight:700;letter-spacing:-.01em;color:var(--text)}
-      #rr-dd-body .att-standing-sub{font-size:var(--fs-sm);color:var(--text-muted);margin-top:3px}
-      #rr-dd-body .att-standing-chip{flex:0 0 auto}
-      #rr-dd-body .att-hist{display:flex;flex-direction:column}
-      #rr-dd-body button.att-hist-row{display:grid;grid-template-columns:64px 1fr 18px;gap:var(--s-3);align-items:center;width:100%;text-align:left;border:0;border-top:1px solid var(--border-subtle);background:transparent;font:inherit;padding:11px 6px;cursor:pointer;transition:background var(--t-fast)}
-      #rr-dd-body button.att-hist-row:first-child{border-top:0}
-      #rr-dd-body button.att-hist-row:hover{background:var(--canvas)}
-      #rr-dd-body .att-hist-date{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
-      #rr-dd-body .att-hist-label{font-size:var(--fs-sm);color:var(--text);min-width:0}
-      #rr-dd-body .att-hist-row.coach .att-hist-label{color:var(--text)}
-      #rr-dd-body .att-hist-pts{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)}
-      #rr-dd-body .att-hist-chev{color:var(--text-muted);display:inline-flex;justify-content:flex-end}
     </style>
 
     <div class="dd-section">
       <div class="dd-section-head"><div><div class="dd-section-title">Attendance progression</div><div class="dd-section-sub">Policy ladder · completed coachings are clickable</div></div></div>
       ${progRows ? `<div class="att-prog">${progRows}</div>` : '<div class="rr-empty-inline">No attendance policy ladder configured.</div>'}
-    </div>
-
-    <div class="dd-section">
-      <div class="dd-section-head"><div><div class="dd-section-title">Recent attendance actions</div><div class="dd-section-sub">Coachings issued · open the record to review</div></div></div>
-      ${recentActionRows ? `<div class="att-actions">${recentActionRows}</div>` : '<div class="rr-empty-inline">No coaching actions recorded yet.</div>'}
-    </div>
-
-    <div class="dd-section">
-      <div class="dd-section-head"><div><div class="dd-section-title">Current standing</div></div></div>
-      <div class="att-standing">
-        <div>
-          <div class="att-standing-level">${escapeHtml(standingLabel)}${curRung ? " Coaching" : ""}</div>
-          <div class="att-standing-sub">${standingNext}</div>
-        </div>
-        <span class="att-standing-chip status-pill status-pill-${standingTone === "warn" ? "warning" : standingTone === "bad" ? "danger" : "neutral"}">${points} pt${points === 1 ? "" : "s"}</span>
-      </div>
-    </div>
-
-    <div class="dd-section">
-      <div class="dd-section-head">
-        <div><div class="dd-section-title">Attendance history</div><div class="dd-section-sub">Events &amp; coachings · newest first</div></div>
-        <button type="button" class="btn btn-sm" data-rr-coach-report="1"
-          data-rr-coach-driver="${escapeHtml(d.id)}"
-          data-rr-coach-driver-name="${escapeHtml(displayDriverName(d) || "")}"
-          data-rr-coach-severity="${escapeHtml((evalP?.ladder?.find(r => r.threshold > 0)?.severity) || "verbal")}"
-          data-rr-coach-summary="Attendance · ${callout} callout${callout === 1 ? "" : "s"}, ${noshow} no-show${noshow === 1 ? "" : "s"}, ${late} late"
-          data-rr-coach-points="${points}"
-          data-rr-coach-callouts="${callout}"
-          data-rr-coach-noshows="${noshow}"
-          data-rr-coach-late="${late}"
-          data-rr-coach-occ="${callout + noshow + late}">Send coaching</button>
-      </div>
-      ${timelineRows ? `<div class="att-hist">${timelineRows}</div>` : '<div class="rr-empty-inline">No attendance events or coachings in the last ' + decay + ' days.</div>'}
     </div>`;
 }
 
