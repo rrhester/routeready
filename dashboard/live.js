@@ -21531,23 +21531,6 @@ async function renderAttendanceTab(body, d) {
   tl.sort((a, b) => b.t - a.t);
   const timelineRows = tl.map(x => x.html).join("");
 
-  // ── Attendance score (letter grade) + current step for the summary KPIs.
-  // Operational standing at a glance — the rate/no-shows drive the grade. ──
-  const attGrade = (() => {
-    if (sched === 0) return "—";
-    if (attRate >= 99 && noshow === 0 && callout === 0) return "A+";
-    if (attRate >= 97) return "A";
-    if (attRate >= 94) return "A-";
-    if (attRate >= 90) return "B+";
-    if (attRate >= 86) return "B";
-    if (attRate >= 82) return "B-";
-    if (attRate >= 76) return "C+";
-    if (attRate >= 70) return "C";
-    if (attRate >= 60) return "D";
-    return "F";
-  })();
-  const currentStepLabel = curRung ? standingLabel : "None";
-
   // ── Recent Attendance Actions — completed coachings, newest first. The
   // row (and its doc icon) open the coaching record in place (no nav). This
   // is the primary way managers review attendance history. ──
@@ -21570,13 +21553,6 @@ async function renderAttendanceTab(body, d) {
 
   body.innerHTML = `
     <style>
-      #rr-dd-body .att-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-2)}
-      #rr-dd-body .att-sum{background:var(--canvas);border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:8px 6px;text-align:center}
-      #rr-dd-body .att-sum-val{font-size:17px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.1}
-      #rr-dd-body .att-sum-val.grade{color:var(--green)}
-      #rr-dd-body .att-sum-val.step{font-size:13px;text-transform:uppercase;letter-spacing:.02em}
-      #rr-dd-body .att-sum-val.step.on{color:var(--amber)}
-      #rr-dd-body .att-sum-lbl{font-size:10px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--text-subtle);margin-top:3px;line-height:1.2}
       /* Progression = a scannable policy ladder, not a form. Square check
          boxes read as a disciplinary checklist (□ pending / ✓ reached). */
       #rr-dd-body .att-prog{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
@@ -21613,16 +21589,6 @@ async function renderAttendanceTab(body, d) {
       #rr-dd-body .att-hist-pts{font-size:var(--fs-xs);font-weight:600;color:var(--text-subtle)}
       #rr-dd-body .att-hist-chev{color:var(--text-muted);display:inline-flex;justify-content:flex-end}
     </style>
-
-    <div class="dd-section">
-      <div class="dd-section-head"><div><div class="dd-section-title">Attendance summary</div><div class="dd-section-sub">Last ${decay} days</div></div></div>
-      <div class="att-summary">
-        <div class="att-sum"><div class="att-sum-val grade">${escapeHtml(attGrade)}</div><div class="att-sum-lbl">Score</div></div>
-        <div class="att-sum"><div class="att-sum-val">${sched}</div><div class="att-sum-lbl">Scheduled</div></div>
-        <div class="att-sum"><div class="att-sum-val">${callout}</div><div class="att-sum-lbl">Callouts</div></div>
-        <div class="att-sum"><div class="att-sum-val step${curRung ? " on" : ""}">${escapeHtml(currentStepLabel)}</div><div class="att-sum-lbl">Current Step</div></div>
-      </div>
-    </div>
 
     <div class="dd-section">
       <div class="dd-section-head"><div><div class="dd-section-title">Attendance progression</div><div class="dd-section-sub">Policy ladder · completed coachings are clickable</div></div></div>
