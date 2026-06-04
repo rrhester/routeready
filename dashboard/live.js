@@ -36571,69 +36571,6 @@ async function renderSchedMonthlyView() {
     html += `<div class="cal-grid sched-mw-row sched-mw-weekrow">${cells}</div>`;
   }
   gridEl.innerHTML = html;
-  _rrRenderForecastTable(gridStart, weeks, forecast, covByDate);
-}
-
-// ── Weekly-column staffing-forecast table (the primary Forecast view) ──
-// One row per metric, one column per week of the visible month. Numbers come
-// from the forecast engine projection when a forecast has been run for this
-// month (Optimal = demand the engine sized against availability, Scheduled =
-// what it could fill); otherwise from the saved/scheduled coverage. Restrained
-// styling — white card, thin borders, very subtle red/amber/green only on the
-// gap + coverage cells. Each week is summarized by its peak-demand day (the
-// binding constraint), so the single number reads as a headcount.
-function _rrRenderForecastTable(gridStart, weeks, forecast, covByDate) {
-  const host = document.getElementById("rr-sched-forecast-table");
-  if (!host) return;
-  const cellFor = (iso) => (forecast && forecast.get(iso)) || covByDate.get(iso) || null;
-  const cols = [];
-  for (let w = 0; w < weeks; w++) {
-    const wkStart = addDays(gridStart, w * 7);
-    const wkEnd   = addDays(wkStart, 6);
-    const label = `${wkStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })}–${wkEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-    // Peak-demand day in the week is the binding constraint.
-    let needed = 0, scheduled = 0, hasDemand = false;
-    for (let i = 0; i < 7; i++) {
-      const c = cellFor(fmtIsoDate(addDays(wkStart, i)));
-      if (c && c.needed > 0) {
-        hasDemand = true;
-        if (c.needed > needed || (c.needed === needed && c.filled < scheduled)) { needed = c.needed; scheduled = c.filled; }
-      }
-    }
-    cols.push({ label, hasDemand, needed, scheduled,
-      short: hasDemand ? scheduled - needed : null,
-      cov: hasDemand && needed > 0 ? Math.round((scheduled / needed) * 100) : null });
-  }
-
-  // Tone for a coverage %: green ≥100, amber 90–99, red <90.
-  const covTone = (cov) => cov == null ? "" : (cov >= 100 ? "ok" : (cov >= 90 ? "watch" : "bad"));
-  const num = (n, signed) => n == null ? "—" : (signed && n > 0 ? `+${n}` : String(n));
-
-  const headCells = cols.map((c) => `<th scope="col">${escapeHtml(c.label)}</th>`).join("");
-  const rowNeeded = cols.map((c) => `<td>${num(c.needed && c.hasDemand ? c.needed : null)}</td>`).join("");
-  const rowSched  = cols.map((c) => `<td>${num(c.hasDemand ? c.scheduled : null)}</td>`).join("");
-  const rowShort  = cols.map((c) => `<td class="rr-fc-cell ${covTone(c.cov)}">${num(c.short, true)}</td>`).join("");
-  const rowCov    = cols.map((c) => `<td class="rr-fc-cell ${covTone(c.cov)}">${c.cov == null ? "—" : c.cov + "%"}</td>`).join("");
-
-  const source = forecast ? "Projected · engine forecast" : "Scheduled · current plan";
-  host.innerHTML = `
-    <div class="rr-fc-card">
-      <div class="rr-fc-head">
-        <div class="rr-fc-title">Monthly staffing forecast</div>
-        <div class="rr-fc-sub">${escapeHtml(source)} · peak-demand day per week</div>
-      </div>
-      <div class="rr-fc-scroll">
-        <table class="rr-fc-table">
-          <thead><tr><th scope="col" class="rr-fc-metric">Metric</th>${headCells}</tr></thead>
-          <tbody>
-            <tr><th scope="row" class="rr-fc-metric">Optimal Drivers Needed</th>${rowNeeded}</tr>
-            <tr><th scope="row" class="rr-fc-metric">Scheduled Drivers</th>${rowSched}</tr>
-            <tr><th scope="row" class="rr-fc-metric">Drivers Short / Over</th>${rowShort}</tr>
-            <tr><th scope="row" class="rr-fc-metric">Coverage %</th>${rowCov}</tr>
-          </tbody>
-        </table>
-      </div>
-    </div>`;
 }
 window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
 window.renderSchedMonthlyView    = renderSchedMonthlyView;
