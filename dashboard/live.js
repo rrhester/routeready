@@ -36451,145 +36451,129 @@ let _rrMonthForecastAnchor = null;
 // .cal-cell / .shift-chip) — see the Staff-in-week builder
 // (_rrRenderStaffInWeekGrid) for the same pattern. Self-contained so
 // it can't regress the heavy renderScheduleWeek().
+// Staffing target — Required Drivers = ceil(forecasted routes × target). DSP
+// default 120%; configurable (110/115/120/125). Persisted locally.
+let _rrForecastTarget = (() => {
+  const v = parseFloat(localStorage.getItem("rr-forecast-staffing-target"));
+  return Number.isFinite(v) && v >= 1 && v <= 2 ? v : 1.2;
+})();
+
+// Forecast = 13-week workforce-planning table. Columns = the next 13 weeks
+// (Amazon's OKAMI horizon); rows compare forecasted route demand against
+// projected driver capacity. Reuses the Schedule grid chrome (.cal-grid /
+// .cal-cell / .cal-cell-head) so it reads as a native RouteReady table.
 async function renderSchedMonthlyView() {
-  const gridEl  = document.getElementById("rr-sched-monthly-grid");
+  const gridEl = document.getElementById("rr-sched-monthly-grid");
   if (!gridEl) return;
-  const today = new Date();
-  if (!_rrMonthlyAnchor) {
-    _rrMonthlyAnchor = fmtIsoDate(new Date(today.getFullYear(), today.getMonth(), 1));
-  }
-  const anchor = new Date(_rrMonthlyAnchor + "T12:00:00");
-  const monthLabel = anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const dspId = window.RR?.dsp?.id;
   if (!dspId) { gridEl.innerHTML = '<div class="sched-monthly-loading">DSP not loaded</div>'; return; }
 
-  // Calendar bounds: first day of month → back to the Sunday on/before
-  // it; last day of month → forward to the Saturday on/after it. Render
-  // a whole number of weeks (5 or 6) so each week is a complete row.
-  const monthIdx   = anchor.getMonth();
-  const monthStart = new Date(anchor.getFullYear(), monthIdx, 1);
-  const monthEnd   = new Date(anchor.getFullYear(), monthIdx + 1, 0);
-  const gridStart  = addDays(monthStart, -monthStart.getDay());          // back to Sunday
-  const gridEnd    = addDays(monthEnd,   6 - monthEnd.getDay());         // forward to Saturday
+  const WEEKS = 13;
+  const today = new Date();
+  const gridStart = new Date(fmtIsoDate(addDays(today, -today.getDay())) + "T12:00:00"); // Sunday of this week
   const gridStartIso = fmtIsoDate(gridStart);
-  const weeks = Math.round((gridEnd - gridStart) / 86400000 + 1) / 7;    // 5 or 6
 
-  // Header subtitle (Forecast view) — span the whole month grid, not one week.
   const subEl = document.getElementById("rr-sched-page-sub");
-  if (subEl) {
-    const fmtShort = (d) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    subEl.textContent = `${fmtShort(gridStart)} – ${fmtShort(gridEnd)}`;
-  }
+  if (subEl) subEl.textContent = "Compare Amazon forecast demand against projected staffing capacity.";
 
-  // Routes planned per day, from OKAMI demand (target_routes summed across
-  // stations for each date). Feeds the "Total Routes" metric row.
+  gridEl.innerHTML = '<div class="sched-monthly-loading">Loading forecast…</div>';
+
+  // Data: 13-week OKAMI route demand + current active-driver headcount.
   const routesByDate = new Map();
+  let activeDrivers = 0;
   try {
-    const { data: okRows } = await sb.rpc("okami_grid", { p_start: gridStartIso, p_weeks: weeks });
+    const [{ data: okRows }, { count }] = await Promise.all([
+      sb.rpc("okami_grid", { p_start: gridStartIso, p_weeks: WEEKS }),
+      sb.from("drivers").select("id", { count: "exact", head: true }).eq("dsp_id", dspId).eq("status", "active"),
+    ]);
     for (const r of (okRows || [])) {
       if (!r || !r.date) continue;
       routesByDate.set(r.date, (routesByDate.get(r.date) || 0) + (Number(r.target_routes) || 0));
     }
-  } catch (_) { /* leave routesByDate empty → cells show — */ }
-  const totalRoutesForWeek = (wkStart) => {
-    let sum = null;
+    activeDrivers = count || 0;
+  } catch (_) { /* leave empty → cells show — */ }
+
+  const target = _rrForecastTarget;
+  const targetPct = Math.round(target * 100);
+  // Forecasted routes for a week = peak daily route count that week (you staff
+  // headcount to the busiest day).
+  const routesForWeek = (wkStart) => {
+    let mx = null;
     for (let i = 0; i < 7; i++) {
       const v = routesByDate.get(fmtIsoDate(addDays(wkStart, i)));
-      if (v != null) sum = (sum == null ? 0 : sum) + v;
+      if (v != null && v > 0) mx = Math.max(mx == null ? 0 : mx, v);
     }
-    return sum;
+    return mx;
+  };
+  const requiredForWeek = (wkStart) => { const r = routesForWeek(wkStart); return r == null ? null : Math.ceil(r * target); };
+  // Projected capacity — phase 1 uses the current active headcount (flat). The
+  // full per-week model (PTO / leave / turnover / attendance / training /
+  // seasonal) lands in the Driver Capacity Details tab.
+  const capacityForWeek = () => activeDrivers || null;
+  const gapForWeek = (wkStart) => {
+    const req = requiredForWeek(wkStart), cap = capacityForWeek();
+    if (req == null || cap == null) return null;
+    return cap - req;   // negative = short of demand
   };
 
-  // Coverage % = the best coverage the ENGINE can achieve without overtime.
-  // Both numerator and denominator come from the engine projection
-  // (_rrMonthForecast): filled = shifts it could staff within hour caps,
-  // needed = the actual shifts that must be covered (cushioned demand — this
-  // is NOT the raw "Total Routes" count, which excludes the cushion). Using
-  // filled/needed keeps the ratio honest (filled ≤ needed → ≤100%). Run
-  // "Forecast" to populate it; shows "—" until then.
-  const forecast = (_rrMonthForecast && _rrMonthForecastAnchor === _rrMonthlyAnchor) ? _rrMonthForecast : null;
-  const coverageForWeek = (wkStart) => {
-    if (!forecast) return null;
-    let filled = 0, needed = 0, any = false;
-    for (let i = 0; i < 7; i++) {
-      const c = forecast.get(fmtIsoDate(addDays(wkStart, i)));
-      if (c && c.needed > 0) { filled += (c.filled || 0); needed += c.needed; any = true; }
-    }
-    if (!any || !needed) return null;
-    return Math.min(100, Math.round((filled / needed) * 100)) + "%";
-  };
+  const colTemplate = `grid-template-columns:210px repeat(${WEEKS}, minmax(62px, 1fr))`;
 
-  // DA +/− = drivers (Delivery Associates) to ADD to reach 100% coverage
-  // WITHOUT overtime. The engine's no-OT run leaves (needed − filled) shifts
-  // uncovered; each extra driver can cover ~4 routes/week without OT (40h ÷
-  // ~10h route), so DA = ceil(gap ÷ 4). "0" when the team already hits 100%
-  // without OT. Needs a Forecast run; shows "—" until then.
-  const _NO_OT_ROUTES_PER_DRIVER = 4;
-  const daForWeek = (wkStart) => {
-    if (!forecast) return null;
-    let filled = 0, needed = 0, any = false;
-    for (let i = 0; i < 7; i++) {
-      const c = forecast.get(fmtIsoDate(addDays(wkStart, i)));
-      if (c && c.needed > 0) { filled += (c.filled || 0); needed += c.needed; any = true; }
-    }
-    if (!any || !needed) return null;
-    const gap = needed - filled;
-    if (gap <= 0) return "0";
-    return "+" + Math.ceil(gap / _NO_OT_ROUTES_PER_DRIVER);
-  };
+  // Corner cell — table title + the staffing-target control.
+  const cornerHtml = `<div class="sched-fc-title">13 Week Workforce Forecast</div>`
+    + `<label class="sched-fc-target">Staffing target`
+    +   `<select id="rr-fc-target">${[110,115,120,125].map(p => `<option value="${p}"${p === targetPct ? " selected" : ""}>${p}%</option>`).join("")}</select>`
+    + `</label>`;
 
-  // Compact month nav + title for the grid's top-left corner cell. Button ids
-  // are preserved so the existing prev/next/this-month handlers keep working.
-  const navSvg = (pts) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="${pts}"/></svg>`;
-  const cornerHtml = `<div class="sched-mw-corner-month">${escapeHtml(monthLabel)}</div>`
-    + `<div class="sched-monthly-nav">`
-    +   `<button type="button" class="sched-monthly-nav-btn" id="rr-sched-monthly-prev" aria-label="Previous month">${navSvg("15 18 9 12 15 6")}</button>`
-    +   `<button type="button" class="sched-monthly-nav-today" id="rr-sched-monthly-today">This month</button>`
-    +   `<button type="button" class="sched-monthly-nav-btn" id="rr-sched-monthly-next" aria-label="Next month">${navSvg("9 18 15 12 9 6")}</button>`
-    + `</div>`;
-
-  // Weeks are the COLUMNS now (one per week of the month). The left gutter is a
-  // label column, intentionally blank for now (metric labels land here in a
-  // later step). Override the base 7-day column template with one per week.
-  const colTemplate = `grid-template-columns:220px repeat(${weeks}, minmax(0, 1fr))`;
-
-  // Header row: corner (month + nav) + one column header per week.
-  let head = `<div class="cal-cell-head cal-row-label sched-mw-corner">${cornerHtml}</div>`;
-  for (let w = 0; w < weeks; w++) {
+  // Header row: corner + one column per week (Week N + date range).
+  let head = `<div class="cal-cell-head cal-row-label sched-mw-corner sched-fc-corner">${cornerHtml}</div>`;
+  for (let w = 0; w < WEEKS; w++) {
     const wkStart = addDays(gridStart, w * 7);
     const wkEnd   = addDays(wkStart, 6);
-    const wkLabel = `${wkStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${wkEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
-    head += `<div class="cal-cell-head sched-mw-wkhead">${escapeHtml(wkLabel)}</div>`;
+    const range = `${wkStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })}–${wkEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+    head += `<div class="cal-cell-head sched-mw-wkhead sched-fc-wkhead"><span class="sched-fc-wknum">Week ${w + 1}</span><span class="sched-fc-wkrange">${escapeHtml(range)}</span></div>`;
   }
   let html = `<div class="cal-grid head sched-mw-row" style="${colTemplate}">${head}</div>`;
 
-  // Metric rows. Each = a left-gutter label + one value per week column.
-  const metricRow = (label, valueFn) => {
-    let cells = `<div class="cal-cell-head cal-row-label sched-mw-rowlabel">${escapeHtml(label)}</div>`;
-    for (let w = 0; w < weeks; w++) {
-      const v = valueFn(addDays(gridStart, w * 7));
-      cells += `<div class="cal-cell sched-mw-bodycell">${v == null ? "—" : escapeHtml(String(v))}</div>`;
+  const metricRow = (label, valueFn, opts) => {
+    const rowCls = (opts && opts.rowCls) || "";
+    let cells = `<div class="cal-cell-head cal-row-label sched-mw-rowlabel ${rowCls}">${escapeHtml(label)}</div>`;
+    for (let w = 0; w < WEEKS; w++) {
+      const wkStart = addDays(gridStart, w * 7);
+      const v = valueFn(wkStart);
+      const cellCls = (opts && opts.cellClassFn) ? opts.cellClassFn(wkStart) : "";
+      cells += `<div class="cal-cell sched-mw-bodycell ${rowCls} ${cellCls}">${v == null ? "—" : escapeHtml(String(v))}</div>`;
     }
-    return `<div class="cal-grid sched-mw-row sched-mw-weekrow" style="${colTemplate}">${cells}</div>`;
-  };
-  const blankRow = () => {
-    let cells = `<div class="cal-cell-head cal-row-label sched-mw-rowlabel"></div>`;
-    for (let w = 0; w < weeks; w++) cells += `<div class="cal-cell sched-mw-bodycell"></div>`;
-    return `<div class="cal-grid sched-mw-row sched-mw-weekrow" style="${colTemplate}">${cells}</div>`;
+    return `<div class="cal-grid sched-mw-row sched-fc-row ${rowCls}" style="${colTemplate}">${cells}</div>`;
   };
 
-  // Row 1 · Total Routes — sum of planned routes across the week.
-  html += metricRow("Total Routes", totalRoutesForWeek);
-  // Row 2 · Coverage — max % coverable without OT (from the forecast engine).
-  html += metricRow("Coverage", coverageForWeek);
-  // Row 3 · DA +/− — drivers to add to reach 100% without OT.
-  html += metricRow("DA +/−", daForWeek);
-  // Remaining metric rows land here in later steps; blank placeholder for now.
-  for (let r = 0; r < 1; r++) html += blankRow();
+  // Driver Gap = capacity − required. Surplus/0 reads green, small shortfall
+  // amber, large shortfall red — all very subtle.
+  const gapTone = (g) => g == null ? "" : (g >= 0 ? "sched-fc-ok" : (g >= -9 ? "sched-fc-watch" : "sched-fc-bad"));
+  const fmtGap  = (g) => g == null ? "—" : (g > 0 ? "+" + g : String(g));
+
+  html += metricRow("Forecasted Routes", routesForWeek);
+  html += metricRow(`Required Drivers (${targetPct}%)`, requiredForWeek);
+  html += metricRow("Projected Capacity", capacityForWeek);
+  html += metricRow("Driver Gap", (wk) => fmtGap(gapForWeek(wk)), {
+    rowCls: "sched-fc-gaprow",
+    cellClassFn: (wk) => gapTone(gapForWeek(wk)),
+  });
+
   gridEl.innerHTML = html;
 }
 window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
 window.renderSchedMonthlyView    = renderSchedMonthlyView;
+// Staffing-target control → persist + re-render.
+document.addEventListener("change", (e) => {
+  if (e.target && e.target.id === "rr-fc-target") {
+    const p = parseInt(e.target.value, 10);
+    if (Number.isFinite(p)) {
+      _rrForecastTarget = p / 100;
+      try { localStorage.setItem("rr-forecast-staffing-target", String(_rrForecastTarget)); } catch (_) {}
+      renderSchedMonthlyView();
+    }
+  }
+});
 // Navigation handlers — prev/next month + this-month.
 document.addEventListener("click", (e) => {
   const prev = e.target.closest("#rr-sched-monthly-prev");
