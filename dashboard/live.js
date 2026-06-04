@@ -36682,7 +36682,7 @@ async function renderSchedMonthlyView() {
   const gridStartIso = fmtIsoDate(gridStart);
 
   const subEl = document.getElementById("rr-sched-page-sub");
-  if (subEl) subEl.textContent = "Compare Amazon forecast demand against projected staffing capacity.";
+  if (subEl) subEl.textContent = "13-week staffing plan";
 
   gridEl.innerHTML = '<div class="sched-monthly-loading">Loading forecast…</div>';
 
