@@ -94,7 +94,7 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=1">
-<link rel="stylesheet" href="schedule-rrx.css?v=93">
+<link rel="stylesheet" href="schedule-rrx.css?v=94">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -22967,8 +22967,6 @@ body.rr-cmdk-open{ overflow:hidden }
              sized to fill the viewport without scrolling — cells
              flex evenly within the available row height. -->
         <div class="sched-subview" id="sched-sub-monthly" style="display:none">
-          <!-- Forecast | Driver Capacity Details tabs (rendered by JS). -->
-          <div class="rr-fc-tabs" id="rr-fc-tabs"></div>
           <!-- Workforce planner: the 13-week table with the Driver Gap chart. -->
           <div class="rr-fc-layout" id="rr-fc-layout">
             <div class="sched-monthly-shell" id="rr-sched-monthly-shell">
@@ -22979,8 +22977,6 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="rr-fc-chart" id="rr-fc-chart"></div>
             </div>
           </div>
-          <!-- Driver Capacity Details (rendered by JS; shown when its tab is active). -->
-          <div class="rr-fc-capacity" id="rr-fc-capacity" hidden></div>
         </div>
         <div class="sched-subview" id="sched-sub-calendar" style="display:none">
           <style>
@@ -35889,7 +35885,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260604-fcreq"></script>
+<script type="module" src="./live.js?v=20260604-fccaptab"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
