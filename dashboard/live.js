@@ -36491,13 +36491,13 @@ async function renderSchedMonthlyView() {
       routesByDate.set(r.date, (routesByDate.get(r.date) || 0) + (Number(r.target_routes) || 0));
     }
   } catch (_) { /* leave routesByDate empty → cells show — */ }
-  const maxRoutesForWeek = (wkStart) => {
-    let mx = null;
+  const totalRoutesForWeek = (wkStart) => {
+    let sum = null;
     for (let i = 0; i < 7; i++) {
       const v = routesByDate.get(fmtIsoDate(addDays(wkStart, i)));
-      if (v != null) mx = Math.max(mx == null ? 0 : mx, v);
+      if (v != null) sum = (sum == null ? 0 : sum) + v;
     }
-    return mx;
+    return sum;
   };
 
   // Compact month nav + title for the grid's top-left corner cell. Button ids
@@ -36540,8 +36540,8 @@ async function renderSchedMonthlyView() {
     return `<div class="cal-grid sched-mw-row sched-mw-weekrow" style="${colTemplate}">${cells}</div>`;
   };
 
-  // Row 1 · Max Route Count — peak daily planned routes within the week.
-  html += metricRow("Max Route Count", maxRoutesForWeek);
+  // Row 1 · Total Routes — sum of planned routes across the week.
+  html += metricRow("Total Routes", totalRoutesForWeek);
   // Remaining metric rows land here in later steps; blank placeholders for now.
   for (let r = 0; r < 3; r++) html += blankRow();
   gridEl.innerHTML = html;
