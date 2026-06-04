@@ -4512,55 +4512,7 @@ body.rr-sched-staff-mode #view-schedule.rrx-schedule #sched-sub-week .cal-wrap .
   #view-schedule.rrx-schedule .rr-fc-model { flex: 0 0 auto; }
 }
 
-/* ── Forecast · Driver Gap chart (secondary, minimal weight) ──
-   Also lets the table/shell size to content so the chart sits right
-   under it (the 13-week table is short — no full-viewport stretch). */
+/* ── Forecast · let the shell size to the (short) 13-week table instead of
+   stretching rows to fill the viewport. */
 #view-schedule.rrx-schedule .rr-fc-layout .sched-monthly-shell { height: auto; min-height: 0; }
 #view-schedule.rrx-schedule .rr-fc-layout .sched-monthly-grid { flex: 0 0 auto; overflow: visible; }
-/* Chart sits snug under the table. Transparent 1px side borders mirror the
-   table grid's 1px border so the chart's columns inset identically and line
-   up 1:1 with the week columns above. */
-#view-schedule.rrx-schedule .rr-fc-chart {
-  margin-top: 4px; box-sizing: border-box;
-  border-left: 1px solid transparent; border-right: 1px solid transparent;
-}
-#view-schedule.rrx-schedule .rr-fcc-title {
-  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--text-muted); margin-bottom: 2px; padding-left: 210px;
-  display: flex; align-items: center; gap: 10px;
-}
-#view-schedule.rrx-schedule .rr-fcc-legend {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 10px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text-subtle);
-}
-#view-schedule.rrx-schedule .rr-fcc-legend-line {
-  width: 16px; height: 0; border-top: 2px dashed #205285; display: inline-block;
-}
-/* HTML grid chart — same column template as the table so bars align 1:1. */
-#view-schedule.rrx-schedule .rr-fcc-grid-row { display: grid; align-items: start; }
-#view-schedule.rrx-schedule .rr-fcc-axis { display: flex; justify-content: flex-end; }
-#view-schedule.rrx-schedule .rr-fcc-axis-scale {
-  display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end;
-  padding-right: 10px; font-size: 10px; font-weight: 600; color: var(--text-subtle); font-variant-numeric: tabular-nums;
-}
-#view-schedule.rrx-schedule .rr-fcc-col { display: flex; flex-direction: column; align-items: stretch; min-width: 0; }
-#view-schedule.rrx-schedule .rr-fcc-plot { position: relative; width: 100%; }
-#view-schedule.rrx-schedule .rr-fcc-zero {
-  position: absolute; left: 0; right: 0; height: 0; border-top: 1.5px solid rgba(15, 23, 42, 0.22);
-}
-#view-schedule.rrx-schedule .rr-fcc-bar {
-  position: absolute; left: 50%; transform: translateX(-50%);
-  width: 58%; max-width: 40px; border-radius: 3px;
-}
-#view-schedule.rrx-schedule .rr-fcc-bar.pos { background: #2E9E5B; }
-#view-schedule.rrx-schedule .rr-fcc-bar.neg { background: #D6493F; }
-#view-schedule.rrx-schedule .rr-fcc-bufline {
-  position: absolute; left: 8%; right: 8%; height: 0; border-top: 2px dashed #205285;
-}
-#view-schedule.rrx-schedule .rr-fcc-xlbl {
-  text-align: center; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-top: 5px;
-}
-#view-schedule.rrx-schedule .rr-fcc-tag {
-  text-align: center; font-size: 8px; font-weight: 700; letter-spacing: .04em;
-  text-transform: uppercase; color: var(--text-subtle); min-height: 11px;
-}

@@ -36833,7 +36833,6 @@ async function renderSchedMonthlyView() {
       required: requiredForWeek(wkStart),
       capacity: capacityForWeek(wkStart),
       gap: gapForWeek(wkStart),
-      cushion: cushionForWeek(wkStart),
       locked: w < LOCK,
     });
   }
@@ -36842,65 +36841,8 @@ async function renderSchedMonthlyView() {
   const gaps = _rrForecastWeeks.map((wk) => wk.gap == null ? null : wk.gap);
   _rrRenderForecastKpis(gaps);
   _rrRenderModelPanel();
-  _rrRenderForecastChart();
 }
 
-// Secondary visual — Driver Gap by week (green surplus / red shortfall) with a
-// dashed buffer-target line. Built as an HTML grid that reuses the table's
-// column template, so each bar lines up exactly under its week column above.
-function _rrRenderForecastChart() {
-  const host = document.getElementById("rr-fc-chart");
-  if (!host) return;
-  const weeks = _rrForecastWeeks || [];
-  if (!weeks.some((w) => w.gap != null)) { host.innerHTML = ""; return; }
-  const n = weeks.length;
-
-  // Symmetric scale that covers the gaps and the (negative) buffer line.
-  let maxAbs = 6, worst = 0, worstIdx = -1;
-  weeks.forEach((w, i) => {
-    if (w.gap != null) { maxAbs = Math.max(maxAbs, Math.abs(w.gap)); if (w.gap < worst) { worst = w.gap; worstIdx = i; } }
-    maxAbs = Math.max(maxAbs, Number(w.cushion) || 0);
-  });
-  const step = maxAbs <= 20 ? 5 : maxAbs <= 50 ? 10 : 20;
-  maxAbs = Math.ceil(maxAbs / step) * step;
-
-  const PLOT = 168, HALF = PLOT / 2;
-  const px = (v) => Math.round(Math.abs(v) / maxAbs * HALF);   // value → pixels from the zero line
-  const LOCK = Math.max(0, Math.min(_rrForecastLockWeeks, n));
-  // Same column template as the table so columns line up 1:1.
-  const colTemplate = `grid-template-columns:210px repeat(${n}, minmax(62px, 1fr))`;
-
-  // Left (label-column) cell carries the +max / 0 / −max scale.
-  const axis = `<div class="rr-fcc-axis"><div class="rr-fcc-axis-scale" style="height:${PLOT}px">`
-    + `<span>+${maxAbs}</span><span>0</span><span>−${maxAbs}</span></div></div>`;
-
-  let cols = "";
-  for (let i = 0; i < n; i++) {
-    const w = weeks[i], g = w.gap, c = Number(w.cushion) || 0;
-    let bar = "";
-    if (g != null) {
-      const h = Math.max(2, px(g));
-      bar = g >= 0
-        ? `<div class="rr-fcc-bar pos" style="height:${h}px;bottom:${HALF}px"></div>`
-        : `<div class="rr-fcc-bar neg" style="height:${h}px;top:${HALF}px"></div>`;
-    }
-    // Buffer target = raw-demand break-even, which sits at y = −cushion (below
-    // the zero line). Clearing it means raw demand is covered; reaching zero
-    // means the buffer is covered too.
-    const bline = c > 0
-      ? `<div class="rr-fcc-bufline" style="top:${HALF + px(-c)}px" title="Week ${i + 1}: demand break-even (buffer cushion ${c})"></div>`
-      : "";
-    const tag = i < LOCK ? `<div class="rr-fcc-tag locked">LOCKED</div>`
-      : (i === worstIdx ? `<div class="rr-fcc-tag peak">PEAK</div>` : `<div class="rr-fcc-tag"></div>`);
-    const tip = g == null ? "" : ` title="Week ${i + 1}: gap ${g > 0 ? "+" : ""}${g}"`;
-    cols += `<div class="rr-fcc-col"${tip}>`
-      + `<div class="rr-fcc-plot" style="height:${PLOT}px"><div class="rr-fcc-zero" style="top:${HALF}px"></div>${bline}${bar}</div>`
-      + `<div class="rr-fcc-xlbl">W${i + 1}</div>${tag}</div>`;
-  }
-  host.innerHTML = `<div class="rr-fcc-title">Driver Gap`
-    + ` <span class="rr-fcc-legend"><span class="rr-fcc-legend-line"></span>buffer target</span></div>`
-    + `<div class="rr-fcc-grid-row" style="${colTemplate}">${axis}${cols}</div>`;
-}
 window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
 window.renderSchedMonthlyView    = renderSchedMonthlyView;
 // Per-week Capacity Buffer (%) / OT Budget (hrs) inputs → persist + re-render.
