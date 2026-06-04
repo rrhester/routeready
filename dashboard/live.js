@@ -36654,27 +36654,19 @@ function _rrSmartFillLabelEls() {
     .map((t) => t.querySelector(".sf-btn-label") || t.querySelector("span"))
     .filter(Boolean);
 }
-// Graph (line-chart) icon shown on the Forecast tile — axis + trend line.
-const _RR_FORECAST_ICON = '<path d="M3 3v18h18"/><polyline points="7 14 11 10 15 13 20 6"/>';
 function _rrSetSmartFillTileMode(isMonthly) {
   for (const tile of _rrSmartFillTiles()) {
     const lbl = tile.querySelector(".sf-btn-label") || tile.querySelector("span");
-    const svg = tile.querySelector("svg");
-    if (isMonthly) {
-      if (lbl) {
+    if (lbl) {
+      if (isMonthly) {
         if (tile.dataset.sfOrigLabel == null) tile.dataset.sfOrigLabel = lbl.textContent;
         lbl.textContent = "Forecast";
+      } else if (tile.dataset.sfOrigLabel != null) {
+        lbl.textContent = tile.dataset.sfOrigLabel;
+        delete tile.dataset.sfOrigLabel;
       }
-      if (svg) {
-        if (svg.dataset.sfOrigIcon == null) svg.dataset.sfOrigIcon = svg.innerHTML;
-        svg.innerHTML = _RR_FORECAST_ICON;   // bolt → graph
-      }
-      tile.classList.add("rr-sf-forecast-mode");
-    } else {
-      if (lbl && tile.dataset.sfOrigLabel != null) { lbl.textContent = tile.dataset.sfOrigLabel; delete tile.dataset.sfOrigLabel; }
-      if (svg && svg.dataset.sfOrigIcon != null) { svg.innerHTML = svg.dataset.sfOrigIcon; delete svg.dataset.sfOrigIcon; }
-      tile.classList.remove("rr-sf-forecast-mode");
     }
+    tile.classList.toggle("rr-sf-forecast-mode", isMonthly);
   }
 }
 function _rrMonthlyViewActive() {

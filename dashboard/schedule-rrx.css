@@ -2283,28 +2283,28 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 /* ── Forecast mode (Monthly view) ──────────────────────────────────
    The Smart Fill tile becomes "Forecast" on the Monthly view (the
    _rrSetSmartFillTileMode toggle adds .rr-sf-forecast-mode). Same
-   "special tile" vibe as Smart Fill — gradient + glow + inset ring —
-   but in the sidebar blue (#0F6CBD → #0B5394), so the simulated staffing
-   forecast reads as its own thing. Higher specificity (base selector +
-   the class) so it wins over the purple rest-state above. */
+   glow/inset "special tile" vibe as Smart Fill, but painted in the
+   actual sidebar steel-blue (--sidebar-bg #205285) with white label +
+   icon so it visibly matches the rail. Higher specificity (base
+   selector + the class) so it wins over the purple rest-state above. */
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode {
-  background: linear-gradient(135deg, rgba(15, 108, 189, 0.30), rgba(11, 83, 148, 0.42));
-  color: #0B5394;
-  box-shadow: 0 2px 6px rgba(11, 83, 148, 0.22),
-              0 0 0 1px rgba(11, 83, 148, 0.18) inset;
+  background: linear-gradient(135deg, #2A6196 0%, #205285 100%);
+  color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(15, 33, 71, 0.30),
+              0 0 0 1px rgba(255, 255, 255, 0.10) inset;
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode:hover {
-  background: linear-gradient(135deg, rgba(15, 108, 189, 0.44), rgba(11, 83, 148, 0.56));
-  color: #0A4A82;
-  box-shadow: 0 4px 14px rgba(11, 83, 148, 0.32),
-              0 0 0 1px rgba(11, 83, 148, 0.26) inset;
+  background: linear-gradient(135deg, #2F6CA6 0%, #245C95 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 14px rgba(15, 33, 71, 0.38),
+              0 0 0 1px rgba(255, 255, 255, 0.16) inset;
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode:active {
-  background: linear-gradient(135deg, rgba(15, 108, 189, 0.50), rgba(11, 83, 148, 0.62));
-  box-shadow: 0 0 0 1px rgba(11, 83, 148, 0.32) inset;
+  background: linear-gradient(135deg, #205285 0%, #1A4470 100%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16) inset;
 }
 #view-schedule.rrx-schedule .sched-v2-strip .sched-v2-split:has([data-rr-v2="smartfill"]) .sched-v2-tile.rr-sf-forecast-mode svg {
-  color: #0F6CBD;
+  color: #FFFFFF;
 }
 
 /* ── Smart Fill · staged scheduling animation ──────────────────────
