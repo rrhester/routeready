@@ -21425,14 +21425,14 @@ async function renderAttendanceTab(body, d) {
     if (c) {
       const dateStr = new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
       return `<button type="button" class="att-prog-row done" data-rr-coaching-record="${escapeHtml(c.id)}">
-        <span class="att-prog-mark done">${checkSvg}</span>
+        <span class="att-prog-mark done att-lvl-${lvl}">${checkSvg}</span>
         <span class="att-prog-label">${escapeHtml(label)} Coaching</span>
         <span class="att-prog-date">${dateStr}</span>
         <span class="att-prog-doc" title="Open coaching record">${docSvg}</span>
       </button>`;
     }
     return `<div class="att-prog-row future">
-      <span class="att-prog-mark"></span>
+      <span class="att-prog-mark att-lvl-${lvl}"></span>
       <span class="att-prog-label">${escapeHtml(label)} Coaching</span>
       <span class="att-prog-date"></span>
       <span class="att-prog-doc"></span>
@@ -21449,7 +21449,20 @@ async function renderAttendanceTab(body, d) {
       #rr-dd-body button.att-prog-row.done{cursor:pointer;transition:background var(--t-fast)}
       #rr-dd-body button.att-prog-row.done:hover{background:var(--canvas)}
       #rr-dd-body .att-prog-mark{width:20px;height:20px;border-radius:5px;border:2px solid var(--border-strong);display:inline-flex;align-items:center;justify-content:center;color:#fff;box-sizing:border-box}
-      #rr-dd-body .att-prog-mark.done{background:var(--green);border-color:var(--green)}
+      /* Severity-coded ladder boxes communicate escalating discipline at a
+         glance: verbal = green (Schedule "Live"), written = amber (Schedule
+         "Draft"), final/termination = red (driver-card warning). Empty rungs
+         carry a soft tint + colored outline; reached rungs fill solid. */
+      #rr-dd-body .att-prog-mark.att-lvl-note,
+      #rr-dd-body .att-prog-mark.att-lvl-verbal{border-color:var(--green);background:var(--green-soft)}
+      #rr-dd-body .att-prog-mark.att-lvl-written{border-color:var(--amber);background:var(--amber-soft)}
+      #rr-dd-body .att-prog-mark.att-lvl-final,
+      #rr-dd-body .att-prog-mark.att-lvl-termination{border-color:var(--red);background:var(--red-soft)}
+      #rr-dd-body .att-prog-mark.done.att-lvl-note,
+      #rr-dd-body .att-prog-mark.done.att-lvl-verbal{background:var(--green);border-color:var(--green)}
+      #rr-dd-body .att-prog-mark.done.att-lvl-written{background:var(--amber);border-color:var(--amber)}
+      #rr-dd-body .att-prog-mark.done.att-lvl-final,
+      #rr-dd-body .att-prog-mark.done.att-lvl-termination{background:var(--red);border-color:var(--red)}
       #rr-dd-body .att-prog-label{font-size:var(--fs-md);font-weight:600;color:var(--text)}
       #rr-dd-body .att-prog-row.future .att-prog-label{color:var(--text-subtle);font-weight:500}
       #rr-dd-body .att-prog-date{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
