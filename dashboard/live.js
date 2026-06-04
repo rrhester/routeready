@@ -36500,21 +36500,23 @@ async function renderSchedMonthlyView() {
     return sum;
   };
 
-  // Coverage % = the best coverage the ENGINE can achieve without overtime ÷
-  // total routes, capped at 100. Driven by the forecast engine projection
-  // (_rrMonthForecast.filled = routes the engine could fill within hour caps).
-  // Run "Forecast" to populate it; shows "—" until then.
+  // Coverage % = the best coverage the ENGINE can achieve without overtime.
+  // Both numerator and denominator come from the engine projection
+  // (_rrMonthForecast): filled = shifts it could staff within hour caps,
+  // needed = the actual shifts that must be covered (cushioned demand — this
+  // is NOT the raw "Total Routes" count, which excludes the cushion). Using
+  // filled/needed keeps the ratio honest (filled ≤ needed → ≤100%). Run
+  // "Forecast" to populate it; shows "—" until then.
   const forecast = (_rrMonthForecast && _rrMonthForecastAnchor === _rrMonthlyAnchor) ? _rrMonthForecast : null;
   const coverageForWeek = (wkStart) => {
     if (!forecast) return null;
-    let filled = 0, any = false;
+    let filled = 0, needed = 0, any = false;
     for (let i = 0; i < 7; i++) {
       const c = forecast.get(fmtIsoDate(addDays(wkStart, i)));
-      if (c) { filled += (c.filled || 0); any = true; }
+      if (c && c.needed > 0) { filled += (c.filled || 0); needed += c.needed; any = true; }
     }
-    const total = totalRoutesForWeek(wkStart);
-    if (!any || !total) return null;
-    return Math.min(100, Math.round((filled / total) * 100)) + "%";
+    if (!any || !needed) return null;
+    return Math.min(100, Math.round((filled / needed) * 100)) + "%";
   };
 
   // Compact month nav + title for the grid's top-left corner cell. Button ids
