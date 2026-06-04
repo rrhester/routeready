@@ -31485,11 +31485,12 @@ window.schedSub = function (sub) {
     const kpisHost = document.getElementById("rr-sched-kpis");
     if (kpisHost) kpisHost.innerHTML = "";
   } else if (sub !== "today" && sub !== "requests" && sub !== "calendar"
-             && sub !== "roster" && sub !== "attendance") {
-    // Roster / Attendance own the KPI board with the ROSTER pills
-    // (painted by schedSub + refreshDriverStatRow). Skip the schedule
-    // repaint for them — otherwise renderScheduleWeek's async paint
-    // overwrites the roster pills ~0.5s after the click (the flicker).
+             && sub !== "roster" && sub !== "attendance" && sub !== "monthly") {
+    // Roster / Attendance / Monthly(Forecast) own the KPI board with their
+    // own pills (roster pills, or the Forecast workforce pills painted by
+    // renderSchedMonthlyView). Skip the schedule repaint for them — otherwise
+    // renderScheduleWeek's async paint overwrites those pills ~0.5s after the
+    // click (the flicker).
     const kpisHost = document.getElementById("rr-sched-kpis");
     if (kpisHost) kpisHost.innerHTML = "";
     if (typeof renderScheduleWeek === "function") {
