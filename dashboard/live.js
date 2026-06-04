@@ -36470,16 +36470,12 @@ let _rrModelPlan = { scenario: "current", hire: 0, ot: 0 };
 // ~Weekly hours one driver covers — used to convert an OT-hour budget into
 // driver-equivalents of added capacity. First-pass; tune as needed.
 const _RR_FC_OT_HOURS_PER_DRIVER = 40;
-// Forecast sub-tab: "forecast" (table + planner) or "capacity" (details).
-let _rrForecastTab = "forecast";
 // Operator-set weekly turnover % applied cumulatively to projected capacity
 // (default 0 — no invented attrition until the operator sets it). Persisted.
 let _rrForecastTurnoverPct = (() => {
   const v = parseFloat(localStorage.getItem("rr-forecast-turnover-pct"));
   return Number.isFinite(v) && v >= 0 && v <= 20 ? v : 0;
 })();
-// Capacity breakdown stashed by the table render for the Capacity Details tab.
-let _rrCapacityModel = null;
 // Required Drivers (Smart Fill demand) — computed on demand by the Forecast
 // button across 13 weeks. Map(weekStartIso → drivers to cover all routes).
 let _rrRequiredByWeek = null;
@@ -36624,53 +36620,6 @@ function _rrRenderModelPanel() {
     </div>`;
 }
 
-// Forecast | Driver Capacity Details tab bar — toggles the planner layout vs
-// the capacity breakdown without re-querying (data is stashed).
-function _rrRenderForecastTabs() {
-  const tabsEl = document.getElementById("rr-fc-tabs");
-  if (!tabsEl) return;
-  const tab = (key, label) => `<button type="button" class="rr-fc-tab${_rrForecastTab === key ? " is-active" : ""}" data-rr-fc-tab="${key}">${escapeHtml(label)}</button>`;
-  tabsEl.innerHTML = tab("forecast", "Forecast") + tab("capacity", "Driver Capacity Details");
-  const showCap = _rrForecastTab === "capacity";
-  const layout = document.getElementById("rr-fc-layout");
-  const capEl  = document.getElementById("rr-fc-capacity");
-  if (layout) layout.hidden = showCap;
-  if (capEl)  capEl.hidden  = !showCap;
-  if (showCap) _rrRenderCapacityDetails();
-}
-
-// Driver Capacity Details — explains why projected capacity changes week to
-// week, from real roster/PTO/attendance data + the operator's turnover input.
-function _rrRenderCapacityDetails() {
-  const host = document.getElementById("rr-fc-capacity");
-  if (!host) return;
-  const m = _rrCapacityModel;
-  if (!m) { host.innerHTML = `<div class="rr-fc-model-empty">Loading…</div>`; return; }
-  const stat = (l, v, t) => `<div class="rr-fc-stat${t ? " " + t : ""}"><div class="rr-fc-stat-val">${escapeHtml(String(v))}</div><div class="rr-fc-stat-lbl">${escapeHtml(l)}</div></div>`;
-  const rows = m.weeks.map((w) =>
-    `<tr><td class="rr-fc-cap-wk">Week ${w.idx + 1} <span class="rr-fc-cap-range">${escapeHtml(w.range)}</span></td>`
-    + `<td>${w.pto}</td><td>${w.turnover}</td><td class="rr-fc-cap-capcell">${w.capacity == null ? "—" : w.capacity}</td></tr>`
-  ).join("");
-  host.innerHTML = `
-    <div class="rr-fc-cap-head">Driver Capacity Details</div>
-    <div class="rr-fc-cap-sub">Why projected capacity changes across the horizon. Capacity = active drivers − PTO that week − expected call-offs − cumulative turnover. On-leave and in-training drivers are excluded from the active count.</div>
-    <div class="rr-fc-cap-stats">
-      ${stat("Active Drivers", m.active)}
-      ${stat("On Leave", m.onLeave)}
-      ${stat("In Training", m.training)}
-      ${stat("Seasonal", m.seasonal)}
-      ${stat("Call-Off Rate", Math.round(m.callOffRate * 100) + "%")}
-      ${stat("Expected Call-Offs / wk", m.expectedCallOffs)}
-    </div>
-    <label class="rr-fc-cap-turn">Expected weekly turnover
-      <input type="number" id="rr-fc-turnover" min="0" max="20" step="0.5" value="${m.turnoverPct}"><span>%</span>
-    </label>
-    <table class="rr-fc-cap-table">
-      <thead><tr><th>Week</th><th>PTO</th><th>Turnover</th><th>Projected Capacity</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-
 // Forecast = 13-week workforce-planning table. Columns = the next 13 weeks
 // (Amazon's OKAMI horizon); rows compare forecasted route demand against
 // projected driver capacity. Reuses the Schedule grid chrome (.cal-grid /
@@ -36697,13 +36646,13 @@ async function renderSchedMonthlyView() {
   const thirtyAgoIso = fmtIsoDate(addDays(today, -30));
   const todayIso = fmtIsoDate(today);
   const routesByDate = new Map();
-  let active = 0, onLeave = 0, training = 0, seasonal = 0;
+  let active = 0;   // active headcount drives projected capacity
   const ptoRanges = [];
   let callOffRate = 0;
   try {
     const [okRes, drvRes, ptoRes, shiftRes] = await Promise.all([
       sb.rpc("okami_grid", { p_start: gridStartIso, p_weeks: WEEKS }),
-      sb.from("drivers").select("status, metadata").eq("dsp_id", dspId),
+      sb.from("drivers").select("status").eq("dsp_id", dspId),
       sb.from("time_off_requests").select("driver_id, start_date, end_date").eq("dsp_id", dspId).eq("status", "approved").lte("start_date", gridEndIso).gte("end_date", gridStartIso),
       sb.from("shifts").select("status").eq("dsp_id", dspId).gte("date", thirtyAgoIso).lte("date", todayIso),
     ]);
@@ -36712,9 +36661,7 @@ async function renderSchedMonthlyView() {
       routesByDate.set(r.date, (routesByDate.get(r.date) || 0) + (Number(r.target_routes) || 0));
     }
     for (const d of (drvRes.data || [])) {
-      if (d.status === "active") { active++; if (d.metadata && d.metadata.seasonal === true) seasonal++; }
-      else if (d.status === "leave") onLeave++;
-      else if (d.status === "onboarding") training++;
+      if (d.status === "active") active++;
     }
     for (const r of (ptoRes.data || [])) if (r.start_date && r.end_date) ptoRanges.push({ d: r.driver_id, s: r.start_date, e: r.end_date });
     let tot = 0, off = 0;
@@ -36818,29 +36765,17 @@ async function renderSchedMonthlyView() {
   // Amazon has locked (hiring can't help them; only OT).
   const LOCK = Math.max(0, Math.min(_rrForecastLockWeeks, WEEKS));
   _rrForecastWeeks = [];
-  const capWeeks = [];
   for (let w = 0; w < WEEKS; w++) {
     const wkStart = addDays(gridStart, w * 7);
-    const wkEnd   = addDays(wkStart, 6);
     const cap = capacityForWeek(wkStart);
     _rrForecastWeeks.push({ required: requiredForWeek(wkStart), capacity: cap, locked: w < LOCK });
-    capWeeks.push({
-      idx: w,
-      range: `${wkStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })}–${wkEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`,
-      pto: ptoForWeek(wkStart),
-      turnover: Math.round(active * turnoverWeekly * (w + 1)),
-      capacity: cap,
-    });
   }
-  // Stash the capacity breakdown for the Driver Capacity Details tab.
-  _rrCapacityModel = { active, onLeave, training, seasonal, callOffRate, expectedCallOffs, turnoverPct: _rrForecastTurnoverPct, weeks: capWeeks };
 
   // Forecast KPI bar (reuses the Schedule KPI strip).
   const gaps = _rrForecastWeeks.map((wk) => (wk.required == null || wk.capacity == null) ? null : wk.capacity - wk.required);
   _rrRenderForecastKpis(gaps);
   _rrRenderModelPanel();
   _rrRenderForecastChart();
-  _rrRenderForecastTabs();
 }
 
 // Secondary visual — Driver Gap by week as a small SVG bar chart (green
@@ -36885,26 +36820,8 @@ function _rrRenderForecastChart() {
 }
 window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
 window.renderSchedMonthlyView    = renderSchedMonthlyView;
-// Turnover control → persist + re-render.
-document.addEventListener("change", (e) => {
-  if (e.target && e.target.id === "rr-fc-turnover") {
-    const v = parseFloat(e.target.value);
-    if (Number.isFinite(v) && v >= 0 && v <= 20) {
-      _rrForecastTurnoverPct = v;
-      try { localStorage.setItem("rr-forecast-turnover-pct", String(v)); } catch (_) {}
-      renderSchedMonthlyView();   // capacity changes everywhere; stays on the Capacity tab
-    }
-  }
-});
-// Forecast tabs + Model Your Plan scenario buttons.
+// Model Your Plan scenario buttons.
 document.addEventListener("click", (e) => {
-  const fctab = e.target.closest && e.target.closest("[data-rr-fc-tab]");
-  if (fctab) {
-    e.preventDefault();
-    _rrForecastTab = fctab.getAttribute("data-rr-fc-tab");
-    _rrRenderForecastTabs();
-    return;
-  }
   const scn = e.target.closest && e.target.closest("[data-rr-fc-scn]");
   if (scn) {
     e.preventDefault();
