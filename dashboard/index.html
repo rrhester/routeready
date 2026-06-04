@@ -94,7 +94,7 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=1">
-<link rel="stylesheet" href="schedule-rrx.css?v=92">
+<link rel="stylesheet" href="schedule-rrx.css?v=93">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -22976,6 +22976,8 @@ body.rr-cmdk-open{ overflow:hidden }
               <div class="sched-monthly-grid" id="rr-sched-monthly-grid">
                 <div class="sched-monthly-loading">Loading forecast…</div>
               </div>
+              <!-- Secondary visual: Driver Gap by week (rendered by JS). -->
+              <div class="rr-fc-chart" id="rr-fc-chart"></div>
             </div>
             <aside class="rr-fc-model" id="rr-forecast-model" aria-label="Model your plan"></aside>
           </div>
@@ -35889,7 +35891,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260604-fccap"></script>
+<script type="module" src="./live.js?v=20260604-fcchart"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
