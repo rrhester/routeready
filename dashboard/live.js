@@ -36500,6 +36500,22 @@ async function renderSchedMonthlyView() {
     return sum;
   };
 
+  // Forecast engine projection for this month (populated after a Forecast run).
+  // Coverage % = routes the engine could fill within hour caps (no OT) ÷ total
+  // routes, capped at 100. Shows "—" until a forecast has been run.
+  const forecast = (_rrMonthForecast && _rrMonthForecastAnchor === _rrMonthlyAnchor) ? _rrMonthForecast : null;
+  const coverageForWeek = (wkStart) => {
+    if (!forecast) return null;
+    let filled = 0, any = false;
+    for (let i = 0; i < 7; i++) {
+      const c = forecast.get(fmtIsoDate(addDays(wkStart, i)));
+      if (c) { filled += (c.filled || 0); any = true; }
+    }
+    const total = totalRoutesForWeek(wkStart);
+    if (!any || !total) return null;
+    return Math.min(100, Math.round((filled / total) * 100)) + "%";
+  };
+
   // Compact month nav + title for the grid's top-left corner cell. Button ids
   // are preserved so the existing prev/next/this-month handlers keep working.
   const navSvg = (pts) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="${pts}"/></svg>`;
@@ -36542,8 +36558,10 @@ async function renderSchedMonthlyView() {
 
   // Row 1 · Total Routes — sum of planned routes across the week.
   html += metricRow("Total Routes", totalRoutesForWeek);
+  // Row 2 · Coverage — max % coverable without OT (from the forecast engine).
+  html += metricRow("Coverage", coverageForWeek);
   // Remaining metric rows land here in later steps; blank placeholders for now.
-  for (let r = 0; r < 3; r++) html += blankRow();
+  for (let r = 0; r < 2; r++) html += blankRow();
   gridEl.innerHTML = html;
 }
 window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
