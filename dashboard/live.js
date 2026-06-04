@@ -31419,6 +31419,8 @@ window.schedSub = function (sub) {
   if (typeof _legacySchedSub === "function") _legacySchedSub(sub);
   // The Smart Fill command tile doubles as "Forecast" on the Monthly view.
   if (typeof _rrSetSmartFillTileMode === "function") _rrSetSmartFillTileMode(sub === "monthly");
+  // The page header reads "Forecast" (and hides the Live/Draft pill) on Monthly.
+  if (typeof _rrSetSchedHeaderMode === "function") _rrSetSchedHeaderMode(sub === "monthly");
   if (sub === "insights")  loadScheduleInsights();
   if (sub === "rules")     { loadStationGeofences(); loadAttendanceWindows(); }
   if (sub === "templates") loadScheduleTemplates();
@@ -36649,6 +36651,14 @@ function _rrSetSmartFillTileMode(isMonthly) {
 function _rrMonthlyViewActive() {
   const v = document.getElementById("sched-sub-monthly");
   return !!(v && v.style.display !== "none" && v.offsetParent !== null);
+}
+// On the Monthly view the page header reads "Forecast" with no Live/Draft
+// pill (it's a projection, not the live schedule); restored on other views.
+function _rrSetSchedHeaderMode(isMonthly) {
+  const titleEl = document.getElementById("rr-sched-page-title-text");
+  if (titleEl) titleEl.textContent = isMonthly ? "Forecast" : "Schedule";
+  const pill = document.getElementById("rr-sched-v2-status");
+  if (pill) pill.style.display = isMonthly ? "none" : "";
 }
 
 // Simulated month-wide Smart Fill — runs the real engine, week by week, across

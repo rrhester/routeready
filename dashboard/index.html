@@ -16922,12 +16922,13 @@ body.rr-cmdk-open{ overflow:hidden }
                #rr-sched-page-sub id preserved so the JS that writes
                the "Week of …" subtitle keeps working untouched. -->
           <div class="sched-v2-title">
-            <h1 class="page-title">Schedule
+            <h1 class="page-title"><span id="rr-sched-page-title-text">Schedule</span>
               <!-- Status pill · "Draft" by default; flips to "Live"
                    when Finalize is clicked. The Finalize click handler
                    (V2 forwards to #rr-sched-finalize-h) updates the
                    data-state attribute via the click listener in
-                   live.js below. -->
+                   live.js below. On the Monthly (Forecast) view the title
+                   reads "Forecast" and this pill is hidden (live.js). -->
               <span class="sched-v2-status-pill" id="rr-sched-v2-status" data-state="draft">
                 <svg class="sched-v2-status-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 12 10 16 18 8"/></svg>
                 <span class="sched-v2-status-label">Draft</span>
@@ -35883,7 +35884,7 @@ John,Smith,555-0101,john@example.com</code>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260604-monthly2"></script>
+<script type="module" src="./live.js?v=20260604-fcasthdr"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
