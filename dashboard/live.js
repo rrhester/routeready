@@ -36519,6 +36519,25 @@ async function renderSchedMonthlyView() {
     return Math.min(100, Math.round((filled / needed) * 100)) + "%";
   };
 
+  // DA +/− = drivers (Delivery Associates) to ADD to reach 100% coverage
+  // WITHOUT overtime. The engine's no-OT run leaves (needed − filled) shifts
+  // uncovered; each extra driver can cover ~4 routes/week without OT (40h ÷
+  // ~10h route), so DA = ceil(gap ÷ 4). "0" when the team already hits 100%
+  // without OT. Needs a Forecast run; shows "—" until then.
+  const _NO_OT_ROUTES_PER_DRIVER = 4;
+  const daForWeek = (wkStart) => {
+    if (!forecast) return null;
+    let filled = 0, needed = 0, any = false;
+    for (let i = 0; i < 7; i++) {
+      const c = forecast.get(fmtIsoDate(addDays(wkStart, i)));
+      if (c && c.needed > 0) { filled += (c.filled || 0); needed += c.needed; any = true; }
+    }
+    if (!any || !needed) return null;
+    const gap = needed - filled;
+    if (gap <= 0) return "0";
+    return "+" + Math.ceil(gap / _NO_OT_ROUTES_PER_DRIVER);
+  };
+
   // Compact month nav + title for the grid's top-left corner cell. Button ids
   // are preserved so the existing prev/next/this-month handlers keep working.
   const navSvg = (pts) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="${pts}"/></svg>`;
@@ -36563,8 +36582,10 @@ async function renderSchedMonthlyView() {
   html += metricRow("Total Routes", totalRoutesForWeek);
   // Row 2 · Coverage — max % coverable without OT (from the forecast engine).
   html += metricRow("Coverage", coverageForWeek);
-  // Remaining metric rows land here in later steps; blank placeholders for now.
-  for (let r = 0; r < 2; r++) html += blankRow();
+  // Row 3 · DA +/− — drivers to add to reach 100% without OT.
+  html += metricRow("DA +/−", daForWeek);
+  // Remaining metric rows land here in later steps; blank placeholder for now.
+  for (let r = 0; r < 1; r++) html += blankRow();
   gridEl.innerHTML = html;
 }
 window._rrRenderSchedMonthlyView = renderSchedMonthlyView;
