@@ -36740,24 +36740,15 @@ async function _rrForecastMonthCoverage(btn) {
     }
   };
 
-  // Force simulation; restore globals no matter what.
+  // Force simulation; restore globals no matter what. The forecast runs with
+  // the operator's saved Smart Fill rules as-is — including the WOC weekly
+  // hour cap set in the Rules popover — so coverage reflects their configured
+  // limits (no separate cap is injected here).
   const _savedWhatIf = _rrWhatIfOptions;
   const _savedSchedStart = _schedStart;
-  const _savedSfRules = window._rrSfRulesOverride;
-  // No-overtime run: cap every driver at the OT threshold so the engine's
-  // "filled" is the MAX coverage achievable WITHOUT overtime. We override the
-  // saved Smart Fill rules' weekly-hour cap (and WOC ceiling) to the OT
-  // threshold just for this forecast; restored in finally.
-  const _otThreshold = Number(window.RR?.dsp?.metadata?.scheduling?.overtime_threshold_hours) || 40;
-  const _baseRules = (typeof window._rrLoadSfRules === "function") ? (window._rrLoadSfRules() || {}) : {};
-  const _restoreSfRules = () => {
-    if (_savedSfRules === undefined) delete window._rrSfRulesOverride;
-    else window._rrSfRulesOverride = _savedSfRules;
-  };
   let simWeeks = 0;
   try {
     _rrWhatIfOptions = { source: "month_forecast" };   // truthy → engine skips writes
-    window._rrSfRulesOverride = { ..._baseRules, woc: true, woc_max_hours: _otThreshold, weeklyHourCap: _otThreshold };
     for (let w = 0; w < weeks; w++) {
       const wkStart = addDays(gridStart, w * 7);
       const wkStartIso = fmtIsoDate(wkStart);
@@ -36811,12 +36802,10 @@ async function _rrForecastMonthCoverage(btn) {
     if (btn) { btn.dataset.busy = ""; btn.dataset.rrBusy = ""; btn.disabled = false; restoreLabel(); }
     _rrWhatIfOptions = _savedWhatIf;
     _schedStart = _savedSchedStart;
-    _restoreSfRules();
     return;
   } finally {
     _rrWhatIfOptions = _savedWhatIf;
     _schedStart = _savedSchedStart;
-    _restoreSfRules();
   }
 
   if (btn) { btn.dataset.busy = ""; btn.dataset.rrBusy = ""; btn.disabled = false; restoreLabel(); }
