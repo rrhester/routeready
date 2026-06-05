@@ -94,7 +94,7 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=3">
-<link rel="stylesheet" href="schedule-rrx.css?v=119">
+<link rel="stylesheet" href="schedule-rrx.css?v=120">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -17111,6 +17111,9 @@ body.rr-cmdk-open{ overflow:hidden }
             </svg>
             <span>Weekly</span>
           </button>
+            <!-- Group label · centered under the Weekly (middle) tile, on
+                 the card's bottom line. -->
+            <span class="sched-v2-group-label" aria-hidden="true">Go To</span>
           </div>
           <div class="sched-v2-split">
             <button type="button" class="sched-v2-tile" data-rr-v2="monthly" tabindex="-1">
@@ -17127,12 +17130,9 @@ body.rr-cmdk-open{ overflow:hidden }
             <span>Monthly</span>
           </button>
           </div>
-          <!-- Group label + dialog-launcher · Outlook-style. "Go To"
-               labels the Today/Weekly/Monthly view-selector group, centered
-               near the bottom of the card. The launcher (box + diagonal
-               arrow) sits at the group's bottom-right next to the hairline
-               divider and opens the Week display-rules dialog. -->
-          <span class="sched-v2-group-label" aria-hidden="true">Go To</span>
+          <!-- Dialog-launcher · box + diagonal arrow, pinned to the
+               group's bottom-right next to the hairline divider; opens the
+               Week display-rules dialog. -->
           <button type="button" class="sched-v2-group-launcher" tabindex="-1"
                   aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-week-rules-popover"
                   title="View display options"

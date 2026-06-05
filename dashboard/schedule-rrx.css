@@ -2126,11 +2126,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   cursor: pointer;
   font: inherit;
   /* Pinned to the bottom-right of the Today/Weekly/Monthly group
-     (.sched-v2-viewgroup is position:relative), next to the hairline
-     divider — Outlook dialog-launcher style. Aligned to the same bottom
-     line as the "Go To" label. */
+     (.sched-v2-viewgroup is position:relative), pushed right into the gap
+     so it sits next to the hairline divider — Outlook dialog-launcher
+     style. Aligned to the same bottom line as the "Go To" label. */
   position: absolute;
-  right: 0;
+  right: -18px;
   bottom: -3px;
   display: inline-flex;
   align-items: center;
@@ -2140,8 +2140,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: transparent;
   border: 0;
   border-radius: 999px;
-  color: var(--rr-fg-secondary);
-  opacity: 0.6;
+  color: #242424;
+  opacity: 0.85;
   z-index: 1;
   transition: opacity var(--rr-motion-fast, 120ms ease-out),
               background var(--rr-motion-fast, 120ms ease-out),
