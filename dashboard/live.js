@@ -17352,7 +17352,9 @@ function setDriverDrawerFoot() {
       : `<span data-rr-dd-autosave-status style="font-size:var(--fs-sm);color:var(--text-subtle)">All changes saved</span>`;
   } else if (_ddTab === "availability") {
     foot.style.display = "";
-    foot.innerHTML = `<button class="btn btn-primary" data-rr-avail-save>Save availability</button>`;
+    foot.innerHTML = isCreate
+      ? `<span style="font-size:var(--fs-sm);color:var(--text-subtle)">Save the driver first to set availability</span>`
+      : `<span data-rr-dd-autosave-status style="font-size:var(--fs-sm);color:var(--text-subtle)">All changes saved</span>`;
   } else {
     // Read-only tabs have no footer action — the header Close already
     // dismisses the record, so the redundant footer Close is dropped and the
@@ -17416,7 +17418,7 @@ async function _ddAutosaveCommit() {
     _ddSetAutosaveStatus("saved");
   } finally {
     _ddAutosaveInflight = false;
-    if (_ddAutosaveQueued) { _ddAutosaveQueued = false; _ddAutosaveCommit(); }
+    if (_ddAutosaveQueued) { _ddAutosaveQueued = false; _ddAutosaveForTab(); }
   }
 }
 // Debounced on text input; immediate on select/date change. Existing records only.
@@ -17431,6 +17433,44 @@ document.addEventListener("change", (e) => {
   if (!_ddDriver?.driver?.id) return;
   clearTimeout(_ddAutosaveTimer);
   _ddAutosaveCommit();
+});
+
+// Availability autosave — same quiet path, writing drivers.metadata.availability.
+async function _ddAvailAutosaveCommit() {
+  const driverId = _ddDriver?.driver?.id;
+  if (!driverId || _ddTab !== "availability") return;
+  if (_ddAutosaveInflight) { _ddAutosaveQueued = true; return; }
+  _ddAutosaveInflight = true;
+  _ddSetAutosaveStatus("saving");
+  try {
+    const days = Array.from(document.querySelectorAll("#rr-dd-drawer [data-rr-avail-day]")).filter(el => el.checked).map(el => el.dataset.rrAvailDay);
+    const startSel = document.querySelector("#rr-dd-drawer [data-rr-avail-start]");
+    const earliest = startSel && startSel.value ? startSel.value : null;
+    const preferred = Array.from(document.querySelectorAll("#rr-dd-drawer [data-rr-avail-pref]")).filter(el => el.checked).map(el => el.dataset.rrAvailPref).filter(k => days.includes(k));
+    const fifthDayOk = !!document.querySelector("#rr-dd-drawer [data-rr-avail-fifth]")?.checked;
+    const meta = _ddDriver.driver.metadata || {};
+    const availObj = { ...(meta.availability || {}), days, preferred_days: preferred, fifth_day_ok: fifthDayOk };
+    if (earliest) availObj.earliest_start = earliest; else delete availObj.earliest_start;
+    const newMeta = { ...meta, availability: availObj };
+    const { error } = await sb.from("drivers").update({ metadata: newMeta }).eq("id", driverId);
+    if (error) { _ddSetAutosaveStatus("error", error.message); return; }
+    _ddDriver.driver.metadata = newMeta;
+    _ddSetAutosaveStatus("saved");
+  } finally {
+    _ddAutosaveInflight = false;
+    if (_ddAutosaveQueued) { _ddAutosaveQueued = false; _ddAutosaveForTab(); }
+  }
+}
+// Re-run the right commit for the current tab when a save was coalesced.
+function _ddAutosaveForTab() {
+  if (_ddTab === "availability") _ddAvailAutosaveCommit();
+  else _ddAutosaveCommit();
+}
+// Availability inputs (day / preferred / fifth-day toggles + earliest-start) autosave on change.
+document.addEventListener("change", (e) => {
+  if (!(e.target.closest && e.target.closest("#rr-dd-drawer [data-rr-avail-day], #rr-dd-drawer [data-rr-avail-pref], #rr-dd-drawer [data-rr-avail-fifth], #rr-dd-drawer [data-rr-avail-start]"))) return;
+  if (!_ddDriver?.driver?.id) return;
+  _ddAvailAutosaveCommit();
 });
 
 function renderAvailabilityTab(body, d, record) {
