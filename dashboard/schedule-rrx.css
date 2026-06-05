@@ -1988,12 +1988,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 }
 
 #view-schedule.rrx-schedule .sched-v2-tile svg {
-  /* 28px × 1.18 ≈ 33px — operator-requested 18% bump across every
-     command-strip tile (Schedule + Intelligence + Print/Download
-     all scale together, since the intel + print SVG sizes mirror
-     this one). The strip's min-height is grown in lockstep below. */
-  width: 38px;
-  height: 38px;
+  /* Command-strip tile icons (Schedule + Intelligence + Print/Download
+     all scale together). 38px × 1.10 ≈ 42px — operator-requested ~10% bump. */
+  width: 42px;
+  height: 42px;
   flex: 0 0 auto;
   color: var(--rr-fg-secondary);
   stroke-width: 1.6;
