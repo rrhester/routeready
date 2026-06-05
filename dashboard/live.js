@@ -21398,80 +21398,86 @@ async function renderAttendanceTab(body, d) {
   const ptsNoshow  = evalP?.events?.no_show ? Number(evalP.events.no_show.points) || 0 : 0;
   const ptsLate    = evalP?.events?.late    ? Number(evalP.events.late.points)    || 0 : 0;
 
-  // ── Canonical level map + coaching lookup for the progression ladder ──
-  const SEV_CANON = { note: "note", info: "note", verbal: "verbal", concern: "verbal", written: "written", warning: "written", final: "final", termination: "termination" };
-  const coachByLevel = new Map();
-  for (const c of coachings) {            // coachings are sorted newest-first
-    const lvl = SEV_CANON[c.severity] || c.severity;
-    if (!coachByLevel.has(lvl)) coachByLevel.set(lvl, c);
-  }
-
-  // Stash for the coaching-record slide-over (opened from the ladder rows).
+  // Stash for the coaching-record slide-over (opened from the event rows).
   _rrAttState = {
     driverId: d.id, driverName: displayDriverName(d) || "Driver",
     coachings, shifts, decay,
     pts: { called_off: ptsCallout, no_show: ptsNoshow, late: ptsLate },
   };
 
-  const checkSvg = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
-  const docSvg   = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`;
+  const docSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>`;
+  const checkCircleSvg = `<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
 
-  // ── Section 2: progression ladder (the primary anchor) ──
-  const ladder = (evalP && evalP.ladder && evalP.ladder.length) ? evalP.ladder : [];
-  const progRows = ladder.map(r => {
-    const lvl = SEV_CANON[r.severity] || r.severity;
-    const c = coachByLevel.get(lvl);
-    const label = (_COACHING_SEV_LABEL?.[r.severity] || r.severity);
-    if (c) {
-      const dateStr = new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-      return `<button type="button" class="att-prog-row done" data-rr-coaching-record="${escapeHtml(c.id)}">
-        <span class="att-prog-mark done att-lvl-${lvl}">${checkSvg}</span>
-        <span class="att-prog-label">${escapeHtml(label)} Coaching</span>
-        <span class="att-prog-date">${dateStr}</span>
-        <span class="att-prog-doc" title="Open coaching record">${docSvg}</span>
-      </button>`;
-    }
-    return `<div class="att-prog-row future">
-      <span class="att-prog-mark att-lvl-${lvl}"></span>
-      <span class="att-prog-label">${escapeHtml(label)} Coaching</span>
-      <span class="att-prog-date"></span>
-      <span class="att-prog-doc"></span>
-    </div>`;
+  // ── Attendance Events ──
+  // One row per attendance coaching record (already newest-first). The event
+  // TYPE is derived from the shift the coaching was raised on:
+  //   no_show → NCNS, late → Tardy, called_off → Call-off.
+  // The doc icon opens that coaching's documentation (slide-over).
+  const statusById = new Map();
+  for (const s of shifts) statusById.set(s.id, s.status);
+  // A coaching's triggering shift can predate the loaded window — fetch any
+  // that aren't already in hand so the type pill always resolves.
+  const missingShiftIds = [];
+  for (const c of coachings) {
+    if (c.triggering_shift_id && !statusById.has(c.triggering_shift_id)) missingShiftIds.push(c.triggering_shift_id);
+  }
+  if (missingShiftIds.length) {
+    const { data: extraShifts } = await sb.from("shifts").select("id, status").in("id", missingShiftIds);
+    for (const s of (extraShifts || [])) statusById.set(s.id, s.status);
+  }
+  const EV_TYPE = {
+    no_show:    { label: "NCNS",     cls: "ncns" },
+    late:       { label: "Tardy",    cls: "tardy" },
+    called_off: { label: "Call-off", cls: "calloff" },
+  };
+  const evRows = coachings.map(c => {
+    const ev = EV_TYPE[statusById.get(c.triggering_shift_id)] || { label: "Attendance", cls: "calloff" };
+    const dateStr = new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    return `<button type="button" class="att-ev-row" data-rr-coaching-record="${escapeHtml(c.id)}" title="View coaching">
+      <span class="att-ev-pill att-ev-${ev.cls}">${escapeHtml(ev.label)}</span>
+      <span class="att-ev-date">${dateStr}</span>
+      <span class="att-ev-doc" aria-label="View coaching">${docSvg}</span>
+    </button>`;
   }).join("");
 
   body.innerHTML = `
     <style>
-      /* Progression = a scannable policy ladder, not a form. Square check
-         boxes read as a disciplinary checklist (□ pending / ✓ reached). */
-      #rr-dd-body .att-prog{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
-      #rr-dd-body .att-prog-row{display:grid;grid-template-columns:24px 1fr auto 20px;gap:11px;align-items:center;width:100%;text-align:left;padding:11px 15px;background:var(--surface);border:0;border-top:1px solid var(--border-subtle);font:inherit;margin:0}
-      #rr-dd-body .att-prog-row:first-child{border-top:0}
-      #rr-dd-body button.att-prog-row.done{cursor:pointer;transition:background var(--t-fast)}
-      #rr-dd-body button.att-prog-row.done:hover{background:var(--canvas)}
-      #rr-dd-body .att-prog-mark{width:20px;height:20px;border-radius:5px;border:2px solid var(--border-strong);display:inline-flex;align-items:center;justify-content:center;color:#fff;box-sizing:border-box}
-      /* Severity-coded ladder boxes communicate escalating discipline at a
-         glance: verbal = green (Schedule "Live"), written = amber (Schedule
-         "Draft"), final/termination = red (driver-card warning). Empty rungs
-         carry a soft tint + colored outline; reached rungs fill solid. */
-      #rr-dd-body .att-prog-mark.att-lvl-note,
-      #rr-dd-body .att-prog-mark.att-lvl-verbal{border-color:var(--green);background:var(--green-soft)}
-      #rr-dd-body .att-prog-mark.att-lvl-written{border-color:var(--amber);background:var(--amber-soft)}
-      #rr-dd-body .att-prog-mark.att-lvl-final,
-      #rr-dd-body .att-prog-mark.att-lvl-termination{border-color:var(--red);background:var(--red-soft)}
-      #rr-dd-body .att-prog-mark.done.att-lvl-note,
-      #rr-dd-body .att-prog-mark.done.att-lvl-verbal{background:var(--green);border-color:var(--green)}
-      #rr-dd-body .att-prog-mark.done.att-lvl-written{background:var(--amber);border-color:var(--amber)}
-      #rr-dd-body .att-prog-mark.done.att-lvl-final,
-      #rr-dd-body .att-prog-mark.done.att-lvl-termination{background:var(--red);border-color:var(--red)}
-      #rr-dd-body .att-prog-label{font-size:var(--fs-md);font-weight:600;color:var(--text)}
-      #rr-dd-body .att-prog-row.future .att-prog-label{color:var(--text-subtle);font-weight:500}
-      #rr-dd-body .att-prog-date{font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
-      #rr-dd-body .att-prog-doc{color:var(--text-muted);display:inline-flex}
+      /* A quiet history table — Type pill · Date · one-click document. No
+         progression ladder, no checklist; clarity and doc access only. */
+      #rr-dd-body .att-ev-tbl{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+      #rr-dd-body .att-ev-head,
+      #rr-dd-body .att-ev-row{display:grid;grid-template-columns:1fr 116px 80px;gap:14px;align-items:center;width:100%;text-align:left;padding:11px 15px;font:inherit;margin:0}
+      #rr-dd-body .att-ev-head{background:var(--canvas);border-bottom:1px solid var(--border);font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-subtle)}
+      #rr-dd-body .att-ev-head span:last-child{text-align:center}
+      #rr-dd-body button.att-ev-row{background:var(--surface);border:0;border-top:1px solid var(--border-subtle);cursor:pointer;transition:background var(--t-fast)}
+      #rr-dd-body .att-ev-row:first-of-type{border-top:0}
+      #rr-dd-body .att-ev-row:hover{background:var(--canvas)}
+      /* Warm, distinct severity pills (the dashboard's --amber token is
+         indigo, so real amber/orange hex is used here). NCNS = brand red. */
+      #rr-dd-body .att-ev-pill{justify-self:start;display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;padding:3px 11px;border-radius:var(--r-pill)}
+      #rr-dd-body .att-ev-ncns{background:var(--red-soft);color:var(--red)}
+      #rr-dd-body .att-ev-tardy{background:rgba(245,158,11,.14);color:#B45309}
+      #rr-dd-body .att-ev-calloff{background:rgba(234,88,12,.13);color:#C2410C}
+      #rr-dd-body .att-ev-date{font-size:var(--fs-sm);color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+      #rr-dd-body .att-ev-doc{justify-self:center;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted)}
+      #rr-dd-body .att-ev-row:hover .att-ev-doc{color:var(--accent-text)}
+      /* Empty state — positive, centered, standard dashed-panel styling. */
+      #rr-dd-body .att-ev-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:36px 24px;border:1px dashed var(--border-strong);border-radius:var(--r-lg);background:var(--canvas)}
+      #rr-dd-body .att-ev-empty-icon{color:var(--green)}
+      #rr-dd-body .att-ev-empty-title{font-size:var(--fs-md);font-weight:700;color:var(--text)}
+      #rr-dd-body .att-ev-empty-sub{font-size:var(--fs-sm);color:var(--text-subtle);max-width:280px;line-height:1.45}
     </style>
 
     <div class="dd-section">
-      <div class="dd-section-head"><div><div class="dd-section-title">Attendance progression</div><div class="dd-section-sub">Policy ladder · completed coachings are clickable</div></div></div>
-      ${progRows ? `<div class="att-prog">${progRows}</div>` : '<div class="rr-empty-inline">No attendance policy ladder configured.</div>'}
+      <div class="dd-section-head"><div><div class="dd-section-title">Attendance Events</div><div class="dd-section-sub">Track attendance-related coaching records and documentation.</div></div></div>
+      ${coachings.length ? `<div class="att-ev-tbl">
+        <div class="att-ev-head"><span>Type</span><span>Date</span><span>Document</span></div>
+        ${evRows}
+      </div>` : `<div class="att-ev-empty">
+        <span class="att-ev-empty-icon">${checkCircleSvg}</span>
+        <div class="att-ev-empty-title">Perfect Attendance</div>
+        <div class="att-ev-empty-sub">No attendance coaching events have been recorded for this driver.</div>
+      </div>`}
     </div>`;
 }
 
