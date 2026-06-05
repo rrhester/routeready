@@ -7267,7 +7267,7 @@ function renderDriverRow(d) {
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver class="${(_ddOpenDriverId && d.id === _ddOpenDriverId) ? "is-record-open" : ""}">
       <td class="dr-cb" data-rr-no-drawer style="text-align:center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" data-rr-app-state="${_appBtnState(d.id)}" title="${escapeHtml(_appBtnTitle(d.id))}" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
-      <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
+      <td><div class="cell-driver"><div class="avatar-sm ${tier}${(_rosterRisk && _rosterRisk.get && _rosterRisk.get(d.id) === "atrisk") ? " rr-final-ring" : ""}"${(_rosterRisk && _rosterRisk.get && _rosterRisk.get(d.id) === "atrisk") ? ' title="At risk · on a final corrective action"' : ""}>${initials}</div>
         <div class="cell-driver-text"><div class="cell-name">${escapeHtml(display)}${badges}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td class="rr-att-points-cell">${_riskCell(d.id)}</td>
@@ -8099,12 +8099,11 @@ function _attPointsCell(driverId) {
 // the schedule driver-card warning circle so the signal reads consistently.
 function _riskCell(driverId) {
   const r = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(driverId) : null;
-  if (r === "atrisk") {
-    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;color:var(--red)" title="On a final corrective action">${_rrKpiStatusIcon("red", "At risk")}At Risk</span>`;
-  }
-  if (r === "watch") {
-    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;color:#B45309" title="On a written corrective action">${_rrKpiStatusIcon("yellow", "Watch")}Watch</span>`;
-  }
+  // A subtle flag carries the signal — red = At Risk (final), amber = Watch
+  // (written). No label; the color + hover title do the work.
+  const flag = (color, title) => `<span class="rr-risk-flag" title="${title}" aria-label="${title}" style="display:inline-flex;align-items:center;color:${color}"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></span>`;
+  if (r === "atrisk") return flag("#D5392F", "At risk · on a final corrective action");
+  if (r === "watch")  return flag("#B45309", "Watch · on a written corrective action");
   return '<span class="u-subtle">—</span>';
 }
 
