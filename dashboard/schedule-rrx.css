@@ -2106,12 +2106,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   appearance: none;
   cursor: pointer;
   font: inherit;
-  /* Pinned to the bottom-right CORNER of the icon card (.sched-v2-strip
-     is position:relative). Sits in the empty space below the rightmost
-     tile, Outlook dialog-launcher style. */
+  /* Pinned to the bottom-right of the Today/Weekly/Monthly group
+     (.sched-v2-viewgroup is position:relative), Outlook dialog-launcher
+     style. */
   position: absolute;
-  right: 12px;
-  bottom: 7px;
+  right: 1px;
+  bottom: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2121,14 +2121,14 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   border: 0;
   border-radius: 999px;
   color: var(--rr-fg-secondary);
-  opacity: 0.55;
+  opacity: 0.6;
   z-index: 1;
   transition: opacity var(--rr-motion-fast, 120ms ease-out),
               background var(--rr-motion-fast, 120ms ease-out),
               color var(--rr-motion-fast, 120ms ease-out);
 }
-#view-schedule.rrx-schedule .sched-v2-strip:hover .sched-v2-group-launcher {
-  opacity: 0.85;
+#view-schedule.rrx-schedule .sched-v2-viewgroup:hover .sched-v2-group-launcher {
+  opacity: 0.9;
 }
 #view-schedule.rrx-schedule .sched-v2-group-launcher:hover,
 #view-schedule.rrx-schedule .sched-v2-group-launcher:focus-visible {
@@ -3221,6 +3221,37 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
   background: #EEF0F4 !important;
   border-color: rgba(15, 23, 42, 0.16) !important;
+}
+
+/* ============================================================
+   Card style toggle (Week rules popover · body.rr-sched-cards-blue)
+   ------------------------------------------------------------
+   WHITE (default): every assigned chip is off-white with only its
+   service-type-colored LEFT bar — even when Route color coding is on,
+   so the per-type FULL fills are suppressed in favor of the bar. The
+   [data-rr-shift-id] qualifier + source order (this block sits AFTER
+   the body.rr-sched-color-routes fills) wins the specificity tie.
+   BLUE: solid blue fill, no side bar.
+   ============================================================ */
+body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: #F7F8FA !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  border-left: 3px solid var(--chip-accent, #0F6CBD) !important;
+  color: #111111 !important;
+}
+body:not(.rr-sched-cards-blue) #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: #EEF0F4 !important;
+  border-color: rgba(15, 23, 42, 0.16) !important;
+  border-left-color: var(--chip-accent, #0F6CBD) !important;
+}
+body.rr-sched-cards-blue #view-schedule.rrx-schedule .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: #B4D8F3 !important;
+  border: 1px solid rgba(15, 108, 189, 0.34) !important;
+  color: #111111 !important;
+}
+body.rr-sched-cards-blue #view-schedule.rrx-schedule .cal-cell:hover .shift-chip[data-rr-shift-id]:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
+  background: #B3CFEC !important;
+  border-color: rgba(15, 108, 189, 0.48) !important;
 }
 
 /* Hover-lift · when the cursor is over an assigned card, raise it 2px,
