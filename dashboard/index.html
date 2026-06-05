@@ -5106,7 +5106,11 @@ details.rules-section[open] > summary.rules-section-title::after{transform:rotat
   .coach-drawer, .detail-drawer{transition:none}
 }
 .detail-head{
-  padding:var(--s-5);border-bottom:1px solid var(--border);
+  padding:var(--s-5);
+  /* Match the Schedule page's assigned shift-card fill (#C5DBF1 +
+     blue hairline) so the driver-record header reads as the same
+     chrome family as the schedule cards. */
+  background:#C5DBF1;border-bottom:1px solid rgba(15, 108, 189, 0.34);
   display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s-4);
 }
 .detail-avatar{
@@ -13909,9 +13913,12 @@ body.rr-cmdk-open{ overflow:hidden }
             position:sticky !important;top:0 !important;z-index:3 !important;
           }
           #rr-roster-thead th{
-            background:#EEF1F5 !important;
-            border-bottom:1px solid rgba(15,23,42,.26) !important;
-            color:var(--text) !important;
+            /* Match the Schedule page's assigned shift-card fill
+               (#C5DBF1 + blue hairline + #0F548C text) so the roster
+               header reads as the same chrome family as the cards. */
+            background:#C5DBF1 !important;
+            border-bottom:1px solid rgba(15, 108, 189, 0.34) !important;
+            color:#0F548C !important;
             font-size:var(--fs-xs) !important;font-weight:600 !important;
             letter-spacing:.07em !important;text-transform:uppercase !important;
             padding:10px var(--s-4) 11px !important;
