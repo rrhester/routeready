@@ -3198,9 +3198,12 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
    ============================================================ */
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  /* Soft blue tint (driver-app family) with dark text — operator-picked. */
-  background: #B4D8F3 !important;
-  border: 1px solid rgba(15, 108, 189, 0.34) !important;
+  /* Off-white card with a service-type-colored LEFT accent bar. The bar
+     color comes from --chip-accent (set inline per shift in live.js: the
+     service type's color, or the route classification color). */
+  background: #F7F8FA !important;
+  border: 1px solid rgba(15, 23, 42, 0.10) !important;
+  border-left: 3px solid var(--chip-accent, #0F6CBD) !important;
   box-shadow: none !important;
   color: #111111 !important;
 }
@@ -3213,10 +3216,11 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
   font-weight: 800 !important;
 }
 
-/* On hover, deepen the tint a touch so the focused cell registers. */
+/* On hover, deepen the off-white a touch so the focused cell registers
+   (the colored left accent bar is preserved). */
 #view-schedule.rrx-schedule .cal-cell:hover .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) {
-  background: #B3CFEC !important;
-  border-color: rgba(15, 108, 189, 0.48) !important;
+  background: #EEF0F4 !important;
+  border-color: rgba(15, 23, 42, 0.16) !important;
 }
 
 /* Hover-lift · when the cursor is over an assigned card, raise it 2px,
