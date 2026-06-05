@@ -94,7 +94,7 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=3">
-<link rel="stylesheet" href="schedule-rrx.css?v=117">
+<link rel="stylesheet" href="schedule-rrx.css?v=118">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -17127,16 +17127,17 @@ body.rr-cmdk-open{ overflow:hidden }
             <span>Monthly</span>
           </button>
           </div>
-          <!-- Dialog-launcher · bottom-right of the Today/Weekly/Monthly
-               group (Outlook-style). Re-parents the Week display-rules
-               popover into the icon card so it anchors there, forwards to
-               the hidden legacy toggle, and stops the event so the document
-               close-handler doesn't immediately re-close it. -->
+          <!-- Group label + dialog-launcher · Outlook-style. "Go To"
+               labels the Today/Weekly/Monthly view-selector group, centered
+               near the bottom of the card. The launcher (box + diagonal
+               arrow) sits at the group's bottom-right next to the hairline
+               divider and opens the Week display-rules dialog. -->
+          <span class="sched-v2-group-label" aria-hidden="true">Go To</span>
           <button type="button" class="sched-v2-group-launcher" tabindex="-1"
                   aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-week-rules-popover"
                   title="View display options"
                   onclick="(function(b,ev){ev.preventDefault();ev.stopPropagation();var pop=document.getElementById('rr-sched-week-rules-popover');var host=b.closest('.sched-v2-strip');if(pop&&host&&pop.parentElement!==host){host.appendChild(pop);}var t=document.getElementById('rr-sched-week-rules-toggle');if(t)t.click();})(this,event)">
-            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
           </button>
           </div>
           <!-- Roster + Attendance · in-page Schedule sub-views.
