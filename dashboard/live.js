@@ -40412,9 +40412,16 @@ function _schedShiftChip(sh, extras) {
     ? `<div class="shift-chip-van">Van ${escapeHtml(String(extras.van))}</div>`
     : "";
   const baseStyle = sh.is_cushion ? 'border-color:rgba(245,158,11,.22);' : '';
+  // Left accent-bar color · the service type's own color when the shift
+  // carries a non-SP service type (XL / HUB / ASU …), otherwise the route
+  // classification color (SP blue, Rescue red, Nursery teal). Surfaced as
+  // --chip-accent so the off-white chip's left bar is keyed per service type.
+  const accentColor = (stCode && stCode !== "SP")
+    ? stColor
+    : ((RC_BADGE[_rc] && RC_BADGE[_rc].c) || "#0F6CBD");
   const routineCls = extras?.routine ? ' is-routine' : '';
   const trainingCls = extras?.traineeName ? ' shift-chip-training' : '';
-  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}${vanLine}${cornerBadges}</div>`;
+  return `<div class="shift-chip${routineCls}${trainingCls}${sh.source === "fifth_day_pass" ? " shift-chip-fifth-day" : ""}" draggable="true" data-rr-shift-id="${sh.id}" data-rr-shift-kind="${escapeHtml(String(sh.shift_kind || ""))}" data-rr-shift-source="${escapeHtml(String(sh.source || ""))}" data-rr-shift-status="${escapeHtml(String(sh.status || ""))}" data-rr-route-class="${escapeHtml(String(sh.route_classification || ""))}" data-rr-service-code="${escapeHtml(String(sh.service_type_code || ""))}" style="position:relative;--chip-accent:${accentColor};${baseStyle}cursor:grab">${eyebrowRoute}${startLine}${waveLine}${vanLine}${cornerBadges}</div>`;
 }
 
 function _schedDriverInitials(name) {
