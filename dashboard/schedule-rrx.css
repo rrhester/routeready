@@ -3193,14 +3193,14 @@ body.rr-sched-color-routes #view-schedule.rrx-schedule .shift-chip.timeoff .shif
   background: #B4D8F3 !important;
   border: 1px solid rgba(15, 108, 189, 0.34) !important;
   box-shadow: none !important;
-  color: #0F548C !important;
+  color: #111111 !important;
 }
 
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) * {
-  color: #0F548C !important;
+  color: #111111 !important;
 }
 #view-schedule.rrx-schedule .shift-chip:not(.swap):not(.timeoff):not(.off):not(.open):not(.add-here) .shift-chip-route {
-  color: #0F548C !important;
+  color: #111111 !important;
   font-weight: 800 !important;
 }
 
