@@ -17306,7 +17306,6 @@ function renderDriverDrawerTab() {
   const note = document.getElementById("rr-dd-tab-note");
   if (note) {
     const NOTES = {
-      employment:   { cls: "",       txt: "DSP only — these fields aren't visible to the driver" },
       license:      { cls: "",       txt: "DSP only — license & certifications recorded by the dispatcher" },
       availability: { cls: "driver", txt: "Driver self-serve — the driver sets their own availability in the app" },
     };
@@ -18964,7 +18963,6 @@ async function renderEmploymentTab(body, d) {
           <div class="dd-section-title">Assignment</div>
           <div class="dd-section-sub">Where this driver works and their current employment state.</div>
         </div>
-        <span class="dd-badge dsp">DSP only</span>
       </div>
       <div class="dd-row"><label>Status</label>
         <select data-rr-dd-field="status">
@@ -18980,9 +18978,7 @@ async function renderEmploymentTab(body, d) {
       <div class="dd-section-head">
         <div>
           <div class="dd-section-title">Dates</div>
-          <div class="dd-section-sub">Birthday is used for tier eligibility and milestone reminders.</div>
         </div>
-        <span class="dd-badge dsp">DSP only</span>
       </div>
       <div class="dd-row"><label>Birthday</label><input type="date" data-rr-dd-field="birthday" value="${v(_ddVal("birthday", d.birthday))}"/></div>
       <div class="dd-row"><label>Hire date</label><input type="date" data-rr-dd-field="hire_date" value="${v(_ddVal("hire_date", d.hire_date))}"/></div>
@@ -18992,9 +18988,7 @@ async function renderEmploymentTab(body, d) {
       <div class="dd-section-head">
         <div>
           <div class="dd-section-title">Compensation</div>
-          <div class="dd-section-sub">Used to project payroll on the schedule grid.</div>
         </div>
-        <span class="dd-badge dsp">DSP only</span>
       </div>
       <div class="dd-row"><label>Pay rate</label>
         <div style="display:flex;align-items:center;gap:6px">
@@ -19016,8 +19010,8 @@ async function renderEmploymentTab(body, d) {
     <div class="dd-section">
       <div class="dd-section-head">
         <div>
-          <div class="dd-section-title">Onboarding &amp; Form I-9</div>
-          <div class="dd-section-sub">Every onboarding step — welcome email through activation, plus Form I-9 — is managed on the Onboarding page.</div>
+          <div class="dd-section-title">Onboarding</div>
+          <div class="dd-section-sub">Every onboarding step — welcome email through activation — is managed on the Onboarding page.</div>
         </div>
       </div>
       <div class="dd-row" style="grid-template-columns:1fr;border-top:none;padding-top:4px">
@@ -19039,7 +19033,6 @@ async function renderEmploymentTab(body, d) {
           <div class="dd-section-title">Driver app access</div>
           <div class="dd-section-sub">Send the activation link (re-sends the welcome message with a fresh code), or just mint a code to share manually.</div>
         </div>
-        <span class="dd-badge dsp">DSP only</span>
       </div>
       <div class="dd-row" style="grid-template-columns:1fr;gap:var(--s-2-5)">
         <div>
@@ -19050,26 +19043,6 @@ async function renderEmploymentTab(body, d) {
           </div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4">Sends the welcome message with a tap-to-activate link and a pre-filled code. One active code at a time · expires in 14 days.</div>
           <div data-rr-invite-display style="margin-top:10px;display:none"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="dd-section">
-      <div class="dd-section-head">
-        <div>
-          <div class="dd-section-title">Employment documentation</div>
-          <div class="dd-section-sub">Compile a complete, factual employment record — overview, attendance, coaching, communications, scheduling history, and e-signature documents — into one professional PDF packet. Useful at resignation, termination, abandonment, or for an unemployment-claim response.</div>
-        </div>
-        <span class="dd-badge dsp">DSP only</span>
-      </div>
-      <div class="dd-row" style="grid-template-columns:1fr;gap:var(--s-2-5)">
-        <div>
-          <button type="button" class="btn btn-primary btn-sm" data-rr-emp-report="${escapeHtml(d.id || "")}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
-            Generate Employment Documentation Report
-          </button>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.45">The report is neutral and chronological — it organizes what RouteReady recorded, it doesn't argue. Review the preview, then Save as PDF — or archive it onto this record for a retained, point-in-time copy.</div>
-          ${_empSavedReportsList(_ddDriver?.empReports)}
         </div>
       </div>
     </div>`;
