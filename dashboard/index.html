@@ -17954,13 +17954,15 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-left:8px;
           }
           #view-schedule .cal-cell-head.rr-has-week-nav .rr-sched-driver-actions{
-            /* Out of flow so the hidden hover-icons don't reserve a 2nd row
-               and inflate the header height; they overlay near the cell's
-               bottom-left on hover. */
-            position:absolute;
-            left:14px;
-            bottom:6px;
+            /* Drop onto their own line BENEATH the "Driver" title + week-nav
+               (flex-basis:100% wraps them in the flex-wrap cell). Forced to a
+               single compact row so the cell stays shorter than the 4-line day
+               headers and doesn't re-inflate the day columns. Left-aligned,
+               no overlap with the title/nav above. */
+            flex-basis:100%;
+            grid-template-columns:repeat(5, auto) !important;
             margin-left:0 !important;
+            margin-top:1px;
             justify-content:flex-start;
             justify-items:start;
           }
