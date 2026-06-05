@@ -130,8 +130,8 @@
   --kpi-divider:        rgba(15, 23, 42, .18);         /* inter-cell hairline           */
   --kpi-radius:         var(--rr-radius-medium);       /* 4px                           */
   --kpi-shadow:         0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10);
-  --kpi-height:         46px;                          /* = --tcp-kpi-h (locked)        */
-  --kpi-pad-y:          var(--rr-space-120);           /* 12px                          */
+  --kpi-height:         51px;                          /* = --tcp-kpi-h (locked, +10%)  */
+  --kpi-pad-y:          14px;                           /* more breathing room ↑↓ value  */
   --kpi-pad-x:          var(--rr-space-240);           /* 24px                          */
   --kpi-gap:            var(--rr-space-100);           /* 10px  dot ↔ text              */
   --kpi-margin-bottom:  var(--rr-space-80);            /* 8px                           */

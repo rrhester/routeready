@@ -40,8 +40,15 @@
   /* ── Heights ────────────────────────────────────────────── */
   --tcp-topbar-h:      56px;
   --tcp-cmd-tabs-h:    28px;   /* the absolute tab band above the strip card */
-  --tcp-strip-h:       96px;   /* the Header+IconStrip card — 115→96 once the in-flow Rules footers moved to a hover caret + right-click (Schedule + Onboarding), leaving just the icon tile column (~71px) + 22px strip padding */
-  --tcp-kpi-h:         46px;   /* the KPI band content height (excl. borders) */
+  --tcp-strip-h:       96px;   /* the Header+IconStrip card — 115→96 once the in-flow Rules footers moved to a hover caret + right-click (Schedule + Onboarding), leaving just the icon tile column (~71px) + 22px strip padding. LOCKED — never grows so the icon toolbar stays anchored. */
+  /* KPI band content height (excl. borders). Expanded = the default,
+     taller state (46 → 51, +~10%). The band grows DOWNWARD only: the
+     strip card (--tcp-strip-h) and the strip↔KPI gap (--tcp-strip-gap)
+     are both unchanged, so the divider between the icon strip and the
+     KPI band holds its Y and the extra height appears below it. */
+  --tcp-kpi-h:           51px;   /* = --tcp-kpi-h-expanded (the live height) */
+  --tcp-kpi-h-expanded:  51px;   /* expanded KPI band — taller, breathing room */
+  --tcp-kpi-h-collapsed: 30px;   /* compact summary row when collapsed */
   --tcp-kpi-border-h:  2px;    /* 1px top + 1px bottom */
   --tcp-kpi-gap:       8px;    /* between KPI band and body */
   --tcp-strip-gap:     12px;   /* between strip card and KPI band — density pass: 16→12 */
@@ -134,6 +141,26 @@
   height:     var(--tcp-kpi-h);
   max-height: var(--tcp-kpi-h);
   box-sizing: border-box;
+  /* Smooth the future collapse/expand toggle. */
+  transition: min-height .18s ease, height .18s ease, max-height .18s ease;
+}
+
+/* ── KPI band states (future-proofing) ──────────────────────
+   The band supports two heights. Expanded is the default (the
+   new taller --tcp-kpi-h). A page may add `.is-collapsed` to
+   the .tcp-kpi node to drop to a compact summary row — same
+   width + horizontal rhythm, just shorter. No JS toggles this
+   yet; the contract is here so a collapse control can land
+   later without touching geometry elsewhere. */
+.tcp-kpi.is-expanded {
+  min-height: var(--tcp-kpi-h-expanded);
+  height:     var(--tcp-kpi-h-expanded);
+  max-height: var(--tcp-kpi-h-expanded);
+}
+.tcp-kpi.is-collapsed {
+  min-height: var(--tcp-kpi-h-collapsed);
+  height:     var(--tcp-kpi-h-collapsed);
+  max-height: var(--tcp-kpi-h-collapsed);
 }
 
 /* Views with no metrics still reserve the KPI footprint so
