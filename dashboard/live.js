@@ -10936,6 +10936,26 @@ document.addEventListener("click", (e) => {
   }
 });
 
+// Driver-record header "Coach Driver" — open the coaching composer for the
+// currently-open record. Ad-hoc (no specific event); severity defaults to
+// Verbal and the operator fills in the rest in the modal.
+document.addEventListener("click", (e) => {
+  const coachBtn = e.target.closest && e.target.closest("[data-rr-dd-coach]");
+  if (!coachBtn) return;
+  e.preventDefault();
+  const d = _ddDriver && _ddDriver.driver;
+  if (!d || !d.id) { toast("Save the driver record first, then you can coach them.", "warn"); return; }
+  _openSendCoachingModal({
+    source:      "record",
+    event_id:    null,
+    driver_id:   d.id,
+    driver_name: displayDriverName(d) || "Driver",
+    event_label: "Manual coaching",
+    event_date:  "",
+    topic:       "attendance",
+  });
+});
+
 function _openSendCoachingModal(ctx) {
   let m = document.getElementById("rr-send-coach-modal");
   if (m) m.remove();
@@ -11038,6 +11058,7 @@ function _openSendCoachingModal(ctx) {
     // Refresh whichever surface launched the modal so the operator
     // sees their action reflected immediately.
     if (ctx.source === "report" && typeof loadAttendanceLive === "function") loadAttendanceLive();
+    else if (ctx.source === "record" && _ddOpenDriverId && typeof openDriverDrawer === "function") openDriverDrawer(_ddOpenDriverId, { tab: "attendance" });
     else if (typeof loadAttendanceEventLog === "function")                   loadAttendanceEventLog();
   });
 }
@@ -16985,6 +17006,7 @@ async function openDriverDrawer(driverId, opts) {
           </div>
         </div>
         <div class="dd-head-actions">
+          <button type="button" class="dd-act" data-rr-dd-coach aria-label="Coach this driver"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Coach Driver</button>
           <button type="button" id="rr-dd-close" class="dd-act" data-rr-dd-close aria-label="Close record"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Close</button>
         </div>
       </div>
