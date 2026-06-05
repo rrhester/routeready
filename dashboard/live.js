@@ -17295,7 +17295,6 @@ function renderDriverDrawerTab() {
   const note = document.getElementById("rr-dd-tab-note");
   if (note) {
     const NOTES = {
-      profile:      { cls: "driver", txt: "Driver self-serve — the driver can edit these in the RouteReady app" },
       employment:   { cls: "",       txt: "DSP only — these fields aren't visible to the driver" },
       license:      { cls: "",       txt: "DSP only — license & certifications recorded by the dispatcher" },
       availability: { cls: "driver", txt: "Driver self-serve — the driver sets their own availability in the app" },
@@ -18880,7 +18879,6 @@ async function _tpPick(trainerId, isTrainer) {
 }
 
 function renderProfileTab(body, d) {
-  const showPronouns = window.RR.dsp?.metadata?.drivers?.show_pronouns !== false;
   const v = (s) => escapeHtml(s ?? "");
   const curRole = _ddVal("role", d.role) || "driver";
   // Pretty labels for the role <select>.  Order = surface order: driver
@@ -18910,11 +18908,9 @@ function renderProfileTab(body, d) {
           <div class="dd-section-title">Identity</div>
           <div class="dd-section-sub">Name and personal details shown across the dashboard and driver app.</div>
         </div>
-        <span class="dd-badge driver">Driver self-serve</span>
       </div>
       <div class="dd-row"><label>Full name</label><input data-rr-dd-field="full_name" data-rr-capitalize autocapitalize="words" value="${v(_ddVal("full_name", d.full_name))}"/></div>
       <div class="dd-row"><label>Preferred name</label><input data-rr-dd-field="preferred_name" data-rr-capitalize autocapitalize="words" value="${v(_ddVal("preferred_name", d.preferred_name))}"/></div>
-      ${showPronouns ? `<div class="dd-row"><label>Pronouns</label><input data-rr-dd-field="pronouns" placeholder="he/him · she/her · they/them" value="${v(_ddVal("pronouns", d.pronouns))}"/></div>` : ""}
       <div class="dd-row">
         <label>Role</label>
         <div>
@@ -18930,7 +18926,6 @@ function renderProfileTab(body, d) {
           <div class="dd-section-title">Contact</div>
           <div class="dd-section-sub">How RouteReady reaches the driver — phone for SMS, email for magic-link sign-in.</div>
         </div>
-        <span class="dd-badge driver">Driver self-serve</span>
       </div>
       <div class="dd-row"><label>Phone</label><input data-rr-dd-field="phone" value="${v(_ddVal("phone", d.phone))}"/></div>
       <div class="dd-row"><label>Email</label><input type="email" data-rr-dd-field="email" value="${v(_ddVal("email", d.email))}"/></div>
@@ -18943,7 +18938,6 @@ function renderProfileTab(body, d) {
           <div class="dd-section-title">Emergency contact</div>
           <div class="dd-section-sub">Who to call if the driver is in an accident or medical emergency.</div>
         </div>
-        <span class="dd-badge driver">Driver self-serve</span>
       </div>
       <div class="dd-row"><label>Contact name</label><input data-rr-dd-field="emergency_contact_name" placeholder="Name" value="${v(_ddVal("emergency_contact_name", d.emergency_contact_name))}"/></div>
       <div class="dd-row"><label>Contact phone</label><input data-rr-dd-field="emergency_contact_phone" placeholder="Phone" value="${v(_ddVal("emergency_contact_phone", d.emergency_contact_phone))}"/></div>
