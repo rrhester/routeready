@@ -25,30 +25,12 @@ window.RR_DRIVER = { sb, driver: null };
 const PREVIEW_TOKEN = (() => { try { return new URLSearchParams(location.search).get("preview") || null; } catch { return null; } })();
 const PREVIEW = !!PREVIEW_TOKEN;
 let _previewSession = null;
-if (PREVIEW) {
-  const _rawRpc = sb.rpc.bind(sb);
-  const PREVIEW_BLOCKED_RPCS = new Set([
-    "driver_chat_send", "driver_chat_mark_read", "driver_ack_message", "driver_channel_post",
-    "driver_signout", "driver_update_profile", "driver_set_dl_image", "driver_clear_dl_image", "driver_set_pin",
-    "driver_onboarding_step_ack", "driver_submit_form", "driver_ack_coaching",
-    "driver_checkin", "driver_checkout", "driver_undo_checkout", "driver_report_missed_day",
-    "driver_set_preferred_days", "driver_submit_availability",
-    "driver_envelope_decline", "driver_envelope_sign", "driver_i9_save_section1", "driver_i9_submit_section1",
-    "driver_assignment_acknowledge", "driver_push_register", "driver_push_unregister",
-  ]);
-  sb.rpc = (...a) => PREVIEW_BLOCKED_RPCS.has(a[0])
-    ? Promise.resolve({ data: null, error: { message: "preview_read_only", code: "PREVIEW" } })
-    : _rawRpc(...a);
-  const _rawStorageFrom = sb.storage.from.bind(sb.storage);
-  sb.storage.from = (bucket) => {
-    const api = _rawStorageFrom(bucket);
-    if (/^driver-/.test(String(bucket || ""))) {
-      api.upload = async () => ({ data: null, error: { message: "preview_read_only" } });
-      api.remove = async () => ({ data: null, error: { message: "preview_read_only" } });
-    }
-    return api;
-  };
-}
+// Driver-app preview sessions are fully interactive (operator opted in):
+// the dispatcher's in-frame driver app writes through to the real driver
+// record exactly as the driver's own app would — no RPC or storage blocking.
+// NOTE: this means dispatcher-performed acknowledgements / e-signatures / I-9
+// submissions persist under the driver's identity. Kept intentionally per
+// product direction; revert this block to restore the read-only preview.
 
 // ── Service worker registration ─────────────────────────────────────
 if ("serviceWorker" in navigator && !PREVIEW) {
@@ -2834,12 +2816,7 @@ async function renderChat() {
   const session = readSession();
   if (!session?.token) { writeSession(null); render(); return; }
   if (_chatDisconnected) _showChatConnBanner("Reconnecting…", "warn");
-  if (PREVIEW) {
-    // Read-only preview: keep the thread, neutralise the composer.
-    _showChatConnBanner("Read-only preview", "");
-    document.getElementById("chat-form")?.querySelectorAll("button, textarea, input").forEach((el) => { el.disabled = true; });
-    const cf = document.getElementById("chat-form"); if (cf) cf.style.opacity = ".55";
-  }
+  // (Preview sessions are fully interactive — the chat composer stays live.)
 
   // Auto-grow textarea + persistent composer draft. The draft restore
   // means a driver who started typing, got pulled to another tab, or
