@@ -4512,7 +4512,7 @@ function renderSettings() {
   main.innerHTML = `
     <div class="settings-page">
       <section class="settings-section">
-        ${row("profile",      "/settings/profile",      "Profile",      "Name, pronouns, contact, emergency contact")}
+        ${row("profile",      "/settings/profile",      "Profile",      "Name, contact, emergency contact")}
         ${row("license",      "/settings/license",      "Driver's license", "License number and image")}
         ${row("pin",          "/settings/pin",          "Sign-in PIN",  "Set or change your 4–6 digit PIN")}
         ${row("availability", "/settings/availability", "Availability", "Days you can work and your earliest start")}
@@ -4572,9 +4572,6 @@ async function renderSettingsProfile() {
           <label class="field-label" for="rr-prof-pref">Preferred name</label>
           <input class="field" id="rr-prof-pref" type="text" value="${v(prof.preferred_name)}" autocomplete="nickname" />
 
-          <label class="field-label" for="rr-prof-pron">Pronouns</label>
-          <input class="field" id="rr-prof-pron" type="text" value="${v(prof.pronouns)}" placeholder="he/him · she/her · they/them" />
-
           <label class="field-label" for="rr-prof-phone">Phone</label>
           <input class="field" id="rr-prof-phone" type="tel" value="${v(prof.phone)}" autocomplete="tel" inputmode="tel" />
 
@@ -4609,7 +4606,6 @@ async function renderSettingsProfile() {
     const payload = {
       full_name:               document.getElementById("rr-prof-name").value.trim(),
       preferred_name:          document.getElementById("rr-prof-pref").value.trim(),
-      pronouns:                document.getElementById("rr-prof-pron").value.trim(),
       phone:                   document.getElementById("rr-prof-phone").value.trim(),
       email:                   document.getElementById("rr-prof-email").value.trim(),
       address:                 document.getElementById("rr-prof-addr").value.trim(),
