@@ -967,6 +967,14 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   overflow: hidden;
 }
 
+/* Collapse the Schedule KPI pill row when it has no pills (Week view
+   moves the KPIs into the right-side Operations Health panel, leaving
+   this strip empty). Without this the height-locked .tcp-kpi reserved
+   ~51px of blue dead space between the icon card and the grid. */
+#view-schedule.rrx-schedule #rr-sched-kpis:empty {
+  display: none !important;
+}
+
 /* Every KPI pill (Week-view `.sched-kpi-pill`, Today-view
    `.tp-kpi-pill`) renders as the same Outlook-style cell:
    11/24 padding, hairline right-border, tabular numbers, dot
