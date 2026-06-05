@@ -14046,12 +14046,23 @@ async function refreshDriverStatRow(rows) {
   const attnIcon = (attnTier == null || typeof _rrKpiStatusIcon !== "function")
     ? undefined
     : _rrKpiStatusIcon(attnTier, `${attnCoachedPct}% on attendance coaching`);
+  // % of the active team on a Final corrective action — "atrisk" in the
+  // roster risk map is Final/Termination severity.
+  const finalCaCount = active.filter(d => (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(d.id) === "atrisk" : false).length;
+  const finalCaPct = totalActive > 0 ? Math.round(finalCaCount / totalActive * 100) : null;
+  const finalCaLabel = finalCaPct == null ? "— Final corrective" : `${finalCaPct}% Final corrective`;
+  const finalCaSub = finalCaPct == null ? "&nbsp;" : `${finalCaCount} of ${totalActive} on a final action`;
+  const finalCaIcon = (finalCaPct == null || typeof _rrKpiStatusIcon !== "function")
+    ? undefined
+    : _rrKpiStatusIcon(finalCaCount > 0 ? "red" : "green", `${finalCaPct}% on a final corrective action`);
+
   const rosterKpisHtml =
     rosterPill("active", navy, `${counts.active} Active driver${counts.active === 1 ? "" : "s"}`,
       counts.onboarding ? `${counts.onboarding} onboarding` : "&nbsp;", false) +
     rosterPill("loa",    (counts.leave || 0) > 0 ? amber : navy,
       `${counts.leave || 0} on LOA`,
       (counts.leave || 0) > 0 ? "Currently on leave" : "None on leave", false) +
+    rosterPill("finalca", finalCaCount > 0 ? "#D5392F" : navy, finalCaLabel, finalCaSub, false, finalCaIcon) +
     rosterPill("tenure", navy, tenureLabel, tenureSub, true) +
     rosterPill("tenured", navy, tenuredLabel, tenuredSub, false) +
     rosterPill("dlexp", dlExpColor, dlExpLabel, dlExpSub, true);
@@ -41933,7 +41944,13 @@ async function renderScheduleWeek() {
     //   OT Risk: nobody over 40h (green) · 1–2 drivers elevated (yellow) ·
     //            3+ drivers excessive (red).
     const overtimeTier = driversInOt === 0 ? "green" : driversInOt <= 2 ? "yellow" : "red";
-    kpis.innerHTML =
+    // When a roster/attendance sub-view is borrowing this KPI board, route the
+    // fresh schedule pills into the restore cache instead of clobbering the
+    // visible roster pills (they're restored when the operator leaves the sub).
+    const _kpiTarget = (window._schedRosterKpiActive && window._schedRosterKpiActive())
+      ? { set innerHTML(v) { window._schedKpiSavedHtml = v; } }
+      : kpis;
+    _kpiTarget.innerHTML =
       pill("coverage", coverageTier, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, _covTier !== "green",
         "Click to see settings that would raise coverage") +
       pill("violations", violationsTier, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
