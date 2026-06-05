@@ -13917,20 +13917,51 @@ body.rr-cmdk-open{ overflow:hidden }
             position:sticky !important;top:0 !important;z-index:3 !important;
           }
           #rr-roster-thead th{
-            /* Match the Schedule page's assigned shift-card fill
-               (#C5DBF1 + blue hairline + #0F548C text) so the roster
-               header reads as the same chrome family as the cards. */
-            background:#C5DBF1 !important;
-            border-bottom:1px solid rgba(15, 108, 189, 0.34) !important;
-            color:#0F548C !important;
+            /* Calm enterprise data-grid header — white fill, muted uppercase
+               labels, a single bottom hairline. Controls now live in the
+               toolbar above, so the header only identifies columns. */
+            background:var(--surface) !important;
+            border-bottom:1px solid var(--border) !important;
+            color:var(--text-subtle) !important;
             font-size:var(--fs-xs) !important;font-weight:600 !important;
-            letter-spacing:.07em !important;text-transform:uppercase !important;
-            padding:10px var(--s-4) 11px !important;
-            /* Header strip height pinned to match Schedule's
-               .cal-grid.head (live measurement: 79px). */
-            height:79px !important;
+            letter-spacing:.06em !important;text-transform:uppercase !important;
+            padding:0 var(--s-4) !important;
+            height:38px !important;
             vertical-align:middle !important;
           }
+          /* ── Roster toolbar · search (left) + status filter & Add driver
+             (right). Lightweight enterprise strip above the table. ── */
+          .rr-roster-toolbar{
+            display:flex;align-items:center;gap:var(--s-3);
+            min-height:46px;padding:7px var(--s-4);
+            background:var(--surface);
+            border-bottom:1px solid var(--border);
+          }
+          .rr-roster-toolbar .rr-roster-toolbar-search{flex:1 1 auto;min-width:0}
+          .rr-roster-toolbar .rr-roster-toolbar-actions{display:flex;align-items:center;gap:var(--s-2-5);flex:0 0 auto}
+          .rr-roster-toolbar .dr-search{position:relative;width:min(360px,100%)}
+          .rr-roster-toolbar .dr-search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-subtle);pointer-events:none}
+          .rr-roster-toolbar .dr-search input{
+            width:100%;height:32px;padding:0 10px 0 30px;
+            border:1px solid var(--border);border-radius:var(--r-md);
+            background:var(--surface);color:var(--text);
+            font:inherit;font-size:var(--fs-sm);
+            transition:border-color var(--t-fast),box-shadow var(--t-fast);
+          }
+          .rr-roster-toolbar .dr-search input::placeholder{color:var(--text-subtle)}
+          .rr-roster-toolbar .dr-search input:hover{border-color:var(--border-strong)}
+          .rr-roster-toolbar .dr-search input:focus{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
+          .rr-roster-toolbar .rr-roster-status-filter-btn{
+            display:inline-flex;align-items:center;gap:2px;
+            height:32px;padding:0 12px;
+            border:1px solid var(--border-strong);border-radius:var(--r-md);
+            background:var(--surface);color:var(--text);
+            font:inherit;font-size:var(--fs-sm);font-weight:600;cursor:pointer;white-space:nowrap;
+            transition:background var(--t-fast),border-color var(--t-fast);
+          }
+          .rr-roster-toolbar .rr-roster-status-filter-btn:hover{background:var(--canvas)}
+          .rr-roster-toolbar .rr-roster-status-filter-btn.is-set{border-color:var(--accent);color:var(--accent-text)}
+          .rr-roster-toolbar .btn[data-rr-roster-add-driver]{height:32px}
           /* Roster-header "Add driver" button — styled to match the
              driver-record Close button (.dd-act): transparent fill, hairline
              border, muted text. Defined globally here (not via the drawer's
@@ -14342,6 +14373,22 @@ body.rr-cmdk-open{ overflow:hidden }
           <button type="button" class="rr-roster-view-chip" data-rr-view="atrisk" aria-pressed="false" title="Active drivers with score under 70">At risk</button>
           <button type="button" class="rr-roster-view-chip" data-rr-view="newhires" aria-pressed="false" title="Hired in the last 30 days">New hires</button>
           <button type="button" class="rr-roster-view-chip" data-rr-view="onleave" aria-pressed="false" title="Drivers on leave of absence">On leave</button>
+        </div>
+
+        <!-- Roster toolbar · controls live here, not in the column header,
+             so the table header only identifies columns (enterprise data-grid
+             pattern). Search on the left; status filter + Add driver on the
+             right. Sits inside #dr-sub-roster so it travels with the roster
+             into the Onboarding / Schedule embeds. -->
+        <div class="rr-roster-toolbar" id="rr-roster-toolbar" data-rr-no-drawer>
+          <div class="rr-roster-toolbar-search"></div>
+          <div class="rr-roster-toolbar-actions">
+            <button type="button" class="rr-roster-status-filter-btn" data-rr-roster-status-filter data-rr-no-drawer aria-haspopup="menu" aria-expanded="false" title="Filter by status">
+              <span class="rr-roster-status-filter-label">Active</span>
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:3px;opacity:.7"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <button type="button" class="btn btn-sm" data-rr-roster-add-driver data-rr-no-drawer title="Add a new driver" style="text-transform:none;letter-spacing:normal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add driver</button>
+          </div>
         </div>
 
         <!-- Split workspace · roster list (left) + inline driver record
