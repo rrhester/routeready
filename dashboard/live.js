@@ -4221,54 +4221,32 @@ function renderDriverTable(rows, error) {
       <th>App</th>
       <th></th>`;
   } else {
-    // Detach the existing search wrapper BEFORE the innerHTML
-    // rebuild — otherwise the in-thead copy gets blown away and the
-    // source in .dr-roster-bar is also empty (we already moved it
-    // out on a previous render), so the search input vanishes after
-    // the first re-render (e.g. typing one character triggers the
-    // 120ms-debounced re-render which then deletes the input
-    // mid-keystroke). Capture focus + caret so the operator can keep
-    // typing without their cursor jumping.
-    const existingSearchInput = document.getElementById("rr-roster-search");
-    const detachedSearchWrap  = existingSearchInput ? existingSearchInput.closest(".dr-search") : null;
-    const searchWasFocused    = existingSearchInput && document.activeElement === existingSearchInput;
-    const searchCaretStart    = searchWasFocused ? existingSearchInput.selectionStart : null;
-    const searchCaretEnd      = searchWasFocused ? existingSearchInput.selectionEnd   : null;
-    if (detachedSearchWrap && detachedSearchWrap.parentNode) {
-      detachedSearchWrap.parentNode.removeChild(detachedSearchWrap);
-    }
-
     thead.innerHTML = cbHeader + `
-      <th class="rr-roster-th-driver">
-        <span class="rr-roster-th-driver-label" data-rr-roster-sort="name" style="cursor:pointer;user-select:none">Driver${caret("name")}</span>
-        <span class="rr-roster-th-search-slot" data-rr-no-drawer></span>
-      </th>
+      <th class="rr-roster-th-driver"><span class="rr-roster-th-driver-label" data-rr-roster-sort="name" style="cursor:pointer;user-select:none">Driver${caret("name")}</span></th>
       <th class="rr-roster-th-attpoints" data-rr-roster-sort="risk" style="cursor:pointer;user-select:none" title="Drivers on a corrective action: Watch (Written) or At Risk (Final)">Risk${caret("risk")}</th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
-      <th class="rr-roster-th-status">
-        <span class="rr-roster-th-status-sort" data-rr-roster-sort="status" style="cursor:pointer;user-select:none">Status${caret("status")}</span>
-        <button type="button" class="rr-roster-status-filter-btn${_driverStage !== "active" ? " is-set" : ""}" data-rr-roster-status-filter data-rr-no-drawer aria-haspopup="menu" aria-expanded="false" title="Filter by status">
-          <span class="rr-roster-status-filter-label">${escapeHtml(_rrRosterStatusFilterLabel())}</span>
-          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:3px;opacity:.7"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-      </th>
+      <th class="rr-roster-th-status"><span class="rr-roster-th-status-sort" data-rr-roster-sort="status" style="cursor:pointer;user-select:none">Status${caret("status")}</span></th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th class="rr-roster-th-app">App</th>
-      <th class="rr-roster-th-actions" style="position:sticky;right:0;z-index:4;text-align:right;background:#C5DBF1;box-shadow:-12px 0 12px -8px rgba(15,23,42,.20);white-space:nowrap"><button type="button" class="rr-roster-add-act" data-rr-roster-add-driver data-rr-no-drawer title="Add a new driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add driver</button></th>`;
+      <th class="rr-roster-th-actions"></th>`;
     thead.dataset.rrColCount = "8";
+  }
 
-    // Re-attach the search wrapper into the new search slot. Fall
-    // back to the still-hidden .dr-roster-bar source on the very
-    // first render before we've ever moved it.
-    const searchSlot = thead.querySelector(".rr-roster-th-search-slot");
-    const searchWrap = detachedSearchWrap || document.querySelector(".dr-roster-bar .dr-search");
-    if (searchSlot && searchWrap) {
-      searchSlot.appendChild(searchWrap);
-      if (searchWasFocused && existingSearchInput) {
-        existingSearchInput.focus();
-        try { existingSearchInput.setSelectionRange(searchCaretStart, searchCaretEnd); } catch (_) {}
-      }
-    }
+  // Roster toolbar · search + status filter + Add driver live here, not in the
+  // column header. Relocate the search input into the toolbar once (it keeps
+  // its listeners when moved), and sync the status-filter label/state. The
+  // filter + Add buttons use document-delegated handlers, so they work wherever
+  // they're rendered.
+  const _rosterToolbar = document.getElementById("rr-roster-toolbar");
+  if (_rosterToolbar) {
+    const _searchSlot  = _rosterToolbar.querySelector(".rr-roster-toolbar-search");
+    const _searchInput = document.getElementById("rr-roster-search");
+    const _searchWrap  = _searchInput ? _searchInput.closest(".dr-search") : null;
+    if (_searchSlot && _searchWrap && _searchWrap.parentNode !== _searchSlot) _searchSlot.appendChild(_searchWrap);
+    const _filtLabel = _rosterToolbar.querySelector(".rr-roster-status-filter-label");
+    if (_filtLabel) _filtLabel.textContent = _rrRosterStatusFilterLabel();
+    const _filtBtn = _rosterToolbar.querySelector("[data-rr-roster-status-filter]");
+    if (_filtBtn) _filtBtn.classList.toggle("is-set", _driverStage !== "active");
   }
 
   _obSetStrip(error ? null : rows);
