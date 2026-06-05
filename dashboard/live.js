@@ -16963,8 +16963,6 @@ async function openDriverDrawer(driverId, opts) {
       .dd-head-id{display:flex;align-items:center;gap:var(--s-3-5);min-width:0}
       .dd-head-idtext{min-width:0}
       .dd-head-nameline{display:flex;align-items:center;gap:var(--s-2-5);min-width:0;flex-wrap:wrap}
-      /* Final-corrective-action warning · a thin red ring around the avatar. */
-      #rr-dd-avatar.dd-avatar-final{box-shadow:0 0 0 2px #D5392F}
       .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.35}
       .dd-meta-sub{font-size:var(--fs-xs);margin-top:1px}
       .dd-head-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto}
@@ -17226,12 +17224,6 @@ async function loadDriverDrawer(driverId) {
   if (!titleEl) return;
   titleEl.textContent = displayDriverName(drv) || "—";
 
-  // Warning icon beside the name when the driver is on a Final corrective
-  // action — an active (not resolved/archived) coaching at "final" severity.
-  // On a Final corrective action → a thin red ring around the avatar (toggled
-  // on the avatar element below).
-  const onFinal = (_ddDriver.coachings || []).some(c => c && c.severity === "final" && !c.resolved_at && !c.archived_at);
-
   // ── Header rebuild — name (above) is the anchor; everything else reads as
   // quiet secondary metadata. Line 1: "STATION • Status" (status keeps its
   // palette color); line 2: "Hired N days ago". A driver-health pill sits
@@ -17262,8 +17254,6 @@ async function loadDriverDrawer(driverId) {
     avEl.setAttribute("data-rr-driver-id", drv.id);
     avEl.classList.remove("tier-a","tier-b","tier-c","tier-d");
     if (drv.tier) avEl.classList.add("tier-" + String(drv.tier).toLowerCase());
-    avEl.classList.toggle("dd-avatar-final", onFinal);
-    avEl.title = onFinal ? "On final corrective action" : "";
     avEl.textContent = displayDriverInitials(drv);
     delete avEl.dataset.rrPhotoPainted;
     avEl.style.backgroundImage = "";
@@ -41032,7 +41022,7 @@ async function renderScheduleWeek() {
   // the visible week (see `femRisks` computation further below).
   const femLookbackIso = fmtIsoDate(addDays(weekStart, -14));
 
-  const [gridRes, driversRes, toRes, femVehRes, femAssignRes, settingsRes, finalCoachRes] = await Promise.all([
+  const [gridRes, driversRes, toRes, femVehRes, femAssignRes, settingsRes] = await Promise.all([
     sb.rpc("schedule_grid", { p_start: _schedStart, p_weeks: 1 }),
     sb.from("drivers")
       .select("id, full_name, first_name, last_name, preferred_name, status, station_id, hire_date, birthday, tier, metadata, dl_expires_on, dot_certified, xl_certified, edv_certified, is_trainer, role, station:station_id (code)")
@@ -41060,8 +41050,6 @@ async function renderScheduleWeek() {
     // Week's cushion % (route-plan buffer) — drives the coverage
     // denominator: ceil(target_routes × (1 + cushion%)).
     sb.rpc("scheduling_settings_for_week", { p_week_start: _schedStart }),
-    // Drivers on an active Final corrective action → thin red avatar ring.
-    sb.from("coachings").select("driver_id").eq("dsp_id", dspId).eq("severity", "final").is("resolved_at", null).is("archived_at", null),
   ]);
 
   if (gridRes.error)    { console.warn("schedule_grid:", gridRes.error.message); return; }
@@ -41072,8 +41060,6 @@ async function renderScheduleWeek() {
 
   const grid    = gridRes.data    || { coverage: [], shifts: [] };
   const drivers = driversRes.data || [];
-  // Drivers on an active Final corrective action — for the red avatar ring.
-  const finalDriverIds = new Set((finalCoachRes?.data || []).map(c => c.driver_id).filter(Boolean));
   const timeOff = toRes.data      || [];
   // Route-plan cushion % for this week (falls back to the app default of
   // 10 when no setting is stored). Used to compute the FIXED coverage
@@ -42482,7 +42468,7 @@ async function renderScheduleWeek() {
       return `<div class="${cls}${prefCls}" ${data}>${chips}</div>`;
     }).join("");
     return `<div class="cal-grid">
-      <div class="cal-row-label"><div class="avatar-sm ${tier}${finalDriverIds.has(d.id) ? " rr-sched-avatar-final" : ""}" data-rr-driver-id="${d.id}"${finalDriverIds.has(d.id) ? ' title="On final corrective action"' : ''}>${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta"><span class="cal-row-label-station">${escapeHtml(station)}</span><span class="cal-row-label-sep"> · </span>${hoursLabelHTML}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div>${otIcon}${rightCluster}</div>
+      <div class="cal-row-label"><div class="avatar-sm ${tier}" data-rr-driver-id="${d.id}">${initials}</div><div class="cal-row-label-body"><div class="cal-row-label-name" data-rr-driver-id="${d.id}">${escapeHtml(display)}${d.is_trainer ? `<span title="Driver trainer" style="display:inline-flex;align-items:center;background:var(--accent-soft);color:var(--accent-text);font-size:9px;font-weight:700;padding:1px 5px;border-radius:var(--r-sm);margin-left:6px;letter-spacing:.04em;vertical-align:middle">TRAINER</span>` : ""}</div><div class="cal-row-label-meta"><span class="cal-row-label-station">${escapeHtml(station)}</span><span class="cal-row-label-sep"> · </span>${hoursLabelHTML}</div>${d._milestoneBanner ? _rrRenderMilestoneCorner(d, d._milestoneBanner) : ""}</div>${otIcon}${rightCluster}</div>
       ${cells}
     </div>`;
   }).join("");
