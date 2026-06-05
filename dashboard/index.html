@@ -94,7 +94,7 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=3">
-<link rel="stylesheet" href="schedule-rrx.css?v=120">
+<link rel="stylesheet" href="schedule-rrx.css?v=121">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -21216,10 +21216,13 @@ body.rr-cmdk-open{ overflow:hidden }
             background:var(--sch-blue-tint);
             color:var(--sch-blue);
           }
-          #view-schedule .cal-cell-head.today .day-num{color:var(--sch-blue)}
+          /* Stronger current-day header · slightly darker, bolder day
+             number + a firmer top accent line so "today" is identifiable
+             in <1s. No height change (accent is absolute). */
+          #view-schedule .cal-cell-head.today .day-num{color:var(--sch-blue-text, #0E4F86);font-weight:700}
           #view-schedule .cal-cell-head.today::after{
-            content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
-            background:var(--sch-blue);
+            content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;
+            background:var(--sch-blue-strong, #115EA3);
           }
           #view-schedule .cal-cell-head .day-coverage{
             display:block;
@@ -21278,6 +21281,23 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-schedule .cal-cell.today{
             background:var(--sch-blue-tint);
             box-shadow:none;
+          }
+          /* Page-load orientation flash · one soft highlight sweep over the
+             current-day column on first load, fading from ~8% RouteReady
+             blue down to the resting ~3.5% wash. Gated by
+             body.rr-sched-orient-flash (added once by the inline script
+             below), so it plays a single time and never repeats. */
+          @keyframes rr-today-orient-flash{
+            0%{background:rgba(15,108,189,.08)}
+            100%{background:var(--sch-blue-tint, rgba(15,108,189,.035))}
+          }
+          body.rr-sched-orient-flash #view-schedule .cal-cell.today,
+          body.rr-sched-orient-flash #view-schedule .cal-cell-head.today{
+            animation:rr-today-orient-flash 1.2s ease-out both;
+          }
+          @media (prefers-reduced-motion: reduce){
+            body.rr-sched-orient-flash #view-schedule .cal-cell.today,
+            body.rr-sched-orient-flash #view-schedule .cal-cell-head.today{animation:none}
           }
           #view-schedule .cal-cell.rr-drag-over{
             background:var(--sch-blue-soft) !important;
@@ -36042,6 +36062,30 @@ John,Smith,555-0101,john@example.com</code>
     };
     window.okamiRecommendCushion._vtoEnhanced = true;
   }
+</script>
+
+<!-- One-time "today" orientation flash · waits for the current-day column
+     to render, then adds body.rr-sched-orient-flash for 1.5s so the column
+     does a single soft highlight sweep on first load (CSS handles the
+     animation). Guarded so it never repeats on re-render. -->
+<script>
+  (function () {
+    if (window.__rrSchedOrientFlash) return;
+    window.__rrSchedOrientFlash = true;
+    var tries = 0;
+    function go() {
+      var head = document.querySelector('#view-schedule .cal-cell-head.today');
+      if (head) {
+        document.body.classList.add('rr-sched-orient-flash');
+        setTimeout(function () { document.body.classList.remove('rr-sched-orient-flash'); }, 1500);
+        return;
+      }
+      if (tries++ < 50) setTimeout(go, 200);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', go);
+    } else { go(); }
+  })();
 </script>
 
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->

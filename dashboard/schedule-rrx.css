@@ -2773,6 +2773,23 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: linear-gradient(135deg, #22C55E 0%, #107C41 100%);
   color: #ffffff;
   border: 1px solid rgba(13, 92, 49, 0.55);
+  /* Operational pulse · a single, very subtle scale tick (100→103→100
+     over ~800ms) then a long ~3.2s rest, like a Teams presence dot —
+     no color/opacity change, just transform. Communicates "live &
+     monitoring" without being flashy. */
+  transform-origin: center;
+  animation: rr-live-pulse 4s ease-in-out infinite;
+}
+@keyframes rr-live-pulse {
+  0%   { transform: scale(1); }
+  10%  { transform: scale(1.03); }
+  20%  { transform: scale(1); }
+  100% { transform: scale(1); }   /* long rest between pulses */
+}
+@media (prefers-reduced-motion: reduce) {
+  #view-schedule.rrx-schedule .sched-v2-status-pill[data-state="live"] {
+    animation: none;
+  }
 }
 
 #view-schedule.rrx-schedule .sched-v2-status-pill .sched-v2-status-check {
