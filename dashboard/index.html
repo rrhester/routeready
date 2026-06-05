@@ -13835,12 +13835,14 @@ body.rr-cmdk-open{ overflow:hidden }
           #rr-roster-thead th.rr-roster-th-driver{
             padding-top:6px !important;padding-bottom:6px !important;
           }
+          /* Stack the search under the Driver label, left-aligned to the
+             column edge (operator wanted the search bar further left). */
           #rr-roster-thead .rr-roster-th-driver-label{
-            display:inline-flex;align-items:center;gap:4px;
-            margin-right:14px;
+            display:flex;align-items:center;gap:4px;
+            margin-right:0;margin-bottom:5px;
           }
           #rr-roster-thead .rr-roster-th-search-slot{
-            display:inline-flex;align-items:center;vertical-align:middle;
+            display:flex;align-items:center;
           }
           #rr-roster-thead .rr-roster-th-search-slot .dr-search{
             display:inline-block;position:relative;width:240px;max-width:32vw;

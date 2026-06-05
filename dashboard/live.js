@@ -4243,6 +4243,7 @@ function renderDriverTable(rows, error) {
         <span class="rr-roster-th-driver-label" data-rr-roster-sort="name" style="cursor:pointer;user-select:none">Driver${caret("name")}</span>
         <span class="rr-roster-th-search-slot" data-rr-no-drawer></span>
       </th>
+      <th class="rr-roster-th-attpoints" data-rr-roster-sort="risk" style="cursor:pointer;user-select:none" title="Drivers on a corrective action: Watch (Written) or At Risk (Final)">Risk${caret("risk")}</th>
       <th data-rr-roster-sort="tenure" style="cursor:pointer;user-select:none">Tenure${caret("tenure")}</th>
       <th class="rr-roster-th-status">
         <span class="rr-roster-th-status-sort" data-rr-roster-sort="status" style="cursor:pointer;user-select:none">Status${caret("status")}</span>
@@ -4251,7 +4252,6 @@ function renderDriverTable(rows, error) {
           <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:3px;opacity:.7"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
       </th>
-      <th class="rr-roster-th-attpoints" data-rr-roster-sort="risk" style="cursor:pointer;user-select:none" title="Drivers on a corrective action: Watch (Written) or At Risk (Final)">Risk${caret("risk")}</th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th class="rr-roster-th-app">App</th>
       <th class="rr-roster-th-actions" style="position:sticky;right:0;z-index:4;text-align:right;background:#C5DBF1;box-shadow:-12px 0 12px -8px rgba(15,23,42,.20);white-space:nowrap"><button type="button" class="rr-roster-add-act" data-rr-roster-add-driver data-rr-no-drawer title="Add a new driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add driver</button></th>`;
@@ -7270,9 +7270,9 @@ function renderDriverRow(d) {
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
         <div class="cell-driver-text"><div class="cell-name">${escapeHtml(display)}${badges}</div>
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
+      <td class="rr-att-points-cell">${_riskCell(d.id)}</td>
       <td>${tenure}</td>
       <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
-      <td class="rr-att-points-cell">${_riskCell(d.id)}</td>
       <td class="rr-lastactive-cell">${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer class="u-center rr-app-cell"></td>
       <td data-rr-no-drawer class="rr-row-actions">${actions}</td>
