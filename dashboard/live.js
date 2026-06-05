@@ -4235,7 +4235,7 @@ function renderDriverTable(rows, error) {
       <th class="rr-roster-th-attpoints" data-rr-roster-sort="attpoints" style="cursor:pointer;user-select:none" title="Active attendance points within the policy window"><span class="rr-th-lbl-full">Attendance Points</span><span class="rr-th-lbl-short">Points</span>${caret("attpoints")}</th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th class="rr-roster-th-app">App</th>
-      <th class="rr-roster-th-actions" style="text-align:right"><button type="button" class="btn btn-sm btn-primary" data-rr-roster-add-driver data-rr-no-drawer title="Add a new driver" style="text-transform:none;letter-spacing:normal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add driver</button></th>`;
+      <th class="rr-roster-th-actions" style="position:sticky;right:0;z-index:4;text-align:right;background:#C5DBF1;box-shadow:-12px 0 12px -8px rgba(15,23,42,.20);white-space:nowrap"><button type="button" class="btn btn-sm btn-primary" data-rr-roster-add-driver data-rr-no-drawer title="Add a new driver" style="text-transform:none;letter-spacing:normal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add driver</button></th>`;
     thead.dataset.rrColCount = "8";
 
     // Re-attach the search wrapper into the new search slot. Fall
