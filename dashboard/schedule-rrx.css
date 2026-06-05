@@ -1887,9 +1887,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   align-items: flex-start;
   flex-wrap: nowrap;     /* matches Fleet — single row, no wrap */
   gap: 8px;
-  /* Exact match for #view-fleet .fl-ribbon dimensions:
-     11px 18px padding. */
-  padding: 11px 18px;
+  /* Trim the TOP padding (11→3px) so the top-aligned icon cluster sits
+     closer to the top edge of the card; keep the 18px sides + 11px
+     bottom. */
+  padding: 3px 18px 11px;
   /* Density pass · strip→KPI gap tracks the shared --tcp-strip-gap
      (16→12) so every TCP view tightens together. */
   margin: 0 0 var(--tcp-strip-gap, 12px) 0;
