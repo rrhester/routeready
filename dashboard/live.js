@@ -42123,10 +42123,11 @@ async function renderScheduleWeek() {
       row("rotation", rotationDotRed ? "red" : "green", "Fleet",
         femRisks.length === 0 ? "Healthy" : `${femRisks.length} at risk`, rotationSub, femRisks.length > 0);
 
-    const _ophRowsEl = document.getElementById("rr-sched-ophealth-rows");
-    if (_ophRowsEl) _ophRowsEl.innerHTML = _ophRows;
-    const _ophSubEl = document.getElementById("rr-sched-ophealth-sub");
-    if (_ophSubEl) _ophSubEl.textContent = document.getElementById("rr-sched-page-sub")?.textContent || "";
+    // Stash the rows + subtitle for the right-rail Operations Health panel —
+    // renderSchedOpenShiftsPool (called below) paints them into the open-shifts
+    // aside, replacing the open-shifts pool UI.
+    window._rrSchedOphRows = _ophRows;
+    window._rrSchedOphSub  = document.getElementById("rr-sched-page-sub")?.textContent || "";
     // The weekly view no longer uses the horizontal strip — hide it (unless
     // roster/attendance mode is borrowing the board with its own pills).
     if (kpis && !(window._schedRosterKpiActive && window._schedRosterKpiActive())) {
@@ -42570,6 +42571,23 @@ let _poolSortMode = "day"; // 'day' | 'wave'
 function renderSchedOpenShiftsPool(sub, allShifts, drivers, hoursPerDriver, shiftCountPerDriver, ptoByDriver, virtualByDate) {
   const aside = sub.querySelector("aside.driver-pool");
   if (!aside) return;
+
+  // Operations Health · the right-rail panel now shows the weekly KPIs as
+  // compact rows (replacing the open-shifts pool). renderScheduleWeek stashed
+  // the rows; render them here and skip the open-shifts UI. The aside itself
+  // drops its own card chrome so the inner .sched-ophealth card stands alone.
+  if (window._rrSchedOphRows != null) {
+    aside.style.padding = "0";
+    aside.style.border = "none";
+    aside.style.background = "transparent";
+    aside.style.boxShadow = "none";
+    aside.style.maxHeight = "none";
+    aside.innerHTML = `<div class="sched-ophealth">`
+      + `<div class="sched-ophealth-head"><div class="sched-ophealth-title">Operations Health</div><div class="sched-ophealth-sub">${escapeHtml(window._rrSchedOphSub || "")}</div></div>`
+      + `<div class="sched-ophealth-rows">${window._rrSchedOphRows}</div>`
+      + `</div>`;
+    return;
+  }
 
   // Real open shifts = scheduled shifts that the KPI strip also
   // surfaces as "open" — either driver_id is null OR the assigned
