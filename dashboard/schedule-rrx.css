@@ -2106,18 +2106,18 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   position: relative;
   flex: 0 0 auto;
 }
-/* "Go To" group label · Outlook-style group caption centered near the
-   bottom of the card, below the Today/Weekly/Monthly tiles. */
+/* "Go To" group label · Outlook-style group caption centered on the
+   bottom LINE of the card, below the Today/Weekly/Monthly tiles. */
 #view-schedule.rrx-schedule .sched-v2-group-label {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 3px;
+  bottom: -4px;
   text-align: center;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: .01em;
-  color: var(--rr-fg-secondary);
+  color: #242424;
   pointer-events: none;
   white-space: nowrap;
 }
@@ -2127,10 +2127,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   font: inherit;
   /* Pinned to the bottom-right of the Today/Weekly/Monthly group
      (.sched-v2-viewgroup is position:relative), next to the hairline
-     divider — Outlook dialog-launcher style. */
+     divider — Outlook dialog-launcher style. Aligned to the same bottom
+     line as the "Go To" label. */
   position: absolute;
   right: 0;
-  bottom: 1px;
+  bottom: -3px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
