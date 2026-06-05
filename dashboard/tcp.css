@@ -40,7 +40,7 @@
   /* ── Heights ────────────────────────────────────────────── */
   --tcp-topbar-h:      56px;
   --tcp-cmd-tabs-h:    28px;   /* the absolute tab band above the strip card */
-  --tcp-strip-h:       96px;   /* the Header+IconStrip card — 115→96 once the in-flow Rules footers moved to a hover caret + right-click (Schedule + Onboarding), leaving just the icon tile column (~71px) + 22px strip padding. LOCKED — never grows so the icon toolbar stays anchored. */
+  --tcp-strip-h:       106px;  /* Header+IconStrip card. 96→106 (+~10%) per operator: a taller card with the icon cluster top-aligned. Shared across every TCP view so they stay in lockstep. */
   /* KPI band content height (excl. borders). Expanded = the default,
      taller state (46 → 51, +~10%). The band grows DOWNWARD only: the
      strip card (--tcp-strip-h) and the strip↔KPI gap (--tcp-strip-gap)
