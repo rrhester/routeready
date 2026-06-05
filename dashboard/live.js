@@ -21425,32 +21425,17 @@ async function renderAttendanceTab(body, d) {
   const checkCircleSvg = `<svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
 
   // ── Attendance Events ──
-  // One row per attendance coaching record (already newest-first). The event
-  // TYPE is derived from the shift the coaching was raised on:
-  //   no_show → NCNS, late → Tardy, called_off → Call-off.
-  // The doc icon opens that coaching's documentation (slide-over).
-  const statusById = new Map();
-  for (const s of shifts) statusById.set(s.id, s.status);
-  // A coaching's triggering shift can predate the loaded window — fetch any
-  // that aren't already in hand so the type pill always resolves.
-  const missingShiftIds = [];
-  for (const c of coachings) {
-    if (c.triggering_shift_id && !statusById.has(c.triggering_shift_id)) missingShiftIds.push(c.triggering_shift_id);
-  }
-  if (missingShiftIds.length) {
-    const { data: extraShifts } = await sb.from("shifts").select("id, status").in("id", missingShiftIds);
-    for (const s of (extraShifts || [])) statusById.set(s.id, s.status);
-  }
-  const EV_TYPE = {
-    no_show:    { label: "NCNS",     cls: "ncns" },
-    late:       { label: "Tardy",    cls: "tardy" },
-    called_off: { label: "Call-off", cls: "calloff" },
-  };
+  // One row per attendance coaching record (already newest-first). The Type
+  // column shows the disciplinary step from the coaching's severity
+  // (Verbal / Written / Final / Termination). The doc icon opens that
+  // coaching's documentation (slide-over).
+  const SEV_CLS = { Note: "note", Verbal: "verbal", Written: "written", Final: "final", Termination: "termination" };
   const evRows = coachings.map(c => {
-    const ev = EV_TYPE[statusById.get(c.triggering_shift_id)] || { label: "Attendance", cls: "calloff" };
+    const label = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[c.severity]) || c.severity || "Coaching";
+    const cls = SEV_CLS[label] || "note";
     const dateStr = new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
     return `<button type="button" class="att-ev-row" data-rr-coaching-record="${escapeHtml(c.id)}" title="View coaching">
-      <span class="att-ev-pill att-ev-${ev.cls}">${escapeHtml(ev.label)}</span>
+      <span class="att-ev-pill att-ev-${cls}">${escapeHtml(label)}</span>
       <span class="att-ev-date">${dateStr}</span>
       <span class="att-ev-doc" aria-label="View coaching">${docSvg}</span>
     </button>`;
@@ -21468,12 +21453,15 @@ async function renderAttendanceTab(body, d) {
       #rr-dd-body button.att-ev-row{background:var(--surface);border:0;border-top:1px solid var(--border-subtle);cursor:pointer;transition:background var(--t-fast)}
       #rr-dd-body .att-ev-row:first-of-type{border-top:0}
       #rr-dd-body .att-ev-row:hover{background:var(--canvas)}
-      /* Warm, distinct severity pills (the dashboard's --amber token is
-         indigo, so real amber/orange hex is used here). NCNS = brand red. */
+      /* Step pills escalate by severity (the dashboard's --amber token is
+         indigo, so real amber/orange hex is used here). Final / Termination
+         use the brand red. */
       #rr-dd-body .att-ev-pill{justify-self:start;display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;padding:3px 11px;border-radius:var(--r-pill)}
-      #rr-dd-body .att-ev-ncns{background:var(--red-soft);color:var(--red)}
-      #rr-dd-body .att-ev-tardy{background:rgba(245,158,11,.14);color:#B45309}
-      #rr-dd-body .att-ev-calloff{background:rgba(234,88,12,.13);color:#C2410C}
+      #rr-dd-body .att-ev-note{background:rgba(100,116,139,.14);color:#475569}
+      #rr-dd-body .att-ev-verbal{background:rgba(245,158,11,.14);color:#B45309}
+      #rr-dd-body .att-ev-written{background:rgba(234,88,12,.13);color:#C2410C}
+      #rr-dd-body .att-ev-final{background:var(--red-soft);color:var(--red)}
+      #rr-dd-body .att-ev-termination{background:var(--red-soft-strong);color:var(--red-dark)}
       #rr-dd-body .att-ev-date{font-size:var(--fs-sm);color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
       #rr-dd-body .att-ev-doc{justify-self:center;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted)}
       #rr-dd-body .att-ev-row:hover .att-ev-doc{color:var(--accent-text)}
