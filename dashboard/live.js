@@ -18894,13 +18894,6 @@ function renderProfileTab(body, d) {
   ].map(([val, label]) =>
     `<option value="${escapeHtml(val)}"${val === curRole ? " selected" : ""}>${escapeHtml(label)}</option>`
   ).join("");
-  // Hint that reflects what the role does so the operator isn't
-  // guessing.  Note: schedule routing is enforced server-side by the
-  // role='driver' filter on today_roster + driver_vehicle_days and the
-  // role <> 'driver' filter on staff_schedule_grid (migration 0221).
-  const roleHint = curRole === "driver"
-    ? `Appears on the driver schedule, attendance, van assignments, and the driver app.`
-    : `Appears on Schedule → Staff. Not included in the driver schedule, attendance, or van assignments.`;
   body.innerHTML = `
     <div class="dd-section">
       <div class="dd-section-head">
@@ -18913,10 +18906,7 @@ function renderProfileTab(body, d) {
       <div class="dd-row"><label>Preferred name</label><input data-rr-dd-field="preferred_name" data-rr-capitalize autocapitalize="words" value="${v(_ddVal("preferred_name", d.preferred_name))}"/></div>
       <div class="dd-row">
         <label>Role</label>
-        <div>
-          <select data-rr-dd-field="role" data-rr-no-drawer style="width:100%">${roleOptions}</select>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.45">${escapeHtml(roleHint)}</div>
-        </div>
+        <select data-rr-dd-field="role" data-rr-no-drawer style="width:100%">${roleOptions}</select>
       </div>
     </div>
 
