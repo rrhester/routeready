@@ -17266,15 +17266,17 @@ function setDriverDrawerFoot() {
   const foot = document.getElementById("rr-dd-foot");
   if (!foot) return;
   if (_ddTab === "profile" || _ddTab === "employment" || _ddTab === "license") {
+    foot.style.display = "";
     foot.innerHTML = `<button class="btn btn-primary" data-rr-dd-save>Save record</button>`;
-  } else if (_ddTab === "overview" || _ddTab === "activity") {
-    foot.innerHTML = `<button class="btn" data-rr-dd-close>Close</button>`;
   } else if (_ddTab === "availability") {
+    foot.style.display = "";
     foot.innerHTML = `<button class="btn btn-primary" data-rr-avail-save>Save availability</button>`;
   } else {
-    // Coaching / Documents add items inline; offer just a Close in the foot
-    // so the layout is identical across tabs.
-    foot.innerHTML = `<button class="btn" data-rr-dd-close>Close</button>`;
+    // Read-only tabs have no footer action — the header Close already
+    // dismisses the record, so the redundant footer Close is dropped and the
+    // empty footer bar is hidden.
+    foot.innerHTML = "";
+    foot.style.display = "none";
   }
 }
 
