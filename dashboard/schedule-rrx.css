@@ -2106,16 +2106,31 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   position: relative;
   flex: 0 0 auto;
 }
+/* "Go To" group label · Outlook-style group caption centered near the
+   bottom of the card, below the Today/Weekly/Monthly tiles. */
+#view-schedule.rrx-schedule .sched-v2-group-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 3px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .01em;
+  color: var(--rr-fg-secondary);
+  pointer-events: none;
+  white-space: nowrap;
+}
 #view-schedule.rrx-schedule .sched-v2-group-launcher {
   appearance: none;
   cursor: pointer;
   font: inherit;
   /* Pinned to the bottom-right of the Today/Weekly/Monthly group
-     (.sched-v2-viewgroup is position:relative), Outlook dialog-launcher
-     style. */
+     (.sched-v2-viewgroup is position:relative), next to the hairline
+     divider — Outlook dialog-launcher style. */
   position: absolute;
-  right: 1px;
-  bottom: 0;
+  right: 0;
+  bottom: 1px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2142,8 +2157,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   outline: none;
 }
 #view-schedule.rrx-schedule .sched-v2-group-launcher svg {
-  width: 11px;
-  height: 11px;
+  width: 14px;
+  height: 14px;
   flex: 0 0 auto;
   stroke-linecap: butt;
   stroke-linejoin: miter;
