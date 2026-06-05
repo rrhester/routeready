@@ -7281,6 +7281,27 @@ body.rr-cmdk-open{ overflow:hidden }
 .builder-shell{display:grid;grid-template-columns:1fr 320px;gap:var(--s-3);align-items:start}
 @media (max-width:1180px){.builder-shell{grid-template-columns:1fr}}
 
+/* Operations Health · compact KPI summary in the schedule right rail
+   (replaces the old horizontal KPI strip + Open-shifts box). White card,
+   thin border, small radius; one row per KPI — label left, value right,
+   optional helper below — with subtle dividers. */
+.sched-ophealth{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
+.sched-ophealth-head{padding:10px 14px 8px;border-bottom:1px solid var(--border)}
+.sched-ophealth-title{font-size:var(--fs-sm);font-weight:700;color:var(--text);letter-spacing:-.005em}
+.sched-ophealth-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:1px}
+.sched-ophealth-rows{display:flex;flex-direction:column}
+.sched-ophealth .oph-row{padding:8px 14px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.06))}
+.sched-ophealth .oph-row:first-child{border-top:0}
+.sched-ophealth .oph-row[data-clickable="true"]{cursor:pointer;transition:background var(--t-fast)}
+.sched-ophealth .oph-row[data-clickable="true"]:hover{background:var(--canvas)}
+.sched-ophealth .oph-row-main{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.sched-ophealth .oph-label{font-size:var(--fs-sm);color:var(--text-muted)}
+.sched-ophealth .oph-val{font-size:var(--fs-sm);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sched-ophealth .oph-sub{font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px;line-height:1.35}
+.sched-ophealth .oph-row[data-tier="green"] .oph-val{color:#137C43}
+.sched-ophealth .oph-row[data-tier="yellow"] .oph-val{color:#B45309}
+.sched-ophealth .oph-row[data-tier="red"] .oph-val{color:var(--red)}
+
 /* Make calendar cells feel buildable */
 .cal-cell.empty-slot{
   background:repeating-linear-gradient(135deg,#FAFBFC 0,#FAFBFC 6px,#F1F5F9 6px,#F1F5F9 12px);
@@ -22381,19 +22402,16 @@ body.rr-cmdk-open{ overflow:hidden }
                  rewrites the inner markup based on totalAllOpen so it
                  shows either the "All shifts are covered" empty state
                  from the mockup or a count + manage button. -->
-            <div class="pool-openshifts-foot" id="rr-pool-openshifts-foot">
-              <div class="pool-openshifts-head">
-                <span>Open shifts</span>
-                <span class="pool-openshifts-count" id="rr-pool-openshifts-count">0 open</span>
+            <!-- Operations Health · weekly KPIs as compact rows (replaces the
+                 old horizontal strip + Open-shifts box). Populated by
+                 renderScheduleWeek; rows keep data-rr-kpi so the KPI
+                 drill-downs still fire. -->
+            <div class="sched-ophealth" id="rr-sched-ophealth">
+              <div class="sched-ophealth-head">
+                <div class="sched-ophealth-title">Operations Health</div>
+                <div class="sched-ophealth-sub" id="rr-sched-ophealth-sub"></div>
               </div>
-              <div class="pool-openshifts-body" id="rr-pool-openshifts-body">
-                <div class="pool-openshifts-empty">
-                  <span class="pool-openshifts-check"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg></span>
-                  <div class="pool-openshifts-empty-title">All shifts are covered</div>
-                  <div class="pool-openshifts-empty-sub">Great job!</div>
-                  <button class="btn btn-sm" type="button" onclick="schedSub('open')">View all shifts</button>
-                </div>
-              </div>
+              <div class="sched-ophealth-rows" id="rr-sched-ophealth-rows"></div>
             </div>
           </aside>
           </div><!-- /sched-right-rail -->
@@ -31846,7 +31864,7 @@ John,Smith,555-0101,john@example.com</code>
     // Attendance — the ROSTER pills are rendered directly ONTO it
     // (operator request) instead of swapping in a separate strip. Only
     // Targets hides it (it shows its own board).
-    if (kpisSched) kpisSched.style.display = (sub === 'targets') ? 'none' : '';
+    if (kpisSched) kpisSched.style.display = (sub === 'targets' || sub === 'week') ? 'none' : '';
     if (isRosterSub) {
       // Paint the roster pills onto the board now (data is usually already
       // loaded from a prior mount); refreshDriverStatRow keeps it live on
