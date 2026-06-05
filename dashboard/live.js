@@ -50517,7 +50517,7 @@ async function openDriverAppPreview(driverId) {
     if (body) {
       body.classList.add("dapp-body-iframe");
       body.innerHTML = `
-        <div class="dapp-statusbar"><span>9:41</span><span class="dapp-rotag">Preview · read-only</span></div>
+        <div class="dapp-statusbar"><span>9:41</span><span class="dapp-rotag">Preview · interactive</span></div>
         <iframe class="dapp-iframe" src="../app/index.html?${qs.toString()}" title="Driver app preview" referrerpolicy="no-referrer"></iframe>`;
     }
     return;
