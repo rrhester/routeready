@@ -13927,6 +13927,21 @@ body.rr-cmdk-open{ overflow:hidden }
             height:79px !important;
             vertical-align:middle !important;
           }
+          /* Roster-header "Add driver" button — styled to match the
+             driver-record Close button (.dd-act): transparent fill, hairline
+             border, muted text. Defined globally here (not via the drawer's
+             injected .dd-act) so it's styled whether or not a record is open. */
+          .rr-roster-add-act{
+            display:inline-flex;align-items:center;gap:6px;
+            background:none;border:1px solid var(--border);border-radius:8px;
+            padding:6px 10px;font:inherit;font-size:var(--fs-xs);font-weight:600;
+            color:var(--text-muted);cursor:pointer;line-height:1;white-space:nowrap;
+            text-transform:none;letter-spacing:normal;
+            transition:color var(--t-fast),border-color .12s,background .12s;
+          }
+          .rr-roster-add-act svg{width:14px;height:14px}
+          .rr-roster-add-act:hover{color:var(--text);border-color:var(--text-subtle);background:var(--canvas)}
+          .rr-roster-add-act:focus-visible{outline:none;border-color:var(--accent);box-shadow:var(--ring-focus)}
           /* Status-header filter dropdown · sits next to the sortable
              "Status" label; opens the status-filter menu so the operator
              can view On leave / Inactive / Terminated drivers. Reads as a
