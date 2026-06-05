@@ -50486,19 +50486,25 @@ async function openDriverAppPreview(driverId) {
   // skip any driver who has a *pending* invite so we never invalidate their
   // login link, and we revoke the session on close (driver_signout).
   let pv = null;
+  let pvReason = null;   // why the live embed was skipped — surfaced as a note
   try {
     const { data: pending } = await sb.from("driver_invite_codes")
       .select("code").eq("driver_id", driverId).is("consumed_at", null)
       .gt("expires_at", new Date().toISOString()).limit(1);
     const hasPendingInvite = Array.isArray(pending) && pending.length > 0;
-    if (!hasPendingInvite) {
+    if (hasPendingInvite) {
+      pvReason = "pending_invite";
+    } else {
       const { data: code, error: e1 } = await sb.rpc("issue_driver_invite", { p_driver_id: driverId });
       if (!e1 && code) {
         const { data: sess, error: e2 } = await sb.rpc("redeem_driver_invite", { p_code: code, p_user_agent: "dispatcher-preview" });
         if (!e2 && sess && sess.token) pv = sess;
+        else pvReason = "session_error";
+      } else {
+        pvReason = "session_error";
       }
     }
-  } catch (e) { pv = null; }
+  } catch (e) { pv = null; pvReason = "session_error"; }
   if (!_dappState || _dappState.driverId !== driverId) {
     if (pv && pv.token) { try { sb.rpc("driver_signout", { p_token: pv.token }).then(() => {}, () => {}); } catch (e) {} }
     return;
@@ -50527,10 +50533,14 @@ async function openDriverAppPreview(driverId) {
   // their real data. Used when the embed can't get a session (e.g. the
   // driver has a pending invite we won't disturb, or an RPC error).
   _dappState.mode = "recreation";
+  const _whyNote = pvReason === "pending_invite"
+    ? "Live app unavailable — this driver has a pending sign-in invite, so this is a read-only snapshot. It goes live once they sign in."
+    : "Live app unavailable — couldn't start a live session, so this is a read-only snapshot.";
   const body = document.getElementById("rr-dapp-body");
   if (body) {
     body.innerHTML = `
       <div class="dapp-statusbar"><span>9:41</span><span>RouteReady · driver view</span></div>
+      <div class="dapp-why" style="padding:7px 12px;background:rgba(99,102,241,.10);border-bottom:1px solid rgba(99,102,241,.20);color:#4338CA;font-size:11px;line-height:1.35">${escapeHtml(_whyNote)}</div>
       <div class="dapp-topbar"><div class="ttl" id="rr-dapp-ttl">Schedule</div><div class="who" id="rr-dapp-who">Loading…</div></div>
       <div class="dapp-scroll" id="rr-dapp-scroll"><div class="dapp-empty">Loading…</div></div>
       <div class="dapp-bottomnav">
