@@ -94,7 +94,7 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=3">
-<link rel="stylesheet" href="schedule-rrx.css?v=106">
+<link rel="stylesheet" href="schedule-rrx.css?v=107">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -17078,16 +17078,6 @@ body.rr-cmdk-open{ overflow:hidden }
             <span>Monthly</span>
           </button>
           </div>
-            <!-- Group dialog-launcher · bottom-right of the Today/Weekly/
-                 Monthly group. Re-parents the Week display-rules popover
-                 into this group (so it anchors here) then forwards to the
-                 hidden legacy toggle. -->
-            <button type="button" class="sched-v2-group-launcher" tabindex="-1"
-                    aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-week-rules-popover"
-                    title="View display options"
-                    onclick="(function(b){var pop=document.getElementById('rr-sched-week-rules-popover');var grp=b.closest('.sched-v2-viewgroup');if(pop&&grp&&pop.parentElement!==grp){grp.appendChild(pop);}var t=document.getElementById('rr-sched-week-rules-toggle');if(t)t.click();})(this)">
-              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-            </button>
           </div>
           <!-- Roster + Attendance · in-page Schedule sub-views.
                They stay ON the Schedule view and swap only the content
@@ -17236,6 +17226,17 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
           </div>
+          <!-- Dialog-launcher · pinned to the bottom-right CORNER of the
+               icon card. Re-parents the Week display-rules popover into the
+               card (so it anchors here), forwards to the hidden legacy
+               toggle, and stops the event so the document close-handler
+               doesn't immediately re-close the popover it just opened. -->
+          <button type="button" class="sched-v2-group-launcher" tabindex="-1"
+                  aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-week-rules-popover"
+                  title="View display options"
+                  onclick="(function(b,ev){ev.preventDefault();ev.stopPropagation();var pop=document.getElementById('rr-sched-week-rules-popover');var host=b.closest('.sched-v2-strip');if(pop&&host&&pop.parentElement!==host){host.appendChild(pop);}var t=document.getElementById('rr-sched-week-rules-toggle');if(t)t.click();})(this,event)">
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+          </button>
         </div>
 
         <!-- KPI pill row · populated by renderScheduleWeek. -->
