@@ -18680,8 +18680,10 @@ body.rr-cmdk-open{ overflow:hidden }
             border-color:rgba(15,23,42,.07) !important;
             box-shadow:0 2px 6px rgba(15,23,42,.05), 0 14px 34px rgba(15,23,42,.10) !important;
           }
-          /* Icon card -> KPI gap matches the measured KPI -> grid gap (17px). */
-          #view-schedule.rrx-schedule .sched-v2-strip{margin-bottom:17px !important}
+          /* Icon card -> grid gap · tightened to hug the grid right under
+             the card (operator request). This inline !important is the
+             effective margin (it overrides schedule-rrx.css). */
+          #view-schedule.rrx-schedule .sched-v2-strip{margin-bottom:2px !important}
           #view-schedule .sched-cmd-shell .sched-nav-heading{margin-bottom:0}
           #view-schedule .sched-cmd-tabs{
             display:inline-flex;gap:3px;
