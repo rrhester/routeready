@@ -94,7 +94,7 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=3">
-<link rel="stylesheet" href="schedule-rrx.css?v=114">
+<link rel="stylesheet" href="schedule-rrx.css?v=115">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -15678,6 +15678,55 @@ body.rr-cmdk-open{ overflow:hidden }
                       })();
                     </script>
 
+                    <!-- Card style · toggle between off-white cards (with a
+                         service-type-colored side bar) and solid blue cards.
+                         Toggles body.rr-sched-cards-blue, persisted in
+                         localStorage('rr-sched-card-style'). -->
+                    <fieldset class="rr-sched-cardstyle-fset" style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:6px">
+                      <legend style="font:600 13px/18px var(--rr-font-family,'Segoe UI');color:var(--rr-fg-primary,#242424);margin-bottom:6px">Card style</legend>
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-cardstyle" value="white" />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">White</span>
+                          <span class="rr-sched-density-opt-sub">Off-white cards with a colored side bar per service type.</span>
+                        </span>
+                      </label>
+                      <label class="rr-sched-density-opt">
+                        <input type="radio" name="rr-sched-cardstyle" value="blue" />
+                        <span class="rr-sched-density-opt-body">
+                          <span class="rr-sched-density-opt-title">Blue</span>
+                          <span class="rr-sched-density-opt-sub">Solid blue cards.</span>
+                        </span>
+                      </label>
+                    </fieldset>
+                    <script>
+                      (function () {
+                        if (window.__rrSchedCardStyleWired) return;
+                        window.__rrSchedCardStyleWired = true;
+                        var KEY = "rr-sched-card-style";
+                        function apply(style) {
+                          document.body.classList.toggle("rr-sched-cards-blue", style === "blue");
+                        }
+                        function syncRadios(style) {
+                          var ins = document.querySelectorAll('input[name="rr-sched-cardstyle"]');
+                          for (var i = 0; i < ins.length; i++) ins[i].checked = (ins[i].value === style);
+                        }
+                        var stored = null;
+                        try { stored = localStorage.getItem(KEY); } catch (e) {}
+                        if (stored !== "white" && stored !== "blue") stored = "white";
+                        apply(stored);
+                        setTimeout(function () { syncRadios(stored); }, 0);
+                        document.addEventListener("change", function (e) {
+                          var t = e.target;
+                          if (!t || t.name !== "rr-sched-cardstyle") return;
+                          var v = (t.value === "blue") ? "blue" : "white";
+                          try { localStorage.setItem(KEY, v); } catch (er) {}
+                          apply(v);
+                          syncRadios(v);
+                        });
+                      })();
+                    </script>
+
                     <!-- Route color coding · master toggle. When ON,
                          shift chips paint themselves per route_classification:
                          rescue=red, nursery=teal, other=gray.
@@ -17078,6 +17127,17 @@ body.rr-cmdk-open{ overflow:hidden }
             <span>Monthly</span>
           </button>
           </div>
+          <!-- Dialog-launcher · bottom-right of the Today/Weekly/Monthly
+               group (Outlook-style). Re-parents the Week display-rules
+               popover into the icon card so it anchors there, forwards to
+               the hidden legacy toggle, and stops the event so the document
+               close-handler doesn't immediately re-close it. -->
+          <button type="button" class="sched-v2-group-launcher" tabindex="-1"
+                  aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-week-rules-popover"
+                  title="View display options"
+                  onclick="(function(b,ev){ev.preventDefault();ev.stopPropagation();var pop=document.getElementById('rr-sched-week-rules-popover');var host=b.closest('.sched-v2-strip');if(pop&&host&&pop.parentElement!==host){host.appendChild(pop);}var t=document.getElementById('rr-sched-week-rules-toggle');if(t)t.click();})(this,event)">
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+          </button>
           </div>
           <!-- Roster + Attendance · in-page Schedule sub-views.
                They stay ON the Schedule view and swap only the content
@@ -17226,17 +17286,6 @@ body.rr-cmdk-open{ overflow:hidden }
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
           </div>
-          <!-- Dialog-launcher · pinned to the bottom-right CORNER of the
-               icon card. Re-parents the Week display-rules popover into the
-               card (so it anchors here), forwards to the hidden legacy
-               toggle, and stops the event so the document close-handler
-               doesn't immediately re-close the popover it just opened. -->
-          <button type="button" class="sched-v2-group-launcher" tabindex="-1"
-                  aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-week-rules-popover"
-                  title="View display options"
-                  onclick="(function(b,ev){ev.preventDefault();ev.stopPropagation();var pop=document.getElementById('rr-sched-week-rules-popover');var host=b.closest('.sched-v2-strip');if(pop&&host&&pop.parentElement!==host){host.appendChild(pop);}var t=document.getElementById('rr-sched-week-rules-toggle');if(t)t.click();})(this,event)">
-            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-          </button>
         </div>
 
         <!-- KPI pill row · populated by renderScheduleWeek. -->
