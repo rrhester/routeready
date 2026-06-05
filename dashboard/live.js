@@ -16856,7 +16856,7 @@ async function openDriverDrawer(driverId, opts) {
       #rr-dd-drawer.rr-dd-inline.rr-dd-open #rr-dd-panel{transform:translateX(0)}
       /* Compact summary header — smaller avatar, tighter padding, and the
          same surface tint as the roster table header. */
-      #rr-dd-drawer.rr-dd-inline .dd-head{padding:var(--s-3-5) 20px;background:var(--canvas)}
+      #rr-dd-drawer.rr-dd-inline .dd-head{padding:var(--s-3-5) 20px;background:#C5DBF1;border-bottom:1px solid rgba(15, 108, 189, 0.34)}
       #rr-dd-drawer.rr-dd-inline .dd-head h3{font-size:var(--fs-base)}
       #rr-dd-drawer.rr-dd-inline #rr-dd-avatar{width:40px!important;height:40px!important;font-size:var(--fs-md)!important}
       #rr-dd-drawer.rr-dd-inline .dd-tabs{margin:12px 20px 0}
