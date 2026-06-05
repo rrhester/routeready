@@ -9544,12 +9544,11 @@ body.rr-cmdk-open{ overflow:hidden }
    set apart by quiet Fluent spacing. */
 #sched-sub-requests .sched-requests-split{
   display:grid;
-  grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);
+  grid-template-columns:1fr;
   gap:var(--s-4);
   align-items:stretch;
 }
 @media (max-width:1080px){
-  #sched-sub-requests .sched-requests-split{grid-template-columns:1fr}
   #sched-sub-requests .sched-requests-card{max-height:none}
 }
 #sched-sub-requests .sched-requests-card{
@@ -22734,9 +22733,6 @@ body.rr-cmdk-open{ overflow:hidden }
               </header>
               <div class="sched-requests-card-body" id="rr-sched-req-stream"><div class="rr-loading">Loading requests…</div></div>
             </section>
-            <div class="sched-requests-reports" id="rr-sched-req-reports">
-              <div class="rr-loading">Loading reports…</div>
-            </div>
           </div>
         </div><!-- /sched-sub-requests -->
 
