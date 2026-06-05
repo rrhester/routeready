@@ -42013,22 +42013,24 @@ async function renderScheduleWeek() {
     // When a roster/attendance sub-view is borrowing this KPI board, route the
     // fresh schedule pills into the restore cache instead of clobbering the
     // visible roster pills (they're restored when the operator leaves the sub).
-    const _kpiTarget = (window._schedRosterKpiActive && window._schedRosterKpiActive())
-      ? { set innerHTML(v) { window._schedKpiSavedHtml = v; } }
-      : kpis;
-    _kpiTarget.innerHTML =
-      pill("coverage", coverageTier, `${pct}% Coverage`, `${totalFilled} / ${coverageDenom} shifts staffed`, _covTier !== "green",
-        "Click to see settings that would raise coverage") +
-      pill("violations", violationsTier, `${violations.length} Violation${violations.length === 1 ? "" : "s"}`, "", true, violations.length === 0 ? "No rule violations this week" : `Review ${violations.length} rule violation${violations.length === 1 ? "" : "s"}`) +
-      pill("overtime", overtimeTier, `${otValue} OT Risk`, "", false, `${driversInOt} driver${driversInOt === 1 ? "" : "s"} over 40h`) +
+    // ── Operations Health ──────────────────────────────────────────────
+    // The weekly KPIs render as compact rows in the right rail
+    // (#rr-sched-ophealth), not the old horizontal strip. Rows keep the
+    // data-rr-kpi attribute so the existing KPI drill-downs still fire.
+    const row = (key, tier, name, value, sub, clickable) => {
+      const t = TIER_COLOR[tier] ? tier : "green";
+      const cl = clickable ? ' data-clickable="true"' : "";
+      return `<div class="oph-row" data-rr-kpi="${key}" data-tier="${t}"${cl}>`
+        + `<div class="oph-row-main"><span class="oph-label">${name}</span><span class="oph-val">${value}</span></div>`
+        + (sub ? `<div class="oph-sub">${sub}</div>` : "")
+        + `</div>`;
+    };
+    const _ophRows =
+      row("coverage", coverageTier, "Coverage", `${pct}%`, `${totalFilled} / ${coverageDenom} shifts staffed`, _covTier !== "green") +
+      row("violations", violationsTier, "Violations", `${violations.length}`, "", true) +
+      row("overtime", overtimeTier, "OT Risk", otValue, "", false) +
       (() => {
-        // FT/PT mix by scheduled PAID BLOCK hours (operator definition):
-        // each shift counts as its block length (e.g. 10h), so 4 days = 40h =
-        // Full-Time, below 40h = Part-Time. Block hours (not gross start→end
-        // or net-of-lunch) so four full 10h blocks land cleanly on 40 — the
-        // report-lead + unpaid-lunch math otherwise tips a full-time driver to
-        // 39.5h. Counted across all active drivers so idle/under-40h drivers
-        // correctly land in PT.
+        // FT/PT mix by scheduled PAID BLOCK hours (4×10h day = 40h = Full-Time).
         let ftCount = 0, ptCount = 0;
         for (const d of drivers) {
           if (d.status && d.status !== "active") continue;
@@ -42039,43 +42041,19 @@ async function renderScheduleWeek() {
         const totalScheduled = ftCount + ptCount;
         const ftPct = totalScheduled > 0 ? Math.round(ftCount / totalScheduled * 100) : 0;
         const ptPct = totalScheduled > 0 ? 100 - ftPct : 0;
-        // Status guardrails on the FT %: green 80–90, yellow 75–79.9 or
-        // 90.1–94.9, red <75 or ≥95. Soft pill background + status icon
-        // mirror the Coverage KPI's visual language.
         const ftStatus = _ftptStatus(ftPct, totalScheduled);
-        // Stash for the hover deep-dive (same pattern as
-        // _rrLiveSchedCoverage) so the popout matches the strip exactly.
-        window._rrLiveFtpt = {
-          weekStart: _schedStart,
-          ftPct, ptPct, ftCount, ptCount, totalScheduled,
-          tier: ftStatus.tier,
-        };
-        return pill(
-          "ftpt",
-          totalScheduled > 0 ? ftStatus.tier : "green",
-          totalScheduled > 0 ? `${ftPct} / ${ptPct} FT/PT` : "— FT/PT",
-          "",
-          ftStatus.tier !== "green",  // green = healthy, no drill-down
-          totalScheduled > 0
-            ? `${ftCount} full-time · ${ptCount} part-time (of ${totalScheduled} active, by 40h)`
-            : "No active drivers",
-        );
+        window._rrLiveFtpt = { weekStart: _schedStart, ftPct, ptPct, ftCount, ptCount, totalScheduled, tier: ftStatus.tier };
+        return row("ftpt", totalScheduled > 0 ? ftStatus.tier : "green",
+          "FT/PT", totalScheduled > 0 ? `${ftPct} / ${ptPct}` : "—", "", ftStatus.tier !== "green");
       })() +
       (() => {
-        // ── Flex Capacity KPI ────────────────────────────────────────────
-        // "How many additional routes could this DSP absorb with existing
-        // availability before hiring?" Operational planning metric — NOT
-        // staffing/FT-PT. Computed by the SAME tested engine the edge
-        // function uses (dashboard/flex-capacity.js, built from
-        // flex-capacity/src), fed a FlexInput assembled from the data this
-        // render already has in memory.
+        // Flex / Max-day · most routes/day the team could run with existing
+        // availability (same tested engine the edge function uses).
         try {
           const isoToKey = (iso) =>
             ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date(iso + "T00:00:00Z").getUTCDay()];
-          // Demand per day (route plan incl. cushion = plannedByDate).
           const routes = [];
           for (const [iso, target] of plannedByDate) routes.push({ day: isoToKey(iso), routeTarget: target });
-          // Per-driver scheduled days this week (assigned, non-training).
           const schedDaysByDriver = new Map();
           for (const sh of (grid.shifts || [])) {
             if (!sh.driver_id || !visibleDriverIds.has(sh.driver_id)) continue;
@@ -42097,94 +42075,63 @@ async function renderScheduleWeek() {
               const av = d.metadata?.availability || {};
               const ptoDays = weekIsos.filter((iso) => ptoOn(d.id, iso)).map(isoToKey);
               return {
-                id: d.id,
-                active: true,
+                id: d.id, active: true,
                 available: Array.isArray(av.days) ? av.days : [],
                 preferred: Array.isArray(av.preferred_days) ? av.preferred_days : [],
                 fifthDayOptIn: av.fifth_day_ok === true,
                 pto: ptoDays,
                 scheduledDays: [...(schedDaysByDriver.get(d.id) || [])],
                 scheduledHours: hoursPerDriver.get(d.id) || 0,
-                weeklyHourCap,
-                blockHours,
-                maxDaysPerWeek,
+                weeklyHourCap, blockHours, maxDaysPerWeek,
                 certifications: { dot: d.dot_certified === true, xl: d.xl_certified === true, edv: d.edv_certified === true },
               };
             });
           if (routes.length === 0 || flexDrivers.length === 0) {
-            return pill("flex", "green", "— Flex", "", false, "No route plan yet");
+            return row("flex", "green", "Max/day", "—", "", false);
           }
           const flexRes = computeFlexCapacity({ weekStart: _schedStart, drivers: flexDrivers, routes });
           const fa = flexRes.kpi.comfortableRoutesAvailable;
           const sa = flexRes.kpi.stretchRoutesAvailable;
-          // Daily MAX route count = "if everyone worked their availability,
-          // capped at N weekly hours, how many routes could we run each day?"
-          // Distributed model (see flex-capacity/src/daily-max.ts): 40h and
-          // 50h give different per-day numbers. The deep-dive breaks it out
-          // per day + the three 5th-day policies + a hire what-if.
           const scen = STANDARD_SCENARIOS.map((s) => computeDailyMax(flexDrivers, s));
           const peak40 = scen[0].peak;            // ≤40h
           const peak50all = scen[2].peak;         // ≤50h, everyone 5th day
-          // Pill status: green = comfortable headroom, yellow = only stretch
-          // headroom, red = no headroom (must hire to grow).
           const flexTier = fa > 0 ? "green" : sa > 0 ? "yellow" : "red";
-          window._rrLiveFlex = {
-            weekStart: _schedStart, result: flexRes, tier: flexTier,
-            drivers: flexDrivers, blockHours,
-          };
+          window._rrLiveFlex = { weekStart: _schedStart, result: flexRes, tier: flexTier, drivers: flexDrivers, blockHours };
           const label = peak40 === peak50all ? `${peak40}` : `${peak40}–${peak50all}`;
-          return pill(
-            "flex",
-            flexTier,
-            `${label} Max/day`,
-            "",
-            true,
-            `Max routes/day · ≤40h peak ${peak40} → ≤50h peak ${peak50all}`,
-          );
+          return row("flex", flexTier, "Max/day", label, "", true);
         } catch (err) {
           console.warn("flex capacity KPI:", err);
           return "";
         }
       })() +
       (() => {
-        // Preferred % — of shifts assigned to drivers who have preferred
-        // days set, how many landed on one of those days.
         const prefPct = prefDenom > 0 ? Math.round(prefHonored / prefDenom * 100) : 0;
-        // Preferred: strong ≥80% (green) · moderate ≥60% (yellow) · poor (red).
         const preferredTier = prefDenom === 0 ? "green" : prefPct >= 80 ? "green" : prefPct >= 60 ? "yellow" : "red";
-        return pill(
-          "preferred",
-          preferredTier,
-          prefDenom > 0 ? `${prefPct}% Preferred` : "— Preferred",
-          prefDenom > 0
-            ? `${prefHonored} / ${prefDenom} shifts on a preferred day`
-            : "No drivers have preferred days set",
-          true,
-          "Click to see settings that would raise this",
-        );
+        return row("preferred", preferredTier, "Preferred",
+          prefDenom > 0 ? `${prefPct}%` : "—",
+          prefDenom > 0 ? `${prefHonored} / ${prefDenom} shifts on a preferred day` : "No drivers have preferred days set",
+          true);
       })() +
       (() => {
-        // Driver Affinity % — average affinity drivers have for the
-        // weekdays they were assigned, over the DSP's rolling period.
         const affPct = affDenom > 0 ? Math.round(affSum / affDenom) : 0;
-        // Affinity: strong ≥75% (green) · moderate ≥50% (yellow) · poor (red).
         const affinityTier = affDenom === 0 ? "green" : affPct >= 75 ? "green" : affPct >= 50 ? "yellow" : "red";
-        return pill(
-          "affinity",
-          affinityTier,
-          affDenom > 0 ? `${affPct}% Affinity` : "— Affinity",
-          affDenom > 0
-            ? `${affDenom} shift${affDenom === 1 ? "" : "s"} measured`
-            : "No driver scheduling history yet",
-          false,
-          "Average driver affinity for their assigned weekdays, over the rolling period",
-        );
+        return row("affinity", affinityTier, "Affinity",
+          affDenom > 0 ? `${affPct}%` : "—",
+          affDenom > 0 ? `${affDenom} shift${affDenom === 1 ? "" : "s"} measured` : "No driver scheduling history yet",
+          false);
       })() +
-      pill("rotation",   rotationDotRed ? "red" : "green", rotationLabel, rotationSub, femRisks.length > 0, rotationTitle) +
-      pill("vanassign",  vanMissCount > 0 ? "red" : "green",
-        vanMissCount === 0 ? "Vans assigned" : `${vanMissCount} No van`,
-        vanSub, vanMissCount > 0,
-        vanMissCount === 0 ? "Every scheduled driver has a van this week" : "Driver(s) scheduled without a van — assign vans or check the fleet");
+      row("rotation", rotationDotRed ? "red" : "green", "Fleet",
+        femRisks.length === 0 ? "Healthy" : `${femRisks.length} at risk`, rotationSub, femRisks.length > 0);
+
+    const _ophRowsEl = document.getElementById("rr-sched-ophealth-rows");
+    if (_ophRowsEl) _ophRowsEl.innerHTML = _ophRows;
+    const _ophSubEl = document.getElementById("rr-sched-ophealth-sub");
+    if (_ophSubEl) _ophSubEl.textContent = document.getElementById("rr-sched-page-sub")?.textContent || "";
+    // The weekly view no longer uses the horizontal strip — hide it (unless
+    // roster/attendance mode is borrowing the board with its own pills).
+    if (kpis && !(window._schedRosterKpiActive && window._schedRosterKpiActive())) {
+      kpis.style.display = "none";
+    }
   }
   kpis.dataset.rrFemRisks    = JSON.stringify(femRisks);
   kpis.dataset.rrFemUpcoming = JSON.stringify(femUpcoming);
