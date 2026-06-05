@@ -2078,6 +2078,68 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   stroke-linejoin: miter;
 }
 
+/* ── View-selector group (Today / Weekly / Monthly) ─────────
+   The three view tiles read as one group with a single dialog-
+   launcher chevron pinned to the group's bottom-right corner
+   (Outlook ribbon style), replacing the per-tile Rules carets. */
+#view-schedule.rrx-schedule .sched-v2-viewgroup {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+  flex: 0 0 auto;
+}
+#view-schedule.rrx-schedule .sched-v2-group-launcher {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 4px;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--rr-fg-secondary);
+  opacity: 0.5;
+  transition: opacity var(--rr-motion-fast, 120ms ease-out),
+              background var(--rr-motion-fast, 120ms ease-out),
+              color var(--rr-motion-fast, 120ms ease-out);
+}
+#view-schedule.rrx-schedule .sched-v2-viewgroup:hover .sched-v2-group-launcher {
+  opacity: 0.8;
+}
+#view-schedule.rrx-schedule .sched-v2-group-launcher:hover,
+#view-schedule.rrx-schedule .sched-v2-group-launcher:focus-visible {
+  opacity: 1;
+  color: var(--sch-blue, var(--rr-brand-primary));
+  background: var(--sch-blue-softer, var(--rr-brand-soft));
+  outline: none;
+}
+#view-schedule.rrx-schedule .sched-v2-group-launcher svg {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+}
+
+/* ── Selected view · gray box around the active tile ────────
+   Outlook-style: the current view tile (Today / Weekly / Monthly /
+   Roster / Attendance / Requests / Targets) gets a soft gray rounded
+   box. inset box-shadow (not border) so the tile never shifts 1px. */
+#view-schedule.rrx-schedule .sched-v2-tile.rr-v2-current {
+  box-shadow: inset 0 0 0 1px #C8C6C4;
+  background: rgba(15, 23, 42, 0.04);
+}
+#view-schedule.rrx-schedule .sched-v2-tile.rr-v2-current:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
 /* Attendance policy popover · opens from the Roster tile's Rules
    chevron. Anchored beneath the tile (the .sched-v2-split is
    position:relative). Per operator request it is OPAQUE — no

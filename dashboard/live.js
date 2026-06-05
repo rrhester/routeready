@@ -58183,6 +58183,51 @@ function _toRefreshNavBadge() {
   }
 })();
 
+// Mark the active view tile with a gray "selected" box (Outlook-style).
+// Wraps schedSub so every view switch repaints which command tile is
+// current. Only the view-switching subs map to a tile; action subs
+// (smartfill / finalize / unassign / kudos) leave the current view's
+// box in place.
+(function () {
+  if (typeof window === "undefined") return;
+  const SUB_TO_TILE = {
+    today: "today", week: "week", monthly: "monthly", calendar: "calendar",
+    requests: "requests", "time-off": "requests",
+    roster: "roster", attendance: "attendance", targets: "targets",
+  };
+  function markCurrent(sub) {
+    const key = SUB_TO_TILE[sub];
+    if (!key) return; // action sub — keep the existing selection
+    const strip = document.querySelector("#view-schedule .sched-v2-strip");
+    if (!strip) return;
+    strip.querySelectorAll(".sched-v2-tile.rr-v2-current")
+      .forEach((t) => t.classList.remove("rr-v2-current"));
+    const tile = strip.querySelector('.sched-v2-tile[data-rr-v2="' + key + '"]');
+    if (tile) tile.classList.add("rr-v2-current");
+  }
+  function install() {
+    const prev = window.schedSub;
+    if (typeof prev !== "function" || prev._wrappedForCurrentTile) return false;
+    window.schedSub = function (sub) {
+      prev(sub);
+      try { markCurrent(sub); } catch (_) { /* non-fatal */ }
+    };
+    window.schedSub._wrappedForCurrentTile = true;
+    // Weekly is the schedule's default landing view — seed the box.
+    const seed = () => { try { markCurrent("week"); } catch (_) {} };
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", seed, { once: true });
+    } else { seed(); }
+    return true;
+  }
+  if (!install()) {
+    let tries = 0;
+    const t = setInterval(() => {
+      if (install() || ++tries > 40) clearInterval(t);
+    }, 50);
+  }
+})();
+
 function _toFmtRange(start, end) {
   const fmt = (iso) => {
     try { return new Date(iso + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
