@@ -10628,6 +10628,11 @@ function _wirePolicyEditor() {
     // Add a level.
     if (e.target.id === "rr-pol-add-rung") {
       e.preventDefault();
+      // _renderPolicyEditor() below replaces the pane and detaches this
+      // button; without stopping propagation the document outside-click
+      // handler would then see a now-detached target (no longer inside the
+      // popover) and close the whole popup. Keep the event local.
+      e.stopPropagation();
       const next = _polState.ladder.length;
       const nextThreshold = _polState.ladder.length > 0
         ? Number(_polState.ladder[_polState.ladder.length - 1].threshold) + 1
@@ -10647,6 +10652,7 @@ function _wirePolicyEditor() {
     const rm = e.target.closest && e.target.closest("[data-rr-pol-rung-remove]");
     if (rm) {
       e.preventDefault();
+      e.stopPropagation();   // same detach-on-re-render guard as Add a level
       const id = rm.getAttribute("data-rr-pol-rung-remove");
       _polState.ladder = _polState.ladder.filter(r => r.id !== id);
       _renderPolicyEditor();
