@@ -4081,6 +4081,17 @@ body.rr-sched-super-compact #view-schedule.rrx-schedule .cal-row-milestone {
 #view-schedule.rrx-schedule .cal-cell-head .day-num {
   color: var(--text) !important;
 }
+/* Day-header columns · the DRIVER cell (week-nav + hover action icons)
+   makes the header row taller than the SUN/date/coverage/routes stack, so
+   the day cells were stretched with the content pinned to the top — leaving
+   a big gap under "Routes N". Center the stack vertically so the space above
+   the day label and below the route count match. */
+#view-schedule.rrx-schedule .cal-grid.head .cal-cell-head:not(:first-child) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
 
 /* Driver-row label column · station code + hours line was
    text-subtle. Bump to text-muted so the operator can read it
