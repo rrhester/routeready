@@ -21440,8 +21440,16 @@ async function renderAttendanceTab(body, d) {
     const label = (_COACHING_SEV_LABEL && _COACHING_SEV_LABEL[c.severity]) || c.severity || "Coaching";
     const cls = SEV_CLS[label] || "note";
     const dateStr = new Date(c.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    // Flag coachings the driver still owes an acknowledgement on — not yet
+    // acknowledged or signed, and acknowledgement is required (mirrors the
+    // status logic in the coaching slide-over).
+    const acked = !!(c.signed_at || c.acknowledged_at);
+    const awaiting = !acked && c.delivery_required && c.delivery_required !== "none";
+    const awaitChip = awaiting
+      ? `<span class="att-ev-await" title="Driver hasn't acknowledged this coaching yet"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>Awaiting acknowledgement</span>`
+      : "";
     return `<button type="button" class="att-ev-row" data-rr-coaching-record="${escapeHtml(c.id)}" title="View coaching">
-      <span class="att-ev-pill att-ev-${cls}">${escapeHtml(label)}</span>
+      <span class="att-ev-typecell"><span class="att-ev-pill att-ev-${cls}">${escapeHtml(label)}</span>${awaitChip}</span>
       <span class="att-ev-date">${dateStr}</span>
       <span class="att-ev-doc" aria-label="View coaching">${docSvg}</span>
     </button>`;
@@ -21462,7 +21470,12 @@ async function renderAttendanceTab(body, d) {
       /* Step pills escalate by severity (the dashboard's --amber token is
          indigo, so real amber/orange hex is used here). Final / Termination
          use the brand red. */
-      #rr-dd-body .att-ev-pill{justify-self:start;display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;padding:3px 11px;border-radius:var(--r-pill)}
+      #rr-dd-body .att-ev-typecell{justify-self:start;display:inline-flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+      #rr-dd-body .att-ev-pill{display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;padding:3px 11px;border-radius:var(--r-pill)}
+      /* "Awaiting acknowledgement" — quiet amber note under the step pill on
+         coachings the driver hasn't acknowledged or signed yet. */
+      #rr-dd-body .att-ev-await{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;letter-spacing:.02em;color:#B45309;line-height:1.1}
+      #rr-dd-body .att-ev-await svg{flex:0 0 auto}
       #rr-dd-body .att-ev-note{background:rgba(100,116,139,.14);color:#475569}
       #rr-dd-body .att-ev-verbal{background:rgba(245,158,11,.14);color:#B45309}
       #rr-dd-body .att-ev-written{background:rgba(234,88,12,.13);color:#C2410C}
