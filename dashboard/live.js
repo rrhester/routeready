@@ -17341,9 +17341,15 @@ function renderDriverDrawerTab() {
 function setDriverDrawerFoot() {
   const foot = document.getElementById("rr-dd-foot");
   if (!foot) return;
+  const isCreate = !_ddDriver?.driver?.id;
   if (_ddTab === "profile" || _ddTab === "employment" || _ddTab === "license") {
     foot.style.display = "";
-    foot.innerHTML = `<button class="btn btn-primary" data-rr-dd-save>Save record</button>`;
+    // A brand-new (unsaved) record still needs the explicit Save to insert —
+    // autosave can't update a row that doesn't exist yet. An existing record
+    // autosaves as you edit, so the footer just shows the save status.
+    foot.innerHTML = isCreate
+      ? `<button class="btn btn-primary" data-rr-dd-save>Save record</button>`
+      : `<span data-rr-dd-autosave-status style="font-size:var(--fs-sm);color:var(--text-subtle)">All changes saved</span>`;
   } else if (_ddTab === "availability") {
     foot.style.display = "";
     foot.innerHTML = `<button class="btn btn-primary" data-rr-avail-save>Save availability</button>`;
@@ -17355,6 +17361,77 @@ function setDriverDrawerFoot() {
     foot.style.display = "none";
   }
 }
+
+// ── Autosave · driver record ──────────────────────────────────────────
+// Existing records save as the operator edits (no Save button). A brand-new
+// record still uses the explicit Save to insert. Quiet path: updates the row
+// in place — no drawer close, no toast — and reflects state in the footer.
+let _ddAutosaveTimer = null;
+let _ddAutosaveInflight = false;
+let _ddAutosaveQueued = false;
+function _ddSetAutosaveStatus(state, msg) {
+  const el = document.querySelector("#rr-dd-foot [data-rr-dd-autosave-status]");
+  if (!el) return;
+  if (state === "saving")     { el.textContent = "Saving…";           el.style.color = "var(--text-subtle)"; }
+  else if (state === "saved") { el.textContent = "All changes saved"; el.style.color = "var(--text-subtle)"; }
+  else if (state === "error") { el.textContent = "Couldn't save" + (msg ? " — " + msg : ""); el.style.color = "var(--red)"; }
+}
+async function _ddAutosaveCommit() {
+  const drv = _ddDriver?.driver;
+  if (!drv || !drv.id) return;                                     // create mode → explicit Save
+  if (!["profile", "employment", "license"].includes(_ddTab)) return;
+  if (_ddAutosaveInflight) { _ddAutosaveQueued = true; return; }   // coalesce; re-run after
+  _ddAutosaveInflight = true;
+  _ddSetAutosaveStatus("saving");
+  _ddCaptureVisibleFields();
+  const payload = { ..._ddPending };
+  if (payload.first_name === undefined && payload.full_name) {
+    const parts = (payload.full_name || "").split(/\s+/);
+    payload.first_name = parts[0] || null;
+    payload.last_name  = parts.slice(1).join(" ") || null;
+  }
+  const stationId = payload.station_id;
+  const payHourlyRaw = payload.pay_hourly;
+  const rpcPayload = { ...payload };
+  delete rpcPayload.station_id;
+  delete rpcPayload.pay_hourly;
+  try {
+    const { error } = await sb.rpc("update_driver_record", { p_id: drv.id, p_payload: rpcPayload });
+    if (error) { _ddSetAutosaveStatus("error", error.message); return; }
+    if (stationId !== undefined && stationId !== drv.station_id) {
+      const { error: stErr } = await sb.from("drivers").update({ station_id: stationId || null }).eq("id", drv.id);
+      if (stErr) { _ddSetAutosaveStatus("error", stErr.message); return; }
+      drv.station_id = stationId || null;
+    }
+    if (payHourlyRaw !== undefined) {
+      const newRate = payHourlyRaw === "" ? null : Number(payHourlyRaw);
+      const existingRate = drv.metadata?.pay?.hourly_rate ?? null;
+      if (newRate !== existingRate) {
+        const newMeta = { ...(drv.metadata || {}), pay: { ...(drv.metadata?.pay || {}), hourly_rate: newRate } };
+        const { error: payErr } = await sb.from("drivers").update({ metadata: newMeta }).eq("id", drv.id);
+        if (payErr) { _ddSetAutosaveStatus("error", payErr.message); return; }
+        drv.metadata = newMeta;
+      }
+    }
+    _ddSetAutosaveStatus("saved");
+  } finally {
+    _ddAutosaveInflight = false;
+    if (_ddAutosaveQueued) { _ddAutosaveQueued = false; _ddAutosaveCommit(); }
+  }
+}
+// Debounced on text input; immediate on select/date change. Existing records only.
+document.addEventListener("input", (e) => {
+  if (!(e.target.closest && e.target.closest("#rr-dd-drawer [data-rr-dd-field]"))) return;
+  if (!_ddDriver?.driver?.id) return;
+  clearTimeout(_ddAutosaveTimer);
+  _ddAutosaveTimer = setTimeout(_ddAutosaveCommit, 800);
+});
+document.addEventListener("change", (e) => {
+  if (!(e.target.closest && e.target.closest("#rr-dd-drawer [data-rr-dd-field]"))) return;
+  if (!_ddDriver?.driver?.id) return;
+  clearTimeout(_ddAutosaveTimer);
+  _ddAutosaveCommit();
+});
 
 function renderAvailabilityTab(body, d, record) {
   const meta = d.metadata || {};
