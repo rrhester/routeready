@@ -1881,7 +1881,10 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-v2-strip {
   display: flex;
-  align-items: center;   /* matches Fleet's vertical alignment */
+  /* Top-align the icon cluster so it hugs the top of the (now taller)
+     card instead of floating in the vertical center; the extra height
+     falls below the icons. */
+  align-items: flex-start;
   flex-wrap: nowrap;     /* matches Fleet — single row, no wrap */
   gap: 8px;
   /* Exact match for #view-fleet .fl-ribbon dimensions:
@@ -1890,10 +1893,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   /* Density pass · strip→KPI gap tracks the shared --tcp-strip-gap
      (16→12) so every TCP view tightens together. */
   margin: 0 0 var(--tcp-strip-gap, 12px) 0;
-  /* Header card blends with the page ground (#EAF2FD) per operator
-     request — same soft Google-blue tint as the schedule background
-     and the Unassign/fleet tile. */
-  background: #EAF2FD;
+  /* Icon-strip ("KPI") card stays white — a clean card floating on the
+     soft-blue page ground. */
+  background: var(--rr-bg-surface-1);
   /* Match the KPI card's border + radius (not the heavier V2 --rr-
      tokens) so the icon strip floats exactly like the KPI / grid /
      Open-shifts cards rather than reading as more lifted. */
