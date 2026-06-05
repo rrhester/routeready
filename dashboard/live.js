@@ -4192,7 +4192,12 @@ function renderDriverTable(rows, error) {
   // columns; Active drops the Status column (everyone's "Active" in
   // this stage by definition) and turns the sortable columns into
   // clickable headers (data-rr-roster-sort).
-  const cbHeader = `<th class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" id="rr-roster-cb-all" aria-label="Select all drivers"></th>`;
+  // The active roster shows each driver's app-view icon in the first column
+  // instead of a select checkbox (per operator), so the select-all header only
+  // applies to the onboarding stage, whose rows still carry row checkboxes.
+  const cbHeader = _driverStage === "onboarding"
+    ? `<th class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" id="rr-roster-cb-all" aria-label="Select all drivers"></th>`
+    : `<th class="dr-cb" data-rr-no-drawer></th>`;
   if (_driverStage === "onboarding") {
     thead.innerHTML = cbHeader + `
       <th>Driver</th>
@@ -7247,11 +7252,10 @@ function renderDriverRow(d) {
   const actions = _rowActionsFor(d);
   return `
     <tr data-driver-id="${d.id}" data-rr-open-driver class="${(_ddOpenDriverId && d.id === _ddOpenDriverId) ? "is-record-open" : ""}">
-      <td class="dr-cb" data-rr-no-drawer><input type="checkbox" class="dr-cb-in" data-rr-roster-pick="${d.id}" aria-label="Select driver"></td>
+      <td class="dr-cb" data-rr-no-drawer style="text-align:center"><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" data-rr-app-state="${_appBtnState(d.id)}" title="${escapeHtml(_appBtnTitle(d.id))}" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></td>
       <td><div class="cell-driver"><div class="avatar-sm ${tier}">${initials}</div>
         <div class="cell-driver-text"><div class="cell-name">${escapeHtml(display)}${badges}</div>
-        <div class="cell-name-sub">${escapeHtml(contact)}</div></div>
-        <span class="cell-driver-app" data-rr-no-drawer><button type="button" class="dr-app-btn" data-rr-driver-app="${d.id}" data-rr-app-state="${_appBtnState(d.id)}" title="${escapeHtml(_appBtnTitle(d.id))}" aria-label="See this driver's app view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><line x1="10" y1="5" x2="14" y2="5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></button></span></div></td>
+        <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${tenure}</td>
       <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
       <td class="rr-att-points-cell">${_attPointsCell(d.id)}</td>
