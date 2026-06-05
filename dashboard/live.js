@@ -3880,7 +3880,7 @@ async function _submitBulkDrivers() {
 // Driver stage state — what the operator has filtered to.
 let _driverStage = "active";
 // Roster filter / sort state (set by the toolbar dropdowns + search).
-let _rosterFilters = { station: "", tenure: "", score: "", q: "", sort: "attpoints-desc" };
+let _rosterFilters = { station: "", tenure: "", score: "", q: "", sort: "risk-desc" };
 
 // Status-header filter options · the Status column dropdown switches
 // _driverStage so the roster can show non-active drivers (On leave /
@@ -3904,6 +3904,7 @@ let _rosterRows = [];
 
 let _rosterAppStatus = new Map();   // driver_id -> { invited, signed_in_at, last_seen_at, has_push }
 let _rosterAttPoints = new Map();   // driver_id -> active attendance points within the policy window
+let _rosterRisk = new Map();        // driver_id -> "atrisk" | "watch" (highest active corrective action)
 let _rosterAttnCoached = new Set(); // driver_ids with ≥1 active attendance-topic coaching (any level)
 let _rosterI9 = new Map();          // driver_id -> i9_list row (status, first_day_of_employment, …)
 let _rosterProg = new Map();        // driver_id -> onboarding_progress row
@@ -3926,7 +3927,7 @@ async function loadDriversRoster() {
       .limit(500),
     sb.rpc("driver_app_status"),
     sb.from("coachings")
-      .select("driver_id, occurred_at, topic")
+      .select("driver_id, occurred_at, topic, severity, resolved_at")
       .eq("dsp_id", window.RR.dsp.id)
       .is("archived_at", null)
       .order("occurred_at", { ascending: false })
@@ -3981,11 +3982,24 @@ async function loadDriversRoster() {
 
   _rosterLastCoached = new Map();
   _rosterAttnCoached = new Set();
+  _rosterRisk = new Map();
+  const _RISK_RANK = { atrisk: 2, watch: 1 };
   for (const c of (coachRows ?? [])) {
     if (!_rosterLastCoached.has(c.driver_id)) _rosterLastCoached.set(c.driver_id, c.occurred_at);
     // "On attendance coaching" = has at least one active (non-archived)
     // coaching whose topic is attendance, at any level/severity.
     if (c.topic && /attend/i.test(c.topic)) _rosterAttnCoached.add(c.driver_id);
+    // Risk = highest active (unresolved) corrective action. Final/Termination
+    // → At Risk; Written → Watch. Verbal/Note don't flag.
+    if (!c.resolved_at) {
+      const lvl = (c.severity === "final" || c.severity === "termination") ? "atrisk"
+                : (c.severity === "written" || c.severity === "warning")    ? "watch"
+                : null;
+      if (lvl) {
+        const cur = _rosterRisk.get(c.driver_id);
+        if (!cur || _RISK_RANK[lvl] > _RISK_RANK[cur]) _rosterRisk.set(c.driver_id, lvl);
+      }
+    }
   }
   _rosterRows = rows ?? [];
   refreshDriverStatRow(_rosterRows);
@@ -4073,14 +4087,14 @@ function _applyRosterFiltersAndSort(rows) {
     const iso = s ? (s.last_seen_at || s.signed_in_at) : null;
     return iso ? new Date(iso).getTime() : null;
   };
-  // Active attendance points within the policy window, from the map the
-  // roster loader fills. Missing = 0 (no infractions / policy off).
-  const attPts = (r) => (_rosterAttPoints && _rosterAttPoints.get ? (_rosterAttPoints.get(r.id) || 0) : 0);
+  // Risk rank from the map the roster loader fills: At Risk (2) > Watch (1)
+  // > none (0). Drives the Risk column sort.
+  const riskRank = (r) => { const v = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(r.id) : null; return v === "atrisk" ? 2 : v === "watch" ? 1 : 0; };
   switch (f.sort) {
     case "score-asc":      out = [...out].sort((a, b) => (a.score ?? 999) - (b.score ?? 999)); break;
     case "score-desc":     out = [...out].sort((a, b) => (b.score ?? -1)  - (a.score ?? -1));  break;
-    case "attpoints-desc": out = [...out].sort((a, b) => attPts(b) - attPts(a)); break;
-    case "attpoints-asc":  out = [...out].sort((a, b) => attPts(a) - attPts(b)); break;
+    case "risk-desc":      out = [...out].sort((a, b) => riskRank(b) - riskRank(a)); break;
+    case "risk-asc":       out = [...out].sort((a, b) => riskRank(a) - riskRank(b)); break;
     case "name":           out = [...out].sort((a, b) => dispName(a).localeCompare(dispName(b))); break;
     case "name-desc":      out = [...out].sort((a, b) => dispName(b).localeCompare(dispName(a))); break;
     case "tenure-desc":    out = [...out].sort((a, b) => new Date(a.hire_date || 0) - new Date(b.hire_date || 0)); break;
@@ -4150,7 +4164,7 @@ document.addEventListener("click", (e) => {
   if (col === "name")            next = cur === "name" ? "name-desc" : "name";
   else if (col === "tenure")     next = cur === "tenure-desc" ? "tenure-asc" : "tenure-desc";
   else if (col === "score")      next = cur === "score-asc"   ? "score-desc" : "score-asc";
-  else if (col === "attpoints")  next = cur === "attpoints-desc" ? "attpoints-asc" : "attpoints-desc";
+  else if (col === "risk")       next = cur === "risk-desc" ? "risk-asc" : "risk-desc";
   else if (col === "status")     next = cur === "status-asc"  ? "status-desc": "status-asc";
   else if (col === "lastactive") next = cur === "lastactive-desc" ? "lastactive-asc" : "lastactive-desc";
   if (!next) return;
@@ -4173,7 +4187,7 @@ function renderDriverTable(rows, error) {
       name:       ["name", "name-desc"],
       tenure:     ["tenure-asc", "tenure-desc"],
       score:      ["score-asc", "score-desc"],
-      attpoints:  ["attpoints-asc", "attpoints-desc"],
+      risk:       ["risk-asc", "risk-desc"],
       status:     ["status-asc", "status-desc"],
       lastactive: ["lastactive-asc", "lastactive-desc"],
     };
@@ -4237,7 +4251,7 @@ function renderDriverTable(rows, error) {
           <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:3px;opacity:.7"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
       </th>
-      <th class="rr-roster-th-attpoints" data-rr-roster-sort="attpoints" style="cursor:pointer;user-select:none" title="Active attendance points within the policy window"><span class="rr-th-lbl-full">Attendance Points</span><span class="rr-th-lbl-short">Points</span>${caret("attpoints")}</th>
+      <th class="rr-roster-th-attpoints" data-rr-roster-sort="risk" style="cursor:pointer;user-select:none" title="Drivers on a corrective action: Watch (Written) or At Risk (Final)">Risk${caret("risk")}</th>
       <th data-rr-roster-sort="lastactive" style="cursor:pointer;user-select:none">Last active${caret("lastactive")}</th>
       <th class="rr-roster-th-app">App</th>
       <th class="rr-roster-th-actions" style="position:sticky;right:0;z-index:4;text-align:right;background:#C5DBF1;box-shadow:-12px 0 12px -8px rgba(15,23,42,.20);white-space:nowrap"><button type="button" class="rr-roster-add-act" data-rr-roster-add-driver data-rr-no-drawer title="Add a new driver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add driver</button></th>`;
@@ -7258,7 +7272,7 @@ function renderDriverRow(d) {
         <div class="cell-name-sub">${escapeHtml(contact)}</div></div></div></td>
       <td>${tenure}</td>
       <td data-rr-no-drawer>${_statusPillCell(d.status, d.id)}</td>
-      <td class="rr-att-points-cell">${_attPointsCell(d.id)}</td>
+      <td class="rr-att-points-cell">${_riskCell(d.id)}</td>
       <td class="rr-lastactive-cell">${_appStatusCell(d.id)}</td>
       <td data-rr-no-drawer class="u-center rr-app-cell"></td>
       <td data-rr-no-drawer class="rr-row-actions">${actions}</td>
@@ -8078,6 +8092,20 @@ function _attPointsCell(driverId) {
   const tone = p >= firstThreshold ? ["var(--red)", "var(--red-soft)"]
                                    : ["var(--amber-dark)", "var(--amber-soft)"];
   return `<span style="display:inline-flex;align-items:center;font-size:var(--fs-xs);font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:${tone[1]};color:${tone[0]}" title="Active attendance points in the policy window">${val}</span>`;
+}
+
+// Roster Risk cell — At Risk (red) for drivers on a Final/Termination
+// corrective action, Watch (amber) for a Written one, dash otherwise. Uses
+// the schedule driver-card warning circle so the signal reads consistently.
+function _riskCell(driverId) {
+  const r = (_rosterRisk && _rosterRisk.get) ? _rosterRisk.get(driverId) : null;
+  if (r === "atrisk") {
+    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;color:var(--red)" title="On a final corrective action">${_rrKpiStatusIcon("red", "At risk")}At Risk</span>`;
+  }
+  if (r === "watch") {
+    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:var(--fs-xs);font-weight:700;color:#B45309" title="On a written corrective action">${_rrKpiStatusIcon("yellow", "Watch")}Watch</span>`;
+  }
+  return '<span class="u-subtle">—</span>';
 }
 
 // "Last coached" — pulled from the per-driver latest coaching loaded
