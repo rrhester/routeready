@@ -17428,7 +17428,7 @@ body.rr-cmdk-open{ overflow:hidden }
           /* Day-header in the calendar — compressed vertical rhythm
              (16px → 10px top/bottom) so the header gives more room to the
              grid below without losing the SUN / 17 / 5/6 stack. */
-          #view-schedule .cal-cell-head{padding:var(--s-2-5) var(--s-2-5)}
+          #view-schedule .cal-cell-head{padding:6px var(--s-2-5)}
 
           /* Cells in the grid get extra vertical room so each chip
              reads as a deliberate object rather than a packed list
@@ -17954,7 +17954,12 @@ body.rr-cmdk-open{ overflow:hidden }
             margin-left:8px;
           }
           #view-schedule .cal-cell-head.rr-has-week-nav .rr-sched-driver-actions{
-            flex-basis:100%;
+            /* Out of flow so the hidden hover-icons don't reserve a 2nd row
+               and inflate the header height; they overlay near the cell's
+               bottom-left on hover. */
+            position:absolute;
+            left:14px;
+            bottom:6px;
             margin-left:0 !important;
             justify-content:flex-start;
             justify-items:start;
