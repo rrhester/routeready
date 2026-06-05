@@ -1881,19 +1881,22 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
 
 #view-schedule.rrx-schedule .sched-v2-strip {
   display: flex;
-  /* Top-align the icon cluster so it hugs the top of the (now taller)
-     card instead of floating in the vertical center; the extra height
-     falls below the icons. */
-  align-items: flex-start;
+  /* Stretch children to the full card height so the group hairline
+     dividers (border-left on the splits) run nearly top-to-bottom of
+     the card. The icon cluster still hugs the TOP because each split is
+     a flex column with default top justification — only the dividers
+     grow. */
+  align-items: stretch;
   flex-wrap: nowrap;     /* matches Fleet — single row, no wrap */
   gap: 8px;
-  /* Trim the TOP padding (11→3px) so the top-aligned icon cluster sits
-     closer to the top edge of the card; keep the 18px sides + 11px
-     bottom. */
-  padding: 3px 18px 11px;
-  /* Density pass · strip→KPI gap tracks the shared --tcp-strip-gap
-     (16→12) so every TCP view tightens together. */
-  margin: 0 0 var(--tcp-strip-gap, 12px) 0;
+  /* Tight top + bottom padding so (a) the icons hug the top edge and
+     (b) the stretched group dividers run nearly the full card height —
+     top ~3px from the top, bottom ~6px from the bottom. */
+  padding: 3px 18px 6px;
+  /* Tight gap below the card so the schedule grid sits close to the
+     card's bottom edge (operator request). Schedule-scoped override of
+     the shared --tcp-strip-gap. */
+  margin: 0 0 3px 0;
   /* Icon-strip ("KPI") card stays white — a clean card floating on the
      soft-blue page ground. */
   background: var(--rr-bg-surface-1);
@@ -2084,7 +2087,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
    (Outlook ribbon style), replacing the per-tile Rules carets. */
 #view-schedule.rrx-schedule .sched-v2-viewgroup {
   display: inline-flex;
-  align-items: flex-start;
+  /* Stretch so the leading Today divider runs full card height too. */
+  align-items: stretch;
   gap: 8px;
   position: relative;
   flex: 0 0 auto;
@@ -2093,9 +2097,12 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   appearance: none;
   cursor: pointer;
   font: inherit;
+  /* Pinned to the bottom-right CORNER of the icon card (.sched-v2-strip
+     is position:relative). Sits in the empty space below the rightmost
+     tile, Outlook dialog-launcher style. */
   position: absolute;
-  right: 0;
-  bottom: 0;
+  right: 12px;
+  bottom: 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2105,13 +2112,14 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   border: 0;
   border-radius: 999px;
   color: var(--rr-fg-secondary);
-  opacity: 0.5;
+  opacity: 0.55;
+  z-index: 1;
   transition: opacity var(--rr-motion-fast, 120ms ease-out),
               background var(--rr-motion-fast, 120ms ease-out),
               color var(--rr-motion-fast, 120ms ease-out);
 }
-#view-schedule.rrx-schedule .sched-v2-viewgroup:hover .sched-v2-group-launcher {
-  opacity: 0.8;
+#view-schedule.rrx-schedule .sched-v2-strip:hover .sched-v2-group-launcher {
+  opacity: 0.85;
 }
 #view-schedule.rrx-schedule .sched-v2-group-launcher:hover,
 #view-schedule.rrx-schedule .sched-v2-group-launcher:focus-visible {
@@ -2571,10 +2579,25 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   background: transparent;
 }
 
+#view-schedule.rrx-schedule .sched-v2-cmd-tabs .sched-cmd-tab {
+  position: relative;
+}
 #view-schedule.rrx-schedule .sched-v2-cmd-tabs .sched-cmd-tab.active {
   color: var(--rr-brand-primary);
   background: transparent;
   border-color: transparent;
+}
+/* Selected-tab underscore · a short bar in the sidebar color under the
+   active section tab (Schedule / Onboarding / Fleet / …). */
+#view-schedule.rrx-schedule .sched-v2-cmd-tabs .sched-cmd-tab.active::after {
+  content: "";
+  position: absolute;
+  left: var(--rr-space-120);
+  right: var(--rr-space-120);
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--sidebar-bg, #205285);
 }
 
 /* ============================================================
