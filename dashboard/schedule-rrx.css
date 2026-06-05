@@ -967,11 +967,13 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   overflow: hidden;
 }
 
-/* Collapse the Schedule KPI pill row when it has no pills (Week view
-   moves the KPIs into the right-side Operations Health panel, leaving
-   this strip empty). Without this the height-locked .tcp-kpi reserved
-   ~51px of blue dead space between the icon card and the grid. */
-#view-schedule.rrx-schedule #rr-sched-kpis:empty {
+/* Collapse the Schedule KPI pill row whenever it holds no KPI pills (Week
+   view moves the KPIs into the right-side Operations Health panel, so the
+   strip is left with only its hidden gear button — which is why an :empty
+   match failed). The height-locked .tcp-kpi otherwise reserves ~51px of
+   blue dead space between the icon card and the grid. !important forces it
+   hidden regardless of any inline display the render path sets/clears. */
+#view-schedule.rrx-schedule #rr-sched-kpis:not(:has(.sched-kpi-pill)) {
   display: none !important;
 }
 
@@ -1901,10 +1903,9 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
      (b) the stretched group dividers run nearly the full card height —
      top ~3px from the top, bottom ~6px from the bottom. */
   padding: 3px 18px 6px;
-  /* Tight gap below the card so the schedule grid sits close to the
-     card's bottom edge (operator request). Schedule-scoped override of
-     the shared --tcp-strip-gap. */
-  margin: 0 0 3px 0;
+  /* No gap below the card so the schedule grid sits right under it
+     (operator request). Schedule-scoped override of --tcp-strip-gap. */
+  margin: 0 0 0 0;
   /* Icon-strip ("KPI") card stays white — a clean card floating on the
      soft-blue page ground. */
   background: var(--rr-bg-surface-1);
