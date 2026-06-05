@@ -19160,6 +19160,14 @@ async function renderEmploymentTab(body, d) {
           </div>
           <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px;line-height:1.4">Sends the welcome message with a tap-to-activate link and a pre-filled code. One active code at a time · expires in 14 days.</div>
           <div data-rr-invite-display style="margin-top:10px;display:none"></div>
+          <div style="border-top:1px solid var(--border-subtle);margin-top:var(--s-3-5);padding-top:var(--s-3-5)">
+            <div style="font-size:var(--fs-sm);font-weight:600">App code (PIN)</div>
+            <div style="font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;margin:2px 0 8px">The driver's 4-digit code is encrypted and can't be shown. Set a new one here, then share it with the driver.${d.pin_set_at ? ` Last set ${escapeHtml(new Date(d.pin_set_at).toLocaleDateString())}.` : ""}</div>
+            <div style="display:flex;gap:var(--s-2-5);align-items:center;flex-wrap:wrap">
+              <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" data-rr-pin-input data-rr-no-drawer placeholder="4–6 digits" style="max-width:120px;letter-spacing:3px;font-variant-numeric:tabular-nums"/>
+              <button type="button" class="btn btn-sm btn-primary" data-rr-set-pin="${escapeHtml(d.id || "")}" ${d.id ? "" : "disabled title=\"Save the driver first\""}>Set code</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>`;
@@ -24150,6 +24158,27 @@ document.addEventListener("click", async (e) => {
         <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:6px">Share this code with the driver. Generating a new one invalidates this one.</div>`;
     }
     toast("Code generated", "success");
+    return;
+  }
+
+  // Set / reset the driver's app PIN (dispatcher-side). Code can't be shown
+  // (bcrypt-hashed) — this overwrites it; the operator shares the new code.
+  const pinBtn = e.target.closest("[data-rr-set-pin]");
+  if (pinBtn) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const driverId = _ddDriver?.driver?.id;
+    if (!driverId) { toast("Save the driver first, then set a code", "warn"); return; }
+    const input = document.querySelector("#rr-dd-drawer [data-rr-pin-input]");
+    const pin = (input?.value || "").replace(/[^0-9]/g, "");
+    if (pin.length < 4 || pin.length > 6) { toast("Enter a 4–6 digit code", "warn"); return; }
+    pinBtn.disabled = true; const prevLabel = pinBtn.textContent; pinBtn.textContent = "Setting…";
+    const { error } = await sb.rpc("admin_set_driver_pin", { p_driver_id: driverId, p_pin: pin });
+    pinBtn.disabled = false; pinBtn.textContent = prevLabel;
+    if (error) { toast("Couldn't set code: " + error.message, "warn"); return; }
+    if (input) input.value = "";
+    if (_ddDriver?.driver) _ddDriver.driver.pin_set_at = new Date().toISOString();
+    toast(`App code set to ${pin} — share it with the driver`, "success");
     return;
   }
 
