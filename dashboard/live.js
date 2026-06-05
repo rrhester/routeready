@@ -16925,6 +16925,9 @@ async function openDriverDrawer(driverId, opts) {
       .dd-head-id{display:flex;align-items:center;gap:var(--s-3-5);min-width:0}
       .dd-head-idtext{min-width:0}
       .dd-head-nameline{display:flex;align-items:center;gap:var(--s-2-5);min-width:0;flex-wrap:wrap}
+      /* Final-corrective-action warning · red triangle beside the name. */
+      .dd-final-warn{display:inline-flex;align-items:center;color:var(--red)}
+      .dd-final-warn[hidden]{display:none}
       .dd-meta{font-size:var(--fs-sm);color:var(--text-subtle);margin-top:3px;line-height:1.35}
       .dd-meta-sub{font-size:var(--fs-xs);margin-top:1px}
       .dd-head-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto}
@@ -17000,6 +17003,7 @@ async function openDriverDrawer(driverId, opts) {
           <div class="dd-head-idtext">
             <div class="dd-head-nameline">
               <h3 id="rr-dd-title">Driver record</h3>
+              <span id="rr-dd-final-warn" class="dd-final-warn" hidden role="img" aria-label="On final corrective action" title="On final corrective action"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
             </div>
             <div class="dd-meta" id="rr-dd-sub"></div>
             <div class="dd-meta dd-meta-sub" id="rr-dd-sub2"></div>
@@ -17185,6 +17189,12 @@ async function loadDriverDrawer(driverId) {
   const titleEl = document.getElementById("rr-dd-title");
   if (!titleEl) return;
   titleEl.textContent = displayDriverName(drv) || "—";
+
+  // Warning icon beside the name when the driver is on a Final corrective
+  // action — an active (not resolved/archived) coaching at "final" severity.
+  const onFinal = (_ddDriver.coachings || []).some(c => c && c.severity === "final" && !c.resolved_at && !c.archived_at);
+  const finalWarnEl = document.getElementById("rr-dd-final-warn");
+  if (finalWarnEl) finalWarnEl.hidden = !onFinal;
 
   // ── Header rebuild — name (above) is the anchor; everything else reads as
   // quiet secondary metadata. Line 1: "STATION • Status" (status keeps its
