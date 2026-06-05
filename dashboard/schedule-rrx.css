@@ -33,12 +33,10 @@
 /* ── Workspace baseline ─────────────────────────────────────── */
 
 #view-schedule.rrx-schedule {
-  /* Schedule page · clean neutral table ground. Dropped the prior
-     blue-hinted #F7FAFC, which read as a soft wash across the grid.
-     A true light-neutral gray gives the schedule an enterprise
-     spreadsheet feel and lets the blue shift chips register as
-     deliberate, not as part of an overall blue cast. */
-  background: #F4F5F7;
+  /* Schedule page ground · matched to the Unassign/fleet tile's soft
+     Google-blue tint (rgba(26,115,232,0.10→0.07) over white ≈ #EAF2FD)
+     so the page reads with the same light-blue wash as that tile. */
+  background: #EAF2FD;
   font-family: var(--rr-font-family);
   color: var(--rr-fg-primary);
 }
