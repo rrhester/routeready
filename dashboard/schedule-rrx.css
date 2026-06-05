@@ -1933,13 +1933,13 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   /* Bound to the TCP single-source-of-truth token (was a hardcoded
      115px) so the Schedule strip moves in lockstep with Onboarding /
      Fleet / Workspaces / Recruiting and can never drift apart again. */
-  /* Schedule-scoped height · trimmed 106 → 91px to halve the dead white
-     space below the top-aligned icon cluster, so the grid sits ~50%
-     closer to the card (operator request). Other TCP views keep
-     --tcp-strip-h. */
-  min-height: 91px;
-  height: 91px;
-  max-height: 91px;
+  /* Tall icon card (token height 106px) so the white card fills the
+     space below the top-aligned icons and reaches down to meet the grid
+     (operator: taller card + tight gap, icons stay at the top). The grid
+     sits right beneath via the 2px strip margin-bottom. */
+  min-height: var(--tcp-strip-h, 115px);
+  height: var(--tcp-strip-h, 115px);
+  max-height: var(--tcp-strip-h, 115px);
   overflow: visible;
   /* Stretch the strip to the full page width so margin-left:auto
      on the week navigator pushes it to the FAR right of the
