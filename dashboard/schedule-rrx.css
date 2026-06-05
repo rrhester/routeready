@@ -1890,13 +1890,11 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   flex-wrap: nowrap;     /* matches Fleet — single row, no wrap */
   gap: 8px;
   /* Tight top + bottom padding so (a) the icons hug the top edge and
-     (b) the stretched group dividers run nearly the full card height —
-     top ~3px from the top, bottom ~6px from the bottom. */
-  padding: 3px 18px 6px;
-  /* Tight gap below the card so the schedule grid sits close to the
-     card's bottom edge (operator request). Schedule-scoped override of
-     the shared --tcp-strip-gap. */
-  margin: 0 0 3px 0;
+     (b) the stretched group dividers run nearly the full card height. */
+  padding: 3px 18px 3px;
+  /* Minimal gap below the card so the schedule grid sits right under it
+     (operator request). Schedule-scoped override of --tcp-strip-gap. */
+  margin: 0 0 1px 0;
   /* Icon-strip ("KPI") card stays white — a clean card floating on the
      soft-blue page ground. */
   background: var(--rr-bg-surface-1);
@@ -1921,12 +1919,13 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
      in onboarding-rrx.css. Operator complaint was Schedule was
      "slightly taller" than Onboarding even after the min-height
      change; equal hard locks guarantee identical heights. */
-  /* Bound to the TCP single-source-of-truth token (was a hardcoded
-     115px) so the Schedule strip moves in lockstep with Onboarding /
-     Fleet / Workspaces / Recruiting and can never drift apart again. */
-  min-height: var(--tcp-strip-h, 115px);
-  height: var(--tcp-strip-h, 115px);
-  max-height: var(--tcp-strip-h, 115px);
+  /* Schedule-scoped height · trimmed to hug the icon tiles (~75px tall)
+     with only a few px of breathing room, removing the tall card's dead
+     white bottom so the schedule grid sits right under the icons
+     (operator: "80% closer"). Other TCP views keep --tcp-strip-h. */
+  min-height: 82px;
+  height: 82px;
+  max-height: 82px;
   overflow: visible;
   /* Stretch the strip to the full page width so margin-left:auto
      on the week navigator pushes it to the FAR right of the
@@ -2102,24 +2101,29 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
      tile, Outlook dialog-launcher style. */
   position: absolute;
   right: 12px;
-  bottom: 7px;
+  bottom: 5px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1px 4px;
+  padding: 2px 5px;
   margin: 0;
   background: transparent;
   border: 0;
   border-radius: 999px;
-  color: var(--rr-fg-secondary);
-  opacity: 0.55;
+  /* Clearly visible by default — it sits alone in the empty far-right of
+     the card, so a faint gray was easy to miss. */
+  color: var(--sch-blue, var(--rr-brand-primary));
+  opacity: 0.9;
   z-index: 1;
   transition: opacity var(--rr-motion-fast, 120ms ease-out),
               background var(--rr-motion-fast, 120ms ease-out),
               color var(--rr-motion-fast, 120ms ease-out);
 }
-#view-schedule.rrx-schedule .sched-v2-strip:hover .sched-v2-group-launcher {
-  opacity: 0.85;
+#view-schedule.rrx-schedule .sched-v2-group-launcher:hover,
+#view-schedule.rrx-schedule .sched-v2-group-launcher:focus-visible {
+  opacity: 1;
+  background: var(--sch-blue-softer, var(--rr-brand-soft));
+  outline: none;
 }
 #view-schedule.rrx-schedule .sched-v2-group-launcher:hover,
 #view-schedule.rrx-schedule .sched-v2-group-launcher:focus-visible {
@@ -2129,8 +2133,8 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   outline: none;
 }
 #view-schedule.rrx-schedule .sched-v2-group-launcher svg {
-  width: 11px;
-  height: 11px;
+  width: 14px;
+  height: 14px;
   flex: 0 0 auto;
   stroke-linecap: butt;
   stroke-linejoin: miter;
