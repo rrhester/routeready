@@ -57,10 +57,16 @@ cleanly — read it first when picking this back up._
    times (`06:00, 12:00, 18:00`) in the box's **local** timezone (= the DSP's).
    Fire at each; if the box was asleep at a slot, run it **once** on wake
    (catch-up), then continue. Replaces/augments the current interval scheduler.
-3. **Heartbeat + health monitoring** *(box + Supabase + web)* — **the
-   fleet-critical one.** Each box reports "alive + last pull ok/failed + next
-   pull"; the dashboard shows per-DSP status; **alert when a box goes dark or a
-   pull fails** (incl. the session-expired alert). Silent failure is the enemy.
+3. ✅ **Heartbeat + health monitoring** *(box + Supabase — box side done;
+   dashboard widget deferred)* — `desktop_agents` table (migration 0363, RLS
+   DSP-scoped via `private.current_dsp_id()`). The box authenticates to Supabase
+   with its **pairing session** (persisted as `box-session.enc`, separate from
+   the dashboard window session), then **heartbeats every 5 min** (alive +
+   app_version + `portal_session_ok` + label=hostname) and upserts a **last-run
+   summary** after each crawl (status/error/rows). Stable per-install `agent_id`
+   in config. _Still to do (preview-gated):_ the dashboard widget that reads
+   `desktop_agents` and alerts when a box goes dark / a pull fails / the portal
+   session expired.
 4. **On-demand "Sync to portal"** *(web + Supabase + box)* — web button writes
    a request row to Supabase; the box watches (realtime/poll) and runs that
    DSP's pull now. The pairing gives the box the DSP identity to scope this.
@@ -98,7 +104,7 @@ cleanly — read it first when picking this back up._
 - **Pairing UI** was re-added **client-less** (reads the stored token, no second
   `GoTrueClient`) after a duplicate-client outage. Don't reintroduce a second
   Supabase client on dashboard pages.
-- **Version label:** package.json is `0.5.0`.
+- **Version label:** package.json is `0.6.0`.
 
 ## How to resume
 

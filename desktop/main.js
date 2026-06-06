@@ -35,6 +35,15 @@ process.env.PLAYWRIGHT_BROWSERS_PATH = "0";
 const { chromium } = require("playwright");
 const scraper = require("./scraper");
 const agent = require("./agent");
+const { createClient } = require("@supabase/supabase-js");
+const crypto = require("node:crypto");
+const os = require("node:os");
+
+// Public Supabase project config — the anon (publishable) key is safe to
+// embed; it's the same one shipped in the dashboard's config.js. Used for the
+// box's health reporting (it authenticates as the DSP via the pairing session).
+const SUPABASE_URL = "https://doiwrhkirgblcvuskhno.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_HvRuTWdEOrYlJPPIp4CLog_UNC3vNdI";
 
 // ─── Diagnostic logging ─────────────────────────────────────────────
 // Writes a line to <userData>/desktop.log every time we touch Playwright
@@ -117,6 +126,7 @@ const sessionFile = () => path.join(userDataDir(), "portal-session.enc");
 const historyFile = () => path.join(userDataDir(), "download-history.json");
 const configFile = () => path.join(userDataDir(), "config.json");
 const schedulerFile = () => path.join(userDataDir(), "scheduler.json");
+const boxSessionFile = () => path.join(userDataDir(), "box-session.enc");
 const defaultDownloadDir = () => app.getPath("downloads");
 const HISTORY_LIMIT = 20;
 const SCHEDULER_TICK_MS = 30000;
@@ -302,6 +312,14 @@ async function redeemPairing(code) {
     }
     logLine("pairing: redeemed for", body.email || "(unknown)");
     applyDashboardSession(body.access_token, body.refresh_token);
+    // Persist the session for the box's own health reporting (separate from
+    // the dashboard window session). Reset any cached client so the next
+    // report re-auths with the fresh tokens, then heartbeat right away so the
+    // box shows up in the dashboard immediately after pairing.
+    writeBoxSession({ access_token: body.access_token, refresh_token: body.refresh_token });
+    boxSupabase = null;
+    startHeartbeat();
+    heartbeatTick();
   } catch (e) {
     logLine("pairing: redeem threw", String(e?.message || e));
     try { dialog.showErrorBox("Couldn't connect", `Pairing error: ${String(e?.message || e)}`); } catch {}
@@ -419,10 +437,15 @@ app.whenReady().then(() => {
     readSession,
     appendHistory,
     getMainWindow: () => mainWindow,
+    reportRun: reportAgentRun,
   });
   createWindow();
   buildTray();
   Menu.setApplicationMenu(null); // hide the native menu bar; actions live in the tray
+
+  // Start health reporting if this box is already paired (returning install).
+  // A fresh, never-paired box no-ops until the operator connects it.
+  startHeartbeat();
 
   // Start with the OS at login so the sync engine is up after a reboot
   // without the operator thinking about it. Packaged only — we don't want
@@ -504,6 +527,130 @@ function clearSession() {
   for (const f of [sessionFile(), sessionFile() + ".plain"]) {
     if (fs.existsSync(f)) fs.unlinkSync(f);
   }
+}
+
+// ─── Box health reporting (ROADMAP #3) ──────────────────────────────
+// The desktop app — when run as an always-on "sync box" — reports its
+// liveness, portal-session health, and last-run summary to Supabase so the
+// dashboard can show "is my box alive and pulling?" and alert on silent
+// failure. It authenticates as the DSP using the SAME pairing session the
+// "Connect from browser" flow redeems (access + refresh token), persisted
+// here separately from the dashboard window's own session (which the
+// dashboard owns and we never touch).
+//
+// Everything in this section is best-effort: a box that was never paired,
+// or that's offline, simply no-ops. Health reporting must never break the
+// crawler or the UI.
+
+// Stable per-install id, stored in config.json. Identifies this box's row in
+// public.desktop_agents (primary key). Survives restarts; one per machine.
+function agentId() {
+  const cfg = readConfig();
+  if (cfg.agentId) return cfg.agentId;
+  const id = crypto.randomUUID();
+  writeConfig({ agentId: id });
+  return id;
+}
+
+// Persist / load the box's pairing session (the Supabase access+refresh
+// tokens), encrypted with the OS keychain like the portal session. Stored
+// SEPARATELY from the dashboard window session so signing the box in for
+// reporting never disturbs (or depends on) what's loaded in the window.
+function writeBoxSession(obj) {
+  try {
+    const json = JSON.stringify(obj);
+    if (safeStorage.isEncryptionAvailable()) {
+      fs.writeFileSync(boxSessionFile(), safeStorage.encryptString(json));
+    } else {
+      fs.writeFileSync(boxSessionFile() + ".plain", json);
+    }
+  } catch (e) { logLine("box-session: write failed:", String(e)); }
+}
+function readBoxSession() {
+  try {
+    const enc = boxSessionFile();
+    if (fs.existsSync(enc) && safeStorage.isEncryptionAvailable()) {
+      return JSON.parse(safeStorage.decryptString(fs.readFileSync(enc)));
+    }
+    const plain = enc + ".plain";
+    if (fs.existsSync(plain)) return JSON.parse(fs.readFileSync(plain, "utf8"));
+  } catch (e) { logLine("box-session: read failed:", String(e)); }
+  return null;
+}
+
+// Lazily build a Supabase client authenticated as the DSP from the stored
+// pairing session. We disable the client's own persistence (no localStorage in
+// main) and instead persist refreshed tokens ourselves via onAuthStateChange,
+// so the box stays signed in across token rotations and restarts.
+let boxSupabase = null;
+async function getBoxSupabase() {
+  if (boxSupabase) return boxSupabase;
+  const sess = readBoxSession();
+  if (!sess || !sess.access_token || !sess.refresh_token) return null;
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false },
+  });
+  client.auth.onAuthStateChange((_event, session) => {
+    if (session?.access_token && session?.refresh_token) {
+      writeBoxSession({ access_token: session.access_token, refresh_token: session.refresh_token });
+    }
+  });
+  const { error } = await client.auth.setSession({
+    access_token: sess.access_token,
+    refresh_token: sess.refresh_token,
+  });
+  if (error) {
+    logLine("box-session: setSession failed:", error.message);
+    // Don't cache a broken client; a re-pair will replace the stored tokens.
+    return null;
+  }
+  boxSupabase = client;
+  return boxSupabase;
+}
+
+// Upsert a patch onto this box's desktop_agents row. dsp_id is filled by the
+// table default (private.current_dsp_id()) on insert and never sent from here.
+async function reportStatus(patch) {
+  try {
+    const sb = await getBoxSupabase();
+    if (!sb) return; // not paired → nothing to report to
+    const row = { agent_id: agentId(), updated_at: new Date().toISOString(), ...patch };
+    const { error } = await sb.from("desktop_agents").upsert(row, { onConflict: "agent_id" });
+    if (error) logLine("health: upsert failed:", error.message);
+  } catch (e) { logLine("health: report threw:", String(e)); }
+}
+
+// Heartbeat loop: every 5 minutes tell Supabase the box is alive, what
+// version it's on, and whether the portal session looks present. The dashboard
+// alerts when last_heartbeat_at goes stale (box dark) or portal_session_ok is
+// false (needs re-login on the box).
+let heartbeatTimer = null;
+function heartbeatTick() {
+  reportStatus({
+    label: os.hostname(),
+    app_version: app.getVersion(),
+    last_heartbeat_at: new Date().toISOString(),
+    portal_session_ok: !!readSession(),
+    last_portal_check_at: new Date().toISOString(),
+  });
+}
+function startHeartbeat() {
+  if (heartbeatTimer) return;
+  heartbeatTick(); // fire one immediately on boot
+  heartbeatTimer = setInterval(heartbeatTick, 5 * 60 * 1000);
+}
+
+// Called by the agent after each crawl with a run summary — records the
+// last-run outcome on the box's health row so the dashboard can show
+// "last pull: 18:00 · 42 rows · ok" and alert on failures.
+function reportAgentRun(summary = {}) {
+  reportStatus({
+    last_run_at: summary.at || new Date().toISOString(),
+    last_run_task: summary.task || null,
+    last_run_status: summary.status || null,
+    last_run_error: summary.error || null,
+    last_run_rows: typeof summary.rows === "number" ? summary.rows : null,
+  });
 }
 
 // ─── Playwright browser lifecycle ───────────────────────────────────
