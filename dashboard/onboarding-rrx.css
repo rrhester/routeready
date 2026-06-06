@@ -292,7 +292,9 @@
 
 #view-onboarding-ops.rrx-onboarding .sched-ribbon-group {
   display: inline-flex !important;
-  align-items: center !important;
+  /* flex-start so the tiles sit at the TOP of the now-full-height group
+     (the group is stretched by the actions row above). */
+  align-items: flex-start !important;
   gap: var(--rr-space-40) !important;
   flex: 0 0 auto !important;
   padding: 0 !important;
@@ -302,6 +304,10 @@
 #view-onboarding-ops.rrx-onboarding .sched-ribbon-group > .subnav {
   display: inline-flex !important;
   align-items: flex-start !important;  /* same baseline for all tiles */
+  /* Pin the subnav to the TOP of the stretched group (overrides the
+     inline align-self:center) so the tiles hug the top edge while the
+     group's border-left divider runs full height. */
+  align-self: flex-start !important;
   gap: var(--rr-space-40) !important;
   margin: 0 !important;
   padding: 0 !important;
@@ -315,7 +321,12 @@
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions {
-  align-items: flex-start !important;
+  /* stretch (not flex-start) so each ribbon GROUP fills the full card
+     height — its border-left divider then runs nearly top-to-bottom,
+     matching Schedule's dividers (which are border-left on the
+     full-height .sched-v2-split). Tiles still hug the top because the
+     group + subnav below pin their content to the top. */
+  align-items: stretch !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .page-header-l {
