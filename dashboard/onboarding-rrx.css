@@ -448,13 +448,18 @@
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active {
-  /* Matches Schedule's active ribbon tile · light-blue fill,
-     brand-pressed text, blue icon (operator chose to unify on the
-     Schedule treatment across all views). */
-  color: var(--rr-brand-pressed) !important;
-  background: var(--rr-bg-selected) !important;
-  font-weight: 600 !important;
+  /* Match Schedule's selected tile (.sched-v2-tile.rr-v2-current,
+     schedule-rrx.css:2179): a soft gray inset box + faint gray fill,
+     NOT a blue tile. inset box-shadow (not a border) so the tile never
+     shifts 1px when selected. Text + icon keep their default gray. */
+  box-shadow: inset 0 0 0 1px #C8C6C4 !important;
+  background: rgba(15, 23, 42, 0.04) !important;
   border-radius: var(--rr-radius-medium) !important;
+}
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active:hover {
+  /* Slightly deeper gray on hover — Schedule's .rr-v2-current:hover
+     (schedule-rrx.css:2183). */
+  background: rgba(15, 23, 42, 0.06) !important;
 }
 
 /* Belt-and-suspenders: every state of every subnav-item in the
@@ -470,8 +475,9 @@
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active svg {
-  /* Active icon goes brand-blue, matching Schedule's active tile. */
-  color: var(--rr-brand-primary) !important;
+  /* Selected icon stays its default gray — Schedule's selected tile
+     doesn't tint the icon blue; the gray box is the only selection cue. */
+  color: var(--text-muted) !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:focus-visible {
