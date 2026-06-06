@@ -848,6 +848,35 @@ function startLoop() {
   setTimeout(tick, 9000);
 }
 
+// On-demand sync (ROADMAP #4): run every enabled task NOW, sequentially.
+// Driven by the box's sync-request poller (main.js) when an operator hits the
+// dashboard's "Sync to portal" button. Skips tasks already running and tasks
+// with no API key. Returns a per-task summary so the box can report the
+// outcome back onto the sync request.
+async function runAllEnabledNow() {
+  if (!readSecret(keyFile())) return { ok: false, error: "no_api_key", ran: 0, results: [] };
+  const { tasks } = listTasks();
+  const enabled = (tasks || []).filter((t) => t.enabled);
+  const results = [];
+  for (const t of enabled) {
+    if (running.has(t.id)) { results.push({ id: t.id, name: t.name, skipped: "already_running" }); continue; }
+    running.add(t.id);
+    cancelFlags.delete(t.id);
+    try {
+      const r = await runTask(t.id, { manual: true });
+      results.push({ id: t.id, name: t.name, status: r.status, rows: r.newCount, errors: r.errors, ok: r.ok });
+    } catch (e) {
+      results.push({ id: t.id, name: t.name, ok: false, error: String(e?.message || e) });
+    } finally {
+      running.delete(t.id);
+      cancelFlags.delete(t.id);
+    }
+  }
+  const totalRows = results.reduce((n, r) => n + (r.rows || 0), 0);
+  const anyError = results.some((r) => r.ok === false || (r.errors && r.errors > 0));
+  return { ok: true, ran: results.length, totalRows, status: anyError ? "partial" : "complete", results };
+}
+
 // ─── IPC ────────────────────────────────────────────────────────────
 function init(deps) {
   DEPS = deps;
@@ -897,4 +926,4 @@ function init(deps) {
   });
 }
 
-module.exports = { init };
+module.exports = { init, runAllEnabledNow };

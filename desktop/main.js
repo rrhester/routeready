@@ -319,6 +319,7 @@ async function redeemPairing(code) {
     writeBoxSession({ access_token: body.access_token, refresh_token: body.refresh_token });
     boxSupabase = null;
     startHeartbeat();
+    startSyncWatcher();
     heartbeatTick();
   } catch (e) {
     logLine("pairing: redeem threw", String(e?.message || e));
@@ -443,9 +444,11 @@ app.whenReady().then(() => {
   buildTray();
   Menu.setApplicationMenu(null); // hide the native menu bar; actions live in the tray
 
-  // Start health reporting if this box is already paired (returning install).
-  // A fresh, never-paired box no-ops until the operator connects it.
+  // Start health reporting + on-demand sync watching if this box is already
+  // paired (returning install). A fresh, never-paired box no-ops until the
+  // operator connects it (both restart on redeemPairing).
   startHeartbeat();
+  startSyncWatcher();
 
   // Start with the OS at login so the sync engine is up after a reboot
   // without the operator thinking about it. Packaged only — we don't want
@@ -638,6 +641,77 @@ function startHeartbeat() {
   if (heartbeatTimer) return;
   heartbeatTick(); // fire one immediately on boot
   heartbeatTimer = setInterval(heartbeatTick, 5 * 60 * 1000);
+}
+
+// ─── On-demand "Sync to portal" (ROADMAP #4) ────────────────────────
+// The dashboard's "Sync to portal" button inserts a pending row into
+// public.sync_requests (scoped to the DSP by RLS). This box polls for pending
+// requests, atomically claims one (so two boxes for the same DSP don't both
+// run it), runs all enabled crawl tasks now, then marks the request done/error
+// with a short result summary the dashboard can surface. Poll (vs realtime) is
+// simpler and plenty fast for an on-demand button; ~15s feels instant enough.
+let syncWatchTimer = null;
+let syncBusy = false;
+async function syncWatchTick() {
+  if (syncBusy) return; // a prior request is still crawling
+  let sb;
+  try { sb = await getBoxSupabase(); } catch { return; }
+  if (!sb) return; // not paired
+  try {
+    const { data: pending, error } = await sb
+      .from("sync_requests")
+      .select("id, created_at")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (error) { logLine("sync: poll failed:", error.message); return; }
+    if (!pending || !pending.length) return;
+    const req = pending[0];
+
+    // Atomic-ish claim: only succeeds if the row is still pending. If another
+    // box (same DSP) grabbed it first, the filtered update returns no rows.
+    const claimedAt = new Date().toISOString();
+    const { data: claimed, error: claimErr } = await sb
+      .from("sync_requests")
+      .update({ status: "claimed", claimed_by: agentId(), claimed_at: claimedAt })
+      .eq("id", req.id)
+      .eq("status", "pending")
+      .select("id");
+    if (claimErr) { logLine("sync: claim failed:", claimErr.message); return; }
+    if (!claimed || !claimed.length) return; // lost the race; leave it
+
+    logLine("sync: claimed on-demand request", req.id, "→ running enabled tasks");
+    syncBusy = true;
+    let summary;
+    try {
+      summary = await agent.runAllEnabledNow();
+    } catch (e) {
+      summary = { ok: false, error: String(e?.message || e) };
+    } finally {
+      syncBusy = false;
+    }
+
+    const done = {
+      status: summary.ok === false ? "error" : (summary.status || "complete"),
+      done_at: new Date().toISOString(),
+      result_rows: typeof summary.totalRows === "number" ? summary.totalRows : null,
+      result_tasks: typeof summary.ran === "number" ? summary.ran : null,
+      error: summary.ok === false ? (summary.error || "run_failed") : null,
+    };
+    const { error: doneErr } = await sb.from("sync_requests").update(done).eq("id", req.id);
+    if (doneErr) logLine("sync: mark-done failed:", doneErr.message);
+    else logLine("sync: request", req.id, "→", done.status, `(${done.result_rows ?? "?"} rows)`);
+
+    // Push a fresh heartbeat so the dashboard reflects the just-finished run.
+    heartbeatTick();
+  } catch (e) {
+    logLine("sync: watch threw:", String(e));
+  }
+}
+function startSyncWatcher() {
+  if (syncWatchTimer) return;
+  syncWatchTimer = setInterval(syncWatchTick, 15 * 1000);
+  setTimeout(syncWatchTick, 8000); // first check shortly after boot
 }
 
 // Called by the agent after each crawl with a run summary — records the
