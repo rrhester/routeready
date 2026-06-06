@@ -415,11 +415,11 @@
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item svg,
 #view-onboarding-ops.rrx-onboarding .ob-tab-wrap > .subnav-item svg {
-  /* Match Schedule strip icon size exactly. Operator bumped both
-     surfaces by +18% (28 → 33) so the dispatch eye sees the same
-     tile glyphs whether they're on Onboarding or Schedule. */
-  width: 33px !important;
-  height: 33px !important;
+  /* Match Schedule strip icon size exactly. Schedule's .sched-v2-tile
+     svg renders at 42px (schedule-rrx.css:2013, the +10% bump); the
+     33px here read smaller, so bring Onboarding up to the same 42px. */
+  width: 42px !important;
+  height: 42px !important;
   flex: 0 0 auto !important;
   /* Match Schedule's strip icons exactly — near-black var(--text) (the
      color Schedule's .sched-v2-tile svg is forced to at index.html:18018),
