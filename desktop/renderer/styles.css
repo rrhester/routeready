@@ -605,3 +605,91 @@ main {
   white-space: pre-wrap;
   color: var(--text-muted);
 }
+
+/* ── AI agent crawler (section 6) ─────────────────────────────────── */
+.field select,
+.field textarea {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  width: 100%;
+  resize: vertical;
+}
+.field select:focus,
+.field textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
+}
+
+.badge-new {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 2px 7px;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.agent-settings {
+  margin: 4px 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--canvas);
+  padding: 10px 14px;
+}
+.agent-settings > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+}
+.agent-settings[open] > summary { margin-bottom: 10px; }
+.agent-settings .settings-divider {
+  margin: 14px 0 4px;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.agent-settings .settings-divider em { font-weight: 400; color: var(--text-subtle); }
+
+.pill-upload { background: var(--accent-soft); color: var(--accent); }
+
+.job-summary { color: var(--text-muted); font-style: italic; }
+
+.agent-live {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 14px;
+  background: var(--canvas);
+}
+.agent-live h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#agent-trace {
+  margin: 0;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  max-height: 260px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  color: var(--text-muted);
+}

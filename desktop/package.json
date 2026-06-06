@@ -17,6 +17,7 @@
     "postinstall": "playwright install chromium"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.101.0",
     "@supabase/supabase-js": "^2.45.0",
     "electron-store": "^10.0.0",
     "playwright": "^1.48.0"
@@ -33,7 +34,9 @@
       "main.js",
       "preload.js",
       "scraper.js",
+      "agent.js",
       "renderer/**/*",
+      "build/icon.png",
       "node_modules/**/*",
       "!node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!node_modules/**/{test,tests,__tests__,examples,docs,.github}/**",

@@ -15,7 +15,7 @@
 // Nothing here ever sees the operator's password — Amazon collects
 // it in their own login UI inside the headed Chromium.
 
-const { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, shell, Tray } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 
@@ -27,6 +27,7 @@ const fs = require("node:fs");
 process.env.PLAYWRIGHT_BROWSERS_PATH = "0";
 const { chromium } = require("playwright");
 const scraper = require("./scraper");
+const agent = require("./agent");
 
 // ─── Diagnostic logging ─────────────────────────────────────────────
 // Writes a line to <userData>/desktop.log every time we touch Playwright
@@ -143,6 +144,49 @@ function effectivePortalUrl() {
 let mainWindow = null;
 let portalContext = null; // Playwright BrowserContext, kept alive between actions.
 let portalBrowser = null;
+let tray = null;
+// Background-agent lifecycle: closing the window hides to the tray so the
+// scheduler keeps firing scheduled crawls/downloads unattended. The app
+// only really exits when the operator picks "Quit" from the tray (or the
+// OS issues a quit), which flips this flag.
+app.isQuitting = false;
+
+// ─── System tray (keeps the sync engine alive in the background) ─────
+function trayImage() {
+  try {
+    const img = nativeImage.createFromPath(path.join(__dirname, "build", "icon.png"));
+    if (!img.isEmpty()) return img.resize({ width: 18, height: 18 });
+  } catch (e) { logLine("tray: icon load failed:", String(e)); }
+  return nativeImage.createEmpty();
+}
+
+function showWindow() {
+  if (!mainWindow) { createWindow(); return; }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function buildTray() {
+  if (tray) return;
+  try {
+    tray = new Tray(trayImage());
+  } catch (e) {
+    // Some headless Linux sessions have no status-notifier host; the app
+    // still works, it just won't show a tray icon. Don't let that crash us.
+    logLine("tray: create failed (no tray host?):", String(e));
+    return;
+  }
+  tray.setToolTip("RouteReady Desktop — background sync");
+  const menu = Menu.buildFromTemplate([
+    { label: "Open RouteReady", click: showWindow },
+    { type: "separator" },
+    { label: "Quit RouteReady", click: () => { app.isQuitting = true; app.quit(); } },
+  ]);
+  tray.setContextMenu(menu);
+  tray.on("click", showWindow);
+  tray.on("double-click", showWindow);
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -164,6 +208,15 @@ function createWindow() {
 
   // Open DevTools in dev only.
   if (!app.isPackaged) mainWindow.webContents.openDevTools({ mode: "detach" });
+
+  // Hide to tray instead of quitting when the operator closes the window,
+  // so background syncs keep running. Real exit goes through app.isQuitting.
+  mainWindow.on("close", (e) => {
+    // Only hide-to-tray if we actually have a tray to restore from —
+    // otherwise (no status-notifier host) let the window close normally
+    // so the app stays quittable.
+    if (!app.isQuitting && tray) { e.preventDefault(); mainWindow.hide(); }
+  });
 
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -188,16 +241,45 @@ app.whenReady().then(() => {
     appendHistory,
     getMainWindow: () => mainWindow,
   });
+  agent.init({
+    userDataDir,
+    defaultDownloadDir,
+    logLine,
+    launchChromium,
+    readSession,
+    appendHistory,
+    getMainWindow: () => mainWindow,
+  });
   createWindow();
+  buildTray();
+
+  // Start with the OS at login so the sync engine is up after a reboot
+  // without the operator thinking about it. Packaged only — we don't want
+  // dev runs registering autostart. Linux support varies by desktop env;
+  // best-effort, never fatal.
+  if (app.isPackaged) {
+    try { app.setLoginItemSettings({ openAtLogin: true }); }
+    catch (e) { logLine("setLoginItemSettings failed:", String(e)); }
+  }
 });
 
-app.on("window-all-closed", async () => {
-  await tearDownPortal();
-  if (process.platform !== "darwin") app.quit();
+// Background sync engine: with a tray present, don't quit when the window
+// closes — it hides to the tray and the scheduler keeps firing. Without a
+// tray (no status-notifier host), fall back to the normal quit-on-close so
+// the app can't get stranded with no window and no tray icon.
+app.on("window-all-closed", () => {
+  if (!tray && process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  app.isQuitting = true;
+  // Best-effort teardown of the persistent portal browser on the way out.
+  tearDownPortal().catch(() => {});
 });
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  else showWindow();
 });
 
 // ─── Session persistence (encrypted storageState) ───────────────────

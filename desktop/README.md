@@ -115,6 +115,9 @@ chmod +x RouteReady\ Desktop-*.AppImage
 ## Files
 
 - `main.js` — Electron main process. Owns the BrowserWindow + Playwright.
+- `scraper.js` — record-and-replay scraping (recorder + headless replay).
+- `agent.js` — AI agent crawler: Claude-driven browser-automation loop,
+  DOM-snapshot tool surface, task scheduler, CSV + RouteReady upload sinks.
 - `preload.js` — `contextBridge` surface exposed to the renderer.
 - `renderer/` — local UI (HTML/CSS/JS only, no framework).
   - `index.html` — three-step shell: sign in → verify session → pull routes.
@@ -161,15 +164,51 @@ chmod +x RouteReady\ Desktop-*.AppImage
   scraping into a deduped CSV. **When the portal changes layout the
   operator hits Re-record — no app reinstall, no waiting on a build.**
   Seeded with an empty `Indeed — New applicants` recipe on first run.
+- **AI agent crawler** (`agent.js`) — the agentic successor to
+  record-and-replay. Instead of a recorded click-path, the operator
+  writes a plain-English **goal** ("find every applicant and record
+  their name, email, phone"). The agent loop (Claude + Playwright)
+  reads a structured accessibility snapshot of the live page — every
+  interactive element tagged with a `[ref]` — decides the next action
+  (click / type / scroll / navigate), extracts records via a `save_rows`
+  tool, and pages through the whole list. Because it reasons over the
+  page rather than replaying selectors, it survives layout changes with
+  no re-record. Output goes two places: a deduped CSV on disk **and**
+  (optionally) straight into RouteReady — each row is POSTed to the
+  public `webhook-apply` edge function → `intake_applicant()`, which
+  dedupes by email / source_ref per DSP. Inference runs on the
+  operator's **own Anthropic API key**, stored encrypted via
+  `safeStorage` exactly like the portal session — page content goes
+  operator → Anthropic directly, never through RouteReady. `callModel()`
+  is the single transport seam if we later want to route through a
+  RouteReady Supabase proxy. Tasks live in `<userData>/agent-tasks/`,
+  deduped against `<userData>/agent-seen-*.json`; seeded with a disabled
+  `Indeed — applicants (AI agent)` task on first run.
+
+## Running in the background
+
+The app is a **background sync engine**: closing the window hides it to the
+system tray instead of quitting, so the scheduler keeps firing scheduled
+crawls and downloads unattended. Re-open from the tray icon ("Open
+RouteReady"); exit fully via the tray's "Quit RouteReady". Packaged builds
+also register **launch-at-login** so the engine is up after a reboot
+without the operator thinking about it. This is what makes the intended
+model work — operators live in the RouteReady **web dashboard** (scraped
+applicants land there via the `webhook-apply` pipeline), while the desktop
+app quietly syncs in the background. If a Linux session has no tray host,
+the app falls back to normal quit-on-close so it can't get stranded.
 
 ## What's next
 
+- **RouteReady-proxied inference** — optional transport that routes the
+  agent's model calls through a Supabase edge function holding the
+  Anthropic key, so RouteReady can own the key + bill (swap `callModel`).
+- **Migrate recipes → agent tasks** — once the agent is proven, fold the
+  record-and-replay recipes into goal-driven tasks and retire the picker.
 - **Pre-baked Amazon report shortcuts** — same scheduler infra, named
   report presets (Route Plan, Driver Performance, Cycle 1 pick sheets…).
 - **Driver assignment write-back** — POST RouteReady's planned assignments
   to MIDWAY.
-- **Supabase upload** — ship the downloaded report into RouteReady storage
-  + parse rows into Postgres.
 - **Supabase auth** — link the Electron client to a RouteReady DSP account
   via magic-link or device code flow.
 - **Auto-update** — `electron-updater` + a release pipeline (probably

@@ -684,10 +684,234 @@ window.rr.scraper.onRecipeUpdated(() => {
   refreshHistory();
 });
 
+// ─── AI agent crawler ───────────────────────────────────────────────
+
+const agEls = {
+  settings: $("#agent-settings"),
+  settingsState: $("#agent-settings-state"),
+  key: $("#ag-key"),
+  model: $("#ag-model"),
+  effort: $("#ag-effort"),
+  uploadUrl: $("#ag-upload-url"),
+  dspCode: $("#ag-dsp-code"),
+  applySecret: $("#ag-apply-secret"),
+  saveConfig: $("#btn-ag-save-config"),
+  list: $("#agent-list"),
+  addBtn: $("#btn-ag-add"),
+  edit: $("#agent-edit"),
+  title: $("#agent-edit-title"),
+  name: $("#ag-name"),
+  url: $("#ag-url"),
+  goal: $("#ag-goal"),
+  dir: $("#ag-dir"),
+  pickDir: $("#btn-ag-pick-dir"),
+  clearDir: $("#btn-ag-clear-dir"),
+  interval: $("#ag-interval"),
+  enabled: $("#ag-enabled"),
+  upload: $("#ag-upload"),
+  save: $("#btn-ag-save"),
+  cancel: $("#btn-ag-cancel"),
+  live: $("#agent-live"),
+  trace: $("#agent-trace"),
+  stop: $("#btn-ag-stop"),
+};
+
+let editingTaskId = null;
+let liveTaskId = null;
+
+async function refreshAgentConfig() {
+  const c = await window.rr.agent.getConfig();
+  if (!c || !c.ok) return;
+  agEls.model.value = c.model || "claude-opus-4-8";
+  agEls.effort.value = c.effort || "medium";
+  agEls.uploadUrl.value = c.uploadUrl || "";
+  agEls.dspCode.value = c.dspShortCode || "";
+  agEls.key.placeholder = c.hasApiKey ? "•••••• (saved — leave blank to keep)" : "sk-ant-… (required)";
+  agEls.applySecret.placeholder = c.hasApplySecret ? "•••••• (saved — leave blank to keep)" : "(optional)";
+  const bits = [c.hasApiKey ? "key ✓" : "no key", c.uploadUrl && c.dspShortCode ? "upload ✓" : "upload off"];
+  agEls.settingsState.textContent = `· ${bits.join(" · ")}`;
+}
+
+agEls.saveConfig.addEventListener("click", async () => {
+  agEls.saveConfig.disabled = true;
+  try {
+    // Blank secret fields mean "keep what's saved" — only send them when
+    // the operator actually typed a value (omitted = unchanged in main).
+    const patch = {
+      model: agEls.model.value,
+      effort: agEls.effort.value,
+      uploadUrl: agEls.uploadUrl.value.trim(),
+      dspShortCode: agEls.dspCode.value.trim(),
+    };
+    if (agEls.key.value.trim()) patch.apiKey = agEls.key.value.trim();
+    if (agEls.applySecret.value.trim()) patch.applySecret = agEls.applySecret.value.trim();
+    await window.rr.agent.setConfig(patch);
+    agEls.key.value = "";
+    agEls.applySecret.value = "";
+    log("Agent settings saved.", "ok");
+    await refreshAgentConfig();
+  } finally {
+    agEls.saveConfig.disabled = false;
+  }
+});
+
+function agentStatusPill(t) {
+  if (!t.enabled) return `<span class="pill pill-off">Paused</span>`;
+  if (t.lastResult === "error") return `<span class="pill pill-err">Last run failed</span>`;
+  if (t.lastResult === "blocked") return `<span class="pill pill-err">Blocked</span>`;
+  if (t.lastResult === "partial") return `<span class="pill pill-warm">Partial</span>`;
+  if (t.lastResult === "complete" || t.lastResult === "ok") return `<span class="pill pill-ok">Last run ok</span>`;
+  return `<span class="pill pill-warm">Armed</span>`;
+}
+
+function renderTasks(tasks) {
+  if (!tasks || tasks.length === 0) {
+    agEls.list.innerHTML = '<li class="empty">No agent tasks yet. Add one, write a goal, and hit Run.</li>';
+    return;
+  }
+  agEls.list.innerHTML = tasks.map((t) => {
+    const lastRun = t.lastRunAt ? relTime(t.lastRunAt) : "never";
+    const nextRun = t.enabled && t.nextRunAt ? relTime(t.nextRunAt) : "—";
+    const counts = t.lastCount != null ? `${t.lastNewCount || 0} found` : "—";
+    const up = t.uploadToRouteReady ? ` · ${t.lastUploaded || 0} uploaded` : "";
+    const errLine = (t.lastResult === "error" || t.lastResult === "blocked") && t.lastError
+      ? `<div class="job-err">${escapeHtml(t.lastError)}</div>` : "";
+    const sumLine = t.lastSummary ? `<div class="job-meta job-summary">${escapeHtml(t.lastSummary)}</div>` : "";
+    return `
+      <li class="job" data-task-id="${escapeHtml(t.id)}">
+        <div class="job-head">
+          <div class="job-title">
+            <span class="job-name">${escapeHtml(t.name || "(unnamed)")}</span>
+            ${agentStatusPill(t)}
+            ${t.uploadToRouteReady ? '<span class="pill pill-upload">→ RouteReady</span>' : ''}
+          </div>
+          <div class="job-actions">
+            <button class="btn btn-sm btn-primary" data-task-run="${escapeHtml(t.id)}">Run now</button>
+            <button class="btn btn-sm" data-task-edit="${escapeHtml(t.id)}">Edit</button>
+            <button class="btn btn-sm btn-ghost" data-task-delete="${escapeHtml(t.id)}">Delete</button>
+          </div>
+        </div>
+        <div class="job-meta"><span title="${escapeHtml(t.startUrl || "")}">${escapeHtml(t.startUrl || "(no URL)")}</span></div>
+        <div class="job-meta job-meta-grid">
+          <span>Every <strong>${escapeHtml(`${t.intervalMinutes || 0} min`)}</strong></span>
+          <span>Last run: <strong>${escapeHtml(lastRun)}</strong></span>
+          <span>Next run: <strong>${escapeHtml(nextRun)}</strong></span>
+          <span>Result: <strong>${escapeHtml(counts + up)}</strong></span>
+        </div>
+        ${sumLine}
+        ${errLine}
+      </li>`;
+  }).join("");
+}
+
+async function refreshTasks() {
+  const r = await window.rr.agent.listTasks();
+  renderTasks(r.tasks || []);
+}
+
+function openTaskEditor(task) {
+  editingTaskId = task ? task.id : null;
+  agEls.title.textContent = task ? `Edit · ${task.name || "(unnamed)"}` : "New agent task";
+  agEls.name.value = task?.name || "";
+  agEls.url.value = task?.startUrl || "";
+  agEls.goal.value = task?.goal || "";
+  agEls.dir.value = task?.downloadDir || "";
+  agEls.interval.value = task?.intervalMinutes || 60;
+  agEls.enabled.checked = !!task?.enabled;
+  agEls.upload.checked = !!task?.uploadToRouteReady;
+  agEls.edit.hidden = false;
+  agEls.edit.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+function closeTaskEditor() { editingTaskId = null; agEls.edit.hidden = true; }
+
+agEls.addBtn.addEventListener("click", () => openTaskEditor(null));
+agEls.cancel.addEventListener("click", closeTaskEditor);
+agEls.pickDir.addEventListener("click", async () => { const r = await window.rr.reports.pickDownloadDir(); if (r.ok) agEls.dir.value = r.dir; });
+agEls.clearDir.addEventListener("click", () => { agEls.dir.value = ""; });
+
+agEls.save.addEventListener("click", async () => {
+  const name = agEls.name.value.trim();
+  const startUrl = agEls.url.value.trim();
+  const goal = agEls.goal.value.trim();
+  if (!name) { log("Task needs a name.", "error"); return; }
+  if (!startUrl) { log("Task needs a start URL.", "error"); return; }
+  if (!goal) { log("Task needs a goal — tell the agent what to find.", "error"); return; }
+  const interval = Number(agEls.interval.value) || 60;
+  if (interval < 5) { log("Minimum interval is 5 minutes.", "error"); return; }
+  const id = editingTaskId || slugifyId(name);
+  agEls.save.disabled = true;
+  try {
+    const r = await window.rr.agent.saveTask({
+      id, name, startUrl, goal,
+      downloadDir: agEls.dir.value.trim(),
+      intervalMinutes: interval,
+      enabled: agEls.enabled.checked,
+      uploadToRouteReady: agEls.upload.checked,
+    });
+    if (r.ok) { log(`Saved agent task: ${name}`, "ok"); closeTaskEditor(); await refreshTasks(); }
+  } finally { agEls.save.disabled = false; }
+});
+
+function pushTrace(line, kind) {
+  const ts = new Date().toLocaleTimeString();
+  const tag = kind === "error" ? "✗" : kind === "ok" ? "✓" : kind === "action" ? "→" : kind === "think" ? "…" : "·";
+  agEls.trace.textContent = `[${ts}] ${tag} ${line}\n` + agEls.trace.textContent;
+}
+
+window.rr.agent.onStep((p) => {
+  if (!p) return;
+  if (p.kind === "start") { agEls.trace.textContent = ""; agEls.live.hidden = false; }
+  pushTrace(p.text || "", p.kind);
+});
+
+window.rr.agent.onTaskUpdated(() => { refreshTasks(); refreshHistory(); });
+
+agEls.stop.addEventListener("click", async () => {
+  if (liveTaskId) { await window.rr.agent.stop(liveTaskId); log("Asked the agent to stop.", "ok"); }
+});
+
+agEls.list.addEventListener("click", async (evt) => {
+  const t = evt.target.closest("button[data-task-run], button[data-task-edit], button[data-task-delete]");
+  if (!t) return;
+  const runId = t.getAttribute("data-task-run");
+  const editId = t.getAttribute("data-task-edit");
+  const delId = t.getAttribute("data-task-delete");
+
+  if (runId) {
+    const cfg = await window.rr.agent.getConfig();
+    if (!cfg.hasApiKey) { log("Add an Anthropic API key in agent settings first.", "error"); agEls.settings.open = true; return; }
+    t.disabled = true;
+    liveTaskId = runId;
+    agEls.live.hidden = false;
+    agEls.trace.textContent = "";
+    log("Agent task running… watch the live trace below.");
+    try {
+      const r = await window.rr.agent.runNow(runId);
+      if (r && r.ok) {
+        log(`Agent done: ${r.newCount} found${r.uploaded ? `, ${r.uploaded} uploaded` : ""} · ${r.status} (${r.steps} steps).`, r.status === "complete" ? "ok" : "info");
+      } else {
+        log(`Agent failed: ${r?.message || r?.error || "unknown"}`, "error");
+      }
+      await refreshTasks();
+      await refreshHistory();
+    } finally { t.disabled = false; liveTaskId = null; }
+    return;
+  }
+  if (editId) { const r = await window.rr.agent.getTask(editId); if (r.ok) openTaskEditor(r.task); return; }
+  if (delId) {
+    if (!confirm("Delete this agent task? CSVs it already wrote stay on disk.")) return;
+    await window.rr.agent.deleteTask(delId);
+    log("Agent task deleted.", "ok");
+    await refreshTasks();
+  }
+});
+
 // Initial state
 loadConfig();
 refreshSessionStatus();
 refreshHistory();
 refreshJobs();
 refreshRecipes();
+refreshAgentConfig();
+refreshTasks();
 log("Ready.");
