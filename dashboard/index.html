@@ -13258,14 +13258,15 @@ body.rr-cmdk-open{ overflow:hidden }
 
         <style>
           /* Hairline divider between Add applicant and PDF Upload — a
-             single 1px vertical line, same height as the icon row,
-             muted color so it doesn't compete with the button glyphs. */
+             single 1px vertical line. align-self:stretch + zero vertical
+             margin makes it run the full card height like the inter-group
+             dividers; #C8C6C4 matches their color so all the hairlines
+             read uniform. */
           #view-onboarding-ops .ob-tab-divider {
             width: 1px;
             align-self: stretch;
-            background: var(--border, #e5e7eb);
-            margin: 4px 6px 0;
-            min-height: 32px;
+            background: #C8C6C4;
+            margin: 0 6px;
           }
         </style>
         <style>
