@@ -116,6 +116,52 @@ function listTasks() {
   tasks.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   return { ok: true, tasks };
 }
+// ─── Scheduling: clock times (preferred) or interval (fallback) ─────
+// dailyTimes are "HH:MM" in the machine's LOCAL time — and since the box
+// sits at the DSP, local time IS the DSP's time, so "18:00" means their 6pm.
+function normTimes(arr) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const t of arr) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim());
+    if (!m) continue;
+    const h = +m[1], min = +m[2];
+    if (h > 23 || min > 59) continue;
+    out.push(`${String(h).padStart(2, "0")}:${m[2]}`);
+  }
+  // de-dupe + sort for stable display
+  return [...new Set(out)].sort();
+}
+
+// Soonest upcoming Date for a set of daily clock times (today if still ahead,
+// else tomorrow). Returns null if no valid times.
+function nextRunForTimes(times) {
+  const valid = normTimes(times);
+  if (!valid.length) return null;
+  const now = new Date();
+  let best = null;
+  for (const t of valid) {
+    const [h, min] = t.split(":").map(Number);
+    const d = new Date(now);
+    d.setHours(h, min, 0, 0);
+    if (d <= now) d.setDate(d.getDate() + 1);
+    if (!best || d < best) best = d;
+  }
+  return best;
+}
+
+// Next run for a task: clock times if set, otherwise the interval.
+function computeNextRunAt(task) {
+  if (Array.isArray(task.dailyTimes) && task.dailyTimes.length) {
+    const d = nextRunForTimes(task.dailyTimes);
+    return d ? d.toISOString() : null;
+  }
+  if (task.intervalMinutes > 0) {
+    return new Date(Date.now() + task.intervalMinutes * 60000).toISOString();
+  }
+  return null;
+}
+
 function saveTask(patch) {
   if (!patch || !patch.id) return { ok: false, error: "missing_id" };
   const prev = readTask(patch.id);
@@ -125,6 +171,7 @@ function saveTask(patch) {
     goal: patch.goal != null ? String(patch.goal) : (prev?.goal || ""),
     startUrl: patch.startUrl != null ? String(patch.startUrl).trim() : (prev?.startUrl || ""),
     intervalMinutes: Number(patch.intervalMinutes ?? prev?.intervalMinutes ?? 60),
+    dailyTimes: patch.dailyTimes != null ? normTimes(patch.dailyTimes) : (prev?.dailyTimes || []),
     enabled: patch.enabled != null ? !!patch.enabled : !!prev?.enabled,
     downloadDir: patch.downloadDir != null ? String(patch.downloadDir).trim() : (prev?.downloadDir || ""),
     uploadToRouteReady: patch.uploadToRouteReady != null ? !!patch.uploadToRouteReady : !!prev?.uploadToRouteReady,
@@ -141,11 +188,9 @@ function saveTask(patch) {
     nextRunAt: prev?.nextRunAt || null,
     createdAt: prev?.createdAt || new Date().toISOString(),
   };
-  if (merged.enabled && !prev?.enabled) {
-    merged.nextRunAt = new Date(Date.now() + merged.intervalMinutes * 60000).toISOString();
-  } else if (!merged.enabled) {
-    merged.nextRunAt = null;
-  }
+  // Re-arm next-run from the schedule (clock times if set, else interval)
+  // whenever the task is enabled, so edits to times/interval take effect now.
+  merged.nextRunAt = merged.enabled ? computeNextRunAt(merged) : null;
   writeTask(merged);
   return { ok: true, task: merged };
 }
@@ -667,8 +712,8 @@ async function runTask(id, { manual = false } = {}) {
   next.lastNewCount = collected.length;
   next.lastUploaded = uploaded;
   next.lastSummary = summary;
-  if (next.intervalMinutes > 0 && next.enabled) {
-    next.nextRunAt = new Date(Date.now() + next.intervalMinutes * 60000).toISOString();
+  if (next.enabled) {
+    next.nextRunAt = computeNextRunAt(next); // clock times if set, else interval
   }
   writeTask(next);
   emitTaskUpdated(id);

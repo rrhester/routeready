@@ -142,7 +142,11 @@
             </div>
           </label>
           <label class="field">
-            <span>Interval (minutes)</span>
+            <span>Run at times <em>(24-hour, comma-separated — overrides the interval; e.g. 06:00, 18:00)</em></span>
+            <input id="ag-times" type="text" placeholder="e.g. 06:00, 12:00, 18:00" />
+          </label>
+          <label class="field">
+            <span>Interval (minutes) <em>(used only if no times are set above)</em></span>
             <input id="ag-interval" type="number" min="5" step="5" value="60" />
           </label>
           <label class="field field-row">
