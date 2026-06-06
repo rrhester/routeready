@@ -84,9 +84,9 @@
           <label class="field">
             <span>Model</span>
             <select id="ag-model">
-              <option value="claude-opus-4-8">Claude Opus 4.8 — most capable (default)</option>
-              <option value="claude-sonnet-4-6">Claude Sonnet 4.6 — cheaper / faster</option>
-              <option value="claude-haiku-4-5">Claude Haiku 4.5 — cheapest</option>
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6 — balanced (default)</option>
+              <option value="claude-haiku-4-5">Claude Haiku 4.5 — cheapest / fastest</option>
+              <option value="claude-opus-4-8">Claude Opus 4.8 — most capable, priciest</option>
             </select>
           </label>
           <label class="field">
@@ -142,7 +142,11 @@
             </div>
           </label>
           <label class="field">
-            <span>Interval (minutes)</span>
+            <span>Run at times <em>(24-hour, comma-separated — overrides the interval; e.g. 06:00, 18:00)</em></span>
+            <input id="ag-times" type="text" placeholder="e.g. 06:00, 12:00, 18:00" />
+          </label>
+          <label class="field">
+            <span>Interval (minutes) <em>(used only if no times are set above)</em></span>
             <input id="ag-interval" type="number" min="5" step="5" value="60" />
           </label>
           <label class="field field-row">

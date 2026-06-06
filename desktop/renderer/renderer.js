@@ -706,6 +706,7 @@ const agEls = {
   dir: $("#ag-dir"),
   pickDir: $("#btn-ag-pick-dir"),
   clearDir: $("#btn-ag-clear-dir"),
+  times: $("#ag-times"),
   interval: $("#ag-interval"),
   enabled: $("#ag-enabled"),
   upload: $("#ag-upload"),
@@ -794,7 +795,7 @@ function renderTasks(tasks) {
         </div>
         <div class="job-meta"><span title="${escapeHtml(t.startUrl || "")}">${escapeHtml(t.startUrl || "(no URL)")}</span></div>
         <div class="job-meta job-meta-grid">
-          <span>Every <strong>${escapeHtml(`${t.intervalMinutes || 0} min`)}</strong></span>
+          <span>Runs <strong>${escapeHtml((t.dailyTimes && t.dailyTimes.length) ? `at ${t.dailyTimes.join(", ")}` : `every ${t.intervalMinutes || 0} min`)}</strong></span>
           <span>Last run: <strong>${escapeHtml(lastRun)}</strong></span>
           <span>Next run: <strong>${escapeHtml(nextRun)}</strong></span>
           <span>Result: <strong>${escapeHtml(counts + up)}</strong></span>
@@ -817,6 +818,7 @@ function openTaskEditor(task) {
   agEls.url.value = task?.startUrl || "";
   agEls.goal.value = task?.goal || "";
   agEls.dir.value = task?.downloadDir || "";
+  agEls.times.value = (task?.dailyTimes || []).join(", ");
   agEls.interval.value = task?.intervalMinutes || 60;
   agEls.enabled.checked = !!task?.enabled;
   agEls.upload.checked = !!task?.uploadToRouteReady;
@@ -838,14 +840,18 @@ agEls.save.addEventListener("click", async () => {
   if (!name) { log("Task needs a name.", "error"); return; }
   if (!startUrl) { log("Task needs a start URL.", "error"); return; }
   if (!goal) { log("Task needs a goal — tell the agent what to find.", "error"); return; }
+  const dailyTimes = agEls.times.value.split(",").map((s) => s.trim()).filter(Boolean);
+  const badTime = dailyTimes.find((t) => !/^\d{1,2}:\d{2}$/.test(t));
+  if (badTime) { log(`"${badTime}" isn't a valid time — use 24h HH:MM, e.g. 06:00 or 18:30.`, "error"); return; }
   const interval = Number(agEls.interval.value) || 60;
-  if (interval < 5) { log("Minimum interval is 5 minutes.", "error"); return; }
+  if (!dailyTimes.length && interval < 5) { log("Set run-times, or use an interval of at least 5 minutes.", "error"); return; }
   const id = editingTaskId || slugifyId(name);
   agEls.save.disabled = true;
   try {
     const r = await window.rr.agent.saveTask({
       id, name, startUrl, goal,
       downloadDir: agEls.dir.value.trim(),
+      dailyTimes,
       intervalMinutes: interval,
       enabled: agEls.enabled.checked,
       uploadToRouteReady: agEls.upload.checked,

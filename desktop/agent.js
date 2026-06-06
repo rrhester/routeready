@@ -28,7 +28,12 @@ const Anthropic = require("@anthropic-ai/sdk");
 let DEPS = null;
 
 // ─── Tunables ───────────────────────────────────────────────────────
-const DEFAULT_MODEL = "claude-opus-4-8";     // skill-mandated default; per-task override allowed
+// Default to Sonnet, not Opus: an agent crawl is "read the page, click,
+// extract" — not deep reasoning — so Sonnet handles it well at ~1.7x less
+// than Opus (Haiku is cheaper still for simple/stable pages). Per-task
+// overridable; reserve Opus for genuinely tricky portals. See ROADMAP.md
+// (AI cost model).
+const DEFAULT_MODEL = "claude-sonnet-4-6";   // was claude-opus-4-8 — cost
 const DEFAULT_EFFORT = "medium";             // cost/quality balance for repetitive crawls
 const MAX_STEPS = 40;                          // hard cap on agent tool-iterations per run
 const MAX_TOKENS = 16000;                       // per-turn output cap (non-streaming, under HTTP timeout)
@@ -111,6 +116,52 @@ function listTasks() {
   tasks.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   return { ok: true, tasks };
 }
+// ─── Scheduling: clock times (preferred) or interval (fallback) ─────
+// dailyTimes are "HH:MM" in the machine's LOCAL time — and since the box
+// sits at the DSP, local time IS the DSP's time, so "18:00" means their 6pm.
+function normTimes(arr) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  for (const t of arr) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim());
+    if (!m) continue;
+    const h = +m[1], min = +m[2];
+    if (h > 23 || min > 59) continue;
+    out.push(`${String(h).padStart(2, "0")}:${m[2]}`);
+  }
+  // de-dupe + sort for stable display
+  return [...new Set(out)].sort();
+}
+
+// Soonest upcoming Date for a set of daily clock times (today if still ahead,
+// else tomorrow). Returns null if no valid times.
+function nextRunForTimes(times) {
+  const valid = normTimes(times);
+  if (!valid.length) return null;
+  const now = new Date();
+  let best = null;
+  for (const t of valid) {
+    const [h, min] = t.split(":").map(Number);
+    const d = new Date(now);
+    d.setHours(h, min, 0, 0);
+    if (d <= now) d.setDate(d.getDate() + 1);
+    if (!best || d < best) best = d;
+  }
+  return best;
+}
+
+// Next run for a task: clock times if set, otherwise the interval.
+function computeNextRunAt(task) {
+  if (Array.isArray(task.dailyTimes) && task.dailyTimes.length) {
+    const d = nextRunForTimes(task.dailyTimes);
+    return d ? d.toISOString() : null;
+  }
+  if (task.intervalMinutes > 0) {
+    return new Date(Date.now() + task.intervalMinutes * 60000).toISOString();
+  }
+  return null;
+}
+
 function saveTask(patch) {
   if (!patch || !patch.id) return { ok: false, error: "missing_id" };
   const prev = readTask(patch.id);
@@ -120,6 +171,7 @@ function saveTask(patch) {
     goal: patch.goal != null ? String(patch.goal) : (prev?.goal || ""),
     startUrl: patch.startUrl != null ? String(patch.startUrl).trim() : (prev?.startUrl || ""),
     intervalMinutes: Number(patch.intervalMinutes ?? prev?.intervalMinutes ?? 60),
+    dailyTimes: patch.dailyTimes != null ? normTimes(patch.dailyTimes) : (prev?.dailyTimes || []),
     enabled: patch.enabled != null ? !!patch.enabled : !!prev?.enabled,
     downloadDir: patch.downloadDir != null ? String(patch.downloadDir).trim() : (prev?.downloadDir || ""),
     uploadToRouteReady: patch.uploadToRouteReady != null ? !!patch.uploadToRouteReady : !!prev?.uploadToRouteReady,
@@ -136,11 +188,9 @@ function saveTask(patch) {
     nextRunAt: prev?.nextRunAt || null,
     createdAt: prev?.createdAt || new Date().toISOString(),
   };
-  if (merged.enabled && !prev?.enabled) {
-    merged.nextRunAt = new Date(Date.now() + merged.intervalMinutes * 60000).toISOString();
-  } else if (!merged.enabled) {
-    merged.nextRunAt = null;
-  }
+  // Re-arm next-run from the schedule (clock times if set, else interval)
+  // whenever the task is enabled, so edits to times/interval take effect now.
+  merged.nextRunAt = merged.enabled ? computeNextRunAt(merged) : null;
   writeTask(merged);
   return { ok: true, task: merged };
 }
@@ -393,6 +443,28 @@ function emitTaskUpdated(taskId) {
   try { DEPS.getMainWindow()?.webContents.send("agent:taskUpdated", { id: taskId }); } catch {}
 }
 
+// Prompt caching for the agent loop. The system+tools prefix is cached via a
+// breakpoint on the system block (tools render before system, so it covers
+// both). Here we keep a single *rolling* breakpoint on the last block of the
+// newest message, so the growing conversation prefix (all the prior page
+// snapshots) is served from cache next step at ~0.1x instead of full price.
+// Strip old breakpoints first so we never exceed the 4-breakpoint limit.
+function markCache(messages) {
+  for (const m of messages) {
+    if (Array.isArray(m.content)) {
+      for (const b of m.content) { if (b && typeof b === "object") delete b.cache_control; }
+    }
+  }
+  const last = messages[messages.length - 1];
+  if (!last) return;
+  if (typeof last.content === "string") {
+    last.content = [{ type: "text", text: last.content, cache_control: { type: "ephemeral" } }];
+  } else if (Array.isArray(last.content) && last.content.length) {
+    const lb = last.content[last.content.length - 1];
+    if (lb && typeof lb === "object") lb.cache_control = { type: "ephemeral" };
+  }
+}
+
 async function callModel(client, { model, effort, system, tools, messages }) {
   return client.messages.create({
     model,
@@ -528,7 +600,9 @@ async function runTask(id, { manual = false } = {}) {
     await page.goto(task.startUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
     const firstSnap = await takeSnapshot(page);
 
-    const system = systemPrompt();
+    // System prompt + tool defs are identical every step — cache them so we
+    // don't pay full input price re-sending them each iteration.
+    const systemBlocks = [{ type: "text", text: systemPrompt(), cache_control: { type: "ephemeral" } }];
     const messages = [{
       role: "user",
       content:
@@ -542,7 +616,8 @@ async function runTask(id, { manual = false } = {}) {
 
       let resp;
       try {
-        resp = await callModel(client, { model, effort, system, tools: TOOLS, messages });
+        markCache(messages); // roll the conversation cache breakpoint to the newest turn
+        resp = await callModel(client, { model, effort, system: systemBlocks, tools: TOOLS, messages });
       } catch (e) {
         const msg = String(e?.message || e);
         errors.push(msg);
@@ -637,8 +712,8 @@ async function runTask(id, { manual = false } = {}) {
   next.lastNewCount = collected.length;
   next.lastUploaded = uploaded;
   next.lastSummary = summary;
-  if (next.intervalMinutes > 0 && next.enabled) {
-    next.nextRunAt = new Date(Date.now() + next.intervalMinutes * 60000).toISOString();
+  if (next.enabled) {
+    next.nextRunAt = computeNextRunAt(next); // clock times if set, else interval
   }
   writeTask(next);
   emitTaskUpdated(id);

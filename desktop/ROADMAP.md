@@ -47,12 +47,13 @@ cleanly — read it first when picking this back up._
 
 ## v0.6.0 build plan (in recommended order)
 
-1. **Quick wins** *(desktop app — cheap, immediate)*
-   - Default new agent tasks to **Haiku or Sonnet**, not Opus.
-   - **Prompt caching** in the agent loop (~3–10× input savings).
-   - **RouteReady icon** for the Linux launcher (kill the penguin) + **hide the
-     native menu bar** (the white "RouteReady/Edit/View" strip).
-2. **Multiple daily run-times** *(desktop app)* — per task, a list of clock
+1. ✅ **Quick wins** *(done — shipped in v0.6.0 work)*
+   - Default new agent tasks → **Sonnet 4.6** (was Opus); per-task overridable.
+   - **Prompt caching** in the agent loop (system+tools breakpoint + rolling
+     conversation breakpoint via `markCache`).
+   - **Hid the native menu bar** (actions moved to the tray); set the Linux
+     launcher **icon** (may need a Crostini relaunch to refresh the cache).
+2. ✅ **Multiple daily run-times** *(done)* — per task, a list of clock
    times (`06:00, 12:00, 18:00`) in the box's **local** timezone (= the DSP's).
    Fire at each; if the box was asleep at a slot, run it **once** on wake
    (catch-up), then continue. Replaces/augments the current interval scheduler.
