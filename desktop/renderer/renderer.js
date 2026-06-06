@@ -709,6 +709,7 @@ const agEls = {
   interval: $("#ag-interval"),
   enabled: $("#ag-enabled"),
   upload: $("#ag-upload"),
+  visible: $("#ag-visible"),
   save: $("#btn-ag-save"),
   cancel: $("#btn-ag-cancel"),
   live: $("#agent-live"),
@@ -819,6 +820,7 @@ function openTaskEditor(task) {
   agEls.interval.value = task?.intervalMinutes || 60;
   agEls.enabled.checked = !!task?.enabled;
   agEls.upload.checked = !!task?.uploadToRouteReady;
+  agEls.visible.checked = !!task?.visibleBrowser;
   agEls.edit.hidden = false;
   agEls.edit.scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -847,6 +849,7 @@ agEls.save.addEventListener("click", async () => {
       intervalMinutes: interval,
       enabled: agEls.enabled.checked,
       uploadToRouteReady: agEls.upload.checked,
+      visibleBrowser: agEls.visible.checked,
     });
     if (r.ok) { log(`Saved agent task: ${name}`, "ok"); closeTaskEditor(); await refreshTasks(); }
   } finally { agEls.save.disabled = false; }

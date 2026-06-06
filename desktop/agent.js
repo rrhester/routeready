@@ -123,6 +123,7 @@ function saveTask(patch) {
     enabled: patch.enabled != null ? !!patch.enabled : !!prev?.enabled,
     downloadDir: patch.downloadDir != null ? String(patch.downloadDir).trim() : (prev?.downloadDir || ""),
     uploadToRouteReady: patch.uploadToRouteReady != null ? !!patch.uploadToRouteReady : !!prev?.uploadToRouteReady,
+    visibleBrowser: patch.visibleBrowser != null ? !!patch.visibleBrowser : !!prev?.visibleBrowser,
     model: patch.model != null ? (String(patch.model).trim() || null) : (prev?.model ?? null),
     effort: patch.effort != null ? (String(patch.effort).trim() || null) : (prev?.effort ?? null),
     lastRunAt: prev?.lastRunAt || null,
@@ -171,6 +172,7 @@ function ensureSeeded() {
     enabled: false,
     downloadDir: "",
     uploadToRouteReady: false,
+    visibleBrowser: false,
     model: null,
     effort: null,
     lastRunAt: null, lastResult: null, lastError: null,
@@ -192,6 +194,7 @@ function ensureSeeded() {
     enabled: false,
     downloadDir: "",
     uploadToRouteReady: false,
+    visibleBrowser: true,
     model: null,
     effort: null,
     lastRunAt: null, lastResult: null, lastError: null,
@@ -327,6 +330,17 @@ function refSel(ref) {
   return m ? `[data-rr-ref="${m[0]}"]` : null;
 }
 
+// Same registered-domain check (employers.indeed.com ↔ indeed.com ↔
+// secure.indeed.com all match). Used to keep the agent from navigating off
+// the portal — e.g. if a page carries prompt-injection text, or the model
+// picks a bad URL — which could leak scraped data into a foreign URL.
+function sameSite(targetUrl, baseUrl) {
+  try {
+    const root = (u) => new URL(u).host.replace(/^www\./, "").split(".").slice(-2).join(".");
+    return root(targetUrl) === root(baseUrl);
+  } catch { return false; }
+}
+
 // ─── Tool schema handed to Claude ───────────────────────────────────
 const TOOLS = [
   { name: "navigate", description: "Load a URL in the browser and return the new page snapshot.",
@@ -397,6 +411,10 @@ async function callModel(client, { model, effort, system, tools, messages }) {
 async function runTool(page, name, input, collected, control) {
   switch (name) {
     case "navigate": {
+      if (control.startUrl && !sameSite(input.url, control.startUrl)) {
+        let host = "the portal"; try { host = new URL(control.startUrl).host; } catch {}
+        return `Refused: ${input.url} is outside the portal domain (${host}). Stay on the portal — navigate only within that domain, or use click/scroll instead.`;
+      }
       await page.goto(input.url, { waitUntil: "domcontentloaded", timeout: 45000 });
       return await takeSnapshot(page);
     }
@@ -480,20 +498,31 @@ async function runTask(id, { manual = false } = {}) {
   const model = effectiveModel(task);
   const effort = effectiveEffort(task);
 
-  const browser = await DEPS.launchChromium({ headless: true });
+  // Visible browser when the task needs it. Sites with bot protection
+  // (Cloudflare on Indeed, etc.) fingerprint a headless Chromium and serve
+  // a "Request Blocked" wall, but let a real visible window through — the
+  // same reason the headed login flow isn't blocked. We also strip the
+  // usual automation tells (navigator.webdriver + the --enable-automation
+  // switch) to reduce bot-detection false positives either way.
+  const browser = await DEPS.launchChromium({
+    headless: !task.visibleBrowser,
+    args: ["--disable-blink-features=AutomationControlled"],
+    ignoreDefaultArgs: ["--enable-automation"],
+  });
   const stateJson = DEPS.readSession();
   const context = await browser.newContext({
     storageState: stateJson ? JSON.parse(stateJson) : undefined,
     viewport: { width: 1280, height: 900 },
+    locale: "en-US",
   });
   const page = await context.newPage();
 
   const collected = [];
-  const control = { finished: false, finishStatus: null, finishSummary: "", seen: new Set(readSeen(id)) };
+  const control = { finished: false, finishStatus: null, finishSummary: "", seen: new Set(readSeen(id)), startUrl: task.startUrl };
   const errors = [];
   let steps = 0;
 
-  emitStep(id, { kind: "start", text: `Agent starting · model ${model} · effort ${effort}` });
+  emitStep(id, { kind: "start", text: `Agent starting · model ${model} · effort ${effort}${task.visibleBrowser ? " · visible browser" : ""}` });
 
   try {
     await page.goto(task.startUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
@@ -714,7 +743,9 @@ async function tick() {
     const due = !task.nextRunAt || new Date(task.nextRunAt).getTime() <= now;
     if (!due) continue;
     if (!readSecret(keyFile())) { DEPS.logLine("agent: skip", task.id, "(no API key)"); continue; }
-    if (!DEPS.readSession()) { DEPS.logLine("agent: skip", task.id, "(no portal session)"); continue; }
+    // No portal-session guard here: runTask supports no-login tasks (the
+    // seeded shakedown runs with just an API key). An auth-needing task with
+    // no session simply lands on the login wall and reports "blocked".
     running.add(task.id);
     runTask(task.id, { manual: false })
       .catch((e) => DEPS.logLine("agent: run threw:", task.id, String(e)))
