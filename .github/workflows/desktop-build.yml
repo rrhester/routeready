@@ -35,16 +35,14 @@ jobs:
         # Each runner builds installers for its native OS. Cross-
         # compiling Mac builds from Linux/Windows isn't reliable.
         #
-        # macOS is temporarily dropped: a newer Playwright "Chrome for
-        # Testing" Chromium ships a mac .app framework whose
-        # Versions/Current symlinks electron-builder can't copy (asar is
-        # disabled here), so packing fails. Most DSPs run Windows, so we
-        # ship Win/Linux now and re-add macos-latest once the Chromium
-        # bundling is fixed (pin Playwright + update main.js's mac
-        # Chromium path resolver, which expects the old chrome-mac/
-        # Chromium.app layout). The mac build step below is kept so
-        # re-adding the matrix entry is the only change needed.
-        os: [ubuntu-latest, windows-latest]
+        # macOS re-enabled: the Playwright "Chrome for Testing" Chromium
+        # .app whose Versions/Current framework symlinks electron-builder
+        # couldn't raw-copy (with asar:false) is now packed via the asar
+        # packer + asarUnpack on mac only (see desktop/package.json `mac`),
+        # which stores symlinks as archive entries. Win/Linux still build
+        # with asar:false, untouched. main.js's resolver already checks
+        # app.asar.unpacked for the mac Chromium path.
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     # PLAYWRIGHT_BROWSERS_PATH=0 tells Playwright to install Chromium under
     # node_modules/playwright-core/.local-browsers/ rather than the global
