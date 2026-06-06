@@ -723,7 +723,8 @@ function startSyncWatcher() {
 }
 
 // ─── Auto-update (ROADMAP #6) ───────────────────────────────────────
-// So an always-on sync box maintains itself: install once, never reinstall.
+// So an always-on sync box maintains itself: install once, never reinstall —
+// the box checks GitHub Releases and self-updates when idle.
 // electron-updater reads the GitHub Release's latest.yml (electron-builder
 // generates it from the `publish` config), downloads the new installer, and
 // installs it — but only when the box is IDLE, so we never kill a crawl
