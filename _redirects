@@ -15,8 +15,11 @@
 /verify          /verify.html                          200
 
 # Pretty URLs for the download + getting-started pages.
-/download        /download.html                        200
-/installed       /installed.html                       200
+# NOTE: Cloudflare Pages already serves these .html files at their
+# extensionless paths (/download, /installed) AND 301s the .html form to
+# the clean path. An explicit "/download -> /download.html 200" rewrite
+# fights that auto-redirect and causes ERR_TOO_MANY_REDIRECTS, so we rely
+# on Cloudflare's native clean URLs here instead of a rewrite rule.
 
 # Old marketing pages consolidated into the landing (permanent).
 /about.html          /              301
