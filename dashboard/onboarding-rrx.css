@@ -334,13 +334,14 @@
   display: none !important;
 }
 
-/* Stub Rules footer — same visual weight as a wired Rules button so
-   the operator gets a consistent footer under every tile per the
-   spec, but slightly de-emphasised because clicking does nothing
-   yet. The tooltip carries the "coming soon" affordance; the cursor
-   stays as the default pointer so it doesn't promise interactivity. */
+/* Stub Rules footer — same hover-revealed caret as a wired Rules
+   button (so the strip reads consistently against the Schedule
+   page), but clicking does nothing yet, so it keeps the default
+   cursor and stays neutral grey on hover instead of going brand-
+   blue, signalling it isn't interactive. The "Rules" word is hidden
+   (caret only) by the base rule below; the tooltip carries the
+   "coming soon" affordance. */
 #view-onboarding-ops.rrx-onboarding .ob-rules-foot[data-rr-rules-stub] {
-  opacity: .72;
   cursor: default;
 }
 #view-onboarding-ops.rrx-onboarding .ob-rules-foot[data-rr-rules-stub]:hover,
@@ -561,45 +562,75 @@
   margin-bottom: 22px !important;
 }
 
-/* ── Rules footer link under each tile (.ob-rules-foot) ─────── */
+/* ── Rules footer link under each tile (.ob-rules-foot) ───────
+   EXACT match to the Schedule strip (.sched-v2-rules-foot) and the
+   Roster strip below: an ICON-ONLY caret (font-size:0 hides the
+   "Rules" word), pulled OUT of the tile column's flow and centered
+   on the tile's bottom edge, hidden until the tile is hovered /
+   focused (also opened by right-clicking the tile). The
+   .ob-tab-wrap is the position:relative anchor (set above).
 
+   Previously this block forced the legacy hiring treatment — an
+   in-flow, always-visible "Rules" text label under every tile —
+   which read as clutter and didn't match Schedule. Mirrors
+   schedule-rrx.css:2048-2095 and the .ob-v2-roster-actions block
+   below. */
 #view-onboarding-ops.rrx-onboarding .ob-rules-foot {
-  display: flex !important;
+  position: absolute !important;
+  left: 50% !important;
+  bottom: 1px !important;
+  transform: translateX(-50%) !important;
+  display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: var(--rr-space-40) !important;
-  margin: var(--rr-space-40) auto 0 !important;
-  padding: 3px var(--rr-space-80) !important;
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 1px 5px !important;
   background: transparent !important;
   border: 0 !important;
-  border-radius: var(--rr-radius-small) !important;
+  border-radius: 999px !important;
   cursor: pointer !important;
   font-family: var(--rr-font-family) !important;
-  font-size: 11px !important;
+  font-size: 0 !important;           /* hide the "Rules" word — caret only */
   font-weight: 500 !important;
-  letter-spacing: 0.01em !important;
+  letter-spacing: 0 !important;
   color: var(--rr-fg-secondary) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
   transition:
+    opacity var(--rr-motion-fast),
     background var(--rr-motion-fast),
     color var(--rr-motion-fast) !important;
 }
 
+#view-onboarding-ops.rrx-onboarding .ob-tab-wrap:hover .ob-rules-foot,
+#view-onboarding-ops.rrx-onboarding .ob-tab-wrap:focus-within .ob-rules-foot,
+#view-onboarding-ops.rrx-onboarding .ob-rules-foot:focus-visible {
+  opacity: 0.6 !important;
+  pointer-events: auto !important;
+}
+
 #view-onboarding-ops.rrx-onboarding .ob-rules-foot:hover,
 #view-onboarding-ops.rrx-onboarding .ob-rules-foot:focus-visible {
-  color: var(--rr-brand-pressed) !important;
-  background: var(--rr-brand-soft) !important;
+  opacity: 1 !important;
+  color: var(--sch-blue, var(--rr-brand-primary)) !important;
+  background: var(--sch-blue-softer, var(--rr-brand-soft)) !important;
   outline: none !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-rules-foot[aria-expanded="true"] {
-  color: var(--rr-brand-pressed) !important;
-  background: var(--rr-brand-soft) !important;
+  opacity: 1 !important;
+  color: var(--sch-blue, var(--rr-brand-primary)) !important;
+  background: var(--sch-blue-soft, var(--rr-brand-soft)) !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-rules-foot svg {
-  width: 10px !important;
-  height: 10px !important;
+  width: 11px !important;
+  height: 11px !important;
+  flex: 0 0 auto !important;
   color: currentColor !important;
+  stroke-linecap: butt !important;
+  stroke-linejoin: miter !important;
 }
 
 /* ── Rules footer · ROSTER strip — EXACT match to Schedule ───────
