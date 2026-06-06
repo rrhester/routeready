@@ -20,6 +20,7 @@
     "@anthropic-ai/sdk": "^0.101.0",
     "@supabase/supabase-js": "^2.45.0",
     "electron-store": "^10.0.0",
+    "electron-updater": "^6.3.9",
     "playwright": "^1.48.0"
   },
   "devDependencies": {
@@ -32,6 +33,9 @@
     "directories": { "output": "dist" },
     "protocols": [
       { "name": "RouteReady", "schemes": ["routeready"] }
+    ],
+    "publish": [
+      { "provider": "github", "owner": "rrhester", "repo": "routeready" }
     ],
     "files": [
       "main.js",
