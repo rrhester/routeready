@@ -421,10 +421,11 @@
   width: 33px !important;
   height: 33px !important;
   flex: 0 0 auto !important;
-  /* Match Schedule's strip icons exactly — darker + thicker stroke
-     so the glyphs read sharp/crisp, not faint. */
-  color: var(--text-muted) !important;
-  stroke-width: 1.1 !important;   /* EXACT match to Schedule .sched-v2-tile svg (index.html:17514 forces 1.1) */
+  /* Match Schedule's strip icons exactly — near-black var(--text) (the
+     color Schedule's .sched-v2-tile svg is forced to at index.html:18018),
+     NOT the lighter var(--text-muted) which read faint by comparison. */
+  color: var(--text) !important;
+  stroke-width: 1.1 !important;   /* EXACT match to Schedule .sched-v2-tile svg (index.html:18019 forces 1.1) */
   /* Lock cap/join to match Schedule's .sched-v2-tile svg rule.
      Without these, the inline stroke-linecap="square" on the
      Roster SVGs extends each line-end by 0.8px, making the
@@ -475,9 +476,10 @@
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item.active svg {
-  /* Selected icon stays its default gray — Schedule's selected tile
-     doesn't tint the icon blue; the gray box is the only selection cue. */
-  color: var(--text-muted) !important;
+  /* Selected icon stays the same near-black var(--text) as a resting
+     tile — Schedule's selected tile doesn't tint the icon; the gray box
+     is the only selection cue. */
+  color: var(--text) !important;
 }
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading .subnav-item:focus-visible {
