@@ -1072,16 +1072,25 @@ function describeAction(name, input) {
 
 // ─── RouteReady upload (webhook-apply → intake_applicant) ───────────
 async function uploadToRouteReady(rows, task) {
+  // Central path (preferred): the box uploads via its pairing session to the
+  // box-ingest function, which resolves the DSP server-side — no apply-secret
+  // or short code on the box. Falls back to box-local config for standalone.
+  let central = null;
+  if (DEPS.getUploadAuth) { try { central = await DEPS.getUploadAuth(); } catch {} }
+
   const cfg = readConfig();
-  const url = cfg.uploadUrl;
-  const dspShortCode = cfg.dspShortCode;
-  const secret = readSecret(applySecretFile());
-  if (!url || !dspShortCode) {
-    // Misconfigured but the task asked to upload: treat every row as failed
-    // so the caller re-opens them in the dedupe set and retries once upload
-    // is configured, rather than silently dropping them.
-    return { uploaded: 0, failed: rows.slice(), error: "RouteReady upload not configured (set URL + DSP short code in AI agent settings)." };
+  const localUrl = cfg.uploadUrl;
+  const localShort = cfg.dspShortCode;
+  const localSecret = readSecret(applySecretFile());
+
+  if (!central && (!localUrl || !localShort)) {
+    // Not configured and not paired: treat every row as failed so the caller
+    // re-opens them in the dedupe set and retries once upload is available,
+    // rather than silently dropping them.
+    return { uploaded: 0, failed: rows.slice(), error: "RouteReady upload not available — pair the box, or set URL + DSP short code in AI agent settings." };
   }
+
+  const url = central ? central.url : localUrl;
 
   let uploaded = 0;
   const failed = [];
@@ -1090,7 +1099,8 @@ async function uploadToRouteReady(rows, task) {
     const name = String(r.name || "").trim();
     const sp = name.split(/\s+/);
     const payload = {
-      dsp_short_code: dspShortCode,
+      // central: server stamps dsp_short_code from the session; local: send it.
+      ...(central ? {} : { dsp_short_code: localShort }),
       source: "agent",
       source_ref: r.email ? `agent:${String(r.email).toLowerCase()}` : (name ? `agent:${name.toLowerCase()}` : undefined),
       full_name: name || undefined,
@@ -1100,10 +1110,13 @@ async function uploadToRouteReady(rows, task) {
       phone: r.phone || undefined,
       metadata: { scraped_via: task.name, ...(r.extra || {}) },
     };
+    const headers = central
+      ? { "content-type": "application/json", authorization: "Bearer " + central.token, apikey: central.anonKey || "" }
+      : { "content-type": "application/json", ...(localSecret ? { "x-apply-secret": localSecret } : {}) };
     try {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "content-type": "application/json", ...(secret ? { "x-apply-secret": secret } : {}) },
+        headers,
         body: JSON.stringify(payload),
       });
       if (res.ok) { uploaded++; continue; }

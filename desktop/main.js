@@ -447,6 +447,7 @@ app.whenReady().then(() => {
     getMainWindow: () => mainWindow,
     reportRun: reportAgentRun,
     getAiAuth, // central key via RouteReady's ai-proxy (no key on the box)
+    getUploadAuth, // central applicant upload via the box's DSP session
   });
   createWindow();
   buildTray();
@@ -743,6 +744,20 @@ async function getAiAuth() {
     if (!token) return null;
     return { proxyUrl: `${effectiveFunctionsUrl()}/ai-proxy`, token, anonKey: SUPABASE_ANON_KEY };
   } catch (e) { logLine("ai-auth: failed", String(e?.message || e)); return null; }
+}
+
+// Central upload auth: the box posts crawled applicants to box-ingest using its
+// DSP pairing session (no apply-secret / short code on the box; the function
+// resolves the DSP server-side). Returns null if the box isn't paired.
+async function getUploadAuth() {
+  try {
+    const sb = await getBoxSupabase();
+    if (!sb) return null;
+    const { data } = await sb.auth.getSession();
+    const token = data?.session?.access_token;
+    if (!token) return null;
+    return { url: `${effectiveFunctionsUrl()}/box-ingest`, token, anonKey: SUPABASE_ANON_KEY };
+  } catch (e) { logLine("upload-auth: failed", String(e?.message || e)); return null; }
 }
 
 // ─── Central crawl tasks (ROADMAP #4 Phase 2) ───────────────────────
