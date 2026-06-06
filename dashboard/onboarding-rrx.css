@@ -304,10 +304,11 @@
 #view-onboarding-ops.rrx-onboarding .sched-ribbon-group > .subnav {
   display: inline-flex !important;
   align-items: flex-start !important;  /* same baseline for all tiles */
-  /* Pin the subnav to the TOP of the stretched group (overrides the
-     inline align-self:center) so the tiles hug the top edge while the
-     group's border-left divider runs full height. */
-  align-self: flex-start !important;
+  /* Stretch the subnav to the full group height (overrides the inline
+     align-self:center) so the in-row .ob-tab-divider (between Add
+     applicant and PDF Upload) can run full height too. Tiles still hug
+     the top via align-items:flex-start above. */
+  align-self: stretch !important;
   gap: var(--rr-space-40) !important;
   margin: 0 !important;
   padding: 0 !important;
