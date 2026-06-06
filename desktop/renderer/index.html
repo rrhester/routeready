@@ -13,7 +13,7 @@
       <div class="brand-mark">RR</div>
       <div>
         <div class="brand-name">RouteReady Desktop</div>
-        <div class="brand-sub">DSP portal sync</div>
+        <div class="brand-sub">AI portal sync</div>
       </div>
     </div>
     <div class="status-pill" id="session-status">Checking session…</div>
@@ -42,6 +42,7 @@
       </p>
     </section>
 
+    <!-- STEP 1 · Connect the portal -->
     <section class="card" id="card-signin">
       <h2>1 · Sign in to your portal</h2>
       <p class="muted">
@@ -63,162 +64,14 @@
       </div>
     </section>
 
-    <section class="card">
-      <h2>2 · Verify session</h2>
+    <!-- STEP 2 · The AI agent (the main event) -->
+    <section class="card card-hero" id="card-agent">
+      <h2>2 · AI agent crawler</h2>
       <p class="muted">
-        Headless probe of the DSP portal home. Confirms the cached session is
-        still valid before we run a sync.
-      </p>
-      <div class="row">
-        <button id="btn-probe" class="btn">Probe portal</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>3 · Download a report</h2>
-      <p class="muted">
-        Paste a report URL. The app navigates with your saved portal session
-        and saves whatever file it gets. Test it on a plain file URL first
-        (e.g. a public CSV), then point it at the Amazon reports console.
-      </p>
-      <div class="form">
-        <label class="field">
-          <span>Report URL</span>
-          <input id="dl-url" type="url" placeholder="https://… (a direct file URL, or a page that has a download button)" />
-        </label>
-        <label class="field">
-          <span>Click selector <em>(optional)</em></span>
-          <input id="dl-selector" type="text" placeholder="CSS selector for the download button — leave blank for direct file URLs" />
-        </label>
-        <label class="field">
-          <span>Save to</span>
-          <div class="row inline">
-            <input id="dl-dir" type="text" placeholder="(OS Downloads folder)" readonly />
-            <button id="btn-pick-dir" class="btn" type="button">Pick folder</button>
-          </div>
-        </label>
-      </div>
-      <div class="row">
-        <button id="btn-download" class="btn btn-primary">Download</button>
-      </div>
-      <div class="history" id="dl-history">
-        <h3>Recent downloads</h3>
-        <ul id="dl-history-list"><li class="empty">No downloads yet.</li></ul>
-      </div>
-    </section>
-
-    <section class="card" id="card-scheduler">
-      <h2>4 · Scheduled downloads</h2>
-      <p class="muted">
-        Run named report pulls on an interval, unattended. The app reuses
-        the saved portal session, opens a headless browser, fires the
-        download, and writes the file to disk. Skipped silently when there's
-        no portal session — sign in again and the loop picks back up.
-      </p>
-      <ul id="sched-list" class="jobs"><li class="empty">Loading scheduled jobs…</li></ul>
-      <div class="row">
-        <button id="btn-job-add" class="btn" type="button">+ Add scheduled job</button>
-      </div>
-
-      <div class="job-editor" id="job-editor" hidden>
-        <h3 id="job-editor-title">New scheduled job</h3>
-        <div class="form">
-          <label class="field">
-            <span>Name</span>
-            <input id="job-name" type="text" placeholder="e.g. Indeed — Applicants CSV" />
-          </label>
-          <label class="field">
-            <span>Report URL</span>
-            <input id="job-url" type="url" placeholder="https://employers.indeed.com/candidates" />
-          </label>
-          <label class="field">
-            <span>Click selector <em>(optional — CSS selector for the Export/Download button on that page)</em></span>
-            <input id="job-selector" type="text" placeholder='e.g. button:has-text("Export")' />
-          </label>
-          <label class="field">
-            <span>Save to <em>(blank = OS Downloads folder)</em></span>
-            <div class="row inline">
-              <input id="job-dir" type="text" readonly placeholder="(OS Downloads folder)" />
-              <button id="btn-job-pick-dir" class="btn" type="button">Pick folder</button>
-              <button id="btn-job-clear-dir" class="btn btn-ghost" type="button">Clear</button>
-            </div>
-          </label>
-          <label class="field">
-            <span>Interval (minutes)</span>
-            <input id="job-interval" type="number" min="5" step="5" value="60" />
-          </label>
-          <label class="field field-row">
-            <input id="job-enabled" type="checkbox" />
-            <span>Enabled — fire automatically on the interval</span>
-          </label>
-        </div>
-        <div class="row">
-          <button id="btn-job-save" class="btn btn-primary" type="button">Save job</button>
-          <button id="btn-job-cancel" class="btn btn-ghost" type="button">Cancel</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="card" id="card-scrapers">
-      <h2>5 · Scrape applicants from the portal</h2>
-      <p class="muted">
-        Walks the candidate list, opens each row, clicks reveal buttons,
-        scrapes name / email / phone into a CSV. The first time you set
-        one up, hit <strong>Record</strong> — a real browser window opens
-        and a pink toolbar walks you through clicking each thing you want
-        scraped. We save those picks as a recipe; runs replay them. When
-        Indeed shuffles their layout, hit Record again — no app reinstall.
-      </p>
-      <ul id="scraper-list" class="jobs"><li class="empty">Loading scrapers…</li></ul>
-
-      <div class="job-editor" id="scraper-edit" hidden>
-        <h3 id="scraper-edit-title">Edit scraper</h3>
-        <div class="form">
-          <label class="field">
-            <span>Name</span>
-            <input id="sc-name" type="text" placeholder="e.g. Indeed — New applicants" />
-          </label>
-          <label class="field">
-            <span>Start URL <em>(the page where the applicant list lives)</em></span>
-            <input id="sc-url" type="url" placeholder="https://employers.indeed.com/candidates" />
-          </label>
-          <label class="field">
-            <span>Save CSVs to <em>(blank = OS Downloads folder)</em></span>
-            <div class="row inline">
-              <input id="sc-dir" type="text" readonly placeholder="(OS Downloads folder)" />
-              <button id="btn-sc-pick-dir" class="btn" type="button">Pick folder</button>
-              <button id="btn-sc-clear-dir" class="btn btn-ghost" type="button">Clear</button>
-            </div>
-          </label>
-          <label class="field">
-            <span>Interval (minutes)</span>
-            <input id="sc-interval" type="number" min="5" step="5" value="60" />
-          </label>
-          <label class="field field-row">
-            <input id="sc-enabled" type="checkbox" />
-            <span>Enabled — fire automatically on the interval</span>
-          </label>
-          <div class="sel-preview" id="sc-selectors-preview"></div>
-        </div>
-        <div class="row">
-          <button id="btn-sc-save" class="btn btn-primary" type="button">Save</button>
-          <button id="btn-sc-cancel" class="btn btn-ghost" type="button">Cancel</button>
-        </div>
-      </div>
-
-      <div class="row">
-        <button id="btn-sc-add" class="btn" type="button">+ New scraper</button>
-      </div>
-    </section>
-
-    <section class="card" id="card-agent">
-      <h2>6 · AI agent crawler <span class="badge-new">new</span></h2>
-      <p class="muted">
-        Instead of recording a click-path, you give the agent a plain-English
-        goal. It reads the live page, decides what to click itself, finds the
-        records you asked for, and (optionally) uploads them straight into
-        RouteReady. Because it reasons over the page, it keeps working when
-        the portal changes its layout — no re-recording.
+        Give the agent a plain-English goal — it reads the live page, decides
+        what to click itself, finds the records you asked for, and (optionally)
+        uploads them straight into RouteReady. Because it reasons over the page,
+        it keeps working when the portal changes its layout — no re-recording.
       </p>
 
       <details class="agent-settings" id="agent-settings">
@@ -312,7 +165,7 @@
       </div>
 
       <div class="row">
-        <button id="btn-ag-add" class="btn" type="button">+ New agent task</button>
+        <button id="btn-ag-add" class="btn btn-primary" type="button">+ New agent task</button>
       </div>
 
       <div class="agent-live" id="agent-live" hidden>
@@ -320,6 +173,157 @@
         <pre id="agent-trace"></pre>
       </div>
     </section>
+
+    <!-- Legacy / power-user tools, tucked away so the main flow stays clean -->
+    <details class="card advanced" id="advanced-tools">
+      <summary>
+        <span class="advanced-title">Advanced tools</span>
+        <span class="muted">— manual download, scheduler &amp; the old record-and-replay scraper (rarely needed; the AI agent replaces these)</span>
+      </summary>
+
+      <div class="advanced-body">
+        <section class="subcard">
+          <h3>Verify session</h3>
+          <p class="muted">
+            Headless probe of the portal home — confirms the cached session is
+            still valid.
+          </p>
+          <div class="row">
+            <button id="btn-probe" class="btn">Probe portal</button>
+          </div>
+        </section>
+
+        <section class="subcard">
+          <h3>Download a report (manual)</h3>
+          <p class="muted">
+            Paste a report URL. The app navigates with your saved portal session
+            and saves whatever file it gets.
+          </p>
+          <div class="form">
+            <label class="field">
+              <span>Report URL</span>
+              <input id="dl-url" type="url" placeholder="https://… (a direct file URL, or a page that has a download button)" />
+            </label>
+            <label class="field">
+              <span>Click selector <em>(optional)</em></span>
+              <input id="dl-selector" type="text" placeholder="CSS selector for the download button — leave blank for direct file URLs" />
+            </label>
+            <label class="field">
+              <span>Save to</span>
+              <div class="row inline">
+                <input id="dl-dir" type="text" placeholder="(OS Downloads folder)" readonly />
+                <button id="btn-pick-dir" class="btn" type="button">Pick folder</button>
+              </div>
+            </label>
+          </div>
+          <div class="row">
+            <button id="btn-download" class="btn">Download</button>
+          </div>
+          <div class="history" id="dl-history">
+            <h3>Recent downloads</h3>
+            <ul id="dl-history-list"><li class="empty">No downloads yet.</li></ul>
+          </div>
+        </section>
+
+        <section class="subcard" id="card-scheduler">
+          <h3>Scheduled downloads</h3>
+          <p class="muted">
+            Run named report pulls on an interval, unattended, reusing the saved
+            portal session.
+          </p>
+          <ul id="sched-list" class="jobs"><li class="empty">Loading scheduled jobs…</li></ul>
+          <div class="row">
+            <button id="btn-job-add" class="btn" type="button">+ Add scheduled job</button>
+          </div>
+
+          <div class="job-editor" id="job-editor" hidden>
+            <h3 id="job-editor-title">New scheduled job</h3>
+            <div class="form">
+              <label class="field">
+                <span>Name</span>
+                <input id="job-name" type="text" placeholder="e.g. Indeed — Applicants CSV" />
+              </label>
+              <label class="field">
+                <span>Report URL</span>
+                <input id="job-url" type="url" placeholder="https://employers.indeed.com/candidates" />
+              </label>
+              <label class="field">
+                <span>Click selector <em>(optional — CSS selector for the Export/Download button on that page)</em></span>
+                <input id="job-selector" type="text" placeholder='e.g. button:has-text("Export")' />
+              </label>
+              <label class="field">
+                <span>Save to <em>(blank = OS Downloads folder)</em></span>
+                <div class="row inline">
+                  <input id="job-dir" type="text" readonly placeholder="(OS Downloads folder)" />
+                  <button id="btn-job-pick-dir" class="btn" type="button">Pick folder</button>
+                  <button id="btn-job-clear-dir" class="btn btn-ghost" type="button">Clear</button>
+                </div>
+              </label>
+              <label class="field">
+                <span>Interval (minutes)</span>
+                <input id="job-interval" type="number" min="5" step="5" value="60" />
+              </label>
+              <label class="field field-row">
+                <input id="job-enabled" type="checkbox" />
+                <span>Enabled — fire automatically on the interval</span>
+              </label>
+            </div>
+            <div class="row">
+              <button id="btn-job-save" class="btn btn-primary" type="button">Save job</button>
+              <button id="btn-job-cancel" class="btn btn-ghost" type="button">Cancel</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="subcard" id="card-scrapers">
+          <h3>Record-and-replay scraper (legacy)</h3>
+          <p class="muted">
+            The predecessor to the AI agent: record a click-path once, replay it
+            on a schedule. Brittle when the portal changes — prefer the AI agent.
+          </p>
+          <ul id="scraper-list" class="jobs"><li class="empty">Loading scrapers…</li></ul>
+
+          <div class="job-editor" id="scraper-edit" hidden>
+            <h3 id="scraper-edit-title">Edit scraper</h3>
+            <div class="form">
+              <label class="field">
+                <span>Name</span>
+                <input id="sc-name" type="text" placeholder="e.g. Indeed — New applicants" />
+              </label>
+              <label class="field">
+                <span>Start URL <em>(the page where the applicant list lives)</em></span>
+                <input id="sc-url" type="url" placeholder="https://employers.indeed.com/candidates" />
+              </label>
+              <label class="field">
+                <span>Save CSVs to <em>(blank = OS Downloads folder)</em></span>
+                <div class="row inline">
+                  <input id="sc-dir" type="text" readonly placeholder="(OS Downloads folder)" />
+                  <button id="btn-sc-pick-dir" class="btn" type="button">Pick folder</button>
+                  <button id="btn-sc-clear-dir" class="btn btn-ghost" type="button">Clear</button>
+                </div>
+              </label>
+              <label class="field">
+                <span>Interval (minutes)</span>
+                <input id="sc-interval" type="number" min="5" step="5" value="60" />
+              </label>
+              <label class="field field-row">
+                <input id="sc-enabled" type="checkbox" />
+                <span>Enabled — fire automatically on the interval</span>
+              </label>
+              <div class="sel-preview" id="sc-selectors-preview"></div>
+            </div>
+            <div class="row">
+              <button id="btn-sc-save" class="btn btn-primary" type="button">Save</button>
+              <button id="btn-sc-cancel" class="btn btn-ghost" type="button">Cancel</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <button id="btn-sc-add" class="btn" type="button">+ New scraper</button>
+          </div>
+        </section>
+      </div>
+    </details>
 
     <section class="card log">
       <h2>Activity</h2>
