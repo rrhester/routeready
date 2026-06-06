@@ -31224,10 +31224,14 @@ document.addEventListener("click", (e) => {
     }
     return;
   }
-  // Click outside the popover (and outside the toggle) closes it.
+  // Click outside the popover (and outside the toggle) closes it. When the
+  // quick-settings popover has been merged INTO the Smart Fill rules dialog
+  // (the Targets/Smart Fill/Finalize group "Rules" launcher), clicks inside
+  // that dialog count as "inside" too, so it isn't dismissed mid-edit.
   const pop = document.getElementById("rr-sched-quick-settings-popover");
   if (pop && !pop.hidden
       && !e.target.closest("#rr-sched-quick-settings-popover")
+      && !e.target.closest("#rr-sched-smartfill-rules-popover")
       && !e.target.closest("#rr-sched-quick-settings-toggle")) {
     _toggleSchedQuickSettings(false);
   }

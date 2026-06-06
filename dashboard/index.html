@@ -17247,7 +17247,7 @@ body.rr-cmdk-open{ overflow:hidden }
           <button type="button" class="sched-v2-group-launcher" tabindex="-1"
                   aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-smartfill-rules-popover"
                   title="Scheduling rules"
-                  onclick="(function(b,ev){ev.preventDefault();ev.stopPropagation();var pop=document.getElementById('rr-sched-smartfill-rules-popover');var host=b.closest('.sched-v2-strip');if(pop&&host&&pop.parentElement!==host){host.appendChild(pop);}var t=document.getElementById('rr-sched-smartfill-rules-toggle');if(t)t.click();})(this,event)">
+                  onclick="window._rrOpenSchedRules && window._rrOpenSchedRules(this,event)">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
           </button>
           </div>
@@ -20245,6 +20245,21 @@ body.rr-cmdk-open{ overflow:hidden }
             display:flex;flex-direction:column;
             padding:0;
           }
+          /* Targets "This week's settings" popover, relocated INTO the
+             Smart Fill Rules dialog (.rr-rules-merged) · strip its floating
+             chrome so it reads as a plain section under the Smart Fill
+             rules, with a hairline separator + its own header showing. */
+          #view-schedule .sched-quick-settings-popover.rr-rules-merged{
+            position:static !important;
+            width:auto !important;max-width:none !important;
+            box-shadow:none !important;border:0 !important;
+            border-top:1px solid rgba(15,23,42,.10) !important;
+            margin:8px 0 0 !important;padding-top:8px !important;
+            background:transparent !important;animation:none !important;
+            transform:none !important;
+          }
+          #view-schedule .sched-quick-settings-popover.rr-rules-merged .sched-quick-settings-head{display:flex !important}
+          #view-schedule .sched-quick-settings-popover.rr-rules-merged .sched-quick-settings-close{display:none !important}
           #view-schedule .sched-quick-setting{
             display:grid;grid-template-columns:1fr auto;column-gap:14px;
             align-items:center;
@@ -36107,9 +36122,43 @@ John,Smith,555-0101,john@example.com</code>
   })();
 </script>
 
+<!-- Targets/Smart Fill/Finalize group "Rules" launcher · opens the Smart
+     Fill rules dialog and merges the Targets "This week's settings"
+     controls (block / cushion / report time) into it so both sets of rules
+     live in one box. The live quick-settings inputs keep their ids +
+     autosave (which already accepts the Smart Fill popover as a host); we
+     just relocate them once and load their current values. -->
+<script>
+  (function () {
+    window._rrOpenSchedRules = function (b, ev) {
+      if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+      var host = b.closest('.sched-v2-strip');
+      var sf = document.getElementById('rr-sched-smartfill-rules-popover');
+      var sfBody = document.getElementById('rr-sched-smartfill-rules-body');
+      if (sf && host && sf.parentElement !== host) host.appendChild(sf);
+      // Merge the whole Targets "This week's settings" popover into the
+      // Rules box (once), de-positioned so it reads as a section. Keeping
+      // the whole popover preserves its footer + Advanced (waves / service
+      // types) section and all their wiring.
+      var qs = document.getElementById('rr-sched-quick-settings-popover');
+      if (qs && sfBody && qs.parentElement !== sfBody) {
+        qs.classList.add('rr-rules-merged');
+        sfBody.appendChild(qs);
+      }
+      // Load current Targets values + show the merged settings (it lives
+      // inside the Rules popover now).
+      if (typeof window._rrToggleSchedQuickSettings === 'function') {
+        try { window._rrToggleSchedQuickSettings(true); } catch (e) {}
+      }
+      var t = document.getElementById('rr-sched-smartfill-rules-toggle');
+      if (t) t.click();
+    };
+  })();
+</script>
+
 <!-- ─── RouteReady live data layer ───────────────────────────────────── -->
 <script src="./config.js"></script>
-<script type="module" src="./live.js?v=20260605-chipaccent"></script>
+<script type="module" src="./live.js?v=20260606-rulesmerge"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
