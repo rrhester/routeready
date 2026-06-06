@@ -94,7 +94,7 @@
      dimensions across the platform. Loaded BEFORE the per-page
      rrx files so they can reference the tokens. -->
 <link rel="stylesheet" href="tcp.css?v=3">
-<link rel="stylesheet" href="schedule-rrx.css?v=121">
+<link rel="stylesheet" href="schedule-rrx.css?v=122">
 <!-- Onboarding page — Fluent 2 visual rebind.
      Re-skins existing chrome under #view-onboarding-ops.rrx-onboarding
      using --rr-* tokens. Same pattern as schedule-rrx.css. -->
@@ -17202,6 +17202,13 @@ body.rr-cmdk-open{ overflow:hidden }
           </button>
             <button type="button" class="sched-v2-rules-foot" tabindex="-1">Rules <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg></button>
           </div>
+          <!-- Targets / Smart Fill / Finalize · grouped like the view
+               selector. A single "Rules" dialog-launcher (bottom-right, by
+               the divider) consolidates the scheduling rules; the "Rules"
+               label sits centered under the middle (Smart Fill) tile. The
+               per-tile hover "Rules" chevrons are hidden inside the group
+               (right-click a tile still opens its own rules). -->
+          <div class="sched-v2-viewgroup">
           <div class="sched-v2-split">
             <button type="button" class="sched-v2-tile" data-rr-v2="targets" tabindex="-1">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true">
@@ -17221,6 +17228,8 @@ body.rr-cmdk-open{ overflow:hidden }
             <span>Smart Fill</span>
           </button>
             <button type="button" class="sched-v2-rules-foot" tabindex="-1">Rules <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg></button>
+            <!-- Group label · centered under the middle (Smart Fill) tile. -->
+            <span class="sched-v2-group-label" aria-hidden="true">Rules</span>
           </div>
           <div class="sched-v2-split">
             <button type="button" class="sched-v2-tile" data-rr-v2="finalize" tabindex="-1">
@@ -17231,6 +17240,16 @@ body.rr-cmdk-open{ overflow:hidden }
             <span>Finalize</span>
           </button>
             <button type="button" class="sched-v2-rules-foot" tabindex="-1">Rules <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg></button>
+          </div>
+          <!-- Dialog-launcher · opens the Smart Fill scheduling rules (the
+               group's consolidated rules). Box + diagonal arrow, next to the
+               hairline divider. -->
+          <button type="button" class="sched-v2-group-launcher" tabindex="-1"
+                  aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-sched-smartfill-rules-popover"
+                  title="Scheduling rules"
+                  onclick="(function(b,ev){ev.preventDefault();ev.stopPropagation();var pop=document.getElementById('rr-sched-smartfill-rules-popover');var host=b.closest('.sched-v2-strip');if(pop&&host&&pop.parentElement!==host){host.appendChild(pop);}var t=document.getElementById('rr-sched-smartfill-rules-toggle');if(t)t.click();})(this,event)">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
+          </button>
           </div>
           <div class="sched-v2-split">
             <button type="button" class="sched-v2-tile" data-rr-v2="calendar" tabindex="-1">
