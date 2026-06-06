@@ -31,10 +31,11 @@
 /* ── Workspace baseline ─────────────────────────────────────── */
 
 #view-onboarding-ops.rrx-onboarding {
-  /* Match the Schedule page's canvas exactly. Schedule is now a
-     hardcoded #F4F5F7 (not --canvas), so mirror that literal value
-     here instead of --canvas (which resolves to a darker #EEF2F6). */
-  background: #F4F5F7;
+  /* Match the Schedule page's canvas exactly. Schedule's ground is a
+     soft Google-blue tint (#EAF2FD — see schedule-rrx.css), so mirror
+     that literal value here instead of --canvas (a darker #EEF2F6) or
+     the old grey #F4F5F7 the Schedule page used previously. */
+  background: #EAF2FD;
   font-family: var(--rr-font-family);
   color: var(--rr-fg-primary);
 }
