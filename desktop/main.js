@@ -18,6 +18,13 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, shell, Tray } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
+const { pathToFileURL } = require("node:url");
+
+// The one bundled local UI file that is allowed to load in-app and receive
+// the full (powerful) bridge. Anything else — including other file:// paths
+// — is untrusted. Used by hardenNavigation + the trusted-origins handshake.
+const localUiHref = () => pathToFileURL(path.join(__dirname, "renderer", "index.html")).href;
+const stripFragment = (u) => String(u || "").split("#")[0].split("?")[0];
 
 // Tell Playwright to look for Chromium under node_modules/playwright-core/
 // .local-browsers/ rather than the global ms-playwright cache. The build
@@ -119,6 +126,25 @@ const SCHEDULER_TICK_MS = 30000;
 // portal (Indeed, Workday, etc.) before pointing at Amazon.
 const DEFAULT_PORTAL_URL = "https://logistics.amazon.com/";
 
+// Option B: the app's front door is the live DSP dashboard. The bundled
+// local UI (renderer/index.html) is the offline fallback + portal-sync
+// settings surface. Overridable per-install via config.dashboardUrl.
+// Keep the host in sync with preload.js's `isDashboard` gate.
+const DEFAULT_DASHBOARD_URL = "https://gorouteready.com/dashboard/";
+function effectiveDashboardUrl() {
+  const cfg = readConfig();
+  return (cfg.dashboardUrl && cfg.dashboardUrl.trim()) || DEFAULT_DASHBOARD_URL;
+}
+
+// Supabase Edge Functions base — used for the desktop-pair "redeem" call in
+// the browser-pairing flow. Overridable via config.supabaseFunctionsUrl
+// (staging); defaults to the production project.
+const DEFAULT_SUPABASE_FUNCTIONS_URL = "https://doiwrhkirgblcvuskhno.supabase.co/functions/v1";
+function effectiveFunctionsUrl() {
+  const cfg = readConfig();
+  return (cfg.supabaseFunctionsUrl && cfg.supabaseFunctionsUrl.trim()) || DEFAULT_SUPABASE_FUNCTIONS_URL;
+}
+
 // ─── Config (portal URL + future settings) ──────────────────────────
 // Tiny JSON-on-disk store. electron-store v10 is ESM-only so we
 // hand-roll this — only one or two keys for now.
@@ -188,6 +214,135 @@ function buildTray() {
   tray.on("double-click", showWindow);
 }
 
+// ─── Window content: dashboard front door + local fallback ──────────
+function loadDashboard() {
+  if (!mainWindow) return;
+  const url = effectiveDashboardUrl();
+  logLine("loading dashboard:", url);
+  mainWindow.loadURL(url).catch((e) => {
+    logLine("loadURL dashboard threw:", String(e), "→ local UI");
+    loadLocalUI();
+  });
+}
+function loadLocalUI() {
+  if (!mainWindow) return;
+  mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"))
+    .catch((e) => logLine("loadFile local threw:", String(e)));
+}
+
+// Keep the in-app context (which holds the native bridge) locked to trusted
+// content. The dashboard origin (and our bundled file://) may load in-app;
+// every other navigation or window.open is bounced to the system browser so
+// untrusted pages never run with the bridge present.
+function hardenNavigation(wc) {
+  const allowedOrigin = (() => { try { return new URL(effectiveDashboardUrl()).origin; } catch { return null; } })();
+  const allowed = (url) => {
+    if (!url) return false;
+    // Only the exact bundled UI file — NOT arbitrary file:// paths. Otherwise
+    // the dashboard (or XSS on it) could navigate to an attacker-controlled
+    // local file, which the preload would then treat as trusted-local and
+    // hand the full window.rr API (arbitrary download, show-in-folder).
+    if (stripFragment(url) === localUiHref()) return true;
+    try { return !!allowedOrigin && new URL(url).origin === allowedOrigin; } catch { return false; }
+  };
+  wc.setWindowOpenHandler(({ url }) => {
+    try { if (/^https?:/i.test(url)) shell.openExternal(url); } catch {}
+    return { action: "deny" };
+  });
+  wc.on("will-navigate", (e, url) => {
+    if (allowed(url)) return;
+    e.preventDefault();
+    try { if (/^https?:/i.test(url)) shell.openExternal(url); } catch {}
+  });
+}
+
+// Minimal application menu: lets the operator jump between the live
+// dashboard and the local portal-sync settings, reload, or quit.
+function buildAppMenu() {
+  const template = [
+    {
+      label: "RouteReady",
+      submenu: [
+        { label: "Dashboard", click: () => { showWindow(); loadDashboard(); } },
+        { label: "Portal sync settings", click: () => { showWindow(); loadLocalUI(); } },
+        { type: "separator" },
+        { label: "Reload", accelerator: "CmdOrCtrl+R", click: () => mainWindow?.webContents.reload() },
+        { type: "separator" },
+        { label: "Quit RouteReady", accelerator: "CmdOrCtrl+Q", click: () => { app.isQuitting = true; app.quit(); } },
+      ],
+    },
+    { role: "editMenu" },
+    {
+      label: "View",
+      submenu: [
+        { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" },
+        { type: "separator" }, { role: "togglefullscreen" },
+      ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+// ─── routeready:// deep-link → "Connect from browser" pairing ───────
+// The OS hands us routeready://connect?code=… (opened by the dashboard's
+// "Connect desktop app" button). We redeem the one-time code with the
+// desktop-pair function for a Supabase session, then sign the dashboard
+// window in via the helper the dashboard exposes (window.__rrApplySession).
+// We never persist the web session ourselves — the dashboard owns it.
+function handleDeepLink(link) {
+  let u;
+  try { u = new URL(link); } catch { logLine("deep-link: bad url", String(link)); return; }
+  const action = u.hostname || u.pathname.replace(/^\/+/, "");
+  if (action === "connect") {
+    const code = u.searchParams.get("code");
+    if (code) { redeemPairing(code); return; }
+    logLine("deep-link: connect without code");
+    return;
+  }
+  logLine("deep-link: unhandled", link);
+}
+
+async function redeemPairing(code) {
+  showWindow();
+  try {
+    logLine("pairing: redeeming code");
+    const res = await fetch(`${effectiveFunctionsUrl()}/desktop-pair`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "redeem", code }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.access_token || !body.refresh_token) {
+      const err = body.error || `HTTP ${res.status}`;
+      logLine("pairing: redeem failed", err);
+      try { dialog.showErrorBox("Couldn't connect", `Pairing failed: ${err}\n\nIn the dashboard, click "Connect desktop app" again to get a fresh code.`); } catch {}
+      return;
+    }
+    logLine("pairing: redeemed for", body.email || "(unknown)");
+    applyDashboardSession(body.access_token, body.refresh_token);
+  } catch (e) {
+    logLine("pairing: redeem threw", String(e?.message || e));
+    try { dialog.showErrorBox("Couldn't connect", `Pairing error: ${String(e?.message || e)}`); } catch {}
+  }
+}
+
+// Hand the redeemed tokens to the dashboard window's own Supabase client
+// (the dashboard exposes window.__rrApplySession). If the window isn't on
+// the dashboard yet (offline fallback), load it first, then apply.
+function applyDashboardSession(accessToken, refreshToken) {
+  if (!mainWindow) return;
+  const apply = () => {
+    const js = `(window.__rrApplySession ? (window.__rrApplySession(${JSON.stringify(accessToken)}, ${JSON.stringify(refreshToken)}), "ok") : "no_helper")`;
+    mainWindow.webContents.executeJavaScript(js, true)
+      .then((r) => { if (r === "no_helper") logLine("pairing: dashboard has no __rrApplySession helper yet"); })
+      .catch((e) => logLine("pairing: applySession exec failed", String(e)));
+  };
+  let onDash = false;
+  try { onDash = new URL(mainWindow.webContents.getURL()).origin === new URL(effectiveDashboardUrl()).origin; } catch {}
+  if (onDash) apply();
+  else { mainWindow.webContents.once("did-finish-load", apply); loadDashboard(); }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1100,
@@ -204,10 +359,25 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+  // Front door: load the live dashboard. Falls back to the local UI if it
+  // can't be reached (see did-fail-load below).
+  loadDashboard();
 
   // Open DevTools in dev only.
   if (!app.isPackaged) mainWindow.webContents.openDevTools({ mode: "detach" });
+
+  hardenNavigation(mainWindow.webContents);
+
+  // If the dashboard can't load (offline / DNS / 5xx), drop to the bundled
+  // local UI so the operator isn't staring at a blank window — and so
+  // portal sign-in + agent controls stay reachable offline.
+  mainWindow.webContents.on("did-fail-load", (_e, errorCode, errorDesc, validatedURL, isMainFrame) => {
+    if (!isMainFrame) return;
+    if (!validatedURL || validatedURL.startsWith("file:")) return; // already local, don't loop
+    if (errorCode === -3) return; // ERR_ABORTED — navigation superseded, not a real failure
+    logLine("dashboard load failed:", errorCode, errorDesc, validatedURL, "→ falling back to local UI");
+    loadLocalUI();
+  });
 
   // Hide to tray instead of quitting when the operator closes the window,
   // so background syncs keep running. Real exit goes through app.isQuitting.
@@ -221,6 +391,22 @@ function createWindow() {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+}
+
+// ─── Single instance + routeready:// deep-link routing ──────────────
+// Browser pairing needs the OS to deliver routeready://connect?code=… to
+// the one running app. Without the single-instance lock, the link would
+// spawn a second copy instead of reaching the live window.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", (_e, argv) => {
+    showWindow();
+    const link = argv.find((a) => typeof a === "string" && a.startsWith("routeready://"));
+    if (link) handleDeepLink(link);
+  });
+  // macOS delivers the deep-link as an event rather than argv.
+  app.on("open-url", (e, url) => { e.preventDefault(); handleDeepLink(url); });
 }
 
 app.whenReady().then(() => {
@@ -252,6 +438,7 @@ app.whenReady().then(() => {
   });
   createWindow();
   buildTray();
+  buildAppMenu();
 
   // Start with the OS at login so the sync engine is up after a reboot
   // without the operator thinking about it. Packaged only — we don't want
@@ -261,6 +448,20 @@ app.whenReady().then(() => {
     try { app.setLoginItemSettings({ openAtLogin: true }); }
     catch (e) { logLine("setLoginItemSettings failed:", String(e)); }
   }
+
+  // Register routeready:// so the OS routes pairing deep-links to us. In dev
+  // (unpackaged) we must point the registration at electron + this script.
+  try {
+    if (process.defaultApp && process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient("routeready", process.execPath, [path.resolve(process.argv[1])]);
+    } else {
+      app.setAsDefaultProtocolClient("routeready");
+    }
+  } catch (e) { logLine("protocol register failed:", String(e)); }
+
+  // Cold-start deep link (Windows/Linux deliver it in argv on first launch).
+  const initialLink = process.argv.find((a) => typeof a === "string" && a.startsWith("routeready://"));
+  if (initialLink) handleDeepLink(initialLink);
 });
 
 // Background sync engine: with a tray present, don't quit when the window
@@ -484,14 +685,36 @@ ipcMain.handle("portal:probe", async (_evt, { portalUrl } = {}) => {
 });
 
 ipcMain.handle("config:get", async () => {
-  return { ok: true, portalUrl: effectivePortalUrl(), defaultPortalUrl: DEFAULT_PORTAL_URL };
+  return {
+    ok: true,
+    portalUrl: effectivePortalUrl(),
+    defaultPortalUrl: DEFAULT_PORTAL_URL,
+    dashboardUrl: effectiveDashboardUrl(),
+    defaultDashboardUrl: DEFAULT_DASHBOARD_URL,
+  };
 });
 
-ipcMain.handle("config:set", async (_evt, { portalUrl } = {}) => {
+ipcMain.handle("config:set", async (_evt, { portalUrl, dashboardUrl, supabaseFunctionsUrl } = {}) => {
   const patch = {};
   if (typeof portalUrl === "string") patch.portalUrl = portalUrl.trim();
+  if (typeof dashboardUrl === "string") patch.dashboardUrl = dashboardUrl.trim();
+  if (typeof supabaseFunctionsUrl === "string") patch.supabaseFunctionsUrl = supabaseFunctionsUrl.trim();
   writeConfig(patch);
-  return { ok: true, portalUrl: effectivePortalUrl() };
+  return { ok: true, portalUrl: effectivePortalUrl(), dashboardUrl: effectiveDashboardUrl() };
+});
+
+// Installed app version — used by the dashboard bridge to gate features
+// that need a newer native side.
+ipcMain.handle("app:getVersion", async () => ({ ok: true, version: app.getVersion() }));
+
+// Synchronous handshake the preload uses to decide capability gating — the
+// trusted origins come from config (so a custom config.dashboardUrl works),
+// not a hard-coded host. Returns the exact bundled UI file (full bridge) and
+// the configured dashboard origin (minimal bridge).
+ipcMain.on("app:trustedOrigins", (e) => {
+  let dashboardOrigin = null;
+  try { dashboardOrigin = new URL(effectiveDashboardUrl()).origin; } catch {}
+  e.returnValue = { dashboardOrigin, localUiHref: localUiHref() };
 });
 
 // ─── Report download ────────────────────────────────────────────────
