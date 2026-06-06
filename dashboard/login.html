@@ -51,6 +51,19 @@
   const next   = params.get("next") || "./index.html";
   const errCode = params.get("err");
 
+  // Desktop "Connect from browser" pairing: the installed app calls this
+  // (after redeeming a routeready:// code) to sign THIS window in. It reuses
+  // this page's own `sb` client — no second Supabase instance (a duplicate
+  // client previously broke sign-in).
+  window.__rrApplySession = async (accessToken, refreshToken) => {
+    try {
+      const { error } = await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      if (error) { console.warn("[rr-pair]", error.message); return false; }
+      location.replace(next);
+      return true;
+    } catch (e) { console.warn("[rr-pair] threw", e); return false; }
+  };
+
   const msg = document.getElementById("msg");
   if (errCode === "no_profile") {
     msg.className = "msg err";
