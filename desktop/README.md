@@ -203,6 +203,43 @@ applicants land there via the `webhook-apply` pipeline), while the desktop
 app quietly syncs in the background. If a Linux session has no tray host,
 the app falls back to normal quit-on-close so it can't get stranded.
 
+## App shell — loads your dashboard (Option B · phase 1)
+
+The app's front door is the **live DSP dashboard** (`gorouteready.com/dashboard/`,
+overridable via `config.dashboardUrl`). The window loads that URL on launch;
+the bundled local UI (`renderer/index.html`) is now the **offline fallback**
+(shown automatically if the dashboard can't be reached) and the
+**portal-sync settings** surface, reachable any time from the **RouteReady →
+Portal sync settings** menu. The goal: operators live in the dashboard, and
+the desktop app is the thing that can capture the portal session + run the
+agent — one window, one icon.
+
+**Security model (capability gating by origin).** Loading remote content in
+an app with native powers is the one part that must be airtight:
+
+- `preload.js` exposes the **full** `window.rr` surface (incl. arbitrary
+  report download, "show in folder") **only** to the bundled `file://` UI.
+- The live dashboard origin gets a **minimal** `window.routeready` bridge:
+  `isDesktop`, `getVersion`, `syncPortal()`, `hasPortalSession()`, and agent
+  task control. No file I/O, no arbitrary-URL download — and it never
+  receives the portal cookies (capture/use stays entirely native).
+- `main.js` `hardenNavigation()` keeps the in-app context locked to the
+  dashboard origin (and `file://`); every other navigation or `window.open`
+  is bounced to the system browser, so untrusted pages never run with the
+  bridge present.
+
+**Known limitation (phase 3 — auth).** Dashboard login is Supabase
+**magic-link**, and the emailed link opens in the operator's *default
+browser*, not the app — so a session created that way doesn't land in the
+app's window. Completing sign-in inside the app needs a deep-link / custom
+protocol handoff (`routeready://auth#…`), tracked for phase 3. Until then,
+the **Portal sync settings** (local UI) cover the actual sign-in + agent
+flow, which work standalone.
+
+**Still to come:** the dashboard's own **Sync Portal** button + agent panel
+(phase 4, web-side), the auth deep-link (phase 3), and `electron-updater`
+auto-update (phase 2) so native changes ship without a manual reinstall.
+
 ## What's next
 
 - **RouteReady-proxied inference** — optional transport that routes the

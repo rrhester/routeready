@@ -119,6 +119,16 @@ const SCHEDULER_TICK_MS = 30000;
 // portal (Indeed, Workday, etc.) before pointing at Amazon.
 const DEFAULT_PORTAL_URL = "https://logistics.amazon.com/";
 
+// Option B: the app's front door is the live DSP dashboard. The bundled
+// local UI (renderer/index.html) is the offline fallback + portal-sync
+// settings surface. Overridable per-install via config.dashboardUrl.
+// Keep the host in sync with preload.js's `isDashboard` gate.
+const DEFAULT_DASHBOARD_URL = "https://gorouteready.com/dashboard/";
+function effectiveDashboardUrl() {
+  const cfg = readConfig();
+  return (cfg.dashboardUrl && cfg.dashboardUrl.trim()) || DEFAULT_DASHBOARD_URL;
+}
+
 // ─── Config (portal URL + future settings) ──────────────────────────
 // Tiny JSON-on-disk store. electron-store v10 is ESM-only so we
 // hand-roll this — only one or two keys for now.
@@ -188,6 +198,71 @@ function buildTray() {
   tray.on("double-click", showWindow);
 }
 
+// ─── Window content: dashboard front door + local fallback ──────────
+function loadDashboard() {
+  if (!mainWindow) return;
+  const url = effectiveDashboardUrl();
+  logLine("loading dashboard:", url);
+  mainWindow.loadURL(url).catch((e) => {
+    logLine("loadURL dashboard threw:", String(e), "→ local UI");
+    loadLocalUI();
+  });
+}
+function loadLocalUI() {
+  if (!mainWindow) return;
+  mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"))
+    .catch((e) => logLine("loadFile local threw:", String(e)));
+}
+
+// Keep the in-app context (which holds the native bridge) locked to trusted
+// content. The dashboard origin (and our bundled file://) may load in-app;
+// every other navigation or window.open is bounced to the system browser so
+// untrusted pages never run with the bridge present.
+function hardenNavigation(wc) {
+  const allowedOrigin = (() => { try { return new URL(effectiveDashboardUrl()).origin; } catch { return null; } })();
+  const allowed = (url) => {
+    if (!url) return false;
+    if (url.startsWith("file:")) return true;
+    try { return !!allowedOrigin && new URL(url).origin === allowedOrigin; } catch { return false; }
+  };
+  wc.setWindowOpenHandler(({ url }) => {
+    try { if (/^https?:/i.test(url)) shell.openExternal(url); } catch {}
+    return { action: "deny" };
+  });
+  wc.on("will-navigate", (e, url) => {
+    if (allowed(url)) return;
+    e.preventDefault();
+    try { if (/^https?:/i.test(url)) shell.openExternal(url); } catch {}
+  });
+}
+
+// Minimal application menu: lets the operator jump between the live
+// dashboard and the local portal-sync settings, reload, or quit.
+function buildAppMenu() {
+  const template = [
+    {
+      label: "RouteReady",
+      submenu: [
+        { label: "Dashboard", click: () => { showWindow(); loadDashboard(); } },
+        { label: "Portal sync settings", click: () => { showWindow(); loadLocalUI(); } },
+        { type: "separator" },
+        { label: "Reload", accelerator: "CmdOrCtrl+R", click: () => mainWindow?.webContents.reload() },
+        { type: "separator" },
+        { label: "Quit RouteReady", accelerator: "CmdOrCtrl+Q", click: () => { app.isQuitting = true; app.quit(); } },
+      ],
+    },
+    { role: "editMenu" },
+    {
+      label: "View",
+      submenu: [
+        { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" },
+        { type: "separator" }, { role: "togglefullscreen" },
+      ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1100,
@@ -204,10 +279,25 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
+  // Front door: load the live dashboard. Falls back to the local UI if it
+  // can't be reached (see did-fail-load below).
+  loadDashboard();
 
   // Open DevTools in dev only.
   if (!app.isPackaged) mainWindow.webContents.openDevTools({ mode: "detach" });
+
+  hardenNavigation(mainWindow.webContents);
+
+  // If the dashboard can't load (offline / DNS / 5xx), drop to the bundled
+  // local UI so the operator isn't staring at a blank window — and so
+  // portal sign-in + agent controls stay reachable offline.
+  mainWindow.webContents.on("did-fail-load", (_e, errorCode, errorDesc, validatedURL, isMainFrame) => {
+    if (!isMainFrame) return;
+    if (!validatedURL || validatedURL.startsWith("file:")) return; // already local, don't loop
+    if (errorCode === -3) return; // ERR_ABORTED — navigation superseded, not a real failure
+    logLine("dashboard load failed:", errorCode, errorDesc, validatedURL, "→ falling back to local UI");
+    loadLocalUI();
+  });
 
   // Hide to tray instead of quitting when the operator closes the window,
   // so background syncs keep running. Real exit goes through app.isQuitting.
@@ -252,6 +342,7 @@ app.whenReady().then(() => {
   });
   createWindow();
   buildTray();
+  buildAppMenu();
 
   // Start with the OS at login so the sync engine is up after a reboot
   // without the operator thinking about it. Packaged only — we don't want
@@ -484,15 +575,26 @@ ipcMain.handle("portal:probe", async (_evt, { portalUrl } = {}) => {
 });
 
 ipcMain.handle("config:get", async () => {
-  return { ok: true, portalUrl: effectivePortalUrl(), defaultPortalUrl: DEFAULT_PORTAL_URL };
+  return {
+    ok: true,
+    portalUrl: effectivePortalUrl(),
+    defaultPortalUrl: DEFAULT_PORTAL_URL,
+    dashboardUrl: effectiveDashboardUrl(),
+    defaultDashboardUrl: DEFAULT_DASHBOARD_URL,
+  };
 });
 
-ipcMain.handle("config:set", async (_evt, { portalUrl } = {}) => {
+ipcMain.handle("config:set", async (_evt, { portalUrl, dashboardUrl } = {}) => {
   const patch = {};
   if (typeof portalUrl === "string") patch.portalUrl = portalUrl.trim();
+  if (typeof dashboardUrl === "string") patch.dashboardUrl = dashboardUrl.trim();
   writeConfig(patch);
-  return { ok: true, portalUrl: effectivePortalUrl() };
+  return { ok: true, portalUrl: effectivePortalUrl(), dashboardUrl: effectiveDashboardUrl() };
 });
+
+// Installed app version — used by the dashboard bridge to gate features
+// that need a newer native side.
+ipcMain.handle("app:getVersion", async () => ({ ok: true, version: app.getVersion() }));
 
 // ─── Report download ────────────────────────────────────────────────
 // Generic file-download flow that reuses the persisted portal session.
