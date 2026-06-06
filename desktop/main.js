@@ -200,11 +200,30 @@ function trayImage() {
   return nativeImage.createEmpty();
 }
 
-function showWindow() {
+function showWindow(opts) {
   if (!mainWindow) { createWindow(); return; }
+  const wasHidden = !mainWindow.isVisible() || mainWindow.isMinimized();
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
+  // Auto-refresh on restore · closing the window only hides it to the tray
+  // (background sync keeps running), so the BrowserWindow keeps whatever page
+  // it loaded at startup and never re-fetches — which is why reopening didn't
+  // show new deploys. When the operator reopens the app, pull the latest
+  // build. Scoped so it's not disruptive:
+  //   · only when the CALLER asks for it (tray / dock / relaunch — the
+  //     deliberate "I'm coming back to the app" gestures; NOT deep-link
+  //     pairing or the explicit settings-UI shows), AND
+  //   · only when the window was actually hidden (skips already-visible
+  //     re-focuses and the very first show), AND
+  //   · only on the live dashboard, never the local settings UI.
+  // reloadIgnoringCache() also bypasses any stale Electron disk cache.
+  if (opts && opts.refresh && wasHidden && mainWindow.webContents) {
+    try {
+      const url = mainWindow.webContents.getURL() || "";
+      if (/^https?:/i.test(url)) mainWindow.webContents.reloadIgnoringCache();
+    } catch (e) { logLine("auto-reload on show failed:", String(e)); }
+  }
 }
 
 function buildTray() {
@@ -221,7 +240,7 @@ function buildTray() {
   // The tray menu carries the actions that used to live in the (now hidden)
   // top menu bar, so the app shows nothing but the dashboard.
   const menu = Menu.buildFromTemplate([
-    { label: "Open RouteReady", click: showWindow },
+    { label: "Open RouteReady", click: () => showWindow({ refresh: true }) },
     { label: "Dashboard", click: () => { showWindow(); loadDashboard(); } },
     { label: "Portal sync settings", click: () => { showWindow(); loadLocalUI(); } },
     { label: "Reload", click: () => { showWindow(); mainWindow?.webContents.reload(); } },
@@ -230,8 +249,8 @@ function buildTray() {
     { label: "Quit RouteReady", click: () => { app.isQuitting = true; app.quit(); } },
   ]);
   tray.setContextMenu(menu);
-  tray.on("click", showWindow);
-  tray.on("double-click", showWindow);
+  tray.on("click", () => showWindow({ refresh: true }));
+  tray.on("double-click", () => showWindow({ refresh: true }));
 }
 
 // ─── Window content: dashboard front door + local fallback ──────────
@@ -411,8 +430,10 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", (_e, argv) => {
-    showWindow();
     const link = argv.find((a) => typeof a === "string" && a.startsWith("routeready://"));
+    // A plain relaunch-to-reopen refreshes to the latest deploy; a pairing
+    // deep link must NOT reload (it would wipe the session being applied).
+    showWindow({ refresh: !link });
     if (link) handleDeepLink(link);
   });
   // macOS delivers the deep-link as an event rather than argv.
@@ -503,7 +524,7 @@ app.on("before-quit", () => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  else showWindow();
+  else showWindow({ refresh: true });
 });
 
 // ─── Session persistence (encrypted storageState) ───────────────────
