@@ -13048,6 +13048,41 @@ body.rr-cmdk-open{ overflow:hidden }
                           <div class="cal-edit-status" id="rr-video-status"></div>
                         </div>
                       </div>
+
+                      <!-- SMS & messaging · relocated from Settings → SMS &
+                           messaging (operator preference — screening SMS
+                           settings belong with the funnel's screening rules).
+                           Same controls, restyled into the popover's card
+                           pattern. The switch is the pure-CSS .toggle (no JS
+                           wiring needed, matching the original). -->
+                      <div style="margin-top:var(--s-5);margin-bottom:var(--s-3)">
+                        <h3 style="margin:0;font-size:var(--fs-md);font-weight:600">SMS &amp; messaging</h3>
+                        <p style="margin:2px 0 0;font-size:var(--fs-sm);color:var(--text-subtle)">Quiet hours, opt-out handling, default templates.</p>
+                      </div>
+                      <div class="cal-edit-card">
+                        <div class="cal-edit-section">
+                          <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-3);flex-wrap:wrap">
+                            <div>
+                              <div class="cal-edit-label" style="margin-bottom:0">SMS quiet hours</div>
+                              <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">No SMS sent to applicants or drivers between these hours.</div>
+                            </div>
+                            <div style="display:flex;gap:var(--s-2-5);align-items:center">
+                              <input class="cal-edit-input" style="max-width:120px" id="rr-sms-quiet-start" value="9:00 PM" />
+                              <span class="u-subtle">to</span>
+                              <input class="cal-edit-input" style="max-width:120px" id="rr-sms-quiet-end" value="7:00 AM" />
+                            </div>
+                          </div>
+                        </div>
+                        <div class="cal-edit-section">
+                          <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-3)">
+                            <div>
+                              <div class="cal-edit-label" style="margin-bottom:0">Auto-send screening SMS</div>
+                              <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:4px">When you add a new applicant, send screening link automatically.</div>
+                            </div>
+                            <label class="toggle"><input type="checkbox" id="rr-sms-autosend" checked /><span class="toggle-slider"></span></label>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -14746,7 +14781,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <button class="settings-nav-item" data-set="team" onclick="setSettingsSection(this)">Team</button>
             <button class="settings-nav-item" data-set="hiring-messages" onclick="setSettingsSection(this)">Hiring messages</button>
             <button class="settings-nav-item" data-set="referrals" onclick="setSettingsSection(this)">Hiring referrals</button>
-            <button class="settings-nav-item" data-set="sms" onclick="setSettingsSection(this)">SMS &amp; messaging</button>
+            <!-- SMS & messaging moved to Onboarding → Funnel ▸ Rules -->
             <!-- License renewals moved to Onboarding → Roster → Licences ▸ Rules -->
             <button class="settings-nav-item" data-set="scheduling" onclick="setSettingsSection(this)">Scheduling</button>
             <button class="settings-nav-item" data-set="recognition" onclick="setSettingsSection(this); if (typeof loadRecognitionSettings === 'function') loadRecognitionSettings();">Recognition</button>
@@ -14840,30 +14875,10 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
 
-            <div class="settings-section hidden" data-set="sms">
-              <div class="settings-section-head">
-                <h2 class="settings-section-title">SMS &amp; messaging</h2>
-                <p class="settings-section-sub">Quiet hours, opt-out handling, default templates.</p>
-              </div>
-              <div class="form-row">
-                <div>
-                  <div class="form-label">SMS quiet hours</div>
-                  <div class="form-help">No SMS sent to applicants or drivers between these hours.</div>
-                </div>
-                <div style="display:flex;gap:var(--s-2-5);align-items:center">
-                  <input class="form-input" style="max-width:120px" value="9:00 PM" />
-                  <span class="u-subtle">to</span>
-                  <input class="form-input" style="max-width:120px" value="7:00 AM" />
-                </div>
-              </div>
-              <div class="form-row">
-                <div>
-                  <div class="form-label">Auto-send screening SMS</div>
-                  <div class="form-help">When you add a new applicant, send screening link automatically.</div>
-                </div>
-                <div><label class="toggle"><input type="checkbox" checked /><span class="toggle-slider"></span></label></div>
-              </div>
-            </div>
+            <!-- SMS & MESSAGING SECTION · moved · now opens from the
+                 Onboarding → Funnel tile's Rules footer. See the
+                 "SMS & messaging" block in #rr-funnel-rules-popover
+                 (#view-onboarding-ops). -->
 
             <!-- LICENSE RENEWALS SECTION · moved · now opens from the
                  Onboarding → Roster → Licences tile's Rules footer.
@@ -33051,7 +33066,7 @@ John,Smith,555-0101,john@example.com</code>
     team: { title:'Team', sub:'Manage team members and roles.' },
     'hiring-messages': { title:'Hiring messages', sub:'SMS + email templates applicants and drivers receive at every step.' },
     referrals: { title:'Hiring referrals', sub:'KPIs, leaderboard, auto-invite, milestone payouts.' },
-    sms: { title:'SMS & messaging', sub:'Quiet hours, opt-out handling, default templates.' },
+    // sms section moved to Onboarding → Funnel ▸ Rules popover
     video: { title:'Video screening', sub:'Recorded video introductions from applicants.' },
     recognition: { title:'Recognition', sub:'Per-celebration auto-fire toggles and copy overrides.' },
     billing: { title:'Billing', sub:'Subscription, invoices, payment method.' }
