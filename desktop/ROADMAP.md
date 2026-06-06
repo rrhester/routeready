@@ -67,9 +67,16 @@ cleanly — read it first when picking this back up._
    in config. _Still to do (preview-gated):_ the dashboard widget that reads
    `desktop_agents` and alerts when a box goes dark / a pull fails / the portal
    session expired.
-4. **On-demand "Sync to portal"** *(web + Supabase + box)* — web button writes
-   a request row to Supabase; the box watches (realtime/poll) and runs that
-   DSP's pull now. The pairing gives the box the DSP identity to scope this.
+4. ✅ **On-demand "Sync to portal"** *(box + Supabase — box side done; web
+   button deferred)* — `sync_requests` table (migration 0364, RLS DSP-scoped).
+   The box **polls** every ~15s (using its pairing session) for a pending
+   request, **atomically claims** it (filtered update so two boxes for one DSP
+   don't double-run), runs **all enabled tasks now** (`agent.runAllEnabledNow`),
+   then marks the row complete/error with a rows/tasks summary + pushes a fresh
+   heartbeat. _Still to do (preview-gated):_ the dashboard "Sync to portal"
+   **button** — client-less like `desktop-connect.js` (reads the stored token,
+   inserts a pending `sync_requests` row via PostgREST; **no second
+   GoTrueClient**), shown in the web app for operators.
 5. **"Learn once → replay cheap"** *(desktop app)* — AI figures out a page and
    saves an extraction recipe; deterministic **replay** (the existing
    record-replay engine, `scraper.js`) runs routine pulls **for ~$0**, and the
