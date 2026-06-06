@@ -530,8 +530,6 @@ async function runTask(id, { manual = false } = {}) {
     try { await browser.close(); } catch {}
   }
 
-  writeSeen(id, [...control.seen]);
-
   const stoppedEarly = steps >= MAX_STEPS && !control.finished;
   const status = control.finishStatus || (stoppedEarly ? "blocked" : "complete");
   const summary = control.finishSummary || (stoppedEarly ? `Hit the ${MAX_STEPS}-step cap before finishing.` : "Finished.");
@@ -544,13 +542,28 @@ async function runTask(id, { manual = false } = {}) {
   writeCsv(csvPath, collected, errors);
 
   // ── Sink 2: RouteReady upload (optional) ──
-  let uploaded = 0, uploadError = null;
+  let uploaded = 0, uploadError = null, uploadFailed = 0;
   if (task.uploadToRouteReady && collected.length) {
     const up = await uploadToRouteReady(collected, task);
     uploaded = up.uploaded; uploadError = up.error;
-    if (uploadError) errors.push("upload: " + uploadError);
-    emitStep(id, { kind: uploadError ? "error" : "ok", text: uploadError ? `RouteReady upload failed: ${uploadError}` : `Uploaded ${uploaded} row(s) into RouteReady.` });
+    uploadFailed = (up.failed || []).length;
+    // Rows that failed to upload are dropped from the dedupe set so the
+    // next crawl re-scrapes and retries them. Otherwise a row that was
+    // scraped but never reached RouteReady would be deduped out forever
+    // and go silently missing.
+    for (const fr of up.failed || []) { const k = rowKey(fr); if (k) control.seen.delete(k); }
+    if (uploadError) errors.push("upload: " + uploadError + (uploadFailed > 1 ? ` (+${uploadFailed - 1} more failed)` : ""));
+    emitStep(id, {
+      kind: uploadFailed ? "error" : "ok",
+      text: uploadFailed
+        ? `RouteReady upload: ${uploaded} ok, ${uploadFailed} failed (will retry next run). ${uploadError || ""}`.trim()
+        : `Uploaded ${uploaded} row(s) into RouteReady.`,
+    });
   }
+
+  // Persist the dedupe set AFTER upload, so any failed-upload rows we just
+  // re-opened above actually get retried on the next run.
+  writeSeen(id, [...control.seen]);
 
   // ── Persist run summary + task stats ──
   const ts = new Date().toISOString();
@@ -606,9 +619,16 @@ async function uploadToRouteReady(rows, task) {
   const url = cfg.uploadUrl;
   const dspShortCode = cfg.dspShortCode;
   const secret = readSecret(applySecretFile());
-  if (!url || !dspShortCode) return { uploaded: 0, error: "RouteReady upload not configured (set URL + DSP short code in AI agent settings)." };
+  if (!url || !dspShortCode) {
+    // Misconfigured but the task asked to upload: treat every row as failed
+    // so the caller re-opens them in the dedupe set and retries once upload
+    // is configured, rather than silently dropping them.
+    return { uploaded: 0, failed: rows.slice(), error: "RouteReady upload not configured (set URL + DSP short code in AI agent settings)." };
+  }
 
   let uploaded = 0;
+  const failed = [];
+  let firstError = null;
   for (const r of rows) {
     const name = String(r.name || "").trim();
     const sp = name.split(/\s+/);
@@ -629,16 +649,16 @@ async function uploadToRouteReady(rows, task) {
         headers: { "content-type": "application/json", ...(secret ? { "x-apply-secret": secret } : {}) },
         body: JSON.stringify(payload),
       });
-      if (res.ok) uploaded++;
-      else if (uploaded === 0) {
-        const text = await res.text().catch(() => "");
-        return { uploaded, error: `HTTP ${res.status} ${text.slice(0, 160)}` };
-      }
+      if (res.ok) { uploaded++; continue; }
+      const text = await res.text().catch(() => "");
+      failed.push(r);
+      if (!firstError) firstError = `HTTP ${res.status} ${text.slice(0, 160)}`;
     } catch (e) {
-      if (uploaded === 0) return { uploaded, error: String(e?.message || e) };
+      failed.push(r);
+      if (!firstError) firstError = String(e?.message || e);
     }
   }
-  return { uploaded, error: null };
+  return { uploaded, failed, error: failed.length ? firstError : null };
 }
 
 // ─── CSV ────────────────────────────────────────────────────────────
