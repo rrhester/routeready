@@ -779,17 +779,29 @@ function renderTasks(tasks) {
     const errLine = (t.lastResult === "error" || t.lastResult === "blocked") && t.lastError
       ? `<div class="job-err">${escapeHtml(t.lastError)}</div>` : "";
     const sumLine = t.lastSummary ? `<div class="job-meta job-summary">${escapeHtml(t.lastSummary)}</div>` : "";
+    const hasRecipe = !!(t.recipe && t.recipe.steps && t.recipe.steps.length);
+    const replayOff = t.replayEnabled === false;
+    const recipePill = hasRecipe
+      ? (replayOff
+          ? '<span class="pill pill-warm" title="A recipe is learned but replay is off — every run uses the AI.">⚡ replay off</span>'
+          : `<span class="pill pill-ok" title="Learned a deterministic recipe — routine runs replay with no AI cost.">⚡ runs free (recipe v${t.recipe.version || 1})</span>`)
+      : "";
+    const relearnBtn = hasRecipe
+      ? `<button class="btn btn-sm btn-ghost" data-task-relearn="${escapeHtml(t.id)}" title="Forget the learned recipe so the next run re-learns with the AI.">Re-learn</button>`
+      : "";
     return `
       <li class="job" data-task-id="${escapeHtml(t.id)}">
         <div class="job-head">
           <div class="job-title">
             <span class="job-name">${escapeHtml(t.name || "(unnamed)")}</span>
             ${agentStatusPill(t)}
+            ${recipePill}
             ${t.uploadToRouteReady ? '<span class="pill pill-upload">→ RouteReady</span>' : ''}
           </div>
           <div class="job-actions">
             <button class="btn btn-sm btn-primary" data-task-run="${escapeHtml(t.id)}">Run now</button>
             <button class="btn btn-sm" data-task-edit="${escapeHtml(t.id)}">Edit</button>
+            ${relearnBtn}
             <button class="btn btn-sm btn-ghost" data-task-delete="${escapeHtml(t.id)}">Delete</button>
           </div>
         </div>
@@ -880,11 +892,12 @@ agEls.stop.addEventListener("click", async () => {
 });
 
 agEls.list.addEventListener("click", async (evt) => {
-  const t = evt.target.closest("button[data-task-run], button[data-task-edit], button[data-task-delete]");
+  const t = evt.target.closest("button[data-task-run], button[data-task-edit], button[data-task-delete], button[data-task-relearn]");
   if (!t) return;
   const runId = t.getAttribute("data-task-run");
   const editId = t.getAttribute("data-task-edit");
   const delId = t.getAttribute("data-task-delete");
+  const relearnId = t.getAttribute("data-task-relearn");
 
   if (runId) {
     const cfg = await window.rr.agent.getConfig();
@@ -907,6 +920,13 @@ agEls.list.addEventListener("click", async (evt) => {
     return;
   }
   if (editId) { const r = await window.rr.agent.getTask(editId); if (r.ok) openTaskEditor(r.task); return; }
+  if (relearnId) {
+    if (!confirm("Forget the learned recipe? The next run will use the AI to re-learn it (and cost a normal AI run).")) return;
+    await window.rr.agent.clearRecipe(relearnId);
+    log("Recipe cleared — the next run will re-learn with the AI.", "ok");
+    await refreshTasks();
+    return;
+  }
   if (delId) {
     if (!confirm("Delete this agent task? CSVs it already wrote stay on disk.")) return;
     await window.rr.agent.deleteTask(delId);

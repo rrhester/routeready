@@ -77,11 +77,15 @@ cleanly — read it first when picking this back up._
    **button** — client-less like `desktop-connect.js` (reads the stored token,
    inserts a pending `sync_requests` row via PostgREST; **no second
    GoTrueClient**), shown in the web app for operators.
-5. **"Learn once → replay cheap"** *(desktop app)* — AI figures out a page and
-   saves an extraction recipe; deterministic **replay** (the existing
-   record-replay engine, `scraper.js`) runs routine pulls **for ~$0**, and the
-   AI only re-fires when replay breaks (layout changed). 10–100× AI savings on
-   high-frequency pulls.
+5. ✅ **"Learn once → replay cheap"** *(desktop app — done)* — the AI agent now
+   has an **`extract`** tool (give a `rowSelector` + a `fields` map of CSS
+   selectors instead of reading values itself) and records a durable **action
+   trace** (clicks/types resolved to stable selectors at action-time). A clean
+   run that used `extract` is saved as a per-task **recipe**. On the next run
+   the agent **replays the recipe deterministically with ZERO model calls**;
+   the AI only re-fires when replay breaks (selector gone / 0 rows → auto
+   re-learn). Per-task `replayEnabled` (default on) + a **Re-learn** button in
+   the local UI. This is the 10–100× AI-cost lever for high-frequency pulls.
 6. **Auto-update** *(electron-updater + GitHub Releases)* — so boxes maintain
    themselves; install once, never reinstall. (Note: AppImage auto-updates;
    `.deb`/ChromeOS does not — Windows mini-PC is the target anyway.)

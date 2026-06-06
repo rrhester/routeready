@@ -99,6 +99,8 @@ if (isLocal) {
       saveTask: (patch) => ipcRenderer.invoke("agent:saveTask", patch),
       deleteTask: (id) => ipcRenderer.invoke("agent:deleteTask", { id }),
       resetSeen: (id) => ipcRenderer.invoke("agent:resetSeen", { id }),
+      clearRecipe: (id) => ipcRenderer.invoke("agent:clearRecipe", { id }),
+      setReplay: (id, enabled) => ipcRenderer.invoke("agent:setReplay", { id, enabled }),
       runNow: (id) => ipcRenderer.invoke("agent:runNow", { id }),
       stop: (id) => ipcRenderer.invoke("agent:stop", { id }),
       onStep: (cb) => {

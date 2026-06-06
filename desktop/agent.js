@@ -178,6 +178,10 @@ function saveTask(patch) {
     visibleBrowser: patch.visibleBrowser != null ? !!patch.visibleBrowser : !!prev?.visibleBrowser,
     model: patch.model != null ? (String(patch.model).trim() || null) : (prev?.model ?? null),
     effort: patch.effort != null ? (String(patch.effort).trim() || null) : (prev?.effort ?? null),
+    // Learn-once → replay: preserve the learned recipe across UI saves; replay
+    // is on by default (set replayEnabled:false to force the AI every run).
+    recipe: patch.recipe !== undefined ? patch.recipe : (prev?.recipe || null),
+    replayEnabled: patch.replayEnabled != null ? !!patch.replayEnabled : (prev?.replayEnabled !== false),
     lastRunAt: prev?.lastRunAt || null,
     lastResult: prev?.lastResult || null,
     lastError: prev?.lastError || null,
@@ -212,11 +216,12 @@ function ensureSeeded() {
     name: "Shakedown — public demo (no login)",
     goal:
       "This is a TEST run on a public demo bookstore (no login needed). " +
-      "Find every book listed on the current page and record each one with " +
-      "save_rows: put the book's title in `name` and its price in `extra` as " +
-      '{ "price": "<the price text>" }. You do NOT need to paginate — just ' +
-      "the books on this first page is enough for the test. When you've " +
-      "recorded them all, call done with status 'complete'.",
+      "Find every book listed on the current page. Use the `extract` tool: set " +
+      "rowSelector to each book's container and a fields map with `name` → the " +
+      "title selector and `price` → the price selector (relative to the row). " +
+      "You do NOT need to paginate — just the books on this first page is enough " +
+      "for the test. After extract returns a good sample, call done with status " +
+      "'complete'. (Using extract here also lets future runs replay for free.)",
     startUrl: "https://books.toscrape.com/",
     intervalMinutes: 60,
     enabled: false,
@@ -380,6 +385,117 @@ function refSel(ref) {
   return m ? `[data-rr-ref="${m[0]}"]` : null;
 }
 
+// ─── Learn-once → replay-cheap (ROADMAP #5) ─────────────────────────
+// In-page: compute a reasonably stable CSS selector for the element tagged
+// with the given ephemeral ref. The ref itself is throwaway (reassigned every
+// snapshot), so when the agent acts on an element we resolve it to a DURABLE
+// selector (data-testid / id / class+nth path) and record THAT into the recipe
+// — that's what makes a future run replayable without the model. Mirrors the
+// recorder's cssPath logic in scraper.js.
+function cssPathInPage(refValue) {
+  const el = document.querySelector('[data-rr-ref="' + refValue + '"]');
+  if (!el) return null;
+  const esc = (s) => (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+  const bad = (c) => !/^[A-Za-z][\w-]*$/.test(c) || /^(is-|js-|active|hover|focus|selected|highlight|css-)/i.test(c);
+  if (el.dataset && el.dataset.testid) return '[data-testid="' + esc(el.dataset.testid) + '"]';
+  if (el.id && !/^[0-9]/.test(el.id)) return "#" + esc(el.id);
+  const parts = [];
+  let node = el, depth = 0;
+  while (node && node.nodeType === 1 && depth < 6) {
+    if (node.dataset && node.dataset.testid) { parts.unshift('[data-testid="' + esc(node.dataset.testid) + '"]'); break; }
+    if (node.id && !/^[0-9]/.test(node.id)) { parts.unshift("#" + esc(node.id)); break; }
+    let part = node.tagName.toLowerCase();
+    const classes = node.classList ? [...node.classList].filter((c) => !bad(c)).slice(0, 2) : [];
+    if (classes.length) part += "." + classes.map(esc).join(".");
+    if (node.parentElement) {
+      const sibs = [...node.parentElement.children].filter((s) => s.tagName === node.tagName);
+      if (sibs.length > 1) part += ":nth-of-type(" + (sibs.indexOf(node) + 1) + ")";
+    }
+    parts.unshift(part);
+    if (!node.parentElement || node.parentElement === document.documentElement) break;
+    node = node.parentElement; depth++;
+  }
+  return parts.join(" > ");
+}
+
+// In-page: deterministic, selector-driven extraction. For each element matching
+// rowSelector, read each field via a selector RELATIVE to the row. Handles
+// mailto:/tel: links and input values. Returns { rows, matched } or { error }.
+function extractInPage(args) {
+  const rowSelector = args.rowSelector, fields = args.fields || {};
+  const clip = (s) => String(s == null ? "" : s).replace(/\s+/g, " ").trim();
+  function readEl(el) {
+    if (!el) return "";
+    const tag = el.tagName;
+    if (tag === "A") {
+      const href = el.getAttribute("href") || "";
+      if (/^mailto:/i.test(href)) return clip(decodeURIComponent(href.replace(/^mailto:/i, "").split("?")[0]));
+      if (/^tel:/i.test(href)) return clip(href.replace(/^tel:/i, ""));
+    }
+    if (tag === "INPUT" || tag === "TEXTAREA") return clip(el.value || el.getAttribute("placeholder") || "");
+    return clip(el.innerText || el.textContent || "");
+  }
+  let rowEls;
+  try { rowEls = Array.from(document.querySelectorAll(rowSelector)); }
+  catch (e) { return { error: "bad rowSelector: " + e.message }; }
+  const out = [];
+  for (const row of rowEls) {
+    const rec = {};
+    for (const k of Object.keys(fields)) {
+      const sel = fields[k];
+      let el = null;
+      try { el = sel ? (row.querySelector(sel) || (row.matches(sel) ? row : null)) : null; }
+      catch (e) { return { error: "bad field selector for " + k + ": " + e.message }; }
+      rec[k] = readEl(el);
+    }
+    out.push(rec);
+  }
+  return { rows: out, matched: rowEls.length };
+}
+
+// Node-side: resolve an ephemeral ref to a durable selector (for the recipe).
+async function stableSelectorForRef(page, ref) {
+  const m = String(ref || "").match(/e\d+/);
+  if (!m) return null;
+  try { return await page.evaluate(cssPathInPage, m[0]); } catch { return null; }
+}
+
+// Map a raw extracted record (flat field→text) into our row shape: known
+// fields at the top level, everything else under `extra`.
+function shapeRow(rec) {
+  const KNOWN = new Set(["name", "email", "phone"]);
+  const row = { extra: {} };
+  for (const k of Object.keys(rec)) { if (KNOWN.has(k)) row[k] = rec[k]; else row.extra[k] = rec[k]; }
+  if (!Object.keys(row.extra).length) delete row.extra;
+  return row;
+}
+
+// Node-side: run extractInPage, dedupe + collect, return a model-facing
+// summary. Records the step into control.trace when learning (AI path).
+async function runExtract(page, input, collected, control) {
+  const rowSelector = String(input.rowSelector || "").trim();
+  const fields = (input.fields && typeof input.fields === "object") ? input.fields : {};
+  if (!rowSelector || !Object.keys(fields).length) return "extract needs a rowSelector and at least one field selector.";
+  let res;
+  try { res = await page.evaluate(extractInPage, { rowSelector, fields }); }
+  catch (e) { return `extract failed: ${String(e?.message || e)}. Take a fresh snapshot.`; }
+  if (res.error) return `extract: ${res.error}. Take a fresh snapshot and fix the selector.`;
+  if (!res.matched) return `extract: rowSelector "${rowSelector}" matched 0 elements. Take a fresh snapshot and pick a selector that matches each record.`;
+  let added = 0; const sample = [];
+  for (const rec of res.rows) {
+    const row = shapeRow(rec);
+    if (sample.length < 3) sample.push(row);
+    const key = rowKey(row);
+    if (!key) continue;
+    if (control.seen.has(key)) continue;
+    control.seen.add(key);
+    collected.push({ ...row, scrapedAt: new Date().toISOString() });
+    added++;
+  }
+  if (Array.isArray(control.trace)) control.trace.push({ action: "extract", rowSelector, fields });
+  return `extract matched ${res.matched} record(s); recorded ${added} new (rest duplicate/empty). Sample: ${JSON.stringify(sample)}`;
+}
+
 // Same registered-domain check (employers.indeed.com ↔ indeed.com ↔
 // secure.indeed.com all match). Used to keep the agent from navigating off
 // the portal — e.g. if a page carries prompt-injection text, or the model
@@ -407,11 +523,17 @@ const TOOLS = [
     input_schema: { type: "object", properties: { direction: { type: "string", enum: ["down", "up"] } }, required: ["direction"] } },
   { name: "back", description: "Go back to the previous page. Returns the updated snapshot.",
     input_schema: { type: "object", properties: {} } },
-  { name: "save_rows", description: "Record one or more data rows you have read off the page. Dedup against prior runs is automatic. Use the exact text shown on the page; never invent values.",
+  { name: "save_rows", description: "Record one or more data rows you have read off the page. Dedup against prior runs is automatic. Use the exact text shown on the page; never invent values. Prefer `extract` for repeating lists/tables — only use save_rows for one-off or irregular data with no repeating structure.",
     input_schema: { type: "object", properties: { rows: { type: "array", items: { type: "object", properties: {
       name: { type: "string" }, email: { type: "string" }, phone: { type: "string" },
       extra: { type: "object", description: "Any other useful fields you read (city, role applied for, etc.)." },
     } } } }, required: ["rows"] } },
+  { name: "extract", description:
+      "PREFERRED for repeating data (a list or table of similar records). Instead of reading values yourself, give CSS selectors and the page is read deterministically: `rowSelector` matches EACH record's container; `fields` maps each output field to a CSS selector RELATIVE to the row (e.g. {\"name\":\".cand-name\",\"email\":\"a.email\",\"phone\":\".phone\"}). Known fields name/email/phone go to the row top level; any other keys go into `extra`. Returns the rows it extracted (recorded + deduped automatically). Because it's selector-based, this exact extraction can be REPLAYED on future runs with NO AI cost — so always prefer it when the data repeats. Verify the returned sample looks right; if selectors miss, take a fresh snapshot and adjust.",
+    input_schema: { type: "object", properties: {
+      rowSelector: { type: "string", description: "CSS selector matching each repeating record's container element." },
+      fields: { type: "object", description: "Map of output field name (name|email|phone or any extra key) → CSS selector relative to the row container." },
+    }, required: ["rowSelector", "fields"] } },
   { name: "done", description: "Finish the task. status 'complete' when you've recorded everything available, 'blocked' if you can't proceed (e.g. a login wall).",
     input_schema: { type: "object", properties: { status: { type: "string", enum: ["complete", "blocked"] }, summary: { type: "string" } }, required: ["status", "summary"] } },
 ];
@@ -422,7 +544,9 @@ function systemPrompt() {
     "",
     "You perceive the page through `snapshot`, which returns an accessibility-style tree. Interactive elements are tagged with a ref like [e12]. Refs are ONLY valid for the most recent snapshot — after any action the page is re-snapshotted and refs are reassigned, so always act on refs from the latest snapshot you received.",
     "",
-    "Work the goal methodically: read the snapshot, decide the single best next action, take it, read the result, repeat. To collect records, read them off the page and call `save_rows` with structured fields. If a list is paginated or lazily loaded, page/scroll through ALL of it before finishing.",
+    "Work the goal methodically: read the snapshot, decide the single best next action, take it, read the result, repeat. If a list is paginated or lazily loaded, page/scroll through ALL of it before finishing.",
+    "",
+    "Collecting records — STRONGLY prefer `extract` over `save_rows` whenever the data repeats (a list or table of similar items). `extract` takes CSS selectors (a `rowSelector` for each record + a `fields` map of selectors relative to the row) and reads the page deterministically. The big win: a selector-based extraction is saved as a reusable recipe and REPLAYED on future runs with zero AI cost, so future pulls are essentially free. Inspect the snapshot to pick stable selectors (prefer data-testid, semantic classes, or roles over brittle :nth-child chains), call `extract`, then verify the returned sample looks correct. Use `save_rows` only for one-off or irregular data that has no repeating structure.",
     "",
     "Hard rules:",
     "- Only record data that is actually visible on the page. Never guess, infer, or fabricate names, emails, or phone numbers.",
@@ -488,6 +612,7 @@ async function runTool(page, name, input, collected, control) {
         return `Refused: ${input.url} is outside the portal domain (${host}). Stay on the portal — navigate only within that domain, or use click/scroll instead.`;
       }
       await page.goto(input.url, { waitUntil: "domcontentloaded", timeout: 45000 });
+      if (Array.isArray(control.trace)) control.trace.push({ action: "navigate", url: input.url });
       return await takeSnapshot(page);
     }
     case "snapshot":
@@ -495,39 +620,60 @@ async function runTool(page, name, input, collected, control) {
     case "click": {
       const sel = refSel(input.ref);
       if (!sel) return `No element matched ref "${input.ref}". Take a fresh snapshot.`;
+      // Resolve to a durable selector BEFORE clicking (the element may detach
+      // when the page re-renders) so a successful click is replayable later.
+      const stable = Array.isArray(control.trace) ? await stableSelectorForRef(page, input.ref) : null;
       try { await page.click(sel, { timeout: 8000 }); }
       catch (e) { return `Click failed (${String(e?.message || e)}). The element may have moved — take a fresh snapshot.`; }
       await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {});
+      if (Array.isArray(control.trace)) {
+        if (stable) control.trace.push({ action: "click", selector: stable });
+        else control.traceBroken = true; // couldn't derive a durable selector → don't save a half-recipe
+      }
       return await takeSnapshot(page);
     }
     case "type": {
       const sel = refSel(input.ref);
       if (!sel) return `No element matched ref "${input.ref}". Take a fresh snapshot.`;
+      const stable = Array.isArray(control.trace) ? await stableSelectorForRef(page, input.ref) : null;
       try {
         await page.fill(sel, String(input.text ?? ""), { timeout: 8000 });
         if (input.submit) { await page.press(sel, "Enter"); await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {}); }
       } catch (e) { return `Type failed (${String(e?.message || e)}). Take a fresh snapshot.`; }
+      if (Array.isArray(control.trace)) {
+        if (stable) control.trace.push({ action: "type", selector: stable, text: String(input.text ?? ""), submit: !!input.submit });
+        else control.traceBroken = true;
+      }
       return await takeSnapshot(page);
     }
     case "select_option": {
       const sel = refSel(input.ref);
       if (!sel) return `No element matched ref "${input.ref}".`;
+      const stable = Array.isArray(control.trace) ? await stableSelectorForRef(page, input.ref) : null;
       // Try matching by option value first, then by visible label.
       try { await page.selectOption(sel, input.value, { timeout: 8000 }); }
       catch {
         try { await page.selectOption(sel, { label: input.value }, { timeout: 8000 }); }
         catch (e) { return `Select failed (${String(e?.message || e)}).`; }
       }
+      if (Array.isArray(control.trace)) {
+        if (stable) control.trace.push({ action: "select_option", selector: stable, value: input.value });
+        else control.traceBroken = true;
+      }
       return await takeSnapshot(page);
     }
+    case "extract":
+      return await runExtract(page, input, collected, control);
     case "scroll": {
       const dy = input.direction === "up" ? -900 : 900;
       await page.evaluate((y) => window.scrollBy(0, y), dy);
       await page.waitForTimeout(500);
+      if (Array.isArray(control.trace)) control.trace.push({ action: "scroll", direction: input.direction === "up" ? "up" : "down" });
       return await takeSnapshot(page);
     }
     case "back": {
       await page.goBack({ waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => {});
+      if (Array.isArray(control.trace)) control.trace.push({ action: "back" });
       return await takeSnapshot(page);
     }
     case "save_rows": {
@@ -554,28 +700,63 @@ async function runTool(page, name, input, collected, control) {
   }
 }
 
-async function runTask(id, { manual = false } = {}) {
-  const task = readTask(id);
-  if (!task) return { ok: false, error: "no_task" };
-  if (!task.goal || !task.startUrl) return { ok: false, error: "task_incomplete", message: "Task needs a goal and a start URL." };
+// Replay one recorded step deterministically. Returns {ok, reason?, matched?}.
+async function replayStep(page, step, collected, control) {
+  try {
+    switch (step.action) {
+      case "navigate":
+        if (step.url && control.startUrl && !sameSite(step.url, control.startUrl)) return { ok: true }; // off-domain step shouldn't exist; skip safely
+        if (step.url) await page.goto(step.url, { waitUntil: "domcontentloaded", timeout: 45000 });
+        return { ok: true };
+      case "click":
+        if (!step.selector) return { ok: false, reason: "click step has no selector" };
+        await page.click(step.selector, { timeout: 8000 });
+        await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {});
+        return { ok: true };
+      case "type":
+        if (!step.selector) return { ok: false, reason: "type step has no selector" };
+        await page.fill(step.selector, String(step.text ?? ""), { timeout: 8000 });
+        if (step.submit) { await page.press(step.selector, "Enter"); await page.waitForLoadState("networkidle", { timeout: 4000 }).catch(() => {}); }
+        return { ok: true };
+      case "select_option":
+        if (!step.selector) return { ok: false, reason: "select step has no selector" };
+        try { await page.selectOption(step.selector, step.value, { timeout: 8000 }); }
+        catch { await page.selectOption(step.selector, { label: step.value }, { timeout: 8000 }); }
+        return { ok: true };
+      case "scroll":
+        await page.evaluate((y) => window.scrollBy(0, y), step.direction === "up" ? -900 : 900);
+        await page.waitForTimeout(500);
+        return { ok: true };
+      case "back":
+        await page.goBack({ waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => {});
+        return { ok: true };
+      case "extract": {
+        const res = await page.evaluate(extractInPage, { rowSelector: step.rowSelector, fields: step.fields });
+        if (res.error) return { ok: false, reason: res.error };
+        if (!res.matched) return { ok: false, reason: `extract matched 0 rows for "${step.rowSelector}"` };
+        for (const rec of res.rows) {
+          const row = shapeRow(rec);
+          const key = rowKey(row);
+          if (!key || control.seen.has(key)) continue;
+          control.seen.add(key);
+          collected.push({ ...row, scrapedAt: new Date().toISOString() });
+        }
+        return { ok: true, matched: res.matched };
+      }
+      default:
+        return { ok: true }; // unknown step type — ignore, don't fail the whole replay
+    }
+  } catch (e) {
+    return { ok: false, reason: `${step.action}: ${String(e?.message || e)}` };
+  }
+}
 
-  const apiKey = readSecret(keyFile());
-  if (!apiKey) return { ok: false, error: "no_api_key", message: "Add an Anthropic API key in the AI agent settings first." };
-  // A saved portal session is loaded when present, but not required — that
-  // lets a benign no-login page (the shakedown task) run with just an API
-  // key. On a real auth-walled page with no session the agent simply lands
-  // on the login wall and reports done:"blocked", which is the right signal.
-
-  const client = new Anthropic({ apiKey });
-  const model = effectiveModel(task);
-  const effort = effectiveEffort(task);
-
-  // Visible browser when the task needs it. Sites with bot protection
-  // (Cloudflare on Indeed, etc.) fingerprint a headless Chromium and serve
-  // a "Request Blocked" wall, but let a real visible window through — the
-  // same reason the headed login flow isn't blocked. We also strip the
-  // usual automation tells (navigator.webdriver + the --enable-automation
-  // switch) to reduce bot-detection false positives either way.
+// Deterministic replay of a learned recipe — NO model calls, so future runs of
+// a known page cost ~$0. Returns {ok, reason?, extracted}. A miss (selector
+// gone, zero rows) returns ok:false so the caller falls back to the AI and
+// re-learns. Same anti-bot launch + session as the AI path.
+async function replayRecipe(task, control, collected, errors) {
+  const recipe = task.recipe;
   const browser = await DEPS.launchChromium({
     headless: !task.visibleBrowser,
     args: ["--disable-blink-features=AutomationControlled"],
@@ -588,82 +769,186 @@ async function runTask(id, { manual = false } = {}) {
     locale: "en-US",
   });
   const page = await context.newPage();
-
-  const collected = [];
-  const control = { finished: false, finishStatus: null, finishSummary: "", seen: new Set(readSeen(id)), startUrl: task.startUrl };
-  const errors = [];
-  let steps = 0;
-
-  emitStep(id, { kind: "start", text: `Agent starting · model ${model} · effort ${effort}${task.visibleBrowser ? " · visible browser" : ""}` });
-
+  let ok = true, reason = null, extracted = 0;
   try {
     await page.goto(task.startUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
-    const firstSnap = await takeSnapshot(page);
-
-    // System prompt + tool defs are identical every step — cache them so we
-    // don't pay full input price re-sending them each iteration.
-    const systemBlocks = [{ type: "text", text: systemPrompt(), cache_control: { type: "ephemeral" } }];
-    const messages = [{
-      role: "user",
-      content:
-        `GOAL:\n${task.goal}\n\nThe browser is already open at the start URL and signed in. ` +
-        `Here is the initial page snapshot:\n\n${firstSnap}`,
-    }];
-
-    while (!control.finished && steps < MAX_STEPS) {
-      if (cancelFlags.get(id)) { control.finishSummary = "Cancelled by operator."; control.finishStatus = "blocked"; break; }
-      steps++;
-
-      let resp;
-      try {
-        markCache(messages); // roll the conversation cache breakpoint to the newest turn
-        resp = await callModel(client, { model, effort, system: systemBlocks, tools: TOOLS, messages });
-      } catch (e) {
-        const msg = String(e?.message || e);
-        errors.push(msg);
-        emitStep(id, { kind: "error", text: `Model call failed: ${msg}` });
-        break;
-      }
-
-      // Surface any visible reasoning/preamble text to the live log.
-      for (const block of resp.content) {
-        if (block.type === "text" && block.text.trim()) emitStep(id, { kind: "think", text: block.text.trim() });
-      }
-
-      const toolUses = resp.content.filter((b) => b.type === "tool_use");
-      // Preserve the full assistant turn (incl. thinking blocks) for the next request.
-      messages.push({ role: "assistant", content: resp.content });
-
-      if (toolUses.length === 0) {
-        // No tool call and not done — nudge once, then bail to avoid a stall.
-        emitStep(id, { kind: "info", text: "Model returned no action; asking it to continue or finish." });
-        messages.push({ role: "user", content: "Continue with a tool call, or call done if you've finished." });
-        continue;
-      }
-
-      const results = [];
-      for (const tu of toolUses) {
-        emitStep(id, { kind: "action", text: describeAction(tu.name, tu.input) });
-        let out;
-        try { out = await runTool(page, tu.name, tu.input || {}, collected, control); }
-        catch (e) { out = `Tool error: ${String(e?.message || e)}`; errors.push(out); }
-        results.push({ type: "tool_result", tool_use_id: tu.id, content: out });
-        if (control.finished) break;
-      }
-      messages.push({ role: "user", content: results });
+    for (const step of recipe.steps) {
+      if (cancelFlags.get(task.id)) { ok = false; reason = "cancelled"; break; }
+      const r = await replayStep(page, step, collected, control);
+      if (!r.ok) { ok = false; reason = r.reason; break; }
+      if (step.action === "extract") extracted += r.matched || 0;
     }
   } catch (e) {
-    errors.push(String(e?.message || e));
-    emitStep(id, { kind: "error", text: String(e?.message || e) });
+    ok = false; reason = String(e?.message || e);
   } finally {
     try { await page.close(); } catch {}
     try { await context.close(); } catch {}
     try { await browser.close(); } catch {}
   }
+  if (ok && extracted === 0) { ok = false; reason = "recipe ran but extracted 0 rows"; }
+  return { ok, reason, extracted };
+}
 
-  const stoppedEarly = steps >= MAX_STEPS && !control.finished;
-  const status = control.finishStatus || (stoppedEarly ? "blocked" : "complete");
-  const summary = control.finishSummary || (stoppedEarly ? `Hit the ${MAX_STEPS}-step cap before finishing.` : "Finished.");
+async function runTask(id, { manual = false } = {}) {
+  const task = readTask(id);
+  if (!task) return { ok: false, error: "no_task" };
+  if (!task.goal || !task.startUrl) return { ok: false, error: "task_incomplete", message: "Task needs a goal and a start URL." };
+
+  const collected = [];
+  const control = { finished: false, finishStatus: null, finishSummary: "", seen: new Set(readSeen(id)), startUrl: task.startUrl };
+  const errors = [];
+  let steps = 0;
+  let usedReplay = false;
+  let status = null, summary = null;
+
+  // ── Phase 1: replay-first (learn once → replay cheap). If a prior AI run
+  // learned a recipe, replay it deterministically with NO model cost. Only
+  // fall through to the (expensive) AI when there's no recipe, replay is
+  // disabled, or the recipe stopped matching the page (layout changed).
+  const canReplay = !!(task.recipe && Array.isArray(task.recipe.steps) && task.recipe.steps.length
+    && task.recipe.steps.some((s) => s.action === "extract") && task.replayEnabled !== false);
+  if (canReplay) {
+    emitStep(id, { kind: "start", text: `Replaying learned recipe (v${task.recipe.version || 1}) · no AI cost` });
+    const rr = await replayRecipe(task, control, collected, errors);
+    if (rr.ok) {
+      usedReplay = true;
+      status = "complete";
+      summary = `Replayed recipe v${task.recipe.version || 1} · ${collected.length} new row(s) · $0 AI`;
+      emitStep(id, { kind: "ok", text: summary });
+    } else {
+      emitStep(id, { kind: "info", text: `Replay didn't match (${rr.reason}) — re-learning with the AI.` });
+      collected.length = 0;            // discard partial replay output
+      control.seen = new Set(readSeen(id)); // reset dedupe to the persisted set
+    }
+  }
+
+  // ── Phase 2: AI agent (only when replay didn't already do the job) ──
+  if (!usedReplay) {
+    const apiKey = readSecret(keyFile());
+    if (!apiKey) {
+      if (canReplay) return { ok: false, error: "replay_broke_no_key", message: "The learned recipe stopped matching the page and there's no API key to re-learn it. Add an Anthropic API key, or delete the recipe to re-record." };
+      return { ok: false, error: "no_api_key", message: "Add an Anthropic API key in the AI agent settings first." };
+    }
+    // A saved portal session is loaded when present, but not required — that
+    // lets a benign no-login page (the shakedown task) run with just an API
+    // key. On a real auth-walled page with no session the agent simply lands
+    // on the login wall and reports done:"blocked", which is the right signal.
+    const client = new Anthropic({ apiKey });
+    const model = effectiveModel(task);
+    const effort = effectiveEffort(task);
+    control.trace = []; // record actions so a clean run becomes a $0 replay recipe
+
+    // Visible browser when the task needs it. Sites with bot protection
+    // (Cloudflare on Indeed, etc.) fingerprint a headless Chromium and serve
+    // a "Request Blocked" wall, but let a real visible window through. We also
+    // strip the usual automation tells to reduce bot-detection false positives.
+    const browser = await DEPS.launchChromium({
+      headless: !task.visibleBrowser,
+      args: ["--disable-blink-features=AutomationControlled"],
+      ignoreDefaultArgs: ["--enable-automation"],
+    });
+    const stateJson = DEPS.readSession();
+    const context = await browser.newContext({
+      storageState: stateJson ? JSON.parse(stateJson) : undefined,
+      viewport: { width: 1280, height: 900 },
+      locale: "en-US",
+    });
+    const page = await context.newPage();
+
+    emitStep(id, { kind: "start", text: `Agent starting · model ${model} · effort ${effort}${task.visibleBrowser ? " · visible browser" : ""}` });
+
+    try {
+      await page.goto(task.startUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
+      const firstSnap = await takeSnapshot(page);
+
+      // System prompt + tool defs are identical every step — cache them so we
+      // don't pay full input price re-sending them each iteration.
+      const systemBlocks = [{ type: "text", text: systemPrompt(), cache_control: { type: "ephemeral" } }];
+      const messages = [{
+        role: "user",
+        content:
+          `GOAL:\n${task.goal}\n\nThe browser is already open at the start URL and signed in. ` +
+          `Here is the initial page snapshot:\n\n${firstSnap}`,
+      }];
+
+      while (!control.finished && steps < MAX_STEPS) {
+        if (cancelFlags.get(id)) { control.finishSummary = "Cancelled by operator."; control.finishStatus = "blocked"; break; }
+        steps++;
+
+        let resp;
+        try {
+          markCache(messages); // roll the conversation cache breakpoint to the newest turn
+          resp = await callModel(client, { model, effort, system: systemBlocks, tools: TOOLS, messages });
+        } catch (e) {
+          const msg = String(e?.message || e);
+          errors.push(msg);
+          emitStep(id, { kind: "error", text: `Model call failed: ${msg}` });
+          break;
+        }
+
+        // Surface any visible reasoning/preamble text to the live log.
+        for (const block of resp.content) {
+          if (block.type === "text" && block.text.trim()) emitStep(id, { kind: "think", text: block.text.trim() });
+        }
+
+        const toolUses = resp.content.filter((b) => b.type === "tool_use");
+        // Preserve the full assistant turn (incl. thinking blocks) for the next request.
+        messages.push({ role: "assistant", content: resp.content });
+
+        if (toolUses.length === 0) {
+          // No tool call and not done — nudge once, then bail to avoid a stall.
+          emitStep(id, { kind: "info", text: "Model returned no action; asking it to continue or finish." });
+          messages.push({ role: "user", content: "Continue with a tool call, or call done if you've finished." });
+          continue;
+        }
+
+        const results = [];
+        for (const tu of toolUses) {
+          emitStep(id, { kind: "action", text: describeAction(tu.name, tu.input) });
+          let out;
+          try { out = await runTool(page, tu.name, tu.input || {}, collected, control); }
+          catch (e) { out = `Tool error: ${String(e?.message || e)}`; errors.push(out); }
+          results.push({ type: "tool_result", tool_use_id: tu.id, content: out });
+          if (control.finished) break;
+        }
+        messages.push({ role: "user", content: results });
+      }
+    } catch (e) {
+      errors.push(String(e?.message || e));
+      emitStep(id, { kind: "error", text: String(e?.message || e) });
+    } finally {
+      try { await page.close(); } catch {}
+      try { await context.close(); } catch {}
+      try { await browser.close(); } catch {}
+    }
+
+    const stoppedEarly = steps >= MAX_STEPS && !control.finished;
+    status = control.finishStatus || (stoppedEarly ? "blocked" : "complete");
+    summary = control.finishSummary || (stoppedEarly ? `Hit the ${MAX_STEPS}-step cap before finishing.` : "Finished.");
+
+    // ── Learn: a clean run that extracted via selectors becomes a replay
+    // recipe, so the NEXT run skips the AI entirely. Requires at least one
+    // extract step and a fully-resolvable action trace (traceBroken means we
+    // couldn't derive a durable selector for some click — don't save a recipe
+    // that would only half-replay).
+    if (status === "complete" && !control.traceBroken && Array.isArray(control.trace)
+      && control.trace.some((s) => s.action === "extract")) {
+      const recipe = {
+        version: ((task.recipe && task.recipe.version) || 0) + 1,
+        createdAt: new Date().toISOString(),
+        startUrl: task.startUrl,
+        steps: control.trace,
+      };
+      const t2 = readTask(id) || task;
+      t2.recipe = recipe;
+      writeTask(t2);
+      emitStep(id, { kind: "ok", text: `Learned a replay recipe (v${recipe.version}, ${control.trace.length} steps) — future runs skip the AI.` });
+    }
+  }
+
+  // Belt-and-suspenders for the shared finalize below.
+  status = status || "complete";
+  summary = summary || "Finished.";
 
   // ── Sink 1: CSV on disk (always — lets the operator verify output) ──
   const dir = task.downloadDir || DEPS.defaultDownloadDir();
@@ -915,6 +1200,22 @@ function init(deps) {
   ipcMain.handle("agent:saveTask", async (_e, patch) => saveTask(patch));
   ipcMain.handle("agent:deleteTask", async (_e, { id }) => deleteTask(id));
   ipcMain.handle("agent:resetSeen", async (_e, { id }) => { clearSecretSeen(id); return { ok: true }; });
+  ipcMain.handle("agent:clearRecipe", async (_e, { id }) => {
+    const t = readTask(id);
+    if (!t) return { ok: false, error: "no_task" };
+    t.recipe = null;
+    writeTask(t);
+    emitTaskUpdated(id);
+    return { ok: true };
+  });
+  ipcMain.handle("agent:setReplay", async (_e, { id, enabled }) => {
+    const t = readTask(id);
+    if (!t) return { ok: false, error: "no_task" };
+    t.replayEnabled = !!enabled;
+    writeTask(t);
+    emitTaskUpdated(id);
+    return { ok: true };
+  });
   ipcMain.handle("agent:stop", async (_e, { id }) => { cancelFlags.set(id, true); return { ok: true }; });
   ipcMain.handle("agent:runNow", async (_e, { id }) => {
     if (running.has(id)) return { ok: false, error: "already_running" };
