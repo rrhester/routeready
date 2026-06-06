@@ -693,3 +693,47 @@ main {
   white-space: pre-wrap;
   color: var(--text-muted);
 }
+
+/* ── Streamlined shell: AI-agent hero + collapsed Advanced tools ───── */
+.card-hero {
+  border-color: var(--accent);
+  box-shadow: 0 1px 2px rgba(15, 108, 189, .06), 0 0 0 1px var(--accent-soft);
+}
+
+details.advanced {
+  padding: 14px 18px;
+}
+details.advanced > summary {
+  cursor: pointer;
+  font-size: 13px;
+  list-style: revert;
+  user-select: none;
+}
+details.advanced > summary .advanced-title {
+  font-weight: 700;
+  color: var(--text);
+}
+details.advanced[open] > summary {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.advanced-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.subcard {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.advanced-body > .subcard:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.subcard > h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
