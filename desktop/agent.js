@@ -726,6 +726,21 @@ async function runTask(id, { manual = false } = {}) {
 
   emitStep(id, { kind: "ok", text: `Done · ${collected.length} new row(s) · ${steps} steps · ${status}` });
 
+  // Report this run to the box's health row (Supabase) so the dashboard can
+  // show "last pull ok/failed + when". Non-fatal — main.js owns the client and
+  // swallows errors; a box with no pairing session just no-ops.
+  if (typeof DEPS.reportRun === "function") {
+    try {
+      DEPS.reportRun({
+        at: ts,
+        task: task.name || id,
+        status: result,
+        error: errors.length ? errors[0] : null,
+        rows: collected.length,
+      });
+    } catch (e) { DEPS.logLine("agent: reportRun threw:", String(e)); }
+  }
+
   return { ok: true, status, summary, newCount: collected.length, uploaded, steps, errors: errors.length, csvPath };
 }
 
