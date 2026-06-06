@@ -112,10 +112,14 @@ cleanly — read it first when picking this back up._
 
 ## Known follow-ups / tech debt
 
-- **macOS build dropped** (electron-builder can't pack the newer Playwright
-  "Chrome for Testing" framework symlinks). `download.html` Mac card marked
-  "Coming soon". To restore: pin Playwright + fix `main.js`'s mac Chromium path
-  resolver (still expects the old `chrome-mac/Chromium.app` layout).
+- **macOS build re-enabled** — the Playwright Chromium `.app` framework
+  symlinks that electron-builder couldn't raw-copy (with `asar:false`) are now
+  packed via the asar packer + `asarUnpack` on **mac only** (`package.json`
+  `mac.asar:true`), which stores symlinks as archive entries; Win/Linux keep
+  `asar:false`. `main.js`'s resolver already checks `app.asar.unpacked`.
+  _Follow-up:_ once a `desktop-v*` tag produces a verified `.dmg`, flip the
+  `download.html` Mac card from "Coming soon" back to a real download link
+  (that's a dashboard change → preview-gate it).
 - **Supabase:** `0362_desktop_pairings` migration is applied manually (operator
   runs SQL by hand); `desktop-pair` deploys via `deploy-migrations.yml`'s
   no-verify-jwt loop on merge to `main`.
