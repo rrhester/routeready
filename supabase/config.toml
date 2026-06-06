@@ -110,5 +110,11 @@ verify_jwt = false
 [functions.explain-optimization-run]
 verify_jwt = false
 
+# Desktop app "Connect from browser" pairing. redeem is called by the app
+# with only a pairing code (no user JWT), so gateway verify_jwt must be off;
+# mint does its own auth check internally (auth.getUser on the caller's JWT).
+[functions.desktop-pair]
+verify_jwt = false
+
 [analytics]
 enabled = false
