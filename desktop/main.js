@@ -18,6 +18,13 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, shell, Tray } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
+const { pathToFileURL } = require("node:url");
+
+// The one bundled local UI file that is allowed to load in-app and receive
+// the full (powerful) bridge. Anything else — including other file:// paths
+// — is untrusted. Used by hardenNavigation + the trusted-origins handshake.
+const localUiHref = () => pathToFileURL(path.join(__dirname, "renderer", "index.html")).href;
+const stripFragment = (u) => String(u || "").split("#")[0].split("?")[0];
 
 // Tell Playwright to look for Chromium under node_modules/playwright-core/
 // .local-browsers/ rather than the global ms-playwright cache. The build
@@ -222,7 +229,11 @@ function hardenNavigation(wc) {
   const allowedOrigin = (() => { try { return new URL(effectiveDashboardUrl()).origin; } catch { return null; } })();
   const allowed = (url) => {
     if (!url) return false;
-    if (url.startsWith("file:")) return true;
+    // Only the exact bundled UI file — NOT arbitrary file:// paths. Otherwise
+    // the dashboard (or XSS on it) could navigate to an attacker-controlled
+    // local file, which the preload would then treat as trusted-local and
+    // hand the full window.rr API (arbitrary download, show-in-folder).
+    if (stripFragment(url) === localUiHref()) return true;
     try { return !!allowedOrigin && new URL(url).origin === allowedOrigin; } catch { return false; }
   };
   wc.setWindowOpenHandler(({ url }) => {
@@ -595,6 +606,16 @@ ipcMain.handle("config:set", async (_evt, { portalUrl, dashboardUrl } = {}) => {
 // Installed app version — used by the dashboard bridge to gate features
 // that need a newer native side.
 ipcMain.handle("app:getVersion", async () => ({ ok: true, version: app.getVersion() }));
+
+// Synchronous handshake the preload uses to decide capability gating — the
+// trusted origins come from config (so a custom config.dashboardUrl works),
+// not a hard-coded host. Returns the exact bundled UI file (full bridge) and
+// the configured dashboard origin (minimal bridge).
+ipcMain.on("app:trustedOrigins", (e) => {
+  let dashboardOrigin = null;
+  try { dashboardOrigin = new URL(effectiveDashboardUrl()).origin; } catch {}
+  e.returnValue = { dashboardOrigin, localUiHref: localUiHref() };
+});
 
 // ─── Report download ────────────────────────────────────────────────
 // Generic file-download flow that reuses the persisted portal session.

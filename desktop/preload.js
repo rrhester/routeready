@@ -16,10 +16,16 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 
-const isLocal = location.protocol === "file:";
-// Trusted dashboard host(s). Keep in sync with main's DEFAULT_DASHBOARD_URL
-// if you point the app at a different domain.
-const isDashboard = /(^|\.)gorouteready\.com$/i.test(location.hostname);
+// Capability gating is decided by main (the trusted side), not by a
+// hard-coded host here. main returns the exact bundled UI file (full bridge)
+// and the configured dashboard origin (minimal bridge) — so a custom
+// config.dashboardUrl is honored, and only the *exact* bundled file (never an
+// arbitrary file://) is treated as trusted-local.
+let trusted = {};
+try { trusted = ipcRenderer.sendSync("app:trustedOrigins") || {}; } catch {}
+const here = location.href.split("#")[0].split("?")[0];
+const isLocal = !!trusted.localUiHref && here === trusted.localUiHref;
+const isDashboard = !!trusted.dashboardOrigin && location.origin === trusted.dashboardOrigin;
 
 // ─── Full surface — bundled local UI only ───────────────────────────
 if (isLocal) {
