@@ -20,7 +20,12 @@ on:
     paths: ['desktop/**', '.github/workflows/desktop-build.yml']
   pull_request:
     paths: ['desktop/**', '.github/workflows/desktop-build.yml']
-  workflow_dispatch:  # lets you trigger a manual build from the Actions tab
+  workflow_dispatch:  # manual build; set release_tag to also publish a release
+    inputs:
+      release_tag:
+        description: "Publish a GitHub Release under this tag (e.g. desktop-v0.6.4). Leave blank to just build installers. Tag-push (desktop-v*) still publishes automatically; this is for when a tag can't be pushed directly."
+        required: false
+        default: ""
 
 permissions:
   contents: write   # needed to create releases when a tag is pushed
@@ -113,7 +118,7 @@ jobs:
   release:
     name: Publish release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    if: startsWith(github.ref, 'refs/tags/desktop-v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -124,8 +129,12 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
+          # On a tag push, ref_name IS the tag. On a manual workflow_dispatch
+          # the run is on a branch, so use the release_tag input instead and
+          # point the (auto-created) tag at the dispatched commit.
+          name: ${{ inputs.release_tag || github.ref_name }}
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           # Glob across every platform's artifact dir.
           files: artifacts/**/*
           draft: false
