@@ -601,6 +601,31 @@ async function callModel(client, { model, effort, system, tools, messages }) {
   });
 }
 
+// Build the Anthropic client. Prefers the CENTRAL key path: if the box is
+// paired, route through RouteReady's ai-proxy edge function (which injects
+// RouteReady's Anthropic key server-side) so no box ever holds a key and AI
+// is billed centrally. Falls back to a box-local key if one is configured
+// (dev / standalone). Returns null if neither is available.
+async function makeAnthropic() {
+  const localKey = readSecret(keyFile());
+  if (localKey) return new Anthropic({ apiKey: localKey });
+  if (DEPS.getAiAuth) {
+    let auth = null;
+    try { auth = await DEPS.getAiAuth(); } catch {}
+    if (auth && auth.proxyUrl && auth.token) {
+      return new Anthropic({
+        apiKey: "rr-proxy", // ignored by the proxy; SDK just needs a non-empty value
+        baseURL: auth.proxyUrl,
+        defaultHeaders: {
+          authorization: "Bearer " + auth.token, // RouteReady DSP session → proxy authorizes
+          apikey: auth.anonKey || "",
+        },
+      });
+    }
+  }
+  return null;
+}
+
 // Execute one tool call against the live page. Returns the string the
 // model sees as the tool_result. Mutates `collected` for save_rows and
 // sets control.finished/finishStatus/finishSummary for done.
@@ -824,16 +849,17 @@ async function runTask(id, { manual = false } = {}) {
 
   // ── Phase 2: AI agent (only when replay didn't already do the job) ──
   if (!usedReplay) {
-    const apiKey = readSecret(keyFile());
-    if (!apiKey) {
-      if (canReplay) return { ok: false, error: "replay_broke_no_key", message: "The learned recipe stopped matching the page and there's no API key to re-learn it. Add an Anthropic API key, or delete the recipe to re-record." };
-      return { ok: false, error: "no_api_key", message: "Add an Anthropic API key in the AI agent settings first." };
+    // Central key (via the box's pairing) or a box-local key. No key on the
+    // box is the normal case now — the proxy supplies RouteReady's key.
+    const client = await makeAnthropic();
+    if (!client) {
+      if (canReplay) return { ok: false, error: "replay_broke_no_ai", message: "The learned recipe stopped matching the page and there's no AI access to re-learn it. Pair the box (central key) or add an Anthropic API key." };
+      return { ok: false, error: "no_ai", message: "No AI access — pair this box to RouteReady (central key), or add an Anthropic API key in the agent settings." };
     }
     // A saved portal session is loaded when present, but not required — that
-    // lets a benign no-login page (the shakedown task) run with just an API
-    // key. On a real auth-walled page with no session the agent simply lands
-    // on the login wall and reports done:"blocked", which is the right signal.
-    const client = new Anthropic({ apiKey });
+    // lets a benign no-login page (the shakedown task) run with just AI
+    // access. On a real auth-walled page with no session the agent simply
+    // lands on the login wall and reports done:"blocked", the right signal.
     const model = effectiveModel(task);
     const effort = effectiveEffort(task);
     control.trace = []; // record actions so a clean run becomes a $0 replay recipe
@@ -1117,7 +1143,7 @@ async function tick() {
     if (!task.intervalMinutes || task.intervalMinutes <= 0) continue;
     const due = !task.nextRunAt || new Date(task.nextRunAt).getTime() <= now;
     if (!due) continue;
-    if (!readSecret(keyFile())) { DEPS.logLine("agent: skip", task.id, "(no API key)"); continue; }
+    if (!readSecret(keyFile()) && !DEPS.getAiAuth) { DEPS.logLine("agent: skip", task.id, "(no AI access)"); continue; }
     // No portal-session guard here: runTask supports no-login tasks (the
     // seeded shakedown runs with just an API key). An auth-needing task with
     // no session simply lands on the login wall and reports "blocked".
@@ -1139,7 +1165,8 @@ function startLoop() {
 // with no API key. Returns a per-task summary so the box can report the
 // outcome back onto the sync request.
 async function runAllEnabledNow() {
-  if (!readSecret(keyFile())) return { ok: false, error: "no_api_key", ran: 0, results: [] };
+  const client = await makeAnthropic();
+  if (!client) return { ok: false, error: "no_ai", ran: 0, results: [], message: "No AI access — pair the box (central key) or add an Anthropic API key." };
   const { tasks } = listTasks();
   const enabled = (tasks || []).filter((t) => t.enabled);
   const results = [];
