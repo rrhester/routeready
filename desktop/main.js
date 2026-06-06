@@ -27,6 +27,7 @@ const fs = require("node:fs");
 process.env.PLAYWRIGHT_BROWSERS_PATH = "0";
 const { chromium } = require("playwright");
 const scraper = require("./scraper");
+const agent = require("./agent");
 
 // ─── Diagnostic logging ─────────────────────────────────────────────
 // Writes a line to <userData>/desktop.log every time we touch Playwright
@@ -184,6 +185,15 @@ app.whenReady().then(() => {
     logLine,
     launchChromium,
     tearDownPortal,
+    readSession,
+    appendHistory,
+    getMainWindow: () => mainWindow,
+  });
+  agent.init({
+    userDataDir,
+    defaultDownloadDir,
+    logLine,
+    launchChromium,
     readSession,
     appendHistory,
     getMainWindow: () => mainWindow,

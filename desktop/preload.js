@@ -83,4 +83,36 @@ contextBridge.exposeInMainWorld("rr", {
       return () => ipcRenderer.removeListener("scheduler:jobUpdated", handler);
     },
   },
+  agent: {
+    /** Read agent settings (key presence, model, effort, upload config). */
+    getConfig: () => ipcRenderer.invoke("agent:getConfig"),
+    /** Persist agent settings. Pass apiKey/applySecret "" to clear, omit to keep. */
+    setConfig: (patch) => ipcRenderer.invoke("agent:setConfig", patch),
+    /** List every agent task on disk. */
+    listTasks: () => ipcRenderer.invoke("agent:listTasks"),
+    /** Read a single task. */
+    getTask: (id) => ipcRenderer.invoke("agent:getTask", { id }),
+    /** Upsert a task (goal / startUrl / interval / enabled / upload / model). */
+    saveTask: (patch) => ipcRenderer.invoke("agent:saveTask", patch),
+    /** Delete a task and its dedupe set. */
+    deleteTask: (id) => ipcRenderer.invoke("agent:deleteTask", { id }),
+    /** Wipe the dedupe set so the next run re-emits everything it finds. */
+    resetSeen: (id) => ipcRenderer.invoke("agent:resetSeen", { id }),
+    /** Run a task now (headless agent loop); resolves with the run summary. */
+    runNow: (id) => ipcRenderer.invoke("agent:runNow", { id }),
+    /** Ask a running task to stop at the next step boundary. */
+    stop: (id) => ipcRenderer.invoke("agent:stop", { id }),
+    /** Subscribe to live per-step events while a task runs. */
+    onStep: (cb) => {
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on("agent:step", handler);
+      return () => ipcRenderer.removeListener("agent:step", handler);
+    },
+    /** Subscribe to task-updated events (after each run). */
+    onTaskUpdated: (cb) => {
+      const handler = (_e, payload) => cb(payload);
+      ipcRenderer.on("agent:taskUpdated", handler);
+      return () => ipcRenderer.removeListener("agent:taskUpdated", handler);
+    },
+  },
 });
