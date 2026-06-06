@@ -36145,13 +36145,21 @@ John,Smith,555-0101,john@example.com</code>
         qs.classList.add('rr-rules-merged');
         sfBody.appendChild(qs);
       }
-      // Load current Targets values + show the merged settings (it lives
-      // inside the Rules popover now).
-      if (typeof window._rrToggleSchedQuickSettings === 'function') {
-        try { window._rrToggleSchedQuickSettings(true); } catch (e) {}
-      }
+      // Open the Smart Fill rules dialog FIRST (capture whether this click
+      // is opening it, so we only reveal the merged Targets settings when
+      // opening — not when toggling closed).
+      var willOpen = sf ? sf.hidden : true;
       var t = document.getElementById('rr-sched-smartfill-rules-toggle');
       if (t) t.click();
+      // Load + reveal the merged Targets settings AFTER the toggle click.
+      // Doing it after matters: the toggle's bubbled click is seen by the
+      // quick-settings "click-outside closes it" guard, and the toggle is
+      // outside both popovers — so if Targets were already shown, that guard
+      // would immediately re-hide it. Revealing it after the click (while it
+      // was still hidden during the click) avoids that.
+      if (willOpen && typeof window._rrToggleSchedQuickSettings === 'function') {
+        try { window._rrToggleSchedQuickSettings(true); } catch (e) {}
+      }
     };
   })();
 </script>
