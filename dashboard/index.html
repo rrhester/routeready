@@ -20250,15 +20250,26 @@ body.rr-cmdk-open{ overflow:hidden }
              chrome so it reads as a plain section under the Smart Fill
              rules, with a hairline separator + its own header showing. */
           #view-schedule .sched-quick-settings-popover.rr-rules-merged{
-            position:static !important;
+            position:static !important;min-width:0 !important;
             width:auto !important;max-width:none !important;
             box-shadow:none !important;border:0 !important;
-            border-top:1px solid rgba(15,23,42,.10) !important;
-            margin:8px 0 0 !important;padding-top:8px !important;
+            border-top:1px solid rgba(15,23,42,.12) !important;
+            margin:12px 0 0 !important;padding:12px 0 2px !important;
             background:transparent !important;animation:none !important;
             transform:none !important;
           }
-          #view-schedule .sched-quick-settings-popover.rr-rules-merged .sched-quick-settings-head{display:flex !important}
+          /* Show + style the section header ("This week's settings") so the
+             merged Targets block reads as a proper labeled section. */
+          #view-schedule .sched-quick-settings-popover.rr-rules-merged .sched-quick-settings-head{
+            display:flex !important;align-items:center;gap:8px;
+            margin:0 0 8px !important;padding:0 !important;
+          }
+          #view-schedule .sched-quick-settings-popover.rr-rules-merged .sched-quick-settings-head svg{
+            width:16px;height:16px;flex:0 0 auto;color:var(--sch-blue,#0F6CBD);
+          }
+          #view-schedule .sched-quick-settings-popover.rr-rules-merged .sched-quick-settings-title{
+            font-size:13px;font-weight:700;color:#242424;letter-spacing:.01em;
+          }
           #view-schedule .sched-quick-settings-popover.rr-rules-merged .sched-quick-settings-close{display:none !important}
           #view-schedule .sched-quick-setting{
             display:grid;grid-template-columns:1fr auto;column-gap:14px;
