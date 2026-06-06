@@ -56,16 +56,17 @@
    (onboarding-rrx.css:634-636); shrinking the top padding gets
    the same visual without that risk. */
 #view-onboarding-ops.rrx-onboarding > .page {
-  /* Measured delta with Schedule: the live Schedule page renders
-     its strip card 8px lower than Onboarding's was — Schedule's
-     hidden legacy .sched-cmd-shell takes ~20px of layout even
-     when its child header is display:none, plus 20px of .page
-     padding-top = 40px total before the visible strip. Onboarding
-     has 4px .page padding-top + 28px in-flow cmd-tabs = 32px.
-     Pad the difference (8px) into Onboarding's top padding so
-     both pages' strip cards (and KPI cards below) land at the
-     same Y when switching. */
-  padding: 12px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
+  /* Land the strip card top — and therefore the KPI card below it —
+     at Schedule's exact Y. On Schedule the strip top = page pad (20px)
+     + cmd-shell margin-bottom (17px) = 37px, with the cmd-tabs taken
+     out of flow (position:absolute, 0 height). We mirror that here:
+     the .ob-cmd-tabs below are floated out of flow too, so the strip
+     starts right at this padding edge — set it to 37px so it matches
+     Schedule instead of the old "12px + ~28px in-flow tabs" stack,
+     which left the tab height (a font-dependent, unmeasurable value)
+     pushing the whole stack down. Same value the roster-mode parity
+     rule uses (index.html:18736). */
+  padding: 37px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
@@ -855,21 +856,26 @@
   gap: 0;
 }
 
-/* Tab strip is the first child of cmd-shell and sits inline
-   above the page-header. Switched from position:absolute (which
-   was getting clipped by the global .page { overflow:hidden })
-   to a normal inline flex row. */
+/* Tab strip · floated OUT of normal flow (0 height) so it can't push
+   the strip card + KPI band down, exactly like Schedule's absolute
+   .sched-v2-cmd-tabs (schedule-rrx.css:2572, index.html:18772). It
+   hangs just above the cmd-shell's top edge as sheet tabs. The .page
+   padding-top (37px above) gives them room inside the overflow:hidden
+   page, so they're no longer clipped — which was the original reason
+   they'd been forced back into static flow. The cmd-shell is
+   position:relative, so bottom:100% pins them directly above it. */
 #view-onboarding-ops.rrx-onboarding .ob-cmd-tabs {
-  position: static;
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  right: auto;
   display: inline-flex;
-  align-self: flex-start;
   gap: 2px;
-  /* Flush LEFT with the strip card · operator wants Schedule +
-     Onboarding tabs to start at the same x as the card edge.
-     Previously had a 4px (rr-space-40) inset. */
+  /* -1px so the tab row overlaps the card's top border by a hair
+     (sheet-tab look) — matches Schedule (index.html:18774). */
   margin: 0 0 -1px 0;
   padding: 0;
-  z-index: 1;
+  z-index: 2;
 }
 
 #view-onboarding-ops.rrx-onboarding .ob-cmd-tab {
