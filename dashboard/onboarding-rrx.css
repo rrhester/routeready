@@ -157,18 +157,33 @@
 
 #view-onboarding-ops.rrx-onboarding .sched-nav-heading {
   display: flex !important;
-  align-items: center !important;
+  /* Match Schedule's .sched-v2-strip exactly (schedule-rrx.css:1892).
+     `stretch` makes the children fill the full card height so the icon
+     cluster hugs the TOP (each ribbon group is a flex column that
+     top-justifies its tiles) instead of floating in the vertical
+     middle of the card the way `center` did. */
+  align-items: stretch !important;
+  flex-wrap: nowrap !important;
   /* Padding + gap matched to Schedule's .sched-v2-strip
-     (schedule-rrx.css:1654-1657) so when both pages have a
-     240px title block on the left, the first hairline divider
-     (the left border of the first ribbon group) lands at the
-     SAME X coordinate on both pages. */
+     (schedule-rrx.css:1901,1905): 8px gap, tight 3px-top / 6px-bottom
+     padding so the icons hug the top edge. With a 240px title block on
+     the left, the first hairline divider lands at the SAME X on both
+     pages. */
   gap: 8px !important;
-  padding: 11px 18px !important;
-  margin: 0 0 var(--rr-space-200) !important;
+  padding: 3px 18px 6px !important;
+  /* Hug the KPI card right below — Schedule's strip uses
+     margin-bottom:1px (index.html:18770), not the 12px --tcp-strip-gap. */
+  margin: 0 0 1px !important;
   background: var(--rr-bg-surface-1) !important;
-  border: 1px solid var(--rr-border-primary) !important;
-  border-radius: var(--rr-radius-medium) !important;
+  /* Edge parity · Schedule's strip border is rgba(15,23,42,.07) (its
+     --sch-line-subtle). The #view-onboarding-ops scope redefines
+     --sch-line-subtle lighter (.04), so hardcode Schedule's resolved
+     value. Radius = --sch-radius (6px), same in both scopes. */
+  border: 1px solid rgba(15, 23, 42, 0.07) !important;
+  border-radius: var(--sch-radius, 6px) !important;
+  /* Flat — Schedule forces .sched-v2-strip box-shadow:none
+     (index.html:18352), overriding the floating shadow in
+     schedule-rrx.css. Onboarding stays flat to match. */
   box-shadow: none !important;
 }
 
@@ -242,11 +257,16 @@
 #view-onboarding-ops.rrx-onboarding > .page > .page-header.sched-nav-heading,
 #view-onboarding-ops.rrx-onboarding .page-header.sched-nav-heading,
 #view-onboarding-ops > .page > .page-header.sched-nav-heading {
-  padding: 11px 18px !important;
-  margin: 0 0 var(--tcp-strip-gap, 16px) 0 !important;
+  /* Chrome matched byte-for-byte to Schedule's .sched-v2-strip:
+     3px-top/6px-bottom padding (icons hug top), 1px gap to the KPI
+     card below, rgba(15,23,42,.07) hairline edge, 6px radius, no
+     shadow. See the .sched-nav-heading block above for the rationale
+     and source-line references. */
+  padding: 3px 18px 6px !important;
+  margin: 0 0 1px 0 !important;
   background: var(--rr-bg-surface-1) !important;
-  border: 1px solid var(--rr-border-primary) !important;
-  border-radius: var(--rr-radius-medium) !important;
+  border: 1px solid rgba(15, 23, 42, 0.07) !important;
+  border-radius: var(--sch-radius, 6px) !important;
   box-shadow: none !important;
   /* Height locks point at the TopControlPlane token so Schedule
      and Onboarding can never drift apart. Single source of truth
