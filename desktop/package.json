@@ -36,6 +36,7 @@
       "scraper.js",
       "agent.js",
       "renderer/**/*",
+      "build/icon.png",
       "node_modules/**/*",
       "!node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!node_modules/**/{test,tests,__tests__,examples,docs,.github}/**",

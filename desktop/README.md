@@ -185,6 +185,19 @@ chmod +x RouteReady\ Desktop-*.AppImage
   deduped against `<userData>/agent-seen-*.json`; seeded with a disabled
   `Indeed — applicants (AI agent)` task on first run.
 
+## Running in the background
+
+The app is a **background sync engine**: closing the window hides it to the
+system tray instead of quitting, so the scheduler keeps firing scheduled
+crawls and downloads unattended. Re-open from the tray icon ("Open
+RouteReady"); exit fully via the tray's "Quit RouteReady". Packaged builds
+also register **launch-at-login** so the engine is up after a reboot
+without the operator thinking about it. This is what makes the intended
+model work — operators live in the RouteReady **web dashboard** (scraped
+applicants land there via the `webhook-apply` pipeline), while the desktop
+app quietly syncs in the background. If a Linux session has no tray host,
+the app falls back to normal quit-on-close so it can't get stranded.
+
 ## What's next
 
 - **RouteReady-proxied inference** — optional transport that routes the
