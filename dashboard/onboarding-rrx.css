@@ -367,6 +367,85 @@
   display: none !important;
 }
 
+/* ── Schedule-style group caption + rules launcher (default ribbon) ──
+   Mirrors Schedule's .sched-v2-viewgroup: a centered group caption on
+   the card's bottom line + a box-arrow dialog launcher pinned to the
+   group's bottom-right. The per-tile Rules chevrons in each group are
+   hidden and consolidated into the one launcher. Scoped to the default
+   Onboarding ribbon (the Roster ribbon keeps its own per-tile carets).
+   Mirrors schedule-rrx.css:2101-2173. */
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions:not(.ob-v2-roster-actions) .sched-ribbon-group {
+  position: relative;
+}
+/* Per-tile chevrons consolidated into the group launcher · hidden but
+   kept in the DOM so the launcher's .click() forward still opens the
+   right popover. */
+#view-onboarding-ops.rrx-onboarding .sched-nav-heading-actions:not(.ob-v2-roster-actions) .sched-ribbon-group .ob-rules-foot {
+  display: none !important;
+}
+/* Group caption · centered on the card's bottom line under the tiles. */
+#view-onboarding-ops.rrx-onboarding .ob-v2-group-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  color: #242424;
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* Dialog launcher · box + diagonal arrow pinned bottom-right of the
+   group, in the gap next to the hairline divider (Outlook style). */
+#view-onboarding-ops.rrx-onboarding .ob-v2-group-launcher {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  position: absolute;
+  right: -18px;
+  bottom: -3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 4px;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: #242424;
+  opacity: 0.85;
+  z-index: 1;
+  transition: opacity 120ms ease-out, background 120ms ease-out, color 120ms ease-out;
+}
+#view-onboarding-ops.rrx-onboarding .sched-ribbon-group:hover .ob-v2-group-launcher {
+  opacity: 0.9;
+}
+#view-onboarding-ops.rrx-onboarding .ob-v2-group-launcher:hover,
+#view-onboarding-ops.rrx-onboarding .ob-v2-group-launcher:focus-visible {
+  opacity: 1;
+  color: var(--sch-blue, var(--rr-brand-primary));
+  background: var(--sch-blue-softer, var(--rr-brand-soft));
+  outline: none;
+}
+/* Inert stub launcher (Actions group · no rules yet) — default cursor,
+   no brand-blue hover so it doesn't promise interactivity. */
+#view-onboarding-ops.rrx-onboarding .ob-v2-group-launcher[data-rr-rules-stub] {
+  cursor: default;
+}
+#view-onboarding-ops.rrx-onboarding .ob-v2-group-launcher[data-rr-rules-stub]:hover {
+  color: #242424;
+  background: transparent;
+}
+#view-onboarding-ops.rrx-onboarding .ob-v2-group-launcher svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+}
+
 /* Stub Rules footer — same hover-revealed caret as a wired Rules
    button (so the strip reads consistently against the Schedule
    page), but clicking does nothing yet, so it keeps the default

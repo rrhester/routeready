@@ -13112,6 +13112,16 @@ body.rr-cmdk-open{ overflow:hidden }
                   </button>
                 </div>
               </div>
+              <!-- Group caption + consolidated rules launcher · mirrors Schedule's
+                   .sched-v2-viewgroup: a centered caption on the card's bottom line
+                   + a box-arrow dialog launcher pinned bottom-right. The per-tile
+                   Rules chevrons in this group are hidden (CSS) and consolidated
+                   into this one launcher, which forwards to the Funnel screening
+                   rules popover. -->
+              <span class="ob-v2-group-label" aria-hidden="true">Go To</span>
+              <button type="button" class="ob-v2-group-launcher" tabindex="-1" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-funnel-rules-popover" title="Screening rules" onclick="(function(b,ev){ev.preventDefault();ev.stopPropagation();var t=document.getElementById('rr-funnel-rules-toggle');if(t)t.click();})(this,event)">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
+              </button>
             </div><!-- /group: sourcing -->
 
             <!-- Group 2: Readiness — the actual onboarding pipeline -->
@@ -13145,6 +13155,11 @@ body.rr-cmdk-open{ overflow:hidden }
                   </button>
                 </div>
               </div>
+              <!-- Group caption + launcher · forwards to the Onboarding-steps rules. -->
+              <span class="ob-v2-group-label" aria-hidden="true">Rules</span>
+              <button type="button" class="ob-v2-group-launcher" tabindex="-1" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-ob-rules-popover" title="Onboarding steps" onclick="(function(b,ev){ev.preventDefault();ev.stopPropagation();var t=document.getElementById('rr-ob-rules-toggle');if(t)t.click();})(this,event)">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
+              </button>
             </div><!-- /group: readiness -->
 
             <!-- Group 3: Quick action -->
@@ -13188,6 +13203,12 @@ body.rr-cmdk-open{ overflow:hidden }
                 <!-- Hidden file input that openPdfUploadPicker clicks. -->
                 <input type="file" id="rr-ob-pdf-upload-input" accept="application/pdf" style="display:none" multiple/>
               </div>
+              <!-- Group caption + launcher · these are actions (no rules yet), so
+                   the launcher is an inert stub matching the others' look. -->
+              <span class="ob-v2-group-label" aria-hidden="true">Rules</span>
+              <button type="button" class="ob-v2-group-launcher" tabindex="-1" data-rr-rules-stub title="Rules — coming soon">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
+              </button>
             </div><!-- /group: actions -->
           </div>
         </div><!-- /page-header.sched-nav-heading -->
