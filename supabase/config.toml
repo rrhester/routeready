@@ -116,5 +116,11 @@ verify_jwt = false
 [functions.desktop-pair]
 verify_jwt = false
 
+# Central Anthropic proxy for sync boxes. Gateway verify_jwt is off because we
+# validate the box's DSP-session JWT in-function (auth.getUser) so we control
+# the 401s + CORS; the function then injects RouteReady's ANTHROPIC_API_KEY.
+[functions.ai-proxy]
+verify_jwt = false
+
 [analytics]
 enabled = false

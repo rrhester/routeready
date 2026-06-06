@@ -446,6 +446,7 @@ app.whenReady().then(() => {
     appendHistory,
     getMainWindow: () => mainWindow,
     reportRun: reportAgentRun,
+    getAiAuth, // central key via RouteReady's ai-proxy (no key on the box)
   });
   createWindow();
   buildTray();
@@ -724,6 +725,24 @@ function startSyncWatcher() {
   if (syncWatchTimer) return;
   syncWatchTimer = setInterval(syncWatchTick, 15 * 1000);
   setTimeout(syncWatchTick, 8000); // first check shortly after boot
+}
+
+// ─── Central AI key (proxy) ─────────────────────────────────────────
+// So no box ever holds an Anthropic key: the agent routes its model calls
+// through RouteReady's ai-proxy edge function, which injects RouteReady's key
+// server-side and is billed centrally. We hand the agent the proxy URL + the
+// box's current (auto-refreshed) DSP session token so the proxy can authorize
+// the call. Returns null if the box isn't paired (then the agent falls back to
+// any box-local key, or reports "no AI").
+async function getAiAuth() {
+  try {
+    const sb = await getBoxSupabase();
+    if (!sb) return null;
+    const { data } = await sb.auth.getSession();
+    const token = data?.session?.access_token;
+    if (!token) return null;
+    return { proxyUrl: `${effectiveFunctionsUrl()}/ai-proxy`, token, anonKey: SUPABASE_ANON_KEY };
+  } catch (e) { logLine("ai-auth: failed", String(e?.message || e)); return null; }
 }
 
 // ─── Central crawl tasks (ROADMAP #4 Phase 2) ───────────────────────
