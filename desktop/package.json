@@ -30,6 +30,9 @@
     "appId": "com.routeready.desktop",
     "productName": "RouteReady Desktop",
     "directories": { "output": "dist" },
+    "protocols": [
+      { "name": "RouteReady", "schemes": ["routeready"] }
+    ],
     "files": [
       "main.js",
       "preload.js",

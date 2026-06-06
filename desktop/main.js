@@ -136,6 +136,15 @@ function effectiveDashboardUrl() {
   return (cfg.dashboardUrl && cfg.dashboardUrl.trim()) || DEFAULT_DASHBOARD_URL;
 }
 
+// Supabase Edge Functions base — used for the desktop-pair "redeem" call in
+// the browser-pairing flow. Overridable via config.supabaseFunctionsUrl
+// (staging); defaults to the production project.
+const DEFAULT_SUPABASE_FUNCTIONS_URL = "https://doiwrhkirgblcvuskhno.supabase.co/functions/v1";
+function effectiveFunctionsUrl() {
+  const cfg = readConfig();
+  return (cfg.supabaseFunctionsUrl && cfg.supabaseFunctionsUrl.trim()) || DEFAULT_SUPABASE_FUNCTIONS_URL;
+}
+
 // ─── Config (portal URL + future settings) ──────────────────────────
 // Tiny JSON-on-disk store. electron-store v10 is ESM-only so we
 // hand-roll this — only one or two keys for now.
@@ -274,6 +283,66 @@ function buildAppMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+// ─── routeready:// deep-link → "Connect from browser" pairing ───────
+// The OS hands us routeready://connect?code=… (opened by the dashboard's
+// "Connect desktop app" button). We redeem the one-time code with the
+// desktop-pair function for a Supabase session, then sign the dashboard
+// window in via the helper the dashboard exposes (window.__rrApplySession).
+// We never persist the web session ourselves — the dashboard owns it.
+function handleDeepLink(link) {
+  let u;
+  try { u = new URL(link); } catch { logLine("deep-link: bad url", String(link)); return; }
+  const action = u.hostname || u.pathname.replace(/^\/+/, "");
+  if (action === "connect") {
+    const code = u.searchParams.get("code");
+    if (code) { redeemPairing(code); return; }
+    logLine("deep-link: connect without code");
+    return;
+  }
+  logLine("deep-link: unhandled", link);
+}
+
+async function redeemPairing(code) {
+  showWindow();
+  try {
+    logLine("pairing: redeeming code");
+    const res = await fetch(`${effectiveFunctionsUrl()}/desktop-pair`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "redeem", code }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.access_token || !body.refresh_token) {
+      const err = body.error || `HTTP ${res.status}`;
+      logLine("pairing: redeem failed", err);
+      try { dialog.showErrorBox("Couldn't connect", `Pairing failed: ${err}\n\nIn the dashboard, click "Connect desktop app" again to get a fresh code.`); } catch {}
+      return;
+    }
+    logLine("pairing: redeemed for", body.email || "(unknown)");
+    applyDashboardSession(body.access_token, body.refresh_token);
+  } catch (e) {
+    logLine("pairing: redeem threw", String(e?.message || e));
+    try { dialog.showErrorBox("Couldn't connect", `Pairing error: ${String(e?.message || e)}`); } catch {}
+  }
+}
+
+// Hand the redeemed tokens to the dashboard window's own Supabase client
+// (the dashboard exposes window.__rrApplySession). If the window isn't on
+// the dashboard yet (offline fallback), load it first, then apply.
+function applyDashboardSession(accessToken, refreshToken) {
+  if (!mainWindow) return;
+  const apply = () => {
+    const js = `(window.__rrApplySession ? (window.__rrApplySession(${JSON.stringify(accessToken)}, ${JSON.stringify(refreshToken)}), "ok") : "no_helper")`;
+    mainWindow.webContents.executeJavaScript(js, true)
+      .then((r) => { if (r === "no_helper") logLine("pairing: dashboard has no __rrApplySession helper yet"); })
+      .catch((e) => logLine("pairing: applySession exec failed", String(e)));
+  };
+  let onDash = false;
+  try { onDash = new URL(mainWindow.webContents.getURL()).origin === new URL(effectiveDashboardUrl()).origin; } catch {}
+  if (onDash) apply();
+  else { mainWindow.webContents.once("did-finish-load", apply); loadDashboard(); }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1100,
@@ -324,6 +393,22 @@ function createWindow() {
   });
 }
 
+// ─── Single instance + routeready:// deep-link routing ──────────────
+// Browser pairing needs the OS to deliver routeready://connect?code=… to
+// the one running app. Without the single-instance lock, the link would
+// spawn a second copy instead of reaching the live window.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", (_e, argv) => {
+    showWindow();
+    const link = argv.find((a) => typeof a === "string" && a.startsWith("routeready://"));
+    if (link) handleDeepLink(link);
+  });
+  // macOS delivers the deep-link as an event rather than argv.
+  app.on("open-url", (e, url) => { e.preventDefault(); handleDeepLink(url); });
+}
+
 app.whenReady().then(() => {
   logLine("app ready, version=", app.getVersion(), "packaged=", app.isPackaged, "platform=", process.platform);
   // Resolve Chromium up-front so its discovery is recorded in the log
@@ -363,6 +448,20 @@ app.whenReady().then(() => {
     try { app.setLoginItemSettings({ openAtLogin: true }); }
     catch (e) { logLine("setLoginItemSettings failed:", String(e)); }
   }
+
+  // Register routeready:// so the OS routes pairing deep-links to us. In dev
+  // (unpackaged) we must point the registration at electron + this script.
+  try {
+    if (process.defaultApp && process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient("routeready", process.execPath, [path.resolve(process.argv[1])]);
+    } else {
+      app.setAsDefaultProtocolClient("routeready");
+    }
+  } catch (e) { logLine("protocol register failed:", String(e)); }
+
+  // Cold-start deep link (Windows/Linux deliver it in argv on first launch).
+  const initialLink = process.argv.find((a) => typeof a === "string" && a.startsWith("routeready://"));
+  if (initialLink) handleDeepLink(initialLink);
 });
 
 // Background sync engine: with a tray present, don't quit when the window
@@ -595,10 +694,11 @@ ipcMain.handle("config:get", async () => {
   };
 });
 
-ipcMain.handle("config:set", async (_evt, { portalUrl, dashboardUrl } = {}) => {
+ipcMain.handle("config:set", async (_evt, { portalUrl, dashboardUrl, supabaseFunctionsUrl } = {}) => {
   const patch = {};
   if (typeof portalUrl === "string") patch.portalUrl = portalUrl.trim();
   if (typeof dashboardUrl === "string") patch.dashboardUrl = dashboardUrl.trim();
+  if (typeof supabaseFunctionsUrl === "string") patch.supabaseFunctionsUrl = supabaseFunctionsUrl.trim();
   writeConfig(patch);
   return { ok: true, portalUrl: effectivePortalUrl(), dashboardUrl: effectiveDashboardUrl() };
 });
