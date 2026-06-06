@@ -204,8 +204,13 @@ function buildTray() {
     return;
   }
   tray.setToolTip("RouteReady Desktop — background sync");
+  // The tray menu carries the actions that used to live in the (now hidden)
+  // top menu bar, so the app shows nothing but the dashboard.
   const menu = Menu.buildFromTemplate([
     { label: "Open RouteReady", click: showWindow },
+    { label: "Dashboard", click: () => { showWindow(); loadDashboard(); } },
+    { label: "Portal sync settings", click: () => { showWindow(); loadLocalUI(); } },
+    { label: "Reload", click: () => { showWindow(); mainWindow?.webContents.reload(); } },
     { type: "separator" },
     { label: "Quit RouteReady", click: () => { app.isQuitting = true; app.quit(); } },
   ]);
@@ -256,32 +261,9 @@ function hardenNavigation(wc) {
   });
 }
 
-// Minimal application menu: lets the operator jump between the live
-// dashboard and the local portal-sync settings, reload, or quit.
-function buildAppMenu() {
-  const template = [
-    {
-      label: "RouteReady",
-      submenu: [
-        { label: "Dashboard", click: () => { showWindow(); loadDashboard(); } },
-        { label: "Portal sync settings", click: () => { showWindow(); loadLocalUI(); } },
-        { type: "separator" },
-        { label: "Reload", accelerator: "CmdOrCtrl+R", click: () => mainWindow?.webContents.reload() },
-        { type: "separator" },
-        { label: "Quit RouteReady", accelerator: "CmdOrCtrl+Q", click: () => { app.isQuitting = true; app.quit(); } },
-      ],
-    },
-    { role: "editMenu" },
-    {
-      label: "View",
-      submenu: [
-        { role: "resetZoom" }, { role: "zoomIn" }, { role: "zoomOut" },
-        { type: "separator" }, { role: "togglefullscreen" },
-      ],
-    },
-  ];
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
-}
+// (Native menu bar intentionally removed — see Menu.setApplicationMenu(null)
+// in app.whenReady. Menu actions moved to the tray so the window shows only
+// the dashboard.)
 
 // ─── routeready:// deep-link → "Connect from browser" pairing ───────
 // The OS hands us routeready://connect?code=… (opened by the dashboard's
@@ -351,6 +333,8 @@ function createWindow() {
     minHeight: 480,
     title: "RouteReady Desktop",
     backgroundColor: "#F8FAFC",
+    icon: path.join(__dirname, "build", "icon.png"),
+    autoHideMenuBar: true, // no white menu strip above the dashboard
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -438,7 +422,7 @@ app.whenReady().then(() => {
   });
   createWindow();
   buildTray();
-  buildAppMenu();
+  Menu.setApplicationMenu(null); // hide the native menu bar; actions live in the tray
 
   // Start with the OS at login so the sync engine is up after a reboot
   // without the operator thinking about it. Packaged only — we don't want

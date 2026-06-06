@@ -28,7 +28,12 @@ const Anthropic = require("@anthropic-ai/sdk");
 let DEPS = null;
 
 // ─── Tunables ───────────────────────────────────────────────────────
-const DEFAULT_MODEL = "claude-opus-4-8";     // skill-mandated default; per-task override allowed
+// Default to Sonnet, not Opus: an agent crawl is "read the page, click,
+// extract" — not deep reasoning — so Sonnet handles it well at ~1.7x less
+// than Opus (Haiku is cheaper still for simple/stable pages). Per-task
+// overridable; reserve Opus for genuinely tricky portals. See ROADMAP.md
+// (AI cost model).
+const DEFAULT_MODEL = "claude-sonnet-4-6";   // was claude-opus-4-8 — cost
 const DEFAULT_EFFORT = "medium";             // cost/quality balance for repetitive crawls
 const MAX_STEPS = 40;                          // hard cap on agent tool-iterations per run
 const MAX_TOKENS = 16000;                       // per-turn output cap (non-streaming, under HTTP timeout)
@@ -393,6 +398,28 @@ function emitTaskUpdated(taskId) {
   try { DEPS.getMainWindow()?.webContents.send("agent:taskUpdated", { id: taskId }); } catch {}
 }
 
+// Prompt caching for the agent loop. The system+tools prefix is cached via a
+// breakpoint on the system block (tools render before system, so it covers
+// both). Here we keep a single *rolling* breakpoint on the last block of the
+// newest message, so the growing conversation prefix (all the prior page
+// snapshots) is served from cache next step at ~0.1x instead of full price.
+// Strip old breakpoints first so we never exceed the 4-breakpoint limit.
+function markCache(messages) {
+  for (const m of messages) {
+    if (Array.isArray(m.content)) {
+      for (const b of m.content) { if (b && typeof b === "object") delete b.cache_control; }
+    }
+  }
+  const last = messages[messages.length - 1];
+  if (!last) return;
+  if (typeof last.content === "string") {
+    last.content = [{ type: "text", text: last.content, cache_control: { type: "ephemeral" } }];
+  } else if (Array.isArray(last.content) && last.content.length) {
+    const lb = last.content[last.content.length - 1];
+    if (lb && typeof lb === "object") lb.cache_control = { type: "ephemeral" };
+  }
+}
+
 async function callModel(client, { model, effort, system, tools, messages }) {
   return client.messages.create({
     model,
@@ -528,7 +555,9 @@ async function runTask(id, { manual = false } = {}) {
     await page.goto(task.startUrl, { waitUntil: "domcontentloaded", timeout: 45000 });
     const firstSnap = await takeSnapshot(page);
 
-    const system = systemPrompt();
+    // System prompt + tool defs are identical every step — cache them so we
+    // don't pay full input price re-sending them each iteration.
+    const systemBlocks = [{ type: "text", text: systemPrompt(), cache_control: { type: "ephemeral" } }];
     const messages = [{
       role: "user",
       content:
@@ -542,7 +571,8 @@ async function runTask(id, { manual = false } = {}) {
 
       let resp;
       try {
-        resp = await callModel(client, { model, effort, system, tools: TOOLS, messages });
+        markCache(messages); // roll the conversation cache breakpoint to the newest turn
+        resp = await callModel(client, { model, effort, system: systemBlocks, tools: TOOLS, messages });
       } catch (e) {
         const msg = String(e?.message || e);
         errors.push(msg);

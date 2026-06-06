@@ -59,6 +59,7 @@
       "target": ["AppImage", "deb"],
       "category": "Office",
       "maintainer": "RouteReady <support@gorouteready.com>",
+      "icon": "build/icon.png",
       "artifactName": "RouteReady-Desktop.${ext}"
     }
   }
