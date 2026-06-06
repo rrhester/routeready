@@ -2106,6 +2106,13 @@ body.rr-sched-insights #view-schedule.rrx-schedule .sched-print-actions {
   position: relative;
   flex: 0 0 auto;
 }
+/* Per-tile hover "Rules" chevrons are consolidated into the group's single
+   dialog-launcher, so hide them inside any view-group. They stay in the DOM
+   (display:none still receives .click()) so right-clicking a tile keeps
+   opening that tile's own rules popover. */
+#view-schedule.rrx-schedule .sched-v2-viewgroup .sched-v2-rules-foot {
+  display: none !important;
+}
 /* "Go To" group label · Outlook-style group caption centered on the
    bottom LINE of the card, below the Today/Weekly/Monthly tiles. */
 #view-schedule.rrx-schedule .sched-v2-group-label {
