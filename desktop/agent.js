@@ -153,6 +153,30 @@ function clearSecretSeen(id) { try { if (fs.existsSync(seenFile(id))) fs.unlinkS
 function ensureSeeded() {
   const dir = tasksDir();
   if (fs.readdirSync(dir).filter((f) => f.endsWith(".json")).length > 0) return;
+  // Benign shakedown task — a public, no-login demo site so a new operator
+  // can validate the whole crawl→extract loop with just an API key, before
+  // pointing it at a real portal with live PII. Upload stays OFF.
+  writeTask({
+    id: "shakedown-public-demo",
+    name: "Shakedown — public demo (no login)",
+    goal:
+      "This is a TEST run on a public demo bookstore (no login needed). " +
+      "Find every book listed on the current page and record each one with " +
+      "save_rows: put the book's title in `name` and its price in `extra` as " +
+      '{ "price": "<the price text>" }. You do NOT need to paginate — just ' +
+      "the books on this first page is enough for the test. When you've " +
+      "recorded them all, call done with status 'complete'.",
+    startUrl: "https://books.toscrape.com/",
+    intervalMinutes: 60,
+    enabled: false,
+    downloadDir: "",
+    uploadToRouteReady: false,
+    model: null,
+    effort: null,
+    lastRunAt: null, lastResult: null, lastError: null,
+    lastCount: null, lastNewCount: null, lastUploaded: null, lastSummary: null,
+    nextRunAt: null, createdAt: new Date().toISOString(),
+  });
   writeTask({
     id: "indeed-applicants-agent",
     name: "Indeed — applicants (AI agent)",
@@ -447,7 +471,10 @@ async function runTask(id, { manual = false } = {}) {
 
   const apiKey = readSecret(keyFile());
   if (!apiKey) return { ok: false, error: "no_api_key", message: "Add an Anthropic API key in the AI agent settings first." };
-  if (!DEPS.readSession()) return { ok: false, error: "no_session", message: "No saved portal session — sign in first." };
+  // A saved portal session is loaded when present, but not required — that
+  // lets a benign no-login page (the shakedown task) run with just an API
+  // key. On a real auth-walled page with no session the agent simply lands
+  // on the login wall and reports done:"blocked", which is the right signal.
 
   const client = new Anthropic({ apiKey });
   const model = effectiveModel(task);
