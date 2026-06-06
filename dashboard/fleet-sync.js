@@ -277,7 +277,7 @@
 
   // ── "Finish setup" banner (new DSPs, until a box is connected) ────
   function mountBanner(sb) {
-    if (localStorage.getItem("rr-ps-banner-dismissed") === "1") return;
+    if (sessionStorage.getItem("rr-ps-banner-dismissed") === "1") return;
     let banner = null;
     function build() {
       if (banner) return;
@@ -295,7 +295,7 @@
         <button class="rr-ps-b-x" aria-label="Dismiss">×</button>`;
       wireSetupButtons(banner);
       banner.querySelector(".rr-ps-b-x").addEventListener("click", () => {
-        localStorage.setItem("rr-ps-banner-dismissed", "1");
+        sessionStorage.setItem("rr-ps-banner-dismissed", "1");
         banner.remove(); banner = null;
       });
       document.body.appendChild(banner);
