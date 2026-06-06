@@ -177,7 +177,12 @@ chmod +x RouteReady\ Desktop-*.AppImage
   (optionally) straight into RouteReady — each row is POSTed to the
   public `webhook-apply` edge function → `intake_applicant()`, which
   dedupes by email / source_ref per DSP. Inference runs on the
-  operator's **own Anthropic API key**, stored encrypted via
+  operator's **own Anthropic API key**. Tasks against bot-protected
+  portals (Indeed's Cloudflare wall blocks a headless Chromium) can run in
+  a **visible browser** via a per-task toggle — a real window sails past
+  the block, the same reason the headed login flow isn't blocked; benign
+  sites stay headless for background runs. Inference runs on the key stored
+  encrypted via
   `safeStorage` exactly like the portal session — page content goes
   operator → Anthropic directly, never through RouteReady. `callModel()`
   is the single transport seam if we later want to route through a
