@@ -57,16 +57,15 @@
    the same visual without that risk. */
 #view-onboarding-ops.rrx-onboarding > .page {
   /* Land the strip card top — and therefore the KPI card below it —
-     at Schedule's exact Y. On Schedule the strip top = page pad (20px)
-     + cmd-shell margin-bottom (17px) = 37px, with the cmd-tabs taken
-     out of flow (position:absolute, 0 height). We mirror that here:
-     the .ob-cmd-tabs below are floated out of flow too, so the strip
-     starts right at this padding edge — set it to 37px so it matches
-     Schedule instead of the old "12px + ~28px in-flow tabs" stack,
-     which left the tab height (a font-dependent, unmeasurable value)
-     pushing the whole stack down. Same value the roster-mode parity
-     rule uses (index.html:18736). */
-  padding: 37px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
+     at Schedule's exact Y. MEASURED in a headless browser: Schedule's
+     strip card renders 32px below its .page content top (page pad 20px
+     + the cmd-shell's *computed* 12px margin-bottom — NOT the 17px the
+     old comments claimed). Its cmd-tabs are position:absolute (0 flow),
+     so we float .ob-cmd-tabs below the same way; the strip then starts
+     right at this padding edge. Setting it to 32px puts the strip at
+     32px and the KPI at 139px — byte-identical to Schedule (verified by
+     re-measuring both views). */
+  padding: 32px var(--rr-space-200) var(--rr-space-200) var(--rr-space-200) !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
