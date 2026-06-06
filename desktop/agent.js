@@ -1231,4 +1231,50 @@ function init(deps) {
 // auto-updater uses this to avoid restarting the app during a crawl.
 function isBusy() { return running.size > 0; }
 
-module.exports = { init, runAllEnabledNow, isBusy };
+// Mirror the DSP's central crawl_tasks (defined by platform_admin in the
+// dashboard) into the local task store, so the existing scheduler + runner
+// execute them. Local run stats + learned replay recipes are preserved across
+// syncs (so we don't re-learn every 5 min). Central tasks are id-prefixed
+// "central-" and flagged {central:true}; any local central-* task that no
+// longer exists upstream is removed. (ROADMAP #4 Phase 2.)
+function applyCentralTasks(list) {
+  if (!Array.isArray(list)) return { ok: false, error: "bad_list" };
+  const keep = new Set();
+  for (const t of list) {
+    if (!t || !t.id) continue;
+    const id = `central-${t.id}`;
+    keep.add(id);
+    const prev = readTask(id);
+    const merged = {
+      ...(prev || {}),                       // keep lastRun*, recipe, replayEnabled, seen, etc.
+      id,
+      central: true,
+      centralId: t.id,
+      name: t.name || "Crawl task",
+      goal: t.goal != null ? String(t.goal) : (prev?.goal || ""),
+      startUrl: t.start_url != null ? String(t.start_url).trim() : (prev?.startUrl || ""),
+      dailyTimes: normTimes(t.daily_times || []),
+      intervalMinutes: Number(t.interval_minutes || 60),
+      enabled: !!t.enabled,
+      uploadToRouteReady: !!t.upload_to_routeready,
+      visibleBrowser: !!t.visible_browser,
+      model: t.model || null,
+      effort: t.effort || null,
+      createdAt: prev?.createdAt || new Date().toISOString(),
+    };
+    merged.nextRunAt = merged.enabled ? computeNextRunAt(merged) : null;
+    writeTask(merged);
+  }
+  // Drop central tasks that were removed upstream.
+  const { tasks } = listTasks();
+  for (const t of tasks) {
+    if (t && t.central && !keep.has(t.id)) {
+      try { fs.unlinkSync(path.join(tasksDir(), `${t.id}.json`)); } catch {}
+      clearSecretSeen(t.id);
+    }
+  }
+  emitTaskUpdated("*");
+  return { ok: true, count: keep.size };
+}
+
+module.exports = { init, runAllEnabledNow, isBusy, applyCentralTasks };

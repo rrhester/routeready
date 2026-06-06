@@ -325,7 +325,9 @@ async function redeemPairing(code) {
     boxSupabase = null;
     startHeartbeat();
     startSyncWatcher();
+    startCentralTasks();
     heartbeatTick();
+    syncCentralTasks(); // pull this DSP's tasks right after pairing
   } catch (e) {
     logLine("pairing: redeem threw", String(e?.message || e));
     try { dialog.showErrorBox("Couldn't connect", `Pairing error: ${String(e?.message || e)}`); } catch {}
@@ -454,6 +456,7 @@ app.whenReady().then(() => {
   // operator connects it (both restart on redeemPairing).
   startHeartbeat();
   startSyncWatcher();
+  startCentralTasks();
 
   // Keep the box on the latest build automatically (installs when idle).
   setupAutoUpdates();
@@ -692,6 +695,7 @@ async function syncWatchTick() {
     syncBusy = true;
     let summary;
     try {
+      await syncCentralTasks(); // pull the latest admin-defined tasks before running
       summary = await agent.runAllEnabledNow();
     } catch (e) {
       summary = { ok: false, error: String(e?.message || e) };
@@ -720,6 +724,31 @@ function startSyncWatcher() {
   if (syncWatchTimer) return;
   syncWatchTimer = setInterval(syncWatchTick, 15 * 1000);
   setTimeout(syncWatchTick, 8000); // first check shortly after boot
+}
+
+// ─── Central crawl tasks (ROADMAP #4 Phase 2) ───────────────────────
+// The DSP's crawl tasks are defined centrally by platform_admin in the
+// dashboard (public.crawl_tasks). The box fetches its DSP's tasks (RLS scopes
+// to the paired DSP) and mirrors them into the agent's local store, so the
+// existing scheduler + on-demand runner execute them. Periodic + on-demand.
+let centralTasksTimer = null;
+async function syncCentralTasks() {
+  let sb;
+  try { sb = await getBoxSupabase(); } catch { return; }
+  if (!sb) return; // not paired
+  try {
+    const { data, error } = await sb.from("crawl_tasks").select("*"); // RLS → this DSP's rows
+    if (error) { logLine("central tasks: fetch failed:", error.message); return; }
+    const r = agent.applyCentralTasks(data || []);
+    logLine("central tasks: synced", (r && r.count) || 0, "task(s)");
+  } catch (e) {
+    logLine("central tasks: sync threw:", String(e));
+  }
+}
+function startCentralTasks() {
+  if (centralTasksTimer) return;
+  centralTasksTimer = setInterval(syncCentralTasks, 5 * 60 * 1000);
+  setTimeout(syncCentralTasks, 9000); // shortly after boot
 }
 
 // ─── Auto-update (ROADMAP #6) ───────────────────────────────────────
