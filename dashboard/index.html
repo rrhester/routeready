@@ -20271,6 +20271,23 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:13px;font-weight:700;color:#242424;letter-spacing:.01em;
           }
           #view-schedule .sched-quick-settings-popover.rr-rules-merged .sched-quick-settings-close{display:none !important}
+          /* Rules launcher chooser · Smart Fill rules vs Target rules. */
+          #view-schedule .rr-sched-rules-chooser{
+            position:absolute;z-index:60;
+            background:#fff;border:1px solid rgba(15,23,42,.18);border-radius:6px;
+            box-shadow:0 8px 24px rgba(15,23,42,.18);
+            padding:4px;display:flex;flex-direction:column;min-width:168px;
+            font-family:var(--rr-font-family,'Segoe UI');
+          }
+          #view-schedule .rr-sched-rules-chooser button{
+            appearance:none;background:transparent;border:0;cursor:pointer;
+            text-align:left;font:inherit;font-size:13px;font-weight:600;color:#242424;
+            padding:9px 12px;border-radius:4px;white-space:nowrap;
+            transition:background .12s,color .12s;
+          }
+          #view-schedule .rr-sched-rules-chooser button:hover{
+            background:rgba(15,108,189,.08);color:var(--sch-blue,#0F6CBD);
+          }
           #view-schedule .sched-quick-setting{
             display:grid;grid-template-columns:1fr auto;column-gap:14px;
             align-items:center;
@@ -36141,36 +36158,63 @@ John,Smith,555-0101,john@example.com</code>
      just relocate them once and load their current values. -->
 <script>
   (function () {
-    window._rrOpenSchedRules = function (b, ev) {
-      if (ev) { ev.preventDefault(); ev.stopPropagation(); }
-      var host = b.closest('.sched-v2-strip');
+    function _rrOpenSmartFillRules(host) {
       var sf = document.getElementById('rr-sched-smartfill-rules-popover');
-      var sfBody = document.getElementById('rr-sched-smartfill-rules-body');
       if (sf && host && sf.parentElement !== host) host.appendChild(sf);
-      // Merge the whole Targets "This week's settings" popover into the
-      // Rules box (once), de-positioned so it reads as a section. Keeping
-      // the whole popover preserves its footer + Advanced (waves / service
-      // types) section and all their wiring.
-      var qs = document.getElementById('rr-sched-quick-settings-popover');
-      if (qs && sfBody && qs.parentElement !== sfBody) {
-        qs.classList.add('rr-rules-merged');
-        sfBody.appendChild(qs);
-      }
-      // Open the Smart Fill rules dialog FIRST (capture whether this click
-      // is opening it, so we only reveal the merged Targets settings when
-      // opening — not when toggling closed).
-      var willOpen = sf ? sf.hidden : true;
       var t = document.getElementById('rr-sched-smartfill-rules-toggle');
       if (t) t.click();
-      // Load + reveal the merged Targets settings AFTER the toggle click.
-      // Doing it after matters: the toggle's bubbled click is seen by the
-      // quick-settings "click-outside closes it" guard, and the toggle is
-      // outside both popovers — so if Targets were already shown, that guard
-      // would immediately re-hide it. Revealing it after the click (while it
-      // was still hidden during the click) avoids that.
-      if (willOpen && typeof window._rrToggleSchedQuickSettings === 'function') {
+    }
+    function _rrOpenTargetRules(host) {
+      var qs = document.getElementById('rr-sched-quick-settings-popover');
+      if (qs) {
+        qs.classList.remove('rr-rules-merged');
+        if (host && qs.parentElement !== host) host.appendChild(qs);
+      }
+      if (typeof window._rrToggleSchedQuickSettings === 'function') {
         try { window._rrToggleSchedQuickSettings(true); } catch (e) {}
       }
+    }
+    function _rrCloseRulesChooser() {
+      var m = document.getElementById('rr-sched-rules-chooser');
+      if (m) m.remove();
+    }
+    // The group "Rules" launcher opens a small chooser: Smart Fill rules
+    // vs Target rules. Each choice opens its own dialog (keeps the two rule
+    // sets separate instead of cramming them into one box).
+    window._rrOpenSchedRules = function (b, ev) {
+      if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+      if (document.getElementById('rr-sched-rules-chooser')) { _rrCloseRulesChooser(); return; }
+      var host = b.closest('.sched-v2-strip') || document.body;
+      var menu = document.createElement('div');
+      menu.id = 'rr-sched-rules-chooser';
+      menu.className = 'rr-sched-rules-chooser';
+      menu.innerHTML =
+        '<button type="button" data-rr-rules="smartfill">Smart Fill rules</button>' +
+        '<button type="button" data-rr-rules="targets">Target rules</button>';
+      host.appendChild(menu);
+      // Position just below the launcher, within the strip.
+      var r = b.getBoundingClientRect(), hr = host.getBoundingClientRect();
+      menu.style.top = (r.bottom - hr.top + 4) + 'px';
+      menu.style.left = Math.max(0, (r.right - hr.left - 168)) + 'px';
+      menu.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var btn = e.target.closest('[data-rr-rules]');
+        if (!btn) return;
+        var which = btn.getAttribute('data-rr-rules');
+        _rrCloseRulesChooser();
+        if (which === 'smartfill') _rrOpenSmartFillRules(host);
+        else _rrOpenTargetRules(host);
+      });
+      // Close the chooser on any click outside it (and outside the launcher).
+      setTimeout(function () {
+        document.addEventListener('click', function onDoc(e) {
+          if (!e.target.closest('#rr-sched-rules-chooser')
+              && !e.target.closest('.sched-v2-group-launcher')) {
+            _rrCloseRulesChooser();
+            document.removeEventListener('click', onDoc);
+          }
+        });
+      }, 0);
     };
   })();
 </script>
