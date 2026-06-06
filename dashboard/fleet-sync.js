@@ -20,8 +20,10 @@
   if (window.__rrFleetSyncLoaded) return;
   window.__rrFleetSyncLoaded = true;
 
-  // Inside the desktop app the box IS this machine — no panel needed.
-  if (window.routeready && window.routeready.isDesktop) return;
+  // Shown in BOTH the web app and the desktop app. The desktop app loads the
+  // same dashboard, so the Portal sync section appears there too — handy for
+  // confirming the box (this machine) is reporting in and for triggering a
+  // pull from the same screen.
 
   const HEARTBEAT_STALE_MS = 15 * 60 * 1000; // box beats every 5m; 3 misses = dark
   const REFRESH_MS = 30 * 1000;
