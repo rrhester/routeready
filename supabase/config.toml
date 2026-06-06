@@ -122,5 +122,11 @@ verify_jwt = false
 [functions.ai-proxy]
 verify_jwt = false
 
+# Authenticated applicant intake for sync boxes (uploads via the box's DSP
+# session — no apply-secret/short-code on the box). verify_jwt off; the
+# function validates the JWT + resolves the DSP server-side.
+[functions.box-ingest]
+verify_jwt = false
+
 [analytics]
 enabled = false
