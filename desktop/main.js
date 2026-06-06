@@ -38,6 +38,10 @@ const agent = require("./agent");
 const { createClient } = require("@supabase/supabase-js");
 const crypto = require("node:crypto");
 const os = require("node:os");
+// electron-updater is optional at require-time so a dev checkout without the
+// dep installed still boots; packaged builds always ship it.
+let autoUpdater = null;
+try { ({ autoUpdater } = require("electron-updater")); } catch { /* dev without dep */ }
 
 // Public Supabase project config — the anon (publishable) key is safe to
 // embed; it's the same one shipped in the dashboard's config.js. Used for the
@@ -221,6 +225,7 @@ function buildTray() {
     { label: "Dashboard", click: () => { showWindow(); loadDashboard(); } },
     { label: "Portal sync settings", click: () => { showWindow(); loadLocalUI(); } },
     { label: "Reload", click: () => { showWindow(); mainWindow?.webContents.reload(); } },
+    { label: "Check for updates", click: () => { checkForUpdatesNow(); } },
     { type: "separator" },
     { label: "Quit RouteReady", click: () => { app.isQuitting = true; app.quit(); } },
   ]);
@@ -449,6 +454,9 @@ app.whenReady().then(() => {
   // operator connects it (both restart on redeemPairing).
   startHeartbeat();
   startSyncWatcher();
+
+  // Keep the box on the latest build automatically (installs when idle).
+  setupAutoUpdates();
 
   // Start with the OS at login so the sync engine is up after a reboot
   // without the operator thinking about it. Packaged only — we don't want
@@ -712,6 +720,54 @@ function startSyncWatcher() {
   if (syncWatchTimer) return;
   syncWatchTimer = setInterval(syncWatchTick, 15 * 1000);
   setTimeout(syncWatchTick, 8000); // first check shortly after boot
+}
+
+// ─── Auto-update (ROADMAP #6) ───────────────────────────────────────
+// So an always-on sync box maintains itself: install once, never reinstall.
+// electron-updater reads the GitHub Release's latest.yml (electron-builder
+// generates it from the `publish` config), downloads the new installer, and
+// installs it — but only when the box is IDLE, so we never kill a crawl
+// mid-run. AppImage + Windows nsis support this; .deb/ChromeOS does not
+// (the Windows mini-PC is the appliance target anyway).
+let updateReady = false;
+let autoUpdateStarted = false;
+function maybeInstallUpdate() {
+  if (!updateReady || !autoUpdater) return;
+  let busy = false;
+  try { busy = (agent.isBusy && agent.isBusy()) || syncBusy; } catch {}
+  if (busy) { logLine("update: downloaded but box is busy — deferring install"); return; }
+  logLine("update: idle — installing and relaunching");
+  try { autoUpdater.quitAndInstall(true, true); } // silent install, relaunch after
+  catch (e) { logLine("update: quitAndInstall threw:", String(e?.message || e)); }
+}
+function checkForUpdatesNow() {
+  if (!autoUpdater || !app.isPackaged) return;
+  autoUpdater.checkForUpdates().catch((e) => logLine("update: check threw:", String(e?.message || e)));
+}
+function setupAutoUpdates() {
+  if (autoUpdateStarted) return;
+  if (!autoUpdater) { logLine("update: electron-updater not available; skipping"); return; }
+  if (!app.isPackaged) { logLine("update: dev build, auto-update disabled"); return; }
+  autoUpdateStarted = true;
+  autoUpdater.logger = {
+    info: (m) => logLine("update:", typeof m === "string" ? m : JSON.stringify(m)),
+    warn: (m) => logLine("update warn:", typeof m === "string" ? m : JSON.stringify(m)),
+    error: (m) => logLine("update error:", typeof m === "string" ? m : JSON.stringify(m)),
+    debug: () => {},
+  };
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true; // fallback: install on next manual quit
+  autoUpdater.on("update-available", (info) => logLine("update: available", info && info.version));
+  autoUpdater.on("update-not-available", () => logLine("update: up to date"));
+  autoUpdater.on("error", (e) => logLine("update: error", String(e && e.message || e)));
+  autoUpdater.on("update-downloaded", (info) => {
+    updateReady = true;
+    logLine("update: downloaded", info && info.version, "— will install when idle");
+    maybeInstallUpdate();
+  });
+  setTimeout(checkForUpdatesNow, 20000);                 // shortly after boot
+  setInterval(checkForUpdatesNow, 6 * 60 * 60 * 1000);   // every 6h
+  setInterval(maybeInstallUpdate, 5 * 60 * 1000);        // retry idle-install every 5m
 }
 
 // Called by the agent after each crawl with a run summary — records the

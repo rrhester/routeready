@@ -1227,4 +1227,8 @@ function init(deps) {
   });
 }
 
-module.exports = { init, runAllEnabledNow };
+// True while any task (scheduled, manual, or replay) is mid-run — the
+// auto-updater uses this to avoid restarting the app during a crawl.
+function isBusy() { return running.size > 0; }
+
+module.exports = { init, runAllEnabledNow, isBusy };

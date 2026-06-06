@@ -86,9 +86,16 @@ cleanly — read it first when picking this back up._
    the AI only re-fires when replay breaks (selector gone / 0 rows → auto
    re-learn). Per-task `replayEnabled` (default on) + a **Re-learn** button in
    the local UI. This is the 10–100× AI-cost lever for high-frequency pulls.
-6. **Auto-update** *(electron-updater + GitHub Releases)* — so boxes maintain
-   themselves; install once, never reinstall. (Note: AppImage auto-updates;
-   `.deb`/ChromeOS does not — Windows mini-PC is the target anyway.)
+6. ✅ **Auto-update** *(electron-updater + GitHub Releases — done)* — the box
+   checks the GitHub Release's `latest.yml` (generated from the electron-builder
+   `publish` config) on boot + every 6h, downloads a newer installer, and
+   installs it **only when idle** (`agent.isBusy()`/`syncBusy` guard) so a crawl
+   is never killed mid-run; `autoInstallOnAppQuit` is the fallback. Tray gets a
+   "Check for updates". AppImage + Windows nsis auto-update; `.deb`/ChromeOS does
+   not (the Windows mini-PC is the appliance target). **Takes effect from the
+   NEXT release on** — the first build carrying the updater must be installed
+   once manually; after that boxes self-maintain. ⚠️ If the repo's Releases
+   aren't publicly downloadable, electron-updater needs a token — see PR caveat.
 
 ## Product decisions to make (not code)
 
