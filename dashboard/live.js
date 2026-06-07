@@ -532,7 +532,10 @@ function renderApplicantCard(a) {
   // (or, for Decline + Video, removed entirely) so each card carries
   // one obvious workflow + a quiet overflow.
   let ctaAction = "", ctaLabel = "";
-  if (stage === "applied")           { ctaAction = "resend_screening"; ctaLabel = "Resend screening"; }
+  // "Send" until a screening invite has actually gone out (same signal the
+  // timeline uses for "Screening invite sent"), "Resend" after — so the button
+  // and the card's timeline never disagree. Same action either way.
+  if (stage === "applied")           { ctaAction = "resend_screening"; ctaLabel = a.last_sms_at ? "Resend screening" : "Send screening"; }
   else if (stage === "screened")     { ctaAction = "send_link";        ctaLabel = "Send booking link"; }
   else if (stage === "booking_pending") { ctaAction = "resend_link";   ctaLabel = "Resend booking link"; }
   else if (stage === "booking_scheduled") { ctaAction = "reschedule";  ctaLabel = "Reschedule"; }
