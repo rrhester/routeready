@@ -20,6 +20,21 @@ const path = require("node:path");
 const fs = require("node:fs");
 const { pathToFileURL } = require("node:url");
 
+// Electron's main process runs Node 20, which has no global WebSocket. Recent
+// @supabase/realtime-js throws "Node.js 20 detected without native WebSocket
+// support" the moment a Supabase client is constructed — which silently broke
+// ALL central box operations (health heartbeat, central crawl-task sync, the AI
+// proxy, and applicant upload). Provide `ws` as the global so the client builds.
+// Must run before any createClient() call (i.e. before getBoxSupabase).
+try { if (!globalThis.WebSocket) globalThis.WebSocket = require("ws"); } catch (e) { /* ws missing in dev */ }
+
+// Some Chromebook/Crostini (and other Linux) GPU stacks crash the BrowserWindow
+// a second or two after it opens ("Exiting GPU process due to errors during
+// initialization"), which — with no tray to fall back to — quit the whole app
+// before the UI could render. Disabling hardware acceleration makes the window
+// render in software and stay up. Must be called before app is ready.
+try { app.disableHardwareAcceleration(); } catch (e) { /* no-op */ }
+
 // The one bundled local UI file that is allowed to load in-app and receive
 // the full (powerful) bridge. Anything else — including other file:// paths
 // — is untrusted. Used by hardenNavigation + the trusted-origins handshake.
@@ -554,10 +569,13 @@ app.whenReady().then(() => {
 });
 
 // Background sync engine: with a tray present, don't quit when the window
-// closes — it hides to the tray and the scheduler keeps firing. Without a
-// tray (no status-notifier host), fall back to the normal quit-on-close so
-// the app can't get stranded with no window and no tray icon.
+// closes — it hides to the tray and the scheduler keeps firing. A PAIRED box
+// also keeps running headless even without a tray (e.g. tray-less Linux /
+// Crostini, where the window may even crash) so scheduled crawls + upload keep
+// firing. Only an unpaired, tray-less app quits on close, so a fresh install
+// can't get stranded invisibly.
 app.on("window-all-closed", () => {
+  if (readBoxSession()) return; // paired → run as a background box
   if (!tray && process.platform !== "darwin") app.quit();
 });
 

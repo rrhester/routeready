@@ -754,3 +754,12 @@ details.advanced[open] > summary {
   margin-right: 6px;
   vertical-align: middle;
 }
+
+/* Cleaned-up local UI: hide the onboarding welcome card and the legacy
+   "Advanced tools" block (manual download, scheduled downloads, and the old
+   record-and-replay scraper) — all superseded by the AI agent. Keeps the page
+   to just Connect · Portal sign-in · AI agent · Activity. */
+#welcome,
+#advanced-tools {
+  display: none !important;
+}

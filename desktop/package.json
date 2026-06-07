@@ -1,6 +1,6 @@
 {
   "name": "routeready-desktop",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "description": "RouteReady desktop sync · drives the Amazon DSP portal under the operator's corporate login, pulls route data + pick sheets, and ships them to RouteReady.",
   "main": "main.js",
   "private": true,
@@ -21,7 +21,8 @@
     "@supabase/supabase-js": "^2.45.0",
     "electron-store": "^10.0.0",
     "electron-updater": "^6.3.9",
-    "playwright": "^1.48.0"
+    "playwright": "^1.48.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "electron": "^32.0.0",
