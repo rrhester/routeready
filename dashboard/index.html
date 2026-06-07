@@ -11713,9 +11713,8 @@ body.rr-cmdk-open{ overflow:hidden }
              Indeed-sync card matches the "Open shifts" card exactly. */
           #view-pipeline .pipe-shell{
             display:grid;grid-template-columns:1fr 280px;
-            /* Match the gap between the Schedule's icon bar and grid
-               (.sched-cmd-shell margin-bottom:17px). */
-            gap:17px;align-items:start;
+            /* Breathing room between the applicant card and the KPI card. */
+            gap:var(--s-6);align-items:start;
           }
           /* ── Applicant workspace · one container, dividered rows (ATS feel) ── */
           #view-pipeline .pa-workspace{
@@ -36429,7 +36428,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260607-nohdr"></script>
+<script type="module" src="./live.js?v=20260607-gap24"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
