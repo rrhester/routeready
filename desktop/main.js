@@ -110,18 +110,31 @@ function resolveChromiumExecutable() {
     logLine("chromium: no chromium-* dir in", browsersRoot, "entries:", entries);
     return undefined;
   }
-  const platformSubpath = process.platform === "win32"
-    ? path.join("chrome-win", "chrome.exe")
+  // Playwright's per-platform layout has shifted across versions (e.g. Linux
+  // moved from chrome-linux/ to chrome-linux64/), and a headless_shell dir
+  // uses a different binary name — so try every known layout and use the
+  // first that actually exists instead of hardcoding one.
+  const subpaths = process.platform === "win32"
+    ? [path.join("chrome-win", "chrome.exe")]
     : process.platform === "darwin"
-      ? path.join("chrome-mac", "Chromium.app", "Contents", "MacOS", "Chromium")
-      : path.join("chrome-linux", "chrome");
-  const exe = path.join(browsersRoot, chromiumDir, platformSubpath);
-  if (!fs.existsSync(exe)) {
-    logLine("chromium: executable missing at", exe);
-    return undefined;
+      ? [
+          path.join("chrome-mac", "Chromium.app", "Contents", "MacOS", "Chromium"),
+          path.join("chrome-mac-arm64", "Chromium.app", "Contents", "MacOS", "Chromium"),
+        ]
+      : [
+          path.join("chrome-linux64", "chrome"),
+          path.join("chrome-linux", "chrome"),
+          path.join("chrome-headless-shell-linux64", "chrome-headless-shell"),
+          path.join("chrome-linux", "headless_shell"),
+        ];
+  const tried = [];
+  for (const sub of subpaths) {
+    const exe = path.join(browsersRoot, chromiumDir, sub);
+    tried.push(exe);
+    if (fs.existsSync(exe)) { logLine("chromium: resolved", exe); return exe; }
   }
-  logLine("chromium: resolved", exe);
-  return exe;
+  logLine("chromium: executable missing, tried:", tried);
+  return undefined;
 }
 
 let CHROMIUM_EXEC_PATH = null;
