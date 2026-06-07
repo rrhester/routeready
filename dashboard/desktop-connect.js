@@ -40,13 +40,55 @@
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.code) { alert("Couldn't start pairing: " + (body.error || ("HTTP " + res.status))); reset(); return; }
-      window.location.href = `routeready://connect?code=${encodeURIComponent(body.code)}`;
-      btn.textContent = "Opening the app…";
-      setTimeout(() => reset(), 5000);
+      const link = `routeready://connect?code=${encodeURIComponent(body.code)}`;
+      // On Windows/Mac the OS hands this link to the installed app. It's a
+      // no-op on ChromeOS (the link can't cross from Chrome into the Linux
+      // container), so we ALSO show the code + a manual terminal command.
+      try { window.location.href = link; } catch {}
+      showPairPanel(body.code, link);
+      reset();
     } catch (e) {
       alert("Pairing error: " + (e && e.message || e));
       reset();
     }
+  }
+
+  // Show the one-time pairing code + a copy-paste terminal command. This is
+  // what makes pairing possible on a Chromebook: run the link from inside the
+  // Linux container so it reaches the desktop app.
+  function showPairPanel(code, link) {
+    document.getElementById("rr-pair-panel")?.remove();
+    const cmd = `xdg-open "${link}"`;
+    const wrap = document.createElement("div");
+    wrap.id = "rr-pair-panel";
+    wrap.style.cssText = [
+      "position:fixed", "right:16px", "bottom:64px", "z-index:2147483647",
+      "width:380px", "max-width:calc(100vw - 32px)",
+      "background:#0f172a", "color:#e5e7eb", "border:1px solid #334155",
+      "border-radius:12px", "padding:14px 16px",
+      "font:13px/1.45 Inter,system-ui,-apple-system,sans-serif",
+      "box-shadow:0 10px 30px rgba(0,0,0,.45)",
+    ].join(";");
+    const codeBox = (txt) =>
+      `<div style="display:flex;gap:6px;align-items:center;margin-top:4px">
+         <code style="flex:1;background:#020617;border:1px solid #334155;border-radius:6px;padding:7px 9px;white-space:nowrap;overflow:auto;color:#93c5fd">${txt.replace(/</g, "&lt;")}</code>
+         <button data-copy="${txt.replace(/"/g, "&quot;")}" style="background:#2563eb;border:0;color:#fff;border-radius:6px;padding:7px 10px;cursor:pointer;font-weight:600">Copy</button>
+       </div>`;
+    wrap.innerHTML =
+      `<div style="display:flex;justify-content:space-between;align-items:center">
+         <b style="font-size:14px">Connect your desktop box</b>
+         <button id="rr-pair-close" style="background:transparent;border:0;color:#94a3b8;font-size:18px;cursor:pointer;line-height:1">×</button>
+       </div>
+       <div style="color:#94a3b8;margin:6px 0 2px">If the app opened and connected, you're done. <b>On a Chromebook</b> the app won't open from here — open your <b>Linux Terminal</b> and run:</div>
+       ${codeBox(cmd)}
+       <div style="color:#94a3b8;margin:10px 0 2px">Or paste just the code if the app asks for one:</div>
+       ${codeBox(code)}
+       <div style="color:#64748b;margin-top:10px;font-size:12px">The box must be running. This code is one-time and expires in a few minutes — click "Connect desktop app" again for a fresh one.</div>`;
+    document.body.appendChild(wrap);
+    wrap.querySelector("#rr-pair-close").addEventListener("click", () => wrap.remove());
+    wrap.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(b.getAttribute("data-copy")); b.textContent = "Copied"; setTimeout(() => (b.textContent = "Copy"), 1200); } catch {}
+    }));
   }
 
   function addButton() {
