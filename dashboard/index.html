@@ -11732,13 +11732,13 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid var(--border);
             border-radius:10px;
             box-shadow:0 1px 3px rgba(15,23,42,.04);
-            /* The workspace itself is the scroll container — identical scrollbar
-               to the Schedule grid's .cal-wrap: opaque track + 8px width so
-               Chrome renders a non-overlay bar that's always on screen. */
+            /* The workspace itself is the scroll container. Use ONLY the
+               legacy ::-webkit-scrollbar styling (classic, always-on, 8px) and
+               do NOT set the standard scrollbar-width/-color: on Chrome 121+/
+               ChromeOS those take precedence and render a thin AUTO-HIDING
+               overlay bar, which is exactly why the bar wasn't visible. */
             overflow:hidden;overflow-y:scroll;
             scrollbar-gutter:stable;
-            scrollbar-width:thin;
-            scrollbar-color:var(--border-strong) rgba(15,23,42,.04);
           }
           #view-pipeline .pa-workspace::-webkit-scrollbar{width:8px;background:rgba(15,23,42,.04);-webkit-appearance:none}
           #view-pipeline .pa-workspace::-webkit-scrollbar-track{background:rgba(15,23,42,.04);border-radius:var(--r-sm)}
@@ -36380,7 +36380,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260607-scrollbar"></script>
+<script type="module" src="./live.js?v=20260607-barfix"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
