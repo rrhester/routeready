@@ -737,3 +737,20 @@ details.advanced[open] > summary {
   font-weight: 600;
   color: var(--text);
 }
+
+/* Account connect card — paste-the-key sign-in */
+#card-connect .connect-state {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+  min-height: 18px;
+}
+#card-connect .ok-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  margin-right: 6px;
+  vertical-align: middle;
+}

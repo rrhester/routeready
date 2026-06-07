@@ -30,6 +30,14 @@ const isDashboard = !!trusted.dashboardOrigin && location.origin === trusted.das
 // ─── Full surface — bundled local UI only ───────────────────────────
 if (isLocal) {
   contextBridge.exposeInMainWorld("rr", {
+    account: {
+      /** Whether this box is connected to a RouteReady account. */
+      status: () => ipcRenderer.invoke("account:status"),
+      /** Connect by pasting the dashboard's connect key (one-time setup). */
+      connect: (code) => ipcRenderer.invoke("account:connect", { code }),
+      /** Forget the account session on this box. */
+      disconnect: () => ipcRenderer.invoke("account:disconnect"),
+    },
     config: {
       /** Read the saved portal URL + defaults. */
       get: () => ipcRenderer.invoke("config:get"),

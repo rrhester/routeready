@@ -29,7 +29,12 @@ const CORS = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...CORS } });
 
-const CODE_TTL_SECONDS = 120; // a code is good for 2 minutes, single use
+// A connect key is good for 24h, single use. The desktop app now redeems it
+// from an in-app field (paste once), so the old 2-minute window — sized for an
+// automatic deep-link hand-off — just caused races where the key expired before
+// the operator finished. 24h removes that without making the key long-lived
+// standing access (still single-use; the redeemed session is what persists).
+const CODE_TTL_SECONDS = 24 * 60 * 60;
 
 function newCode(): string {
   // ~244 bits of entropy; opaque, single-use, short-lived.
