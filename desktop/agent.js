@@ -1096,16 +1096,30 @@ async function uploadToRouteReady(rows, task) {
   const failed = [];
   let firstError = null;
   for (const r of rows) {
-    const name = String(r.name || "").trim();
-    const sp = name.split(/\s+/);
+    // Name may arrive as a single `name`, or split across first/last — and the
+    // extract tool routes anything other than name/email/phone (incl.
+    // first_name/last_name) into `extra`. Reconstruct a full name from whatever
+    // is present so box-ingest (which requires full_name) accepts the row.
+    const xtra = (r.extra && typeof r.extra === "object") ? r.extra : {};
+    const pick = (...ks) => {
+      for (const k of ks) {
+        const v = r[k] != null ? r[k] : xtra[k];
+        if (v != null && String(v).trim()) return String(v).trim();
+      }
+      return "";
+    };
+    const firstName = pick("first_name", "firstName", "firstname", "first", "given_name");
+    const lastName = pick("last_name", "lastName", "lastname", "last", "surname", "family_name");
+    const name = (pick("name", "full_name", "fullName", "fullname") || [firstName, lastName].filter(Boolean).join(" ")).trim();
+    const sp = name.split(/\s+/).filter(Boolean);
     const payload = {
       // central: server stamps dsp_short_code from the session; local: send it.
       ...(central ? {} : { dsp_short_code: localShort }),
       source: "agent",
       source_ref: r.email ? `agent:${String(r.email).toLowerCase()}` : (name ? `agent:${name.toLowerCase()}` : undefined),
       full_name: name || undefined,
-      first_name: sp[0] || undefined,
-      last_name: sp.length > 1 ? sp.slice(1).join(" ") : undefined,
+      first_name: firstName || sp[0] || undefined,
+      last_name: lastName || (sp.length > 1 ? sp.slice(1).join(" ") : undefined),
       email: r.email || undefined,
       phone: r.phone || undefined,
       metadata: { scraped_via: task.name, ...(r.extra || {}) },
