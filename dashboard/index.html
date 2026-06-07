@@ -11068,7 +11068,7 @@ body.rr-cmdk-open{ overflow:hidden }
             content:"";position:absolute;top:12px;left:-50%;width:100%;height:2px;
             background:var(--border-strong,#CBD5E1);z-index:0;
           }
-          #view-pipeline .pa-mstep-item.is-reached:not(:first-child)::before{background:var(--accent)}
+          #view-pipeline .pa-mstep-item.is-reached:not(:first-child)::before{background:#0F6CBD}
           #view-pipeline .pa-mstep-dot{
             position:relative;z-index:1;width:26px;height:26px;border-radius:50%;
             display:flex;align-items:center;justify-content:center;
@@ -11077,8 +11077,10 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           #view-pipeline .pa-mstep-item.is-done .pa-mstep-dot{background:#16A34A;border-color:#16A34A;color:#fff}
           #view-pipeline .pa-mstep-item.is-current .pa-mstep-dot{
-            background:var(--accent);border-color:var(--accent);color:#fff;
-            box-shadow:0 0 0 4px var(--accent-soft,rgba(15,108,189,.15));
+            /* Schedule-card blue (--sch-blue #0F6CBD) so the "Screening invite
+               sent" icon matches the shift cards on the Schedule page. */
+            background:#0F6CBD;border-color:#0F6CBD;color:#fff;
+            box-shadow:0 0 0 4px rgba(15,108,189,.15);
           }
           #view-pipeline .pa-mstep-label{
             margin-top:6px;font-size:11px;line-height:1.2;color:var(--text-subtle,#94A3B8);
@@ -36423,7 +36425,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260607-fauxlen"></script>
+<script type="module" src="./live.js?v=20260607-stepblue"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
