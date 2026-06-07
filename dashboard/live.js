@@ -592,7 +592,7 @@ function renderApplicantCard(a) {
           <div class="pa-id-main">
             <div class="pa-card-name">${escapeHtml(name)}</div>
             <div class="pa-id-meta">${escapeHtml(sourceMetaTxt)}</div>
-            ${a.email ? `<div class="pa-id-email">${escapeHtml(a.email)}</div>` : ""}
+            ${a.phone ? `<div class="pa-id-email">${phoneCell(a.phone)}</div>` : (a.email ? `<div class="pa-id-email">${escapeHtml(a.email)}</div>` : "")}
             <div class="pa-id-pills">
               <span class="pa-stage-pill ${stage}">${escapeHtml(stageLabel)}</span>
               ${scoreChip}
