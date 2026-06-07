@@ -11697,11 +11697,8 @@ body.rr-cmdk-open{ overflow:hidden }
              overflow-y:scroll reserves the track at all times. */
           #view-pipeline .pipe-applicants{
             gap:0;
-            overflow-y:scroll;overflow-x:hidden;
-            padding-right:0;
-            scrollbar-gutter:stable;
-            scrollbar-width:thin;
-            scrollbar-color:var(--border-strong) rgba(15,23,42,.04);
+            /* No longer the scroll container — .pa-workspace scrolls now. */
+            overflow:visible;
           }
           #view-pipeline .pipe-applicants::-webkit-scrollbar{width:8px;background:rgba(15,23,42,.04);-webkit-appearance:none}
           #view-pipeline .pipe-applicants::-webkit-scrollbar-track{background:rgba(15,23,42,.04);border-radius:var(--r-sm)}
@@ -11730,13 +11727,23 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           /* ── Applicant workspace · one container, dividered rows (ATS feel) ── */
           #view-pipeline .pa-workspace{
-            display:flex;flex-direction:column;min-width:0;min-height:0;
+            display:flex;flex-direction:column;min-width:0;
             background:var(--surface);
             border:1px solid var(--border);
             border-radius:10px;
             box-shadow:0 1px 3px rgba(15,23,42,.04);
-            overflow:hidden;
+            /* The workspace itself is the scroll container — identical scrollbar
+               to the Schedule grid's .cal-wrap: opaque track + 8px width so
+               Chrome renders a non-overlay bar that's always on screen. */
+            overflow:hidden;overflow-y:scroll;
+            scrollbar-gutter:stable;
+            scrollbar-width:thin;
+            scrollbar-color:var(--border-strong) rgba(15,23,42,.04);
           }
+          #view-pipeline .pa-workspace::-webkit-scrollbar{width:8px;background:rgba(15,23,42,.04);-webkit-appearance:none}
+          #view-pipeline .pa-workspace::-webkit-scrollbar-track{background:rgba(15,23,42,.04);border-radius:var(--r-sm)}
+          #view-pipeline .pa-workspace::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:var(--r-sm);min-height:30px}
+          #view-pipeline .pa-workspace::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
           #view-pipeline .pa-ws-header{
             flex:0 0 auto;padding:12px 16px;border-bottom:1px solid var(--border);
             background:var(--surface);
@@ -36373,7 +36380,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260607-workspace"></script>
+<script type="module" src="./live.js?v=20260607-scrollbar"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
