@@ -11766,15 +11766,6 @@ body.rr-cmdk-open{ overflow:hidden }
             opacity:1 !important;transition:none !important;
           }
           #view-pipeline .pa-workspace::-webkit-scrollbar-thumb:hover{background:#323130 !important}
-          /* Once the JS faux scrollbar (live.js) attaches, hide the native
-             bar so the always-visible faux DIV is the only one shown —
-             same treatment the schedule grid uses (schedule-rrx.css). */
-          #view-pipeline .pa-workspace[data-rr-faux-attached]{scrollbar-width:none !important}
-          #view-pipeline .pa-workspace[data-rr-faux-attached]::-webkit-scrollbar,
-          #view-pipeline .pa-workspace[data-rr-faux-attached]::-webkit-scrollbar:vertical,
-          #view-pipeline .pa-workspace[data-rr-faux-attached]::-webkit-scrollbar:horizontal{
-            width:0 !important;height:0 !important;display:none !important;background:transparent !important;
-          }
           #view-pipeline .pa-ws-header{
             flex:0 0 auto;padding:12px 16px;border-bottom:1px solid var(--border);
             background:var(--surface);
@@ -36411,7 +36402,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260607-barsize"></script>
+<script type="module" src="./live.js?v=20260607-barsize2"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
