@@ -49,11 +49,21 @@ if (isLocal) {
       skip: (file) => ipcRenderer.invoke("inbox:skip", { file }),
       /** Open the RouteReady Inbox folder in the OS file manager. */
       openFolder: () => ipcRenderer.invoke("inbox:openFolder"),
+      /** Whether auto-import (no confirm for clean files) is enabled. */
+      getAuto: () => ipcRenderer.invoke("inbox:getAuto"),
+      /** Turn auto-import on/off. */
+      setAuto: (on) => ipcRenderer.invoke("inbox:setAuto", { on }),
       /** Fires when a new file is dropped in the inbox (with a preview). */
       onDetected: (cb) => {
         const handler = (_e, payload) => cb(payload);
         ipcRenderer.on("inbox:detected", handler);
         return () => ipcRenderer.removeListener("inbox:detected", handler);
+      },
+      /** Fires when a file is auto-imported (no confirm). */
+      onAutoImported: (cb) => {
+        const handler = (_e, payload) => cb(payload);
+        ipcRenderer.on("inbox:autoImported", handler);
+        return () => ipcRenderer.removeListener("inbox:autoImported", handler);
       },
     },
     config: {
