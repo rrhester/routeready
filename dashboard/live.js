@@ -1178,9 +1178,10 @@ function _pipeFitList() {
   const inner = document.getElementById("pipe-applicants");
   if (inner && inner !== list) inner.style.maxHeight = "";
   const top = list.getBoundingClientRect().top;
-  // -36 clears the .page bottom padding (--s-8, 32px) so the page
-  // itself never scrolls — only the list scrolls internally.
-  const h = Math.max(260, window.innerHeight - top - 36);
+  // Stretch the list to nearly the bottom of the viewport so its scrollbar
+  // runs the full height — matching the Schedule grid (which leaves a 12px
+  // gap). Only the list scrolls internally; the page itself never scrolls.
+  const h = Math.max(260, window.innerHeight - top - 12);
   list.style.maxHeight = h + "px";
   // Funnel is content-sized (secondary), not stretched to full height.
   const log = document.getElementById("rr-funnel-panel");
@@ -1188,6 +1189,11 @@ function _pipeFitList() {
   // Native bars auto-hide on the operator's Chrome — attach the always-on
   // JS faux bar now that the workspace is sized and visible.
   if (window.rrSetupFauxScrollbars) window.rrSetupFauxScrollbars();
+  // Force the faux track to re-measure to the just-applied height so its
+  // groove spans the full container (the attach-time measure can be stale).
+  requestAnimationFrame(function () {
+    if (list._rrFauxUpdate) list._rrFauxUpdate();
+  });
 }
 window.addEventListener("resize", _pipeFitList);
 
@@ -62143,6 +62149,10 @@ document.addEventListener("click", (e) => {
       thumb.style.height = thumbH + "px";
       thumb.style.transform = "translateY(" + thumbTop + "px)";
     }
+
+    // Expose so callers that resize the container (e.g. _pipeFitList) can
+    // force the track to re-measure to the new height immediately.
+    scrollEl._rrFauxUpdate = update;
 
     scrollEl.addEventListener("scroll", update, { passive: true });
 
