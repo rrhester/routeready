@@ -1167,10 +1167,10 @@ async function handleAction(btn) {
       if (error) throw error;
       toast("Booking link sent", "success");
     } else if (action === "decline") {
-      if (!confirm("Decline this applicant?")) { btn.disabled = false; return; }
+      // No confirm dialog — decline acts immediately on click.
       const { error } = await sb.rpc("decline_applicant", { p_id: id, p_reason: "Manual decline" });
       if (error) throw error;
-      toast("Applicant declined", "warn");
+      toast("Applicant declined");
     } else if (action === "remove_event") {
       const eventId = btn.getAttribute("data-event-id");
       if (!eventId) { btn.disabled = false; return; }
