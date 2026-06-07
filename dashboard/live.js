@@ -1144,7 +1144,7 @@ function _pipeFitList() {
   const h = Math.max(260, window.innerHeight - top - 36);
   list.style.maxHeight = h + "px";
   // Stretch the import rail down to the same viewport bottom.
-  const log = document.getElementById("rr-import-panel");
+  const log = document.getElementById("rr-funnel-panel");
   if (log) log.style.height = h + "px";
 }
 window.addEventListener("resize", _pipeFitList);
@@ -15238,35 +15238,54 @@ let _kpiWindowDays = 28;
 // /All segmented control is appended to the right edge of the bar
 // to replace the toggle that lived next to the legacy banner.
 function _obRenderFunnelKpis() {
+  // KPIs moved to the sidebar funnel panel (_renderFunnelSidebar). Clear the
+  // legacy horizontal strip host so nothing renders in it.
   const host = document.getElementById("rr-ob-kpis");
-  if (!host) return;
-  const navy = "#1F2A44";
-  const pill = (key, id, suffix, sub) =>
-    `<span class="sched-kpi-pill" data-rr-ob-kpi="${key}">` +
-      `<span class="sched-kpi-dot" style="background:${navy}"></span>` +
-      `<span class="sched-kpi-text">` +
-        `<span class="sched-kpi-val"><span id="${id}">0</span>${suffix}</span>` +
-        `<span class="sched-kpi-sub" ${sub.id ? `id="${sub.id}"` : ""}>${sub.text}</span>` +
-      `</span>` +
-    `</span>`;
-  host.innerHTML =
-    pill("contacted",   "hp-contacted-pct", "% Contacted",       { text: "Sent a screening invite" }) +
-    pill("passed",      "hp-passed-pct",    "% Screening passed",{ text: "Cleared screening + still active" }) +
-    pill("booked",      "hp-booked-pct",    "% Booked rate",     { id: "hp-booked-sub", text: "Of those sent a booking link" }) +
-    pill("show",        "hp-show-rate",     "% Show rate",       { text: "Of those who booked" }) +
-    pill("hire",        "hp-hire-rate",     "% Hire rate",       { text: "Of candidates who showed" }) +
-    pill("e2e",         "hp-e2e",           "% End-to-end",      { id: "hp-e2e-sub", text: "Hired ÷ total applicants" }) +
-    // Window toggle anchored to the right edge of the bar so the
-    // operator can still cycle Week / 4wk / All without the old
-    // banner chrome. margin-left:auto pushes it past the last pill.
-    `<span class="sched-kpi-pill" style="margin-left:auto;border-right:0;gap:8px">` +
-      `<span class="sched-kpi-sub">Window</span>` +
-      `<div id="hp-window-toggle-h" class="pipe-window-toggle" role="group" aria-label="Time window">` +
-        `<button class="hp-window-btn" data-rr-window="7"    type="button">Week</button>` +
-        `<button class="hp-window-btn" data-rr-window="28"   type="button">4 wk</button>` +
-        `<button class="hp-window-btn" data-rr-window="3650" type="button">All</button>` +
-      `</div>` +
-    `</span>`;
+  if (host) host.innerHTML = "";
+}
+
+// Vertical funnel for the right rail: Applied → Contacted → Screening passed →
+// Interviewed → Hired, each with a count, a step-over-step conversion %, a bar,
+// and an icon; plus an end-to-end hire-rate card. Driven by the same
+// pipeline_funnel_kpis data the old strip used.
+function _renderFunnelSidebar(funnel) {
+  const body = document.getElementById("rr-funnel-body");
+  if (!body) return;
+  const f = funnel || {};
+  const n = (v) => Number(v || 0);
+  const applied = n(f.total), contacted = n(f.contacted), passed = n(f.passed),
+        interviewed = n(f.booked), hired = n(f.hired);
+  const pct = (num, den) => den > 0 ? Math.round(100 * num / den) : 0;
+  const ICON = {
+    people: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    phone:  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>',
+    calendar: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    trophy: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M5 4H3v2a3 3 0 0 0 3 3M19 4h2v2a3 3 0 0 1-3 3"/></svg>',
+  };
+  const rows = [
+    { label: "Applied",         count: applied,     pctTxt: "100%", barPct: 100,                  icon: ICON.people,   tone: "purple" },
+    { label: "Contacted",       count: contacted,   pctTxt: pct(contacted, applied) + "%",   barPct: pct(contacted, applied),  icon: ICON.phone,    tone: "blue" },
+    { label: "Screening passed",count: passed,      pctTxt: pct(passed, contacted) + "%",    barPct: pct(passed, contacted),   icon: ICON.shield,   tone: "blue" },
+    { label: "Interviewed",     count: interviewed, pctTxt: pct(interviewed, passed) + "%",  barPct: pct(interviewed, passed), icon: ICON.calendar, tone: "green" },
+    { label: "Hired",           count: hired,       pctTxt: pct(hired, interviewed) + "%",   barPct: pct(hired, interviewed),  icon: ICON.trophy,   tone: "green" },
+  ];
+  const e2e = pct(hired, applied);
+  body.innerHTML =
+    rows.map((r) => `
+      <div class="rr-fn-row">
+        <span class="rr-fn-ico rr-fn-${r.tone}">${r.icon}</span>
+        <div class="rr-fn-main">
+          <div class="rr-fn-top"><span class="rr-fn-label">${escapeHtml(r.label)}</span><span class="rr-fn-count">${r.count}</span></div>
+          <div class="rr-fn-bar"><span class="rr-fn-fill rr-fn-${r.tone}" style="width:${Math.max(2, Math.min(100, r.barPct))}%"></span></div>
+        </div>
+        <span class="rr-fn-pct">${escapeHtml(r.pctTxt)}</span>
+      </div>`).join("") +
+    `<div class="rr-fn-e2e">
+      <div class="rr-fn-e2e-label">End-to-end hire rate</div>
+      <div class="rr-fn-e2e-val">${e2e}%</div>
+      <div class="rr-fn-e2e-sub">${hired} hired of ${applied} applied</div>
+    </div>`;
 }
 
 async function loadPipelineKpis() {
@@ -15283,14 +15302,13 @@ async function loadPipelineKpis() {
   }
 
   if (funnel) {
+    // Legacy strip IDs (now removed) — setText is null-safe, so these no-op.
     setText("hp-contacted-pct", funnel.contacted_pct ?? 0);
     setText("hp-passed-pct",    funnel.passed_pct ?? 0);
     setText("hp-booked-pct",    funnel.booked_rate ?? 0);
     setText("hp-e2e",           funnel.e2e_pct ?? 0);
-    const bsub = document.getElementById("hp-booked-sub");
-    if (bsub) bsub.textContent = `${funnel.booked ?? 0} of ${funnel.invited ?? 0} sent a booking link`;
-    const esub = document.getElementById("hp-e2e-sub");
-    if (esub) esub.textContent = `${funnel.hired ?? 0} hired ÷ ${funnel.total ?? 0} applicants`;
+    // The sidebar funnel is the live surface for these numbers now.
+    _renderFunnelSidebar(funnel);
   }
 
   // Page sub-line: live applicant count (open pipeline, not closed).
@@ -16560,15 +16578,22 @@ async function rrRunImport(fileName, rows, btn) {
 
 // Wire the drop zone, file picker, and feed. Idempotent; safe to call on load.
 function rrInitImportPanel() {
-  const drop = document.getElementById("rr-import-drop");
+  // Import now lives behind the toolbar "Import" tile, which clicks the hidden
+  // #rr-import-file input; choosing a file shows the preview/confirm modal.
+  // Wire the input independently of the (now-removed) drop zone.
   const input = document.getElementById("rr-import-file");
+  if (input && !input.dataset.wired) {
+    input.dataset.wired = "1";
+    input.addEventListener("change", () => { if (input.files[0]) rrHandleImportFile(input.files[0]); input.value = ""; });
+  }
+  // Optional drop zone (kept for back-compat if a build still renders one).
+  const drop = document.getElementById("rr-import-drop");
   if (drop && !drop.dataset.wired) {
     drop.dataset.wired = "1";
-    input.addEventListener("change", () => { if (input.files[0]) rrHandleImportFile(input.files[0]); input.value = ""; });
     ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("is-dragover"); }));
     ["dragleave", "dragend", "drop"].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove("is-dragover")));
     drop.addEventListener("drop", (e) => { e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) rrHandleImportFile(f); });
-    drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
+    drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input && input.click(); } });
   }
   const connect = document.getElementById("rr-import-connect");
   if (connect && !connect.dataset.wired) {
