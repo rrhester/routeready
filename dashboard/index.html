@@ -11023,7 +11023,7 @@ body.rr-cmdk-open{ overflow:hidden }
              dot-only since their state is self-evident from color).
              Time text drops; details still live in the hover/click
              expansion path. */
-          #view-pipeline .pa-row-v3 .pa-zone{padding:6px 12px;min-width:0}
+          #view-pipeline .pa-row-v3 .pa-zone{padding:5px 12px;min-width:0}
           #view-pipeline .pa-row-v3 .pa-zone-timeline{
             border-left:1px solid #F3F2F1;
             display:flex;align-items:center;
@@ -11696,9 +11696,9 @@ body.rr-cmdk-open{ overflow:hidden }
                             hide. Operator wanted the bar visible 24/7.
              overflow-y:scroll reserves the track at all times. */
           #view-pipeline .pipe-applicants{
-            gap:var(--s-2);
+            gap:0;
             overflow-y:scroll;overflow-x:hidden;
-            padding-right:4px;
+            padding-right:0;
             scrollbar-gutter:stable;
             scrollbar-width:thin;
             scrollbar-color:var(--border-strong) rgba(15,23,42,.04);
@@ -11725,9 +11725,25 @@ body.rr-cmdk-open{ overflow:hidden }
              Mirrors the schedule's .builder-shell (1fr / 320px) so the
              Indeed-sync card matches the "Open shifts" card exactly. */
           #view-pipeline .pipe-shell{
-            display:grid;grid-template-columns:1fr 320px;
-            gap:var(--s-3);align-items:start;
+            display:grid;grid-template-columns:1fr 280px;
+            gap:var(--s-2);align-items:start;
           }
+          /* ── Applicant workspace · one container, dividered rows (ATS feel) ── */
+          #view-pipeline .pa-workspace{
+            display:flex;flex-direction:column;min-width:0;min-height:0;
+            background:var(--surface);
+            border:1px solid var(--border);
+            border-radius:10px;
+            box-shadow:0 1px 3px rgba(15,23,42,.04);
+            overflow:hidden;
+          }
+          #view-pipeline .pa-ws-header{
+            flex:0 0 auto;padding:12px 16px;border-bottom:1px solid var(--border);
+            background:var(--surface);
+          }
+          #view-pipeline .pa-ws-title{font-size:15px;font-weight:700;color:var(--text)}
+          #view-pipeline .pa-ws-title #pa-ws-count{color:var(--text-subtle);font-weight:600}
+          #view-pipeline .pa-ws-sub{font-size:12px;color:var(--text-subtle);margin-top:1px}
           @media (max-width:1180px){
             #view-pipeline .pipe-shell{grid-template-columns:1fr}
           }
@@ -11850,19 +11866,17 @@ body.rr-cmdk-open{ overflow:hidden }
             font-size:var(--fs-xs);color:var(--text-subtle);line-height:1.4;
             padding-top:var(--s-2);border-top:1px solid rgba(15,23,42,.05);
           }
+          /* Rows, not floating cards: no per-card border/shadow/radius — the
+             .pa-workspace owns the container; rows are separated by dividers
+             and lift on hover (Gmail/Greenhouse style). */
           #view-pipeline .pa-card{
-            border-color:var(--sch-line,var(--border));border-radius:6px;
-            box-shadow:0 1px 3px rgba(15,23,42,.035);
-            transition:border-color var(--t-fast), box-shadow var(--t-fast);
+            border:0;border-radius:0;box-shadow:none;background:transparent;
+            transition:background var(--t-fast);
             overflow:hidden;
           }
-          #view-pipeline .pa-card:hover{
-            border-color:rgba(15,108,189,.20);
-            box-shadow:0 1px 4px rgba(15,23,42,.05);
-          }
-          #view-pipeline .pa-card.expanded{
-            border-color:rgba(15,108,189,.30);box-shadow:0 2px 8px rgba(15,108,189,.08);
-          }
+          #view-pipeline .pipe-applicants .pa-card + .pa-card{border-top:1px solid var(--border)}
+          #view-pipeline .pa-card:hover{background:rgba(15,108,189,.035)}
+          #view-pipeline .pa-card.expanded{background:rgba(15,108,189,.05);box-shadow:none;border:0}
           #view-pipeline .pa-row{padding:13px 16px;gap:var(--s-3)}
           /* Stage badge · Fluent — a compact rectangle chip, one line. */
           #view-pipeline .pa-stage-pill{
@@ -11898,6 +11912,11 @@ body.rr-cmdk-open{ overflow:hidden }
         </style>
 
         <div class="pipe-shell">
+        <div class="pa-workspace">
+        <div class="pa-ws-header">
+          <div class="pa-ws-title">Applicants <span id="pa-ws-count">(0)</span></div>
+          <div class="pa-ws-sub"><span id="pa-ws-count-n">0</span> active candidates</div>
+        </div>
         <div class="pipe-applicants" id="pipe-applicants">
 
           <!-- BOOKING SCHEDULED -->
@@ -12225,6 +12244,7 @@ body.rr-cmdk-open{ overflow:hidden }
             <div class="rr-empty-sub">Try a different stage tab.</div>
           </div>
         </div><!-- /pipe-applicants -->
+        </div><!-- /pa-workspace -->
 
         <!-- Import applicants · right rail. Drop a candidate export (CSV) to
              add people straight to the funnel — works for any source (Indeed,
@@ -36353,7 +36373,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260607-lastupd"></script>
+<script type="module" src="./live.js?v=20260607-workspace"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
