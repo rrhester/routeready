@@ -530,6 +530,48 @@ function _paMarkVideoWatched(id) {
   try { localStorage.setItem("rr-pa-vid-" + id, "1"); } catch (_) {}
 }
 
+// Fixed-milestone progress stepper: Applied → Screening invite sent →
+// Screening → Interview → Hired. Each node is "done" (green check, behind the
+// current step), "current" (accent, the furthest reached), or "upcoming"
+// (outline). Completed nodes show the date they happened.
+function _milestoneStepper(a) {
+  const fmtShort = (iso) => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString(undefined, { month: "short", day: "numeric" }); };
+  const inStage = (...s) => s.includes(a.pipeline_stage);
+  const screeningReached = !!a.screening_completed_at || inStage("screened", "booking_pending", "booking_scheduled", "hired");
+  const interviewReached = !!a.next_event_starts_at || a.status === "interview_completed" || inStage("booking_scheduled", "hired");
+  const hiredReached = a.status === "hired";
+
+  const ICON = {
+    send: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+    clipboard: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6a1 1 0 0 1 1 1v1H8V3a1 1 0 0 1 1-1z"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/></svg>',
+    calendar: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+    star: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+    check: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  };
+
+  const m = [
+    { label: "Applied",               reached: true,                   date: a.created_at,            icon: ICON.check },
+    { label: "Screening invite sent", reached: _screeningInviteSent(a), date: a.last_sms_at,          icon: ICON.send },
+    { label: "Screening",             reached: screeningReached,       date: a.screening_completed_at, icon: ICON.clipboard },
+    { label: "Interview",             reached: interviewReached,       date: a.next_event_starts_at,  icon: ICON.calendar },
+    { label: "Hired",                 reached: hiredReached,           date: null,                    icon: ICON.star },
+  ];
+  let currentIdx = 0;
+  m.forEach((s, i) => { if (s.reached) currentIdx = i; });
+
+  return `<div class="pa-mstep">` + m.map((s, i) => {
+    const state = i < currentIdx ? "is-done" : (i === currentIdx ? "is-current" : "is-upcoming");
+    const reached = i <= currentIdx; // colours the connector leading into this node
+    const inner = state === "is-done" ? ICON.check : (state === "is-current" ? s.icon : "");
+    const dateTxt = s.date ? fmtShort(s.date) : "";
+    return `<div class="pa-mstep-item ${state}${reached ? " is-reached" : ""}">
+      <div class="pa-mstep-dot">${inner}</div>
+      <div class="pa-mstep-label">${escapeHtml(s.label)}</div>
+      <div class="pa-mstep-date">${escapeHtml(dateTxt)}</div>
+    </div>`;
+  }).join("") + `</div>`;
+}
+
 function renderApplicantCard(a) {
   const stage = a.pipeline_stage;
   const slug  = (a.full_name || "").toLowerCase().replace(/\s+/g, "-");
@@ -551,8 +593,9 @@ function renderApplicantCard(a) {
 
   const sourceMetaTxt = a.source ? `via ${rrTitleCaseName(a.source)}` : "Direct applicant";
 
-  // Activity timeline. Empty applicants get a quiet placeholder.
-  const steps = _activitySteps(a);
+  // Progress: a fixed milestone stepper (Applied → Screening invite sent →
+  // Screening → Interview → Hired) showing how far the applicant has moved.
+  const timelineHtml = _milestoneStepper(a);
 
   // Stage CTA. Operator-requested single-primary card: only the stage
   // CTA (Resend screening / Send booking link / etc.) reads as a button.
@@ -598,21 +641,7 @@ function renderApplicantCard(a) {
       </svg>
     </button>`;
 
-  // Timeline · a Fluent process rail — node over label over time,
-  // thin connectors between. Completed steps read green, the current
-  // step reads blue (the focal point).
-  const tlCheck = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-  const timelineHtml = steps.length === 0
-    ? `<div class="pa-tl-empty">No activity yet</div>`
-    : steps.map((s, i) => {
-        const cls = s.current ? "is-current" : "is-done";
-        const step = `<div class="pa-tl-step ${cls}">
-          <span class="pa-tl-node">${s.current ? '<span class="pa-tl-pulse"></span>' : tlCheck}</span>
-          <span class="pa-tl-label">${escapeHtml(s.label)}</span>
-          <span class="pa-tl-time">${escapeHtml(_fmtAbsTouch(s.at))}</span>
-        </div>`;
-        return step + (i < steps.length - 1 ? '<span class="pa-tl-conn"></span>' : '');
-      }).join("");
+  // Progress stepper markup is built above (timelineHtml = _milestoneStepper).
 
   return `
     <div class="pa-card" data-stage="${stage}" data-applicant="${a.id}" data-applicant-slug="${slug}">
