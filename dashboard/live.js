@@ -1157,6 +1157,10 @@ async function loadPipeline(stage = "all") {
   list.innerHTML = (rows && rows.length)
     ? _paListHeader() + rows.map(renderApplicantCard).join("")
     : `<div class="rr-empty-inline">No applicants yet — share your apply link or add one manually.</div>`;
+  // Workspace header count.
+  const nRows = (rows && rows.length) || 0;
+  setText("pa-ws-count", `(${nRows})`);
+  setText("pa-ws-count-n", nRows);
   requestAnimationFrame(_pipeFitList);
 }
 
@@ -1171,9 +1175,9 @@ function _pipeFitList() {
   // itself never scrolls — only the list scrolls internally.
   const h = Math.max(260, window.innerHeight - top - 36);
   list.style.maxHeight = h + "px";
-  // Stretch the import rail down to the same viewport bottom.
+  // Funnel is content-sized (secondary), not stretched to full height.
   const log = document.getElementById("rr-funnel-panel");
-  if (log) log.style.height = h + "px";
+  if (log) log.style.height = "";
 }
 window.addEventListener("resize", _pipeFitList);
 
