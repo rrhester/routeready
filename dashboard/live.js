@@ -597,6 +597,11 @@ function renderApplicantCard(a) {
   // Screening → Interview → Hired) showing how far the applicant has moved.
   const timelineHtml = _milestoneStepper(a);
 
+  // "Last updated" column — most recent activity timestamp (date + time).
+  const upd = _lastUpdatedAt(a);
+  const updDate = upd ? upd.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "—";
+  const updTime = upd ? upd.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+
   // Stage CTA. Operator-requested single-primary card: only the stage
   // CTA (Resend screening / Send booking link / etc.) reads as a button.
   // Decline + Video + the contact icon row all moved into the ⋯ menu
@@ -665,6 +670,11 @@ function renderApplicantCard(a) {
           <div class="pa-steps">${timelineHtml}</div>
         </div>
 
+        <div class="pa-zone pa-zone-updated">
+          <div class="pa-upd-date">${escapeHtml(updDate)}</div>
+          <div class="pa-upd-time">${escapeHtml(updTime)}</div>
+        </div>
+
         <div class="pa-zone pa-zone-action pa-zone-action-v4">
           ${reviewVideoBtn}
           ${advanceBtn}
@@ -673,6 +683,23 @@ function renderApplicantCard(a) {
 
       </div>
     </div>`;
+}
+
+// Most recent activity timestamp for the "Last updated" column.
+function _lastUpdatedAt(a) {
+  const ts = [a.created_at, a.last_sms_at, a.screening_completed_at, a.next_event_starts_at]
+    .filter(Boolean).map((s) => new Date(s).getTime()).filter((n) => !isNaN(n));
+  return ts.length ? new Date(Math.max(...ts)) : null;
+}
+
+// Column header row, prepended to the list so it aligns with the card grid.
+function _paListHeader() {
+  return `<div class="pa-listhead pa-row-v3" aria-hidden="true">
+    <div class="pa-zone">Applicant</div>
+    <div class="pa-zone">Progress</div>
+    <div class="pa-zone">Last updated</div>
+    <div class="pa-zone"></div>
+  </div>`;
 }
 
 function _initialsOf(name) {
@@ -1127,8 +1154,9 @@ async function loadPipeline(stage = "all") {
   // applicant record (phone, email, video_url, …) without re-fetching.
   window._rrPipelineById = new Map((rows ?? []).map(r => [r.id, r]));
 
-  list.innerHTML = (rows ?? []).map(renderApplicantCard).join("")
-    || `<div class="rr-empty-inline">No applicants yet — share your apply link or add one manually.</div>`;
+  list.innerHTML = (rows && rows.length)
+    ? _paListHeader() + rows.map(renderApplicantCard).join("")
+    : `<div class="rr-empty-inline">No applicants yet — share your apply link or add one manually.</div>`;
   requestAnimationFrame(_pipeFitList);
 }
 
