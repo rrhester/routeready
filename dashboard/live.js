@@ -1070,8 +1070,8 @@ function _pipeFitList() {
   // itself never scrolls — only the list scrolls internally.
   const h = Math.max(260, window.innerHeight - top - 36);
   list.style.maxHeight = h + "px";
-  // Stretch the Indeed-sync rail down to the same viewport bottom.
-  const log = document.getElementById("rr-indeed-log");
+  // Stretch the import rail down to the same viewport bottom.
+  const log = document.getElementById("rr-import-panel");
   if (log) log.style.height = h + "px";
 }
 window.addEventListener("resize", _pipeFitList);
@@ -16323,23 +16323,196 @@ async function loadCalBookingsList() {
 // Funnel icon. A live-rendered list backed by public.screening_questions
 // CRUD replaces the row container; inline edit opens a small modal.
 
-// Dummy "Pull from Indeed" button on the funnel's Indeed sync rail. The
-// real pull-and-merge integration isn't wired up yet — this just shows a
-// spinning state for a couple seconds so the control feels live.
-function rrPullFromIndeed(btn) {
-  if (!btn || btn.disabled) return;
-  btn.disabled = true;
-  btn.classList.add("is-loading");
-  const label = btn.querySelector("span");
-  const original = label ? label.textContent : "";
-  if (label) label.textContent = "Pulling…";
-  setTimeout(() => {
-    btn.disabled = false;
-    btn.classList.remove("is-loading");
-    if (label) label.textContent = original;
-  }, 2200);
+// ─── Import applicants from a file (CSV) ───────────────────────────────────
+// Replaces the old placeholder "Pull from Indeed" rail. The reliable intake
+// path: the operator downloads their candidate export from ANY source (Indeed,
+// Workday, ADP, …) and drops the CSV here; we map the columns and create
+// applicants via the same intake_applicant RPC used by Add applicant and the
+// desktop box. The desktop box automates this by watching a folder; this is the
+// no-install, drop-it-in-the-browser version.
+const RR_IMPORT_ALIASES = {
+  name:  ["name", "fullname", "candidatename", "applicantname", "contactname"],
+  first: ["firstname", "first", "givenname", "forename"],
+  last:  ["lastname", "last", "surname", "familyname"],
+  email: ["email", "emailaddress", "mail", "emailid", "e"],
+  phone: ["phone", "phonenumber", "mobile", "mobilenumber", "cell", "cellphone", "tel", "telephone", "contactnumber"],
+};
+const rrNormKey = (k) => String(k).toLowerCase().replace(/[\s._-]+/g, "");
+
+// Minimal CSV parser: quoted fields, commas/newlines in quotes, escaped "",
+// BOM, CRLF. Mirrors the desktop box's parser so behavior is identical.
+function rrParseCsv(text) {
+  text = String(text).replace(/^﻿/, "");
+  const rows = []; let row = [], f = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ",") { row.push(f); f = ""; }
+    else if (c === "\n") { row.push(f); rows.push(row); row = []; f = ""; }
+    else if (c !== "\r") f += c;
+  }
+  if (f.length || row.length) { row.push(f); rows.push(row); }
+  return rows.filter((r) => r.some((c) => String(c).trim() !== ""));
 }
-window.rrPullFromIndeed = rrPullFromIndeed;
+function rrCsvRecords(text) {
+  const g = rrParseCsv(text);
+  if (!g.length) return { headers: [], records: [] };
+  const headers = g[0].map((h) => String(h).trim());
+  const records = [];
+  for (let i = 1; i < g.length; i++) {
+    const rec = {}; headers.forEach((h, j) => { if (h) rec[h] = g[i][j] != null ? g[i][j] : ""; });
+    records.push(rec);
+  }
+  return { headers, records };
+}
+function rrShapeRecord(rec) {
+  const lookup = {};
+  for (const k of Object.keys(rec)) { const n = rrNormKey(k); if (!(n in lookup)) lookup[n] = rec[k]; }
+  const grab = (key) => { for (const a of RR_IMPORT_ALIASES[key]) { const v = lookup[a]; if (v != null && String(v).trim()) return String(v).trim(); } return ""; };
+  const first = grab("first"), last = grab("last");
+  const name = grab("name") || [first, last].filter(Boolean).join(" ");
+  return { full_name: name, first_name: first || null, last_name: last || null, email: grab("email") || null, phone: grab("phone") || null };
+}
+function rrImportableRows(records) {
+  return records.map(rrShapeRecord).filter((r) => r.full_name || r.email || r.phone);
+}
+
+// Recent-import feed, persisted per-DSP in localStorage.
+const rrImportFeedKey = () => `rr-imports-${window.RR?.dsp?.id || "x"}`;
+function rrLoadImportFeed() { try { return JSON.parse(localStorage.getItem(rrImportFeedKey())) || []; } catch { return []; } }
+function rrRelTime(ts) {
+  const s = Math.max(0, (Date.now() - ts) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} hr ago`;
+  return new Date(ts).toLocaleDateString();
+}
+function rrRenderImportFeed() {
+  const el = document.getElementById("rr-import-feed");
+  if (!el) return;
+  const feed = rrLoadImportFeed();
+  if (!feed.length) {
+    el.innerHTML = `<div class="rr-indeed-log-row"><span class="rr-indeed-log-dot" style="background:var(--text-subtle)"></span><div><div class="rr-indeed-log-row-title">No imports yet</div><div class="rr-indeed-log-row-time">Drop a CSV above to add applicants</div></div></div>`;
+    return;
+  }
+  el.innerHTML = feed.map((f) =>
+    `<div class="rr-indeed-log-row"><span class="rr-indeed-log-dot"></span><div><div class="rr-indeed-log-row-title">${escapeHtml(f.name)} → ${f.added} added${f.failed ? ` · ${f.failed} skipped` : ""}</div><div class="rr-indeed-log-row-time">${rrRelTime(f.ts)}</div></div></div>`
+  ).join("");
+}
+function rrLogImport(name, added, failed) {
+  const feed = rrLoadImportFeed();
+  feed.unshift({ name, added, failed, ts: Date.now() });
+  try { localStorage.setItem(rrImportFeedKey(), JSON.stringify(feed.slice(0, 12))); } catch {}
+  rrRenderImportFeed();
+}
+
+// Read a dropped/chosen file → show the confirm preview.
+function rrHandleImportFile(file) {
+  if (!file) return;
+  if (!/\.csv$/i.test(file.name) && file.type && !/csv|text\/plain/.test(file.type)) {
+    toast("Please choose a .csv export", "warn"); return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const { records } = rrCsvRecords(String(reader.result || ""));
+      const rows = rrImportableRows(records);
+      rrShowImportPreview(file.name, records.length, rows);
+    } catch (e) { toast("Couldn't read that file: " + (e?.message || e), "warn"); }
+  };
+  reader.onerror = () => toast("Couldn't read that file", "warn");
+  reader.readAsText(file);
+}
+
+// Confirm step: show how many rows + a sample of the mapped result.
+function rrShowImportPreview(fileName, total, rows) {
+  document.getElementById("rr-import-modal")?.remove();
+  const sample = rows.slice(0, 5).map((r) =>
+    `<div style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-top:1px solid var(--border)"><span style="font-weight:600">${escapeHtml(r.full_name || "—")}</span><span style="color:var(--text-muted)">${escapeHtml([r.email, r.phone].filter(Boolean).join(" · "))}</span></div>`
+  ).join("");
+  const warn = rows.length ? "" : `<div style="color:var(--red);font-size:var(--fs-sm);margin-top:10px">Couldn't find name/email/phone columns in this file. Check that it has a header row.</div>`;
+  const m = document.createElement("div");
+  m.id = "rr-import-modal";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;max-width:520px;width:100%;max-height:90vh;overflow:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <h3 style="margin:0;font-size:var(--fs-lg);font-weight:600">Import applicants</h3>
+        <button data-rr-imp-cancel style="background:none;border:0;font-size:20px;cursor:pointer;color:var(--text-muted)">×</button>
+      </div>
+      <div style="font-size:var(--fs-sm);color:var(--text-muted);margin-bottom:12px">${escapeHtml(fileName)} · <b>${rows.length}</b> of ${total} rows ready to import${rows.length < total ? ` (${total - rows.length} skipped — no name/contact)` : ""}.</div>
+      ${rows.length ? `<div style="font-size:var(--fs-xs);text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:2px">Preview</div><div style="margin-bottom:6px">${sample}</div>` : ""}
+      ${warn}
+      <div style="display:flex;gap:var(--s-2);justify-content:flex-end;margin-top:16px">
+        <button class="btn" data-rr-imp-cancel>Cancel</button>
+        <button class="btn btn-primary" data-rr-imp-go ${rows.length ? "" : "disabled"}>Import ${rows.length} applicant${rows.length === 1 ? "" : "s"}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-rr-imp-cancel]")) { m.remove(); return; }
+    if (e.target.closest("[data-rr-imp-go]")) {
+      const btn = e.target.closest("[data-rr-imp-go]");
+      await rrRunImport(fileName, rows, btn);
+      m.remove();
+    }
+  });
+}
+
+async function rrRunImport(fileName, rows, btn) {
+  if (btn) btn.disabled = true;
+  let added = 0, failed = 0;
+  for (const r of rows) {
+    const payload = {
+      dsp_short_code: window.RR.dsp.short_code,
+      source: "import",
+      source_ref: r.email ? `import:${String(r.email).toLowerCase()}` : (r.full_name ? `import:${String(r.full_name).toLowerCase()}` : undefined),
+      full_name: r.full_name || undefined,
+      first_name: r.first_name || undefined,
+      last_name: r.last_name || undefined,
+      email: r.email || undefined,
+      phone: r.phone ? toE164(r.phone) : undefined,
+    };
+    try {
+      const { error } = await sb.rpc("intake_applicant", { p_payload: payload });
+      if (error) failed++; else added++;
+    } catch { failed++; }
+    if (btn) btn.textContent = `Importing… ${added + failed}/${rows.length}`;
+  }
+  rrLogImport(fileName, added, failed);
+  try { await loadPipeline("all"); } catch {}
+  toast(`Imported ${added} applicant${added === 1 ? "" : "s"}${failed ? `, ${failed} skipped` : ""} from ${fileName}`, added ? "success" : "warn");
+}
+
+// Wire the drop zone, file picker, and feed. Idempotent; safe to call on load.
+function rrInitImportPanel() {
+  const drop = document.getElementById("rr-import-drop");
+  const input = document.getElementById("rr-import-file");
+  if (drop && !drop.dataset.wired) {
+    drop.dataset.wired = "1";
+    input.addEventListener("change", () => { if (input.files[0]) rrHandleImportFile(input.files[0]); input.value = ""; });
+    ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("is-dragover"); }));
+    ["dragleave", "dragend", "drop"].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove("is-dragover")));
+    drop.addEventListener("drop", (e) => { e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) rrHandleImportFile(f); });
+    drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
+  }
+  const connect = document.getElementById("rr-import-connect");
+  if (connect && !connect.dataset.wired) {
+    connect.dataset.wired = "1";
+    connect.addEventListener("click", (e) => {
+      e.preventDefault();
+      const b = document.getElementById("rr-connect-desktop");
+      if (b) b.click(); else toast("Open the desktop app to connect your box.", "info");
+    });
+  }
+  rrRenderImportFeed();
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", rrInitImportPanel);
+else rrInitImportPanel();
+// Back-compat: the old inline onclick was removed, but keep a no-op so any
+// stale reference can't throw.
+window.rrPullFromIndeed = function () {};
 
 async function loadScreeningQuestionsList() {
   // Lives in the Funnel → Rules popover. Use a global selector so we also
