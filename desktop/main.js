@@ -76,6 +76,10 @@ function resolveChromiumExecutable() {
   // resources/app/ as plain files.  Also check resources/app.asar.unpacked/
   // as a fallback in case the build config ever flips back to asar.
   const candidates = [
+    // Primary: bundled via electron-builder `extraResources` (a direct copy
+    // that, unlike the files-glob, reliably ships Playwright's dotfolder).
+    path.join(process.resourcesPath, "pw-browsers"),
+    // Fallbacks for older/asar layouts.
     path.join(process.resourcesPath, "app", "node_modules", "playwright-core", ".local-browsers"),
     path.join(process.resourcesPath, "app.asar.unpacked", "node_modules", "playwright-core", ".local-browsers"),
   ];

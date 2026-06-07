@@ -47,8 +47,13 @@
       "node_modules/**/*",
       "!node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!node_modules/**/{test,tests,__tests__,examples,docs,.github}/**",
-      "!node_modules/**/*.{md,markdown,d.ts,map,test.js,spec.js}",
-      "node_modules/playwright-core/.local-browsers/**/*"
+      "!node_modules/**/*.{md,markdown,d.ts,map,test.js,spec.js}"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/playwright-core/.local-browsers",
+        "to": "pw-browsers"
+      }
     ],
     "asar": false,
     "mac": {
