@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Test Portal — Applicants</title>
+</head>
+<body>
+  <h1>Applicants</h1>
+  <!-- A minimal stand-in for a real applicant portal: a repeating list of
+       rows, each with a name, an email (as a mailto link, like most portals)
+       and a phone. The 4th row repeats row 1's email (different case) so the
+       harness can verify the crawler's email-based dedupe. -->
+  <ul id="applicants">
+    <li class="applicant">
+      <span class="name">Jane Doe</span>
+      <a class="email" href="mailto:jane.doe@example.com">jane.doe@example.com</a>
+      <span class="phone">555-0101</span>
+    </li>
+    <li class="applicant">
+      <span class="name">John Smith</span>
+      <a class="email" href="mailto:john.smith@example.com">john.smith@example.com</a>
+      <span class="phone">555-0102</span>
+    </li>
+    <li class="applicant">
+      <span class="name">Aisha Khan</span>
+      <a class="email" href="mailto:aisha.khan@example.com">aisha.khan@example.com</a>
+      <span class="phone">555-0103</span>
+    </li>
+    <li class="applicant">
+      <span class="name">Jane Doe (re-application)</span>
+      <a class="email" href="mailto:JANE.DOE@example.com">JANE.DOE@example.com</a>
+      <span class="phone">555-0101</span>
+    </li>
+  </ul>
+</body>
+</html>
