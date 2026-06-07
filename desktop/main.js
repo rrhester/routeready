@@ -82,7 +82,17 @@ function resolveChromiumExecutable() {
     // Fallbacks for older/asar layouts.
     path.join(process.resourcesPath, "app", "node_modules", "playwright-core", ".local-browsers"),
     path.join(process.resourcesPath, "app.asar.unpacked", "node_modules", "playwright-core", ".local-browsers"),
-  ];
+    // Last-resort: a Chromium the user already installed via Playwright
+    // (e.g. `npx playwright install chromium`). Covers machines where the
+    // bundled copy is missing — the box uses the system one instead of
+    // failing with "no browsers root found".
+    process.env.PLAYWRIGHT_BROWSERS_PATH && process.env.PLAYWRIGHT_BROWSERS_PATH !== "0"
+      ? process.env.PLAYWRIGHT_BROWSERS_PATH
+      : null,
+    process.platform === "linux" ? path.join(os.homedir(), ".cache", "ms-playwright") : null,
+    process.platform === "win32" ? path.join(os.homedir(), "AppData", "Local", "ms-playwright") : null,
+    process.platform === "darwin" ? path.join(os.homedir(), "Library", "Caches", "ms-playwright") : null,
+  ].filter(Boolean);
   let browsersRoot = null;
   for (const c of candidates) {
     if (fs.existsSync(c)) { browsersRoot = c; break; }

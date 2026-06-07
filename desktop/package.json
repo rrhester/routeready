@@ -1,6 +1,6 @@
 {
   "name": "routeready-desktop",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "description": "RouteReady desktop sync · drives the Amazon DSP portal under the operator's corporate login, pulls route data + pick sheets, and ships them to RouteReady.",
   "main": "main.js",
   "private": true,
