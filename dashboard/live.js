@@ -463,6 +463,21 @@ function _screeningInviteSent(a) {
   return !!a.last_sms_at || _SENT_STATUSES.has(a.status);
 }
 
+// "Added {date} · {N days ago}" on each card. DSPs use applicant *age* to
+// decide when to stop chasing a stale lead ("cut and run"), so we show the
+// date plus a relative age, and escalate the colour as it gets old: subtle
+// under 2 weeks, amber at 2+ weeks, red at a month+.
+function _addedBadge(a) {
+  if (!a.created_at) return "";
+  const d = new Date(a.created_at);
+  if (isNaN(d)) return "";
+  const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+  const ageTxt = days === 0 ? "today" : days === 1 ? "1 day ago" : `${days} days ago`;
+  const tone = days >= 30 ? "var(--red)" : days >= 14 ? "#D97706" : "var(--text-subtle)";
+  return `<div class="pa-id-added" style="color:${tone};font-variant-numeric:tabular-nums;font-size:var(--fs-xs)">Added ${escapeHtml(date)} · ${escapeHtml(ageTxt)}</div>`;
+}
+
 // "Screening invite sent" / "Video completed" / "Applicant added" — pick
 // the verb tied to the latest activity so the Last touch column reads
 // like a verb, not a timestamp.
@@ -608,6 +623,7 @@ function renderApplicantCard(a) {
           <div class="pa-id-main">
             <div class="pa-card-name">${escapeHtml(name)}</div>
             <div class="pa-id-meta">${escapeHtml(sourceMetaTxt)}</div>
+            ${_addedBadge(a)}
             ${a.phone ? `<div class="pa-id-email">${phoneCell(a.phone)}</div>` : (a.email ? `<div class="pa-id-email">${escapeHtml(a.email)}</div>` : "")}
             <div class="pa-id-pills">
               <span class="pa-stage-pill ${stage}">${escapeHtml(stageLabel)}</span>
