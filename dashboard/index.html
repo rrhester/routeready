@@ -11713,6 +11713,23 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .rr-indeed-pull:disabled{cursor:default;opacity:.72}
           #view-pipeline .rr-indeed-pull svg{width:14px;height:14px}
           #view-pipeline .rr-indeed-pull.is-loading svg{animation:rr-spin .65s linear infinite}
+          /* Import applicants · drag-and-drop zone */
+          #view-pipeline .rr-import-drop{
+            display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+            text-align:center;cursor:pointer;
+            padding:18px 14px;margin-bottom:12px;
+            border:1.5px dashed var(--border-strong);border-radius:var(--r-lg);
+            background:rgba(15,23,42,.015);color:var(--text-muted);
+            transition:border-color var(--t-fast),background var(--t-fast),color var(--t-fast);
+          }
+          #view-pipeline .rr-import-drop:hover,
+          #view-pipeline .rr-import-drop:focus-visible{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+          #view-pipeline .rr-import-drop.is-dragover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);border-style:solid}
+          #view-pipeline .rr-import-drop svg{width:22px;height:22px;opacity:.85}
+          #view-pipeline .rr-import-drop-title{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+          #view-pipeline .rr-import-drop.is-dragover .rr-import-drop-title,
+          #view-pipeline .rr-import-drop:hover .rr-import-drop-title{color:var(--accent)}
+          #view-pipeline .rr-import-drop-sub{font-size:var(--fs-xs);color:var(--text-subtle)}
           /* Indeed sync log · same persistent-scrollbar treatment as
              .pipe-applicants. Opaque subtle track + 8px width forces
              Chrome on macOS to render a non-overlay scrollbar so the
@@ -12127,48 +12144,27 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
         </div><!-- /pipe-applicants -->
 
-        <!-- Indeed sync log · right rail. Placeholder/dummy content
-             until the Indeed pull-and-merge integration is built. -->
-        <aside class="rr-indeed-log" id="rr-indeed-log" aria-label="Indeed sync log">
+        <!-- Import applicants · right rail. Drop a candidate export (CSV) to
+             add people straight to the funnel — works for any source (Indeed,
+             Workday, ADP, any ATS): download the export like normal, drop it
+             here. No portal login, no crawling. The desktop box can watch a
+             folder to do this automatically. -->
+        <aside class="rr-indeed-log" id="rr-import-panel" aria-label="Import applicants">
           <div class="rr-indeed-log-head">
-            <span>Indeed sync</span>
-            <span>log</span>
+            <span>Import applicants</span>
+            <span>CSV</span>
           </div>
-          <button type="button" class="rr-indeed-pull" id="rr-indeed-pull-btn" onclick="rrPullFromIndeed(this)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            <span>Pull from Indeed</span>
-          </button>
-          <div class="rr-indeed-log-list">
-            <div class="rr-indeed-log-row">
-              <span class="rr-indeed-log-dot"></span>
-              <div>
-                <div class="rr-indeed-log-row-title">Pulled 3 new applicants from Indeed</div>
-                <div class="rr-indeed-log-row-time">Today · 9:02 AM</div>
-              </div>
-            </div>
-            <div class="rr-indeed-log-row">
-              <span class="rr-indeed-log-dot"></span>
-              <div>
-                <div class="rr-indeed-log-row-title">Merged 1 applicant · no new records</div>
-                <div class="rr-indeed-log-row-time">Today · 6:00 AM</div>
-              </div>
-            </div>
-            <div class="rr-indeed-log-row">
-              <span class="rr-indeed-log-dot"></span>
-              <div>
-                <div class="rr-indeed-log-row-title">Pulled 5 new applicants from Indeed</div>
-                <div class="rr-indeed-log-row-time">Yesterday · 9:01 AM</div>
-              </div>
-            </div>
-            <div class="rr-indeed-log-row">
-              <span class="rr-indeed-log-dot"></span>
-              <div>
-                <div class="rr-indeed-log-row-title">Pulled 2 new applicants from Indeed</div>
-                <div class="rr-indeed-log-row-time">Yesterday · 6:00 AM</div>
-              </div>
-            </div>
+          <label class="rr-import-drop" id="rr-import-drop" tabindex="0" aria-label="Drop a CSV export to import applicants">
+            <input type="file" id="rr-import-file" accept=".csv,text/csv,text/plain" hidden />
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <div class="rr-import-drop-title">Drop a CSV export here</div>
+            <div class="rr-import-drop-sub">or click to choose · Indeed, Workday, ADP — any ATS</div>
+          </label>
+          <div class="rr-indeed-log-list" id="rr-import-feed"><!-- recent imports --></div>
+          <div class="rr-indeed-log-note" id="rr-import-note">
+            Download your candidate export, then drop it here.
+            <a href="#" id="rr-import-connect">Set up an always-on desktop box →</a>
           </div>
-          <div class="rr-indeed-log-note">Sample data — the Indeed pull-and-merge sync isn't wired up yet.</div>
         </aside>
         </div><!-- /pipe-shell -->
 
@@ -36261,7 +36257,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260606-rulesmerge"></script>
+<script type="module" src="./live.js?v=20260607-fileimport"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
