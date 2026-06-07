@@ -12737,6 +12737,13 @@ body.rr-cmdk-open{ overflow:hidden }
         #obsub-pipeline #view-pipeline > .page{padding:0}
         #obsub-pipeline #view-pipeline .page-header{display:none}
         #obsub-pipeline #view-pipeline .pipe-subnav-row{display:none}
+        /* Icon card → applicant card gap · the onboarding ribbon's 16px
+           bottom margin collapses to ~0 against the relocated pipeline,
+           so the Applicants card butts right up under the icon strip.
+           Pin it to Schedule's icon-card → grid gap (17px, see the
+           "Title-card → KPI gap = Schedule's 17px" rule at :18943) so
+           the Funnel page breathes exactly like the Schedule page. */
+        #obsub-pipeline{margin-top:17px !important}
       </style>
       <!-- .tcp-shell · structural lock matching Schedule (PR #1785).
            Flex column, viewport-tall, overflow:hidden. The chrome
