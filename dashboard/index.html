@@ -11766,6 +11766,27 @@ body.rr-cmdk-open{ overflow:hidden }
             opacity:1 !important;transition:none !important;
           }
           #view-pipeline .pa-workspace::-webkit-scrollbar-thumb:hover{background:#323130 !important}
+          /* Native bars auto-hide on the operator's Chrome, so the JS faux
+             bar (live.js) is the always-visible one. Once it attaches, hide
+             the native bar so only the faux shows — same as the schedule. */
+          #view-pipeline .pa-workspace[data-rr-faux-attached]{scrollbar-width:none !important}
+          #view-pipeline .pa-workspace[data-rr-faux-attached]::-webkit-scrollbar,
+          #view-pipeline .pa-workspace[data-rr-faux-attached]::-webkit-scrollbar:vertical,
+          #view-pipeline .pa-workspace[data-rr-faux-attached]::-webkit-scrollbar:horizontal{
+            width:0 !important;height:0 !important;display:none !important;background:transparent !important;
+          }
+          /* Size + colour the funnel's faux bar to MATCH the Schedule's bar
+             (14px track, dark thumb) instead of the thin 9px global default. */
+          #view-pipeline .rr-faux-scrollbar{
+            width:14px !important;background:#E1DFDD !important;
+            border-left:1px solid #C8C6C4 !important;border-radius:0 !important;
+          }
+          #view-pipeline .rr-faux-scrollbar-thumb{
+            left:3px !important;right:3px !important;
+            background:#5A5A5A !important;border-radius:8px !important;min-height:56px !important;
+          }
+          #view-pipeline .rr-faux-scrollbar-thumb:hover,
+          #view-pipeline .rr-faux-scrollbar-thumb:active{background:#323130 !important}
           #view-pipeline .pa-ws-header{
             flex:0 0 auto;padding:12px 16px;border-bottom:1px solid var(--border);
             background:var(--surface);
@@ -36402,7 +36423,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260607-barsize2"></script>
+<script type="module" src="./live.js?v=20260607-fauxmatch"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
