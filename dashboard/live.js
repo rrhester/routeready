@@ -1185,10 +1185,6 @@ function _pipeFitList() {
   // Funnel is content-sized (secondary), not stretched to full height.
   const log = document.getElementById("rr-funnel-panel");
   if (log) log.style.height = "";
-  // Ensure the always-visible JS faux scrollbar is attached now that the
-  // workspace is sized and visible (overlay native bars never render a
-  // persistent bar on the operator's Chrome).
-  if (window.rrSetupFauxScrollbars) window.rrSetupFauxScrollbars();
 }
 window.addEventListener("resize", _pipeFitList);
 
@@ -62203,12 +62199,13 @@ document.addEventListener("click", (e) => {
       // always-visible scrollbar treatment as the schedule grid so
       // operators on macOS Chrome don't lose the scroll affordance
       // when the cursor isn't moving.
-      "#view-onboarding-ops.rrx-onboarding .ob-mx-scroll, " +
-      // Funnel / applicant pipeline workspace — the operator's Chrome
-      // uses overlay (auto-hiding) scrollbars, so the native CSS recipe
-      // never renders a persistent bar here. Give it the same JS faux
-      // scrollbar as the schedule grid so the bar is always visible.
-      "#view-pipeline .pa-workspace";
+      "#view-onboarding-ops.rrx-onboarding .ob-mx-scroll";
+    // NOTE: the funnel (#view-pipeline .pa-workspace) is deliberately NOT
+    // in this list. On the operator's Chrome the Schedule renders its
+    // forced 14px NATIVE bar (not the 9px faux), so the funnel uses the
+    // identical 14px native recipe in index.html to match the Schedule's
+    // size. Attaching the faux here would replace it with the thinner 9px
+    // faux bar and break the size match.
     document.querySelectorAll(sel).forEach(attachFauxScrollbar);
   }
 
@@ -62230,14 +62227,12 @@ document.addEventListener("click", (e) => {
     kick();
   }
   document.addEventListener("click", (e) => {
-    // Re-kick when the operator navigates into the schedule view, the
-    // onboarding readiness board, OR the funnel/pipeline page (all have
-    // async re-renders that wipe + recreate the scroll container).
+    // Re-kick when the operator navigates into either the schedule
+    // view OR the onboarding readiness board (both have async
+    // re-renders that wipe + recreate the scroll container).
     if (!e.target.closest(
       "[data-sub='schedule'], [data-v='schedule'], .sched-cmd-tab, .sched-v2-tile, " +
-      "[data-obsub='overview'], [data-v='onboarding-ops'], " +
-      ".nav-item[data-view='pipeline'], #view-pipeline .subnav-item, " +
-      "#view-pipeline .pipe-window-toggle .hp-window-btn"
+      "[data-obsub='overview'], [data-v='onboarding-ops']"
     )) return;
     setTimeout(setupFauxScrollbars, 150);
     setTimeout(setupFauxScrollbars, 600);
