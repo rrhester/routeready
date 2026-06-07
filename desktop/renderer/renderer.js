@@ -14,6 +14,7 @@ const els = {
   inboxDir: $("#inbox-dir"),
   inboxOpen: $("#btn-inbox-open"),
   inboxList: $("#inbox-list"),
+  inboxAuto: $("#inbox-auto"),
   welcome: $("#welcome"),
   welcomeOther: $("#welcome-other"),
   welcomeButtons: document.querySelectorAll("[data-quick-portal]"),
@@ -153,6 +154,7 @@ async function refreshInbox() {
   let s = {};
   try { s = await window.rr.inbox.status(); } catch { return; }
   if (els.inboxDir) els.inboxDir.value = s.dir || "";
+  if (els.inboxAuto) { try { const a = await window.rr.inbox.getAuto(); els.inboxAuto.checked = !!(a && a.auto); } catch {} }
   inboxPreviews.clear();
   for (const f of (s.pending || [])) {
     try {
@@ -165,6 +167,24 @@ async function refreshInbox() {
 
 if (els.inboxOpen) {
   els.inboxOpen.addEventListener("click", () => window.rr.inbox.openFolder());
+}
+if (els.inboxAuto) {
+  els.inboxAuto.addEventListener("change", async () => {
+    try {
+      await window.rr.inbox.setAuto(els.inboxAuto.checked);
+      log(els.inboxAuto.checked
+        ? "Auto-import ON — clean files now import without the review step."
+        : "Auto-import OFF — files wait here for you to review.", "ok");
+    } catch (e) { log(`Couldn't change auto-import: ${e.message}`, "error"); }
+  });
+}
+if (window.rr.inbox && window.rr.inbox.onAutoImported) {
+  window.rr.inbox.onAutoImported((p) => {
+    if (!p) return;
+    log(`Auto-imported ${p.uploaded} applicant(s)${p.failed ? `, ${p.failed} skipped` : ""} from ${p.name}.`, "ok");
+    refreshInbox();
+    refreshHistory();
+  });
 }
 if (els.inboxList) {
   els.inboxList.addEventListener("click", async (evt) => {

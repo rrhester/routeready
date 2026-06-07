@@ -54,6 +54,10 @@
         <input id="inbox-dir" type="text" readonly />
         <button id="btn-inbox-open" class="btn" type="button">Open Inbox folder</button>
       </div>
+      <label class="field field-row inbox-auto">
+        <input id="inbox-auto" type="checkbox" />
+        <span>Auto-import dropped files <em>(skip the review step — only clean files import automatically; anything ambiguous still waits here)</em></span>
+      </label>
       <ul id="inbox-list" class="jobs"><li class="empty">No files waiting. Drop a .csv in the Inbox folder above.</li></ul>
     </section>
 

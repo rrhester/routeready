@@ -1237,6 +1237,27 @@ function moveInboxFile(file, sub) {
 
 let inboxTimer = null;
 const inboxSurfaced = new Set(); // files already shown to the UI this session
+// Parse + upload one inbox file via the shared importer. Returns the
+// {uploaded, failed, rows, error} summary; does NOT move the file (caller does).
+async function importInboxFile(file) {
+  const text = fs.readFileSync(file, "utf8");
+  const { records } = csvToRecords(text);
+  return agent.importRecords(records, path.basename(file));
+}
+// Auto-import is per-box (config) and OFF by default. A file only auto-imports
+// if it ALSO maps cleanly (most rows have a name + contact); anything ambiguous
+// or sparse still waits for manual review, so auto mode can't silently create
+// junk applicants.
+function autoImportEnabled() { return !!readConfig().inboxAutoImport; }
+function mapsCleanly(preview) {
+  return !!preview && preview.importable >= 1 && preview.importable >= Math.ceil((preview.total || 0) * 0.7);
+}
+function surfaceForReview(file, preview) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try { mainWindow.webContents.send("inbox:detected", preview || { file, name: path.basename(file) }); } catch {}
+  }
+}
+
 function inboxWatchTick() {
   try {
     const pending = inboxPendingFiles();
@@ -1247,10 +1268,27 @@ function inboxWatchTick() {
       inboxSurfaced.add(f);
       let preview = null;
       try { preview = inboxPreview(f); } catch (e) { logLine("inbox: preview failed:", String(e)); }
-      logLine("inbox: detected", path.basename(f), preview ? `(${preview.importable}/${preview.total} importable)` : "");
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        try { mainWindow.webContents.send("inbox:detected", preview || { file: f, name: path.basename(f) }); } catch {}
+
+      if (autoImportEnabled() && mapsCleanly(preview)) {
+        logLine("inbox: auto-importing", path.basename(f), `(${preview.importable}/${preview.total})`);
+        importInboxFile(f).then((res) => {
+          if (res && res.uploaded > 0) {
+            moveInboxFile(f, "Imported");
+            logLine("inbox: auto-imported", path.basename(f), `→ ${res.uploaded} uploaded, ${res.failed} failed`);
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              try { mainWindow.webContents.send("inbox:autoImported", { name: path.basename(f), uploaded: res.uploaded, failed: res.failed }); } catch {}
+            }
+          } else {
+            // Upload didn't take (e.g. box offline) — fall back to manual review.
+            logLine("inbox: auto-import got 0 uploaded → review", path.basename(f), res?.error || "");
+            surfaceForReview(f, preview);
+          }
+        }).catch((e) => { logLine("inbox: auto-import threw:", String(e)); surfaceForReview(f, preview); });
+        continue;
       }
+
+      logLine("inbox: detected", path.basename(f), preview ? `(${preview.importable}/${preview.total} importable)` : "");
+      surfaceForReview(f, preview);
     }
   } catch (e) { logLine("inbox: watch threw:", String(e)); }
 }
@@ -1279,9 +1317,7 @@ ipcMain.handle("inbox:skip", async (_e, { file } = {}) => {
 });
 ipcMain.handle("inbox:import", async (_e, { file } = {}) => {
   try {
-    const text = fs.readFileSync(file, "utf8");
-    const { records } = csvToRecords(text);
-    const res = await agent.importRecords(records, path.basename(file));
+    const res = await importInboxFile(file);
     if (res.error === "no_importable_rows") return { ok: false, error: "No name/email columns detected in that file." };
     if (res.error && res.uploaded === 0) return { ok: false, error: res.error };
     moveInboxFile(file, "Imported");
@@ -1289,6 +1325,12 @@ ipcMain.handle("inbox:import", async (_e, { file } = {}) => {
     logLine("inbox: imported", path.basename(file), `→ ${res.uploaded} uploaded, ${res.failed} failed`);
     return { ok: true, uploaded: res.uploaded, failed: res.failed, rows: res.rows, error: res.error };
   } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+});
+ipcMain.handle("inbox:getAuto", async () => ({ ok: true, auto: autoImportEnabled() }));
+ipcMain.handle("inbox:setAuto", async (_e, { on } = {}) => {
+  writeConfig({ inboxAutoImport: !!on });
+  logLine("inbox: auto-import", on ? "ON" : "OFF");
+  return { ok: true, auto: !!on };
 });
 
 // Synchronous handshake the preload uses to decide capability gating — the
