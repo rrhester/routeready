@@ -454,11 +454,20 @@ function _fmtAbsTouch(iso) {
   return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
 }
 
+// Whether a screening invite has gone out. `last_sms_at` is only stamped when
+// an SMS actually delivers (and never for email-only sends), but
+// send_screening_link flips status applied→contacted synchronously — so key off
+// status too, otherwise clicking "Send screening" appears to do nothing.
+const _SENT_STATUSES = new Set(["contacted", "screening_started"]);
+function _screeningInviteSent(a) {
+  return !!a.last_sms_at || _SENT_STATUSES.has(a.status);
+}
+
 // "Screening invite sent" / "Video completed" / "Applicant added" — pick
 // the verb tied to the latest activity so the Last touch column reads
 // like a verb, not a timestamp.
 function _lastTouchLabel(a) {
-  if (a.last_sms_at)             return "Screening invite sent";
+  if (_screeningInviteSent(a))   return "Screening invite sent";
   if (a.screening_completed_at)  return "Screening completed";
   return "Applicant added";
 }
@@ -469,7 +478,11 @@ function _lastTouchLabel(a) {
 function _activitySteps(a) {
   const steps = [];
   if (a.created_at)              steps.push({ label: "Applicant added",      at: a.created_at });
-  if (a.last_sms_at)             steps.push({ label: "Screening invite sent", at: a.last_sms_at });
+  // Use last_sms_at when we have it; otherwise (just contacted, SMS not yet
+  // delivered / email-only) fall back to just after "added" so the step shows.
+  const inviteAt = a.last_sms_at
+    || (_screeningInviteSent(a) && a.created_at ? new Date(new Date(a.created_at).getTime() + 1000).toISOString() : null);
+  if (inviteAt)                 steps.push({ label: "Screening invite sent", at: inviteAt });
   if (a.screening_completed_at)  steps.push({ label: "Screening completed",   at: a.screening_completed_at });
   if (a.next_event_starts_at)    steps.push({ label: "Interview scheduled",   at: a.next_event_starts_at });
   // Sort by time so a later last_sms_at doesn't appear before a screening
@@ -535,7 +548,7 @@ function renderApplicantCard(a) {
   // "Send" until a screening invite has actually gone out (same signal the
   // timeline uses for "Screening invite sent"), "Resend" after — so the button
   // and the card's timeline never disagree. Same action either way.
-  if (stage === "applied")           { ctaAction = "resend_screening"; ctaLabel = a.last_sms_at ? "Resend screening" : "Send screening"; }
+  if (stage === "applied")           { ctaAction = "resend_screening"; ctaLabel = _screeningInviteSent(a) ? "Resend screening" : "Send screening"; }
   else if (stage === "screened")     { ctaAction = "send_link";        ctaLabel = "Send booking link"; }
   else if (stage === "booking_pending") { ctaAction = "resend_link";   ctaLabel = "Resend booking link"; }
   else if (stage === "booking_scheduled") { ctaAction = "reschedule";  ctaLabel = "Reschedule"; }
