@@ -460,13 +460,53 @@ async function stableSelectorForRef(page, ref) {
   try { return await page.evaluate(cssPathInPage, m[0]); } catch { return null; }
 }
 
-// Map a raw extracted record (flat field→text) into our row shape: known
-// fields at the top level, everything else under `extra`.
+// Map a raw extracted record (flat field→text) into our row shape: a coherent
+// top-level name/email/phone, with everything else under `extra`.
+//
+// Sources label columns wildly differently — "Name", "Full Name", split
+// First/Last, "Surname", "E-mail", "Mobile", "Contact #" — and the model picks
+// whatever keys match the page. This is the ONE place every extracted row passes
+// through (both the AI and the zero-cost replay paths), so we normalize here:
+// alias the common variants, and compose a full name from first/last when the
+// source splits it. That keeps the CSV, the dedup key (rowKey), and the upload
+// (box-ingest requires full_name) all working no matter the page's layout — so
+// a new search against a differently-formatted site doesn't silently drop names.
 function shapeRow(rec) {
-  const KNOWN = new Set(["name", "email", "phone"]);
-  const row = { extra: {} };
-  for (const k of Object.keys(rec)) { if (KNOWN.has(k)) row[k] = rec[k]; else row.extra[k] = rec[k]; }
-  if (!Object.keys(row.extra).length) delete row.extra;
+  const norm = (k) => String(k).toLowerCase().replace(/[\s._-]+/g, "");
+  const ALIASES = {
+    name:  ["name", "fullname", "candidatename", "applicantname", "contactname"],
+    first: ["firstname", "first", "givenname", "forename"],
+    last:  ["lastname", "last", "surname", "familyname"],
+    email: ["email", "emailaddress", "mail", "emailid", "e"],
+    phone: ["phone", "phonenumber", "mobile", "mobilenumber", "cell", "cellphone", "tel", "telephone", "contactnumber"],
+  };
+  const lookup = {};
+  for (const k of Object.keys(rec)) { const n = norm(k); if (!(n in lookup)) lookup[n] = rec[k]; }
+  const grab = (key) => {
+    for (const a of ALIASES[key]) { const v = lookup[a]; if (v != null && String(v).trim()) return String(v).trim(); }
+    return "";
+  };
+  const first = grab("first"), last = grab("last");
+  const name = grab("name") || [first, last].filter(Boolean).join(" ");
+  const email = grab("email"), phone = grab("phone");
+
+  const row = {};
+  if (name) row.name = name;
+  if (email) row.email = email;
+  if (phone) row.phone = phone;
+
+  // Preserve split name parts (ATS first/last fields downstream) plus any other
+  // columns the source gave us (dob, city, role applied for, …) under `extra`.
+  const aliased = new Set([].concat(...Object.values(ALIASES)));
+  const extra = {};
+  if (first) extra.first_name = first;
+  if (last) extra.last_name = last;
+  for (const k of Object.keys(rec)) {
+    if (aliased.has(norm(k))) continue;
+    const v = rec[k];
+    if (v != null && String(v).trim()) extra[k] = v;
+  }
+  if (Object.keys(extra).length) row.extra = extra;
   return row;
 }
 
