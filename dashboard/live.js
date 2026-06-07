@@ -62230,9 +62230,9 @@ document.addEventListener("click", (e) => {
     kick();
   }
   document.addEventListener("click", (e) => {
-    // Re-kick when the operator navigates into the schedule view, the
-    // onboarding readiness board, OR the funnel/pipeline page (all have
-    // async re-renders that wipe + recreate the scroll container).
+    // Re-kick when the operator navigates into either the schedule
+    // view OR the onboarding readiness board (both have async
+    // re-renders that wipe + recreate the scroll container).
     if (!e.target.closest(
       "[data-sub='schedule'], [data-v='schedule'], .sched-cmd-tab, .sched-v2-tile, " +
       "[data-obsub='overview'], [data-v='onboarding-ops'], " +
