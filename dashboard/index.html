@@ -11745,6 +11745,36 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .rr-indeed-pull:disabled{cursor:default;opacity:.72}
           #view-pipeline .rr-indeed-pull svg{width:14px;height:14px}
           #view-pipeline .rr-indeed-pull.is-loading svg{animation:rr-spin .65s linear infinite}
+          /* ── Onboarding funnel · vertical KPI rail ───────────────────── */
+          #view-pipeline .rr-funnel-rail{padding:16px 16px 18px}
+          #view-pipeline .rr-funnel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px}
+          #view-pipeline .rr-funnel-title{font-size:var(--fs-md);font-weight:700;color:var(--text)}
+          #view-pipeline .rr-funnel-body{display:flex;flex-direction:column;gap:14px}
+          #view-pipeline .rr-fn-row{display:flex;align-items:center;gap:10px}
+          #view-pipeline .rr-fn-ico{
+            flex:0 0 auto;width:34px;height:34px;border-radius:50%;
+            display:flex;align-items:center;justify-content:center;
+          }
+          #view-pipeline .rr-fn-ico.rr-fn-purple{background:rgba(124,58,237,.12);color:#7C3AED}
+          #view-pipeline .rr-fn-ico.rr-fn-blue{background:rgba(15,108,189,.12);color:var(--accent)}
+          #view-pipeline .rr-fn-ico.rr-fn-green{background:rgba(22,163,74,.12);color:#16A34A}
+          #view-pipeline .rr-fn-main{flex:1 1 auto;min-width:0}
+          #view-pipeline .rr-fn-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px}
+          #view-pipeline .rr-fn-label{font-size:var(--fs-sm);font-weight:600;color:var(--text)}
+          #view-pipeline .rr-fn-count{font-size:var(--fs-lg);font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+          #view-pipeline .rr-fn-bar{height:6px;border-radius:999px;background:rgba(15,23,42,.06);overflow:hidden}
+          #view-pipeline .rr-fn-fill{display:block;height:100%;border-radius:999px;transition:width .35s ease}
+          #view-pipeline .rr-fn-fill.rr-fn-purple{background:linear-gradient(90deg,#7C3AED,#6D28D9)}
+          #view-pipeline .rr-fn-fill.rr-fn-blue{background:var(--accent)}
+          #view-pipeline .rr-fn-fill.rr-fn-green{background:#16A34A}
+          #view-pipeline .rr-fn-pct{flex:0 0 auto;width:40px;text-align:right;font-size:var(--fs-xs);color:var(--text-subtle);font-variant-numeric:tabular-nums}
+          #view-pipeline .rr-fn-e2e{
+            margin-top:6px;padding:14px;border-radius:var(--r-lg,12px);text-align:center;
+            background:var(--accent-soft,rgba(15,108,189,.08));
+          }
+          #view-pipeline .rr-fn-e2e-label{font-size:var(--fs-xs);font-weight:600;color:var(--text-muted)}
+          #view-pipeline .rr-fn-e2e-val{font-size:26px;font-weight:800;color:var(--accent);line-height:1.1;margin:2px 0}
+          #view-pipeline .rr-fn-e2e-sub{font-size:var(--fs-xs);color:var(--text-subtle)}
           /* Import applicants · drag-and-drop zone */
           #view-pipeline .rr-import-drop{
             display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
@@ -12181,22 +12211,16 @@ body.rr-cmdk-open{ overflow:hidden }
              Workday, ADP, any ATS): download the export like normal, drop it
              here. No portal login, no crawling. The desktop box can watch a
              folder to do this automatically. -->
-        <aside class="rr-indeed-log" id="rr-import-panel" aria-label="Import applicants">
-          <div class="rr-indeed-log-head">
-            <span>Import applicants</span>
-            <span>CSV</span>
+        <aside class="rr-indeed-log rr-funnel-rail" id="rr-funnel-panel" aria-label="Onboarding funnel">
+          <div class="rr-funnel-head">
+            <span class="rr-funnel-title">Onboarding funnel</span>
+            <div id="hp-window-toggle-side" class="pipe-window-toggle" role="group" aria-label="Time window">
+              <button class="hp-window-btn" data-rr-window="7"    type="button">Week</button>
+              <button class="hp-window-btn" data-rr-window="28"   type="button">4 wk</button>
+              <button class="hp-window-btn" data-rr-window="3650" type="button">All</button>
+            </div>
           </div>
-          <label class="rr-import-drop" id="rr-import-drop" tabindex="0" aria-label="Drop a CSV export to import applicants">
-            <input type="file" id="rr-import-file" accept=".csv,text/csv,text/plain" hidden />
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <div class="rr-import-drop-title">Drop a CSV export here</div>
-            <div class="rr-import-drop-sub">or click to choose · Indeed, Workday, ADP — any ATS</div>
-          </label>
-          <div class="rr-indeed-log-list" id="rr-import-feed"><!-- recent imports --></div>
-          <div class="rr-indeed-log-note" id="rr-import-note">
-            Download your candidate export, then drop it here.
-            <a href="#" id="rr-import-connect">Set up an always-on desktop box →</a>
-          </div>
+          <div id="rr-funnel-body" class="rr-funnel-body"><!-- rendered by _renderFunnelSidebar() --></div>
         </aside>
         </div><!-- /pipe-shell -->
 
@@ -13230,6 +13254,26 @@ body.rr-cmdk-open{ overflow:hidden }
                 </div>
                 <!-- Hidden file input that openPdfUploadPicker clicks. -->
                 <input type="file" id="rr-ob-pdf-upload-input" accept="application/pdf" style="display:none" multiple/>
+                <!-- Hairline divider between PDF Upload and Import. -->
+                <div class="ob-tab-divider" aria-hidden="true"></div>
+                <!-- Import · CSV import. Clicking opens the file picker; choosing
+                     a file shows the preview/confirm modal (rrShowImportPreview). -->
+                <div class="ob-tab-wrap" data-rr-tile="ob-import">
+                  <button class="subnav-item" onclick="document.getElementById('rr-import-file').click()" title="Import applicants from a CSV export">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <span>Import</span>
+                  </button>
+                  <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Import rules — coming soon">
+                    Rules
+                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                  </button>
+                </div>
+                <!-- Hidden CSV file input the Import tile clicks. -->
+                <input type="file" id="rr-import-file" accept=".csv,text/csv,text/plain" style="display:none" />
               </div>
               <!-- Actions group · no caption/launcher (Add applicant + PDF Upload
                    are actions, not a rules/nav group). -->
@@ -36289,7 +36333,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260607-stepper"></script>
+<script type="module" src="./live.js?v=20260607-funnelside"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
