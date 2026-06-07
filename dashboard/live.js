@@ -783,6 +783,7 @@ function _paOpenMoreMenu(anchor, a) {
   const phoneIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
   const emailIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/></svg>';
   const noteIcon  = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>';
+  const declineIcon = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
   const row = (act, icon, label, sub, disabled) => `
     <button class="pa-pop-mi${disabled ? " is-disabled" : ""}" type="button" data-rr-more-act="${act}"${disabled ? " disabled" : ""}>
       <span class="pa-pop-mi-icon">${icon}</span>
@@ -794,7 +795,18 @@ function _paOpenMoreMenu(anchor, a) {
   const html =
       row("phone", phoneIcon, "Phone", phoneSub, !a.phone)
     + row("email", emailIcon, "Email", emailSub, !a.email)
-    + row("note",  noteIcon,  "Note",  "Add an internal note", false);
+    + row("note",  noteIcon,  "Note",  "Add an internal note", false)
+    // Decline → reuses the global data-rr-action dispatcher (confirm +
+    // decline_applicant RPC + funnel refresh). The capture listener above
+    // closes this popover before the action fires.
+    + `<div class="pa-pop-sep" style="height:1px;background:var(--border);margin:5px 8px" role="separator"></div>`
+    + `<button class="pa-pop-mi" type="button" data-rr-action="decline" data-applicant-id="${escapeHtml(a.id)}" style="color:var(--red)">
+        <span class="pa-pop-mi-icon" style="color:var(--red)">${declineIcon}</span>
+        <span class="pa-pop-mi-body">
+          <span class="pa-pop-mi-label" style="color:var(--red)">Decline</span>
+          <span class="pa-pop-mi-sub">Reject &amp; remove from the funnel</span>
+        </span>
+      </button>`;
   const pop = _paOpenPopover(anchor, html);
   if (!pop) return;
   pop.classList.add("pa-pop-menu");
