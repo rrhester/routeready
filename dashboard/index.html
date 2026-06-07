@@ -12594,11 +12594,10 @@ body.rr-cmdk-open{ overflow:hidden }
           color:var(--text);background:transparent;font-weight:500;
         }
         #view-onboarding-ops .sched-nav-heading .subnav-item.active svg{color:var(--text)}
-        /* PDF Upload tile · blue upload glyph (operator request). Higher
-           specificity + !important so it wins over the grey icon rule and
-           stays blue at rest / hover / active. */
-        #view-onboarding-ops .sched-nav-heading [data-rr-tile="ob-pdf-upload"] .subnav-item svg{
-          color:var(--accent) !important;
+        /* PDF Upload tile · only the up-arrow is blue; the page outline keeps
+           the default icon color like the other tiles (operator request). */
+        #view-onboarding-ops .sched-nav-heading [data-rr-tile="ob-pdf-upload"] .rr-pdf-arrow{
+          stroke:var(--accent) !important;
         }
         /* Kill the 3px blue underline marker on the active onboarding tile. */
         #view-onboarding-ops .sched-nav-heading .subnav-item.active::after,
@@ -13366,8 +13365,8 @@ body.rr-cmdk-open{ overflow:hidden }
                          (color rule at index.html below) per operator request. -->
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                       <rect x="5" y="3" width="14" height="18" rx="2"/>
-                      <line x1="12" y1="16" x2="12" y2="9"/>
-                      <polyline points="9 12 12 9 15 12"/>
+                      <line class="rr-pdf-arrow" x1="12" y1="16" x2="12" y2="9"/>
+                      <polyline class="rr-pdf-arrow" points="9 12 12 9 15 12"/>
                     </svg>
                     <span>PDF Upload</span>
                   </button>
