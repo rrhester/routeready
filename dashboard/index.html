@@ -11732,21 +11732,40 @@ body.rr-cmdk-open{ overflow:hidden }
             border:1px solid var(--border);
             border-radius:10px;
             box-shadow:0 1px 3px rgba(15,23,42,.04);
-            /* The workspace itself is the scroll container. This recipe is a
-               BYTE-FOR-BYTE copy of .cal-wrap (the Schedule grid), which renders
-               an always-on, non-overlay bar on the operator's machine: a plain
-               BLOCK element (not flex), opaque subtle track, overflow-y:scroll to
-               reserve the track, plus BOTH the standard scrollbar-width/-color
-               and the legacy ::-webkit-scrollbar rules. */
-            overflow:hidden;overflow-y:scroll;
-            scrollbar-gutter:stable;
-            scrollbar-width:thin;
-            scrollbar-color:var(--border-strong) rgba(15,23,42,.04);
+            /* The workspace itself is the scroll container. Native bar recipe
+               is a BYTE-FOR-BYTE copy of the Schedule's forced scrollbar
+               (schedule-rrx.css §.cal-wrap, 14px / scrollbar-width:auto /
+               #5A5A5A thumb on #E1DFDD) so it's the SAME SIZE as the Schedule
+               page. -webkit-appearance:none defeats Chrome's overlay
+               auto-hide; overflow-y:scroll reserves the track at all times. */
+            overflow:hidden;
+            overflow-y:scroll !important;
+            scrollbar-gutter:stable !important;
+            scrollbar-width:auto !important;
+            scrollbar-color:#5A5A5A #E1DFDD !important;
           }
-          #view-pipeline .pa-workspace::-webkit-scrollbar{width:8px;background:rgba(15,23,42,.04);-webkit-appearance:none}
-          #view-pipeline .pa-workspace::-webkit-scrollbar-track{background:rgba(15,23,42,.04);border-radius:var(--r-sm)}
-          #view-pipeline .pa-workspace::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:var(--r-sm);min-height:30px}
-          #view-pipeline .pa-workspace::-webkit-scrollbar-thumb:hover{background:var(--text-subtle)}
+          #view-pipeline .pa-workspace::-webkit-scrollbar,
+          #view-pipeline .pa-workspace::-webkit-scrollbar:vertical,
+          #view-pipeline .pa-workspace::-webkit-scrollbar:horizontal{
+            -webkit-appearance:none !important;appearance:none !important;
+            width:14px !important;height:14px !important;
+            background:#E1DFDD !important;display:block !important;
+            visibility:visible !important;opacity:1 !important;
+          }
+          #view-pipeline .pa-workspace::-webkit-scrollbar-track{
+            background:#E1DFDD !important;border-left:1px solid #C8C6C4 !important;
+          }
+          #view-pipeline .pa-workspace::-webkit-scrollbar-thumb,
+          #view-pipeline .pa-workspace::-webkit-scrollbar-thumb:vertical,
+          #view-pipeline .pa-workspace::-webkit-scrollbar-thumb:active,
+          #view-pipeline .pa-workspace::-webkit-scrollbar-thumb:window-inactive{
+            -webkit-appearance:none !important;appearance:none !important;
+            background:#5A5A5A !important;background-clip:padding-box !important;
+            border:3px solid #E1DFDD !important;border-radius:8px !important;
+            min-height:56px !important;visibility:visible !important;
+            opacity:1 !important;transition:none !important;
+          }
+          #view-pipeline .pa-workspace::-webkit-scrollbar-thumb:hover{background:#323130 !important}
           /* Once the JS faux scrollbar (live.js) attaches, hide the native
              bar so the always-visible faux DIV is the only one shown —
              same treatment the schedule grid uses (schedule-rrx.css). */
@@ -36392,7 +36411,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260607-fauxbar"></script>
+<script type="module" src="./live.js?v=20260607-barsize"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
