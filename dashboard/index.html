@@ -10997,9 +10997,25 @@ body.rr-cmdk-open{ overflow:hidden }
              inset dividers, not boxed sections. */
           #view-pipeline .pa-row-v3{
             display:grid;
-            grid-template-columns:260px minmax(0,1fr) minmax(336px,400px);
+            grid-template-columns:240px minmax(0,1fr) 116px minmax(196px,240px);
             gap:0;align-items:center;
           }
+          /* Column header row (prepended to the list, same grid so it aligns). */
+          #view-pipeline .pa-listhead{
+            position:sticky;top:0;z-index:2;background:var(--surface);
+            border-bottom:1px solid var(--border);
+          }
+          #view-pipeline .pa-listhead .pa-zone{
+            font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;
+            color:var(--text-subtle);padding-top:9px;padding-bottom:9px;border-left:0;
+          }
+          /* "Last updated" column · date over time. */
+          #view-pipeline .pa-zone-updated{
+            display:flex;flex-direction:column;justify-content:center;
+            border-left:1px solid #F3F2F1;
+          }
+          #view-pipeline .pa-upd-date{font-size:12px;font-weight:600;color:var(--text)}
+          #view-pipeline .pa-upd-time{font-size:11px;color:var(--text-subtle)}
           /* ULTRA-compact card · tight single-row layout. All info
              survives, height drops to ~50px. Timeline becomes a
              horizontal node strip with the label INLINE next to
@@ -36337,7 +36353,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260607-stripfix"></script>
+<script type="module" src="./live.js?v=20260607-lastupd"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
