@@ -10884,21 +10884,9 @@ body.rr-cmdk-open{ overflow:hidden }
           .hp-list-tools{display:flex;align-items:center;gap:var(--s-2);font-size:var(--fs-xs);color:var(--text-subtle)}
         </style>
 
-        <div class="hp-list-head">
-          <div class="hp-stages" id="pipeline-stage-tabs">
-            <button class="hp-stage-btn stage-tab active" data-stage="all" onclick="filterPipelineStage(this)">All <span class="hp-stage-btn-count stage-tab-count">28</span></button>
-            <button class="hp-stage-btn stage-tab" data-stage="applied" onclick="filterPipelineStage(this)">Applied <span class="hp-stage-btn-count stage-tab-count">9</span></button>
-            <button class="hp-stage-btn stage-tab" data-stage="screened" onclick="filterPipelineStage(this)">Screening <span class="hp-stage-btn-count stage-tab-count">7</span></button>
-            <button class="hp-stage-btn stage-tab" data-stage="booking_pending" onclick="filterPipelineStage(this)">Booking pending <span class="hp-stage-btn-count stage-tab-count">5</span></button>
-            <button class="hp-stage-btn stage-tab" data-stage="booking_scheduled" onclick="filterPipelineStage(this)">Booking scheduled <span class="hp-stage-btn-count stage-tab-count">7</span></button>
-            <button class="hp-stage-btn stage-tab" data-stage="hired" onclick="filterPipelineStage(this)">Hired <span class="hp-stage-btn-count stage-tab-count">0</span></button>
-          </div>
-          <!-- hp-list-tools / "Newest first" removed · operator wanted
-               that text gone (it was visually appearing next to the
-               Indeed sync card on the right rail and reading as a
-               header for it). Sort order is still implicit (newest
-               first by default, set in pipeline_list RPC). -->
-        </div>
+        <!-- Stage filter tabs moved INTO the white applicant workspace
+             header (.pa-ws-header) below; the gray .hp-list-head card was
+             removed per operator request. -->
 
         <!-- Applicant cards — single muted accent for stage; expandable detail -->
         <style>
@@ -11790,9 +11778,13 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .rr-faux-scrollbar-thumb:hover,
           #view-pipeline .rr-faux-scrollbar-thumb:active{background:#323130 !important}
           #view-pipeline .pa-ws-header{
-            flex:0 0 auto;padding:12px 16px;border-bottom:1px solid var(--border);
+            flex:0 0 auto;padding:12px 16px 0;border-bottom:1px solid var(--border);
             background:var(--surface);
+            display:flex;flex-direction:column;gap:10px;
           }
+          /* Title + count sit above the stage tabs, both inside the white
+             header (the old gray .hp-list-head card was removed). */
+          #view-pipeline .pa-ws-head-top{min-width:0}
           #view-pipeline .pa-ws-title{font-size:15px;font-weight:700;color:var(--text)}
           #view-pipeline .pa-ws-title #pa-ws-count{color:var(--text-subtle);font-weight:600}
           #view-pipeline .pa-ws-sub{font-size:12px;color:var(--text-subtle);margin-top:1px}
@@ -11966,8 +11958,18 @@ body.rr-cmdk-open{ overflow:hidden }
         <div class="pipe-shell">
         <div class="pa-workspace">
         <div class="pa-ws-header">
-          <div class="pa-ws-title">Applicants <span id="pa-ws-count">(0)</span></div>
-          <div class="pa-ws-sub"><span id="pa-ws-count-n">0</span> active candidates</div>
+          <div class="pa-ws-head-top">
+            <div class="pa-ws-title">Applicants <span id="pa-ws-count">(0)</span></div>
+            <div class="pa-ws-sub"><span id="pa-ws-count-n">0</span> active candidates</div>
+          </div>
+          <div class="hp-stages" id="pipeline-stage-tabs">
+            <button class="hp-stage-btn stage-tab active" data-stage="all" onclick="filterPipelineStage(this)">All <span class="hp-stage-btn-count stage-tab-count">28</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="applied" onclick="filterPipelineStage(this)">Applied <span class="hp-stage-btn-count stage-tab-count">9</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="screened" onclick="filterPipelineStage(this)">Screening <span class="hp-stage-btn-count stage-tab-count">7</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="booking_pending" onclick="filterPipelineStage(this)">Booking pending <span class="hp-stage-btn-count stage-tab-count">5</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="booking_scheduled" onclick="filterPipelineStage(this)">Booking scheduled <span class="hp-stage-btn-count stage-tab-count">7</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="hired" onclick="filterPipelineStage(this)">Hired <span class="hp-stage-btn-count stage-tab-count">0</span></button>
+          </div>
         </div>
         <div class="pipe-applicants" id="pipe-applicants">
 
@@ -36425,7 +36427,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260607-stepblue"></script>
+<script type="module" src="./live.js?v=20260607-tabsinhdr"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
