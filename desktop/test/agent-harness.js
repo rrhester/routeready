@@ -2,26 +2,24 @@
 /**
  * agent-harness.js · local test harness for the agentic crawler (agent.js).
  *
- * What it does
- *   Drives the REAL agent pipeline end-to-end against a local fixture page,
- *   with only two things faked:
- *     1. electron            — agent.js requires { ipcMain, safeStorage }.
- *     2. @anthropic-ai/sdk   — replaced with a scripted "model" so the run is
- *                              deterministic and costs nothing / needs no key
- *                              or network. The model returns one `extract`
- *                              tool call, then `done`.
- *   Everything else is the real code: takeSnapshot, runTool, runExtract /
- *   extractInPage (run in a real headless Chromium against the fixture),
- *   the dedupe set, CSV writing, and recipe-learning.
+ * Drives the REAL agent pipeline end-to-end against local fixture pages,
+ * faking only two things:
+ *   1. electron            — agent.js requires { ipcMain, safeStorage }.
+ *   2. @anthropic-ai/sdk   — replaced with a scripted "model". The script
+ *      reads the actual page snapshot (like the real model would) and returns
+ *      tool calls, so runs are deterministic and need no API key or network.
+ * Everything else is the real code: takeSnapshot, runTool (click/extract/…),
+ * runExtract/extractInPage (run in a real headless Chromium), the dedupe set,
+ * CSV writing, recipe-learning, and the $0 replay path.
  *
- * Why
- *   The portal-facing DOM logic (snapshot + extract selectors + dedupe) is the
- *   part most likely to break and the hardest to eyeball. This exercises it
- *   for real without needing the Electron app, a live portal, or auth.
+ * Scenarios
+ *   A · List extract        — pull a repeating list; verify dedupe + CSV.
+ *   B · Detail + reveal      — click "Open details" → click "Reveal email" →
+ *                              extract; verify multi-step nav + a learned recipe.
+ *   C · Learn → replay       — run once (AI learns a recipe), then run again and
+ *                              verify it REPLAYS with zero model calls.
  *
- * Run
- *   node desktop/test/agent-harness.js
- *   (exit code 0 = all assertions passed, 1 = a failure)
+ * Run: node desktop/test/agent-harness.js   (exit 0 = pass, 1 = failure)
  */
 
 const path = require("node:path");
@@ -30,7 +28,7 @@ const os = require("node:os");
 const http = require("node:http");
 const Module = require("node:module");
 
-// ── Locate Playwright + a Chromium binary ──────────────────────────────
+// ── Playwright + Chromium ──────────────────────────────────────────────
 function loadPlaywright() {
   for (const id of ["playwright", "/opt/node22/lib/node_modules/playwright"]) {
     try { return require(id); } catch {}
@@ -47,49 +45,59 @@ function findChromium() {
       }
     }
   } catch {}
-  return null; // let Playwright use its default resolution
+  return null;
 }
 const { chromium } = loadPlaywright();
 const CHROMIUM_PATH = findChromium();
 
-// ── Scripted stand-in for the Anthropic SDK ────────────────────────────
-// agent.js does: const Anthropic = require("@anthropic-ai/sdk"); new Anthropic(..)
-// then callModel() -> client.messages.create(...). We return a fixed two-turn
-// script: extract the applicant list, then finish.
+// ── Scripted Anthropic SDK ─────────────────────────────────────────────
 let MODEL_CALLS = 0;
+let MODEL_SCRIPT = () => ({ content: [{ type: "tool_use", id: "t0", name: "done", input: { status: "complete" } }] });
+let TOOL_ID = 0;
 class FakeAnthropic {
-  constructor(opts) {
-    this.opts = opts;
-    this.messages = { create: async (req) => this._create(req) };
-  }
-  async _create() {
-    MODEL_CALLS++;
-    if (MODEL_CALLS === 1) {
-      return {
-        content: [
-          { type: "text", text: "Reading the applicant list and extracting each row." },
-          {
-            type: "tool_use",
-            id: "tool_extract_1",
-            name: "extract",
-            input: {
-              rowSelector: ".applicant",
-              fields: { name: ".name", email: ".email", phone: ".phone" },
-            },
-          },
-        ],
-      };
-    }
-    return {
-      content: [
-        { type: "text", text: "All applicants recorded." },
-        { type: "tool_use", id: "tool_done_1", name: "done", input: { status: "complete", summary: "Extracted all applicants." } },
-      ],
-    };
-  }
+  constructor(opts) { this.opts = opts; this.messages = { create: async (req) => { MODEL_CALLS++; return MODEL_SCRIPT(req, MODEL_CALLS); } }; }
 }
 
-// ── Fake electron (ipcMain records handlers; safeStorage round-trips) ───
+// Helpers a script uses to act like the real model: read the latest page
+// snapshot out of the conversation and resolve element refs by their label.
+function latestSnapshot(messages) {
+  const isSnap = (s) => typeof s === "string" && s.includes("interactive elements");
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (isSnap(m.content)) return m.content;
+    if (Array.isArray(m.content)) {
+      for (let j = m.content.length - 1; j >= 0; j--) {
+        const b = m.content[j];
+        if (b && b.type === "tool_result" && isSnap(b.content)) return b.content;
+        if (b && b.type === "text" && isSnap(b.text)) return b.text;
+      }
+    }
+  }
+  return "";
+}
+function lastToolResultText(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (Array.isArray(m.content)) {
+      for (let j = m.content.length - 1; j >= 0; j--) {
+        const b = m.content[j];
+        if (b && b.type === "tool_result") return typeof b.content === "string" ? b.content : "";
+      }
+    }
+  }
+  return "";
+}
+function refByName(snap, pred) {
+  const re = /\[(e\d+)\]\s+\S+\s+"([^"]*)"/g;
+  let m;
+  while ((m = re.exec(snap))) { if (pred(m[2])) return m[1]; }
+  return null;
+}
+const tool = (name, input, text) => ({
+  content: [...(text ? [{ type: "text", text }] : []), { type: "tool_use", id: `t${++TOOL_ID}`, name, input }],
+});
+
+// ── Fake electron ──────────────────────────────────────────────────────
 const ipcHandlers = {};
 const fakeElectron = {
   ipcMain: { handle: (name, fn) => { ipcHandlers[name] = fn; }, on: () => {} },
@@ -99,129 +107,139 @@ const fakeElectron = {
     decryptString: (b) => Buffer.from(b).toString("utf8"),
   },
 };
-
-// Intercept the two requires before agent.js loads.
 const origLoad = Module._load;
-Module._load = function (request, parent, isMain) {
+Module._load = function (request) {
   if (request === "electron") return fakeElectron;
   if (request === "@anthropic-ai/sdk") return FakeAnthropic;
   return origLoad.apply(this, arguments);
 };
 
-// ── Temp dirs + fake DEPS ──────────────────────────────────────────────
+// ── Temp dirs + DEPS ───────────────────────────────────────────────────
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "rr-agent-harness-"));
 const USERDATA = path.join(TMP, "userData");
 const DOWNLOADS = path.join(TMP, "downloads");
 fs.mkdirSync(USERDATA, { recursive: true });
 fs.mkdirSync(DOWNLOADS, { recursive: true });
 
-const steps = [];
+let stepLog = [];
 const deps = {
   userDataDir: () => USERDATA,
   defaultDownloadDir: () => DOWNLOADS,
-  logLine: (...a) => console.log("   [agent]", ...a),
-  readSession: () => null, // no portal auth needed for the local fixture
-  launchChromium: async (opts = {}) =>
-    chromium.launch({
-      ...(CHROMIUM_PATH ? { executablePath: CHROMIUM_PATH } : {}),
-      headless: opts.headless !== false,
-      args: opts.args || [],
-      ...(opts.ignoreDefaultArgs ? { ignoreDefaultArgs: opts.ignoreDefaultArgs } : {}),
-    }),
-  getMainWindow: () => null, // emitStep no-ops
+  logLine: () => {},
+  readSession: () => null,
+  launchChromium: async (opts = {}) => chromium.launch({
+    ...(CHROMIUM_PATH ? { executablePath: CHROMIUM_PATH } : {}),
+    headless: opts.headless !== false,
+    args: opts.args || [],
+    ...(opts.ignoreDefaultArgs ? { ignoreDefaultArgs: opts.ignoreDefaultArgs } : {}),
+  }),
+  getMainWindow: () => ({ webContents: { send: (_c, p) => { if (p && p.text) stepLog.push(p.text); } } }),
   appendHistory: () => {},
   reportRun: () => {},
 };
 
-// Capture emitted steps so the harness can print them (optional visibility).
-deps.getMainWindow = () => ({
-  webContents: { send: (_channel, payload) => { if (payload && payload.text) steps.push(payload); } },
-});
-
-// ── Tiny static server for the fixture ─────────────────────────────────
-const FIXTURE = fs.readFileSync(path.join(__dirname, "fixtures", "applicants.html"), "utf8");
-const server = http.createServer((_req, res) => {
+// ── Static fixture server ──────────────────────────────────────────────
+const F = (n) => fs.readFileSync(path.join(__dirname, "fixtures", n), "utf8");
+const ROUTES = { "/list": F("applicants.html"), "/detail": F("detail.html") };
+const server = http.createServer((req, res) => {
+  const body = ROUTES[req.url] || ROUTES["/list"];
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-  res.end(FIXTURE);
+  res.end(body);
 });
 
 // ── Assertions ─────────────────────────────────────────────────────────
 let failures = 0;
 function check(label, cond, detail) {
-  if (cond) { console.log(`  ✓ ${label}`); }
-  else { failures++; console.log(`  ✗ ${label}${detail ? "  — " + detail : ""}`); }
+  if (cond) console.log(`    ✓ ${label}`);
+  else { failures++; console.log(`    ✗ ${label}${detail ? "  — " + detail : ""}`); }
 }
-
-function parseCsv(text) {
-  const lines = text.trim().split(/\r?\n/);
-  const header = lines.shift().split(",");
+function readCsv(p) {
+  if (!p || !fs.existsSync(p)) return [];
+  const lines = fs.readFileSync(p, "utf8").trim().split(/\r?\n/);
+  const header = lines.shift().split(",").map((h) => h.replace(/"/g, ""));
   return lines.map((ln) => {
-    // naive CSV split is fine for this fixture (no embedded commas/quotes)
     const cells = ln.split(",");
-    const row = {};
-    header.forEach((h, i) => (row[h.replace(/"/g, "")] = (cells[i] || "").replace(/^"|"$/g, "")));
+    const row = {}; header.forEach((h, i) => (row[h] = (cells[i] || "").replace(/^"|"$/g, "")));
     return row;
   });
 }
 
+// ── Scenario runner ────────────────────────────────────────────────────
+async function run(taskPatch) {
+  stepLog = [];
+  const saved = await ipcHandlers["agent:saveTask"]({}, taskPatch);
+  if (!saved.ok) throw new Error("saveTask failed: " + JSON.stringify(saved));
+  return ipcHandlers["agent:runNow"]({}, { id: taskPatch.id });
+}
+
 (async () => {
   const agent = require(path.join(__dirname, "..", "agent.js"));
-
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
-  const port = server.address().port;
-  const startUrl = `http://127.0.0.1:${port}/`;
+  const base = `http://127.0.0.1:${server.address().port}`;
   console.log(`\nAgentic crawler harness`);
-  console.log(`  fixture:  ${startUrl}`);
   console.log(`  chromium: ${CHROMIUM_PATH || "(playwright default)"}`);
-  console.log(`  userData: ${USERDATA}\n`);
+  console.log(`  fixtures: ${base}/list , ${base}/detail\n`);
 
   agent.init(deps);
-
-  // Local API key so makeAnthropic() builds our FakeAnthropic client.
   await ipcHandlers["agent:setConfig"]({}, { apiKey: "harness-test-key", model: "mock-model", effort: "low" });
 
-  const saved = await ipcHandlers["agent:saveTask"]({}, {
-    id: "harness-task",
-    name: "Harness — applicant extract",
-    goal: "Extract every applicant's name, email and phone from the list.",
-    startUrl,
-    enabled: false,        // don't let the scheduler loop also run it
-    replayEnabled: false,  // always exercise the AI path (not a learned recipe)
-    downloadDir: DOWNLOADS,
-  });
-  check("task saved", saved && saved.ok, JSON.stringify(saved));
+  // ── Scenario A · list extract ────────────────────────────────────────
+  console.log("Scenario A · list extract");
+  MODEL_CALLS = 0;
+  MODEL_SCRIPT = (_req, n) => n === 1
+    ? tool("extract", { rowSelector: ".applicant", fields: { name: ".name", email: ".email", phone: ".phone" } }, "Extracting the applicant list.")
+    : tool("done", { status: "complete", summary: "Done." });
+  let res = await run({ id: "scA", name: "List extract", goal: "Extract all applicants.", startUrl: `${base}/list`, enabled: false, replayEnabled: false, downloadDir: DOWNLOADS });
+  check("status complete", res.status === "complete", res.status);
+  check("3 unique rows (4 in, repeat email deduped)", res.newCount === 3, `newCount=${res.newCount}`);
+  check("model driven (extract + done)", MODEL_CALLS === 2, `calls=${MODEL_CALLS}`);
+  let rows = readCsv(res.csvPath);
+  check("CSV emails correct", JSON.stringify(rows.map((r) => (r.email || "").toLowerCase()).sort()) ===
+    JSON.stringify(["aisha.khan@example.com", "jane.doe@example.com", "john.smith@example.com"]), JSON.stringify(rows.map((r) => r.email)));
 
-  console.log("\nRunning the agent against the fixture...\n");
-  const res = await ipcHandlers["agent:runNow"]({}, { id: "harness-task" });
+  // ── Scenario B · detail + reveal (multi-step) ────────────────────────
+  console.log("\nScenario B · click into detail + reveal email");
+  MODEL_CALLS = 0;
+  MODEL_SCRIPT = (req) => {
+    if (lastToolResultText(req.messages).startsWith("extract matched")) return tool("done", { status: "complete", summary: "Extracted detail." });
+    const snap = latestSnapshot(req.messages);
+    const reveal = refByName(snap, (t) => /reveal email/i.test(t));
+    if (reveal) return tool("click", { ref: reveal }, "Revealing the email.");
+    const open = refByName(snap, (t) => /open details/i.test(t));
+    if (open) return tool("click", { ref: open }, "Opening the detail panel.");
+    return tool("extract", { rowSelector: ".detail", fields: { name: ".d-name", email: ".d-email", phone: ".d-phone" } }, "Extracting the revealed detail.");
+  };
+  res = await run({ id: "scB", name: "Detail reveal", goal: "Open each applicant, reveal the email, and record name/email/phone.", startUrl: `${base}/detail`, enabled: false, replayEnabled: false, downloadDir: DOWNLOADS });
+  check("status complete", res.status === "complete", res.status);
+  check("1 row extracted from the panel", res.newCount === 1, `newCount=${res.newCount}`);
+  check("multi-step run (open, reveal, extract, done)", MODEL_CALLS === 4, `calls=${MODEL_CALLS}`);
+  rows = readCsv(res.csvPath);
+  check("revealed email + name + phone captured", rows[0] && rows[0].email === "jane.doe@example.com" && rows[0].name === "Jane Doe" && rows[0].phone === "555-0101", JSON.stringify(rows[0]));
+  const tB = (await ipcHandlers["agent:getTask"]({}, { id: "scB" })).task;
+  const recipeKinds = (tB.recipe && tB.recipe.steps || []).map((s) => s.action).join(",");
+  check("learned a durable recipe (click,click,extract)", recipeKinds === "click,click,extract", recipeKinds || "(no recipe)");
 
-  console.log("\nResult:", JSON.stringify({ ...res, csvPath: res && res.csvPath ? path.basename(res.csvPath) : null }));
-  console.log("\nAssertions:");
-  check("run ok", res && res.ok === true, JSON.stringify(res));
-  check("status complete", res && res.status === "complete", res && res.status);
-  check("extracted 3 unique rows (dedupes the repeat email)", res && res.newCount === 3, `newCount=${res && res.newCount}`);
-  check("model was actually driven (2 turns: extract, done)", MODEL_CALLS === 2, `calls=${MODEL_CALLS}`);
+  // ── Scenario C · learn → replay (zero model calls 2nd run) ───────────
+  console.log("\nScenario C · learn once, then replay with no AI");
+  MODEL_CALLS = 0;
+  MODEL_SCRIPT = (_req, n) => n === 1
+    ? tool("extract", { rowSelector: ".applicant", fields: { name: ".name", email: ".email", phone: ".phone" } })
+    : tool("done", { status: "complete" });
+  // Run 1: AI path learns the recipe (replay ON by default).
+  let r1 = await run({ id: "scC", name: "Replay", goal: "Extract all applicants.", startUrl: `${base}/list`, enabled: false, downloadDir: DOWNLOADS });
+  const callsAfterLearn = MODEL_CALLS;
+  check("run 1 learned a recipe", !!(await ipcHandlers["agent:getTask"]({}, { id: "scC" })).task.recipe, "no recipe");
+  // Reset dedupe so the replay re-collects the same rows, and reset the call counter.
+  await ipcHandlers["agent:resetSeen"]({}, { id: "scC" });
+  MODEL_CALLS = 0;
+  let r2 = await ipcHandlers["agent:runNow"]({}, { id: "scC" });
+  check("run 1 used the AI", callsAfterLearn === 2, `calls=${callsAfterLearn}`);
+  check("run 2 made ZERO model calls (replayed)", MODEL_CALLS === 0, `calls=${MODEL_CALLS}`);
+  check("run 2 status complete", r2.status === "complete", r2.status);
+  check("run 2 re-extracted 3 rows via the recipe", r2.newCount === 3, `newCount=${r2.newCount}`);
 
-  // CSV sink
-  let csvRows = [];
-  if (res && res.csvPath && fs.existsSync(res.csvPath)) {
-    csvRows = parseCsv(fs.readFileSync(res.csvPath, "utf8"));
-  }
-  check("CSV written", res && res.csvPath && fs.existsSync(res.csvPath), res && res.csvPath);
-  check("CSV has 3 data rows", csvRows.length === 3, `rows=${csvRows.length}`);
-  const emails = csvRows.map((r) => (r.email || "").toLowerCase()).sort();
-  check(
-    "CSV emails correct",
-    JSON.stringify(emails) === JSON.stringify(["aisha.khan@example.com", "jane.doe@example.com", "john.smith@example.com"]),
-    JSON.stringify(emails)
-  );
-  const jane = csvRows.find((r) => (r.email || "").toLowerCase() === "jane.doe@example.com");
-  check("name + phone extracted", jane && jane.name === "Jane Doe" && jane.phone === "555-0101", JSON.stringify(jane));
-
-  console.log("\nAgent step log:");
-  for (const s of steps) console.log(`   · ${s.text}`);
-
-  await server.close();
-  console.log(failures === 0 ? "\n✅ All assertions passed.\n" : `\n❌ ${failures} assertion(s) failed.\n`);
+  await new Promise((r) => server.close(r));
+  console.log(failures === 0 ? "\n✅ All scenarios passed.\n" : `\n❌ ${failures} assertion(s) failed.\n`);
   process.exit(failures === 0 ? 0 : 1);
 })().catch((e) => {
   console.error("\nHarness crashed:", e);
