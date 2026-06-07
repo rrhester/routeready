@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Test Portal — Applicant detail</title>
+</head>
+<body>
+  <h1>Applicant</h1>
+
+  <!-- Mimics the common portal pattern the agent has to handle:
+       1. a row with an "Open details" button (the detail panel is hidden),
+       2. inside the panel, the email is hidden behind a "Reveal email" button.
+       The agent must: click Open details -> click Reveal email -> extract.
+       data-testid on the buttons lets stableSelectorForRef derive a durable
+       selector, so a clean run becomes a replayable recipe. -->
+  <div class="applicant" id="ap1">
+    <span class="row-name">Jane Doe</span>
+    <button class="open-btn" data-testid="open-1"
+            onclick="document.getElementById('panel').style.display='block'; this.style.display='none';">
+      Open details
+    </button>
+
+    <div class="detail" id="panel" style="display:none">
+      <span class="d-name">Jane Doe</span>
+      <span class="d-phone">555-0101</span>
+      <span class="d-email" id="email" style="display:none">jane.doe@example.com</span>
+      <button class="reveal-btn" data-testid="reveal-1"
+              onclick="document.getElementById('email').style.display='inline'; this.style.display='none';">
+        Reveal email
+      </button>
+    </div>
+  </div>
+</body>
+</html>
