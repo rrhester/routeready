@@ -11826,8 +11826,20 @@ body.rr-cmdk-open{ overflow:hidden }
              emptied on Funnel/Interview/Calendar — collapse it when empty so no
              blank band shows. Roster mode still fills it (then it's not empty). */
           #rr-ob-kpis:empty{display:none !important}
-          /* ── Onboarding funnel · vertical KPI rail ───────────────────── */
-          #view-pipeline .rr-funnel-rail{padding:16px 16px 18px}
+          /* ── Onboarding funnel · vertical KPI rail ─────────────────────
+             Full-height right sidebar: drop the inherited sticky 80px
+             offset (.rr-indeed-log:11802) so its top is flush with the
+             applicant card, and stretch it to the grid row height so it
+             reaches the bottom of the screen exactly like the applicant
+             card. min-height:0 + overflow-y:auto lets the funnel content
+             scroll inside the rail if it ever outgrows the viewport. */
+          #view-pipeline .rr-funnel-rail{
+            padding:16px 16px 18px;
+            position:static;
+            align-self:stretch;
+            min-height:0;
+            overflow-y:auto;
+          }
           #view-pipeline .rr-funnel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px}
           #view-pipeline .rr-funnel-title{font-size:var(--fs-md);font-weight:700;color:var(--text)}
           #view-pipeline .rr-funnel-body{display:flex;flex-direction:column;gap:14px}
