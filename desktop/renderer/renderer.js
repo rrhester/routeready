@@ -6,6 +6,11 @@ const $ = (sel) => document.querySelector(sel);
 
 const els = {
   status: $("#session-status"),
+  connectKey: $("#connect-key"),
+  connect: $("#btn-connect"),
+  disconnect: $("#btn-disconnect"),
+  connectState: $("#connect-state"),
+  connectBlurb: $("#connect-blurb"),
   welcome: $("#welcome"),
   welcomeOther: $("#welcome-other"),
   welcomeButtons: document.querySelectorAll("[data-quick-portal]"),
@@ -50,6 +55,64 @@ els.portalUrl.addEventListener("input", () => {
     log(`Portal URL → ${portalUrl || "(default)"}`);
   }, 600);
 });
+
+// ─── Account connect (paste-the-key sign-in) ───────────────────────
+async function refreshAccountStatus() {
+  if (!els.connect) return;
+  let s = { connected: false };
+  try { s = await window.rr.account.status(); } catch {}
+  if (s.connected) {
+    els.connectState.innerHTML =
+      `<span class="ok-dot"></span> Connected${s.email ? ` as <b>${escapeHtml(s.email)}</b>` : ""}. This box is signed in and syncing.`;
+    els.connectKey.value = "";
+    els.connectKey.hidden = true;
+    els.connect.hidden = true;
+    els.disconnect.hidden = false;
+    if (els.connectBlurb) els.connectBlurb.hidden = true;
+  } else {
+    els.connectState.textContent = "";
+    els.connectKey.hidden = false;
+    els.connect.hidden = false;
+    els.disconnect.hidden = true;
+    if (els.connectBlurb) els.connectBlurb.hidden = false;
+  }
+}
+
+if (els.connect) {
+  els.connect.addEventListener("click", async () => {
+    const key = (els.connectKey.value || "").trim();
+    if (!key) { els.connectState.textContent = "Paste your connect key first."; return; }
+    els.connect.disabled = true;
+    els.connectState.textContent = "Connecting…";
+    try {
+      const r = await window.rr.account.connect(key);
+      if (r && r.ok) {
+        log(`Connected${r.email ? ` as ${r.email}` : ""}.`, "ok");
+        await refreshAccountStatus();
+      } else {
+        const msg = r && r.error === "invalid_or_expired_code"
+          ? "That key is invalid or expired — click \"Connect desktop app\" in the dashboard for a fresh one."
+          : `Couldn't connect: ${r?.error || "unknown error"}`;
+        els.connectState.textContent = msg;
+        log(msg, "error");
+      }
+    } catch (e) {
+      els.connectState.textContent = `Couldn't connect: ${e.message}`;
+      log(`Connect error: ${e.message}`, "error");
+    } finally {
+      els.connect.disabled = false;
+    }
+  });
+  els.connectKey.addEventListener("keydown", (e) => { if (e.key === "Enter") els.connect.click(); });
+}
+
+if (els.disconnect) {
+  els.disconnect.addEventListener("click", async () => {
+    if (!confirm("Disconnect this box from your RouteReady account? It'll stop syncing until you connect again.")) return;
+    try { await window.rr.account.disconnect(); log("Disconnected.", "ok"); } catch (e) { log(`Disconnect failed: ${e.message}`, "error"); }
+    await refreshAccountStatus();
+  });
+}
 
 async function refreshSessionStatus() {
   const { hasSession } = await window.rr.portal.hasSession();
@@ -937,6 +1000,7 @@ agEls.list.addEventListener("click", async (evt) => {
 
 // Initial state
 loadConfig();
+refreshAccountStatus();
 refreshSessionStatus();
 refreshHistory();
 refreshJobs();

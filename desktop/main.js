@@ -345,39 +345,57 @@ function handleDeepLink(link) {
   logLine("deep-link: unhandled", link);
 }
 
+// Redeem a connect key for a Supabase session and sign the box in. Shared by
+// BOTH entry points: the routeready:// deep link (redeemPairing) AND the
+// in-app "Connect" field (the account:connect IPC). Returns a plain result so
+// the caller decides how to surface success/failure (dialog vs. inline UI).
+// Once redeemed, the session is persisted and auto-refreshes, so connecting is
+// a one-time setup — no expiring codes to re-enter on every launch.
+async function connectWithCode(code) {
+  const c = typeof code === "string" ? code.trim() : "";
+  if (!c) return { ok: false, error: "missing_code" };
+  logLine("connect: redeeming key");
+  const res = await fetch(`${effectiveFunctionsUrl()}/desktop-pair`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "redeem", code: c }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.access_token || !body.refresh_token) {
+    const err = body.error || `HTTP ${res.status}`;
+    logLine("connect: redeem failed", err);
+    return { ok: false, error: err };
+  }
+  logLine("connect: redeemed for", body.email || "(unknown)");
+  // Persist the session for the box's own health reporting + task sync. Reset
+  // any cached client so the next report re-auths with the fresh tokens, then
+  // heartbeat + pull this DSP's tasks right away so the box shows up and starts
+  // working immediately.
+  writeBoxSession({ access_token: body.access_token, refresh_token: body.refresh_token, email: body.email || null });
+  boxSupabase = null;
+  startHeartbeat();
+  startSyncWatcher();
+  startCentralTasks();
+  heartbeatTick();
+  syncCentralTasks();
+  return { ok: true, email: body.email || null, access_token: body.access_token, refresh_token: body.refresh_token };
+}
+
 async function redeemPairing(code) {
   showWindow();
-  try {
-    logLine("pairing: redeeming code");
-    const res = await fetch(`${effectiveFunctionsUrl()}/desktop-pair`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: "redeem", code }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok || !body.access_token || !body.refresh_token) {
-      const err = body.error || `HTTP ${res.status}`;
-      logLine("pairing: redeem failed", err);
-      try { dialog.showErrorBox("Couldn't connect", `Pairing failed: ${err}\n\nIn the dashboard, click "Connect desktop app" again to get a fresh code.`); } catch {}
-      return;
-    }
-    logLine("pairing: redeemed for", body.email || "(unknown)");
-    applyDashboardSession(body.access_token, body.refresh_token);
-    // Persist the session for the box's own health reporting (separate from
-    // the dashboard window session). Reset any cached client so the next
-    // report re-auths with the fresh tokens, then heartbeat right away so the
-    // box shows up in the dashboard immediately after pairing.
-    writeBoxSession({ access_token: body.access_token, refresh_token: body.refresh_token });
-    boxSupabase = null;
-    startHeartbeat();
-    startSyncWatcher();
-    startCentralTasks();
-    heartbeatTick();
-    syncCentralTasks(); // pull this DSP's tasks right after pairing
-  } catch (e) {
+  let r;
+  try { r = await connectWithCode(code); }
+  catch (e) {
     logLine("pairing: redeem threw", String(e?.message || e));
     try { dialog.showErrorBox("Couldn't connect", `Pairing error: ${String(e?.message || e)}`); } catch {}
+    return;
   }
+  if (!r.ok) {
+    try { dialog.showErrorBox("Couldn't connect", `Pairing failed: ${r.error}\n\nIn the dashboard, click "Connect desktop app" again to get a fresh key.`); } catch {}
+    return;
+  }
+  // Deep-link flow also signs the in-app dashboard window in.
+  applyDashboardSession(r.access_token, r.refresh_token);
 }
 
 // Hand the redeemed tokens to the dashboard window's own Supabase client
@@ -1079,6 +1097,39 @@ ipcMain.handle("config:set", async (_evt, { portalUrl, dashboardUrl, supabaseFun
 // Installed app version — used by the dashboard bridge to gate features
 // that need a newer native side.
 ipcMain.handle("app:getVersion", async () => ({ ok: true, version: app.getVersion() }));
+
+// ─── Account connect (the in-app "just paste your key" sign-in) ─────
+// The simplest possible pairing: the operator pastes the connect key from
+// their dashboard into ONE field in the app. No terminal, no deep link, no
+// expiring codes to re-enter — the redeemed session persists + auto-refreshes,
+// so it's a one-time setup.
+function boxAccountEmail() {
+  const s = readBoxSession();
+  if (!s) return null;
+  if (s.email) return s.email;
+  // Older sessions stored only tokens — decode the email claim from the JWT.
+  try {
+    const claims = JSON.parse(Buffer.from(String(s.access_token).split(".")[1], "base64").toString("utf8"));
+    return claims.email || null;
+  } catch { return null; }
+}
+ipcMain.handle("account:status", async () => {
+  const s = readBoxSession();
+  return { ok: true, connected: !!(s && s.access_token && s.refresh_token), email: boxAccountEmail() };
+});
+ipcMain.handle("account:connect", async (_evt, { code } = {}) => {
+  try { return await connectWithCode(code); }
+  catch (e) { return { ok: false, error: String(e?.message || e) }; }
+});
+ipcMain.handle("account:disconnect", async () => {
+  try {
+    try { fs.unlinkSync(boxSessionFile()); } catch {}
+    try { fs.unlinkSync(boxSessionFile() + ".plain"); } catch {}
+    boxSupabase = null;
+    logLine("account: disconnected (box session cleared)");
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+});
 
 // Synchronous handshake the preload uses to decide capability gating — the
 // trusted origins come from config (so a custom config.dashboardUrl works),

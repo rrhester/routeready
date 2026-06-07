@@ -20,6 +20,27 @@
   </header>
 
   <main>
+    <!-- STEP 0 · Connect this box to the RouteReady account -->
+    <section class="card card-hero" id="card-connect">
+      <h2>Connect this box to your account</h2>
+      <p class="muted" id="connect-blurb">
+        In your RouteReady dashboard click <b>“Connect desktop app”</b>, copy the
+        key it shows, paste it below, and hit Connect. You only do this once —
+        the box stays signed in after that.
+      </p>
+      <div class="form" id="connect-form">
+        <label class="field">
+          <span>Connect key</span>
+          <input id="connect-key" type="password" placeholder="Paste your connect key from the dashboard" autocomplete="off" spellcheck="false" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="btn-connect" class="btn btn-primary" type="button">Connect</button>
+        <button id="btn-disconnect" class="btn btn-ghost" type="button" hidden>Disconnect</button>
+      </div>
+      <div class="connect-state" id="connect-state"></div>
+    </section>
+
     <section class="card welcome" id="welcome" hidden>
       <h2>Welcome — let's sign you in</h2>
       <p class="muted">

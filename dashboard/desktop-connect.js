@@ -53,12 +53,10 @@
     }
   }
 
-  // Show the one-time pairing code + a copy-paste terminal command. This is
-  // what makes pairing possible on a Chromebook: run the link from inside the
-  // Linux container so it reaches the desktop app.
+  // Show the one-time connect key to paste into the desktop app's "Connect
+  // key" field. (No terminal, no deep link — the app reads the key directly.)
   function showPairPanel(code, link) {
     document.getElementById("rr-pair-panel")?.remove();
-    const cmd = `xdg-open "${link}"`;
     const wrap = document.createElement("div");
     wrap.id = "rr-pair-panel";
     wrap.style.cssText = [
@@ -79,11 +77,9 @@
          <b style="font-size:14px">Connect your desktop box</b>
          <button id="rr-pair-close" style="background:transparent;border:0;color:#94a3b8;font-size:18px;cursor:pointer;line-height:1">×</button>
        </div>
-       <div style="color:#94a3b8;margin:6px 0 2px">If the app opened and connected, you're done. <b>On a Chromebook</b> the app won't open from here — open your <b>Linux Terminal</b> and run:</div>
-       ${codeBox(cmd)}
-       <div style="color:#94a3b8;margin:10px 0 2px">Or paste just the code if the app asks for one:</div>
+       <div style="color:#94a3b8;margin:6px 0 2px">Copy this key, then paste it into the desktop app's <b>“Connect key”</b> box and click <b>Connect</b>. You only do this once.</div>
        ${codeBox(code)}
-       <div style="color:#64748b;margin-top:10px;font-size:12px">The box must be running. This code is one-time and expires in a few minutes — click "Connect desktop app" again for a fresh one.</div>`;
+       <div style="color:#64748b;margin-top:10px;font-size:12px">The box must be running. This key is one-time and good for 24 hours — click "Connect desktop app" again for a fresh one if needed.</div>`;
     document.body.appendChild(wrap);
     wrap.querySelector("#rr-pair-close").addEventListener("click", () => wrap.remove());
     wrap.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
