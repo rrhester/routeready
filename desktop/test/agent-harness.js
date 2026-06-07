@@ -140,7 +140,13 @@ const deps = {
 
 // ── Static fixture server ──────────────────────────────────────────────
 const F = (n) => fs.readFileSync(path.join(__dirname, "fixtures", n), "utf8");
-const ROUTES = { "/list": F("applicants.html"), "/detail": F("detail.html") };
+const ROUTES = {
+  "/list": F("applicants.html"),
+  "/detail": F("detail.html"),
+  "/login": F("login.html"),
+  "/irregular": F("irregular.html"),
+  "/scroll": F("scroll.html"),
+};
 const server = http.createServer((req, res) => {
   const body = ROUTES[req.url] || ROUTES["/list"];
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -237,6 +243,60 @@ async function run(taskPatch) {
   check("run 2 made ZERO model calls (replayed)", MODEL_CALLS === 0, `calls=${MODEL_CALLS}`);
   check("run 2 status complete", r2.status === "complete", r2.status);
   check("run 2 re-extracted 3 rows via the recipe", r2.newCount === 3, `newCount=${r2.newCount}`);
+
+  // ── Scenario D · login wall → blocked ────────────────────────────────
+  console.log("\nScenario D · login wall → blocked");
+  MODEL_CALLS = 0;
+  MODEL_SCRIPT = () => tool("done", { status: "blocked", summary: "Hit a sign-in wall; no session." }, "This is a login wall — I can't proceed.");
+  res = await run({ id: "scD", name: "Login wall", goal: "Extract applicants.", startUrl: `${base}/login`, enabled: false, replayEnabled: false, downloadDir: DOWNLOADS });
+  check("status blocked", res.status === "blocked", res.status);
+  check("ok:true with 0 rows", res.ok === true && res.newCount === 0, `ok=${res.ok} newCount=${res.newCount}`);
+  check("no recipe learned on a blocked run", !(await ipcHandlers["agent:getTask"]({}, { id: "scD" })).task.recipe, "recipe present");
+
+  // ── Scenario E · save_rows (irregular, non-tabular data) ─────────────
+  console.log("\nScenario E · save_rows (irregular data)");
+  MODEL_CALLS = 0;
+  MODEL_SCRIPT = (_req, n) => n === 1
+    ? tool("save_rows", { rows: [
+        { name: "Maria Lopez", email: "maria.lopez@example.com", phone: "555-0200" },
+        { name: "Sam Rivera", email: "sam.rivera@example.com" },
+        { name: "Maria Lopez (dup)", email: "MARIA.LOPEZ@example.com" }, // dedupes by email
+      ] }, "Reading the two contacts from the notes.")
+    : tool("done", { status: "complete", summary: "Saved contacts." });
+  res = await run({ id: "scE", name: "Irregular", goal: "Record any contacts mentioned in the notes.", startUrl: `${base}/irregular`, enabled: false, replayEnabled: false, downloadDir: DOWNLOADS });
+  check("status complete", res.status === "complete", res.status);
+  check("2 rows saved (3 in, dup email collapsed)", res.newCount === 2, `newCount=${res.newCount}`);
+  rows = readCsv(res.csvPath);
+  check("save_rows emails correct", JSON.stringify(rows.map((r) => (r.email || "").toLowerCase()).sort()) ===
+    JSON.stringify(["maria.lopez@example.com", "sam.rivera@example.com"]), JSON.stringify(rows.map((r) => r.email)));
+
+  // ── Scenario F · scroll to reveal lazy-loaded rows ───────────────────
+  console.log("\nScenario F · scroll / lazy pagination");
+  MODEL_CALLS = 0;
+  MODEL_SCRIPT = (_req, n) => {
+    if (n === 1) return tool("scroll", { direction: "down" }, "Scrolling to load more rows.");
+    if (n === 2) return tool("extract", { rowSelector: ".applicant", fields: { name: ".name", email: ".email", phone: ".phone" } }, "Extracting the full list.");
+    return tool("done", { status: "complete", summary: "Got all rows." });
+  };
+  res = await run({ id: "scF", name: "Scroll", goal: "Extract every applicant, scrolling as needed.", startUrl: `${base}/scroll`, enabled: false, replayEnabled: false, downloadDir: DOWNLOADS });
+  check("status complete", res.status === "complete", res.status);
+  check("4 rows after scroll (2 lazy-loaded)", res.newCount === 4, `newCount=${res.newCount}`);
+
+  // ── Scenario G · off-domain navigate is refused (safety guard) ───────
+  console.log("\nScenario G · off-domain navigate refusal");
+  MODEL_CALLS = 0;
+  let offDomainRefused = false;
+  MODEL_SCRIPT = (req, n) => {
+    if (n === 1) return tool("navigate", { url: "https://evil.example.com/steal" }, "Trying to open an external page.");
+    if (n === 2) {
+      if (/^Refused:/.test(lastToolResultText(req.messages))) offDomainRefused = true;
+      return tool("extract", { rowSelector: ".applicant", fields: { name: ".name", email: ".email", phone: ".phone" } }, "Staying on the portal and extracting.");
+    }
+    return tool("done", { status: "complete", summary: "Done on-portal." });
+  };
+  res = await run({ id: "scG", name: "Off-domain", goal: "Extract applicants.", startUrl: `${base}/list`, enabled: false, replayEnabled: false, downloadDir: DOWNLOADS });
+  check("off-domain navigate was refused", offDomainRefused === true, "navigate was not refused");
+  check("stayed on portal + extracted 3 rows", res.status === "complete" && res.newCount === 3, `status=${res.status} newCount=${res.newCount}`);
 
   await new Promise((r) => server.close(r));
   console.log(failures === 0 ? "\n✅ All scenarios passed.\n" : `\n❌ ${failures} assertion(s) failed.\n`);

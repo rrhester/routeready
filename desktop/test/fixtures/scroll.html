@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>Test Portal — Lazy list</title></head>
+<body>
+  <!-- Lazy-loaded list: only 2 rows are present until the page is scrolled,
+       at which point 2 more are appended (once). The agent must scroll to
+       reveal the rest before extracting, so a correct run yields 4 rows. -->
+  <h1>Applicants (lazy)</h1>
+  <ul id="list">
+    <li class="applicant"><span class="name">Row One</span><a class="email" href="mailto:one@example.com">one@example.com</a><span class="phone">555-0001</span></li>
+    <li class="applicant"><span class="name">Row Two</span><a class="email" href="mailto:two@example.com">two@example.com</a><span class="phone">555-0002</span></li>
+  </ul>
+  <div style="height:2000px"></div>
+  <script>
+    var loaded = false;
+    window.addEventListener("scroll", function () {
+      if (loaded) return; loaded = true;
+      var ul = document.getElementById("list");
+      [["Row Three", "three@example.com", "555-0003"], ["Row Four", "four@example.com", "555-0004"]].forEach(function (r) {
+        var li = document.createElement("li");
+        li.className = "applicant";
+        li.innerHTML = '<span class="name">' + r[0] + '</span>' +
+          '<a class="email" href="mailto:' + r[1] + '">' + r[1] + '</a>' +
+          '<span class="phone">' + r[2] + '</span>';
+        ul.appendChild(li);
+      });
+    });
+  </script>
+</body>
+</html>
