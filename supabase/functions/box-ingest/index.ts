@@ -44,11 +44,24 @@ Deno.serve(async (req) => {
   const { data: ures, error: uerr } = await userClient.auth.getUser(token);
   if (uerr || !ures?.user) return badRequest("unauthorized", 401);
 
-  // 2. Resolve the box's DSP server-side (RLS scopes the box to its own DSP),
-  //    so dsp_short_code is derived from the trusted session — not box input.
-  const { data: dspRows, error: derr } = await userClient.from("dsps").select("short_code").limit(1);
+  // 2. Resolve the box's DSP from its OWN app_users row — the box account's
+  //    actual tenant (same source as private.current_dsp_id()). The previous
+  //    `from("dsps").limit(1)` relied on RLS returning exactly one DSP, which is
+  //    true for a normal DSP login but NOT for a platform-admin / multi-DSP
+  //    account: it can see every DSP, so .limit(1) grabbed an arbitrary (wrong)
+  //    tenant and applicants landed in someone else's pipeline. We look this up
+  //    with the service client keyed by the already-validated user id, so the
+  //    box still can't spoof which DSP it writes to.
+  const supa = serviceClient();
+  const { data: me, error: meErr } = await supa
+    .from("app_users").select("dsp_id").eq("id", ures.user.id).eq("active", true).maybeSingle();
+  if (meErr) return badRequest("dsp_lookup_failed: " + meErr.message, 400);
+  const dspId = me?.dsp_id;
+  if (!dspId) return badRequest("no_dsp_for_box", 403);
+  const { data: dspRow, error: derr } = await supa
+    .from("dsps").select("short_code").eq("id", dspId).maybeSingle();
   if (derr) return badRequest("dsp_lookup_failed: " + derr.message, 400);
-  const shortCode = dspRows?.[0]?.short_code;
+  const shortCode = dspRow?.short_code;
   if (!shortCode) return badRequest("no_dsp_for_box", 403);
 
   const body = await req.json().catch(() => null);
@@ -57,7 +70,6 @@ Deno.serve(async (req) => {
   // Server stamps dsp_short_code from the authenticated DSP; box can't spoof it.
   const payload = { ...body, dsp_short_code: shortCode, source: body.source || "agent" };
 
-  const supa = serviceClient();
   const { data: applicant, error } = await supa.rpc("intake_applicant", { p_payload: payload });
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
