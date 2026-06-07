@@ -1168,8 +1168,15 @@ async function loadPipeline(stage = "all") {
 // header, KPI strip and stage tabs above it stay put while the DSP
 // works down a long applicant queue.
 function _pipeFitList() {
-  const list = document.getElementById("pipe-applicants");
+  // The .pa-workspace is the scroll container now (its scrollbar matches the
+  // Schedule grid's .cal-wrap). Cap its height to the viewport so the rows
+  // scroll inside it with an always-visible bar.
+  const list = document.querySelector("#view-pipeline .pa-workspace")
+    || document.getElementById("pipe-applicants");
   if (!list || !list.offsetParent) return;
+  // Clear any stale inline height left on the inner list from older builds.
+  const inner = document.getElementById("pipe-applicants");
+  if (inner && inner !== list) inner.style.maxHeight = "";
   const top = list.getBoundingClientRect().top;
   // -36 clears the .page bottom padding (--s-8, 32px) so the page
   // itself never scrolls — only the list scrolls internally.
