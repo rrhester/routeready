@@ -1155,7 +1155,7 @@ async function loadPipeline(stage = "all") {
   window._rrPipelineById = new Map((rows ?? []).map(r => [r.id, r]));
 
   list.innerHTML = (rows && rows.length)
-    ? _paListHeader() + rows.map(renderApplicantCard).join("")
+    ? rows.map(renderApplicantCard).join("")
     : `<div class="rr-empty-inline">No applicants yet — share your apply link or add one manually.</div>`;
   // Workspace header count.
   const nRows = (rows && rows.length) || 0;
