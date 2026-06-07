@@ -38,6 +38,24 @@ if (isLocal) {
       /** Forget the account session on this box. */
       disconnect: () => ipcRenderer.invoke("account:disconnect"),
     },
+    inbox: {
+      /** Watched-folder path + any CSVs waiting to be imported. */
+      status: () => ipcRenderer.invoke("inbox:status"),
+      /** Parse a file and return a confirm-step preview (mapping + sample). */
+      preview: (file) => ipcRenderer.invoke("inbox:preview", { file }),
+      /** Import a file into the funnel (after the operator confirms). */
+      import: (file) => ipcRenderer.invoke("inbox:import", { file }),
+      /** Move a file to Skipped without importing. */
+      skip: (file) => ipcRenderer.invoke("inbox:skip", { file }),
+      /** Open the RouteReady Inbox folder in the OS file manager. */
+      openFolder: () => ipcRenderer.invoke("inbox:openFolder"),
+      /** Fires when a new file is dropped in the inbox (with a preview). */
+      onDetected: (cb) => {
+        const handler = (_e, payload) => cb(payload);
+        ipcRenderer.on("inbox:detected", handler);
+        return () => ipcRenderer.removeListener("inbox:detected", handler);
+      },
+    },
     config: {
       /** Read the saved portal URL + defaults. */
       get: () => ipcRenderer.invoke("config:get"),

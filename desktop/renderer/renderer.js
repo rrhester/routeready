@@ -11,6 +11,9 @@ const els = {
   disconnect: $("#btn-disconnect"),
   connectState: $("#connect-state"),
   connectBlurb: $("#connect-blurb"),
+  inboxDir: $("#inbox-dir"),
+  inboxOpen: $("#btn-inbox-open"),
+  inboxList: $("#inbox-list"),
   welcome: $("#welcome"),
   welcomeOther: $("#welcome-other"),
   welcomeButtons: document.querySelectorAll("[data-quick-portal]"),
@@ -111,6 +114,92 @@ if (els.disconnect) {
     if (!confirm("Disconnect this box from your RouteReady account? It'll stop syncing until you connect again.")) return;
     try { await window.rr.account.disconnect(); log("Disconnected.", "ok"); } catch (e) { log(`Disconnect failed: ${e.message}`, "error"); }
     await refreshAccountStatus();
+  });
+}
+
+// ─── File inbox (drop-to-import, preview + confirm) ────────────────
+const inboxPreviews = new Map(); // file -> preview
+
+function renderInboxItem(p) {
+  if (!p || !p.file) return "";
+  const sample = (p.sample || []).map((r) =>
+    `<div class="inbox-srow">${escapeHtml(r.name || "—")} <span class="muted">${escapeHtml(r.email || "")}${r.phone ? " · " + escapeHtml(r.phone) : ""}</span></div>`
+  ).join("");
+  const warn = p.mappedOk ? "" : `<div class="inbox-warn">Couldn't detect name/email columns — check the file before importing.</div>`;
+  return `<li class="inbox-item" data-file="${escapeHtml(p.file)}">
+    <div class="inbox-head">
+      <span class="inbox-name">${escapeHtml(p.name || "file.csv")}</span>
+      <span class="muted">${p.importable != null ? `${p.importable} of ${p.total} rows` : ""}</span>
+    </div>
+    ${sample ? `<div class="inbox-sample">${sample}</div>` : ""}
+    ${warn}
+    <div class="row">
+      <button class="btn btn-primary" data-inbox-import="${escapeHtml(p.file)}" ${p.mappedOk ? "" : "disabled"}>Import ${p.importable || 0} applicants</button>
+      <button class="btn btn-ghost" data-inbox-skip="${escapeHtml(p.file)}">Skip</button>
+    </div>
+  </li>`;
+}
+
+function renderInboxList() {
+  if (!els.inboxList) return;
+  const items = [...inboxPreviews.values()];
+  els.inboxList.innerHTML = items.length
+    ? items.map(renderInboxItem).join("")
+    : '<li class="empty">No files waiting. Drop a .csv in the Inbox folder above.</li>';
+}
+
+async function refreshInbox() {
+  if (!els.inboxList) return;
+  let s = {};
+  try { s = await window.rr.inbox.status(); } catch { return; }
+  if (els.inboxDir) els.inboxDir.value = s.dir || "";
+  inboxPreviews.clear();
+  for (const f of (s.pending || [])) {
+    try {
+      const p = await window.rr.inbox.preview(f.file);
+      if (p && p.ok) inboxPreviews.set(f.file, p);
+    } catch {}
+  }
+  renderInboxList();
+}
+
+if (els.inboxOpen) {
+  els.inboxOpen.addEventListener("click", () => window.rr.inbox.openFolder());
+}
+if (els.inboxList) {
+  els.inboxList.addEventListener("click", async (evt) => {
+    const imp = evt.target.closest("button[data-inbox-import]");
+    const skp = evt.target.closest("button[data-inbox-skip]");
+    if (imp) {
+      const file = imp.getAttribute("data-inbox-import");
+      imp.disabled = true; imp.textContent = "Importing…";
+      try {
+        const r = await window.rr.inbox.import(file);
+        if (r && r.ok) {
+          log(`Imported ${r.uploaded} applicant(s)${r.failed ? `, ${r.failed} skipped` : ""} from ${file.split("/").pop()}.`, "ok");
+        } else {
+          log(`Import failed: ${r?.error || "unknown"}`, "error");
+          imp.disabled = false; imp.textContent = "Import";
+        }
+      } catch (e) { log(`Import error: ${e.message}`, "error"); imp.disabled = false; }
+      inboxPreviews.delete(file);
+      renderInboxList();
+      return;
+    }
+    if (skp) {
+      const file = skp.getAttribute("data-inbox-skip");
+      try { await window.rr.inbox.skip(file); log(`Skipped ${file.split("/").pop()}.`); } catch (e) { log(`Skip failed: ${e.message}`, "error"); }
+      inboxPreviews.delete(file);
+      renderInboxList();
+    }
+  });
+}
+if (window.rr.inbox && window.rr.inbox.onDetected) {
+  window.rr.inbox.onDetected((p) => {
+    if (!p || !p.file) return;
+    inboxPreviews.set(p.file, { ok: true, ...p });
+    renderInboxList();
+    log(`New file in Inbox: ${p.name || "file.csv"} — review and import below.`);
   });
 }
 
@@ -1001,6 +1090,7 @@ agEls.list.addEventListener("click", async (evt) => {
 // Initial state
 loadConfig();
 refreshAccountStatus();
+refreshInbox();
 refreshSessionStatus();
 refreshHistory();
 refreshJobs();

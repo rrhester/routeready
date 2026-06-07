@@ -1371,4 +1371,18 @@ function applyCentralTasks(list) {
   return { ok: true, count: keep.size };
 }
 
-module.exports = { init, runAllEnabledNow, isBusy, applyCentralTasks };
+// Public helper for the file-inbox importer: normalize raw field→value records
+// (e.g. CSV rows) and push them into RouteReady via the same box-ingest path the
+// crawler uses. `records` is an array of flat objects keyed by the file's
+// column headers; we run each through shapeRow so the column-name rules (Full
+// Name / split first+last / E-mail / Mobile …) apply identically to imports.
+async function importRecords(records, sourceName) {
+  const rows = (Array.isArray(records) ? records : [])
+    .map((rec) => shapeRow(rec))
+    .filter((r) => r.name || r.email || r.phone); // drop blank / header-only rows
+  if (!rows.length) return { uploaded: 0, failed: [], rows: 0, error: "no_importable_rows" };
+  const res = await uploadToRouteReady(rows, { name: sourceName || "file import" });
+  return { uploaded: res.uploaded, failed: res.failed?.length || 0, rows: rows.length, error: res.error };
+}
+
+module.exports = { init, runAllEnabledNow, isBusy, applyCentralTasks, shapeRow, importRecords };
