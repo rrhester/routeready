@@ -11727,18 +11727,21 @@ body.rr-cmdk-open{ overflow:hidden }
           }
           /* ── Applicant workspace · one container, dividered rows (ATS feel) ── */
           #view-pipeline .pa-workspace{
-            display:flex;flex-direction:column;min-width:0;
+            display:block;min-width:0;
             background:var(--surface);
             border:1px solid var(--border);
             border-radius:10px;
             box-shadow:0 1px 3px rgba(15,23,42,.04);
-            /* The workspace itself is the scroll container. Use ONLY the
-               legacy ::-webkit-scrollbar styling (classic, always-on, 8px) and
-               do NOT set the standard scrollbar-width/-color: on Chrome 121+/
-               ChromeOS those take precedence and render a thin AUTO-HIDING
-               overlay bar, which is exactly why the bar wasn't visible. */
+            /* The workspace itself is the scroll container. This recipe is a
+               BYTE-FOR-BYTE copy of .cal-wrap (the Schedule grid), which renders
+               an always-on, non-overlay bar on the operator's machine: a plain
+               BLOCK element (not flex), opaque subtle track, overflow-y:scroll to
+               reserve the track, plus BOTH the standard scrollbar-width/-color
+               and the legacy ::-webkit-scrollbar rules. */
             overflow:hidden;overflow-y:scroll;
             scrollbar-gutter:stable;
+            scrollbar-width:thin;
+            scrollbar-color:var(--border-strong) rgba(15,23,42,.04);
           }
           #view-pipeline .pa-workspace::-webkit-scrollbar{width:8px;background:rgba(15,23,42,.04);-webkit-appearance:none}
           #view-pipeline .pa-workspace::-webkit-scrollbar-track{background:rgba(15,23,42,.04);border-radius:var(--r-sm)}
@@ -36380,7 +36383,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260607-barfix"></script>
+<script type="module" src="./live.js?v=20260607-barfix2"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
