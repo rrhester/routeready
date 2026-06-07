@@ -41,6 +41,22 @@
       <div class="connect-state" id="connect-state"></div>
     </section>
 
+    <!-- Import applicants from a downloaded file (no crawling/bot walls) -->
+    <section class="card" id="card-inbox">
+      <h2>Import applicants from a file</h2>
+      <p class="muted">
+        Download your candidate export (a <b>.csv</b>) from Indeed, Workday, ADP —
+        anywhere — like you normally would, then drop it in the
+        <b>RouteReady Inbox</b> folder. We detect it, map the columns, and import
+        the people straight into your funnel. No portal logins, no bot blocks.
+      </p>
+      <div class="row inbox-folder">
+        <input id="inbox-dir" type="text" readonly />
+        <button id="btn-inbox-open" class="btn" type="button">Open Inbox folder</button>
+      </div>
+      <ul id="inbox-list" class="jobs"><li class="empty">No files waiting. Drop a .csv in the Inbox folder above.</li></ul>
+    </section>
+
     <section class="card welcome" id="welcome" hidden>
       <h2>Welcome — let's sign you in</h2>
       <p class="muted">

@@ -540,6 +540,7 @@ app.whenReady().then(() => {
   startHeartbeat();
   startSyncWatcher();
   startCentralTasks();
+  startInboxWatcher(); // watch the RouteReady Inbox folder for dropped exports
 
   // Keep the box on the latest build automatically (installs when idle).
   setupAutoUpdates();
@@ -1146,6 +1147,147 @@ ipcMain.handle("account:disconnect", async () => {
     boxSupabase = null;
     logLine("account: disconnected (box session cleared)");
     return { ok: true };
+  } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+});
+
+// ─── File inbox: drop-to-import ─────────────────────────────────────
+// The reliable alternative to crawling bot-protected portals: the operator
+// downloads their candidate export (CSV) like a normal human — no Cloudflare
+// wall — drops it in a watched folder, and we parse + map + upload it into the
+// funnel via the same box-ingest path the crawler uses. Column-name rules are
+// shared with the crawler (agent.shapeRow), so "Full Name" / split first+last /
+// "E-mail" / "Mobile" all map correctly. Preview-and-confirm: we surface a new
+// file to the UI; the operator confirms before anything is imported.
+function inboxDir() {
+  const cfg = readConfig();
+  return (cfg.inboxDir && cfg.inboxDir.trim()) || path.join(defaultDownloadDir(), "RouteReady Inbox");
+}
+function ensureInboxDirs() {
+  const base = inboxDir();
+  for (const sub of ["", "Imported", "Skipped"]) {
+    try { fs.mkdirSync(path.join(base, sub), { recursive: true }); } catch (e) { logLine("inbox: mkdir failed:", String(e)); }
+  }
+  return base;
+}
+function inboxPendingFiles() {
+  const base = ensureInboxDirs();
+  let names = [];
+  try { names = fs.readdirSync(base); } catch { return []; }
+  return names
+    .filter((n) => /\.csv$/i.test(n))
+    .map((n) => path.join(base, n))
+    .filter((p) => { try { return fs.statSync(p).isFile(); } catch { return false; } });
+}
+
+// Minimal RFC-4180-ish CSV parser: handles quoted fields, commas + newlines
+// inside quotes, escaped "" quotes, BOM, and CRLF. Good enough for the exports
+// real ATS/portals produce, with no extra dependency.
+function parseCsv(text) {
+  text = String(text).replace(/^﻿/, "");
+  const rows = []; let row = [], field = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (c !== "\r") field += c;
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((c) => String(c).trim() !== ""));
+}
+function csvToRecords(text) {
+  const grid = parseCsv(text);
+  if (grid.length < 1) return { headers: [], records: [] };
+  const headers = grid[0].map((h) => String(h).trim());
+  const records = [];
+  for (let i = 1; i < grid.length; i++) {
+    const rec = {};
+    headers.forEach((h, j) => { if (h) rec[h] = grid[i][j] != null ? grid[i][j] : ""; });
+    records.push(rec);
+  }
+  return { headers, records };
+}
+// Build a confirm-step preview: total rows + how the first few map after the
+// shared shapeRow normalization, so the operator sees exactly what will import.
+function inboxPreview(file) {
+  const text = fs.readFileSync(file, "utf8");
+  const { headers, records } = csvToRecords(text);
+  const shaped = records.map((r) => agent.shapeRow(r));
+  const importable = shaped.filter((r) => r.name || r.email || r.phone);
+  const sample = importable.slice(0, 5).map((r) => ({ name: r.name || "", email: r.email || "", phone: r.phone || "" }));
+  return {
+    file, name: path.basename(file),
+    total: records.length,
+    importable: importable.length,
+    headers,
+    sample,
+    mappedOk: importable.length > 0,
+  };
+}
+function moveInboxFile(file, sub) {
+  const base = inboxDir();
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const dest = path.join(base, sub, `${stamp}__${path.basename(file)}`);
+  try { fs.renameSync(file, dest); } catch (e) { logLine("inbox: move failed:", String(e)); }
+  return dest;
+}
+
+let inboxTimer = null;
+const inboxSurfaced = new Set(); // files already shown to the UI this session
+function inboxWatchTick() {
+  try {
+    const pending = inboxPendingFiles();
+    const live = new Set(pending);
+    for (const f of [...inboxSurfaced]) if (!live.has(f)) inboxSurfaced.delete(f); // forget removed files
+    for (const f of pending) {
+      if (inboxSurfaced.has(f)) continue;
+      inboxSurfaced.add(f);
+      let preview = null;
+      try { preview = inboxPreview(f); } catch (e) { logLine("inbox: preview failed:", String(e)); }
+      logLine("inbox: detected", path.basename(f), preview ? `(${preview.importable}/${preview.total} importable)` : "");
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        try { mainWindow.webContents.send("inbox:detected", preview || { file: f, name: path.basename(f) }); } catch {}
+      }
+    }
+  } catch (e) { logLine("inbox: watch threw:", String(e)); }
+}
+function startInboxWatcher() {
+  if (inboxTimer) return;
+  ensureInboxDirs();
+  inboxWatchTick();
+  inboxTimer = setInterval(inboxWatchTick, 5000);
+}
+
+ipcMain.handle("inbox:status", async () => {
+  const dir = ensureInboxDirs();
+  return { ok: true, dir, pending: inboxPendingFiles().map((f) => ({ file: f, name: path.basename(f) })) };
+});
+ipcMain.handle("inbox:preview", async (_e, { file } = {}) => {
+  try { return { ok: true, ...inboxPreview(file) }; }
+  catch (e) { return { ok: false, error: String(e?.message || e) }; }
+});
+ipcMain.handle("inbox:openFolder", async () => {
+  try { await shell.openPath(ensureInboxDirs()); return { ok: true }; }
+  catch (e) { return { ok: false, error: String(e?.message || e) }; }
+});
+ipcMain.handle("inbox:skip", async (_e, { file } = {}) => {
+  try { moveInboxFile(file, "Skipped"); inboxSurfaced.delete(file); return { ok: true }; }
+  catch (e) { return { ok: false, error: String(e?.message || e) }; }
+});
+ipcMain.handle("inbox:import", async (_e, { file } = {}) => {
+  try {
+    const text = fs.readFileSync(file, "utf8");
+    const { records } = csvToRecords(text);
+    const res = await agent.importRecords(records, path.basename(file));
+    if (res.error === "no_importable_rows") return { ok: false, error: "No name/email columns detected in that file." };
+    if (res.error && res.uploaded === 0) return { ok: false, error: res.error };
+    moveInboxFile(file, "Imported");
+    inboxSurfaced.delete(file);
+    logLine("inbox: imported", path.basename(file), `→ ${res.uploaded} uploaded, ${res.failed} failed`);
+    return { ok: true, uploaded: res.uploaded, failed: res.failed, rows: res.rows, error: res.error };
   } catch (e) { return { ok: false, error: String(e?.message || e) }; }
 });
 

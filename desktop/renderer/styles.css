@@ -763,3 +763,43 @@ details.advanced[open] > summary {
 #advanced-tools {
   display: none !important;
 }
+
+/* File inbox (drop-to-import) */
+#card-inbox .inbox-folder { gap: 8px; }
+#card-inbox #inbox-dir {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--canvas);
+}
+.inbox-item {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px;
+  margin-bottom: 8px;
+  background: var(--surface);
+}
+.inbox-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.inbox-name { font-weight: 600; }
+.inbox-sample {
+  font-size: 12px;
+  color: var(--text);
+  background: var(--canvas);
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+.inbox-srow { padding: 1px 0; }
+.inbox-warn {
+  font-size: 12px;
+  color: var(--amber);
+  background: var(--amber-soft);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+}
