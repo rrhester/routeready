@@ -93,7 +93,7 @@ jobs:
         run: |
           set +e
           failed=()
-          for fn in send-email send-sms webhook-twilio webhook-cal webhook-apply webhook-email-inbound upload-applicant-video upload-driver-photo driver-document-fetch document-verify document-classify desktop-pair ai-proxy box-ingest google-oauth-callback google-calendar-sync; do
+          for fn in send-email send-sms webhook-twilio webhook-cal webhook-apply webhook-email-inbound upload-applicant-video upload-driver-photo driver-document-fetch document-verify document-classify desktop-pair ai-proxy box-ingest google-oauth-callback google-calendar-sync interview-room; do
             echo "▶ deploying $fn (no jwt)"
             if ! supabase functions deploy "$fn" --no-verify-jwt --project-ref "$SUPABASE_PROJECT_REF"; then
               echo "::error::deploy failed for $fn"
