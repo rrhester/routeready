@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#FFFFFF">
+<title>Respond to your invitation</title>
+<style>
+  :root{
+    --accent:#0F6CBD; --accent-d:#0E5FA8; --text:#1B1B1F; --muted:#5A5A66;
+    --subtle:#8A8A95; --border:#E4E4E9; --canvas:#F6F7F9; --surface:#fff; --red:#C4281C; --green:#16A34A;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);background:var(--canvas)}
+  .wrap{max-width:520px;margin:0 auto;padding:28px 18px 64px}
+  .hdr{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+  .logo{width:44px;height:44px;border-radius:10px;background:var(--accent);color:#fff;display:flex;
+    align-items:center;justify-content:center;font-weight:800;font-size:18px;flex:0 0 auto}
+  .hdr-t{font-size:18px;font-weight:700;line-height:1.2}
+  .hdr-s{font-size:13px;color:var(--muted);margin-top:2px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-top:18px}
+  .title{font-size:19px;font-weight:700;margin:0 0 10px}
+  .when{font-size:15px;margin:0 0 4px}
+  .when b{font-weight:700}
+  .tz{font-size:12px;color:var(--subtle);margin:2px 0 0}
+  .join{display:inline-block;margin-top:12px;color:var(--accent);font-weight:600;text-decoration:none;word-break:break-all}
+  .row{display:flex;gap:10px;margin-top:20px}
+  .btn{flex:1;appearance:none;cursor:pointer;font:inherit;font-weight:700;font-size:15px;
+    border-radius:10px;padding:13px 10px;border:1px solid;transition:.12s}
+  .btn.accept{background:var(--green);border-color:var(--green);color:#fff}
+  .btn.accept:hover{filter:brightness(.95)}
+  .btn.decline{background:#fff;border-color:#D9C0BE;color:var(--red)}
+  .btn.decline:hover{background:#FCF2F1}
+  .btn[disabled]{opacity:.55;cursor:default}
+  .result{text-align:center;padding:18px 6px}
+  .ico{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+  .ico.ok{background:rgba(22,163,74,.12);color:var(--green)}
+  .ico.no{background:rgba(196,40,28,.10);color:var(--red)}
+  .result strong{display:block;font-size:18px;margin-bottom:6px}
+  .result span{color:var(--muted)}
+  .msg{text-align:center;padding:36px 16px;color:var(--muted)}
+  .msg strong{display:block;color:var(--text);font-size:17px;margin-bottom:6px}
+  .err{color:var(--red)}
+  .spin{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--accent);
+    border-radius:50%;animation:s .7s linear infinite;margin:30px auto}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .foot{text-align:center;font-size:12px;color:var(--subtle);margin-top:22px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hdr">
+      <div class="logo" id="logo">R</div>
+      <div>
+        <div class="hdr-t" id="hdr-t">RouteReady</div>
+        <div class="hdr-s">Interview invitation</div>
+      </div>
+    </div>
+    <div id="root"><div class="spin"></div></div>
+    <div class="foot">Powered by RouteReady</div>
+  </div>
+
+<script src="/dashboard/config.js"></script>
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
+const cfg = window.RR_CONFIG;
+const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+
+const root = document.getElementById("root");
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+
+const params = new URLSearchParams(location.search);
+const pathMatch = location.pathname.match(/^\/rsvp\/([^/?#]+)/);
+const token = params.get("t") || params.get("token") || (pathMatch && pathMatch[1]) || "";
+const preset = (params.get("r") || "").toLowerCase(); // optional ?r=accept|decline
+
+function fmtWhen(ev) {
+  const tz = ev.timezone || "America/Chicago";
+  const s = new Date(ev.starts_at);
+  const date = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday:"long", month:"long", day:"numeric", year:"numeric" }).format(s);
+  const t = (d) => new Intl.DateTimeFormat("en-US", { timeZone: tz, hour:"numeric", minute:"2-digit" }).format(d);
+  const time = t(s) + (ev.ends_at ? " – " + t(new Date(ev.ends_at)) : "");
+  return { date, time, tz };
+}
+
+function showError(msg) {
+  root.innerHTML = `<div class="card"><div class="msg"><strong>This invitation link looks invalid</strong><span class="err">${esc(msg)}</span></div></div>`;
+}
+
+function renderEvent(ev) {
+  if (ev.dsp_name) { document.getElementById("hdr-t").textContent = ev.dsp_name; document.getElementById("logo").textContent = (ev.dsp_name[0] || "R").toUpperCase(); }
+  const { date, time, tz } = fmtWhen(ev);
+  const join = (ev.rsvp === "accepted" && ev.meeting_url)
+    ? `<a class="join" href="${esc(ev.meeting_url)}" target="_blank" rel="noreferrer">Join the video meeting →</a>` : "";
+
+  if (ev.rsvp === "accepted") {
+    root.innerHTML = `<div class="card"><div class="result">
+      <div class="ico ok"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <strong>You're confirmed</strong><span>${esc(ev.title || "Your interview")}</span>
+      <div class="when" style="margin-top:12px"><b>${esc(date)}</b></div><div class="when">${esc(time)}</div><div class="tz">${esc(tz)}</div>
+      ${join}
+    </div></div>`;
+    return;
+  }
+  if (ev.rsvp === "declined") {
+    root.innerHTML = `<div class="card"><div class="result">
+      <div class="ico no"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+      <strong>You've declined</strong><span>We've let the team know. Reply to the email if you'd like to find another time.</span>
+    </div></div>`;
+    return;
+  }
+  // pending → show details + Accept / Decline
+  root.innerHTML = `<div class="card">
+    <h1 class="title">${esc(ev.title || "You're invited")}</h1>
+    <div class="when"><b>${esc(date)}</b></div>
+    <div class="when">${esc(time)}</div>
+    <div class="tz">${esc(tz)}</div>
+    <div class="row">
+      <button class="btn accept" data-r="accept">Accept</button>
+      <button class="btn decline" data-r="decline">Decline</button>
+    </div>
+  </div>`;
+  root.querySelectorAll("[data-r]").forEach(b => b.addEventListener("click", () => respond(b.getAttribute("data-r"))));
+}
+
+async function respond(resp) {
+  root.querySelectorAll("button").forEach(b => b.disabled = true);
+  try {
+    const { data, error } = await sb.rpc("rsvp_respond", { p_token: token, p_response: resp });
+    if (error) throw error;
+    if (!data || data.ok === false) { showError((data && data.error) || "not found"); return; }
+    renderEvent(data);
+  } catch (e) { showError(e.message || String(e)); root.querySelectorAll("button").forEach(b => b.disabled = false); }
+}
+
+async function load() {
+  if (!token) { showError("missing token"); return; }
+  try {
+    // preset response (from an Accept/Decline email link) records immediately;
+    // otherwise just load the event and show the buttons.
+    const resp = (preset === "accept" || preset === "decline") ? preset : null;
+    const { data, error } = await sb.rpc("rsvp_respond", { p_token: token, p_response: resp });
+    if (error) throw error;
+    if (!data || data.ok === false) { showError((data && data.error) || "not found"); return; }
+    renderEvent(data);
+  } catch (e) { showError(e.message || String(e)); }
+}
+load();
+</script>
+</body>
+</html>

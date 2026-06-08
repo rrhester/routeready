@@ -12503,6 +12503,11 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .rr-ivcal-ev.orient{background:#7C3AED}
             #rr-ivcal .rr-ivcal-ev.session{background:#0E7C66}
             #rr-ivcal .rr-ivcal-ev.event{background:#0F6CBD}
+            /* RSVP states · tentative = light + striped left bar (Outlook), until accepted. */
+            #rr-ivcal .rr-ivcal-ev.tentative{background:#E3EEF8 !important;color:#0F3D63 !important;padding-left:11px}
+            #rr-ivcal .rr-ivcal-ev.tentative::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;border-radius:6px 0 0 6px;background:repeating-linear-gradient(45deg,#0F6CBD 0 3px,transparent 3px 6px)}
+            #rr-ivcal .rr-ivcal-ev.declined{background:#F1F5F9 !important;color:#94A3B8 !important;padding-left:11px;text-decoration:line-through}
+            #rr-ivcal .rr-ivcal-ev.declined::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;border-radius:6px 0 0 6px;background:repeating-linear-gradient(45deg,#94A3B8 0 3px,transparent 3px 6px)}
             #rr-ivcal .rr-ivcal-ev-t{font-weight:700;opacity:.95}
             #rr-ivcal .rr-ivcal-ev-n{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
             #rr-ivcal .rr-ivcal-ev-1{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
@@ -12524,6 +12529,9 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .rr-ivcal-pill.orient .rr-ivcal-pdot{background:#7C3AED}
             #rr-ivcal .rr-ivcal-pill.session .rr-ivcal-pdot{background:#0E7C66}
             #rr-ivcal .rr-ivcal-pill.event .rr-ivcal-pdot{background:#0F6CBD}
+            #rr-ivcal .rr-ivcal-pill.tentative .rr-ivcal-pdot{background:transparent;border:1.5px solid #0F6CBD}
+            #rr-ivcal .rr-ivcal-pill.tentative{opacity:.8}
+            #rr-ivcal .rr-ivcal-pill.declined{opacity:.6;text-decoration:line-through}
             #rr-ivcal .rr-ivcal-more{font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:1px}
             /* legend */
             #rr-ivcal .rr-ivcal-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--text-muted)}
@@ -12537,6 +12545,7 @@ body.rr-cmdk-open{ overflow:hidden }
               <span><i class="rr-ivcal-sw" style="background:#0F6CBD"></i>Interview</span>
               <span><i class="rr-ivcal-sw" style="background:#7C3AED"></i>Orientation</span>
               <span><i class="rr-ivcal-sw" style="background:#0E7C66"></i>Group session</span>
+              <span><i class="rr-ivcal-sw" style="background:#E3EEF8;border-left:5px solid;border-image:repeating-linear-gradient(45deg,#0F6CBD 0 3px,transparent 3px 6px) 5"></i>Tentative (awaiting reply)</span>
               <span style="margin-left:auto;color:var(--text-subtle)">Tip: click an empty slot to create an event</span>
             </div>
           </div>
@@ -36712,7 +36721,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-iv-cancel"></script>
+<script type="module" src="./live.js?v=20260608-iv-rsvp"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

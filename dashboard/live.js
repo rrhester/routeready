@@ -16096,7 +16096,7 @@ async function loadIvCalendar() {
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, applicants:applicant_id (full_name, email, phone)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         .order("starts_at", { ascending: true })
@@ -16323,6 +16323,11 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
 
   let roomUrl = "";        // filled once the room is minted
   let bodyDirty = false;   // true once the operator edits the body manually
+  // Per-invite token for the public accept/decline page (/rsvp/<token>).
+  const rsvpToken = ((typeof crypto !== "undefined" && crypto.randomUUID)
+    ? crypto.randomUUID().replace(/-/g, "")
+    : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+  const rsvpUrl = "https://gorouteready.com/rsvp/" + rsvpToken;
 
   const fmtWhen = (date, start, end) => {
     const d = new Date(date + "T00:00:00");
@@ -16345,6 +16350,9 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
       "",
       "Join the video meeting here:",
       (roomUrl || "(creating link…)"),
+      "",
+      "Please accept or decline here:",
+      rsvpUrl,
       "",
       "No app or download needed — just open the link on your phone or computer at the time above.",
     ].join("\n");
@@ -16435,6 +16443,7 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
           p_meeting_url: roomUrl || null,
           p_body_text: bodyText || null,
           p_body_html: bodyText ? escapeHtml(bodyText).replace(/\n/g, "<br>") : null,
+          p_rsvp_token: rsvpToken,
         });
         if (error) throw error;
         toast(invitees.length ? `Event created · inviting ${invitees.length}` : "Event created", "success");
@@ -16468,12 +16477,18 @@ function _ivcalEventBlock(ev, type) {
     else { label = rrTitleCaseName((ev.applicants||{}).full_name) || "Interview"; cls = "interview"; }
   }
 
+  // RSVP state → Outlook-style tentative (light + striped) until accepted.
+  const rsvp = type === "session" ? "accepted" : (ev.rsvp || "accepted");
+  if (rsvp === "pending") cls += " tentative";
+  else if (rsvp === "declined") cls += " declined";
+  const tip = time + " · " + label + (rsvp === "pending" ? " · tentative (awaiting reply)" : rsvp === "declined" ? " · declined" : "");
+
   // Short blocks (≈30 min) can't fit two lines — collapse time + label onto
   // one ellipsized line so the title is always readable.
   const inner = (h < 34)
     ? `<div class="rr-ivcal-ev-1">${escapeHtml(time)} · ${escapeHtml(label)}</div>`
     : `<div class="rr-ivcal-ev-t">${escapeHtml(time)}</div><div class="rr-ivcal-ev-n">${escapeHtml(label)}</div>`;
-  return `<div class="rr-ivcal-ev ${cls}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(time+" · "+label)}">${inner}</div>`;
+  return `<div class="rr-ivcal-ev ${cls}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(tip)}">${inner}</div>`;
 }
 
 function _ivcalTimeGrid(ndays) {
@@ -16530,7 +16545,8 @@ function _ivcalMonth() {
     _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => items.push({ t:new Date(s.starts_at), label:`${s.label||"Group session"} · ${s.capacity||1}`, cls:"session", kind:"session", id:s.id }));
     _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => {
       const lbl = b.kind === "event" ? (b.title || "Event") : (rrTitleCaseName((b.applicants||{}).full_name) || (b.kind === "orientation" ? "Orientation" : "Interview"));
-      const cls = b.kind === "event" ? "event" : (b.kind === "orientation" ? "orient" : "interview");
+      let cls = b.kind === "event" ? "event" : (b.kind === "orientation" ? "orient" : "interview");
+      if (b.rsvp === "pending") cls += " tentative"; else if (b.rsvp === "declined") cls += " declined";
       items.push({ t:new Date(b.starts_at), label:lbl, cls, kind:"booking", id:b.id });
     });
     items.sort((x,y) => x.t - y.t);
