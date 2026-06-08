@@ -16258,9 +16258,27 @@ function _ivcalRender() {
   // Reading pane wiring; preserve scroll across re-renders, else scroll to now.
   _ivcalInstallDrag(host);
   if (_ivcalSelected) _ivcalWirePane(host);
+  _ivcalFitHeight();
   const sc = document.getElementById("rr-ivcal-scroll");
   if (sc) { if (_prevScroll != null) sc.scrollTop = _prevScroll; else _ivcalAutoScroll(); }
   _ivcalInstallKeys();
+}
+
+// Size the scrolling time grid to fill the viewport so the calendar never
+// makes the whole PAGE scroll — only the grid scrolls internally, keeping the
+// toolbar and the sticky day header fixed in place. Recomputed on resize.
+let _ivcalFitInstalled = false;
+function _ivcalFitHeight() {
+  const sc = document.getElementById("rr-ivcal-scroll");
+  if (!sc) return;
+  const top = sc.getBoundingClientRect().top;        // live position below toolbar + day header
+  const avail = window.innerHeight - top - 14;        // leave a small bottom gap
+  sc.style.height = Math.max(320, avail) + "px";
+  if (!_ivcalFitInstalled) {
+    _ivcalFitInstalled = true;
+    let raf = null;
+    window.addEventListener("resize", () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(_ivcalFitHeight); });
+  }
 }
 
 // Scroll the day/week grid so the current time sits near the top third.
