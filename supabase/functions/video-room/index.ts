@@ -34,7 +34,13 @@ Deno.serve(async (req) => {
   try {
     const res = await fetch(WHEREBY_API, {
       method: "POST",
-      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+      headers: {
+        authorization: `Bearer ${key.trim()}`,
+        "content-type": "application/json",
+        "accept": "application/json",
+        // A real UA — Deno's default UA is blocked by Whereby's WAF (403 HTML).
+        "user-agent": "RouteReady/1.0 (+https://gorouteready.com)",
+      },
       body: JSON.stringify({ endDate: end.toISOString(), roomMode: group ? "group" : "normal", fields: ["hostRoomUrl"] }),
     });
     const raw = await res.text();

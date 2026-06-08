@@ -10,7 +10,13 @@ const WHEREBY_API = "https://api.whereby.com/v1/meetings";
 async function createRoom(endIso: string, group: boolean): Promise<string> {
   const res = await fetch(WHEREBY_API, {
     method: "POST",
-    headers: { authorization: `Bearer ${Deno.env.get("WHEREBY_API_KEY")}`, "content-type": "application/json" },
+    headers: {
+      authorization: `Bearer ${(Deno.env.get("WHEREBY_API_KEY") || "").trim()}`,
+      "content-type": "application/json",
+      "accept": "application/json",
+      // A real UA — Deno's default UA is blocked by Whereby's WAF (403 HTML).
+      "user-agent": "RouteReady/1.0 (+https://gorouteready.com)",
+    },
     body: JSON.stringify({ endDate: endIso, roomMode: group ? "group" : "normal", fields: ["hostRoomUrl"] }),
   });
   const j = await res.json().catch(() => ({}));
