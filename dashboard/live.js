@@ -16060,16 +16060,38 @@ async function loadGoogleCalendar() {
         <div class="rr-gcal-email">${escapeHtml(row.email || "")}</div>
         <button class="rr-gcal-btn is-ghost" id="rr-gcal-disconnect" style="margin-top:12px">Disconnect</button>`;
       document.getElementById("rr-gcal-disconnect").onclick = disconnectGoogleCalendar;
+      _renderGcalEmbed(row.email);          // embed THIS DSP's connected calendar
     } else {
       statusEl.textContent = "Not connected"; statusEl.className = "rr-gcal-status is-off";
       body.innerHTML = `<button class="rr-gcal-btn" id="rr-gcal-connect">Connect Google Calendar</button>`;
       document.getElementById("rr-gcal-connect").onclick = connectGoogleCalendar;
+      _renderGcalEmbed(null);
     }
+    _renderGcalEmbed(null);
   } catch (e) {
     statusEl.textContent = "Error"; statusEl.className = "rr-gcal-status is-off";
     body.innerHTML = `<div class="rr-gcal-err">Couldn't load status: ${escapeHtml(e.message || String(e))}</div>
       <button class="rr-gcal-btn" style="margin-top:8px" onclick="loadGoogleCalendar()">Retry</button>`;
+    _renderGcalEmbed(null);
   }
+}
+
+// Embeds the given account's Google Calendar (the connected DSP's own calendar,
+// since the email comes from google_calendar_status() scoped to current_dsp_id).
+// Per-DSP by construction — each DSP sees only its own connected calendar.
+function _renderGcalEmbed(email) {
+  const host = document.getElementById("rr-gcal-embed");
+  if (!host) return;
+  if (!email) { host.innerHTML = ""; return; }
+  const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || "America/Chicago";
+  const src = "https://calendar.google.com/calendar/embed?src=" + encodeURIComponent(email) +
+    "&ctz=" + encodeURIComponent(tz) +
+    "&mode=WEEK&showTitle=0&showPrint=0&showCalendars=0&showTz=0&showTabs=1&showNav=1";
+  host.innerHTML =
+    '<iframe title="Google Calendar" loading="lazy" src="' + src + '"></iframe>' +
+    '<div class="rr-gcal-embed-note">Showing ' + escapeHtml(email) + '’s calendar. ' +
+    'If it appears empty or says no access, sign into Google with an account that can see this ' +
+    'calendar — or share/publish it (Google Calendar → Settings → share with people, or make public).</div>';
 }
 
 async function connectGoogleCalendar() {
