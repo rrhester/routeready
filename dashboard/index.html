@@ -12482,6 +12482,9 @@ body.rr-cmdk-open{ overflow:hidden }
             #view-pipeline #pipe-sub-calendar .rr-gcal-btn[disabled]{opacity:.6;cursor:default}
             #view-pipeline #pipe-sub-calendar .rr-gcal-btn.is-ghost{background:#fff;color:#0F6CBD}
             #view-pipeline #pipe-sub-calendar .rr-gcal-err{color:#C4281C;font-size:12px;margin-top:8px}
+            #view-pipeline #pipe-sub-calendar .rr-gcal-embed{margin:0 0 var(--s-4)}
+            #view-pipeline #pipe-sub-calendar .rr-gcal-embed iframe{display:block;width:100%;height:560px;border:1px solid var(--border);border-radius:12px;background:#fff}
+            #view-pipeline #pipe-sub-calendar .rr-gcal-embed-note{font-size:12px;color:var(--text-subtle);margin:8px 2px 0}
           </style>
           <div class="rr-gcal-card" id="rr-gcal-card">
             <div class="rr-gcal-head">
@@ -12490,6 +12493,8 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
             <div class="rr-gcal-body" id="rr-gcal-body"><div class="rr-loading">Loading…</div></div>
           </div>
+          <!-- Per-DSP embedded Google Calendar (src = this DSP's connected account). -->
+          <div class="rr-gcal-embed" id="rr-gcal-embed"></div>
 
           <div class="pipe-cal-shell">
             <div class="pipe-cal-col">
