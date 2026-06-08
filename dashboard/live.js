@@ -5561,10 +5561,9 @@ window.obSub = function (which) {
   show("obsub-overview",  which === "overview");
   show("obsub-workauth",  which === "workauth");
   show("obsub-pipeline",  isPipe);
-  // Calendar view controls (Day/Week/Work Week/Month/New event) only belong on
-  // the Calendar sub-view.
-  show("rr-cal-ribbon",   which === "calendar");
-  if (which === "calendar" && typeof _ivcalSyncStripView === "function") _ivcalSyncStripView();
+  // Calendar view tiles live permanently on the strip — keep their active
+  // highlight in sync (cleared whenever we're not on the Calendar view).
+  if (typeof _ivcalSyncStripView === "function") _ivcalSyncStripView(which === "calendar");
   // Documents now live inside the Overview tab's right card; mount
   // them whenever the Overview tab is activated so they show up
   // alongside the readiness matrix.
@@ -16467,14 +16466,25 @@ function _ivcalRender() {
   _ivcalSyncStripView();
 }
 
-// Highlight the active view tile in the calendar control group on the icon strip.
-function _ivcalSyncStripView() {
+// Highlight the active view tile on the strip (cleared when off-calendar).
+function _ivcalSyncStripView(onCal) {
+  const active = onCal === false ? null : _ivcalView;
   document.querySelectorAll("#rr-cal-ribbon [data-cal-view]").forEach(b =>
-    b.classList.toggle("active", b.getAttribute("data-cal-view") === _ivcalView));
+    b.classList.toggle("active", active != null && b.getAttribute("data-cal-view") === active));
 }
-// Strip-icon entry points (Day / Week / Work Week / Month / New event).
-window.rrIvcalSetView = function (v) { _ivcalView = v; _ivcalRender(); };
-window.rrIvcalNewEvent = function () { _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30); };
+// Strip-icon entry points (Day / Week / Work Week / Month / New event). They
+// also switch to the Calendar sub-view, since the calendar has no own tab.
+function _ivcalOnCalendar() { const el = document.querySelector("#rr-ivcal .oc"); return !!(el && el.offsetParent !== null); }
+window.rrIvcalSetView = function (v) {
+  _ivcalView = v;
+  if (_ivcalOnCalendar() && _ivcalCache) _ivcalRender();
+  else if (typeof window.obSub === "function") window.obSub("calendar");
+  else _ivcalRender();
+};
+window.rrIvcalNewEvent = function () {
+  if (!_ivcalOnCalendar() && typeof window.obSub === "function") window.obSub("calendar");
+  _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30);
+};
 
 // Size the scrolling time grid to fill the viewport so the calendar never
 // makes the whole PAGE scroll — only the grid scrolls internally, keeping the
