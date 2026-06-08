@@ -12488,6 +12488,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-seg button{appearance:none;cursor:pointer;font:inherit;font-size:13px;color:var(--oc-ink);background:#fff;border:0;border-left:1px solid #D2D0CE;padding:4px 12px;line-height:1}
             #rr-ivcal .oc-seg button:first-child{border-left:0}
             #rr-ivcal .oc-seg button.on{background:var(--oc-blue);color:#fff;font-weight:600}
+            #rr-ivcal .oc-zoom button{padding:4px 9px;font-size:15px;line-height:1;min-width:28px;justify-content:center}
             #rr-ivcal .oc-period{font-size:14px;font-weight:600;color:var(--oc-ink);margin:0 4px}
             #rr-ivcal .oc-sp{flex:1}
             #rr-ivcal .oc-search{display:flex;align-items:center;gap:6px;border:1px solid #D2D0CE;border-radius:3px;padding:3px 8px;background:#fff;color:var(--oc-sub);font-size:12px}
@@ -12496,7 +12497,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-filters label{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--oc-sub);cursor:pointer}
             #rr-ivcal .oc-filters .dot{width:9px;height:9px;border-radius:2px;display:inline-block}
             /* day/week grid */
-            #rr-ivcal .oc-head{display:grid;grid-template-columns:50px repeat(var(--days),1fr);border-bottom:1px solid var(--oc-line);background:#fff}
+            #rr-ivcal .oc-head{display:grid;grid-template-columns:50px repeat(var(--days),1fr);border-bottom:1px solid var(--oc-line);background:#fff;position:sticky;top:0;z-index:6}
             #rr-ivcal .oc-corner{border-right:1px solid var(--oc-line)}
             #rr-ivcal .oc-dh{text-align:center;padding:5px 0 6px;border-left:1px solid var(--oc-line2);cursor:pointer}
             #rr-ivcal .oc-dh .dow{font-size:11px;font-weight:600;color:var(--oc-sub);text-transform:uppercase;letter-spacing:.02em}
@@ -36753,7 +36754,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-oc3"></script>
+<script type="module" src="./live.js?v=20260608-oc4"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
