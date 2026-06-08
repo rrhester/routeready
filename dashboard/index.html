@@ -13736,6 +13736,17 @@ body.rr-cmdk-open{ overflow:hidden }
             background: #C8C6C4;
             margin: 0 6px;
           }
+          /* The flat strip's only dividers are the explicit .ob-tab-divider
+             elements. Suppress any group-level pseudo divider so the
+             boundaries (before New event / Funnel / Work auth) don't double. */
+          #view-onboarding-ops .sched-nav-heading-actions .sched-ribbon-group::before,
+          #view-onboarding-ops .sched-nav-heading-actions .sched-ribbon-group::after,
+          #view-onboarding-ops .sched-nav-heading-actions .sched-ribbon-group + .sched-ribbon-group::before,
+          #view-onboarding-ops .sched-nav-heading-actions .sched-ribbon-group > .subnav::before,
+          #view-onboarding-ops .sched-nav-heading-actions .sched-ribbon-group > .subnav::after {
+            display: none !important;
+            content: none !important;
+          }
         </style>
         <style>
           /* Onboarding overview · placeholder card shell. Matches the
