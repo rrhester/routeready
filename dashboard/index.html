@@ -13375,6 +13375,25 @@ body.rr-cmdk-open{ overflow:hidden }
                     <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
                 </div>
+                <!-- Google Calendar quick-jump · opens the in-dashboard Calendar
+                     view (where the connected Google Calendar is embedded). -->
+                <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-gcal">
+                  <button class="subnav-item rr-gcal-tile" data-obsub="calendar" onclick="obSub('calendar')" title="Google Calendar">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <rect x="3.5" y="3.5" width="17" height="17" rx="2.5" fill="#ffffff" stroke="#DADCE0" stroke-width="1"/>
+                      <path d="M3.5 6A2.5 2.5 0 0 1 6 3.5H8V8H3.5z" fill="#4285F4"/>
+                      <path d="M16 3.5h2A2.5 2.5 0 0 1 20.5 6V8H16z" fill="#EA4335"/>
+                      <path d="M20.5 16v2a2.5 2.5 0 0 1-2.5 2.5H16V16z" fill="#FBBC04"/>
+                      <path d="M8 20.5H6A2.5 2.5 0 0 1 3.5 18v-2H8z" fill="#34A853"/>
+                      <text x="12" y="15.7" font-size="8" font-weight="700" text-anchor="middle" fill="#4285F4" font-family="Arial,Helvetica,sans-serif">31</text>
+                    </svg>
+                    <span>Google Cal</span>
+                  </button>
+                  <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Google Calendar — connect/manage on the Calendar tab">
+                    Rules
+                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                  </button>
+                </div>
               </div>
               <!-- Group caption + consolidated rules launcher · mirrors Schedule's
                    .sched-v2-viewgroup: a centered caption on the card's bottom line
