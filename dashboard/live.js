@@ -16207,6 +16207,8 @@ async function _ivcalOpenEmail(kind, id) {
   if (!ev) return;
 
   let to, subject, html;
+  let cancelEmails = [];   // who to notify if this meeting is canceled
+  let cancelTitle = "";    // label used in the cancellation notice
   const { dateStr, timeStr } = _ivcalFmtWhen(ev);
   const link = (url) => `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`;
 
@@ -16231,6 +16233,7 @@ async function _ivcalOpenEmail(kind, id) {
     const emails = list.filter(em => typeof em === "string" && em.includes("@"));
     if (emails.length === 0) { toast("This event has no invitee emails", "warn"); return; }
     to = emails.join(", ");
+    cancelEmails = emails; cancelTitle = ev.title || "Event";
     const note = (ev.metadata && ev.metadata.note) ? String(ev.metadata.note) : "";
     subject = ev.title || "You're invited";
     html =
@@ -16261,6 +16264,7 @@ async function _ivcalOpenEmail(kind, id) {
     to = a.email;
     const first = (rrTitleCaseName(a.full_name) || "").split(" ")[0] || "there";
     const word = ev.kind === "orientation" ? "orientation" : "interview";
+    cancelEmails = [a.email]; cancelTitle = word === "orientation" ? "Orientation" : "Interview";
     subject = `Your ${word} details`;
     html =
       `<p>Hi ${escapeHtml(first)},</p>` +
@@ -16270,8 +16274,30 @@ async function _ivcalOpenEmail(kind, id) {
       `<p>No app or download needed — just open the link on your phone or computer at the time above. Reply to this email if you need to reschedule.</p>`;
   }
 
+  // Sessions are interview_sessions rows (not a single cal_event), so only
+  // free-form events and individual bookings get a "Cancel event" button.
+  const whenText = `${dateStr}, ${timeStr}`;
+  const onCancel = (kind !== "session") ? async () => {
+    const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
+    if (dsp && cancelEmails.length) {
+      const subj = "Canceled: " + cancelTitle;
+      const bodyText = `Hi,\n\nThis meeting has been canceled:\n${cancelTitle}\n${whenText}\n\nApologies for any inconvenience — we'll be in touch if it's rescheduled.`;
+      const bodyHtml = `<p>Hi,</p><p>This meeting has been <strong>canceled</strong>:</p>`
+        + `<p><strong>${escapeHtml(cancelTitle)}</strong><br>${escapeHtml(whenText)}</p>`
+        + `<p>Apologies for any inconvenience — we'll be in touch if it's rescheduled.</p>`;
+      const rows = cancelEmails.map(em => ({ dsp_id: dsp, direction: "outbound", status: "queued", to_email: em, subject: subj, body_text: bodyText, body_html: bodyHtml }));
+      const { error: mailErr } = await sb.from("email_messages").insert(rows);
+      if (mailErr) throw mailErr;
+    }
+    const { error } = await sb.rpc("cancel_cal_event_silent", { p_event_id: ev.id });
+    if (error) throw error;
+    toast(cancelEmails.length ? `Meeting canceled · notified ${cancelEmails.length}` : "Meeting canceled", "success");
+    loadIvCalendar();
+    if (typeof loadCalBookingsList === "function") loadCalBookingsList();
+  } : null;
+
   if (typeof window.rrOpenEmailComposer === "function") {
-    window.rrOpenEmailComposer({ mode: "forward", to, subject, html });
+    window.rrOpenEmailComposer({ mode: "forward", to, subject, html, onCancel });
   } else {
     toast("Email composer isn't ready yet — try again in a moment", "warn");
   }
@@ -62004,7 +62030,7 @@ document.addEventListener("click", (e) => {
     return `\n\nOn ${when}, ${from} wrote:\n${quoted}`;
   }
 
-  function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "", html: htmlPrefill = "" } = {}) {
+  function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "", html: htmlPrefill = "", onCancel = null } = {}) {
     closeComposer();
     let to = "", cc = "", subject = "", body = "";
     const needs = (mode === "reply" || mode === "reply-all" || mode === "forward");
@@ -62048,6 +62074,7 @@ document.addEventListener("click", (e) => {
           <button type="button" class="em-popout-ibtn em-composer-send-ibtn" id="rr-em-composer-send-top" title="Send (Ctrl/Cmd+Enter)" aria-label="Send"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg><span>Send</span></button>
           <button type="button" class="em-popout-ibtn" id="rr-em-composer-attach-top" title="Attach" aria-label="Attach files"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg><span>Attach</span></button>
           <button type="button" class="em-popout-ibtn" data-rr-composer-close title="Discard" aria-label="Discard"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg><span>Discard</span></button>
+          ${onCancel ? `<button type="button" class="em-popout-ibtn" id="rr-em-composer-cancel-event" title="Cancel this meeting and notify attendees" aria-label="Cancel event" style="color:#C4281C"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="8" y1="8" x2="16" y2="16"/><line x1="16" y1="8" x2="8" y2="16"/></svg><span>Cancel event</span></button>` : ""}
           <button type="button" class="em-popout-ibtn em-popout-ibtn-close" data-rr-composer-close title="Close" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <!-- Formatting toolbar · single-row Outlook-style ribbon. -->
@@ -62437,6 +62464,15 @@ document.addEventListener("click", (e) => {
     if (e.target.closest("#rr-em-composer-send, #rr-em-composer-send-top")) {
       e.preventDefault();
       sendComposerDraft();
+      return;
+    }
+    const cancelBtn = e.target.closest("#rr-em-composer-cancel-event");
+    if (cancelBtn && typeof onCancel === "function") {
+      e.preventDefault();
+      if (!confirm("Cancel this meeting? Attendees will be emailed that it's canceled and it will be removed from the calendar.")) return;
+      cancelBtn.style.pointerEvents = "none"; cancelBtn.style.opacity = ".6";
+      Promise.resolve(onCancel()).then((ok) => { if (ok !== false) closeComposer(); else { cancelBtn.style.pointerEvents = ""; cancelBtn.style.opacity = ""; } })
+        .catch((err) => { if (typeof toast === "function") toast("Cancel failed: " + (err?.message || err), "warn"); cancelBtn.style.pointerEvents = ""; cancelBtn.style.opacity = ""; });
       return;
     }
     if (e.target.closest("#rr-em-composer-attach-top")) {
