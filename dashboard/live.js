@@ -16277,7 +16277,23 @@ async function _ivcalOpenEmail(kind, id) {
   }
 }
 
-// Outlook-style click-to-create. Opens a FULL-PAGE event editor (To / Subject
+// Mint a Whereby room via the video-room edge fn. Returns { url, error } and
+// surfaces the real failure reason (e.g. no_key / whereby_failed) so the
+// operator isn't left guessing why a link didn't appear.
+async function _ivcalMintRoom(endsISO) {
+  try {
+    const { data, error } = await sb.functions.invoke("video-room", { body: { ends_at: endsISO } });
+    if (error) {
+      let msg = error.message || "request failed";
+      try { const j = await error.context.json(); msg = (j.error || msg) + (j.detail ? " — " + (typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail)) : ""); } catch {}
+      return { url: "", error: msg };
+    }
+    if (!data || !data.url) return { url: "", error: (data && data.error) || "no link returned" };
+    return { url: data.url, error: "" };
+  } catch (e) { return { url: "", error: String(e) }; }
+}
+
+// Outlook-style click-to-create. Opens a pop-out event editor (To / Subject
 // / date-time / body). A Whereby room is minted up front (video-room edge fn)
 // so the join link is shown in the body immediately; on Send the event is
 // saved with that link and the invite (this exact body) goes to every attendee.
@@ -16318,36 +16334,38 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
 
   const m = document.createElement("div");
   m.id = "rr-ivcal-new";
-  m.style.cssText = "position:fixed;inset:0;background:var(--canvas,#fff);z-index:9999;display:flex;flex-direction:column";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay,rgba(15,23,42,.40));z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box";
   const fld = "padding:9px 11px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box;background:var(--surface);color:var(--text)";
   const lbl = "font-size:12px;font-weight:600;color:var(--text-subtle);min-width:64px";
   m.innerHTML = `
-    <div style="display:flex;align-items:center;gap:18px;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--surface)">
-      <div style="font-size:17px;font-weight:700;color:var(--text)">New event</div>
-      <button id="rr-ne-create" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:7px">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        Send
-      </button>
-      <span id="rr-ne-roomstate" style="font-size:12px;color:var(--text-subtle)">Creating video link…</span>
-      <button class="btn btn-sm" data-rr-ne-close style="margin-left:auto">Close</button>
-    </div>
-    <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:16px 22px;max-width:1100px;width:100%;margin:0 auto;box-sizing:border-box">
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="${lbl}">To</span>
-        <input id="rr-ne-invitees" type="text" placeholder="name@example.com, …" style="${fld};flex:1">
+    <div class="rr-ne-card" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.34);width:min(960px,96vw);height:min(86vh,780px);display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border)">
+        <div style="font-size:17px;font-weight:700;color:var(--text)">New event</div>
+        <button id="rr-ne-create" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:7px">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Send
+        </button>
+        <span id="rr-ne-roomstate" style="font-size:12px;color:var(--text-subtle)">Creating video link…</span>
+        <button class="btn btn-sm" data-rr-ne-close style="margin-left:auto">Close</button>
       </div>
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="${lbl}">Subject</span>
-        <input id="rr-ne-title" type="text" placeholder="e.g. Phone screen with Acme" style="${fld};flex:1">
+      <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:16px 20px;box-sizing:border-box">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="${lbl}">To</span>
+          <input id="rr-ne-invitees" type="text" placeholder="name@example.com, …" style="${fld};flex:1">
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="${lbl}">Subject</span>
+          <input id="rr-ne-title" type="text" placeholder="e.g. Phone screen with Acme" style="${fld};flex:1">
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="${lbl}">When</span>
+          <input id="rr-ne-date" type="date" value="${escapeHtml(dateISO)}" style="${fld}">
+          <input id="rr-ne-start" type="time" value="${_ivMinToHHMM(startMin)}" style="${fld}">
+          <span style="color:var(--text-subtle)">–</span>
+          <input id="rr-ne-end" type="time" value="${_ivMinToHHMM(endMin)}" style="${fld}">
+        </div>
+        <textarea id="rr-ne-body" style="${fld};flex:1;min-height:200px;resize:none;line-height:1.5;font-family:Calibri,Arial,sans-serif;font-size:14px"></textarea>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="${lbl}">When</span>
-        <input id="rr-ne-date" type="date" value="${escapeHtml(dateISO)}" style="${fld}">
-        <input id="rr-ne-start" type="time" value="${_ivMinToHHMM(startMin)}" style="${fld}">
-        <span style="color:var(--text-subtle)">–</span>
-        <input id="rr-ne-end" type="time" value="${_ivMinToHHMM(endMin)}" style="${fld}">
-      </div>
-      <textarea id="rr-ne-body" style="${fld};flex:1;min-height:240px;resize:none;line-height:1.5;font-family:Calibri,Arial,sans-serif;font-size:14px"></textarea>
     </div>`;
   document.body.appendChild(m);
   document.getElementById("rr-ne-body").value = buildBody();
@@ -16364,31 +16382,37 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
   // Mint the video room up front so the link lands in the body before sending.
   (async () => {
     const state = document.getElementById("rr-ne-roomstate");
-    try {
-      const endsISO = _ivLocalToISO(dateISO, _ivMinToHHMM(endMin), tz);
-      const { data, error } = await sb.functions.invoke("video-room", { body: { ends_at: endsISO } });
-      if (error || !data?.url) throw error || new Error("no url");
-      roomUrl = data.url;
+    const endsISO = _ivLocalToISO(dateISO, _ivMinToHHMM(endMin), tz);
+    const { url, error } = await _ivcalMintRoom(endsISO);
+    if (url) {
+      roomUrl = url;
       if (state) { state.textContent = "Video link ready ✓"; state.style.color = "var(--green)"; }
       refreshBody();
-    } catch {
-      if (state) { state.textContent = "Couldn't pre-create a link — it'll be added automatically on send"; state.style.color = "var(--amber-dark, #B45309)"; }
+    } else if (state) {
+      state.textContent = "Video link error: " + error;
+      state.style.color = "var(--red, #C4281C)";
+      state.title = error;
     }
   })();
 
   m.addEventListener("click", async (e) => {
-    if (e.target.closest("[data-rr-ne-close]")) { m.remove(); return; }
+    if (e.target === m || e.target.closest("[data-rr-ne-close]")) { m.remove(); return; }
     if (e.target.closest("#rr-ne-create")) {
       const title = document.getElementById("rr-ne-title").value.trim();
       const date  = document.getElementById("rr-ne-date").value;
       const start = document.getElementById("rr-ne-start").value;
       const end   = document.getElementById("rr-ne-end").value;
-      const bodyText = document.getElementById("rr-ne-body").value;
+      let bodyText = document.getElementById("rr-ne-body").value;
       if (!title) { toast("Add a subject", "warn"); return; }
       if (!date || !start) { toast("Pick a date and start time", "warn"); return; }
       const invitees = document.getElementById("rr-ne-invitees").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
       const btn = e.target.closest("button");
       btn.disabled = true; btn.textContent = "Sending…";
+      // If the room wasn't pre-created (open-time call failed), try once more now.
+      if (!roomUrl) {
+        const r = await _ivcalMintRoom(_ivLocalToISO(date, end || start, tz));
+        if (r.url) { roomUrl = r.url; if (!bodyDirty) { bodyText = buildBody(); } else { bodyText = bodyText.replace("(creating link…)", roomUrl); } }
+      }
       try {
         const { error } = await sb.rpc("create_calendar_event", {
           p_title: title,
