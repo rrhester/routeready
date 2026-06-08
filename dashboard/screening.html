@@ -803,8 +803,16 @@ window.uploadVideoBlob = async function (token, blob) {
   form.append("token", token);
   const ext = (blob.type || "").indexOf("mp4") !== -1 ? ".mp4" : ".webm";
   form.append("video", blob, "intro" + ext);
+  // Attach the publishable key the same way supabase-js does for every other
+  // function call. Without it the functions gateway rejects the request after
+  // the project's key rotation (this raw fetch was the only call missing it).
+  // NOTE: do not set Content-Type — the browser must set the multipart boundary.
   const res = await fetch(SB_URL + "/functions/v1/upload-applicant-video", {
     method: "POST",
+    headers: {
+      apikey: cfg.SUPABASE_ANON_KEY,
+      Authorization: "Bearer " + cfg.SUPABASE_ANON_KEY,
+    },
     body: form,
   });
   const json = await res.json().catch(() => ({}));
