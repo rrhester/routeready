@@ -16067,7 +16067,6 @@ async function loadGoogleCalendar() {
       document.getElementById("rr-gcal-connect").onclick = connectGoogleCalendar;
       _renderGcalEmbed(null);
     }
-    _renderGcalEmbed(null);
   } catch (e) {
     statusEl.textContent = "Error"; statusEl.className = "rr-gcal-status is-off";
     body.innerHTML = `<div class="rr-gcal-err">Couldn't load status: ${escapeHtml(e.message || String(e))}</div>
