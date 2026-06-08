@@ -16096,7 +16096,7 @@ async function loadIvCalendar() {
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, applicants:applicant_id (full_name)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         .order("starts_at", { ascending: true })
@@ -16164,6 +16164,75 @@ function _ivcalRender() {
     ${inner}`;
   host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalRender(); });
   host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
+  // Click any event block / month pill → detail popup.
+  host.querySelectorAll("[data-ivcal-id]").forEach(el => el.onclick = (e) => {
+    e.stopPropagation();
+    _ivcalOpenDetail(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id"));
+  });
+}
+
+// ── Calendar event detail popup ───────────────────────────────────────────
+function _ivcalCloseDetail() {
+  const m = document.getElementById("rr-ivcal-detail");
+  if (m) m.remove();
+  document.removeEventListener("keydown", _ivcalDetailEsc);
+}
+function _ivcalDetailEsc(e) { if (e.key === "Escape") _ivcalCloseDetail(); }
+
+function _ivcalOpenDetail(kind, id) {
+  if (!_ivcalCache) return;
+  _ivcalCloseDetail();
+  const arr = kind === "session" ? _ivcalCache.sessions : _ivcalCache.bookings;
+  const ev = (arr || []).find(x => String(x.id) === String(id));
+  if (!ev) return;
+
+  const s = new Date(ev.starts_at);
+  const e = ev.ends_at ? new Date(ev.ends_at) : null;
+  const dateStr = s.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
+  const timeStr = s.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })
+    + (e ? " – " + e.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }) : "");
+
+  let title, badge, rows = "";
+  const row = (label, val) => `<div class="rr-ivd-row"><div class="rr-ivd-k">${escapeHtml(label)}</div><div class="rr-ivd-v">${val}</div></div>`;
+
+  if (kind === "session") {
+    title = ev.label || "Group session";
+    badge = `<span class="rr-ivd-badge session">Group session</span>`;
+    rows += row("Capacity", `${ev.capacity || 1} spots`);
+  } else {
+    const a = ev.applicants || {};
+    title = rrTitleCaseName(a.full_name) || (ev.kind === "orientation" ? "Orientation" : "Interview");
+    badge = ev.kind === "orientation"
+      ? `<span class="rr-ivd-badge orient">Orientation</span>`
+      : `<span class="rr-ivd-badge interview">Interview</span>`;
+    if (ev.status === "rescheduled") badge += ` <span class="rr-ivd-badge resched">Rescheduled</span>`;
+    if (a.phone) rows += row("Phone", `<a href="tel:${escapeHtml(a.phone)}">${escapeHtml(a.phone)}</a>`);
+    if (a.email) rows += row("Email", `<a href="mailto:${escapeHtml(a.email)}">${escapeHtml(a.email)}</a>`);
+  }
+  rows += row("When", `${escapeHtml(dateStr)}<br>${escapeHtml(timeStr)}`);
+  if (ev.meeting_url) {
+    rows += row("Video room", `<a href="${escapeHtml(ev.meeting_url)}" target="_blank" rel="noreferrer">Open link</a>`);
+  }
+
+  const join = ev.meeting_url
+    ? `<a class="rr-ivd-btn primary" href="${escapeHtml(ev.meeting_url)}" target="_blank" rel="noreferrer">Join video interview</a>`
+    : "";
+
+  const overlay = document.createElement("div");
+  overlay.id = "rr-ivcal-detail";
+  overlay.className = "rr-ivcal-detail-overlay";
+  overlay.innerHTML = `
+    <div class="rr-ivcal-detail-card" role="dialog" aria-modal="true" aria-label="Event details">
+      <button class="rr-ivd-close" aria-label="Close">×</button>
+      <div class="rr-ivd-title">${escapeHtml(title)}</div>
+      <div class="rr-ivd-badges">${badge}</div>
+      <div class="rr-ivd-rows">${rows}</div>
+      ${join ? `<div class="rr-ivd-foot">${join}</div>` : ""}
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) _ivcalCloseDetail(); });
+  overlay.querySelector(".rr-ivd-close").onclick = _ivcalCloseDetail;
+  document.addEventListener("keydown", _ivcalDetailEsc);
 }
 
 function _ivcalEventBlock(ev, type) {
@@ -16176,12 +16245,12 @@ function _ivcalEventBlock(ev, type) {
   if (type === "session") {
     const cap = ev.capacity || 1;
     const lbl = `${ev.label ? ev.label : "Group session"} · ${cap} spots`;
-    return `<div class="rr-ivcal-ev session" style="top:${top}px;height:${h}px" title="${escapeHtml(time+" · "+lbl)}">
+    return `<div class="rr-ivcal-ev session" data-ivcal-kind="session" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(time+" · "+lbl)}">
       <div class="rr-ivcal-ev-t">${escapeHtml(time)}</div><div class="rr-ivcal-ev-n">${escapeHtml(lbl)}</div></div>`;
   }
   const name = rrTitleCaseName((ev.applicants||{}).full_name) || (ev.kind==="orientation"?"Orientation":"Interview");
   const cls = ev.kind === "orientation" ? "orient" : "interview";
-  return `<div class="rr-ivcal-ev ${cls}" style="top:${top}px;height:${h}px" title="${escapeHtml(name+" · "+time)}">
+  return `<div class="rr-ivcal-ev ${cls}" data-ivcal-kind="booking" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(name+" · "+time)}">
     <div class="rr-ivcal-ev-t">${escapeHtml(time)}</div><div class="rr-ivcal-ev-n">${escapeHtml(name)}</div></div>`;
 }
 
@@ -16236,12 +16305,12 @@ function _ivcalMonth() {
     const out = d.getMonth() !== a.getMonth();
     const isToday = d.getTime() === today.getTime();
     const items = [];
-    _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => items.push({ t:new Date(s.starts_at), label:`${s.label||"Group session"} · ${s.capacity||1}`, cls:"session" }));
-    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => items.push({ t:new Date(b.starts_at), label:rrTitleCaseName((b.applicants||{}).full_name)||"Interview", cls:b.kind==="orientation"?"orient":"interview" }));
+    _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => items.push({ t:new Date(s.starts_at), label:`${s.label||"Group session"} · ${s.capacity||1}`, cls:"session", kind:"session", id:s.id }));
+    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => items.push({ t:new Date(b.starts_at), label:rrTitleCaseName((b.applicants||{}).full_name)||"Interview", cls:b.kind==="orientation"?"orient":"interview", kind:"booking", id:b.id }));
     items.sort((x,y) => x.t - y.t);
     const pills = items.slice(0,3).map(it => {
       const tm = it.t.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
-      return `<div class="rr-ivcal-pill ${it.cls}" title="${escapeHtml(tm+" "+it.label)}"><span class="rr-ivcal-pdot"></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
+      return `<div class="rr-ivcal-pill ${it.cls}" data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" title="${escapeHtml(tm+" "+it.label)}"><span class="rr-ivcal-pdot"></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
     }).join("");
     const more = items.length > 3 ? `<div class="rr-ivcal-more">+${items.length-3} more</div>` : "";
     cells += `<div class="rr-ivcal-m-cell${out?" out":""}${isToday?" today":""}"><div class="rr-ivcal-m-num${isToday?" today":""}">${d.getDate()}</div>${pills}${more}</div>`;
