@@ -12450,11 +12450,8 @@ body.rr-cmdk-open{ overflow:hidden }
         <div class="pipe-subview" id="pipe-sub-calendar" style="display:none">
           <style>
             #view-pipeline #pipe-sub-calendar .pipe-cal-shell{
-              display:grid;grid-template-columns:1fr 1fr;
+              display:grid;grid-template-columns:1fr;
               gap:var(--s-4);align-items:start;
-            }
-            @media (max-width:1100px){
-              #view-pipeline #pipe-sub-calendar .pipe-cal-shell{grid-template-columns:1fr}
             }
             #view-pipeline #pipe-sub-calendar .pipe-cal-col{min-width:0}
             #view-pipeline #pipe-sub-calendar .pipe-cal-col-head{
@@ -12588,15 +12585,10 @@ body.rr-cmdk-open{ overflow:hidden }
               </div>
             </div>
 
-            <div class="pipe-cal-col">
-              <div class="pipe-cal-col-head">
-                <div>
-                  <h3>Interview availability</h3>
-                  <p class="pipe-cal-col-sub">Set the days, times, and location applicants see when they book an interview.</p>
-                </div>
-                <div id="cal-edit-meta" class="u-xs-subtle"></div>
-              </div>
-
+            <!-- Legacy Cal.com availability editor removed — the native
+                 "Interview availability" editor (above) is the source of
+                 truth. The .cal-edit-card styles below are KEPT because the
+                 Funnel rules popover reuses that class. -->
           <style>
             .cal-edit-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px}
             .cal-edit-section + .cal-edit-section{margin-top:var(--s-4);padding-top:var(--s-4);border-top:1px solid var(--border)}
@@ -12626,11 +12618,6 @@ body.rr-cmdk-open{ overflow:hidden }
             .cal-edit-status.ok{color:var(--green)}
             .cal-edit-status.err{color:var(--red)}
           </style>
-
-          <div class="cal-edit-card" id="cal-edit-card">
-            <div class="rr-loading">Loading availability</div>
-          </div>
-            </div><!-- /pipe-cal-col (right) -->
           </div><!-- /pipe-cal-shell -->
         </div><!-- /pipe-sub-calendar -->
 
@@ -13450,27 +13437,6 @@ body.rr-cmdk-open{ overflow:hidden }
                     <span>Calendar</span>
                   </button>
                   <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Calendar rules — coming soon">
-                    Rules
-                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
-                  </button>
-                </div>
-                <!-- Google Calendar quick-jump · opens the in-dashboard Calendar
-                     view (where the connected Google Calendar is embedded). -->
-                <div class="ob-tab-wrap" draggable="true" data-rr-tile="ob-gcal">
-                  <button class="subnav-item rr-gcal-tile" data-obsub="calendar" onclick="obSub('calendar')" title="Google Calendar">
-                    <svg viewBox="0 0 48 48" aria-hidden="true">
-                      <rect x="13" y="13" width="22" height="22" fill="#fff"/>
-                      <polygon fill="#1e88e5" points="25.68,20.92 26.688,22.36 28.272,21.208 28.272,29.56 30,29.56 30,18.616 28.56,18.616"/>
-                      <path fill="#1e88e5" d="M22.943,23.745c0.625-0.574,1.013-1.37,1.013-2.249c0-1.747-1.533-3.168-3.417-3.168c-1.602,0-2.972,1.009-3.33,2.453l1.657,0.421c0.165-0.664,0.868-1.146,1.673-1.146c0.942,0,1.709,0.646,1.709,1.44c0,0.794-0.767,1.44-1.709,1.44h-0.997v1.728h0.997c1.081,0,1.993,0.751,1.993,1.64c0,0.904-0.866,1.64-1.931,1.64c-0.962,0-1.784-0.61-1.914-1.418l-1.704,0.281c0.272,1.69,1.81,2.965,3.618,2.965c2.022,0,3.667-1.604,3.667-3.576C25.872,25.426,24.692,24.022,22.943,23.745z"/>
-                      <polygon fill="#fbc02d" points="34,42 14,42 13,38 14,34 34,34 35,38"/>
-                      <polygon fill="#4caf50" points="38,35 42,34 42,14 38,13 34,14 34,34"/>
-                      <path fill="#1e88e5" d="M34,14l1-4l-1-4H9C7.343,6,6,7.343,6,9v25l4,1l4-1V14H34z"/>
-                      <polygon fill="#e53935" points="34,34 34,42 42,34"/>
-                      <polygon fill="#1565c0" points="34,6 34,14 42,14"/>
-                    </svg>
-                    <span>Google Cal</span>
-                  </button>
-                  <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Google Calendar — connect/manage on the Calendar tab">
                     Rules
                     <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
@@ -36644,7 +36610,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-iv-calendar"></script>
+<script type="module" src="./live.js?v=20260608-iv-calendar2"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
