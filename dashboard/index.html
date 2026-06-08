@@ -11139,6 +11139,13 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .pa-zone-action-v4 .pa-btn-video{
             flex:1 1 130px;min-width:0;justify-content:center;
           }
+          /* Line the video button's right edge up with the stage CTA below it:
+             the CTA shares its row with the ⋯ menu (28px) + 6px gap, so reserve
+             the same 34px on the video's row instead of letting it run the full
+             column width. Now "Review video" and "Send booking link" match. */
+          #view-pipeline .pa-zone-action-v4 .pa-btn-video{
+            margin-right:34px;
+          }
           /* Review video · secondary action that sits next to the
              primary CTA on screened applicants. Subtle Fluent
              outline button — clear it's a button but visually
@@ -11209,12 +11216,17 @@ body.rr-cmdk-open{ overflow:hidden }
             height:32px;padding:0 14px;border-radius:4px;
             font-family:inherit;font-size:13.5px;font-weight:600;
             white-space:nowrap;cursor:pointer;
-            background:#0F6CBD;color:#fff;border:1px solid #0F6CBD;
-            box-shadow:0 1px 2px rgba(15,23,42,.12);
-            transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast);
+            /* Subtle AI cue · blue-led gradient drifting to a soft violet.
+               Noticeable on a look (this is a special "review the video"
+               action) without shouting. Calms to a plain outline once the
+               video's been watched (.is-watched below). */
+            background:linear-gradient(120deg,#0F6CBD 0%,#3E59CC 55%,#7A4FD4 100%);
+            color:#fff;border:1px solid transparent;
+            box-shadow:0 1px 2px rgba(60,40,150,.22);
+            transition:background var(--t-fast),border-color var(--t-fast),box-shadow var(--t-fast),filter var(--t-fast);
           }
-          #view-pipeline .pa-btn-video:hover{background:#115EA3;border-color:#115EA3}
-          #view-pipeline .pa-btn-video:active{background:#0E5390;border-color:#0E5390}
+          #view-pipeline .pa-btn-video:hover{filter:brightness(1.06) saturate(1.05)}
+          #view-pipeline .pa-btn-video:active{filter:brightness(.95)}
           #view-pipeline .pa-btn-video:focus-visible{outline:none;box-shadow:0 0 0 2px #fff,0 0 0 4px #0F6CBD}
           #view-pipeline .pa-btn-video svg{flex:0 0 auto}
           /* Unwatched marker — Fluent red dot, white-ringed. */
