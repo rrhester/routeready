@@ -16084,7 +16084,20 @@ async function loadCalendarTab() {
 let _ivcalView = "week";
 let _ivcalAnchor = new Date();
 let _ivcalCache = null; // { tz, windows, sessions, bookings }
-const _IVCAL_H0 = 0, _IVCAL_H1 = 24, _IVCAL_RH = 44; // full 24h, dense rows (Outlook), scrollable
+const _IVCAL_H0 = 0, _IVCAL_H1 = 24; // full 24h, scrollable
+// Row height = pixels per hour. Adjustable "time scale" zoom (Outlook-style):
+// bigger rows make a 30-min block visually larger. Persisted per browser.
+let _IVCAL_RH = (() => {
+  const v = parseInt((typeof localStorage !== "undefined" && localStorage.getItem("rr_ivcal_rh")) || "", 10);
+  return (v >= 36 && v <= 160) ? v : 56;
+})();
+function _ivcalSetZoom(delta) {
+  const next = Math.max(36, Math.min(160, _IVCAL_RH + delta));
+  if (next === _IVCAL_RH) return;
+  _IVCAL_RH = next;
+  try { localStorage.setItem("rr_ivcal_rh", String(next)); } catch (_) {}
+  _ivcalRender();
+}
 const _IVCAL_DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 // Outlook-style UI state.
 let _ivcalSelected = null;            // { kind, id } of the selected event (reading pane)
@@ -16183,6 +16196,7 @@ function _ivcalRender() {
           <button class="oc-btn oc-ico" data-ivcal-nav="1" title="Next">›</button>
           <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
           <div class="oc-seg">${seg("day","Day")}${seg("week","Week")}${seg("month","Month")}</div>
+          ${_ivcalView === "month" ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
           <span class="oc-sp"></span>
           <span class="oc-search">🔎<input type="text" data-ivcal-search placeholder="Search"></span>
           <div class="oc-filters">${flt("interview","Interviews","blue")}${flt("orientation","Orientation","green")}${flt("event","Events","blue")}${flt("session","Sessions","teal")}</div>
@@ -16193,6 +16207,7 @@ function _ivcalRender() {
     </div>`;
 
   host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalRender(); });
+  host.querySelectorAll("[data-ivcal-zoom]").forEach(btn => btn.onclick = () => _ivcalSetZoom(parseInt(btn.getAttribute("data-ivcal-zoom"), 10)));
   host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
   host.querySelector("[data-ivcal-new]")?.addEventListener("click", () => _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30));
   host.querySelectorAll("[data-ivcal-filter]").forEach(cb => cb.onchange = () => { _ivcalFilters[cb.getAttribute("data-ivcal-filter")] = cb.checked; _ivcalRender(); });
@@ -16254,7 +16269,9 @@ function _ivcalAutoScroll() {
   if (!sc) return;
   const now = new Date();
   const min = now.getHours()*60 + now.getMinutes();
-  sc.scrollTop = Math.max(0, ((min - _IVCAL_H0*60) / 60 * _IVCAL_RH) - 120);
+  const grid = sc.querySelector(".oc-grid");
+  const headOff = grid ? grid.offsetTop : 0; // sticky header sits above the grid
+  sc.scrollTop = Math.max(0, headOff + ((min - _IVCAL_H0*60) / 60 * _IVCAL_RH) - 120);
 }
 
 // ── Calendar event → email (opens the rich composer prefilled with the
@@ -16758,8 +16775,10 @@ function _ivcalTimeGrid(ndays) {
   }).join("");
 
   return `<div class="oc-cal" style="--days:${ndays};--rh:${_IVCAL_RH}px">
-    <div class="oc-head">${head}</div>
-    <div class="oc-scroll" id="rr-ivcal-scroll"><div class="oc-grid" style="height:${gridH}px"><div class="oc-gutter">${gutter}</div>${cols}</div></div>
+    <div class="oc-scroll" id="rr-ivcal-scroll">
+      <div class="oc-head">${head}</div>
+      <div class="oc-grid" style="height:${gridH}px"><div class="oc-gutter">${gutter}</div>${cols}</div>
+    </div>
   </div>`;
 }
 
