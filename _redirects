@@ -1,17 +1,24 @@
 # Cloudflare Pages redirects — translated from netlify.toml.
-# Format: <from> <to> <status>   (200 = internal rewrite, URL bar
-# keeps the short path; 301 = permanent redirect).
+# Format: <from> <to> <status>   (302 = redirect; 301 = permanent.)
+#
+# IMPORTANT: token short-links MUST use a 3xx redirect, NOT a 200 rewrite.
+# Cloudflare Pages does NOT substitute :placeholders into the destination
+# of a 200 (proxy) rewrite — it serves the page but drops the token, so
+# screening.html sees an empty ?t= and shows "link looks invalid".
+# Placeholder substitution only works on redirect status codes, so these
+# 302 to the long /dashboard/*.html?...=token form (which the pages read).
+# Trade-off: the address bar shows the long URL instead of the short path.
 
-# Short-path rewrites for applicant/driver-facing links. The original
+# Short-links for applicant/driver-facing links. The original
 # /dashboard/*.html?...=token paths still resolve, so previously
 # emailed/SMS'd links keep working.
-/s/:token        /dashboard/screening.html?t=:token   200
-/c/:token        /dashboard/coaching.html?t=:token     200
-/r/:token        /dashboard/refer.html?r=:token        200
+/s/:token        /dashboard/screening.html?t=:token   302
+/c/:token        /dashboard/coaching.html?t=:token     302
+/r/:token        /dashboard/refer.html?r=:token        302
 
 # Public document-verification page. /verify/<token> and bare /verify
 # both resolve to verify.html (which also reads ?token=).
-/verify/:token   /verify.html?token=:token             200
+/verify/:token   /verify.html?token=:token             302
 /verify          /verify.html                          200
 
 # Pretty URLs for the download + getting-started pages.
