@@ -31,6 +31,8 @@
 // code) picks the tenant; the sender address picks the applicant inside
 // it. If either lookup fails we still 200 so the upstream doesn't retry.
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
+import { parseIcsReply } from "../_shared/ics.ts";
+import { decodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 interface InboundPayload {
   to?: unknown;
@@ -333,6 +335,30 @@ Deno.serve(async (req) => {
     }
     return out;
   })();
+
+  // 4b. Calendar RSVP · if this reply carries a METHOD:REPLY calendar part,
+  // flip the matching cal_event's rsvp (accepted / declined / tentative).
+  try {
+    let calText: string | null = null;
+    const calAtt = attachments.find((a) =>
+      (a.contentType || "").toLowerCase().includes("text/calendar") || /\.ics$/i.test(a.filename || ""));
+    if (calAtt?.contentB64) {
+      try { calText = new TextDecoder().decode(decodeBase64(calAtt.contentB64)); } catch { /* skip */ }
+    } else if (calAtt?.url) {
+      try { const r = await fetch(calAtt.url); if (r.ok) calText = await r.text(); } catch { /* skip */ }
+    }
+    if (!calText && bodyText && /METHOD:REPLY/i.test(bodyText)) calText = bodyText;
+
+    if (calText) {
+      const { uid, partstat } = parseIcsReply(calText);
+      const eventId = uid ? uid.split("@")[0].trim() : null;
+      const map: Record<string, string> = { ACCEPTED: "accepted", DECLINED: "declined", TENTATIVE: "pending" };
+      const newRsvp = partstat ? map[partstat] : null;
+      if (eventId && newRsvp) {
+        await supa.from("cal_events").update({ rsvp: newRsvp }).eq("id", eventId).eq("dsp_id", dsp.id);
+      }
+    }
+  } catch { /* RSVP sync is best-effort; never block the inbound insert */ }
 
   // 5. Idempotency — a re-delivered message id is a no-op for the email
   // row, but we still backfill applicant_id / folder_id / body / and

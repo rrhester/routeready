@@ -73,7 +73,7 @@ ${roomUrl}
 
 No app or download needed — just open the link on your phone or computer at your time. Reply to this email if you need to reschedule.`;
         await supa.from("email_messages").insert({
-          dsp_id: ev.dsp_id, applicant_id: ev.applicant_id, direction: "outbound", status: "queued",
+          dsp_id: ev.dsp_id, applicant_id: ev.applicant_id, cal_event_id: ev.id, direction: "outbound", status: "queued",
           to_email: app.email, subject: "Your interview is confirmed", body_text: body,
         });
       }
@@ -93,7 +93,7 @@ ${roomUrl}
 ${note ? "\n" + note + "\n" : ""}
 No app or download needed — just open the link on your phone or computer at the time above.`;
       const rows = invitees.map((email) => ({
-        dsp_id: ev.dsp_id, direction: "outbound", status: "queued",
+        dsp_id: ev.dsp_id, cal_event_id: ev.id, direction: "outbound", status: "queued",
         to_email: email, subject: title, body_text: body,
       }));
       await supa.from("email_messages").insert(rows);
