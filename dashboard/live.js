@@ -16200,7 +16200,7 @@ function _ivcalFmtWhen(ev) {
   return { dateStr, timeStr };
 }
 
-function _ivcalOpenEmail(kind, id) {
+async function _ivcalOpenEmail(kind, id) {
   if (!_ivcalCache) return;
   const arr = kind === "session" ? _ivcalCache.sessions : _ivcalCache.bookings;
   const ev = (arr || []).find(x => String(x.id) === String(id));
@@ -16210,27 +16210,36 @@ function _ivcalOpenEmail(kind, id) {
   const { dateStr, timeStr } = _ivcalFmtWhen(ev);
   const link = (url) => `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`;
 
+  // The Whereby room is created a beat after the event/booking, so the cached
+  // row often has no meeting_url yet — re-read the latest value before we
+  // build the invite, otherwise the join link would be missing.
+  let room = ev.meeting_url || "";
+  if (!room) {
+    try {
+      const tbl = kind === "session" ? "interview_sessions" : "cal_events";
+      const { data } = await sb.from(tbl).select("meeting_url").eq("id", ev.id).maybeSingle();
+      room = (data && data.meeting_url) || "";
+    } catch { /* leave room empty */ }
+  }
+  const joinBlock = room
+    ? `<p>Join the video meeting here:<br>${link(room)}</p>`
+    : `<p><em>The video link is being created and will follow shortly.</em></p>`;
+
   if (kind !== "session" && ev.kind === "event") {
     // Free-form event — email everyone on the invite list.
     const list = Array.isArray(ev.metadata && ev.metadata.invitees) ? ev.metadata.invitees : [];
     const emails = list.filter(em => typeof em === "string" && em.includes("@"));
     if (emails.length === 0) { toast("This event has no invitee emails", "warn"); return; }
     to = emails.join(", ");
-    const room = ev.meeting_url;
     const note = (ev.metadata && ev.metadata.note) ? String(ev.metadata.note) : "";
     subject = ev.title || "You're invited";
     html =
       `<p>Hi all,</p>` +
       `<p>You're invited:</p>` +
       `<p><strong>${escapeHtml(ev.title || "Event")}</strong><br>${escapeHtml(dateStr)}<br>${escapeHtml(timeStr)}</p>` +
-      (room ? `<p>Join the video meeting here:<br>${link(room)}</p>` : "") +
+      joinBlock +
       (note ? `<p>${escapeHtml(note)}</p>` : "");
-    if (typeof window.rrOpenEmailComposer === "function") window.rrOpenEmailComposer({ mode: "forward", to, subject, html });
-    else toast("Email composer isn't ready yet — try again in a moment", "warn");
-    return;
-  }
-
-  if (kind === "session") {
+  } else if (kind === "session") {
     // Everyone booked into this group session.
     const seen = new Set();
     const emails = (_ivcalCache.bookings || [])
@@ -16239,13 +16248,12 @@ function _ivcalOpenEmail(kind, id) {
       .filter(em => (seen.has(em) ? false : (seen.add(em), true)));
     if (emails.length === 0) { toast("No one has booked this session yet — no one to email", "warn"); return; }
     to = emails.join(", ");
-    const room = ev.meeting_url;
     subject = ev.label ? `${ev.label} — interview session details` : "Your interview session details";
     html =
       `<p>Hi all,</p>` +
       `<p>Here are the details for your${ev.label ? " " + escapeHtml(ev.label) : ""} interview session:</p>` +
       `<p><strong>${escapeHtml(dateStr)}</strong><br>${escapeHtml(timeStr)}</p>` +
-      (room ? `<p>Join the video interview here:<br>${link(room)}</p>` : "") +
+      joinBlock +
       `<p>No app or download needed — just open the link on your phone or computer at the time above. Reply to this email if you have any questions.</p>`;
   } else {
     const a = ev.applicants || {};
@@ -16253,13 +16261,12 @@ function _ivcalOpenEmail(kind, id) {
     to = a.email;
     const first = (rrTitleCaseName(a.full_name) || "").split(" ")[0] || "there";
     const word = ev.kind === "orientation" ? "orientation" : "interview";
-    const room = ev.meeting_url;
     subject = `Your ${word} details`;
     html =
       `<p>Hi ${escapeHtml(first)},</p>` +
       `<p>Here are your ${word} details:</p>` +
       `<p><strong>${escapeHtml(dateStr)}</strong><br>${escapeHtml(timeStr)}</p>` +
-      (room ? `<p>Join the video ${word} here:<br>${link(room)}</p>` : "") +
+      joinBlock +
       `<p>No app or download needed — just open the link on your phone or computer at the time above. Reply to this email if you need to reschedule.</p>`;
   }
 
@@ -16365,20 +16372,26 @@ function _ivcalEventBlock(ev, type) {
   const e = ev.ends_at ? new Date(ev.ends_at) : new Date(s.getTime()+30*60000);
   const top = _ivcalYpos(s.getHours()*60 + s.getMinutes());
   const bot = _ivcalYpos(e.getHours()*60 + e.getMinutes());
-  const h = Math.max(18, bot - top);
+  const h = Math.max(20, bot - top);
   const time = s.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+
+  let label, cls, kindAttr;
   if (type === "session") {
-    const cap = ev.capacity || 1;
-    const lbl = `${ev.label ? ev.label : "Group session"} · ${cap} spots`;
-    return `<div class="rr-ivcal-ev session" data-ivcal-kind="session" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(time+" · "+lbl)}">
-      <div class="rr-ivcal-ev-t">${escapeHtml(time)}</div><div class="rr-ivcal-ev-n">${escapeHtml(lbl)}</div></div>`;
+    label = `${ev.label ? ev.label : "Group session"} · ${ev.capacity || 1} spots`;
+    cls = "session"; kindAttr = "session";
+  } else {
+    kindAttr = "booking";
+    if (ev.kind === "event") { label = ev.title || "Event"; cls = "event"; }
+    else if (ev.kind === "orientation") { label = rrTitleCaseName((ev.applicants||{}).full_name) || "Orientation"; cls = "orient"; }
+    else { label = rrTitleCaseName((ev.applicants||{}).full_name) || "Interview"; cls = "interview"; }
   }
-  let name, cls;
-  if (ev.kind === "event") { name = ev.title || "Event"; cls = "event"; }
-  else if (ev.kind === "orientation") { name = rrTitleCaseName((ev.applicants||{}).full_name) || "Orientation"; cls = "orient"; }
-  else { name = rrTitleCaseName((ev.applicants||{}).full_name) || "Interview"; cls = "interview"; }
-  return `<div class="rr-ivcal-ev ${cls}" data-ivcal-kind="booking" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(name+" · "+time)}">
-    <div class="rr-ivcal-ev-t">${escapeHtml(time)}</div><div class="rr-ivcal-ev-n">${escapeHtml(name)}</div></div>`;
+
+  // Short blocks (≈30 min) can't fit two lines — collapse time + label onto
+  // one ellipsized line so the title is always readable.
+  const inner = (h < 34)
+    ? `<div class="rr-ivcal-ev-1">${escapeHtml(time)} · ${escapeHtml(label)}</div>`
+    : `<div class="rr-ivcal-ev-t">${escapeHtml(time)}</div><div class="rr-ivcal-ev-n">${escapeHtml(label)}</div>`;
+  return `<div class="rr-ivcal-ev ${cls}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(time+" · "+label)}">${inner}</div>`;
 }
 
 function _ivcalTimeGrid(ndays) {
