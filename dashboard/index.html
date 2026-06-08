@@ -1485,6 +1485,28 @@ html.rr-sidebar-collapsed-boot .sidebar .sidebar-collapse-btn svg{transform:rota
     transform:none;
   }
 }
+/* Press-spring (the Schedule strip's button feel) extended to shared .btn
+   controls and the calendar + onboarding ribbons, so every button presses. */
+.btn,
+#rr-ivcal .oc-btn, #rr-ivcal .oc-ico, #rr-ivcal .oc-seg button,
+.rr-cal-rules-launch,
+#view-onboarding-ops .sched-nav-heading .subnav-item{
+  transition:background var(--t-fast), color var(--t-fast),
+             border-color var(--t-fast), box-shadow var(--t-fast),
+             transform .12s cubic-bezier(.2,.7,.2,1);
+}
+.btn:active,
+#rr-ivcal .oc-btn:active, #rr-ivcal .oc-ico:active, #rr-ivcal .oc-seg button:active,
+.rr-cal-rules-launch:active,
+#view-onboarding-ops .sched-nav-heading .subnav-item:active{
+  transform:translateY(1px) scale(.97);
+}
+@media (prefers-reduced-motion: reduce){
+  .btn:active,
+  #rr-ivcal .oc-btn:active, #rr-ivcal .oc-ico:active, #rr-ivcal .oc-seg button:active,
+  .rr-cal-rules-launch:active,
+  #view-onboarding-ops .sched-nav-heading .subnav-item:active{ transform:none; }
+}
 .icon-btn .dot{
   position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;
   background:var(--red);border:2px solid var(--surface);
@@ -36782,7 +36804,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-oc14"></script>
+<script type="module" src="./live.js?v=20260608-oc15"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
