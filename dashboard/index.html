@@ -11272,6 +11272,31 @@ body.rr-cmdk-open{ overflow:hidden }
             border-color:rgba(15,108,189,.34);
           }
           #view-pipeline .pa-btn-advance.is-primary .pa-adv-ico{color:#0F6CBD}
+          /* Action needed · the ball is in the DSP's court (send the first
+             screening invite, send the booking link). A touch stronger than a
+             plain primary so these read as "do this" when scanning the list. */
+          #view-pipeline .pa-btn-advance.is-action{
+            background:rgba(15,108,189,.12);
+            border-color:rgba(15,108,189,.34);
+            color:#0F6CBD;
+          }
+          #view-pipeline .pa-btn-advance.is-action:hover{
+            background:rgba(15,108,189,.18);border-color:rgba(15,108,189,.46);
+          }
+          #view-pipeline .pa-btn-advance.is-action .pa-adv-ico{color:#0F6CBD}
+          /* Follow-up · waiting on the applicant (resend / reschedule nudge).
+             Quiet neutral so it recedes next to the action-needed CTAs — the
+             contrast is the signal. */
+          #view-pipeline .pa-btn-advance.is-followup{
+            background:#fff;
+            border-color:#E3E3E3;
+            color:var(--text-muted);
+            box-shadow:none;
+          }
+          #view-pipeline .pa-btn-advance.is-followup .pa-adv-ico{color:var(--text-subtle)}
+          #view-pipeline .pa-btn-advance.is-followup:hover{
+            background:#FAFAFA;border-color:#D1D1D1;color:var(--text);
+          }
           /* Decline — a defined Fluent danger button: red-tinted surface
              + red glyph so the disposition action is unmistakable and
              stands clear of the neutral contact icons. */

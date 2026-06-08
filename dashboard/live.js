@@ -607,17 +607,23 @@ function renderApplicantCard(a) {
   // Decline + Video + the contact icon row all moved into the ⋯ menu
   // (or, for Decline + Video, removed entirely) so each card carries
   // one obvious workflow + a quiet overflow.
-  let ctaAction = "", ctaLabel = "";
+  let ctaAction = "", ctaLabel = "", ctaNeedsAction = false;
   // "Send" until a screening invite has actually gone out (same signal the
   // timeline uses for "Screening invite sent"), "Resend" after — so the button
   // and the card's timeline never disagree. Same action either way.
-  if (stage === "applied")           { ctaAction = "resend_screening"; ctaLabel = _screeningInviteSent(a) ? "Resend screening" : "Send screening"; }
-  else if (stage === "screened")     { ctaAction = "send_link";        ctaLabel = "Send booking link"; }
+  //
+  // ctaNeedsAction = the ball is in the DSP's court to advance the applicant
+  // (send the first screening invite, send the booking link). The quieter
+  // cases are follow-ups where we're waiting on the applicant and the button
+  // is just a re-send nudge. The two render differently (strong blue vs muted
+  // neutral) so a DSP can scan the list for what actually needs them.
+  if (stage === "applied")           { const sent = _screeningInviteSent(a); ctaAction = "resend_screening"; ctaLabel = sent ? "Resend screening" : "Send screening"; ctaNeedsAction = !sent; }
+  else if (stage === "screened")     { ctaAction = "send_link";        ctaLabel = "Send booking link";    ctaNeedsAction = true; }
   else if (stage === "booking_pending") { ctaAction = "resend_link";   ctaLabel = "Resend booking link"; }
   else if (stage === "booking_scheduled") { ctaAction = "reschedule";  ctaLabel = "Reschedule"; }
 
   const advanceBtn = ctaAction
-    ? `<button class="pa-btn-advance is-primary" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">
+    ? `<button class="pa-btn-advance ${ctaNeedsAction ? "is-primary is-action" : "is-followup"}" type="button" data-rr-action="${ctaAction}" data-applicant-id="${escapeHtml(a.id)}">
          <svg class="pa-adv-ico" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
          ${escapeHtml(ctaLabel)}
        </button>`
