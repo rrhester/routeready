@@ -11718,6 +11718,15 @@ body.rr-cmdk-open{ overflow:hidden }
           #view-pipeline .hp-stage-btn.active .hp-stage-btn-count{
             background:#fff;color:var(--sch-blue);
           }
+          /* "Action needed" queue · accent its count chip (and icon) so the
+             tab reads as the priority view — these are applicants where the
+             DSP has to act next. */
+          #view-pipeline .hp-stage-btn[data-stage="action_needed"] .hp-stage-btn-count{
+            background:rgba(15,108,189,.14);color:var(--sch-blue);
+          }
+          #view-pipeline .hp-stage-btn[data-stage="action_needed"]:not(.active) .hp-stage-ico{
+            color:var(--sch-blue);
+          }
           /* Filter row tools · plain flex, no pill chrome. */
           #view-pipeline .hp-list-tools{
             padding:0;border:0;background:transparent;
@@ -12032,6 +12041,7 @@ body.rr-cmdk-open{ overflow:hidden }
           </div>
           <div class="hp-stages" id="pipeline-stage-tabs">
             <button class="hp-stage-btn stage-tab active" data-stage="all" onclick="filterPipelineStage(this)"><svg class="hp-stage-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 19v-1a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18v1"/><circle cx="10" cy="8" r="3.2"/><path d="M20 19v-1a3.5 3.5 0 0 0-2.6-3.38"/><path d="M15.5 5.2a3.2 3.2 0 0 1 0 5.6"/></svg>All <span class="hp-stage-btn-count stage-tab-count">28</span></button>
+            <button class="hp-stage-btn stage-tab" data-stage="action_needed" onclick="filterPipelineStage(this)" title="Applicants where the next move is yours — send the first screening invite, or send the booking link"><svg class="hp-stage-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="7.5" x2="12" y2="12.5"/><circle cx="12" cy="16" r="1" fill="currentColor" stroke="none"/></svg>Action needed <span class="hp-stage-btn-count stage-tab-count">0</span></button>
             <button class="hp-stage-btn stage-tab" data-stage="applied" onclick="filterPipelineStage(this)"><svg class="hp-stage-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="16.5" x2="13" y2="16.5"/></svg>Applied <span class="hp-stage-btn-count stage-tab-count">9</span></button>
             <button class="hp-stage-btn stage-tab" data-stage="screened" onclick="filterPipelineStage(this)"><svg class="hp-stage-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><line x1="20" y1="20" x2="14.8" y2="14.8"/></svg>Screening <span class="hp-stage-btn-count stage-tab-count">7</span></button>
             <button class="hp-stage-btn stage-tab" data-stage="booking_pending" onclick="filterPipelineStage(this)"><svg class="hp-stage-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>Booking pending <span class="hp-stage-btn-count stage-tab-count">5</span></button>
