@@ -16193,6 +16193,7 @@ async function loadCalendarTab() {
 // one-off group sessions. Rendered in browser-local time (operator ≈ DSP tz).
 let _ivcalView = "week";
 let _ivcalAnchor = new Date();
+let _ivcalMiniAnchor = null; // month shown in the mini date navigator (null = follow anchor)
 let _ivcalCache = null; // { tz, windows, sessions, bookings }
 const _IVCAL_H0 = 0, _IVCAL_H1 = 24; // full 24h, scrollable
 // Row height = pixels per hour. Adjustable "time scale" zoom (Outlook-style):
@@ -16284,7 +16285,69 @@ function _ivcalNav(dir) {
   else if (_ivcalView === "day") { a.setDate(a.getDate()+dir); _ivcalAnchor = a; }
   else if (_ivcalView === "week") { a.setDate(a.getDate()+7*dir); _ivcalAnchor = a; }
   else { a.setMonth(a.getMonth()+dir); _ivcalAnchor = a; }
+  _ivcalMiniAnchor = null; // re-sync the date navigator to the new anchor
   _ivcalRender();
+}
+
+// ── Mini-calendar date navigator (two stacked months + ISO week numbers) ──
+function _ivcalMiniBase() {
+  return _ivcalMiniAnchor ? new Date(_ivcalMiniAnchor) : new Date(_ivcalAnchor.getFullYear(), _ivcalAnchor.getMonth(), 1);
+}
+// The date range currently shown in the main view, for highlighting.
+function _ivcalViewRange() {
+  const a = _ivcalAnchor;
+  if (_ivcalView === "day") { const s = new Date(a); s.setHours(0,0,0,0); return { start: s, end: s }; }
+  if (_ivcalView === "week") { const s = _ivcalWeekStart(a); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(0,0,0,0); return { start: s, end: e }; }
+  const ms = new Date(a.getFullYear(), a.getMonth(), 1);
+  const me = new Date(a.getFullYear(), a.getMonth()+1, 0);
+  return { start: ms, end: me };
+}
+// ISO-8601 week number for the date's week (week containing its Thursday).
+function _isoWeek(d) {
+  const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = (x.getUTCDay() + 6) % 7;        // Mon=0 … Sun=6
+  x.setUTCDate(x.getUTCDate() - day + 3);      // Thursday of this ISO week
+  const firstThu = new Date(Date.UTC(x.getUTCFullYear(), 0, 4));
+  const firstDay = (firstThu.getUTCDay() + 6) % 7;
+  firstThu.setUTCDate(firstThu.getUTCDate() - firstDay + 3);
+  return 1 + Math.round((x - firstThu) / (7 * 24 * 3600 * 1000));
+}
+function _ivcalMiniMonths() {
+  const base = _ivcalMiniBase();
+  const next = new Date(base.getFullYear(), base.getMonth()+1, 1);
+  return _ivcalMiniMonth(base, true) + _ivcalMiniMonth(next, false);
+}
+function _ivcalMiniMonth(first, isFirst) {
+  const mo = first.getMonth();
+  const title = first.toLocaleDateString(undefined, { month:"long", year:"numeric" });
+  const gridStart = _ivcalWeekStart(first); // Sunday on/before the 1st
+  const today = new Date(); today.setHours(0,0,0,0);
+  const rng = _ivcalViewRange();
+  const head = `<div class="oc-mini-h">
+    ${isFirst ? `<button class="oc-mini-nav" data-mini-nav="-1" aria-label="Previous month">‹</button>` : `<span class="oc-mini-nav-sp"></span>`}
+    <span class="oc-mini-title">${escapeHtml(title)}</span>
+    ${isFirst ? `<span class="oc-mini-nav-sp"></span>` : `<button class="oc-mini-nav" data-mini-nav="1" aria-label="Next month">›</button>`}
+  </div>`;
+  const dow = `<div class="oc-mini-row oc-mini-dow"><span class="oc-mini-wk">WK</span>` +
+    ["S","M","T","W","T","F","S"].map(d => `<span>${d}</span>`).join("") + `</div>`;
+  let rows = "";
+  const cur = new Date(gridStart);
+  for (let w = 0; w < 6; w++) {
+    const wkStart = new Date(cur);
+    const thu = new Date(wkStart); thu.setDate(wkStart.getDate()+4);
+    const wkNo = _isoWeek(thu);
+    let cells = "";
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(cur);
+      const out = d.getMonth() !== mo;
+      const isToday = d.getTime() === today.getTime();
+      const inRange = rng && d >= rng.start && d <= rng.end;
+      cells += `<button class="oc-mini-d${out?" out":""}${isToday?" today":""}${inRange?" in-range":""}" data-mini-date="${_ivcalISODate(d)}">${d.getDate()}</button>`;
+      cur.setDate(cur.getDate()+1);
+    }
+    rows += `<div class="oc-mini-row"><button class="oc-mini-wk wk-btn" data-mini-week="${_ivcalISODate(wkStart)}" title="Week ${wkNo} — click for this week">${wkNo}</button>${cells}</div>`;
+  }
+  return `<div class="oc-mini">${head}${dow}${rows}</div>`;
 }
 
 function _ivcalDayItems(day, arr, key) {
@@ -16305,6 +16368,7 @@ function _ivcalRender() {
 
   host.innerHTML = `
     <div class="oc">
+      <div class="oc-side">${_ivcalMiniMonths()}</div>
       <div class="oc-main">
         <div class="oc-bar">
           <button class="oc-btn pri" data-ivcal-new title="New event (N)">＋ New event</button>
@@ -16326,6 +16390,20 @@ function _ivcalRender() {
   host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalRender(); });
   host.querySelectorAll("[data-ivcal-zoom]").forEach(btn => btn.onclick = () => _ivcalSetZoom(parseInt(btn.getAttribute("data-ivcal-zoom"), 10)));
   host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
+  // Mini-calendar (date navigator) wiring.
+  host.querySelectorAll("[data-mini-nav]").forEach(b => b.onclick = () => {
+    const base = _ivcalMiniBase();
+    _ivcalMiniAnchor = new Date(base.getFullYear(), base.getMonth() + parseInt(b.getAttribute("data-mini-nav"), 10), 1);
+    _ivcalRender();
+  });
+  host.querySelectorAll("[data-mini-date]").forEach(b => b.onclick = () => {
+    const [Y, M, D] = b.getAttribute("data-mini-date").split("-").map(Number);
+    _ivcalAnchor = new Date(Y, M - 1, D); _ivcalMiniAnchor = null; _ivcalRender();
+  });
+  host.querySelectorAll("[data-mini-week]").forEach(b => b.onclick = () => {
+    const [Y, M, D] = b.getAttribute("data-mini-week").split("-").map(Number);
+    _ivcalView = "week"; _ivcalAnchor = new Date(Y, M - 1, D); _ivcalMiniAnchor = null; _ivcalRender();
+  });
   host.querySelector("[data-ivcal-new]")?.addEventListener("click", () => _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30));
   host.querySelectorAll("[data-ivcal-filter]").forEach(cb => cb.onchange = () => { _ivcalFilters[cb.getAttribute("data-ivcal-filter")] = cb.checked; _ivcalRender(); });
   const searchInp = host.querySelector("[data-ivcal-search]");
@@ -16347,29 +16425,27 @@ function _ivcalRender() {
     el.addEventListener("mouseleave", _ivcalHoverHide);
   });
 
-  // Empty slot: single-click → quick-create popover; double-click → full editor.
+  // Empty slot: single-click clears any selection; double-click → full editor.
+  // (No quick-create popover — operators found the "Add a title" bubble noisy.)
   const slotMin = (col, e) => {
     const rect = col.getBoundingClientRect();
     let min = _IVCAL_H0*60 + Math.floor(((e.clientY - rect.top) / _IVCAL_RH) * 60 / 30) * 30;
     return Math.max(_IVCAL_H0*60, Math.min(_IVCAL_H1*60 - 30, min));
   };
   host.querySelectorAll(".oc-col[data-ivcal-date]").forEach(col => {
-    let t = null;
     col.addEventListener("click", (e) => {
       if (e.target.closest("[data-ivcal-id]")) return;
       if (_ivcalSuppressClick) { _ivcalSuppressClick = false; return; }
-      const min = slotMin(col, e), date = col.getAttribute("data-ivcal-date");
-      clearTimeout(t); t = setTimeout(() => _ivcalQuickCreate(e, date, min), 220);
+      _ivcalDeselect();
     });
     col.addEventListener("dblclick", (e) => {
       if (e.target.closest("[data-ivcal-id]")) return;
-      clearTimeout(t); _ivcalCloseMenus(); _ivcalNewEvent(col.getAttribute("data-ivcal-date"), slotMin(col, e), slotMin(col, e) + 30);
+      _ivcalCloseMenus(); _ivcalNewEvent(col.getAttribute("data-ivcal-date"), slotMin(col, e), slotMin(col, e) + 30);
     });
   });
   host.querySelectorAll(".oc-mcell[data-ivcal-date]").forEach(cell => {
-    let t = null;
-    cell.addEventListener("click", (e) => { if (e.target.closest("[data-ivcal-id]")) return; const date = cell.getAttribute("data-ivcal-date"); clearTimeout(t); t = setTimeout(() => _ivcalQuickCreate(e, date, 9*60), 220); });
-    cell.addEventListener("dblclick", (e) => { if (e.target.closest("[data-ivcal-id]")) return; clearTimeout(t); _ivcalNewEvent(cell.getAttribute("data-ivcal-date"), 9*60, 9*60+30); });
+    cell.addEventListener("click", (e) => { if (e.target.closest("[data-ivcal-id]")) return; _ivcalDeselect(); });
+    cell.addEventListener("dblclick", (e) => { if (e.target.closest("[data-ivcal-id]")) return; _ivcalNewEvent(cell.getAttribute("data-ivcal-date"), 9*60, 9*60+30); });
   });
 
   // Reading pane wiring; preserve scroll across re-renders, else scroll to now.
