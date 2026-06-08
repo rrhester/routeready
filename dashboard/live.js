@@ -16164,22 +16164,28 @@ function _ivcalRender() {
     ${inner}`;
   host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalRender(); });
   host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
-  // Click any event block / month pill → detail popup.
+  // Click any event block / month pill → detail popover anchored to it.
   host.querySelectorAll("[data-ivcal-id]").forEach(el => el.onclick = (e) => {
     e.stopPropagation();
-    _ivcalOpenDetail(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id"));
+    _ivcalOpenDetail(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id"), el);
   });
 }
 
-// ── Calendar event detail popup ───────────────────────────────────────────
+// ── Calendar event detail popover (anchored, no backdrop) ─────────────────
 function _ivcalCloseDetail() {
   const m = document.getElementById("rr-ivcal-detail");
   if (m) m.remove();
   document.removeEventListener("keydown", _ivcalDetailEsc);
+  document.removeEventListener("click", _ivcalDetailOutside, true);
+  window.removeEventListener("resize", _ivcalCloseDetail);
+  window.removeEventListener("scroll", _ivcalCloseDetail, true);
 }
 function _ivcalDetailEsc(e) { if (e.key === "Escape") _ivcalCloseDetail(); }
+function _ivcalDetailOutside(e) {
+  if (!e.target.closest || !e.target.closest("#rr-ivcal-detail")) _ivcalCloseDetail();
+}
 
-function _ivcalOpenDetail(kind, id) {
+function _ivcalOpenDetail(kind, id, anchorEl) {
   if (!_ivcalCache) return;
   _ivcalCloseDetail();
   const arr = kind === "session" ? _ivcalCache.sessions : _ivcalCache.bookings;
@@ -16218,21 +16224,46 @@ function _ivcalOpenDetail(kind, id) {
     ? `<a class="rr-ivd-btn primary" href="${escapeHtml(ev.meeting_url)}" target="_blank" rel="noreferrer">Join video interview</a>`
     : "";
 
-  const overlay = document.createElement("div");
-  overlay.id = "rr-ivcal-detail";
-  overlay.className = "rr-ivcal-detail-overlay";
-  overlay.innerHTML = `
-    <div class="rr-ivcal-detail-card" role="dialog" aria-modal="true" aria-label="Event details">
-      <button class="rr-ivd-close" aria-label="Close">×</button>
-      <div class="rr-ivd-title">${escapeHtml(title)}</div>
-      <div class="rr-ivd-badges">${badge}</div>
-      <div class="rr-ivd-rows">${rows}</div>
-      ${join ? `<div class="rr-ivd-foot">${join}</div>` : ""}
-    </div>`;
-  document.body.appendChild(overlay);
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) _ivcalCloseDetail(); });
-  overlay.querySelector(".rr-ivd-close").onclick = _ivcalCloseDetail;
+  const card = document.createElement("div");
+  card.id = "rr-ivcal-detail";
+  card.className = "rr-ivcal-detail-card";
+  card.setAttribute("role", "dialog");
+  card.setAttribute("aria-label", "Event details");
+  card.innerHTML = `
+    <button class="rr-ivd-close" aria-label="Close">×</button>
+    <div class="rr-ivd-title">${escapeHtml(title)}</div>
+    <div class="rr-ivd-badges">${badge}</div>
+    <div class="rr-ivd-rows">${rows}</div>
+    ${join ? `<div class="rr-ivd-foot">${join}</div>` : ""}`;
+  document.body.appendChild(card);
+  card.querySelector(".rr-ivd-close").onclick = _ivcalCloseDetail;
+
+  // Position next to the clicked event: prefer its right side, flip left if
+  // there's no room, then clamp to the viewport. Falls back to centered.
+  const PAD = 8;
+  const cw = card.offsetWidth, ch = card.offsetHeight;
+  const r = anchorEl && anchorEl.getBoundingClientRect ? anchorEl.getBoundingClientRect() : null;
+  let left, top;
+  if (r) {
+    left = r.right + PAD;
+    if (left + cw > window.innerWidth - PAD) left = r.left - cw - PAD;     // flip to left
+    if (left < PAD) left = Math.min(Math.max(PAD, r.left), window.innerWidth - cw - PAD);
+    top = r.top;
+    if (top + ch > window.innerHeight - PAD) top = window.innerHeight - ch - PAD;
+    if (top < PAD) top = PAD;
+  } else {
+    left = (window.innerWidth - cw) / 2;
+    top = (window.innerHeight - ch) / 2;
+  }
+  card.style.left = Math.round(left) + "px";
+  card.style.top = Math.round(top) + "px";
+
   document.addEventListener("keydown", _ivcalDetailEsc);
+  // Close on any outside click (next tick so this opening click doesn't fire it),
+  // and on resize/scroll since the anchor would move out from under the popover.
+  setTimeout(() => document.addEventListener("click", _ivcalDetailOutside, true), 0);
+  window.addEventListener("resize", _ivcalCloseDetail);
+  window.addEventListener("scroll", _ivcalCloseDetail, true);
 }
 
 function _ivcalEventBlock(ev, type) {
