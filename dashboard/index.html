@@ -12469,85 +12469,113 @@ body.rr-cmdk-open{ overflow:hidden }
           <!-- Native RouteReady interview calendar · Day / Week / Month toggle.
                Shows your interview availability (shaded) plus booked interviews,
                orientations, and group sessions. No Google account required. -->
+          <!-- Outlook-style calendar (Phase 1: dense desktop grid, reading pane,
+               context menu, quick-create, hover preview, keyboard, categories). -->
           <style>
-            #rr-ivcal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 14px 16px;margin:0 0 var(--s-4)}
-            #rr-ivcal .rr-ivcal-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
-            #rr-ivcal .rr-ivcal-seg-wrap{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
-            #rr-ivcal .rr-ivcal-seg{appearance:none;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:var(--text-muted);background:var(--surface);border:0;padding:6px 14px;border-left:1px solid var(--border)}
-            #rr-ivcal .rr-ivcal-seg:first-child{border-left:0}
-            #rr-ivcal .rr-ivcal-seg.on{background:#0F6CBD;color:#fff}
-            #rr-ivcal .rr-ivcal-nav{display:inline-flex;align-items:center;gap:4px}
-            #rr-ivcal .rr-ivcal-navbtn,#rr-ivcal .rr-ivcal-today{appearance:none;cursor:pointer;font:inherit;font-weight:600;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:7px}
-            #rr-ivcal .rr-ivcal-navbtn{width:30px;height:30px;font-size:17px;line-height:1;padding:0}
-            #rr-ivcal .rr-ivcal-today{font-size:13px;padding:6px 12px}
-            #rr-ivcal .rr-ivcal-navbtn:hover,#rr-ivcal .rr-ivcal-today:hover{border-color:#0F6CBD;color:#0F6CBD}
-            #rr-ivcal .rr-ivcal-period{font-size:15px;font-weight:700;color:var(--text);margin-left:auto}
-            /* time-grid (day/week) */
-            #rr-ivcal .rr-ivcal-tg-head{display:grid;grid-template-columns:56px repeat(var(--ivcal-days),1fr);border-bottom:1px solid var(--border)}
-            #rr-ivcal .rr-ivcal-tg-corner{border-right:1px solid var(--border)}
-            #rr-ivcal .rr-ivcal-tg-dayhead{display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 0 8px;border-left:1px solid var(--border)}
-            #rr-ivcal .rr-ivcal-dow{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}
-            #rr-ivcal .rr-ivcal-dnum{font-size:16px;font-weight:600;color:var(--text);width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%}
-            #rr-ivcal .rr-ivcal-dnum.today{background:#0F6CBD;color:#fff}
-            #rr-ivcal .rr-ivcal-tg-grid{display:grid;grid-template-columns:56px repeat(var(--ivcal-days),1fr);position:relative}
-            #rr-ivcal .rr-ivcal-gutter{position:relative}
-            #rr-ivcal .rr-ivcal-hr{position:relative;border-top:1px solid transparent}
-            #rr-ivcal .rr-ivcal-hr span{position:absolute;top:-7px;right:6px;font-size:10px;color:var(--text-subtle);font-variant-numeric:tabular-nums}
-            #rr-ivcal .rr-ivcal-col{position:relative;border-left:1px solid var(--border);cursor:pointer}
-            #rr-ivcal .rr-ivcal-col.today{background:rgba(15,108,189,.03)}
-            #rr-ivcal .rr-ivcal-line{position:absolute;left:0;right:0;border-top:1px solid var(--border);opacity:.55}
-            #rr-ivcal .rr-ivcal-avail{position:absolute;left:0;right:0;background:rgba(15,108,189,.10);border-left:3px solid rgba(15,108,189,.5)}
-            #rr-ivcal .rr-ivcal-ev{position:absolute;left:3px;right:3px;border-radius:6px;padding:3px 6px;overflow:hidden;font-size:11px;line-height:1.25;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.12);cursor:pointer;transition:filter .1s,box-shadow .1s}
-            #rr-ivcal .rr-ivcal-ev:hover{filter:brightness(1.07);box-shadow:0 2px 6px rgba(0,0,0,.22)}
-            #rr-ivcal .rr-ivcal-ev.interview{background:#0F6CBD}
-            #rr-ivcal .rr-ivcal-ev.orient{background:#7C3AED}
-            #rr-ivcal .rr-ivcal-ev.session{background:#0E7C66}
-            #rr-ivcal .rr-ivcal-ev.event{background:#0F6CBD}
-            /* RSVP states · tentative = light + striped left bar (Outlook), until accepted. */
-            #rr-ivcal .rr-ivcal-ev.tentative{background:#E3EEF8 !important;color:#0F3D63 !important;padding-left:11px}
-            #rr-ivcal .rr-ivcal-ev.tentative::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;border-radius:6px 0 0 6px;background:repeating-linear-gradient(45deg,#0F6CBD 0 3px,transparent 3px 6px)}
-            #rr-ivcal .rr-ivcal-ev.declined{background:#F1F5F9 !important;color:#94A3B8 !important;padding-left:11px;text-decoration:line-through}
-            #rr-ivcal .rr-ivcal-ev.declined::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;border-radius:6px 0 0 6px;background:repeating-linear-gradient(45deg,#94A3B8 0 3px,transparent 3px 6px)}
-            #rr-ivcal .rr-ivcal-ev-t{font-weight:700;opacity:.95}
-            #rr-ivcal .rr-ivcal-ev-n{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-            #rr-ivcal .rr-ivcal-ev-1{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+            #rr-ivcal{--oc-line:#E1E1E1;--oc-line2:#EEEEEE;--oc-ink:#201F1E;--oc-sub:#605E5C;--oc-blue:#0F6CBD;
+              font-family:"Segoe UI","Segoe UI Web (West European)",-apple-system,BlinkMacSystemFont,Roboto,sans-serif;
+              background:#fff;border:1px solid var(--oc-line);border-radius:3px;margin:0 0 var(--s-4);color:var(--oc-ink);overflow:hidden}
+            #rr-ivcal .oc{display:flex;align-items:stretch;min-height:0}
+            #rr-ivcal .oc-main{flex:1;min-width:0;display:flex;flex-direction:column}
+            /* command bar */
+            #rr-ivcal .oc-bar{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--oc-line);background:#FAF9F8;flex-wrap:wrap}
+            #rr-ivcal .oc-btn{appearance:none;cursor:pointer;font:inherit;font-size:13px;color:var(--oc-ink);background:#fff;border:1px solid #D2D0CE;border-radius:3px;padding:4px 10px;display:inline-flex;align-items:center;gap:6px;line-height:1}
+            #rr-ivcal .oc-btn:hover{background:#F3F2F1}
+            #rr-ivcal .oc-btn.pri{background:var(--oc-blue);border-color:var(--oc-blue);color:#fff;font-weight:600}
+            #rr-ivcal .oc-btn.pri:hover{background:#0E5FA8}
+            #rr-ivcal .oc-ico{width:26px;height:26px;padding:0;justify-content:center;font-size:15px}
+            #rr-ivcal .oc-seg{display:inline-flex;border:1px solid #D2D0CE;border-radius:3px;overflow:hidden}
+            #rr-ivcal .oc-seg button{appearance:none;cursor:pointer;font:inherit;font-size:13px;color:var(--oc-ink);background:#fff;border:0;border-left:1px solid #D2D0CE;padding:4px 12px;line-height:1}
+            #rr-ivcal .oc-seg button:first-child{border-left:0}
+            #rr-ivcal .oc-seg button.on{background:var(--oc-blue);color:#fff;font-weight:600}
+            #rr-ivcal .oc-period{font-size:14px;font-weight:600;color:var(--oc-ink);margin:0 4px}
+            #rr-ivcal .oc-sp{flex:1}
+            #rr-ivcal .oc-search{display:flex;align-items:center;gap:6px;border:1px solid #D2D0CE;border-radius:3px;padding:3px 8px;background:#fff;color:var(--oc-sub);font-size:12px}
+            #rr-ivcal .oc-search input{border:0;outline:0;font:inherit;font-size:12px;width:120px;background:transparent;color:var(--oc-ink)}
+            #rr-ivcal .oc-filters{display:flex;align-items:center;gap:12px}
+            #rr-ivcal .oc-filters label{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--oc-sub);cursor:pointer}
+            #rr-ivcal .oc-filters .dot{width:9px;height:9px;border-radius:2px;display:inline-block}
+            /* day/week grid */
+            #rr-ivcal .oc-head{display:grid;grid-template-columns:50px repeat(var(--days),1fr);border-bottom:1px solid var(--oc-line);background:#fff}
+            #rr-ivcal .oc-corner{border-right:1px solid var(--oc-line)}
+            #rr-ivcal .oc-dh{text-align:center;padding:5px 0 6px;border-left:1px solid var(--oc-line2);cursor:pointer}
+            #rr-ivcal .oc-dh .dow{font-size:11px;font-weight:600;color:var(--oc-sub);text-transform:uppercase;letter-spacing:.02em}
+            #rr-ivcal .oc-dh .dn{font-size:17px;font-weight:600;color:var(--oc-ink);line-height:1.1}
+            #rr-ivcal .oc-dh.today .dn{color:#fff;background:var(--oc-blue);width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+            #rr-ivcal .oc-dh.today .dow{color:var(--oc-blue)}
+            #rr-ivcal .oc-scroll{overflow-y:auto;height:580px}
+            #rr-ivcal .oc-grid{display:grid;grid-template-columns:50px repeat(var(--days),1fr);position:relative}
+            #rr-ivcal .oc-gutter{position:relative}
+            #rr-ivcal .oc-hr{position:relative;height:var(--rh)}
+            #rr-ivcal .oc-hr span{position:absolute;top:-7px;right:6px;font-size:11px;color:var(--oc-sub);font-variant-numeric:tabular-nums;background:#fff;padding:0 1px}
+            #rr-ivcal .oc-col{position:relative;border-left:1px solid var(--oc-line2);cursor:default}
+            #rr-ivcal .oc-col.today{background:#FFFCF4}
+            #rr-ivcal .oc-hline{position:absolute;left:0;right:0;border-top:1px solid var(--oc-line)}
+            #rr-ivcal .oc-hhline{position:absolute;left:0;right:0;border-top:1px solid var(--oc-line2)}
+            #rr-ivcal .oc-now{position:absolute;left:0;right:0;height:0;border-top:2px solid #D13438;z-index:5;pointer-events:none}
+            #rr-ivcal .oc-now::before{content:"";position:absolute;left:-4px;top:-4px;width:7px;height:7px;border-radius:50%;background:#D13438}
+            #rr-ivcal .oc-avail{position:absolute;left:0;right:0;background:rgba(15,108,189,.06);border-left:2px solid rgba(15,108,189,.35)}
+            /* event blocks · light category fill + colored left bar (modern Outlook) */
+            #rr-ivcal .oc-ev{position:absolute;left:2px;right:2px;border:1px solid;border-left-width:3px;border-radius:2px;padding:1px 5px 1px 6px;overflow:hidden;font-size:11px;line-height:1.3;cursor:pointer;z-index:2}
+            #rr-ivcal .oc-ev:hover{filter:brightness(.98);box-shadow:0 1px 3px rgba(0,0,0,.18)}
+            #rr-ivcal .oc-ev.sel{box-shadow:0 0 0 2px #fff,0 0 0 3px var(--oc-blue);z-index:4}
+            #rr-ivcal .oc-ev .et{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            #rr-ivcal .oc-ev .en{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            #rr-ivcal .oc-ev .ei{display:inline-flex;gap:2px;font-size:9px;opacity:.85;margin-left:3px;vertical-align:1px}
+            #rr-ivcal .oc-ev.cat-blue{background:#EAF1FB;border-color:#CFE0F6;border-left-color:#2563EB;color:#1B3B66}
+            #rr-ivcal .oc-ev.cat-green{background:#E9F6EE;border-color:#CDEBD8;border-left-color:#1F9D55;color:#14532D}
+            #rr-ivcal .oc-ev.cat-orange{background:#FDF3E7;border-color:#F6E2C6;border-left-color:#E08600;color:#7C4A03}
+            #rr-ivcal .oc-ev.cat-gray{background:#F2F2F2;border-color:#E1E1E1;border-left-color:#9AA0AA;color:#5B5F66}
+            #rr-ivcal .oc-ev.cat-red{background:#FCEBEA;border-color:#F6D2CF;border-left-color:#D13438;color:#7D1D16}
+            #rr-ivcal .oc-ev.cat-teal{background:#E6F5F1;border-color:#CBEAE0;border-left-color:#0E7C66;color:#0B4F42}
+            #rr-ivcal .oc-ev.cat-orange{border-left-style:dashed}
+            #rr-ivcal .oc-ev.cat-gray.declined{text-decoration:line-through}
             /* month */
-            #rr-ivcal .rr-ivcal-m-head{display:grid;grid-template-columns:repeat(7,1fr)}
-            #rr-ivcal .rr-ivcal-m-dow{text-align:center;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);padding:4px 0 8px}
-            #rr-ivcal .rr-ivcal-m-grid{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--border);border-radius:8px;overflow:hidden}
-            #rr-ivcal .rr-ivcal-m-cell{min-height:96px;border-top:1px solid var(--border);border-left:1px solid var(--border);padding:4px 5px 5px;cursor:pointer}
-            #rr-ivcal .rr-ivcal-m-cell:nth-child(7n+1){border-left:0}
-            #rr-ivcal .rr-ivcal-m-cell:nth-child(-n+7){border-top:0}
-            #rr-ivcal .rr-ivcal-m-cell.out{background:var(--canvas)}
-            #rr-ivcal .rr-ivcal-m-cell.out .rr-ivcal-m-num{color:var(--text-subtle);opacity:.6}
-            #rr-ivcal .rr-ivcal-m-num{font-size:12px;font-weight:600;color:var(--text);width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;margin-bottom:2px}
-            #rr-ivcal .rr-ivcal-m-num.today{background:#0F6CBD;color:#fff}
-            #rr-ivcal .rr-ivcal-pill{display:flex;align-items:center;gap:4px;font-size:10.5px;line-height:1.4;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:1px;cursor:pointer;border-radius:3px;padding:0 2px}
-            #rr-ivcal .rr-ivcal-pill:hover{background:rgba(15,108,189,.10)}
-            #rr-ivcal .rr-ivcal-pdot{flex:none;width:6px;height:6px;border-radius:50%}
-            #rr-ivcal .rr-ivcal-pill.interview .rr-ivcal-pdot{background:#0F6CBD}
-            #rr-ivcal .rr-ivcal-pill.orient .rr-ivcal-pdot{background:#7C3AED}
-            #rr-ivcal .rr-ivcal-pill.session .rr-ivcal-pdot{background:#0E7C66}
-            #rr-ivcal .rr-ivcal-pill.event .rr-ivcal-pdot{background:#0F6CBD}
-            #rr-ivcal .rr-ivcal-pill.tentative .rr-ivcal-pdot{background:transparent;border:1.5px solid #0F6CBD}
-            #rr-ivcal .rr-ivcal-pill.tentative{opacity:.8}
-            #rr-ivcal .rr-ivcal-pill.declined{opacity:.6;text-decoration:line-through}
-            #rr-ivcal .rr-ivcal-more{font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:1px}
-            /* legend */
-            #rr-ivcal .rr-ivcal-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--text-muted)}
-            #rr-ivcal .rr-ivcal-legend span{display:inline-flex;align-items:center;gap:6px}
-            #rr-ivcal .rr-ivcal-sw{width:11px;height:11px;border-radius:3px}
+            #rr-ivcal .oc-mhead{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--oc-line)}
+            #rr-ivcal .oc-mdow{text-align:right;padding:4px 8px;font-size:11px;font-weight:600;color:var(--oc-sub);text-transform:uppercase}
+            #rr-ivcal .oc-mgrid{display:grid;grid-template-columns:repeat(7,1fr)}
+            #rr-ivcal .oc-mcell{min-height:104px;border-top:1px solid var(--oc-line2);border-left:1px solid var(--oc-line2);padding:2px 3px 3px;cursor:default;overflow:hidden}
+            #rr-ivcal .oc-mcell:nth-child(7n+1){border-left:0}
+            #rr-ivcal .oc-mcell.out{background:#FAFAFA}
+            #rr-ivcal .oc-mcell.out .oc-mnum{color:#B3B0AD}
+            #rr-ivcal .oc-mnum{font-size:12px;font-weight:600;color:var(--oc-ink);text-align:right;padding:1px 4px}
+            #rr-ivcal .oc-mcell.today .oc-mnum{display:inline-block;float:right;background:var(--oc-blue);color:#fff;border-radius:50%;width:20px;height:20px;text-align:center;line-height:20px;padding:0}
+            #rr-ivcal .oc-pill{display:flex;align-items:center;gap:5px;font-size:11px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 3px;border-radius:2px;cursor:pointer;clear:both}
+            #rr-ivcal .oc-pill:hover{background:#F3F2F1}
+            #rr-ivcal .oc-pill.sel{background:#DEECF9}
+            #rr-ivcal .oc-pdot{flex:none;width:8px;height:8px;border-radius:2px}
+            #rr-ivcal .oc-pill.cat-blue .oc-pdot{background:#2563EB} #rr-ivcal .oc-pill.cat-green .oc-pdot{background:#1F9D55}
+            #rr-ivcal .oc-pill.cat-orange .oc-pdot{background:#E08600} #rr-ivcal .oc-pill.cat-gray .oc-pdot{background:#9AA0AA}
+            #rr-ivcal .oc-pill.cat-teal .oc-pdot{background:#0E7C66} #rr-ivcal .oc-pill.cat-red .oc-pdot{background:#D13438}
+            #rr-ivcal .oc-pill.declined{text-decoration:line-through;color:var(--oc-sub)}
+            #rr-ivcal .oc-more{font-size:10px;color:var(--oc-sub);padding:0 4px;cursor:pointer}
+            /* reading pane */
+            #rr-ivcal .oc-pane{flex:0 0 320px;width:320px;border-left:1px solid var(--oc-line);display:flex;flex-direction:column;background:#fff}
+            #rr-ivcal .oc-pane-h{display:flex;align-items:flex-start;gap:8px;padding:12px 14px;border-bottom:1px solid var(--oc-line2)}
+            #rr-ivcal .oc-pane-h .pt{font-size:15px;font-weight:600;line-height:1.25}
+            #rr-ivcal .oc-pane-h .px{margin-left:auto;cursor:pointer;color:var(--oc-sub);font-size:16px;line-height:1;background:none;border:0}
+            #rr-ivcal .oc-cat-tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:2px;margin-top:3px}
+            #rr-ivcal .oc-pane-b{flex:1;overflow-y:auto;padding:6px 14px 14px}
+            #rr-ivcal .oc-drow{display:grid;grid-template-columns:18px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid var(--oc-line2);font-size:13px;align-items:start}
+            #rr-ivcal .oc-drow .di{color:var(--oc-sub);font-size:13px}
+            #rr-ivcal .oc-drow a{color:var(--oc-blue);text-decoration:none}
+            #rr-ivcal .oc-pane-acts{padding:12px 14px;border-top:1px solid var(--oc-line2);display:flex;flex-wrap:wrap;gap:6px}
+            /* context menu + hover */
+            .oc-menu{position:fixed;z-index:10000;background:#fff;border:1px solid #D2D0CE;border-radius:4px;box-shadow:0 6px 20px rgba(0,0,0,.22);padding:4px;min-width:180px;font-family:"Segoe UI",sans-serif}
+            .oc-menu button{display:flex;width:100%;align-items:center;gap:9px;appearance:none;background:none;border:0;cursor:pointer;font:inherit;font-size:13px;color:#201F1E;text-align:left;padding:7px 10px;border-radius:3px}
+            .oc-menu button:hover{background:#F3F2F1}
+            .oc-menu button.danger:hover{background:#FDECEA;color:#A4262C}
+            .oc-menu .sep{height:1px;background:#EDEBE9;margin:4px 0}
+            .oc-hover{position:fixed;z-index:10001;background:#fff;border:1px solid #D2D0CE;border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.22);padding:10px 12px;width:260px;font-family:"Segoe UI",sans-serif;pointer-events:none}
+            .oc-hover .hh{font-size:14px;font-weight:600;margin-bottom:2px;color:#201F1E}
+            .oc-hover .hr{font-size:12px;color:#605E5C;display:flex;gap:6px;margin-top:3px}
+            .oc-quick{position:fixed;z-index:10000;background:#fff;border:1px solid #D2D0CE;border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.22);padding:10px;width:240px;font-family:"Segoe UI",sans-serif}
+            .oc-quick input{width:100%;box-sizing:border-box;border:1px solid #D2D0CE;border-radius:3px;padding:6px 8px;font:inherit;font-size:13px;margin-bottom:6px}
+            .oc-quick .qt{font-size:12px;color:#605E5C;margin-bottom:6px}
+            .oc-quick .qa{display:flex;gap:6px;justify-content:flex-end}
           </style>
-          <div id="rr-ivcal">
+          <div id="rr-ivcal" tabindex="0">
             <div id="rr-ivcal-body"><div class="rr-loading">Loading calendar…</div></div>
-            <div class="rr-ivcal-legend">
-              <span><i class="rr-ivcal-sw" style="background:rgba(15,108,189,.18);border:1px solid rgba(15,108,189,.5)"></i>Open availability</span>
-              <span><i class="rr-ivcal-sw" style="background:#0F6CBD"></i>Interview</span>
-              <span><i class="rr-ivcal-sw" style="background:#7C3AED"></i>Orientation</span>
-              <span><i class="rr-ivcal-sw" style="background:#0E7C66"></i>Group session</span>
-              <span><i class="rr-ivcal-sw" style="background:#E3EEF8;border-left:5px solid;border-image:repeating-linear-gradient(45deg,#0F6CBD 0 3px,transparent 3px 6px) 5"></i>Tentative (awaiting reply)</span>
-              <span style="margin-left:auto;color:var(--text-subtle)">Tip: click an empty slot to create an event</span>
-            </div>
           </div>
 
           <!-- Native RouteReady interview availability editor styles · GLOBAL
@@ -36721,7 +36749,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-iv-scheduler"></script>
+<script type="module" src="./live.js?v=20260608-oc1"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
