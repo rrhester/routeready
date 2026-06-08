@@ -12484,7 +12484,9 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc{display:flex;align-items:stretch;min-height:0}
             #rr-ivcal .oc-main{flex:1;min-width:0;display:flex;flex-direction:column}
             /* mini-calendar date navigator (two months + week numbers) */
-            #rr-ivcal .oc-side{flex:0 0 198px;border-right:1px solid var(--oc-line);background:var(--oc-surface-2);overflow-y:auto;padding:12px 10px}
+            /* Width matches the Schedule's 240px driver column so the two
+               views line up visually. */
+            #rr-ivcal .oc-side{flex:0 0 240px;border-right:1px solid var(--oc-line);background:var(--oc-surface-2);overflow-y:auto;padding:14px 14px}
             #rr-ivcal .oc-mini{margin-bottom:16px}
             #rr-ivcal .oc-mini-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
             #rr-ivcal .oc-mini-title{font-size:12px;font-weight:700;color:var(--oc-ink)}
