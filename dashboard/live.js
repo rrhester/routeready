@@ -16040,8 +16040,76 @@ const CAL_TZS = [
 ];
 
 async function loadCalendarTab() {
-  await Promise.all([loadCalBookingsList(), loadCalAvailabilityEditor()]);
+  await Promise.all([loadCalBookingsList(), loadCalAvailabilityEditor(), loadGoogleCalendar()]);
 }
+
+// ── Google Calendar connect/status (per-DSP; tokens live server-side only) ──
+async function loadGoogleCalendar() {
+  const body = document.getElementById("rr-gcal-body");
+  const statusEl = document.getElementById("rr-gcal-status");
+  if (!body || !statusEl) return;
+  body.innerHTML = `<div class="rr-loading">Loading…</div>`;
+  try {
+    const { data, error } = await sb.rpc("google_calendar_status");
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row && row.connected) {
+      statusEl.textContent = "Connected"; statusEl.className = "rr-gcal-status is-on";
+      body.innerHTML = `
+        <div>Connected account:</div>
+        <div class="rr-gcal-email">${escapeHtml(row.email || "")}</div>
+        <button class="rr-gcal-btn is-ghost" id="rr-gcal-disconnect" style="margin-top:12px">Disconnect</button>`;
+      document.getElementById("rr-gcal-disconnect").onclick = disconnectGoogleCalendar;
+    } else {
+      statusEl.textContent = "Not connected"; statusEl.className = "rr-gcal-status is-off";
+      body.innerHTML = `<button class="rr-gcal-btn" id="rr-gcal-connect">Connect Google Calendar</button>`;
+      document.getElementById("rr-gcal-connect").onclick = connectGoogleCalendar;
+    }
+  } catch (e) {
+    statusEl.textContent = "Error"; statusEl.className = "rr-gcal-status is-off";
+    body.innerHTML = `<div class="rr-gcal-err">Couldn't load status: ${escapeHtml(e.message || String(e))}</div>
+      <button class="rr-gcal-btn" style="margin-top:8px" onclick="loadGoogleCalendar()">Retry</button>`;
+  }
+}
+
+async function connectGoogleCalendar() {
+  const btn = document.getElementById("rr-gcal-connect");
+  if (btn) { btn.disabled = true; btn.textContent = "Opening Google…"; }
+  try {
+    const { data, error } = await sb.functions.invoke("google-oauth-start", { body: {} });
+    if (error || !data?.url) throw error || new Error("No authorization URL returned");
+    const popup = window.open(data.url, "rr-gcal", "width=520,height=640");
+    const onMsg = (ev) => {
+      if (!ev.data || ev.data.type !== "rr-gcal") return;
+      window.removeEventListener("message", onMsg);
+      try { popup && popup.close(); } catch (_) {}
+      if (ev.data.ok) { toast("Google Calendar connected", "success"); }
+      else { toast("Connection failed: " + (ev.data.message || ""), "warn"); }
+      loadGoogleCalendar();
+    };
+    window.addEventListener("message", onMsg);
+    // Fallback: if the popup is dismissed manually, just refresh status.
+    const poll = setInterval(() => {
+      if (popup && popup.closed) { clearInterval(poll); window.removeEventListener("message", onMsg); loadGoogleCalendar(); }
+    }, 800);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = "Connect Google Calendar"; }
+    toast("Could not start Google connect: " + (e.message || e), "warn");
+  }
+}
+
+async function disconnectGoogleCalendar() {
+  if (!confirm("Disconnect Google Calendar? Future interviews won't sync.")) return;
+  const btn = document.getElementById("rr-gcal-disconnect");
+  if (btn) { btn.disabled = true; btn.textContent = "Disconnecting…"; }
+  try {
+    const { error } = await sb.functions.invoke("google-calendar-disconnect", { body: {} });
+    if (error) throw error;
+    toast("Disconnected", "success");
+  } catch (e) { toast("Disconnect failed: " + (e.message || e), "warn"); }
+  loadGoogleCalendar();
+}
+window.loadGoogleCalendar = loadGoogleCalendar;
 
 async function loadCalAvailabilityEditor() {
   const card = document.getElementById("cal-edit-card");
