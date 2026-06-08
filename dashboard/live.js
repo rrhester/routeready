@@ -1208,9 +1208,12 @@ async function loadPipeline(stage = "all") {
   // applicant record (phone, email, video_url, …) without re-fetching.
   window._rrPipelineById = new Map((rows ?? []).map(r => [r.id, r]));
 
+  const emptyMsg = stage === "action_needed"
+    ? "You're all caught up — nothing needs action right now."
+    : "No applicants yet — share your apply link or add one manually.";
   list.innerHTML = (rows && rows.length)
     ? rows.map(renderApplicantCard).join("")
-    : `<div class="rr-empty-inline">No applicants yet — share your apply link or add one manually.</div>`;
+    : `<div class="rr-empty-inline">${emptyMsg}</div>`;
   // Workspace header count.
   const nRows = (rows && rows.length) || 0;
   setText("pa-ws-count", `(${nRows})`);
