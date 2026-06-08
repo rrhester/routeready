@@ -13572,6 +13572,36 @@ body.rr-cmdk-open{ overflow:hidden }
               </button>
             </div><!-- /group: sourcing -->
 
+            <!-- Calendar view controls · only visible on the Calendar sub-view
+                 (toggled by obSub). Day / Week / Work Week / Month / New event,
+                 each an icon tile matching the strip. Wired in live.js
+                 (rrIvcalSetView / rrIvcalNewEvent). -->
+            <div class="sched-ribbon-group" data-group="calendar-controls" id="rr-cal-ribbon" style="display:none">
+              <div class="subnav" data-rr-tabbar="calendar-controls">
+                <button class="subnav-item rr-cal-vtab" data-cal-view="day" type="button" onclick="rrIvcalSetView('day')" title="Day view">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="12" y1="13" x2="12" y2="18"/></svg>
+                  <span>Day</span>
+                </button>
+                <button class="subnav-item rr-cal-vtab" data-cal-view="week" type="button" onclick="rrIvcalSetView('week')" title="Week view">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/></svg>
+                  <span>Week</span>
+                </button>
+                <button class="subnav-item rr-cal-vtab" data-cal-view="workweek" type="button" onclick="rrIvcalSetView('workweek')" title="Work week (Mon–Fri)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="7" width="18" height="13"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
+                  <span>Work Week</span>
+                </button>
+                <button class="subnav-item rr-cal-vtab" data-cal-view="month" type="button" onclick="rrIvcalSetView('month')" title="Month view">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+                  <span>Month</span>
+                </button>
+                <div class="ob-tab-divider" aria-hidden="true"></div>
+                <button class="subnav-item" type="button" onclick="rrIvcalNewEvent()" title="New event">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="12" y1="12.5" x2="12" y2="18.5"/><line x1="9" y1="15.5" x2="15" y2="15.5"/></svg>
+                  <span>New event</span>
+                </button>
+              </div>
+            </div><!-- /group: calendar-controls -->
+
             <!-- Group 2: Readiness — the actual onboarding pipeline -->
             <div class="sched-ribbon-group" data-group="readiness">
               <div class="subnav" data-rr-tabbar="onboarding-readiness">
@@ -36774,7 +36804,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-oc10"></script>
+<script type="module" src="./live.js?v=20260608-oc11"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

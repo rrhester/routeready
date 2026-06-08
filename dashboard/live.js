@@ -5561,6 +5561,10 @@ window.obSub = function (which) {
   show("obsub-overview",  which === "overview");
   show("obsub-workauth",  which === "workauth");
   show("obsub-pipeline",  isPipe);
+  // Calendar view controls (Day/Week/Work Week/Month/New event) only belong on
+  // the Calendar sub-view.
+  show("rr-cal-ribbon",   which === "calendar");
+  if (which === "calendar" && typeof _ivcalSyncStripView === "function") _ivcalSyncStripView();
   // Documents now live inside the Overview tab's right card; mount
   // them whenever the Overview tab is activated so they show up
   // alongside the readiness matrix.
@@ -16274,6 +16278,11 @@ function _ivcalPeriodLabel() {
   const a = _ivcalAnchor;
   if (_ivcalView === "day") return a.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
   if (_ivcalView === "month") return a.toLocaleDateString(undefined, { month:"long", year:"numeric" });
+  if (_ivcalView === "workweek") {
+    const ws = _ivcalWeekStart(a); ws.setDate(ws.getDate()+1); const we = new Date(ws); we.setDate(ws.getDate()+4);
+    const sameM = ws.getMonth() === we.getMonth();
+    return `${ws.toLocaleDateString(undefined,{month:"short",day:"numeric"})} – ${we.toLocaleDateString(undefined, sameM?{day:"numeric",year:"numeric"}:{month:"short",day:"numeric",year:"numeric"})}`;
+  }
   const start = _ivcalWeekStart(a), end = new Date(start); end.setDate(start.getDate()+6);
   const same = start.getMonth() === end.getMonth();
   return `${start.toLocaleDateString(undefined,{month:"short",day:"numeric"})} – ${end.toLocaleDateString(undefined, same?{day:"numeric",year:"numeric"}:{month:"short",day:"numeric",year:"numeric"})}`;
@@ -16283,7 +16292,7 @@ function _ivcalNav(dir) {
   const a = new Date(_ivcalAnchor);
   if (dir === 0) _ivcalAnchor = new Date();
   else if (_ivcalView === "day") { a.setDate(a.getDate()+dir); _ivcalAnchor = a; }
-  else if (_ivcalView === "week") { a.setDate(a.getDate()+7*dir); _ivcalAnchor = a; }
+  else if (_ivcalView === "week" || _ivcalView === "workweek") { a.setDate(a.getDate()+7*dir); _ivcalAnchor = a; }
   else { a.setMonth(a.getMonth()+dir); _ivcalAnchor = a; }
   _ivcalMiniAnchor = null; // re-sync the date navigator to the new anchor
   _ivcalRender();
@@ -16297,6 +16306,7 @@ function _ivcalMiniBase() {
 function _ivcalViewRange() {
   const a = _ivcalAnchor;
   if (_ivcalView === "day") { const s = new Date(a); s.setHours(0,0,0,0); return { start: s, end: s }; }
+  if (_ivcalView === "workweek") { const s = _ivcalWeekStart(a); s.setDate(s.getDate()+1); const e = new Date(s); e.setDate(s.getDate()+4); return { start: s, end: e }; }
   if (_ivcalView === "week") { const s = _ivcalWeekStart(a); const e = new Date(s); e.setDate(s.getDate()+6); e.setHours(0,0,0,0); return { start: s, end: e }; }
   const ms = new Date(a.getFullYear(), a.getMonth(), 1);
   const me = new Date(a.getFullYear(), a.getMonth()+1, 0);
@@ -16363,7 +16373,8 @@ function _ivcalRender() {
   const _prevScroll = document.getElementById("rr-ivcal-scroll") ? document.getElementById("rr-ivcal-scroll").scrollTop : null;
   const seg = (v, t) => `<button class="${_ivcalView===v?"on":""}" data-ivcal-view="${v}">${t}</button>`;
   const flt = (k, label, cat) => `<label><input type="checkbox" data-ivcal-filter="${k}"${_ivcalFilters[k]?" checked":""}><span class="dot" style="background:${_IVCAL_CAT_COLOR[cat]}"></span>${label}</label>`;
-  const inner = _ivcalView === "month" ? _ivcalMonth() : _ivcalTimeGrid(_ivcalView === "day" ? 1 : 7);
+  const inner = _ivcalView === "month" ? _ivcalMonth()
+    : _ivcalTimeGrid(_ivcalView === "day" ? 1 : (_ivcalView === "workweek" ? 5 : 7));
   const pane = _ivcalSelected ? _ivcalPaneHtml() : "";
 
   host.innerHTML = `
@@ -16371,12 +16382,10 @@ function _ivcalRender() {
       <div class="oc-side">${_ivcalMiniMonths()}</div>
       <div class="oc-main">
         <div class="oc-bar">
-          <button class="oc-btn pri" data-ivcal-new title="New event (N)">＋ New event</button>
           <button class="oc-btn" data-ivcal-nav="0" title="Today (T)">Today</button>
           <button class="oc-btn oc-ico" data-ivcal-nav="-1" title="Previous">‹</button>
           <button class="oc-btn oc-ico" data-ivcal-nav="1" title="Next">›</button>
           <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
-          <div class="oc-seg">${seg("day","Day")}${seg("week","Week")}${seg("month","Month")}</div>
           ${_ivcalView === "month" ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
           <span class="oc-sp"></span>
           <span class="oc-search">🔎<input type="text" data-ivcal-search placeholder="Search"></span>
@@ -16455,7 +16464,17 @@ function _ivcalRender() {
   const sc = document.getElementById("rr-ivcal-scroll");
   if (sc) { if (_prevScroll != null) sc.scrollTop = _prevScroll; else _ivcalAutoScroll(); }
   _ivcalInstallKeys();
+  _ivcalSyncStripView();
 }
+
+// Highlight the active view tile in the calendar control group on the icon strip.
+function _ivcalSyncStripView() {
+  document.querySelectorAll("#rr-cal-ribbon [data-cal-view]").forEach(b =>
+    b.classList.toggle("active", b.getAttribute("data-cal-view") === _ivcalView));
+}
+// Strip-icon entry points (Day / Week / Work Week / Month / New event).
+window.rrIvcalSetView = function (v) { _ivcalView = v; _ivcalRender(); };
+window.rrIvcalNewEvent = function () { _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30); };
 
 // Size the scrolling time grid to fill the viewport so the calendar never
 // makes the whole PAGE scroll — only the grid scrolls internally, keeping the
@@ -16958,9 +16977,10 @@ function _ivcalEventBlock(ev, type) {
 }
 
 function _ivcalTimeGrid(ndays) {
-  const startDay = ndays === 1
-    ? (() => { const d = new Date(_ivcalAnchor); d.setHours(0,0,0,0); return d; })()
-    : _ivcalWeekStart(_ivcalAnchor);
+  let startDay;
+  if (ndays === 1) { startDay = new Date(_ivcalAnchor); startDay.setHours(0,0,0,0); }
+  else if (_ivcalView === "workweek") { startDay = _ivcalWeekStart(_ivcalAnchor); startDay.setDate(startDay.getDate()+1); } // Monday
+  else startDay = _ivcalWeekStart(_ivcalAnchor);
   const gridH = (_IVCAL_H1 - _IVCAL_H0) * _IVCAL_RH;
   const today = new Date(); today.setHours(0,0,0,0);
   const now = new Date(); const nowMin = now.getHours()*60 + now.getMinutes();
