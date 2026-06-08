@@ -911,7 +911,7 @@ document.addEventListener("click", (e) => {
   else if (kind === "notes") _paOpenNotesPopover(icon, a);
   else if (kind === "email") {
     if (!a.email) return;
-    openEmailThreadModal(id, a.full_name || "", a.email);
+    _rrComposeFreeEmail(id, a.email, a.full_name || "");
   }
 }, true);
 
@@ -958,7 +958,7 @@ function _paOpenMoreMenu(anchor, a) {
     const act = btn.getAttribute("data-rr-more-act");
     _paClosePop();
     if (act === "phone" && a.phone)  _paOpenPhonePopover(anchor, a);
-    else if (act === "email" && a.email) openEmailThreadModal(a.id, a.full_name || "", a.email);
+    else if (act === "email" && a.email) _rrComposeFreeEmail(a.id, a.email, a.full_name || "");
     else if (act === "note")          _paOpenNotesPopover(anchor, a);
   });
 }
@@ -1353,6 +1353,69 @@ async function _rrComposeApplicantEmail(applicantId, purpose) {
   return true;
 }
 
+// Open a blank email to the applicant in the composer (the "Email" contact
+// action). Recipient prefilled; the operator writes and sends.
+function _rrComposeFreeEmail(applicantId, toEmail, fullName) {
+  if (!toEmail) { toast("This applicant has no email on file", "warn"); return false; }
+  if (typeof window.rrOpenEmailComposer !== "function") { toast("Email composer isn't ready — open the Mail tab once, then retry", "warn"); return false; }
+  window.rrOpenEmailComposer({ mode: "new", to: toEmail, subject: "", html: "", applicantId });
+  return true;
+}
+
+// Open a decline/rejection email in the composer for review. On Send, the
+// applicant is declined (status→rejected). Falls back to a plain confirm +
+// decline when there's no email to send.
+async function _rrComposeDeclineEmail(applicantId) {
+  let app;
+  try {
+    const { data, error } = await sb.from("applicants")
+      .select("first_name, full_name, email").eq("id", applicantId).single();
+    if (error) throw error;
+    app = data;
+  } catch (e) { toast("Couldn't load applicant: " + (e.message || e), "warn"); return false; }
+
+  const declineNow = async () => {
+    try {
+      const { error } = await sb.rpc("decline_applicant", { p_id: applicantId, p_reason: "Manual decline" });
+      if (error) throw error;
+      toast("Applicant declined");
+      if (typeof loadPipeline === "function") await loadPipeline(getActiveStage());
+    } catch (e) { toast("Decline failed: " + (e.message || e), "warn"); }
+  };
+
+  // No email → keep the old immediate-decline behaviour (with a confirm).
+  if (!app || !app.email) {
+    if (confirm("Decline this applicant and remove them from the funnel? No email will be sent.")) await declineNow();
+    return true;
+  }
+  if (typeof window.rrOpenEmailComposer !== "function") { toast("Email composer isn't ready — open the Mail tab once, then retry", "warn"); return false; }
+
+  const first = app.first_name || (app.full_name || "").split(" ")[0] || "there";
+  const dspName = (window.RR && window.RR.dsp && window.RR.dsp.name) ? window.RR.dsp.name : "the team";
+  const body =
+`Hi ${first},
+
+Thank you for your interest in driving with us and for taking the time to apply. After careful review, we've decided not to move forward with your application at this time.
+
+We genuinely appreciate the effort you put in, and we wish you the very best in your search.
+
+Warm regards,
+${dspName}`;
+
+  window.rrOpenEmailComposer({
+    mode: "new",
+    to: app.email,
+    subject: "Update on your application",
+    html: _rrTextToHtml(body),
+    applicantId,
+    onSent: async () => {
+      try { await sb.rpc("decline_applicant", { p_id: applicantId, p_reason: "Declined via email" }); } catch (_) {}
+      try { if (typeof loadPipeline === "function") await loadPipeline(getActiveStage()); } catch (_) {}
+    },
+  });
+  return true;
+}
+
 async function handleAction(btn) {
   // Funnel cards use .pa-card[data-applicant]; Interview Day cards use
   // .iv-card[data-applicant-id]; popover rows carry data-applicant-id
@@ -1378,10 +1441,12 @@ async function handleAction(btn) {
       btn.disabled = false;
       return;
     } else if (action === "decline") {
-      // No confirm dialog — decline acts immediately on click.
-      const { error } = await sb.rpc("decline_applicant", { p_id: id, p_reason: "Manual decline" });
-      if (error) throw error;
-      toast("Applicant declined");
+      // Open a decline email in the composer for review. The applicant is only
+      // declined (status→rejected, removed from funnel) once the operator
+      // actually sends. If they have no email on file, fall back to a confirm.
+      await _rrComposeDeclineEmail(id);
+      btn.disabled = false;
+      return;
     } else if (action === "remove_event") {
       const eventId = btn.getAttribute("data-event-id");
       if (!eventId) { btn.disabled = false; return; }
@@ -16166,7 +16231,11 @@ function _ivcalEvKind(ev) { return ev.kind === "orientation" ? "orientation" : (
 async function loadIvCalendar() {
   const host = document.getElementById("rr-ivcal-body");
   if (!host) return;
-  host.innerHTML = `<div class="rr-loading">Loading calendar…</div>`;
+  // Only show the loading placeholder on the very first paint. On refreshes
+  // (after add/move/delete) we fetch silently and swap in the new render in a
+  // single paint, so the calendar doesn't blink out to a spinner and back.
+  const firstLoad = !_ivcalCache || !host.querySelector(".oc");
+  if (firstLoad) host.innerHTML = `<div class="rr-loading">Loading calendar…</div>`;
   try {
     const [a, s, b] = await Promise.all([
       sb.rpc("interview_availability_get"),
@@ -16187,7 +16256,8 @@ async function loadIvCalendar() {
       bookings: b.data || [],
     };
   } catch (e) {
-    host.innerHTML = `<div class="rr-iv-err">Couldn't load calendar: ${escapeHtml(e.message || String(e))}</div>`;
+    if (firstLoad) host.innerHTML = `<div class="rr-iv-err">Couldn't load calendar: ${escapeHtml(e.message || String(e))}</div>`;
+    else toast("Couldn't refresh calendar: " + (e.message || e), "warn");
     return;
   }
   _ivcalRender();
