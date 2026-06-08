@@ -13559,7 +13559,7 @@ body.rr-cmdk-open{ overflow:hidden }
                  four views (Day / Week / Work Week / Month). Clicking a view
                  switches to the calendar and sets it. Interview-availability
                  Rules live on the Week tile. Wired in live.js. order:1 = first. -->
-            <div class="sched-ribbon-group" data-group="calendar-controls" id="rr-cal-ribbon" style="order:1">
+            <div class="sched-ribbon-group" data-group="calendar-controls" id="rr-cal-ribbon" style="order:1;position:relative">
               <div class="subnav" data-rr-tabbar="calendar-controls">
                 <button class="subnav-item" type="button" onclick="rrIvcalNewEvent()" title="New event">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="12" y1="12.5" x2="12" y2="18.5"/><line x1="9" y1="15.5" x2="15" y2="15.5"/></svg>
@@ -13574,10 +13574,6 @@ body.rr-cmdk-open{ overflow:hidden }
                   <button class="subnav-item rr-cal-vtab" data-cal-view="week" type="button" onclick="rrIvcalSetView('week')" title="Week view">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/></svg>
                     <span>Week</span>
-                  </button>
-                  <button type="button" class="ob-rules-foot" id="rr-iv-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-iv-rules-popover" title="Interview availability — days, times, capacity, and group sessions">
-                    Rules
-                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
                   <div class="ob-rules-popover" id="rr-iv-rules-popover" role="dialog" aria-modal="false" aria-label="Interview availability" hidden>
                     <div class="ob-rules-head">
@@ -13601,6 +13597,12 @@ body.rr-cmdk-open{ overflow:hidden }
                   <span>Month</span>
                 </button>
               </div>
+              <!-- Rules launcher · bottom-right of the calendar group; opens the
+                   Interview availability editor (#rr-iv-rules-popover). -->
+              <button type="button" class="rr-cal-rules-launch" id="rr-iv-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-iv-rules-popover" title="Interview availability — days, times, capacity, and group sessions">
+                <span>Rules</span>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
+              </button>
             </div><!-- /group: calendar-controls -->
 
             <!-- (Onboarding moved into the sourcing group; Work auth into the
@@ -13744,6 +13746,20 @@ body.rr-cmdk-open{ overflow:hidden }
             display: none !important;
             content: none !important;
           }
+          /* Rules launcher pinned to the bottom-right of the calendar (Day /
+             Week / Work Week / Month) group · opens Interview availability. */
+          #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-launch {
+            position: absolute; right: 8px; bottom: 4px;
+            display: inline-flex; align-items: center; gap: 4px;
+            appearance: none; border: 0; background: transparent; cursor: pointer;
+            font: inherit; font-size: 10px; font-weight: 600; letter-spacing: .02em;
+            color: var(--text-subtle); padding: 1px 6px; border-radius: 999px; line-height: 1.5;
+            transition: color var(--t-fast), background var(--t-fast);
+          }
+          #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-launch:hover {
+            color: var(--accent-text); background: var(--accent-soft);
+          }
+          #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-launch svg { width: 11px; height: 11px; flex: 0 0 auto; }
         </style>
         <style>
           /* Onboarding overview · placeholder card shell. Matches the
@@ -36766,7 +36782,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-oc12"></script>
+<script type="module" src="./live.js?v=20260608-oc13"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
