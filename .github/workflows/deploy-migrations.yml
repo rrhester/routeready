@@ -41,18 +41,22 @@ jobs:
       - name: Link project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
-      - name: Push migrations
-        # NB: the operator applies migrations by hand via the Supabase
-        # SQL editor (see CLAUDE.md) — `supabase_migrations.schema_migrations`
-        # is therefore chronically out of sync with what's actually in
-        # the live DB, and `supabase db push` keeps re-attempting the
-        # same already-applied migrations, hitting various idempotency
-        # errors at random points. We attempt the push for forward
-        # compatibility (if anyone ever re-syncs the tracking table)
-        # but never let a failure here block the function deploys
-        # below, which are the actual reason this workflow exists.
-        continue-on-error: true
-        run: supabase db push
+      - name: Apply DB migrations (idempotent runner)
+        # `supabase db push` is unreliable here (the operator applies
+        # migrations by hand, so schema_migrations has drifted). Instead we
+        # use a self-contained runner that tracks applied files in
+        # public.rr_migrations: it adopts everything <= a baseline as already
+        # applied and runs only genuinely new migrations (authored
+        # idempotently). No-ops if SUPABASE_DB_URL isn't set.
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "SUPABASE_DB_URL not set — skipping auto-apply (add the secret to enable it)."
+            exit 0
+          fi
+          command -v psql >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client; }
+          bash scripts/apply-migrations.sh
 
       - name: Deploy edge functions (JWT-gated, end-user callable)
         # Track per-function deploy outcomes.  The original simple `for`
