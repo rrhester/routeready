@@ -12526,9 +12526,9 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .rr-ivcal-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--text-muted)}
             #rr-ivcal .rr-ivcal-legend span{display:inline-flex;align-items:center;gap:6px}
             #rr-ivcal .rr-ivcal-sw{width:11px;height:11px;border-radius:3px}
-            /* Event detail popup · mounted on <body>, so classes are global. */
-            .rr-ivcal-detail-overlay{position:fixed;inset:0;z-index:5000;background:rgba(15,23,42,.40);display:flex;align-items:center;justify-content:center;padding:24px;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
-            .rr-ivcal-detail-card{position:relative;width:380px;max-width:100%;background:var(--surface,#fff);border:1px solid var(--border,rgba(15,23,42,.12));border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.30);padding:20px 22px 22px}
+            /* Event detail popover · anchored to the clicked event, no backdrop.
+               Mounted on <body>, so classes are global. */
+            .rr-ivcal-detail-card{position:fixed;z-index:5000;width:320px;max-width:calc(100vw - 16px);background:var(--surface,#fff);border:1px solid var(--border,rgba(15,23,42,.12));border-radius:12px;box-shadow:0 12px 36px rgba(15,23,42,.22);padding:18px 20px 20px}
             .rr-ivcal-detail-card .rr-ivd-close{position:absolute;top:10px;right:12px;appearance:none;border:0;background:transparent;font-size:22px;line-height:1;color:var(--text-subtle,#64748b);cursor:pointer;padding:2px 6px;border-radius:6px}
             .rr-ivcal-detail-card .rr-ivd-close:hover{background:var(--canvas,#f1f5f9);color:var(--text,#0f172a)}
             .rr-ivcal-detail-card .rr-ivd-title{font-size:18px;font-weight:700;color:var(--text,#0f172a);padding-right:28px;margin-bottom:8px}
@@ -36730,7 +36730,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-iv-detail"></script>
+<script type="module" src="./live.js?v=20260608-iv-detail2"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
