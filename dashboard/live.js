@@ -16744,39 +16744,153 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     return { dateStr: `${fmtDate(sdate)} ${fmtTime(stime)} – ${fmtDate(edate)} ${fmtTime(etime)}`, timeStr: "" };
   };
 
+  // Ribbon + window-control icon set.
+  const SVG = {
+    send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+    invite:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>',
+    meeting:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 15 11 18 16 13"/></svg>',
+    recur:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
+    important:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="14"/><line x1="12" y1="19" x2="12" y2="19.5"/></svg>',
+    attach:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
+    dictate:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>',
+    trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+  };
+  const WIN = {
+    min:'<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+    restore:'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="1"/></svg>',
+    close:'<svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>',
+  };
+  const tile = (id, label, svg, extra) => `<button type="button" class="rr-ne-ico${extra?(" "+extra):""}" data-ne-act="${id}" title="${label}" aria-label="${label}">${svg}<span>${label}</span></button>`;
+  const VDIV = `<span class="rr-ne-vdiv" aria-hidden="true"></span>`;
+  let recurrence = null;     // recurrence rule, set via the popover
+  let highImportance = false;
+  let attachments = [];      // picked files (names shown as chips)
+  let dictateRecog = null;
+
   const m = document.createElement("div");
   m.id = "rr-ivcal-new";
-  m.style.cssText = "position:fixed;inset:0;background:var(--overlay,rgba(15,23,42,.40));z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box";
+  m.style.cssText = "position:fixed;inset:0;z-index:9999;pointer-events:none";
   const fld = "padding:9px 11px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box;background:var(--surface);color:var(--text)";
   const lbl = "font-size:12px;font-weight:600;color:var(--text-subtle);min-width:74px";
   const row = (label, inner) => `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="${lbl}">${label}</span>${inner}</div>`;
+  const dows = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const anchorDow = new Date(dateISO + "T00:00:00").getDay();
   m.innerHTML = `
-    <div class="rr-ne-card" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.34);width:min(960px,96vw);height:min(88vh,820px);display:flex;flex-direction:column;overflow:hidden">
-      <div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap">
-        <div style="font-size:17px;font-weight:700;color:var(--text)">New event</div>
-        <button id="rr-ne-create" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:7px">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          Send
-        </button>
-        <button id="rr-ne-template" class="btn" style="display:inline-flex;align-items:center;gap:7px">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 15 11 18 16 13"/></svg>
-          Schedule a Meeting
-        </button>
-        <span id="rr-ne-roomstate" style="font-size:12px;color:var(--text-subtle)">Creating video link…</span>
-        <button class="btn btn-sm" data-rr-ne-close style="margin-left:auto">Close</button>
+    <style>
+      #rr-ivcal-new .rr-ne-card{position:fixed;pointer-events:auto;background:var(--surface);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);box-shadow:0 24px 70px rgba(15,23,42,.36)}
+      #rr-ivcal-new .rr-ne-card.is-max{inset:0;border-radius:0}
+      #rr-ivcal-new .rr-ne-card.is-restored{left:50%;top:50%;transform:translate(-50%,-50%);width:min(1000px,96vw);height:min(86vh,840px);border-radius:12px}
+      #rr-ivcal-new .rr-ne-card.is-min{left:auto;right:18px;top:auto;bottom:18px;transform:none;width:300px;height:auto;border-radius:10px}
+      #rr-ivcal-new .rr-ne-card.is-min .rr-ne-ribbon,#rr-ivcal-new .rr-ne-card.is-min .rr-ne-fields{display:none}
+      #rr-ivcal-new .rr-ne-titlebar{display:flex;align-items:center;height:38px;padding:0 4px 0 12px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));background:var(--surface-secondary,#F2F3F6)}
+      #rr-ivcal-new .rr-ne-tt{flex:1;font-size:12px;font-weight:600;color:var(--text-subtle);cursor:default;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+      #rr-ivcal-new .rr-ne-wins{display:flex;gap:1px}
+      #rr-ivcal-new .rr-ne-win{width:42px;height:30px;border:0;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;color:var(--text-muted)}
+      #rr-ivcal-new .rr-ne-win:hover{background:rgba(15,23,42,.07)}
+      #rr-ivcal-new .rr-ne-win.close:hover{background:#D13438;color:#fff}
+      #rr-ivcal-new .rr-ne-ribbon{display:flex;align-items:stretch;gap:2px;padding:7px 12px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));flex-wrap:wrap}
+      #rr-ivcal-new .rr-ne-vdiv{width:1px;align-self:stretch;background:var(--border);margin:4px 7px}
+      #rr-ivcal-new .rr-ne-ico{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:62px;padding:5px 8px 6px;border:0;background:transparent;cursor:pointer;border-radius:7px;color:var(--text-muted);font:inherit;font-size:11px;line-height:1.1}
+      #rr-ivcal-new .rr-ne-ico span{white-space:nowrap}
+      #rr-ivcal-new .rr-ne-ico:hover{background:rgba(15,23,42,.05);color:var(--text)}
+      #rr-ivcal-new .rr-ne-ico.active{color:var(--accent-text);background:var(--accent-soft)}
+      #rr-ivcal-new .rr-ne-ico.danger:hover{background:rgba(209,52,56,.12);color:#C4281C}
+      #rr-ivcal-new .rr-ne-ico.send{color:#fff;background:var(--accent);font-weight:600}
+      #rr-ivcal-new .rr-ne-ico.send:hover{background:var(--accent-hover)}
+      #rr-ivcal-new .rr-ne-ico svg{width:26px;height:26px}
+      #rr-ivcal-new .rr-ne-fields{flex:1;min-height:0;display:flex;flex-direction:column;gap:11px;padding:16px 22px;box-sizing:border-box;overflow-y:auto}
+      #rr-ivcal-new .rr-ne-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-secondary,#F2F3F6);border:1px solid var(--border);border-radius:999px;padding:3px 10px;font-size:12px}
+      #rr-ivcal-new .rr-ne-chip button{border:0;background:none;cursor:pointer;color:var(--text-subtle);font-size:14px;line-height:1}
+      #rr-ivcal-new .rr-ne-recsum{font-size:12px;color:var(--accent-text);background:var(--accent-soft);border-radius:6px;padding:6px 10px;display:none}
+      /* Recurrence popover · anchored, no backdrop. */
+      #rr-ivcal-new .rr-ne-pop{position:absolute;z-index:5;top:96px;left:18px;width:340px;background:var(--surface);border:1px solid var(--border-strong,rgba(15,23,42,.26));border-radius:10px;box-shadow:0 18px 44px rgba(15,23,42,.28);overflow:hidden}
+      #rr-ivcal-new .rr-ne-pop-h{padding:11px 14px;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,#0F6CBD,#115EA3)}
+      #rr-ivcal-new .rr-ne-pop-b{padding:12px 14px;display:flex;flex-direction:column;gap:14px;max-height:60vh;overflow-y:auto}
+      #rr-ivcal-new .rr-ne-pop-sec{display:flex;flex-direction:column;gap:6px}
+      #rr-ivcal-new .rr-ne-pop-t{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-subtle)}
+      #rr-ivcal-new .rr-ne-pop label{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text);flex-wrap:wrap}
+      #rr-ivcal-new .rr-ne-pop input[type=time],#rr-ivcal-new .rr-ne-pop input[type=date],#rr-ivcal-new .rr-ne-pop input[type=number]{padding:5px 7px;border:1px solid var(--border);border-radius:5px;font:inherit;font-size:12px;background:var(--surface);color:var(--text)}
+      #rr-ivcal-new .rr-ne-prow{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted)}
+      #rr-ivcal-new .rr-ne-days{display:flex;flex-wrap:wrap;gap:8px}
+      #rr-ivcal-new .rr-ne-days label{gap:4px;font-size:12px}
+      #rr-ivcal-new .rr-ne-pop-f{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border-subtle,rgba(15,23,42,.06))}
+    </style>
+    <div class="rr-ne-card is-max" id="rr-ne-card">
+      <div class="rr-ne-titlebar">
+        <div class="rr-ne-tt" id="rr-ne-tt">Untitled event</div>
+        <div class="rr-ne-wins">
+          <button type="button" class="rr-ne-win" data-ne-win="min" title="Minimize" aria-label="Minimize">${WIN.min}</button>
+          <button type="button" class="rr-ne-win" data-ne-win="restore" title="Restore down" aria-label="Restore">${WIN.restore}</button>
+          <button type="button" class="rr-ne-win close" data-ne-win="close" title="Close" aria-label="Close">${WIN.close}</button>
+        </div>
       </div>
-      <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:11px;padding:16px 20px;box-sizing:border-box;overflow-y:auto">
+      <div class="rr-ne-ribbon">
+        ${tile("send","Send",SVG.send,"send")}
+        ${VDIV}
+        ${tile("invite","Invite Attendees",SVG.invite)}
+        ${tile("meeting","Schedule Meeting",SVG.meeting)}
+        ${tile("recur","Recurrence",SVG.recur)}
+        ${VDIV}
+        ${tile("important","High Importance",SVG.important)}
+        ${VDIV}
+        ${tile("attach","Attach",SVG.attach)}
+        ${tile("dictate","Dictate",SVG.dictate)}
+        ${VDIV}
+        ${tile("delete","Delete",SVG.trash,"danger")}
+      </div>
+      <div class="rr-ne-fields">
         ${row("Title *", `<input id="rr-ne-title" type="text" placeholder="e.g. Driver interview" style="${fld};flex:1;min-width:220px">`)}
         ${row("Required", `<input id="rr-ne-required" type="text" placeholder="name@example.com, …" style="${fld};flex:1;min-width:220px">`)}
         ${row("Optional", `<input id="rr-ne-optional" type="text" placeholder="optional attendees (comma-separated)" style="${fld};flex:1;min-width:220px">`)}
         ${row("Start", `<input id="rr-ne-sdate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-stime" type="time" value="${_ivMinToHHMM(startMin)}" style="${fld}"><label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);margin-left:8px;cursor:pointer"><input id="rr-ne-allday" type="checkbox"> All day</label>`)}
         ${row("End", `<input id="rr-ne-edate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-etime" type="time" value="${_ivMinToHHMM(endMin)}" style="${fld}">`)}
         ${row("Location", `<input id="rr-ne-location" type="text" placeholder="Online video meeting (link added automatically)" style="${fld};flex:1;min-width:220px">`)}
-        <textarea id="rr-ne-body" placeholder="Add a message (optional) — or click “Schedule a Meeting” to drop in the interview template" style="${fld};flex:1;min-height:170px;resize:none;line-height:1.5;font-family:Calibri,Arial,sans-serif;font-size:14px"></textarea>
+        <div id="rr-ne-recsum" class="rr-ne-recsum"></div>
+        <div id="rr-ne-chips" style="display:none;flex-wrap:wrap;gap:6px"></div>
+        <textarea id="rr-ne-body" placeholder="Add a message — Dictate to speak it, or Schedule Meeting to drop in the interview template" style="${fld};flex:1;min-height:160px;resize:none;line-height:1.5;font-family:Calibri,Arial,sans-serif;font-size:14px"></textarea>
+        <span id="rr-ne-roomstate" style="font-size:12px;color:var(--text-subtle)">Creating video link…</span>
+      </div>
+      <input type="file" id="rr-ne-file" multiple style="display:none">
+      <div class="rr-ne-pop" id="rr-ne-recur-pop" hidden>
+        <div class="rr-ne-pop-h">Appointment Recurrence</div>
+        <div class="rr-ne-pop-b">
+          <div class="rr-ne-pop-sec">
+            <div class="rr-ne-pop-t">Appointment time</div>
+            <div class="rr-ne-prow"><span style="min-width:42px">Start</span><input type="time" id="rr-ne-rec-start" value="${_ivMinToHHMM(startMin)}"></div>
+            <div class="rr-ne-prow"><span style="min-width:42px">End</span><input type="time" id="rr-ne-rec-end" value="${_ivMinToHHMM(endMin)}"></div>
+          </div>
+          <div class="rr-ne-pop-sec">
+            <div class="rr-ne-pop-t">Recurrence pattern</div>
+            <label><input type="radio" name="rr-ne-pat" value="daily"> Daily</label>
+            <label><input type="radio" name="rr-ne-pat" value="weekly" checked> Weekly</label>
+            <label><input type="radio" name="rr-ne-pat" value="monthly"> Monthly</label>
+            <div class="rr-ne-prow"><span>Every</span><input type="number" id="rr-ne-rec-interval" min="1" value="1" style="width:54px"><span id="rr-ne-rec-unit">week(s)</span></div>
+            <div class="rr-ne-days" id="rr-ne-rec-days">${dows.map((d,i)=>`<label><input type="checkbox" value="${i}"${i===anchorDow?" checked":""}>${d}</label>`).join("")}</div>
+          </div>
+          <div class="rr-ne-pop-sec">
+            <div class="rr-ne-pop-t">Range of recurrence</div>
+            <div class="rr-ne-prow"><span style="min-width:42px">Start</span><input type="date" id="rr-ne-rec-rstart" value="${escapeHtml(dateISO)}"></div>
+            <label><input type="radio" name="rr-ne-end" value="none" checked> No end date</label>
+            <label><input type="radio" name="rr-ne-end" value="count"> End after <input type="number" id="rr-ne-rec-count" min="1" value="10" style="width:54px"> occurrences</label>
+            <label><input type="radio" name="rr-ne-end" value="until"> End by <input type="date" id="rr-ne-rec-until"></label>
+          </div>
+        </div>
+        <div class="rr-ne-pop-f">
+          <button type="button" class="btn btn-sm" data-ne-rec="remove">Remove</button>
+          <span style="flex:1"></span>
+          <button type="button" class="btn btn-sm" data-ne-rec="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" data-ne-rec="ok">OK</button>
+        </div>
       </div>
     </div>`;
   document.body.appendChild(m);
-  document.getElementById("rr-ne-title").focus();
+  const card = document.getElementById("rr-ne-card");
+  const titleInp = document.getElementById("rr-ne-title");
+  titleInp.focus();
+  // Keep the title-bar caption in sync with the typed title.
+  titleInp.addEventListener("input", () => {
+    document.getElementById("rr-ne-tt").textContent = titleInp.value.trim() || "Untitled event";
+  });
 
   // All-day toggle disables the time inputs.
   const allday = document.getElementById("rr-ne-allday");
@@ -16791,21 +16905,172 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   roomUrl = _ivcalVideoRoom();
   { const st = document.getElementById("rr-ne-roomstate"); if (st) { st.textContent = "Video link ready ✓"; st.style.color = "var(--green)"; } }
 
-  m.addEventListener("click", async (e) => {
-    if (e.target === m || e.target.closest("[data-rr-ne-close]")) { m.remove(); return; }
+  // ── Window controls (minimize / restore-maximize / close) ──
+  let prevMode = "is-max";
+  const closeEditor = () => { try { if (dictateRecog) dictateRecog.stop(); } catch(_){} m.remove(); };
+  function setMode(mode) {
+    card.classList.remove("is-max","is-restored","is-min");
+    card.classList.add(mode);
+  }
+  // ── Recurrence popover ──
+  const recurPop = document.getElementById("rr-ne-recur-pop");
+  function syncRecurUnit() {
+    const pat = (m.querySelector("input[name=rr-ne-pat]:checked")||{}).value || "weekly";
+    const unit = document.getElementById("rr-ne-rec-unit");
+    if (unit) unit.textContent = pat === "daily" ? "day(s)" : pat === "monthly" ? "month(s)" : "week(s)";
+    document.getElementById("rr-ne-rec-days").style.display = pat === "weekly" ? "" : "none";
+  }
+  m.querySelectorAll("input[name=rr-ne-pat]").forEach(r => r.addEventListener("change", syncRecurUnit));
+  function recurSummary(rule) {
+    if (!rule) return "";
+    const every = rule.interval > 1 ? `every ${rule.interval} ` : "every ";
+    let s = "Occurs " + (rule.pattern === "daily" ? every + (rule.interval>1?"days":"day")
+      : rule.pattern === "monthly" ? every + (rule.interval>1?"months":"month")
+      : every + (rule.interval>1?"weeks":"week") + " on " + rule.weekdays.map(i=>dows[i]).join(", "));
+    s += " from " + new Date(rule.rangeStart+"T00:00:00").toLocaleDateString();
+    if (rule.end.type === "count") s += `, ${rule.end.count} times`;
+    else if (rule.end.type === "until") s += ", until " + new Date(rule.end.until+"T00:00:00").toLocaleDateString();
+    return s;
+  }
+  function showRecurSummary() {
+    const el = document.getElementById("rr-ne-recsum");
+    if (recurrence) { el.textContent = "🔁 " + recurSummary(recurrence); el.style.display = ""; }
+    else { el.style.display = "none"; }
+  }
 
-    // "Schedule a Meeting" → drop the interview template into the body.
-    if (e.target.closest("#rr-ne-template")) {
-      e.preventDefault();
-      document.getElementById("rr-ne-body").value = INTERVIEW_TEMPLATE;
-      const t = document.getElementById("rr-ne-title");
-      if (!t.value.trim()) t.value = "Driver interview";
-      toast("Interview template added", "success");
-      return;
+  // ── Dictation (Web Speech API) ──
+  function toggleDictate(btn) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { toast("Dictation isn't supported in this browser", "warn"); return; }
+    if (dictateRecog) { try { dictateRecog.stop(); } catch(_){} return; }
+    const body = document.getElementById("rr-ne-body");
+    const r = new SR(); dictateRecog = r;
+    r.continuous = true; r.interimResults = false; r.lang = "en-US";
+    r.onresult = (e) => {
+      let t = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) t += e.results[i][0].transcript;
+      t = t.trim();
+      if (t) body.value += (body.value && !/\s$/.test(body.value) ? " " : "") + t.charAt(0).toUpperCase() + t.slice(1) + ". ";
+    };
+    r.onend = () => { dictateRecog = null; btn.classList.remove("active"); };
+    r.onerror = () => { toast("Dictation stopped", "warn"); dictateRecog = null; btn.classList.remove("active"); };
+    try { r.start(); btn.classList.add("active"); toast("Listening… speak now (click Dictate again to stop)", "info"); }
+    catch(_) { dictateRecog = null; }
+  }
+
+  // Attach chips renderer.
+  const filePicker = document.getElementById("rr-ne-file");
+  function renderChips() {
+    const host = document.getElementById("rr-ne-chips");
+    if (!attachments.length) { host.style.display = "none"; host.innerHTML = ""; return; }
+    host.style.display = "flex";
+    host.innerHTML = attachments.map((a,i)=>`<span class="rr-ne-chip">📎 ${escapeHtml(a.name)}<button data-ne-chip="${i}" aria-label="Remove">×</button></span>`).join("");
+  }
+  filePicker.addEventListener("change", () => {
+    for (const f of filePicker.files) attachments.push({ name: f.name, file: f });
+    filePicker.value = ""; renderChips();
+    if (attachments.length) toast("Attached " + attachments.length + " file(s)", "success");
+  });
+
+  // ── Build the series of (date) occurrences for a recurrence rule (capped). ──
+  function expandOccurrences(rule, baseDateISO) {
+    const out = [];
+    const CAP = 60;
+    const start = new Date((rule.rangeStart || baseDateISO) + "T00:00:00");
+    const until = rule.end.type === "until" && rule.end.until ? new Date(rule.end.until + "T00:00:00") : null;
+    const maxN = rule.end.type === "count" ? Math.max(1, rule.end.count) : CAP;
+    const interval = Math.max(1, rule.interval || 1);
+    if (rule.pattern === "weekly") {
+      const wds = rule.weekdays && rule.weekdays.length ? rule.weekdays.slice().sort() : [start.getDay()];
+      // Walk week by week from the week containing start.
+      let weekStart = new Date(start); weekStart.setDate(start.getDate() - start.getDay());
+      let weeks = 0;
+      while (out.length < maxN && weeks < 520) {
+        for (const wd of wds) {
+          const d = new Date(weekStart); d.setDate(weekStart.getDate() + wd);
+          if (d >= start && (!until || d <= until) && out.length < maxN) out.push(_ivcalISODate(d));
+        }
+        weekStart.setDate(weekStart.getDate() + 7 * interval); weeks += interval;
+        if (until && weekStart > until) break;
+      }
+    } else {
+      let d = new Date(start), guard = 0;
+      while (out.length < maxN && guard < 2000) {
+        if (!until || d <= until) out.push(_ivcalISODate(d)); else break;
+        if (rule.pattern === "daily") d.setDate(d.getDate() + interval);
+        else d.setMonth(d.getMonth() + interval);
+        guard++;
+      }
+    }
+    return out.slice(0, CAP);
+  }
+
+  m.addEventListener("click", async (e) => {
+    const winBtn = e.target.closest("[data-ne-win]");
+    if (winBtn) {
+      const w = winBtn.getAttribute("data-ne-win");
+      if (w === "close") return closeEditor();
+      if (w === "min") {
+        if (!card.classList.contains("is-min")) { prevMode = card.classList.contains("is-restored") ? "is-restored" : "is-max"; setMode("is-min"); }
+        else setMode(prevMode);
+        return;
+      }
+      if (w === "restore") {
+        if (card.classList.contains("is-min")) setMode(prevMode);
+        else setMode(card.classList.contains("is-max") ? "is-restored" : "is-max");
+        return;
+      }
+    }
+    // Click the minimized title bar to restore.
+    if (card.classList.contains("is-min") && e.target.closest(".rr-ne-titlebar") && !e.target.closest("[data-ne-win]")) { setMode(prevMode); return; }
+
+    // Recurrence popover buttons.
+    const recBtn = e.target.closest("[data-ne-rec]");
+    if (recBtn) {
+      const a = recBtn.getAttribute("data-ne-rec");
+      if (a === "cancel") { recurPop.hidden = true; return; }
+      if (a === "remove") { recurrence = null; showRecurSummary(); m.querySelector('[data-ne-act="recur"]').classList.remove("active"); recurPop.hidden = true; return; }
+      if (a === "ok") {
+        const pattern = (m.querySelector("input[name=rr-ne-pat]:checked")||{}).value || "weekly";
+        const interval = Math.max(1, parseInt(document.getElementById("rr-ne-rec-interval").value,10) || 1);
+        const weekdays = Array.from(document.querySelectorAll("#rr-ne-rec-days input:checked")).map(c=>+c.value);
+        const endType = (m.querySelector("input[name=rr-ne-end]:checked")||{}).value || "none";
+        if (pattern === "weekly" && weekdays.length === 0) { toast("Pick at least one weekday", "warn"); return; }
+        recurrence = {
+          pattern, interval, weekdays,
+          rangeStart: document.getElementById("rr-ne-rec-rstart").value || dateISO,
+          end: { type: endType, count: parseInt(document.getElementById("rr-ne-rec-count").value,10) || 10, until: document.getElementById("rr-ne-rec-until").value || null },
+        };
+        // Mirror the recurrence start/end times back onto the main form.
+        const rs = document.getElementById("rr-ne-rec-start").value, re = document.getElementById("rr-ne-rec-end").value;
+        if (rs) document.getElementById("rr-ne-stime").value = rs;
+        if (re) document.getElementById("rr-ne-etime").value = re;
+        showRecurSummary();
+        m.querySelector('[data-ne-act="recur"]').classList.add("active");
+        recurPop.hidden = true;
+        return;
+      }
     }
 
-    if (e.target.closest("#rr-ne-create")) {
-      const title    = document.getElementById("rr-ne-title").value.trim();
+    // Ribbon actions.
+    const act = e.target.closest("[data-ne-act]")?.getAttribute("data-ne-act");
+    if (act === "invite") { const r = document.getElementById("rr-ne-required"); r.focus(); r.scrollIntoView({ block:"nearest" }); return; }
+    if (act === "meeting") {
+      document.getElementById("rr-ne-body").value = INTERVIEW_TEMPLATE;
+      if (!titleInp.value.trim()) { titleInp.value = "Driver interview"; document.getElementById("rr-ne-tt").textContent = "Driver interview"; }
+      toast("Interview template added", "success"); return;
+    }
+    if (act === "recur") { syncRecurUnit(); recurPop.hidden = !recurPop.hidden; return; }
+    if (act === "important") { highImportance = !highImportance; e.target.closest("[data-ne-act]").classList.toggle("active", highImportance); toast(highImportance ? "Marked High importance" : "Importance cleared", "info"); return; }
+    if (act === "attach") { filePicker.click(); return; }
+    if (act === "dictate") { toggleDictate(e.target.closest("[data-ne-act]")); return; }
+    if (act === "delete") { if (confirm("Discard this event?")) closeEditor(); return; }
+
+    const chipBtn = e.target.closest("[data-ne-chip]");
+    if (chipBtn) { attachments.splice(+chipBtn.getAttribute("data-ne-chip"), 1); renderChips(); return; }
+
+    if (act === "send" || e.target.closest("#rr-ne-create")) {
+      const title    = titleInp.value.trim();
       const sdate    = document.getElementById("rr-ne-sdate").value;
       const edate    = document.getElementById("rr-ne-edate").value || sdate;
       const stime    = document.getElementById("rr-ne-stime").value;
@@ -16818,40 +17083,46 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       const required = document.getElementById("rr-ne-required").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
       const optional = document.getElementById("rr-ne-optional").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
       const invitees = Array.from(new Set([...required, ...optional]));
-      const btn = e.target.closest("button");
-      btn.disabled = true; btn.textContent = "Sending…";
+      const btn = e.target.closest(".rr-ne-ico"); if (btn) btn.style.opacity = ".5";
       if (!roomUrl) roomUrl = _ivcalVideoRoom();
-      const startISO = isAllDay ? _ivLocalToISO(sdate, "00:00", tz) : _ivLocalToISO(sdate, stime, tz);
-      const endISO   = isAllDay ? _ivLocalToISO(edate, "23:59", tz) : _ivLocalToISO(edate, etime, tz);
-      const acceptUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/accept";
-      const declineUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/decline";
-      const gcalUrl = _rrGcalUrl(title, startISO, endISO, roomUrl ? ("Join the video meeting: " + roomUrl) : "", location || roomUrl || "");
-      const { dateStr, timeStr } = fmtRange(sdate, stime, edate, etime, isAllDay);
-      const inv = _rrInviteEmail({
-        dspName: window.RR?.dsp?.name, title, dateStr, timeStr, joinUrl: roomUrl,
-        location, message: bodyText, gcalUrl, acceptUrl, declineUrl,
-      });
+      const subjTitle = highImportance ? ("❗ " + title) : title;
+      // Occurrence dates: a single one, or the recurrence series.
+      const dates = recurrence ? expandOccurrences(recurrence, sdate) : [sdate];
+      if (attachments.length) toast("Note: attachments show here but aren't sent with auto-invites yet", "info");
+      let made = 0;
       try {
-        const { error } = await sb.rpc("create_calendar_event", {
-          p_title: title,
-          p_starts_at: startISO,
-          p_ends_at: endISO,
-          p_invitees: invitees,
-          p_note: bodyText || null,
-          p_timezone: tz,
-          p_meeting_url: roomUrl || null,
-          p_body_text: inv.text,
-          p_body_html: inv.html,
-          p_rsvp_token: rsvpToken,
-        });
-        if (error) throw error;
-        toast(invitees.length ? `Event created · inviting ${invitees.length}` : "Event created", "success");
-        m.remove();
+        for (let i = 0; i < dates.length; i++) {
+          const d = dates[i];
+          const ed = (recurrence || d === sdate) ? d : edate; // series keeps same-day end
+          const startISO = isAllDay ? _ivLocalToISO(d, "00:00", tz) : _ivLocalToISO(d, stime, tz);
+          const endISO   = isAllDay ? _ivLocalToISO(ed, "23:59", tz) : _ivLocalToISO(ed, etime, tz);
+          const acceptUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/accept";
+          const declineUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/decline";
+          const gcalUrl = _rrGcalUrl(subjTitle, startISO, endISO, roomUrl ? ("Join the video meeting: " + roomUrl) : "", location || roomUrl || "");
+          const { dateStr, timeStr } = fmtRange(d, stime, ed, etime, isAllDay);
+          const inv = _rrInviteEmail({
+            dspName: window.RR?.dsp?.name, title: subjTitle, dateStr, timeStr, joinUrl: roomUrl,
+            location, message: bodyText, gcalUrl, acceptUrl, declineUrl,
+          });
+          // Only the first occurrence carries invitees so a recurring series
+          // doesn't fire an invite email per occurrence.
+          const inviteThis = i === 0 ? invitees : [];
+          const { error } = await sb.rpc("create_calendar_event", {
+            p_title: subjTitle, p_starts_at: startISO, p_ends_at: endISO,
+            p_invitees: inviteThis, p_note: bodyText || null, p_timezone: tz,
+            p_meeting_url: roomUrl || null, p_body_text: inv.text, p_body_html: inv.html,
+            p_rsvp_token: i === 0 ? rsvpToken : null,
+          });
+          if (error) throw error;
+          made++;
+        }
+        toast(recurrence ? `Series created · ${made} event${made!==1?"s":""}` : (invitees.length ? `Event created · inviting ${invitees.length}` : "Event created"), "success");
+        closeEditor();
         loadIvCalendar();
         if (typeof loadCalBookingsList === "function") loadCalBookingsList();
       } catch (err) {
         toast("Couldn't create event: " + (err.message || err), "warn");
-        btn.disabled = false; btn.textContent = "Send";
+        if (btn) btn.style.opacity = "";
       }
     }
   });
