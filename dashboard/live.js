@@ -16040,7 +16040,179 @@ const CAL_TZS = [
 ];
 
 async function loadCalendarTab() {
-  await Promise.all([loadCalBookingsList(), loadCalAvailabilityEditor(), loadGoogleCalendar(), loadInterviewAvailabilityEditor()]);
+  await Promise.all([loadCalBookingsList(), loadCalAvailabilityEditor(), loadIvCalendar(), loadInterviewAvailabilityEditor()]);
+}
+
+// ── Native interview calendar · Day / Week / Month ────────────────────────
+// A RouteReady-owned calendar (no library, no Google embed) showing this DSP's
+// interview availability (shaded) plus booked interviews, orientations, and
+// one-off group sessions. Rendered in browser-local time (operator ≈ DSP tz).
+let _ivcalView = "week";
+let _ivcalAnchor = new Date();
+let _ivcalCache = null; // { tz, windows, sessions, bookings }
+const _IVCAL_H0 = 7, _IVCAL_H1 = 20, _IVCAL_RH = 46; // first/last hour shown + px per hour
+const _IVCAL_DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+async function loadIvCalendar() {
+  const host = document.getElementById("rr-ivcal-body");
+  if (!host) return;
+  host.innerHTML = `<div class="rr-loading">Loading calendar…</div>`;
+  try {
+    const [a, s, b] = await Promise.all([
+      sb.rpc("interview_availability_get"),
+      sb.rpc("interview_sessions_list"),
+      sb.from("cal_events")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, applicants:applicant_id (full_name)")
+        .eq("dsp_id", window.RR.dsp.id)
+        .in("status", ["scheduled", "rescheduled"])
+        .order("starts_at", { ascending: true })
+        .limit(500),
+    ]);
+    if (a.error) throw a.error;
+    const av = a.data || {};
+    _ivcalCache = {
+      tz: (av.config && av.config.timezone) || "America/Chicago",
+      windows: av.windows || [],
+      sessions: s.data || [],
+      bookings: b.data || [],
+    };
+  } catch (e) {
+    host.innerHTML = `<div class="rr-iv-err">Couldn't load calendar: ${escapeHtml(e.message || String(e))}</div>`;
+    return;
+  }
+  _ivcalRender();
+}
+window.loadIvCalendar = loadIvCalendar;
+
+function _ivcalWeekStart(d) { const x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - x.getDay()); return x; }
+function _ivcalYpos(min) { const c = Math.max(_IVCAL_H0*60, Math.min(_IVCAL_H1*60, min)); return (c - _IVCAL_H0*60) / 60 * _IVCAL_RH; }
+function _ivcalHourLabel(h) { const ampm = h>=12?"PM":"AM"; const h12=(h%12)||12; return `${h12} ${ampm}`; }
+
+function _ivcalPeriodLabel() {
+  const a = _ivcalAnchor;
+  if (_ivcalView === "day") return a.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
+  if (_ivcalView === "month") return a.toLocaleDateString(undefined, { month:"long", year:"numeric" });
+  const start = _ivcalWeekStart(a), end = new Date(start); end.setDate(start.getDate()+6);
+  const same = start.getMonth() === end.getMonth();
+  return `${start.toLocaleDateString(undefined,{month:"short",day:"numeric"})} – ${end.toLocaleDateString(undefined, same?{day:"numeric",year:"numeric"}:{month:"short",day:"numeric",year:"numeric"})}`;
+}
+
+function _ivcalNav(dir) {
+  const a = new Date(_ivcalAnchor);
+  if (dir === 0) _ivcalAnchor = new Date();
+  else if (_ivcalView === "day") { a.setDate(a.getDate()+dir); _ivcalAnchor = a; }
+  else if (_ivcalView === "week") { a.setDate(a.getDate()+7*dir); _ivcalAnchor = a; }
+  else { a.setMonth(a.getMonth()+dir); _ivcalAnchor = a; }
+  _ivcalRender();
+}
+
+function _ivcalDayItems(day, arr, key) {
+  const start = new Date(day); start.setHours(0,0,0,0);
+  const end = new Date(start); end.setDate(start.getDate()+1);
+  return (arr || []).filter(x => { const t = new Date(x[key]); return t >= start && t < end; });
+}
+
+function _ivcalRender() {
+  const host = document.getElementById("rr-ivcal-body");
+  if (!host || !_ivcalCache) return;
+  const seg = (v, t) => `<button class="rr-ivcal-seg${_ivcalView===v?" on":""}" data-ivcal-view="${v}">${t}</button>`;
+  const inner = _ivcalView === "month" ? _ivcalMonth() : _ivcalTimeGrid(_ivcalView === "day" ? 1 : 7);
+  host.innerHTML = `
+    <div class="rr-ivcal-bar">
+      <div class="rr-ivcal-seg-wrap">${seg("day","Day")}${seg("week","Week")}${seg("month","Month")}</div>
+      <div class="rr-ivcal-nav">
+        <button class="rr-ivcal-navbtn" data-ivcal-nav="-1" aria-label="Previous">‹</button>
+        <button class="rr-ivcal-today" data-ivcal-nav="0">Today</button>
+        <button class="rr-ivcal-navbtn" data-ivcal-nav="1" aria-label="Next">›</button>
+      </div>
+      <div class="rr-ivcal-period">${escapeHtml(_ivcalPeriodLabel())}</div>
+    </div>
+    ${inner}`;
+  host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalRender(); });
+  host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
+}
+
+function _ivcalEventBlock(ev, type) {
+  const s = new Date(ev.starts_at);
+  const e = ev.ends_at ? new Date(ev.ends_at) : new Date(s.getTime()+30*60000);
+  const top = _ivcalYpos(s.getHours()*60 + s.getMinutes());
+  const bot = _ivcalYpos(e.getHours()*60 + e.getMinutes());
+  const h = Math.max(18, bot - top);
+  const time = s.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+  if (type === "session") {
+    const cap = ev.capacity || 1;
+    const lbl = `${ev.label ? ev.label : "Group session"} · ${cap} spots`;
+    return `<div class="rr-ivcal-ev session" style="top:${top}px;height:${h}px" title="${escapeHtml(time+" · "+lbl)}">
+      <div class="rr-ivcal-ev-t">${escapeHtml(time)}</div><div class="rr-ivcal-ev-n">${escapeHtml(lbl)}</div></div>`;
+  }
+  const name = rrTitleCaseName((ev.applicants||{}).full_name) || (ev.kind==="orientation"?"Orientation":"Interview");
+  const cls = ev.kind === "orientation" ? "orient" : "interview";
+  return `<div class="rr-ivcal-ev ${cls}" style="top:${top}px;height:${h}px" title="${escapeHtml(name+" · "+time)}">
+    <div class="rr-ivcal-ev-t">${escapeHtml(time)}</div><div class="rr-ivcal-ev-n">${escapeHtml(name)}</div></div>`;
+}
+
+function _ivcalTimeGrid(ndays) {
+  const startDay = ndays === 1
+    ? (() => { const d = new Date(_ivcalAnchor); d.setHours(0,0,0,0); return d; })()
+    : _ivcalWeekStart(_ivcalAnchor);
+  const gridH = (_IVCAL_H1 - _IVCAL_H0) * _IVCAL_RH;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = [];
+  for (let i=0;i<ndays;i++){ const d=new Date(startDay); d.setDate(startDay.getDate()+i); days.push(d); }
+
+  let head = `<div class="rr-ivcal-tg-corner"></div>`;
+  head += days.map(d => {
+    const isToday = d.getTime() === today.getTime();
+    return `<div class="rr-ivcal-tg-dayhead"><span class="rr-ivcal-dow">${_IVCAL_DOW[d.getDay()]}</span>
+      <span class="rr-ivcal-dnum${isToday?" today":""}">${d.getDate()}</span></div>`;
+  }).join("");
+
+  let gutter = "";
+  for (let h=_IVCAL_H0; h<_IVCAL_H1; h++) gutter += `<div class="rr-ivcal-hr" style="height:${_IVCAL_RH}px"><span>${_ivcalHourLabel(h)}</span></div>`;
+
+  const cols = days.map(d => {
+    let shade = "";
+    for (const w of (_ivcalCache.windows||[]).filter(w => w.weekday === d.getDay())) {
+      const top = _ivcalYpos(w.start_min), bot = _ivcalYpos(w.end_min);
+      if (bot > top) shade += `<div class="rr-ivcal-avail" style="top:${top}px;height:${bot-top}px" title="Open for interviews"></div>`;
+    }
+    let lines = "";
+    for (let h=_IVCAL_H0; h<_IVCAL_H1; h++) lines += `<div class="rr-ivcal-line" style="top:${(h-_IVCAL_H0)*_IVCAL_RH}px"></div>`;
+    let evs = "";
+    for (const s of _ivcalDayItems(d, _ivcalCache.sessions, "starts_at")) evs += _ivcalEventBlock(s, "session");
+    for (const b of _ivcalDayItems(d, _ivcalCache.bookings, "starts_at")) evs += _ivcalEventBlock(b, "booking");
+    const isToday = d.getTime() === today.getTime();
+    return `<div class="rr-ivcal-col${isToday?" today":""}" style="height:${gridH}px">${shade}${lines}${evs}</div>`;
+  }).join("");
+
+  return `<div style="--ivcal-days:${ndays}">
+    <div class="rr-ivcal-tg-head">${head}</div>
+    <div class="rr-ivcal-tg-grid" style="height:${gridH}px"><div class="rr-ivcal-gutter">${gutter}</div>${cols}</div>
+  </div>`;
+}
+
+function _ivcalMonth() {
+  const a = _ivcalAnchor;
+  const gridStart = _ivcalWeekStart(new Date(a.getFullYear(), a.getMonth(), 1));
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dowHead = _IVCAL_DOW.map(d => `<div class="rr-ivcal-m-dow">${d}</div>`).join("");
+  let cells = "";
+  for (let i=0;i<42;i++){
+    const d = new Date(gridStart); d.setDate(gridStart.getDate()+i);
+    const out = d.getMonth() !== a.getMonth();
+    const isToday = d.getTime() === today.getTime();
+    const items = [];
+    _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => items.push({ t:new Date(s.starts_at), label:`${s.label||"Group session"} · ${s.capacity||1}`, cls:"session" }));
+    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => items.push({ t:new Date(b.starts_at), label:rrTitleCaseName((b.applicants||{}).full_name)||"Interview", cls:b.kind==="orientation"?"orient":"interview" }));
+    items.sort((x,y) => x.t - y.t);
+    const pills = items.slice(0,3).map(it => {
+      const tm = it.t.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+      return `<div class="rr-ivcal-pill ${it.cls}" title="${escapeHtml(tm+" "+it.label)}"><span class="rr-ivcal-pdot"></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
+    }).join("");
+    const more = items.length > 3 ? `<div class="rr-ivcal-more">+${items.length-3} more</div>` : "";
+    cells += `<div class="rr-ivcal-m-cell${out?" out":""}${isToday?" today":""}"><div class="rr-ivcal-m-num${isToday?" today":""}">${d.getDate()}</div>${pills}${more}</div>`;
+  }
+  return `<div><div class="rr-ivcal-m-head">${dowHead}</div><div class="rr-ivcal-m-grid">${cells}</div></div>`;
 }
 
 // ── Native interview availability editor (RouteReady-owned scheduling) ──

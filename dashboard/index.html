@@ -12469,32 +12469,74 @@ body.rr-cmdk-open{ overflow:hidden }
             }
           </style>
 
-          <!-- Google Calendar integration · connect / status -->
+          <!-- Native RouteReady interview calendar · Day / Week / Month toggle.
+               Shows your interview availability (shaded) plus booked interviews,
+               orientations, and group sessions. No Google account required. -->
           <style>
-            #view-pipeline #pipe-sub-calendar .rr-gcal-card{border:1px solid var(--border);border-radius:12px;padding:16px;background:var(--surface);max-width:480px;margin:0 0 var(--s-4)}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-title{font-weight:700;color:var(--text)}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-status{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-status.is-on{background:rgba(22,163,74,.12);color:#16A34A}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-status.is-off{background:rgba(15,23,42,.06);color:var(--text-subtle)}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-email{font-size:13px;color:var(--text-muted);margin-top:6px}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-btn{appearance:none;cursor:pointer;font:inherit;font-weight:600;font-size:13px;padding:8px 14px;border-radius:6px;border:1px solid #0F6CBD;background:#0F6CBD;color:#fff}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-btn[disabled]{opacity:.6;cursor:default}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-btn.is-ghost{background:#fff;color:#0F6CBD}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-err{color:#C4281C;font-size:12px;margin-top:8px}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-embed{margin:0 0 var(--s-4)}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-embed iframe{display:block;width:100%;height:560px;border:1px solid var(--border);border-radius:12px;background:#fff}
-            #view-pipeline #pipe-sub-calendar .rr-gcal-embed-note{font-size:12px;color:var(--text-subtle);margin:8px 2px 0}
+            #rr-ivcal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 14px 16px;margin:0 0 var(--s-4)}
+            #rr-ivcal .rr-ivcal-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+            #rr-ivcal .rr-ivcal-seg-wrap{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+            #rr-ivcal .rr-ivcal-seg{appearance:none;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:var(--text-muted);background:var(--surface);border:0;padding:6px 14px;border-left:1px solid var(--border)}
+            #rr-ivcal .rr-ivcal-seg:first-child{border-left:0}
+            #rr-ivcal .rr-ivcal-seg.on{background:#0F6CBD;color:#fff}
+            #rr-ivcal .rr-ivcal-nav{display:inline-flex;align-items:center;gap:4px}
+            #rr-ivcal .rr-ivcal-navbtn,#rr-ivcal .rr-ivcal-today{appearance:none;cursor:pointer;font:inherit;font-weight:600;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:7px}
+            #rr-ivcal .rr-ivcal-navbtn{width:30px;height:30px;font-size:17px;line-height:1;padding:0}
+            #rr-ivcal .rr-ivcal-today{font-size:13px;padding:6px 12px}
+            #rr-ivcal .rr-ivcal-navbtn:hover,#rr-ivcal .rr-ivcal-today:hover{border-color:#0F6CBD;color:#0F6CBD}
+            #rr-ivcal .rr-ivcal-period{font-size:15px;font-weight:700;color:var(--text);margin-left:auto}
+            /* time-grid (day/week) */
+            #rr-ivcal .rr-ivcal-tg-head{display:grid;grid-template-columns:56px repeat(var(--ivcal-days),1fr);border-bottom:1px solid var(--border)}
+            #rr-ivcal .rr-ivcal-tg-corner{border-right:1px solid var(--border)}
+            #rr-ivcal .rr-ivcal-tg-dayhead{display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 0 8px;border-left:1px solid var(--border)}
+            #rr-ivcal .rr-ivcal-dow{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle)}
+            #rr-ivcal .rr-ivcal-dnum{font-size:16px;font-weight:600;color:var(--text);width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%}
+            #rr-ivcal .rr-ivcal-dnum.today{background:#0F6CBD;color:#fff}
+            #rr-ivcal .rr-ivcal-tg-grid{display:grid;grid-template-columns:56px repeat(var(--ivcal-days),1fr);position:relative}
+            #rr-ivcal .rr-ivcal-gutter{position:relative}
+            #rr-ivcal .rr-ivcal-hr{position:relative;border-top:1px solid transparent}
+            #rr-ivcal .rr-ivcal-hr span{position:absolute;top:-7px;right:6px;font-size:10px;color:var(--text-subtle);font-variant-numeric:tabular-nums}
+            #rr-ivcal .rr-ivcal-col{position:relative;border-left:1px solid var(--border)}
+            #rr-ivcal .rr-ivcal-col.today{background:rgba(15,108,189,.03)}
+            #rr-ivcal .rr-ivcal-line{position:absolute;left:0;right:0;border-top:1px solid var(--border);opacity:.55}
+            #rr-ivcal .rr-ivcal-avail{position:absolute;left:0;right:0;background:rgba(15,108,189,.10);border-left:3px solid rgba(15,108,189,.5)}
+            #rr-ivcal .rr-ivcal-ev{position:absolute;left:3px;right:3px;border-radius:6px;padding:3px 6px;overflow:hidden;font-size:11px;line-height:1.25;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+            #rr-ivcal .rr-ivcal-ev.interview{background:#0F6CBD}
+            #rr-ivcal .rr-ivcal-ev.orient{background:#7C3AED}
+            #rr-ivcal .rr-ivcal-ev.session{background:#0E7C66}
+            #rr-ivcal .rr-ivcal-ev-t{font-weight:700;opacity:.95}
+            #rr-ivcal .rr-ivcal-ev-n{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            /* month */
+            #rr-ivcal .rr-ivcal-m-head{display:grid;grid-template-columns:repeat(7,1fr)}
+            #rr-ivcal .rr-ivcal-m-dow{text-align:center;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);padding:4px 0 8px}
+            #rr-ivcal .rr-ivcal-m-grid{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+            #rr-ivcal .rr-ivcal-m-cell{min-height:96px;border-top:1px solid var(--border);border-left:1px solid var(--border);padding:4px 5px 5px}
+            #rr-ivcal .rr-ivcal-m-cell:nth-child(7n+1){border-left:0}
+            #rr-ivcal .rr-ivcal-m-cell:nth-child(-n+7){border-top:0}
+            #rr-ivcal .rr-ivcal-m-cell.out{background:var(--canvas)}
+            #rr-ivcal .rr-ivcal-m-cell.out .rr-ivcal-m-num{color:var(--text-subtle);opacity:.6}
+            #rr-ivcal .rr-ivcal-m-num{font-size:12px;font-weight:600;color:var(--text);width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;margin-bottom:2px}
+            #rr-ivcal .rr-ivcal-m-num.today{background:#0F6CBD;color:#fff}
+            #rr-ivcal .rr-ivcal-pill{display:flex;align-items:center;gap:4px;font-size:10.5px;line-height:1.4;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:1px}
+            #rr-ivcal .rr-ivcal-pdot{flex:none;width:6px;height:6px;border-radius:50%}
+            #rr-ivcal .rr-ivcal-pill.interview .rr-ivcal-pdot{background:#0F6CBD}
+            #rr-ivcal .rr-ivcal-pill.orient .rr-ivcal-pdot{background:#7C3AED}
+            #rr-ivcal .rr-ivcal-pill.session .rr-ivcal-pdot{background:#0E7C66}
+            #rr-ivcal .rr-ivcal-more{font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:1px}
+            /* legend */
+            #rr-ivcal .rr-ivcal-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--text-muted)}
+            #rr-ivcal .rr-ivcal-legend span{display:inline-flex;align-items:center;gap:6px}
+            #rr-ivcal .rr-ivcal-sw{width:11px;height:11px;border-radius:3px}
           </style>
-          <div class="rr-gcal-card" id="rr-gcal-card">
-            <div class="rr-gcal-head">
-              <div class="rr-gcal-title">Google Calendar</div>
-              <span class="rr-gcal-status is-off" id="rr-gcal-status">Checking…</span>
+          <div id="rr-ivcal">
+            <div id="rr-ivcal-body"><div class="rr-loading">Loading calendar…</div></div>
+            <div class="rr-ivcal-legend">
+              <span><i class="rr-ivcal-sw" style="background:rgba(15,108,189,.18);border:1px solid rgba(15,108,189,.5)"></i>Open availability</span>
+              <span><i class="rr-ivcal-sw" style="background:#0F6CBD"></i>Interview</span>
+              <span><i class="rr-ivcal-sw" style="background:#7C3AED"></i>Orientation</span>
+              <span><i class="rr-ivcal-sw" style="background:#0E7C66"></i>Group session</span>
             </div>
-            <div class="rr-gcal-body" id="rr-gcal-body"><div class="rr-loading">Loading…</div></div>
           </div>
-          <!-- Per-DSP embedded Google Calendar (src = this DSP's connected account). -->
-          <div class="rr-gcal-embed" id="rr-gcal-embed"></div>
 
           <!-- Native RouteReady interview availability (days/times + capacity + group sessions). -->
           <style>
@@ -36602,7 +36644,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-iv-editor"></script>
+<script type="module" src="./live.js?v=20260608-iv-calendar"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
