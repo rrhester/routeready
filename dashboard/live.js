@@ -16084,8 +16084,24 @@ async function loadCalendarTab() {
 let _ivcalView = "week";
 let _ivcalAnchor = new Date();
 let _ivcalCache = null; // { tz, windows, sessions, bookings }
-const _IVCAL_H0 = 7, _IVCAL_H1 = 20, _IVCAL_RH = 46; // first/last hour shown + px per hour
+const _IVCAL_H0 = 0, _IVCAL_H1 = 24, _IVCAL_RH = 44; // full 24h, dense rows (Outlook), scrollable
 const _IVCAL_DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+// Outlook-style UI state.
+let _ivcalSelected = null;            // { kind, id } of the selected event (reading pane)
+let _ivcalClipboard = null;           // copied event for paste
+const _ivcalFilters = { interview: true, orientation: true, event: true, session: true };
+// Map an event to an Outlook colour category (by RSVP/status).
+function _ivcalCat(ev, kind) {
+  if (kind === "session") return "teal";
+  if (ev.status === "cancelled" || ev.status === "no_show") return ev.status === "no_show" ? "red" : "gray";
+  const r = ev.rsvp || "accepted";
+  if (r === "accepted") return "green";
+  if (r === "pending") return "orange";
+  if (r === "declined") return "gray";
+  return "blue";
+}
+const _IVCAL_CAT_COLOR = { blue:"#2563EB", green:"#1F9D55", orange:"#E08600", gray:"#9AA0AA", teal:"#0E7C66", red:"#D13438" };
+function _ivcalEvKind(ev) { return ev.kind === "orientation" ? "orientation" : (ev.kind === "event" ? "event" : "interview"); }
 
 async function loadIvCalendar() {
   const host = document.getElementById("rr-ivcal-body");
@@ -16150,43 +16166,92 @@ function _ivcalDayItems(day, arr, key) {
 function _ivcalRender() {
   const host = document.getElementById("rr-ivcal-body");
   if (!host || !_ivcalCache) return;
-  const seg = (v, t) => `<button class="rr-ivcal-seg${_ivcalView===v?" on":""}" data-ivcal-view="${v}">${t}</button>`;
+  _ivcalCloseMenus();
+  const _prevScroll = document.getElementById("rr-ivcal-scroll") ? document.getElementById("rr-ivcal-scroll").scrollTop : null;
+  const seg = (v, t) => `<button class="${_ivcalView===v?"on":""}" data-ivcal-view="${v}">${t}</button>`;
+  const flt = (k, label, cat) => `<label><input type="checkbox" data-ivcal-filter="${k}"${_ivcalFilters[k]?" checked":""}><span class="dot" style="background:${_IVCAL_CAT_COLOR[cat]}"></span>${label}</label>`;
   const inner = _ivcalView === "month" ? _ivcalMonth() : _ivcalTimeGrid(_ivcalView === "day" ? 1 : 7);
+  const pane = _ivcalSelected ? _ivcalPaneHtml() : "";
+
   host.innerHTML = `
-    <div class="rr-ivcal-bar">
-      <div class="rr-ivcal-seg-wrap">${seg("day","Day")}${seg("week","Week")}${seg("month","Month")}</div>
-      <div class="rr-ivcal-nav">
-        <button class="rr-ivcal-navbtn" data-ivcal-nav="-1" aria-label="Previous">‹</button>
-        <button class="rr-ivcal-today" data-ivcal-nav="0">Today</button>
-        <button class="rr-ivcal-navbtn" data-ivcal-nav="1" aria-label="Next">›</button>
+    <div class="oc">
+      <div class="oc-main">
+        <div class="oc-bar">
+          <button class="oc-btn pri" data-ivcal-new title="New event (N)">＋ New event</button>
+          <button class="oc-btn" data-ivcal-nav="0" title="Today (T)">Today</button>
+          <button class="oc-btn oc-ico" data-ivcal-nav="-1" title="Previous">‹</button>
+          <button class="oc-btn oc-ico" data-ivcal-nav="1" title="Next">›</button>
+          <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
+          <div class="oc-seg">${seg("day","Day")}${seg("week","Week")}${seg("month","Month")}</div>
+          <span class="oc-sp"></span>
+          <span class="oc-search">🔎<input type="text" data-ivcal-search placeholder="Search"></span>
+          <div class="oc-filters">${flt("interview","Interviews","blue")}${flt("orientation","Orientation","green")}${flt("event","Events","blue")}${flt("session","Sessions","teal")}</div>
+        </div>
+        ${inner}
       </div>
-      <div class="rr-ivcal-period">${escapeHtml(_ivcalPeriodLabel())}</div>
-    </div>
-    ${inner}`;
+      ${pane}
+    </div>`;
+
   host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalRender(); });
   host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
-  // Click any event block / month pill → open an email. Single bookings open
-  // the applicant's email thread; group sessions/free-form events open a
-  // compose to everyone involved.
-  host.querySelectorAll("[data-ivcal-id]").forEach(el => el.onclick = (e) => {
-    e.stopPropagation();
-    _ivcalOpenEmail(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id"));
+  host.querySelector("[data-ivcal-new]")?.addEventListener("click", () => _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30));
+  host.querySelectorAll("[data-ivcal-filter]").forEach(cb => cb.onchange = () => { _ivcalFilters[cb.getAttribute("data-ivcal-filter")] = cb.checked; _ivcalRender(); });
+  const searchInp = host.querySelector("[data-ivcal-search]");
+  if (searchInp) searchInp.addEventListener("input", () => {
+    const q = searchInp.value.trim().toLowerCase();
+    host.querySelectorAll("[data-ivcal-id]").forEach(el => {
+      const txt = ((el.getAttribute("title") || "") + " " + el.textContent).toLowerCase();
+      el.style.display = (!q || txt.includes(q)) ? "" : "none";
+    });
   });
-  // Click an empty time slot (day/week) → new event at that time. Clicking an
-  // existing event stops propagation, so only empty space reaches here.
-  host.querySelectorAll(".rr-ivcal-col[data-ivcal-date]").forEach(col => col.addEventListener("click", (e) => {
-    if (e.target.closest("[data-ivcal-id]")) return;
+
+  // Event interactions: single-click → reading pane; right-click → context
+  // menu; hover → preview card.
+  host.querySelectorAll("[data-ivcal-id]").forEach(el => {
+    el.addEventListener("click", (e) => { e.stopPropagation(); _ivcalSelect(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
+    el.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); _ivcalContextMenu(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
+    el.addEventListener("mouseenter", (e) => _ivcalHoverShow(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")));
+    el.addEventListener("mouseleave", _ivcalHoverHide);
+  });
+
+  // Empty slot: single-click → quick-create popover; double-click → full editor.
+  const slotMin = (col, e) => {
     const rect = col.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    let min = _IVCAL_H0*60 + Math.floor((y / _IVCAL_RH) * 60 / 30) * 30; // snap to 30 min
-    min = Math.max(_IVCAL_H0*60, Math.min(_IVCAL_H1*60 - 30, min));
-    _ivcalNewEvent(col.getAttribute("data-ivcal-date"), min, min + 30);
-  }));
-  // Click an empty day cell (month) → new event that day at 9:00.
-  host.querySelectorAll(".rr-ivcal-m-cell[data-ivcal-date]").forEach(cell => cell.addEventListener("click", (e) => {
-    if (e.target.closest("[data-ivcal-id]")) return;
-    _ivcalNewEvent(cell.getAttribute("data-ivcal-date"), 9*60, 9*60 + 30);
-  }));
+    let min = _IVCAL_H0*60 + Math.floor(((e.clientY - rect.top) / _IVCAL_RH) * 60 / 30) * 30;
+    return Math.max(_IVCAL_H0*60, Math.min(_IVCAL_H1*60 - 30, min));
+  };
+  host.querySelectorAll(".oc-col[data-ivcal-date]").forEach(col => {
+    let t = null;
+    col.addEventListener("click", (e) => {
+      if (e.target.closest("[data-ivcal-id]")) return;
+      const min = slotMin(col, e), date = col.getAttribute("data-ivcal-date");
+      clearTimeout(t); t = setTimeout(() => _ivcalQuickCreate(e, date, min), 220);
+    });
+    col.addEventListener("dblclick", (e) => {
+      if (e.target.closest("[data-ivcal-id]")) return;
+      clearTimeout(t); _ivcalCloseMenus(); _ivcalNewEvent(col.getAttribute("data-ivcal-date"), slotMin(col, e), slotMin(col, e) + 30);
+    });
+  });
+  host.querySelectorAll(".oc-mcell[data-ivcal-date]").forEach(cell => {
+    let t = null;
+    cell.addEventListener("click", (e) => { if (e.target.closest("[data-ivcal-id]")) return; const date = cell.getAttribute("data-ivcal-date"); clearTimeout(t); t = setTimeout(() => _ivcalQuickCreate(e, date, 9*60), 220); });
+    cell.addEventListener("dblclick", (e) => { if (e.target.closest("[data-ivcal-id]")) return; clearTimeout(t); _ivcalNewEvent(cell.getAttribute("data-ivcal-date"), 9*60, 9*60+30); });
+  });
+
+  // Reading pane wiring; preserve scroll across re-renders, else scroll to now.
+  if (_ivcalSelected) _ivcalWirePane(host);
+  const sc = document.getElementById("rr-ivcal-scroll");
+  if (sc) { if (_prevScroll != null) sc.scrollTop = _prevScroll; else _ivcalAutoScroll(); }
+  _ivcalInstallKeys();
+}
+
+// Scroll the day/week grid so the current time sits near the top third.
+function _ivcalAutoScroll() {
+  const sc = document.getElementById("rr-ivcal-scroll");
+  if (!sc) return;
+  const now = new Date();
+  const min = now.getHours()*60 + now.getMinutes();
+  sc.scrollTop = Math.max(0, ((min - _IVCAL_H0*60) / 60 * _IVCAL_RH) - 120);
 }
 
 // ── Calendar event → email (opens the rich composer prefilled with the
@@ -16517,37 +16582,37 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   });
 }
 
+function _ivcalFilterOk(ev, type) {
+  const k = type === "session" ? "session" : _ivcalEvKind(ev);
+  return !!_ivcalFilters[k];
+}
+function _ivcalEventLabel(ev, type) {
+  if (type === "session") return `${ev.label || "Group session"} · ${ev.capacity || 1}`;
+  if (ev.kind === "event") return ev.title || "Event";
+  return rrTitleCaseName((ev.applicants||{}).full_name) || (ev.kind === "orientation" ? "Orientation" : "Interview");
+}
+
 function _ivcalEventBlock(ev, type) {
+  if (!_ivcalFilterOk(ev, type)) return "";
   const s = new Date(ev.starts_at);
   const e = ev.ends_at ? new Date(ev.ends_at) : new Date(s.getTime()+30*60000);
   const top = _ivcalYpos(s.getHours()*60 + s.getMinutes());
   const bot = _ivcalYpos(e.getHours()*60 + e.getMinutes());
-  const h = Math.max(20, bot - top);
+  const h = Math.max(18, bot - top);
   const time = s.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
-
-  let label, cls, kindAttr;
-  if (type === "session") {
-    label = `${ev.label ? ev.label : "Group session"} · ${ev.capacity || 1} spots`;
-    cls = "session"; kindAttr = "session";
-  } else {
-    kindAttr = "booking";
-    if (ev.kind === "event") { label = ev.title || "Event"; cls = "event"; }
-    else if (ev.kind === "orientation") { label = rrTitleCaseName((ev.applicants||{}).full_name) || "Orientation"; cls = "orient"; }
-    else { label = rrTitleCaseName((ev.applicants||{}).full_name) || "Interview"; cls = "interview"; }
-  }
-
-  // RSVP state → Outlook-style tentative (light + striped) until accepted.
+  const kindAttr = type === "session" ? "session" : "booking";
+  const label = _ivcalEventLabel(ev, type);
+  const cat = _ivcalCat(ev, type);
   const rsvp = type === "session" ? "accepted" : (ev.rsvp || "accepted");
-  if (rsvp === "pending") cls += " tentative";
-  else if (rsvp === "declined") cls += " declined";
-  const tip = time + " · " + label + (rsvp === "pending" ? " · tentative (awaiting reply)" : rsvp === "declined" ? " · declined" : "");
-
-  // Short blocks (≈30 min) can't fit two lines — collapse time + label onto
-  // one ellipsized line so the title is always readable.
-  const inner = (h < 34)
-    ? `<div class="rr-ivcal-ev-1">${escapeHtml(time)} · ${escapeHtml(label)}</div>`
-    : `<div class="rr-ivcal-ev-t">${escapeHtml(time)}</div><div class="rr-ivcal-ev-n">${escapeHtml(label)}</div>`;
-  return `<div class="rr-ivcal-ev ${cls}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(tip)}">${inner}</div>`;
+  const sel = _ivcalSelected && _ivcalSelected.kind === kindAttr && String(_ivcalSelected.id) === String(ev.id);
+  let icons = "";
+  if (ev.meeting_url) icons += "🎥";
+  if (type !== "session" && rsvp === "accepted") icons += "✓"; else if (rsvp === "pending") icons += "✉";
+  const ico = icons ? `<span class="ei">${icons}</span>` : "";
+  const inner = (h < 30)
+    ? `<div class="en"><span class="et">${escapeHtml(time)}</span> ${escapeHtml(label)}${ico}</div>`
+    : `<div class="et">${escapeHtml(time)}${ico}</div><div class="en">${escapeHtml(label)}</div>`;
+  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(time+" · "+label)}">${inner}</div>`;
 }
 
 function _ivcalTimeGrid(ndays) {
@@ -16556,37 +16621,42 @@ function _ivcalTimeGrid(ndays) {
     : _ivcalWeekStart(_ivcalAnchor);
   const gridH = (_IVCAL_H1 - _IVCAL_H0) * _IVCAL_RH;
   const today = new Date(); today.setHours(0,0,0,0);
+  const now = new Date(); const nowMin = now.getHours()*60 + now.getMinutes();
   const days = [];
   for (let i=0;i<ndays;i++){ const d=new Date(startDay); d.setDate(startDay.getDate()+i); days.push(d); }
 
-  let head = `<div class="rr-ivcal-tg-corner"></div>`;
+  let head = `<div class="oc-corner"></div>`;
   head += days.map(d => {
     const isToday = d.getTime() === today.getTime();
-    return `<div class="rr-ivcal-tg-dayhead"><span class="rr-ivcal-dow">${_IVCAL_DOW[d.getDay()]}</span>
-      <span class="rr-ivcal-dnum${isToday?" today":""}">${d.getDate()}</span></div>`;
+    return `<div class="oc-dh${isToday?" today":""}"><div class="dow">${_IVCAL_DOW[d.getDay()]}</div><div class="dn">${d.getDate()}</div></div>`;
   }).join("");
 
   let gutter = "";
-  for (let h=_IVCAL_H0; h<_IVCAL_H1; h++) gutter += `<div class="rr-ivcal-hr" style="height:${_IVCAL_RH}px"><span>${_ivcalHourLabel(h)}</span></div>`;
+  for (let h=_IVCAL_H0; h<_IVCAL_H1; h++) gutter += `<div class="oc-hr" style="height:${_IVCAL_RH}px"><span>${_ivcalHourLabel(h)}</span></div>`;
 
   const cols = days.map(d => {
+    const isToday = d.getTime() === today.getTime();
     let shade = "";
     for (const w of (_ivcalCache.windows||[]).filter(w => w.weekday === d.getDay())) {
       const top = _ivcalYpos(w.start_min), bot = _ivcalYpos(w.end_min);
-      if (bot > top) shade += `<div class="rr-ivcal-avail" style="top:${top}px;height:${bot-top}px" title="Open for interviews"></div>`;
+      if (bot > top) shade += `<div class="oc-avail" style="top:${top}px;height:${bot-top}px"></div>`;
     }
     let lines = "";
-    for (let h=_IVCAL_H0; h<_IVCAL_H1; h++) lines += `<div class="rr-ivcal-line" style="top:${(h-_IVCAL_H0)*_IVCAL_RH}px"></div>`;
+    for (let h=_IVCAL_H0; h<_IVCAL_H1; h++) {
+      const y = (h-_IVCAL_H0)*_IVCAL_RH;
+      lines += `<div class="oc-hline" style="top:${y}px"></div><div class="oc-hhline" style="top:${y+_IVCAL_RH/2}px"></div>`;
+    }
+    const nowLine = (isToday && nowMin >= _IVCAL_H0*60 && nowMin <= _IVCAL_H1*60)
+      ? `<div class="oc-now" style="top:${_ivcalYpos(nowMin)}px"></div>` : "";
     let evs = "";
     for (const s of _ivcalDayItems(d, _ivcalCache.sessions, "starts_at")) evs += _ivcalEventBlock(s, "session");
     for (const b of _ivcalDayItems(d, _ivcalCache.bookings, "starts_at")) evs += _ivcalEventBlock(b, "booking");
-    const isToday = d.getTime() === today.getTime();
-    return `<div class="rr-ivcal-col${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${shade}${lines}${evs}</div>`;
+    return `<div class="oc-col${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${shade}${lines}${nowLine}${evs}</div>`;
   }).join("");
 
-  return `<div style="--ivcal-days:${ndays}">
-    <div class="rr-ivcal-tg-head">${head}</div>
-    <div class="rr-ivcal-tg-grid" style="height:${gridH}px"><div class="rr-ivcal-gutter">${gutter}</div>${cols}</div>
+  return `<div class="oc-cal" style="--days:${ndays};--rh:${_IVCAL_RH}px">
+    <div class="oc-head">${head}</div>
+    <div class="oc-scroll" id="rr-ivcal-scroll"><div class="oc-grid" style="height:${gridH}px"><div class="oc-gutter">${gutter}</div>${cols}</div></div>
   </div>`;
 }
 
@@ -16594,29 +16664,237 @@ function _ivcalMonth() {
   const a = _ivcalAnchor;
   const gridStart = _ivcalWeekStart(new Date(a.getFullYear(), a.getMonth(), 1));
   const today = new Date(); today.setHours(0,0,0,0);
-  const dowHead = _IVCAL_DOW.map(d => `<div class="rr-ivcal-m-dow">${d}</div>`).join("");
+  const dowHead = _IVCAL_DOW.map(d => `<div class="oc-mdow">${d}</div>`).join("");
   let cells = "";
   for (let i=0;i<42;i++){
     const d = new Date(gridStart); d.setDate(gridStart.getDate()+i);
     const out = d.getMonth() !== a.getMonth();
     const isToday = d.getTime() === today.getTime();
     const items = [];
-    _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => items.push({ t:new Date(s.starts_at), label:`${s.label||"Group session"} · ${s.capacity||1}`, cls:"session", kind:"session", id:s.id }));
-    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => {
-      const lbl = b.kind === "event" ? (b.title || "Event") : (rrTitleCaseName((b.applicants||{}).full_name) || (b.kind === "orientation" ? "Orientation" : "Interview"));
-      let cls = b.kind === "event" ? "event" : (b.kind === "orientation" ? "orient" : "interview");
-      if (b.rsvp === "pending") cls += " tentative"; else if (b.rsvp === "declined") cls += " declined";
-      items.push({ t:new Date(b.starts_at), label:lbl, cls, kind:"booking", id:b.id });
-    });
+    _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => { if (_ivcalFilterOk(s,"session")) items.push({ t:new Date(s.starts_at), label:_ivcalEventLabel(s,"session"), cat:_ivcalCat(s,"session"), kind:"session", id:s.id, declined:false }); });
+    _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => { if (_ivcalFilterOk(b,"booking")) items.push({ t:new Date(b.starts_at), label:_ivcalEventLabel(b,"booking"), cat:_ivcalCat(b,"booking"), kind:"booking", id:b.id, declined:(b.rsvp==="declined") }); });
     items.sort((x,y) => x.t - y.t);
-    const pills = items.slice(0,3).map(it => {
+    const pills = items.slice(0,4).map(it => {
       const tm = it.t.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
-      return `<div class="rr-ivcal-pill ${it.cls}" data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" title="${escapeHtml(tm+" "+it.label)}"><span class="rr-ivcal-pdot"></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
+      const sel = _ivcalSelected && _ivcalSelected.kind === it.kind && String(_ivcalSelected.id) === String(it.id);
+      return `<div class="oc-pill cat-${it.cat}${it.declined?" declined":""}${sel?" sel":""}" data-ivcal-kind="${it.kind}" data-ivcal-id="${escapeHtml(it.id)}" title="${escapeHtml(tm+" "+it.label)}"><span class="oc-pdot"></span>${escapeHtml(tm)} ${escapeHtml(it.label)}</div>`;
     }).join("");
-    const more = items.length > 3 ? `<div class="rr-ivcal-more">+${items.length-3} more</div>` : "";
-    cells += `<div class="rr-ivcal-m-cell${out?" out":""}${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="rr-ivcal-m-num${isToday?" today":""}">${d.getDate()}</div>${pills}${more}</div>`;
+    const more = items.length > 4 ? `<div class="oc-more">+${items.length-4} more</div>` : "";
+    cells += `<div class="oc-mcell${out?" out":""}${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}"><div class="oc-mnum">${d.getDate()}</div>${pills}${more}</div>`;
   }
-  return `<div><div class="rr-ivcal-m-head">${dowHead}</div><div class="rr-ivcal-m-grid">${cells}</div></div>`;
+  return `<div><div class="oc-mhead">${dowHead}</div><div class="oc-mgrid">${cells}</div></div>`;
+}
+
+// ── Outlook-style helpers: selection/reading-pane, context menu, hover,
+//    quick-create, keyboard shortcuts. ──────────────────────────────────────
+function _ivcalFindEv(kind, id) {
+  const arr = kind === "session" ? _ivcalCache.sessions : _ivcalCache.bookings;
+  return (arr || []).find(x => String(x.id) === String(id)) || null;
+}
+function _ivcalSelect(kind, id) { _ivcalSelected = { kind, id }; _ivcalRender(); }
+function _ivcalDeselect() { if (_ivcalSelected) { _ivcalSelected = null; _ivcalRender(); } }
+
+function _ivcalPaneHtml() {
+  const ev = _ivcalSelected && _ivcalFindEv(_ivcalSelected.kind, _ivcalSelected.id);
+  if (!ev) return "";
+  const type = _ivcalSelected.kind;
+  const a = ev.applicants || {};
+  const cat = _ivcalCat(ev, type);
+  const { dateStr, timeStr } = _ivcalFmtWhen(ev);
+  const rsvp = type === "session" ? "accepted" : (ev.rsvp || "accepted");
+  const catLabel = { blue:"Scheduled", green:"Accepted", orange:"Pending reply", gray:(rsvp==="declined"?"Declined":"Cancelled"), teal:"Group session", red:"No show" }[cat];
+  const title = type === "session" ? (ev.label || "Group session") : (ev.kind === "event" ? (ev.title || "Event") : (rrTitleCaseName(a.full_name) || (ev.kind==="orientation"?"Orientation":"Interview")));
+  const drow = (icon, html) => `<div class="oc-drow"><div class="di">${icon}</div><div>${html}</div></div>`;
+  let rows = drow("🕑", `<strong>${escapeHtml(dateStr)}</strong><br><span style="color:var(--oc-sub)">${escapeHtml(timeStr)}</span>`);
+  if (a.email) rows += drow("✉", `<a href="mailto:${escapeHtml(a.email)}">${escapeHtml(a.email)}</a>`);
+  if (a.phone) rows += drow("📞", `<a href="tel:${escapeHtml(a.phone)}">${escapeHtml(a.phone)}</a>`);
+  if (ev.meeting_url) rows += drow("🎥", `<a href="${escapeHtml(ev.meeting_url)}" target="_blank" rel="noreferrer">Join video meeting</a>`);
+  else rows += drow("🎥", `<span style="color:var(--oc-sub)">No video link yet</span>`);
+  if (type !== "session") rows += drow("●", `${escapeHtml(catLabel)}`);
+  const note = ev.metadata && ev.metadata.note;
+  if (note) rows += drow("🗒", `<span style="white-space:pre-wrap;color:#3a3a45">${escapeHtml(String(note))}</span>`);
+  const acts = [
+    `<button class="oc-btn pri" data-oc-pane="email">✉ Email</button>`,
+    ev.meeting_url ? `<button class="oc-btn" data-oc-pane="join">🎥 Join</button>` : "",
+    type !== "session" ? `<button class="oc-btn" data-oc-pane="cancel">✖ Cancel</button>` : "",
+    a && ev.applicant_id ? `<button class="oc-btn" data-oc-pane="applicant">Open applicant</button>` : "",
+  ].filter(Boolean).join("");
+  return `<div class="oc-pane">
+    <div class="oc-pane-h"><div><div class="pt">${escapeHtml(title)}</div><span class="oc-cat-tag" style="background:${_IVCAL_CAT_COLOR[cat]}1f;color:${_IVCAL_CAT_COLOR[cat]}">${escapeHtml(catLabel)}</span></div><button class="px" data-oc-pane="close" title="Close (Esc)">×</button></div>
+    <div class="oc-pane-b">${rows}</div>
+    <div class="oc-pane-acts">${acts}</div>
+  </div>`;
+}
+function _ivcalWirePane(host) {
+  host.querySelectorAll("[data-oc-pane]").forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    const act = b.getAttribute("data-oc-pane");
+    const sel = _ivcalSelected; if (!sel && act !== "close") return;
+    if (act === "close") return _ivcalDeselect();
+    const ev = _ivcalFindEv(sel.kind, sel.id); if (!ev) return;
+    if (act === "email") _ivcalOpenEmail(sel.kind, sel.id);
+    else if (act === "join" && ev.meeting_url) window.open(ev.meeting_url, "_blank", "noreferrer");
+    else if (act === "cancel") _ivcalDeleteEvent(sel.kind, sel.id, true);
+    else if (act === "applicant" && ev.applicant_id) _ivcalOpenApplicant(ev.applicant_id);
+  });
+}
+function _ivcalOpenApplicant(id) {
+  if (typeof window.openApplicant === "function") window.openApplicant(id);
+  else if (typeof openApplicantModal === "function") openApplicantModal(id);
+  else toast("Open the applicant from the Funnel list", "info");
+}
+
+// Context menu (right-click an event).
+function _ivcalCloseMenus() {
+  document.querySelectorAll(".oc-menu,.oc-hover,.oc-quick").forEach(el => el.remove());
+}
+function _ivcalContextMenu(e, kind, id) {
+  _ivcalCloseMenus();
+  const ev = _ivcalFindEv(kind, id); if (!ev) return;
+  const item = (act, label, danger) => `<button data-oc-ctx="${act}"${danger?' class="danger"':""}>${label}</button>`;
+  const menu = document.createElement("div");
+  menu.className = "oc-menu";
+  menu.innerHTML =
+    item("open", "Open") +
+    item("email", "Email") +
+    item("duplicate", "Duplicate") +
+    (ev.applicant_id ? item("applicant", "Open applicant") : "") +
+    `<div class="sep"></div>` +
+    item("delete", kind === "session" ? "Remove" : "Cancel / delete", true);
+  document.body.appendChild(menu);
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  menu.style.left = Math.min(e.clientX, window.innerWidth - mw - 6) + "px";
+  menu.style.top = Math.min(e.clientY, window.innerHeight - mh - 6) + "px";
+  menu.addEventListener("click", (ev2) => {
+    const b = ev2.target.closest("[data-oc-ctx]"); if (!b) return;
+    const act = b.getAttribute("data-oc-ctx");
+    _ivcalCloseMenus();
+    if (act === "open") _ivcalSelect(kind, id);
+    else if (act === "email") _ivcalOpenEmail(kind, id);
+    else if (act === "duplicate") { const s = new Date(ev.starts_at); _ivcalNewEvent(_ivcalISODate(s), s.getHours()*60+s.getMinutes(), s.getHours()*60+s.getMinutes()+30); }
+    else if (act === "applicant" && ev.applicant_id) _ivcalOpenApplicant(ev.applicant_id);
+    else if (act === "delete") _ivcalDeleteEvent(kind, id, true);
+  });
+  setTimeout(() => document.addEventListener("click", function off() { _ivcalCloseMenus(); document.removeEventListener("click", off); }, { once: true }), 0);
+}
+
+// Hover preview card.
+let _ivcalHoverTimer = null;
+function _ivcalHoverShow(e, kind, id) {
+  clearTimeout(_ivcalHoverTimer);
+  const el = e.currentTarget;
+  _ivcalHoverTimer = setTimeout(() => {
+    if (document.querySelector(".oc-menu") || document.querySelector(".oc-quick")) return;
+    const ev = _ivcalFindEv(kind, id); if (!ev) return;
+    _ivcalCloseHover();
+    const a = ev.applicants || {};
+    const { dateStr, timeStr } = _ivcalFmtWhen(ev);
+    const title = kind === "session" ? (ev.label || "Group session") : (ev.kind === "event" ? (ev.title || "Event") : (rrTitleCaseName(a.full_name) || (ev.kind==="orientation"?"Orientation":"Interview")));
+    const cat = _ivcalCat(ev, kind);
+    const card = document.createElement("div"); card.className = "oc-hover";
+    card.innerHTML = `<div class="hh">${escapeHtml(title)}</div>
+      <div class="hr">🕑 ${escapeHtml(dateStr)}, ${escapeHtml(timeStr)}</div>
+      ${a.email ? `<div class="hr">✉ ${escapeHtml(a.email)}</div>` : ""}
+      ${a.phone ? `<div class="hr">📞 ${escapeHtml(a.phone)}</div>` : ""}
+      <div class="hr">🎥 ${ev.meeting_url ? "Video link ready" : "No video link yet"}</div>
+      <div class="hr" style="margin-top:5px"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${_IVCAL_CAT_COLOR[cat]};margin-right:5px"></span>${kind==="session"?"Group session":(ev.rsvp==="pending"?"Pending reply":ev.rsvp==="declined"?"Declined":"Accepted")}</div>`;
+    document.body.appendChild(card);
+    const r = el.getBoundingClientRect();
+    let left = r.right + 8; if (left + 260 > window.innerWidth) left = r.left - 268;
+    card.style.left = Math.max(6, left) + "px";
+    card.style.top = Math.min(r.top, window.innerHeight - card.offsetHeight - 6) + "px";
+  }, 450);
+}
+function _ivcalCloseHover() { document.querySelectorAll(".oc-hover").forEach(el => el.remove()); }
+function _ivcalHoverHide() { clearTimeout(_ivcalHoverTimer); _ivcalCloseHover(); }
+
+// Quick-create popover (single click on an empty slot).
+function _ivcalQuickCreate(e, dateISO, startMin) {
+  _ivcalCloseMenus();
+  const q = document.createElement("div"); q.className = "oc-quick";
+  const t = (min) => { const x = new Date(); x.setHours(Math.floor(min/60), min%60, 0, 0); return x.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }); };
+  q.innerHTML = `
+    <input type="text" data-oc-q-title placeholder="Add a title" autofocus>
+    <div class="qt">${escapeHtml(new Date(dateISO+"T00:00:00").toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}))} · ${escapeHtml(t(startMin))} – ${escapeHtml(t(startMin+30))}</div>
+    <div class="qa"><button class="oc-btn" data-oc-q="more">More options</button><button class="oc-btn pri" data-oc-q="create">Create</button></div>`;
+  document.body.appendChild(q);
+  const qw = q.offsetWidth;
+  q.style.left = Math.min(e.clientX, window.innerWidth - qw - 8) + "px";
+  q.style.top = Math.min(e.clientY, window.innerHeight - q.offsetHeight - 8) + "px";
+  const inp = q.querySelector("[data-oc-q-title]"); inp.focus();
+  inp.addEventListener("keydown", (ev) => { if (ev.key === "Enter") q.querySelector('[data-oc-q="create"]').click(); if (ev.key === "Escape") q.remove(); });
+  q.addEventListener("click", async (ev) => {
+    const b = ev.target.closest("[data-oc-q]"); if (!b) return;
+    const which = b.getAttribute("data-oc-q");
+    if (which === "more") { q.remove(); _ivcalNewEvent(dateISO, startMin, startMin+30); return; }
+    const title = inp.value.trim();
+    if (!title) { inp.focus(); return; }
+    b.disabled = true; b.textContent = "…";
+    const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+    try {
+      const { error } = await sb.rpc("create_calendar_event", {
+        p_title: title, p_starts_at: _ivLocalToISO(dateISO, _ivMinToHHMM(startMin), tz),
+        p_ends_at: _ivLocalToISO(dateISO, _ivMinToHHMM(startMin+30), tz),
+        p_invitees: [], p_note: null, p_timezone: tz, p_meeting_url: null,
+        p_body_text: null, p_body_html: null, p_rsvp_token: null,
+      });
+      if (error) throw error;
+      q.remove(); toast("Event created", "success"); loadIvCalendar();
+    } catch (err) { toast("Couldn't create: " + (err.message || err), "warn"); b.disabled = false; b.textContent = "Create"; }
+  });
+  setTimeout(() => document.addEventListener("mousedown", function off(ev) { if (!q.contains(ev.target)) { q.remove(); document.removeEventListener("mousedown", off); } }), 0);
+}
+
+async function _ivcalDeleteEvent(kind, id, notify) {
+  const ev = _ivcalFindEv(kind, id); if (!ev) return;
+  if (kind === "session") {
+    if (!confirm("Remove this group session?")) return;
+    try { await sb.rpc("interview_session_remove", { p_id: id }); } catch (e) { return toast("Couldn't remove: " + (e.message||e), "warn"); }
+    _ivcalSelected = null; loadIvCalendar(); return;
+  }
+  if (!confirm("Cancel this event? Attendees will be notified and it will be removed.")) return;
+  try {
+    if (notify) {
+      const dsp = window.RR && window.RR.dsp && window.RR.dsp.id;
+      const emails = (ev.kind === "event")
+        ? ((ev.metadata && Array.isArray(ev.metadata.invitees)) ? ev.metadata.invitees.filter(x => typeof x === "string" && x.includes("@")) : [])
+        : ((ev.applicants && ev.applicants.email) ? [ev.applicants.email] : []);
+      const { dateStr, timeStr } = _ivcalFmtWhen(ev);
+      const titl = ev.title || (ev.kind === "orientation" ? "Orientation" : "Interview");
+      if (dsp && emails.length) {
+        const rows = emails.map(em => ({ dsp_id: dsp, direction: "outbound", status: "queued", to_email: em,
+          subject: "Canceled: " + titl,
+          body_text: `Hi,\n\nThis meeting has been canceled:\n${titl}\n${dateStr}, ${timeStr}\n\nApologies for any inconvenience — we'll be in touch if it's rescheduled.` }));
+        await sb.from("email_messages").insert(rows);
+      }
+    }
+    const { error } = await sb.rpc("cancel_cal_event_silent", { p_event_id: id });
+    if (error) throw error;
+    toast("Event canceled", "success");
+    _ivcalSelected = null; loadIvCalendar();
+    if (typeof loadCalBookingsList === "function") loadCalBookingsList();
+  } catch (e) { toast("Couldn't cancel: " + (e.message || e), "warn"); }
+}
+
+// Keyboard shortcuts (installed once). Active only when the calendar tab is on
+// screen and the user isn't typing in a field.
+let _ivcalKeysInstalled = false;
+function _ivcalInstallKeys() {
+  if (_ivcalKeysInstalled) return; _ivcalKeysInstalled = true;
+  document.addEventListener("keydown", (e) => {
+    const cal = document.getElementById("rr-ivcal");
+    if (!cal || !cal.offsetParent) return;                 // calendar not visible
+    const tag = (document.activeElement && document.activeElement.tagName) || "";
+    if (/INPUT|TEXTAREA|SELECT/.test(tag) || document.activeElement?.isContentEditable) return;
+    if (document.getElementById("rr-ivcal-new") || document.getElementById("rr-em-composer")) return; // editor/composer open
+    if (e.key === "Escape") { if (document.querySelector(".oc-menu,.oc-quick,.oc-hover")) { _ivcalCloseMenus(); } else _ivcalDeselect(); }
+    else if (e.key === "n" || e.key === "N") { e.preventDefault(); _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30); }
+    else if (e.key === "t" || e.key === "T") { _ivcalNav(0); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); _ivcalNav(-1); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); _ivcalNav(1); }
+    else if ((e.key === "Delete" || e.key === "Backspace") && _ivcalSelected) { e.preventDefault(); _ivcalDeleteEvent(_ivcalSelected.kind, _ivcalSelected.id, true); }
+    else if ((e.key === "c" || e.key === "C") && (e.metaKey || e.ctrlKey) && _ivcalSelected) { _ivcalClipboard = _ivcalFindEv(_ivcalSelected.kind, _ivcalSelected.id); if (_ivcalClipboard) toast("Event copied", "info"); }
+  });
 }
 
 // ── Native interview availability editor (RouteReady-owned scheduling) ──
