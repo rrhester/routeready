@@ -1,27 +1,15 @@
-// interview-room · Creates a Whereby video room for a freshly-booked native
+// interview-room · Assigns a Jitsi video room to a freshly-booked native
 // interview, stores the join URL on the cal_event, and queues the DSP-branded
 // confirmation email. Group sessions share ONE room (stored on the session).
 // Fired by the cal_events trigger (private.fire_interview_room) via pg_net.
 // Deployed --no-verify-jwt; gated by the shared x-rr-sync-token.
+//
+// Video uses Jitsi (meet.jit.si): no API key / server call, just a unique
+// unguessable room URL — Whereby's API edge was blocking room creation (403).
 import { serviceClient, jsonResponse } from "../_shared/supabase.ts";
 
-const WHEREBY_API = "https://api.whereby.com/v1/meetings";
-
-async function createRoom(endIso: string, group: boolean): Promise<string> {
-  const res = await fetch(WHEREBY_API, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${(Deno.env.get("WHEREBY_API_KEY") || "").trim()}`,
-      "content-type": "application/json",
-      "accept": "application/json",
-      // A real UA — Deno's default UA is blocked by Whereby's WAF (403 HTML).
-      "user-agent": "RouteReady/1.0 (+https://gorouteready.com)",
-    },
-    body: JSON.stringify({ endDate: endIso, roomMode: group ? "group" : "normal", fields: ["hostRoomUrl"] }),
-  });
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok || !j.roomUrl) throw new Error("whereby_create_failed: " + (j?.error || res.status));
-  return j.roomUrl as string;
+function createRoom(): string {
+  return "https://meet.jit.si/RouteReady-" + crypto.randomUUID().replace(/-/g, "");
 }
 
 Deno.serve(async (req) => {
@@ -37,9 +25,6 @@ Deno.serve(async (req) => {
     .eq("id", cal_event_id).maybeSingle();
   if (!ev) return jsonResponse({ ok: true, skipped: "no_event" });
   if (ev.meeting_url) return jsonResponse({ ok: true, skipped: "has_url" });
-  if (!Deno.env.get("WHEREBY_API_KEY")) return jsonResponse({ ok: true, skipped: "no_key" });
-
-  const endPlus = (iso: string | null) => new Date(new Date(iso || ev.starts_at).getTime() + 60 * 60_000).toISOString();
 
   // Free-form event (no applicant): invitees come from metadata.invitees.
   const invitees: string[] = Array.isArray(ev.metadata?.invitees)
@@ -56,11 +41,11 @@ Deno.serve(async (req) => {
       if (s?.meeting_url) {
         roomUrl = s.meeting_url;
       } else if (s) {
-        roomUrl = await createRoom(endPlus(s.ends_at), (s.capacity || 1) > 1);
+        roomUrl = createRoom();
         await supa.from("interview_sessions").update({ meeting_url: roomUrl }).eq("id", s.id);
       }
     } else {
-      roomUrl = await createRoom(endPlus(ev.ends_at), invitees.length > 1);
+      roomUrl = createRoom();
     }
     if (!roomUrl) return jsonResponse({ ok: true, skipped: "no_room" });
 
