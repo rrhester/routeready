@@ -263,3 +263,5 @@ Deno.serve(async (req) => {
 
   return jsonResponse({ sent, total: rows.length });
 });
+
+// redeploy: retry after a transient JWT-gated deploy failure (no logic change)
