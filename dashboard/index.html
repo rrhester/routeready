@@ -12497,7 +12497,8 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .rr-ivcal-col.today{background:rgba(15,108,189,.03)}
             #rr-ivcal .rr-ivcal-line{position:absolute;left:0;right:0;border-top:1px solid var(--border);opacity:.55}
             #rr-ivcal .rr-ivcal-avail{position:absolute;left:0;right:0;background:rgba(15,108,189,.10);border-left:3px solid rgba(15,108,189,.5)}
-            #rr-ivcal .rr-ivcal-ev{position:absolute;left:3px;right:3px;border-radius:6px;padding:3px 6px;overflow:hidden;font-size:11px;line-height:1.25;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+            #rr-ivcal .rr-ivcal-ev{position:absolute;left:3px;right:3px;border-radius:6px;padding:3px 6px;overflow:hidden;font-size:11px;line-height:1.25;color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.12);cursor:pointer;transition:filter .1s,box-shadow .1s}
+            #rr-ivcal .rr-ivcal-ev:hover{filter:brightness(1.07);box-shadow:0 2px 6px rgba(0,0,0,.22)}
             #rr-ivcal .rr-ivcal-ev.interview{background:#0F6CBD}
             #rr-ivcal .rr-ivcal-ev.orient{background:#7C3AED}
             #rr-ivcal .rr-ivcal-ev.session{background:#0E7C66}
@@ -12514,7 +12515,8 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .rr-ivcal-m-cell.out .rr-ivcal-m-num{color:var(--text-subtle);opacity:.6}
             #rr-ivcal .rr-ivcal-m-num{font-size:12px;font-weight:600;color:var(--text);width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:50%;margin-bottom:2px}
             #rr-ivcal .rr-ivcal-m-num.today{background:#0F6CBD;color:#fff}
-            #rr-ivcal .rr-ivcal-pill{display:flex;align-items:center;gap:4px;font-size:10.5px;line-height:1.4;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:1px}
+            #rr-ivcal .rr-ivcal-pill{display:flex;align-items:center;gap:4px;font-size:10.5px;line-height:1.4;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:1px;cursor:pointer;border-radius:3px;padding:0 2px}
+            #rr-ivcal .rr-ivcal-pill:hover{background:rgba(15,108,189,.10)}
             #rr-ivcal .rr-ivcal-pdot{flex:none;width:6px;height:6px;border-radius:50%}
             #rr-ivcal .rr-ivcal-pill.interview .rr-ivcal-pdot{background:#0F6CBD}
             #rr-ivcal .rr-ivcal-pill.orient .rr-ivcal-pdot{background:#7C3AED}
@@ -12524,6 +12526,28 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .rr-ivcal-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--text-muted)}
             #rr-ivcal .rr-ivcal-legend span{display:inline-flex;align-items:center;gap:6px}
             #rr-ivcal .rr-ivcal-sw{width:11px;height:11px;border-radius:3px}
+            /* Event detail popup · mounted on <body>, so classes are global. */
+            .rr-ivcal-detail-overlay{position:fixed;inset:0;z-index:5000;background:rgba(15,23,42,.40);display:flex;align-items:center;justify-content:center;padding:24px;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+            .rr-ivcal-detail-card{position:relative;width:380px;max-width:100%;background:var(--surface,#fff);border:1px solid var(--border,rgba(15,23,42,.12));border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.30);padding:20px 22px 22px}
+            .rr-ivcal-detail-card .rr-ivd-close{position:absolute;top:10px;right:12px;appearance:none;border:0;background:transparent;font-size:22px;line-height:1;color:var(--text-subtle,#64748b);cursor:pointer;padding:2px 6px;border-radius:6px}
+            .rr-ivcal-detail-card .rr-ivd-close:hover{background:var(--canvas,#f1f5f9);color:var(--text,#0f172a)}
+            .rr-ivcal-detail-card .rr-ivd-title{font-size:18px;font-weight:700;color:var(--text,#0f172a);padding-right:28px;margin-bottom:8px}
+            .rr-ivcal-detail-card .rr-ivd-badges{margin-bottom:14px;display:flex;gap:6px;flex-wrap:wrap}
+            .rr-ivcal-detail-card .rr-ivd-badge{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:999px;color:#fff}
+            .rr-ivcal-detail-card .rr-ivd-badge.interview{background:#0F6CBD}
+            .rr-ivcal-detail-card .rr-ivd-badge.orient{background:#7C3AED}
+            .rr-ivcal-detail-card .rr-ivd-badge.session{background:#0E7C66}
+            .rr-ivcal-detail-card .rr-ivd-badge.resched{background:#B45309}
+            .rr-ivcal-detail-card .rr-ivd-rows{display:flex;flex-direction:column;gap:11px}
+            .rr-ivcal-detail-card .rr-ivd-row{display:grid;grid-template-columns:84px 1fr;gap:12px;align-items:start;font-size:13.5px}
+            .rr-ivcal-detail-card .rr-ivd-k{color:var(--text-subtle,#64748b);font-weight:600}
+            .rr-ivcal-detail-card .rr-ivd-v{color:var(--text,#0f172a);word-break:break-word}
+            .rr-ivcal-detail-card .rr-ivd-v a{color:#0F6CBD;text-decoration:none}
+            .rr-ivcal-detail-card .rr-ivd-v a:hover{text-decoration:underline}
+            .rr-ivcal-detail-card .rr-ivd-foot{margin-top:18px}
+            .rr-ivcal-detail-card .rr-ivd-btn{display:block;text-align:center;font-size:14px;font-weight:600;padding:10px 16px;border-radius:9px;text-decoration:none}
+            .rr-ivcal-detail-card .rr-ivd-btn.primary{background:#0F6CBD;color:#fff}
+            .rr-ivcal-detail-card .rr-ivd-btn.primary:hover{background:#0C5AA6}
           </style>
           <div id="rr-ivcal">
             <div id="rr-ivcal-body"><div class="rr-loading">Loading calendar…</div></div>
@@ -36706,7 +36730,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-iv-rules"></script>
+<script type="module" src="./live.js?v=20260608-iv-detail"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
