@@ -12530,6 +12530,10 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-ev.cat-teal{background:#E6F5F1;border-color:#CBEAE0;border-left-color:#0E7C66;color:#0B4F42}
             #rr-ivcal .oc-ev.cat-orange{border-left-style:dashed}
             #rr-ivcal .oc-ev.cat-gray.declined{text-decoration:line-through}
+            #rr-ivcal .oc-ev{cursor:pointer;user-select:none}
+            #rr-ivcal .oc-rz{position:absolute;left:0;right:0;bottom:0;height:7px;cursor:ns-resize}
+            #rr-ivcal .oc-ev.dragging{opacity:.9;box-shadow:0 6px 16px rgba(0,0,0,.28);z-index:7;cursor:grabbing}
+            #rr-ivcal .oc-cghost{position:absolute;left:2px;right:2px;background:rgba(15,108,189,.16);border:1px solid #0F6CBD;border-radius:2px;z-index:3;pointer-events:none;font-size:11px;color:#0F3D63;padding:1px 5px;overflow:hidden;font-weight:600}
             /* month */
             #rr-ivcal .oc-mhead{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--oc-line)}
             #rr-ivcal .oc-mdow{text-align:right;padding:4px 8px;font-size:11px;font-weight:600;color:var(--oc-sub);text-transform:uppercase}
@@ -36749,7 +36753,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-oc1"></script>
+<script type="module" src="./live.js?v=20260608-oc2"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

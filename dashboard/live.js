@@ -16208,7 +16208,7 @@ function _ivcalRender() {
   // Event interactions: single-click → reading pane; right-click → context
   // menu; hover → preview card.
   host.querySelectorAll("[data-ivcal-id]").forEach(el => {
-    el.addEventListener("click", (e) => { e.stopPropagation(); _ivcalSelect(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
+    el.addEventListener("click", (e) => { e.stopPropagation(); if (_ivcalSuppressClick) { _ivcalSuppressClick = false; return; } _ivcalSelect(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
     el.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); _ivcalContextMenu(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
     el.addEventListener("mouseenter", (e) => _ivcalHoverShow(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")));
     el.addEventListener("mouseleave", _ivcalHoverHide);
@@ -16224,6 +16224,7 @@ function _ivcalRender() {
     let t = null;
     col.addEventListener("click", (e) => {
       if (e.target.closest("[data-ivcal-id]")) return;
+      if (_ivcalSuppressClick) { _ivcalSuppressClick = false; return; }
       const min = slotMin(col, e), date = col.getAttribute("data-ivcal-date");
       clearTimeout(t); t = setTimeout(() => _ivcalQuickCreate(e, date, min), 220);
     });
@@ -16239,6 +16240,7 @@ function _ivcalRender() {
   });
 
   // Reading pane wiring; preserve scroll across re-renders, else scroll to now.
+  _ivcalInstallDrag(host);
   if (_ivcalSelected) _ivcalWirePane(host);
   const sc = document.getElementById("rr-ivcal-scroll");
   if (sc) { if (_prevScroll != null) sc.scrollTop = _prevScroll; else _ivcalAutoScroll(); }
@@ -16612,7 +16614,8 @@ function _ivcalEventBlock(ev, type) {
   const inner = (h < 30)
     ? `<div class="en"><span class="et">${escapeHtml(time)}</span> ${escapeHtml(label)}${ico}</div>`
     : `<div class="et">${escapeHtml(time)}${ico}</div><div class="en">${escapeHtml(label)}</div>`;
-  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(time+" · "+label)}">${inner}</div>`;
+  const rz = kindAttr === "booking" ? `<div class="oc-rz" data-oc-resize></div>` : "";
+  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
 }
 
 function _ivcalTimeGrid(ndays) {
@@ -16894,6 +16897,114 @@ function _ivcalInstallKeys() {
     else if (e.key === "ArrowRight") { e.preventDefault(); _ivcalNav(1); }
     else if ((e.key === "Delete" || e.key === "Backspace") && _ivcalSelected) { e.preventDefault(); _ivcalDeleteEvent(_ivcalSelected.kind, _ivcalSelected.id, true); }
     else if ((e.key === "c" || e.key === "C") && (e.metaKey || e.ctrlKey) && _ivcalSelected) { _ivcalClipboard = _ivcalFindEv(_ivcalSelected.kind, _ivcalSelected.id); if (_ivcalClipboard) toast("Event copied", "info"); }
+    else if ((e.key === "v" || e.key === "V") && (e.metaKey || e.ctrlKey) && _ivcalClipboard) { e.preventDefault(); _ivcalPaste(); }
+  });
+}
+
+// Duplicate the copied event as a new block at the same time.
+async function _ivcalPaste() {
+  const c = _ivcalClipboard; if (!c) return;
+  const title = c.kind === "event" ? (c.title || "Event") : (rrTitleCaseName((c.applicants||{}).full_name) || (c.label || "Interview"));
+  const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+  try {
+    const { error } = await sb.rpc("create_calendar_event", {
+      p_title: title, p_starts_at: c.starts_at, p_ends_at: c.ends_at || c.starts_at,
+      p_invitees: [], p_note: null, p_timezone: tz, p_meeting_url: null,
+      p_body_text: null, p_body_html: null, p_rsvp_token: null,
+    });
+    if (error) throw error;
+    toast("Pasted", "success"); loadIvCalendar();
+  } catch (e) { toast("Paste failed: " + (e.message || e), "warn"); }
+}
+
+// ── Drag-to-move, resize, and drag-to-create on the day/week grid ──────────
+let _ivcalDrag = null;            // active drag descriptor
+let _ivcalSuppressClick = false;  // set after a drag so the click doesn't also fire
+let _ivcalDragDocInstalled = false;
+const _ivcalSnap = (min) => Math.round(min / 15) * 15;
+function _ivcalColsNow() { const s = document.getElementById("rr-ivcal-scroll"); return s ? Array.from(s.querySelectorAll(".oc-col[data-ivcal-date]")) : []; }
+function _ivcalYToMin(col, clientY) { const r = col.getBoundingClientRect(); return _IVCAL_H0*60 + ((clientY - r.top) / _IVCAL_RH) * 60; }
+function _ivcalColAt(clientX) { for (const c of _ivcalColsNow()) { const r = c.getBoundingClientRect(); if (clientX >= r.left && clientX < r.right) return c; } return null; }
+const _ivcalTStr = (min) => { const x = new Date(); x.setHours(Math.floor(min/60), ((min%60)+60)%60, 0, 0); return x.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }); };
+
+function _ivcalInstallDrag() {
+  const scroll = document.getElementById("rr-ivcal-scroll");
+  if (scroll) {
+    scroll.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      const evEl = e.target.closest(".oc-ev");
+      const onHandle = !!e.target.closest("[data-oc-resize]");
+      const col = e.target.closest(".oc-col[data-ivcal-date]");
+      if (evEl) {
+        const kind = evEl.getAttribute("data-ivcal-kind"), id = evEl.getAttribute("data-ivcal-id");
+        if (kind === "session") return;
+        const ev = _ivcalFindEv(kind, id); if (!ev) return;
+        const s = new Date(ev.starts_at), en = ev.ends_at ? new Date(ev.ends_at) : new Date(s.getTime()+30*60000);
+        const startMin = s.getHours()*60 + s.getMinutes(), endMin = en.getHours()*60 + en.getMinutes();
+        e.preventDefault();
+        _ivcalDrag = { mode: onHandle ? "resize" : "move", el: evEl, kind, id,
+          startMin, endMin, dur: Math.max(15, endMin - startMin),
+          x0: e.clientX, y0: e.clientY, moved: false, col: evEl.closest(".oc-col"),
+          grabOffset: e.clientY - evEl.getBoundingClientRect().top };
+      } else if (col) {
+        const startMin = _ivcalSnap(_ivcalYToMin(col, e.clientY));
+        _ivcalDrag = { mode: "create", col, date: col.getAttribute("data-ivcal-date"), startMin, lo: startMin, hi: startMin + 30, x0: e.clientX, y0: e.clientY, moved: false, ghost: null };
+      }
+    });
+  }
+  if (_ivcalDragDocInstalled) return;
+  _ivcalDragDocInstalled = true;
+
+  document.addEventListener("mousemove", (e) => {
+    const d = _ivcalDrag; if (!d) return;
+    if (!d.moved && Math.abs(e.clientY - d.y0) < 4 && Math.abs(e.clientX - d.x0) < 4) return;
+    d.moved = true;
+    if (d.mode === "move") {
+      d.el.classList.add("dragging");
+      const overCol = _ivcalColAt(e.clientX) || d.col; d.curCol = overCol;
+      let ns = _ivcalSnap(_ivcalYToMin(overCol, e.clientY - d.grabOffset));
+      ns = Math.max(_IVCAL_H0*60, Math.min(_IVCAL_H1*60 - d.dur, ns));
+      d.newStart = ns;
+      if (d.el.parentElement !== overCol) overCol.appendChild(d.el);
+      d.el.style.top = _ivcalYpos(ns) + "px";
+      d.el.style.height = Math.max(18, _ivcalYpos(ns + d.dur) - _ivcalYpos(ns)) + "px";
+    } else if (d.mode === "resize") {
+      const endMin = Math.max(d.startMin + 15, Math.min(_IVCAL_H1*60, _ivcalSnap(_ivcalYToMin(d.col, e.clientY))));
+      d.newEnd = endMin;
+      d.el.style.height = Math.max(18, _ivcalYpos(endMin) - _ivcalYpos(d.startMin)) + "px";
+    } else if (d.mode === "create") {
+      const overCol = _ivcalColAt(e.clientX) || d.col; d.col = overCol; d.date = overCol.getAttribute("data-ivcal-date");
+      const cur = _ivcalSnap(_ivcalYToMin(overCol, e.clientY));
+      const lo = Math.max(_IVCAL_H0*60, Math.min(d.startMin, cur));
+      const hi = Math.max(lo + 15, Math.max(d.startMin, cur));
+      d.lo = lo; d.hi = hi;
+      if (!d.ghost) { d.ghost = document.createElement("div"); d.ghost.className = "oc-cghost"; }
+      if (d.ghost.parentElement !== overCol) overCol.appendChild(d.ghost);
+      d.ghost.style.top = _ivcalYpos(lo) + "px";
+      d.ghost.style.height = (_ivcalYpos(hi) - _ivcalYpos(lo)) + "px";
+      d.ghost.textContent = `${_ivcalTStr(lo)} – ${_ivcalTStr(hi)}`;
+    }
+  });
+
+  document.addEventListener("mouseup", async () => {
+    const d = _ivcalDrag; _ivcalDrag = null;
+    if (!d || !d.moved) { if (d && d.ghost) d.ghost.remove(); return; }
+    _ivcalSuppressClick = true;
+    const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+    try {
+      if (d.mode === "move" && d.newStart != null) {
+        const date = (d.curCol || d.col).getAttribute("data-ivcal-date");
+        await sb.from("cal_events").update({ starts_at: _ivLocalToISO(date, _ivMinToHHMM(d.newStart), tz), ends_at: _ivLocalToISO(date, _ivMinToHHMM(d.newStart + d.dur), tz) }).eq("id", d.id);
+        toast("Moved", "success"); loadIvCalendar();
+      } else if (d.mode === "resize" && d.newEnd != null) {
+        const date = d.col.getAttribute("data-ivcal-date");
+        await sb.from("cal_events").update({ ends_at: _ivLocalToISO(date, _ivMinToHHMM(d.newEnd), tz) }).eq("id", d.id);
+        toast("Updated", "success"); loadIvCalendar();
+      } else if (d.mode === "create") {
+        if (d.ghost) d.ghost.remove();
+        _ivcalNewEvent(d.date, d.lo, d.hi);
+      }
+    } catch (e) { toast("Couldn't update: " + (e.message || e), "warn"); loadIvCalendar(); }
   });
 }
 
