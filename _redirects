@@ -16,6 +16,7 @@
 /b/:token        /dashboard/booking.html?t=:token      302
 /c/:token        /dashboard/coaching.html?t=:token     302
 /r/:token        /dashboard/refer.html?r=:token        302
+/rsvp/:token     /dashboard/rsvp.html?t=:token          302
 
 # Public document-verification page. /verify/<token> and bare /verify
 # both resolve to verify.html (which also reads ?token=).
