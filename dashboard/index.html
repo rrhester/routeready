@@ -12472,32 +12472,38 @@ body.rr-cmdk-open{ overflow:hidden }
           <!-- Outlook-style calendar (Phase 1: dense desktop grid, reading pane,
                context menu, quick-create, hover preview, keyboard, categories). -->
           <style>
-            #rr-ivcal{--oc-line:#E1E1E1;--oc-line2:#EEEEEE;--oc-ink:#201F1E;--oc-sub:#605E5C;--oc-blue:#0F6CBD;
-              font-family:"Segoe UI","Segoe UI Web (West European)",-apple-system,BlinkMacSystemFont,Roboto,sans-serif;
-              background:#fff;border:1px solid var(--oc-line);border-radius:3px;margin:0 0 var(--s-4);color:var(--oc-ink);overflow:hidden}
+            /* Palette aligned with the Schedule / Onboarding surfaces so the
+               calendar reads as the same product: layered off-white surfaces
+               (no pure white), translucent slate hairlines, the Schedule blue
+               (#0F6CBD), and the app's Segoe UI Variable type. */
+            #rr-ivcal{--oc-line:rgba(15,23,42,.10);--oc-line2:rgba(15,23,42,.05);
+              --oc-ink:var(--text);--oc-sub:var(--text-subtle);--oc-blue:#0F6CBD;--oc-blue-strong:#115EA3;
+              --oc-surface:#F8F9FB;--oc-surface-2:#F2F3F6;--oc-hover:rgba(15,23,42,.04);--oc-today:rgba(15,108,189,.05);
+              font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+              background:var(--oc-surface);border:1px solid var(--oc-line);border-radius:8px;margin:0 0 var(--s-4);color:var(--oc-ink);overflow:hidden}
             #rr-ivcal .oc{display:flex;align-items:stretch;min-height:0}
             #rr-ivcal .oc-main{flex:1;min-width:0;display:flex;flex-direction:column}
             /* command bar */
-            #rr-ivcal .oc-bar{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--oc-line);background:#FAF9F8;flex-wrap:wrap}
-            #rr-ivcal .oc-btn{appearance:none;cursor:pointer;font:inherit;font-size:13px;color:var(--oc-ink);background:#fff;border:1px solid #D2D0CE;border-radius:3px;padding:4px 10px;display:inline-flex;align-items:center;gap:6px;line-height:1}
-            #rr-ivcal .oc-btn:hover{background:#F3F2F1}
+            #rr-ivcal .oc-bar{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--oc-line);background:var(--oc-surface-2);flex-wrap:wrap}
+            #rr-ivcal .oc-btn{appearance:none;cursor:pointer;font:inherit;font-size:13px;color:var(--oc-ink);background:var(--oc-surface);border:1px solid var(--border);border-radius:6px;padding:4px 10px;display:inline-flex;align-items:center;gap:6px;line-height:1}
+            #rr-ivcal .oc-btn:hover{background:var(--oc-hover)}
             #rr-ivcal .oc-btn.pri{background:var(--oc-blue);border-color:var(--oc-blue);color:#fff;font-weight:600}
-            #rr-ivcal .oc-btn.pri:hover{background:#0E5FA8}
+            #rr-ivcal .oc-btn.pri:hover{background:var(--oc-blue-strong)}
             #rr-ivcal .oc-ico{width:26px;height:26px;padding:0;justify-content:center;font-size:15px}
-            #rr-ivcal .oc-seg{display:inline-flex;border:1px solid #D2D0CE;border-radius:3px;overflow:hidden}
-            #rr-ivcal .oc-seg button{appearance:none;cursor:pointer;font:inherit;font-size:13px;color:var(--oc-ink);background:#fff;border:0;border-left:1px solid #D2D0CE;padding:4px 12px;line-height:1}
+            #rr-ivcal .oc-seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+            #rr-ivcal .oc-seg button{appearance:none;cursor:pointer;font:inherit;font-size:13px;color:var(--oc-ink);background:var(--oc-surface);border:0;border-left:1px solid var(--border);padding:4px 12px;line-height:1}
             #rr-ivcal .oc-seg button:first-child{border-left:0}
             #rr-ivcal .oc-seg button.on{background:var(--oc-blue);color:#fff;font-weight:600}
             #rr-ivcal .oc-zoom button{padding:4px 9px;font-size:15px;line-height:1;min-width:28px;justify-content:center}
             #rr-ivcal .oc-period{font-size:14px;font-weight:600;color:var(--oc-ink);margin:0 4px}
             #rr-ivcal .oc-sp{flex:1}
-            #rr-ivcal .oc-search{display:flex;align-items:center;gap:6px;border:1px solid #D2D0CE;border-radius:3px;padding:3px 8px;background:#fff;color:var(--oc-sub);font-size:12px}
+            #rr-ivcal .oc-search{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:6px;padding:3px 8px;background:var(--oc-surface);color:var(--oc-sub);font-size:12px}
             #rr-ivcal .oc-search input{border:0;outline:0;font:inherit;font-size:12px;width:120px;background:transparent;color:var(--oc-ink)}
             #rr-ivcal .oc-filters{display:flex;align-items:center;gap:12px}
             #rr-ivcal .oc-filters label{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--oc-sub);cursor:pointer}
             #rr-ivcal .oc-filters .dot{width:9px;height:9px;border-radius:2px;display:inline-block}
             /* day/week grid */
-            #rr-ivcal .oc-head{display:grid;grid-template-columns:50px repeat(var(--days),1fr);border-bottom:1px solid var(--oc-line);background:#fff;position:sticky;top:0;z-index:6}
+            #rr-ivcal .oc-head{display:grid;grid-template-columns:50px repeat(var(--days),1fr);border-bottom:1px solid var(--oc-line);background:var(--oc-surface);position:sticky;top:0;z-index:6}
             #rr-ivcal .oc-corner{border-right:1px solid var(--oc-line)}
             #rr-ivcal .oc-dh{text-align:center;padding:5px 0 6px;border-left:1px solid var(--oc-line2);cursor:pointer}
             #rr-ivcal .oc-dh .dow{font-size:11px;font-weight:600;color:var(--oc-sub);text-transform:uppercase;letter-spacing:.02em}
@@ -12508,27 +12514,29 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-grid{display:grid;grid-template-columns:50px repeat(var(--days),1fr);position:relative}
             #rr-ivcal .oc-gutter{position:relative}
             #rr-ivcal .oc-hr{position:relative;height:var(--rh)}
-            #rr-ivcal .oc-hr span{position:absolute;top:-7px;right:6px;font-size:11px;color:var(--oc-sub);font-variant-numeric:tabular-nums;background:#fff;padding:0 1px}
+            #rr-ivcal .oc-hr span{position:absolute;top:-7px;right:6px;font-size:11px;color:var(--oc-sub);font-variant-numeric:tabular-nums;background:var(--oc-surface);padding:0 1px}
             #rr-ivcal .oc-col{position:relative;border-left:1px solid var(--oc-line2);cursor:default}
-            #rr-ivcal .oc-col.today{background:#FFFCF4}
+            #rr-ivcal .oc-col.today{background:var(--oc-today)}
             #rr-ivcal .oc-hline{position:absolute;left:0;right:0;border-top:1px solid var(--oc-line)}
             #rr-ivcal .oc-hhline{position:absolute;left:0;right:0;border-top:1px solid var(--oc-line2)}
-            #rr-ivcal .oc-now{position:absolute;left:0;right:0;height:0;border-top:2px solid #D13438;z-index:5;pointer-events:none}
-            #rr-ivcal .oc-now::before{content:"";position:absolute;left:-4px;top:-4px;width:7px;height:7px;border-radius:50%;background:#D13438}
+            #rr-ivcal .oc-now{position:absolute;left:0;right:0;height:0;border-top:2px solid #B91C1C;z-index:5;pointer-events:none}
+            #rr-ivcal .oc-now::before{content:"";position:absolute;left:-4px;top:-4px;width:7px;height:7px;border-radius:50%;background:#B91C1C}
             #rr-ivcal .oc-avail{position:absolute;left:0;right:0;background:rgba(15,108,189,.06);border-left:2px solid rgba(15,108,189,.35)}
             /* event blocks · light category fill + colored left bar (modern Outlook) */
             #rr-ivcal .oc-ev{position:absolute;left:2px;right:2px;border:1px solid;border-left-width:3px;border-radius:2px;padding:1px 5px 1px 6px;overflow:hidden;font-size:11px;line-height:1.3;cursor:pointer;z-index:2}
             #rr-ivcal .oc-ev:hover{filter:brightness(.98);box-shadow:0 1px 3px rgba(0,0,0,.18)}
-            #rr-ivcal .oc-ev.sel{box-shadow:0 0 0 2px #fff,0 0 0 3px var(--oc-blue);z-index:4}
+            #rr-ivcal .oc-ev.sel{box-shadow:0 0 0 2px var(--oc-surface),0 0 0 3px var(--oc-blue);z-index:4}
             #rr-ivcal .oc-ev .et{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
             #rr-ivcal .oc-ev .en{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
             #rr-ivcal .oc-ev .ei{display:inline-flex;gap:2px;font-size:9px;opacity:.85;margin-left:3px;vertical-align:1px}
-            #rr-ivcal .oc-ev.cat-blue{background:#EAF1FB;border-color:#CFE0F6;border-left-color:#2563EB;color:#1B3B66}
-            #rr-ivcal .oc-ev.cat-green{background:#E9F6EE;border-color:#CDEBD8;border-left-color:#1F9D55;color:#14532D}
-            #rr-ivcal .oc-ev.cat-orange{background:#FDF3E7;border-color:#F6E2C6;border-left-color:#E08600;color:#7C4A03}
-            #rr-ivcal .oc-ev.cat-gray{background:#F2F2F2;border-color:#E1E1E1;border-left-color:#9AA0AA;color:#5B5F66}
-            #rr-ivcal .oc-ev.cat-red{background:#FCEBEA;border-color:#F6D2CF;border-left-color:#D13438;color:#7D1D16}
-            #rr-ivcal .oc-ev.cat-teal{background:#E6F5F1;border-color:#CBEAE0;border-left-color:#0E7C66;color:#0B4F42}
+            /* Event chips reuse the Schedule shift-chip palette so a booked
+               interview reads like a shift on the schedule grid. */
+            #rr-ivcal .oc-ev.cat-blue{background:rgba(15,108,189,.08);border-color:rgba(15,108,189,.20);border-left-color:#0F6CBD;color:#0E4F86}
+            #rr-ivcal .oc-ev.cat-green{background:rgba(16,124,65,.10);border-color:rgba(16,124,65,.22);border-left-color:#107C41;color:#0B5A2E}
+            #rr-ivcal .oc-ev.cat-orange{background:rgba(180,83,9,.10);border-color:rgba(180,83,9,.24);border-left-color:#B45309;color:#7C3A06}
+            #rr-ivcal .oc-ev.cat-gray{background:var(--oc-surface-2);border-color:var(--oc-line);border-left-color:#7C8698;color:var(--oc-sub)}
+            #rr-ivcal .oc-ev.cat-red{background:rgba(185,28,28,.08);border-color:rgba(185,28,28,.22);border-left-color:#B91C1C;color:#7D1717}
+            #rr-ivcal .oc-ev.cat-teal{background:rgba(14,124,102,.10);border-color:rgba(14,124,102,.22);border-left-color:#0E7C66;color:#0B4F42}
             #rr-ivcal .oc-ev.cat-orange{border-left-style:dashed}
             #rr-ivcal .oc-ev.cat-gray.declined{text-decoration:line-through}
             #rr-ivcal .oc-ev{cursor:pointer;user-select:none}
@@ -12541,21 +12549,21 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-mgrid{display:grid;grid-template-columns:repeat(7,1fr)}
             #rr-ivcal .oc-mcell{min-height:104px;border-top:1px solid var(--oc-line2);border-left:1px solid var(--oc-line2);padding:2px 3px 3px;cursor:default;overflow:hidden}
             #rr-ivcal .oc-mcell:nth-child(7n+1){border-left:0}
-            #rr-ivcal .oc-mcell.out{background:#FAFAFA}
-            #rr-ivcal .oc-mcell.out .oc-mnum{color:#B3B0AD}
+            #rr-ivcal .oc-mcell.out{background:var(--oc-surface-2)}
+            #rr-ivcal .oc-mcell.out .oc-mnum{color:var(--oc-sub);opacity:.7}
             #rr-ivcal .oc-mnum{font-size:12px;font-weight:600;color:var(--oc-ink);text-align:right;padding:1px 4px}
             #rr-ivcal .oc-mcell.today .oc-mnum{display:inline-block;float:right;background:var(--oc-blue);color:#fff;border-radius:50%;width:20px;height:20px;text-align:center;line-height:20px;padding:0}
             #rr-ivcal .oc-pill{display:flex;align-items:center;gap:5px;font-size:11px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 3px;border-radius:2px;cursor:pointer;clear:both}
-            #rr-ivcal .oc-pill:hover{background:#F3F2F1}
-            #rr-ivcal .oc-pill.sel{background:#DEECF9}
+            #rr-ivcal .oc-pill:hover{background:var(--oc-hover)}
+            #rr-ivcal .oc-pill.sel{background:rgba(15,108,189,.10)}
             #rr-ivcal .oc-pdot{flex:none;width:8px;height:8px;border-radius:2px}
-            #rr-ivcal .oc-pill.cat-blue .oc-pdot{background:#2563EB} #rr-ivcal .oc-pill.cat-green .oc-pdot{background:#1F9D55}
-            #rr-ivcal .oc-pill.cat-orange .oc-pdot{background:#E08600} #rr-ivcal .oc-pill.cat-gray .oc-pdot{background:#9AA0AA}
-            #rr-ivcal .oc-pill.cat-teal .oc-pdot{background:#0E7C66} #rr-ivcal .oc-pill.cat-red .oc-pdot{background:#D13438}
+            #rr-ivcal .oc-pill.cat-blue .oc-pdot{background:#0F6CBD} #rr-ivcal .oc-pill.cat-green .oc-pdot{background:#107C41}
+            #rr-ivcal .oc-pill.cat-orange .oc-pdot{background:#B45309} #rr-ivcal .oc-pill.cat-gray .oc-pdot{background:#7C8698}
+            #rr-ivcal .oc-pill.cat-teal .oc-pdot{background:#0E7C66} #rr-ivcal .oc-pill.cat-red .oc-pdot{background:#B91C1C}
             #rr-ivcal .oc-pill.declined{text-decoration:line-through;color:var(--oc-sub)}
             #rr-ivcal .oc-more{font-size:10px;color:var(--oc-sub);padding:0 4px;cursor:pointer}
             /* reading pane */
-            #rr-ivcal .oc-pane{flex:0 0 320px;width:320px;border-left:1px solid var(--oc-line);display:flex;flex-direction:column;background:#fff}
+            #rr-ivcal .oc-pane{flex:0 0 320px;width:320px;border-left:1px solid var(--oc-line);display:flex;flex-direction:column;background:var(--oc-surface)}
             #rr-ivcal .oc-pane-h{display:flex;align-items:flex-start;gap:8px;padding:12px 14px;border-bottom:1px solid var(--oc-line2)}
             #rr-ivcal .oc-pane-h .pt{font-size:15px;font-weight:600;line-height:1.25}
             #rr-ivcal .oc-pane-h .px{margin-left:auto;cursor:pointer;color:var(--oc-sub);font-size:16px;line-height:1;background:none;border:0}
@@ -12566,17 +12574,17 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-drow a{color:var(--oc-blue);text-decoration:none}
             #rr-ivcal .oc-pane-acts{padding:12px 14px;border-top:1px solid var(--oc-line2);display:flex;flex-wrap:wrap;gap:6px}
             /* context menu + hover */
-            .oc-menu{position:fixed;z-index:10000;background:#fff;border:1px solid #D2D0CE;border-radius:4px;box-shadow:0 6px 20px rgba(0,0,0,.22);padding:4px;min-width:180px;font-family:"Segoe UI",sans-serif}
-            .oc-menu button{display:flex;width:100%;align-items:center;gap:9px;appearance:none;background:none;border:0;cursor:pointer;font:inherit;font-size:13px;color:#201F1E;text-align:left;padding:7px 10px;border-radius:3px}
-            .oc-menu button:hover{background:#F3F2F1}
-            .oc-menu button.danger:hover{background:#FDECEA;color:#A4262C}
-            .oc-menu .sep{height:1px;background:#EDEBE9;margin:4px 0}
-            .oc-hover{position:fixed;z-index:10001;background:#fff;border:1px solid #D2D0CE;border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.22);padding:10px 12px;width:260px;font-family:"Segoe UI",sans-serif;pointer-events:none}
-            .oc-hover .hh{font-size:14px;font-weight:600;margin-bottom:2px;color:#201F1E}
-            .oc-hover .hr{font-size:12px;color:#605E5C;display:flex;gap:6px;margin-top:3px}
-            .oc-quick{position:fixed;z-index:10000;background:#fff;border:1px solid #D2D0CE;border-radius:4px;box-shadow:0 8px 24px rgba(0,0,0,.22);padding:10px;width:240px;font-family:"Segoe UI",sans-serif}
-            .oc-quick input{width:100%;box-sizing:border-box;border:1px solid #D2D0CE;border-radius:3px;padding:6px 8px;font:inherit;font-size:13px;margin-bottom:6px}
-            .oc-quick .qt{font-size:12px;color:#605E5C;margin-bottom:6px}
+            .oc-menu{position:fixed;z-index:10000;background:var(--surface-elevated,#FCFDFE);border:1px solid var(--border);border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.16);padding:4px;min-width:180px;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
+            .oc-menu button{display:flex;width:100%;align-items:center;gap:9px;appearance:none;background:none;border:0;cursor:pointer;font:inherit;font-size:13px;color:var(--text);text-align:left;padding:7px 10px;border-radius:6px}
+            .oc-menu button:hover{background:var(--accent-soft,rgba(15,108,189,.08))}
+            .oc-menu button.danger:hover{background:rgba(185,28,28,.10);color:#B91C1C}
+            .oc-menu .sep{height:1px;background:var(--border-subtle,rgba(15,23,42,.07));margin:4px 0}
+            .oc-hover{position:fixed;z-index:10001;background:var(--surface-elevated,#FCFDFE);border:1px solid var(--border);border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:10px 12px;width:260px;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;pointer-events:none}
+            .oc-hover .hh{font-size:14px;font-weight:600;margin-bottom:2px;color:var(--text)}
+            .oc-hover .hr{font-size:12px;color:var(--text-subtle);display:flex;gap:6px;margin-top:3px}
+            .oc-quick{position:fixed;z-index:10000;background:var(--surface-elevated,#FCFDFE);border:1px solid var(--border);border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:10px;width:240px;font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif}
+            .oc-quick input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 8px;font:inherit;font-size:13px;margin-bottom:6px}
+            .oc-quick .qt{font-size:12px;color:var(--text-subtle);margin-bottom:6px}
             .oc-quick .qa{display:flex;gap:6px;justify-content:flex-end}
           </style>
           <div id="rr-ivcal" tabindex="0">
@@ -36746,7 +36754,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-oc7"></script>
+<script type="module" src="./live.js?v=20260608-oc8"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
