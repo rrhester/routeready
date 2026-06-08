@@ -16268,11 +16268,22 @@ function _ivcalRender() {
 // makes the whole PAGE scroll — only the grid scrolls internally, keeping the
 // toolbar and the sticky day header fixed in place. Recomputed on resize.
 let _ivcalFitInstalled = false;
+function _ivcalScrollParent(el) {
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const s = getComputedStyle(p);
+    if (/(auto|scroll)/.test(s.overflowY) && p.scrollHeight > p.clientHeight + 1) return p;
+  }
+  return null;
+}
 function _ivcalFitHeight() {
   const sc = document.getElementById("rr-ivcal-scroll");
   if (!sc) return;
   const top = sc.getBoundingClientRect().top;        // live position below toolbar + day header
-  const avail = window.innerHeight - top - 14;        // leave a small bottom gap
+  // Fit to whichever actually scrolls — an inner content pane or the window —
+  // so the calendar never overflows it and forces the toolbar/header out of view.
+  const parent = _ivcalScrollParent(sc);
+  const bottom = parent ? parent.getBoundingClientRect().bottom : window.innerHeight;
+  const avail = Math.min(window.innerHeight, bottom) - top - 14; // small bottom gap
   sc.style.height = Math.max(320, avail) + "px";
   if (!_ivcalFitInstalled) {
     _ivcalFitInstalled = true;
