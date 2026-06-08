@@ -12493,7 +12493,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .rr-ivcal-gutter{position:relative}
             #rr-ivcal .rr-ivcal-hr{position:relative;border-top:1px solid transparent}
             #rr-ivcal .rr-ivcal-hr span{position:absolute;top:-7px;right:6px;font-size:10px;color:var(--text-subtle);font-variant-numeric:tabular-nums}
-            #rr-ivcal .rr-ivcal-col{position:relative;border-left:1px solid var(--border)}
+            #rr-ivcal .rr-ivcal-col{position:relative;border-left:1px solid var(--border);cursor:pointer}
             #rr-ivcal .rr-ivcal-col.today{background:rgba(15,108,189,.03)}
             #rr-ivcal .rr-ivcal-line{position:absolute;left:0;right:0;border-top:1px solid var(--border);opacity:.55}
             #rr-ivcal .rr-ivcal-avail{position:absolute;left:0;right:0;background:rgba(15,108,189,.10);border-left:3px solid rgba(15,108,189,.5)}
@@ -12502,13 +12502,14 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .rr-ivcal-ev.interview{background:#0F6CBD}
             #rr-ivcal .rr-ivcal-ev.orient{background:#7C3AED}
             #rr-ivcal .rr-ivcal-ev.session{background:#0E7C66}
+            #rr-ivcal .rr-ivcal-ev.event{background:#475569}
             #rr-ivcal .rr-ivcal-ev-t{font-weight:700;opacity:.95}
             #rr-ivcal .rr-ivcal-ev-n{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
             /* month */
             #rr-ivcal .rr-ivcal-m-head{display:grid;grid-template-columns:repeat(7,1fr)}
             #rr-ivcal .rr-ivcal-m-dow{text-align:center;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);padding:4px 0 8px}
             #rr-ivcal .rr-ivcal-m-grid{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--border);border-radius:8px;overflow:hidden}
-            #rr-ivcal .rr-ivcal-m-cell{min-height:96px;border-top:1px solid var(--border);border-left:1px solid var(--border);padding:4px 5px 5px}
+            #rr-ivcal .rr-ivcal-m-cell{min-height:96px;border-top:1px solid var(--border);border-left:1px solid var(--border);padding:4px 5px 5px;cursor:pointer}
             #rr-ivcal .rr-ivcal-m-cell:nth-child(7n+1){border-left:0}
             #rr-ivcal .rr-ivcal-m-cell:nth-child(-n+7){border-top:0}
             #rr-ivcal .rr-ivcal-m-cell.out{background:var(--canvas)}
@@ -12521,6 +12522,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .rr-ivcal-pill.interview .rr-ivcal-pdot{background:#0F6CBD}
             #rr-ivcal .rr-ivcal-pill.orient .rr-ivcal-pdot{background:#7C3AED}
             #rr-ivcal .rr-ivcal-pill.session .rr-ivcal-pdot{background:#0E7C66}
+            #rr-ivcal .rr-ivcal-pill.event .rr-ivcal-pdot{background:#475569}
             #rr-ivcal .rr-ivcal-more{font-size:10px;color:var(--text-subtle);font-weight:600;margin-top:1px}
             /* legend */
             #rr-ivcal .rr-ivcal-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--text-muted)}
@@ -12534,6 +12536,8 @@ body.rr-cmdk-open{ overflow:hidden }
               <span><i class="rr-ivcal-sw" style="background:#0F6CBD"></i>Interview</span>
               <span><i class="rr-ivcal-sw" style="background:#7C3AED"></i>Orientation</span>
               <span><i class="rr-ivcal-sw" style="background:#0E7C66"></i>Group session</span>
+              <span><i class="rr-ivcal-sw" style="background:#475569"></i>Event</span>
+              <span style="margin-left:auto;color:var(--text-subtle)">Tip: click an empty slot to create an event</span>
             </div>
           </div>
 
@@ -36708,7 +36712,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-iv-fwd2"></script>
+<script type="module" src="./live.js?v=20260608-iv-create"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

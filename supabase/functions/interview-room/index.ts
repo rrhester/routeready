@@ -27,13 +27,18 @@ Deno.serve(async (req) => {
 
   const supa = serviceClient();
   const { data: ev } = await supa.from("cal_events")
-    .select("id,dsp_id,applicant_id,starts_at,ends_at,meeting_url,interview_session_id,timezone")
+    .select("id,dsp_id,applicant_id,kind,title,metadata,starts_at,ends_at,meeting_url,interview_session_id,timezone")
     .eq("id", cal_event_id).maybeSingle();
   if (!ev) return jsonResponse({ ok: true, skipped: "no_event" });
   if (ev.meeting_url) return jsonResponse({ ok: true, skipped: "has_url" });
   if (!Deno.env.get("WHEREBY_API_KEY")) return jsonResponse({ ok: true, skipped: "no_key" });
 
   const endPlus = (iso: string | null) => new Date(new Date(iso || ev.starts_at).getTime() + 60 * 60_000).toISOString();
+
+  // Free-form event (no applicant): invitees come from metadata.invitees.
+  const invitees: string[] = Array.isArray(ev.metadata?.invitees)
+    ? ev.metadata.invitees.filter((e: unknown) => typeof e === "string" && (e as string).includes("@"))
+    : [];
 
   try {
     let roomUrl: string | null = null;
@@ -49,21 +54,22 @@ Deno.serve(async (req) => {
         await supa.from("interview_sessions").update({ meeting_url: roomUrl }).eq("id", s.id);
       }
     } else {
-      roomUrl = await createRoom(endPlus(ev.ends_at), false);
+      roomUrl = await createRoom(endPlus(ev.ends_at), invitees.length > 1);
     }
     if (!roomUrl) return jsonResponse({ ok: true, skipped: "no_room" });
 
     await supa.from("cal_events").update({ meeting_url: roomUrl }).eq("id", ev.id);
 
-    // DSP-branded confirmation email (send-email applies the DSP name + reply-to).
+    const tz = ev.timezone || "America/Chicago";
+    const when = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz, weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit",
+    }).format(new Date(ev.starts_at));
+
+    // DSP-branded notification (send-email applies the DSP name + reply-to).
     if (ev.applicant_id) {
       const { data: app } = await supa.from("applicants")
         .select("first_name,full_name,email").eq("id", ev.applicant_id).maybeSingle();
       if (app?.email) {
-        const tz = ev.timezone || "America/Chicago";
-        const when = new Intl.DateTimeFormat("en-US", {
-          timeZone: tz, weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit",
-        }).format(new Date(ev.starts_at));
         const name = app.first_name || (app.full_name || "").split(" ")[0] || "there";
         const body =
 `Hi ${name},
@@ -80,6 +86,26 @@ No app or download needed — just open the link on your phone or computer at yo
           to_email: app.email, subject: "Your interview is confirmed", body_text: body,
         });
       }
+    } else if (invitees.length > 0) {
+      // Free-form event — branded invite to every listed email.
+      const title = (ev.title || "You're invited").trim();
+      const note = typeof ev.metadata?.note === "string" ? ev.metadata.note.trim() : "";
+      const body =
+`Hi,
+
+You're invited:
+${title}
+${when} (${tz.replace("_", " ")})
+
+Join the video meeting here:
+${roomUrl}
+${note ? "\n" + note + "\n" : ""}
+No app or download needed — just open the link on your phone or computer at the time above.`;
+      const rows = invitees.map((email) => ({
+        dsp_id: ev.dsp_id, direction: "outbound", status: "queued",
+        to_email: email, subject: title, body_text: body,
+      }));
+      await supa.from("email_messages").insert(rows);
     }
     return jsonResponse({ ok: true, room: true });
   } catch (e) {
