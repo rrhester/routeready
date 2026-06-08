@@ -16158,7 +16158,9 @@ function _ivcalCat(ev, kind) {
   if (r === "declined") return "gray";
   return "blue";
 }
-const _IVCAL_CAT_COLOR = { blue:"#2563EB", green:"#1F9D55", orange:"#E08600", gray:"#9AA0AA", teal:"#0E7C66", red:"#D13438" };
+// Schedule-aligned palette so the calendar's category dots/tags match the
+// shift-chip colors used across the Schedule and Onboarding surfaces.
+const _IVCAL_CAT_COLOR = { blue:"#0F6CBD", green:"#107C41", orange:"#B45309", gray:"#7C8698", teal:"#0E7C66", red:"#B91C1C" };
 function _ivcalEvKind(ev) { return ev.kind === "orientation" ? "orientation" : (ev.kind === "event" ? "event" : "interview"); }
 
 async function loadIvCalendar() {
