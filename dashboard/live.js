@@ -16040,7 +16040,7 @@ const CAL_TZS = [
 ];
 
 async function loadCalendarTab() {
-  await Promise.all([loadCalBookingsList(), loadCalAvailabilityEditor(), loadIvCalendar(), loadInterviewAvailabilityEditor()]);
+  await Promise.all([loadCalBookingsList(), loadIvCalendar(), loadInterviewAvailabilityEditor()]);
 }
 
 // ── Native interview calendar · Day / Week / Month ────────────────────────
