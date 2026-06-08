@@ -5561,6 +5561,10 @@ window.obSub = function (which) {
   show("obsub-overview",  which === "overview");
   show("obsub-workauth",  which === "workauth");
   show("obsub-pipeline",  isPipe);
+  // The onboarding KPI band belongs on the Onboarding (overview) page and the
+  // Funnel (its own funnel metrics). Hide it on Interview / Calendar / Work
+  // auth so those views start right under the icon strip.
+  show("rr-ob-kpis",      which === "overview" || which === "funnel");
   // Calendar view tiles live permanently on the strip — keep their active
   // highlight in sync (cleared whenever we're not on the Calendar view).
   if (typeof _ivcalSyncStripView === "function") _ivcalSyncStripView(which === "calendar");
