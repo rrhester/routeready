@@ -16780,10 +16780,13 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-card{position:fixed;pointer-events:auto;background:var(--surface);display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);box-shadow:0 24px 70px rgba(15,23,42,.36)}
       #rr-ivcal-new .rr-ne-card.is-max{inset:0;border-radius:0}
       #rr-ivcal-new .rr-ne-card.is-restored{left:50%;top:50%;transform:translate(-50%,-50%);width:min(1000px,96vw);height:min(86vh,840px);border-radius:12px}
-      #rr-ivcal-new .rr-ne-card.is-min{left:auto;right:18px;top:auto;bottom:18px;transform:none;width:300px;height:auto;border-radius:10px}
+      #rr-ivcal-new .rr-ne-card.is-float{transform:none;border-radius:12px}
+      /* Minimized · a compact title bar docked at the bottom-left, like Outlook. */
+      #rr-ivcal-new .rr-ne-card.is-min{left:16px;right:auto;top:auto;bottom:0;transform:none;width:300px;height:auto;border-radius:10px 10px 0 0}
       #rr-ivcal-new .rr-ne-card.is-min .rr-ne-ribbon,#rr-ivcal-new .rr-ne-card.is-min .rr-ne-fields{display:none}
-      #rr-ivcal-new .rr-ne-titlebar{display:flex;align-items:center;height:38px;padding:0 4px 0 12px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));background:var(--surface-secondary,#F2F3F6)}
-      #rr-ivcal-new .rr-ne-tt{flex:1;font-size:12px;font-weight:600;color:var(--text-subtle);cursor:default;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+      #rr-ivcal-new .rr-ne-card.is-min .rr-ne-titlebar{cursor:pointer}
+      #rr-ivcal-new .rr-ne-titlebar{display:flex;align-items:center;height:38px;padding:0 4px 0 12px;border-bottom:1px solid var(--border-subtle,rgba(15,23,42,.06));background:var(--surface-secondary,#F2F3F6);cursor:move;user-select:none}
+      #rr-ivcal-new .rr-ne-tt{flex:1;font-size:12px;font-weight:600;color:var(--text-subtle);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
       #rr-ivcal-new .rr-ne-wins{display:flex;gap:1px}
       #rr-ivcal-new .rr-ne-win{width:42px;height:30px;border:0;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;color:var(--text-muted)}
       #rr-ivcal-new .rr-ne-win:hover{background:rgba(15,23,42,.07)}
@@ -16798,6 +16801,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       #rr-ivcal-new .rr-ne-ico.send{color:#fff;background:var(--accent);font-weight:600}
       #rr-ivcal-new .rr-ne-ico.send:hover{background:var(--accent-hover)}
       #rr-ivcal-new .rr-ne-ico svg{width:26px;height:26px}
+      #rr-ivcal-new .rr-ne-ico,#rr-ivcal-new .rr-ne-win{transition:background var(--t-fast),color var(--t-fast),transform .12s cubic-bezier(.2,.7,.2,1)}
+      #rr-ivcal-new .rr-ne-ico:active,#rr-ivcal-new .rr-ne-win:active{transform:translateY(1px) scale(.97)}
       #rr-ivcal-new .rr-ne-fields{flex:1;min-height:0;display:flex;flex-direction:column;gap:11px;padding:16px 22px;box-sizing:border-box;overflow-y:auto}
       #rr-ivcal-new .rr-ne-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface-secondary,#F2F3F6);border:1px solid var(--border);border-radius:999px;padding:3px 10px;font-size:12px}
       #rr-ivcal-new .rr-ne-chip button{border:0;background:none;cursor:pointer;color:var(--text-subtle);font-size:14px;line-height:1}
@@ -16907,11 +16912,47 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
 
   // ── Window controls (minimize / restore-maximize / close) ──
   let prevMode = "is-max";
-  const closeEditor = () => { try { if (dictateRecog) dictateRecog.stop(); } catch(_){} m.remove(); };
+  const closeEditor = () => { try { if (dictateRecog) dictateRecog.stop(); } catch(_){} document.removeEventListener("mousemove", _neDragMove); document.removeEventListener("mouseup", _neDragUp); m.remove(); };
   function setMode(mode) {
-    card.classList.remove("is-max","is-restored","is-min");
+    card.classList.remove("is-max","is-restored","is-min","is-float");
     card.classList.add(mode);
+    // Class-driven modes own their geometry; clear any inline drag styles.
+    if (mode !== "is-float") { card.style.left = card.style.top = card.style.width = card.style.height = card.style.transform = ""; }
   }
+
+  // ── Drag the window by its title bar (Outlook-style) ──
+  let _neDrag = null;
+  const titlebarEl = card.querySelector(".rr-ne-titlebar");
+  titlebarEl.addEventListener("mousedown", (e) => {
+    if (e.button !== 0 || e.target.closest("[data-ne-win]")) return;
+    if (card.classList.contains("is-min")) return; // minimized bar restores on click, doesn't drag
+    let rect = card.getBoundingClientRect();
+    if (!card.classList.contains("is-float")) {
+      // Convert the current (maximized / restored) window into a floating one
+      // sized like the restored window, centered under the cursor.
+      const W = Math.min(1000, Math.round(window.innerWidth * 0.96));
+      const H = Math.min(Math.round(window.innerHeight * 0.86), 840);
+      card.classList.remove("is-max", "is-restored");
+      card.classList.add("is-float");
+      card.style.width = W + "px"; card.style.height = H + "px"; card.style.transform = "none";
+      let left = Math.max(8, Math.min(window.innerWidth - W - 8, e.clientX - W / 2));
+      let top = Math.max(8, e.clientY - 19);
+      card.style.left = left + "px"; card.style.top = top + "px";
+      rect = { left, top };
+    }
+    _neDrag = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+    e.preventDefault();
+  });
+  function _neDragMove(e) {
+    if (!_neDrag) return;
+    let l = e.clientX - _neDrag.dx, t = e.clientY - _neDrag.dy;
+    l = Math.max(-(card.offsetWidth - 120), Math.min(window.innerWidth - 120, l));
+    t = Math.max(0, Math.min(window.innerHeight - 40, t));
+    card.style.left = l + "px"; card.style.top = t + "px";
+  }
+  function _neDragUp() { _neDrag = null; }
+  document.addEventListener("mousemove", _neDragMove);
+  document.addEventListener("mouseup", _neDragUp);
   // ── Recurrence popover ──
   const recurPop = document.getElementById("rr-ne-recur-pop");
   function syncRecurUnit() {
