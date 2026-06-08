@@ -16173,14 +16173,27 @@ function _ivcalRender() {
   });
 }
 
-// ── Calendar event → email (opens the rich New-email composer) ─────────────
+// ── Calendar event → email (opens the rich composer prefilled with the
+//     interview/orientation invite details) ─────────────────────────────────
+function _ivcalFmtWhen(ev) {
+  const s = new Date(ev.starts_at);
+  const e = ev.ends_at ? new Date(ev.ends_at) : null;
+  const dateStr = s.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
+  const timeStr = s.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })
+    + (e ? " – " + e.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }) : "");
+  return { dateStr, timeStr };
+}
+
 function _ivcalOpenEmail(kind, id) {
   if (!_ivcalCache) return;
   const arr = kind === "session" ? _ivcalCache.sessions : _ivcalCache.bookings;
   const ev = (arr || []).find(x => String(x.id) === String(id));
   if (!ev) return;
 
-  let to;
+  let to, subject, html;
+  const { dateStr, timeStr } = _ivcalFmtWhen(ev);
+  const link = (url) => `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`;
+
   if (kind === "session") {
     // Everyone booked into this group session.
     const seen = new Set();
@@ -16190,14 +16203,32 @@ function _ivcalOpenEmail(kind, id) {
       .filter(em => (seen.has(em) ? false : (seen.add(em), true)));
     if (emails.length === 0) { toast("No one has booked this session yet — no one to email", "warn"); return; }
     to = emails.join(", ");
+    const room = ev.meeting_url;
+    subject = ev.label ? `${ev.label} — interview session details` : "Your interview session details";
+    html =
+      `<p>Hi all,</p>` +
+      `<p>Here are the details for your${ev.label ? " " + escapeHtml(ev.label) : ""} interview session:</p>` +
+      `<p><strong>${escapeHtml(dateStr)}</strong><br>${escapeHtml(timeStr)}</p>` +
+      (room ? `<p>Join the video interview here:<br>${link(room)}</p>` : "") +
+      `<p>No app or download needed — just open the link on your phone or computer at the time above. Reply to this email if you have any questions.</p>`;
   } else {
-    const email = (ev.applicants || {}).email;
-    if (!email) { toast("No email on file for this applicant", "warn"); return; }
-    to = email;
+    const a = ev.applicants || {};
+    if (!a.email) { toast("No email on file for this applicant", "warn"); return; }
+    to = a.email;
+    const first = (rrTitleCaseName(a.full_name) || "").split(" ")[0] || "there";
+    const word = ev.kind === "orientation" ? "orientation" : "interview";
+    const room = ev.meeting_url;
+    subject = `Your ${word} details`;
+    html =
+      `<p>Hi ${escapeHtml(first)},</p>` +
+      `<p>Here are your ${word} details:</p>` +
+      `<p><strong>${escapeHtml(dateStr)}</strong><br>${escapeHtml(timeStr)}</p>` +
+      (room ? `<p>Join the video ${word} here:<br>${link(room)}</p>` : "") +
+      `<p>No app or download needed — just open the link on your phone or computer at the time above. Reply to this email if you need to reschedule.</p>`;
   }
 
   if (typeof window.rrOpenEmailComposer === "function") {
-    window.rrOpenEmailComposer({ mode: "forward", to });
+    window.rrOpenEmailComposer({ mode: "forward", to, subject, html });
   } else {
     toast("Email composer isn't ready yet — try again in a moment", "warn");
   }
@@ -61772,7 +61803,7 @@ document.addEventListener("click", (e) => {
     return `\n\nOn ${when}, ${from} wrote:\n${quoted}`;
   }
 
-  function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "" } = {}) {
+  function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "", html: htmlPrefill = "" } = {}) {
     closeComposer();
     let to = "", cc = "", subject = "", body = "";
     const needs = (mode === "reply" || mode === "reply-all" || mode === "forward");
@@ -61802,6 +61833,7 @@ document.addEventListener("click", (e) => {
     // applicant's address already filled in) wins over the mode defaults.
     if (toPrefill) to = toPrefill;
     if (subjectPrefill) subject = subjectPrefill;
+    if (htmlPrefill) body = htmlPrefill;
     const titles = { "new": "New email", "reply": "Reply", "reply-all": "Reply all", "forward": "Forward" };
     const m = document.createElement("div");
     m.id = "rr-em-composer";
