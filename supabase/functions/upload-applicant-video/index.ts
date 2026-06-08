@@ -37,7 +37,12 @@ Deno.serve(async (req) => {
   if (!token) return jsonRespCors({ error: "token_required" }, 400);
   if (!(file instanceof File)) return jsonRespCors({ error: "video_required" }, 400);
   if (file.size > MAX_BYTES) return jsonRespCors({ error: "file_too_large" }, 413);
-  if (!ALLOWED_MIME.has(file.type)) return jsonRespCors({ error: "unsupported_mime: " + file.type }, 415);
+  // MediaRecorder reports the full codec string (e.g. "video/webm;codecs=vp9"
+  // on desktop Chrome), so match on the base MIME type, not an exact string —
+  // otherwise every desktop-recorded clip 415s while iOS (bare "video/mp4")
+  // slips through.
+  const baseMime = (file.type || "").split(";")[0].trim().toLowerCase();
+  if (!ALLOWED_MIME.has(baseMime)) return jsonRespCors({ error: "unsupported_mime: " + file.type }, 415);
 
   const supa = serviceClient();
 
@@ -53,7 +58,7 @@ Deno.serve(async (req) => {
     return jsonRespCors({ error: "screening_closed" }, 410);
   }
 
-  const ext = file.type === "video/mp4" ? "mp4" : (file.type === "video/quicktime" ? "mov" : "webm");
+  const ext = baseMime === "video/mp4" ? "mp4" : (baseMime === "video/quicktime" ? "mov" : "webm");
   const objectPath = `${app.dsp_id}/${app.id}/${Date.now()}.${ext}`;
 
   const arrayBuf = await file.arrayBuffer();
