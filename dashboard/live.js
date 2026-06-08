@@ -16332,6 +16332,7 @@ function _rrInviteEmail(o) {
   const btn = (href, label, bg) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:15px;line-height:1;padding:13px 28px;border-radius:8px">${label}</a>`;
   const detail = (icon, html) => `<tr><td style="padding:5px 12px 5px 0;font-size:18px;vertical-align:top;width:22px">${icon}</td><td style="padding:5px 0;font-size:15px;color:#1b1b1f;vertical-align:top">${html}</td></tr>`;
   const join = o.joinUrl ? detail("🎥", `<a href="${esc(o.joinUrl)}" style="color:#0F6CBD;font-weight:600;text-decoration:none">Join the video meeting</a>`) : "";
+  const loc = (o.location && o.location.trim()) ? detail("📍", esc(o.location.trim())) : "";
   const msg = (o.message && o.message.trim())
     ? `<div style="margin:18px 0 0;padding:14px 16px;background:#f6f8fb;border-radius:10px;font-size:15px;line-height:1.5;color:#3a3a45;white-space:pre-wrap">${esc(o.message.trim())}</div>` : "";
   const html =
@@ -16345,7 +16346,8 @@ function _rrInviteEmail(o) {
     <tr><td style="background:#ffffff;border:1px solid #e4e4e9;border-top:0;border-radius:0 0 14px 14px;padding:26px 28px">
       <div style="font-size:21px;font-weight:700;color:#16181d;margin-bottom:16px">${esc(o.title || "Interview")}</div>
       <table role="presentation" cellpadding="0" cellspacing="0">
-        ${detail("🗓️", `<strong>${esc(o.dateStr)}</strong><br><span style="color:#5a5a66">${esc(o.timeStr)}</span>`)}
+        ${detail("🗓️", `<strong>${esc(o.dateStr)}</strong>${o.timeStr ? `<br><span style="color:#5a5a66">${esc(o.timeStr)}</span>` : ""}`)}
+        ${loc}
         ${join}
       </table>
       ${msg}
@@ -16359,9 +16361,8 @@ function _rrInviteEmail(o) {
   const text =
 `You're invited — ${o.title || "Interview"}
 
-${o.dateStr}
-${o.timeStr}
-${o.joinUrl ? "\nJoin the video meeting: " + o.joinUrl + "\n" : ""}${(o.message && o.message.trim()) ? "\n" + o.message.trim() + "\n" : ""}
+${o.dateStr}${o.timeStr ? "\n" + o.timeStr : ""}
+${(o.location && o.location.trim()) ? o.location.trim() + "\n" : ""}${o.joinUrl ? "Join the video meeting: " + o.joinUrl + "\n" : ""}${(o.message && o.message.trim()) ? "\n" + o.message.trim() + "\n" : ""}
 Accept:  ${o.acceptUrl}
 Decline: ${o.declineUrl}
 Add to calendar: ${o.gcalUrl}`;
@@ -16377,107 +16378,118 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
   const old = document.getElementById("rr-ivcal-new");
   if (old) old.remove();
 
-  let roomUrl = "";        // filled once the room is minted
-  let bodyDirty = false;   // true once the operator edits the body manually
-  // Per-invite token for the public accept/decline page (/rsvp/<token>).
+  let roomUrl = "";
   const rsvpToken = ((typeof crypto !== "undefined" && crypto.randomUUID)
     ? crypto.randomUUID().replace(/-/g, "")
     : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
-  const rsvpBase = "https://gorouteready.com/rsvp/" + rsvpToken;
 
-  const fmtWhen = (date, start, end) => {
-    const d = new Date(date + "T00:00:00");
-    const dateStr = d.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
-    const t = (hhmm) => { const [h,mm] = String(hhmm||"").split(":").map(Number); const x = new Date(); x.setHours(h||0, mm||0, 0, 0); return x.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }); };
-    return { dateStr, timeStr: t(start) + (end ? " – " + t(end) : "") };
+  const INTERVIEW_TEMPLATE =
+`Hi,
+
+Thank you for your interest in driving with us — we'd like to invite you to a short video interview.
+
+What to expect:
+• About 30 minutes over video — no app or download needed
+• Please join from a quiet space with a stable internet connection
+• Have a valid driver's license handy
+
+Please use the Accept or Decline buttons below to confirm. We look forward to meeting you!`;
+
+  const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
+  const fmtTime = (hhmm) => { const [h,mm] = String(hhmm||"").split(":").map(Number); const x = new Date(); x.setHours(h||0, mm||0, 0, 0); return x.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }); };
+  const fmtRange = (sdate, stime, edate, etime, allDay) => {
+    const sameDay = !edate || edate === sdate;
+    if (allDay) return { dateStr: sameDay ? fmtDate(sdate) : `${fmtDate(sdate)} – ${fmtDate(edate)}`, timeStr: "All day" };
+    if (sameDay) return { dateStr: fmtDate(sdate), timeStr: `${fmtTime(stime)} – ${fmtTime(etime)}` };
+    return { dateStr: `${fmtDate(sdate)} ${fmtTime(stime)} – ${fmtDate(edate)} ${fmtTime(etime)}`, timeStr: "" };
   };
-  // The body is just a personal MESSAGE now — the event details + buttons are
-  // rendered by the clean invite template (_rrInviteEmail) when it's sent.
-  const buildBody = () => "Hi,\n\nLooking forward to meeting you. The details are below — please let us know if you can make it using the Accept or Decline buttons.";
-  const refreshBody = () => { if (!bodyDirty) { const b = document.getElementById("rr-ne-body"); if (b) b.value = buildBody(); } };
 
   const m = document.createElement("div");
   m.id = "rr-ivcal-new";
   m.style.cssText = "position:fixed;inset:0;background:var(--overlay,rgba(15,23,42,.40));z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box";
   const fld = "padding:9px 11px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box;background:var(--surface);color:var(--text)";
-  const lbl = "font-size:12px;font-weight:600;color:var(--text-subtle);min-width:64px";
+  const lbl = "font-size:12px;font-weight:600;color:var(--text-subtle);min-width:74px";
+  const row = (label, inner) => `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="${lbl}">${label}</span>${inner}</div>`;
   m.innerHTML = `
-    <div class="rr-ne-card" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.34);width:min(960px,96vw);height:min(86vh,780px);display:flex;flex-direction:column;overflow:hidden">
-      <div style="display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border)">
+    <div class="rr-ne-card" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.34);width:min(960px,96vw);height:min(88vh,820px);display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap">
         <div style="font-size:17px;font-weight:700;color:var(--text)">New event</div>
         <button id="rr-ne-create" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:7px">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           Send
         </button>
+        <button id="rr-ne-template" class="btn" style="display:inline-flex;align-items:center;gap:7px">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="8 15 11 18 16 13"/></svg>
+          Schedule a Meeting
+        </button>
         <span id="rr-ne-roomstate" style="font-size:12px;color:var(--text-subtle)">Creating video link…</span>
         <button class="btn btn-sm" data-rr-ne-close style="margin-left:auto">Close</button>
       </div>
-      <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:16px 20px;box-sizing:border-box">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="${lbl}">To</span>
-          <input id="rr-ne-invitees" type="text" placeholder="name@example.com, …" style="${fld};flex:1">
-        </div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="${lbl}">Subject</span>
-          <input id="rr-ne-title" type="text" placeholder="e.g. Phone screen with Acme" style="${fld};flex:1">
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="${lbl}">When</span>
-          <input id="rr-ne-date" type="date" value="${escapeHtml(dateISO)}" style="${fld}">
-          <input id="rr-ne-start" type="time" value="${_ivMinToHHMM(startMin)}" style="${fld}">
-          <span style="color:var(--text-subtle)">–</span>
-          <input id="rr-ne-end" type="time" value="${_ivMinToHHMM(endMin)}" style="${fld}">
-        </div>
-        <textarea id="rr-ne-body" style="${fld};flex:1;min-height:200px;resize:none;line-height:1.5;font-family:Calibri,Arial,sans-serif;font-size:14px"></textarea>
+      <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:11px;padding:16px 20px;box-sizing:border-box;overflow-y:auto">
+        ${row("Title *", `<input id="rr-ne-title" type="text" placeholder="e.g. Driver interview" style="${fld};flex:1;min-width:220px">`)}
+        ${row("Required", `<input id="rr-ne-required" type="text" placeholder="name@example.com, …" style="${fld};flex:1;min-width:220px">`)}
+        ${row("Optional", `<input id="rr-ne-optional" type="text" placeholder="optional attendees (comma-separated)" style="${fld};flex:1;min-width:220px">`)}
+        ${row("Start", `<input id="rr-ne-sdate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-stime" type="time" value="${_ivMinToHHMM(startMin)}" style="${fld}"><label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);margin-left:8px;cursor:pointer"><input id="rr-ne-allday" type="checkbox"> All day</label>`)}
+        ${row("End", `<input id="rr-ne-edate" type="date" value="${escapeHtml(dateISO)}" style="${fld}"><input id="rr-ne-etime" type="time" value="${_ivMinToHHMM(endMin)}" style="${fld}">`)}
+        ${row("Location", `<input id="rr-ne-location" type="text" placeholder="Online video meeting (link added automatically)" style="${fld};flex:1;min-width:220px">`)}
+        <textarea id="rr-ne-body" placeholder="Add a message (optional) — or click “Schedule a Meeting” to drop in the interview template" style="${fld};flex:1;min-height:170px;resize:none;line-height:1.5;font-family:Calibri,Arial,sans-serif;font-size:14px"></textarea>
       </div>
     </div>`;
   document.body.appendChild(m);
-  document.getElementById("rr-ne-body").value = buildBody();
-  const titleInp = document.getElementById("rr-ne-title");
-  if (titleInp) titleInp.focus();
+  document.getElementById("rr-ne-title").focus();
 
-  // Keep the body in sync with the header fields until the operator edits it.
-  ["rr-ne-title","rr-ne-date","rr-ne-start","rr-ne-end"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener("input", refreshBody);
+  // All-day toggle disables the time inputs.
+  const allday = document.getElementById("rr-ne-allday");
+  allday.addEventListener("change", () => {
+    ["rr-ne-stime","rr-ne-etime"].forEach(id => {
+      const el = document.getElementById(id);
+      el.disabled = allday.checked; el.style.opacity = allday.checked ? ".4" : "";
+    });
   });
-  document.getElementById("rr-ne-body").addEventListener("input", () => { bodyDirty = true; });
 
-  // Assign the video room up front so the link is in the body before sending.
+  // Assign the video room up front.
   roomUrl = _ivcalVideoRoom();
-  {
-    const state = document.getElementById("rr-ne-roomstate");
-    if (state) { state.textContent = "Video link ready ✓"; state.style.color = "var(--green)"; }
-    refreshBody();
-  }
+  { const st = document.getElementById("rr-ne-roomstate"); if (st) { st.textContent = "Video link ready ✓"; st.style.color = "var(--green)"; } }
 
   m.addEventListener("click", async (e) => {
     if (e.target === m || e.target.closest("[data-rr-ne-close]")) { m.remove(); return; }
+
+    // "Schedule a Meeting" → drop the interview template into the body.
+    if (e.target.closest("#rr-ne-template")) {
+      e.preventDefault();
+      document.getElementById("rr-ne-body").value = INTERVIEW_TEMPLATE;
+      const t = document.getElementById("rr-ne-title");
+      if (!t.value.trim()) t.value = "Driver interview";
+      toast("Interview template added", "success");
+      return;
+    }
+
     if (e.target.closest("#rr-ne-create")) {
-      const title = document.getElementById("rr-ne-title").value.trim();
-      const date  = document.getElementById("rr-ne-date").value;
-      const start = document.getElementById("rr-ne-start").value;
-      const end   = document.getElementById("rr-ne-end").value;
-      let bodyText = document.getElementById("rr-ne-body").value;
-      if (!title) { toast("Add a subject", "warn"); return; }
-      if (!date || !start) { toast("Pick a date and start time", "warn"); return; }
-      const invitees = document.getElementById("rr-ne-invitees").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
+      const title    = document.getElementById("rr-ne-title").value.trim();
+      const sdate    = document.getElementById("rr-ne-sdate").value;
+      const edate    = document.getElementById("rr-ne-edate").value || sdate;
+      const stime    = document.getElementById("rr-ne-stime").value;
+      const etime    = document.getElementById("rr-ne-etime").value || stime;
+      const isAllDay = document.getElementById("rr-ne-allday").checked;
+      const location = document.getElementById("rr-ne-location").value.trim();
+      const bodyText = document.getElementById("rr-ne-body").value;
+      if (!title) { toast("Add a title", "warn"); return; }
+      if (!sdate || (!isAllDay && !stime)) { toast("Pick a start date and time", "warn"); return; }
+      const required = document.getElementById("rr-ne-required").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
+      const optional = document.getElementById("rr-ne-optional").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
+      const invitees = Array.from(new Set([...required, ...optional]));
       const btn = e.target.closest("button");
       btn.disabled = true; btn.textContent = "Sending…";
-      // Belt-and-braces: ensure a room link exists before saving.
-      if (!roomUrl) {
-        roomUrl = _ivcalVideoRoom();
-        if (!bodyDirty) { bodyText = buildBody(); } else { bodyText = bodyText.replace("(creating link…)", roomUrl); }
-      }
-      const startISO = _ivLocalToISO(date, start, tz);
-      const endISO = _ivLocalToISO(date, end || start, tz);
+      if (!roomUrl) roomUrl = _ivcalVideoRoom();
+      const startISO = isAllDay ? _ivLocalToISO(sdate, "00:00", tz) : _ivLocalToISO(sdate, stime, tz);
+      const endISO   = isAllDay ? _ivLocalToISO(edate, "23:59", tz) : _ivLocalToISO(edate, etime, tz);
       const acceptUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/accept";
       const declineUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/decline";
-      const gcalUrl = _rrGcalUrl(title, startISO, endISO, roomUrl ? ("Join the video meeting: " + roomUrl) : "", roomUrl || "");
-      const { dateStr, timeStr } = fmtWhen(date, start, end);
+      const gcalUrl = _rrGcalUrl(title, startISO, endISO, roomUrl ? ("Join the video meeting: " + roomUrl) : "", location || roomUrl || "");
+      const { dateStr, timeStr } = fmtRange(sdate, stime, edate, etime, isAllDay);
       const inv = _rrInviteEmail({
         dspName: window.RR?.dsp?.name, title, dateStr, timeStr, joinUrl: roomUrl,
-        message: bodyText, gcalUrl, acceptUrl, declineUrl,
+        location, message: bodyText, gcalUrl, acceptUrl, declineUrl,
       });
       try {
         const { error } = await sb.rpc("create_calendar_event", {
