@@ -16235,11 +16235,15 @@ async function _ivcalOpenEmail(kind, id) {
     to = emails.join(", ");
     cancelEmails = emails; cancelTitle = ev.title || "Event";
     subject = ev.title || "You're invited";
+    const gcalUrl = _rrGcalUrl(ev.title || "Interview", ev.starts_at, ev.ends_at, room ? ("Join the video meeting: " + room) : "", room || "");
+    const acc = ev.rsvp_token ? "https://gorouteready.com/rsvp/" + ev.rsvp_token + "/accept" : null;
+    const dec = ev.rsvp_token ? "https://gorouteready.com/rsvp/" + ev.rsvp_token + "/decline" : null;
     html =
       `<p>Hi all,</p>` +
       `<p>You're invited:</p>` +
       `<p><strong>${escapeHtml(ev.title || "Event")}</strong><br>${escapeHtml(dateStr)}<br>${escapeHtml(timeStr)}</p>` +
-      joinBlock;
+      joinBlock +
+      _rrInviteButtonsHtml(gcalUrl, acc, dec);
   } else if (kind === "session") {
     // Everyone booked into this group session.
     const seen = new Set();
@@ -16308,6 +16312,27 @@ function _ivcalVideoRoom() {
     ? crypto.randomUUID().replace(/-/g, "")
     : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
   return "https://meet.jit.si/RouteReady-" + rand;
+}
+
+// One-click "Add to Google Calendar" link (TEMPLATE render URL).
+function _rrGcalUrl(title, startISO, endISO, details, location) {
+  const fmt = (iso) => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const end = endISO || new Date(new Date(startISO).getTime() + 30 * 60000).toISOString();
+  const p = new URLSearchParams({
+    action: "TEMPLATE", text: title || "Interview",
+    dates: `${fmt(startISO)}/${fmt(end)}`, details: details || "", location: location || "",
+  });
+  return "https://calendar.google.com/calendar/render?" + p.toString();
+}
+
+// Styled email buttons: Add to calendar + Accept + Decline. Inline styles so
+// they render in Gmail/Outlook. `accept`/`decline` may be null (add-only).
+function _rrInviteButtonsHtml(gcal, accept, decline) {
+  const b = (href, label, bg) => `<a href="${escapeHtml(href)}" style="display:inline-block;background:${bg};color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:600;font-size:14px;line-height:1;padding:12px 20px;border-radius:8px;margin:0 8px 8px 0">${label}</a>`;
+  let html = `<div style="margin:18px 0">${b(gcal, "📅 Add to calendar", "#0F6CBD")}`;
+  if (accept) html += b(accept, "✓ Accept", "#16A34A");
+  if (decline) html += b(decline, "✗ Decline", "#C4281C");
+  return html + "</div>";
 }
 
 // Outlook-style click-to-create. Opens a pop-out event editor (To / Subject
@@ -16427,17 +16452,24 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
         roomUrl = _ivcalVideoRoom();
         if (!bodyDirty) { bodyText = buildBody(); } else { bodyText = bodyText.replace("(creating link…)", roomUrl); }
       }
+      const startISO = _ivLocalToISO(date, start, tz);
+      const endISO = _ivLocalToISO(date, end || start, tz);
+      const acceptUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/accept";
+      const declineUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/decline";
+      const gcalUrl = _rrGcalUrl(title, startISO, endISO, roomUrl ? ("Join the video meeting: " + roomUrl) : "", roomUrl || "");
+      const btnsText = `\n\nAdd to calendar: ${gcalUrl}\nAccept: ${acceptUrl}\nDecline: ${declineUrl}`;
+      const btnsHtml = _rrInviteButtonsHtml(gcalUrl, acceptUrl, declineUrl);
       try {
         const { error } = await sb.rpc("create_calendar_event", {
           p_title: title,
-          p_starts_at: _ivLocalToISO(date, start, tz),
-          p_ends_at: _ivLocalToISO(date, end || start, tz),
+          p_starts_at: startISO,
+          p_ends_at: endISO,
           p_invitees: invitees,
           p_note: bodyText || null,
           p_timezone: tz,
           p_meeting_url: roomUrl || null,
-          p_body_text: bodyText || null,
-          p_body_html: bodyText ? escapeHtml(bodyText).replace(/\n/g, "<br>") : null,
+          p_body_text: (bodyText || "") + btnsText,
+          p_body_html: (bodyText ? escapeHtml(bodyText).replace(/\n/g, "<br>") : "") + btnsHtml,
           p_rsvp_token: rsvpToken,
         });
         if (error) throw error;
