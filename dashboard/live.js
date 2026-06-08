@@ -16173,88 +16173,34 @@ function _ivcalRender() {
   });
 }
 
-// ── Calendar event → email ────────────────────────────────────────────────
+// ── Calendar event → email (opens the rich New-email composer) ─────────────
 function _ivcalOpenEmail(kind, id) {
   if (!_ivcalCache) return;
   const arr = kind === "session" ? _ivcalCache.sessions : _ivcalCache.bookings;
   const ev = (arr || []).find(x => String(x.id) === String(id));
   if (!ev) return;
-  if (kind === "session") { _ivcalOpenGroupEmail(ev); return; }
-  const a = ev.applicants || {};
-  if (!ev.applicant_id || !a.email) { toast("No email on file for this applicant", "warn"); return; }
-  if (typeof openEmailThreadModal === "function") openEmailThreadModal(ev.applicant_id, a.full_name || "", a.email);
-}
 
-// Group-session email · composes one message to every applicant booked into
-// the session (each gets a DSP-branded send via send_applicant_email, so it
-// also lands in their individual thread). The To: box lists every invitee.
-async function _ivcalOpenGroupEmail(session) {
-  const seen = new Set();
-  const recipients = (_ivcalCache.bookings || []).filter(b => {
-    if (String(b.interview_session_id) !== String(session.id)) return false;
-    const em = (b.applicants || {}).email;
-    if (!b.applicant_id || !em || seen.has(b.applicant_id)) return false;
-    seen.add(b.applicant_id); return true;
-  }).map(b => ({ id: b.applicant_id, email: b.applicants.email, name: b.applicants.full_name || "" }));
-
-  if (recipients.length === 0) {
-    toast("No one has booked this session yet — no one to email", "warn");
-    return;
+  let to;
+  if (kind === "session") {
+    // Everyone booked into this group session.
+    const seen = new Set();
+    const emails = (_ivcalCache.bookings || [])
+      .filter(b => String(b.interview_session_id) === String(ev.id) && (b.applicants || {}).email)
+      .map(b => b.applicants.email)
+      .filter(em => (seen.has(em) ? false : (seen.add(em), true)));
+    if (emails.length === 0) { toast("No one has booked this session yet — no one to email", "warn"); return; }
+    to = emails.join(", ");
+  } else {
+    const email = (ev.applicants || {}).email;
+    if (!email) { toast("No email on file for this applicant", "warn"); return; }
+    to = email;
   }
 
-  const old = document.getElementById("rr-ivcal-group-email");
-  if (old) old.remove();
-  const emails = recipients.map(r => r.email).join(", ");
-  const label = session.label || "Group session";
-  const m = document.createElement("div");
-  m.id = "rr-ivcal-group-email";
-  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
-  m.innerHTML = `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:600px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
-        <div>
-          <div style="font-size:var(--fs-lg);font-weight:600">Email · ${escapeHtml(label)}</div>
-          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${recipients.length} recipient${recipients.length>1?"s":""} invited</div>
-        </div>
-        <button class="btn btn-sm" data-rr-ge-close>Close</button>
-      </div>
-      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3);overflow-y:auto">
-        <label style="display:flex;flex-direction:column;gap:6px">
-          <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600">To · everyone invited</span>
-          <div style="font-size:var(--fs-sm);color:var(--text);background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:8px 10px;max-height:96px;overflow-y:auto;word-break:break-word">${escapeHtml(emails)}</div>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:6px">
-          <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600">Subject</span>
-          <input id="rr-ge-subject" type="text" placeholder="Subject (optional)" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;box-sizing:border-box">
-        </label>
-        <label style="display:flex;flex-direction:column;gap:6px">
-          <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600">Message</span>
-          <textarea id="rr-ge-body" placeholder="Type your message…" style="min-height:150px;padding:var(--s-2-5) var(--s-3);border:1px solid var(--border);border-radius:8px;font:inherit;resize:vertical;box-sizing:border-box"></textarea>
-        </label>
-      </div>
-      <div style="border-top:1px solid var(--border);padding:var(--s-3-5) 22px;display:flex;justify-content:flex-end;gap:var(--s-2)">
-        <button class="btn btn-primary" id="rr-ge-send">Send to ${recipients.length}</button>
-      </div>
-    </div>`;
-  document.body.appendChild(m);
-  m.addEventListener("click", async (e) => {
-    if (e.target === m || e.target.closest("[data-rr-ge-close]")) { m.remove(); return; }
-    if (e.target.closest("#rr-ge-send")) {
-      const subject = document.getElementById("rr-ge-subject").value.trim();
-      const body = document.getElementById("rr-ge-body").value.trim();
-      if (!body) { toast("Type a message first", "warn"); return; }
-      const btn = e.target.closest("button");
-      btn.disabled = true; btn.textContent = "Sending…";
-      let ok = 0, fail = 0;
-      for (const r of recipients) {
-        const { error } = await sb.rpc("send_applicant_email", { p_applicant_id: r.id, p_body: body, p_subject: subject || null });
-        if (error) fail++; else ok++;
-      }
-      if (fail === 0) toast(`Email queued to ${ok} ${ok === 1 ? "person" : "people"}`, "success");
-      else toast(`Sent to ${ok}, ${fail} failed`, "warn");
-      m.remove();
-    }
-  });
+  if (typeof window.rrOpenEmailComposer === "function") {
+    window.rrOpenEmailComposer({ mode: "forward", to });
+  } else {
+    toast("Email composer isn't ready yet — try again in a moment", "warn");
+  }
 }
 
 function _ivcalEventBlock(ev, type) {
@@ -61826,15 +61772,18 @@ document.addEventListener("click", (e) => {
     return `\n\nOn ${when}, ${from} wrote:\n${quoted}`;
   }
 
-  function openComposer({ mode = "new", original = null } = {}) {
+  function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "" } = {}) {
     closeComposer();
     let to = "", cc = "", subject = "", body = "";
     const needs = (mode === "reply" || mode === "reply-all" || mode === "forward");
-    if (needs && !original) {
+    // Reply/forward normally quote an existing message. But a caller can also
+    // open a forward with no original — just a prefilled recipient (e.g. the
+    // calendar emailing an applicant). Only block when we have neither.
+    if (needs && !original && !toPrefill) {
       if (typeof toast === "function") toast("Pick a message first", "warn");
       return;
     }
-    if (mode === "reply" || mode === "reply-all") {
+    if ((mode === "reply" || mode === "reply-all") && original) {
       to = original.from_email || "";
       const s = original.subject || "";
       subject = s ? (/^re:/i.test(s) ? s : "Re: " + s) : "";
@@ -61844,11 +61793,15 @@ document.addEventListener("click", (e) => {
       if (mode === "reply-all" && Array.isArray(original.cc_emails) && original.cc_emails.length > 0) {
         cc = original.cc_emails.join(", ");
       }
-    } else if (mode === "forward") {
+    } else if (mode === "forward" && original) {
       const s = original.subject || "";
       subject = s ? (/^fwd?:/i.test(s) ? s : "Fwd: " + s) : "";
       body = quoteOriginal(original);
     }
+    // Caller-supplied prefill (e.g. opening from the calendar with the
+    // applicant's address already filled in) wins over the mode defaults.
+    if (toPrefill) to = toPrefill;
+    if (subjectPrefill) subject = subjectPrefill;
     const titles = { "new": "New email", "reply": "Reply", "reply-all": "Reply all", "forward": "Forward" };
     const m = document.createElement("div");
     m.id = "rr-em-composer";
@@ -61858,7 +61811,7 @@ document.addEventListener("click", (e) => {
     m.innerHTML = `
       <div class="em-composer-card" style="background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-xl);width:95vw;height:90vh;max-width:1400px;display:flex;flex-direction:column;overflow:hidden">
         <div class="em-popout-iconbar">
-          <div class="em-popout-title">${escapeHtmlLocal(titles[mode] || "New email")}</div>
+          <div class="em-popout-title" style="display:inline-flex;align-items:center;gap:8px">${mode === "forward" ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></svg>' : ''}${escapeHtmlLocal(titles[mode] || "New email")}</div>
           <button type="button" class="em-popout-ibtn em-composer-send-ibtn" id="rr-em-composer-send-top" title="Send (Ctrl/Cmd+Enter)" aria-label="Send"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg><span>Send</span></button>
           <button type="button" class="em-popout-ibtn" id="rr-em-composer-attach-top" title="Attach" aria-label="Attach files"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg><span>Attach</span></button>
           <button type="button" class="em-popout-ibtn" data-rr-composer-close title="Discard" aria-label="Discard"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg><span>Discard</span></button>
@@ -62665,6 +62618,9 @@ document.addEventListener("click", (e) => {
     subscribeRealtime();
     return true;
   }
+  // Expose the rich composer so other views (e.g. the interview calendar)
+  // can open a prefilled "New email" without duplicating the editor.
+  window.rrOpenEmailComposer = openComposer;
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {
