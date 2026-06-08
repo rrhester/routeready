@@ -629,11 +629,16 @@ function renderApplicantCard(a) {
   // hinted at the video in the subtitle but offered no way to actually
   // open it. Renders only when a.video_url is set so cards without a
   // video stay single-CTA.
+  // Opens the in-dashboard video modal (handleAction → "play_video" →
+  // openVideoModal) rather than a new tab, and tracks local "watched" state
+  // so the CTA calms (drops the dot, becomes "Re-watch") after first view.
+  const _vidWatched = _paVideoWatched(a.id);
   const reviewVideoBtn = a.video_url
-    ? `<a class="pa-btn-video" href="${escapeHtml(a.video_url)}" target="_blank" rel="noopener" data-applicant-id="${escapeHtml(a.id)}" title="Open the applicant's screening video in a new tab">
+    ? `<button type="button" class="pa-btn-video${_vidWatched ? " is-watched" : ""}" data-rr-action="play_video" data-applicant-id="${escapeHtml(a.id)}" data-video-url="${escapeHtml(a.video_url)}" title="Review the applicant's screening video">
          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
-         Review video
-       </a>`
+         <span class="pa-btn-video-lbl">${_vidWatched ? "Re-watch video" : "Review video"}</span>
+         ${_vidWatched ? "" : `<span class="pa-btn-video-dot" aria-hidden="true"></span>`}
+       </button>`
     : "";
 
   // Quiet ⋯ overflow · Phone / Email / Note utilities. Tertiary color,
@@ -731,18 +736,61 @@ function _relTimeShort(iso) {
 
 // Open the applicant's video intro in a simple modal overlay.
 function openVideoModal(url) {
-  let overlay = document.getElementById("rr-video-overlay");
-  if (!overlay) {
-    overlay = document.createElement("div");
-    overlay.id = "rr-video-overlay";
-    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6);cursor:pointer";
-    overlay.addEventListener("click", () => { overlay.remove(); });
-    document.body.appendChild(overlay);
+  // In-dashboard screening-video player: dim backdrop + centered player with
+  // an explicit Fullscreen control and a close (×). Backdrop-click and Esc
+  // close; clicks on the player itself do not. (The native <video> controls
+  // also expose fullscreen — this just makes it obvious.)
+  if (!document.getElementById("rr-video-style")) {
+    const st = document.createElement("style");
+    st.id = "rr-video-style";
+    st.textContent = `
+      .rr-video-overlay{position:fixed;inset:0;z-index:9999;background:rgba(8,10,18,.82);
+        display:flex;align-items:center;justify-content:center;padding:32px;backdrop-filter:blur(2px)}
+      .rr-video-shell{position:relative;display:flex;flex-direction:column;gap:10px;width:100%;max-width:min(900px,92vw)}
+      .rr-video-bar{display:flex;justify-content:flex-end;gap:8px}
+      .rr-video-bar button{display:inline-flex;align-items:center;justify-content:center;
+        width:34px;height:34px;border-radius:8px;cursor:pointer;color:#fff;
+        background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);
+        transition:background .12s,border-color .12s}
+      .rr-video-bar button:hover{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.34)}
+      .rr-video-el{width:100%;max-height:80vh;border-radius:12px;background:#000;box-shadow:0 18px 60px rgba(0,0,0,.55)}`;
+    document.head.appendChild(st);
   }
+  document.getElementById("rr-video-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "rr-video-overlay";
+  overlay.className = "rr-video-overlay";
   overlay.innerHTML = `
-    <video controls autoplay playsinline
-           style="max-width:100%;max-height:90vh;border-radius:12px;background:#000"
-           src="${url}"></video>`;
+    <div class="rr-video-shell" role="dialog" aria-modal="true" aria-label="Screening video">
+      <div class="rr-video-bar">
+        <button type="button" class="rr-video-fs" title="Fullscreen" aria-label="Fullscreen">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        </button>
+        <button type="button" class="rr-video-close" title="Close" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <video class="rr-video-el" controls autoplay playsinline></video>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const videoEl = overlay.querySelector(".rr-video-el");
+  videoEl.src = url; // set via property so signed-URL chars never break markup
+
+  function close() {
+    document.removeEventListener("keydown", onKey, true);
+    overlay.remove();
+  }
+  function onKey(e) { if (e.key === "Escape") { e.stopPropagation(); close(); } }
+  document.addEventListener("keydown", onKey, true);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector(".rr-video-close").addEventListener("click", close);
+  overlay.querySelector(".rr-video-fs").addEventListener("click", () => {
+    if (document.fullscreenElement) { document.exitFullscreen?.(); return; }
+    if (videoEl.requestFullscreen)            videoEl.requestFullscreen();
+    else if (videoEl.webkitRequestFullscreen) videoEl.webkitRequestFullscreen();
+    else if (videoEl.webkitEnterFullscreen)   videoEl.webkitEnterFullscreen(); // iOS Safari
+  });
 }
 
 // ─── Applicant email thread modal ─────────────────────────────────────
