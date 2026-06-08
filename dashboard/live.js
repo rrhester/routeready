@@ -1310,6 +1310,49 @@ if (window.ResizeObserver) {
 // If it has the legacy onclick (static seeded HTML), we still handle it
 // the same way using the card's data-applicant.
 
+// Plaintext template body → light HTML for the composer: escape, autolink
+// URLs, and convert newlines to <br> so the message reads cleanly.
+function _rrTextToHtml(text) {
+  const esc = (s) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const h = esc(text)
+    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1">$1</a>')
+    .replace(/\n/g, "<br>");
+  return `<div style="font-family:Calibri,Arial,sans-serif;font-size:14px;line-height:1.55">${h}</div>`;
+}
+
+// Prepare an applicant-facing email (screening / booking invite) and open it in
+// the email composer for the operator to review and send — instead of auto-
+// sending. Mints the link server-side, prefills the composer, and on Send flips
+// the applicant's status the same way the old auto-send path did.
+async function _rrComposeApplicantEmail(applicantId, purpose) {
+  let prev;
+  try {
+    const { data, error } = await sb.rpc("preview_applicant_email", { p_id: applicantId, p_purpose: purpose });
+    if (error) throw error;
+    prev = data;
+  } catch (e) {
+    const msg = String(e.message || e);
+    if (/applicant_has_no_email/.test(msg)) toast("This applicant has no email on file", "warn");
+    else toast("Couldn't prepare the email: " + msg, "warn");
+    return false;
+  }
+  if (!prev || !prev.to_email) { toast("This applicant has no email on file", "warn"); return false; }
+  if (typeof window.rrOpenEmailComposer !== "function") { toast("Email composer isn't ready — open the Mail tab once, then retry", "warn"); return false; }
+  window.rrOpenEmailComposer({
+    mode: "new",
+    to: prev.to_email,
+    subject: prev.subject || "",
+    html: _rrTextToHtml(prev.body_text || ""),
+    applicantId,
+    templateId: prev.template_id || null,
+    onSent: async () => {
+      try { await sb.rpc("mark_applicant_email_sent", { p_id: applicantId, p_purpose: purpose }); } catch (_) {}
+      try { if (typeof loadPipeline === "function") await loadPipeline(getActiveStage()); } catch (_) {}
+    },
+  });
+  return true;
+}
+
 async function handleAction(btn) {
   // Funnel cards use .pa-card[data-applicant]; Interview Day cards use
   // .iv-card[data-applicant-id]; popover rows carry data-applicant-id
@@ -1325,13 +1368,15 @@ async function handleAction(btn) {
 
   try {
     if (action === "resend_screening") {
-      const { error } = await sb.rpc("send_screening_link", { p_id: id });
-      if (error) throw error;
-      toast("Screening link sent", "success");
+      // Open the screening invite in the email composer for review instead of
+      // auto-sending — the operator edits if needed and hits Send themselves.
+      await _rrComposeApplicantEmail(id, "screening");
+      btn.disabled = false;
+      return;
     } else if (action === "send_link" || action === "resend_link") {
-      const { error } = await sb.rpc("send_booking_link", { p_id: id, p_kind: "interview" });
-      if (error) throw error;
-      toast("Booking link sent", "success");
+      await _rrComposeApplicantEmail(id, "interview");
+      btn.disabled = false;
+      return;
     } else if (action === "decline") {
       // No confirm dialog — decline acts immediately on click.
       const { error } = await sb.rpc("decline_applicant", { p_id: id, p_reason: "Manual decline" });
@@ -62647,9 +62692,12 @@ document.addEventListener("click", (e) => {
     return `\n\nOn ${when}, ${from} wrote:\n${quoted}`;
   }
 
-  function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "", html: htmlPrefill = "", onCancel = null } = {}) {
+  function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "", html: htmlPrefill = "", onCancel = null, applicantId = null, templateId = null, onSent = null } = {}) {
     closeComposer();
     composerOnCancel = (typeof onCancel === "function") ? onCancel : null;
+    composerApplicantId = applicantId || null;
+    composerTemplateId  = templateId || null;
+    composerOnSent      = (typeof onSent === "function") ? onSent : null;
     let to = "", cc = "", subject = "", body = "";
     const needs = (mode === "reply" || mode === "reply-all" || mode === "forward");
     // Reply/forward normally quote an existing message. But a caller can also
@@ -62880,6 +62928,12 @@ document.addEventListener("click", (e) => {
   // composer was launched from a calendar event). Lives at this scope because
   // the click handler that fires it is the shared document handler below.
   let composerOnCancel = null;
+  // When the composer was opened to send an applicant-facing email (e.g. the
+  // screening invite from the funnel), these tie the queued message to the
+  // applicant and run a post-send hook (status flip) once it actually ships.
+  let composerApplicantId = null;
+  let composerTemplateId  = null;
+  let composerOnSent      = null;
 
   function renderComposerChips() {
     const host = document.getElementById("rr-em-composer-attachments");
@@ -62899,6 +62953,9 @@ document.addEventListener("click", (e) => {
     const m = document.getElementById("rr-em-composer");
     if (m) m.remove();
     composerOnCancel = null;
+    composerApplicantId = null;
+    composerTemplateId  = null;
+    composerOnSent      = null;
   }
 
   async function sendComposerDraft() {
@@ -62936,6 +62993,10 @@ document.addEventListener("click", (e) => {
       body_text:  bodyText,
       body_html:  bodyHtml,
     };
+    // Applicant-facing emails (screening / booking invites composed from the
+    // funnel) carry the applicant + template so they thread correctly.
+    if (composerApplicantId) insertRow.applicant_id = composerApplicantId;
+    if (composerTemplateId)  insertRow.template_id  = composerTemplateId;
     // Only set cc_emails if the operator typed something — column may be
     // missing on projects that haven't applied migration 0319 yet, in
     // which case omitting the field lets the insert still succeed.
@@ -62952,6 +63013,9 @@ document.addEventListener("click", (e) => {
       return;
     }
     if (typeof toast === "function") toast("Message queued · will ship within the minute", "success");
+    // Run the post-send hook (e.g. flip applicant status) before we tear down
+    // the composer, since closeComposer() clears composerOnSent.
+    if (typeof composerOnSent === "function") { try { await composerOnSent(); } catch (_) {} }
     closeComposer();
     // If we're on the Sent folder, the realtime subscription will refresh.
     // If we're on a different folder, no UI change is needed.
