@@ -62187,6 +62187,14 @@ document.addEventListener("click", (e) => {
       if (e.key === "Escape") { e.preventDefault(); closeComposer(); }
       else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendComposerDraft(); }
     });
+    // Direct send handlers. The shared delegated click handler can miss in
+    // some mount contexts (e.g. composer opened from the calendar), so wire
+    // the buttons directly; stopPropagation prevents a double-send if the
+    // delegated handler also fires.
+    ["rr-em-composer-send", "rr-em-composer-send-top"].forEach((id) => {
+      const b = document.getElementById(id);
+      if (b) b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); sendComposerDraft(); });
+    });
 
     // ── Toolbar wiring ─────────────────────────────────────────────
     const editor = document.getElementById("rr-em-composer-body");
@@ -62320,6 +62328,7 @@ document.addEventListener("click", (e) => {
   }
 
   async function sendComposerDraft() {
+   try {
     const toInp      = document.getElementById("rr-em-composer-to");
     const ccInp      = document.getElementById("rr-em-composer-cc");
     const subjectInp = document.getElementById("rr-em-composer-subject");
@@ -62372,6 +62381,11 @@ document.addEventListener("click", (e) => {
     closeComposer();
     // If we're on the Sent folder, the realtime subscription will refresh.
     // If we're on a different folder, no UI change is needed.
+   } catch (err) {
+    if (typeof toast === "function") toast("Send error: " + (err?.message || err), "warn");
+    const sb2 = document.getElementById("rr-em-composer-send");
+    if (sb2) { sb2.disabled = false; sb2.textContent = "Send"; }
+   }
   }
 
   // ── Move arbitrary message to a folder by id (drag-and-drop) ───
