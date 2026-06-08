@@ -16277,32 +16277,19 @@ async function _ivcalOpenEmail(kind, id) {
   }
 }
 
-// Mint a Whereby room via the video-room edge fn. Returns { url, error } and
-// surfaces the real failure reason (e.g. no_key / whereby_failed) so the
-// operator isn't left guessing why a link didn't appear.
-async function _ivcalMintRoom(endsISO) {
-  try {
-    const { data, error } = await sb.functions.invoke("video-room", { body: { ends_at: endsISO } });
-    if (error) {
-      let msg = error.message || "request failed";
-      try {
-        const j = await error.context.json();
-        msg = j.error || msg;
-        if (j.status) msg += " (HTTP " + j.status + ")";
-        const extra = j.body || j.detail;
-        if (extra) msg += " — " + (typeof extra === "string" ? extra : JSON.stringify(extra));
-      } catch { /* keep generic message */ }
-      return { url: "", error: msg };
-    }
-    if (!data || !data.url) return { url: "", error: (data && data.error) || "no link returned" };
-    return { url: data.url, error: "" };
-  } catch (e) { return { url: "", error: String(e) }; }
+// A unique, unguessable Jitsi room URL. No API key / server call — Whereby's
+// API edge was blocking room creation (403), so video uses meet.jit.si.
+function _ivcalVideoRoom() {
+  const rand = (typeof crypto !== "undefined" && crypto.randomUUID)
+    ? crypto.randomUUID().replace(/-/g, "")
+    : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
+  return "https://meet.jit.si/RouteReady-" + rand;
 }
 
 // Outlook-style click-to-create. Opens a pop-out event editor (To / Subject
-// / date-time / body). A Whereby room is minted up front (video-room edge fn)
-// so the join link is shown in the body immediately; on Send the event is
-// saved with that link and the invite (this exact body) goes to every attendee.
+// / date-time / body). A Jitsi room link is assigned up front so it shows in
+// the body immediately; on Send the event is saved with that link and the
+// invite (this exact body) goes to every attendee.
 function _ivcalNewEvent(dateISO, startMin, endMin) {
   const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
   const old = document.getElementById("rr-ivcal-new");
@@ -16385,21 +16372,13 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
   });
   document.getElementById("rr-ne-body").addEventListener("input", () => { bodyDirty = true; });
 
-  // Mint the video room up front so the link lands in the body before sending.
-  (async () => {
+  // Assign the video room up front so the link is in the body before sending.
+  roomUrl = _ivcalVideoRoom();
+  {
     const state = document.getElementById("rr-ne-roomstate");
-    const endsISO = _ivLocalToISO(dateISO, _ivMinToHHMM(endMin), tz);
-    const { url, error } = await _ivcalMintRoom(endsISO);
-    if (url) {
-      roomUrl = url;
-      if (state) { state.textContent = "Video link ready ✓"; state.style.color = "var(--green)"; }
-      refreshBody();
-    } else if (state) {
-      state.textContent = "Video link error: " + error;
-      state.style.color = "var(--red, #C4281C)";
-      state.title = error;
-    }
-  })();
+    if (state) { state.textContent = "Video link ready ✓"; state.style.color = "var(--green)"; }
+    refreshBody();
+  }
 
   m.addEventListener("click", async (e) => {
     if (e.target === m || e.target.closest("[data-rr-ne-close]")) { m.remove(); return; }
@@ -16414,10 +16393,10 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
       const invitees = document.getElementById("rr-ne-invitees").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
       const btn = e.target.closest("button");
       btn.disabled = true; btn.textContent = "Sending…";
-      // If the room wasn't pre-created (open-time call failed), try once more now.
+      // Belt-and-braces: ensure a room link exists before saving.
       if (!roomUrl) {
-        const r = await _ivcalMintRoom(_ivLocalToISO(date, end || start, tz));
-        if (r.url) { roomUrl = r.url; if (!bodyDirty) { bodyText = buildBody(); } else { bodyText = bodyText.replace("(creating link…)", roomUrl); } }
+        roomUrl = _ivcalVideoRoom();
+        if (!bodyDirty) { bodyText = buildBody(); } else { bodyText = bodyText.replace("(creating link…)", roomUrl); }
       }
       try {
         const { error } = await sb.rpc("create_calendar_event", {
