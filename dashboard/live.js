@@ -16040,7 +16040,140 @@ const CAL_TZS = [
 ];
 
 async function loadCalendarTab() {
-  await Promise.all([loadCalBookingsList(), loadCalAvailabilityEditor(), loadGoogleCalendar()]);
+  await Promise.all([loadCalBookingsList(), loadCalAvailabilityEditor(), loadGoogleCalendar(), loadInterviewAvailabilityEditor()]);
+}
+
+// ── Native interview availability editor (RouteReady-owned scheduling) ──
+const _IV_DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const _ivMinToHHMM = (m) => { m = Math.max(0, Math.min(1440, m|0)); return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0"); };
+const _ivHHMMToMin = (s) => { const [h,m] = String(s||"").split(":").map(Number); return (h||0)*60 + (m||0); };
+// Wall-clock date+time in a given IANA tz → absolute ISO instant (DST-aware).
+function _ivLocalToISO(date, time, tz) {
+  const [Y,M,D] = date.split("-").map(Number);
+  const [h,m] = time.split(":").map(Number);
+  const asUTC = Date.UTC(Y, M-1, D, h, m);
+  const p = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour12:false, year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit" })
+    .formatToParts(new Date(asUTC)).reduce((a,x)=>(a[x.type]=x.value,a),{});
+  const wall = Date.UTC(+p.year, +p.month-1, +p.day, +p.hour, +p.minute, +p.second);
+  return new Date(asUTC - (wall - asUTC)).toISOString();
+}
+
+async function loadInterviewAvailabilityEditor() {
+  const body = document.getElementById("rr-iv-body");
+  if (!body) return;
+  body.innerHTML = `<div class="rr-loading">Loading…</div>`;
+  let av, sessions;
+  try {
+    const [a, s] = await Promise.all([sb.rpc("interview_availability_get"), sb.rpc("interview_sessions_list")]);
+    if (a.error) throw a.error;
+    av = a.data || {}; sessions = s.data || [];
+  } catch (e) {
+    body.innerHTML = `<div class="rr-iv-err">Couldn't load: ${escapeHtml(e.message || String(e))}</div>`;
+    return;
+  }
+  const cfg = av.config || {};
+  const tz = cfg.timezone || "America/Chicago";
+  const slot = cfg.slot_minutes || 30, lead = cfg.min_lead_hours ?? 12, windowDays = cfg.window_days ?? 21, buffer = cfg.buffer_minutes ?? 0;
+  const byDay = {}; (av.windows || []).forEach(w => { if (!byDay[w.weekday]) byDay[w.weekday] = w; });
+  const tzOpts = ["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Phoenix","America/Anchorage","Pacific/Honolulu"]
+    .map(z => `<option value="${z}"${z===tz?" selected":""}>${z.replace(/^(America|Pacific)\//,"").replace("_"," ")}</option>`).join("");
+
+  let rows = "";
+  for (let d=0; d<7; d++) {
+    const w = byDay[d], on = !!w;
+    rows += `<div class="rr-iv-day${on?"":" off"}" data-day="${d}">
+      <label class="rr-iv-daylbl"><input type="checkbox" class="rr-iv-on" ${on?"checked":""}><span>${_IV_DAYS[d]}</span></label>
+      <input type="time" class="rr-iv-start" value="${_ivMinToHHMM(w?w.start_min:540)}" ${on?"":"disabled"}>
+      <span class="rr-iv-dash">–</span>
+      <input type="time" class="rr-iv-end" value="${_ivMinToHHMM(w?w.end_min:1020)}" ${on?"":"disabled"}>
+      <span class="rr-iv-capl">up to</span>
+      <input type="number" min="1" class="rr-iv-cap" value="${w?w.capacity:1}" ${on?"":"disabled"}>
+      <span class="rr-iv-capr">people</span>
+    </div>`;
+  }
+  const sessHtml = sessions.length ? sessions.map(se => {
+    const when = new Intl.DateTimeFormat(undefined,{timeZone:tz,weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}).format(new Date(se.starts_at));
+    return `<div class="rr-iv-sess"><div><strong>${escapeHtml(when)}</strong> · ${se.capacity} spots${se.label?` · ${escapeHtml(se.label)}`:""}</div>
+      <button class="rr-iv-x" data-sess="${escapeHtml(se.id)}" title="Remove">×</button></div>`;
+  }).join("") : `<div class="rr-iv-empty">No group sessions yet.</div>`;
+
+  body.innerHTML = `
+    <div class="rr-iv-cfg">
+      <label>Timezone <select class="rr-iv-tz">${tzOpts}</select></label>
+      <label>Length <select class="rr-iv-slot">${[15,20,30,45,60].map(n=>`<option value="${n}"${n===slot?" selected":""}>${n} min</option>`).join("")}</select></label>
+      <label>Lead <input type="number" min="0" class="rr-iv-lead" value="${lead}"> hrs</label>
+      <label>Window <input type="number" min="1" class="rr-iv-window" value="${windowDays}"> days</label>
+      <label>Buffer <input type="number" min="0" class="rr-iv-buffer" value="${buffer}"> min</label>
+    </div>
+    <div class="rr-iv-days">${rows}</div>
+    <div class="rr-iv-foot"><span class="rr-iv-save-status" id="rr-iv-save-status"></span><button class="rr-iv-btn" id="rr-iv-save">Save availability</button></div>
+    <div class="rr-iv-subh">One-off group sessions</div>
+    <div id="rr-iv-sess-list">${sessHtml}</div>
+    <div class="rr-iv-add" id="rr-iv-add-sess">
+      <input type="date" class="rr-iv-s-date">
+      <input type="time" class="rr-iv-s-start" value="10:00"><span class="rr-iv-dash">–</span><input type="time" class="rr-iv-s-end" value="11:00">
+      <input type="number" min="1" class="rr-iv-s-cap" value="20" title="capacity">
+      <input type="text" class="rr-iv-s-label" placeholder="Label (optional)">
+      <button class="rr-iv-btn is-ghost" id="rr-iv-add-btn">Add session</button>
+    </div>`;
+
+  body.querySelectorAll(".rr-iv-day").forEach(row => {
+    row.querySelector(".rr-iv-on").addEventListener("change", (e) => {
+      const dis = !e.target.checked;
+      row.classList.toggle("off", dis);
+      row.querySelectorAll("input:not(.rr-iv-on)").forEach(i => i.disabled = dis);
+    });
+  });
+  document.getElementById("rr-iv-save").onclick = () => _ivSave(body);
+  document.getElementById("rr-iv-add-btn").onclick = () => _ivAddSession(tz);
+  body.querySelectorAll(".rr-iv-x").forEach(b => b.onclick = () => _ivRemoveSession(b.getAttribute("data-sess")));
+}
+
+async function _ivSave(body) {
+  const st = document.getElementById("rr-iv-save-status");
+  const windows = [];
+  body.querySelectorAll(".rr-iv-day").forEach(row => {
+    if (!row.querySelector(".rr-iv-on").checked) return;
+    const s = _ivHHMMToMin(row.querySelector(".rr-iv-start").value), e = _ivHHMMToMin(row.querySelector(".rr-iv-end").value);
+    if (e <= s) return;
+    windows.push({ weekday: +row.getAttribute("data-day"), start_min: s, end_min: e, capacity: Math.max(1, parseInt(row.querySelector(".rr-iv-cap").value)||1) });
+  });
+  if (st){ st.textContent="Saving…"; st.className="rr-iv-save-status"; }
+  try {
+    const { error } = await sb.rpc("interview_availability_set", {
+      p_timezone: body.querySelector(".rr-iv-tz").value,
+      p_slot_minutes: parseInt(body.querySelector(".rr-iv-slot").value)||30,
+      p_buffer_minutes: parseInt(body.querySelector(".rr-iv-buffer").value)||0,
+      p_min_lead_hours: parseInt(body.querySelector(".rr-iv-lead").value)||0,
+      p_window_days: parseInt(body.querySelector(".rr-iv-window").value)||21,
+      p_location: "whereby", p_windows: windows,
+    });
+    if (error) throw error;
+    if (st){ st.textContent="Saved ✓"; st.className="rr-iv-save-status ok"; }
+    toast("Interview availability saved","success");
+  } catch(e){ if (st){ st.textContent="Save failed"; st.className="rr-iv-save-status err"; } toast("Save failed: "+(e.message||e),"warn"); }
+}
+
+async function _ivAddSession(tz) {
+  const wrap = document.getElementById("rr-iv-add-sess");
+  const date = wrap.querySelector(".rr-iv-s-date").value, start = wrap.querySelector(".rr-iv-s-start").value, end = wrap.querySelector(".rr-iv-s-end").value;
+  const cap = Math.max(1, parseInt(wrap.querySelector(".rr-iv-s-cap").value)||20), label = wrap.querySelector(".rr-iv-s-label").value;
+  if (!date || !start || !end) return toast("Pick a date and start/end time","warn");
+  try {
+    const { error } = await sb.rpc("interview_session_add", {
+      p_starts_at: _ivLocalToISO(date, start, tz), p_ends_at: _ivLocalToISO(date, end, tz),
+      p_capacity: cap, p_location: "whereby", p_label: label || null,
+    });
+    if (error) throw error;
+    toast("Group session added","success");
+    loadInterviewAvailabilityEditor();
+  } catch(e){ toast("Couldn't add session: "+(e.message||e),"warn"); }
+}
+
+async function _ivRemoveSession(id) {
+  if (!confirm("Remove this group session?")) return;
+  try { const { error } = await sb.rpc("interview_session_remove", { p_id: id }); if (error) throw error; loadInterviewAvailabilityEditor(); }
+  catch(e){ toast("Couldn't remove: "+(e.message||e),"warn"); }
 }
 
 // ── Google Calendar connect/status (per-DSP; tokens live server-side only) ──

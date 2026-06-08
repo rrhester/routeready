@@ -12496,6 +12496,43 @@ body.rr-cmdk-open{ overflow:hidden }
           <!-- Per-DSP embedded Google Calendar (src = this DSP's connected account). -->
           <div class="rr-gcal-embed" id="rr-gcal-embed"></div>
 
+          <!-- Native RouteReady interview availability (days/times + capacity + group sessions). -->
+          <style>
+            #view-pipeline #pipe-sub-calendar .rr-iv-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin:0 0 var(--s-4)}
+            #view-pipeline #pipe-sub-calendar .rr-iv-card .rr-iv-title{font-weight:700;color:var(--text);margin-bottom:4px}
+            #view-pipeline #pipe-sub-calendar .rr-iv-card .rr-iv-cardsub{font-size:13px;color:var(--text-subtle);margin-bottom:14px}
+            #view-pipeline #pipe-sub-calendar .rr-iv-cfg{display:flex;flex-wrap:wrap;gap:14px 18px;margin-bottom:14px;font-size:13px;color:var(--text-muted)}
+            #view-pipeline #pipe-sub-calendar .rr-iv-cfg label{display:inline-flex;align-items:center;gap:6px}
+            #view-pipeline #pipe-sub-calendar .rr-iv-cfg select,#view-pipeline #pipe-sub-calendar .rr-iv-cfg input,
+            #view-pipeline #pipe-sub-calendar .rr-iv-day input[type=time],#view-pipeline #pipe-sub-calendar .rr-iv-day input[type=number],
+            #view-pipeline #pipe-sub-calendar .rr-iv-add input{background:var(--canvas);border:1px solid var(--border);border-radius:7px;padding:6px 8px;font:inherit;font-size:13px;color:var(--text)}
+            #view-pipeline #pipe-sub-calendar .rr-iv-cfg input[type=number]{width:58px}
+            #view-pipeline #pipe-sub-calendar .rr-iv-day{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 0;border-top:1px solid var(--border)}
+            #view-pipeline #pipe-sub-calendar .rr-iv-day.off{opacity:.5}
+            #view-pipeline #pipe-sub-calendar .rr-iv-daylbl{display:inline-flex;align-items:center;gap:7px;width:108px;font-size:14px;font-weight:500;cursor:pointer}
+            #view-pipeline #pipe-sub-calendar .rr-iv-day input[type=number]{width:52px}
+            #view-pipeline #pipe-sub-calendar .rr-iv-capl,#view-pipeline #pipe-sub-calendar .rr-iv-capr{font-size:12px;color:var(--text-subtle)}
+            #view-pipeline #pipe-sub-calendar .rr-iv-dash{color:var(--text-subtle)}
+            #view-pipeline #pipe-sub-calendar .rr-iv-foot{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:14px}
+            #view-pipeline #pipe-sub-calendar .rr-iv-save-status{font-size:12px;color:var(--text-subtle)}
+            #view-pipeline #pipe-sub-calendar .rr-iv-save-status.ok{color:var(--green)} #view-pipeline #pipe-sub-calendar .rr-iv-save-status.err{color:var(--red)}
+            #view-pipeline #pipe-sub-calendar .rr-iv-btn{appearance:none;cursor:pointer;font:inherit;font-weight:600;font-size:13px;color:#fff;background:#0F6CBD;border:1px solid #0F6CBD;border-radius:8px;padding:8px 16px}
+            #view-pipeline #pipe-sub-calendar .rr-iv-btn.is-ghost{background:#fff;color:#0F6CBD}
+            #view-pipeline #pipe-sub-calendar .rr-iv-subh{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin:18px 0 8px;padding-top:14px;border-top:1px solid var(--border)}
+            #view-pipeline #pipe-sub-calendar .rr-iv-sess{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px solid var(--border)}
+            #view-pipeline #pipe-sub-calendar .rr-iv-x{appearance:none;border:0;background:transparent;color:var(--text-subtle);font-size:18px;line-height:1;cursor:pointer;padding:0 6px}
+            #view-pipeline #pipe-sub-calendar .rr-iv-x:hover{color:var(--red)}
+            #view-pipeline #pipe-sub-calendar .rr-iv-empty{font-size:13px;color:var(--text-subtle);padding:4px 0}
+            #view-pipeline #pipe-sub-calendar .rr-iv-add{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+            #view-pipeline #pipe-sub-calendar .rr-iv-add .rr-iv-s-label{flex:1;min-width:120px}
+            #view-pipeline #pipe-sub-calendar .rr-iv-err{color:var(--red);font-size:13px}
+          </style>
+          <div class="rr-iv-card" id="rr-iv-card">
+            <div class="rr-iv-title">Interview availability</div>
+            <div class="rr-iv-cardsub">Set the days, times, and how many people each slot holds. Add one-off group sessions below. This powers your RouteReady booking page.</div>
+            <div id="rr-iv-body"><div class="rr-loading">Loading…</div></div>
+          </div>
+
           <div class="pipe-cal-shell">
             <div class="pipe-cal-col">
               <div class="pipe-cal-col-head">
@@ -36565,7 +36602,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-gcal-embed"></script>
+<script type="module" src="./live.js?v=20260608-iv-editor"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
