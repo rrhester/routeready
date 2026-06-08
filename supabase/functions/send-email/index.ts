@@ -6,8 +6,6 @@
 //   RESEND_FROM_EMAIL          e.g. "RouteReady <hello@gorouteready.com>"
 //   RESEND_REPLY_TO            (optional)
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
-import { buildIcsRequest } from "../_shared/ics.ts";
-import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 interface Attachment { name?: string; url: string; content_type?: string; size?: number }
 interface QueuedRow {
@@ -207,28 +205,8 @@ Deno.serve(async (req) => {
       .filter((a) => a?.url)
       .map((a) => ({ filename: a.name || "attachment", path: a.url, content_type: a.content_type }));
 
-    // Attach a real calendar invite (.ics) so Gmail/Outlook show native
-    // Accept/Decline and add it to the recipient's calendar.
-    if (isInvite) {
-      const ev = evById.get(row.cal_event_id!)!;
-      const organizerEmail = inboundAddr || dsp?.replyTo || (from.match(/<([^>]+)>/)?.[1] ?? from);
-      const ics = buildIcsRequest({
-        uid: `${row.cal_event_id}@gorouteready.com`,
-        start: ev.starts_at,
-        end: ev.ends_at,
-        title: ev.title || row.subject || "Interview",
-        description: ev.meeting_url ? `Join the video meeting: ${ev.meeting_url}` : (row.body_text || ""),
-        location: ev.meeting_url || undefined,
-        organizerName: dsp?.name || "RouteReady",
-        organizerEmail,
-        attendeeEmail: row.to_email,
-      });
-      outAtts.push({
-        filename: "invite.ics",
-        content: encodeBase64(new TextEncoder().encode(ics)),
-        content_type: "text/calendar; method=REQUEST; charset=utf-8",
-      });
-    }
+    // Calendar invites are sent as a clean HTML email with Accept/Decline +
+    // Add-to-calendar buttons (built client-side) — no raw .ics attachment.
     if (outAtts.length > 0) body.attachments = outAtts;
 
     const resp = await fetch("https://api.resend.com/emails", {
