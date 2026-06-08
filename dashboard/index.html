@@ -12526,28 +12526,6 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .rr-ivcal-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--text-muted)}
             #rr-ivcal .rr-ivcal-legend span{display:inline-flex;align-items:center;gap:6px}
             #rr-ivcal .rr-ivcal-sw{width:11px;height:11px;border-radius:3px}
-            /* Event detail popover · anchored to the clicked event, no backdrop.
-               Mounted on <body>, so classes are global. */
-            .rr-ivcal-detail-card{position:fixed;z-index:5000;width:320px;max-width:calc(100vw - 16px);background:var(--surface,#fff);border:1px solid var(--border,rgba(15,23,42,.12));border-radius:12px;box-shadow:0 12px 36px rgba(15,23,42,.22);padding:18px 20px 20px}
-            .rr-ivcal-detail-card .rr-ivd-close{position:absolute;top:10px;right:12px;appearance:none;border:0;background:transparent;font-size:22px;line-height:1;color:var(--text-subtle,#64748b);cursor:pointer;padding:2px 6px;border-radius:6px}
-            .rr-ivcal-detail-card .rr-ivd-close:hover{background:var(--canvas,#f1f5f9);color:var(--text,#0f172a)}
-            .rr-ivcal-detail-card .rr-ivd-title{font-size:18px;font-weight:700;color:var(--text,#0f172a);padding-right:28px;margin-bottom:8px}
-            .rr-ivcal-detail-card .rr-ivd-badges{margin-bottom:14px;display:flex;gap:6px;flex-wrap:wrap}
-            .rr-ivcal-detail-card .rr-ivd-badge{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:999px;color:#fff}
-            .rr-ivcal-detail-card .rr-ivd-badge.interview{background:#0F6CBD}
-            .rr-ivcal-detail-card .rr-ivd-badge.orient{background:#7C3AED}
-            .rr-ivcal-detail-card .rr-ivd-badge.session{background:#0E7C66}
-            .rr-ivcal-detail-card .rr-ivd-badge.resched{background:#B45309}
-            .rr-ivcal-detail-card .rr-ivd-rows{display:flex;flex-direction:column;gap:11px}
-            .rr-ivcal-detail-card .rr-ivd-row{display:grid;grid-template-columns:84px 1fr;gap:12px;align-items:start;font-size:13.5px}
-            .rr-ivcal-detail-card .rr-ivd-k{color:var(--text-subtle,#64748b);font-weight:600}
-            .rr-ivcal-detail-card .rr-ivd-v{color:var(--text,#0f172a);word-break:break-word}
-            .rr-ivcal-detail-card .rr-ivd-v a{color:#0F6CBD;text-decoration:none}
-            .rr-ivcal-detail-card .rr-ivd-v a:hover{text-decoration:underline}
-            .rr-ivcal-detail-card .rr-ivd-foot{margin-top:18px}
-            .rr-ivcal-detail-card .rr-ivd-btn{display:block;text-align:center;font-size:14px;font-weight:600;padding:10px 16px;border-radius:9px;text-decoration:none}
-            .rr-ivcal-detail-card .rr-ivd-btn.primary{background:#0F6CBD;color:#fff}
-            .rr-ivcal-detail-card .rr-ivd-btn.primary:hover{background:#0C5AA6}
           </style>
           <div id="rr-ivcal">
             <div id="rr-ivcal-body"><div class="rr-loading">Loading calendar…</div></div>
@@ -36730,7 +36708,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-iv-detail2"></script>
+<script type="module" src="./live.js?v=20260608-iv-email"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

@@ -16096,7 +16096,7 @@ async function loadIvCalendar() {
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, applicants:applicant_id (full_name, email, phone)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         .order("starts_at", { ascending: true })
@@ -16164,106 +16164,97 @@ function _ivcalRender() {
     ${inner}`;
   host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalRender(); });
   host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
-  // Click any event block / month pill → detail popover anchored to it.
+  // Click any event block / month pill → open an email. Single bookings open
+  // the applicant's email thread; group sessions open a compose to everyone
+  // booked into that session.
   host.querySelectorAll("[data-ivcal-id]").forEach(el => el.onclick = (e) => {
     e.stopPropagation();
-    _ivcalOpenDetail(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id"), el);
+    _ivcalOpenEmail(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id"));
   });
 }
 
-// ── Calendar event detail popover (anchored, no backdrop) ─────────────────
-function _ivcalCloseDetail() {
-  const m = document.getElementById("rr-ivcal-detail");
-  if (m) m.remove();
-  document.removeEventListener("keydown", _ivcalDetailEsc);
-  document.removeEventListener("click", _ivcalDetailOutside, true);
-  window.removeEventListener("resize", _ivcalCloseDetail);
-  window.removeEventListener("scroll", _ivcalCloseDetail, true);
-}
-function _ivcalDetailEsc(e) { if (e.key === "Escape") _ivcalCloseDetail(); }
-function _ivcalDetailOutside(e) {
-  if (!e.target.closest || !e.target.closest("#rr-ivcal-detail")) _ivcalCloseDetail();
-}
-
-function _ivcalOpenDetail(kind, id, anchorEl) {
+// ── Calendar event → email ────────────────────────────────────────────────
+function _ivcalOpenEmail(kind, id) {
   if (!_ivcalCache) return;
-  _ivcalCloseDetail();
   const arr = kind === "session" ? _ivcalCache.sessions : _ivcalCache.bookings;
   const ev = (arr || []).find(x => String(x.id) === String(id));
   if (!ev) return;
+  if (kind === "session") { _ivcalOpenGroupEmail(ev); return; }
+  const a = ev.applicants || {};
+  if (!ev.applicant_id || !a.email) { toast("No email on file for this applicant", "warn"); return; }
+  if (typeof openEmailThreadModal === "function") openEmailThreadModal(ev.applicant_id, a.full_name || "", a.email);
+}
 
-  const s = new Date(ev.starts_at);
-  const e = ev.ends_at ? new Date(ev.ends_at) : null;
-  const dateStr = s.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
-  const timeStr = s.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" })
-    + (e ? " – " + e.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }) : "");
+// Group-session email · composes one message to every applicant booked into
+// the session (each gets a DSP-branded send via send_applicant_email, so it
+// also lands in their individual thread). The To: box lists every invitee.
+async function _ivcalOpenGroupEmail(session) {
+  const seen = new Set();
+  const recipients = (_ivcalCache.bookings || []).filter(b => {
+    if (String(b.interview_session_id) !== String(session.id)) return false;
+    const em = (b.applicants || {}).email;
+    if (!b.applicant_id || !em || seen.has(b.applicant_id)) return false;
+    seen.add(b.applicant_id); return true;
+  }).map(b => ({ id: b.applicant_id, email: b.applicants.email, name: b.applicants.full_name || "" }));
 
-  let title, badge, rows = "";
-  const row = (label, val) => `<div class="rr-ivd-row"><div class="rr-ivd-k">${escapeHtml(label)}</div><div class="rr-ivd-v">${val}</div></div>`;
-
-  if (kind === "session") {
-    title = ev.label || "Group session";
-    badge = `<span class="rr-ivd-badge session">Group session</span>`;
-    rows += row("Capacity", `${ev.capacity || 1} spots`);
-  } else {
-    const a = ev.applicants || {};
-    title = rrTitleCaseName(a.full_name) || (ev.kind === "orientation" ? "Orientation" : "Interview");
-    badge = ev.kind === "orientation"
-      ? `<span class="rr-ivd-badge orient">Orientation</span>`
-      : `<span class="rr-ivd-badge interview">Interview</span>`;
-    if (ev.status === "rescheduled") badge += ` <span class="rr-ivd-badge resched">Rescheduled</span>`;
-    if (a.phone) rows += row("Phone", `<a href="tel:${escapeHtml(a.phone)}">${escapeHtml(a.phone)}</a>`);
-    if (a.email) rows += row("Email", `<a href="mailto:${escapeHtml(a.email)}">${escapeHtml(a.email)}</a>`);
-  }
-  rows += row("When", `${escapeHtml(dateStr)}<br>${escapeHtml(timeStr)}`);
-  if (ev.meeting_url) {
-    rows += row("Video room", `<a href="${escapeHtml(ev.meeting_url)}" target="_blank" rel="noreferrer">Open link</a>`);
+  if (recipients.length === 0) {
+    toast("No one has booked this session yet — no one to email", "warn");
+    return;
   }
 
-  const join = ev.meeting_url
-    ? `<a class="rr-ivd-btn primary" href="${escapeHtml(ev.meeting_url)}" target="_blank" rel="noreferrer">Join video interview</a>`
-    : "";
-
-  const card = document.createElement("div");
-  card.id = "rr-ivcal-detail";
-  card.className = "rr-ivcal-detail-card";
-  card.setAttribute("role", "dialog");
-  card.setAttribute("aria-label", "Event details");
-  card.innerHTML = `
-    <button class="rr-ivd-close" aria-label="Close">×</button>
-    <div class="rr-ivd-title">${escapeHtml(title)}</div>
-    <div class="rr-ivd-badges">${badge}</div>
-    <div class="rr-ivd-rows">${rows}</div>
-    ${join ? `<div class="rr-ivd-foot">${join}</div>` : ""}`;
-  document.body.appendChild(card);
-  card.querySelector(".rr-ivd-close").onclick = _ivcalCloseDetail;
-
-  // Position next to the clicked event: prefer its right side, flip left if
-  // there's no room, then clamp to the viewport. Falls back to centered.
-  const PAD = 8;
-  const cw = card.offsetWidth, ch = card.offsetHeight;
-  const r = anchorEl && anchorEl.getBoundingClientRect ? anchorEl.getBoundingClientRect() : null;
-  let left, top;
-  if (r) {
-    left = r.right + PAD;
-    if (left + cw > window.innerWidth - PAD) left = r.left - cw - PAD;     // flip to left
-    if (left < PAD) left = Math.min(Math.max(PAD, r.left), window.innerWidth - cw - PAD);
-    top = r.top;
-    if (top + ch > window.innerHeight - PAD) top = window.innerHeight - ch - PAD;
-    if (top < PAD) top = PAD;
-  } else {
-    left = (window.innerWidth - cw) / 2;
-    top = (window.innerHeight - ch) / 2;
-  }
-  card.style.left = Math.round(left) + "px";
-  card.style.top = Math.round(top) + "px";
-
-  document.addEventListener("keydown", _ivcalDetailEsc);
-  // Close on any outside click (next tick so this opening click doesn't fire it),
-  // and on resize/scroll since the anchor would move out from under the popover.
-  setTimeout(() => document.addEventListener("click", _ivcalDetailOutside, true), 0);
-  window.addEventListener("resize", _ivcalCloseDetail);
-  window.addEventListener("scroll", _ivcalCloseDetail, true);
+  const old = document.getElementById("rr-ivcal-group-email");
+  if (old) old.remove();
+  const emails = recipients.map(r => r.email).join(", ");
+  const label = session.label || "Group session";
+  const m = document.createElement("div");
+  m.id = "rr-ivcal-group-email";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay);z-index:9999;display:flex;align-items:center;justify-content:center;padding:var(--s-6)";
+  m.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:600px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--s-4) var(--s-5);border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:var(--fs-lg);font-weight:600">Email · ${escapeHtml(label)}</div>
+          <div style="font-size:var(--fs-xs);color:var(--text-subtle);margin-top:2px">${recipients.length} recipient${recipients.length>1?"s":""} invited</div>
+        </div>
+        <button class="btn btn-sm" data-rr-ge-close>Close</button>
+      </div>
+      <div style="padding:var(--s-4) var(--s-5);display:flex;flex-direction:column;gap:var(--s-3);overflow-y:auto">
+        <label style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600">To · everyone invited</span>
+          <div style="font-size:var(--fs-sm);color:var(--text);background:var(--canvas);border:1px solid var(--border);border-radius:8px;padding:8px 10px;max-height:96px;overflow-y:auto;word-break:break-word">${escapeHtml(emails)}</div>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600">Subject</span>
+          <input id="rr-ge-subject" type="text" placeholder="Subject (optional)" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;box-sizing:border-box">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px">
+          <span style="font-size:var(--fs-xs);color:var(--text-subtle);font-weight:600">Message</span>
+          <textarea id="rr-ge-body" placeholder="Type your message…" style="min-height:150px;padding:var(--s-2-5) var(--s-3);border:1px solid var(--border);border-radius:8px;font:inherit;resize:vertical;box-sizing:border-box"></textarea>
+        </label>
+      </div>
+      <div style="border-top:1px solid var(--border);padding:var(--s-3-5) 22px;display:flex;justify-content:flex-end;gap:var(--s-2)">
+        <button class="btn btn-primary" id="rr-ge-send">Send to ${recipients.length}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  m.addEventListener("click", async (e) => {
+    if (e.target === m || e.target.closest("[data-rr-ge-close]")) { m.remove(); return; }
+    if (e.target.closest("#rr-ge-send")) {
+      const subject = document.getElementById("rr-ge-subject").value.trim();
+      const body = document.getElementById("rr-ge-body").value.trim();
+      if (!body) { toast("Type a message first", "warn"); return; }
+      const btn = e.target.closest("button");
+      btn.disabled = true; btn.textContent = "Sending…";
+      let ok = 0, fail = 0;
+      for (const r of recipients) {
+        const { error } = await sb.rpc("send_applicant_email", { p_applicant_id: r.id, p_body: body, p_subject: subject || null });
+        if (error) fail++; else ok++;
+      }
+      if (fail === 0) toast(`Email queued to ${ok} ${ok === 1 ? "person" : "people"}`, "success");
+      else toast(`Sent to ${ok}, ${fail} failed`, "warn");
+      m.remove();
+    }
+  });
 }
 
 function _ivcalEventBlock(ev, type) {
