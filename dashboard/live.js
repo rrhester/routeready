@@ -16209,6 +16209,7 @@ function _ivcalRender() {
   // menu; hover → preview card.
   host.querySelectorAll("[data-ivcal-id]").forEach(el => {
     el.addEventListener("click", (e) => { e.stopPropagation(); if (_ivcalSuppressClick) { _ivcalSuppressClick = false; return; } _ivcalSelect(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
+    el.addEventListener("dblclick", (e) => { e.stopPropagation(); _ivcalHoverHide(); _ivcalEditEvent(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
     el.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); _ivcalContextMenu(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
     el.addEventListener("mouseenter", (e) => _ivcalHoverShow(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")));
     el.addEventListener("mouseleave", _ivcalHoverHide);
@@ -16584,6 +16585,105 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   });
 }
 
+// In-place edit of an existing event — title (free-form events), start/end,
+// all-day, location, and notes. Commits straight to cal_events via the
+// RLS-gated update; does NOT re-send invites (use Email to notify attendees).
+function _ivcalEditEvent(kind, id) {
+  if (kind === "session") { toast("Edit group sessions from the Availability tab", "info"); return; }
+  const ev = _ivcalFindEv(kind, id);
+  if (!ev) { toast("Event not found", "warn"); return; }
+  const tz = (_ivcalCache && _ivcalCache.tz) || "America/Chicago";
+  const old = document.getElementById("rr-ivcal-edit"); if (old) old.remove();
+
+  const isEvent = ev.kind === "event"; // free-form event → title editable
+  const a = ev.applicants || {};
+  const title = isEvent ? (ev.title || "Event")
+    : (rrTitleCaseName(a.full_name) || (ev.kind === "orientation" ? "Orientation" : "Interview"));
+  const s = new Date(ev.starts_at);
+  const e = ev.ends_at ? new Date(ev.ends_at) : new Date(s.getTime() + 30 * 60000);
+  const sdate = _ivcalISODate(s), edate = _ivcalISODate(e);
+  const stime = _ivMinToHHMM(s.getHours() * 60 + s.getMinutes());
+  const etime = _ivMinToHHMM(e.getHours() * 60 + e.getMinutes());
+  const note = (ev.metadata && ev.metadata.note != null) ? String(ev.metadata.note) : "";
+  const location = ev.location || "";
+
+  const m = document.createElement("div");
+  m.id = "rr-ivcal-edit";
+  m.style.cssText = "position:fixed;inset:0;background:var(--overlay,rgba(15,23,42,.40));z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box";
+  const fld = "padding:9px 11px;border:1px solid var(--border);border-radius:6px;font:inherit;box-sizing:border-box;background:var(--surface);color:var(--text)";
+  const lbl = "font-size:12px;font-weight:600;color:var(--text-subtle);min-width:74px";
+  const row = (label, inner) => `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span style="${lbl}">${label}</span>${inner}</div>`;
+  const titleField = isEvent
+    ? `<input id="rr-ed-title" type="text" value="${escapeHtml(title)}" style="${fld};flex:1;min-width:220px">`
+    : `<input id="rr-ed-title" type="text" value="${escapeHtml(title)}" disabled title="Interview title follows the applicant" style="${fld};flex:1;min-width:220px;opacity:.6">`;
+  m.innerHTML = `
+    <div class="rr-ne-card" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.34);width:min(720px,96vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap">
+        <div style="font-size:17px;font-weight:700;color:var(--text)">Edit event</div>
+        <button id="rr-ed-save" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:7px">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          Save
+        </button>
+        ${ev.meeting_url ? `<button id="rr-ed-join" class="btn" style="display:inline-flex;align-items:center;gap:7px">🎥 Join</button>` : ""}
+        <button class="btn btn-sm" data-rr-ed-close style="margin-left:auto">Close</button>
+      </div>
+      <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:11px;padding:16px 20px;box-sizing:border-box;overflow-y:auto">
+        ${row("Title", titleField)}
+        ${row("Start", `<input id="rr-ed-sdate" type="date" value="${escapeHtml(sdate)}" style="${fld}"><input id="rr-ed-stime" type="time" value="${escapeHtml(stime)}" style="${fld}"><label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);margin-left:8px;cursor:pointer"><input id="rr-ed-allday" type="checkbox"> All day</label>`)}
+        ${row("End", `<input id="rr-ed-edate" type="date" value="${escapeHtml(edate)}" style="${fld}"><input id="rr-ed-etime" type="time" value="${escapeHtml(etime)}" style="${fld}">`)}
+        ${row("Location", `<input id="rr-ed-location" type="text" value="${escapeHtml(location)}" placeholder="Online video meeting or address" style="${fld};flex:1;min-width:220px">`)}
+        <textarea id="rr-ed-body" placeholder="Notes (optional)" style="${fld};flex:1;min-height:120px;resize:none;line-height:1.5;font-family:Calibri,Arial,sans-serif;font-size:14px">${escapeHtml(note)}</textarea>
+        <div style="font-size:12px;color:var(--text-subtle)">Saving updates the event on the calendar. Attendees aren’t auto-notified — use <strong>Email</strong> to send a change notice.</div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+
+  const allday = document.getElementById("rr-ed-allday");
+  allday.addEventListener("change", () => {
+    ["rr-ed-stime", "rr-ed-etime"].forEach(idd => {
+      const el = document.getElementById(idd);
+      el.disabled = allday.checked; el.style.opacity = allday.checked ? ".4" : "";
+    });
+  });
+
+  m.addEventListener("click", async (e2) => {
+    if (e2.target === m || e2.target.closest("[data-rr-ed-close]")) { m.remove(); return; }
+    if (e2.target.closest("#rr-ed-join") && ev.meeting_url) { window.open(ev.meeting_url, "_blank", "noreferrer"); return; }
+    if (e2.target.closest("#rr-ed-save")) {
+      const newTitle = isEvent ? document.getElementById("rr-ed-title").value.trim() : null;
+      const nsdate = document.getElementById("rr-ed-sdate").value;
+      const nedate = document.getElementById("rr-ed-edate").value || nsdate;
+      const nstime = document.getElementById("rr-ed-stime").value;
+      const netime = document.getElementById("rr-ed-etime").value || nstime;
+      const isAllDay = document.getElementById("rr-ed-allday").checked;
+      const newLoc = document.getElementById("rr-ed-location").value.trim();
+      const newNote = document.getElementById("rr-ed-body").value;
+      if (isEvent && !newTitle) { toast("Add a title", "warn"); return; }
+      if (!nsdate || (!isAllDay && !nstime)) { toast("Pick a start date and time", "warn"); return; }
+      const startISO = isAllDay ? _ivLocalToISO(nsdate, "00:00", tz) : _ivLocalToISO(nsdate, nstime, tz);
+      const endISO = isAllDay ? _ivLocalToISO(nedate, "23:59", tz) : _ivLocalToISO(nedate, netime, tz);
+      if (new Date(endISO) <= new Date(startISO)) { toast("End must be after start", "warn"); return; }
+      const btn = e2.target.closest("button"); btn.disabled = true; btn.textContent = "Saving…";
+      const patch = {
+        starts_at: startISO, ends_at: endISO, location: newLoc || null,
+        metadata: { ...(ev.metadata || {}), note: newNote || null },
+      };
+      if (isEvent) patch.title = newTitle;
+      try {
+        const { error } = await sb.from("cal_events").update(patch).eq("id", ev.id);
+        if (error) throw error;
+        toast("Event updated", "success");
+        m.remove();
+        loadIvCalendar();
+        if (typeof loadCalBookingsList === "function") loadCalBookingsList();
+      } catch (err) {
+        toast("Couldn't save: " + (err.message || err), "warn");
+        btn.disabled = false; btn.textContent = "Save";
+      }
+    }
+  });
+}
+
 function _ivcalFilterOk(ev, type) {
   const k = type === "session" ? "session" : _ivcalEvKind(ev);
   return !!_ivcalFilters[k];
@@ -16718,6 +16818,7 @@ function _ivcalPaneHtml() {
   if (note) rows += drow("🗒", `<span style="white-space:pre-wrap;color:#3a3a45">${escapeHtml(String(note))}</span>`);
   const acts = [
     `<button class="oc-btn pri" data-oc-pane="email">✉ Email</button>`,
+    type !== "session" ? `<button class="oc-btn" data-oc-pane="edit">✎ Edit</button>` : "",
     ev.meeting_url ? `<button class="oc-btn" data-oc-pane="join">🎥 Join</button>` : "",
     type !== "session" ? `<button class="oc-btn" data-oc-pane="cancel">✖ Cancel</button>` : "",
     a && ev.applicant_id ? `<button class="oc-btn" data-oc-pane="applicant">Open applicant</button>` : "",
@@ -16736,6 +16837,7 @@ function _ivcalWirePane(host) {
     if (act === "close") return _ivcalDeselect();
     const ev = _ivcalFindEv(sel.kind, sel.id); if (!ev) return;
     if (act === "email") _ivcalOpenEmail(sel.kind, sel.id);
+    else if (act === "edit") _ivcalEditEvent(sel.kind, sel.id);
     else if (act === "join" && ev.meeting_url) window.open(ev.meeting_url, "_blank", "noreferrer");
     else if (act === "cancel") _ivcalDeleteEvent(sel.kind, sel.id, true);
     else if (act === "applicant" && ev.applicant_id) _ivcalOpenApplicant(ev.applicant_id);
@@ -16759,6 +16861,7 @@ function _ivcalContextMenu(e, kind, id) {
   menu.className = "oc-menu";
   menu.innerHTML =
     item("open", "Open") +
+    (kind !== "session" ? item("edit", "Edit") : "") +
     item("email", "Email") +
     item("duplicate", "Duplicate") +
     (ev.applicant_id ? item("applicant", "Open applicant") : "") +
@@ -16773,6 +16876,7 @@ function _ivcalContextMenu(e, kind, id) {
     const act = b.getAttribute("data-oc-ctx");
     _ivcalCloseMenus();
     if (act === "open") _ivcalSelect(kind, id);
+    else if (act === "edit") _ivcalEditEvent(kind, id);
     else if (act === "email") _ivcalOpenEmail(kind, id);
     else if (act === "duplicate") { const s = new Date(ev.starts_at); _ivcalNewEvent(_ivcalISODate(s), s.getHours()*60+s.getMinutes(), s.getHours()*60+s.getMinutes()+30); }
     else if (act === "applicant" && ev.applicant_id) _ivcalOpenApplicant(ev.applicant_id);
@@ -16889,9 +16993,10 @@ function _ivcalInstallKeys() {
     if (!cal || !cal.offsetParent) return;                 // calendar not visible
     const tag = (document.activeElement && document.activeElement.tagName) || "";
     if (/INPUT|TEXTAREA|SELECT/.test(tag) || document.activeElement?.isContentEditable) return;
-    if (document.getElementById("rr-ivcal-new") || document.getElementById("rr-em-composer")) return; // editor/composer open
+    if (document.getElementById("rr-ivcal-new") || document.getElementById("rr-ivcal-edit") || document.getElementById("rr-em-composer")) return; // editor/composer open
     if (e.key === "Escape") { if (document.querySelector(".oc-menu,.oc-quick,.oc-hover")) { _ivcalCloseMenus(); } else _ivcalDeselect(); }
     else if (e.key === "n" || e.key === "N") { e.preventDefault(); _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30); }
+    else if ((e.key === "e" || e.key === "E") && _ivcalSelected && _ivcalSelected.kind !== "session") { e.preventDefault(); _ivcalEditEvent(_ivcalSelected.kind, _ivcalSelected.id); }
     else if (e.key === "t" || e.key === "T") { _ivcalNav(0); }
     else if (e.key === "ArrowLeft") { e.preventDefault(); _ivcalNav(-1); }
     else if (e.key === "ArrowRight") { e.preventDefault(); _ivcalNav(1); }
