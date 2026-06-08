@@ -12535,42 +12535,43 @@ body.rr-cmdk-open{ overflow:hidden }
             </div>
           </div>
 
-          <!-- Native RouteReady interview availability (days/times + capacity + group sessions). -->
+          <!-- Native RouteReady interview availability editor styles · GLOBAL
+               (selectors un-scoped) because the editor itself now lives in the
+               Calendar "Rules" → Interview availability popover (#rr-iv-rules-popover),
+               which is outside #pipe-sub-calendar. -->
           <style>
-            #view-pipeline #pipe-sub-calendar .rr-iv-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin:0 0 var(--s-4)}
-            #view-pipeline #pipe-sub-calendar .rr-iv-card .rr-iv-title{font-weight:700;color:var(--text);margin-bottom:4px}
-            #view-pipeline #pipe-sub-calendar .rr-iv-card .rr-iv-cardsub{font-size:13px;color:var(--text-subtle);margin-bottom:14px}
-            #view-pipeline #pipe-sub-calendar .rr-iv-cfg{display:flex;flex-wrap:wrap;gap:14px 18px;margin-bottom:14px;font-size:13px;color:var(--text-muted)}
-            #view-pipeline #pipe-sub-calendar .rr-iv-cfg label{display:inline-flex;align-items:center;gap:6px}
-            #view-pipeline #pipe-sub-calendar .rr-iv-cfg select,#view-pipeline #pipe-sub-calendar .rr-iv-cfg input,
-            #view-pipeline #pipe-sub-calendar .rr-iv-day input[type=time],#view-pipeline #pipe-sub-calendar .rr-iv-day input[type=number],
-            #view-pipeline #pipe-sub-calendar .rr-iv-add input{background:var(--canvas);border:1px solid var(--border);border-radius:7px;padding:6px 8px;font:inherit;font-size:13px;color:var(--text)}
-            #view-pipeline #pipe-sub-calendar .rr-iv-cfg input[type=number]{width:58px}
-            #view-pipeline #pipe-sub-calendar .rr-iv-day{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 0;border-top:1px solid var(--border)}
-            #view-pipeline #pipe-sub-calendar .rr-iv-day.off{opacity:.5}
-            #view-pipeline #pipe-sub-calendar .rr-iv-daylbl{display:inline-flex;align-items:center;gap:7px;width:108px;font-size:14px;font-weight:500;cursor:pointer}
-            #view-pipeline #pipe-sub-calendar .rr-iv-day input[type=number]{width:52px}
-            #view-pipeline #pipe-sub-calendar .rr-iv-capl,#view-pipeline #pipe-sub-calendar .rr-iv-capr{font-size:12px;color:var(--text-subtle)}
-            #view-pipeline #pipe-sub-calendar .rr-iv-dash{color:var(--text-subtle)}
-            #view-pipeline #pipe-sub-calendar .rr-iv-foot{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:14px}
-            #view-pipeline #pipe-sub-calendar .rr-iv-save-status{font-size:12px;color:var(--text-subtle)}
-            #view-pipeline #pipe-sub-calendar .rr-iv-save-status.ok{color:var(--green)} #view-pipeline #pipe-sub-calendar .rr-iv-save-status.err{color:var(--red)}
-            #view-pipeline #pipe-sub-calendar .rr-iv-btn{appearance:none;cursor:pointer;font:inherit;font-weight:600;font-size:13px;color:#fff;background:#0F6CBD;border:1px solid #0F6CBD;border-radius:8px;padding:8px 16px}
-            #view-pipeline #pipe-sub-calendar .rr-iv-btn.is-ghost{background:#fff;color:#0F6CBD}
-            #view-pipeline #pipe-sub-calendar .rr-iv-subh{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin:18px 0 8px;padding-top:14px;border-top:1px solid var(--border)}
-            #view-pipeline #pipe-sub-calendar .rr-iv-sess{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px solid var(--border)}
-            #view-pipeline #pipe-sub-calendar .rr-iv-x{appearance:none;border:0;background:transparent;color:var(--text-subtle);font-size:18px;line-height:1;cursor:pointer;padding:0 6px}
-            #view-pipeline #pipe-sub-calendar .rr-iv-x:hover{color:var(--red)}
-            #view-pipeline #pipe-sub-calendar .rr-iv-empty{font-size:13px;color:var(--text-subtle);padding:4px 0}
-            #view-pipeline #pipe-sub-calendar .rr-iv-add{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
-            #view-pipeline #pipe-sub-calendar .rr-iv-add .rr-iv-s-label{flex:1;min-width:120px}
-            #view-pipeline #pipe-sub-calendar .rr-iv-err{color:var(--red);font-size:13px}
+            .rr-iv-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin:0 0 var(--s-4)}
+            .rr-iv-card .rr-iv-title{font-weight:700;color:var(--text);margin-bottom:4px}
+            .rr-iv-card .rr-iv-cardsub{font-size:13px;color:var(--text-subtle);margin-bottom:14px}
+            .rr-iv-cfg{display:flex;flex-wrap:wrap;gap:14px 18px;margin-bottom:14px;font-size:13px;color:var(--text-muted)}
+            .rr-iv-cfg label{display:inline-flex;align-items:center;gap:6px}
+            .rr-iv-cfg select,.rr-iv-cfg input,
+            .rr-iv-day input[type=time],.rr-iv-day input[type=number],
+            .rr-iv-add input{background:var(--canvas);border:1px solid var(--border);border-radius:7px;padding:6px 8px;font:inherit;font-size:13px;color:var(--text)}
+            .rr-iv-cfg input[type=number]{width:58px}
+            .rr-iv-day{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 0;border-top:1px solid var(--border)}
+            .rr-iv-day.off{opacity:.5}
+            .rr-iv-daylbl{display:inline-flex;align-items:center;gap:7px;width:108px;font-size:14px;font-weight:500;cursor:pointer}
+            .rr-iv-day input[type=number]{width:52px}
+            .rr-iv-capl,.rr-iv-capr{font-size:12px;color:var(--text-subtle)}
+            .rr-iv-dash{color:var(--text-subtle)}
+            .rr-iv-foot{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:14px}
+            .rr-iv-save-status{font-size:12px;color:var(--text-subtle)}
+            .rr-iv-save-status.ok{color:var(--green)} .rr-iv-save-status.err{color:var(--red)}
+            .rr-iv-btn{appearance:none;cursor:pointer;font:inherit;font-weight:600;font-size:13px;color:#fff;background:#0F6CBD;border:1px solid #0F6CBD;border-radius:8px;padding:8px 16px}
+            .rr-iv-btn.is-ghost{background:#fff;color:#0F6CBD}
+            .rr-iv-subh{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-subtle);margin:18px 0 8px;padding-top:14px;border-top:1px solid var(--border)}
+            .rr-iv-sess{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px solid var(--border)}
+            .rr-iv-x{appearance:none;border:0;background:transparent;color:var(--text-subtle);font-size:18px;line-height:1;cursor:pointer;padding:0 6px}
+            .rr-iv-x:hover{color:var(--red)}
+            .rr-iv-empty{font-size:13px;color:var(--text-subtle);padding:4px 0}
+            .rr-iv-add{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+            .rr-iv-add .rr-iv-s-label{flex:1;min-width:120px}
+            .rr-iv-err{color:var(--red);font-size:13px}
+            /* In the Rules popover the head already titles it + the popover body
+               supplies the surface, so drop the inner card's own chrome there. */
+            #rr-iv-rules-popover .rr-iv-card{border:0;padding:0;margin:0;background:transparent}
           </style>
-          <div class="rr-iv-card" id="rr-iv-card">
-            <div class="rr-iv-title">Interview availability</div>
-            <div class="rr-iv-cardsub">Set the days, times, and how many people each slot holds. Add one-off group sessions below. This powers your RouteReady booking page.</div>
-            <div id="rr-iv-body"><div class="rr-loading">Loading…</div></div>
-          </div>
 
           <div class="pipe-cal-shell">
             <div class="pipe-cal-col">
@@ -12900,6 +12901,44 @@ body.rr-cmdk-open{ overflow:hidden }
           border-bottom:1px solid var(--sch-line-subtle,rgba(15,23,42,.06));
         }
         #view-onboarding-ops .ob-rules-body{padding:12px 16px 14px}
+
+        /* Sourcing-group "Rules" chooser · Screening questions vs Interview
+           availability. Mirrors the Schedule rules chooser; fixed-positioned
+           and appended to <body> so it can't be clipped by ribbon overflow. */
+        .rr-ob-rules-chooser{
+          position:fixed;z-index:4000;
+          background:#fff;border:1px solid rgba(15,23,42,.18);border-radius:8px;
+          box-shadow:0 10px 30px rgba(15,23,42,.20);
+          padding:4px;display:flex;flex-direction:column;min-width:204px;
+          font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,Roboto,sans-serif;
+        }
+        .rr-ob-rules-chooser button{
+          appearance:none;background:transparent;border:0;cursor:pointer;
+          text-align:left;font:inherit;font-size:13px;font-weight:600;color:#242424;
+          padding:9px 12px;border-radius:5px;white-space:nowrap;
+          transition:background .12s,color .12s;
+        }
+        .rr-ob-rules-chooser button:hover{background:rgba(15,108,189,.08);color:#0F6CBD}
+
+        /* Interview-availability rules popover · same Fluent shell as the
+           screening-questions popover it sits beside in the chooser. */
+        #view-onboarding-ops #rr-iv-rules-popover{
+          font-family:"Segoe UI","Segoe UI Web (West European)",-apple-system,BlinkMacSystemFont,Roboto,"Helvetica Neue",sans-serif;
+          background:rgba(255,255,255,.86);
+          -webkit-backdrop-filter:blur(40px) saturate(170%);
+          backdrop-filter:blur(40px) saturate(170%);
+          border:1px solid rgba(255,255,255,.55);border-radius:8px;
+          box-shadow:0 14px 32px rgba(0,0,0,.20),0 0 10px rgba(0,0,0,.12);
+          width:600px;
+        }
+        #view-onboarding-ops #rr-iv-rules-popover > :first-child{
+          display:flex;align-items:center;gap:9px;
+          background:linear-gradient(135deg,#0078D4,#005A9E);color:#fff;
+          font-size:14px;font-weight:600;letter-spacing:.005em;
+          padding:13px 18px;border:0;border-radius:8px 8px 0 0;
+        }
+        #view-onboarding-ops #rr-iv-rules-popover > :first-child > svg{width:16px;height:16px;flex:0 0 auto;color:#fff}
+        #view-onboarding-ops #rr-iv-rules-popover > :last-child{background:rgba(248,249,250,.55);border-radius:0 0 8px 8px;padding:14px 18px 16px}
 
         /* Relocated hiring-pipeline block — the onboarding header
            covers its title, the icon strip replaces its text tabs;
@@ -13436,20 +13475,31 @@ body.rr-cmdk-open{ overflow:hidden }
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="6" y="13" width="3" height="3"/><rect x="11" y="13" width="3" height="3"/><rect x="15" y="13" width="3" height="3"/><rect x="6" y="17" width="3" height="3"/><rect x="11" y="17" width="3" height="3"/></svg>
                     <span>Calendar</span>
                   </button>
-                  <button type="button" class="ob-rules-foot" data-rr-rules-stub title="Calendar rules — coming soon">
+                  <button type="button" class="ob-rules-foot" id="rr-iv-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-iv-rules-popover" title="Interview availability — days, times, capacity, and group sessions">
                     Rules
                     <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
                   </button>
+                  <div class="ob-rules-popover" id="rr-iv-rules-popover" role="dialog" aria-modal="false" aria-label="Interview availability" hidden>
+                    <div class="ob-rules-head">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                      Interview availability
+                    </div>
+                    <div class="ob-rules-body">
+                      <p style="margin:0 0 12px;font-size:var(--fs-sm);color:var(--text-subtle)">The days, times, capacity, and one-off group sessions applicants see on your RouteReady booking page.</p>
+                      <div class="rr-iv-card" id="rr-iv-card">
+                        <div id="rr-iv-body"><div class="rr-loading">Loading…</div></div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               <!-- Group caption + consolidated rules launcher · mirrors Schedule's
                    .sched-v2-viewgroup: a centered caption on the card's bottom line
-                   + a box-arrow dialog launcher pinned bottom-right. The per-tile
-                   Rules chevrons in this group are hidden (CSS) and consolidated
-                   into this one launcher, which forwards to the Funnel screening
-                   rules popover. -->
-              <span class="ob-v2-group-label" aria-hidden="true">Go To</span>
-              <button type="button" class="ob-v2-group-launcher" tabindex="-1" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-funnel-rules-popover" title="Screening rules" onclick="(function(b,ev){ev.preventDefault();ev.stopPropagation();var t=document.getElementById('rr-funnel-rules-toggle');if(t)t.click();})(this,event)">
+                   + a box-arrow dialog launcher pinned bottom-right. Opens a small
+                   chooser (_rrOpenObRules) → Screening questions (Funnel popover)
+                   or Interview availability (#rr-iv-rules-popover). -->
+              <span class="ob-v2-group-label" aria-hidden="true">Rules</span>
+              <button type="button" class="ob-v2-group-launcher" tabindex="-1" aria-haspopup="menu" aria-expanded="false" title="Rules — screening questions &amp; interview availability" onclick="window._rrOpenObRules(this, event)">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
               </button>
             </div><!-- /group: sourcing -->
@@ -36602,6 +36652,52 @@ John,Smith,555-0101,john@example.com</code>
         });
       }, 0);
     };
+
+    // Onboarding "Rules" launcher (sourcing group) opens a small chooser:
+    // Screening questions vs Interview availability. Each forwards to its own
+    // popover (defined/handled in live.js: _rrToggleFunnelRules / _rrToggleIvRules).
+    function _rrCloseObRulesChooser() {
+      var m = document.getElementById('rr-ob-rules-chooser');
+      if (m) m.remove();
+    }
+    window._rrOpenObRules = function (b, ev) {
+      if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+      if (document.getElementById('rr-ob-rules-chooser')) { _rrCloseObRulesChooser(); return; }
+      var menu = document.createElement('div');
+      menu.id = 'rr-ob-rules-chooser';
+      menu.className = 'rr-ob-rules-chooser';
+      menu.innerHTML =
+        '<button type="button" data-rr-obrules="screening">Screening questions</button>' +
+        '<button type="button" data-rr-obrules="availability">Interview availability</button>';
+      document.body.appendChild(menu);
+      // Fixed-position just below the launcher, right-aligned to it.
+      var r = b.getBoundingClientRect();
+      menu.style.top = (r.bottom + 4) + 'px';
+      menu.style.left = Math.max(8, r.right - menu.offsetWidth) + 'px';
+      menu.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var btn = e.target.closest('[data-rr-obrules]');
+        if (!btn) return;
+        var which = btn.getAttribute('data-rr-obrules');
+        _rrCloseObRulesChooser();
+        if (which === 'screening') {
+          if (window._rrToggleIvRules) window._rrToggleIvRules(false);
+          if (window._rrToggleFunnelRules) window._rrToggleFunnelRules(true);
+        } else {
+          if (window._rrToggleFunnelRules) window._rrToggleFunnelRules(false);
+          if (window._rrToggleIvRules) window._rrToggleIvRules(true);
+        }
+      });
+      setTimeout(function () {
+        document.addEventListener('click', function onDoc(e) {
+          if (!e.target.closest('#rr-ob-rules-chooser')
+              && !e.target.closest('.ob-v2-group-launcher')) {
+            _rrCloseObRulesChooser();
+            document.removeEventListener('click', onDoc);
+          }
+        });
+      }, 0);
+    };
   })();
 </script>
 
@@ -36610,7 +36706,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-iv-calendar2"></script>
+<script type="module" src="./live.js?v=20260608-iv-rules"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

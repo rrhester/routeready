@@ -5563,9 +5563,41 @@ document.addEventListener("click", (e) => {
   if (pop && !pop.hidden
       && !e.target.closest("#rr-funnel-rules-popover")
       && !e.target.closest("#rr-funnel-rules-toggle")
+      // Don't close when re-opening from the sourcing-group Rules chooser.
+      && !e.target.closest("#rr-ob-rules-chooser")
       // Clicks inside the add/edit-question modal must not close it.
       && !e.target.closest("#rr-question-modal")) {
     _funnelToggleRules(false);
+  }
+});
+
+// Calendar "Rules" → Interview availability · opens the native availability
+// editor as a popover under the Calendar icon. Mirrors the Funnel screening
+// popover. The editor is loaded lazily on open (it no longer renders inline).
+function _ivToggleRules(force) {
+  const pop = document.getElementById("rr-iv-rules-popover");
+  const toggle = document.getElementById("rr-iv-rules-toggle");
+  if (!pop) return false;
+  const next = (typeof force === "boolean") ? force : pop.hidden;
+  pop.hidden = !next;
+  if (toggle) toggle.setAttribute("aria-expanded", next ? "true" : "false");
+  if (next && typeof loadInterviewAvailabilityEditor === "function") loadInterviewAvailabilityEditor();
+  return next;
+}
+window._rrToggleIvRules = _ivToggleRules;
+document.addEventListener("click", (e) => {
+  if (!e.target.closest) return;
+  if (e.target.closest("#rr-iv-rules-toggle")) {
+    e.preventDefault(); e.stopPropagation();
+    _ivToggleRules();
+    return;
+  }
+  const pop = document.getElementById("rr-iv-rules-popover");
+  if (pop && !pop.hidden
+      && !e.target.closest("#rr-iv-rules-popover")
+      && !e.target.closest("#rr-iv-rules-toggle")
+      && !e.target.closest("#rr-ob-rules-chooser")) {
+    _ivToggleRules(false);
   }
 });
 
@@ -16040,7 +16072,9 @@ const CAL_TZS = [
 ];
 
 async function loadCalendarTab() {
-  await Promise.all([loadCalBookingsList(), loadIvCalendar(), loadInterviewAvailabilityEditor()]);
+  // The availability editor now lives in the Calendar "Rules" → Interview
+  // availability popover (loaded lazily on open), not inline on this tab.
+  await Promise.all([loadCalBookingsList(), loadIvCalendar()]);
 }
 
 // ── Native interview calendar · Day / Week / Month ────────────────────────
