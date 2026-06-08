@@ -16236,14 +16236,13 @@ async function _ivcalOpenEmail(kind, id) {
     cancelEmails = emails; cancelTitle = ev.title || "Event";
     subject = ev.title || "You're invited";
     const gcalUrl = _rrGcalUrl(ev.title || "Interview", ev.starts_at, ev.ends_at, room ? ("Join the video meeting: " + room) : "", room || "");
-    const acc = ev.rsvp_token ? "https://gorouteready.com/rsvp/" + ev.rsvp_token + "/accept" : null;
-    const dec = ev.rsvp_token ? "https://gorouteready.com/rsvp/" + ev.rsvp_token + "/decline" : null;
-    html =
-      `<p>Hi all,</p>` +
-      `<p>You're invited:</p>` +
-      `<p><strong>${escapeHtml(ev.title || "Event")}</strong><br>${escapeHtml(dateStr)}<br>${escapeHtml(timeStr)}</p>` +
-      joinBlock +
-      _rrInviteButtonsHtml(gcalUrl, acc, dec);
+    const tok = ev.rsvp_token || "";
+    html = _rrInviteEmail({
+      dspName: window.RR?.dsp?.name, title: ev.title || "Interview", dateStr, timeStr, joinUrl: room,
+      message: "", gcalUrl,
+      acceptUrl: "https://gorouteready.com/rsvp/" + tok + "/accept",
+      declineUrl: "https://gorouteready.com/rsvp/" + tok + "/decline",
+    }).html;
   } else if (kind === "session") {
     // Everyone booked into this group session.
     const seen = new Set();
@@ -16325,14 +16324,48 @@ function _rrGcalUrl(title, startISO, endISO, details, location) {
   return "https://calendar.google.com/calendar/render?" + p.toString();
 }
 
-// Styled email buttons: Add to calendar + Accept + Decline. Inline styles so
-// they render in Gmail/Outlook. `accept`/`decline` may be null (add-only).
-function _rrInviteButtonsHtml(gcal, accept, decline) {
-  const b = (href, label, bg) => `<a href="${escapeHtml(href)}" style="display:inline-block;background:${bg};color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:600;font-size:14px;line-height:1;padding:12px 20px;border-radius:8px;margin:0 8px 8px 0">${label}</a>`;
-  let html = `<div style="margin:18px 0">${b(gcal, "📅 Add to calendar", "#0F6CBD")}`;
-  if (accept) html += b(accept, "✓ Accept", "#16A34A");
-  if (decline) html += b(decline, "✗ Decline", "#C4281C");
-  return html + "</div>";
+// Clean, Google/Zoom-style invite email. Returns { html, text }. Table-based
+// with inline styles so it renders well in Gmail/Outlook. Accept/Decline are
+// prominent buttons; add-to-calendar is a one-click Google Calendar link.
+function _rrInviteEmail(o) {
+  const esc = (s) => escapeHtml(s == null ? "" : String(s));
+  const btn = (href, label, bg) => `<a href="${esc(href)}" style="display:inline-block;background:${bg};color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:15px;line-height:1;padding:13px 28px;border-radius:8px">${label}</a>`;
+  const detail = (icon, html) => `<tr><td style="padding:5px 12px 5px 0;font-size:18px;vertical-align:top;width:22px">${icon}</td><td style="padding:5px 0;font-size:15px;color:#1b1b1f;vertical-align:top">${html}</td></tr>`;
+  const join = o.joinUrl ? detail("🎥", `<a href="${esc(o.joinUrl)}" style="color:#0F6CBD;font-weight:600;text-decoration:none">Join the video meeting</a>`) : "";
+  const msg = (o.message && o.message.trim())
+    ? `<div style="margin:18px 0 0;padding:14px 16px;background:#f6f8fb;border-radius:10px;font-size:15px;line-height:1.5;color:#3a3a45;white-space:pre-wrap">${esc(o.message.trim())}</div>` : "";
+  const html =
+`<div style="background:#eef1f5;padding:24px 12px;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+  <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
+    <tr><td style="background:#0F6CBD;border-radius:14px 14px 0 0;padding:22px 28px">
+      <div style="color:#ffffff;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.85">${esc(o.dspName || "RouteReady")}</div>
+      <div style="color:#ffffff;font-size:22px;font-weight:800;margin-top:5px">You're invited</div>
+    </td></tr>
+    <tr><td style="background:#ffffff;border:1px solid #e4e4e9;border-top:0;border-radius:0 0 14px 14px;padding:26px 28px">
+      <div style="font-size:21px;font-weight:700;color:#16181d;margin-bottom:16px">${esc(o.title || "Interview")}</div>
+      <table role="presentation" cellpadding="0" cellspacing="0">
+        ${detail("🗓️", `<strong>${esc(o.dateStr)}</strong><br><span style="color:#5a5a66">${esc(o.timeStr)}</span>`)}
+        ${join}
+      </table>
+      ${msg}
+      <div style="margin-top:26px">${btn(o.acceptUrl, "✓ Accept", "#16A34A")}&nbsp;&nbsp;${btn(o.declineUrl, "✗ Decline", "#C4281C")}</div>
+      <div style="margin-top:16px"><a href="${esc(o.gcalUrl)}" style="color:#0F6CBD;font-weight:600;font-size:14px;text-decoration:none">📅 Add to Google Calendar</a></div>
+    </td></tr>
+    <tr><td style="text-align:center;padding:16px 0;color:#9aa0ab;font-size:12px">Powered by RouteReady</td></tr>
+  </table>
+  </td></tr></table>
+</div>`;
+  const text =
+`You're invited — ${o.title || "Interview"}
+
+${o.dateStr}
+${o.timeStr}
+${o.joinUrl ? "\nJoin the video meeting: " + o.joinUrl + "\n" : ""}${(o.message && o.message.trim()) ? "\n" + o.message.trim() + "\n" : ""}
+Accept:  ${o.acceptUrl}
+Decline: ${o.declineUrl}
+Add to calendar: ${o.gcalUrl}`;
+  return { html, text };
 }
 
 // Outlook-style click-to-create. Opens a pop-out event editor (To / Subject
@@ -16358,25 +16391,9 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
     const t = (hhmm) => { const [h,mm] = String(hhmm||"").split(":").map(Number); const x = new Date(); x.setHours(h||0, mm||0, 0, 0); return x.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }); };
     return { dateStr, timeStr: t(start) + (end ? " – " + t(end) : "") };
   };
-  const buildBody = () => {
-    const title = (document.getElementById("rr-ne-title") || {}).value || "";
-    const date  = (document.getElementById("rr-ne-date")  || {}).value || dateISO;
-    const start = (document.getElementById("rr-ne-start") || {}).value || _ivMinToHHMM(startMin);
-    const end   = (document.getElementById("rr-ne-end")   || {}).value || _ivMinToHHMM(endMin);
-    const { dateStr, timeStr } = fmtWhen(date, start, end);
-    return [
-      "Hi,",
-      "",
-      "You're invited:",
-      (title.trim() || "(add a title)"),
-      `${dateStr}, ${timeStr}`,
-      "",
-      "Join the video meeting here:",
-      (roomUrl || "(creating link…)"),
-      "",
-      "No app or download needed — just open the link on your phone or computer at the time above.",
-    ].join("\n");
-  };
+  // The body is just a personal MESSAGE now — the event details + buttons are
+  // rendered by the clean invite template (_rrInviteEmail) when it's sent.
+  const buildBody = () => "Hi,\n\nLooking forward to meeting you. The details are below — please let us know if you can make it using the Accept or Decline buttons.";
   const refreshBody = () => { if (!bodyDirty) { const b = document.getElementById("rr-ne-body"); if (b) b.value = buildBody(); } };
 
   const m = document.createElement("div");
@@ -16457,8 +16474,11 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
       const acceptUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/accept";
       const declineUrl = "https://gorouteready.com/rsvp/" + rsvpToken + "/decline";
       const gcalUrl = _rrGcalUrl(title, startISO, endISO, roomUrl ? ("Join the video meeting: " + roomUrl) : "", roomUrl || "");
-      const btnsText = `\n\nAdd to calendar: ${gcalUrl}\nAccept: ${acceptUrl}\nDecline: ${declineUrl}`;
-      const btnsHtml = _rrInviteButtonsHtml(gcalUrl, acceptUrl, declineUrl);
+      const { dateStr, timeStr } = fmtWhen(date, start, end);
+      const inv = _rrInviteEmail({
+        dspName: window.RR?.dsp?.name, title, dateStr, timeStr, joinUrl: roomUrl,
+        message: bodyText, gcalUrl, acceptUrl, declineUrl,
+      });
       try {
         const { error } = await sb.rpc("create_calendar_event", {
           p_title: title,
@@ -16468,8 +16488,8 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
           p_note: bodyText || null,
           p_timezone: tz,
           p_meeting_url: roomUrl || null,
-          p_body_text: (bodyText || "") + btnsText,
-          p_body_html: (bodyText ? escapeHtml(bodyText).replace(/\n/g, "<br>") : "") + btnsHtml,
+          p_body_text: inv.text,
+          p_body_html: inv.html,
           p_rsvp_token: rsvpToken,
         });
         if (error) throw error;
