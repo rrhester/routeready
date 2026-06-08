@@ -11128,10 +11128,16 @@ body.rr-cmdk-open{ overflow:hidden }
              The advance button stretches to fill the available width;
              the more button sits at the right with a fixed footprint. */
           #view-pipeline .pa-zone-action-v4{
-            flex-direction:row;align-items:center;gap:6px;
+            flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px;
           }
-          #view-pipeline .pa-zone-action-v4 .pa-btn-advance{
-            flex:1 1 auto;justify-content:center;
+          /* Each action button needs ~130px. When a "Review video" button
+             is present next to the stage CTA they can't share one row in the
+             196px action column — without wrapping, the nowrap labels bleed
+             over each other. flex-wrap lets them stack (video on top, the CTA
+             + ⋯ below). Single-CTA cards keep their one-row layout. */
+          #view-pipeline .pa-zone-action-v4 .pa-btn-advance,
+          #view-pipeline .pa-zone-action-v4 .pa-btn-video{
+            flex:1 1 130px;min-width:0;justify-content:center;
           }
           /* Review video · secondary action that sits next to the
              primary CTA on screened applicants. Subtle Fluent
