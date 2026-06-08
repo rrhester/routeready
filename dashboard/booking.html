@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#FFFFFF">
+<title>Schedule your interview</title>
+<style>
+  :root{
+    --accent:#0F6CBD; --accent-d:#0E5FA8; --text:#1B1B1F; --muted:#5A5A66;
+    --subtle:#8A8A95; --border:#E4E4E9; --canvas:#F6F7F9; --surface:#fff; --red:#C4281C; --green:#16A34A;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);background:var(--canvas)}
+  .wrap{max-width:560px;margin:0 auto;padding:24px 18px 64px}
+  .hdr{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+  .logo{width:44px;height:44px;border-radius:10px;background:var(--accent);color:#fff;display:flex;
+    align-items:center;justify-content:center;font-weight:800;font-size:18px;flex:0 0 auto}
+  .hdr-t{font-size:18px;font-weight:700;line-height:1.2}
+  .hdr-s{font-size:13px;color:var(--muted);margin-top:2px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:16px}
+  .lead{font-size:16px;font-weight:600;margin:0 0 4px}
+  .sub{font-size:13px;color:var(--muted);margin:0 0 14px}
+  .day{margin-top:18px}
+  .day-h{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--subtle);margin:0 0 8px}
+  .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+  .slot{appearance:none;cursor:pointer;font:inherit;font-weight:600;font-size:14px;color:var(--accent);
+    background:#fff;border:1px solid #BBD3EA;border-radius:9px;padding:11px 8px;transition:.12s}
+  .slot:hover{background:#F2F8FE;border-color:var(--accent)}
+  .slot:disabled{opacity:.5;cursor:default}
+  .msg{text-align:center;padding:36px 16px;color:var(--muted)}
+  .msg strong{display:block;color:var(--text);font-size:17px;margin-bottom:6px}
+  .ok-ico{width:56px;height:56px;border-radius:50%;background:rgba(22,163,74,.12);color:var(--green);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
+  .err{color:var(--red)}
+  .spin{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--accent);
+    border-radius:50%;animation:s .7s linear infinite;margin:24px auto}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .btn{appearance:none;cursor:pointer;font:inherit;font-weight:600;font-size:14px;color:#fff;
+    background:var(--accent);border:0;border-radius:9px;padding:11px 18px}
+  .foot{text-align:center;font-size:12px;color:var(--subtle);margin-top:28px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hdr">
+      <div class="logo" id="logo">R</div>
+      <div>
+        <div class="hdr-t" id="dsp-name">Interview</div>
+        <div class="hdr-s">Schedule your interview</div>
+      </div>
+    </div>
+    <div id="root"><div class="spin"></div></div>
+    <div class="foot">Powered by RouteReady</div>
+  </div>
+
+<script src="/dashboard/config.js"></script>
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
+const cfg = window.RR_CONFIG;
+const sb = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+
+const root = document.getElementById("root");
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+
+// Token from /b/<token> (200-rewrite keeps the path) or ?t=
+const params = new URLSearchParams(location.search);
+const pathMatch = location.pathname.match(/^\/b\/([^/?#]+)/);
+const token = params.get("t") || params.get("token") || (pathMatch && pathMatch[1]) || "";
+
+let TZ = "America/Chicago";
+
+function showError(msg) {
+  root.innerHTML = `<div class="card"><div class="msg"><strong>Something went wrong</strong><span class="err">${esc(msg)}</span></div></div>`;
+}
+function fmtTime(iso) {
+  return new Intl.DateTimeFormat(undefined, { timeZone: TZ, hour: "numeric", minute: "2-digit" }).format(new Date(iso));
+}
+function fmtDay(iso) {
+  return new Intl.DateTimeFormat(undefined, { timeZone: TZ, weekday: "long", month: "short", day: "numeric" }).format(new Date(iso));
+}
+
+async function init() {
+  if (!token) return showError("This scheduling link looks invalid. Please use the link we sent you.");
+  let info;
+  try {
+    const { data, error } = await sb.rpc("booking_load", { p_token: token });
+    if (error) throw error;
+    info = data;
+  } catch (e) {
+    return showError((e && e.message) || "Could not load this scheduling link.");
+  }
+  TZ = info.timezone || TZ;
+  const dspName = info?.dsp?.name || "Driver Application";
+  document.getElementById("dsp-name").textContent = dspName;
+  document.getElementById("logo").textContent = (dspName[0] || "R").toUpperCase();
+  const first = info?.applicant?.first_name ? `, ${info.applicant.first_name}` : "";
+
+  if (info.already_booked) {
+    root.innerHTML = `<div class="card"><div class="msg">
+      <div class="ok-ico"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <strong>You're already scheduled</strong>
+      <span>Your interview is booked. Check your email for the details.</span></div></div>`;
+    return;
+  }
+
+  root.innerHTML = `<div class="card">
+    <p class="lead">Pick a time${esc(first)}</p>
+    <p class="sub">Times shown in ${esc(TZ.replace("_"," "))}. Choose a slot that works for you.</p>
+    <div id="slots-host"><div class="spin"></div></div></div>`;
+  await renderSlots();
+}
+
+async function renderSlots() {
+  const host = document.getElementById("slots-host");
+  let slots;
+  try {
+    const { data, error } = await sb.rpc("interview_open_slots", { p_token: token });
+    if (error) throw error;
+    slots = data || [];
+  } catch (e) {
+    host.innerHTML = `<div class="err" style="font-size:13px">Couldn't load times: ${esc(e.message || e)}</div>`;
+    return;
+  }
+  if (!slots.length) {
+    host.innerHTML = `<div class="msg"><strong>No open times right now</strong><span>Please check back soon, or reply to the email we sent.</span></div>`;
+    return;
+  }
+  // Group by day.
+  const byDay = new Map();
+  for (const s of slots) {
+    const key = fmtDay(s.slot_start);
+    if (!byDay.has(key)) byDay.set(key, []);
+    byDay.get(key).push(s);
+  }
+  let html = "";
+  for (const [day, items] of byDay) {
+    html += `<div class="day"><p class="day-h">${esc(day)}</p><div class="slots">`;
+    for (const s of items) {
+      html += `<button class="slot" data-start="${esc(s.slot_start)}">${esc(fmtTime(s.slot_start))}</button>`;
+    }
+    html += `</div></div>`;
+  }
+  host.innerHTML = html;
+  host.querySelectorAll(".slot").forEach((b) => b.addEventListener("click", () => book(b)));
+}
+
+async function book(btn) {
+  const start = btn.getAttribute("data-start");
+  document.querySelectorAll(".slot").forEach((b) => (b.disabled = true));
+  btn.textContent = "Booking…";
+  try {
+    const { data, error } = await sb.rpc("book_interview_slot", { p_token: token, p_slot_start: start });
+    if (error) throw error;
+    if (!data?.ok) throw new Error("Could not book that time.");
+    root.innerHTML = `<div class="card"><div class="msg">
+      <div class="ok-ico"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <strong>You're booked!</strong>
+      <span>${esc(fmtDay(start))} at ${esc(fmtTime(start))}<br>We'll email you the interview details${"" /* video link in Phase 3 */}.</span></div></div>`;
+  } catch (e) {
+    const m = (e.message || "").includes("slot_taken")
+      ? "That time was just taken — pick another."
+      : "Couldn't book that time — pick another.";
+    const host = document.getElementById("slots-host");
+    if (host) { host.innerHTML = `<div class="spin"></div>`; await renderSlots(); }
+    const note = document.createElement("div");
+    note.className = "err"; note.style.cssText = "font-size:13px;margin-top:10px";
+    note.textContent = m;
+    document.getElementById("slots-host")?.prepend(note);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

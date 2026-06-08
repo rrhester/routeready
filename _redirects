@@ -13,6 +13,7 @@
 # /dashboard/*.html?...=token paths still resolve, so previously
 # emailed/SMS'd links keep working.
 /s/:token        /dashboard/screening.html?t=:token   302
+/b/:token        /dashboard/booking.html?t=:token      302
 /c/:token        /dashboard/coaching.html?t=:token     302
 /r/:token        /dashboard/refer.html?r=:token        302
 
