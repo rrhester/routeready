@@ -61164,7 +61164,7 @@ document.addEventListener("click", (e) => {
   function iconFor(kind) { return ICONS[kind] || ICONS.folder; }
 
   function currentDspId() {
-    return window.RR?.user?.dsp_id || null;
+    return window.RR?.user?.dsp_id || window.RR?.dsp?.id || window.RR?.dspId || null;
   }
 
   // ── Data loaders ────────────────────────────────────────────────
@@ -62341,7 +62341,7 @@ document.addEventListener("click", (e) => {
     if (!bodyText && !confirm("Send with empty body?")) return;
     const dsp_id = currentDspId();
     if (!dsp_id) { if (typeof toast === "function") toast("Couldn't determine DSP — please reload", "warn"); return; }
-    const sent = state.folders.find(f => f.kind === "sent");
+    const sent = (state.folders || []).find(f => f.kind === "sent");
     if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = "Sending…"; }
     const insertRow = {
       dsp_id,
