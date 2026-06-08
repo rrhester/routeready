@@ -16235,16 +16235,11 @@ async function _ivcalOpenEmail(kind, id) {
     to = emails.join(", ");
     cancelEmails = emails; cancelTitle = ev.title || "Event";
     subject = ev.title || "You're invited";
-    const tok = ev.rsvp_token;
-    const rsvpBlock = tok
-      ? `<p>Can you make it? Tap one:<br>✅ Accept: ${link("https://gorouteready.com/rsvp/" + tok + "/accept")}<br>❌ Decline: ${link("https://gorouteready.com/rsvp/" + tok + "/decline")}</p>`
-      : "";
     html =
       `<p>Hi all,</p>` +
       `<p>You're invited:</p>` +
       `<p><strong>${escapeHtml(ev.title || "Event")}</strong><br>${escapeHtml(dateStr)}<br>${escapeHtml(timeStr)}</p>` +
-      joinBlock +
-      rsvpBlock;
+      joinBlock;
   } else if (kind === "session") {
     // Everyone booked into this group session.
     const seen = new Set();
@@ -16353,10 +16348,6 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
       "",
       "Join the video meeting here:",
       (roomUrl || "(creating link…)"),
-      "",
-      "Can you make it? Tap one:",
-      "✅ Accept:  " + rsvpBase + "/accept",
-      "❌ Decline:  " + rsvpBase + "/decline",
       "",
       "No app or download needed — just open the link on your phone or computer at the time above.",
     ].join("\n");

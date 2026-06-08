@@ -6,13 +6,15 @@
 //   RESEND_FROM_EMAIL          e.g. "RouteReady <hello@gorouteready.com>"
 //   RESEND_REPLY_TO            (optional)
 import { serviceClient, jsonResponse, badRequest } from "../_shared/supabase.ts";
+import { buildIcsRequest } from "../_shared/ics.ts";
+import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 interface Attachment { name?: string; url: string; content_type?: string; size?: number }
 interface QueuedRow {
   id: string; dsp_id: string; applicant_id: string | null; folder_id: string | null;
   to_email: string; cc_emails: string[] | null;
   subject: string; body_text: string | null; body_html: string | null;
-  attachments: Attachment[] | null;
+  attachments: Attachment[] | null; cal_event_id: string | null;
 }
 
 // Rebuild the Resend "From" header so:
@@ -94,7 +96,7 @@ Deno.serve(async (req) => {
   const limit = Math.min(payload?.limit ?? 50, 200);
 
   let q = supa.from("email_messages")
-    .select("id, dsp_id, applicant_id, folder_id, to_email, cc_emails, subject, body_text, body_html, attachments")
+    .select("id, dsp_id, applicant_id, folder_id, to_email, cc_emails, subject, body_text, body_html, attachments, cal_event_id")
     .eq("status", "queued")
     .order("created_at", { ascending: true })
     .limit(limit);
@@ -103,6 +105,16 @@ Deno.serve(async (req) => {
   const { data: rows, error } = await q;
   if (error) return badRequest(error.message, 500);
   if (!rows || rows.length === 0) return jsonResponse({ sent: 0 });
+
+  // Pre-load the cal_events referenced by this batch so we can attach a real
+  // calendar invite (.ics) to interview invitations.
+  const evIds = Array.from(new Set((rows as QueuedRow[]).map((r) => r.cal_event_id).filter(Boolean) as string[]));
+  const evById = new Map<string, { starts_at: string; ends_at: string | null; title: string | null; timezone: string | null; meeting_url: string | null }>();
+  if (evIds.length > 0) {
+    const { data: evRows } = await supa.from("cal_events")
+      .select("id, starts_at, ends_at, title, timezone, meeting_url").in("id", evIds);
+    for (const e of evRows ?? []) if (e?.id) evById.set(e.id as string, e as never);
+  }
 
   // Look up DSP names + short codes + slug + reply-to email for every
   // dsp_id in this batch in one round-trip.
@@ -156,14 +168,25 @@ Deno.serve(async (req) => {
     //     (then to the applicant) and append it to the email thread.
     //   • Otherwise → the per-DSP reply-to, else the server-wide
     //     RESEND_REPLY_TO env var.
-    let effectiveReplyTo: string | null = null;
-    if (row.folder_id) {
-      effectiveReplyTo = null;
-    } else if (row.applicant_id && inboundDomain) {
+    // A calendar invite must route the recipient's RSVP reply back to our
+    // inbound webhook (so cal_events.rsvp updates), so force the reply-to /
+    // organizer to the inbound address when this row carries a cal_event_id.
+    const isInvite = !!(row.cal_event_id && evById.has(row.cal_event_id));
+    const inboundAddr = (() => {
+      if (!inboundDomain) return null;
       const m = fromHeader.match(/<([^>]+)>/);
       const fromAddr = (m ? m[1] : fromHeader).trim();
       const at = fromAddr.indexOf("@");
-      if (at > 0) effectiveReplyTo = `${fromAddr.slice(0, at)}@${inboundDomain}`;
+      return at > 0 ? `${fromAddr.slice(0, at)}@${inboundDomain}` : null;
+    })();
+
+    let effectiveReplyTo: string | null = null;
+    if (row.folder_id) {
+      effectiveReplyTo = null;
+    } else if (isInvite && inboundAddr) {
+      effectiveReplyTo = inboundAddr;
+    } else if (row.applicant_id && inboundDomain) {
+      effectiveReplyTo = inboundAddr;
     } else {
       effectiveReplyTo = dsp?.replyTo || replyTo || null;
     }
@@ -180,15 +203,33 @@ Deno.serve(async (req) => {
     // Resend supports `attachments: [{filename, path}]` where `path` is a
     // public URL it fetches at send time.
     const att = Array.isArray(row.attachments) ? row.attachments : [];
-    if (att.length > 0) {
-      body.attachments = att
-        .filter((a) => a?.url)
-        .map((a) => ({
-          filename: a.name || "attachment",
-          path:     a.url,
-          content_type: a.content_type,
-        }));
+    const outAtts: Record<string, unknown>[] = att
+      .filter((a) => a?.url)
+      .map((a) => ({ filename: a.name || "attachment", path: a.url, content_type: a.content_type }));
+
+    // Attach a real calendar invite (.ics) so Gmail/Outlook show native
+    // Accept/Decline and add it to the recipient's calendar.
+    if (isInvite) {
+      const ev = evById.get(row.cal_event_id!)!;
+      const organizerEmail = inboundAddr || dsp?.replyTo || (from.match(/<([^>]+)>/)?.[1] ?? from);
+      const ics = buildIcsRequest({
+        uid: `${row.cal_event_id}@gorouteready.com`,
+        start: ev.starts_at,
+        end: ev.ends_at,
+        title: ev.title || row.subject || "Interview",
+        description: ev.meeting_url ? `Join the video meeting: ${ev.meeting_url}` : (row.body_text || ""),
+        location: ev.meeting_url || undefined,
+        organizerName: dsp?.name || "RouteReady",
+        organizerEmail,
+        attendeeEmail: row.to_email,
+      });
+      outAtts.push({
+        filename: "invite.ics",
+        content: encodeBase64(new TextEncoder().encode(ics)),
+        content_type: "text/calendar; method=REQUEST; charset=utf-8",
+      });
     }
+    if (outAtts.length > 0) body.attachments = outAtts;
 
     const resp = await fetch("https://api.resend.com/emails", {
       method: "POST",
