@@ -16096,7 +16096,7 @@ async function loadIvCalendar() {
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
-        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, applicants:applicant_id (full_name, email, phone)")
+        .select("id, applicant_id, kind, status, starts_at, ends_at, meeting_url, location, interview_session_id, title, metadata, rsvp, rsvp_token, applicants:applicant_id (full_name, email, phone)")
         .eq("dsp_id", window.RR.dsp.id)
         .in("status", ["scheduled", "rescheduled"])
         .order("starts_at", { ascending: true })
@@ -16234,14 +16234,17 @@ async function _ivcalOpenEmail(kind, id) {
     if (emails.length === 0) { toast("This event has no invitee emails", "warn"); return; }
     to = emails.join(", ");
     cancelEmails = emails; cancelTitle = ev.title || "Event";
-    const note = (ev.metadata && ev.metadata.note) ? String(ev.metadata.note) : "";
     subject = ev.title || "You're invited";
+    const tok = ev.rsvp_token;
+    const rsvpBlock = tok
+      ? `<p>Can you make it? Tap one:<br>✅ Accept: ${link("https://gorouteready.com/rsvp/" + tok + "/accept")}<br>❌ Decline: ${link("https://gorouteready.com/rsvp/" + tok + "/decline")}</p>`
+      : "";
     html =
       `<p>Hi all,</p>` +
       `<p>You're invited:</p>` +
       `<p><strong>${escapeHtml(ev.title || "Event")}</strong><br>${escapeHtml(dateStr)}<br>${escapeHtml(timeStr)}</p>` +
       joinBlock +
-      (note ? `<p>${escapeHtml(note)}</p>` : "");
+      rsvpBlock;
   } else if (kind === "session") {
     // Everyone booked into this group session.
     const seen = new Set();
@@ -16327,7 +16330,7 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
   const rsvpToken = ((typeof crypto !== "undefined" && crypto.randomUUID)
     ? crypto.randomUUID().replace(/-/g, "")
     : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
-  const rsvpUrl = "https://gorouteready.com/rsvp/" + rsvpToken;
+  const rsvpBase = "https://gorouteready.com/rsvp/" + rsvpToken;
 
   const fmtWhen = (date, start, end) => {
     const d = new Date(date + "T00:00:00");
@@ -16351,8 +16354,9 @@ function _ivcalNewEvent(dateISO, startMin, endMin) {
       "Join the video meeting here:",
       (roomUrl || "(creating link…)"),
       "",
-      "Please accept or decline here:",
-      rsvpUrl,
+      "Can you make it? Tap one:",
+      "✅ Accept:  " + rsvpBase + "/accept",
+      "❌ Decline:  " + rsvpBase + "/decline",
       "",
       "No app or download needed — just open the link on your phone or computer at the time above.",
     ].join("\n");
@@ -62048,6 +62052,7 @@ document.addEventListener("click", (e) => {
 
   function openComposer({ mode = "new", original = null, to: toPrefill = "", subject: subjectPrefill = "", html: htmlPrefill = "", onCancel = null } = {}) {
     closeComposer();
+    composerOnCancel = (typeof onCancel === "function") ? onCancel : null;
     let to = "", cc = "", subject = "", body = "";
     const needs = (mode === "reply" || mode === "reply-all" || mode === "forward");
     // Reply/forward normally quote an existing message. But a caller can also
@@ -62266,6 +62271,10 @@ document.addEventListener("click", (e) => {
 
   // Per-session state for the open composer's attachments.
   let composerAttachments = [];
+  // Cancel-event callback for the open composer (set by openComposer when the
+  // composer was launched from a calendar event). Lives at this scope because
+  // the click handler that fires it is the shared document handler below.
+  let composerOnCancel = null;
 
   function renderComposerChips() {
     const host = document.getElementById("rr-em-composer-attachments");
@@ -62284,6 +62293,7 @@ document.addEventListener("click", (e) => {
   function closeComposer() {
     const m = document.getElementById("rr-em-composer");
     if (m) m.remove();
+    composerOnCancel = null;
   }
 
   async function sendComposerDraft() {
@@ -62483,11 +62493,11 @@ document.addEventListener("click", (e) => {
       return;
     }
     const cancelBtn = e.target.closest("#rr-em-composer-cancel-event");
-    if (cancelBtn && typeof onCancel === "function") {
+    if (cancelBtn && typeof composerOnCancel === "function") {
       e.preventDefault();
       if (!confirm("Cancel this meeting? Attendees will be emailed that it's canceled and it will be removed from the calendar.")) return;
       cancelBtn.style.pointerEvents = "none"; cancelBtn.style.opacity = ".6";
-      Promise.resolve(onCancel()).then((ok) => { if (ok !== false) closeComposer(); else { cancelBtn.style.pointerEvents = ""; cancelBtn.style.opacity = ""; } })
+      Promise.resolve(composerOnCancel()).then((ok) => { if (ok !== false) closeComposer(); else { cancelBtn.style.pointerEvents = ""; cancelBtn.style.opacity = ""; } })
         .catch((err) => { if (typeof toast === "function") toast("Cancel failed: " + (err?.message || err), "warn"); cancelBtn.style.pointerEvents = ""; cancelBtn.style.opacity = ""; });
       return;
     }
