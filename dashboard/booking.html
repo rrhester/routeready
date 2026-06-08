@@ -28,6 +28,7 @@
     background:#fff;border:1px solid #BBD3EA;border-radius:9px;padding:11px 8px;transition:.12s}
   .slot:hover{background:#F2F8FE;border-color:var(--accent)}
   .slot:disabled{opacity:.5;cursor:default}
+  .slot .spots{display:block;font-size:11px;font-weight:600;color:var(--green);margin-top:3px}
   .msg{text-align:center;padding:36px 16px;color:var(--muted)}
   .msg strong{display:block;color:var(--text);font-size:17px;margin-bottom:6px}
   .ok-ico{width:56px;height:56px;border-radius:50%;background:rgba(22,163,74,.12);color:var(--green);
@@ -137,7 +138,9 @@ async function renderSlots() {
   for (const [day, items] of byDay) {
     html += `<div class="day"><p class="day-h">${esc(day)}</p><div class="slots">`;
     for (const s of items) {
-      html += `<button class="slot" data-start="${esc(s.slot_start)}">${esc(fmtTime(s.slot_start))}</button>`;
+      const group = (s.capacity || 1) > 1;
+      const spots = group ? `<span class="spots">${esc(s.remaining)} spot${s.remaining === 1 ? "" : "s"} left</span>` : "";
+      html += `<button class="slot" data-start="${esc(s.slot_start)}" data-session="${esc(s.session_id || "")}">${esc(fmtTime(s.slot_start))}${spots}</button>`;
     }
     html += `</div></div>`;
   }
@@ -147,10 +150,11 @@ async function renderSlots() {
 
 async function book(btn) {
   const start = btn.getAttribute("data-start");
+  const session = btn.getAttribute("data-session") || null;
   document.querySelectorAll(".slot").forEach((b) => (b.disabled = true));
   btn.textContent = "Booking…";
   try {
-    const { data, error } = await sb.rpc("book_interview_slot", { p_token: token, p_slot_start: start });
+    const { data, error } = await sb.rpc("book_interview_slot", { p_token: token, p_slot_start: start, p_session_id: session });
     if (error) throw error;
     if (!data?.ok) throw new Error("Could not book that time.");
     root.innerHTML = `<div class="card"><div class="msg">
