@@ -16285,7 +16285,13 @@ async function _ivcalMintRoom(endsISO) {
     const { data, error } = await sb.functions.invoke("video-room", { body: { ends_at: endsISO } });
     if (error) {
       let msg = error.message || "request failed";
-      try { const j = await error.context.json(); msg = (j.error || msg) + (j.detail ? " — " + (typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail)) : ""); } catch {}
+      try {
+        const j = await error.context.json();
+        msg = j.error || msg;
+        if (j.status) msg += " (HTTP " + j.status + ")";
+        const extra = j.body || j.detail;
+        if (extra) msg += " — " + (typeof extra === "string" ? extra : JSON.stringify(extra));
+      } catch { /* keep generic message */ }
       return { url: "", error: msg };
     }
     if (!data || !data.url) return { url: "", error: (data && data.error) || "no link returned" };

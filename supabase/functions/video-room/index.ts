@@ -37,9 +37,16 @@ Deno.serve(async (req) => {
       headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
       body: JSON.stringify({ endDate: end.toISOString(), roomMode: group ? "group" : "normal", fields: ["hostRoomUrl"] }),
     });
-    const j = await res.json().catch(() => ({}));
+    const raw = await res.text();
+    let j: Record<string, unknown> = {};
+    try { j = JSON.parse(raw); } catch { /* non-JSON error body */ }
     if (!res.ok || !j.roomUrl) {
-      return jsonResponse({ error: "whereby_failed", status: res.status, detail: j }, { status: 502, headers: CORS });
+      // Bubble up the exact status + body so the operator can see WHY (e.g. a
+      // 401 means the WHEREBY_API_KEY is missing/invalid).
+      return jsonResponse(
+        { error: "whereby_failed", status: res.status, statusText: res.statusText, body: raw.slice(0, 400) },
+        { status: 502, headers: CORS },
+      );
     }
     return jsonResponse({ url: j.roomUrl, host_url: j.hostRoomUrl || null }, { headers: CORS });
   } catch (e) {
