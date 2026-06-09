@@ -17295,9 +17295,16 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   roomUrl = (isEdit && ev0 && ev0.meeting_url) ? ev0.meeting_url : _ivcalVideoRoom();
   { const st = document.getElementById("rr-ne-roomstate");
     if (st && roomUrl) {
-      // Clickable so the interviewer can join straight from the editor; the
+      // Clickable so the interviewer can join straight from the editor. For a
+      // saved interview this opens the embedded in-app room (with notes); the
       // same link is dropped into the invite email (_rrInviteEmail joinUrl).
-      st.innerHTML = `🎥 <a href="${escapeHtml(roomUrl)}" target="_blank" rel="noreferrer" style="color:var(--green);font-weight:600;text-decoration:none">Join video meeting</a> <span style="color:var(--text-subtle)">· this link is included in the invite email</span>`;
+      st.innerHTML = `🎥 <a href="${escapeHtml(roomUrl)}" data-ne-join="1" style="color:var(--green);font-weight:600;text-decoration:none;cursor:pointer">Join video meeting</a> <span style="color:var(--text-subtle)">· this link is included in the invite email</span>`;
+      const joinA = st.querySelector("[data-ne-join]");
+      if (joinA) joinA.onclick = (e) => {
+        e.preventDefault();
+        if (isEdit && ev0 && ev0.meeting_url) _ivcalOpenRoom(ev0);
+        else window.open(roomUrl, "_blank", "noreferrer"); // unsaved event: no notes yet
+      };
     } else if (st) { st.textContent = "Video link ready ✓"; st.style.color = "var(--green)"; }
   }
 
@@ -18008,10 +18015,78 @@ function _ivcalWirePane(host) {
     const ev = _ivcalFindEv(sel.kind, sel.id); if (!ev) return;
     if (act === "email") _ivcalOpenEmail(sel.kind, sel.id);
     else if (act === "edit") _ivcalEditEvent(sel.kind, sel.id);
-    else if (act === "join" && ev.meeting_url) window.open(ev.meeting_url, "_blank", "noreferrer");
+    else if (act === "join" && ev.meeting_url) _ivcalOpenRoom(ev);
     else if (act === "cancel") _ivcalDeleteEvent(sel.kind, sel.id, true);
     else if (act === "applicant" && ev.applicant_id) _ivcalOpenApplicant(ev.applicant_id);
   });
+}
+
+// Embedded in-app interview room: the Jitsi meeting in an iframe next to an
+// "Add Notes" panel persisted to cal_events.interview_notes. Opened from the
+// calendar "Join" action and the editor's join link (replaces the new-tab join).
+function _ivcalOpenRoom(ev) {
+  if (!ev || !ev.meeting_url) { toast("No video link for this interview yet", "warn"); return; }
+  const old = document.getElementById("rr-ivroom"); if (old) old.remove();
+  const a = ev.applicants || {};
+  const who = rrTitleCaseName(a.full_name) || (ev.kind === "event" ? (ev.title || "Interview") : "Interview");
+  const me = (window.RR && window.RR.user && (window.RR.user.full_name || window.RR.user.name))
+    || (window.RR && window.RR.dsp && window.RR.dsp.name) || "Interviewer";
+  // Hash config: skip Jitsi's prejoin screen + set our display name.
+  const hash = "#config.prejoinPageEnabled=false&userInfo.displayName=" + encodeURIComponent('"' + me + '"');
+  const src = ev.meeting_url + (ev.meeting_url.includes("#") ? "" : hash);
+  const canNotes = !!ev.id;
+  const m = document.createElement("div");
+  m.id = "rr-ivroom";
+  m.innerHTML = `
+    <div class="rr-ivroom-card">
+      <div class="rr-ivroom-h">
+        <div class="rr-ivroom-t">🎥 Interview · ${escapeHtml(who)}</div>
+        <button class="rr-ivroom-x" data-ivroom="close" title="Leave the call">✕ End</button>
+      </div>
+      <div class="rr-ivroom-b">
+        <div class="rr-ivroom-video"><iframe allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write" src="${escapeHtml(src)}"></iframe></div>
+        <div class="rr-ivroom-notes">
+          <div class="rr-ivroom-nh">Add Notes</div>
+          <div class="rr-ivroom-tb">
+            <button type="button" data-ivroom-fmt="bold" title="Bold"><b>B</b></button>
+            <button type="button" data-ivroom-fmt="italic" title="Italic"><i>I</i></button>
+            <button type="button" data-ivroom-fmt="insertUnorderedList" title="Bulleted list">•</button>
+            <button type="button" data-ivroom-fmt="insertOrderedList" title="Numbered list">1.</button>
+          </div>
+          <div class="rr-ivroom-ed" id="rr-ivroom-ed" contenteditable="true" data-ph="Type your notes here…"></div>
+          <div class="rr-ivroom-nf">
+            <span class="rr-ivroom-saved" id="rr-ivroom-saved"></span>
+            <button class="rr-ivroom-save" data-ivroom="save"${canNotes ? "" : ' disabled title="Save the interview first"'}>Save Notes</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const ed = document.getElementById("rr-ivroom-ed");
+  if (canNotes) {
+    sb.from("cal_events").select("interview_notes").eq("id", ev.id).maybeSingle()
+      .then(({ data }) => { if (data && data.interview_notes) ed.innerHTML = data.interview_notes; })
+      .catch(() => {});
+  }
+  m.querySelectorAll("[data-ivroom-fmt]").forEach(b => b.onmousedown = (e) => {
+    e.preventDefault(); document.execCommand(b.getAttribute("data-ivroom-fmt"), false, null); ed.focus();
+  });
+  const onKey = (e) => { if (e.key === "Escape" && document.activeElement !== ed) close(); };
+  const close = () => { document.removeEventListener("keydown", onKey); m.remove(); };
+  document.addEventListener("keydown", onKey);
+  m.querySelector('[data-ivroom="close"]').onclick = close;
+  const saveBtn = m.querySelector('[data-ivroom="save"]');
+  if (canNotes) saveBtn.onclick = async () => {
+    const html = ed.innerHTML.trim();
+    saveBtn.disabled = true; saveBtn.textContent = "Saving…";
+    try {
+      const { error } = await sb.from("cal_events").update({ interview_notes: html || null }).eq("id", ev.id);
+      if (error) throw error;
+      const s = document.getElementById("rr-ivroom-saved");
+      if (s) { s.textContent = "Saved ✓"; setTimeout(() => { if (s) s.textContent = ""; }, 2500); }
+    } catch (e) { toast("Couldn't save notes: " + (e.message || e), "warn"); }
+    finally { saveBtn.disabled = false; saveBtn.textContent = "Save Notes"; }
+  };
 }
 function _ivcalOpenApplicant(id) {
   if (typeof window.openApplicant === "function") window.openApplicant(id);
