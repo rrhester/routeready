@@ -16227,6 +16227,14 @@ function _ivcalSetZoom(delta) {
   try { localStorage.setItem("rr_ivcal_rh", String(next)); } catch (_) {}
   _ivcalRender();
 }
+// Outlook-style collapsible left panel (mini-months + My Calendars). Closed
+// state is remembered; reopening docks it back in place.
+let _ivcalSideOpen = (() => { try { return localStorage.getItem("rr_ivcal_side") !== "0"; } catch (_) { return true; } })();
+function _ivcalToggleSide() {
+  _ivcalSideOpen = !_ivcalSideOpen;
+  try { localStorage.setItem("rr_ivcal_side", _ivcalSideOpen ? "1" : "0"); } catch (_) {}
+  _ivcalRender();
+}
 const _IVCAL_DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 // Outlook-style UI state.
 let _ivcalSelected = null;            // { kind, id } of the selected event (reading pane)
@@ -16538,11 +16546,15 @@ function _ivcalRender() {
     : _ivcalTimeGrid(_ivcalView === "day" ? 1 : (_ivcalView === "workweek" ? 5 : 7));
   const pane = _ivcalSelected ? _ivcalPaneHtml() : "";
 
+  const _panelSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg>`;
   host.innerHTML = `
-    <div class="oc">
-      <div class="oc-side">${_ivcalMiniMonths()}${_ivcalMyCalendars()}</div>
+    <div class="oc${_ivcalSideOpen ? "" : " oc-side-closed"}">
+      ${_ivcalSideOpen ? `<div class="oc-side">
+        <button class="oc-side-x" data-ivcal-side title="Hide calendar panel" aria-label="Hide calendar panel">«</button>
+        ${_ivcalMiniMonths()}${_ivcalMyCalendars()}</div>` : ""}
       <div class="oc-main">
         <div class="oc-bar">
+          <button class="oc-btn oc-ico oc-side-toggle${_ivcalSideOpen ? " on" : ""}" data-ivcal-side title="${_ivcalSideOpen ? "Hide calendar panel" : "Show calendar panel"}" aria-label="Toggle calendar panel" aria-pressed="${_ivcalSideOpen ? "true" : "false"}">${_panelSvg}</button>
           <button class="oc-btn" data-ivcal-nav="0" title="Today (T)">Today</button>
           <button class="oc-btn oc-ico" data-ivcal-nav="-1" title="Previous">‹</button>
           <button class="oc-btn oc-ico" data-ivcal-nav="1" title="Next">›</button>
@@ -16559,6 +16571,7 @@ function _ivcalRender() {
   if (!_ivcalNowTimer) _ivcalNowTimer = setInterval(_ivcalTickNow, 60000);
 
   host.querySelectorAll("[data-ivcal-view]").forEach(btn => btn.onclick = () => { _ivcalView = btn.getAttribute("data-ivcal-view"); _ivcalRender(); });
+  host.querySelectorAll("[data-ivcal-side]").forEach(btn => btn.onclick = (e) => { e.stopPropagation(); _ivcalToggleSide(); });
   host.querySelectorAll("[data-ivcal-zoom]").forEach(btn => btn.onclick = () => _ivcalSetZoom(parseInt(btn.getAttribute("data-ivcal-zoom"), 10)));
   host.querySelectorAll("[data-ivcal-nav]").forEach(btn => btn.onclick = () => _ivcalNav(parseInt(btn.getAttribute("data-ivcal-nav"), 10)));
   // Mini-calendar (date navigator) wiring.
