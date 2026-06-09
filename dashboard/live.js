@@ -18088,16 +18088,19 @@ function _ivcalOpenRoom(ev) {
     e.preventDefault(); document.execCommand(b.getAttribute("data-ivr-fmt"), false, null); ed.focus();
   });
 
-  const onKey = (e) => { if (e.key === "Escape" && document.activeElement !== ed) close(); };
+  const onKey = (e) => {
+    if (e.key !== "Escape") return;
+    if (m.classList.contains("ivr-max")) { m.classList.remove("ivr-max"); return; }
+    if (document.activeElement !== ed) close();
+  };
   const close = () => { document.removeEventListener("keydown", onKey); m.remove(); };
   document.addEventListener("keydown", onKey);
 
-  const videoBox = m.querySelector(".ivr-video");
   m.querySelectorAll('[data-ivr]').forEach(b => b.onclick = async () => {
     const act = b.getAttribute("data-ivr");
     if (act === "close") return close();
-    if (act === "fs") { try { (videoBox.requestFullscreen || videoBox.webkitRequestFullscreen).call(videoBox); } catch (_) {} return; }
-    if (act === "fsexit") { try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (_) {} return; }
+    if (act === "fs") { m.classList.add("ivr-max"); return; }
+    if (act === "fsexit") { m.classList.remove("ivr-max"); return; }
     if (act === "copy") {
       try { await navigator.clipboard.writeText(ev.meeting_url); b.textContent = "✓ Copied"; setTimeout(() => { b.textContent = "⧉ Copy Invite Link"; }, 1800); }
       catch (_) { toast("Couldn't copy link", "warn"); }
