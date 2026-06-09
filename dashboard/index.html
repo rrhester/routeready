@@ -12537,12 +12537,14 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-mini-nav{appearance:none;border:0;background:none;cursor:pointer;color:var(--oc-sub);font-size:15px;line-height:1;padding:1px 7px;border-radius:5px}
             #rr-ivcal .oc-mini-nav:hover{background:var(--oc-hover);color:var(--oc-blue)}
             #rr-ivcal .oc-mini-nav-sp{display:inline-block;width:24px}
-            #rr-ivcal .oc-mini-row{display:grid;grid-template-columns:20px repeat(7,1fr);align-items:center;gap:1px}
-            #rr-ivcal .oc-mini-dow span{font-size:9px;font-weight:700;color:var(--oc-sub);text-align:center;padding:2px 0;text-transform:uppercase}
-            #rr-ivcal .oc-mini-wk{font-size:9px;font-weight:600;color:var(--oc-sub);text-align:center;padding:0}
-            #rr-ivcal button.oc-mini-wk{appearance:none;border:0;background:none;cursor:pointer;border-radius:4px;height:20px;line-height:20px;font-variant-numeric:tabular-nums;transition:background var(--t-fast),color var(--t-fast)}
+            #rr-ivcal .oc-mini-row{display:grid;grid-template-columns:20px repeat(7,1fr);align-items:center;gap:1px;position:relative}
+            /* Hairline divider between the week-number column and the weekdays. */
+            #rr-ivcal .oc-mini-row::before{content:"";position:absolute;left:20px;top:0;bottom:0;width:1px;background:var(--oc-colsep);pointer-events:none}
+            #rr-ivcal .oc-mini-dow span{font-size:10px;font-weight:700;color:var(--oc-sub);text-align:center;padding:2px 0;text-transform:uppercase}
+            #rr-ivcal .oc-mini-wk{font-size:10px;font-weight:600;color:var(--oc-sub);text-align:center;padding:0}
+            #rr-ivcal button.oc-mini-wk{appearance:none;border:0;background:none;cursor:pointer;border-radius:4px;height:22px;line-height:22px;font-variant-numeric:tabular-nums;transition:background var(--t-fast),color var(--t-fast)}
             #rr-ivcal button.oc-mini-wk:hover{background:rgba(15,108,189,.10);color:var(--oc-blue)}
-            #rr-ivcal .oc-mini-d{appearance:none;border:0;background:none;cursor:pointer;font-size:11px;color:var(--oc-ink);text-align:center;padding:0;height:20px;line-height:20px;border-radius:4px;font-variant-numeric:tabular-nums;transition:background var(--t-fast),color var(--t-fast)}
+            #rr-ivcal .oc-mini-d{appearance:none;border:0;background:none;cursor:pointer;font-size:13px;color:var(--oc-ink);text-align:center;padding:0;height:22px;line-height:22px;border-radius:4px;font-variant-numeric:tabular-nums;transition:background var(--t-fast),color var(--t-fast)}
             #rr-ivcal .oc-mini-d:hover{background:rgba(15,108,189,.12);color:var(--oc-blue-strong)}
             #rr-ivcal .oc-mini-d.out{color:var(--oc-sub);opacity:.5}
             #rr-ivcal .oc-mini-d.in-range{background:rgba(15,108,189,.16);color:var(--oc-blue-strong);font-weight:600}
