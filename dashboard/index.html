@@ -13073,16 +13073,10 @@ body.rr-cmdk-open{ overflow:hidden }
              to .tcp-kpi.is-empty). -->
         <div class="ob-cmd-shell tcp" id="rr-ob-cmd">
         <div class="ob-cmd-tabs" role="tablist" aria-label="Command strip mode">
-          <!-- Schedule + Intelligence · navigate back to the Schedule
-               page. Roster / Onboarding / Print stay as mode-switches
-               within this page. With the Onboarding sidebar icon now
-               removed, this strip is the way operators move between
-               Schedule and the Roster / Onboarding ribbons. -->
-          <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="schedule" role="tab" aria-selected="false">Schedule</button>
+          <!-- Onboarding is its own sidebar destination now, so this strip
+               carries only the Onboarding tab. Schedule / Fleet / Workflows /
+               Print are reached from their own sidebar / Schedule strip. -->
           <button class="ob-cmd-tab active" type="button" data-ob-cmd-tab="ops" role="tab" aria-selected="true">Onboarding</button>
-          <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="fleet" role="tab" aria-selected="false">Fleet</button>
-          <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="workflows" role="tab" aria-selected="false">Workflows</button>
-          <button class="ob-cmd-tab" type="button" data-ob-cmd-tab="print" role="tab" aria-selected="false">Print/Download</button>
         </div>
         <div class="page-header sched-nav-heading tcp-strip">
           <div class="page-header-l">
@@ -36806,7 +36800,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-oc15"></script>
+<script type="module" src="./live.js?v=20260608-oc16"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
