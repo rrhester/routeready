@@ -78,3 +78,31 @@ export const gcalUpdate = (t: string, cal: string, id: string, ev: EventInput) =
   call(t, `${CAL_BASE}/${encodeURIComponent(cal)}/events/${encodeURIComponent(id)}`, "PATCH", eventBody(ev));
 export const gcalDelete = (t: string, cal: string, id: string) =>
   call(t, `${CAL_BASE}/${encodeURIComponent(cal)}/events/${encodeURIComponent(id)}`, "DELETE");
+
+export interface GCalListItem {
+  id: string; title: string;
+  start: string | null; end: string | null;
+  allDay: boolean; htmlLink: string | null;
+}
+
+// List a calendar's events in [timeMin, timeMax]. singleEvents expands
+// recurring series into instances. Cancelled instances are dropped.
+export async function gcalListEvents(
+  t: string, cal: string, timeMin: string, timeMax: string,
+): Promise<GCalListItem[]> {
+  const qs = new URLSearchParams({
+    timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "250",
+  });
+  const json = await call(t, `${CAL_BASE}/${encodeURIComponent(cal)}/events?${qs}`, "GET");
+  // deno-lint-ignore no-explicit-any
+  return ((json.items || []) as any[])
+    .filter((it) => it.status !== "cancelled")
+    .map((it) => ({
+      id: String(it.id),
+      title: it.summary || "(no title)",
+      start: it.start?.dateTime || it.start?.date || null,
+      end: it.end?.dateTime || it.end?.date || null,
+      allDay: !!(it.start && it.start.date && !it.start.dateTime),
+      htmlLink: it.htmlLink || null,
+    }));
+}
