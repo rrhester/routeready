@@ -12507,8 +12507,14 @@ body.rr-cmdk-open{ overflow:hidden }
                (no pure white), translucent slate hairlines, the Schedule blue
                (#0F6CBD), and the app's Segoe UI Variable type. */
             #rr-ivcal{--oc-line:rgba(15,23,42,.10);--oc-line2:rgba(15,23,42,.05);
+              /* Outlook-style grid contrast: vertical day separators read
+                 darkest, hour rows a touch lighter, half-hour rows lightest.
+                 --oc-time darkens the hour labels ~20% so they stay subtle but
+                 immediately readable. */
+              --oc-colsep:rgba(15,23,42,.14);--oc-rowline:rgba(15,23,42,.11);--oc-rowline2:rgba(15,23,42,.07);
+              --oc-time:var(--text-muted);
               --oc-ink:var(--text);--oc-sub:var(--text-subtle);--oc-blue:#0F6CBD;--oc-blue-strong:#115EA3;
-              --oc-surface:#F8F9FB;--oc-surface-2:#F2F3F6;--oc-hover:rgba(15,23,42,.04);--oc-today:rgba(15,108,189,.05);
+              --oc-surface:#F8F9FB;--oc-surface-2:#F2F3F6;--oc-hover:rgba(15,23,42,.04);--oc-today:rgba(15,108,189,.07);
               font-family:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
               background:var(--oc-surface);border:1px solid var(--oc-line);border-radius:8px;margin:0 0 var(--s-4);color:var(--oc-ink);overflow:hidden}
             #rr-ivcal .oc{display:flex;align-items:stretch;min-height:0}
@@ -12516,23 +12522,24 @@ body.rr-cmdk-open{ overflow:hidden }
             /* mini-calendar date navigator (two months + week numbers) */
             /* Width matches the Schedule's 240px driver column so the two
                views line up visually. */
-            #rr-ivcal .oc-side{flex:0 0 240px;border-right:1px solid var(--oc-line);background:var(--oc-surface-2);overflow-y:auto;padding:14px 14px}
-            #rr-ivcal .oc-mini{margin-bottom:16px}
-            #rr-ivcal .oc-mini-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-            #rr-ivcal .oc-mini-title{font-size:15px;font-weight:700;color:var(--oc-ink)}
+            #rr-ivcal .oc-side{flex:0 0 240px;border-right:1px solid var(--oc-colsep);background:var(--oc-surface-2);overflow-y:auto;padding:12px 12px}
+            #rr-ivcal .oc-mini{margin-bottom:12px}
+            #rr-ivcal .oc-mini-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+            #rr-ivcal .oc-mini-title{font-size:15px;font-weight:800;color:var(--oc-ink);letter-spacing:.01em}
             #rr-ivcal .oc-mini-nav{appearance:none;border:0;background:none;cursor:pointer;color:var(--oc-sub);font-size:15px;line-height:1;padding:1px 7px;border-radius:5px}
             #rr-ivcal .oc-mini-nav:hover{background:var(--oc-hover);color:var(--oc-blue)}
             #rr-ivcal .oc-mini-nav-sp{display:inline-block;width:24px}
             #rr-ivcal .oc-mini-row{display:grid;grid-template-columns:20px repeat(7,1fr);align-items:center;gap:1px}
             #rr-ivcal .oc-mini-dow span{font-size:9px;font-weight:700;color:var(--oc-sub);text-align:center;padding:2px 0;text-transform:uppercase}
             #rr-ivcal .oc-mini-wk{font-size:9px;font-weight:600;color:var(--oc-sub);text-align:center;padding:0}
-            #rr-ivcal button.oc-mini-wk{appearance:none;border:0;background:none;cursor:pointer;border-radius:4px;height:21px;line-height:21px;font-variant-numeric:tabular-nums}
-            #rr-ivcal button.oc-mini-wk:hover{background:var(--oc-hover);color:var(--oc-blue)}
-            #rr-ivcal .oc-mini-d{appearance:none;border:0;background:none;cursor:pointer;font-size:11px;color:var(--oc-ink);text-align:center;padding:0;height:21px;line-height:21px;border-radius:4px;font-variant-numeric:tabular-nums}
-            #rr-ivcal .oc-mini-d:hover{background:var(--oc-hover)}
+            #rr-ivcal button.oc-mini-wk{appearance:none;border:0;background:none;cursor:pointer;border-radius:4px;height:20px;line-height:20px;font-variant-numeric:tabular-nums;transition:background var(--t-fast),color var(--t-fast)}
+            #rr-ivcal button.oc-mini-wk:hover{background:rgba(15,108,189,.10);color:var(--oc-blue)}
+            #rr-ivcal .oc-mini-d{appearance:none;border:0;background:none;cursor:pointer;font-size:11px;color:var(--oc-ink);text-align:center;padding:0;height:20px;line-height:20px;border-radius:4px;font-variant-numeric:tabular-nums;transition:background var(--t-fast),color var(--t-fast)}
+            #rr-ivcal .oc-mini-d:hover{background:rgba(15,108,189,.12);color:var(--oc-blue-strong)}
             #rr-ivcal .oc-mini-d.out{color:var(--oc-sub);opacity:.5}
             #rr-ivcal .oc-mini-d.in-range{background:rgba(15,108,189,.14);color:var(--oc-ink)}
             #rr-ivcal .oc-mini-d.today{background:var(--oc-blue);color:#fff;font-weight:700}
+            #rr-ivcal .oc-mini-d.today:hover{background:var(--oc-blue-strong);color:#fff}
             /* command bar */
             #rr-ivcal .oc-bar{display:flex;align-items:center;gap:8px;padding:13px 10px;border-bottom:1px solid var(--oc-line);background:var(--oc-surface-2);flex-wrap:wrap}
             #rr-ivcal .oc-btn{appearance:none;cursor:pointer;font:inherit;font-size:13px;color:var(--oc-ink);background:var(--oc-surface);border:1px solid var(--border);border-radius:6px;padding:4px 10px;display:inline-flex;align-items:center;gap:6px;line-height:1}
@@ -12553,24 +12560,25 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-filters label{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--oc-sub);cursor:pointer}
             #rr-ivcal .oc-filters .dot{width:9px;height:9px;border-radius:2px;display:inline-block}
             /* day/week grid */
-            #rr-ivcal .oc-head{display:grid;grid-template-columns:50px repeat(var(--days),1fr);border-bottom:1px solid var(--oc-line);background:var(--oc-surface);position:sticky;top:0;z-index:6}
-            #rr-ivcal .oc-corner{border-right:1px solid var(--oc-line)}
-            #rr-ivcal .oc-dh{text-align:left;padding:6px 0 7px 12px;border-left:1px solid var(--oc-line2);cursor:pointer}
-            #rr-ivcal .oc-dh .dow{font-size:14px;font-weight:600;color:var(--oc-sub);letter-spacing:.01em}
-            #rr-ivcal .oc-dh .dn{font-size:17px;font-weight:600;color:var(--oc-ink);line-height:1.1}
-            #rr-ivcal .oc-dh.today .dn{color:#fff;background:var(--oc-blue);width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+            #rr-ivcal .oc-head{display:grid;grid-template-columns:50px repeat(var(--days),1fr);border-bottom:1px solid var(--oc-colsep);background:#fff;position:sticky;top:0;z-index:6}
+            #rr-ivcal .oc-corner{border-right:1px solid var(--oc-colsep);background:#fff}
+            #rr-ivcal .oc-dh{text-align:left;padding:7px 0 8px 12px;border-left:1px solid var(--oc-colsep);background:#fff;cursor:pointer}
+            #rr-ivcal .oc-dh .dow{font-size:13px;font-weight:600;color:var(--text-muted);letter-spacing:.02em;text-transform:none}
+            #rr-ivcal .oc-dh .dn{font-size:21px;font-weight:700;color:var(--oc-ink);line-height:1.05;margin-top:1px}
+            #rr-ivcal .oc-dh.today .dn{color:#fff;background:var(--oc-blue);width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-top:1px;font-size:17px}
             #rr-ivcal .oc-dh.today .dow{color:var(--oc-blue);font-weight:800}
             #rr-ivcal .oc-scroll{overflow-y:auto;height:580px}
             #rr-ivcal .oc-grid{display:grid;grid-template-columns:50px repeat(var(--days),1fr);position:relative}
             #rr-ivcal .oc-gutter{position:relative}
             #rr-ivcal .oc-hr{position:relative;height:var(--rh)}
-            #rr-ivcal .oc-hr span{position:absolute;top:-7px;right:6px;font-size:11px;color:var(--oc-sub);font-variant-numeric:tabular-nums;background:var(--oc-surface);padding:0 1px}
-            #rr-ivcal .oc-col{position:relative;border-left:1px solid var(--oc-line2);cursor:default}
+            #rr-ivcal .oc-hr span{position:absolute;top:-7px;right:6px;font-size:11px;font-weight:500;color:var(--oc-time);font-variant-numeric:tabular-nums;background:var(--oc-surface);padding:0 1px}
+            #rr-ivcal .oc-col{position:relative;border-left:1px solid var(--oc-colsep);cursor:default}
             #rr-ivcal .oc-col.today{background:var(--oc-today)}
-            #rr-ivcal .oc-hline{position:absolute;left:0;right:0;border-top:1px solid var(--oc-line)}
-            #rr-ivcal .oc-hhline{position:absolute;left:0;right:0;border-top:1px solid var(--oc-line2)}
-            #rr-ivcal .oc-now{position:absolute;left:0;right:0;height:0;border-top:2px solid #B91C1C;z-index:5;pointer-events:none}
-            #rr-ivcal .oc-now::before{content:"";position:absolute;left:-4px;top:-4px;width:7px;height:7px;border-radius:50%;background:#B91C1C}
+            #rr-ivcal .oc-hline{position:absolute;left:0;right:0;border-top:1px solid var(--oc-rowline)}
+            #rr-ivcal .oc-hhline{position:absolute;left:0;right:0;border-top:1px solid var(--oc-rowline2)}
+            #rr-ivcal .oc-now{position:absolute;left:0;right:0;height:0;border-top:2px solid #D13438;z-index:5;pointer-events:none}
+            #rr-ivcal .oc-now::before{content:"";position:absolute;left:-4px;top:-4px;width:8px;height:8px;border-radius:50%;background:#D13438}
+            #rr-ivcal .oc-now-lbl{position:absolute;left:4px;top:-15px;font-size:10px;font-weight:700;color:#fff;background:#D13438;padding:0 4px;border-radius:3px;line-height:14px;font-variant-numeric:tabular-nums;white-space:nowrap;box-shadow:none}
             #rr-ivcal .oc-avail{position:absolute;left:0;right:0;background:rgba(15,108,189,.06);border-left:2px solid rgba(15,108,189,.35)}
             /* event blocks · light category fill + colored left bar (modern Outlook) */
             #rr-ivcal .oc-ev{position:absolute;left:2px;right:2px;border:1px solid;border-left-width:3px;border-radius:2px;padding:1px 5px 1px 6px;overflow:hidden;font-size:11px;line-height:1.3;cursor:pointer;z-index:2}
@@ -12594,10 +12602,11 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-ev.dragging{opacity:.9;box-shadow:0 6px 16px rgba(0,0,0,.28);z-index:7;cursor:grabbing}
             #rr-ivcal .oc-cghost{position:absolute;left:2px;right:2px;background:rgba(15,108,189,.16);border:1px solid #0F6CBD;border-radius:2px;z-index:3;pointer-events:none;font-size:11px;color:#0F3D63;padding:1px 5px;overflow:hidden;font-weight:600}
             /* month */
-            #rr-ivcal .oc-mhead{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--oc-line);background:var(--oc-surface);position:sticky;top:0;z-index:6}
-            #rr-ivcal .oc-mdow{text-align:left;padding:6px 0 7px 12px;font-size:14px;font-weight:600;color:var(--oc-sub);letter-spacing:.01em}
+            #rr-ivcal .oc-mhead{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--oc-colsep);background:#fff;position:sticky;top:0;z-index:6}
+            #rr-ivcal .oc-mdow{text-align:left;padding:7px 0 8px 12px;font-size:13px;font-weight:700;color:var(--text-muted);letter-spacing:.02em;border-left:1px solid var(--oc-colsep)}
+            #rr-ivcal .oc-mdow:first-child{border-left:0}
             #rr-ivcal .oc-mgrid{display:grid;grid-template-columns:repeat(7,1fr)}
-            #rr-ivcal .oc-mcell{min-height:104px;border-top:1px solid var(--oc-line2);border-left:1px solid var(--oc-line2);padding:2px 3px 3px;cursor:default;overflow:hidden}
+            #rr-ivcal .oc-mcell{min-height:104px;border-top:1px solid var(--oc-rowline);border-left:1px solid var(--oc-colsep);padding:2px 3px 3px;cursor:default;overflow:hidden}
             #rr-ivcal .oc-mcell:nth-child(7n+1){border-left:0}
             #rr-ivcal .oc-mcell.out{background:var(--oc-surface-2)}
             #rr-ivcal .oc-mcell.out .oc-mnum{color:var(--oc-sub);opacity:.7}
@@ -13656,14 +13665,17 @@ body.rr-cmdk-open{ overflow:hidden }
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="22"/><line x1="15" y1="9" x2="15" y2="22"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
                   <span>Month</span>
                 </button>
-                <!-- Rules caption + dialog-launcher · anchored to this view
-                     subgroup so the caption centers under the view tiles and
-                     the launcher pins to the bottom-right by the hairline —
-                     same location as Schedule's "Go To" + launcher. -->
-                <span class="rr-cal-rules-cap" aria-hidden="true">Rules</span>
-                <button type="button" class="rr-cal-rules-launch" id="rr-iv-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-iv-rules-popover" title="Interview availability — days, times, capacity, and group sessions">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
-                </button>
+                <!-- Rules caption + dialog-launcher · one fixed-height footer
+                     row so the browser vertically centers the caption AND the
+                     launcher on the same line (caption centered, launcher
+                     pinned bottom-right by the hairline) — same arrangement as
+                     Schedule's "Go To" + launcher. -->
+                <div class="rr-cal-rules-foot" aria-hidden="false">
+                  <span class="rr-cal-rules-cap" aria-hidden="true">Rules</span>
+                  <button type="button" class="rr-cal-rules-launch" id="rr-iv-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-iv-rules-popover" title="Interview availability — days, times, capacity, and group sessions">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
+                  </button>
+                </div>
                 </div><!-- /.rr-cal-viewgroup -->
               </div>
             </div><!-- /group: calendar-controls -->
@@ -13817,23 +13829,32 @@ body.rr-cmdk-open{ overflow:hidden }
             display: inline-flex; align-items: center; gap: 8px;
             position: relative; flex: 0 0 auto;
           }
-          /* "Rules" caption · centered under the view tiles, sitting ~11px
-             below the tile labels — the same offset Schedule's "Go To" sits
-             below Today/Weekly/Monthly. Bold, mixed-case. */
+          /* Rules footer · a single fixed-height (14px) row pinned just below
+             the view tiles. Both children are vertically centered IN this row
+             by the browser, so the caption and the launcher always sit on the
+             exact same line — no fragile per-element bottom offsets. */
+          #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-foot {
+            position: absolute; left: 0; right: 0; bottom: -8px; height: 14px;
+            pointer-events: none; z-index: 1;
+          }
+          /* "Rules" caption · centered across the view tiles, on the footer
+             line (like Schedule's "Go To" under Today/Weekly/Monthly). */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-cap {
-            position: absolute; left: 0; right: 0; bottom: -4px;
-            text-align: center; font-size: 11px; font-weight: 800 !important;
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 800 !important; line-height: 1;
             letter-spacing: .01em; white-space: nowrap;
             color: var(--text-subtle); pointer-events: none;
           }
-          /* Dialog-launcher · pinned to the subgroup's bottom-right, pushed
-             right into the gap next to the hairline divider (mirrors the
-             Schedule launcher's right:-18px). Aligned to the caption's line. */
+          /* Dialog-launcher · vertically centered on the same footer line,
+             pinned to the bottom-right and pushed into the gap next to the
+             hairline divider (mirrors the Schedule launcher's right:-18px). */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-launch {
-            position: absolute; right: -18px; bottom: -3px; z-index: 1;
+            position: absolute; right: -18px; top: 50%; transform: translateY(-50%);
             display: inline-flex; align-items: center; justify-content: center;
             appearance: none; border: 0; background: transparent; cursor: pointer;
             color: var(--text-subtle); padding: 2px; border-radius: 5px;
+            pointer-events: auto;
             transition: color var(--t-fast), background var(--t-fast);
           }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-launch:hover {
@@ -36866,7 +36887,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260609-oc27"></script>
+<script type="module" src="./live.js?v=20260609-oc28"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
