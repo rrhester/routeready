@@ -29,6 +29,17 @@
   .slot:hover{background:#F2F8FE;border-color:var(--accent)}
   .slot:disabled{opacity:.5;cursor:default}
   .slot .spots{display:block;font-size:11px;font-weight:600;color:var(--green);margin-top:3px}
+  /* Date-first accordion: pick a date, its times drop down. */
+  .acc{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+  .day-acc{border:1px solid var(--border);border-radius:11px;overflow:hidden;background:#fff}
+  .day-acc.open{border-color:var(--accent);box-shadow:0 1px 3px rgba(15,108,189,.10)}
+  .day-toggle{display:flex;align-items:center;gap:10px;width:100%;appearance:none;border:0;background:transparent;cursor:pointer;font:inherit;padding:15px 16px;text-align:left}
+  .day-toggle:hover{background:#F7FAFD}
+  .day-name{font-size:15px;font-weight:600;color:var(--text);flex:1}
+  .day-meta{font-size:12px;color:var(--subtle)}
+  .day-chev{color:var(--subtle);transition:transform .15s;flex:0 0 auto}
+  .day-acc.open .day-chev{transform:rotate(180deg)}
+  .day-slots{padding:0 16px 16px}
   .msg{text-align:center;padding:36px 16px;color:var(--muted)}
   .msg strong{display:block;color:var(--text);font-size:17px;margin-bottom:6px}
   .ok-ico{width:56px;height:56px;border-radius:50%;background:rgba(22,163,74,.12);color:var(--green);
@@ -106,8 +117,8 @@ async function init() {
   }
 
   root.innerHTML = `<div class="card">
-    <p class="lead">Pick a time${esc(first)}</p>
-    <p class="sub">Times shown in ${esc(TZ.replace("_"," "))}. Choose a slot that works for you.</p>
+    <p class="lead">Pick a date${esc(first)}</p>
+    <p class="sub">Choose a day, then a time that works for you. Times shown in ${esc(TZ.replace("_"," "))}.</p>
     <div id="slots-host"><div class="spin"></div></div></div>`;
   await renderSlots();
 }
@@ -127,24 +138,47 @@ async function renderSlots() {
     host.innerHTML = `<div class="msg"><strong>No open times right now</strong><span>Please check back soon, or reply to the email we sent.</span></div>`;
     return;
   }
-  // Group by day.
+  // Group by day → one collapsible row per date; times drop down on click.
   const byDay = new Map();
   for (const s of slots) {
     const key = fmtDay(s.slot_start);
     if (!byDay.has(key)) byDay.set(key, []);
     byDay.get(key).push(s);
   }
-  let html = "";
+  let html = `<div class="acc">`;
   for (const [day, items] of byDay) {
-    html += `<div class="day"><p class="day-h">${esc(day)}</p><div class="slots">`;
+    let slotsHtml = "";
     for (const s of items) {
       const group = (s.capacity || 1) > 1;
       const spots = group ? `<span class="spots">${esc(s.remaining)} spot${s.remaining === 1 ? "" : "s"} left</span>` : "";
-      html += `<button class="slot" data-start="${esc(s.slot_start)}" data-session="${esc(s.session_id || "")}">${esc(fmtTime(s.slot_start))}${spots}</button>`;
+      slotsHtml += `<button class="slot" data-start="${esc(s.slot_start)}" data-session="${esc(s.session_id || "")}">${esc(fmtTime(s.slot_start))}${spots}</button>`;
     }
-    html += `</div></div>`;
+    html += `<div class="day-acc">
+      <button class="day-toggle" type="button" aria-expanded="false">
+        <span class="day-name">${esc(day)}</span>
+        <span class="day-meta">${items.length} time${items.length === 1 ? "" : "s"}</span>
+        <svg class="day-chev" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 6 8 10 12 6"/></svg>
+      </button>
+      <div class="day-slots" hidden><div class="slots">${slotsHtml}</div></div>
+    </div>`;
   }
+  html += `</div>`;
   host.innerHTML = html;
+  // Accordion: open one date at a time; its times drop down below it.
+  host.querySelectorAll(".day-toggle").forEach((t) => t.addEventListener("click", () => {
+    const acc = t.closest(".day-acc");
+    const isOpen = acc.classList.contains("open");
+    host.querySelectorAll(".day-acc.open").forEach((a) => {
+      a.classList.remove("open");
+      a.querySelector(".day-slots").hidden = true;
+      a.querySelector(".day-toggle").setAttribute("aria-expanded", "false");
+    });
+    if (!isOpen) {
+      acc.classList.add("open");
+      acc.querySelector(".day-slots").hidden = false;
+      t.setAttribute("aria-expanded", "true");
+    }
+  }));
   host.querySelectorAll(".slot").forEach((b) => b.addEventListener("click", () => book(b)));
 }
 
