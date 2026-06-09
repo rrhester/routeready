@@ -16758,6 +16758,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   // Ribbon + window-control icon set.
   const SVG = {
     send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+    save:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>',
     invite:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>',
     meeting:'<svg viewBox="0 0 24 24" fill="url(#rr-ne-meet-grad)" stroke="url(#rr-ne-meet-grad)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="rr-ne-meet-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5B8DEF"/><stop offset="52%" stop-color="#2563EB"/><stop offset="100%" stop-color="#6D28D9"/></linearGradient></defs><rect x="1.5" y="5.5" width="14" height="13" rx="3" ry="3"/><path d="M22.5 7.2 16 11.4v1.2l6.5 4.2z"/></svg>',
     recur:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
@@ -16843,6 +16844,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       </div>
       <div class="rr-ne-ribbon">
         ${tile("send","Send",SVG.send,"send")}
+        ${tile("save","Save",SVG.save)}
         ${VDIV}
         ${tile("invite","Invite Attendees",SVG.invite)}
         ${tile("meeting","Schedule Meeting",SVG.meeting)}
@@ -17122,7 +17124,10 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     const chipBtn = e.target.closest("[data-ne-chip]");
     if (chipBtn) { attachments.splice(+chipBtn.getAttribute("data-ne-chip"), 1); renderChips(); return; }
 
-    if (act === "send" || e.target.closest("#rr-ne-create")) {
+    if (act === "send" || act === "save" || e.target.closest("#rr-ne-create")) {
+      // "Save" puts the event on the calendar without inviting/emailing anyone
+      // (personal blocks); "Send" also invites the attendees.
+      const isSave   = act === "save";
       const title    = titleInp.value.trim();
       const sdate    = document.getElementById("rr-ne-sdate").value;
       const edate    = document.getElementById("rr-ne-edate").value || sdate;
@@ -17135,7 +17140,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       if (!sdate || (!isAllDay && !stime)) { toast("Pick a start date and time", "warn"); return; }
       const required = document.getElementById("rr-ne-required").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
       const optional = document.getElementById("rr-ne-optional").value.split(/[,;]/).map(s => s.trim()).filter(s => s.includes("@"));
-      const invitees = Array.from(new Set([...required, ...optional]));
+      const invitees = isSave ? [] : Array.from(new Set([...required, ...optional]));
       const btn = e.target.closest(".rr-ne-ico"); if (btn) btn.style.opacity = ".5";
       if (!roomUrl) roomUrl = _ivcalVideoRoom();
       const subjTitle = highImportance ? ("❗ " + title) : title;
@@ -17169,7 +17174,8 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           if (error) throw error;
           made++;
         }
-        toast(recurrence ? `Series created · ${made} event${made!==1?"s":""}` : (invitees.length ? `Event created · inviting ${invitees.length}` : "Event created"), "success");
+        toast(isSave ? (recurrence ? `Saved · ${made} event${made!==1?"s":""}` : "Event saved")
+          : (recurrence ? `Series created · ${made} event${made!==1?"s":""}` : (invitees.length ? `Event created · inviting ${invitees.length}` : "Event created")), "success");
         closeEditor();
         loadIvCalendar();
         if (typeof loadCalBookingsList === "function") loadCalBookingsList();
