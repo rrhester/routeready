@@ -12525,7 +12525,10 @@ body.rr-cmdk-open{ overflow:hidden }
             /* mini-calendar date navigator (two months + week numbers) */
             /* Width matches the Schedule's 240px driver column so the two
                views line up visually. */
-            #rr-ivcal .oc-side{flex:0 0 240px;border-right:1px solid var(--oc-colsep);background:var(--oc-surface-2);overflow-y:auto;padding:12px 12px;position:relative}
+            /* The mini-calendars stay pinned; only the My Calendars list scrolls,
+               so a long list of calendars never pushes the date navigator away. */
+            #rr-ivcal .oc-side{flex:0 0 240px;border-right:1px solid var(--oc-colsep);background:var(--oc-surface-2);overflow:hidden;padding:12px 12px;position:relative;display:flex;flex-direction:column}
+            #rr-ivcal .oc-side > .oc-mini{flex:0 0 auto}
             /* Collapse "«" in the panel's top-right corner. */
             #rr-ivcal .oc-side-x{position:absolute;top:7px;right:7px;z-index:3;width:22px;height:22px;border:0;background:transparent;cursor:pointer;color:var(--oc-sub);font-size:15px;line-height:1;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;transition:background var(--t-fast),color var(--t-fast)}
             #rr-ivcal .oc-side-x:hover{background:var(--oc-hover);color:var(--oc-blue)}
@@ -12551,7 +12554,7 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-mini-d.today{background:var(--oc-blue);color:#fff;font-weight:700}
             #rr-ivcal .oc-mini-d.today:hover{background:var(--oc-blue-strong);color:#fff}
             /* My Calendars (sidebar, below the mini-months) */
-            #rr-ivcal .oc-cals{margin-top:14px;border-top:1px solid var(--oc-colsep);padding-top:12px}
+            #rr-ivcal .oc-cals{margin-top:14px;border-top:1px solid var(--oc-colsep);padding-top:12px;flex:1 1 auto;min-height:0;overflow-y:auto}
             #rr-ivcal .oc-cals-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--oc-sub)}
             #rr-ivcal .oc-cals-add{appearance:none;border:0;background:none;cursor:pointer;color:var(--oc-sub);font-size:18px;line-height:1;width:22px;height:22px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center}
             #rr-ivcal .oc-cals-add:hover{background:var(--oc-hover);color:var(--oc-blue)}
