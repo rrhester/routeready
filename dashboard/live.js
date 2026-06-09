@@ -18043,6 +18043,7 @@ function _ivcalOpenRoom(ev) {
       <div class="ivr-bc"><span class="ivr-bc-mut">Interview ·</span> <strong>${escapeHtml(who)}</strong></div>
       <div class="ivr-top-acts">
         ${apptId ? `<button class="ivr-btn" data-ivr="profile">‹ Back to Applicant</button>` : ""}
+        <button class="ivr-btn" data-ivr="fs" title="Full-screen the video">⛶ Full screen</button>
         <button class="ivr-btn" data-ivr="copy">⧉ Copy Invite Link</button>
         <button class="ivr-btn ivr-end" data-ivr="close">End Call</button>
       </div>
@@ -18072,7 +18073,7 @@ function _ivcalOpenRoom(ev) {
           </div>
         </div>
       </aside>
-      <div class="ivr-video"><iframe allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write" src="${escapeHtml(src)}"></iframe></div>
+      <div class="ivr-video"><iframe allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write" src="${escapeHtml(src)}"></iframe><button class="ivr-fsexit" data-ivr="fsexit" title="Exit full screen">⤡ Exit full screen</button></div>
     </div>`;
   document.body.appendChild(m);
   const ed = document.getElementById("rr-ivr-ed");
@@ -18091,9 +18092,12 @@ function _ivcalOpenRoom(ev) {
   const close = () => { document.removeEventListener("keydown", onKey); m.remove(); };
   document.addEventListener("keydown", onKey);
 
+  const videoBox = m.querySelector(".ivr-video");
   m.querySelectorAll('[data-ivr]').forEach(b => b.onclick = async () => {
     const act = b.getAttribute("data-ivr");
     if (act === "close") return close();
+    if (act === "fs") { try { (videoBox.requestFullscreen || videoBox.webkitRequestFullscreen).call(videoBox); } catch (_) {} return; }
+    if (act === "fsexit") { try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (_) {} return; }
     if (act === "copy") {
       try { await navigator.clipboard.writeText(ev.meeting_url); b.textContent = "✓ Copied"; setTimeout(() => { b.textContent = "⧉ Copy Invite Link"; }, 1800); }
       catch (_) { toast("Couldn't copy link", "warn"); }
