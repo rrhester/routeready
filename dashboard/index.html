@@ -13768,19 +13768,17 @@ body.rr-cmdk-open{ overflow:hidden }
             display: none !important;
             content: none !important;
           }
-          /* Stretch the calendar group to the strip's full height so the
-             "Rules" caption + launcher sit on the strip's bottom line. */
-          #view-onboarding-ops #rr-cal-ribbon { align-self: stretch; }
-          /* "Rules" caption centered on the bottom line; launcher icon pinned
-             bottom-right flush to the hairline divider. */
+          /* "Rules" caption dropped onto the card's bottom line (below the tile
+             row, into the card's bottom padding); launcher icon bottom-right
+             flush to the hairline divider. Bold, mixed-case. */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-cap {
-            position: absolute; left: 0; right: 0; bottom: 3px;
-            text-align: center; font-size: 11px; font-weight: 700;
+            position: absolute; left: 0; right: 0; bottom: -10px;
+            text-align: center; font-size: 11px; font-weight: 800 !important;
             letter-spacing: .01em;
             color: var(--text-subtle); pointer-events: none;
           }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-launch {
-            position: absolute; right: 1px; bottom: 1px;
+            position: absolute; right: 2px; bottom: -11px;
             display: inline-flex; align-items: center; justify-content: center;
             appearance: none; border: 0; background: transparent; cursor: pointer;
             color: var(--text-subtle); padding: 2px; border-radius: 5px;
