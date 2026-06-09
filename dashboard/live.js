@@ -16287,7 +16287,58 @@ function _ivcalMyCalendars() {
     <div class="oc-cals-h"><span>My Calendars</span><button class="oc-cals-add" data-ivcal-addcal title="Add calendar" aria-label="Add calendar">+</button></div>
     <div class="oc-cals-grp">${builtin}</div>
     ${cals.length ? `<div class="oc-cals-grp">${custom}</div>` : `<div class="oc-cals-empty">No custom calendars yet — click + to add one.</div>`}
+    ${_ivcalGoogleRow()}
   </div>`;
+}
+
+// Google Calendar connect/status row in My Calendars. Reuses the existing
+// OAuth flow; status comes from _ivcalCache.gcal (google_calendar_status RPC).
+// Event overlay is a planned follow-up — this is connect/status only for now.
+const _IVCAL_GOOGLE_ICON = `<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.23 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg>`;
+function _ivcalGoogleRow() {
+  const g = _ivcalCache && _ivcalCache.gcal;
+  const connected = !!(g && g.connected);
+  const head = `<div class="oc-cals-sub">Google Calendar</div>`;
+  if (connected) {
+    return head + `<div class="oc-cal-row oc-gcal-row">
+      <span class="oc-cal-lbl"><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span><span class="oc-cal-name" title="${escapeHtml(g.email||"")}">${escapeHtml(g.email||"Connected")}</span></span>
+      <button class="oc-cal-menu" data-ivcal-gcal="disconnect" title="Disconnect Google Calendar" aria-label="Disconnect Google Calendar">⋯</button>
+    </div>`;
+  }
+  return head + `<button class="oc-gcal-connect" data-ivcal-gcal="connect"><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span>Connect Google Calendar</button>`;
+}
+
+// Open Google's OAuth consent (reuses the google-oauth-start edge function),
+// then refresh the calendar so the row flips to Connected.
+async function _ivcalGoogleConnect() {
+  try {
+    const { data, error } = await sb.functions.invoke("google-oauth-start", { body: {} });
+    if (error || !data || !data.url) throw error || new Error("No authorization URL returned");
+    const popup = window.open(data.url, "rr-gcal", "width=520,height=640");
+    const onMsg = (ev) => {
+      if (!ev.data || ev.data.type !== "rr-gcal") return;
+      window.removeEventListener("message", onMsg);
+      try { popup && popup.close(); } catch (_) {}
+      if (ev.data.ok) toast("Google Calendar connected", "success");
+      else toast("Connection failed: " + (ev.data.message || ""), "warn");
+      loadIvCalendar();
+    };
+    window.addEventListener("message", onMsg);
+    const poll = setInterval(() => {
+      if (popup && popup.closed) { clearInterval(poll); window.removeEventListener("message", onMsg); loadIvCalendar(); }
+    }, 800);
+  } catch (e) {
+    toast("Could not start Google connect: " + (e.message || e), "warn");
+  }
+}
+async function _ivcalGoogleDisconnect() {
+  if (!confirm("Disconnect Google Calendar? Future interviews won't sync to Google.")) return;
+  try {
+    const { error } = await sb.functions.invoke("google-calendar-disconnect", { body: {} });
+    if (error) throw error;
+    toast("Google Calendar disconnected", "success");
+  } catch (e) { toast("Disconnect failed: " + (e.message || e), "warn"); }
+  loadIvCalendar();
 }
 
 // Per-calendar kebab menu (Edit / Delete).
@@ -16383,7 +16434,7 @@ async function loadIvCalendar() {
   const firstLoad = !_ivcalCache || !host.querySelector(".oc");
   if (firstLoad) host.innerHTML = `<div class="rr-loading">Loading calendar…</div>`;
   try {
-    const [a, s, b, c] = await Promise.all([
+    const [a, s, b, c, g] = await Promise.all([
       sb.rpc("interview_availability_get"),
       sb.rpc("interview_sessions_list"),
       sb.from("cal_events")
@@ -16397,6 +16448,7 @@ async function loadIvCalendar() {
         .eq("dsp_id", window.RR.dsp.id)
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true }),
+      sb.rpc("google_calendar_status"),
     ]);
     if (a.error) throw a.error;
     let bookings = b.data || [];
@@ -16420,6 +16472,7 @@ async function loadIvCalendar() {
       sessions: s.data || [],
       bookings: bookings,
       calendars: (c && !c.error && c.data) ? c.data : [],
+      gcal: (g && !g.error && g.data) ? (Array.isArray(g.data) ? g.data[0] : g.data) : null,
     };
   } catch (e) {
     if (firstLoad) host.innerHTML = `<div class="rr-iv-err">Couldn't load calendar: ${escapeHtml(e.message || String(e))}</div>`;
@@ -16600,6 +16653,11 @@ function _ivcalRender() {
   host.querySelectorAll("[data-ivcal-addcal]").forEach(b => b.onclick = (e) => { e.stopPropagation(); _ivcalCalendarDialog(null); });
   host.querySelectorAll("[data-ivcal-calmenu]").forEach(b => b.onclick = (e) => {
     e.stopPropagation(); _ivcalCalendarMenu(e, b.getAttribute("data-ivcal-calmenu"));
+  });
+  host.querySelectorAll("[data-ivcal-gcal]").forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    if (b.getAttribute("data-ivcal-gcal") === "connect") _ivcalGoogleConnect();
+    else _ivcalGoogleDisconnect();
   });
 
   // Event interactions: single-click → reading pane; right-click → context
