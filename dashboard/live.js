@@ -16441,7 +16441,7 @@ function _ivcalRender() {
   // Event interactions: single-click → reading pane; right-click → context
   // menu; hover → preview card.
   host.querySelectorAll("[data-ivcal-id]").forEach(el => {
-    el.addEventListener("click", (e) => { e.stopPropagation(); if (_ivcalSuppressClick) { _ivcalSuppressClick = false; return; } _ivcalSelect(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
+    el.addEventListener("click", (e) => { e.stopPropagation(); if (_ivcalSuppressClick) { _ivcalSuppressClick = false; return; } _ivcalHoverHide(); _ivcalEditEvent(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
     el.addEventListener("dblclick", (e) => { e.stopPropagation(); _ivcalHoverHide(); _ivcalEditEvent(el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
     el.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); _ivcalContextMenu(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")); });
     el.addEventListener("mouseenter", (e) => _ivcalHoverShow(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")));
@@ -17480,7 +17480,7 @@ function _ivcalContextMenu(e, kind, id) {
     const b = ev2.target.closest("[data-oc-ctx]"); if (!b) return;
     const act = b.getAttribute("data-oc-ctx");
     _ivcalCloseMenus();
-    if (act === "open") _ivcalSelect(kind, id);
+    if (act === "open") _ivcalEditEvent(kind, id);
     else if (act === "edit") _ivcalEditEvent(kind, id);
     else if (act === "email") _ivcalOpenEmail(kind, id);
     else if (act === "duplicate") { const s = new Date(ev.starts_at); _ivcalNewEvent(_ivcalISODate(s), s.getHours()*60+s.getMinutes(), s.getHours()*60+s.getMinutes()+30); }
