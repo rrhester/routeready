@@ -17280,10 +17280,10 @@ async function _ivcalLoadEventMessages(eventId, host) {
   try {
     const [em, sm] = await Promise.all([
       sb.from("email_messages")
-        .select("id, direction, status, to_email, subject, body_text, error_message, sent_at, created_at")
+        .select("id, direction, status, to_email, subject, body_text, error_message, sent_at, created_at, template:template_id ( key )")
         .eq("cal_event_id", eventId).order("created_at", { ascending: true }),
       sb.from("sms_messages")
-        .select("id, direction, status, to_phone, body, error_message, sent_at, created_at")
+        .select("id, direction, status, to_phone, body, error_message, sent_at, created_at, template:template_id ( key )")
         .eq("cal_event_id", eventId).order("created_at", { ascending: true }),
     ]);
     if (em.error) throw em.error;
@@ -17295,13 +17295,15 @@ async function _ivcalLoadEventMessages(eventId, host) {
     return;
   }
 
+  const tplKey = (r) => (r.template && r.template.key) || null;
+  const isInviteKey = (k) => k === "applicant.invite_interview" || k === "applicant.invite_orientation";
   const items = [
     ...emails.map(r => ({ ch: "email", id: r.id, direction: r.direction, status: r.status,
       to: r.to_email, subject: r.subject, body: r.body_text, error: r.error_message,
-      when: r.sent_at || r.created_at, created: r.created_at })),
+      when: r.sent_at || r.created_at, created: r.created_at, invite: isInviteKey(tplKey(r)) })),
     ...texts.map(r => ({ ch: "sms", id: r.id, direction: r.direction, status: r.status,
       to: r.to_phone, subject: null, body: r.body, error: r.error_message,
-      when: r.sent_at || r.created_at, created: r.created_at })),
+      when: r.sent_at || r.created_at, created: r.created_at, invite: isInviteKey(tplKey(r)) })),
   ].sort((a, b) => new Date(a.created) - new Date(b.created));
 
   const head = `<div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin:6px 0 2px">
@@ -17318,14 +17320,21 @@ async function _ivcalLoadEventMessages(eventId, host) {
     const inbound = it.direction === "inbound";
     const dirLabel = inbound ? "Reply from" : "To";
     const pill = `<span style="font-size:11px;font-weight:600;color:${st.color};background:${st.bg};border-radius:999px;padding:1px 8px;white-space:nowrap">${escapeHtml(st.label)}</span>`;
+    // Tag the booking-link invite so it's distinguishable from the confirmation.
+    const kindTag = (it.invite && !inbound)
+      ? `<span style="font-size:11px;font-weight:600;color:#7C3AED;background:#EDE9FE;border-radius:999px;padding:1px 8px">Booking invite</span>` : "";
     const subjLine = it.subject
       ? `<div style="font-weight:600;color:var(--text);margin-top:2px">${escapeHtml(it.subject)}</div>` : "";
     const body = (it.body || "").trim();
-    // Email confirmations/invites carry the calendar invite (.ics) attachment,
-    // which is the "shared meeting invite" — flag it so the operator knows it
-    // went out with the message.
+    // The invite carries a booking link (sent before the event existed, no
+    // .ics); confirmations/event invites carry the real calendar invite (.ics),
+    // attached by send-email because the row has a cal_event_id. Flag each
+    // honestly so the operator knows what actually went out.
     const inviteNote = (it.ch === "email" && !inbound)
-      ? `<div style="font-size:12px;color:var(--green,#107C41);margin-top:4px">📅 Calendar invite (.ics) included</div>` : "";
+      ? (it.invite
+          ? `<div style="font-size:12px;color:var(--text-subtle);margin-top:4px">🔗 Booking link included</div>`
+          : `<div style="font-size:12px;color:var(--green,#107C41);margin-top:4px">📅 Calendar invite (.ics) included</div>`)
+      : "";
     const errNote = it.error
       ? `<div style="font-size:12px;color:var(--red,#B91C1C);margin-top:4px">⚠ ${escapeHtml(it.error)}</div>` : "";
     const bodyBlock = body
@@ -17336,6 +17345,7 @@ async function _ivcalLoadEventMessages(eventId, host) {
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:14px">${icon}</span>
         <span style="font-size:13px;color:var(--text-muted)">${escapeHtml(dirLabel)} <strong style="color:var(--text)">${escapeHtml(it.to || "—")}</strong></span>
+        ${kindTag}
         <span style="flex:1"></span>
         ${pill}
         <span style="font-size:12px;color:var(--text-subtle)">${escapeHtml(_ivcalMsgWhen(it.when))}</span>
