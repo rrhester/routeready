@@ -16425,6 +16425,18 @@ async function _ivcalGoogleDisconnect() {
   } catch (e) { toast("Disconnect failed: " + (e.message || e), "warn"); }
   loadIvCalendar();
 }
+// Place a popover menu next to its button, flipping it ABOVE when there isn't
+// room below (the My Calendars rows sit near the bottom of the viewport).
+function _ivcalPlaceMenu(menu, btn) {
+  const r = btn.getBoundingClientRect();
+  const mh = menu.offsetHeight, mw = menu.offsetWidth;
+  let top = r.bottom + 4;
+  if (top + mh + 8 > window.innerHeight) top = Math.max(8, r.top - mh - 4);
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - mw - 8));
+  menu.style.left = left + "px";
+  menu.style.top = top + "px";
+}
+
 // Google calendar options menu: recolor the overlaid events, or disconnect.
 function _ivcalGoogleMenu(e) {
   _ivcalCloseMenus();
@@ -16434,10 +16446,7 @@ function _ivcalGoogleMenu(e) {
     `<button type="button" class="oc-sw${c === _ivcalGoogleColor ? " on" : ""}" data-gcolor="${c}" style="background:${c}" aria-label="${c}"></button>`).join("");
   menu.innerHTML = `<div class="oc-menu-lbl">Calendar color</div><div class="oc-menu-sw">${sw}</div><button data-gm="disconnect" class="danger">Disconnect Google Calendar</button>`;
   document.body.appendChild(menu);
-  const btn = (e.target && e.target.closest("[data-ivcal-gcal]")) || e.target;
-  const r = btn.getBoundingClientRect();
-  menu.style.left = Math.min(r.left, window.innerWidth - 230) + "px";
-  menu.style.top = (r.bottom + 4) + "px";
+  _ivcalPlaceMenu(menu, (e.target && e.target.closest("[data-ivcal-gcal]")) || e.target);
   menu.querySelectorAll("[data-gcolor]").forEach(b => b.onclick = () => { _ivcalCloseMenus(); _ivcalSetGoogleColor(b.getAttribute("data-gcolor")); });
   menu.querySelector('[data-gm="disconnect"]').onclick = () => { _ivcalCloseMenus(); _ivcalGoogleDisconnect(); };
   const off = (ev) => { if (!menu.contains(ev.target)) { _ivcalCloseMenus(); document.removeEventListener("mousedown", off); } };
@@ -16453,10 +16462,7 @@ function _ivcalCalendarMenu(e, id) {
   menu.className = "oc-menu";
   menu.innerHTML = `<button data-cm="edit">Edit calendar…</button><button data-cm="delete" class="danger">Delete calendar</button>`;
   document.body.appendChild(menu);
-  const btn = (e.target && e.target.closest("[data-ivcal-calmenu]")) || e.target;
-  const r = btn.getBoundingClientRect();
-  menu.style.left = Math.min(r.left, window.innerWidth - 200) + "px";
-  menu.style.top = (r.bottom + 4) + "px";
+  _ivcalPlaceMenu(menu, (e.target && e.target.closest("[data-ivcal-calmenu]")) || e.target);
   menu.querySelector('[data-cm="edit"]').onclick = () => { _ivcalCloseMenus(); _ivcalCalendarDialog(cal); };
   menu.querySelector('[data-cm="delete"]').onclick = () => { _ivcalCloseMenus(); _ivcalDeleteCalendar(cal); };
   const off = (ev) => { if (!menu.contains(ev.target)) { _ivcalCloseMenus(); document.removeEventListener("mousedown", off); } };
