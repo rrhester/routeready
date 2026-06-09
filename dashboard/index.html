@@ -13790,9 +13790,11 @@ body.rr-cmdk-open{ overflow:hidden }
             color: var(--accent-text); background: var(--accent-soft);
           }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-rules-launch svg { width: 13px; height: 13px; flex: 0 0 auto; }
-          /* "Add applicant" tile · blue-shaded like the Schedule Fleet/Unassign tile. */
-          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item{ background:var(--accent-soft-strong); border-radius:var(--sch-radius,6px); }
-          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item:hover{ background:var(--accent-soft); }
+          /* "Add applicant" tile · blue-shaded square like the Schedule Fleet/
+             Unassign tile (the whole tile, not just the text). */
+          #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-addapplicant"]{ background:var(--accent-soft-strong) !important; border-radius:var(--sch-radius,6px); }
+          #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item{ background:transparent !important; border-radius:var(--sch-radius,6px); }
+          #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-addapplicant"]:hover{ background:var(--accent-soft) !important; }
           #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item,
           #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item span{ color:var(--accent-text) !important; }
           #view-onboarding-ops [data-rr-tile="ob-addapplicant"] .subnav-item svg{ color:var(--accent) !important; }
