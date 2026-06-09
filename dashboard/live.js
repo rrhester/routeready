@@ -17795,7 +17795,13 @@ function _ivcalEventBlock(ev, type, lay) {
 // _ivcalLayStyle turns an assigned {lx,lw} (left %, width %) into inline CSS.
 function _ivcalLayStyle(lay) {
   if (!lay) return "";
-  return `;left:calc(${lay.lx}% + 1px);width:calc(${lay.lw}% - 2px);right:auto`;
+  // Lay columns out within (column width − G) so a clickable grid strip stays
+  // on the right (same as single events' right:16px), keeping double-click-to-
+  // create available even when the row is full of side-by-side events.
+  const G = 16;
+  const lpx = (lay.lx * G / 100).toFixed(2);
+  const wpx = (lay.lw * G / 100 + 2).toFixed(2); // +2 = gap between events
+  return `;left:calc(${lay.lx}% - ${lpx}px + 1px);width:calc(${lay.lw}% - ${wpx}px);right:auto`;
 }
 function _ivcalMinSpan(startsAt, endsAt) {
   const s = new Date(startsAt);
