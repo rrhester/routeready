@@ -13385,9 +13385,13 @@ body.rr-cmdk-open{ overflow:hidden }
                     </svg>
                     <span>Funnel</span>
                   </button>
-                  <button type="button" class="ob-rules-foot" id="rr-funnel-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-funnel-rules-popover" title="Screening questions — what applicants answer before booking">
+                  <!-- Funnel "Rules" · kept persistently visible (the primary
+                       way to edit screening questions / funnel stages), with
+                       the subtle box-arrow launcher like the Calendar +
+                       Onboarding-steps rules. -->
+                  <button type="button" class="ob-rules-foot ob-rules-foot-shown" id="rr-funnel-rules-toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="rr-funnel-rules-popover" title="Screening questions — what applicants answer before booking">
                     Rules
-                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><polyline points="2 4 6 8 10 4"/></svg>
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><line x1="8" y1="8" x2="13.5" y2="13.5"/><polyline points="13.5 10 13.5 13.5 10 13.5"/></svg>
                   </button>
                   <style>
                     /* ════ Unified "Rules" popover · Fluent dressing across the whole dashboard ════
@@ -13829,38 +13833,31 @@ body.rr-cmdk-open{ overflow:hidden }
             display: inline-flex; align-items: center; gap: 8px;
             position: relative; flex: 0 0 auto;
           }
-          /* Rules footer · a single fixed-height (14px) row pinned just below
-             the view tiles. Both children are vertically centered IN this row
-             by the browser, so the caption and the launcher always sit on the
-             exact same line — no fragile per-element bottom offsets. */
+          /* Rules footer · one flex row pinned just below the view tiles. The
+             caption + launcher sit together, centered, and flex align-items
+             keeps them on the exact same line — "Rules ⧉", matching the
+             Onboarding-steps and Funnel rules captions. */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-foot {
             position: absolute; left: 0; right: 0; bottom: -8px; height: 14px;
+            display: flex; align-items: center; justify-content: center; gap: 5px;
             pointer-events: none; z-index: 1;
           }
-          /* "Rules" caption · centered across the view tiles, on the footer
-             line (like Schedule's "Go To" under Today/Weekly/Monthly). */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-cap {
-            position: absolute; inset: 0;
-            display: flex; align-items: center; justify-content: center;
             font-size: 11px; font-weight: 800 !important; line-height: 1;
             letter-spacing: .01em; white-space: nowrap;
             color: var(--text-subtle); pointer-events: none;
           }
-          /* Dialog-launcher · vertically centered on the same footer line,
-             pinned to the bottom-right and pushed into the gap next to the
-             hairline divider (mirrors the Schedule launcher's right:-18px). */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-launch {
-            position: absolute; right: -18px; top: 50%; transform: translateY(-50%);
             display: inline-flex; align-items: center; justify-content: center;
             appearance: none; border: 0; background: transparent; cursor: pointer;
-            color: var(--text-subtle); padding: 2px; border-radius: 5px;
+            color: var(--text-subtle); padding: 1px; border-radius: 5px;
             pointer-events: auto;
             transition: color var(--t-fast), background var(--t-fast);
           }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-launch:hover {
             color: var(--accent-text); background: var(--accent-soft);
           }
-          #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-launch svg { width: 13px; height: 13px; flex: 0 0 auto; }
+          #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-launch svg { width: 12px; height: 12px; flex: 0 0 auto; }
           /* "Add applicant" tile · blue-shaded square like the Schedule Fleet/
              Unassign tile (the whole tile, not just the text). */
           #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-addapplicant"]{ background:var(--accent-soft-strong) !important; border-radius:var(--sch-radius,6px); }
@@ -36887,7 +36884,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260609-oc28"></script>
+<script type="module" src="./live.js?v=20260609-oc29"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA
