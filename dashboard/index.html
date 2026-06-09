@@ -12622,14 +12622,16 @@ body.rr-cmdk-open{ overflow:hidden }
             #rr-ivcal .oc-gutter{position:relative}
             #rr-ivcal .oc-hr{position:relative;height:var(--rh)}
             #rr-ivcal .oc-hr span{position:absolute;top:-7px;right:6px;font-size:11px;font-weight:600;color:var(--oc-time);font-variant-numeric:tabular-nums;background:var(--oc-surface);padding:0 1px}
-            #rr-ivcal .oc-col{position:relative;border-left:1px solid var(--oc-colsep);cursor:default}
+            /* Non-office hours are blue-shaded; the office-hours window is
+               punched back to the plain surface (white) by .oc-avail below. */
+            #rr-ivcal .oc-col{position:relative;border-left:1px solid var(--oc-colsep);cursor:default;background:rgba(15,108,189,.06)}
             #rr-ivcal .oc-col.today{background:var(--oc-today)}
             #rr-ivcal .oc-hline{position:absolute;left:0;right:0;border-top:1px solid var(--oc-rowline)}
             #rr-ivcal .oc-hhline{position:absolute;left:0;right:0;border-top:1px solid var(--oc-rowline2)}
             #rr-ivcal .oc-now{position:absolute;left:0;right:0;height:0;border-top:2px solid #D13438;z-index:5;pointer-events:none}
             #rr-ivcal .oc-now::before{content:"";position:absolute;left:-4px;top:-4px;width:8px;height:8px;border-radius:50%;background:#D13438}
             #rr-ivcal .oc-now-lbl{position:absolute;left:4px;top:-15px;font-size:10px;font-weight:700;color:#fff;background:#D13438;padding:0 4px;border-radius:3px;line-height:14px;font-variant-numeric:tabular-nums;white-space:nowrap;box-shadow:none}
-            #rr-ivcal .oc-avail{position:absolute;left:0;right:0;background:rgba(15,108,189,.06);border-left:2px solid rgba(15,108,189,.35)}
+            #rr-ivcal .oc-avail{position:absolute;left:0;right:0;background:var(--oc-surface)}
             /* event blocks · light category fill + colored left bar (modern Outlook) */
             #rr-ivcal .oc-ev{position:absolute;left:2px;right:2px;border:1px solid;border-left-width:4px;border-radius:3px;padding:3px 6px 3px 8px;overflow:hidden;font-size:11px;line-height:1.3;cursor:pointer;z-index:2}
             #rr-ivcal .oc-ev:hover{filter:brightness(.98);box-shadow:0 1px 3px rgba(0,0,0,.18)}
