@@ -2526,9 +2526,15 @@ window.goto = function (view) {
     if (_pipeSub) { loadOnboardingOps({ keepTab: true }); if (typeof window.obSub === "function") window.obSub(_pipeSub); }
     else {
       // Opening the Onboarding page lands on the Calendar in Work Week view.
+      // Re-assert across the next ticks so a late default (Funnel) can't win
+      // the sub-view race on first paint.
       loadOnboardingOps({ keepTab: true });
       _ivcalView = "workweek";
-      if (typeof window.obSub === "function") window.obSub("calendar");
+      const _openCal = () => { try { if (typeof window.obSub === "function") window.obSub("calendar"); } catch (_) {} };
+      _openCal();
+      requestAnimationFrame(_openCal);
+      setTimeout(_openCal, 60);
+      setTimeout(_openCal, 280);
     }
   }
   if (view === "checkin")   loadCheckinView();
