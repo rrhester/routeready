@@ -18048,40 +18048,31 @@ function _ivcalOpenRoom(ev) {
       </div>
     </div>
     <div class="ivr-main">
-      <div class="ivr-upper">
-        <div class="ivr-video"><iframe allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write" src="${escapeHtml(src)}"></iframe></div>
-      </div>
-      <div class="ivr-lower">
-        <div class="ivr-tabs">
-          <button class="ivr-tab on">Interview Notes</button>
-          <button class="ivr-tab" disabled title="Coming soon">Scorecard</button>
-          <button class="ivr-tab" disabled title="Coming soon">Timeline</button>
-          <button class="ivr-tab" disabled title="Coming soon">Messages</button>
-        </div>
-        <div class="ivr-cols">
-          <div class="ivr-col">
-            <div class="ivr-col-h">Add Notes</div>
-            <div class="ivr-ed" id="rr-ivr-ed" contenteditable="true" data-ph="Type your notes here…"></div>
-            <div class="ivr-tb">
-              <button type="button" data-ivr-fmt="bold" title="Bold"><b>B</b></button>
-              <button type="button" data-ivr-fmt="italic" title="Italic"><i>I</i></button>
-              <button type="button" data-ivr-fmt="insertUnorderedList" title="Bulleted list">•</button>
-              <button type="button" data-ivr-fmt="insertOrderedList" title="Numbered list">1.</button>
-              <span style="flex:1"></span>
-              <span class="ivr-saved" id="rr-ivr-saved"></span>
-              <button class="ivr-save" data-ivr="save"${canNotes ? "" : " disabled"}>Save Notes</button>
-            </div>
-          </div>
-          <div class="ivr-col">
-            <div class="ivr-col-h">Actions</div>
-            <div class="ivr-acts">
-              ${apptId ? `<button class="ivr-act ok" data-ivr="hire">Move to Onboarding</button>
-              <button class="ivr-act info" data-ivr="schedule">Schedule Next Interview</button>
-              <button class="ivr-act danger" data-ivr="reject">Reject Applicant</button>` : `<div class="ivr-row ivr-mut">No applicant linked to this event.</div>`}
-            </div>
+      <aside class="ivr-side">
+        <div class="ivr-tabs"><button class="ivr-tab on">Interview Notes</button></div>
+        <div class="ivr-col">
+          <div class="ivr-col-h">Add Notes</div>
+          <div class="ivr-ed" id="rr-ivr-ed" contenteditable="true" data-ph="Type your notes here…"></div>
+          <div class="ivr-tb">
+            <button type="button" data-ivr-fmt="bold" title="Bold"><b>B</b></button>
+            <button type="button" data-ivr-fmt="italic" title="Italic"><i>I</i></button>
+            <button type="button" data-ivr-fmt="insertUnorderedList" title="Bulleted list">•</button>
+            <button type="button" data-ivr-fmt="insertOrderedList" title="Numbered list">1.</button>
+            <span style="flex:1"></span>
+            <span class="ivr-saved" id="rr-ivr-saved"></span>
+            <button class="ivr-save" data-ivr="save"${canNotes ? "" : " disabled"}>Save Notes</button>
           </div>
         </div>
-      </div>
+        <div class="ivr-col">
+          <div class="ivr-col-h">Actions</div>
+          <div class="ivr-acts">
+            ${apptId ? `<button class="ivr-act ok" data-ivr="hire">Move to Onboarding</button>
+            <button class="ivr-act info" data-ivr="schedule">Schedule Next Interview</button>
+            <button class="ivr-act danger" data-ivr="reject">Reject Applicant</button>` : `<div class="ivr-row ivr-mut">No applicant linked to this event.</div>`}
+          </div>
+        </div>
+      </aside>
+      <div class="ivr-video"><iframe allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write" src="${escapeHtml(src)}"></iframe></div>
     </div>`;
   document.body.appendChild(m);
   const ed = document.getElementById("rr-ivr-ed");
