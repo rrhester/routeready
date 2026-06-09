@@ -16266,7 +16266,9 @@ function _ivcalCalColor(ev) {
 //    and overlap like Outlook. ───────────────────────────────────────────────
 function _ivcalMyCalendars() {
   const cals = (_ivcalCache && _ivcalCache.calendars) || [];
-  const builtin = ["interview","orientation","event","session"].map(k =>
+  // Only Interviews ships as a built-in calendar; the DSP creates the rest as
+  // custom calendars. Other event kinds still render (their filter defaults on).
+  const builtin = ["interview"].map(k =>
     `<label class="oc-cal-row"><input type="checkbox" data-ivcal-filter="${k}"${_ivcalFilters[k]?" checked":""}><span class="oc-cal-dot" style="background:${_IVCAL_KIND_COLOR[k]}"></span><span class="oc-cal-name">${escapeHtml(_IVCAL_KIND_LABEL[k])}</span></label>`
   ).join("");
   const custom = cals.map(c => {
