@@ -16292,14 +16292,22 @@ function _ivcalPeriodLabel() {
   const a = _ivcalAnchor;
   if (_ivcalView === "day") return a.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric", year:"numeric" });
   if (_ivcalView === "month") return a.toLocaleDateString(undefined, { month:"long", year:"numeric" });
+  // Within the same month, show "Jun 8 – 12, 2026" — built by hand because
+  // toLocaleDateString({day,year}) (day + year, no month) makes V8 emit a
+  // literal "2026 (day: 12)" since there's no locale pattern for that combo.
+  const range = (s, e) => {
+    const startStr = s.toLocaleDateString(undefined, { month:"short", day:"numeric" });
+    const endStr = (s.getMonth() === e.getMonth())
+      ? `${e.getDate()}, ${e.getFullYear()}`
+      : e.toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric" });
+    return `${startStr} – ${endStr}`;
+  };
   if (_ivcalView === "workweek") {
     const ws = _ivcalWeekStart(a); ws.setDate(ws.getDate()+1); const we = new Date(ws); we.setDate(ws.getDate()+4);
-    const sameM = ws.getMonth() === we.getMonth();
-    return `${ws.toLocaleDateString(undefined,{month:"short",day:"numeric"})} – ${we.toLocaleDateString(undefined, sameM?{day:"numeric",year:"numeric"}:{month:"short",day:"numeric",year:"numeric"})}`;
+    return range(ws, we);
   }
   const start = _ivcalWeekStart(a), end = new Date(start); end.setDate(start.getDate()+6);
-  const same = start.getMonth() === end.getMonth();
-  return `${start.toLocaleDateString(undefined,{month:"short",day:"numeric"})} – ${end.toLocaleDateString(undefined, same?{day:"numeric",year:"numeric"}:{month:"short",day:"numeric",year:"numeric"})}`;
+  return range(start, end);
 }
 
 function _ivcalNav(dir) {
@@ -16922,7 +16930,13 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
 
   // Assign the video room up front (reuse the existing one when editing).
   roomUrl = (isEdit && ev0 && ev0.meeting_url) ? ev0.meeting_url : _ivcalVideoRoom();
-  { const st = document.getElementById("rr-ne-roomstate"); if (st) { st.textContent = "Video link ready ✓"; st.style.color = "var(--green)"; } }
+  { const st = document.getElementById("rr-ne-roomstate");
+    if (st && roomUrl) {
+      // Clickable so the interviewer can join straight from the editor; the
+      // same link is dropped into the invite email (_rrInviteEmail joinUrl).
+      st.innerHTML = `🎥 <a href="${escapeHtml(roomUrl)}" target="_blank" rel="noreferrer" style="color:var(--green);font-weight:600;text-decoration:none">Join video meeting</a> <span style="color:var(--text-subtle)">· this link is included in the invite email</span>`;
+    } else if (st) { st.textContent = "Video link ready ✓"; st.style.color = "var(--green)"; }
+  }
 
   // Prefill the form when editing an existing event.
   if (isEdit && ev0) {
