@@ -16372,7 +16372,7 @@ function _ivcalEnsureGoogle() {
 }
 // Read-only Google event block for the time grid. allDayIdx >= 0 stacks all-day
 // chips at the top of the day column.
-function _ivcalGoogleBlock(ge, allDayIdx) {
+function _ivcalGoogleBlock(ge, allDayIdx, lay) {
   const label = ge.title || "(busy)";
   const link = ge.htmlLink || "";
   const cc = _ivcalGoogleColor;
@@ -16390,7 +16390,7 @@ function _ivcalGoogleBlock(ge, allDayIdx) {
   const inner = (h < 30)
     ? `<div class="en"><span class="et">${escapeHtml(time)}</span> ${escapeHtml(label)}</div>`
     : `<div class="et">${escapeHtml(time)}</div><div class="en">${escapeHtml(label)}</div>`;
-  return `<div class="oc-ev oc-ev-google" data-ivcal-glink="${escapeHtml(link)}" style="top:${top}px;height:${h}px;${ccStyle}" title="${escapeHtml(time + " · " + label + " · Google")}">${inner}</div>`;
+  return `<div class="oc-ev oc-ev-google" data-ivcal-glink="${escapeHtml(link)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)};${ccStyle}" title="${escapeHtml(time + " · " + label + " · Google")}">${inner}</div>`;
 }
 
 // Open Google's OAuth consent (reuses the google-oauth-start edge function),
@@ -17762,7 +17762,7 @@ function _ivcalEventLabel(ev, type) {
   return rrTitleCaseName((ev.applicants||{}).full_name) || (ev.kind === "orientation" ? "Orientation" : "Interview");
 }
 
-function _ivcalEventBlock(ev, type) {
+function _ivcalEventBlock(ev, type, lay) {
   if (!_ivcalFilterOk(ev, type)) return "";
   const s = new Date(ev.starts_at);
   const e = ev.ends_at ? new Date(ev.ends_at) : new Date(s.getTime()+30*60000);
@@ -17787,7 +17787,49 @@ function _ivcalEventBlock(ev, type) {
   // status-based category palette (left bar + faint fill + text).
   const cc = _ivcalCalColor(ev);
   const ccStyle = cc ? `;border-left-color:${cc};border-color:${cc}55;background:${cc}1f;color:${cc}` : "";
-  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px${ccStyle}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
+  return `<div class="oc-ev cat-${cat}${rsvp==="declined"?" declined":""}${sel?" sel":""}" data-ivcal-kind="${kindAttr}" data-ivcal-id="${escapeHtml(ev.id)}" style="top:${top}px;height:${h}px${_ivcalLayStyle(lay)}${ccStyle}" title="${escapeHtml(time+" · "+label)}">${inner}${rz}</div>`;
+}
+
+// Side-by-side column layout: when timed events overlap, split the column so
+// they sit next to each other instead of stacking on top of one another.
+// _ivcalLayStyle turns an assigned {lx,lw} (left %, width %) into inline CSS.
+function _ivcalLayStyle(lay) {
+  if (!lay) return "";
+  return `;left:calc(${lay.lx}% + 1px);width:calc(${lay.lw}% - 2px);right:auto`;
+}
+function _ivcalMinSpan(startsAt, endsAt) {
+  const s = new Date(startsAt);
+  const e = endsAt ? new Date(endsAt) : new Date(s.getTime() + 30 * 60000);
+  let sm = s.getHours() * 60 + s.getMinutes();
+  let em = e.getHours() * 60 + e.getMinutes();
+  if (em <= sm) em = sm + 30; // min duration / guards against day-spanning ends
+  return { sm, em };
+}
+// Greedy interval-graph coloring within each overlap cluster; assigns each
+// item _lx (left %) and _lw (width %). Items carry _sm/_em (start/end minutes).
+function _ivcalLayoutDay(items) {
+  if (!items.length) return;
+  items.sort((a, b) => a._sm - b._sm || b._em - a._em);
+  let cluster = [], clusterEnd = -1;
+  const flush = () => {
+    if (!cluster.length) return;
+    const colEnds = [];
+    for (const it of cluster) {
+      let col = -1;
+      for (let c = 0; c < colEnds.length; c++) { if (colEnds[c] <= it._sm) { colEnds[c] = it._em; col = c; break; } }
+      if (col === -1) { col = colEnds.length; colEnds.push(it._em); }
+      it._col = col;
+    }
+    const n = colEnds.length, w = 100 / n;
+    for (const it of cluster) { it._lw = w; it._lx = it._col * w; }
+    cluster = []; clusterEnd = -1;
+  };
+  for (const it of items) {
+    if (clusterEnd >= 0 && it._sm >= clusterEnd) flush();
+    cluster.push(it);
+    clusterEnd = clusterEnd < 0 ? it._em : Math.max(clusterEnd, it._em);
+  }
+  flush();
 }
 
 // Live "current time" indicator · keep the red now-line + timestamp moving
@@ -17840,13 +17882,31 @@ function _ivcalTimeGrid(ndays) {
     }
     const nowLine = (isToday && nowMin >= _IVCAL_H0*60 && nowMin <= _IVCAL_H1*60)
       ? `<div class="oc-now" style="top:${_ivcalYpos(nowMin)}px"><span class="oc-now-lbl">${escapeHtml(now.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}))}</span></div>` : "";
+    // Gather every timed event for the day across sources, then lay them out
+    // side-by-side where they overlap. All-day Google chips stack at the top
+    // and don't participate in the column layout.
+    const timed = [];
     let evs = "";
-    for (const s of _ivcalDayItems(d, _ivcalCache.sessions, "starts_at")) evs += _ivcalEventBlock(s, "session");
-    for (const b of _ivcalDayItems(d, _ivcalCache.bookings, "starts_at")) evs += _ivcalEventBlock(b, "booking");
+    for (const s of _ivcalDayItems(d, _ivcalCache.sessions, "starts_at")) {
+      if (!_ivcalFilterOk(s, "session")) continue;
+      const sp = _ivcalMinSpan(s.starts_at, s.ends_at);
+      timed.push({ _sm: sp.sm, _em: sp.em, render: (lay) => _ivcalEventBlock(s, "session", lay) });
+    }
+    for (const b of _ivcalDayItems(d, _ivcalCache.bookings, "starts_at")) {
+      if (!_ivcalFilterOk(b, "booking")) continue;
+      const sp = _ivcalMinSpan(b.starts_at, b.ends_at);
+      timed.push({ _sm: sp.sm, _em: sp.em, render: (lay) => _ivcalEventBlock(b, "booking", lay) });
+    }
     if (_ivcalGoogleVisible()) {
       let _gad = 0;
-      for (const ge of _ivcalDayItems(d, (_ivcalCache.googleEvents || []), "sortAt")) evs += _ivcalGoogleBlock(ge, ge.allDay ? _gad++ : -1);
+      for (const ge of _ivcalDayItems(d, (_ivcalCache.googleEvents || []), "sortAt")) {
+        if (ge.allDay) { evs += _ivcalGoogleBlock(ge, _gad++, null); continue; }
+        const sp = _ivcalMinSpan(ge.start, ge.end);
+        timed.push({ _sm: sp.sm, _em: sp.em, render: (lay) => _ivcalGoogleBlock(ge, -1, lay) });
+      }
     }
+    _ivcalLayoutDay(timed);
+    for (const it of timed) evs += it.render(it._lw < 100 ? { lx: it._lx, lw: it._lw } : null);
     return `<div class="oc-col${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${shade}${lines}${nowLine}${evs}</div>`;
   }).join("");
 
