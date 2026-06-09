@@ -16827,6 +16827,14 @@ function _ivcalFitHeight() {
   const bottom = parent ? parent.getBoundingClientRect().bottom : window.innerHeight;
   const avail = Math.min(window.innerHeight, bottom) - top - 8; // small bottom gap
   sc.style.height = Math.max(320, avail) + "px";
+  // Bound the left panel to the same viewport area so its My Calendars list
+  // scrolls inside the panel (the mini-calendars stay pinned) instead of
+  // growing the panel and letting the whole page scroll the calendar away.
+  const side = document.querySelector("#rr-ivcal .oc-side");
+  if (side) {
+    const sideTop = side.getBoundingClientRect().top;
+    side.style.height = Math.max(240, Math.min(window.innerHeight, bottom) - sideTop - 8) + "px";
+  }
   // Trim any residual overflow (calendar margins, etc.) so the PAGE itself
   // can't scroll — otherwise the sticky header drifts with that scroll.
   const scroller = parent || document.scrollingElement || document.documentElement;
