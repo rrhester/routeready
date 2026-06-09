@@ -17571,7 +17571,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
       // Occurrence dates: a single one, or the recurrence series.
       const dates = recurrence ? expandOccurrences(recurrence, sdate) : [sdate];
       if (attachments.length) toast("Note: attachments show here but aren't sent with auto-invites yet", "info");
-      let made = 0;
+      let made = 0, firstId = null;
       try {
         for (let i = 0; i < dates.length; i++) {
           const d = dates[i];
@@ -17599,14 +17599,20 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
           // Only pass the calendar when one is chosen, so default event
           // creation still resolves the RPC if the migration isn't applied yet.
           if (calSel && calSel.value) rpcArgs.p_calendar_id = calSel.value;
-          const { error } = await sb.rpc("create_calendar_event", rpcArgs);
+          const { data: newId, error } = await sb.rpc("create_calendar_event", rpcArgs);
           if (error) throw error;
+          if (i === 0 && newId) firstId = newId;
           made++;
         }
         toast(isSave ? (recurrence ? `Saved · ${made} event${made!==1?"s":""}` : "Event saved")
           : (recurrence ? `Series created · ${made} event${made!==1?"s":""}` : (invitees.length ? `Event created · inviting ${invitees.length}` : "Event created")), "success");
+        // Success toasts are globally suppressed, so make the save VISIBLE:
+        // jump the calendar to the new event's day and select it so it's
+        // obviously there (this also rules out "it saved but scrolled away").
+        _ivcalAnchor = new Date(isAllDay ? _ivLocalToISO(sdate, "12:00", tz) : _ivLocalToISO(sdate, stime, tz));
         closeEditor();
-        loadIvCalendar();
+        await loadIvCalendar();
+        if (firstId) { _ivcalSelected = { kind: "booking", id: firstId }; _ivcalRender(); }
         if (typeof loadCalBookingsList === "function") loadCalBookingsList();
       } catch (err) {
         toast("Couldn't create event: " + (err.message || err), "warn");
@@ -17743,7 +17749,12 @@ function _ivcalFilterOk(ev, type) {
   // Events on a custom calendar are governed solely by that calendar's toggle.
   if (type !== "session" && ev.calendar_id) return _ivcalCalVis[ev.calendar_id] !== false;
   const k = type === "session" ? "session" : _ivcalEvKind(ev);
-  return !!_ivcalFilters[k];
+  // Interviews is the only built-in with a visible toggle now; orientation /
+  // free-form events / sessions have no toggle in My Calendars, so they must
+  // always show (otherwise a persisted-off filter could hide them with no way
+  // to re-enable — which made newly-saved events look like they didn't save).
+  if (k === "interview") return _ivcalFilters.interview !== false;
+  return true;
 }
 function _ivcalEventLabel(ev, type) {
   if (type === "session") return `${ev.label || "Group session"} · ${ev.capacity || 1}`;
