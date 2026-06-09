@@ -12553,11 +12553,11 @@ body.rr-cmdk-open{ overflow:hidden }
             /* day/week grid */
             #rr-ivcal .oc-head{display:grid;grid-template-columns:50px repeat(var(--days),1fr);border-bottom:1px solid var(--oc-line);background:var(--oc-surface);position:sticky;top:0;z-index:6}
             #rr-ivcal .oc-corner{border-right:1px solid var(--oc-line)}
-            #rr-ivcal .oc-dh{text-align:center;padding:5px 0 6px;border-left:1px solid var(--oc-line2);cursor:pointer}
-            #rr-ivcal .oc-dh .dow{font-size:11px;font-weight:600;color:var(--oc-sub);text-transform:uppercase;letter-spacing:.02em}
+            #rr-ivcal .oc-dh{text-align:left;padding:6px 0 7px 12px;border-left:1px solid var(--oc-line2);cursor:pointer}
+            #rr-ivcal .oc-dh .dow{font-size:14px;font-weight:600;color:var(--oc-sub);letter-spacing:.01em}
             #rr-ivcal .oc-dh .dn{font-size:17px;font-weight:600;color:var(--oc-ink);line-height:1.1}
             #rr-ivcal .oc-dh.today .dn{color:#fff;background:var(--oc-blue);width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
-            #rr-ivcal .oc-dh.today .dow{color:var(--oc-blue)}
+            #rr-ivcal .oc-dh.today .dow{color:var(--oc-blue);font-weight:800}
             #rr-ivcal .oc-scroll{overflow-y:auto;height:580px}
             #rr-ivcal .oc-grid{display:grid;grid-template-columns:50px repeat(var(--days),1fr);position:relative}
             #rr-ivcal .oc-gutter{position:relative}
@@ -36800,7 +36800,7 @@ John,Smith,555-0101,john@example.com</code>
 <script src="./desktop-connect.js?v=20260607b"></script>
 <script src="./fleet-sync.js?v=20260606d"></script>
 <script src="./admin-crawl-tasks.js?v=20260606a"></script>
-<script type="module" src="./live.js?v=20260608-oc23"></script>
+<script type="module" src="./live.js?v=20260608-oc24"></script>
 
 <!-- ─── PWA · service-worker registration + install button ────────────
      Registers /dashboard/sw.js (scope: /dashboard/). The driver PWA

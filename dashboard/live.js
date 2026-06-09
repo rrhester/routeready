@@ -16402,8 +16402,6 @@ function _ivcalRender() {
           <span class="oc-period">${escapeHtml(_ivcalPeriodLabel())}</span>
           ${_ivcalView === "month" ? "" : `<div class="oc-seg oc-zoom" title="Time scale — make slots bigger or smaller"><button data-ivcal-zoom="-8" aria-label="Smaller time slots">−</button><button data-ivcal-zoom="8" aria-label="Bigger time slots">＋</button></div>`}
           <span class="oc-sp"></span>
-          <span class="oc-search">🔎<input type="text" data-ivcal-search placeholder="Search"></span>
-          <div class="oc-filters">${flt("interview","Interviews","blue")}${flt("orientation","Orientation","green")}${flt("event","Events","blue")}${flt("session","Sessions","teal")}</div>
         </div>
         ${inner}
       </div>
@@ -16428,15 +16426,6 @@ function _ivcalRender() {
     _ivcalView = "week"; _ivcalAnchor = new Date(Y, M - 1, D); _ivcalMiniAnchor = null; _ivcalRender();
   });
   host.querySelector("[data-ivcal-new]")?.addEventListener("click", () => _ivcalNewEvent(_ivcalISODate(new Date()), 9*60, 9*60+30));
-  host.querySelectorAll("[data-ivcal-filter]").forEach(cb => cb.onchange = () => { _ivcalFilters[cb.getAttribute("data-ivcal-filter")] = cb.checked; _ivcalRender(); });
-  const searchInp = host.querySelector("[data-ivcal-search]");
-  if (searchInp) searchInp.addEventListener("input", () => {
-    const q = searchInp.value.trim().toLowerCase();
-    host.querySelectorAll("[data-ivcal-id]").forEach(el => {
-      const txt = ((el.getAttribute("title") || "") + " " + el.textContent).toLowerCase();
-      el.style.display = (!q || txt.includes(q)) ? "" : "none";
-    });
-  });
 
   // Event interactions: single-click → reading pane; right-click → context
   // menu; hover → preview card.
@@ -17334,7 +17323,7 @@ function _ivcalTimeGrid(ndays) {
   let head = `<div class="oc-corner"></div>`;
   head += days.map(d => {
     const isToday = d.getTime() === today.getTime();
-    return `<div class="oc-dh${isToday?" today":""}"><div class="dow">${_IVCAL_DOW[d.getDay()]}</div><div class="dn">${d.getDate()}</div></div>`;
+    return `<div class="oc-dh${isToday?" today":""}"><div class="dow">${d.toLocaleDateString(undefined,{weekday:"long"})}</div><div class="dn">${d.getDate()}</div></div>`;
   }).join("");
 
   let gutter = "";
