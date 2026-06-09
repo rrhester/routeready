@@ -17457,6 +17457,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
   }
 
   m.addEventListener("click", async (e) => {
+   try {
     const winBtn = e.target.closest("[data-ne-win]");
     if (winBtn) {
       const w = winBtn.getAttribute("data-ne-win");
@@ -17612,6 +17613,13 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         if (btn) btn.style.opacity = "";
       }
     }
+   } catch (editorErr) {
+     // Any otherwise-silent error in the editor (e.g. a thrown exception in
+     // the Save/Send path) now surfaces instead of looking like "nothing
+     // happened" when the button is clicked.
+     console.error("[event editor] action failed:", editorErr);
+     toast("Couldn't complete that: " + ((editorErr && editorErr.message) || editorErr), "warn");
+   }
   });
 }
 
