@@ -2524,7 +2524,12 @@ window.goto = function (view) {
   }
   if (view === "onboarding-ops") {
     if (_pipeSub) { loadOnboardingOps({ keepTab: true }); if (typeof window.obSub === "function") window.obSub(_pipeSub); }
-    else loadOnboardingOps();
+    else {
+      // Opening the Onboarding page lands on the Calendar in Work Week view.
+      loadOnboardingOps({ keepTab: true });
+      _ivcalView = "workweek";
+      if (typeof window.obSub === "function") window.obSub("calendar");
+    }
   }
   if (view === "checkin")   loadCheckinView();
   if (view === "dashboard") { loadTodayPlan(); _toFetchPendingCount(); }
@@ -16198,7 +16203,7 @@ async function loadCalendarTab() {
 // A RouteReady-owned calendar (no library, no Google embed) showing this DSP's
 // interview availability (shaded) plus booked interviews, orientations, and
 // one-off group sessions. Rendered in browser-local time (operator ≈ DSP tz).
-let _ivcalView = "week";
+let _ivcalView = "workweek";
 let _ivcalAnchor = new Date();
 let _ivcalMiniAnchor = null; // month shown in the mini date navigator (null = follow anchor)
 let _ivcalCache = null; // { tz, windows, sessions, bookings }
