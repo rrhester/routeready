@@ -12525,7 +12525,12 @@ body.rr-cmdk-open{ overflow:hidden }
             /* mini-calendar date navigator (two months + week numbers) */
             /* Width matches the Schedule's 240px driver column so the two
                views line up visually. */
-            #rr-ivcal .oc-side{flex:0 0 240px;border-right:1px solid var(--oc-colsep);background:var(--oc-surface-2);overflow-y:auto;padding:12px 12px}
+            #rr-ivcal .oc-side{flex:0 0 240px;border-right:1px solid var(--oc-colsep);background:var(--oc-surface-2);overflow-y:auto;padding:12px 12px;position:relative}
+            /* Collapse "«" in the panel's top-right corner. */
+            #rr-ivcal .oc-side-x{position:absolute;top:7px;right:7px;z-index:3;width:22px;height:22px;border:0;background:transparent;cursor:pointer;color:var(--oc-sub);font-size:15px;line-height:1;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;transition:background var(--t-fast),color var(--t-fast)}
+            #rr-ivcal .oc-side-x:hover{background:var(--oc-hover);color:var(--oc-blue)}
+            /* Command-bar panel toggle · highlighted when the panel is pinned open. */
+            #rr-ivcal .oc-side-toggle.on{color:var(--oc-blue);background:rgba(15,108,189,.10);border-color:rgba(15,108,189,.28)}
             #rr-ivcal .oc-mini{margin-bottom:12px}
             #rr-ivcal .oc-mini-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
             #rr-ivcal .oc-mini-title{font-size:15px;font-weight:800;color:var(--oc-ink);letter-spacing:.01em}
