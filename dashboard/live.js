@@ -16291,21 +16291,92 @@ function _ivcalMyCalendars() {
   </div>`;
 }
 
-// Google Calendar connect/status row in My Calendars. Reuses the existing
-// OAuth flow; status comes from _ivcalCache.gcal (google_calendar_status RPC).
-// Event overlay is a planned follow-up — this is connect/status only for now.
+// Google Calendar in My Calendars. Reuses the existing OAuth flow; status comes
+// from _ivcalCache.gcal (google_calendar_status RPC). When connected + toggled
+// on, the DSP's Google events are fetched (google-calendar-events edge fn) and
+// overlaid read-only on the grid in the Google color.
 const _IVCAL_GOOGLE_ICON = `<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.23 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg>`;
+const _IVCAL_GOOGLE_COLOR = "#0B8043"; // Google green — distinct from the interview blue
 function _ivcalGoogleRow() {
   const g = _ivcalCache && _ivcalCache.gcal;
   const connected = !!(g && g.connected);
   const head = `<div class="oc-cals-sub">Google Calendar</div>`;
   if (connected) {
+    const on = _ivcalCalVis["google"] !== false;
     return head + `<div class="oc-cal-row oc-gcal-row">
-      <span class="oc-cal-lbl"><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span><span class="oc-cal-name" title="${escapeHtml(g.email||"")}">${escapeHtml(g.email||"Connected")}</span></span>
+      <label class="oc-cal-lbl"><input type="checkbox" data-ivcal-cal="google"${on?" checked":""}><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span><span class="oc-cal-name" title="${escapeHtml(g.email||"")}">${escapeHtml(g.email||"Google")}</span></label>
       <button class="oc-cal-menu" data-ivcal-gcal="disconnect" title="Disconnect Google Calendar" aria-label="Disconnect Google Calendar">⋯</button>
     </div>`;
   }
   return head + `<button class="oc-gcal-connect" data-ivcal-gcal="connect"><span class="oc-gcal-ico">${_IVCAL_GOOGLE_ICON}</span>Connect Google Calendar</button>`;
+}
+
+// ── Google event overlay ───────────────────────────────────────────────────
+let _ivcalGoogleLoading = false;
+let _ivcalGoogleAttempt = null;       // { minMs, maxMs } of the last fetched window
+function _ivcalGoogleVisible() {
+  const g = _ivcalCache && _ivcalCache.gcal;
+  return !!(g && g.connected) && _ivcalCalVis["google"] !== false;
+}
+function _ivcalGoogleNeededRange() {
+  const r = _ivcalViewRange();
+  const s = new Date(r.start); s.setHours(0, 0, 0, 0);
+  const e = new Date(r.end);   e.setHours(0, 0, 0, 0);
+  return { minMs: s.getTime() - 7 * 864e5, maxMs: e.getTime() + 14 * 864e5 };
+}
+// Fetch the visible window's Google events when needed. Guarded so it can't
+// loop on re-render: a window is fetched at most once unless we navigate
+// outside it or the toggle/connection changes. Called at the end of render.
+function _ivcalEnsureGoogle() {
+  if (!_ivcalCache) return;
+  if (!_ivcalGoogleVisible()) {
+    if ((_ivcalCache.googleEvents && _ivcalCache.googleEvents.length) || _ivcalGoogleAttempt) {
+      _ivcalCache.googleEvents = []; _ivcalGoogleAttempt = null; _ivcalRender();
+    }
+    return;
+  }
+  const need = _ivcalGoogleNeededRange();
+  const a = _ivcalGoogleAttempt;
+  if (a && need.minMs >= a.minMs && need.maxMs <= a.maxMs) return; // already covered
+  if (_ivcalGoogleLoading) return;
+  _ivcalGoogleLoading = true;
+  const minMs = need.minMs - 21 * 864e5, maxMs = need.maxMs + 21 * 864e5;
+  _ivcalGoogleAttempt = { minMs, maxMs };  // set before await so a failure won't loop
+  sb.functions.invoke("google-calendar-events", {
+    body: { timeMin: new Date(minMs).toISOString(), timeMax: new Date(maxMs).toISOString() },
+  }).then(({ data, error }) => {
+    if (error) throw error;
+    if (data && data.error) throw new Error(data.error);
+    const evs = (data && data.events) || [];
+    // sortAt buckets all-day dates onto the right LOCAL day (noon avoids tz drift).
+    _ivcalCache.googleEvents = evs
+      .map(ge => ({ ...ge, sortAt: (ge.allDay && ge.start) ? (ge.start + "T12:00:00") : ge.start }))
+      .filter(ge => ge.sortAt);
+  }).catch(e => {
+    console.warn("google events load failed:", (e && e.message) || e);
+  }).finally(() => {
+    _ivcalGoogleLoading = false; _ivcalRender();
+  });
+}
+// Read-only Google event block for the time grid. allDayIdx >= 0 stacks all-day
+// chips at the top of the day column.
+function _ivcalGoogleBlock(ge, allDayIdx) {
+  const label = ge.title || "(busy)";
+  const link = ge.htmlLink || "";
+  if (ge.allDay) {
+    const top = (allDayIdx >= 0 ? allDayIdx : 0) * 19;
+    return `<div class="oc-ev oc-ev-google oc-ev-gallday" data-ivcal-glink="${escapeHtml(link)}" style="top:${top}px;height:17px" title="${escapeHtml(label + " · all day · Google")}"><div class="en">${escapeHtml(label)}</div></div>`;
+  }
+  const s = new Date(ge.start);
+  const e = ge.end ? new Date(ge.end) : new Date(s.getTime() + 30 * 60000);
+  const top = _ivcalYpos(s.getHours() * 60 + s.getMinutes());
+  const bot = _ivcalYpos(e.getHours() * 60 + e.getMinutes());
+  const h = Math.max(16, bot - top);
+  const time = s.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const inner = (h < 30)
+    ? `<div class="en"><span class="et">${escapeHtml(time)}</span> ${escapeHtml(label)}</div>`
+    : `<div class="et">${escapeHtml(time)}</div><div class="en">${escapeHtml(label)}</div>`;
+  return `<div class="oc-ev oc-ev-google" data-ivcal-glink="${escapeHtml(link)}" style="top:${top}px;height:${h}px" title="${escapeHtml(time + " · " + label + " · Google")}">${inner}</div>`;
 }
 
 // Open Google's OAuth consent (reuses the google-oauth-start edge function),
@@ -16473,6 +16544,9 @@ async function loadIvCalendar() {
       bookings: bookings,
       calendars: (c && !c.error && c.data) ? c.data : [],
       gcal: (g && !g.error && g.data) ? (Array.isArray(g.data) ? g.data[0] : g.data) : null,
+      // Carry overlaid Google events across refreshes so minor reloads don't
+      // refetch; _ivcalEnsureGoogle refetches only when the window/toggle changes.
+      googleEvents: (_ivcalCache && _ivcalCache.googleEvents) || [],
     };
   } catch (e) {
     if (firstLoad) host.innerHTML = `<div class="rr-iv-err">Couldn't load calendar: ${escapeHtml(e.message || String(e))}</div>`;
@@ -16669,6 +16743,10 @@ function _ivcalRender() {
     el.addEventListener("mouseenter", (e) => _ivcalHoverShow(e, el.getAttribute("data-ivcal-kind"), el.getAttribute("data-ivcal-id")));
     el.addEventListener("mouseleave", _ivcalHoverHide);
   });
+  // Read-only Google events open in Google Calendar.
+  host.querySelectorAll("[data-ivcal-glink]").forEach(el => {
+    el.addEventListener("click", (e) => { e.stopPropagation(); const u = el.getAttribute("data-ivcal-glink"); if (u) window.open(u, "_blank", "noreferrer"); });
+  });
 
   // Empty slot: single-click clears any selection; double-click → full editor.
   // (No quick-create popover — operators found the "Add a title" bubble noisy.)
@@ -16701,6 +16779,7 @@ function _ivcalRender() {
   if (sc) { if (_prevScroll != null) sc.scrollTop = _prevScroll; else if (_ivcalView !== "month") _ivcalAutoScroll(); else sc.scrollTop = 0; }
   _ivcalInstallKeys();
   _ivcalSyncStripView();
+  _ivcalEnsureGoogle();
 }
 
 // Highlight the active view tile on the strip (cleared when off-calendar).
@@ -17697,6 +17776,10 @@ function _ivcalTimeGrid(ndays) {
     let evs = "";
     for (const s of _ivcalDayItems(d, _ivcalCache.sessions, "starts_at")) evs += _ivcalEventBlock(s, "session");
     for (const b of _ivcalDayItems(d, _ivcalCache.bookings, "starts_at")) evs += _ivcalEventBlock(b, "booking");
+    if (_ivcalGoogleVisible()) {
+      let _gad = 0;
+      for (const ge of _ivcalDayItems(d, (_ivcalCache.googleEvents || []), "sortAt")) evs += _ivcalGoogleBlock(ge, ge.allDay ? _gad++ : -1);
+    }
     return `<div class="oc-col${isToday?" today":""}" data-ivcal-date="${_ivcalISODate(d)}" style="height:${gridH}px">${shade}${lines}${nowLine}${evs}</div>`;
   }).join("");
 
@@ -17721,8 +17804,15 @@ function _ivcalMonth() {
     const items = [];
     _ivcalDayItems(d, _ivcalCache.sessions, "starts_at").forEach(s => { if (_ivcalFilterOk(s,"session")) items.push({ t:new Date(s.starts_at), label:_ivcalEventLabel(s,"session"), cat:_ivcalCat(s,"session"), kind:"session", id:s.id, declined:false }); });
     _ivcalDayItems(d, _ivcalCache.bookings, "starts_at").forEach(b => { if (_ivcalFilterOk(b,"booking")) items.push({ t:new Date(b.starts_at), label:_ivcalEventLabel(b,"booking"), cat:_ivcalCat(b,"booking"), kind:"booking", id:b.id, declined:(b.rsvp==="declined"), color:_ivcalCalColor(b) }); });
+    if (_ivcalGoogleVisible()) {
+      _ivcalDayItems(d, (_ivcalCache.googleEvents || []), "sortAt").forEach(ge => { items.push({ t:new Date(ge.sortAt), label:ge.title || "(busy)", google:true, link:ge.htmlLink || "", allDay:ge.allDay }); });
+    }
     items.sort((x,y) => x.t - y.t);
     const pills = items.slice(0,4).map(it => {
+      if (it.google) {
+        const gtm = it.allDay ? "" : it.t.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+        return `<div class="oc-pill oc-pill-google" data-ivcal-glink="${escapeHtml(it.link)}" title="${escapeHtml((gtm?gtm+" ":"")+it.label+" · Google")}"><span class="oc-pdot" style="background:${_IVCAL_GOOGLE_COLOR}"></span>${escapeHtml(gtm?gtm+" ":"")}${escapeHtml(it.label)}</div>`;
+      }
       const tm = it.t.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
       const sel = _ivcalSelected && _ivcalSelected.kind === it.kind && String(_ivcalSelected.id) === String(it.id);
       const dotStyle = it.color ? ` style="background:${it.color}"` : "";
