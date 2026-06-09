@@ -13002,6 +13002,13 @@ body.rr-cmdk-open{ overflow:hidden }
         #view-onboarding-ops .ob-rules-foot.ob-rules-foot-shown[aria-expanded="true"]{
           opacity:1;color:var(--accent-text);background:var(--accent-soft);
         }
+        /* Funnel "Rules" · stretch the tile wrap to the full strip height (like
+           the Calendar view group) so the persistent Rules launcher sits on the
+           strip's BOTTOM line, centered under the Funnel tile — instead of
+           floating in the middle band. The button hugs the top via the column's
+           default top justification; only the absolute foot drops to the line. */
+        #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-funnel"]{ align-self:stretch; }
+        #view-onboarding-ops .ob-tab-wrap[data-rr-tile="ob-funnel"] .ob-rules-foot.ob-rules-foot-shown{ bottom:-4px; }
         /* Attendance policy popover · anchored to the Attendance
            tile's Rules footer. Same Fluent acrylic chrome as the
            Schedule van-rules / smart-fill popovers, but wider so
