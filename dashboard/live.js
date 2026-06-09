@@ -16876,6 +16876,7 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
         <div id="rr-ne-chips" style="display:none;flex-wrap:wrap;gap:6px"></div>
         <textarea id="rr-ne-body" placeholder="Add a message — Dictate to speak it, or Schedule Meeting to drop in the interview template" style="${fld};flex:1;min-height:160px;resize:none;line-height:1.5;font-family:Calibri,Arial,sans-serif;font-size:14px"></textarea>
         <span id="rr-ne-roomstate" style="font-size:12px;color:var(--text-subtle)">Creating video link…</span>
+        <div id="rr-ne-history" style="display:none"></div>
       </div>
       <input type="file" id="rr-ne-file" multiple style="display:none">
       <div class="rr-ne-pop" id="rr-ne-recur-pop" hidden>
@@ -16952,6 +16953,9 @@ Please use the Accept or Decline buttons below to confirm. We look forward to me
     document.getElementById("rr-ne-body").value = (ev0.metadata && ev0.metadata.note != null) ? String(ev0.metadata.note) : "";
     // Clear the attendee placeholders' relevance + relabel ribbon for editing.
     const sendTile = m.querySelector('[data-ne-act="send"] span'); if (sendTile) sendTile.textContent = "Update";
+    // Load the messages we've already sent for this event (booking
+    // confirmations, invites) so the operator can see the trail right here.
+    if (ev0.id) _ivcalLoadEventMessages(ev0.id, document.getElementById("rr-ne-history"));
   }
 
   // ── Window controls (minimize / restore-maximize / close) ──
@@ -17248,6 +17252,99 @@ function _ivcalEditEvent(kind, id) {
   const s = new Date(ev.starts_at);
   const e = ev.ends_at ? new Date(ev.ends_at) : new Date(s.getTime() + 30 * 60000);
   _ivcalNewEvent(_ivcalISODate(s), s.getHours() * 60 + s.getMinutes(), e.getHours() * 60 + e.getMinutes(), { kind, id, ev });
+}
+
+// Pull the email + SMS we've sent for a calendar event (linked via
+// cal_event_id) and render them as a "Messages sent" trail inside the event
+// editor. Outbound confirmations/invites — and any inbound replies that
+// routed back to the event — show with recipient, status, and full body.
+const _IVCAL_MSG_STATUS = {
+  queued:    { label: "Queued",    color: "#B45309", bg: "#FEF3C7" },
+  sending:   { label: "Sending",   color: "#B45309", bg: "#FEF3C7" },
+  sent:      { label: "Sent",      color: "#0F6CBD", bg: "#DBEAFE" },
+  delivered: { label: "Delivered", color: "#107C41", bg: "#DCFCE7" },
+  failed:    { label: "Failed",    color: "#B91C1C", bg: "#FEE2E2" },
+  received:  { label: "Received",  color: "#0E7C66", bg: "#CCFBF1" },
+};
+function _ivcalMsgWhen(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
+    " · " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+async function _ivcalLoadEventMessages(eventId, host) {
+  if (!host || !eventId) return;
+  host.style.display = "block";
+  host.innerHTML = `<div style="font-size:12px;color:var(--text-subtle);padding:6px 0">Loading messages…</div>`;
+  let emails = [], texts = [];
+  try {
+    const [em, sm] = await Promise.all([
+      sb.from("email_messages")
+        .select("id, direction, status, to_email, subject, body_text, error_message, sent_at, created_at")
+        .eq("cal_event_id", eventId).order("created_at", { ascending: true }),
+      sb.from("sms_messages")
+        .select("id, direction, status, to_phone, body, error_message, sent_at, created_at")
+        .eq("cal_event_id", eventId).order("created_at", { ascending: true }),
+    ]);
+    if (em.error) throw em.error;
+    if (sm.error) throw sm.error;
+    emails = em.data || [];
+    texts  = sm.data || [];
+  } catch (e) {
+    host.innerHTML = `<div style="font-size:12px;color:var(--red,#B91C1C);padding:6px 0">Couldn't load sent messages: ${escapeHtml(e.message || String(e))}</div>`;
+    return;
+  }
+
+  const items = [
+    ...emails.map(r => ({ ch: "email", id: r.id, direction: r.direction, status: r.status,
+      to: r.to_email, subject: r.subject, body: r.body_text, error: r.error_message,
+      when: r.sent_at || r.created_at, created: r.created_at })),
+    ...texts.map(r => ({ ch: "sms", id: r.id, direction: r.direction, status: r.status,
+      to: r.to_phone, subject: null, body: r.body, error: r.error_message,
+      when: r.sent_at || r.created_at, created: r.created_at })),
+  ].sort((a, b) => new Date(a.created) - new Date(b.created));
+
+  const head = `<div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--text-subtle);text-transform:uppercase;letter-spacing:.04em;margin:6px 0 2px">
+    <span>Messages sent</span><span style="font-weight:600;color:var(--text-muted)">${items.length || ""}</span></div>`;
+
+  if (!items.length) {
+    host.innerHTML = head + `<div style="font-size:13px;color:var(--text-subtle);padding:4px 0">No messages have been sent for this event yet.</div>`;
+    return;
+  }
+
+  const rowsHtml = items.map(it => {
+    const st = _IVCAL_MSG_STATUS[it.status] || { label: it.status || "—", color: "#7C8698", bg: "#F2F3F6" };
+    const icon = it.ch === "email" ? "✉" : "💬";
+    const inbound = it.direction === "inbound";
+    const dirLabel = inbound ? "Reply from" : "To";
+    const pill = `<span style="font-size:11px;font-weight:600;color:${st.color};background:${st.bg};border-radius:999px;padding:1px 8px;white-space:nowrap">${escapeHtml(st.label)}</span>`;
+    const subjLine = it.subject
+      ? `<div style="font-weight:600;color:var(--text);margin-top:2px">${escapeHtml(it.subject)}</div>` : "";
+    const body = (it.body || "").trim();
+    // Email confirmations/invites carry the calendar invite (.ics) attachment,
+    // which is the "shared meeting invite" — flag it so the operator knows it
+    // went out with the message.
+    const inviteNote = (it.ch === "email" && !inbound)
+      ? `<div style="font-size:12px;color:var(--green,#107C41);margin-top:4px">📅 Calendar invite (.ics) included</div>` : "";
+    const errNote = it.error
+      ? `<div style="font-size:12px;color:var(--red,#B91C1C);margin-top:4px">⚠ ${escapeHtml(it.error)}</div>` : "";
+    const bodyBlock = body
+      ? `<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:var(--accent-text,#0F6CBD)">View message</summary>
+           <div style="white-space:pre-wrap;font-size:13px;color:#3a3a45;background:var(--surface-secondary,#F2F3F6);border-radius:6px;padding:8px 10px;margin-top:4px">${escapeHtml(body)}</div></details>`
+      : "";
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:9px 11px;background:var(--surface)">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:14px">${icon}</span>
+        <span style="font-size:13px;color:var(--text-muted)">${escapeHtml(dirLabel)} <strong style="color:var(--text)">${escapeHtml(it.to || "—")}</strong></span>
+        <span style="flex:1"></span>
+        ${pill}
+        <span style="font-size:12px;color:var(--text-subtle)">${escapeHtml(_ivcalMsgWhen(it.when))}</span>
+      </div>
+      ${subjLine}${inviteNote}${errNote}${bodyBlock}
+    </div>`;
+  }).join("");
+
+  host.innerHTML = head + `<div style="display:flex;flex-direction:column;gap:8px">${rowsHtml}</div>`;
 }
 
 function _ivcalFilterOk(ev, type) {

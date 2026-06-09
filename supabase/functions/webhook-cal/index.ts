@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
       if (!applicantId) return jsonResponse({ ok: true, ignored: "no_applicant" });
       const meetingUrl = data.payload.location?.startsWith("http") ? data.payload.location : null;
       const location   = data.payload.location?.startsWith("http") ? null : data.payload.location;
-      await supa.rpc("book_event", {
+      const { data: booked } = await supa.rpc("book_event", {
         p_applicant_id: applicantId,
         p_kind: kind,
         p_starts_at: data.payload.startTime,
@@ -88,6 +88,10 @@ Deno.serve(async (req) => {
         p_location: location,
         p_timezone: data.payload.organizer?.timeZone ?? data.payload.attendees?.[0]?.timeZone ?? null,
       });
+      // book_event returns the cal_events row (single composite, but tolerate
+      // an array shape just in case) — we pass its id so the confirmation
+      // message is linked to the event and shows in the calendar detail.
+      const calEventId = Array.isArray(booked) ? booked?.[0]?.id ?? null : (booked as { id?: string } | null)?.id ?? null;
       // Replace cal.com's "interview between RouteReady and …" email
       // with our DSP-branded booking_confirmed template. Operator
       // disables cal.com's outgoing confirmation in event-type
@@ -97,6 +101,7 @@ Deno.serve(async (req) => {
         p_starts_at:    data.payload.startTime,
         p_meeting_url:  meetingUrl,
         p_location:     location,
+        p_cal_event_id: calEventId,
       });
       break;
     }
