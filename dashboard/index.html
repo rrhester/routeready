@@ -13864,34 +13864,38 @@ body.rr-cmdk-open{ overflow:hidden }
              caption + launcher can anchor to it, not the whole calendar
              ribbon (which would pull them off-center toward "New event"). */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup {
-            display: inline-flex; align-items: center; gap: 8px;
+            display: inline-flex; align-items: flex-start; gap: 8px;
             position: relative; flex: 0 0 auto;
+            /* Stretch to the full-height subnav (like Schedule's
+               .sched-v2-viewgroup inside .sched-v2-strip) so the Rules caption
+               + launcher anchor to the strip's BOTTOM line, not the short tile
+               cluster. Tiles still hug the top via align-items:flex-start. */
+            align-self: stretch;
           }
-          /* Rules footer · a positioning context spanning the view-tile group.
-             The caption and launcher position INDEPENDENTLY inside it (not a
-             shared centered flex row) so "Rules" centers under the whole
-             Day/Week/Work Week/Month group while the dialog-launcher pins to
-             the bottom-right by the hairline — exactly like Schedule's
-             "Go To" label + .sched-v2-group-launcher. */
+          /* Rules foot · transparent wrapper (display:contents) so the caption
+             and launcher position relative to the now-full-height
+             .rr-cal-viewgroup — its bottom edge is the strip's bottom line.
+             Exactly mirrors Schedule's "Go To" label + .sched-v2-group-launcher
+             (which anchor to the full-height .sched-v2-viewgroup at -4/-3px). */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-foot {
-            position: absolute; left: 0; right: 0; bottom: -6px; height: 14px;
-            display: block; pointer-events: none; z-index: 1;
+            display: contents;
           }
-          /* Caption · centered across the group on the bottom line. */
+          /* Caption · centered across the tile group, sitting on the strip's
+             bottom hairline. */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-cap {
-            position: absolute; left: 0; right: 0; bottom: 0;
+            position: absolute; left: 0; right: 0; bottom: -4px;
             text-align: center; font-size: 11px; font-weight: 800 !important;
             line-height: 1; letter-spacing: .01em; white-space: nowrap;
-            color: var(--text-subtle); pointer-events: none;
+            color: var(--text-subtle); pointer-events: none; z-index: 1;
           }
           /* Dialog-launcher · pinned bottom-right, pushed into the gap next to
              the hairline divider, on the same bottom line as the caption. */
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup .rr-cal-rules-launch {
-            position: absolute; right: -18px; bottom: -1px;
+            position: absolute; right: -18px; bottom: -3px;
             display: inline-flex; align-items: center; justify-content: center;
             appearance: none; border: 0; background: transparent; cursor: pointer;
             color: var(--text-subtle); padding: 1px 4px; margin: 0; border-radius: 999px;
-            pointer-events: auto; opacity: .85; z-index: 1;
+            pointer-events: auto; opacity: .85; z-index: 2;
             transition: color var(--t-fast), background var(--t-fast), opacity var(--t-fast);
           }
           #view-onboarding-ops #rr-cal-ribbon .rr-cal-viewgroup:hover .rr-cal-rules-launch {
